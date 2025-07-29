@@ -1,0 +1,16 @@
+
+line-length = 100
+fix = true
+indent-width = 2
+ignore = []
+exclude = [".venv", "venv", "build", "dist", "__pycache__", "tests"]
+
+[lint]
+select = ["ALL"]
+ignore = [
+  "PD",
+  "D203",
+  "D213",
+]
+pylint.max-args = 10
+

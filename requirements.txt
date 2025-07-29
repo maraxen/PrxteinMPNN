@@ -1,0 +1,5 @@
+jax
+jaxtyping
+jaxlib
+joblib
+git+https://github.com/maraxen/colabdesign.git

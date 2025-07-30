@@ -39,12 +39,14 @@ def minimal_model_parameters():
     if i > 0:
       prefix += f"_{i}"
     layer_name_suffix = f"enc{i}"
-    params[f"{prefix}/~/{layer_name_suffix}_W1"] = {"w": jnp.ones((8, 8)), "b": jnp.zeros((8,))}
+    params[f"{prefix}/~/{layer_name_suffix}_W1"] = {"w": jnp.ones((24, 8)), "b": jnp.zeros((8,))}
     params[f"{prefix}/~/{layer_name_suffix}_W2"] = {"w": jnp.ones((8, 8)), "b": jnp.zeros((8,))}
     params[f"{prefix}/~/{layer_name_suffix}_W3"] = {"w": jnp.ones((8, 8)), "b": jnp.zeros((8,))}
     params[f"{prefix}/~/{layer_name_suffix}_norm1"] = {
-      "scale": jnp.ones((8,)),
-      "offset": jnp.zeros((8,)),
+      "norm": {
+        "scale": jnp.ones((8,)),
+        "offset": jnp.zeros((8,)),
+      }
     }
     params[f"{prefix}/~/position_wise_feed_forward/~/{layer_name_suffix}_dense_W_in"] = {
       "w": jnp.ones((8, 8)),
@@ -55,15 +57,19 @@ def minimal_model_parameters():
       "b": jnp.zeros((8,)),
     }
     params[f"{prefix}/~/{layer_name_suffix}_norm2"] = {
-      "scale": jnp.ones((8,)),
-      "offset": jnp.zeros((8,)),
+      "norm": {
+        "scale": jnp.ones((8,)),
+        "offset": jnp.zeros((8,)),
+      }
     }
-    params[f"{prefix}/~/{layer_name_suffix}_W11"] = {"w": jnp.ones((16, 8)), "b": jnp.zeros((8,))}
+    params[f"{prefix}/~/{layer_name_suffix}_W11"] = {"w": jnp.ones((24, 8)), "b": jnp.zeros((8,))}
     params[f"{prefix}/~/{layer_name_suffix}_W12"] = {"w": jnp.ones((8, 8)), "b": jnp.zeros((8,))}
     params[f"{prefix}/~/{layer_name_suffix}_W13"] = {"w": jnp.ones((8, 8)), "b": jnp.zeros((8,))}
     params[f"{prefix}/~/{layer_name_suffix}_norm3"] = {
-      "scale": jnp.ones((16,)),
-      "offset": jnp.zeros((16,)),
+      "norm": {
+        "scale": jnp.ones((8,)),
+        "offset": jnp.zeros((8,)),
+      }
     }
   # For node feature initialization
   params["protein_mpnn/~/W_e"] = {"b": jnp.zeros((8,))}
@@ -130,6 +136,7 @@ def test_encoder_normalize_shapes(dummy_inputs, minimal_model_parameters):
   node_features, edge_features, neighbor_indices, mask, _ = dummy_inputs
   enc_pytree = encoder_parameter_pytree(minimal_model_parameters, num_encoder_layers=3)
   layer_params = jax.tree_util.tree_map(lambda x: x[0], enc_pytree)
+  print("Layer params:", layer_params)
   message = encode(node_features, edge_features, neighbor_indices, layer_params)
   node_out, edge_out = encoder_normalize(
     message,
@@ -143,6 +150,7 @@ def test_encoder_normalize_shapes(dummy_inputs, minimal_model_parameters):
   assert node_out.shape == node_features.shape
   assert edge_out.shape[0] == edge_features.shape[0]
   assert edge_out.shape[1] == edge_features.shape[1]
+  assert edge_out.shape[2] == 8 # Check output edge dimension
 
 
 @pytest.mark.parametrize(

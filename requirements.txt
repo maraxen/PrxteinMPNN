@@ -2,4 +2,7 @@ jax
 jaxtyping
 jaxlib
 joblib
+pytest
+flax
+biotite
 git+https://github.com/maraxen/colabdesign.git

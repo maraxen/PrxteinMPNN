@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
@@ -12,6 +12,8 @@ from prxteinmpnn.utils.gelu import GeLU
 from prxteinmpnn.utils.normalize import layer_normalization
 
 if TYPE_CHECKING:
+  from collections.abc import Callable
+
   from jaxtyping import Int
 
   from prxteinmpnn.utils.types import (

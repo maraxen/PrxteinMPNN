@@ -15,10 +15,8 @@ StructureAtomicCoordinates = Float[
 AtomMask = Int[Array, "num_residues num_atoms"]  # Masks for atoms in the structure
 AtomResidueIndex = Int[Array, "num_residues num_atoms"]  # Residue indices for atoms
 AtomChainIndex = Int[Array, "num_residues num_atoms"]  # Chain indices for atoms
-ModelParameters = PyTree[
-  str,
-  Float[Array, "parameters"],
-]  # Model parameters, e.g., weights
+Parameters = Float[Array, "num_parameters"]  # Model parameters
+ModelParameters = PyTree[str, "P"]
 Distances = Float[Array, "num_atoms num_neighbors"]  # Distances between nodes
 AtomIndexPair = Int[Array, "2"]  # Pairs of atom indices for edges
 AttentionMask = Bool[Array, "num_atoms num_atoms"]  # Attention mask for nodes
@@ -34,3 +32,7 @@ SequenceEdgeFeatures = Float[
   "num_residues num_neighbors num_features",
 ]  # Sequence edge features
 AutoRegressiveMask = Bool[Array, "num_residues num_residues"]  # Mask for autoregressive decoding
+InputBias = Float[Array, "num_residues num_classes"]  # Input bias for classification
+InputLengths = Int[Array, "num_sequences"]  # Lengths of input sequences
+BFactors = Float[Array, "num_residues num_atom_types"]  # B-factors for residues
+ResidueIndex = Int[Array, "num_residues"]  # Index of residues in the structure

@@ -53,11 +53,10 @@ def decoder_parameter_pytree(
 
   Args:
     model_parameters: Model parameters for the decoder.
-    edge_features: Edge features to initialize the node features.
     num_decoder_layers: Number of decoder layers to set up.
 
   Returns:
-    tuple: A tuple containing the decoder parameters as a PyTree and the initial node features.
+    Decoder parameters as a PyTree.
 
   """
   all_decoder_layer_params_list = []
@@ -83,7 +82,7 @@ def decoder_parameter_pytree(
   return jax.tree_util.tree_map(lambda *args: jnp.stack(args), *all_decoder_layer_params_list)
 
 
-@partial(jax.jit, static_argnames=("layer_params",))
+@jax.jit
 def initialize_conditional_decoder(
   sequence: Sequence,
   node_features: NodeFeatures,
@@ -98,16 +97,15 @@ def initialize_conditional_decoder(
     node_features: Node features of shape (num_atoms, num_features).
     edge_features: Edge features of shape (num_atoms, num_neighbors, num_features).
     neighbor_indices: Indices of neighboring nodes of shape (num_atoms, num_neighbors).
-    layer_params: Model parameters for the encoding layer.
+    layer_params: Model parameters for the embedding layer.
 
   Returns:
-    NodeFeatures: Initialized node features of shape (num_atoms, num_features).
+    A tuple of node-edge features and sequence-edge features.
 
   """
-  sequence_weights = layer_params["embed_token"]["W_s"]
+  sequence_weights = layer_params["protein_mpnn/~/embed_token"]["W_s"]
   embedded_sequence = sequence_weights[sequence]
 
-  # The rest of the function remains the same
   node_edge_features = concatenate_neighbor_nodes(
     jnp.zeros_like(node_features),
     edge_features,
@@ -126,7 +124,7 @@ def initialize_conditional_decoder(
   return node_edge_features, sequence_edge_features
 
 
-@partial(jax.jit, static_argnames=("layer_params",))
+@jax.jit
 def decode(
   node_features: NodeFeatures,
   edge_features: EdgeFeatures,
@@ -137,7 +135,6 @@ def decode(
   Args:
     node_features: Node features of shape (num_atoms, num_features).
     edge_features: Edge features of shape (num_atoms, num_neighbors, num_features).
-    neighbor_indices: Indices of neighboring nodes of shape (num_atoms, num_neighbors).
     layer_params: Model parameters for the encoding layer.
 
   Returns:
@@ -158,12 +155,11 @@ def decode(
     layer_params["W3"]["w"],
     layer_params["W3"]["b"],
   )
-  # Use the globally defined precise Gelu
   message = GeLU(jnp.dot(GeLU(jnp.dot(node_edge_features, w1) + b1), w2) + b2)
   return jnp.dot(message, w3) + b3
 
 
-@partial(jax.jit, static_argnames=("layer_params", "scale"))
+@partial(jax.jit, static_argnames=("scale",))
 def decoder_normalize(
   message: Message,
   node_features: NodeFeatures,
@@ -176,22 +172,20 @@ def decoder_normalize(
   Args:
     message: decoded messages of shape (num_atoms, num_neighbors, num_features).
     node_features: Node features of shape (num_atoms, num_features).
-    edge_features: Edge features of shape (num_atoms, num_neighbors, num_features).
-    neighbor_indices: Indices of neighboring nodes of shape (num_atoms, num_neighbors).
     mask: Atom mask indicating valid atoms.
     layer_params: Model parameters for the normalization layer.
     scale: Scaling factor for normalization.
 
   Returns:
-    tuple: Updated node features and edge features after normalization.
+    Updated node features after normalization.
 
   """
   node_features = node_features + (jnp.sum(message, -2) / scale)
   norm1_params = layer_params["norm1"]
-  node_features = layer_normalization(norm1_params, node_features)
+  node_features = layer_normalization(node_features, norm1_params)
   node_features = node_features + dense_layer(layer_params, node_features)
   norm2_params = layer_params["norm2"]
-  node_features = layer_normalization(norm2_params, node_features)
+  node_features = layer_normalization(node_features, norm2_params)
   return mask[:, None] * node_features
 
 
@@ -199,20 +193,21 @@ def make_decode_layer(
   attention_mask_enum: MaskedAttentionEnum,
 ) -> Callable[..., Message]:
   """Create a function to run the decoder with given model parameters."""
-  if attention_mask_enum is not MaskedAttentionEnum.CROSS:
+  if (
+    attention_mask_enum is MaskedAttentionEnum.NONE
+    or attention_mask_enum is MaskedAttentionEnum.CROSS
+  ):
 
     @jax.jit
-    def masked_attn_decoder_fn(
+    def decoder_fn(
       node_features: NodeFeatures,
       edge_features: EdgeFeatures,
       mask: AtomMask,
-      attention_mask: AttentionMask,
       layer_params: ModelParameters,
       scale: float = 30.0,
     ) -> Message:
       """Run the decoder with the provided edge features and neighbor indices."""
       message = decode(node_features, edge_features, layer_params)
-      message = mask_attention(message, attention_mask)
       return decoder_normalize(
         message,
         node_features,
@@ -221,18 +216,20 @@ def make_decode_layer(
         scale,
       )
 
-    return masked_attn_decoder_fn
+    return decoder_fn
 
   @jax.jit
-  def decoder_fn(
+  def masked_attn_decoder_fn(
     node_features: NodeFeatures,
     edge_features: EdgeFeatures,
     mask: AtomMask,
+    attention_mask: AttentionMask,
     layer_params: ModelParameters,
     scale: float = 30.0,
   ) -> Message:
     """Run the decoder with the provided edge features and neighbor indices."""
     message = decode(node_features, edge_features, layer_params)
+    message = mask_attention(message, attention_mask)
     return decoder_normalize(
       message,
       node_features,
@@ -241,7 +238,7 @@ def make_decode_layer(
       scale,
     )
 
-  return decoder_fn
+  return masked_attn_decoder_fn
 
 
 def setup_decoder(
@@ -259,6 +256,19 @@ def setup_decoder(
   return all_decoder_layer_params, decode_layer_fn
 
 
+def _check_enums(
+  attention_mask_enum: MaskedAttentionEnum,
+  decoding_enum: DecodingEnum,
+) -> None:
+  """Check if the provided enums are valid."""
+  if not isinstance(attention_mask_enum, MaskedAttentionEnum):
+    msg = f"Unknown attention mask enum: {attention_mask_enum}"
+    raise TypeError(msg)
+  if not isinstance(decoding_enum, DecodingEnum):
+    msg = f"Unknown decoding enum: {decoding_enum}"
+    raise TypeError(msg)
+
+
 def make_decoder(
   model_parameters: ModelParameters,
   attention_mask_enum: MaskedAttentionEnum,
@@ -267,6 +277,10 @@ def make_decoder(
   scale: float = 30.0,
 ) -> Callable[..., NodeFeatures]:
   """Create a function to run the decoder with given model parameters."""
+  _check_enums(
+    attention_mask_enum,
+    decoding_enum,
+  )
   all_decoder_layer_params, decode_layer_fn = setup_decoder(
     model_parameters,
     attention_mask_enum,
@@ -288,10 +302,10 @@ def make_decoder(
           i: Int,
           carry: NodeFeatures,
         ) -> NodeFeatures:
-          node_features = carry
+          loop_node_features = carry
           current_layer_params = jax.tree_util.tree_map(lambda x: x[i], all_decoder_layer_params)
           return decode_layer_fn(
-            node_features,
+            loop_node_features,
             edge_features,
             mask,
             current_layer_params,
@@ -302,7 +316,7 @@ def make_decoder(
           0,
           num_decoder_layers,
           decoder_loop_body,
-          (node_features,),
+          node_features,
         )
 
       return run_decoder
@@ -313,17 +327,17 @@ def make_decoder(
       edge_features: EdgeFeatures,
       mask: AtomMask,
       attention_mask: AttentionMask,
-    ) -> tuple[NodeFeatures, EdgeFeatures]:
+    ) -> NodeFeatures:
       """Run the decoder with the provided edge features and neighbor indices."""
 
       def decoder_loop_body(
         i: Int,
         carry: NodeFeatures,
       ) -> NodeFeatures:
-        node_features = carry
+        loop_node_features = carry
         current_layer_params = jax.tree_util.tree_map(lambda x: x[i], all_decoder_layer_params)
         return decode_layer_fn(
-          node_features,
+          loop_node_features,
           edge_features,
           mask,
           attention_mask,
@@ -335,7 +349,7 @@ def make_decoder(
         0,
         num_decoder_layers,
         decoder_loop_body,
-        (node_features,),
+        node_features,
       )
 
     return run_masked_attention_decoder
@@ -355,8 +369,8 @@ def make_decoder(
         sequence,
         node_features,
         edge_features,
-        ar_mask,
-        all_decoder_layer_params,
+        neighbor_indices,
+        model_parameters,
       )
       attention_mask = jnp.take_along_axis(
         ar_mask,
@@ -364,25 +378,26 @@ def make_decoder(
         axis=1,
       )
       mask_bw = mask[:, None] * attention_mask
-      mask_fw = mask[:, None] * (1 - attention_mask)  # TODO: double check this logic
+      mask_fw = mask[:, None] * (1 - attention_mask)
       masked_node_edge_features = mask_fw[..., None] * node_edge_features
 
       def decoder_loop_body(
         i: Int,
         carry: NodeFeatures,
       ) -> NodeFeatures:
-        node_features = carry
+        loop_node_features = carry
         current_layer_params = jax.tree_util.tree_map(lambda x: x[i], all_decoder_layer_params)
         current_features = concatenate_neighbor_nodes(
-          node_features,
+          loop_node_features,
           sequence_edge_features,
           neighbor_indices,
         )
-        edge_features = (mask_bw[:, None] * current_features) + masked_node_edge_features
+        loop_edge_features = (mask_bw[..., None] * current_features) + masked_node_edge_features
         return decode_layer_fn(
-          node_features,
-          edge_features,
+          loop_node_features,
+          loop_edge_features,
           mask,
+          attention_mask,
           current_layer_params,
           scale,
         )
@@ -391,7 +406,7 @@ def make_decoder(
         0,
         num_decoder_layers,
         decoder_loop_body,
-        (node_features,),
+        node_features,
       )
 
     return run_conditional_decoder

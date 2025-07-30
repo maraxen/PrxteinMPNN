@@ -1,4 +1,7 @@
-"""GeLU activation function."""
+"""GeLU activation function.
+
+prxteinmpnn.utils.gelu
+"""
 
 from functools import partial
 

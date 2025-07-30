@@ -1,4 +1,7 @@
-"""Utility functions for manipulating atomic coordinates."""
+"""Utility functions for manipulating atomic coordinates.
+
+prxteinmpnn.utils.coordinates
+"""
 
 from functools import partial
 

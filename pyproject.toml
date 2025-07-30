@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "prxteinmpnn"
+version = "0.1.0"
+description = "PrxteinMPNN: A functional interface for ProteinMPNN"
+requires-python = ">=3.11"
+dependencies = [
+    "jax",
+    "jaxtyping",
+    "jaxlib",
+    "joblib",
+    "pytest",
+
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

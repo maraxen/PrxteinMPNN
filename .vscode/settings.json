@@ -1,0 +1,40 @@
+{
+  "python.testing.pytestArgs": [
+    "."
+  ],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true,
+  "cSpell.words": [
+    "AATYPE",
+    "ACEG",
+    "Angstroem",
+    "argnames",
+    "atomname",
+    "atomtype",
+    "bfactors",
+    "dgamma",
+    "ENDMDL",
+    "eznorm",
+    "FGHI",
+    "foldcomp",
+    "heteromer",
+    "heteromers",
+    "HHBLITS",
+    "homooligomer",
+    "homooligomers",
+    "jaxtyping",
+    "LDDT",
+    "linalg",
+    "mpnn",
+    "oligomer",
+    "oligomers",
+    "PRNG",
+    "prxteinmpnn",
+    "resname",
+    "resnames",
+    "restypes",
+    "searchsorted",
+    "traj",
+    "waals"
+  ]
+}

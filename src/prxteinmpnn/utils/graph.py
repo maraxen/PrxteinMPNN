@@ -1,4 +1,7 @@
-"""Graph utilities for the PrxteinMPNN model."""
+"""Graph utilities for the PrxteinMPNN model.
+
+prxteinmpnn.utils.graph
+"""
 
 import jax
 import jax.numpy as jnp

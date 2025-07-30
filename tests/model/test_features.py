@@ -31,11 +31,22 @@ def mock_model_parameters():
   pos_enc_dim = 2 * MAXIMUM_RELATIVE_FEATURES + 2
   pos_enc_out = 4
   edge_emb_out = 8
-  norm_dim = edge_emb_out
+
+  # CORRECTED: The RBF dimension is num_pairs * num_bases
+  num_rbf_bases = 16
+  num_atom_pairs = 25
+  rbf_dim = num_atom_pairs * num_rbf_bases  # 25 * 16 = 400
+
+  # CORRECTED: The total input dimension for the edge embedding layer
+  edge_in_dim = pos_enc_out + rbf_dim  # 4 + 400 = 404
+
   w_pos = jnp.ones((pos_enc_dim, pos_enc_out))
   b_pos = jnp.zeros((pos_enc_out,))
-  w_edge = jnp.ones((pos_enc_out + 3, edge_emb_out))  # +3 for mock rbf
+
+  # CORRECTED: Use the correct input dimension for the weight matrix
+  w_edge = jnp.ones((edge_in_dim, edge_emb_out))  # Shape (404, 8)
   b_edge = jnp.zeros((edge_emb_out,))
+
   scale = jnp.ones((edge_emb_out,))
   offset = jnp.zeros((edge_emb_out,))
   w_proj = jnp.ones((edge_emb_out, edge_emb_out))
@@ -50,8 +61,10 @@ def mock_model_parameters():
       "b": b_edge,
     },
     "protein_mpnn/~/protein_features/~/norm_edges": {
-      "scale": scale,
-      "offset": offset,
+      "norm": {
+        "scale": scale,
+        "offset": offset,
+      }
     },
     "protein_mpnn/~/W_e": {
       "w": w_proj,
@@ -120,7 +133,8 @@ def test_embed_edges(mock_model_parameters):
     AssertionError: If output shape is incorrect.
 
   """
-  edge_features = jnp.ones((2, 2, 7))  # 7 = pos_enc_out + 3 (mock rbf)
+  # CORRECTED: The feature dimension is 4 (pos enc) + 400 (rbf) = 404
+  edge_features = jnp.ones((2, 2, 404))
   params = mock_model_parameters
   embedded = embed_edges(edge_features, params)
   assert embedded.shape == (
@@ -156,13 +170,19 @@ def test_extract_features_shapes(mock_model_parameters):
     AssertionError: If output shapes are incorrect.
 
   """
-  # Minimal mock structure: 4 atoms, 3D coordinates
-  structure_coordinates = jnp.arange(4 * 3).reshape(4, 3).astype(jnp.float32)
+  num_residues = 4
+  atoms_per_residue = 4  # Mock N, CA, C, O
+  structure_coordinates = (
+    jnp.arange(num_residues * atoms_per_residue * 3)
+    .reshape(num_residues, atoms_per_residue, 3)
+    .astype(jnp.float32)
+  )
   mask = jnp.array([1, 1, 1, 1])
   residue_indices = jnp.array([0, 1, 2, 3])
   chain_indices = jnp.array([0, 0, 1, 1])
   prng_key = jax.random.PRNGKey(0)
   params = mock_model_parameters
+
   edge_features, neighbor_indices = extract_features(
     structure_coordinates,
     mask,
@@ -173,8 +193,9 @@ def test_extract_features_shapes(mock_model_parameters):
     k_neighbors=2,
     augment_eps=0.0,
   )
-  assert edge_features.shape[0] == 4
-  assert neighbor_indices.shape == (4, 2)
+
+  assert edge_features.shape[0] == num_residues
+  assert neighbor_indices.shape == (num_residues, 2)
   # Check that edge_features is finite
   assert jnp.all(jnp.isfinite(edge_features)), "Edge features contain non-finite values."
 
@@ -189,12 +210,19 @@ def test_extract_features_with_noise(mock_model_parameters):
     AssertionError: If output is not finite or shape is wrong.
 
   """
-  structure_coordinates = jnp.arange(4 * 3).reshape(4, 3).astype(jnp.float32)
+  num_residues = 4
+  atoms_per_residue = 4  # Mock N, CA, C, O
+  structure_coordinates = (
+    jnp.arange(num_residues * atoms_per_residue * 3)
+    .reshape(num_residues, atoms_per_residue, 3)
+    .astype(jnp.float32)
+  )
   mask = jnp.array([1, 1, 1, 1])
   residue_indices = jnp.array([0, 1, 2, 3])
   chain_indices = jnp.array([0, 0, 1, 1])
   prng_key = jax.random.PRNGKey(42)
   params = mock_model_parameters
+
   edge_features, neighbor_indices = extract_features(
     structure_coordinates,
     mask,
@@ -205,6 +233,6 @@ def test_extract_features_with_noise(mock_model_parameters):
     k_neighbors=2,
     augment_eps=0.1,
   )
-  assert edge_features.shape[0] == 4
-  assert neighbor_indices.shape == (4, 2)
+  assert edge_features.shape[0] == num_residues
+  assert neighbor_indices.shape == (num_residues, 2)
   assert jnp.all(jnp.isfinite(edge_features)), "Edge features contain non-finite values."

@@ -1,6 +1,6 @@
 """Score a given sequence on a structure using the ProteinMPNN model."""
 
-from typing import Callable
+from collections.abc import Callable
 
 import jax
 import jax.numpy as jnp
@@ -112,6 +112,6 @@ def make_score_sequence(
       sequence=sequence,
       model_parameters=mpnn_parameters,
     )
-    return jnp.sum(logits, axis=-1) / logits.shape[-1]
+    return jnp.sum(logits, axis=-1) / logits.shape[-1]  # FIGURE OUT WHAT SHOULD ACTUALLY GO HERE
 
   return score_sequence

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from functools import partial
 from typing import TYPE_CHECKING
 
 import jax
@@ -77,7 +76,7 @@ def encoder_parameter_pytree(
   )
 
 
-@partial(jax.jit, static_argnames=("layer_params",))
+@jax.jit
 def encode(
   node_features: NodeFeatures,
   edge_features: EdgeFeatures,
@@ -116,7 +115,7 @@ def encode(
   return jnp.dot(message, w3) + b3
 
 
-@partial(jax.jit, static_argnames=("layer_params", "scale"))
+@jax.jit
 def encoder_normalize(
   message: Message,
   node_features: NodeFeatures,
@@ -143,29 +142,29 @@ def encoder_normalize(
   """
   node_features = node_features + (jnp.sum(message, -2) / scale)
   norm1_params = layer_params["norm1"]
-  node_features = layer_normalization(norm1_params, node_features)
+  node_features = layer_normalization(node_features, norm1_params)
   node_features = node_features + dense_layer(layer_params, node_features)
   norm2_params = layer_params["norm2"]
-  node_features = layer_normalization(norm2_params, node_features)
+  node_features = layer_normalization(node_features, norm2_params)
   node_features = mask[:, None] * node_features
-  edge_features = concatenate_neighbor_nodes(node_features, edge_features, neighbor_indices)
+  edge_features_cat = concatenate_neighbor_nodes(node_features, edge_features, neighbor_indices)
   node_features_expand = jnp.tile(
     jnp.expand_dims(node_features, -2),
-    [1, edge_features.shape[-2], 1],
+    [1, edge_features_cat.shape[-2], 1],
   )
-  edge_features = jnp.concatenate([node_features_expand, edge_features], -1)
+  mlp_input = jnp.concatenate([node_features_expand, edge_features_cat], -1)
 
   w11, b11 = layer_params["W11"]["w"], layer_params["W11"]["b"]
   w12, b12 = layer_params["W12"]["w"], layer_params["W12"]["b"]
   w13, b13 = layer_params["W13"]["w"], layer_params["W13"]["b"]
 
-  message = GeLU(jnp.dot(GeLU(jnp.dot(edge_features, w11) + b11), w12) + b12)
-  message = jnp.dot(message, w13) + b13
+  edge_message = GeLU(jnp.dot(GeLU(jnp.dot(mlp_input, w11) + b11), w12) + b12)
+  edge_message = jnp.dot(edge_message, w13) + b13
 
   norm3_params = layer_params["norm3"]
-  edge_features = layer_normalization(norm3_params, edge_features + message)
+  updated_edge_features = layer_normalization(edge_features + edge_message, norm3_params)
 
-  return node_features, edge_features
+  return node_features, updated_edge_features
 
 
 def make_encode_layer(
@@ -267,7 +266,7 @@ def make_encoder(
       mask: AtomMask,
     ) -> tuple[NodeFeatures, EdgeFeatures]:
       """Run the encoder with the provided edge features and neighbor indices."""
-      node_features_encoder = initialize_node_features(all_encoder_layer_params, edge_features)
+      node_features_encoder = initialize_node_features(model_parameters, edge_features)
 
       def encoder_loop_body(
         i: Int,
@@ -302,7 +301,7 @@ def make_encoder(
     attention_mask: AttentionMask,
   ) -> tuple[NodeFeatures, EdgeFeatures]:
     """Run the encoder with the provided edge features and neighbor indices."""
-    node_features_encoder = initialize_node_features(all_encoder_layer_params, edge_features)
+    node_features_encoder = initialize_node_features(model_parameters, edge_features)
 
     def encoder_loop_body(
       i: Int,

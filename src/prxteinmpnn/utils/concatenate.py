@@ -1,4 +1,7 @@
-"""Concatenation utilities."""
+"""Concatenation utilities.
+
+prxteinmpnn.utils.concatenate
+"""
 
 import jax
 import jax.numpy as jnp

@@ -109,7 +109,7 @@ def extract_features(
   distances_masked = jnp.array(
     jnp.where(
       (mask[:, None] * mask[None, :]).astype(bool),
-      distances,
+      distances[..., 1],
       jnp.inf,
     ),
   )
@@ -129,9 +129,7 @@ def extract_features(
   edges = jnp.concatenate([encoded_positions, rbf], axis=-1)
   edge_features = embed_edges(edges, mpnn_parameters)
   norm_edge_params = mpnn_parameters["protein_mpnn/~/protein_features/~/norm_edges"]
-  scale = norm_edge_params["scale"]
-  offset = norm_edge_params["offset"]
-  edge_features = layer_normalization(edge_features, scale, offset)
+  edge_features = layer_normalization(edge_features, norm_edge_params)
   return edge_features, neighbor_indices
 
 

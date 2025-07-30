@@ -1,4 +1,7 @@
-"""Utilities for autoregression."""
+"""Utilities for autoregression.
+
+prxteinmpnn.utils.autoregression
+"""
 
 from .types import AtomMask, DecodingOrder
 

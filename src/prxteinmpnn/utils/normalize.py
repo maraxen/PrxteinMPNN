@@ -1,4 +1,7 @@
-"""Layer normalization utilities."""
+"""Layer normalization utilities.
+
+prxteinmpnn.utils.normalize
+"""
 
 from __future__ import annotations
 
@@ -19,7 +22,7 @@ ScaleConstant = Float[Array, "C"]  # Scale parameter for normalization
 OffsetConstant = Float[Array, "C"]  # Offset parameter for normalization
 
 
-@jax.jit
+@partial(jax.jit, static_argnames=("axis", "eps"))
 def layer_normalization(
   x: Array,
   layer_parameters: ModelParameters,

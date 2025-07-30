@@ -1,4 +1,7 @@
-"""Dataclasses and enums for the PrxteinMPNN project."""
+"""Dataclasses and enums for the PrxteinMPNN project.
+
+prxteinmpnn.utils.data_structures
+"""
 
 from __future__ import annotations
 

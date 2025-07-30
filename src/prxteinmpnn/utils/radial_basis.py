@@ -1,4 +1,7 @@
-"""Radial basis functions for distance encoding."""
+"""Radial basis functions for distance encoding.
+
+prxteinmpnn.utils.radial_basis
+"""
 
 import jax
 import jax.numpy as jnp

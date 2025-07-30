@@ -38,10 +38,12 @@ def layer_normalization(
       The normalized tensor.
 
   """
+  scale = layer_parameters["norm"]["scale"]
+  offset = layer_parameters["norm"]["offset"]
   return normalize(
     x,
-    layer_parameters["norm"]["scale"],
-    layer_parameters["norm"]["offset"],
+    scale,
+    offset,
     axis=axis,
     eps=eps,
   )

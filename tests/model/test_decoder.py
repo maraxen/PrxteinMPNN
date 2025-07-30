@@ -93,10 +93,12 @@ class TestInitializeConditionalDecoder:
 
     # Mock layer params with embed_token
     layer_params = {
-      "embed_token": {
+      "protein_mpnn/~/embed_token": {
         "W_s": jnp.ones((10, 4)),  # vocab_size=10, embedding_dim=4
       },
     }
+    
+    layer_params = jax.tree_util.tree_map(lambda x: jnp.asarray(x, dtype=jnp.float32), layer_params)
 
     node_edge_features, sequence_edge_features = initialize_conditional_decoder(
       sequence,
@@ -143,11 +145,12 @@ class TestDecoderNormalize:
 
     # Mock layer params
     layer_params = {
-      "norm1": {"scale": jnp.ones(4), "offset": jnp.zeros(4)},
-      "norm2": {"scale": jnp.ones(4), "offset": jnp.zeros(4)},
-      "dense_W_in": jnp.ones((4, 8)),
-      "dense_W_out": jnp.ones((8, 4)),
+      "norm1": {"norm": {"scale": jnp.ones(4), "offset": jnp.zeros(4)}},
+      "norm2": {"norm": {"scale": jnp.ones(4), "offset": jnp.zeros(4)}},
+      "dense_W_in": {"w": jnp.ones((4, 8)), "b": jnp.zeros(8)},
+      "dense_W_out": {"w": jnp.ones((8, 4)), "b": jnp.zeros(4)},
     }
+    
 
     result = decoder_normalize(message, node_features, mask, layer_params)
 
@@ -243,10 +246,18 @@ class TestMakeDecoder:
     class InvalidEnum:
       pass
 
-    with pytest.raises(ValueError, match="Unknown decoding enum"):
+    with pytest.raises(TypeError, match="Unknown decoding enum: *"):
       make_decoder(
         model_params,
         MaskedAttentionEnum.NONE,
         InvalidEnum(),  # type: ignore[arg-type]
+        num_decoder_layers=1,
+      )
+    
+    with pytest.raises(TypeError, match="Unknown attention mask enum: *"):
+      make_decoder(
+        model_params,
+        InvalidEnum(),  # type: ignore[arg-type]
+        DecodingEnum.UNCONDITIONAL,
         num_decoder_layers=1,
       )

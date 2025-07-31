@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import partial
 from typing import TYPE_CHECKING
 
@@ -10,25 +11,23 @@ import jax.numpy as jnp
 
 from prxteinmpnn.utils.gelu import GeLU
 from prxteinmpnn.utils.normalize import layer_normalization
+from prxteinmpnn.utils.types import (
+  AtomMask,
+  AttentionMask,
+  AutoRegressiveMask,
+  EdgeFeatures,
+  Message,
+  ModelParameters,
+  NeighborIndices,
+  NodeEdgeFeatures,
+  NodeFeatures,
+  Sequence,
+  SequenceEdgeFeatures,
+)
 
 if TYPE_CHECKING:
-  from collections.abc import Callable
-
   from jaxtyping import Int
 
-  from prxteinmpnn.utils.types import (
-    AtomMask,
-    AttentionMask,
-    AutoRegressiveMask,
-    EdgeFeatures,
-    Message,
-    ModelParameters,
-    NeighborIndices,
-    NodeEdgeFeatures,
-    NodeFeatures,
-    Sequence,
-    SequenceEdgeFeatures,
-  )
 
 import enum
 
@@ -43,6 +42,60 @@ class DecodingEnum(enum.Enum):
 
   CONDITIONAL = "conditional"
   UNCONDITIONAL = "unconditional"
+
+
+DecodeMessageInputs = tuple[
+  NodeFeatures,
+  EdgeFeatures,
+  ModelParameters,
+]
+DecodeMessageFn = Callable[[*DecodeMessageInputs], Message]
+
+DecoderNormalizeInputs = tuple[
+  Message,
+  NodeFeatures,
+  AtomMask,
+  ModelParameters,
+  float,
+]
+DecoderNormalizeFn = Callable[[*DecoderNormalizeInputs], NodeFeatures]
+
+MaskedAttentionDecoderInputs = tuple[
+  NodeFeatures,
+  EdgeFeatures,
+  AtomMask,
+  AttentionMask,
+  ModelParameters,
+  float,
+]
+MaskedAttentionDecoderFn = Callable[[*MaskedAttentionDecoderInputs], NodeFeatures]
+DecoderInputs = tuple[
+  NodeFeatures,
+  EdgeFeatures,
+  AtomMask,
+  ModelParameters,
+  float,
+]
+DecoderFn = Callable[[*DecoderInputs], NodeFeatures]
+
+RunDecoderInputs = tuple[NodeFeatures, EdgeFeatures, AtomMask]
+RunDecoderFn = Callable[[*RunDecoderInputs], NodeFeatures]
+RunMaskedAttentionDecoderInputs = tuple[
+  NodeFeatures,
+  EdgeFeatures,
+  AtomMask,
+  AttentionMask,
+]
+RunMaskedAttentionDecoderFn = Callable[[*RunMaskedAttentionDecoderInputs], NodeFeatures]
+RunConditionalDecoderInputs = tuple[
+  NodeFeatures,
+  EdgeFeatures,
+  NeighborIndices,
+  AtomMask,
+  AutoRegressiveMask,
+  Sequence,
+]
+RunConditionalDecoderFn = Callable[[*RunConditionalDecoderInputs], NodeFeatures]
 
 
 def decoder_parameter_pytree(
@@ -125,7 +178,7 @@ def initialize_conditional_decoder(
 
 
 @jax.jit
-def decode(
+def decode_message(
   node_features: NodeFeatures,
   edge_features: EdgeFeatures,
   layer_params: ModelParameters,
@@ -191,7 +244,7 @@ def decoder_normalize(
 
 def make_decode_layer(
   attention_mask_enum: MaskedAttentionEnum,
-) -> Callable[..., Message]:
+) -> MaskedAttentionDecoderFn | DecoderFn:
   """Create a function to run the decoder with given model parameters."""
   if (
     attention_mask_enum is MaskedAttentionEnum.NONE
@@ -207,7 +260,7 @@ def make_decode_layer(
       scale: float = 30.0,
     ) -> Message:
       """Run the decoder with the provided edge features and neighbor indices."""
-      message = decode(node_features, edge_features, layer_params)
+      message = decode_message(node_features, edge_features, layer_params)
       return decoder_normalize(
         message,
         node_features,
@@ -228,7 +281,7 @@ def make_decode_layer(
     scale: float = 30.0,
   ) -> Message:
     """Run the decoder with the provided edge features and neighbor indices."""
-    message = decode(node_features, edge_features, layer_params)
+    message = decode_message(node_features, edge_features, layer_params)
     message = mask_attention(message, attention_mask)
     return decoder_normalize(
       message,
@@ -275,7 +328,7 @@ def make_decoder(
   decoding_enum: DecodingEnum = DecodingEnum.UNCONDITIONAL,
   num_decoder_layers: int = 3,
   scale: float = 30.0,
-) -> Callable[..., NodeFeatures]:
+) -> RunDecoderFn | RunMaskedAttentionDecoderFn | RunConditionalDecoderFn:
   """Create a function to run the decoder with given model parameters."""
   _check_enums(
     attention_mask_enum,

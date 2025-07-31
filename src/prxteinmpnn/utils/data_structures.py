@@ -55,15 +55,6 @@ class ProteinStructure:
   b_factors: BFactors
 
 
-class OligomerType(enum.Enum):
-  """Enum for different types of oligomers."""
-
-  MONOMER = "monomer"
-  HETEROMER = "heteromer"
-  HOMOOLIGOMER = "homooligomer"
-  TIED_HOMOOLIGOMER = "tied_homooligomer"
-
-
 @dataclass(frozen=True)
 class ModelInputs:
   """Dataclass for general model inputs.
@@ -86,3 +77,26 @@ class ModelInputs:
   bias: InputBias = field(default_factory=lambda: jnp.array([]))
   """Bias for the model input, used for classification tasks.
   Defaults to zero bias of shape (sum(lengths), 20)."""
+
+
+class OligomerType(enum.Enum):
+  """Enum for different types of oligomers."""
+
+  MONOMER = "monomer"
+  HETEROMER = "heteromer"
+  HOMOOLIGOMER = "homooligomer"
+  TIED_HOMOOLIGOMER = "tied_homooligomer"
+
+
+class SamplingEnum(enum.Enum):
+  """Enum for different sampling strategies."""
+
+  GREEDY = "greedy"
+  TOP_K = "top_k"
+  TOP_P = "top_p"
+  TEMPERATURE = "temperature"
+  BEAM_SEARCH = "beam_search"
+  STRAIGHT_THROUGH = "straight_through"
+
+  def __str__(self) -> str:
+    return self.value

@@ -10,7 +10,7 @@ import jax
 
 from prxteinmpnn.model.decoder import (
   DecodingEnum,
-  decode,
+  decode_message,
   decoder_normalize,
   decoder_parameter_pytree,
   initialize_conditional_decoder,
@@ -130,7 +130,7 @@ class TestDecode:
     
     layer_params = jax.tree_util.tree_map(lambda x: jnp.asarray(x, dtype=jnp.float32), layer_params)
 
-    result = decode(node_features, edge_features, layer_params)
+    result = decode_message(node_features, edge_features, layer_params)
 
     assert result.shape == (3, 2, 4)  # (num_atoms, num_neighbors, output_features)
 

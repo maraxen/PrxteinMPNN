@@ -1,6 +1,6 @@
 """Type definitions for the PrxteinMPNN project."""
 
-from jaxtyping import Array, Bool, Float, Int, PyTree
+from jaxtyping import Array, Bool, Float, Int, PRNGKeyArray, PyTree
 
 NodeFeatures = Int[Array, "num_atoms num_features"]  # Node features
 EdgeFeatures = Float[Array, "num_atoms num_neighbors num_features"]  # Edge features
@@ -36,3 +36,7 @@ InputBias = Float[Array, "num_residues num_classes"]  # Input bias for classific
 InputLengths = Int[Array, "num_sequences"]  # Lengths of input sequences
 BFactors = Float[Array, "num_residues num_atom_types"]  # B-factors for residues
 ResidueIndex = Int[Array, "num_residues"]  # Index of residues in the structure
+
+DecodingOrderInputs = tuple[PRNGKeyArray, int]
+DecodingOrderOutputs = tuple[DecodingOrder, PRNGKeyArray]
+CEELoss = Float[Array, ""]  # Cross-entropy loss

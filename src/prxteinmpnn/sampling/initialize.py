@@ -57,7 +57,6 @@ def sampling_encode(
   decoding_order_fn: DecodingOrderFn,
 ) -> SamplingModelPassFn:
   """Create a function to run a single pass through the encoder."""
-  decoding_order_fn = jax.jit(decoding_order_fn)
 
   @partial(jax.jit, static_argnames=("k_neighbors", "augment_eps"))
   def sample_model_pass(

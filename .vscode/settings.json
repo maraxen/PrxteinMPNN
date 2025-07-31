@@ -7,6 +7,7 @@
   "cSpell.words": [
     "AATYPE",
     "ACEG",
+    "allclose",
     "Angstroem",
     "argnames",
     "atomname",
@@ -25,8 +26,10 @@
     "homooligomer",
     "homooligomers",
     "jaxtyping",
+    "keepdims",
     "LDDT",
     "linalg",
+    "marielle",
     "mpnn",
     "oligomer",
     "oligomers",
@@ -35,8 +38,10 @@
     "resname",
     "resnames",
     "restypes",
+    "rtol",
     "searchsorted",
     "traj",
+    "vmap",
     "waals"
   ]
 }

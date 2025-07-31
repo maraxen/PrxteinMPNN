@@ -34,11 +34,10 @@ SamplingStepState = tuple[
   Logits,
 ]
 SamplingStepInput = tuple[int, SamplingStepState]
-SamplingStepOutput = tuple[SamplingStepState, None]
 
 SamplingStepFn = Callable[
   [*SamplingStepInput],
-  SamplingStepOutput,
+  SamplingStepState,
 ]
 
 
@@ -51,7 +50,7 @@ def sample_temperature_step(
   autoregressive_mask: AutoRegressiveMask,
   model_parameters: ModelParameters,
   custom_parameter: float = 1.0,
-) -> tuple[SamplingStepState, None]:
+) -> SamplingStepState:
   """Single autoregressive sampling step with temperature scaling.
 
   Args:
@@ -115,7 +114,7 @@ def sample_temperature_step(
   sequence = sequence.at[i].set(s_i)
   logits = logits.at[i].set(logits_i)
 
-  return (next_prng_key, edge_features, node_features, sequence, logits), None
+  return next_prng_key, edge_features, node_features, sequence, logits
 
 
 DEFAULT_LEARNING_RATE = 1e-2
@@ -130,7 +129,7 @@ def sample_straight_through_estimator_step(
   autoregressive_mask: AutoRegressiveMask,
   model_parameters: ModelParameters,
   custom_parameter: float = DEFAULT_LEARNING_RATE,
-) -> tuple[SamplingStepState, None]:
+) -> SamplingStepState:
   """Single autoregressive sampling step with straight-through estimator.
 
   Args:
@@ -190,7 +189,7 @@ def sample_straight_through_estimator_step(
   ste_logits = initial_logits - learning_rate * grad
 
   updated_sequence = ste_logits.argmax(axis=-1)
-  return (prng_key, edge_features, new_node_features, updated_sequence, final_logits), None
+  return prng_key, edge_features, new_node_features, updated_sequence, final_logits
 
 
 def preload_sampling_step_decoder(

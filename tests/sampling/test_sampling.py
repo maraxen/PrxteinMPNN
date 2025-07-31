@@ -23,15 +23,15 @@ def test_preload_sampling_step_decoder():
 
   # Test Temperature sampling
   preloaded_fn_temp = preload_sampling_step_decoder(mock_decoder, SamplingEnum.TEMPERATURE)
-  sampling_step_fn_temp = preloaded_fn_temp(None, None, None, None, 1.0)
-  assert sampling_step_fn_temp.func is sample_temperature_step
+  sampling_step_fn_temp = preloaded_fn_temp(None, None, None, None, 1.0)  # type: ignore[call-arg]
+  assert sampling_step_fn_temp.func is sample_temperature_step  # type: ignore[attr-defined]
 
   # Test Straight-Through sampling
   preloaded_fn_ste = preload_sampling_step_decoder(
     mock_decoder, SamplingEnum.STRAIGHT_THROUGH
   )
-  sampling_step_fn_ste = preloaded_fn_ste(None, None, None, None, 0.01) # Example learning rate
-  assert sampling_step_fn_ste.func is sample_straight_through_estimator_step
+  sampling_step_fn_ste = preloaded_fn_ste(None, None, None, None, 0.01)  # type: ignore[call-arg]
+  assert sampling_step_fn_ste.func is sample_straight_through_estimator_step  # type: ignore[attr-defined]
 
   # Test unimplemented strategies
   with pytest.raises(NotImplementedError):

@@ -251,7 +251,7 @@ def make_decode_layer(
     or attention_mask_enum is MaskedAttentionEnum.CROSS
   ):
 
-    @jax.jit
+    @partial(jax.jit, static_argnames=("scale",))
     def decoder_fn(
       node_features: NodeFeatures,
       edge_features: EdgeFeatures,
@@ -271,7 +271,7 @@ def make_decode_layer(
 
     return decoder_fn
 
-  @jax.jit
+  @partial(jax.jit, static_argnames=("scale",))
   def masked_attn_decoder_fn(
     node_features: NodeFeatures,
     edge_features: EdgeFeatures,

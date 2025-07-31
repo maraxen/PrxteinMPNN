@@ -1,12 +1,13 @@
 """Score a given sequence on a structure using the ProteinMPNN model."""
 
 from collections.abc import Callable
+from typing import cast
 
 import jax
 import jax.numpy as jnp
 from jaxtyping import Float, PRNGKeyArray
 
-from prxteinmpnn.model.decoder import DecodingEnum, make_decoder
+from prxteinmpnn.model.decoder import DecodingEnum, RunConditionalDecoderFn, make_decoder
 from prxteinmpnn.model.encoder import make_encoder
 from prxteinmpnn.model.features import extract_features, project_features
 from prxteinmpnn.model.final_projection import final_projection
@@ -25,6 +26,8 @@ from prxteinmpnn.utils.types import (
 
 def make_score_sequence(
   model_parameters: ModelParameters,
+  num_encoder_layers: int = 3,
+  num_decoder_layers: int = 3,
 ) -> Callable[
   [
     Sequence,
@@ -44,18 +47,22 @@ def make_score_sequence(
   encoder = make_encoder(
     model_parameters=model_parameters,
     attention_mask_enum=MaskedAttentionEnum.CROSS,
-    num_encoder_layers=3,
+    num_encoder_layers=num_encoder_layers,
   )
 
-  decoder = make_decoder(
-    model_parameters=model_parameters,
-    attention_mask_enum=MaskedAttentionEnum.NONE,
-    decoding_enum=DecodingEnum.CONDITIONAL,
-    num_decoder_layers=3,
+  decoder: RunConditionalDecoderFn = cast(
+    "RunConditionalDecoderFn",
+    make_decoder(
+      model_parameters=model_parameters,
+      attention_mask_enum=MaskedAttentionEnum.NONE,
+      decoding_enum=DecodingEnum.CONDITIONAL,
+      num_decoder_layers=num_decoder_layers,
+    ),
   )
 
   @jax.jit
   def score_sequence(
+    prng_key: PRNGKeyArray,
     sequence: Sequence,
     decoding_order: DecodingOrder,
     mpnn_parameters: ModelParameters,
@@ -63,7 +70,6 @@ def make_score_sequence(
     mask: AtomMask,
     residue_indices: AtomResidueIndex,
     chain_indices: AtomChainIndex,
-    prng_key: PRNGKeyArray,
     k_neighbors: int = 48,
     augment_eps: float = 0.0,
   ) -> Float:
@@ -100,12 +106,12 @@ def make_score_sequence(
     )
 
     node_features = decoder(
-      node_features=node_features,
-      edge_features=edge_features,
-      neighbor_indices=neighbor_indices,
-      mask=mask,
-      ar_mask=autoregressive_mask,
-      sequence=sequence,
+      node_features,
+      edge_features,
+      neighbor_indices,
+      mask,
+      autoregressive_mask,
+      sequence,
     )
     logits = final_projection(
       node_features=node_features,

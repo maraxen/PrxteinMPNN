@@ -1,9 +1,10 @@
-"""Sample sequences from a structure using the ProteinMPNN model.
+"""Factory for creating sequence sampling functions in ProteinMPNN.
 
 prxteinmpnn.sampling.factory
 """
 
 from collections.abc import Callable
+from functools import partial
 from typing import cast
 
 import jax
@@ -31,8 +32,6 @@ from prxteinmpnn.utils.types import (
 from .initialize import sampling_encode
 from .sampling import preload_sampling_step_decoder
 
-DEFAULT_BIAS = jnp.zeros((1, 21), dtype=jnp.float32)
-
 
 def make_sample_sequences(
   model_parameters: ModelParameters,
@@ -42,17 +41,17 @@ def make_sample_sequences(
   num_decoder_layers: int = 3,
 ) -> Callable[
   [
-    DecodingOrder,
+    PRNGKeyArray,
+    Sequence,
     StructureAtomicCoordinates,
     AtomMask,
     AtomResidueIndex,
     AtomChainIndex,
-    PRNGKeyArray,
-    int,
-    float,
-    Float | None,
-    float,
-    SamplingEnum,
+    InputBias | None,
+    int,  # k_neighbors
+    float,  # augment_eps
+    float,  # temperature
+    int,  # iterations
   ],
   tuple[Sequence, Float],
 ]:
@@ -92,7 +91,7 @@ def make_sample_sequences(
     sampling_strategy=sampling_strategy,
   )
 
-  @jax.jit
+  @partial(jax.jit, static_argnames=("k_neighbors", "iterations"))
   def sample_sequences(  # noqa: PLR0913
     prng_key: PRNGKeyArray,
     initial_sequence: Sequence,
@@ -100,7 +99,7 @@ def make_sample_sequences(
     mask: AtomMask,
     residue_indices: AtomResidueIndex,
     chain_indices: AtomChainIndex,
-    bias: InputBias = DEFAULT_BIAS,
+    bias: InputBias | None = None,
     k_neighbors: int = 48,
     augment_eps: float = 0.0,
     temperature: float = 1.0,
@@ -110,30 +109,10 @@ def make_sample_sequences(
     Logits,
     DecodingOrder,
   ]:
-    """Sample sequences from a structure using autoregressive decoding.
-
-    Args:
-      prng_key: Random key for sampling.
-      initial_sequence: Initial sequence to start sampling from (L,).
-      structure_coordinates: Atomic coordinates (L, 4, 3).
-      mask: Mask indicating valid residues (L,).
-      residue_indices: Residue indices for each atom (L,).
-      chain_indices: Chain indices for each atom (L,).
-      bias: Optional bias to add to logits (L, 21).
-      k_neighbors: Number of nearest neighbors to consider.
-      augment_eps: Noise level for data augmentation.
-      temperature: Temperature for sampling.
-      sampling_strategy: Strategy for sampling from logits.
-      iterations: Number of iterations for sampling.
-
-    Returns:
-      Tuple of (sampled_sequence, logits) where:
-        - sampled_sequence: One-hot encoded sequence (L, 21)
-        - logits: Raw logits before sampling (L, 21)
-
-    """
-    if bias == DEFAULT_BIAS:
+    """Sample sequences from a structure using autoregressive decoding."""
+    if bias is None:
       bias = jnp.zeros((structure_coordinates.shape[0], 21), dtype=jnp.float32)
+
     (
       node_features,
       edge_features,
@@ -178,7 +157,7 @@ def make_sample_sequences(
       logits,
     )
 
-    final_carry, _ = jax.lax.fori_loop(
+    final_carry = jax.lax.fori_loop(
       0,
       iterations,
       sample_step,

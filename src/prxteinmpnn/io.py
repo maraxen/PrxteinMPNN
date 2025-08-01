@@ -287,7 +287,7 @@ def from_trajectory(
     msg = f"Unexpected transformation to {type(atom_stack)}."
     raise TypeError(msg)
 
-  return (process_atom_array(frame) for frame in atom_stack)
+  return (process_atom_array(frame, chain_id) for frame in atom_stack)
 
 
 def from_string(

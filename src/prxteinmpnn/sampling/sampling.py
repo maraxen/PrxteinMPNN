@@ -26,6 +26,8 @@ from prxteinmpnn.utils.types import (
 
 from .ste import ste_loss, straight_through_estimator
 
+Hyperparameters = tuple[float | int, ...]
+
 SamplingStepState = tuple[
   PRNGKeyArray,
   SequenceEdgeFeatures,
@@ -49,7 +51,7 @@ def sample_temperature_step(
   mask: AtomMask,
   autoregressive_mask: AutoRegressiveMask,
   model_parameters: ModelParameters,
-  custom_parameter: float = 1.0,
+  hyperparameters: Hyperparameters = (1.0,),
 ) -> SamplingStepState:
   """Single autoregressive sampling step with temperature scaling.
 
@@ -61,7 +63,8 @@ def sample_temperature_step(
     mask: Atom mask for valid atoms.
     autoregressive_mask: Mask for autoregressive decoding.
     model_parameters: Model parameters for the model.
-    custom_parameter: Custom parameter for sampling. In this case, the temperature for scaling logits.
+    custom_parameter: Custom parameter for sampling. In this case, the temperature for scaling
+      logits.
 
   Returns:
     Updated carry state and None for scan output.
@@ -85,7 +88,7 @@ def sample_temperature_step(
     )
 
   """
-  temperature = custom_parameter
+  temperature = hyperparameters[0]
   prng_key, edge_features, node_features, sequence, logits = carry
 
   current_prng_key, next_prng_key = jax.random.split(prng_key)
@@ -126,7 +129,7 @@ def sample_straight_through_estimator_step(
   mask: AtomMask,
   autoregressive_mask: AutoRegressiveMask,
   model_parameters: ModelParameters,
-  custom_parameter: float = DEFAULT_LEARNING_RATE,
+  hyperparameters: tuple[float] = (DEFAULT_LEARNING_RATE,),
 ) -> SamplingStepState:
   """Single autoregressive sampling step with straight-through estimator.
 
@@ -138,7 +141,8 @@ def sample_straight_through_estimator_step(
     mask: Atom mask for valid atoms.
     autoregressive_mask: Mask for autoregressive decoding.
     model_parameters: Model parameters for the model.
-    custom_parameter: Custom parameter for the straight-through estimator. In this case, the learning rate.
+    custom_parameter: Custom parameter for the straight-through estimator. In this case, the
+      learning rate.
 
   Returns:
     Updated carry state and None for scan output.
@@ -161,7 +165,7 @@ def sample_straight_through_estimator_step(
       carry,
 
   """
-  learning_rate = custom_parameter
+  learning_rate = hyperparameters[0]
   prng_key, edge_features, node_features, sequence, initial_logits = carry
 
   @jax.jit
@@ -194,7 +198,7 @@ def preload_sampling_step_decoder(
   decoder: RunConditionalDecoderFn,
   sampling_strategy: SamplingEnum,
 ) -> Callable[
-  [NeighborIndices, AtomMask, AutoRegressiveMask, ModelParameters, float],
+  [NeighborIndices, AtomMask, AutoRegressiveMask, ModelParameters, Hyperparameters],
   SamplingStepFn,
 ]:
   """Preload the sampling step decoder."""
@@ -233,7 +237,7 @@ def preload_sampling_step_decoder(
     mask: AtomMask,
     autoregressive_mask: AutoRegressiveMask,
     model_parameters: ModelParameters,
-    custom_parameter: float,
+    hyperparameters: Hyperparameters,
   ) -> SamplingStepFn:
     """Get the sampling step function based on the sampling strategy."""
     return partial(
@@ -242,7 +246,7 @@ def preload_sampling_step_decoder(
       mask=mask,
       autoregressive_mask=autoregressive_mask,
       model_parameters=model_parameters,
-      custom_parameter=custom_parameter,  # TODO(marielle): handle this more elegantly
+      hyperparameters=hyperparameters,
     )
 
   return get_sampling_step_fn

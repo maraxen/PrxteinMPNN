@@ -63,7 +63,7 @@ def sample_temperature_step(
     mask: Atom mask for valid atoms.
     autoregressive_mask: Mask for autoregressive decoding.
     model_parameters: Model parameters for the model.
-    custom_parameter: Custom parameter for sampling. In this case, the temperature for scaling
+    hyperparameters: Hyperparameters for sampling. In this case, the temperature for scaling
       logits.
 
   Returns:
@@ -141,7 +141,7 @@ def sample_straight_through_estimator_step(
     mask: Atom mask for valid atoms.
     autoregressive_mask: Mask for autoregressive decoding.
     model_parameters: Model parameters for the model.
-    custom_parameter: Custom parameter for the straight-through estimator. In this case, the
+    hyperparameters: Hyperparameters for the straight-through estimator. In this case, the
       learning rate.
 
   Returns:

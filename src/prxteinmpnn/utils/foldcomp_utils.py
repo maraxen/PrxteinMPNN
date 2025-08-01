@@ -68,7 +68,7 @@ def _setup_foldcomp_database(database: FoldCompDatabaseEnum) -> None:
 
 
 def _get_protein_structures_from_database(
-  proteins: foldcomp.FoldCompDatabase,  # type: ignore[attr-access]
+  proteins: foldcomp.FoldcompDatabase,  # type: ignore[attr-access]
 ) -> Iterator[ProteinStructure]:
   """Retrieve protein structures from the FoldComp database.
 

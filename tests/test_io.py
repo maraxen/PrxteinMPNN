@@ -346,4 +346,153 @@ def test_from_trajectory_errors(tmp_path, mock_pdb_file_content):
   empty_file.write_text("\n")
   with pytest.raises(FileNotFoundError, match="The file '.*' is empty or does not exist"):
     list(io.from_trajectory(str(empty_file)))
-    
+
+
+def test_from_string(mock_pdb_file_content):
+  """Test loading a ProteinStructure from a PDB string.
+
+  Args:
+    mock_pdb_file_content: Pytest fixture with PDB file content.
+
+  Returns:
+    None
+
+  Raises:
+    AssertionError: If the loaded structure is incorrect.
+  """
+  protein_structure = io.from_string(mock_pdb_file_content, chain_id="A")
+
+  assert protein_structure.residue_index.shape[0] == 2
+  expected_aatype = jnp.array([resname_to_idx["ALA"], resname_to_idx["CYS"]], dtype=jnp.int8)
+  chex.assert_trees_all_close(protein_structure.aatype, expected_aatype)
+
+  # Check coordinates for ALA CA atom
+  ala_ca_coord = jnp.array([2.0, 3.0, 4.0])
+  chex.assert_trees_all_close(protein_structure.coordinates[0, 1, :], ala_ca_coord)
+  assert protein_structure.atom_mask[0, 1] == 1.0
+  assert protein_structure.b_factors[0, 1] == 11.0
+
+
+def test_from_string_no_chain_filter(mock_pdb_file_content):
+  """Test loading a ProteinStructure from a PDB string without chain filtering.
+
+  Args:
+    mock_pdb_file_content: Pytest fixture with PDB file content.
+
+  Returns:
+    None
+
+  Raises:
+    AssertionError: If the loaded structure is incorrect.
+  """
+  protein_structure = io.from_string(mock_pdb_file_content)
+
+  assert protein_structure.residue_index.shape[0] == 2
+  expected_aatype = jnp.array([resname_to_idx["ALA"], resname_to_idx["CYS"]], dtype=jnp.int8)
+  chex.assert_trees_all_close(protein_structure.aatype, expected_aatype)
+
+
+def test_from_string_multimodel():
+  """Test loading from a multi-model PDB string should process only the first model.
+
+  Args:
+    None
+
+  Returns:
+    None
+
+  Raises:
+    AssertionError: If the structure is not processed correctly.
+  """
+  multimodel_pdb = (
+    "MODEL        1\n"
+    "ATOM      1  N   ALA A   1       1.000   2.000   3.000  1.00 10.00           N\n"
+    "ATOM      2  CA  ALA A   1       2.000   3.000   4.000  1.00 11.00           C\n"
+    "TER\n"
+    "ENDMDL\n"
+    "MODEL        2\n"
+    "ATOM      1  N   ALA A   1       5.000   6.000   7.000  1.00 15.00           N\n"
+    "ATOM      2  CA  ALA A   1       6.000   7.000   8.000  1.00 16.00           C\n"
+    "TER\n"
+    "ENDMDL\n"
+  )
+  
+  protein_structure = io.from_string(multimodel_pdb, model=1, chain_id="A")
+  
+  # Should only have processed model 1
+  expected_coord = jnp.array([1.0, 2.0, 3.0])
+  chex.assert_trees_all_close(protein_structure.coordinates[0, 0, :], expected_coord)
+  
+  # Test loading model 2
+  protein_structure_model2 = io.from_string(multimodel_pdb, model=2, chain_id="A")
+  expected_coord_model2 = jnp.array([5.0, 6.0, 7.0])
+  chex.assert_trees_all_close(protein_structure_model2.coordinates[0, 0, :], expected_coord_model2)
+
+
+def test_from_string_errors():
+  """Test error handling in from_string.
+
+  Args:
+    None
+
+  Returns:
+    None
+
+  Raises:
+    TypeError: If chain_id is not a string or unexpected structure type.
+  """
+  valid_pdb = (
+    "ATOM      1  N   ALA A   1       1.000   2.000   3.000  1.00 10.00           N\n"
+    "ATOM      2  CA  ALA A   1       2.000   3.000   4.000  1.00 11.00           C\n"
+    "TER\n"
+  )
+  
+  # Test invalid chain_id type
+  with pytest.raises(TypeError, match="Expected chain_id to be a string"):
+    io.from_string(valid_pdb, chain_id=123)  # type: ignore[call-arg]
+
+
+def test_from_string_empty():
+  """Test loading from an empty PDB string.
+
+  Args:
+    None
+
+  Returns:
+    None
+
+  Raises:
+    ValueError: If the PDB string is empty or contains no atoms.
+  """
+  empty_pdb = ""
+  with pytest.raises(ValueError, match="No atoms found in the structure"):
+    io.from_string(empty_pdb)
+
+  # Test with only whitespace
+  whitespace_pdb = "   \n  \t  \n"
+  with pytest.raises(ValueError, match="No atoms found in the structure"):
+    io.from_string(whitespace_pdb)
+
+
+def test_from_string_nonexistent_chain():
+  """Test loading from a PDB string with a nonexistent chain.
+
+  Args:
+    None
+
+  Returns:
+    None
+
+  Raises:
+    ValueError: If the specified chain is not found.
+  """
+  pdb_string = (
+    "ATOM      1  N   ALA A   1       1.000   2.000   3.000  1.00 10.00           N\n"
+    "ATOM      2  CA  ALA A   1       2.000   3.000   4.000  1.00 11.00           C\n"
+    "TER\n"
+  )
+  
+  # Request chain B when only chain A exists
+  with pytest.raises(ValueError, match="No atoms found in the structure for chain 'B'"):
+    io.from_string(pdb_string, chain_id="B")
+

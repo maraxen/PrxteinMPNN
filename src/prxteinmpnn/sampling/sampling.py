@@ -20,7 +20,7 @@ from prxteinmpnn.utils.types import (
   ModelParameters,
   NeighborIndices,
   NodeFeatures,
-  Sequence,
+  ProteinSequence,
   SequenceEdgeFeatures,
 )
 
@@ -30,7 +30,7 @@ SamplingStepState = tuple[
   PRNGKeyArray,
   SequenceEdgeFeatures,
   NodeFeatures,
-  Sequence,
+  ProteinSequence,
   Logits,
 ]
 SamplingStepInput = tuple[int, SamplingStepState]
@@ -101,18 +101,16 @@ def sample_temperature_step(
 
   node_features = updated_node_features
 
-  logits_i = final_projection(model_parameters, updated_node_features[i : i + 1])[
-    0
-  ]  # Remove batch dimension
+  logits = final_projection(model_parameters, updated_node_features)
 
-  logits_i = logits_i / temperature + jax.random.gumbel(current_prng_key, logits_i.shape)
+  logits = logits / temperature + jax.random.gumbel(current_prng_key, logits.shape)
 
-  sampled_aa = logits_i[:20].argmax()
+  sampled_aa = logits[:20].argmax()
 
   s_i = jax.nn.one_hot(sampled_aa, 21)
 
   sequence = sequence.at[i].set(s_i)
-  logits = logits.at[i].set(logits_i)
+  logits = logits.at[i].set(logits)
 
   return next_prng_key, edge_features, node_features, sequence, logits
 

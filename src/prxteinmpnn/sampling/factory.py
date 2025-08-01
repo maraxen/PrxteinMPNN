@@ -22,11 +22,11 @@ from prxteinmpnn.utils.types import (
   AtomMask,
   AtomResidueIndex,
   DecodingOrder,
-  Hyperparameters,
   InputBias,
   Logits,
   ModelParameters,
   ProteinSequence,
+  SamplingHyperparameters,
   StructureAtomicCoordinates,
 )
 
@@ -51,7 +51,7 @@ def make_sample_sequences(
     InputBias | None,
     int,  # k_neighbors
     float,  # augment_eps
-    Hyperparameters,  # temperature
+    SamplingHyperparameters,  # temperature
     int,  # iterations
   ],
   tuple[ProteinSequence, Float],
@@ -103,7 +103,7 @@ def make_sample_sequences(
     bias: InputBias | None = None,
     k_neighbors: int = 48,
     augment_eps: float = 0.0,
-    hyperparameters: Hyperparameters = (0.0,),
+    hyperparameters: SamplingHyperparameters = (0.0,),
     iterations: int = 1,
   ) -> tuple[
     ProteinSequence,

@@ -16,12 +16,12 @@ from prxteinmpnn.utils.types import (
   AtomMask,
   AutoRegressiveMask,
   CEELoss,
-  Hyperparameters,
   Logits,
   ModelParameters,
   NeighborIndices,
   NodeFeatures,
   ProteinSequence,
+  SamplingHyperparameters,
   SequenceEdgeFeatures,
 )
 
@@ -50,7 +50,7 @@ def sample_temperature_step(
   mask: AtomMask,
   autoregressive_mask: AutoRegressiveMask,
   model_parameters: ModelParameters,
-  hyperparameters: Hyperparameters = (1.0,),
+  hyperparameters: SamplingHyperparameters = (1.0,),
 ) -> SamplingStepState:
   """Single autoregressive sampling step with temperature scaling.
 
@@ -197,7 +197,7 @@ def preload_sampling_step_decoder(
   decoder: RunConditionalDecoderFn,
   sampling_strategy: SamplingEnum,
 ) -> Callable[
-  [NeighborIndices, AtomMask, AutoRegressiveMask, ModelParameters, Hyperparameters],
+  [NeighborIndices, AtomMask, AutoRegressiveMask, ModelParameters, SamplingHyperparameters],
   SamplingStepFn,
 ]:
   """Preload the sampling step decoder."""
@@ -236,7 +236,7 @@ def preload_sampling_step_decoder(
     mask: AtomMask,
     autoregressive_mask: AutoRegressiveMask,
     model_parameters: ModelParameters,
-    hyperparameters: Hyperparameters,
+    hyperparameters: SamplingHyperparameters,
   ) -> SamplingStepFn:
     """Get the sampling step function based on the sampling strategy."""
     return partial(

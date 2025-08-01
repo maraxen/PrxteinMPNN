@@ -21,7 +21,7 @@ from prxteinmpnn.utils.types import (
   NeighborIndices,
   NodeEdgeFeatures,
   NodeFeatures,
-  Sequence,
+  ProteinSequence,
   SequenceEdgeFeatures,
 )
 
@@ -93,7 +93,7 @@ RunConditionalDecoderInputs = tuple[
   NeighborIndices,
   AtomMask,
   AutoRegressiveMask,
-  Sequence,
+  ProteinSequence,
 ]
 RunConditionalDecoderFn = Callable[[*RunConditionalDecoderInputs], NodeFeatures]
 
@@ -137,7 +137,7 @@ def decoder_parameter_pytree(
 
 @jax.jit
 def initialize_conditional_decoder(
-  sequence: Sequence,
+  sequence: ProteinSequence,
   node_features: NodeFeatures,
   edge_features: EdgeFeatures,
   neighbor_indices: NeighborIndices,
@@ -415,7 +415,7 @@ def make_decoder(
       neighbor_indices: NeighborIndices,
       mask: AtomMask,
       ar_mask: AutoRegressiveMask,
-      sequence: Sequence,
+      sequence: ProteinSequence,
     ) -> NodeFeatures:
       """Run the decoder with the provided edge features and neighbor indices."""
       node_edge_features, sequence_edge_features = initialize_conditional_decoder(

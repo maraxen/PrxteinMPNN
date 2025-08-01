@@ -19,7 +19,7 @@ from prxteinmpnn.utils.types import (
   AtomResidueIndex,
   DecodingOrder,
   ModelParameters,
-  Sequence,
+  ProteinSequence,
   StructureAtomicCoordinates,
 )
 
@@ -30,7 +30,7 @@ def make_score_sequence(
   num_decoder_layers: int = 3,
 ) -> Callable[
   [
-    Sequence,
+    ProteinSequence,
     DecodingOrder,
     ModelParameters,
     StructureAtomicCoordinates,
@@ -63,7 +63,7 @@ def make_score_sequence(
   @jax.jit
   def score_sequence(
     prng_key: PRNGKeyArray,
-    sequence: Sequence,
+    sequence: ProteinSequence,
     decoding_order: DecodingOrder,
     mpnn_parameters: ModelParameters,
     structure_coordinates: StructureAtomicCoordinates,

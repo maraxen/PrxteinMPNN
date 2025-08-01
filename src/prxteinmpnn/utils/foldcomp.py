@@ -41,7 +41,7 @@ class FoldCompDatabase(enum.Enum):
 
 
 @cache
-def setup_foldcomp_database(database: FoldCompDatabase) -> None:
+def _setup_foldcomp_database(database: FoldCompDatabase) -> None:
   """Set up the FoldComp database based on the provided enum.
 
   Downloads and prepares the specified FoldComp database for use.
@@ -101,7 +101,7 @@ def get_protein_structures(
     ...     print(struct)
 
   """
-  setup_foldcomp_database(database)
+  _setup_foldcomp_database(database)
   with foldcomp.open(database.value, ids=protein_ids) as proteins:  # type: ignore[attr-access]
     yield from _get_protein_structures_from_database(proteins)
 

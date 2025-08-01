@@ -13,7 +13,7 @@ from prxteinmpnn.utils.foldcomp import (
   _get_protein_structures_from_database,
   get_protein_structures,
   model_from_id,
-  setup_foldcomp_database,
+  _setup_foldcomp_database,
 )
 
 
@@ -87,9 +87,9 @@ def test_setup_foldcomp_database_calls_setup(mock_setup: MagicMock):
 
   """
   # Clear cache to ensure the function call is not skipped
-  setup_foldcomp_database.cache_clear()
+  _setup_foldcomp_database.cache_clear()
   database = FoldCompDatabase.AFDB_SWISSPROT_V4
-  setup_foldcomp_database(database)
+  _setup_foldcomp_database(database)
   mock_setup.assert_called_once_with(database.value)
 
 
@@ -108,13 +108,13 @@ def test_setup_foldcomp_database_is_cached(mock_setup: MagicMock):
 
   """
   # Clear cache before the test
-  setup_foldcomp_database.cache_clear()
+  _setup_foldcomp_database.cache_clear()
   database = FoldCompDatabase.ESMATLAS_HIGH_QUALITY
 
   # Call the function multiple times
-  setup_foldcomp_database(database)
-  setup_foldcomp_database(database)
-  setup_foldcomp_database(database)
+  _setup_foldcomp_database(database)
+  _setup_foldcomp_database(database)
+  _setup_foldcomp_database(database)
 
   # Assert that the underlying foldcomp.setup was only called once
   mock_setup.assert_called_once_with(database.value)

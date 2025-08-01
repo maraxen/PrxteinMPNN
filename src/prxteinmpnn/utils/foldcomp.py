@@ -136,13 +136,20 @@ def model_from_id(
 
   if isinstance(protein_ids, str):
     protein_ids = [protein_ids]
-
-  structures = get_protein_structures(protein_ids=protein_ids)
-
+  structures = list(get_protein_structures(protein_ids=protein_ids))
   if not structures:
     msg = f"No protein structures found for IDs: {protein_ids}"
     raise ValueError(msg)
 
   model_inputs = (protein_structure_to_model_inputs(structure) for structure in structures)
+  # Check if at least one model input is generated
+  first_input = next(model_inputs, None)
+  if first_input is None:
+    msg = f"No model inputs generated for protein structures: {protein_ids}"
+    raise ValueError(msg)
 
-  return base_model, model_inputs
+  def model_inputs_with_first() -> Iterator[ModelInputs]:
+    yield first_input
+    yield from model_inputs
+
+  return base_model, model_inputs_with_first()

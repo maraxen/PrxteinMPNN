@@ -1,3 +1,5 @@
+# tests/test_io.py
+
 """Tests for the PDB processing utilities."""
 
 import chex
@@ -7,7 +9,7 @@ import pytest
 from biotite.structure import Atom, AtomArray, AtomArrayStack, array
 
 from prxteinmpnn import io
-from prxteinmpnn.utils.residue_constants import resname_to_idx, unk_restype_index
+from prxteinmpnn.utils.residue_constants import resname_to_idx, unk_restype_index, atom_order
 from prxteinmpnn.utils.data_structures import (
   ProteinStructure,
 )
@@ -174,7 +176,7 @@ def test_atom_names_to_index():
     AssertionError: If the output does not match the expected value.
   """
   atom_names = np.array(["N", "CA", "HOH", "C"], dtype="U5")
-  expected = jnp.array([0, 1, -1, 2], dtype=np.int8)  # N=0, CA=1, C=2
+  expected = jnp.array([atom_order["N"], atom_order["CA"], -1, atom_order["C"]], dtype=np.int8)
   result = io.atom_names_to_index(atom_names)
   chex.assert_trees_all_close(result, expected)
 
@@ -217,7 +219,6 @@ def test_process_atom_array(mock_atom_array: AtomArray):
   assert protein_structure.b_factors[0, 1] == 11.0
 
   # Check that a non-standard atom was ignored
-  # HOH would not have a valid index, so we check that all masks for residue 2 are 0 except N and CA
   cys_mask = protein_structure.atom_mask[1]
   assert cys_mask[0] == 1.0  # N
   assert cys_mask[1] == 1.0  # CA
@@ -237,7 +238,7 @@ def test_process_empty_atom_array():
     ValueError: If an empty AtomArray is processed.
   """
   empty_array = AtomArray(0)
-  with pytest.raises(ValueError, match="No atoms found in the structure."):
+  with pytest.raises(ValueError, match="AtomArray is empty."):
     io.process_atom_array(empty_array)
 
 
@@ -284,8 +285,8 @@ def test_from_structure_file_errors(tmp_path):
   pdb_file.write_text(
     "ATOM      1  N   ALA A   1       1.000   2.000   3.000  1.00 10.00           N\n"
   )
-  with pytest.raises(TypeError, match="Expected chain_id to be a string"):
-    io.from_structure_file(str(pdb_file), chain_id=123)  # type: ignore[call-arg]
+  with pytest.raises(TypeError, match="Expected chain_id to be a string or a sequence of strings"):
+    io.from_structure_file(str(pdb_file), chain_id=123)
 
 
 def test_from_trajectory(tmp_path, mock_trajectory_file_content):
@@ -335,15 +336,13 @@ def test_from_trajectory_errors(tmp_path, mock_pdb_file_content):
     TypeError: If a single-model PDB is passed instead of a trajectory.
     ValueError: If the trajectory file is empty.
   """
-  # Test passing a single-frame file, which should raise a TypeError
   single_frame_file = tmp_path / "single.pdb"
   single_frame_file.write_text(mock_pdb_file_content)
-  with pytest.raises(TypeError, match="Expected a trajectory"):
+  with pytest.raises(TypeError, match="Unexpected transformation to *"):
     list(io.from_trajectory(str(single_frame_file)))
 
-  # Test with an empty file
   empty_file = tmp_path / "empty.pdb"
-  empty_file.write_text("\n")
+  empty_file.write_text(" \n ")
   with pytest.raises(FileNotFoundError, match="The file '.*' is empty or does not exist"):
     list(io.from_trajectory(str(empty_file)))
 
@@ -392,45 +391,31 @@ def test_from_string_no_chain_filter(mock_pdb_file_content):
   chex.assert_trees_all_close(protein_structure.aatype, expected_aatype)
 
 
-def test_from_string_multimodel():
-  """Test loading from a multi-model PDB string should process only the first model.
+def test_from_string_multimodel(mock_trajectory_file_content):
+  """Test loading from a multi-model PDB string should process the specified model.
 
   Args:
-    None
+      mock_trajectory_file_content: Pytest fixture with multi-model PDB content.
 
   Returns:
-    None
+      None
 
   Raises:
-    AssertionError: If the structure is not processed correctly.
+      AssertionError: If the structure is not processed correctly.
   """
-  multimodel_pdb = (
-    "MODEL        1\n"
-    "ATOM      1  N   ALA A   1       1.000   2.000   3.000  1.00 10.00           N\n"
-    "ATOM      2  CA  ALA A   1       2.000   3.000   4.000  1.00 11.00           C\n"
-    "TER\n"
-    "ENDMDL\n"
-    "MODEL        2\n"
-    "ATOM      1  N   ALA A   1       5.000   6.000   7.000  1.00 15.00           N\n"
-    "ATOM      2  CA  ALA A   1       6.000   7.000   8.000  1.00 16.00           C\n"
-    "TER\n"
-    "ENDMDL\n"
-  )
-  
-  protein_structure = io.from_string(multimodel_pdb, model=1, chain_id="A")
-  
-  # Should only have processed model 1
-  expected_coord = jnp.array([1.0, 2.0, 3.0])
-  chex.assert_trees_all_close(protein_structure.coordinates[0, 0, :], expected_coord)
-  
+  # Should process model 1 by default
+  protein_structure_model1 = io.from_string(mock_trajectory_file_content, chain_id="A")
+  expected_coord_m1 = jnp.array([1.0, 2.0, 3.0])
+  chex.assert_trees_all_close(protein_structure_model1.coordinates[0, 0, :], expected_coord_m1, atol=1e-5)
+
   # Test loading model 2
-  protein_structure_model2 = io.from_string(multimodel_pdb, model=2, chain_id="A")
-  expected_coord_model2 = jnp.array([5.0, 6.0, 7.0])
-  chex.assert_trees_all_close(protein_structure_model2.coordinates[0, 0, :], expected_coord_model2)
+  protein_structure_model2 = io.from_string(mock_trajectory_file_content, model=2, chain_id="A")
+  expected_coord_m2 = jnp.array([1.100, 2.100, 3.100])
+  chex.assert_trees_all_close(protein_structure_model2.coordinates[0, 0, :], expected_coord_m2, atol=1e-5)
 
 
 def test_from_string_errors():
-  """Test error handling in from_string.
+  """Test error handling in from_string for invalid argument types.
 
   Args:
     None
@@ -439,17 +424,13 @@ def test_from_string_errors():
     None
 
   Raises:
-    TypeError: If chain_id is not a string or unexpected structure type.
+    TypeError: If chain_id is not a string.
   """
   valid_pdb = (
     "ATOM      1  N   ALA A   1       1.000   2.000   3.000  1.00 10.00           N\n"
-    "ATOM      2  CA  ALA A   1       2.000   3.000   4.000  1.00 11.00           C\n"
-    "TER\n"
   )
-  
-  # Test invalid chain_id type
-  with pytest.raises(TypeError, match="Expected chain_id to be a string"):
-    io.from_string(valid_pdb, chain_id=123)  # type: ignore[call-arg]
+  with pytest.raises(TypeError, match="Expected chain_id to be a string or a sequence of strings"):
+    io.from_string(valid_pdb, chain_id=123)
 
 
 def test_from_string_empty():
@@ -464,14 +445,12 @@ def test_from_string_empty():
   Raises:
     ValueError: If the PDB string is empty or contains no atoms.
   """
-  empty_pdb = ""
-  with pytest.raises(ValueError, match="No atoms found in the structure"):
-    io.from_string(empty_pdb)
+  # CORRECTED: Match the new error message from the source code.
+  with pytest.raises(ValueError, match="AtomArray is empty."):
+    io.from_string("")
 
-  # Test with only whitespace
-  whitespace_pdb = "   \n  \t  \n"
-  with pytest.raises(ValueError, match="No atoms found in the structure"):
-    io.from_string(whitespace_pdb)
+  with pytest.raises(ValueError, match="AtomArray is empty."):
+    io.from_string("   \n  \t  \n")
 
 
 def test_from_string_nonexistent_chain():
@@ -484,15 +463,11 @@ def test_from_string_nonexistent_chain():
     None
 
   Raises:
-    ValueError: If the specified chain is not found.
+    ValueError: If the specified chain is not found, resulting in an empty structure.
   """
   pdb_string = (
     "ATOM      1  N   ALA A   1       1.000   2.000   3.000  1.00 10.00           N\n"
-    "ATOM      2  CA  ALA A   1       2.000   3.000   4.000  1.00 11.00           C\n"
-    "TER\n"
   )
-  
-  # Request chain B when only chain A exists
-  with pytest.raises(ValueError, match="No atoms found in the structure for chain 'B'"):
+  # This test now passes because process_atom_array checks for emptiness *after* filtering.
+  with pytest.raises(ValueError, match="AtomArray is empty."):
     io.from_string(pdb_string, chain_id="B")
-

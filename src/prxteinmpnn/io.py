@@ -1,4 +1,4 @@
-"""Utilities for processing PDB files."""
+"""Utilities for processing structure and trajectory files."""
 
 import pathlib
 from collections.abc import Iterator, Mapping, Sequence
@@ -10,6 +10,7 @@ import numpy as np
 from biotite import structure
 from biotite.structure import AtomArray, AtomArrayStack
 from biotite.structure import io as structure_io
+from biotite.structure.io.pdb import PDBFile
 
 from prxteinmpnn.utils.data_structures import ModelInputs, ProteinStructure
 from prxteinmpnn.utils.residue_constants import atom_order, resname_to_idx, unk_restype_index
@@ -167,8 +168,8 @@ def process_atom_array(
   chain_id: Sequence[str] | str | None = None,
 ) -> ProteinStructure:
   """Process an AtomArray to create a ProteinStructure."""
-  _check_atom_array_length(atom_array)
   atom_array, chain_index = _process_chain_id(atom_array, chain_id)
+  _check_atom_array_length(atom_array)
   num_residues = structure.get_residue_count(atom_array)
   residue_indices, residue_names = structure.get_residues(atom_array)
   residue_indices = jnp.asarray(residue_indices, dtype=jnp.int32)
@@ -307,12 +308,25 @@ def from_string(
     A new `ProteinStructure` parsed from the PDB string.
 
   """
-  io_string = StringIO(pdb_string)
-  atom_array = structure_io.load_structure(
-    io_string,
+  if not pdb_string.strip():
+    msg = "AtomArray is empty."
+    raise ValueError(msg)
+
+  pdb_file = PDBFile.read(StringIO(pdb_string))
+  atom_array = pdb_file.get_structure(
     model=model,
     extra_fields=["b_factor"],
   )
+  # get_structure returns AtomArrayStack if model is not found, so handle this
+  if isinstance(atom_array, AtomArrayStack) and atom_array.stack_depth() > 0:
+    atom_array = atom_array[0]
+  elif isinstance(atom_array, AtomArrayStack) and atom_array.stack_depth() == 0:
+    msg = "No models found in the provided PDB string."
+    raise ValueError(msg)
+  if not isinstance(atom_array, AtomArray):
+    msg = f"Unexpected transformation to {type(atom_array)}."
+    raise TypeError(msg)
+
   return process_atom_array(atom_array, chain_id=chain_id)
 
 

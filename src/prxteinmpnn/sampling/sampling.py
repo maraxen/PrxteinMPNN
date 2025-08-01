@@ -16,6 +16,7 @@ from prxteinmpnn.utils.types import (
   AtomMask,
   AutoRegressiveMask,
   CEELoss,
+  Hyperparameters,
   Logits,
   ModelParameters,
   NeighborIndices,
@@ -25,8 +26,6 @@ from prxteinmpnn.utils.types import (
 )
 
 from .ste import ste_loss, straight_through_estimator
-
-Hyperparameters = tuple[float | int, ...]
 
 SamplingStepState = tuple[
   PRNGKeyArray,

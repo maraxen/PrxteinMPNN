@@ -286,7 +286,7 @@ def test_from_structure_file_errors(tmp_path):
     "ATOM      1  N   ALA A   1       1.000   2.000   3.000  1.00 10.00           N\n"
   )
   with pytest.raises(TypeError, match="Expected chain_id to be a string or a sequence of strings"):
-    io.from_structure_file(str(pdb_file), chain_id=123)
+    io.from_structure_file(str(pdb_file), chain_id=123) # type: ignore[arg-call]
 
 
 def test_from_trajectory(tmp_path, mock_trajectory_file_content):

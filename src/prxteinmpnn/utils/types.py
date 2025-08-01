@@ -41,4 +41,4 @@ ChainIndex = Int[Array, "num_residues"]  # Index of chains in the structure
 DecodingOrderInputs = tuple[PRNGKeyArray, int]
 DecodingOrderOutputs = tuple[DecodingOrder, PRNGKeyArray]
 CEELoss = Float[Array, ""]  # Cross-entropy loss
-Hyperparameters = tuple[float | int, ...]
+SamplingHyperparameters = tuple[float | int, ...]

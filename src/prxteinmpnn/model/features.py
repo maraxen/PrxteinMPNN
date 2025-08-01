@@ -12,6 +12,7 @@ from prxteinmpnn.utils.coordinates import (
   compute_backbone_distance,
 )
 from prxteinmpnn.utils.graph import NeighborOffsets, compute_neighbor_offsets
+from prxteinmpnn.utils.normalize import layer_normalization
 from prxteinmpnn.utils.radial_basis import compute_radial_basis
 from prxteinmpnn.utils.types import (
   AtomChainIndex,
@@ -22,7 +23,6 @@ from prxteinmpnn.utils.types import (
   NeighborIndices,
   StructureAtomicCoordinates,
 )
-from src.prxteinmpnn.utils.normalize import layer_normalization
 
 EdgeChainNeighbors = Int[Array, "num_atoms num_neighbors"]
 EncodedPositions = Int[Array, "num_atoms num_neighbors (2 * MAXIMUM_RELATIVE_FEATURES + 2)"]

@@ -4,5 +4,7 @@ jaxlib
 joblib
 pytest
 flax
+chex
 biotite
-git+https://github.com/maraxen/colabdesign.git
+foldcomp
+

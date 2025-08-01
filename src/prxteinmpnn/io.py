@@ -1,7 +1,9 @@
 """Utilities for processing PDB files."""
 
 import pathlib
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Sequence
+from io import StringIO
+from typing import cast
 
 import jax.numpy as jnp
 import numpy as np
@@ -9,11 +11,9 @@ from biotite import structure
 from biotite.structure import AtomArray, AtomArrayStack
 from biotite.structure import io as structure_io
 
-from prxteinmpnn.utils.data_structures import ProteinStructure
+from prxteinmpnn.utils.data_structures import ModelInputs, ProteinStructure
 from prxteinmpnn.utils.residue_constants import atom_order, resname_to_idx, unk_restype_index
-from prxteinmpnn.utils.types import (
-  Sequence,
-)
+from prxteinmpnn.utils.types import ChainIndex, InputBias, ProteinSequence
 
 
 def _check_if_file_empty(file_path: str) -> bool:
@@ -64,7 +64,7 @@ def string_key_to_index(
 def residue_names_to_aatype(
   residue_names: np.ndarray,
   aa_map: dict | None = None,
-) -> Sequence:
+) -> ProteinSequence:
   """Convert 3-letter residue names to amino acid type indices.
 
   Args:
@@ -86,7 +86,7 @@ def residue_names_to_aatype(
 def atom_names_to_index(
   atom_names: np.ndarray,
   atom_map: dict | None = None,
-) -> Sequence:
+) -> ProteinSequence:
   """Convert atom names to atom type indices.
 
   Args:
@@ -105,19 +105,70 @@ def atom_names_to_index(
   return jnp.asarray(atom_indices, dtype=jnp.int8)
 
 
-def process_atom_array(
-  atom_array: AtomArray,
-  chain_id: str | None = None,
-) -> ProteinStructure:
-  """Process an AtomArray to create a ProteinStructure."""
+def _check_atom_array_length(atom_array: AtomArray) -> None:
+  """Check if the AtomArray has a valid length.
+
+  Args:
+    atom_array: The AtomArray to check.
+
+  Raises:
+    ValueError: If the AtomArray is empty.
+
+  """
   if atom_array.array_length() == 0:
-    msg = (
-      f"No atoms found in the structure for chain '{chain_id}'."
-      if chain_id
-      else "No atoms found in the structure."
-    )
+    msg = "AtomArray is empty."
     raise ValueError(msg)
 
+
+def _get_chain_index(
+  atom_array: AtomArray,
+) -> ChainIndex:
+  """Get the chain index from the AtomArray."""
+  if atom_array.chain_id is None:
+    return jnp.zeros(atom_array.array_length(), dtype=jnp.int32)
+
+  if atom_array.chain_id.dtype != jnp.int32:
+    return jnp.asarray(
+      np.char.encode(atom_array.chain_id.astype("U1")).view(np.uint8) - ord("A"),
+      dtype=jnp.int32,
+    )
+
+  return jnp.asarray(atom_array.chain_id, dtype=jnp.int32)
+
+
+def _process_chain_id(
+  atom_array: AtomArray,
+  chain_id: Sequence[str] | str | None = None,
+) -> tuple[AtomArray, ChainIndex]:
+  """Process the chain_id of the AtomArray."""
+  if chain_id is None:
+    chain_index = _get_chain_index(atom_array)
+    return atom_array, chain_index
+
+  if isinstance(chain_id, str):
+    chain_id = [chain_id]
+
+  if not isinstance(chain_id, Sequence):
+    msg = f"Expected chain_id to be a string or a sequence of strings, but got {type(chain_id)}."
+    raise TypeError(msg)
+
+  if atom_array.chain_id is None:
+    msg = "Chain ID is not available in the structure."
+    raise ValueError(msg)
+
+  indices_to_include = np.isin(atom_array.chain_id, chain_id)
+  atom_array = cast("AtomArray", atom_array[indices_to_include])
+  chain_index = _get_chain_index(atom_array)
+  return atom_array, chain_index
+
+
+def process_atom_array(
+  atom_array: AtomArray,
+  chain_id: Sequence[str] | str | None = None,
+) -> ProteinStructure:
+  """Process an AtomArray to create a ProteinStructure."""
+  _check_atom_array_length(atom_array)
+  atom_array, chain_index = _process_chain_id(atom_array, chain_id)
   num_residues = structure.get_residue_count(atom_array)
   residue_indices, residue_names = structure.get_residues(atom_array)
   residue_indices = jnp.asarray(residue_indices, dtype=jnp.int32)
@@ -125,10 +176,6 @@ def process_atom_array(
     atom_array,
     jnp.arange(atom_array.array_length()),
   )
-
-  if atom_array.chain_id is None:
-    msg = "Chain ID is not available in the structure."
-    raise ValueError(msg)
 
   atom_names = atom_array.atom_name
 
@@ -162,6 +209,7 @@ def process_atom_array(
     aatype=aatype,
     atom_mask=atom_mask_37,
     residue_index=residue_indices,
+    chain_index=chain_index,
     b_factors=bfactors_37,
   )
 
@@ -169,7 +217,7 @@ def process_atom_array(
 def from_structure_file(
   file_path: str,
   model: int = 1,
-  chain_id: str | None = None,
+  chain_id: str | Sequence[str] | None = None,
 ) -> ProteinStructure:
   """Construct a Protein object from a structure file (PDB, PDBx/mmCIF).
 
@@ -197,16 +245,6 @@ def from_structure_file(
     raise FileNotFoundError(msg)
   atom_array = structure_io.load_structure(file_path, model=model, extra_fields=["b_factor"])
 
-  if chain_id is not None and not isinstance(chain_id, str):
-    msg = f"Expected chain_id to be a string, but got {type(chain_id)}."
-    raise TypeError(msg)
-  if atom_array.chain_id is None:
-    msg = "Chain ID is not available in the structure."
-    raise ValueError(msg)
-  if not isinstance(atom_array, AtomArray):
-    msg = f"Expected a single structure, but got {type(atom_array)}."
-    raise TypeError(msg)
-  atom_array = atom_array[atom_array.chain_id == chain_id] if chain_id else atom_array
   if not isinstance(atom_array, AtomArray):
     msg = f"Unexpected transformation to {type(atom_array)}."
     raise TypeError(msg)
@@ -216,7 +254,7 @@ def from_structure_file(
 def from_trajectory(
   trajectory_file: str,
   topology_file: str | None = None,
-  chain_id: str | None = None,
+  chain_id: str | Sequence[str] | None = None,
 ) -> Iterator["ProteinStructure"]:
   """Construct ProteinStructure objects from a trajectory file.
 
@@ -246,25 +284,62 @@ def from_trajectory(
   )
 
   if not isinstance(atom_stack, AtomArrayStack):
-    msg = (
-      f"Expected a trajectory (AtomArrayStack), but loaded a single "
-      f"frame ({type(atom_stack)}). Use a different function for single structures."
-    )
-    raise TypeError(msg)
-
-  if atom_stack.stack_depth() == 0:
-    msg = (
-      "Trajectory file is empty or could not be read. "
-      "Ensure the file exists and is in a supported format."
-    )
-    raise ValueError(msg)
-
-  if chain_id:
-    mask = atom_stack[0].chain_id == chain_id
-    atom_stack = atom_stack[:, mask]
-
-  if not isinstance(atom_stack, AtomArrayStack):
     msg = f"Unexpected transformation to {type(atom_stack)}."
     raise TypeError(msg)
 
   return (process_atom_array(frame) for frame in atom_stack)
+
+
+def from_string(
+  pdb_string: str,
+  model: int = 1,
+  chain_id: str | Sequence[str] | None = None,
+) -> ProteinStructure:
+  """Construct a ProteinStructure from a PDB string.
+
+  Args:
+    pdb_string: The PDB formatted string.
+    model: The model number to load from the structure string. Defaults to 1.
+    chain_id: If specified, only this chain is parsed. If None, the entire
+      structure is parsed.
+
+  Returns:
+    A new `ProteinStructure` parsed from the PDB string.
+
+  """
+  io_string = StringIO(pdb_string)
+  atom_array = structure_io.load_structure(
+    io_string,
+    model=model,
+    extra_fields=["b_factor"],
+  )
+  return process_atom_array(atom_array, chain_id=chain_id)
+
+
+def protein_structure_to_model_inputs(
+  protein_structure: ProteinStructure,
+  bias: InputBias | None = None,
+) -> ModelInputs:
+  """Convert a ProteinStructure to model inputs.
+
+  Args:
+    protein_structure: A ProteinStructure object containing the structure data.
+    bias: An optional InputBias jnp.ndarray with shape (num_residues, 20) containing
+    bias information. This will shift output probabilities for each residue. Default
+    to zero.
+
+  Returns:
+    A dictionary containing the model inputs derived from the ProteinStructure.
+
+  """
+  return ModelInputs(
+    structure_coordinates=protein_structure.coordinates,
+    sequence=protein_structure.aatype,
+    mask=protein_structure.atom_mask,
+    residue_index=protein_structure.residue_index,
+    chain_index=protein_structure.chain_index,
+    lengths=jnp.array([len(protein_structure.aatype)], dtype=jnp.int32),
+    bias=jnp.zeros((len(protein_structure.aatype), 20), dtype=jnp.float32)
+    if bias is None
+    else bias,
+  )

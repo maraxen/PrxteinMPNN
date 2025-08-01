@@ -25,7 +25,7 @@ from prxteinmpnn.utils.types import (
   InputBias,
   Logits,
   ModelParameters,
-  Sequence,
+  ProteinSequence,
   StructureAtomicCoordinates,
 )
 
@@ -42,7 +42,7 @@ def make_sample_sequences(
 ) -> Callable[
   [
     PRNGKeyArray,
-    Sequence,
+    ProteinSequence,
     StructureAtomicCoordinates,
     AtomMask,
     AtomResidueIndex,
@@ -53,7 +53,7 @@ def make_sample_sequences(
     float,  # temperature
     int,  # iterations
   ],
-  tuple[Sequence, Float],
+  tuple[ProteinSequence, Float],
 ]:
   """Create a function to sample sequences from a structure using ProteinMPNN.
 
@@ -94,7 +94,7 @@ def make_sample_sequences(
   @partial(jax.jit, static_argnames=("k_neighbors", "iterations"))
   def sample_sequences(  # noqa: PLR0913
     prng_key: PRNGKeyArray,
-    initial_sequence: Sequence,
+    initial_sequence: ProteinSequence,
     structure_coordinates: StructureAtomicCoordinates,
     mask: AtomMask,
     residue_indices: AtomResidueIndex,
@@ -105,7 +105,7 @@ def make_sample_sequences(
     temperature: float = 1.0,
     iterations: int = 1,
   ) -> tuple[
-    Sequence,
+    ProteinSequence,
     Logits,
     DecodingOrder,
   ]:

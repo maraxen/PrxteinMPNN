@@ -42,6 +42,7 @@ def get_mpnn_model(
     A dictionary containing the model parameters.
 
   """
-  model_path = pathlib.Path("models") / model_weights.value / model_version.value
+  model_dir = pathlib.Path(__file__).parent.parent / "prxteinmpnn" / "model"
+  model_path = model_dir / model_weights.value / model_version.value
   checkpoint_state = joblib.load(model_path)
   return jax.tree_util.tree_map(jnp.array, checkpoint_state)

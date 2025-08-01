@@ -109,7 +109,7 @@ def extract_features(
   distances_masked = jnp.array(
     jnp.where(
       (mask[:, None] * mask[None, :]).astype(bool),
-      distances[..., 1],
+      distances[..., None],
       jnp.inf,
     ),
   )

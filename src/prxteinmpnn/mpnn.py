@@ -53,5 +53,5 @@ def get_mpnn_model(
   if not model_path.exists():
     msg = f"Model file not found: {model_path}"
     raise FileNotFoundError(msg)
-  checkpoint_state = joblib.load(model_path)
+  checkpoint_state = joblib.load(model_path)["model_state_dict"]
   return jax.tree_util.tree_map(jnp.array, checkpoint_state)

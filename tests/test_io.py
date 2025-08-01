@@ -430,7 +430,7 @@ def test_from_string_errors():
     "ATOM      1  N   ALA A   1       1.000   2.000   3.000  1.00 10.00           N\n"
   )
   with pytest.raises(TypeError, match="Expected chain_id to be a string or a sequence of strings"):
-    io.from_string(valid_pdb, chain_id=123)
+    io.from_string(valid_pdb, chain_id=123) # type:ignore [arg-call]
 
 
 def test_from_string_empty():

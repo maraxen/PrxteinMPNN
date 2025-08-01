@@ -13,7 +13,10 @@ dependencies = [
     "jaxlib",
     "joblib",
     "pytest",
-
+    "flax",
+    "chex",
+    "biotite",
+    "foldcomp",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",

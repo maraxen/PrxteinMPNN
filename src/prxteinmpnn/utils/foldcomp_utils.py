@@ -14,7 +14,7 @@ from prxteinmpnn.utils.data_structures import ModelInputs, ProteinStructure
 from prxteinmpnn.utils.types import ModelParameters
 
 
-class FoldCompDatabase(enum.Enum):
+class FoldCompDatabaseEnum(enum.Enum):
   """Enum for FoldComp databases."""
 
   ESMATLAS_FULL = "esmatlas"
@@ -43,7 +43,7 @@ class FoldCompDatabase(enum.Enum):
 
 
 @cache
-def _setup_foldcomp_database(database: FoldCompDatabase) -> None:
+def _setup_foldcomp_database(database: FoldCompDatabaseEnum) -> None:
   """Set up the FoldComp database, handling sync and async contexts.
 
   Args:
@@ -68,7 +68,7 @@ def _setup_foldcomp_database(database: FoldCompDatabase) -> None:
 
 
 def _get_protein_structures_from_database(
-  proteins: dict[str, str],
+  proteins: foldcomp.FoldCompDatabase,  # type: ignore[attr-access]
 ) -> Iterator[ProteinStructure]:
   """Retrieve protein structures from the FoldComp database.
 
@@ -80,14 +80,14 @@ def _get_protein_structures_from_database(
     for the specified protein IDs.
 
   """
-  for pdb in proteins.values():
+  for _, pdb in proteins:
     protein_structure = from_string(pdb)
     yield protein_structure
 
 
 def get_protein_structures(
   protein_ids: Sequence[str],
-  database: FoldCompDatabase = FoldCompDatabase.AFDB_REP_V4,
+  database: FoldCompDatabaseEnum = FoldCompDatabaseEnum.AFDB_REP_V4,
 ) -> Iterator[ProteinStructure]:
   """Retrieve protein structures from the FoldComp database.
 

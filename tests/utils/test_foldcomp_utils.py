@@ -8,8 +8,8 @@ import pytest
 
 from prxteinmpnn.mpnn import ModelWeights, ProteinMPNNModelVersion
 from prxteinmpnn.utils.data_structures import ModelInputs, ProteinStructure
-from prxteinmpnn.utils.foldcomp import (
-  FoldCompDatabase,
+from prxteinmpnn.utils.foldcomp_utils import (
+  FoldCompDatabaseEnum,
   _get_protein_structures_from_database,
   get_protein_structures,
   model_from_id,
@@ -67,9 +67,9 @@ def test_foldcomp_database_enum():
     AssertionError: If enum members or values are not as expected.
 
   """
-  assert FoldCompDatabase.ESMATLAS_FULL.value == "esmatlas"
-  assert FoldCompDatabase.AFDB_H_SAPIENS.value == "afdb_h_sapiens"
-  assert len(list(FoldCompDatabase)) > 0
+  assert FoldCompDatabaseEnum.ESMATLAS_FULL.value == "esmatlas"
+  assert FoldCompDatabaseEnum.AFDB_H_SAPIENS.value == "afdb_h_sapiens"
+  assert len(list(FoldCompDatabaseEnum)) > 0
 
 
 @patch("foldcomp.setup")
@@ -88,7 +88,7 @@ def test_setup_foldcomp_database_calls_setup(mock_setup: MagicMock):
   """
   # Clear cache to ensure the function call is not skipped
   _setup_foldcomp_database.cache_clear()
-  database = FoldCompDatabase.AFDB_SWISSPROT_V4
+  database = FoldCompDatabaseEnum.AFDB_SWISSPROT_V4
   _setup_foldcomp_database(database)
   mock_setup.assert_called_once_with(database.value)
 
@@ -109,7 +109,7 @@ def test_setup_foldcomp_database_is_cached(mock_setup: MagicMock):
   """
   # Clear cache before the test
   _setup_foldcomp_database.cache_clear()
-  database = FoldCompDatabase.ESMATLAS_HIGH_QUALITY
+  database = FoldCompDatabaseEnum.ESMATLAS_HIGH_QUALITY
 
   # Call the function multiple times
   _setup_foldcomp_database(database)
@@ -177,7 +177,7 @@ def test_get_protein_structures_happy_path(
 
   """
   protein_ids = ["P12345", "Q67890"]
-  database = FoldCompDatabase.AFDB_REP_V4
+  database = FoldCompDatabaseEnum.AFDB_REP_V4
   mock_proteins_dict = {"P12345": "pdb1", "Q67890": "pdb2"}
   mock_foldcomp_open.return_value.__enter__.return_value = mock_proteins_dict
   mock_get_from_db.return_value = iter([dummy_protein_structure] * 2)

@@ -39,10 +39,19 @@ def get_mpnn_model(
     model_weights: The weights to load for the model.
 
   Returns:
-    A dictionary containing the model parameters.
+    A PyTree containing the model parameters.
+
+  Raises:
+    FileNotFoundError: If the model file does not exist.
+
+  Example:
+    >>> params = get_mpnn_model()
 
   """
-  model_dir = pathlib.Path(__file__).parent.parent / "prxteinmpnn" / "model"
-  model_path = model_dir / model_weights.value / model_version.value
+  base_dir = pathlib.Path(__file__).parent
+  model_path = base_dir / "model" / model_weights.value / model_version.value
+  if not model_path.exists():
+    msg = f"Model file not found: {model_path}"
+    raise FileNotFoundError(msg)
   checkpoint_state = joblib.load(model_path)
   return jax.tree_util.tree_map(jnp.array, checkpoint_state)

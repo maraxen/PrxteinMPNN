@@ -1,10 +1,12 @@
 """Utilities for processing and manipulating protein structures from foldcomp."""
 
+import asyncio
 import enum
 from collections.abc import Iterator, Sequence
 from functools import cache
 
 import foldcomp
+import nest_asyncio
 
 from prxteinmpnn.io import from_string, protein_structure_to_model_inputs
 from prxteinmpnn.mpnn import ModelWeights, ProteinMPNNModelVersion, get_mpnn_model
@@ -42,24 +44,27 @@ class FoldCompDatabase(enum.Enum):
 
 @cache
 def _setup_foldcomp_database(database: FoldCompDatabase) -> None:
-  """Set up the FoldComp database based on the provided enum.
-
-  Downloads and prepares the specified FoldComp database for use.
-
-  For details on the databases, see:
-  https://github.com/steineggerlab/foldcomp
+  """Set up the FoldComp database, handling sync and async contexts.
 
   Args:
     database: The FoldCompDatabase enum value specifying which database to set up.
 
   Returns:
-    None: The function sets up the database but does not return any value.
+    None
 
   Example:
-    >>> setup_foldcomp_database(FoldCompDatabase.ESMATLAS_FULL)
+    >>> _setup_foldcomp_database(FoldCompDatabase.ESMATLAS_FULL)
 
   """
-  return foldcomp.setup(database.value)
+  try:
+    loop = asyncio.get_running_loop()
+    # If we're here, we're in an async context (e.g., Jupyter)
+
+    nest_asyncio.apply()
+    coro = foldcomp.setup_async(database.value)
+    loop.run_until_complete(coro)
+  except RuntimeError:
+    foldcomp.setup(database.value)
 
 
 def _get_protein_structures_from_database(

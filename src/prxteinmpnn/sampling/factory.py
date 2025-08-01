@@ -22,6 +22,7 @@ from prxteinmpnn.utils.types import (
   AtomMask,
   AtomResidueIndex,
   DecodingOrder,
+  Hyperparameters,
   InputBias,
   Logits,
   ModelParameters,
@@ -50,7 +51,7 @@ def make_sample_sequences(
     InputBias | None,
     int,  # k_neighbors
     float,  # augment_eps
-    float,  # temperature
+    Hyperparameters,  # temperature
     int,  # iterations
   ],
   tuple[ProteinSequence, Float],
@@ -91,7 +92,7 @@ def make_sample_sequences(
     sampling_strategy=sampling_strategy,
   )
 
-  @partial(jax.jit, static_argnames=("k_neighbors", "iterations"))
+  @partial(jax.jit, static_argnames=("k_neighbors", "iterations", "hyperparameters"))
   def sample_sequences(  # noqa: PLR0913
     prng_key: PRNGKeyArray,
     initial_sequence: ProteinSequence,
@@ -102,7 +103,7 @@ def make_sample_sequences(
     bias: InputBias | None = None,
     k_neighbors: int = 48,
     augment_eps: float = 0.0,
-    temperature: float = 1.0,
+    hyperparameters: Hyperparameters = (0.0,),
     iterations: int = 1,
   ) -> tuple[
     ProteinSequence,
@@ -146,7 +147,7 @@ def make_sample_sequences(
       mask,
       autoregressive_mask,
       model_parameters,
-      temperature,
+      hyperparameters,
     )
 
     initial_carry = (

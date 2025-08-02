@@ -141,10 +141,10 @@ def encoder_normalize(
 
   """
   node_features = node_features + (jnp.sum(message, -2) / scale)
-  norm1_params = layer_params["norm1"]
+  norm1_params = layer_params["norm1"]["norm"]
   node_features = layer_normalization(node_features, norm1_params)
   node_features = node_features + dense_layer(layer_params, node_features)
-  norm2_params = layer_params["norm2"]
+  norm2_params = layer_params["norm2"]["norm"]
   node_features = layer_normalization(node_features, norm2_params)
   node_features = mask[:, None] * node_features
   edge_features_cat = concatenate_neighbor_nodes(node_features, edge_features, neighbor_indices)
@@ -161,7 +161,7 @@ def encoder_normalize(
   edge_message = GeLU(jnp.dot(GeLU(jnp.dot(mlp_input, w11) + b11), w12) + b12)
   edge_message = jnp.dot(edge_message, w13) + b13
 
-  norm3_params = layer_params["norm3"]
+  norm3_params = layer_params["norm3"]["norm"]
   updated_edge_features = layer_normalization(edge_features + edge_message, norm3_params)
 
   return node_features, updated_edge_features

@@ -21,12 +21,11 @@ if TYPE_CHECKING:
     AtomResidueIndex,
     BFactors,
     ChainIndex,
-    DecodingOrder,
     InputBias,
     InputLengths,
-    ModelParameters,
     ProteinSequence,
     ResidueIndex,
+    SamplingHyperparameters,
     StructureAtomicCoordinates,
   )
 
@@ -102,42 +101,41 @@ class ModelInputs:
   """Index of chains in the structure, used for mapping atoms in structures to their chains."""
   lengths: InputLengths = field(default_factory=lambda: jnp.array([]))
   """Lengths of the sequences in the batch, used for padding and batching."""
-  bias: InputBias = field(default_factory=lambda: jnp.array([]))
+  bias: InputBias | None = field(default_factory=lambda: None)
   """Bias for the model input, used for classification tasks.
   Defaults to zero bias of shape (sum(lengths), 20)."""
+  k_neighbors: int = 48
+  """Number of neighbors to consider for each atom in the structure."""
+  augment_eps: float = 0.0
+  """Epsilon value for adding noise to the backbone coordinates, used for data augmentation."""
 
 
 @dataclass(frozen=True)
-class ScoringInputs:
-  """Dataclass for inputs used in sequence scoring.
+class SamplingInputs(ModelInputs):
+  """Dataclass for inputs used in sequence sampling.
 
   Attributes:
-    key (PRNGKeyArray): Random key for JAX operations.
-    sequence (Sequence): Sequence of amino acids as an array of integers.
-    decoding_order (DecodingOrder): Order in which residues are processed during decoding.
-    model_parameters (ModelParameters): Model parameters for the scoring function.
+    prng_key (PRNGKeyArray): Random key for JAX operations.
+    initial_sequence (ProteinSequence): Initial sequence of amino acids as an array of integers.
     structure_coordinates (StructureAtomicCoordinates): Atomic coordinates of the structure.
-    atom_mask (AtomMask): Mask indicating valid atoms in the structure.
+    mask (AtomMask): Mask indicating valid atoms in the structure.
     residue_index (AtomResidueIndex): Index of residues in the structure.
     chain_index (AtomChainIndex): Index of chains in the structure.
+    bias (InputBias | None): Bias for the model input, used for classification tasks.
     k_neighbors (int): Number of neighbors to consider for each atom.
     augment_eps (float): Epsilon value for adding noise to the backbone coordinates.
+    hyperparameters (SamplingHyperparameters): Hyperparameters for sampling, e.g., temperature,
+      top-k, etc.
+    iterations (int): Number of iterations for sampling.
 
   """
 
-  key: PRNGKeyArray = field(default_factory=lambda: jax.random.PRNGKey(0))
-  sequence: ProteinSequence = field(default_factory=lambda: jnp.array([]))
-  """Sequence of amino acids as an array of integers."""
-  decoding_order: DecodingOrder = field(default_factory=lambda: jnp.array([]))
-  model_parameters: ModelParameters = field(default_factory=lambda: jnp.array([]))
-  structure_coordinates: StructureAtomicCoordinates = field(default_factory=lambda: jnp.array([]))
-  atom_mask: AtomMask = field(default_factory=lambda: jnp.array([]))
-  residue_index: AtomResidueIndex = field(default_factory=lambda: jnp.array([]))
-  chain_index: AtomChainIndex = field(default_factory=lambda: jnp.array([]))
-  k_neighbors: int = 48
-  """Number of neighbors to consider for each atom."""
-  augment_eps: float = 0.0
-  """Epsilon value for adding noise to the backbone coordinates."""
+  prng_key: PRNGKeyArray = field(default_factory=lambda: jax.random.PRNGKey(0))
+  """Random key for JAX operations."""
+  hyperparameters: SamplingHyperparameters = (0.0,)
+  """Hyperparameters for sampling, e.g., temperature, top-k, etc."""
+  iterations: int = 1
+  """Number of iterations for sampling."""
 
 
 class OligomerType(enum.Enum):
@@ -158,6 +156,3 @@ class SamplingEnum(enum.Enum):
   TEMPERATURE = "temperature"
   BEAM_SEARCH = "beam_search"
   STRAIGHT_THROUGH = "straight_through"
-
-  def __str__(self) -> str:
-    return self.value

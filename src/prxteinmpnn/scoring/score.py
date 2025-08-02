@@ -141,8 +141,8 @@ def make_score_sequence(
       score_sequence,
       structure_coordinates=model_inputs.structure_coordinates,
       mask=model_inputs.mask,
-      residue_indices=model_inputs.residue_index,
-      chain_indices=model_inputs.chain_index,
+      residue_index=model_inputs.residue_index,
+      chain_index=model_inputs.chain_index,
       k_neighbors=model_inputs.k_neighbors,
       augment_eps=model_inputs.augment_eps,
     )

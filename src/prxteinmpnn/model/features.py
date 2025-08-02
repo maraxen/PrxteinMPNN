@@ -99,7 +99,6 @@ def extract_features(
     edge_indices: Indices of neighboring atoms.
 
   """
-  mask = mask[:, 1]  # Use only alpha carbons
   noised_coordinates = apply_noise_to_coordinates(
     structure_coordinates,
     prng_key,

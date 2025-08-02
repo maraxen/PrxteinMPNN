@@ -41,8 +41,8 @@ def layer_normalization(
       The normalized tensor.
 
   """
-  scale = layer_parameters["norm"]["scale"]
-  offset = layer_parameters["norm"]["offset"]
+  scale = layer_parameters["scale"]
+  offset = layer_parameters["offset"]
   return normalize(
     x,
     scale,

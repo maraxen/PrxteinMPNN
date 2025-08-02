@@ -12,6 +12,7 @@ from biotite.structure import AtomArray, AtomArrayStack
 from biotite.structure import io as structure_io
 from biotite.structure.io.pdb import PDBFile
 
+from prxteinmpnn.utils.aa_convert import af_to_mpnn
 from prxteinmpnn.utils.data_structures import ModelInputs, ProteinStructure
 from prxteinmpnn.utils.residue_constants import atom_order, resname_to_idx, unk_restype_index
 from prxteinmpnn.utils.types import AtomChainIndex, ChainIndex, InputBias, ProteinSequence
@@ -81,6 +82,7 @@ def residue_names_to_aatype(
     aa_map = resname_to_idx
 
   aa_indices = string_key_to_index(residue_names, aa_map, unk_restype_index)
+  aa_indices = af_to_mpnn(aa_indices)
   return jnp.asarray(aa_indices, dtype=jnp.int8)
 
 

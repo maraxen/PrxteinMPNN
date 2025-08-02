@@ -167,11 +167,37 @@ def _process_chain_id(
   return atom_array, chain_index
 
 
+def _fill_in_cb_coordinates(
+  coords_37: jnp.ndarray,
+  residue_names: np.ndarray,
+  atom_map: dict[str, int] | None = None,
+) -> jnp.ndarray:
+  """Fill in the CB coordinates for residues that have them."""
+  if atom_map is None:
+    atom_map = atom_order
+  is_glycine = jnp.array([name == "GLY" for name in residue_names])
+
+  n_coords = coords_37[:, atom_map["N"], :]
+  ca_coords = coords_37[:, atom_map["CA"], :]
+  c_coords = coords_37[:, atom_map["C"], :]
+
+  precise_cbs = vmap(compute_cb_precise)(n_coords, ca_coords, c_coords)
+
+  original_cbs = coords_37[:, atom_map["CB"], :]
+
+  updated_cbs = jnp.where(is_glycine[:, None], precise_cbs, original_cbs)
+
+  return coords_37.at[:, atom_map["CB"], :].set(updated_cbs)
+
+
 def process_atom_array(
   atom_array: AtomArray,
+  atom_map: dict[str, int] | None = None,
   chain_id: Sequence[str] | str | None = None,
 ) -> ProteinStructure:
   """Process an AtomArray to create a ProteinStructure."""
+  if atom_map is None:
+    atom_map = atom_order
   atom_array, chain_index = _process_chain_id(atom_array, chain_id)
   _check_atom_array_length(atom_array)
   num_residues = structure.get_residue_count(atom_array)
@@ -210,21 +236,9 @@ def process_atom_array(
 
   aatype = residue_names_to_aatype(residue_names)
 
-  is_glycine = jnp.array([name == "GLY" for name in residue_names])
+  coords_37 = _fill_in_cb_coordinates(coords_37, residue_names, atom_map=atom_map)
 
-  n_coords = coords_37[:, 0, :]
-  ca_coords = coords_37[:, 1, :]
-  c_coords = coords_37[:, 2, :]
-
-  precise_cbs = vmap(compute_cb_precise)(n_coords, ca_coords, c_coords)
-
-  original_cbs = coords_37[:, 4, :]
-
-  updated_cbs = jnp.where(is_glycine[:, None], precise_cbs, original_cbs)
-
-  coords_37 = coords_37.at[:, 4, :].set(updated_cbs)
-
-  nitrogen_mask = atom_mask_37[:, 0] == 1
+  nitrogen_mask = atom_mask_37[:, atom_map["N"]] == 1
   coords_37 = coords_37[nitrogen_mask]
   aatype = aatype[nitrogen_mask]
   atom_mask_37 = atom_mask_37[nitrogen_mask]
@@ -315,7 +329,7 @@ def from_trajectory(
     msg = f"Unexpected transformation to {type(atom_stack)}."
     raise TypeError(msg)
 
-  return (process_atom_array(frame, chain_id) for frame in atom_stack)
+  return (process_atom_array(frame, chain_id=chain_id) for frame in atom_stack)
 
 
 def from_string(

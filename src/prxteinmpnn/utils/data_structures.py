@@ -74,9 +74,9 @@ class ModelInputs:
       Shape is (num_residues,), where num_residues is the number of residues.
     mask (AtomMask): Mask for the model input, indicating valid atoms in the structure.
       Shape is (num_residues, num_atoms), where num_atoms is the number of atoms per residue.
-    residue_index (AtomResidueIndex): Index of residues in the structure, used for mapping atoms
+    residue_index (ResidueIndex): Index of residues in the structure, used for mapping atoms
       in structures to their residues. Shape is (num_residues,).
-    chain_index (AtomChainIndex): Index of chains in the structure, used for mapping
+    chain_index (ChainIndex): Index of chains in the structure, used for mapping
       atoms in structures to their chains. Shape is (num_residues,).
     lengths (InputLengths): Lengths of the sequences in the batch, used for padding and
       batching. Shape is (num_sequences,), where num_sequences is the number of sequences in the

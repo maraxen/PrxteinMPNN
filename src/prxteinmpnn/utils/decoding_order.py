@@ -28,3 +28,14 @@ def random_decoding_order(
   decoding_order = jax.random.permutation(current_key, jax.numpy.arange(0, num_residues))
   decoding_order = jax.numpy.asarray(decoding_order, dtype=jax.numpy.int32)
   return decoding_order, next_key
+
+
+@partial(jax.jit, static_argnames=("num_residues",))
+def single_decoding_order(
+  prng_key: PRNGKeyArray,
+  num_residues: int,
+) -> DecodingOrderOutputs:
+  """Return a single decoding order (identity)."""
+  decoding_order = jax.random.permutation(prng_key, jax.numpy.arange(0, num_residues))
+  decoding_order = jax.numpy.asarray(decoding_order, dtype=jax.numpy.int32)
+  return decoding_order, prng_key

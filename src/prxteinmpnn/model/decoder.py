@@ -234,10 +234,10 @@ def decoder_normalize(
 
   """
   node_features = node_features + (jnp.sum(message, -2) / scale)
-  norm1_params = layer_params["norm1"]["norm"]
+  norm1_params = layer_params["norm1"]
   node_features = layer_normalization(node_features, norm1_params)
   node_features = node_features + dense_layer(layer_params, node_features)
-  norm2_params = layer_params["norm2"]["norm"]
+  norm2_params = layer_params["norm2"]
   node_features = layer_normalization(node_features, norm2_params)
   return mask[:, None] * node_features
 

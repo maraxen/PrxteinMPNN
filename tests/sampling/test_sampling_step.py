@@ -3,7 +3,7 @@
 import jax.numpy as jnp
 import pytest
 from prxteinmpnn.model.decoder import RunConditionalDecoderFn
-from prxteinmpnn.sampling.sampling import (
+from prxteinmpnn.sampling.sampling_step import (
   preload_sampling_step_decoder,
   sample_straight_through_estimator_step,
   sample_temperature_step,

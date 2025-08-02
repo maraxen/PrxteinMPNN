@@ -13,6 +13,7 @@ from .graph import (
 )
 from .radial_basis import compute_radial_basis
 from .types import (
+  AlphaCarbonDistance,
   AtomChainIndex,
   AtomicCoordinate,
   AtomIndexPair,
@@ -20,7 +21,6 @@ from .types import (
   AtomResidueIndex,
   AttentionMask,
   BackboneCoordinates,
-  Distances,
   EdgeFeatures,
   Logits,
   Message,
@@ -31,6 +31,7 @@ from .types import (
 )
 
 __all__ = [
+  "AlphaCarbonDistance",
   "AtomChainIndex",
   "AtomIndexPair",
   "AtomMask",
@@ -38,7 +39,6 @@ __all__ = [
   "AtomicCoordinate",
   "AttentionMask",
   "BackboneCoordinates",
-  "Distances",
   "EdgeFeatures",
   "GeLU",
   "Logits",

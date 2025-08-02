@@ -33,7 +33,7 @@ from prxteinmpnn.utils.types import (
 )
 
 from .initialize import sampling_encode
-from .sampling import preload_sampling_step_decoder
+from .sampling_step import preload_sampling_step_decoder
 
 SamplerFnBase = Callable[
   [

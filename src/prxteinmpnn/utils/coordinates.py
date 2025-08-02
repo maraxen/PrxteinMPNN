@@ -10,6 +10,7 @@ import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.utils.types import (
+  AlphaCarbonDistance,
   AtomicCoordinate,
   BackboneCoordinates,
   StructureAtomicCoordinates,
@@ -83,7 +84,7 @@ def compute_c_beta(
 
 
 @jax.jit
-def compute_backbone_distance(backbone_coordinates: BackboneCoordinates) -> BackboneCoordinates:
+def compute_backbone_distance(backbone_coordinates: BackboneCoordinates) -> AlphaCarbonDistance:
   """Compute pairwise distances between backbone atoms.
 
   Calculate the Euclidean distance between all pairs of backbone atom coordinates based on alpha
@@ -100,10 +101,11 @@ def compute_backbone_distance(backbone_coordinates: BackboneCoordinates) -> Back
     A 2D array of shape (N, N) containing the pairwise distances between backbone atoms.
 
   """
+  alpha_coordinates = backbone_coordinates[:, 1, :]
   return jnp.sqrt(
     1e-6
     + jnp.sum(
-      (backbone_coordinates[:, None, :, :] - backbone_coordinates[None, :, :, :]) ** 2,
+      jnp.square(alpha_coordinates[:, None, :] - alpha_coordinates[None, :, :]),
       axis=-1,
     ),
   )

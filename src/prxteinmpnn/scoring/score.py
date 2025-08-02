@@ -52,6 +52,8 @@ ScoringFnFromModelInputs = Callable[
 
 ScoringFn = ScoringFnBase | ScoringFnFromModelInputs
 
+SCORE_EPS = 1e-8
+
 
 def make_score_sequence(
   model_parameters: ModelParameters,
@@ -130,11 +132,22 @@ def make_score_sequence(
       sequence,
     )
     logits = final_projection(
-      node_features=node_features,
-      sequence=sequence,
-      model_parameters=model_parameters,
+      model_parameters,
+      node_features,
     )
-    return jnp.sum(logits, axis=-1) / logits.shape[-1]  # FIGURE OUT WHAT SHOULD ACTUALLY GO HERE
+
+    log_probability = jax.nn.log_softmax(logits, axis=-1)[..., :20]
+
+    scored_sequence_one_hot = jax.nn.one_hot(sequence, num_classes=21)[
+      ...,
+      :20,
+    ]
+
+    score = -(scored_sequence_one_hot * log_probability).sum(-1)
+    masked_score_sum = (score * mask).sum(-1)
+    mask_sum = mask.sum() + SCORE_EPS
+
+    return masked_score_sum / mask_sum
 
   if model_inputs:
     return partial(

@@ -11,8 +11,10 @@ from biotite import structure
 from biotite.structure import AtomArray, AtomArrayStack
 from biotite.structure import io as structure_io
 from biotite.structure.io.pdb import PDBFile
+from jax import vmap
 
 from prxteinmpnn.utils.aa_convert import af_to_mpnn
+from prxteinmpnn.utils.coordinates import compute_cb_precise
 from prxteinmpnn.utils.data_structures import ModelInputs, ProteinStructure
 from prxteinmpnn.utils.residue_constants import atom_order, resname_to_idx, unk_restype_index
 from prxteinmpnn.utils.types import AtomChainIndex, ChainIndex, InputBias, ProteinSequence
@@ -207,6 +209,20 @@ def process_atom_array(
   )
 
   aatype = residue_names_to_aatype(residue_names)
+
+  is_glycine = jnp.array([name == "GLY" for name in residue_names])
+
+  n_coords = coords_37[:, 0, :]
+  ca_coords = coords_37[:, 1, :]
+  c_coords = coords_37[:, 2, :]
+
+  precise_cbs = vmap(compute_cb_precise)(n_coords, ca_coords, c_coords)
+
+  original_cbs = coords_37[:, 4, :]
+
+  updated_cbs = jnp.where(is_glycine[:, None], precise_cbs, original_cbs)
+
+  coords_37 = coords_37.at[:, 4, :].set(updated_cbs)
 
   return ProteinStructure(
     coordinates=coords_37,

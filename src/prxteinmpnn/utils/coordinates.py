@@ -9,6 +9,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
+from prxteinmpnn.utils.residue_constants import atom_order
 from prxteinmpnn.utils.types import (
   AlphaCarbonDistance,
   AtomicCoordinate,
@@ -43,12 +44,12 @@ def compute_backbone_coordinates(
     Backbone coordinates with C-beta atoms computed where necessary, shape (N, 5, 3).
 
   """
-  nitrogen = coordinates[:, 0, :]
-  alpha_carbon = coordinates[:, 1, :]
-  carbon = coordinates[:, 2, :]
-  oxygen = coordinates[:, 3, :]
+  nitrogen = coordinates[:, atom_order["N"], :]
+  alpha_carbon = coordinates[:, atom_order["CA"], :]
+  carbon = coordinates[:, atom_order["C"], :]
+  oxygen = coordinates[:, atom_order["O"], :]
 
-  has_no_cb = jnp.all(coordinates[:, 4, :] == 0, axis=-1)
+  has_no_cb = jnp.all(coordinates[:, atom_order["CB"], :] == 0, axis=-1)
 
   alpha_to_nitrogen = alpha_carbon - nitrogen
   carbon_to_alpha = carbon - alpha_carbon
@@ -58,7 +59,7 @@ def compute_backbone_coordinates(
     jnp.where(
       jnp.expand_dims(has_no_cb, -1),
       calculated_cb,
-      coordinates[:, 4, :],
+      coordinates[:, atom_order["CB"], :],
     ),
     dtype=alpha_carbon.dtype,
   )

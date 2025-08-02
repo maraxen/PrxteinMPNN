@@ -29,7 +29,7 @@ class ModelWeights(enum.Enum):
 
 
 def get_mpnn_model(
-  model_version: ProteinMPNNModelVersion = ProteinMPNNModelVersion.V_48_002,
+  model_version: ProteinMPNNModelVersion = ProteinMPNNModelVersion.V_48_020,
   model_weights: ModelWeights = ModelWeights.DEFAULT,
 ) -> PyTree:
   """Create a ProteinMPNN model with specified configuration and weights.

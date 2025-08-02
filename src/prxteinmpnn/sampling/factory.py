@@ -3,35 +3,71 @@
 prxteinmpnn.sampling.factory
 """
 
+import warnings
 from collections.abc import Callable
+from dataclasses import asdict
 from functools import partial
 from typing import cast
 
 import jax
 import jax.numpy as jnp
-from jaxtyping import Float, PRNGKeyArray
+from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.model.decoder import DecodingEnum, RunConditionalDecoderFn, make_decoder
 from prxteinmpnn.model.encoder import make_encoder
 from prxteinmpnn.model.final_projection import final_projection
 from prxteinmpnn.model.masked_attention import MaskedAttentionEnum
-from prxteinmpnn.utils.data_structures import SamplingEnum
+from prxteinmpnn.utils.data_structures import ModelInputs, SamplingEnum, SamplingInputs
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
-  AtomChainIndex,
   AtomMask,
-  AtomResidueIndex,
+  ChainIndex,
   DecodingOrder,
   InputBias,
   Logits,
   ModelParameters,
   ProteinSequence,
+  ResidueIndex,
   SamplingHyperparameters,
   StructureAtomicCoordinates,
 )
 
 from .initialize import sampling_encode
 from .sampling import preload_sampling_step_decoder
+
+SamplerFnBase = Callable[
+  [
+    PRNGKeyArray,
+    ProteinSequence,
+    StructureAtomicCoordinates,
+    AtomMask,
+    ResidueIndex,
+    ChainIndex,
+    InputBias | None,
+    int,
+    float,
+    SamplingHyperparameters,
+    int,
+  ],
+  tuple[ProteinSequence, Logits, DecodingOrder],
+]
+
+SamplerFnFromModelInputs = Callable[
+  [
+    PRNGKeyArray,
+    SamplingHyperparameters,
+    int,
+  ],
+  tuple[ProteinSequence, Logits, DecodingOrder],
+]
+
+SamplerFnFromSamplingInputs = Callable[
+  [],
+  tuple[ProteinSequence, Logits, DecodingOrder],
+]
+
+
+SamplerFn = SamplerFnBase | SamplerFnFromModelInputs | SamplerFnFromSamplingInputs
 
 
 def make_sample_sequences(
@@ -40,35 +76,38 @@ def make_sample_sequences(
   sampling_strategy: SamplingEnum = SamplingEnum.TEMPERATURE,
   num_encoder_layers: int = 3,
   num_decoder_layers: int = 3,
-) -> Callable[
-  [
-    PRNGKeyArray,
-    ProteinSequence,
-    StructureAtomicCoordinates,
-    AtomMask,
-    AtomResidueIndex,
-    AtomChainIndex,
-    InputBias | None,
-    int,  # k_neighbors
-    float,  # augment_eps
-    SamplingHyperparameters,  # temperature
-    int,  # iterations
-  ],
-  tuple[ProteinSequence, Float],
-]:
+  model_inputs: ModelInputs | None = None,
+  sampling_inputs: SamplingInputs | None = None,
+) -> SamplerFn:
   """Create a function to sample sequences from a structure using ProteinMPNN.
 
   Args:
-    model_parameters: Pre-trained ProteinMPNN model parameters.
-    decoding_order_fn: Function to generate decoding order.
-    sampling_strategy: Strategy for sampling from logits.
-    num_encoder_layers: Number of encoder layers.
-    num_decoder_layers: Number of decoder layers.
+    model_parameters (ModelParameters): Pre-trained ProteinMPNN model parameters.
+    decoding_order_fn (DecodingOrderFn): Function to generate decoding order.
+    sampling_strategy (SamplingEnum): Strategy for sampling from logits. Default is temperature
+      sampling.
+    num_encoder_layers (int): Number of encoder layers. Default is 3.
+    num_decoder_layers (int): Number of decoder layers. Default is 3.
+    model_inputs (ModelInputs | None): Optional model inputs for sampling. Output function signature
+      requires `prng_key`, `bias`, `k_neighbors`, `augment_eps`, `hyperparameters`, and
+      `iterations`.
+    sampling_inputs (SamplingInputs | None): Optional sampling inputs for sequence sampling. Output
+      function signature does not require any arguments, as it uses the attributes of
+      `sampling_inputs`.
+
+    If both `model_inputs` and `sampling_inputs` are provided, `sampling_inputs` will be used.
 
   Returns:
     A function that samples sequences given structural inputs.
 
   """
+  if model_inputs and sampling_inputs:
+    warnings.warn(
+      "Both model_inputs and sampling_inputs are provided. Using sampling_inputs for sampling.",
+      UserWarning,
+      stacklevel=2,
+    )
+
   encoder = make_encoder(
     model_parameters=model_parameters,
     attention_mask_enum=MaskedAttentionEnum.CROSS,
@@ -95,14 +134,14 @@ def make_sample_sequences(
   @partial(jax.jit, static_argnames=("k_neighbors", "iterations", "hyperparameters"))
   def sample_sequences(  # noqa: PLR0913
     prng_key: PRNGKeyArray,
-    initial_sequence: ProteinSequence,
+    sequence: ProteinSequence,
     structure_coordinates: StructureAtomicCoordinates,
     mask: AtomMask,
-    residue_indices: AtomResidueIndex,
-    chain_indices: AtomChainIndex,
+    residue_index: ResidueIndex,
+    chain_index: ChainIndex,
     bias: InputBias | None = None,
     k_neighbors: int = 48,
-    augment_eps: float = 0.0,
+    augment_eps: float = 0.0,  # TODO(mar): maybe move k_neighbors and augment_eps to factory args # noqa: TD003, FIX002, E501
     hyperparameters: SamplingHyperparameters = (0.0,),
     iterations: int = 1,
   ) -> tuple[
@@ -125,8 +164,8 @@ def make_sample_sequences(
       prng_key,
       structure_coordinates,
       mask,
-      residue_indices,
-      chain_indices,
+      residue_index,
+      chain_index,
       model_parameters,
       k_neighbors,
       augment_eps,
@@ -138,7 +177,7 @@ def make_sample_sequences(
       neighbor_indices,
       mask,
       autoregressive_mask,
-      initial_sequence,
+      sequence,
     )
 
     logits = final_projection(model_parameters, decoded_node_features) + bias
@@ -154,7 +193,7 @@ def make_sample_sequences(
       next_rng_key,
       edge_features,
       node_features,
-      initial_sequence,
+      sequence,
       logits,
     )
 
@@ -166,5 +205,24 @@ def make_sample_sequences(
     )
 
     return final_carry[3], final_carry[4], decoding_order
+
+  if sampling_inputs:
+    return partial(
+      sample_sequences,
+      **asdict(sampling_inputs),
+    )
+
+  if model_inputs:
+    return partial(
+      sample_sequences,
+      initial_sequence=model_inputs.sequence,
+      structure_coordinates=model_inputs.structure_coordinates,
+      mask=model_inputs.mask,
+      residue_index=model_inputs.residue_index,
+      chain_index=model_inputs.chain_index,
+      bias=model_inputs.bias,
+      k_neighbors=model_inputs.k_neighbors,
+      augment_eps=model_inputs.augment_eps,
+    )
 
   return sample_sequences

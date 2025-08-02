@@ -17,12 +17,12 @@ from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.data_structures import ModelInputs
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
-  AtomChainIndex,
   AtomMask,
-  AtomResidueIndex,
+  ChainIndex,
   DecodingOrder,
   ModelParameters,
   ProteinSequence,
+  ResidueIndex,
   StructureAtomicCoordinates,
 )
 
@@ -34,8 +34,8 @@ ScoringFnBase = Callable[
     ModelParameters,
     StructureAtomicCoordinates,
     AtomMask,
-    AtomResidueIndex,
-    AtomChainIndex,
+    ResidueIndex,
+    ChainIndex,
     int,
     float,
   ],
@@ -83,8 +83,8 @@ def make_score_sequence(
     sequence: ProteinSequence,
     structure_coordinates: StructureAtomicCoordinates,
     mask: AtomMask,
-    residue_indices: AtomResidueIndex,
-    chain_indices: AtomChainIndex,
+    residue_index: ResidueIndex,
+    chain_index: ChainIndex,
     k_neighbors: int = 48,
     augment_eps: float = 0.0,  # TODO(mar): maybe move k_neighbors and augment_eps to factory args # noqa: TD003, FIX002, E501
   ) -> Float:
@@ -93,20 +93,19 @@ def make_score_sequence(
     autoregressive_mask = generate_ar_mask(decoding_order)
 
     edge_features, neighbor_indices = extract_features(
-      structure_coordinates,
-      autoregressive_mask,
-      residue_indices,
-      chain_indices,
-      mask,
       model_parameters,
+      structure_coordinates,
+      mask,
+      residue_index,
+      chain_index,
       prng_key,
       k_neighbors=k_neighbors,
       augment_eps=augment_eps,
     )
 
     edge_features = project_features(
-      edge_features,
       model_parameters,
+      edge_features,
     )
 
     attention_mask = jnp.take_along_axis(

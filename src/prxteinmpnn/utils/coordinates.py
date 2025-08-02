@@ -117,7 +117,7 @@ def compute_backbone_distance(backbone_coordinates: BackboneCoordinates) -> Alph
     A 2D array of shape (N, N) containing the pairwise distances between backbone atoms.
 
   """
-  alpha_coordinates = backbone_coordinates[:, 1, :]
+  alpha_coordinates = backbone_coordinates[:, atom_order["CA"], :]
   return jnp.sqrt(
     1e-6
     + jnp.sum(

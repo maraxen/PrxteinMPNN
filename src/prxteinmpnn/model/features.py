@@ -68,7 +68,7 @@ def embed_edges(
 ) -> EdgeFeatures:
   """Embed edge features using model parameters."""
   edge_emb_params = model_parameters["protein_mpnn/~/protein_features/~/edge_embedding"]
-  return jnp.dot(edge_features, edge_emb_params["w"]) + edge_emb_params["b"]
+  return jnp.dot(edge_features, edge_emb_params["w"])
 
 
 @partial(jax.jit, static_argnames=("k_neighbors", "augment_eps"))

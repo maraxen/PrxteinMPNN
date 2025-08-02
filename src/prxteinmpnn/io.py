@@ -224,6 +224,14 @@ def process_atom_array(
 
   coords_37 = coords_37.at[:, 4, :].set(updated_cbs)
 
+  nitrogen_mask = atom_mask_37[:, 0] == 1
+  coords_37 = coords_37[nitrogen_mask]
+  aatype = aatype[nitrogen_mask]
+  atom_mask_37 = atom_mask_37[nitrogen_mask]
+  residue_indices = residue_indices[nitrogen_mask]
+  chain_index = chain_index[nitrogen_mask]
+  bfactors_37 = bfactors_37[nitrogen_mask]
+
   return ProteinStructure(
     coordinates=coords_37,
     aatype=aatype,

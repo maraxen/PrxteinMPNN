@@ -43,3 +43,5 @@ DecodingOrderInputs = tuple[PRNGKeyArray, int]
 DecodingOrderOutputs = tuple[DecodingOrder, PRNGKeyArray]
 CEELoss = Float[Array, ""]  # Cross-entropy loss
 SamplingHyperparameters = tuple[float | int, ...]
+
+AlphaCarbonMask = Int[Array, "num_residues 3"]

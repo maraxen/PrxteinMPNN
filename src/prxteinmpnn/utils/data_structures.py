@@ -16,9 +16,8 @@ if TYPE_CHECKING:
   from jaxtyping import PRNGKeyArray
 
   from prxteinmpnn.utils.types import (
-    AtomChainIndex,
+    AlphaCarbonMask,
     AtomMask,
-    AtomResidueIndex,
     BFactors,
     ChainIndex,
     InputBias,
@@ -93,11 +92,11 @@ class ModelInputs:
   """Structure atomic coordinates for the model input."""
   sequence: ProteinSequence = field(default_factory=lambda: jnp.array([]))
   """A sequence of amino acids for the model input. As MPNN-alphabet based array of integers."""
-  mask: AtomMask = field(default_factory=lambda: jnp.array([]))
+  mask: AlphaCarbonMask = field(default_factory=lambda: jnp.array([]))
   """Mask for the model input, indicating valid atoms structure."""
-  residue_index: AtomResidueIndex = field(default_factory=lambda: jnp.array([]))
+  residue_index: ResidueIndex = field(default_factory=lambda: jnp.array([]))
   """Index of residues in the structure, used for mapping atoms in structures to their residues."""
-  chain_index: AtomChainIndex = field(default_factory=lambda: jnp.array([]))
+  chain_index: ChainIndex = field(default_factory=lambda: jnp.array([]))
   """Index of chains in the structure, used for mapping atoms in structures to their chains."""
   lengths: InputLengths = field(default_factory=lambda: jnp.array([]))
   """Lengths of the sequences in the batch, used for padding and batching."""

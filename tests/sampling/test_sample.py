@@ -1,10 +1,11 @@
+# type: ignore[call-arg]
 """Integration tests for the sampling factory."""
 
 import chex
 import jax
 import jax.numpy as jnp
 import pytest
-from prxteinmpnn.sampling.factory import make_sample_sequences
+from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.utils.data_structures import SamplingEnum
 
 
@@ -122,12 +123,12 @@ def test_make_sample_sequences(mock_model_parameters):
 
   # Run sampling
   sampled_sequence, logits, decoding_order = sample_sequences_fn(
-    prng_key=sample_key,  # type: ignore[call-arg]
-    initial_sequence=initial_sequence,
+    prng_key=sample_key,
+    sequence=initial_sequence, 
     structure_coordinates=coords,
     mask=mask,
-    residue_indices=residue_indices,
-    chain_indices=chain_indices,
+    residue_index=residue_indices,
+    chain_index=chain_indices,
     k_neighbors=K,
     iterations=L,
   )

@@ -73,22 +73,24 @@ def test_get_mpnn_model_defaults(mock_path: MagicMock, mock_load: MagicMock):
   """
   # Arrange: Set up the mock return value for joblib.load
   mock_checkpoint = {
+    "model_state_dict": {
     "layer1": {"weights": np.array([1.0, 2.0]), "bias": np.array([0.5])},
     "layer2": np.array([3.0, 4.0, 5.0]),
+    }
   }
   mock_load.return_value = mock_checkpoint
 
   # Arrange: Set up the mock for pathlib.Path to simulate path construction
   # The mock path object needs to handle chained calls to .parent and /
   mock_base_dir = MagicMock(spec=Path)
-  mock_path.return_value.parent.parent = mock_base_dir
+  mock_path.return_value.parent = mock_base_dir
 
   # Act: Call the function with default arguments
   model_params = get_mpnn_model()
 
   # Assert: Verify the path construction
   expected_model_path = (
-    mock_base_dir / "models" / ModelWeights.DEFAULT.value / ProteinMPNNModelVersion.V_48_002.value
+    mock_base_dir / "model" / ModelWeights.DEFAULT.value / ProteinMPNNModelVersion.V_48_002.value
   )
   mock_load.assert_called_once_with(expected_model_path)
 
@@ -119,9 +121,9 @@ def test_get_mpnn_model_custom_args(mock_path: MagicMock, mock_load: MagicMock):
 
   """
   # Arrange
-  mock_load.return_value = {"params": np.array([1.0])}
+  mock_load.return_value = {"model_state_dict": {"params": np.array([1.0])}}
   mock_base_dir = MagicMock(spec=Path)
-  mock_path.return_value.parent.parent = mock_base_dir
+  mock_path.return_value.parent = mock_base_dir
   custom_version = ProteinMPNNModelVersion.V_48_030
   custom_weights = ModelWeights.SOLUBLE
 
@@ -130,7 +132,7 @@ def test_get_mpnn_model_custom_args(mock_path: MagicMock, mock_load: MagicMock):
 
   # Assert
   expected_model_path = (
-    mock_base_dir / "models" / custom_weights.value / custom_version.value
+    mock_base_dir / "model" / custom_weights.value / custom_version.value
   )
   mock_load.assert_called_once_with(expected_model_path)
 

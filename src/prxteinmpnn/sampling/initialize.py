@@ -14,15 +14,15 @@ from prxteinmpnn.model.features import extract_features, project_features
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
-  AtomChainIndex,
   AtomMask,
-  AtomResidueIndex,
   AutoRegressiveMask,
+  ChainIndex,
   DecodingOrder,
   EdgeFeatures,
   ModelParameters,
   NeighborIndices,
   NodeFeatures,
+  ResidueIndex,
   StructureAtomicCoordinates,
 )
 
@@ -30,8 +30,8 @@ SamplingModelPassInput = tuple[
   PRNGKeyArray,
   StructureAtomicCoordinates,
   AtomMask,
-  AtomResidueIndex,
-  AtomChainIndex,
+  ResidueIndex,
+  ChainIndex,
   ModelParameters,
   int,  # k_neighbors
   float,  # augment_eps
@@ -63,8 +63,8 @@ def sampling_encode(
     prng_key: PRNGKeyArray,
     structure_coordinates: StructureAtomicCoordinates,
     mask: AtomMask,
-    residue_indices: AtomResidueIndex,
-    chain_indices: AtomChainIndex,
+    residue_index: ResidueIndex,
+    chain_index: ChainIndex,
     model_parameters: ModelParameters,
     k_neighbors: int = 48,
     augment_eps: float = 0.0,
@@ -75,11 +75,11 @@ def sampling_encode(
     autoregressive_mask = generate_ar_mask(decoding_order)
 
     edge_features, neighbor_indices = extract_features(
+      model_parameters,
       structure_coordinates,
       mask,
-      residue_indices,
-      chain_indices,
-      model_parameters,
+      residue_index,
+      chain_index,
       prng_key,
       k_neighbors=k_neighbors,
       augment_eps=augment_eps,

@@ -34,20 +34,35 @@ def apply_noise_to_coordinates(
 def compute_backbone_coordinates(
   coordinates: StructureAtomicCoordinates,
 ) -> BackboneCoordinates:
-  """Compute backbone coordinates from atomic coordinates."""
-  nitrogen, alpha_carbon, carbon, oxygen = (
-    coordinates[:, 0, :],
-    coordinates[:, 1, :],
-    coordinates[:, 2, :],
-    coordinates[:, 3, :],
-  )
+  """Compute backbone coordinates with per-residue C-beta handling using jnp.where.
+
+  Args:
+    coordinates: Atomic coordinates of the protein structure, shape (N, 37, 3).
+
+  Returns:
+    Backbone coordinates with C-beta atoms computed where necessary, shape (N, 5, 3).
+
+  """
+  nitrogen = coordinates[:, 0, :]
+  alpha_carbon = coordinates[:, 1, :]
+  carbon = coordinates[:, 2, :]
+  oxygen = coordinates[:, 3, :]
+
+  has_no_cb = jnp.all(coordinates[:, 4, :] == 0, axis=-1)
+
   alpha_to_nitrogen = alpha_carbon - nitrogen
   carbon_to_alpha = carbon - alpha_carbon
-  beta_carbon = compute_c_beta(
-    alpha_to_nitrogen,
-    carbon_to_alpha,
-    alpha_carbon,
+  calculated_cb = compute_c_beta(alpha_to_nitrogen, carbon_to_alpha, alpha_carbon)
+
+  beta_carbon = jnp.asarray(
+    jnp.where(
+      jnp.expand_dims(has_no_cb, -1),
+      calculated_cb,
+      coordinates[:, 4, :],
+    ),
+    dtype=alpha_carbon.dtype,
   )
+
   return jnp.stack(
     [nitrogen, alpha_carbon, carbon, oxygen, beta_carbon],
     axis=1,

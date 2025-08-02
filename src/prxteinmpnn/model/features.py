@@ -114,7 +114,7 @@ def extract_features(
     ),
   )
   k = min(k_neighbors, structure_coordinates.shape[0])
-  _, neighbor_indices = jax.lax.top_k(-distances_masked, k)
+  _, neighbor_indices = jax.lax.approx_min_k(distances_masked, k)
   rbf = compute_radial_basis(backbone_atom_coordinates, neighbor_indices)
   neighbor_offsets = compute_neighbor_offsets(residue_index, neighbor_indices)
   edge_chains_neighbors = get_edge_chains_neighbors(

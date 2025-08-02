@@ -65,7 +65,7 @@ def compute_backbone_coordinates(
   )
 
   return jnp.stack(
-    [nitrogen, alpha_carbon, carbon, oxygen, beta_carbon],
+    [nitrogen, alpha_carbon, carbon, beta_carbon, oxygen],
     axis=1,
   )
 

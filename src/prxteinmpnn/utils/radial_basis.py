@@ -60,12 +60,9 @@ def compute_radial_basis(
   def _rbf(pair: AtomIndexPair, neighbor_indices: NeighborIndices) -> AtomPairRBF:
     """Compute the radial basis function for a given pair of atoms."""
     atom1, atom2 = backbone_coordinates[:, pair[0], :], backbone_coordinates[:, pair[1], :]
-    distance = jnp.sqrt(
-      DISTANCE_EPSILON
-      + jnp.square(
-        jnp.sum((atom1[:, None, :] - atom2[None, :, :]), axis=-1),
-      ),
-    )
+    delta_coords = atom1[:, None, :] - atom2[None, :, :]
+    distance_sq = jnp.sum(jnp.square(delta_coords), axis=-1)
+    distance = jnp.sqrt(DISTANCE_EPSILON + distance_sq)
     neighbor_distances = jnp.take_along_axis(distance, neighbor_indices, axis=1)
     return jnp.exp(
       -(jnp.square((neighbor_distances[..., None] - RBF_CENTERS) / RBF_SIGMA)),

@@ -346,10 +346,11 @@ def protein_structure_to_model_inputs(
     A dictionary containing the model inputs derived from the ProteinStructure.
 
   """
+  mask = protein_structure.atom_mask[:, 1]
   return ModelInputs(
     structure_coordinates=protein_structure.coordinates,
     sequence=protein_structure.aatype,
-    mask=protein_structure.atom_mask,
+    mask=mask,
     residue_index=protein_structure.residue_index,
     chain_index=protein_structure.chain_index,
     lengths=jnp.array([len(protein_structure.aatype)], dtype=jnp.int32),

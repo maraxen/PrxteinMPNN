@@ -72,21 +72,19 @@ def test_compute_backbone_coordinates():
 
 
 def test_compute_backbone_distance():
-  """Test computation of pairwise distances between backbone atoms.
+  """Test computation of pairwise distances between backbone alpha carbons.
 
   Raises:
       AssertionError: If the output does not match the expected value.
   """
   coords = jnp.zeros((2, 5, 3), dtype=jnp.float32)
   coords = coords.at[1, 1, 0].set(3.0)  # Distance of 3 between the two CA atoms
-  coords = coords.at[1, 0, 1].set(4.0)  # Distance of 4 between the two N atoms
 
   distances = compute_backbone_distance(coords)
-  # The shape should be (N, N, 5) as it's the distance between corresponding atoms
-  chex.assert_shape(distances, (2, 2, 5))
-  chex.assert_trees_all_close(distances[0, 0, 0], jnp.sqrt(1e-6))
-  chex.assert_trees_all_close(distances[0, 1, 1], 3.0, atol=1e-3)
-  chex.assert_trees_all_close(distances[1, 0, 0], 4.0, atol=1e-3)
+  # The shape should be (N, N) as it's the distance between corresponding atoms
+  chex.assert_shape(distances, (2, 2))
+  chex.assert_trees_all_close(distances[0, 0], jnp.sqrt(1e-6))
+  chex.assert_trees_all_close(distances[0, 1], 3.0, atol=1e-3)
 
 
 def test_extend_coordinate():

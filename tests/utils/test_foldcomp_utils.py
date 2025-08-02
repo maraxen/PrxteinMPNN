@@ -1,4 +1,4 @@
-"""Tests for prxteinmpnn.utils.foldcomp."""
+"""Tests for prxteinmpnn.utils.foldcomp_utils."""
 
 import unittest.mock
 from unittest.mock import MagicMock, patch
@@ -120,7 +120,7 @@ def test_setup_foldcomp_database_is_cached(mock_setup: MagicMock):
   mock_setup.assert_called_once_with(database.value)
 
 
-@patch("prxteinmpnn.utils.foldcomp.from_string")
+@patch("prxteinmpnn.utils.foldcomp_utils.from_string")
 def test_get_protein_structures_from_database(
   mock_from_string: MagicMock,
   dummy_protein_structure: ProteinStructure,
@@ -139,9 +139,12 @@ def test_get_protein_structures_from_database(
 
   """
   mock_from_string.return_value = dummy_protein_structure
-  proteins_dict = {"P12345": "PDB_STRING_1", "Q67890": "PDB_STRING_2"}
-
-  structures_iterator = _get_protein_structures_from_database(proteins_dict)
+  proteins_iter = iter([
+    ("P12345", "PDB_STRING_1"),
+    ("Q67890", "PDB_STRING_2"),
+  ])
+  
+  structures_iterator = _get_protein_structures_from_database(proteins_iter)
   structures_list = list(structures_iterator)
 
   assert len(structures_list) == 2
@@ -152,9 +155,9 @@ def test_get_protein_structures_from_database(
   ])
 
 
-@patch("prxteinmpnn.utils.foldcomp.setup_foldcomp_database")
+@patch("prxteinmpnn.utils.foldcomp_utils._setup_foldcomp_database")
 @patch("foldcomp.open")
-@patch("prxteinmpnn.utils.foldcomp._get_protein_structures_from_database")
+@patch("prxteinmpnn.utils.foldcomp_utils._get_protein_structures_from_database")
 def test_get_protein_structures_happy_path(
   mock_get_from_db: MagicMock,
   mock_foldcomp_open: MagicMock,
@@ -178,8 +181,8 @@ def test_get_protein_structures_happy_path(
   """
   protein_ids = ["P12345", "Q67890"]
   database = FoldCompDatabaseEnum.AFDB_REP_V4
-  mock_proteins_dict = {"P12345": "pdb1", "Q67890": "pdb2"}
-  mock_foldcomp_open.return_value.__enter__.return_value = mock_proteins_dict
+  mock_proteins_iter = iter([("P12345", "pdb1"), ("Q67890", "pdb2")])
+  mock_foldcomp_open.return_value.__enter__.return_value = mock_proteins_iter
   mock_get_from_db.return_value = iter([dummy_protein_structure] * 2)
 
   result_iterator = get_protein_structures(protein_ids, database=database)
@@ -187,14 +190,14 @@ def test_get_protein_structures_happy_path(
 
   mock_setup.assert_called_once_with(database)
   mock_foldcomp_open.assert_called_once_with(database.value, ids=protein_ids)
-  mock_get_from_db.assert_called_once_with(mock_proteins_dict)
+  mock_get_from_db.assert_called_once_with(mock_proteins_iter)
   assert len(result_list) == 2
   assert all(isinstance(s, ProteinStructure) for s in result_list)
 
 
-@patch("prxteinmpnn.utils.foldcomp.get_protein_structures")
-@patch("prxteinmpnn.utils.foldcomp.get_mpnn_model")
-@patch("prxteinmpnn.utils.foldcomp.protein_structure_to_model_inputs")
+@patch("prxteinmpnn.utils.foldcomp_utils.get_protein_structures")
+@patch("prxteinmpnn.utils.foldcomp_utils.get_mpnn_model")
+@patch("prxteinmpnn.utils.foldcomp_utils.protein_structure_to_model_inputs")
 def test_model_from_id_single_id(
   mock_to_inputs: MagicMock,
   mock_get_model: MagicMock,
@@ -238,8 +241,8 @@ def test_model_from_id_single_id(
   assert inputs_list[0] == dummy_model_inputs
 
 
-@patch("prxteinmpnn.utils.foldcomp.get_protein_structures")
-@patch("prxteinmpnn.utils.foldcomp.get_mpnn_model")
+@patch("prxteinmpnn.utils.foldcomp_utils.get_protein_structures")
+@patch("prxteinmpnn.utils.foldcomp_utils.get_mpnn_model")
 def test_model_from_id_custom_model(
   mock_get_model: MagicMock,
   mock_get_structures: MagicMock,
@@ -277,7 +280,7 @@ def test_model_from_id_custom_model(
   )
 
 
-@patch("prxteinmpnn.utils.foldcomp.get_protein_structures")
+@patch("prxteinmpnn.utils.foldcomp_utils.get_protein_structures")
 def test_model_from_id_no_structures_found(mock_get_structures: MagicMock):
   """Test that model_from_id raises ValueError when no structures are found.
 

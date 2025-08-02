@@ -18,6 +18,7 @@ def test_protein_structure_frozen():
         aatype=jnp.zeros((1,)),
         atom_mask=jnp.zeros((1, 1)),
         residue_index=jnp.zeros((1,)),
+        chain_index=jnp.zeros((1,)),
         b_factors=jnp.zeros((1, 1)),
     )
     with pytest.raises(FrozenInstanceError):

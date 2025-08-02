@@ -14,7 +14,7 @@ from biotite.structure.io.pdb import PDBFile
 
 from prxteinmpnn.utils.data_structures import ModelInputs, ProteinStructure
 from prxteinmpnn.utils.residue_constants import atom_order, resname_to_idx, unk_restype_index
-from prxteinmpnn.utils.types import ChainIndex, InputBias, ProteinSequence
+from prxteinmpnn.utils.types import AtomChainIndex, ChainIndex, InputBias, ProteinSequence
 
 
 def _check_if_file_empty(file_path: str) -> bool:
@@ -123,7 +123,7 @@ def _check_atom_array_length(atom_array: AtomArray) -> None:
 
 def _get_chain_index(
   atom_array: AtomArray,
-) -> ChainIndex:
+) -> AtomChainIndex:
   """Get the chain index from the AtomArray."""
   if atom_array.chain_id is None:
     return jnp.zeros(atom_array.array_length(), dtype=jnp.int32)
@@ -140,7 +140,7 @@ def _get_chain_index(
 def _process_chain_id(
   atom_array: AtomArray,
   chain_id: Sequence[str] | str | None = None,
-) -> tuple[AtomArray, ChainIndex]:
+) -> tuple[AtomArray, AtomChainIndex]:
   """Process the chain_id of the AtomArray."""
   if chain_id is None:
     chain_index = _get_chain_index(atom_array)
@@ -173,6 +173,7 @@ def process_atom_array(
   num_residues = structure.get_residue_count(atom_array)
   residue_indices, residue_names = structure.get_residues(atom_array)
   residue_indices = jnp.asarray(residue_indices, dtype=jnp.int32)
+  chain_index: ChainIndex = chain_index[structure.get_residue_starts(atom_array)]
   residue_inv_indices = structure.get_residue_positions(
     atom_array,
     jnp.arange(atom_array.array_length()),

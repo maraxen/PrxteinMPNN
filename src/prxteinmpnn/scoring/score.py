@@ -20,6 +20,7 @@ from prxteinmpnn.utils.types import (
   AtomMask,
   ChainIndex,
   DecodingOrder,
+  Logits,
   ModelParameters,
   ProteinSequence,
   ResidueIndex,
@@ -39,7 +40,7 @@ ScoringFnBase = Callable[
     int,
     float,
   ],
-  Float,
+  tuple[Float, Logits, DecodingOrder],
 ]
 
 ScoringFnFromModelInputs = Callable[
@@ -47,7 +48,7 @@ ScoringFnFromModelInputs = Callable[
     PRNGKeyArray,
     ProteinSequence,
   ],
-  Float,
+  tuple[Float, Logits, DecodingOrder],
 ]
 
 ScoringFn = ScoringFnBase | ScoringFnFromModelInputs
@@ -89,7 +90,7 @@ def make_score_sequence(
     chain_index: ChainIndex,
     k_neighbors: int = 48,
     augment_eps: float = 0.0,  # TODO(mar): maybe move k_neighbors and augment_eps to factory args # noqa: TD003, FIX002, E501
-  ) -> Float:
+  ) -> tuple[Float, Logits, DecodingOrder]:
     """Score a sequence on a structure using the ProteinMPNN model."""
     decoding_order, _ = decoding_order_fn(prng_key, sequence.shape[0])
     autoregressive_mask = generate_ar_mask(decoding_order)
@@ -147,7 +148,7 @@ def make_score_sequence(
     masked_score_sum = (score * mask).sum(-1)
     mask_sum = mask.sum() + SCORE_EPS
 
-    return masked_score_sum / mask_sum
+    return masked_score_sum / mask_sum, logits, decoding_order
 
   if model_inputs:
     return partial(

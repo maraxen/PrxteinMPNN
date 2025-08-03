@@ -23,12 +23,13 @@ def apply_noise_to_coordinates(
   coordinates: StructureAtomicCoordinates,
   key: PRNGKeyArray,
   augment_eps: float = 0.0,
-) -> StructureAtomicCoordinates:
+) -> tuple[StructureAtomicCoordinates, PRNGKeyArray]:
   """Add Gaussian noise to atomic coordinates."""
+  key, subkey = jax.random.split(key)
   if augment_eps > 0:
-    noise = augment_eps * jax.random.normal(key, coordinates.shape)
-    return coordinates + noise
-  return coordinates
+    noise = augment_eps * jax.random.normal(subkey, coordinates.shape)
+    return coordinates + noise, key
+  return coordinates, key
 
 
 @jax.jit

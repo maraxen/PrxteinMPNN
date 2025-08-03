@@ -92,10 +92,10 @@ def make_score_sequence(
     augment_eps: float = 0.0,  # TODO(mar): maybe move k_neighbors and augment_eps to factory args # noqa: TD003, FIX002, E501
   ) -> tuple[Float, Logits, DecodingOrder]:
     """Score a sequence on a structure using the ProteinMPNN model."""
-    decoding_order, _ = decoding_order_fn(prng_key, sequence.shape[0])
+    decoding_order, prng_key = decoding_order_fn(prng_key, sequence.shape[0])
     autoregressive_mask = generate_ar_mask(decoding_order)
 
-    edge_features, neighbor_indices = extract_features(
+    edge_features, neighbor_indices, prng_key = extract_features(
       model_parameters,
       structure_coordinates,
       mask,

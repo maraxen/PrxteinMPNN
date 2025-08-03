@@ -81,7 +81,7 @@ def extract_features(
   prng_key: PRNGKeyArray,
   k_neighbors: int = 48,
   augment_eps: float = 0.0,
-) -> tuple[EdgeFeatures, NeighborIndices]:
+) -> tuple[EdgeFeatures, NeighborIndices, PRNGKeyArray]:
   """Extract features from protein structure coordinates.
 
   Args:
@@ -99,7 +99,7 @@ def extract_features(
     edge_indices: Indices of neighboring atoms.
 
   """
-  noised_coordinates = apply_noise_to_coordinates(
+  noised_coordinates, prng_key = apply_noise_to_coordinates(
     structure_coordinates,
     prng_key,
     augment_eps=augment_eps,
@@ -130,7 +130,7 @@ def extract_features(
   edge_features = embed_edges(edges, model_parameters)
   norm_edge_params = model_parameters["protein_mpnn/~/protein_features/~/norm_edges"]
   edge_features = layer_normalization(edge_features, norm_edge_params)
-  return edge_features, neighbor_indices
+  return edge_features, neighbor_indices, prng_key
 
 
 @jax.jit

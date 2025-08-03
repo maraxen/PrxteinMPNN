@@ -42,6 +42,8 @@ def compute_backbone_coordinates(
 
   Returns:
     Backbone coordinates with C-beta atoms computed where necessary, shape (N, 5, 3).
+    NOTE: This deviates from the default atom37 (Nitrogen, C alpha, C, C beta, Oxygen...)
+      atom ordering.
 
   """
   nitrogen = coordinates[:, atom_order["N"], :]
@@ -49,20 +51,9 @@ def compute_backbone_coordinates(
   carbon = coordinates[:, atom_order["C"], :]
   oxygen = coordinates[:, atom_order["O"], :]
 
-  has_no_cb = jnp.all(coordinates[:, atom_order["CB"], :] == 0, axis=-1)
-
   alpha_to_nitrogen = alpha_carbon - nitrogen
   carbon_to_alpha = carbon - alpha_carbon
-  calculated_cb = compute_c_beta(alpha_to_nitrogen, carbon_to_alpha, alpha_carbon)
-
-  beta_carbon = jnp.asarray(
-    jnp.where(
-      jnp.expand_dims(has_no_cb, -1),
-      calculated_cb,
-      coordinates[:, atom_order["CB"], :],
-    ),
-    dtype=alpha_carbon.dtype,
-  )
+  beta_carbon = compute_c_beta(alpha_to_nitrogen, carbon_to_alpha, alpha_carbon)
 
   return jnp.stack(
     [nitrogen, alpha_carbon, carbon, oxygen, beta_carbon],  # ORDER IS SHIFTED

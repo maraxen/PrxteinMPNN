@@ -27,4 +27,4 @@ def concatenate_neighbor_nodes(
 
   """
   neighbor_features = node_features[neighbor_indices]  # (L, K, C_V)
-  return jnp.concatenate([neighbor_features, edge_features], axis=-1)
+  return jnp.concatenate([edge_features, neighbor_features], axis=-1)

@@ -56,7 +56,7 @@ def compute_backbone_coordinates(
   beta_carbon = compute_c_beta(alpha_to_nitrogen, carbon_to_alpha, alpha_carbon)
 
   return jnp.stack(
-    [nitrogen, alpha_carbon, carbon, oxygen, beta_carbon],  # ORDER IS SHIFTED
+    [nitrogen, alpha_carbon, carbon, oxygen, beta_carbon],
     axis=1,
   )
 

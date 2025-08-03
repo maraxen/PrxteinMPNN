@@ -172,7 +172,25 @@ def _fill_in_cb_coordinates(
   residue_names: np.ndarray,
   atom_map: dict[str, int] | None = None,
 ) -> jnp.ndarray:
-  """Fill in the CB coordinates for residues that have them."""
+  """Fill in the CB coordinates for residues that have them.
+
+  Args:
+    coords_37: A 2D array of shape (N, 37, 3) containing the coordinates of the atoms.
+    residue_names: A 1D array of residue names corresponding to the coordinates.
+    atom_map: A dictionary mapping residue names to their atom indices. If None, uses the default
+      `atom_order` mapping.
+
+  Returns:
+    A 2D array of shape (N, 37, 3) with the C-beta coordinates filled in for residues that have
+      them.
+    For glycine residues, the C-beta coordinates are computed precisely based on the N, CA, and C
+      atoms.
+    For other residues, the original C-beta coordinates are retained if they exist.
+
+    NOTE: This is not part of the pipeline, as despite this happening in the original code, it is not
+      bypassed during feature extraction.
+
+  """
   if atom_map is None:
     atom_map = atom_order
   is_glycine = jnp.array([name == "GLY" for name in residue_names])
@@ -235,9 +253,6 @@ def process_atom_array(
   )
 
   aatype = residue_names_to_aatype(residue_names)
-
-  coords_37 = _fill_in_cb_coordinates(coords_37, residue_names, atom_map=atom_map)
-
   nitrogen_mask = atom_mask_37[:, atom_map["N"]] == 1
   coords_37 = coords_37[nitrogen_mask]
   aatype = aatype[nitrogen_mask]

@@ -61,10 +61,8 @@ def mock_model_parameters():
       "b": b_edge,
     },
     "protein_mpnn/~/protein_features/~/norm_edges": {
-      "norm": {
         "scale": scale,
         "offset": offset,
-      }
     },
     "protein_mpnn/~/W_e": {
       "w": w_proj,
@@ -171,7 +169,7 @@ def test_extract_features_shapes(mock_model_parameters):
 
   """
   num_residues = 4
-  atoms_per_residue = 4  # Mock N, CA, C, O
+  atoms_per_residue = 37
   structure_coordinates = (
     jnp.arange(num_residues * atoms_per_residue * 3)
     .reshape(num_residues, atoms_per_residue, 3)
@@ -183,20 +181,20 @@ def test_extract_features_shapes(mock_model_parameters):
   prng_key = jax.random.PRNGKey(0)
   params = mock_model_parameters
 
-  edge_features, neighbor_indices = extract_features(
+  edge_features, neighbor_indices, key_out = extract_features(
+    prng_key,
+    params,
     structure_coordinates,
     mask,
     residue_indices,
     chain_indices,
-    params,
-    prng_key,
     k_neighbors=2,
     augment_eps=0.0,
   )
 
   assert edge_features.shape[0] == num_residues
   assert neighbor_indices.shape == (num_residues, 2)
-  # Check that edge_features is finite
+  assert key_out is not None, "Key output should not be None"
   assert jnp.all(jnp.isfinite(edge_features)), "Edge features contain non-finite values."
 
 
@@ -223,16 +221,17 @@ def test_extract_features_with_noise(mock_model_parameters):
   prng_key = jax.random.PRNGKey(42)
   params = mock_model_parameters
 
-  edge_features, neighbor_indices = extract_features(
+  edge_features, neighbor_indices, key_out = extract_features(
+    prng_key,
+    params,
     structure_coordinates,
     mask,
     residue_indices,
     chain_indices,
-    params,
-    prng_key,
     k_neighbors=2,
     augment_eps=0.1,
   )
   assert edge_features.shape[0] == num_residues
   assert neighbor_indices.shape == (num_residues, 2)
+  assert key_out is not None, "Key output should not be None"
   assert jnp.all(jnp.isfinite(edge_features)), "Edge features contain non-finite values."

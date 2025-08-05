@@ -58,8 +58,6 @@ def _setup_foldcomp_database(database: FoldCompDatabaseEnum) -> None:
   """
   try:
     loop = asyncio.get_running_loop()
-    # If we're here, we're in an async context (e.g., Jupyter)
-
     nest_asyncio.apply()
     coro = foldcomp.setup_async(database.value)
     loop.run_until_complete(coro)
@@ -147,7 +145,6 @@ def model_from_id(
     raise ValueError(msg)
 
   model_inputs = (protein_structure_to_model_inputs(structure) for structure in structures)
-  # Check if at least one model input is generated
   first_input = next(model_inputs, None)
   if first_input is None:
     msg = f"No model inputs generated for protein structures: {protein_ids}"

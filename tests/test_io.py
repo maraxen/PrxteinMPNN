@@ -13,6 +13,7 @@ from prxteinmpnn.utils.residue_constants import resname_to_idx, unk_restype_inde
 from prxteinmpnn.utils.data_structures import (
   ProteinStructure,
 )
+from prxteinmpnn.utils.aa_convert import af_to_mpnn
   
 
 
@@ -156,7 +157,7 @@ def test_residue_names_to_aatype():
   """
   residue_names = np.array(["ALA", "UNKNOWN", "CYS"], dtype="U5")
   expected = jnp.array(
-    [resname_to_idx["ALA"], unk_restype_index, resname_to_idx["CYS"]],
+    af_to_mpnn(jnp.array([resname_to_idx["ALA"], unk_restype_index, resname_to_idx["CYS"]])),
     dtype=jnp.int8,
   )
   result = io.residue_names_to_aatype(residue_names)
@@ -205,7 +206,7 @@ def test_process_atom_array(mock_atom_array: AtomArray):
   chex.assert_shape(protein_structure.b_factors, (num_residues, num_atoms))
 
   # Expected aatype
-  expected_aatype = jnp.array([resname_to_idx["ALA"], resname_to_idx["CYS"]], dtype=jnp.int8)
+  expected_aatype = af_to_mpnn(jnp.array([resname_to_idx["ALA"], resname_to_idx["CYS"]], dtype=jnp.int8))
   chex.assert_trees_all_close(protein_structure.aatype, expected_aatype)
 
   # Expected residue index
@@ -261,7 +262,7 @@ def test_from_structure_file(tmp_path, mock_pdb_file_content):
   protein_structure = io.from_structure_file(str(pdb_file), chain_id="A")
 
   assert protein_structure.residue_index.shape[0] == 2
-  expected_aatype = jnp.array([resname_to_idx["ALA"], resname_to_idx["CYS"]], dtype=jnp.int8)
+  expected_aatype = af_to_mpnn(jnp.array([resname_to_idx["ALA"], resname_to_idx["CYS"]], dtype=jnp.int8))
   chex.assert_trees_all_close(protein_structure.aatype, expected_aatype)
 
 
@@ -362,7 +363,7 @@ def test_from_string(mock_pdb_file_content):
   protein_structure = io.from_string(mock_pdb_file_content, chain_id="A")
 
   assert protein_structure.residue_index.shape[0] == 2
-  expected_aatype = jnp.array([resname_to_idx["ALA"], resname_to_idx["CYS"]], dtype=jnp.int8)
+  expected_aatype = af_to_mpnn(jnp.array([resname_to_idx["ALA"], resname_to_idx["CYS"]], dtype=jnp.int8))
   chex.assert_trees_all_close(protein_structure.aatype, expected_aatype)
 
   # Check coordinates for ALA CA atom
@@ -387,7 +388,7 @@ def test_from_string_no_chain_filter(mock_pdb_file_content):
   protein_structure = io.from_string(mock_pdb_file_content)
 
   assert protein_structure.residue_index.shape[0] == 2
-  expected_aatype = jnp.array([resname_to_idx["ALA"], resname_to_idx["CYS"]], dtype=jnp.int8)
+  expected_aatype = af_to_mpnn(jnp.array([resname_to_idx["ALA"], resname_to_idx["CYS"]], dtype=jnp.int8))
   chex.assert_trees_all_close(protein_structure.aatype, expected_aatype)
 
 

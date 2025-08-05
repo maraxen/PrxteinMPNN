@@ -28,7 +28,7 @@ def mock_model_parameters():
 
   # Helper to create mock norm layer parameters
   def _make_norm_params(dim=C_V):
-    return {"norm": {"scale": jnp.ones((dim,)), "offset": jnp.zeros((dim,))}}
+    return {"scale": jnp.ones((dim,)), "offset": jnp.zeros((dim,))}
 
   params = {
     # Feature extraction parameters
@@ -124,7 +124,7 @@ def test_sampling_encode(mock_model_parameters):
     ar_mask,
     next_key,
   ) = sample_model_pass(
-    key, coords, mask, res_indices, chain_indices, mock_model_parameters, k_neighbors=K # type: ignore[call-arg]
+    key, mock_model_parameters, coords, mask, res_indices, chain_indices, k_neighbors=K # type: ignore[call-arg]
   )
 
   # Assert output shapes

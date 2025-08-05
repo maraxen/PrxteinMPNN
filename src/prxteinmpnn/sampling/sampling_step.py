@@ -232,10 +232,10 @@ def preload_sampling_step_decoder(
       raise ValueError(msg)
 
   def get_sampling_step_fn(
+    model_parameters: ModelParameters,
     neighbor_indices: NeighborIndices,
     mask: AtomMask,
     autoregressive_mask: AutoRegressiveMask,
-    model_parameters: ModelParameters,
     hyperparameters: SamplingHyperparameters,
   ) -> SamplingStepFn:
     """Get the sampling step function based on the sampling strategy."""

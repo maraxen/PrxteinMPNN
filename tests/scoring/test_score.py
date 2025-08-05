@@ -122,8 +122,9 @@ class TestMakeScoreSequence:
     mock_generate_ar_mask.return_value = jnp.ones((seq_len, seq_len), dtype=jnp.bool_)
     # Fix: neighbor_indices should be integer type
     mock_extract_features.return_value = (
-      jnp.ones((seq_len, 10)), 
-      jnp.ones((seq_len, 48), dtype=jnp.int32)
+      jnp.ones((seq_len, 10)),  # edge_features
+      jnp.ones((seq_len, 48), dtype=jnp.int32),  # neighbor_indices
+      jax.random.PRNGKey(42),  # prng_key
     )
     mock_project_features.return_value = jnp.ones((seq_len, 10))
     mock_encoder.return_value = (jnp.ones((seq_len, 128)), jnp.ones((seq_len, 10)))
@@ -140,7 +141,7 @@ class TestMakeScoreSequence:
     )
 
     # Test scoring function
-    result = scoring_fn(
+    score, logits, decoding_order = scoring_fn(
       sample_inputs["prng_key"],
       sample_inputs["sequence"],
       sample_inputs["structure_coordinates"],
@@ -152,8 +153,12 @@ class TestMakeScoreSequence:
     )
 
     # Verify result shape and type
-    chex.assert_shape(result, (seq_len,))  # Should be per-position scores
-    chex.assert_type(result, jnp.floating)
+    chex.assert_shape(score, ()) # Should be a scalar score
+    chex.assert_type(score, jnp.floating)
+    chex.assert_shape(logits, (seq_len, 20))
+    chex.assert_type(logits, jnp.floating)
+    chex.assert_shape(decoding_order, (seq_len,))
+    chex.assert_type(decoding_order, jnp.int32)
 
   @patch("prxteinmpnn.scoring.score.make_encoder")
   @patch("prxteinmpnn.scoring.score.make_decoder")
@@ -185,8 +190,9 @@ class TestMakeScoreSequence:
     mock_generate_ar_mask.return_value = jnp.ones((seq_len, seq_len), dtype=jnp.bool_)
     # Fix: neighbor_indices should be integer type
     mock_extract_features.return_value = (
-      jnp.ones((seq_len, 10)), 
-      jnp.ones((seq_len, 48), dtype=jnp.int32)
+      jnp.ones((seq_len, 10)),  # edge_features
+      jnp.ones((seq_len, 48), dtype=jnp.int32),  # neighbor_indices
+      sample_inputs["prng_key"],  # prng_key
     )
     mock_project_features.return_value = jnp.ones((seq_len, 10))
     mock_encoder.return_value = (jnp.ones((seq_len, 128)), jnp.ones((seq_len, 10)))
@@ -203,14 +209,18 @@ class TestMakeScoreSequence:
     )
 
     # Test scoring function (should only need prng_key and sequence)
-    result = scoring_fn(
+    score, logits, decoding_order = scoring_fn(
       sample_inputs["prng_key"],
       sample_inputs["sequence"],
     )
 
     # Verify result shape and type
-    chex.assert_shape(result, (seq_len,))  # Should be per-position scores
-    chex.assert_type(result, jnp.floating)
+    chex.assert_shape(score, ())  # Should be a scalar score
+    chex.assert_type(score, jnp.floating)
+    chex.assert_shape(logits, (seq_len, 20))
+    chex.assert_type(logits, jnp.floating)
+    chex.assert_shape(decoding_order, (seq_len,))
+    chex.assert_type(decoding_order, jnp.int32)
 
   @patch("prxteinmpnn.scoring.score.make_encoder")
   @patch("prxteinmpnn.scoring.score.make_decoder")
@@ -277,7 +287,8 @@ class TestMakeScoreSequence:
     # Fix: neighbor_indices should be integer type
     mock_extract_features.return_value = (
       jnp.ones((seq_len, 10)), 
-      jnp.ones((seq_len, 48), dtype=jnp.int32)
+      jnp.ones((seq_len, 48), dtype=jnp.int32),
+      jax.random.PRNGKey(42),  # prng_key
     )
     mock_project_features.return_value = jnp.ones((seq_len, 10))
     mock_encoder.return_value = (jnp.ones((seq_len, 128)), jnp.ones((seq_len, 10)))
@@ -293,7 +304,7 @@ class TestMakeScoreSequence:
     compiled_fn = jax.jit(scoring_fn, static_argnames=("k_neighbors", "augment_eps"))
     
     # Test that compiled function works
-    result = compiled_fn(
+    score, logits, decoding_order = compiled_fn(
       sample_inputs["prng_key"],
       sample_inputs["sequence"],
       sample_inputs["structure_coordinates"],
@@ -303,9 +314,13 @@ class TestMakeScoreSequence:
       k_neighbors=48,
       augment_eps=0.0,
     )
-
-    chex.assert_shape(result, (seq_len,))
-    chex.assert_type(result, jnp.floating)
+    
+    chex.assert_shape(score, ())
+    chex.assert_type(score, jnp.floating)
+    chex.assert_shape(logits, (seq_len, 20))
+    chex.assert_type(logits, jnp.floating)
+    chex.assert_shape(decoding_order, (seq_len,))
+    chex.assert_type(decoding_order, jnp.int32)
 
   @patch("prxteinmpnn.scoring.score.make_encoder")
   @patch("prxteinmpnn.scoring.score.make_decoder")
@@ -339,10 +354,10 @@ class TestMakeScoreSequence:
     for seq_len in [5, 20, 100]:
       # Setup mocks for this sequence length
       mock_generate_ar_mask.return_value = jnp.ones((seq_len, seq_len), dtype=jnp.bool_)
-      # Fix: neighbor_indices should be integer type
       mock_extract_features.return_value = (
-        jnp.ones((seq_len, 10)),
-        jnp.ones((seq_len, 48), dtype=jnp.int32)
+        jnp.ones((seq_len, 10)),  # edge_features
+        jnp.ones((seq_len, 48), dtype=jnp.int32),  # neighbor_indices
+        jax.random.PRNGKey(42),  # prng_key
       )
       mock_project_features.return_value = jnp.ones((seq_len, 10))
       mock_encoder.return_value = (jnp.ones((seq_len, 128)), jnp.ones((seq_len, 10)))
@@ -355,15 +370,19 @@ class TestMakeScoreSequence:
         "sequence": jnp.ones((seq_len,), dtype=jnp.int32),
         "structure_coordinates": jnp.ones((seq_len, 4, 3)),
         "mask": jnp.ones((seq_len,), dtype=jnp.bool_),
-        "residue_indices": jnp.arange(seq_len),
-        "chain_indices": jnp.zeros((seq_len,), dtype=jnp.int32),
+        "residue_index": jnp.arange(seq_len),
+        "chain_index": jnp.zeros((seq_len,), dtype=jnp.int32),
         "k_neighbors": 48,
         "augment_eps": 0.0,
       }
 
-      result = scoring_fn(**inputs)
-      chex.assert_shape(result, (seq_len,))
-      chex.assert_type(result, jnp.floating)
+      score, logits, decoding_order = scoring_fn(**inputs)
+      chex.assert_shape(score, ())
+      chex.assert_type(score, jnp.floating)
+      chex.assert_shape(logits, (seq_len, 20))
+      chex.assert_type(logits, jnp.floating)
+      chex.assert_shape(decoding_order, (seq_len,))
+      chex.assert_type(decoding_order, jnp.int32)
 
   def test_scoring_function_types(self, mock_model_parameters, mock_decoding_order_fn):
     """Test that the correct function types are returned."""
@@ -432,7 +451,8 @@ class TestMakeScoreSequence:
     # Fix: neighbor_indices should be integer type
     mock_extract_features.return_value = (
       jnp.ones((seq_len, 10)), 
-      jnp.ones((seq_len, 48), dtype=jnp.int32)
+      jnp.ones((seq_len, 48), dtype=jnp.int32),
+      jax.random.PRNGKey(42),  # prng_key
     )
     mock_project_features.return_value = jnp.ones((seq_len, 10))
     mock_encoder.return_value = (jnp.ones((seq_len, 128)), jnp.ones((seq_len, 10)))
@@ -443,7 +463,7 @@ class TestMakeScoreSequence:
       decoding_order_fn=mock_decoding_order_fn,
     )
 
-    result = scoring_fn(
+    score, logits, decoding_order = scoring_fn(
       sample_inputs["prng_key"],
       sample_inputs["sequence"],
       sample_inputs["structure_coordinates"],
@@ -454,7 +474,6 @@ class TestMakeScoreSequence:
       sample_inputs["augment_eps"],
     )
 
-    # The function returns per-position scores
-    expected_shape = (seq_len,)
-    chex.assert_shape(result, expected_shape)
-    assert jnp.all(jnp.isfinite(result))
+    assert jnp.all(jnp.isfinite(score))
+    assert jnp.all(jnp.isfinite(logits))
+    assert jnp.all(jnp.isfinite(decoding_order))

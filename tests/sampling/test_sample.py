@@ -29,7 +29,7 @@ def mock_model_parameters():
 
   # Helper to create mock norm layer parameters
   def _make_norm_params(dim=C_V):
-    return {"norm": {"scale": jnp.ones((dim,)), "offset": jnp.zeros((dim,))}}
+    return {"scale": jnp.ones((dim,)), "offset": jnp.zeros((dim,))}
 
   params = {
     # Feature extraction parameters
@@ -118,7 +118,8 @@ def test_make_sample_sequences(mock_model_parameters):
   mask = jnp.ones((L,))
   residue_indices = jnp.arange(L)
   chain_indices = jnp.zeros((L,))
-  initial_sequence = jnp.zeros((L,), dtype=jnp.int32)
+  key, sequence_key = jax.random.split(key)
+  initial_sequence = jax.random.randint(sequence_key, (L,), 0, 21, dtype=jnp.int32)
   key, sample_key = jax.random.split(key)
 
   # Run sampling

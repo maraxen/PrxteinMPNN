@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.model.final_projection import final_projection
+from prxteinmpnn.model.projection import final_projection
 
 
 @pytest.fixture

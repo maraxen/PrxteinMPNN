@@ -6,15 +6,20 @@ SOURCEDIR    = source
 BUILDDIR     = build
 
 help:
-    @$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+		@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
-.PHONY: help Makefile
+.PHONY: help Makefile clean livehtml
 
 %: Makefile
-    @$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+		@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
 clean:
-    rm -rf $(BUILDDIR)/*
+		rm -rf $(BUILDDIR)/*
 
 livehtml:
-    sphinx-autobuild "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+		@command -v sphinx-autobuild >/dev/null 2>&1 || { \
+				echo "sphinx-autobuild not found. Please install with: pip install sphinx-autobuild"; \
+				echo "Or install all dev dependencies with: pip install -e \".[dev]\""; \
+				exit 1; \
+		}
+		sphinx-autobuild "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)

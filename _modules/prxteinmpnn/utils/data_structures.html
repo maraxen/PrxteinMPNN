@@ -1,0 +1,587 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>prxteinmpnn.utils.data_structures &#8212; PrxteinMPNN 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../../../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../../../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/style.css" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../../../_static/documentation_options.js?v=a1637f0b"></script>
+    <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=30646c52"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/prxteinmpnn/utils/data_structures';</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">PrxteinMPNN 0.1.0 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../api/modules.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.model.encoder.html">encoder</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.model.decoder.html">decoder</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.model.projection.html">projection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.model.masked_attention.html">masked_attention</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.model.features.html">features</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/prxteinmpnn.sampling.html">sampling: Sampling methods for MPNN</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.sampling.initialize.html">initialize</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.sampling.sample.html">sample</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.sampling.sampling_step.html">sampling_step</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.sampling.ste.html">ste</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/prxteinmpnn.scoring.html">scoring: Scoring functions for MPNN</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.scoring.score.html">score</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/prxteinmpnn.utils.html">utils: Utility functions for MPNN</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.aa_convert.html">aa_convert</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.autoregression.html">autoregression</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.concatenate.html">concatenate</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.coordinates.html">coordinates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.data_structures.html">data_structures</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.decoding_order.html">decoding_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.foldcomp_utils.html">foldcomp_utils</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.gelu.html">gelu</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.graph.html">graph</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.normalize.html">normalize</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.radial_basis.html">radial_basis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.residue_constants.html">residue_constants</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.types.html">types</a></li>
+</ul>
+</details></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/quickstart.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/installation.html">Installation Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/basic_usage.html">Basic Usage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../examples/index.html">Examples</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../examples/advanced_example.html">Advanced Example</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+        <div class="header-article-item">
+
+
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page">prxteinmpnn....</li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+<a href="https://github.com/maraxen/prxteinmpnn" target="_blank"
+   class="btn btn-sm btn-source-repository-button"
+   title="Source repository"
+   data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+
+</a>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1></h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for prxteinmpnn.utils.data_structures</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Dataclasses and enums for the PrxteinMPNN project.</span>
+
+<span class="sd">prxteinmpnn.utils.data_structures</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">enum</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">flax.struct</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+  <span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">PRNGKeyArray</span>
+
+  <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">AlphaCarbonMask</span><span class="p">,</span>
+    <span class="n">AtomMask</span><span class="p">,</span>
+    <span class="n">BFactors</span><span class="p">,</span>
+    <span class="n">ChainIndex</span><span class="p">,</span>
+    <span class="n">InputBias</span><span class="p">,</span>
+    <span class="n">InputLengths</span><span class="p">,</span>
+    <span class="n">ProteinSequence</span><span class="p">,</span>
+    <span class="n">ResidueIndex</span><span class="p">,</span>
+    <span class="n">SamplingHyperparameters</span><span class="p">,</span>
+    <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
+  <span class="p">)</span>
+
+
+<div class="viewcode-block" id="ProteinStructure">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinStructure">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ProteinStructure</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Protein structure representation.</span>
+
+<span class="sd">  Attributes:</span>
+<span class="sd">    coordinates (StructureAtomicCoordinates): Atom positions in the structure, represented as a</span>
+<span class="sd">      3D array. Cartesian coordinates of atoms in angstroms. The atom types correspond to</span>
+<span class="sd">      residue_constants.atom_types, i.e. the first three are N, CA, CB. Shape is</span>
+<span class="sd">      (num_res, num_atom_type, 3), where num_res is the number of residues, num_atom_type is the</span>
+<span class="sd">      number of atom types (e.g., N, CA, CB, C, O), and 3 is the spatial dimension (x, y, z).</span>
+<span class="sd">    aatype (Sequence): Amino-acid type for each residue represented as an integer between 0 and 20,</span>
+<span class="sd">      where 20 is &#39;X&#39;. Shape is [num_res].</span>
+<span class="sd">    atom_mask (AtomMask): Binary float mask to indicate presence of a particular atom.</span>
+<span class="sd">      1.0 if an atom is present and 0.0 if not. This should be used for loss masking.</span>
+<span class="sd">      Shape is [num_res, num_atom_type].</span>
+<span class="sd">    residue_index (AtomResidueIndex): Residue index as used in PDB. It is not necessarily</span>
+<span class="sd">      continuous or 0-indexed. Shape is [num_res].</span>
+<span class="sd">    b_factors (BFactors): B-factors, or temperature factors, of each residue</span>
+<span class="sd">      (in sq. angstroms units), representing the displacement of the residue from its ground truth</span>
+<span class="sd">      mean value. Shape is [num_res, num_atom_type].</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+
+  <span class="n">coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span>
+  <span class="n">aatype</span><span class="p">:</span> <span class="n">ProteinSequence</span>
+  <span class="n">atom_mask</span><span class="p">:</span> <span class="n">AtomMask</span>
+  <span class="n">residue_index</span><span class="p">:</span> <span class="n">ResidueIndex</span>
+  <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span>
+  <span class="n">b_factors</span><span class="p">:</span> <span class="n">BFactors</span></div>
+
+
+
+<div class="viewcode-block" id="ModelInputs">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ModelInputs">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ModelInputs</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Dataclass for general model inputs.</span>
+
+<span class="sd">  Note that any of these can be stacked together to form a batch of inputs.</span>
+
+<span class="sd">  Attributes:</span>
+<span class="sd">    structure_coordinates (StructureAtomicCoordinates): Atomic coordinates of the structure.</span>
+<span class="sd">      Shape is (num_residues, num_atoms, 3), where num_residues is the number of residues</span>
+<span class="sd">      and num_atoms is the number of atoms per residue (e.g., 37 for standard residues).</span>
+<span class="sd">    sequence (Sequence): Sequence of amino acids as an array of integers.</span>
+<span class="sd">      Shape is (num_residues,), where num_residues is the number of residues.</span>
+<span class="sd">    mask (AtomMask): Mask for the model input, indicating valid atoms in the structure.</span>
+<span class="sd">      Shape is (num_residues, num_atoms), where num_atoms is the number of atoms per residue.</span>
+<span class="sd">    residue_index (ResidueIndex): Index of residues in the structure, used for mapping atoms</span>
+<span class="sd">      in structures to their residues. Shape is (num_residues,).</span>
+<span class="sd">    chain_index (ChainIndex): Index of chains in the structure, used for mapping</span>
+<span class="sd">      atoms in structures to their chains. Shape is (num_residues,).</span>
+<span class="sd">    lengths (InputLengths): Lengths of the sequences in the batch, used for padding and</span>
+<span class="sd">      batching. Shape is (num_sequences,), where num_sequences is the number of sequences in the</span>
+<span class="sd">      batch.</span>
+<span class="sd">    bias (InputBias): Bias for the model input, used for classification tasks.</span>
+<span class="sd">      Defaults to zero bias of shape (sum(lengths), 20), where 20 is the number of amino acid types.</span>
+<span class="sd">      Shape is (sum(lengths), num_classes), where num_classes is the number of classes</span>
+<span class="sd">      (e.g., 20 for amino acids).</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+
+  <span class="n">structure_coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([]))</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Structure atomic coordinates for the model input.&quot;&quot;&quot;</span>
+  <span class="n">sequence</span><span class="p">:</span> <span class="n">ProteinSequence</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([]))</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;A sequence of amino acids for the model input. As MPNN-alphabet based array of integers.&quot;&quot;&quot;</span>
+  <span class="n">mask</span><span class="p">:</span> <span class="n">AlphaCarbonMask</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([]))</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Mask for the model input, indicating valid atoms structure.&quot;&quot;&quot;</span>
+  <span class="n">residue_index</span><span class="p">:</span> <span class="n">ResidueIndex</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([]))</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Index of residues in the structure, used for mapping atoms in structures to their residues.&quot;&quot;&quot;</span>
+  <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([]))</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Index of chains in the structure, used for mapping atoms in structures to their chains.&quot;&quot;&quot;</span>
+  <span class="n">lengths</span><span class="p">:</span> <span class="n">InputLengths</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([]))</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Lengths of the sequences in the batch, used for padding and batching.&quot;&quot;&quot;</span>
+  <span class="n">bias</span><span class="p">:</span> <span class="n">InputBias</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="kc">None</span><span class="p">)</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Bias for the model input, used for classification tasks.</span>
+<span class="sd">  Defaults to zero bias of shape (sum(lengths), 20).&quot;&quot;&quot;</span>
+  <span class="n">k_neighbors</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">48</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Number of neighbors to consider for each atom in the structure.&quot;&quot;&quot;</span>
+  <span class="n">augment_eps</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Epsilon value for adding noise to the backbone coordinates, used for data augmentation.&quot;&quot;&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="SamplingInputs">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingInputs">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SamplingInputs</span><span class="p">(</span><span class="n">ModelInputs</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Dataclass for inputs used in sequence sampling.</span>
+
+<span class="sd">  Attributes:</span>
+<span class="sd">    prng_key (PRNGKeyArray): Random key for JAX operations.</span>
+<span class="sd">    initial_sequence (ProteinSequence): Initial sequence of amino acids as an array of integers.</span>
+<span class="sd">    structure_coordinates (StructureAtomicCoordinates): Atomic coordinates of the structure.</span>
+<span class="sd">    mask (AtomMask): Mask indicating valid atoms in the structure.</span>
+<span class="sd">    residue_index (AtomResidueIndex): Index of residues in the structure.</span>
+<span class="sd">    chain_index (AtomChainIndex): Index of chains in the structure.</span>
+<span class="sd">    bias (InputBias | None): Bias for the model input, used for classification tasks.</span>
+<span class="sd">    k_neighbors (int): Number of neighbors to consider for each atom.</span>
+<span class="sd">    augment_eps (float): Epsilon value for adding noise to the backbone coordinates.</span>
+<span class="sd">    hyperparameters (SamplingHyperparameters): Hyperparameters for sampling, e.g., temperature,</span>
+<span class="sd">      top-k, etc.</span>
+<span class="sd">    iterations (int): Number of iterations for sampling.</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+
+  <span class="n">prng_key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">PRNGKey</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Random key for JAX operations.&quot;&quot;&quot;</span>
+  <span class="n">hyperparameters</span><span class="p">:</span> <span class="n">SamplingHyperparameters</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,)</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Hyperparameters for sampling, e.g., temperature, top-k, etc.&quot;&quot;&quot;</span>
+  <span class="n">iterations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Number of iterations for sampling.&quot;&quot;&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="OligomerType">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.OligomerType">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">OligomerType</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">Enum</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Enum for different types of oligomers.&quot;&quot;&quot;</span>
+
+  <span class="n">MONOMER</span> <span class="o">=</span> <span class="s2">&quot;monomer&quot;</span>
+  <span class="n">HETEROMER</span> <span class="o">=</span> <span class="s2">&quot;heteromer&quot;</span>
+  <span class="n">HOMOOLIGOMER</span> <span class="o">=</span> <span class="s2">&quot;homooligomer&quot;</span>
+  <span class="n">TIED_HOMOOLIGOMER</span> <span class="o">=</span> <span class="s2">&quot;tied_homooligomer&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="SamplingEnum">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingEnum">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">SamplingEnum</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">Enum</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Enum for different sampling strategies.&quot;&quot;&quot;</span>
+
+  <span class="n">GREEDY</span> <span class="o">=</span> <span class="s2">&quot;greedy&quot;</span>
+  <span class="n">TOP_K</span> <span class="o">=</span> <span class="s2">&quot;top_k&quot;</span>
+  <span class="n">TOP_P</span> <span class="o">=</span> <span class="s2">&quot;top_p&quot;</span>
+  <span class="n">TEMPERATURE</span> <span class="o">=</span> <span class="s2">&quot;temperature&quot;</span>
+  <span class="n">BEAM_SEARCH</span> <span class="o">=</span> <span class="s2">&quot;beam_search&quot;</span>
+  <span class="n">STRAIGHT_THROUGH</span> <span class="o">=</span> <span class="s2">&quot;straight_through&quot;</span></div>
+
+</pre></div>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By PrxteinMPNN Team
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, PrxteinMPNN Team.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

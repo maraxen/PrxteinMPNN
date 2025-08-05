@@ -1,0 +1,590 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>prxteinmpnn.utils.foldcomp_utils &#8212; PrxteinMPNN 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../../../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../../../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/style.css" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../../../_static/documentation_options.js?v=a1637f0b"></script>
+    <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=30646c52"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/prxteinmpnn/utils/foldcomp_utils';</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">PrxteinMPNN 0.1.0 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../api/modules.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.model.encoder.html">encoder</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.model.decoder.html">decoder</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.model.projection.html">projection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.model.masked_attention.html">masked_attention</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.model.features.html">features</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/prxteinmpnn.sampling.html">sampling: Sampling methods for MPNN</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.sampling.initialize.html">initialize</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.sampling.sample.html">sample</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.sampling.sampling_step.html">sampling_step</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.sampling.ste.html">ste</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/prxteinmpnn.scoring.html">scoring: Scoring functions for MPNN</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.scoring.score.html">score</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/prxteinmpnn.utils.html">utils: Utility functions for MPNN</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.aa_convert.html">aa_convert</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.autoregression.html">autoregression</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.concatenate.html">concatenate</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.coordinates.html">coordinates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.data_structures.html">data_structures</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.decoding_order.html">decoding_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.foldcomp_utils.html">foldcomp_utils</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.gelu.html">gelu</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.graph.html">graph</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.normalize.html">normalize</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.radial_basis.html">radial_basis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.residue_constants.html">residue_constants</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.types.html">types</a></li>
+</ul>
+</details></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/quickstart.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/installation.html">Installation Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/basic_usage.html">Basic Usage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../examples/index.html">Examples</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../examples/advanced_example.html">Advanced Example</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+        <div class="header-article-item">
+
+
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page">prxteinmpnn....</li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+<a href="https://github.com/maraxen/prxteinmpnn" target="_blank"
+   class="btn btn-sm btn-source-repository-button"
+   title="Source repository"
+   data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+
+</a>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1></h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for prxteinmpnn.utils.foldcomp_utils</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Utilities for processing and manipulating protein structures from foldcomp.&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">enum</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterator</span><span class="p">,</span> <span class="n">Sequence</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">cache</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">foldcomp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">nest_asyncio</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">from_string</span><span class="p">,</span> <span class="n">protein_structure_to_model_inputs</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.mpnn</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelWeights</span><span class="p">,</span> <span class="n">ProteinMPNNModelVersion</span><span class="p">,</span> <span class="n">get_mpnn_model</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.data_structures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelInputs</span><span class="p">,</span> <span class="n">ProteinStructure</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelParameters</span>
+
+
+<div class="viewcode-block" id="FoldCompDatabaseEnum">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">FoldCompDatabaseEnum</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">Enum</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Enum for FoldComp databases.&quot;&quot;&quot;</span>
+
+  <span class="n">ESMATLAS_FULL</span> <span class="o">=</span> <span class="s2">&quot;esmatlas&quot;</span>
+  <span class="n">ESMATLAS_v2023_02</span> <span class="o">=</span> <span class="s2">&quot;esmatlas_v2023_02&quot;</span>
+  <span class="n">ESMATLAS_HIGH_QUALITY</span> <span class="o">=</span> <span class="s2">&quot;highquality_clust30&quot;</span>
+  <span class="n">AFDB_UNIPROT_V4</span> <span class="o">=</span> <span class="s2">&quot;afdb_uniprot_v4&quot;</span>
+  <span class="n">AFDB_SWISSPROT_V4</span> <span class="o">=</span> <span class="s2">&quot;afdb_swissprot_v4&quot;</span>
+  <span class="n">AFDB_REP_V4</span> <span class="o">=</span> <span class="s2">&quot;afdb_rep_v4&quot;</span>
+  <span class="n">AFDB_REP_DARK_V4</span> <span class="o">=</span> <span class="s2">&quot;afdb_rep_dark_v4&quot;</span>
+  <span class="n">AFDB_H_SAPIENS</span> <span class="o">=</span> <span class="s2">&quot;afdb_h_sapiens&quot;</span>
+  <span class="n">AFDB_A_THALIANA</span> <span class="o">=</span> <span class="s2">&quot;a_thaliana&quot;</span>
+  <span class="n">AFDB_C_ALBICANS</span> <span class="o">=</span> <span class="s2">&quot;c_albicans&quot;</span>
+  <span class="n">AFDB_C_ELEGANS</span> <span class="o">=</span> <span class="s2">&quot;c_elegans&quot;</span>
+  <span class="n">AFDB_D_DISCOIDEUM</span> <span class="o">=</span> <span class="s2">&quot;d_discoideum&quot;</span>
+  <span class="n">AFDB_D_MELANOGASTER</span> <span class="o">=</span> <span class="s2">&quot;d_melanogaster&quot;</span>
+  <span class="n">AFDB_D_RERIO</span> <span class="o">=</span> <span class="s2">&quot;d_rerio&quot;</span>
+  <span class="n">AFDB_E_COLI</span> <span class="o">=</span> <span class="s2">&quot;e_coli&quot;</span>
+  <span class="n">AFDB_G_MAX</span> <span class="o">=</span> <span class="s2">&quot;g_max&quot;</span>
+  <span class="n">AFDB_M_JANNASCHII</span> <span class="o">=</span> <span class="s2">&quot;m_jannaschii&quot;</span>
+  <span class="n">AFDB_M_MUSCULUS</span> <span class="o">=</span> <span class="s2">&quot;m_musculus&quot;</span>
+  <span class="n">AFDB_O_SATIVA</span> <span class="o">=</span> <span class="s2">&quot;o_sativa&quot;</span>
+  <span class="n">AFDB_R_NORVEGICUS</span> <span class="o">=</span> <span class="s2">&quot;r_norvegicus&quot;</span>
+  <span class="n">AFDB_S_CEREVISIAE</span> <span class="o">=</span> <span class="s2">&quot;s_cerevisiae&quot;</span>
+  <span class="n">AFDB_S_POMBE</span> <span class="o">=</span> <span class="s2">&quot;s_pombe&quot;</span>
+  <span class="n">AFDB_Z_MAYS</span> <span class="o">=</span> <span class="s2">&quot;z_mays&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="_setup_foldcomp_database">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils._setup_foldcomp_database">[docs]</a>
+<span class="nd">@cache</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_setup_foldcomp_database</span><span class="p">(</span><span class="n">database</span><span class="p">:</span> <span class="n">FoldCompDatabaseEnum</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Set up the FoldComp database, handling sync and async contexts.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    database: The FoldCompDatabase enum value specifying which database to set up.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    None</span>
+
+<span class="sd">  Example:</span>
+<span class="sd">    &gt;&gt;&gt; _setup_foldcomp_database(FoldCompDatabase.ESMATLAS_FULL)</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">try</span><span class="p">:</span>
+    <span class="n">loop</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">get_running_loop</span><span class="p">()</span>
+    <span class="c1"># If we&#39;re here, we&#39;re in an async context (e.g., Jupyter)</span>
+
+    <span class="n">nest_asyncio</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span>
+    <span class="n">coro</span> <span class="o">=</span> <span class="n">foldcomp</span><span class="o">.</span><span class="n">setup_async</span><span class="p">(</span><span class="n">database</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+    <span class="n">loop</span><span class="o">.</span><span class="n">run_until_complete</span><span class="p">(</span><span class="n">coro</span><span class="p">)</span>
+  <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
+    <span class="n">foldcomp</span><span class="o">.</span><span class="n">setup</span><span class="p">(</span><span class="n">database</span><span class="o">.</span><span class="n">value</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="_get_protein_structures_from_database">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils._get_protein_structures_from_database">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">_get_protein_structures_from_database</span><span class="p">(</span>
+  <span class="n">proteins</span><span class="p">:</span> <span class="n">foldcomp</span><span class="o">.</span><span class="n">FoldcompDatabase</span><span class="p">,</span>  <span class="c1"># type: ignore[attr-access]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="n">ProteinStructure</span><span class="p">]:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Retrieve protein structures from the FoldComp database.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    proteins: The FoldComp protein database object.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    An iterator over ProteinStructure objects containing the structure data</span>
+<span class="sd">    for the specified protein IDs.</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">pdb</span> <span class="ow">in</span> <span class="n">proteins</span><span class="p">:</span>
+    <span class="n">protein_structure</span> <span class="o">=</span> <span class="n">from_string</span><span class="p">(</span><span class="n">pdb</span><span class="p">)</span>
+    <span class="k">yield</span> <span class="n">protein_structure</span></div>
+
+
+
+<div class="viewcode-block" id="get_protein_structures">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.get_protein_structures">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_protein_structures</span><span class="p">(</span>
+  <span class="n">protein_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+  <span class="n">database</span><span class="p">:</span> <span class="n">FoldCompDatabaseEnum</span> <span class="o">=</span> <span class="n">FoldCompDatabaseEnum</span><span class="o">.</span><span class="n">AFDB_REP_V4</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="n">ProteinStructure</span><span class="p">]:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Retrieve protein structures from the FoldComp database.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    protein_ids: A sequence of protein IDs to retrieve.</span>
+<span class="sd">    database: The FoldCompDatabase enum value specifying which database to use.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    An iterator over ProteinStructure objects containing the structure data</span>
+<span class="sd">    for the specified protein IDs.</span>
+
+<span class="sd">  Example:</span>
+<span class="sd">    &gt;&gt;&gt; ids = [&quot;P12345&quot;, &quot;Q67890&quot;]</span>
+<span class="sd">    &gt;&gt;&gt; structures = get_protein_structures(ids)</span>
+<span class="sd">    &gt;&gt;&gt; for struct in structures:</span>
+<span class="sd">    ...     print(struct)</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="n">_setup_foldcomp_database</span><span class="p">(</span><span class="n">database</span><span class="p">)</span>
+  <span class="k">with</span> <span class="n">foldcomp</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">database</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">ids</span><span class="o">=</span><span class="n">protein_ids</span><span class="p">)</span> <span class="k">as</span> <span class="n">proteins</span><span class="p">:</span>  <span class="c1"># type: ignore[attr-access]</span>
+    <span class="k">yield from</span> <span class="n">_get_protein_structures_from_database</span><span class="p">(</span><span class="n">proteins</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="model_from_id">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.model_from_id">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">model_from_id</span><span class="p">(</span>
+  <span class="n">protein_ids</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+  <span class="n">model_weights</span><span class="p">:</span> <span class="n">ModelWeights</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="n">model_version</span><span class="p">:</span> <span class="n">ProteinMPNNModelVersion</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ModelParameters</span><span class="p">,</span> <span class="n">Iterator</span><span class="p">[</span><span class="n">ModelInputs</span><span class="p">]]:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Get the MPNN model and inputs for specific protein IDs.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    protein_ids: The ID(s) of the protein(s) to retrieve the model for.</span>
+<span class="sd">    model_weights: The weights to use for the model.</span>
+<span class="sd">    model_version: The model version to use.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    A tuple containing the MPNN model parameters and model inputs.</span>
+
+<span class="sd">  Raises:</span>
+<span class="sd">    ValueError: If no protein structures are found for the given IDs.</span>
+
+<span class="sd">  Example:</span>
+<span class="sd">    &gt;&gt;&gt; model, inputs = model_from_id(&quot;P12345&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; # Use model and inputs for inference</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="n">base_model</span> <span class="o">=</span> <span class="n">get_mpnn_model</span><span class="p">(</span>
+    <span class="n">model_version</span><span class="o">=</span><span class="n">model_version</span> <span class="ow">or</span> <span class="n">ProteinMPNNModelVersion</span><span class="o">.</span><span class="n">V_48_002</span><span class="p">,</span>
+    <span class="n">model_weights</span><span class="o">=</span><span class="n">model_weights</span> <span class="ow">or</span> <span class="n">ModelWeights</span><span class="o">.</span><span class="n">DEFAULT</span><span class="p">,</span>
+  <span class="p">)</span>
+
+  <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">protein_ids</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="n">protein_ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">protein_ids</span><span class="p">]</span>
+  <span class="n">structures</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">get_protein_structures</span><span class="p">(</span><span class="n">protein_ids</span><span class="o">=</span><span class="n">protein_ids</span><span class="p">))</span>
+  <span class="k">if</span> <span class="ow">not</span> <span class="n">structures</span><span class="p">:</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;No protein structures found for IDs: </span><span class="si">{</span><span class="n">protein_ids</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+  <span class="n">model_inputs</span> <span class="o">=</span> <span class="p">(</span><span class="n">protein_structure_to_model_inputs</span><span class="p">(</span><span class="n">structure</span><span class="p">)</span> <span class="k">for</span> <span class="n">structure</span> <span class="ow">in</span> <span class="n">structures</span><span class="p">)</span>
+  <span class="c1"># Check if at least one model input is generated</span>
+  <span class="n">first_input</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">model_inputs</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">first_input</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;No model inputs generated for protein structures: </span><span class="si">{</span><span class="n">protein_ids</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+  <span class="k">def</span><span class="w"> </span><span class="nf">model_inputs_with_first</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="n">ModelInputs</span><span class="p">]:</span>
+    <span class="k">yield</span> <span class="n">first_input</span>
+    <span class="k">yield from</span> <span class="n">model_inputs</span>
+
+  <span class="k">return</span> <span class="n">base_model</span><span class="p">,</span> <span class="n">model_inputs_with_first</span><span class="p">()</span></div>
+
+</pre></div>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By PrxteinMPNN Team
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, PrxteinMPNN Team.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

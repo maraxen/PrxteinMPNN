@@ -1,0 +1,686 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>prxteinmpnn.utils.coordinates &#8212; PrxteinMPNN 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../../../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../../../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/style.css" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../../../_static/documentation_options.js?v=a1637f0b"></script>
+    <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=30646c52"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/prxteinmpnn/utils/coordinates';</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">PrxteinMPNN 0.1.0 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../api/modules.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.model.encoder.html">encoder</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.model.decoder.html">decoder</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.model.projection.html">projection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.model.masked_attention.html">masked_attention</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.model.features.html">features</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/prxteinmpnn.sampling.html">sampling: Sampling methods for MPNN</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.sampling.initialize.html">initialize</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.sampling.sample.html">sample</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.sampling.sampling_step.html">sampling_step</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.sampling.ste.html">ste</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/prxteinmpnn.scoring.html">scoring: Scoring functions for MPNN</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.scoring.score.html">score</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/prxteinmpnn.utils.html">utils: Utility functions for MPNN</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.aa_convert.html">aa_convert</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.autoregression.html">autoregression</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.concatenate.html">concatenate</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.coordinates.html">coordinates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.data_structures.html">data_structures</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.decoding_order.html">decoding_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.foldcomp_utils.html">foldcomp_utils</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.gelu.html">gelu</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.graph.html">graph</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.normalize.html">normalize</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.radial_basis.html">radial_basis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.residue_constants.html">residue_constants</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/prxteinmpnn.utils.types.html">types</a></li>
+</ul>
+</details></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/quickstart.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/installation.html">Installation Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/basic_usage.html">Basic Usage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../examples/index.html">Examples</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../examples/advanced_example.html">Advanced Example</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+        <div class="header-article-item">
+
+
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page">prxteinmpnn....</li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+<a href="https://github.com/maraxen/prxteinmpnn" target="_blank"
+   class="btn btn-sm btn-source-repository-button"
+   title="Source repository"
+   data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+
+</a>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1></h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for prxteinmpnn.utils.coordinates</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Utility functions for manipulating atomic coordinates.</span>
+
+<span class="sd">prxteinmpnn.utils.coordinates</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">PRNGKeyArray</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.residue_constants</span><span class="w"> </span><span class="kn">import</span> <span class="n">atom_order</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+  <span class="n">AlphaCarbonDistance</span><span class="p">,</span>
+  <span class="n">AtomicCoordinate</span><span class="p">,</span>
+  <span class="n">BackboneCoordinates</span><span class="p">,</span>
+  <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
+<span class="p">)</span>
+
+
+<div class="viewcode-block" id="apply_noise_to_coordinates">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.coordinates.html#prxteinmpnn.utils.coordinates.apply_noise_to_coordinates">[docs]</a>
+<span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;augment_eps&quot;</span><span class="p">,))</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">apply_noise_to_coordinates</span><span class="p">(</span>
+  <span class="n">coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
+  <span class="n">key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
+  <span class="n">augment_eps</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">StructureAtomicCoordinates</span><span class="p">,</span> <span class="n">PRNGKeyArray</span><span class="p">]:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Add Gaussian noise to atomic coordinates.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    coordinates: Atomic coordinates of the protein structure. (N, 37, 3)</span>
+<span class="sd">    key: JAX random key for stochastic operations.</span>
+<span class="sd">    augment_eps: Standard deviation for Gaussian noise augmentation.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    Tuple of noisy coordinates and the updated JAX random key.</span>
+
+<span class="sd">  Example:</span>
+<span class="sd">    &gt;&gt;&gt; key = jax.random.PRNGKey(0)</span>
+<span class="sd">    &gt;&gt;&gt; noisy_coords, new_key = apply_noise_to_coordinates(coords, key, 0.1)</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="n">key</span><span class="p">,</span> <span class="n">coord_key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">augment_eps</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+    <span class="n">noise</span> <span class="o">=</span> <span class="n">augment_eps</span> <span class="o">*</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="n">coord_key</span><span class="p">,</span> <span class="n">coordinates</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">coordinates</span> <span class="o">+</span> <span class="n">noise</span><span class="p">,</span> <span class="n">key</span>
+  <span class="k">return</span> <span class="n">coordinates</span><span class="p">,</span> <span class="n">key</span></div>
+
+
+
+<div class="viewcode-block" id="compute_backbone_coordinates">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.coordinates.html#prxteinmpnn.utils.coordinates.compute_backbone_coordinates">[docs]</a>
+<span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_backbone_coordinates</span><span class="p">(</span>
+  <span class="n">coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BackboneCoordinates</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Compute backbone coordinates with per-residue C-beta handling using jnp.where.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    coordinates: Atomic coordinates of the protein structure, shape (N, 37, 3).</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    Backbone coordinates with C-beta atoms computed where necessary, shape (N, 5, 3).</span>
+<span class="sd">    NOTE: This deviates from the default atom37 (Nitrogen, C alpha, C, C beta, Oxygen...)</span>
+<span class="sd">      atom ordering.</span>
+
+<span class="sd">  Example:</span>
+<span class="sd">    &gt;&gt;&gt; coords = jnp.zeros((10, 37, 3))  # Example coordinates</span>
+<span class="sd">    &gt;&gt;&gt; backbone_coords = compute_backbone_coordinates(coords)</span>
+<span class="sd">    &gt;&gt;&gt; backbone_coords.shape</span>
+<span class="sd">    (10, 5, 3)</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="n">nitrogen</span> <span class="o">=</span> <span class="n">coordinates</span><span class="p">[:,</span> <span class="n">atom_order</span><span class="p">[</span><span class="s2">&quot;N&quot;</span><span class="p">],</span> <span class="p">:]</span>
+  <span class="n">alpha_carbon</span> <span class="o">=</span> <span class="n">coordinates</span><span class="p">[:,</span> <span class="n">atom_order</span><span class="p">[</span><span class="s2">&quot;CA&quot;</span><span class="p">],</span> <span class="p">:]</span>
+  <span class="n">carbon</span> <span class="o">=</span> <span class="n">coordinates</span><span class="p">[:,</span> <span class="n">atom_order</span><span class="p">[</span><span class="s2">&quot;C&quot;</span><span class="p">],</span> <span class="p">:]</span>
+  <span class="n">oxygen</span> <span class="o">=</span> <span class="n">coordinates</span><span class="p">[:,</span> <span class="n">atom_order</span><span class="p">[</span><span class="s2">&quot;O&quot;</span><span class="p">],</span> <span class="p">:]</span>
+
+  <span class="n">alpha_to_nitrogen</span> <span class="o">=</span> <span class="n">alpha_carbon</span> <span class="o">-</span> <span class="n">nitrogen</span>
+  <span class="n">carbon_to_alpha</span> <span class="o">=</span> <span class="n">carbon</span> <span class="o">-</span> <span class="n">alpha_carbon</span>
+  <span class="n">beta_carbon</span> <span class="o">=</span> <span class="n">compute_c_beta</span><span class="p">(</span><span class="n">alpha_to_nitrogen</span><span class="p">,</span> <span class="n">carbon_to_alpha</span><span class="p">,</span> <span class="n">alpha_carbon</span><span class="p">)</span>
+
+  <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+    <span class="p">[</span><span class="n">nitrogen</span><span class="p">,</span> <span class="n">alpha_carbon</span><span class="p">,</span> <span class="n">carbon</span><span class="p">,</span> <span class="n">oxygen</span><span class="p">,</span> <span class="n">beta_carbon</span><span class="p">],</span>
+    <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+  <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="compute_c_beta">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.coordinates.html#prxteinmpnn.utils.coordinates.compute_c_beta">[docs]</a>
+<span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_c_beta</span><span class="p">(</span>
+  <span class="n">alpha_to_nitrogen</span><span class="p">:</span> <span class="n">AtomicCoordinate</span><span class="p">,</span>
+  <span class="n">carbon_to_alpha</span><span class="p">:</span> <span class="n">AtomicCoordinate</span><span class="p">,</span>
+  <span class="n">alpha_carbon</span><span class="p">:</span> <span class="n">AtomicCoordinate</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AtomicCoordinate</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Compute C-beta coordinates.</span>
+
+<span class="sd">  Uses a linear combination of the bond vectors to estimate C-beta.</span>
+
+<span class="sd">  Coefficients are derived from empirical data and are used to ensure</span>
+<span class="sd">  that the C-beta coordinates are consistent with the geometry of the protein backbone.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    alpha_to_nitrogen: Bond vector from nitrogen to alpha carbon.</span>
+<span class="sd">    carbon_to_alpha: Bond vector from alpha carbon to carbon.</span>
+<span class="sd">    alpha_carbon: Coordinates of the alpha carbon atom.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    C-beta coordinates as an AtomicCoordinate.</span>
+
+<span class="sd">  Example:</span>
+<span class="sd">    &gt;&gt;&gt; n_to_ca = jnp.array([1.0, 0.0, 0.0])</span>
+<span class="sd">    &gt;&gt;&gt; ca_to_c = jnp.array([0.0, 1.0, 0.0])</span>
+<span class="sd">    &gt;&gt;&gt; ca_coords = jnp.array([0 .0, 0.0, 0.0])</span>
+<span class="sd">    &gt;&gt;&gt; cb_coords = compute_c_beta(n_to_ca, ca_to_c, ca_coords)</span>
+<span class="sd">    &gt;&gt;&gt; cb_coords.shape</span>
+<span class="sd">    (3,)</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="n">f1</span><span class="p">,</span> <span class="n">f2</span><span class="p">,</span> <span class="n">f3</span> <span class="o">=</span> <span class="o">-</span><span class="mf">0.58273431</span><span class="p">,</span> <span class="mf">0.56802827</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.54067466</span>
+  <span class="n">term1</span> <span class="o">=</span> <span class="n">f1</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">alpha_to_nitrogen</span><span class="p">,</span> <span class="n">carbon_to_alpha</span><span class="p">)</span>
+  <span class="n">term2</span> <span class="o">=</span> <span class="n">f2</span> <span class="o">*</span> <span class="n">alpha_to_nitrogen</span>
+  <span class="n">term3</span> <span class="o">=</span> <span class="n">f3</span> <span class="o">*</span> <span class="n">carbon_to_alpha</span>
+  <span class="k">return</span> <span class="n">term1</span> <span class="o">+</span> <span class="n">term2</span> <span class="o">+</span> <span class="n">term3</span> <span class="o">+</span> <span class="n">alpha_carbon</span></div>
+
+
+
+<div class="viewcode-block" id="compute_backbone_distance">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.coordinates.html#prxteinmpnn.utils.coordinates.compute_backbone_distance">[docs]</a>
+<span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_backbone_distance</span><span class="p">(</span><span class="n">backbone_coordinates</span><span class="p">:</span> <span class="n">BackboneCoordinates</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AlphaCarbonDistance</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Compute pairwise distances between backbone atoms.</span>
+
+<span class="sd">  Calculate the Euclidean distance between all pairs of backbone atom coordinates based on alpha</span>
+<span class="sd">  carbon positions.</span>
+
+<span class="sd">  Assumes backbone_coordinates is a 3D array of shape (N, 5, 3), where N is the number of atoms,</span>
+<span class="sd">  5 is the number of backbone atoms (N, CA, C, O, N), and 3 is the spatial dimension (x, y, z).</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    backbone_coordinates: A 3D array of shape (N, 5, 3) representing the coordinates of backbone</span>
+<span class="sd">    atoms.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    A 2D array of shape (N, N) containing the pairwise distances between backbone atoms.</span>
+
+<span class="sd">  Example:</span>
+<span class="sd">    &gt;&gt;&gt; coords = jnp.zeros((10, 5, 3))  # Example coordinates</span>
+<span class="sd">    &gt;&gt;&gt; distances = compute_backbone_distance(coords)</span>
+<span class="sd">    &gt;&gt;&gt; distances.shape</span>
+<span class="sd">    (10, 10)</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="n">alpha_coordinates</span> <span class="o">=</span> <span class="n">backbone_coordinates</span><span class="p">[:,</span> <span class="n">atom_order</span><span class="p">[</span><span class="s2">&quot;CA&quot;</span><span class="p">],</span> <span class="p">:]</span>
+  <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span>
+    <span class="mf">1e-6</span>
+    <span class="o">+</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span>
+      <span class="n">jnp</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">alpha_coordinates</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">,</span> <span class="p">:]</span> <span class="o">-</span> <span class="n">alpha_coordinates</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:,</span> <span class="p">:]),</span>
+      <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
+    <span class="p">),</span>
+  <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="extend_coordinate">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.coordinates.html#prxteinmpnn.utils.coordinates.extend_coordinate">[docs]</a>
+<span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">extend_coordinate</span><span class="p">(</span>
+  <span class="n">atom_a</span><span class="p">:</span> <span class="n">AtomicCoordinate</span><span class="p">,</span>
+  <span class="n">atom_b</span><span class="p">:</span> <span class="n">AtomicCoordinate</span><span class="p">,</span>
+  <span class="n">atom_c</span><span class="p">:</span> <span class="n">AtomicCoordinate</span><span class="p">,</span>
+  <span class="n">bond_length</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+  <span class="n">bond_angle</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+  <span class="n">dihedral_angle</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AtomicCoordinate</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Compute the position of a fourth atom (D) given three atoms (A, B, C) and internal coordinates.</span>
+
+<span class="sd">  Given coordinates for atoms A, B, and C, and the desired bond length, bond angle, and dihedral</span>
+<span class="sd">  angle, compute the coordinates of atom D such that:</span>
+<span class="sd">    - |C-D| = bond_length</span>
+<span class="sd">    - angle(B, C, D) = bond_angle</span>
+<span class="sd">    - dihedral(A, B, C, D) = dihedral_angle</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    atom_a: Coordinates of atom A, shape (3,).</span>
+<span class="sd">    atom_b: Coordinates of atom B, shape (3,).</span>
+<span class="sd">    atom_c: Coordinates of atom C, shape (3,).</span>
+<span class="sd">    bond_length: Desired bond length between C and D.</span>
+<span class="sd">    bond_angle: Desired bond angle (in radians) at atom C.</span>
+<span class="sd">    dihedral_angle: Desired dihedral angle (in radians) for atoms A-B-C-D.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    Coordinates of atom D, shape (3,).</span>
+
+<span class="sd">  Example:</span>
+<span class="sd">    &gt;&gt;&gt; d = extend_coordinate(a, b, c, 1.5, 2.0, 3.14)</span>
+<span class="sd">    &gt;&gt;&gt; d.shape</span>
+<span class="sd">    (3,)</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+
+  <span class="k">def</span><span class="w"> </span><span class="nf">normalize</span><span class="p">(</span><span class="n">vec</span><span class="p">:</span> <span class="n">AtomicCoordinate</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AtomicCoordinate</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">vec</span> <span class="o">/</span> <span class="n">jnp</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">vec</span><span class="p">)</span>
+
+  <span class="n">bc</span> <span class="o">=</span> <span class="n">normalize</span><span class="p">(</span><span class="n">atom_b</span> <span class="o">-</span> <span class="n">atom_c</span><span class="p">)</span>
+  <span class="n">normal</span> <span class="o">=</span> <span class="n">normalize</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">atom_b</span> <span class="o">-</span> <span class="n">atom_a</span><span class="p">,</span> <span class="n">bc</span><span class="p">))</span>
+  <span class="n">term1</span> <span class="o">=</span> <span class="n">bond_length</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">bond_angle</span><span class="p">)</span> <span class="o">*</span> <span class="n">bc</span>
+  <span class="n">term2</span> <span class="o">=</span> <span class="n">bond_length</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">bond_angle</span><span class="p">)</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">dihedral_angle</span><span class="p">)</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">normal</span><span class="p">,</span> <span class="n">bc</span><span class="p">)</span>
+  <span class="n">term3</span> <span class="o">=</span> <span class="n">bond_length</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">bond_angle</span><span class="p">)</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">dihedral_angle</span><span class="p">)</span> <span class="o">*</span> <span class="o">-</span><span class="n">normal</span>
+  <span class="k">return</span> <span class="n">atom_c</span> <span class="o">+</span> <span class="n">term1</span> <span class="o">+</span> <span class="n">term2</span> <span class="o">+</span> <span class="n">term3</span></div>
+
+
+
+<div class="viewcode-block" id="compute_cb_precise">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.coordinates.html#prxteinmpnn.utils.coordinates.compute_cb_precise">[docs]</a>
+<span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_cb_precise</span><span class="p">(</span>
+  <span class="n">n_coord</span><span class="p">:</span> <span class="n">AtomicCoordinate</span><span class="p">,</span>
+  <span class="n">ca_coord</span><span class="p">:</span> <span class="n">AtomicCoordinate</span><span class="p">,</span>
+  <span class="n">c_coord</span><span class="p">:</span> <span class="n">AtomicCoordinate</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AtomicCoordinate</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Compute the C-beta atom position from backbone N, CA, and C coordinates.</span>
+
+<span class="sd">  Does so precisely using trigonometric relationships based on the backbone geometry.</span>
+
+<span class="sd">  Specifically, the position of the C-beta atom is determined by:</span>
+
+<span class="sd">  - The bond length between the alpha carbon and the C-beta atom.</span>
+<span class="sd">  - The bond angle between the nitrogen, alpha carbon, and C-beta atoms.</span>
+<span class="sd">  - The dihedral angle involving the nitrogen, alpha carbon, and C-beta atoms.</span>
+
+
+<span class="sd">  Unlike the compute_c_beta function, this function does not use a linear combination of bond</span>
+<span class="sd">  vectors with approximate fixed coefficients. This is more accurate and flexible for different</span>
+<span class="sd">  configurations of the protein backbone, but more computationally intensive.</span>
+
+<span class="sd">  It is used in preparation of the atomic coordinates for the model input.</span>
+<span class="sd">  It is not used in the model itself, but rather in the preprocessing of the input data</span>
+<span class="sd">  to ensure that the C-beta atom is correctly placed based on the backbone structure.</span>
+
+<span class="sd">  Uses standard geometry for C-beta placement:</span>
+<span class="sd">    - N-CA-CB bond length: 1.522 Å</span>
+<span class="sd">    - N-CA-CB bond angle: 1.927 radians</span>
+<span class="sd">    - C-N-CA-CB dihedral angle: -2.143 radians</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    n_coord: Coordinates of the N atom, shape (3,).</span>
+<span class="sd">    ca_coord: Coordinates of the CA atom, shape (3,).</span>
+<span class="sd">    c_coord: Coordinates of the C atom, shape (3,).</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    Coordinates of the C-beta atom, shape (3,).</span>
+
+<span class="sd">  Example:</span>
+<span class="sd">    &gt;&gt;&gt; cb = compute_cb_precise(n, ca, c)</span>
+<span class="sd">    &gt;&gt;&gt; cb.shape</span>
+<span class="sd">    (3,)</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">return</span> <span class="n">extend_coordinate</span><span class="p">(</span>
+    <span class="n">c_coord</span><span class="p">,</span>
+    <span class="n">n_coord</span><span class="p">,</span>
+    <span class="n">ca_coord</span><span class="p">,</span>
+    <span class="n">bond_length</span><span class="o">=</span><span class="mf">1.522</span><span class="p">,</span>
+    <span class="n">bond_angle</span><span class="o">=</span><span class="mf">1.927</span><span class="p">,</span>
+    <span class="n">dihedral_angle</span><span class="o">=-</span><span class="mf">2.143</span><span class="p">,</span>
+  <span class="p">)</span></div>
+
+</pre></div>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By PrxteinMPNN Team
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, PrxteinMPNN Team.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

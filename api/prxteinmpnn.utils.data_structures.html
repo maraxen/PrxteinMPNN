@@ -1,0 +1,1182 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>data_structures &#8212; PrxteinMPNN 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/style.css" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=a1637f0b"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=30646c52"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'api/prxteinmpnn.utils.data_structures';</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="decoding_order" href="prxteinmpnn.utils.decoding_order.html" />
+    <link rel="prev" title="coordinates" href="prxteinmpnn.utils.coordinates.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">PrxteinMPNN 0.1.0 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="modules.html">API Reference</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.model.encoder.html">encoder</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.model.decoder.html">decoder</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.model.projection.html">projection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.model.masked_attention.html">masked_attention</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.model.features.html">features</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="prxteinmpnn.sampling.html">sampling: Sampling methods for MPNN</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.sampling.initialize.html">initialize</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.sampling.sample.html">sample</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.sampling.sampling_step.html">sampling_step</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.sampling.ste.html">ste</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="prxteinmpnn.scoring.html">scoring: Scoring functions for MPNN</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.scoring.score.html">score</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 current active has-children"><a class="reference internal" href="prxteinmpnn.utils.html">utils: Utility functions for MPNN</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.aa_convert.html">aa_convert</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.autoregression.html">autoregression</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.concatenate.html">concatenate</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.coordinates.html">coordinates</a></li>
+<li class="toctree-l3 current active"><a class="current reference internal" href="#">data_structures</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.decoding_order.html">decoding_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html">foldcomp_utils</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.gelu.html">gelu</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.graph.html">graph</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.normalize.html">normalize</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.radial_basis.html">radial_basis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.residue_constants.html">residue_constants</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.types.html">types</a></li>
+</ul>
+</details></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/quickstart.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/installation.html">Installation Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/basic_usage.html">Basic Usage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../examples/index.html">Examples</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../examples/advanced_example.html">Advanced Example</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+        <div class="header-article-item">
+
+
+
+
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="modules.html" class="nav-link">API Reference</a></li>
+    
+    
+    <li class="breadcrumb-item"><i class="fa-solid fa-ellipsis"></i></li>
+    
+    
+    <li class="breadcrumb-item"><a href="prxteinmpnn.utils.html" class="nav-link">utils module</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page">data_structures</li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+<a href="https://github.com/maraxen/prxteinmpnn" target="_blank"
+   class="btn btn-sm btn-source-repository-button"
+   title="Source repository"
+   data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+
+</a>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/api/prxteinmpnn.utils.data_structures.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>data_structures</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinStructure"><code class="docutils literal notranslate"><span class="pre">ProteinStructure</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinStructure.coordinates"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.coordinates</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinStructure.aatype"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.aatype</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinStructure.atom_mask"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.atom_mask</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinStructure.residue_index"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.residue_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinStructure.b_factors"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.b_factors</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id0"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.coordinates</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.aatype</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.atom_mask</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id3"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.residue_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinStructure.chain_index"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.chain_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id4"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.b_factors</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinStructure.replace"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.replace()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs"><code class="docutils literal notranslate"><span class="pre">ModelInputs</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.structure_coordinates"><code class="docutils literal notranslate"><span class="pre">ModelInputs.structure_coordinates</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.sequence"><code class="docutils literal notranslate"><span class="pre">ModelInputs.sequence</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.mask"><code class="docutils literal notranslate"><span class="pre">ModelInputs.mask</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.residue_index"><code class="docutils literal notranslate"><span class="pre">ModelInputs.residue_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.chain_index"><code class="docutils literal notranslate"><span class="pre">ModelInputs.chain_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.lengths"><code class="docutils literal notranslate"><span class="pre">ModelInputs.lengths</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.bias"><code class="docutils literal notranslate"><span class="pre">ModelInputs.bias</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id5"><code class="docutils literal notranslate"><span class="pre">ModelInputs.structure_coordinates</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id6"><code class="docutils literal notranslate"><span class="pre">ModelInputs.sequence</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id7"><code class="docutils literal notranslate"><span class="pre">ModelInputs.mask</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id8"><code class="docutils literal notranslate"><span class="pre">ModelInputs.residue_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id9"><code class="docutils literal notranslate"><span class="pre">ModelInputs.chain_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id10"><code class="docutils literal notranslate"><span class="pre">ModelInputs.lengths</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id11"><code class="docutils literal notranslate"><span class="pre">ModelInputs.bias</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.k_neighbors"><code class="docutils literal notranslate"><span class="pre">ModelInputs.k_neighbors</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.augment_eps"><code class="docutils literal notranslate"><span class="pre">ModelInputs.augment_eps</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.replace"><code class="docutils literal notranslate"><span class="pre">ModelInputs.replace()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs"><code class="docutils literal notranslate"><span class="pre">SamplingInputs</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.prng_key"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.prng_key</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.initial_sequence"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.initial_sequence</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.structure_coordinates"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.structure_coordinates</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.mask"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.mask</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.residue_index"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.residue_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.chain_index"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.chain_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.bias"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.bias</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.k_neighbors"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.k_neighbors</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.augment_eps"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.augment_eps</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.hyperparameters"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.hyperparameters</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.iterations"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.iterations</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id12"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.prng_key</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id13"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.hyperparameters</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id14"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.iterations</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.replace"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.replace()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType"><code class="docutils literal notranslate"><span class="pre">OligomerType</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType.MONOMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.MONOMER</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType.HETEROMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.HETEROMER</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType.HOMOOLIGOMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.HOMOOLIGOMER</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType.TIED_HOMOOLIGOMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.TIED_HOMOOLIGOMER</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum"><code class="docutils literal notranslate"><span class="pre">SamplingEnum</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.GREEDY"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.GREEDY</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.TOP_K"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.TOP_K</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.TOP_P"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.TOP_P</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.TEMPERATURE"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.TEMPERATURE</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.BEAM_SEARCH"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.BEAM_SEARCH</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.STRAIGHT_THROUGH"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.STRAIGHT_THROUGH</span></code></a></li>
+</ul>
+</li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-prxteinmpnn.utils.data_structures">
+<span id="data-structures"></span><h1>data_structures<a class="headerlink" href="#module-prxteinmpnn.utils.data_structures" title="Link to this heading">#</a></h1>
+<p>Dataclasses and enums for the PrxteinMPNN project.</p>
+<p>prxteinmpnn.utils.data_structures</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ProteinStructure">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.data_structures.</span></span><span class="sig-name descname"><span class="pre">ProteinStructure</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">coordinates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">aatype</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">atom_mask</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residue_index</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chain_index</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">b_factors</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/data_structures.html#ProteinStructure"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ProteinStructure" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Protein structure representation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>coordinates</strong> (<em>StructureAtomicCoordinates</em>)</p></li>
+<li><p><strong>aatype</strong> (<em>ProteinSequence</em>)</p></li>
+<li><p><strong>atom_mask</strong> (<em>AtomMask</em>)</p></li>
+<li><p><strong>residue_index</strong> (<em>ResidueIndex</em>)</p></li>
+<li><p><strong>chain_index</strong> (<em>ChainIndex</em>)</p></li>
+<li><p><strong>b_factors</strong> (<em>BFactors</em>)</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ProteinStructure.coordinates">
+<span class="sig-name descname"><span class="pre">coordinates</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ProteinStructure.coordinates" title="Link to this definition">#</a></dt>
+<dd><p>Atom positions in the structure, represented as a
+3D array. Cartesian coordinates of atoms in angstroms. The atom types correspond to
+residue_constants.atom_types, i.e. the first three are N, CA, CB. Shape is
+(num_res, num_atom_type, 3), where num_res is the number of residues, num_atom_type is the
+number of atom types (e.g., N, CA, CB, C, O), and 3 is the spatial dimension (x, y, z).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>StructureAtomicCoordinates</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ProteinStructure.aatype">
+<span class="sig-name descname"><span class="pre">aatype</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ProteinStructure.aatype" title="Link to this definition">#</a></dt>
+<dd><p>Amino-acid type for each residue represented as an integer between 0 and 20,
+where 20 is ‘X’. Shape is [num_res].</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Sequence</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ProteinStructure.atom_mask">
+<span class="sig-name descname"><span class="pre">atom_mask</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ProteinStructure.atom_mask" title="Link to this definition">#</a></dt>
+<dd><p>Binary float mask to indicate presence of a particular atom.
+1.0 if an atom is present and 0.0 if not. This should be used for loss masking.
+Shape is [num_res, num_atom_type].</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>AtomMask</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ProteinStructure.residue_index">
+<span class="sig-name descname"><span class="pre">residue_index</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ProteinStructure.residue_index" title="Link to this definition">#</a></dt>
+<dd><p>Residue index as used in PDB. It is not necessarily
+continuous or 0-indexed. Shape is [num_res].</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>AtomResidueIndex</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ProteinStructure.b_factors">
+<span class="sig-name descname"><span class="pre">b_factors</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ProteinStructure.b_factors" title="Link to this definition">#</a></dt>
+<dd><p>B-factors, or temperature factors, of each residue
+(in sq. angstroms units), representing the displacement of the residue from its ground truth
+mean value. Shape is [num_res, num_atom_type].</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>BFactors</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id0">
+<span class="sig-name descname"><span class="pre">coordinates</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms</span> <span class="pre">3']</span></code></em><a class="headerlink" href="#id0" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id1">
+<span class="sig-name descname"><span class="pre">aatype</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code></em><a class="headerlink" href="#id1" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id2">
+<span class="sig-name descname"><span class="pre">atom_mask</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code></em><a class="headerlink" href="#id2" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id3">
+<span class="sig-name descname"><span class="pre">residue_index</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code></em><a class="headerlink" href="#id3" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ProteinStructure.chain_index">
+<span class="sig-name descname"><span class="pre">chain_index</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ProteinStructure.chain_index" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id4">
+<span class="sig-name descname"><span class="pre">b_factors</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atom_types']</span></code></em><a class="headerlink" href="#id4" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ProteinStructure.replace">
+<span class="sig-name descname"><span class="pre">replace</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">updates</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ProteinStructure.replace" title="Link to this definition">#</a></dt>
+<dd><p>Returns a new object replacing the specified fields with new values.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ModelInputs">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.data_structures.</span></span><span class="sig-name descname"><span class="pre">ModelInputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">structure_coordinates=&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sequence=&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask=&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residue_index=&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chain_index=&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lengths=&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bias=&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k_neighbors=48</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">augment_eps=0.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/data_structures.html#ModelInputs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ModelInputs" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Dataclass for general model inputs.</p>
+<p>Note that any of these can be stacked together to form a batch of inputs.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>structure_coordinates</strong> (<em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_atoms 3'</em><em>]</em>)</p></li>
+<li><p><strong>sequence</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues'</em><em>]</em>)</p></li>
+<li><p><strong>mask</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues 3'</em><em>]</em>)</p></li>
+<li><p><strong>residue_index</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues'</em><em>]</em>)</p></li>
+<li><p><strong>chain_index</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues'</em><em>]</em>)</p></li>
+<li><p><strong>lengths</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_sequences'</em><em>]</em>)</p></li>
+<li><p><strong>bias</strong> (<em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_classes'</em><em>] </em><em>| </em><em>None</em>)</p></li>
+<li><p><strong>k_neighbors</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+<li><p><strong>augment_eps</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>)</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ModelInputs.structure_coordinates">
+<span class="sig-name descname"><span class="pre">structure_coordinates</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ModelInputs.structure_coordinates" title="Link to this definition">#</a></dt>
+<dd><p>Atomic coordinates of the structure.
+Shape is (num_residues, num_atoms, 3), where num_residues is the number of residues
+and num_atoms is the number of atoms per residue (e.g., 37 for standard residues).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>StructureAtomicCoordinates</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ModelInputs.sequence">
+<span class="sig-name descname"><span class="pre">sequence</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ModelInputs.sequence" title="Link to this definition">#</a></dt>
+<dd><p>Sequence of amino acids as an array of integers.
+Shape is (num_residues,), where num_residues is the number of residues.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Sequence</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ModelInputs.mask">
+<span class="sig-name descname"><span class="pre">mask</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ModelInputs.mask" title="Link to this definition">#</a></dt>
+<dd><p>Mask for the model input, indicating valid atoms in the structure.
+Shape is (num_residues, num_atoms), where num_atoms is the number of atoms per residue.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>AtomMask</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ModelInputs.residue_index">
+<span class="sig-name descname"><span class="pre">residue_index</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ModelInputs.residue_index" title="Link to this definition">#</a></dt>
+<dd><p>Index of residues in the structure, used for mapping atoms
+in structures to their residues. Shape is (num_residues,).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ResidueIndex</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ModelInputs.chain_index">
+<span class="sig-name descname"><span class="pre">chain_index</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ModelInputs.chain_index" title="Link to this definition">#</a></dt>
+<dd><p>Index of chains in the structure, used for mapping
+atoms in structures to their chains. Shape is (num_residues,).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ChainIndex</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ModelInputs.lengths">
+<span class="sig-name descname"><span class="pre">lengths</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ModelInputs.lengths" title="Link to this definition">#</a></dt>
+<dd><p>Lengths of the sequences in the batch, used for padding and
+batching. Shape is (num_sequences,), where num_sequences is the number of sequences in the
+batch.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>InputLengths</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ModelInputs.bias">
+<span class="sig-name descname"><span class="pre">bias</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ModelInputs.bias" title="Link to this definition">#</a></dt>
+<dd><p>Bias for the model input, used for classification tasks.
+Defaults to zero bias of shape (sum(lengths), 20), where 20 is the number of amino acid types.
+Shape is (sum(lengths), num_classes), where num_classes is the number of classes
+(e.g., 20 for amino acids).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>InputBias</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id5">
+<span class="sig-name descname"><span class="pre">structure_coordinates</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms</span> <span class="pre">3']</span></code></em><a class="headerlink" href="#id5" title="Link to this definition">#</a></dt>
+<dd><p>Structure atomic coordinates for the model input.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id6">
+<span class="sig-name descname"><span class="pre">sequence</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code></em><a class="headerlink" href="#id6" title="Link to this definition">#</a></dt>
+<dd><p>A sequence of amino acids for the model input. As MPNN-alphabet based array of integers.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id7">
+<span class="sig-name descname"><span class="pre">mask</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">3']</span></code></em><a class="headerlink" href="#id7" title="Link to this definition">#</a></dt>
+<dd><p>Mask for the model input, indicating valid atoms structure.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id8">
+<span class="sig-name descname"><span class="pre">residue_index</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code></em><a class="headerlink" href="#id8" title="Link to this definition">#</a></dt>
+<dd><p>Index of residues in the structure, used for mapping atoms in structures to their residues.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id9">
+<span class="sig-name descname"><span class="pre">chain_index</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code></em><a class="headerlink" href="#id9" title="Link to this definition">#</a></dt>
+<dd><p>Index of chains in the structure, used for mapping atoms in structures to their chains.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id10">
+<span class="sig-name descname"><span class="pre">lengths</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_sequences']</span></code></em><a class="headerlink" href="#id10" title="Link to this definition">#</a></dt>
+<dd><p>Lengths of the sequences in the batch, used for padding and batching.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id11">
+<span class="sig-name descname"><span class="pre">bias</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_classes']</span></code> <span class="pre">|</span> <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></em><a class="headerlink" href="#id11" title="Link to this definition">#</a></dt>
+<dd><p>Bias for the model input, used for classification tasks.
+Defaults to zero bias of shape (sum(lengths), 20).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ModelInputs.k_neighbors">
+<span class="sig-name descname"><span class="pre">k_neighbors</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">48</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ModelInputs.k_neighbors" title="Link to this definition">#</a></dt>
+<dd><p>Number of neighbors to consider for each atom in the structure.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ModelInputs.augment_eps">
+<span class="sig-name descname"><span class="pre">augment_eps</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ModelInputs.augment_eps" title="Link to this definition">#</a></dt>
+<dd><p>Epsilon value for adding noise to the backbone coordinates, used for data augmentation.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ModelInputs.replace">
+<span class="sig-name descname"><span class="pre">replace</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">updates</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ModelInputs.replace" title="Link to this definition">#</a></dt>
+<dd><p>Returns a new object replacing the specified fields with new values.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingInputs">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.data_structures.</span></span><span class="sig-name descname"><span class="pre">SamplingInputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">structure_coordinates=&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sequence=&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask=&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residue_index=&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chain_index=&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lengths=&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bias=&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k_neighbors=48</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">augment_eps=0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prng_key=&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hyperparameters=(0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">iterations=1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/data_structures.html#SamplingInputs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingInputs" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#prxteinmpnn.utils.data_structures.ModelInputs" title="prxteinmpnn.utils.data_structures.ModelInputs"><code class="xref py py-class docutils literal notranslate"><span class="pre">ModelInputs</span></code></a></p>
+<p>Dataclass for inputs used in sequence sampling.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>structure_coordinates</strong> (<em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_atoms 3'</em><em>]</em>)</p></li>
+<li><p><strong>sequence</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues'</em><em>]</em>)</p></li>
+<li><p><strong>mask</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues 3'</em><em>]</em>)</p></li>
+<li><p><strong>residue_index</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues'</em><em>]</em>)</p></li>
+<li><p><strong>chain_index</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues'</em><em>]</em>)</p></li>
+<li><p><strong>lengths</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_sequences'</em><em>]</em>)</p></li>
+<li><p><strong>bias</strong> (<em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_classes'</em><em>] </em><em>| </em><em>None</em>)</p></li>
+<li><p><strong>k_neighbors</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+<li><p><strong>augment_eps</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>)</p></li>
+<li><p><strong>prng_key</strong> (<em>Key</em><em>[</em><em>Array</em><em>, </em><em>''</em><em>] </em><em>| </em><em>UInt32</em><em>[</em><em>Array</em><em>, </em><em>'2'</em><em>]</em>)</p></li>
+<li><p><strong>hyperparameters</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><em>tuple</em></a><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a><em> | </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a><em>, </em><em>...</em><em>]</em>)</p></li>
+<li><p><strong>iterations</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingInputs.prng_key">
+<span class="sig-name descname"><span class="pre">prng_key</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingInputs.prng_key" title="Link to this definition">#</a></dt>
+<dd><p>Random key for JAX operations.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>PRNGKeyArray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingInputs.initial_sequence">
+<span class="sig-name descname"><span class="pre">initial_sequence</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingInputs.initial_sequence" title="Link to this definition">#</a></dt>
+<dd><p>Initial sequence of amino acids as an array of integers.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>ProteinSequence</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingInputs.structure_coordinates">
+<span class="sig-name descname"><span class="pre">structure_coordinates</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingInputs.structure_coordinates" title="Link to this definition">#</a></dt>
+<dd><p>Atomic coordinates of the structure.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>StructureAtomicCoordinates</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingInputs.mask">
+<span class="sig-name descname"><span class="pre">mask</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingInputs.mask" title="Link to this definition">#</a></dt>
+<dd><p>Mask indicating valid atoms in the structure.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>AtomMask</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingInputs.residue_index">
+<span class="sig-name descname"><span class="pre">residue_index</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingInputs.residue_index" title="Link to this definition">#</a></dt>
+<dd><p>Index of residues in the structure.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>AtomResidueIndex</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingInputs.chain_index">
+<span class="sig-name descname"><span class="pre">chain_index</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingInputs.chain_index" title="Link to this definition">#</a></dt>
+<dd><p>Index of chains in the structure.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>AtomChainIndex</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingInputs.bias">
+<span class="sig-name descname"><span class="pre">bias</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingInputs.bias" title="Link to this definition">#</a></dt>
+<dd><p>Bias for the model input, used for classification tasks.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>InputBias | None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingInputs.k_neighbors">
+<span class="sig-name descname"><span class="pre">k_neighbors</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingInputs.k_neighbors" title="Link to this definition">#</a></dt>
+<dd><p>Number of neighbors to consider for each atom.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)">int</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingInputs.augment_eps">
+<span class="sig-name descname"><span class="pre">augment_eps</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingInputs.augment_eps" title="Link to this definition">#</a></dt>
+<dd><p>Epsilon value for adding noise to the backbone coordinates.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)">float</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingInputs.hyperparameters">
+<span class="sig-name descname"><span class="pre">hyperparameters</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingInputs.hyperparameters" title="Link to this definition">#</a></dt>
+<dd><p>Hyperparameters for sampling, e.g., temperature,
+top-k, etc.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>SamplingHyperparameters</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingInputs.iterations">
+<span class="sig-name descname"><span class="pre">iterations</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingInputs.iterations" title="Link to this definition">#</a></dt>
+<dd><p>Number of iterations for sampling.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)">int</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id12">
+<span class="sig-name descname"><span class="pre">prng_key</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Union</span></code></a><span class="pre">[</span><code class="xref py py-class docutils literal notranslate"><span class="pre">Key[Array,</span> <span class="pre">'']</span></code><span class="pre">,</span> <code class="xref py py-class docutils literal notranslate"><span class="pre">UInt32[Array,</span> <span class="pre">'2']</span></code><span class="pre">]</span></em><a class="headerlink" href="#id12" title="Link to this definition">#</a></dt>
+<dd><p>Random key for JAX operations.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id13">
+<span class="sig-name descname"><span class="pre">hyperparameters</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a><span class="pre">[</span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></a> <span class="pre">|</span> <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a><span class="pre">,</span> <a class="reference external" href="https://docs.python.org/3/library/constants.html#Ellipsis" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">...</span></code></a><span class="pre">]</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">(0.0,)</span></em><a class="headerlink" href="#id13" title="Link to this definition">#</a></dt>
+<dd><p>Hyperparameters for sampling, e.g., temperature, top-k, etc.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id14">
+<span class="sig-name descname"><span class="pre">iterations</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#id14" title="Link to this definition">#</a></dt>
+<dd><p>Number of iterations for sampling.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingInputs.replace">
+<span class="sig-name descname"><span class="pre">replace</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">updates</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingInputs.replace" title="Link to this definition">#</a></dt>
+<dd><p>Returns a new object replacing the specified fields with new values.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.OligomerType">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.data_structures.</span></span><span class="sig-name descname"><span class="pre">OligomerType</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/data_structures.html#OligomerType"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.data_structures.OligomerType" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Enum</span></code></a></p>
+<p>Enum for different types of oligomers.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.OligomerType.MONOMER">
+<span class="sig-name descname"><span class="pre">MONOMER</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'monomer'</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.OligomerType.MONOMER" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.OligomerType.HETEROMER">
+<span class="sig-name descname"><span class="pre">HETEROMER</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'heteromer'</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.OligomerType.HETEROMER" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.OligomerType.HOMOOLIGOMER">
+<span class="sig-name descname"><span class="pre">HOMOOLIGOMER</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'homooligomer'</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.OligomerType.HOMOOLIGOMER" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.OligomerType.TIED_HOMOOLIGOMER">
+<span class="sig-name descname"><span class="pre">TIED_HOMOOLIGOMER</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'tied_homooligomer'</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.OligomerType.TIED_HOMOOLIGOMER" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingEnum">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.data_structures.</span></span><span class="sig-name descname"><span class="pre">SamplingEnum</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/data_structures.html#SamplingEnum"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingEnum" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Enum</span></code></a></p>
+<p>Enum for different sampling strategies.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingEnum.GREEDY">
+<span class="sig-name descname"><span class="pre">GREEDY</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'greedy'</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingEnum.GREEDY" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingEnum.TOP_K">
+<span class="sig-name descname"><span class="pre">TOP_K</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'top_k'</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingEnum.TOP_K" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingEnum.TOP_P">
+<span class="sig-name descname"><span class="pre">TOP_P</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'top_p'</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingEnum.TOP_P" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingEnum.TEMPERATURE">
+<span class="sig-name descname"><span class="pre">TEMPERATURE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'temperature'</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingEnum.TEMPERATURE" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingEnum.BEAM_SEARCH">
+<span class="sig-name descname"><span class="pre">BEAM_SEARCH</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'beam_search'</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingEnum.BEAM_SEARCH" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingEnum.STRAIGHT_THROUGH">
+<span class="sig-name descname"><span class="pre">STRAIGHT_THROUGH</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'straight_through'</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingEnum.STRAIGHT_THROUGH" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="prxteinmpnn.utils.coordinates.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">coordinates</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="prxteinmpnn.utils.decoding_order.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">decoding_order</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinStructure"><code class="docutils literal notranslate"><span class="pre">ProteinStructure</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinStructure.coordinates"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.coordinates</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinStructure.aatype"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.aatype</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinStructure.atom_mask"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.atom_mask</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinStructure.residue_index"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.residue_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinStructure.b_factors"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.b_factors</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id0"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.coordinates</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.aatype</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.atom_mask</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id3"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.residue_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinStructure.chain_index"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.chain_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id4"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.b_factors</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinStructure.replace"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.replace()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs"><code class="docutils literal notranslate"><span class="pre">ModelInputs</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.structure_coordinates"><code class="docutils literal notranslate"><span class="pre">ModelInputs.structure_coordinates</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.sequence"><code class="docutils literal notranslate"><span class="pre">ModelInputs.sequence</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.mask"><code class="docutils literal notranslate"><span class="pre">ModelInputs.mask</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.residue_index"><code class="docutils literal notranslate"><span class="pre">ModelInputs.residue_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.chain_index"><code class="docutils literal notranslate"><span class="pre">ModelInputs.chain_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.lengths"><code class="docutils literal notranslate"><span class="pre">ModelInputs.lengths</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.bias"><code class="docutils literal notranslate"><span class="pre">ModelInputs.bias</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id5"><code class="docutils literal notranslate"><span class="pre">ModelInputs.structure_coordinates</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id6"><code class="docutils literal notranslate"><span class="pre">ModelInputs.sequence</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id7"><code class="docutils literal notranslate"><span class="pre">ModelInputs.mask</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id8"><code class="docutils literal notranslate"><span class="pre">ModelInputs.residue_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id9"><code class="docutils literal notranslate"><span class="pre">ModelInputs.chain_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id10"><code class="docutils literal notranslate"><span class="pre">ModelInputs.lengths</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id11"><code class="docutils literal notranslate"><span class="pre">ModelInputs.bias</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.k_neighbors"><code class="docutils literal notranslate"><span class="pre">ModelInputs.k_neighbors</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.augment_eps"><code class="docutils literal notranslate"><span class="pre">ModelInputs.augment_eps</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.replace"><code class="docutils literal notranslate"><span class="pre">ModelInputs.replace()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs"><code class="docutils literal notranslate"><span class="pre">SamplingInputs</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.prng_key"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.prng_key</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.initial_sequence"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.initial_sequence</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.structure_coordinates"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.structure_coordinates</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.mask"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.mask</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.residue_index"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.residue_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.chain_index"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.chain_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.bias"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.bias</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.k_neighbors"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.k_neighbors</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.augment_eps"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.augment_eps</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.hyperparameters"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.hyperparameters</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.iterations"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.iterations</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id12"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.prng_key</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id13"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.hyperparameters</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id14"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.iterations</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.replace"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.replace()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType"><code class="docutils literal notranslate"><span class="pre">OligomerType</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType.MONOMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.MONOMER</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType.HETEROMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.HETEROMER</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType.HOMOOLIGOMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.HOMOOLIGOMER</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType.TIED_HOMOOLIGOMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.TIED_HOMOOLIGOMER</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum"><code class="docutils literal notranslate"><span class="pre">SamplingEnum</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.GREEDY"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.GREEDY</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.TOP_K"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.TOP_K</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.TOP_P"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.TOP_P</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.TEMPERATURE"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.TEMPERATURE</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.BEAM_SEARCH"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.BEAM_SEARCH</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.STRAIGHT_THROUGH"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.STRAIGHT_THROUGH</span></code></a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By PrxteinMPNN Team
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, PrxteinMPNN Team.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

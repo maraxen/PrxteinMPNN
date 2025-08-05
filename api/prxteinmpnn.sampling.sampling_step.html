@@ -1,0 +1,635 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>sampling_step &#8212; PrxteinMPNN 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/style.css" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=a1637f0b"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=30646c52"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'api/prxteinmpnn.sampling.sampling_step';</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="ste" href="prxteinmpnn.sampling.ste.html" />
+    <link rel="prev" title="sample" href="prxteinmpnn.sampling.sample.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">PrxteinMPNN 0.1.0 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="modules.html">API Reference</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.model.encoder.html">encoder</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.model.decoder.html">decoder</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.model.projection.html">projection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.model.masked_attention.html">masked_attention</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.model.features.html">features</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 current active has-children"><a class="reference internal" href="prxteinmpnn.sampling.html">sampling: Sampling methods for MPNN</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.sampling.initialize.html">initialize</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.sampling.sample.html">sample</a></li>
+<li class="toctree-l3 current active"><a class="current reference internal" href="#">sampling_step</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.sampling.ste.html">ste</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="prxteinmpnn.scoring.html">scoring: Scoring functions for MPNN</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.scoring.score.html">score</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="prxteinmpnn.utils.html">utils: Utility functions for MPNN</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.aa_convert.html">aa_convert</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.autoregression.html">autoregression</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.concatenate.html">concatenate</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.coordinates.html">coordinates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html">data_structures</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.decoding_order.html">decoding_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html">foldcomp_utils</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.gelu.html">gelu</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.graph.html">graph</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.normalize.html">normalize</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.radial_basis.html">radial_basis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.residue_constants.html">residue_constants</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.types.html">types</a></li>
+</ul>
+</details></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/quickstart.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/installation.html">Installation Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/basic_usage.html">Basic Usage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../examples/index.html">Examples</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../examples/advanced_example.html">Advanced Example</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+        <div class="header-article-item">
+
+
+
+
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="modules.html" class="nav-link">API Reference</a></li>
+    
+    
+    <li class="breadcrumb-item"><i class="fa-solid fa-ellipsis"></i></li>
+    
+    
+    <li class="breadcrumb-item"><a href="prxteinmpnn.sampling.html" class="nav-link">sampling module</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page">sampling_step</li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+<a href="https://github.com/maraxen/prxteinmpnn" target="_blank"
+   class="btn btn-sm btn-source-repository-button"
+   title="Source repository"
+   data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+
+</a>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/api/prxteinmpnn.sampling.sampling_step.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>sampling_step</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.sampling_step.sample_temperature_step"><code class="docutils literal notranslate"><span class="pre">sample_temperature_step()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.sampling_step.sample_straight_through_estimator_step"><code class="docutils literal notranslate"><span class="pre">sample_straight_through_estimator_step()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.sampling_step.preload_sampling_step_decoder"><code class="docutils literal notranslate"><span class="pre">preload_sampling_step_decoder()</span></code></a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-prxteinmpnn.sampling.sampling_step">
+<span id="sampling-step"></span><h1>sampling_step<a class="headerlink" href="#module-prxteinmpnn.sampling.sampling_step" title="Link to this heading">#</a></h1>
+<p>Sample sequences from a structure using the ProteinMPNN model.</p>
+<p>prxteinmpnn.sampling.sampling</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.sampling.sampling_step.sample_temperature_step">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.sampling.sampling_step.</span></span><span class="sig-name descname"><span class="pre">sample_temperature_step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">carry</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decoder</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">neighbor_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">autoregressive_mask</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hyperparameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(1.0,)</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/sampling/sampling_step.html#sample_temperature_step"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.sampling.sampling_step.sample_temperature_step" title="Link to this definition">#</a></dt>
+<dd><p>Single autoregressive sampling step with temperature scaling.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>i</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a></span>) – Current iteration.</p></li>
+<li><p><strong>carry</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Union</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Key[Array,</span> <span class="pre">'']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">UInt32[Array,</span> <span class="pre">'2']</span></code>], <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_classes']</span></code>]</span>) – Tuple containing current state (rng_key, edge_features, node_features, sequence, logits).</p></li>
+<li><p><strong>decoder</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Callable</span></code></a>[[<code class="xref py py-class docutils literal notranslate"><span class="pre">Unpack</span></code>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Bool[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_residues']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code>]]], <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>]</span>) – Decoder function to update node features.</p></li>
+<li><p><strong>neighbor_indices</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors']</span></code></span>) – Indices of neighboring nodes.</p></li>
+<li><p><strong>mask</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code></span>) – Atom mask for valid atoms.</p></li>
+<li><p><strong>autoregressive_mask</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Bool[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_residues']</span></code></span>) – Mask for autoregressive decoding.</p></li>
+<li><p><strong>model_parameters</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">PyTree[str,</span> <span class="pre">'P']</span></code></span>) – Model parameters for the model.</p></li>
+<li><p><strong>hyperparameters</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></a> | <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/constants.html#Ellipsis" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">...</span></code></a>]</span>) – Hyperparameters for sampling. In this case, the temperature for scaling
+logits.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Union</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Key[Array,</span> <span class="pre">'']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">UInt32[Array,</span> <span class="pre">'2']</span></code>], <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_classes']</span></code>]</span></p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Updated carry state and None for scan output.</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<p>carry = (rng_key, edge_features, node_features, sequence, logits)
+sample_step = partial(</p>
+<blockquote>
+<div><p>sample_temperature_step,
+decoder=decoder,
+neighbor_indices=neighbor_indices,
+mask=mask,
+autoregressive_mask=autoregressive_mask,
+model_parameters=model_parameters,
+temperature=temperature,</p>
+</div></blockquote>
+<p>)
+final_carry, _ = jax.lax.fori_loop(</p>
+<blockquote>
+<div><p>0,
+iterations,
+sample_step,
+carry,</p>
+</div></blockquote>
+<p>)</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.sampling.sampling_step.sample_straight_through_estimator_step">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.sampling.sampling_step.</span></span><span class="sig-name descname"><span class="pre">sample_straight_through_estimator_step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">_i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">carry</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decoder</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">neighbor_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">autoregressive_mask</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hyperparameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(0.01,)</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/sampling/sampling_step.html#sample_straight_through_estimator_step"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.sampling.sampling_step.sample_straight_through_estimator_step" title="Link to this definition">#</a></dt>
+<dd><p>Single autoregressive sampling step with straight-through estimator.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>_i</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a></span>) – Current iteration.</p></li>
+<li><p><strong>carry</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Union</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Key[Array,</span> <span class="pre">'']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">UInt32[Array,</span> <span class="pre">'2']</span></code>], <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_classes']</span></code>]</span>) – Tuple containing current state (rng_key, edge_features, node_features, sequence, logits).</p></li>
+<li><p><strong>decoder</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Callable</span></code></a>[[<code class="xref py py-class docutils literal notranslate"><span class="pre">Unpack</span></code>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Bool[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_residues']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code>]]], <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>]</span>) – Decoder function to update node features.</p></li>
+<li><p><strong>neighbor_indices</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors']</span></code></span>) – Indices of neighboring nodes.</p></li>
+<li><p><strong>mask</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code></span>) – Atom mask for valid atoms.</p></li>
+<li><p><strong>autoregressive_mask</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Bool[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_residues']</span></code></span>) – Mask for autoregressive decoding.</p></li>
+<li><p><strong>model_parameters</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">PyTree[str,</span> <span class="pre">'P']</span></code></span>) – Model parameters for the model.</p></li>
+<li><p><strong>hyperparameters</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></a>]</span>) – Hyperparameters for the straight-through estimator. In this case, the
+learning rate.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Union</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Key[Array,</span> <span class="pre">'']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">UInt32[Array,</span> <span class="pre">'2']</span></code>], <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_classes']</span></code>]</span></p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Updated carry state and None for scan output.</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<p>carry = (rng_key, edge_features, node_features, sequence, logits)
+sample_step = partial(</p>
+<blockquote>
+<div><p>sample_straight_through_estimator_step,
+decoder=decoder,
+neighbor_indices=neighbor_indices,
+mask=mask,
+autoregressive_mask=autoregressive_mask,
+model_parameters=model_parameters,
+learning_rate=learning_rate,</p>
+</div></blockquote>
+<p>)
+final_carry, _ = jax.lax.fori_loop(</p>
+<blockquote>
+<div><p>0,
+iterations,
+sample_step,
+carry,</p>
+</div></blockquote>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.sampling.sampling_step.preload_sampling_step_decoder">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.sampling.sampling_step.</span></span><span class="sig-name descname"><span class="pre">preload_sampling_step_decoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">decoder</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sampling_strategy</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/sampling/sampling_step.html#preload_sampling_step_decoder"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.sampling.sampling_step.preload_sampling_step_decoder" title="Link to this definition">#</a></dt>
+<dd><p>Preload the sampling step decoder.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Callable</span></code></a>[[<code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Bool[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_residues']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">PyTree[str,</span> <span class="pre">'P']</span></code>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></a> | <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/constants.html#Ellipsis" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">...</span></code></a>]], <a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Callable</span></code></a>[[<code class="xref py py-class docutils literal notranslate"><span class="pre">Unpack</span></code>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Union</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Key[Array,</span> <span class="pre">'']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">UInt32[Array,</span> <span class="pre">'2']</span></code>], <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_classes']</span></code>]]]], <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Union</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Key[Array,</span> <span class="pre">'']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">UInt32[Array,</span> <span class="pre">'2']</span></code>], <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_classes']</span></code>]]]</span></p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>decoder</strong> (<a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><em>Callable</em></a><em>[</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Unpack" title="(in Python v3.13)"><em>Unpack</em></a><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><em>tuple</em></a><em>[</em><em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_atoms num_features'</em><em>]</em><em>, </em><em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_atoms num_neighbors num_features'</em><em>]</em><em>, </em><em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_atoms num_neighbors'</em><em>]</em><em>, </em><em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_atoms'</em><em>]</em><em>, </em><em>Bool</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_residues'</em><em>]</em><em>, </em><em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues'</em><em>]</em><em>]</em><em>]</em><em>]</em><em>, </em><em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_atoms num_features'</em><em>]</em><em>]</em>)</p></li>
+<li><p><strong>sampling_strategy</strong> (<a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingEnum" title="prxteinmpnn.utils.data_structures.SamplingEnum"><em>SamplingEnum</em></a>)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="prxteinmpnn.sampling.sample.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">sample</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="prxteinmpnn.sampling.ste.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">ste</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.sampling_step.sample_temperature_step"><code class="docutils literal notranslate"><span class="pre">sample_temperature_step()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.sampling_step.sample_straight_through_estimator_step"><code class="docutils literal notranslate"><span class="pre">sample_straight_through_estimator_step()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.sampling_step.preload_sampling_step_decoder"><code class="docutils literal notranslate"><span class="pre">preload_sampling_step_decoder()</span></code></a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By PrxteinMPNN Team
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, PrxteinMPNN Team.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

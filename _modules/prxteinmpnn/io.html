@@ -1,0 +1,870 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>prxteinmpnn.io &#8212; PrxteinMPNN 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/style.css" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../../_static/documentation_options.js?v=a1637f0b"></script>
+    <script src="../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=30646c52"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/prxteinmpnn/io';</script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">PrxteinMPNN 0.1.0 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../api/modules.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../api/prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../api/prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/prxteinmpnn.model.encoder.html">encoder</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api/prxteinmpnn.model.decoder.html">decoder</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api/prxteinmpnn.model.projection.html">projection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api/prxteinmpnn.model.masked_attention.html">masked_attention</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api/prxteinmpnn.model.features.html">features</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../api/prxteinmpnn.sampling.html">sampling: Sampling methods for MPNN</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/prxteinmpnn.sampling.initialize.html">initialize</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api/prxteinmpnn.sampling.sample.html">sample</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api/prxteinmpnn.sampling.sampling_step.html">sampling_step</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api/prxteinmpnn.sampling.ste.html">ste</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../api/prxteinmpnn.scoring.html">scoring: Scoring functions for MPNN</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/prxteinmpnn.scoring.score.html">score</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../api/prxteinmpnn.utils.html">utils: Utility functions for MPNN</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/prxteinmpnn.utils.aa_convert.html">aa_convert</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api/prxteinmpnn.utils.autoregression.html">autoregression</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api/prxteinmpnn.utils.concatenate.html">concatenate</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api/prxteinmpnn.utils.coordinates.html">coordinates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api/prxteinmpnn.utils.data_structures.html">data_structures</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api/prxteinmpnn.utils.decoding_order.html">decoding_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api/prxteinmpnn.utils.foldcomp_utils.html">foldcomp_utils</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api/prxteinmpnn.utils.gelu.html">gelu</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api/prxteinmpnn.utils.graph.html">graph</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api/prxteinmpnn.utils.normalize.html">normalize</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api/prxteinmpnn.utils.radial_basis.html">radial_basis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api/prxteinmpnn.utils.residue_constants.html">residue_constants</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api/prxteinmpnn.utils.types.html">types</a></li>
+</ul>
+</details></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/quickstart.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/installation.html">Installation Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/basic_usage.html">Basic Usage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../examples/index.html">Examples</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../examples/advanced_example.html">Advanced Example</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+        <div class="header-article-item">
+
+
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page">prxteinmpnn.io</li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+<a href="https://github.com/maraxen/prxteinmpnn" target="_blank"
+   class="btn btn-sm btn-source-repository-button"
+   title="Source repository"
+   data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+
+</a>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1></h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for prxteinmpnn.io</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Utilities for processing structure and trajectory files.&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">pathlib</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterator</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">,</span> <span class="n">Sequence</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">io</span><span class="w"> </span><span class="kn">import</span> <span class="n">StringIO</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">cast</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">biotite</span><span class="w"> </span><span class="kn">import</span> <span class="n">structure</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">biotite.structure</span><span class="w"> </span><span class="kn">import</span> <span class="n">AtomArray</span><span class="p">,</span> <span class="n">AtomArrayStack</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">biotite.structure</span><span class="w"> </span><span class="kn">import</span> <span class="n">io</span> <span class="k">as</span> <span class="n">structure_io</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">biotite.structure.io.pdb</span><span class="w"> </span><span class="kn">import</span> <span class="n">PDBFile</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jax</span><span class="w"> </span><span class="kn">import</span> <span class="n">vmap</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.aa_convert</span><span class="w"> </span><span class="kn">import</span> <span class="n">af_to_mpnn</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.coordinates</span><span class="w"> </span><span class="kn">import</span> <span class="n">compute_cb_precise</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.data_structures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelInputs</span><span class="p">,</span> <span class="n">ProteinStructure</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.residue_constants</span><span class="w"> </span><span class="kn">import</span> <span class="n">atom_order</span><span class="p">,</span> <span class="n">resname_to_idx</span><span class="p">,</span> <span class="n">unk_restype_index</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">AtomChainIndex</span><span class="p">,</span> <span class="n">ChainIndex</span><span class="p">,</span> <span class="n">InputBias</span><span class="p">,</span> <span class="n">ProteinSequence</span>
+
+
+<div class="viewcode-block" id="_check_if_file_empty">
+<a class="viewcode-back" href="../../api/prxteinmpnn.io.html#prxteinmpnn.io._check_if_file_empty">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">_check_if_file_empty</span><span class="p">(</span><span class="n">file_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Check if the file is empty.&quot;&quot;&quot;</span>
+  <span class="n">path</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span>
+  <span class="k">try</span><span class="p">:</span>
+    <span class="k">with</span> <span class="n">path</span><span class="o">.</span><span class="n">open</span><span class="p">()</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+      <span class="k">return</span> <span class="n">f</span><span class="o">.</span><span class="n">readable</span><span class="p">()</span> <span class="ow">and</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;&quot;</span>
+  <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+    <span class="k">return</span> <span class="kc">True</span></div>
+
+
+
+<div class="viewcode-block" id="string_key_to_index">
+<a class="viewcode-back" href="../../api/prxteinmpnn.io.html#prxteinmpnn.io.string_key_to_index">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">string_key_to_index</span><span class="p">(</span>
+  <span class="n">string_keys</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+  <span class="n">key_map</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span>
+  <span class="n">unk_index</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Convert string keys to integer indices based on a mapping.</span>
+
+<span class="sd">  Efficient vectorized implementation to convert a 1D array of string keys</span>
+<span class="sd">  to a 1D array of integer indices using a provided mapping. If a key is not found in the mapping,</span>
+<span class="sd">  it is replaced with a specified unknown index.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    string_keys: A 1D array of string keys.</span>
+<span class="sd">    key_map: A dictionary mapping string keys to integer indices.</span>
+<span class="sd">    unk_index: The index to use for unknown keys not found in the mapping. If None, uses the</span>
+<span class="sd">      length of the key_map as the unknown index.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    A 1D array of integer indices corresponding to the string keys.</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="n">unk_index</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">unk_index</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">key_map</span><span class="p">)</span>
+
+  <span class="n">sorted_keys</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">key_map</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+  <span class="n">sorted_values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">key_map</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">sorted_keys</span><span class="p">])</span>
+  <span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">searchsorted</span><span class="p">(</span><span class="n">sorted_keys</span><span class="p">,</span> <span class="n">string_keys</span><span class="p">)</span>
+  <span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">sorted_keys</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+
+  <span class="n">found_keys</span> <span class="o">=</span> <span class="n">sorted_keys</span><span class="p">[</span><span class="n">indices</span><span class="p">]</span>
+  <span class="n">is_known</span> <span class="o">=</span> <span class="n">found_keys</span> <span class="o">==</span> <span class="n">string_keys</span>
+
+  <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">is_known</span><span class="p">,</span> <span class="n">sorted_values</span><span class="p">[</span><span class="n">indices</span><span class="p">],</span> <span class="n">unk_index</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="residue_names_to_aatype">
+<a class="viewcode-back" href="../../api/prxteinmpnn.io.html#prxteinmpnn.io.residue_names_to_aatype">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">residue_names_to_aatype</span><span class="p">(</span>
+  <span class="n">residue_names</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+  <span class="n">aa_map</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ProteinSequence</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Convert 3-letter residue names to amino acid type indices.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    residue_names: A 1D array of residue names (strings).</span>
+<span class="sd">    aa_map: A dictionary mapping residue names to integer indices. If None, uses the default</span>
+<span class="sd">      `resname_to_idx` mapping.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    A 1D array of amino acid type indices corresponding to the residue names.</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="n">aa_map</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">aa_map</span> <span class="o">=</span> <span class="n">resname_to_idx</span>
+
+  <span class="n">aa_indices</span> <span class="o">=</span> <span class="n">string_key_to_index</span><span class="p">(</span><span class="n">residue_names</span><span class="p">,</span> <span class="n">aa_map</span><span class="p">,</span> <span class="n">unk_restype_index</span><span class="p">)</span>
+  <span class="n">aa_indices</span> <span class="o">=</span> <span class="n">af_to_mpnn</span><span class="p">(</span><span class="n">aa_indices</span><span class="p">)</span>
+  <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">aa_indices</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="atom_names_to_index">
+<a class="viewcode-back" href="../../api/prxteinmpnn.io.html#prxteinmpnn.io.atom_names_to_index">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">atom_names_to_index</span><span class="p">(</span>
+  <span class="n">atom_names</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+  <span class="n">atom_map</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ProteinSequence</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Convert atom names to atom type indices.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    atom_names: A 1D array of atom names (strings).</span>
+<span class="sd">    atom_map: A dictionary mapping atom names to integer indices. If None, uses the default</span>
+<span class="sd">      `atomname_to_idx` mapping.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    A 1D array of atom type indices corresponding to the atom names.</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="n">atom_map</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">atom_map</span> <span class="o">=</span> <span class="n">atom_order</span>
+
+  <span class="n">atom_indices</span> <span class="o">=</span> <span class="n">string_key_to_index</span><span class="p">(</span><span class="n">atom_names</span><span class="p">,</span> <span class="n">atom_map</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+  <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">atom_indices</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="_check_atom_array_length">
+<a class="viewcode-back" href="../../api/prxteinmpnn.io.html#prxteinmpnn.io._check_atom_array_length">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">_check_atom_array_length</span><span class="p">(</span><span class="n">atom_array</span><span class="p">:</span> <span class="n">AtomArray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Check if the AtomArray has a valid length.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    atom_array: The AtomArray to check.</span>
+
+<span class="sd">  Raises:</span>
+<span class="sd">    ValueError: If the AtomArray is empty.</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="n">atom_array</span><span class="o">.</span><span class="n">array_length</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;AtomArray is empty.&quot;</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="_get_chain_index">
+<a class="viewcode-back" href="../../api/prxteinmpnn.io.html#prxteinmpnn.io._get_chain_index">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">_get_chain_index</span><span class="p">(</span>
+  <span class="n">atom_array</span><span class="p">:</span> <span class="n">AtomArray</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AtomChainIndex</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Get the chain index from the AtomArray.&quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="n">atom_array</span><span class="o">.</span><span class="n">chain_id</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">atom_array</span><span class="o">.</span><span class="n">array_length</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+
+  <span class="k">if</span> <span class="n">atom_array</span><span class="o">.</span><span class="n">chain_id</span><span class="o">.</span><span class="n">dtype</span> <span class="o">!=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span>
+      <span class="n">np</span><span class="o">.</span><span class="n">char</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">atom_array</span><span class="o">.</span><span class="n">chain_id</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s2">&quot;U1&quot;</span><span class="p">))</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span> <span class="o">-</span> <span class="nb">ord</span><span class="p">(</span><span class="s2">&quot;A&quot;</span><span class="p">),</span>
+      <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span>
+    <span class="p">)</span>
+
+  <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">atom_array</span><span class="o">.</span><span class="n">chain_id</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="_process_chain_id">
+<a class="viewcode-back" href="../../api/prxteinmpnn.io.html#prxteinmpnn.io._process_chain_id">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">_process_chain_id</span><span class="p">(</span>
+  <span class="n">atom_array</span><span class="p">:</span> <span class="n">AtomArray</span><span class="p">,</span>
+  <span class="n">chain_id</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">AtomArray</span><span class="p">,</span> <span class="n">AtomChainIndex</span><span class="p">]:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Process the chain_id of the AtomArray.&quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="n">chain_id</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">chain_index</span> <span class="o">=</span> <span class="n">_get_chain_index</span><span class="p">(</span><span class="n">atom_array</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">atom_array</span><span class="p">,</span> <span class="n">chain_index</span>
+
+  <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">chain_id</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="n">chain_id</span> <span class="o">=</span> <span class="p">[</span><span class="n">chain_id</span><span class="p">]</span>
+
+  <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">chain_id</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">):</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Expected chain_id to be a string or a sequence of strings, but got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">chain_id</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
+    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+  <span class="k">if</span> <span class="n">atom_array</span><span class="o">.</span><span class="n">chain_id</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Chain ID is not available in the structure.&quot;</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+  <span class="n">indices_to_include</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">atom_array</span><span class="o">.</span><span class="n">chain_id</span><span class="p">,</span> <span class="n">chain_id</span><span class="p">)</span>
+  <span class="n">atom_array</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span><span class="s2">&quot;AtomArray&quot;</span><span class="p">,</span> <span class="n">atom_array</span><span class="p">[</span><span class="n">indices_to_include</span><span class="p">])</span>
+  <span class="n">chain_index</span> <span class="o">=</span> <span class="n">_get_chain_index</span><span class="p">(</span><span class="n">atom_array</span><span class="p">)</span>
+  <span class="k">return</span> <span class="n">atom_array</span><span class="p">,</span> <span class="n">chain_index</span></div>
+
+
+
+<div class="viewcode-block" id="_fill_in_cb_coordinates">
+<a class="viewcode-back" href="../../api/prxteinmpnn.io.html#prxteinmpnn.io._fill_in_cb_coordinates">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">_fill_in_cb_coordinates</span><span class="p">(</span>
+  <span class="n">coords_37</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+  <span class="n">residue_names</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+  <span class="n">atom_map</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Fill in the CB coordinates for residues that have them.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    coords_37: A 2D array of shape (N, 37, 3) containing the coordinates of the atoms.</span>
+<span class="sd">    residue_names: A 1D array of residue names corresponding to the coordinates.</span>
+<span class="sd">    atom_map: A dictionary mapping residue names to their atom indices. If None, uses the default</span>
+<span class="sd">      `atom_order` mapping.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    A 2D array of shape (N, 37, 3) with the C-beta coordinates filled in for residues that have</span>
+<span class="sd">      them.</span>
+<span class="sd">    For glycine residues, the C-beta coordinates are computed precisely based on the N, CA, and C</span>
+<span class="sd">      atoms.</span>
+<span class="sd">    For other residues, the original C-beta coordinates are retained if they exist.</span>
+
+<span class="sd">    NOTE: This is not part of the pipeline, as despite this happening in the original code, it is</span>
+<span class="sd">      bypassed during feature extraction.</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="n">atom_map</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">atom_map</span> <span class="o">=</span> <span class="n">atom_order</span>
+  <span class="n">is_glycine</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;GLY&quot;</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">residue_names</span><span class="p">])</span>
+
+  <span class="n">n_coords</span> <span class="o">=</span> <span class="n">coords_37</span><span class="p">[:,</span> <span class="n">atom_map</span><span class="p">[</span><span class="s2">&quot;N&quot;</span><span class="p">],</span> <span class="p">:]</span>
+  <span class="n">ca_coords</span> <span class="o">=</span> <span class="n">coords_37</span><span class="p">[:,</span> <span class="n">atom_map</span><span class="p">[</span><span class="s2">&quot;CA&quot;</span><span class="p">],</span> <span class="p">:]</span>
+  <span class="n">c_coords</span> <span class="o">=</span> <span class="n">coords_37</span><span class="p">[:,</span> <span class="n">atom_map</span><span class="p">[</span><span class="s2">&quot;C&quot;</span><span class="p">],</span> <span class="p">:]</span>
+
+  <span class="n">precise_cbs</span> <span class="o">=</span> <span class="n">vmap</span><span class="p">(</span><span class="n">compute_cb_precise</span><span class="p">)(</span><span class="n">n_coords</span><span class="p">,</span> <span class="n">ca_coords</span><span class="p">,</span> <span class="n">c_coords</span><span class="p">)</span>
+
+  <span class="n">original_cbs</span> <span class="o">=</span> <span class="n">coords_37</span><span class="p">[:,</span> <span class="n">atom_map</span><span class="p">[</span><span class="s2">&quot;CB&quot;</span><span class="p">],</span> <span class="p">:]</span>
+
+  <span class="n">updated_cbs</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">is_glycine</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">precise_cbs</span><span class="p">,</span> <span class="n">original_cbs</span><span class="p">)</span>
+
+  <span class="k">return</span> <span class="n">coords_37</span><span class="o">.</span><span class="n">at</span><span class="p">[:,</span> <span class="n">atom_map</span><span class="p">[</span><span class="s2">&quot;CB&quot;</span><span class="p">],</span> <span class="p">:]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">updated_cbs</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="process_atom_array">
+<a class="viewcode-back" href="../../api/prxteinmpnn.io.html#prxteinmpnn.io.process_atom_array">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">process_atom_array</span><span class="p">(</span>
+  <span class="n">atom_array</span><span class="p">:</span> <span class="n">AtomArray</span><span class="p">,</span>
+  <span class="n">atom_map</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="n">chain_id</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ProteinStructure</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Process an AtomArray to create a ProteinStructure.&quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="n">atom_map</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">atom_map</span> <span class="o">=</span> <span class="n">atom_order</span>
+  <span class="n">atom_array</span><span class="p">,</span> <span class="n">chain_index</span> <span class="o">=</span> <span class="n">_process_chain_id</span><span class="p">(</span><span class="n">atom_array</span><span class="p">,</span> <span class="n">chain_id</span><span class="p">)</span>
+  <span class="n">_check_atom_array_length</span><span class="p">(</span><span class="n">atom_array</span><span class="p">)</span>
+  <span class="n">num_residues</span> <span class="o">=</span> <span class="n">structure</span><span class="o">.</span><span class="n">get_residue_count</span><span class="p">(</span><span class="n">atom_array</span><span class="p">)</span>
+  <span class="n">residue_indices</span><span class="p">,</span> <span class="n">residue_names</span> <span class="o">=</span> <span class="n">structure</span><span class="o">.</span><span class="n">get_residues</span><span class="p">(</span><span class="n">atom_array</span><span class="p">)</span>
+  <span class="n">residue_indices</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">residue_indices</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+  <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span> <span class="o">=</span> <span class="n">chain_index</span><span class="p">[</span><span class="n">structure</span><span class="o">.</span><span class="n">get_residue_starts</span><span class="p">(</span><span class="n">atom_array</span><span class="p">)]</span>
+  <span class="n">residue_inv_indices</span> <span class="o">=</span> <span class="n">structure</span><span class="o">.</span><span class="n">get_residue_positions</span><span class="p">(</span>
+    <span class="n">atom_array</span><span class="p">,</span>
+    <span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">atom_array</span><span class="o">.</span><span class="n">array_length</span><span class="p">()),</span>
+  <span class="p">)</span>
+
+  <span class="n">atom_names</span> <span class="o">=</span> <span class="n">atom_array</span><span class="o">.</span><span class="n">atom_name</span>
+
+  <span class="k">if</span> <span class="n">atom_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Atom names are not available in the structure.&quot;</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+  <span class="n">atom37_indices</span> <span class="o">=</span> <span class="n">atom_names_to_index</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">atom_names</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;U5&quot;</span><span class="p">))</span>
+
+  <span class="n">atom_mask</span> <span class="o">=</span> <span class="n">atom37_indices</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span>
+
+  <span class="n">coords_37</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_residues</span><span class="p">,</span> <span class="mi">37</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+  <span class="n">atom_mask_37</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_residues</span><span class="p">,</span> <span class="mi">37</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+  <span class="n">bfactors_37</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_residues</span><span class="p">,</span> <span class="mi">37</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+  <span class="n">res_indices_flat</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">residue_inv_indices</span><span class="p">)[</span><span class="n">atom_mask</span><span class="p">]</span>
+  <span class="n">atom_indices_flat</span> <span class="o">=</span> <span class="n">atom37_indices</span><span class="p">[</span><span class="n">atom_mask</span><span class="p">]</span>
+
+  <span class="n">coords_37</span> <span class="o">=</span> <span class="n">coords_37</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">res_indices_flat</span><span class="p">,</span> <span class="n">atom_indices_flat</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span>
+    <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">atom_array</span><span class="o">.</span><span class="n">coord</span><span class="p">)[</span><span class="n">atom_mask</span><span class="p">],</span>
+  <span class="p">)</span>
+  <span class="n">atom_mask_37</span> <span class="o">=</span> <span class="n">atom_mask_37</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">res_indices_flat</span><span class="p">,</span> <span class="n">atom_indices_flat</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+  <span class="n">bfactors_37</span> <span class="o">=</span> <span class="n">bfactors_37</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">res_indices_flat</span><span class="p">,</span> <span class="n">atom_indices_flat</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span>
+    <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">atom_array</span><span class="o">.</span><span class="n">b_factor</span><span class="p">)[</span><span class="n">atom_mask</span><span class="p">],</span>
+  <span class="p">)</span>
+
+  <span class="n">aatype</span> <span class="o">=</span> <span class="n">residue_names_to_aatype</span><span class="p">(</span><span class="n">residue_names</span><span class="p">)</span>
+  <span class="n">nitrogen_mask</span> <span class="o">=</span> <span class="n">atom_mask_37</span><span class="p">[:,</span> <span class="n">atom_map</span><span class="p">[</span><span class="s2">&quot;N&quot;</span><span class="p">]]</span> <span class="o">==</span> <span class="mi">1</span>
+  <span class="n">coords_37</span> <span class="o">=</span> <span class="n">coords_37</span><span class="p">[</span><span class="n">nitrogen_mask</span><span class="p">]</span>
+  <span class="n">aatype</span> <span class="o">=</span> <span class="n">aatype</span><span class="p">[</span><span class="n">nitrogen_mask</span><span class="p">]</span>
+  <span class="n">atom_mask_37</span> <span class="o">=</span> <span class="n">atom_mask_37</span><span class="p">[</span><span class="n">nitrogen_mask</span><span class="p">]</span>
+  <span class="n">residue_indices</span> <span class="o">=</span> <span class="n">residue_indices</span><span class="p">[</span><span class="n">nitrogen_mask</span><span class="p">]</span>
+  <span class="n">chain_index</span> <span class="o">=</span> <span class="n">chain_index</span><span class="p">[</span><span class="n">nitrogen_mask</span><span class="p">]</span>
+  <span class="n">bfactors_37</span> <span class="o">=</span> <span class="n">bfactors_37</span><span class="p">[</span><span class="n">nitrogen_mask</span><span class="p">]</span>
+
+  <span class="k">return</span> <span class="n">ProteinStructure</span><span class="p">(</span>
+    <span class="n">coordinates</span><span class="o">=</span><span class="n">coords_37</span><span class="p">,</span>
+    <span class="n">aatype</span><span class="o">=</span><span class="n">aatype</span><span class="p">,</span>
+    <span class="n">atom_mask</span><span class="o">=</span><span class="n">atom_mask_37</span><span class="p">,</span>
+    <span class="n">residue_index</span><span class="o">=</span><span class="n">residue_indices</span><span class="p">,</span>
+    <span class="n">chain_index</span><span class="o">=</span><span class="n">chain_index</span><span class="p">,</span>
+    <span class="n">b_factors</span><span class="o">=</span><span class="n">bfactors_37</span><span class="p">,</span>
+  <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="from_structure_file">
+<a class="viewcode-back" href="../../api/prxteinmpnn.io.html#prxteinmpnn.io.from_structure_file">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">from_structure_file</span><span class="p">(</span>
+  <span class="n">file_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+  <span class="n">model</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+  <span class="n">chain_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ProteinStructure</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Construct a Protein object from a structure file (PDB, PDBx/mmCIF).</span>
+
+<span class="sd">  This implementation uses biotite for robust parsing and JAX for efficient</span>
+<span class="sd">  vectorized processing to create a dense, fixed-size representation for</span>
+<span class="sd">  each residue (37 atoms).</span>
+
+<span class="sd">  WARNING: All non-standard residue types will be converted into UNK. All</span>
+<span class="sd">    atoms not in the canonical 37-atom set will be ignored.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    file_path: The path to the structure file.</span>
+<span class="sd">    model: The model number to load from the structure file. Defaults to 1.</span>
+<span class="sd">    chain_id: If specified, only this chain is parsed. If None, the entire</span>
+<span class="sd">      structure is parsed.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    A new `ProteinStructure` parsed from the file contents.</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="n">_check_if_file_empty</span><span class="p">(</span><span class="n">file_path</span><span class="p">):</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+      <span class="sa">f</span><span class="s2">&quot;The file &#39;</span><span class="si">{</span><span class="n">file_path</span><span class="si">}</span><span class="s2">&#39; is empty or does not exist. Please provide a valid structure file.&quot;</span>
+    <span class="p">)</span>
+    <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+  <span class="n">atom_array</span> <span class="o">=</span> <span class="n">structure_io</span><span class="o">.</span><span class="n">load_structure</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span> <span class="n">extra_fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;b_factor&quot;</span><span class="p">])</span>
+
+  <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">atom_array</span><span class="p">,</span> <span class="n">AtomArray</span><span class="p">):</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Unexpected transformation to </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">atom_array</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
+    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+  <span class="k">return</span> <span class="n">process_atom_array</span><span class="p">(</span><span class="n">atom_array</span><span class="p">,</span> <span class="n">chain_id</span><span class="o">=</span><span class="n">chain_id</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="from_trajectory">
+<a class="viewcode-back" href="../../api/prxteinmpnn.io.html#prxteinmpnn.io.from_trajectory">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">from_trajectory</span><span class="p">(</span>
+  <span class="n">trajectory_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+  <span class="n">topology_file</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="n">chain_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="s2">&quot;ProteinStructure&quot;</span><span class="p">]:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Construct ProteinStructure objects from a trajectory file.</span>
+
+<span class="sd">  This function reads a trajectory and yields a ProteinStructure for each frame.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    trajectory_file: Path to the trajectory file (e.g., DCD, XTC, multi-model PDB).</span>
+<span class="sd">    topology_file: Path to the topology file (e.g., PDB, PSF), required for</span>
+<span class="sd">                    coordinate-only trajectory formats.</span>
+<span class="sd">    chain_id: If specified, only atoms from this chain will be included.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    An iterator that yields a ProteinStructure for each frame in the trajectory.</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="n">_check_if_file_empty</span><span class="p">(</span><span class="n">trajectory_file</span><span class="p">):</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+      <span class="sa">f</span><span class="s2">&quot;The file &#39;</span><span class="si">{</span><span class="n">trajectory_file</span><span class="si">}</span><span class="s2">&#39; is empty or does not exist. &quot;</span>
+      <span class="s2">&quot;Please provide a valid trajectory file.&quot;</span>
+    <span class="p">)</span>
+    <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+  <span class="n">atom_stack</span> <span class="o">=</span> <span class="n">structure_io</span><span class="o">.</span><span class="n">load_structure</span><span class="p">(</span>
+    <span class="n">trajectory_file</span><span class="p">,</span>
+    <span class="n">template</span><span class="o">=</span><span class="n">topology_file</span><span class="p">,</span>
+    <span class="n">extra_fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;b_factor&quot;</span><span class="p">],</span>
+  <span class="p">)</span>
+
+  <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">atom_stack</span><span class="p">,</span> <span class="n">AtomArrayStack</span><span class="p">):</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Unexpected transformation to </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">atom_stack</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
+    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+  <span class="k">return</span> <span class="p">(</span><span class="n">process_atom_array</span><span class="p">(</span><span class="n">frame</span><span class="p">,</span> <span class="n">chain_id</span><span class="o">=</span><span class="n">chain_id</span><span class="p">)</span> <span class="k">for</span> <span class="n">frame</span> <span class="ow">in</span> <span class="n">atom_stack</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="from_string">
+<a class="viewcode-back" href="../../api/prxteinmpnn.io.html#prxteinmpnn.io.from_string">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">from_string</span><span class="p">(</span>
+  <span class="n">pdb_string</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+  <span class="n">model</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+  <span class="n">chain_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ProteinStructure</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Construct a ProteinStructure from a PDB string.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    pdb_string: The PDB formatted string.</span>
+<span class="sd">    model: The model number to load from the structure string. Defaults to 1.</span>
+<span class="sd">    chain_id: If specified, only this chain is parsed. If None, the entire</span>
+<span class="sd">      structure is parsed.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    A new `ProteinStructure` parsed from the PDB string.</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="ow">not</span> <span class="n">pdb_string</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;AtomArray is empty.&quot;</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+  <span class="n">pdb_file</span> <span class="o">=</span> <span class="n">PDBFile</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">StringIO</span><span class="p">(</span><span class="n">pdb_string</span><span class="p">))</span>
+  <span class="n">atom_array</span> <span class="o">=</span> <span class="n">pdb_file</span><span class="o">.</span><span class="n">get_structure</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">extra_fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;b_factor&quot;</span><span class="p">],</span>
+  <span class="p">)</span>
+  <span class="c1"># get_structure returns AtomArrayStack if model is not found, so handle this</span>
+  <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">atom_array</span><span class="p">,</span> <span class="n">AtomArrayStack</span><span class="p">)</span> <span class="ow">and</span> <span class="n">atom_array</span><span class="o">.</span><span class="n">stack_depth</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+    <span class="n">atom_array</span> <span class="o">=</span> <span class="n">atom_array</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+  <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">atom_array</span><span class="p">,</span> <span class="n">AtomArrayStack</span><span class="p">)</span> <span class="ow">and</span> <span class="n">atom_array</span><span class="o">.</span><span class="n">stack_depth</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;No models found in the provided PDB string.&quot;</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+  <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">atom_array</span><span class="p">,</span> <span class="n">AtomArray</span><span class="p">):</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Unexpected transformation to </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">atom_array</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
+    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+  <span class="k">return</span> <span class="n">process_atom_array</span><span class="p">(</span><span class="n">atom_array</span><span class="p">,</span> <span class="n">chain_id</span><span class="o">=</span><span class="n">chain_id</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="protein_structure_to_model_inputs">
+<a class="viewcode-back" href="../../api/prxteinmpnn.io.html#prxteinmpnn.io.protein_structure_to_model_inputs">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">protein_structure_to_model_inputs</span><span class="p">(</span>
+  <span class="n">protein_structure</span><span class="p">:</span> <span class="n">ProteinStructure</span><span class="p">,</span>
+  <span class="n">bias</span><span class="p">:</span> <span class="n">InputBias</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ModelInputs</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Convert a ProteinStructure to model inputs.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    protein_structure: A ProteinStructure object containing the structure data.</span>
+<span class="sd">    bias: An optional InputBias jnp.ndarray with shape (num_residues, 20) containing</span>
+<span class="sd">    bias information. This will shift output probabilities for each residue. Default</span>
+<span class="sd">    to zero.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    A dictionary containing the model inputs derived from the ProteinStructure.</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="n">mask</span> <span class="o">=</span> <span class="n">protein_structure</span><span class="o">.</span><span class="n">atom_mask</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>
+  <span class="k">return</span> <span class="n">ModelInputs</span><span class="p">(</span>
+    <span class="n">structure_coordinates</span><span class="o">=</span><span class="n">protein_structure</span><span class="o">.</span><span class="n">coordinates</span><span class="p">,</span>
+    <span class="n">sequence</span><span class="o">=</span><span class="n">protein_structure</span><span class="o">.</span><span class="n">aatype</span><span class="p">,</span>
+    <span class="n">mask</span><span class="o">=</span><span class="n">mask</span><span class="p">,</span>
+    <span class="n">residue_index</span><span class="o">=</span><span class="n">protein_structure</span><span class="o">.</span><span class="n">residue_index</span><span class="p">,</span>
+    <span class="n">chain_index</span><span class="o">=</span><span class="n">protein_structure</span><span class="o">.</span><span class="n">chain_index</span><span class="p">,</span>
+    <span class="n">lengths</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="n">protein_structure</span><span class="o">.</span><span class="n">aatype</span><span class="p">)],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span>
+    <span class="n">bias</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">protein_structure</span><span class="o">.</span><span class="n">aatype</span><span class="p">),</span> <span class="mi">20</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">bias</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="k">else</span> <span class="n">bias</span><span class="p">,</span>
+  <span class="p">)</span></div>
+
+</pre></div>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By PrxteinMPNN Team
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, PrxteinMPNN Team.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

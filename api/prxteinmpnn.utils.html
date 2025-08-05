@@ -1,0 +1,664 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>utils module &#8212; PrxteinMPNN 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/style.css" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=a1637f0b"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=30646c52"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'api/prxteinmpnn.utils';</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="aa_convert" href="prxteinmpnn.utils.aa_convert.html" />
+    <link rel="prev" title="score" href="prxteinmpnn.scoring.score.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">PrxteinMPNN 0.1.0 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="modules.html">API Reference</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.model.encoder.html">encoder</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.model.decoder.html">decoder</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.model.projection.html">projection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.model.masked_attention.html">masked_attention</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.model.features.html">features</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="prxteinmpnn.sampling.html">sampling: Sampling methods for MPNN</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.sampling.initialize.html">initialize</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.sampling.sample.html">sample</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.sampling.sampling_step.html">sampling_step</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.sampling.ste.html">ste</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="prxteinmpnn.scoring.html">scoring: Scoring functions for MPNN</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.scoring.score.html">score</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 current active has-children"><a class="current reference internal" href="#">utils: Utility functions for MPNN</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.aa_convert.html">aa_convert</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.autoregression.html">autoregression</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.concatenate.html">concatenate</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.coordinates.html">coordinates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html">data_structures</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.decoding_order.html">decoding_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html">foldcomp_utils</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.gelu.html">gelu</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.graph.html">graph</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.normalize.html">normalize</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.radial_basis.html">radial_basis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.residue_constants.html">residue_constants</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.types.html">types</a></li>
+</ul>
+</details></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/quickstart.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/installation.html">Installation Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/basic_usage.html">Basic Usage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../examples/index.html">Examples</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../examples/advanced_example.html">Advanced Example</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+        <div class="header-article-item">
+
+
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="modules.html" class="nav-link">API Reference</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="prxteinmpnn.html" class="nav-link">&lt;no title&gt;</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page">utils module</li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+<a href="https://github.com/maraxen/prxteinmpnn" target="_blank"
+   class="btn btn-sm btn-source-repository-button"
+   title="Source repository"
+   data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+
+</a>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/api/prxteinmpnn.utils.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>utils module</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-prxteinmpnn.utils">
+<span id="utils-module"></span><h1>utils module<a class="headerlink" href="#module-prxteinmpnn.utils" title="Link to this heading">#</a></h1>
+<p>Utilities for PrxteinMPNN.</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.utils.aa_convert.html">aa_convert</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.aa_convert.html#prxteinmpnn.utils.aa_convert.af_to_mpnn"><code class="docutils literal notranslate"><span class="pre">af_to_mpnn()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.aa_convert.html#prxteinmpnn.utils.aa_convert.mpnn_to_af"><code class="docutils literal notranslate"><span class="pre">mpnn_to_af()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.utils.autoregression.html">autoregression</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.autoregression.html#prxteinmpnn.utils.autoregression.generate_ar_mask"><code class="docutils literal notranslate"><span class="pre">generate_ar_mask()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.utils.concatenate.html">concatenate</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.concatenate.html#prxteinmpnn.utils.concatenate.concatenate_neighbor_nodes"><code class="docutils literal notranslate"><span class="pre">concatenate_neighbor_nodes()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.utils.coordinates.html">coordinates</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.coordinates.html#prxteinmpnn.utils.coordinates.apply_noise_to_coordinates"><code class="docutils literal notranslate"><span class="pre">apply_noise_to_coordinates()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.coordinates.html#prxteinmpnn.utils.coordinates.compute_backbone_coordinates"><code class="docutils literal notranslate"><span class="pre">compute_backbone_coordinates()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.coordinates.html#prxteinmpnn.utils.coordinates.compute_c_beta"><code class="docutils literal notranslate"><span class="pre">compute_c_beta()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.coordinates.html#prxteinmpnn.utils.coordinates.compute_backbone_distance"><code class="docutils literal notranslate"><span class="pre">compute_backbone_distance()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.coordinates.html#prxteinmpnn.utils.coordinates.extend_coordinate"><code class="docutils literal notranslate"><span class="pre">extend_coordinate()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.coordinates.html#prxteinmpnn.utils.coordinates.compute_cb_precise"><code class="docutils literal notranslate"><span class="pre">compute_cb_precise()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html">data_structures</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinStructure"><code class="docutils literal notranslate"><span class="pre">ProteinStructure</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinStructure.coordinates"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.coordinates</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinStructure.aatype"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.aatype</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinStructure.atom_mask"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.atom_mask</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinStructure.residue_index"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.residue_index</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinStructure.b_factors"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.b_factors</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id0"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.coordinates</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id1"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.aatype</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id2"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.atom_mask</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id3"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.residue_index</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinStructure.chain_index"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.chain_index</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id4"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.b_factors</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinStructure.replace"><code class="docutils literal notranslate"><span class="pre">ProteinStructure.replace()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ModelInputs"><code class="docutils literal notranslate"><span class="pre">ModelInputs</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ModelInputs.structure_coordinates"><code class="docutils literal notranslate"><span class="pre">ModelInputs.structure_coordinates</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ModelInputs.sequence"><code class="docutils literal notranslate"><span class="pre">ModelInputs.sequence</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ModelInputs.mask"><code class="docutils literal notranslate"><span class="pre">ModelInputs.mask</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ModelInputs.residue_index"><code class="docutils literal notranslate"><span class="pre">ModelInputs.residue_index</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ModelInputs.chain_index"><code class="docutils literal notranslate"><span class="pre">ModelInputs.chain_index</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ModelInputs.lengths"><code class="docutils literal notranslate"><span class="pre">ModelInputs.lengths</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ModelInputs.bias"><code class="docutils literal notranslate"><span class="pre">ModelInputs.bias</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id5"><code class="docutils literal notranslate"><span class="pre">ModelInputs.structure_coordinates</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id6"><code class="docutils literal notranslate"><span class="pre">ModelInputs.sequence</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id7"><code class="docutils literal notranslate"><span class="pre">ModelInputs.mask</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id8"><code class="docutils literal notranslate"><span class="pre">ModelInputs.residue_index</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id9"><code class="docutils literal notranslate"><span class="pre">ModelInputs.chain_index</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id10"><code class="docutils literal notranslate"><span class="pre">ModelInputs.lengths</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id11"><code class="docutils literal notranslate"><span class="pre">ModelInputs.bias</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ModelInputs.k_neighbors"><code class="docutils literal notranslate"><span class="pre">ModelInputs.k_neighbors</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ModelInputs.augment_eps"><code class="docutils literal notranslate"><span class="pre">ModelInputs.augment_eps</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ModelInputs.replace"><code class="docutils literal notranslate"><span class="pre">ModelInputs.replace()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingInputs"><code class="docutils literal notranslate"><span class="pre">SamplingInputs</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingInputs.prng_key"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.prng_key</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingInputs.initial_sequence"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.initial_sequence</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingInputs.structure_coordinates"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.structure_coordinates</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingInputs.mask"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.mask</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingInputs.residue_index"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.residue_index</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingInputs.chain_index"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.chain_index</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingInputs.bias"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.bias</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingInputs.k_neighbors"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.k_neighbors</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingInputs.augment_eps"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.augment_eps</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingInputs.hyperparameters"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.hyperparameters</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingInputs.iterations"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.iterations</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id12"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.prng_key</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id13"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.hyperparameters</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id14"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.iterations</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingInputs.replace"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.replace()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.OligomerType"><code class="docutils literal notranslate"><span class="pre">OligomerType</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.OligomerType.MONOMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.MONOMER</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.OligomerType.HETEROMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.HETEROMER</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.OligomerType.HOMOOLIGOMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.HOMOOLIGOMER</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.OligomerType.TIED_HOMOOLIGOMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.TIED_HOMOOLIGOMER</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingEnum"><code class="docutils literal notranslate"><span class="pre">SamplingEnum</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingEnum.GREEDY"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.GREEDY</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingEnum.TOP_K"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.TOP_K</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingEnum.TOP_P"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.TOP_P</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingEnum.TEMPERATURE"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.TEMPERATURE</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingEnum.BEAM_SEARCH"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.BEAM_SEARCH</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingEnum.STRAIGHT_THROUGH"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.STRAIGHT_THROUGH</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.utils.decoding_order.html">decoding_order</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.decoding_order.html#prxteinmpnn.utils.decoding_order.random_decoding_order"><code class="docutils literal notranslate"><span class="pre">random_decoding_order()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.decoding_order.html#prxteinmpnn.utils.decoding_order.single_decoding_order"><code class="docutils literal notranslate"><span class="pre">single_decoding_order()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html">foldcomp_utils</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.ESMATLAS_FULL"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.ESMATLAS_FULL</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.ESMATLAS_v2023_02"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.ESMATLAS_v2023_02</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.ESMATLAS_HIGH_QUALITY"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.ESMATLAS_HIGH_QUALITY</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_UNIPROT_V4"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_UNIPROT_V4</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_SWISSPROT_V4"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_SWISSPROT_V4</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_REP_V4"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_REP_V4</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_REP_DARK_V4"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_REP_DARK_V4</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_H_SAPIENS"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_H_SAPIENS</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_A_THALIANA"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_A_THALIANA</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_C_ALBICANS"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_C_ALBICANS</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_C_ELEGANS"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_C_ELEGANS</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_D_DISCOIDEUM"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_D_DISCOIDEUM</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_D_MELANOGASTER"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_D_MELANOGASTER</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_D_RERIO"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_D_RERIO</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_E_COLI"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_E_COLI</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_G_MAX"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_G_MAX</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_M_JANNASCHII"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_M_JANNASCHII</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_M_MUSCULUS"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_M_MUSCULUS</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_O_SATIVA"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_O_SATIVA</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_R_NORVEGICUS"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_R_NORVEGICUS</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_S_CEREVISIAE"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_S_CEREVISIAE</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_S_POMBE"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_S_POMBE</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_Z_MAYS"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_Z_MAYS</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils._setup_foldcomp_database"><code class="docutils literal notranslate"><span class="pre">_setup_foldcomp_database()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils._get_protein_structures_from_database"><code class="docutils literal notranslate"><span class="pre">_get_protein_structures_from_database()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.get_protein_structures"><code class="docutils literal notranslate"><span class="pre">get_protein_structures()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.model_from_id"><code class="docutils literal notranslate"><span class="pre">model_from_id()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.utils.gelu.html">gelu</a></li>
+<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.utils.graph.html">graph</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.graph.html#prxteinmpnn.utils.graph.compute_neighbor_offsets"><code class="docutils literal notranslate"><span class="pre">compute_neighbor_offsets()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.utils.normalize.html">normalize</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.normalize.html#prxteinmpnn.utils.normalize.layer_normalization"><code class="docutils literal notranslate"><span class="pre">layer_normalization()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.normalize.html#prxteinmpnn.utils.normalize.normalize"><code class="docutils literal notranslate"><span class="pre">normalize()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.utils.radial_basis.html">radial_basis</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.radial_basis.html#prxteinmpnn.utils.radial_basis.compute_radial_basis"><code class="docutils literal notranslate"><span class="pre">compute_radial_basis()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.utils.residue_constants.html">residue_constants</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.Bond"><code class="docutils literal notranslate"><span class="pre">Bond</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.Bond.atom1_name"><code class="docutils literal notranslate"><span class="pre">Bond.atom1_name</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.Bond.atom2_name"><code class="docutils literal notranslate"><span class="pre">Bond.atom2_name</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.Bond.length"><code class="docutils literal notranslate"><span class="pre">Bond.length</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.Bond.stddev"><code class="docutils literal notranslate"><span class="pre">Bond.stddev</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.BondAngle"><code class="docutils literal notranslate"><span class="pre">BondAngle</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.BondAngle.atom1_name"><code class="docutils literal notranslate"><span class="pre">BondAngle.atom1_name</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.BondAngle.atom2_name"><code class="docutils literal notranslate"><span class="pre">BondAngle.atom2_name</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.BondAngle.atom3name"><code class="docutils literal notranslate"><span class="pre">BondAngle.atom3name</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.BondAngle.angle_rad"><code class="docutils literal notranslate"><span class="pre">BondAngle.angle_rad</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.BondAngle.stddev"><code class="docutils literal notranslate"><span class="pre">BondAngle.stddev</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.process_lines_iter_chemical_props"><code class="docutils literal notranslate"><span class="pre">process_lines_iter_chemical_props()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.load_stereo_chemical_props"><code class="docutils literal notranslate"><span class="pre">load_stereo_chemical_props()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants._make_standard_atom_mask"><code class="docutils literal notranslate"><span class="pre">_make_standard_atom_mask()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.chi_angle_atom"><code class="docutils literal notranslate"><span class="pre">chi_angle_atom()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants._make_rigid_transformation_4x4"><code class="docutils literal notranslate"><span class="pre">_make_rigid_transformation_4x4()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants._make_rigid_group_constants"><code class="docutils literal notranslate"><span class="pre">_make_rigid_group_constants()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.make_atom14_dists_bounds"><code class="docutils literal notranslate"><span class="pre">make_atom14_dists_bounds()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.utils.types.html">types</a></li>
+</ul>
+</div>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="prxteinmpnn.scoring.score.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">score</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="prxteinmpnn.utils.aa_convert.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">aa_convert</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By PrxteinMPNN Team
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, PrxteinMPNN Team.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

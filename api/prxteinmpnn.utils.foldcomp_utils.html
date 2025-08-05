@@ -1,0 +1,794 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>foldcomp_utils &#8212; PrxteinMPNN 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/style.css" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=a1637f0b"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=30646c52"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'api/prxteinmpnn.utils.foldcomp_utils';</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="gelu" href="prxteinmpnn.utils.gelu.html" />
+    <link rel="prev" title="decoding_order" href="prxteinmpnn.utils.decoding_order.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">PrxteinMPNN 0.1.0 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="modules.html">API Reference</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.model.encoder.html">encoder</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.model.decoder.html">decoder</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.model.projection.html">projection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.model.masked_attention.html">masked_attention</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.model.features.html">features</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="prxteinmpnn.sampling.html">sampling: Sampling methods for MPNN</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.sampling.initialize.html">initialize</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.sampling.sample.html">sample</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.sampling.sampling_step.html">sampling_step</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.sampling.ste.html">ste</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="prxteinmpnn.scoring.html">scoring: Scoring functions for MPNN</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.scoring.score.html">score</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 current active has-children"><a class="reference internal" href="prxteinmpnn.utils.html">utils: Utility functions for MPNN</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.aa_convert.html">aa_convert</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.autoregression.html">autoregression</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.concatenate.html">concatenate</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.coordinates.html">coordinates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html">data_structures</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.decoding_order.html">decoding_order</a></li>
+<li class="toctree-l3 current active"><a class="current reference internal" href="#">foldcomp_utils</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.gelu.html">gelu</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.graph.html">graph</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.normalize.html">normalize</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.radial_basis.html">radial_basis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.residue_constants.html">residue_constants</a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.types.html">types</a></li>
+</ul>
+</details></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/quickstart.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/installation.html">Installation Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/basic_usage.html">Basic Usage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../examples/index.html">Examples</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../examples/advanced_example.html">Advanced Example</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+        <div class="header-article-item">
+
+
+
+
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="modules.html" class="nav-link">API Reference</a></li>
+    
+    
+    <li class="breadcrumb-item"><i class="fa-solid fa-ellipsis"></i></li>
+    
+    
+    <li class="breadcrumb-item"><a href="prxteinmpnn.utils.html" class="nav-link">utils module</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page">foldcomp_utils</li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+<a href="https://github.com/maraxen/prxteinmpnn" target="_blank"
+   class="btn btn-sm btn-source-repository-button"
+   title="Source repository"
+   data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+
+</a>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/api/prxteinmpnn.utils.foldcomp_utils.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>foldcomp_utils</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.ESMATLAS_FULL"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.ESMATLAS_FULL</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.ESMATLAS_v2023_02"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.ESMATLAS_v2023_02</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.ESMATLAS_HIGH_QUALITY"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.ESMATLAS_HIGH_QUALITY</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_UNIPROT_V4"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_UNIPROT_V4</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_SWISSPROT_V4"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_SWISSPROT_V4</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_REP_V4"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_REP_V4</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_REP_DARK_V4"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_REP_DARK_V4</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_H_SAPIENS"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_H_SAPIENS</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_A_THALIANA"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_A_THALIANA</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_C_ALBICANS"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_C_ALBICANS</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_C_ELEGANS"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_C_ELEGANS</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_D_DISCOIDEUM"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_D_DISCOIDEUM</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_D_MELANOGASTER"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_D_MELANOGASTER</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_D_RERIO"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_D_RERIO</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_E_COLI"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_E_COLI</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_G_MAX"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_G_MAX</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_M_JANNASCHII"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_M_JANNASCHII</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_M_MUSCULUS"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_M_MUSCULUS</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_O_SATIVA"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_O_SATIVA</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_R_NORVEGICUS"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_R_NORVEGICUS</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_S_CEREVISIAE"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_S_CEREVISIAE</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_S_POMBE"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_S_POMBE</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_Z_MAYS"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_Z_MAYS</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils._setup_foldcomp_database"><code class="docutils literal notranslate"><span class="pre">_setup_foldcomp_database()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils._get_protein_structures_from_database"><code class="docutils literal notranslate"><span class="pre">_get_protein_structures_from_database()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.get_protein_structures"><code class="docutils literal notranslate"><span class="pre">get_protein_structures()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.model_from_id"><code class="docutils literal notranslate"><span class="pre">model_from_id()</span></code></a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-prxteinmpnn.utils.foldcomp_utils">
+<span id="foldcomp-utils"></span><h1>foldcomp_utils<a class="headerlink" href="#module-prxteinmpnn.utils.foldcomp_utils" title="Link to this heading">#</a></h1>
+<p>Utilities for processing and manipulating protein structures from foldcomp.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.foldcomp_utils.</span></span><span class="sig-name descname"><span class="pre">FoldCompDatabaseEnum</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/foldcomp_utils.html#FoldCompDatabaseEnum"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Enum</span></code></a></p>
+<p>Enum for FoldComp databases.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.ESMATLAS_FULL">
+<span class="sig-name descname"><span class="pre">ESMATLAS_FULL</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'esmatlas'</span></em><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.ESMATLAS_FULL" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.ESMATLAS_v2023_02">
+<span class="sig-name descname"><span class="pre">ESMATLAS_v2023_02</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'esmatlas_v2023_02'</span></em><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.ESMATLAS_v2023_02" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.ESMATLAS_HIGH_QUALITY">
+<span class="sig-name descname"><span class="pre">ESMATLAS_HIGH_QUALITY</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'highquality_clust30'</span></em><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.ESMATLAS_HIGH_QUALITY" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_UNIPROT_V4">
+<span class="sig-name descname"><span class="pre">AFDB_UNIPROT_V4</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'afdb_uniprot_v4'</span></em><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_UNIPROT_V4" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_SWISSPROT_V4">
+<span class="sig-name descname"><span class="pre">AFDB_SWISSPROT_V4</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'afdb_swissprot_v4'</span></em><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_SWISSPROT_V4" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_REP_V4">
+<span class="sig-name descname"><span class="pre">AFDB_REP_V4</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'afdb_rep_v4'</span></em><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_REP_V4" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_REP_DARK_V4">
+<span class="sig-name descname"><span class="pre">AFDB_REP_DARK_V4</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'afdb_rep_dark_v4'</span></em><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_REP_DARK_V4" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_H_SAPIENS">
+<span class="sig-name descname"><span class="pre">AFDB_H_SAPIENS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'afdb_h_sapiens'</span></em><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_H_SAPIENS" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_A_THALIANA">
+<span class="sig-name descname"><span class="pre">AFDB_A_THALIANA</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'a_thaliana'</span></em><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_A_THALIANA" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_C_ALBICANS">
+<span class="sig-name descname"><span class="pre">AFDB_C_ALBICANS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'c_albicans'</span></em><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_C_ALBICANS" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_C_ELEGANS">
+<span class="sig-name descname"><span class="pre">AFDB_C_ELEGANS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'c_elegans'</span></em><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_C_ELEGANS" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_D_DISCOIDEUM">
+<span class="sig-name descname"><span class="pre">AFDB_D_DISCOIDEUM</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'d_discoideum'</span></em><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_D_DISCOIDEUM" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_D_MELANOGASTER">
+<span class="sig-name descname"><span class="pre">AFDB_D_MELANOGASTER</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'d_melanogaster'</span></em><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_D_MELANOGASTER" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_D_RERIO">
+<span class="sig-name descname"><span class="pre">AFDB_D_RERIO</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'d_rerio'</span></em><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_D_RERIO" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_E_COLI">
+<span class="sig-name descname"><span class="pre">AFDB_E_COLI</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'e_coli'</span></em><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_E_COLI" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_G_MAX">
+<span class="sig-name descname"><span class="pre">AFDB_G_MAX</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'g_max'</span></em><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_G_MAX" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_M_JANNASCHII">
+<span class="sig-name descname"><span class="pre">AFDB_M_JANNASCHII</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'m_jannaschii'</span></em><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_M_JANNASCHII" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_M_MUSCULUS">
+<span class="sig-name descname"><span class="pre">AFDB_M_MUSCULUS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'m_musculus'</span></em><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_M_MUSCULUS" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_O_SATIVA">
+<span class="sig-name descname"><span class="pre">AFDB_O_SATIVA</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'o_sativa'</span></em><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_O_SATIVA" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_R_NORVEGICUS">
+<span class="sig-name descname"><span class="pre">AFDB_R_NORVEGICUS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'r_norvegicus'</span></em><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_R_NORVEGICUS" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_S_CEREVISIAE">
+<span class="sig-name descname"><span class="pre">AFDB_S_CEREVISIAE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'s_cerevisiae'</span></em><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_S_CEREVISIAE" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_S_POMBE">
+<span class="sig-name descname"><span class="pre">AFDB_S_POMBE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'s_pombe'</span></em><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_S_POMBE" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_Z_MAYS">
+<span class="sig-name descname"><span class="pre">AFDB_Z_MAYS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'z_mays'</span></em><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_Z_MAYS" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils._setup_foldcomp_database">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.foldcomp_utils.</span></span><span class="sig-name descname"><span class="pre">_setup_foldcomp_database</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">database</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/foldcomp_utils.html#_setup_foldcomp_database"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils._setup_foldcomp_database" title="Link to this definition">#</a></dt>
+<dd><p>Set up the FoldComp database, handling sync and async contexts.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>database</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum" title="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum"><code class="xref py py-class docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum</span></code></a></span>) – The FoldCompDatabase enum value specifying which database to set up.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span></p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">_setup_foldcomp_database</span><span class="p">(</span><span class="n">FoldCompDatabase</span><span class="o">.</span><span class="n">ESMATLAS_FULL</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils._get_protein_structures_from_database">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.foldcomp_utils.</span></span><span class="sig-name descname"><span class="pre">_get_protein_structures_from_database</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">proteins</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/foldcomp_utils.html#_get_protein_structures_from_database"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils._get_protein_structures_from_database" title="Link to this definition">#</a></dt>
+<dd><p>Retrieve protein structures from the FoldComp database.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>proteins</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">FoldcompDatabase</span></code></span>) – The FoldComp protein database object.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Iterator" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Iterator</span></code></a>[<a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinStructure" title="prxteinmpnn.utils.data_structures.ProteinStructure"><code class="xref py py-class docutils literal notranslate"><span class="pre">ProteinStructure</span></code></a>]</span></p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>An iterator over ProteinStructure objects containing the structure data
+for the specified protein IDs.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.get_protein_structures">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.foldcomp_utils.</span></span><span class="sig-name descname"><span class="pre">get_protein_structures</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">protein_ids</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">database</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">FoldCompDatabaseEnum.AFDB_REP_V4</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/foldcomp_utils.html#get_protein_structures"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.get_protein_structures" title="Link to this definition">#</a></dt>
+<dd><p>Retrieve protein structures from the FoldComp database.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>protein_ids</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Sequence</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]</span>) – A sequence of protein IDs to retrieve.</p></li>
+<li><p><strong>database</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum" title="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum"><code class="xref py py-class docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum</span></code></a></span>) – The FoldCompDatabase enum value specifying which database to use.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Iterator" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Iterator</span></code></a>[<a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinStructure" title="prxteinmpnn.utils.data_structures.ProteinStructure"><code class="xref py py-class docutils literal notranslate"><span class="pre">ProteinStructure</span></code></a>]</span></p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>An iterator over ProteinStructure objects containing the structure data
+for the specified protein IDs.</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">ids</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;P12345&quot;</span><span class="p">,</span> <span class="s2">&quot;Q67890&quot;</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">structures</span> <span class="o">=</span> <span class="n">get_protein_structures</span><span class="p">(</span><span class="n">ids</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">struct</span> <span class="ow">in</span> <span class="n">structures</span><span class="p">:</span>
+<span class="gp">... </span>    <span class="nb">print</span><span class="p">(</span><span class="n">struct</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.model_from_id">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.foldcomp_utils.</span></span><span class="sig-name descname"><span class="pre">model_from_id</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">protein_ids</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_version</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/foldcomp_utils.html#model_from_id"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.model_from_id" title="Link to this definition">#</a></dt>
+<dd><p>Get the MPNN model and inputs for specific protein IDs.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>protein_ids</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a> | <a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Sequence</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]</span>) – The ID(s) of the protein(s) to retrieve the model for.</p></li>
+<li><p><strong>model_weights</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="prxteinmpnn.mpnn.html#prxteinmpnn.mpnn.ModelWeights" title="prxteinmpnn.mpnn.ModelWeights"><code class="xref py py-class docutils literal notranslate"><span class="pre">ModelWeights</span></code></a> | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span>) – The weights to use for the model.</p></li>
+<li><p><strong>model_version</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="prxteinmpnn.mpnn.html#prxteinmpnn.mpnn.ProteinMPNNModelVersion" title="prxteinmpnn.mpnn.ProteinMPNNModelVersion"><code class="xref py py-class docutils literal notranslate"><span class="pre">ProteinMPNNModelVersion</span></code></a> | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span>) – The model version to use.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">PyTree[str,</span> <span class="pre">'P']</span></code>, <a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Iterator" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Iterator</span></code></a>[<a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ModelInputs" title="prxteinmpnn.utils.data_structures.ModelInputs"><code class="xref py py-class docutils literal notranslate"><span class="pre">ModelInputs</span></code></a>]]</span></p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A tuple containing the MPNN model parameters and model inputs.</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.13)"><strong>ValueError</strong></a> – If no protein structures are found for the given IDs.</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">model</span><span class="p">,</span> <span class="n">inputs</span> <span class="o">=</span> <span class="n">model_from_id</span><span class="p">(</span><span class="s2">&quot;P12345&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Use model and inputs for inference</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="prxteinmpnn.utils.decoding_order.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">decoding_order</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="prxteinmpnn.utils.gelu.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">gelu</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.ESMATLAS_FULL"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.ESMATLAS_FULL</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.ESMATLAS_v2023_02"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.ESMATLAS_v2023_02</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.ESMATLAS_HIGH_QUALITY"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.ESMATLAS_HIGH_QUALITY</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_UNIPROT_V4"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_UNIPROT_V4</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_SWISSPROT_V4"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_SWISSPROT_V4</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_REP_V4"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_REP_V4</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_REP_DARK_V4"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_REP_DARK_V4</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_H_SAPIENS"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_H_SAPIENS</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_A_THALIANA"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_A_THALIANA</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_C_ALBICANS"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_C_ALBICANS</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_C_ELEGANS"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_C_ELEGANS</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_D_DISCOIDEUM"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_D_DISCOIDEUM</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_D_MELANOGASTER"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_D_MELANOGASTER</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_D_RERIO"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_D_RERIO</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_E_COLI"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_E_COLI</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_G_MAX"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_G_MAX</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_M_JANNASCHII"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_M_JANNASCHII</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_M_MUSCULUS"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_M_MUSCULUS</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_O_SATIVA"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_O_SATIVA</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_R_NORVEGICUS"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_R_NORVEGICUS</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_S_CEREVISIAE"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_S_CEREVISIAE</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_S_POMBE"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_S_POMBE</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum.AFDB_Z_MAYS"><code class="docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum.AFDB_Z_MAYS</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils._setup_foldcomp_database"><code class="docutils literal notranslate"><span class="pre">_setup_foldcomp_database()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils._get_protein_structures_from_database"><code class="docutils literal notranslate"><span class="pre">_get_protein_structures_from_database()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.get_protein_structures"><code class="docutils literal notranslate"><span class="pre">get_protein_structures()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.model_from_id"><code class="docutils literal notranslate"><span class="pre">model_from_id()</span></code></a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By PrxteinMPNN Team
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, PrxteinMPNN Team.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

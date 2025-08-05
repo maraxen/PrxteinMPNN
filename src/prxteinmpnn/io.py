@@ -187,7 +187,7 @@ def _fill_in_cb_coordinates(
       atoms.
     For other residues, the original C-beta coordinates are retained if they exist.
 
-    NOTE: This is not part of the pipeline, as despite this happening in the original code, it is not
+    NOTE: This is not part of the pipeline, as despite this happening in the original code, it is
       bypassed during feature extraction.
 
   """

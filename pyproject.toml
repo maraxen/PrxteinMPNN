@@ -24,11 +24,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest",
-    "pytest-cov",
-    "ruff",
-    "pyright",
+docs = [
     "sphinx",
     "sphinx-rtd-theme",
     "sphinx-autodoc-typehints",
@@ -39,6 +35,26 @@ dev = [
     "sphinxext-rediraffe",
     "sphinx-book-theme",
     "myst-nb",
+]
+tests = [
+    "pytest",
+    "pytest-cov",
+]
+dev = [
+  "ruff",
+  "pyright",
+  "sphinx",
+  "sphinx-rtd-theme",
+  "sphinx-autodoc-typehints",
+  "sphinx-autobuild",
+  "myst-parser",
+  "sphinx-copybutton",
+  "sphinx-design",
+  "sphinxext-rediraffe",
+  "sphinx-book-theme",
+  "myst-nb",
+  "pytest",
+  "pytest-cov",
 ]
 
 [tool.setuptools]

@@ -409,8 +409,6 @@ document.write(`
 <span class="sd">  &quot;&quot;&quot;</span>
   <span class="k">try</span><span class="p">:</span>
     <span class="n">loop</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">get_running_loop</span><span class="p">()</span>
-    <span class="c1"># If we&#39;re here, we&#39;re in an async context (e.g., Jupyter)</span>
-
     <span class="n">nest_asyncio</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span>
     <span class="n">coro</span> <span class="o">=</span> <span class="n">foldcomp</span><span class="o">.</span><span class="n">setup_async</span><span class="p">(</span><span class="n">database</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
     <span class="n">loop</span><span class="o">.</span><span class="n">run_until_complete</span><span class="p">(</span><span class="n">coro</span><span class="p">)</span>
@@ -507,7 +505,6 @@ document.write(`
     <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
 
   <span class="n">model_inputs</span> <span class="o">=</span> <span class="p">(</span><span class="n">protein_structure_to_model_inputs</span><span class="p">(</span><span class="n">structure</span><span class="p">)</span> <span class="k">for</span> <span class="n">structure</span> <span class="ow">in</span> <span class="n">structures</span><span class="p">)</span>
-  <span class="c1"># Check if at least one model input is generated</span>
   <span class="n">first_input</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">model_inputs</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
   <span class="k">if</span> <span class="n">first_input</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
     <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;No model inputs generated for protein structures: </span><span class="si">{</span><span class="n">protein_ids</span><span class="si">}</span><span class="s2">&quot;</span>

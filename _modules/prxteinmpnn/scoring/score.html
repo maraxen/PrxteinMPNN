@@ -444,12 +444,12 @@ document.write(`
     <span class="n">autoregressive_mask</span> <span class="o">=</span> <span class="n">generate_ar_mask</span><span class="p">(</span><span class="n">decoding_order</span><span class="p">)</span>
 
     <span class="n">edge_features</span><span class="p">,</span> <span class="n">neighbor_indices</span><span class="p">,</span> <span class="n">prng_key</span> <span class="o">=</span> <span class="n">extract_features</span><span class="p">(</span>
+      <span class="n">prng_key</span><span class="p">,</span>
       <span class="n">model_parameters</span><span class="p">,</span>
       <span class="n">structure_coordinates</span><span class="p">,</span>
       <span class="n">mask</span><span class="p">,</span>
       <span class="n">residue_index</span><span class="p">,</span>
       <span class="n">chain_index</span><span class="p">,</span>
-      <span class="n">prng_key</span><span class="p">,</span>
       <span class="n">k_neighbors</span><span class="o">=</span><span class="n">k_neighbors</span><span class="p">,</span>
       <span class="n">augment_eps</span><span class="o">=</span><span class="n">augment_eps</span><span class="p">,</span>
     <span class="p">)</span>

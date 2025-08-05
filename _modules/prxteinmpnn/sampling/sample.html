@@ -510,11 +510,11 @@ document.write(`
       <span class="n">next_rng_key</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">=</span> <span class="n">sample_model_pass</span><span class="p">(</span>
       <span class="n">prng_key</span><span class="p">,</span>
+      <span class="n">model_parameters</span><span class="p">,</span>
       <span class="n">structure_coordinates</span><span class="p">,</span>
       <span class="n">mask</span><span class="p">,</span>
       <span class="n">residue_index</span><span class="p">,</span>
       <span class="n">chain_index</span><span class="p">,</span>
-      <span class="n">model_parameters</span><span class="p">,</span>
       <span class="n">k_neighbors</span><span class="p">,</span>
       <span class="n">augment_eps</span><span class="p">,</span>
     <span class="p">)</span>
@@ -530,10 +530,10 @@ document.write(`
 
     <span class="n">logits</span> <span class="o">=</span> <span class="n">final_projection</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="n">decoded_node_features</span><span class="p">)</span> <span class="o">+</span> <span class="n">bias</span>
     <span class="n">sample_step</span> <span class="o">=</span> <span class="n">make_sampling_step_fn</span><span class="p">(</span>
+      <span class="n">model_parameters</span><span class="p">,</span>
       <span class="n">neighbor_indices</span><span class="p">,</span>
       <span class="n">mask</span><span class="p">,</span>
       <span class="n">autoregressive_mask</span><span class="p">,</span>
-      <span class="n">model_parameters</span><span class="p">,</span>
       <span class="n">hyperparameters</span><span class="p">,</span>
     <span class="p">)</span>
 

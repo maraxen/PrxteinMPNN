@@ -586,10 +586,10 @@ document.write(`
       <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
 
   <span class="k">def</span><span class="w"> </span><span class="nf">get_sampling_step_fn</span><span class="p">(</span>
+    <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
     <span class="n">neighbor_indices</span><span class="p">:</span> <span class="n">NeighborIndices</span><span class="p">,</span>
     <span class="n">mask</span><span class="p">:</span> <span class="n">AtomMask</span><span class="p">,</span>
     <span class="n">autoregressive_mask</span><span class="p">:</span> <span class="n">AutoRegressiveMask</span><span class="p">,</span>
-    <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
     <span class="n">hyperparameters</span><span class="p">:</span> <span class="n">SamplingHyperparameters</span><span class="p">,</span>
   <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SamplingStepFn</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Get the sampling step function based on the sampling strategy.&quot;&quot;&quot;</span>

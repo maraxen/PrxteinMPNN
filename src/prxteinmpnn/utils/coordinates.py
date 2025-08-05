@@ -20,8 +20,8 @@ from prxteinmpnn.utils.types import (
 
 @partial(jax.jit, static_argnames=("augment_eps",))
 def apply_noise_to_coordinates(
-  coordinates: StructureAtomicCoordinates,
   key: PRNGKeyArray,
+  coordinates: StructureAtomicCoordinates,
   augment_eps: float = 0.0,
 ) -> tuple[StructureAtomicCoordinates, PRNGKeyArray]:
   """Add Gaussian noise to atomic coordinates.

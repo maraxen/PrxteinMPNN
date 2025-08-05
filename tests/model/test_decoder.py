@@ -145,8 +145,8 @@ class TestDecoderNormalize:
 
     # Mock layer params
     layer_params = {
-      "norm1": {"norm": {"scale": jnp.ones(4), "offset": jnp.zeros(4)}},
-      "norm2": {"norm": {"scale": jnp.ones(4), "offset": jnp.zeros(4)}},
+      "norm1": {"scale": jnp.ones(4), "offset": jnp.zeros(4)},
+      "norm2": {"scale": jnp.ones(4), "offset": jnp.zeros(4)},
       "dense_W_in": {"w": jnp.ones((4, 8)), "b": jnp.zeros(8)},
       "dense_W_out": {"w": jnp.ones((8, 4)), "b": jnp.zeros(4)},
     }

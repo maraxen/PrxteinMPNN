@@ -59,7 +59,7 @@ def test_layer_normalization(setup_data):
       AssertionError: If wrapper output differs from direct call.
   """
   x, scale, offset = setup_data
-  layer_params = {"norm": {"scale": scale, "offset": offset}}
+  layer_params = {"scale": scale, "offset": offset}
 
   wrapped_result = layer_normalization(x, layer_params, axis=-1)
   direct_result = normalize(x, scale, offset, axis=-1)

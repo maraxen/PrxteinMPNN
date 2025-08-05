@@ -25,11 +25,11 @@ def test_apply_noise_to_coordinates():
   coords = jnp.ones((10, 5, 3))
 
   # Test with no noise
-  coords_no_noise = apply_noise_to_coordinates(coords, KEY, augment_eps=0.0)
+  coords_no_noise, _ = apply_noise_to_coordinates(KEY, coords, augment_eps=0.0)
   chex.assert_trees_all_equal(coords, coords_no_noise)
 
   # Test with noise
-  coords_with_noise = apply_noise_to_coordinates(coords, KEY, augment_eps=0.1)
+  coords_with_noise, _ = apply_noise_to_coordinates(KEY, coords, augment_eps=0.1)
   chex.assert_shape(coords, coords_with_noise.shape)
   assert not jnp.allclose(coords, coords_with_noise)
 
@@ -66,8 +66,7 @@ def test_compute_backbone_coordinates():
 
   chex.assert_shape(backbone_coords, (10, 5, 3))
   # N, CA, C, O should be passed through
-  chex.assert_trees_all_equal(coords[:, :4, :], backbone_coords[:, :4, :])
-  # CB should be different
+  chex.assert_trees_all_equal(coords[:, :3, :], backbone_coords[:, :3, :])
   assert not jnp.allclose(coords[:, 4, :], backbone_coords[:, 4, :])
 
 

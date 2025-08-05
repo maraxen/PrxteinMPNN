@@ -373,7 +373,7 @@ def from_string(
     model=model,
     extra_fields=["b_factor"],
   )
-  # get_structure returns AtomArrayStack if model is not found, so handle this
+
   if isinstance(atom_array, AtomArrayStack) and atom_array.stack_depth() > 0:
     atom_array = atom_array[0]
   elif isinstance(atom_array, AtomArrayStack) and atom_array.stack_depth() == 0:

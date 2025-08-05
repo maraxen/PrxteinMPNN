@@ -43,10 +43,8 @@ def minimal_model_parameters():
     params[f"{prefix}/~/{layer_name_suffix}_W2"] = {"w": jnp.ones((8, 8)), "b": jnp.zeros((8,))}
     params[f"{prefix}/~/{layer_name_suffix}_W3"] = {"w": jnp.ones((8, 8)), "b": jnp.zeros((8,))}
     params[f"{prefix}/~/{layer_name_suffix}_norm1"] = {
-      "norm": {
         "scale": jnp.ones((8,)),
         "offset": jnp.zeros((8,)),
-      }
     }
     params[f"{prefix}/~/position_wise_feed_forward/~/{layer_name_suffix}_dense_W_in"] = {
       "w": jnp.ones((8, 8)),
@@ -57,21 +55,16 @@ def minimal_model_parameters():
       "b": jnp.zeros((8,)),
     }
     params[f"{prefix}/~/{layer_name_suffix}_norm2"] = {
-      "norm": {
         "scale": jnp.ones((8,)),
         "offset": jnp.zeros((8,)),
-      }
     }
     params[f"{prefix}/~/{layer_name_suffix}_W11"] = {"w": jnp.ones((24, 8)), "b": jnp.zeros((8,))}
     params[f"{prefix}/~/{layer_name_suffix}_W12"] = {"w": jnp.ones((8, 8)), "b": jnp.zeros((8,))}
     params[f"{prefix}/~/{layer_name_suffix}_W13"] = {"w": jnp.ones((8, 8)), "b": jnp.zeros((8,))}
     params[f"{prefix}/~/{layer_name_suffix}_norm3"] = {
-      "norm": {
         "scale": jnp.ones((8,)),
         "offset": jnp.zeros((8,)),
-      }
     }
-  # For node feature initialization
   params["protein_mpnn/~/W_e"] = {"b": jnp.zeros((8,))}
   params = jax.tree_util.tree_map(lambda x: jnp.asarray(x, dtype=jnp.float32), params)
   return params

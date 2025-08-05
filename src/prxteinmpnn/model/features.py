@@ -75,12 +75,12 @@ def embed_edges(
 
 @partial(jax.jit, static_argnames=("k_neighbors", "augment_eps"))
 def extract_features(
+  prng_key: PRNGKeyArray,
   model_parameters: ModelParameters,
   structure_coordinates: StructureAtomicCoordinates,
   mask: AtomMask,
   residue_index: ResidueIndex,
   chain_index: ChainIndex,
-  prng_key: PRNGKeyArray,
   k_neighbors: int = 48,
   augment_eps: float = 0.0,
 ) -> tuple[EdgeFeatures, NeighborIndices, PRNGKeyArray]:
@@ -102,8 +102,8 @@ def extract_features(
 
   """
   noised_coordinates, prng_key = apply_noise_to_coordinates(
-    structure_coordinates,
     prng_key,
+    structure_coordinates,
     augment_eps=augment_eps,
   )
   backbone_atom_coordinates = compute_backbone_coordinates(noised_coordinates)
@@ -117,6 +117,7 @@ def extract_features(
   )
   k = min(k_neighbors, structure_coordinates.shape[0])
   _, neighbor_indices = top_k(-distances_masked, k)
+  neighbor_indices = jnp.array(neighbor_indices, dtype=jnp.int32)
   rbf = compute_radial_basis(backbone_atom_coordinates, neighbor_indices)
   neighbor_offsets = compute_neighbor_offsets(residue_index, neighbor_indices)
   edge_chains_neighbors = get_edge_chains_neighbors(

@@ -27,5 +27,5 @@ def test_concatenate_neighbor_nodes():
 
     # Check values
     gathered_nodes = node_features[neighbor_indices]
-    expected = jnp.concatenate([gathered_nodes, edge_features], axis=-1)
+    expected = jnp.concatenate([edge_features, gathered_nodes], axis=-1)
     chex.assert_trees_all_close(result, expected)

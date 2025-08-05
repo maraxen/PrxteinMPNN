@@ -96,12 +96,12 @@ def make_score_sequence(
     autoregressive_mask = generate_ar_mask(decoding_order)
 
     edge_features, neighbor_indices, prng_key = extract_features(
+      prng_key,
       model_parameters,
       structure_coordinates,
       mask,
       residue_index,
       chain_index,
-      prng_key,
       k_neighbors=k_neighbors,
       augment_eps=augment_eps,
     )

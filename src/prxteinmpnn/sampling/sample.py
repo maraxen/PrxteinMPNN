@@ -162,11 +162,11 @@ def make_sample_sequences(
       next_rng_key,
     ) = sample_model_pass(
       prng_key,
+      model_parameters,
       structure_coordinates,
       mask,
       residue_index,
       chain_index,
-      model_parameters,
       k_neighbors,
       augment_eps,
     )
@@ -182,10 +182,10 @@ def make_sample_sequences(
 
     logits = final_projection(model_parameters, decoded_node_features) + bias
     sample_step = make_sampling_step_fn(
+      model_parameters,
       neighbor_indices,
       mask,
       autoregressive_mask,
-      model_parameters,
       hyperparameters,
     )
 

@@ -61,11 +61,11 @@ def sampling_encode(
   @partial(jax.jit, static_argnames=("k_neighbors", "augment_eps"))
   def sample_model_pass(
     prng_key: PRNGKeyArray,
+    model_parameters: ModelParameters,
     structure_coordinates: StructureAtomicCoordinates,
     mask: AtomMask,
     residue_index: ResidueIndex,
     chain_index: ChainIndex,
-    model_parameters: ModelParameters,
     k_neighbors: int = 48,
     augment_eps: float = 0.0,
   ) -> SamplingModelPassOutput:
@@ -74,13 +74,13 @@ def sampling_encode(
 
     autoregressive_mask = generate_ar_mask(decoding_order)
 
-    edge_features, neighbor_indices = extract_features(
+    edge_features, neighbor_indices, next_rng_key = extract_features(
+      next_rng_key,
       model_parameters,
       structure_coordinates,
       mask,
       residue_index,
       chain_index,
-      prng_key,
       k_neighbors=k_neighbors,
       augment_eps=augment_eps,
     )

@@ -32,7 +32,13 @@ dev = [
     "sphinx",
     "sphinx-rtd-theme",
     "sphinx-autodoc-typehints",
+    "sphinx-autobuild",
     "myst-parser",
+    "sphinx-copybutton",
+    "sphinx-design",
+    "sphinxext-rediraffe",
+    "sphinx-book-theme",
+    "myst-nb",
 ]
 
 [tool.setuptools]

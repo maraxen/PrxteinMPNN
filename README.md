@@ -1,2 +1,1 @@
-# PrxteinMPNN
-functional implementation of ProteinMPNN
+# PrxteinMPNN: A functional interface to ProteinMPNN in JAX

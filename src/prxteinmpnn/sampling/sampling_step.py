@@ -10,7 +10,7 @@ import jax
 from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.model.decoder import RunConditionalDecoderFn
-from prxteinmpnn.model.final_projection import final_projection
+from prxteinmpnn.model.projection import final_projection
 from prxteinmpnn.utils.data_structures import SamplingEnum
 from prxteinmpnn.utils.types import (
   AtomMask,

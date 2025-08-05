@@ -24,10 +24,24 @@ def apply_noise_to_coordinates(
   key: PRNGKeyArray,
   augment_eps: float = 0.0,
 ) -> tuple[StructureAtomicCoordinates, PRNGKeyArray]:
-  """Add Gaussian noise to atomic coordinates."""
-  key, subkey = jax.random.split(key)
+  """Add Gaussian noise to atomic coordinates.
+
+  Args:
+    coordinates: Atomic coordinates of the protein structure. (N, 37, 3)
+    key: JAX random key for stochastic operations.
+    augment_eps: Standard deviation for Gaussian noise augmentation.
+
+  Returns:
+    Tuple of noisy coordinates and the updated JAX random key.
+
+  Example:
+    >>> key = jax.random.PRNGKey(0)
+    >>> noisy_coords, new_key = apply_noise_to_coordinates(coords, key, 0.1)
+
+  """
+  key, coord_key = jax.random.split(key)
   if augment_eps > 0:
-    noise = augment_eps * jax.random.normal(subkey, coordinates.shape)
+    noise = augment_eps * jax.random.normal(coord_key, coordinates.shape)
     return coordinates + noise, key
   return coordinates, key
 
@@ -45,6 +59,12 @@ def compute_backbone_coordinates(
     Backbone coordinates with C-beta atoms computed where necessary, shape (N, 5, 3).
     NOTE: This deviates from the default atom37 (Nitrogen, C alpha, C, C beta, Oxygen...)
       atom ordering.
+
+  Example:
+    >>> coords = jnp.zeros((10, 37, 3))  # Example coordinates
+    >>> backbone_coords = compute_backbone_coordinates(coords)
+    >>> backbone_coords.shape
+    (10, 5, 3)
 
   """
   nitrogen = coordinates[:, atom_order["N"], :]
@@ -83,6 +103,14 @@ def compute_c_beta(
   Returns:
     C-beta coordinates as an AtomicCoordinate.
 
+  Example:
+    >>> n_to_ca = jnp.array([1.0, 0.0, 0.0])
+    >>> ca_to_c = jnp.array([0.0, 1.0, 0.0])
+    >>> ca_coords = jnp.array([0 .0, 0.0, 0.0])
+    >>> cb_coords = compute_c_beta(n_to_ca, ca_to_c, ca_coords)
+    >>> cb_coords.shape
+    (3,)
+
   """
   f1, f2, f3 = -0.58273431, 0.56802827, -0.54067466
   term1 = f1 * jnp.cross(alpha_to_nitrogen, carbon_to_alpha)
@@ -107,6 +135,12 @@ def compute_backbone_distance(backbone_coordinates: BackboneCoordinates) -> Alph
 
   Returns:
     A 2D array of shape (N, N) containing the pairwise distances between backbone atoms.
+
+  Example:
+    >>> coords = jnp.zeros((10, 5, 3))  # Example coordinates
+    >>> distances = compute_backbone_distance(coords)
+    >>> distances.shape
+    (10, 10)
 
   """
   alpha_coordinates = backbone_coordinates[:, atom_order["CA"], :]
@@ -149,6 +183,8 @@ def extend_coordinate(
 
   Example:
     >>> d = extend_coordinate(a, b, c, 1.5, 2.0, 3.14)
+    >>> d.shape
+    (3,)
 
   """
 
@@ -203,6 +239,8 @@ def compute_cb_precise(
 
   Example:
     >>> cb = compute_cb_precise(n, ca, c)
+    >>> cb.shape
+    (3,)
 
   """
   return extend_coordinate(

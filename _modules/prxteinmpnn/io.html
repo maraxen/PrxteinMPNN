@@ -754,7 +754,7 @@ document.write(`
     <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
     <span class="n">extra_fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;b_factor&quot;</span><span class="p">],</span>
   <span class="p">)</span>
-  <span class="c1"># get_structure returns AtomArrayStack if model is not found, so handle this</span>
+
   <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">atom_array</span><span class="p">,</span> <span class="n">AtomArrayStack</span><span class="p">)</span> <span class="ow">and</span> <span class="n">atom_array</span><span class="o">.</span><span class="n">stack_depth</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
     <span class="n">atom_array</span> <span class="o">=</span> <span class="n">atom_array</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
   <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">atom_array</span><span class="p">,</span> <span class="n">AtomArrayStack</span><span class="p">)</span> <span class="ow">and</span> <span class="n">atom_array</span><span class="o">.</span><span class="n">stack_depth</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>

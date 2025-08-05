@@ -409,11 +409,11 @@ document.write(`
   <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;k_neighbors&quot;</span><span class="p">,</span> <span class="s2">&quot;augment_eps&quot;</span><span class="p">))</span>
   <span class="k">def</span><span class="w"> </span><span class="nf">sample_model_pass</span><span class="p">(</span>
     <span class="n">prng_key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
+    <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
     <span class="n">structure_coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
     <span class="n">mask</span><span class="p">:</span> <span class="n">AtomMask</span><span class="p">,</span>
     <span class="n">residue_index</span><span class="p">:</span> <span class="n">ResidueIndex</span><span class="p">,</span>
     <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span><span class="p">,</span>
-    <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
     <span class="n">k_neighbors</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">48</span><span class="p">,</span>
     <span class="n">augment_eps</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
   <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SamplingModelPassOutput</span><span class="p">:</span>
@@ -422,13 +422,13 @@ document.write(`
 
     <span class="n">autoregressive_mask</span> <span class="o">=</span> <span class="n">generate_ar_mask</span><span class="p">(</span><span class="n">decoding_order</span><span class="p">)</span>
 
-    <span class="n">edge_features</span><span class="p">,</span> <span class="n">neighbor_indices</span> <span class="o">=</span> <span class="n">extract_features</span><span class="p">(</span>
+    <span class="n">edge_features</span><span class="p">,</span> <span class="n">neighbor_indices</span><span class="p">,</span> <span class="n">next_rng_key</span> <span class="o">=</span> <span class="n">extract_features</span><span class="p">(</span>
+      <span class="n">next_rng_key</span><span class="p">,</span>
       <span class="n">model_parameters</span><span class="p">,</span>
       <span class="n">structure_coordinates</span><span class="p">,</span>
       <span class="n">mask</span><span class="p">,</span>
       <span class="n">residue_index</span><span class="p">,</span>
       <span class="n">chain_index</span><span class="p">,</span>
-      <span class="n">prng_key</span><span class="p">,</span>
       <span class="n">k_neighbors</span><span class="o">=</span><span class="n">k_neighbors</span><span class="p">,</span>
       <span class="n">augment_eps</span><span class="o">=</span><span class="n">augment_eps</span><span class="p">,</span>
     <span class="p">)</span>

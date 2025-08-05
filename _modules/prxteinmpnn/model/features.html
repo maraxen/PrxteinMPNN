@@ -432,12 +432,12 @@ document.write(`
 <a class="viewcode-back" href="../../../api/prxteinmpnn.model.features.html#prxteinmpnn.model.extract_features">[docs]</a>
 <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;k_neighbors&quot;</span><span class="p">,</span> <span class="s2">&quot;augment_eps&quot;</span><span class="p">))</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">extract_features</span><span class="p">(</span>
+  <span class="n">prng_key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
   <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
   <span class="n">structure_coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
   <span class="n">mask</span><span class="p">:</span> <span class="n">AtomMask</span><span class="p">,</span>
   <span class="n">residue_index</span><span class="p">:</span> <span class="n">ResidueIndex</span><span class="p">,</span>
   <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span><span class="p">,</span>
-  <span class="n">prng_key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
   <span class="n">k_neighbors</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">48</span><span class="p">,</span>
   <span class="n">augment_eps</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">EdgeFeatures</span><span class="p">,</span> <span class="n">NeighborIndices</span><span class="p">,</span> <span class="n">PRNGKeyArray</span><span class="p">]:</span>
@@ -459,8 +459,8 @@ document.write(`
 
 <span class="sd">  &quot;&quot;&quot;</span>
   <span class="n">noised_coordinates</span><span class="p">,</span> <span class="n">prng_key</span> <span class="o">=</span> <span class="n">apply_noise_to_coordinates</span><span class="p">(</span>
-    <span class="n">structure_coordinates</span><span class="p">,</span>
     <span class="n">prng_key</span><span class="p">,</span>
+    <span class="n">structure_coordinates</span><span class="p">,</span>
     <span class="n">augment_eps</span><span class="o">=</span><span class="n">augment_eps</span><span class="p">,</span>
   <span class="p">)</span>
   <span class="n">backbone_atom_coordinates</span> <span class="o">=</span> <span class="n">compute_backbone_coordinates</span><span class="p">(</span><span class="n">noised_coordinates</span><span class="p">)</span>
@@ -474,6 +474,7 @@ document.write(`
   <span class="p">)</span>
   <span class="n">k</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">k_neighbors</span><span class="p">,</span> <span class="n">structure_coordinates</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
   <span class="n">_</span><span class="p">,</span> <span class="n">neighbor_indices</span> <span class="o">=</span> <span class="n">top_k</span><span class="p">(</span><span class="o">-</span><span class="n">distances_masked</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
+  <span class="n">neighbor_indices</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">neighbor_indices</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
   <span class="n">rbf</span> <span class="o">=</span> <span class="n">compute_radial_basis</span><span class="p">(</span><span class="n">backbone_atom_coordinates</span><span class="p">,</span> <span class="n">neighbor_indices</span><span class="p">)</span>
   <span class="n">neighbor_offsets</span> <span class="o">=</span> <span class="n">compute_neighbor_offsets</span><span class="p">(</span><span class="n">residue_index</span><span class="p">,</span> <span class="n">neighbor_indices</span><span class="p">)</span>
   <span class="n">edge_chains_neighbors</span> <span class="o">=</span> <span class="n">get_edge_chains_neighbors</span><span class="p">(</span>

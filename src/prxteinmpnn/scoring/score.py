@@ -11,8 +11,8 @@ from jaxtyping import Float, PRNGKeyArray
 from prxteinmpnn.model.decoder import DecodingEnum, RunConditionalDecoderFn, make_decoder
 from prxteinmpnn.model.encoder import make_encoder
 from prxteinmpnn.model.features import extract_features, project_features
-from prxteinmpnn.model.final_projection import final_projection
 from prxteinmpnn.model.masked_attention import MaskedAttentionEnum
+from prxteinmpnn.model.projection import final_projection
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.data_structures import ModelInputs
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn

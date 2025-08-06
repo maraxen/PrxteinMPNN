@@ -151,7 +151,7 @@ def make_sample_sequences(
   ]:
     """Sample sequences from a structure using autoregressive decoding."""
     if bias is None:
-      bias = jnp.zeros((structure_coordinates.shape[0], 21), dtype=jnp.float32)
+      bias = jnp.zeros((structure_coordinates.shape[0], 20), dtype=jnp.float32)
 
     (
       node_features,

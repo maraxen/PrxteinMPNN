@@ -144,14 +144,3 @@ class OligomerType(enum.Enum):
   HETEROMER = "heteromer"
   HOMOOLIGOMER = "homooligomer"
   TIED_HOMOOLIGOMER = "tied_homooligomer"
-
-
-class SamplingEnum(enum.Enum):
-  """Enum for different sampling strategies."""
-
-  GREEDY = "greedy"
-  TOP_K = "top_k"
-  TOP_P = "top_p"
-  TEMPERATURE = "temperature"
-  BEAM_SEARCH = "beam_search"
-  STRAIGHT_THROUGH = "straight_through"

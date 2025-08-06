@@ -16,7 +16,12 @@ from jax import vmap
 from prxteinmpnn.utils.aa_convert import af_to_mpnn
 from prxteinmpnn.utils.coordinates import compute_cb_precise
 from prxteinmpnn.utils.data_structures import ModelInputs, ProteinStructure
-from prxteinmpnn.utils.residue_constants import atom_order, resname_to_idx, unk_restype_index
+from prxteinmpnn.utils.residue_constants import (
+  atom_order,
+  resname_to_idx,
+  restype_order,
+  unk_restype_index,
+)
 from prxteinmpnn.utils.types import AtomChainIndex, ChainIndex, InputBias, ProteinSequence
 
 
@@ -63,6 +68,35 @@ def string_key_to_index(
   is_known = found_keys == string_keys
 
   return jnp.where(is_known, sorted_values[indices], unk_index)
+
+
+def string_to_protein_sequence(
+  sequence: str,
+  aa_map: dict | None = None,
+  unk_index: int | None = None,
+) -> ProteinSequence:
+  """Convert a string sequence to a ProteinSequence.
+
+  Args:
+    sequence: A string containing the protein sequence.
+    aa_map: A dictionary mapping amino acid names to integer indices. If None, uses the default
+      `restype_order` mapping.
+    unk_index: The index to use for unknown amino acids not found in the mapping. If None, uses
+      `unk_restype_index`.
+
+  Returns:
+    A ProteinSequence containing the amino acid type indices corresponding to the input string.
+
+  """
+  if aa_map is None:
+    aa_map = restype_order
+
+  if aa_map is None:
+    unk_index = unk_restype_index
+
+  return string_key_to_index(np.array(list(sequence), dtype="U3"), aa_map, unk_index).astype(
+    jnp.int8,
+  )
 
 
 def residue_names_to_aatype(
@@ -399,7 +433,7 @@ def protein_structure_to_model_inputs(
     to zero.
 
   Returns:
-    A dictionary containing the model inputs derived from the ProteinStructure.
+    A ModelInputs containing the model inputs derived from the ProteinStructure.
 
   """
   mask = protein_structure.atom_mask[:, 1]

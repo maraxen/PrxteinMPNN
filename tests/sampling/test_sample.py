@@ -6,7 +6,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 from prxteinmpnn.sampling.sample import make_sample_sequences
-from prxteinmpnn.utils.data_structures import SamplingEnum
+from prxteinmpnn.sampling.sampling_step import SamplingEnum
 
 
 @pytest.fixture

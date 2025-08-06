@@ -7,8 +7,8 @@ from prxteinmpnn.sampling.sampling_step import (
   preload_sampling_step_decoder,
   sample_straight_through_estimator_step,
   sample_temperature_step,
+  SamplingEnum,
 )
-from prxteinmpnn.utils.data_structures import SamplingEnum
 
 
 def test_preload_sampling_step_decoder():

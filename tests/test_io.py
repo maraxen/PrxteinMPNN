@@ -9,7 +9,7 @@ import pytest
 from biotite.structure import Atom, AtomArray, AtomArrayStack, array
 
 from prxteinmpnn import io
-from prxteinmpnn.utils.residue_constants import resname_to_idx, unk_restype_index, atom_order
+from prxteinmpnn.utils.residue_constants import resname_to_idx, unk_restype_index, atom_order, restype_order
 from prxteinmpnn.utils.data_structures import (
   ProteinStructure,
 )
@@ -472,3 +472,39 @@ def test_from_string_nonexistent_chain():
   # This test now passes because process_atom_array checks for emptiness *after* filtering.
   with pytest.raises(ValueError, match="AtomArray is empty."):
     io.from_string(pdb_string, chain_id="B")
+    
+def test_string_to_protein_sequence():
+  """Test conversion of a string sequence to a ProteinSequence.
+
+  Args:
+    None
+
+  Returns:
+    None
+
+  Raises:
+    AssertionError: If the output does not match the expected value.
+  """
+  # Use default mapping (restype_order)
+  seq = "ACDZX"
+  # Build expected indices using restype_order, unknowns get unk_restype_index
+  expected = jnp.array([
+    restype_order.get("A", unk_restype_index),
+    restype_order.get("C", unk_restype_index),
+    restype_order.get("D", unk_restype_index),
+    restype_order.get("Z", unk_restype_index),
+    restype_order.get("X", unk_restype_index),
+  ], dtype=jnp.int8)
+  result = io.string_to_protein_sequence(seq)
+  chex.assert_trees_all_close(result, expected)
+
+  # Custom aa_map and unk_index
+  aa_map = {"A": 0, "C": 1, "D": 2}
+  seq2 = "ACDX"
+  expected2 = jnp.array([0, 1, 2, -1], dtype=jnp.int8)
+  result2 = io.string_to_protein_sequence(seq2, aa_map=aa_map, unk_index=-1)
+  chex.assert_trees_all_close(result2, expected2)
+
+  # Empty sequence
+  result3 = io.string_to_protein_sequence("")
+  assert result3.shape == (0,)

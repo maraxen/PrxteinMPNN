@@ -17,7 +17,7 @@ from prxteinmpnn.model.decoder import DecodingEnum, RunConditionalDecoderFn, mak
 from prxteinmpnn.model.encoder import make_encoder
 from prxteinmpnn.model.masked_attention import MaskedAttentionEnum
 from prxteinmpnn.model.projection import final_projection
-from prxteinmpnn.utils.data_structures import ModelInputs, SamplingEnum, SamplingInputs
+from prxteinmpnn.utils.data_structures import ModelInputs, SamplingInputs
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
   AtomMask,
@@ -33,7 +33,7 @@ from prxteinmpnn.utils.types import (
 )
 
 from .initialize import sampling_encode
-from .sampling_step import preload_sampling_step_decoder
+from .sampling_step import SamplingEnum, preload_sampling_step_decoder
 
 SamplerFnBase = Callable[
   [

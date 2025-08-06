@@ -68,4 +68,4 @@ where = ["src"]
 pythonpath = ["src"]
 
 [tool.setuptools.package-data]
-include = ["prxteinmpnn/model/original/*.pkl", "prxteinmpnn/model/soluble/*.pkl"]
+include = ["prxteinmpnn/model/original/*.pkl", "prxteinmpnn/model/soluble/*.pkl", "prxteinmpnn/examples/*.ipynb", "prxteinmpnn/examples/*.pdb",]

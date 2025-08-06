@@ -215,7 +215,7 @@ def make_sample_sequences(
   if model_inputs:
     return partial(
       sample_sequences,
-      initial_sequence=model_inputs.sequence,
+      sequence=model_inputs.sequence,
       structure_coordinates=model_inputs.structure_coordinates,
       mask=model_inputs.mask,
       residue_index=model_inputs.residue_index,

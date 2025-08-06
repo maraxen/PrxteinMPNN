@@ -417,11 +417,39 @@ document.write(`
 <section id="basic-usage">
 <h2>Basic Usage<a class="headerlink" href="#basic-usage" title="Link to this heading">#</a></h2>
 <p>Here’s a simple example to get you started:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.mpnn</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProteinMPNNModelVersion</span><span class="p">,</span> <span class="n">ModelWeights</span><span class="p">,</span> <span class="n">get_mpnn_model</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">from_structure_file</span>
 
-<span class="c1"># Your protein design workflow here</span>
-<span class="c1"># (This will be updated as the API is finalized)</span>
+<span class="c1"># Load a protein structure</span>
+<span class="n">protein_structure</span> <span class="o">=</span> <span class="n">from_structure_file</span><span class="p">(</span><span class="n">filename</span><span class="o">=</span><span class="s2">&quot;path/to/structure.pdb&quot;</span><span class="p">)</span>
+
+<span class="c1"># Get the MPNN model</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">get_mpnn_model</span><span class="p">(</span>
+    <span class="n">model_version</span><span class="o">=</span><span class="n">ProteinMPNNModelVersion</span><span class="o">.</span><span class="n">V_48_020</span><span class="p">,</span>
+    <span class="n">model_weights</span><span class="o">=</span><span class="n">ModelWeights</span><span class="o">.</span><span class="n">DEFAULT</span>
+<span class="p">)</span>
+
+<span class="c1"># Get the model inputs for the given structure</span>
+<span class="n">model_inputs</span> <span class="o">=</span> <span class="n">protein_structure_to_model_inputs</span><span class="p">(</span><span class="n">protein_structure</span><span class="p">)</span>
+
+<span class="c1"># Score sequences</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.scoring.score</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_score_sequence</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.decoding_order</span><span class="w"> </span><span class="kn">import</span> <span class="n">random_decoding_order</span>
+<span class="n">key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">PRNGKey</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>  <span class="c1"># Random key for JAX operations</span>
+<span class="n">score_sequence</span> <span class="o">=</span> <span class="n">make_score_sequence</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">random_decoding_order</span><span class="p">,</span> <span class="n">model_inputs</span><span class="o">=</span><span class="n">model_inputs</span><span class="p">)</span>
+<span class="n">original_sequence_score</span><span class="p">,</span> <span class="n">original_sequence_logits</span><span class="p">,</span> <span class="n">original_decoding_order_used</span> <span class="o">=</span>
+  <span class="n">score_sequence</span><span class="p">(</span>
+    <span class="n">key</span><span class="p">,</span>
+    <span class="n">inputs</span><span class="o">.</span><span class="n">sequence</span>
+  <span class="p">)</span>
+<span class="n">other_sequence</span> <span class="o">=</span> <span class="s2">&quot;SOMEOTHERSEQUENCE&quot;</span>
+<span class="n">other_sequence_score</span><span class="p">,</span> <span class="n">other_sequence_logits</span><span class="p">,</span> <span class="n">new_decoding_order</span> <span class="o">=</span> <span class="n">score_sequence</span><span class="p">(</span>
+  <span class="n">key</span><span class="p">,</span>
+  <span class="n">other_sequence</span>
+<span class="p">)</span>
 </pre></div>
 </div>
 </section>

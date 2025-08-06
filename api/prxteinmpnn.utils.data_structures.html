@@ -445,10 +445,10 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.augment_eps"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.augment_eps</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.hyperparameters"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.hyperparameters</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.iterations"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.iterations</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.replace"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.replace()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id12"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.prng_key</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id13"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.hyperparameters</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id14"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.iterations</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.replace"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.replace()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType"><code class="docutils literal notranslate"><span class="pre">OligomerType</span></code></a><ul class="visible nav section-nav flex-column">
@@ -456,15 +456,6 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType.HETEROMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.HETEROMER</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType.HOMOOLIGOMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.HOMOOLIGOMER</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType.TIED_HOMOOLIGOMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.TIED_HOMOOLIGOMER</span></code></a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum"><code class="docutils literal notranslate"><span class="pre">SamplingEnum</span></code></a><ul class="visible nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.GREEDY"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.GREEDY</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.TOP_K"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.TOP_K</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.TOP_P"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.TOP_P</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.TEMPERATURE"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.TEMPERATURE</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.BEAM_SEARCH"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.BEAM_SEARCH</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.STRAIGHT_THROUGH"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.STRAIGHT_THROUGH</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -919,6 +910,12 @@ top-k, etc.</p>
 </dl>
 </dd></dl>
 
+<dl class="py method">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingInputs.replace">
+<span class="sig-name descname"><span class="pre">replace</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">updates</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingInputs.replace" title="Link to this definition">#</a></dt>
+<dd><p>Returns a new object replacing the specified fields with new values.</p>
+</dd></dl>
+
 <dl class="py attribute">
 <dt class="sig sig-object py" id="id12">
 <span class="sig-name descname"><span class="pre">prng_key</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Union</span></code></a><span class="pre">[</span><code class="xref py py-class docutils literal notranslate"><span class="pre">Key[Array,</span> <span class="pre">'']</span></code><span class="pre">,</span> <code class="xref py py-class docutils literal notranslate"><span class="pre">UInt32[Array,</span> <span class="pre">'2']</span></code><span class="pre">]</span></em><a class="headerlink" href="#id12" title="Link to this definition">#</a></dt>
@@ -935,12 +932,6 @@ top-k, etc.</p>
 <dt class="sig sig-object py" id="id14">
 <span class="sig-name descname"><span class="pre">iterations</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#id14" title="Link to this definition">#</a></dt>
 <dd><p>Number of iterations for sampling.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingInputs.replace">
-<span class="sig-name descname"><span class="pre">replace</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">updates</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingInputs.replace" title="Link to this definition">#</a></dt>
-<dd><p>Returns a new object replacing the specified fields with new values.</p>
 </dd></dl>
 
 </dd></dl>
@@ -968,43 +959,6 @@ top-k, etc.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.OligomerType.TIED_HOMOOLIGOMER">
 <span class="sig-name descname"><span class="pre">TIED_HOMOOLIGOMER</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'tied_homooligomer'</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.OligomerType.TIED_HOMOOLIGOMER" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingEnum">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.data_structures.</span></span><span class="sig-name descname"><span class="pre">SamplingEnum</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/data_structures.html#SamplingEnum"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingEnum" title="Link to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Enum</span></code></a></p>
-<p>Enum for different sampling strategies.</p>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingEnum.GREEDY">
-<span class="sig-name descname"><span class="pre">GREEDY</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'greedy'</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingEnum.GREEDY" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingEnum.TOP_K">
-<span class="sig-name descname"><span class="pre">TOP_K</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'top_k'</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingEnum.TOP_K" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingEnum.TOP_P">
-<span class="sig-name descname"><span class="pre">TOP_P</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'top_p'</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingEnum.TOP_P" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingEnum.TEMPERATURE">
-<span class="sig-name descname"><span class="pre">TEMPERATURE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'temperature'</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingEnum.TEMPERATURE" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingEnum.BEAM_SEARCH">
-<span class="sig-name descname"><span class="pre">BEAM_SEARCH</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'beam_search'</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingEnum.BEAM_SEARCH" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.SamplingEnum.STRAIGHT_THROUGH">
-<span class="sig-name descname"><span class="pre">STRAIGHT_THROUGH</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'straight_through'</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.SamplingEnum.STRAIGHT_THROUGH" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -1103,10 +1057,10 @@ top-k, etc.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.augment_eps"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.augment_eps</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.hyperparameters"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.hyperparameters</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.iterations"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.iterations</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.replace"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.replace()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id12"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.prng_key</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id13"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.hyperparameters</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id14"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.iterations</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs.replace"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.replace()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType"><code class="docutils literal notranslate"><span class="pre">OligomerType</span></code></a><ul class="visible nav section-nav flex-column">
@@ -1114,15 +1068,6 @@ top-k, etc.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType.HETEROMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.HETEROMER</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType.HOMOOLIGOMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.HOMOOLIGOMER</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType.TIED_HOMOOLIGOMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.TIED_HOMOOLIGOMER</span></code></a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum"><code class="docutils literal notranslate"><span class="pre">SamplingEnum</span></code></a><ul class="visible nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.GREEDY"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.GREEDY</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.TOP_K"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.TOP_K</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.TOP_P"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.TOP_P</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.TEMPERATURE"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.TEMPERATURE</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.BEAM_SEARCH"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.BEAM_SEARCH</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingEnum.STRAIGHT_THROUGH"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.STRAIGHT_THROUGH</span></code></a></li>
 </ul>
 </li>
 </ul>

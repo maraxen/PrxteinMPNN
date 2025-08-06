@@ -362,7 +362,12 @@ document.write(`
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.aa_convert</span><span class="w"> </span><span class="kn">import</span> <span class="n">af_to_mpnn</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.coordinates</span><span class="w"> </span><span class="kn">import</span> <span class="n">compute_cb_precise</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.data_structures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelInputs</span><span class="p">,</span> <span class="n">ProteinStructure</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.residue_constants</span><span class="w"> </span><span class="kn">import</span> <span class="n">atom_order</span><span class="p">,</span> <span class="n">resname_to_idx</span><span class="p">,</span> <span class="n">unk_restype_index</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.residue_constants</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+  <span class="n">atom_order</span><span class="p">,</span>
+  <span class="n">resname_to_idx</span><span class="p">,</span>
+  <span class="n">restype_order</span><span class="p">,</span>
+  <span class="n">unk_restype_index</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">AtomChainIndex</span><span class="p">,</span> <span class="n">ChainIndex</span><span class="p">,</span> <span class="n">InputBias</span><span class="p">,</span> <span class="n">ProteinSequence</span>
 
 
@@ -414,6 +419,38 @@ document.write(`
   <span class="n">is_known</span> <span class="o">=</span> <span class="n">found_keys</span> <span class="o">==</span> <span class="n">string_keys</span>
 
   <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">is_known</span><span class="p">,</span> <span class="n">sorted_values</span><span class="p">[</span><span class="n">indices</span><span class="p">],</span> <span class="n">unk_index</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="string_to_protein_sequence">
+<a class="viewcode-back" href="../../api/prxteinmpnn.io.html#prxteinmpnn.io.string_to_protein_sequence">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">string_to_protein_sequence</span><span class="p">(</span>
+  <span class="n">sequence</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+  <span class="n">aa_map</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="n">unk_index</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ProteinSequence</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Convert a string sequence to a ProteinSequence.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    sequence: A string containing the protein sequence.</span>
+<span class="sd">    aa_map: A dictionary mapping amino acid names to integer indices. If None, uses the default</span>
+<span class="sd">      `restype_order` mapping.</span>
+<span class="sd">    unk_index: The index to use for unknown amino acids not found in the mapping. If None, uses</span>
+<span class="sd">      `unk_restype_index`.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    A ProteinSequence containing the amino acid type indices corresponding to the input string.</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="n">aa_map</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">aa_map</span> <span class="o">=</span> <span class="n">restype_order</span>
+
+  <span class="k">if</span> <span class="n">aa_map</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">unk_index</span> <span class="o">=</span> <span class="n">unk_restype_index</span>
+
+  <span class="k">return</span> <span class="n">string_key_to_index</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">sequence</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;U3&quot;</span><span class="p">),</span> <span class="n">aa_map</span><span class="p">,</span> <span class="n">unk_index</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span>
+    <span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">,</span>
+  <span class="p">)</span></div>
 
 
 
@@ -783,7 +820,7 @@ document.write(`
 <span class="sd">    to zero.</span>
 
 <span class="sd">  Returns:</span>
-<span class="sd">    A dictionary containing the model inputs derived from the ProteinStructure.</span>
+<span class="sd">    A ModelInputs containing the model inputs derived from the ProteinStructure.</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
   <span class="n">mask</span> <span class="o">=</span> <span class="n">protein_structure</span><span class="o">.</span><span class="n">atom_mask</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>

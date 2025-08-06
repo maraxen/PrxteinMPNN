@@ -349,6 +349,7 @@ document.write(`
 <span class="sd">prxteinmpnn.sampling.sampling</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">enum</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
 
@@ -357,7 +358,6 @@ document.write(`
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.decoder</span><span class="w"> </span><span class="kn">import</span> <span class="n">RunConditionalDecoderFn</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.projection</span><span class="w"> </span><span class="kn">import</span> <span class="n">final_projection</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.data_structures</span><span class="w"> </span><span class="kn">import</span> <span class="n">SamplingEnum</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
   <span class="n">AtomMask</span><span class="p">,</span>
   <span class="n">AutoRegressiveMask</span><span class="p">,</span>
@@ -388,8 +388,22 @@ document.write(`
 <span class="p">]</span>
 
 
+<div class="viewcode-block" id="SamplingEnum">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.SamplingEnum">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">SamplingEnum</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">Enum</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Enum for different sampling strategies.&quot;&quot;&quot;</span>
+
+  <span class="n">GREEDY</span> <span class="o">=</span> <span class="s2">&quot;greedy&quot;</span>
+  <span class="n">TOP_K</span> <span class="o">=</span> <span class="s2">&quot;top_k&quot;</span>
+  <span class="n">TOP_P</span> <span class="o">=</span> <span class="s2">&quot;top_p&quot;</span>
+  <span class="n">TEMPERATURE</span> <span class="o">=</span> <span class="s2">&quot;temperature&quot;</span>
+  <span class="n">BEAM_SEARCH</span> <span class="o">=</span> <span class="s2">&quot;beam_search&quot;</span>
+  <span class="n">STRAIGHT_THROUGH</span> <span class="o">=</span> <span class="s2">&quot;straight_through&quot;</span></div>
+
+
+
 <div class="viewcode-block" id="sample_temperature_step">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.sampling_step.sample_temperature_step">[docs]</a>
+<a class="viewcode-back" href="../../../api/prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.sample_temperature_step">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">sample_temperature_step</span><span class="p">(</span>
   <span class="n">i</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
   <span class="n">carry</span><span class="p">:</span> <span class="n">SamplingStepState</span><span class="p">,</span>
@@ -470,7 +484,7 @@ document.write(`
 
 
 <div class="viewcode-block" id="sample_straight_through_estimator_step">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.sampling_step.sample_straight_through_estimator_step">[docs]</a>
+<a class="viewcode-back" href="../../../api/prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.sample_straight_through_estimator_step">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">sample_straight_through_estimator_step</span><span class="p">(</span>
   <span class="n">_i</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
   <span class="n">carry</span><span class="p">:</span> <span class="n">SamplingStepState</span><span class="p">,</span>
@@ -546,7 +560,7 @@ document.write(`
 
 
 <div class="viewcode-block" id="preload_sampling_step_decoder">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.sampling_step.preload_sampling_step_decoder">[docs]</a>
+<a class="viewcode-back" href="../../../api/prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.preload_sampling_step_decoder">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">preload_sampling_step_decoder</span><span class="p">(</span>
   <span class="n">decoder</span><span class="p">:</span> <span class="n">RunConditionalDecoderFn</span><span class="p">,</span>
   <span class="n">sampling_strategy</span><span class="p">:</span> <span class="n">SamplingEnum</span><span class="p">,</span>

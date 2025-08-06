@@ -395,6 +395,7 @@ document.write(`
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io._check_if_file_empty"><code class="docutils literal notranslate"><span class="pre">_check_if_file_empty()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io.string_key_to_index"><code class="docutils literal notranslate"><span class="pre">string_key_to_index()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io.string_to_protein_sequence"><code class="docutils literal notranslate"><span class="pre">string_to_protein_sequence()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io.residue_names_to_aatype"><code class="docutils literal notranslate"><span class="pre">residue_names_to_aatype()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io.atom_names_to_index"><code class="docutils literal notranslate"><span class="pre">atom_names_to_index()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io._check_atom_array_length"><code class="docutils literal notranslate"><span class="pre">_check_atom_array_length()</span></code></a></li>
@@ -455,6 +456,29 @@ length of the key_map as the unknown index.</p></li>
 </dd>
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p>A 1D array of integer indices corresponding to the string keys.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.io.string_to_protein_sequence">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.io.</span></span><span class="sig-name descname"><span class="pre">string_to_protein_sequence</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sequence</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">aa_map</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unk_index</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/io.html#string_to_protein_sequence"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.io.string_to_protein_sequence" title="Link to this definition">#</a></dt>
+<dd><p>Convert a string sequence to a ProteinSequence.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sequence</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a></span>) – A string containing the protein sequence.</p></li>
+<li><p><strong>aa_map</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a> | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span>) – A dictionary mapping amino acid names to integer indices. If None, uses the default
+<cite>restype_order</cite> mapping.</p></li>
+<li><p><strong>unk_index</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a> | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span>) – The index to use for unknown amino acids not found in the mapping. If None, uses
+<cite>unk_restype_index</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code></span></p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A ProteinSequence containing the amino acid type indices corresponding to the input string.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -691,7 +715,7 @@ structure is parsed.</p></li>
 <dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ModelInputs" title="prxteinmpnn.utils.data_structures.ModelInputs"><code class="xref py py-class docutils literal notranslate"><span class="pre">ModelInputs</span></code></a></span></p>
 </dd>
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>A dictionary containing the model inputs derived from the ProteinStructure.</p>
+<dd class="field-odd"><p>A ModelInputs containing the model inputs derived from the ProteinStructure.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -745,6 +769,7 @@ structure is parsed.</p></li>
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io._check_if_file_empty"><code class="docutils literal notranslate"><span class="pre">_check_if_file_empty()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io.string_key_to_index"><code class="docutils literal notranslate"><span class="pre">string_key_to_index()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io.string_to_protein_sequence"><code class="docutils literal notranslate"><span class="pre">string_to_protein_sequence()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io.residue_names_to_aatype"><code class="docutils literal notranslate"><span class="pre">residue_names_to_aatype()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io.atom_names_to_index"><code class="docutils literal notranslate"><span class="pre">atom_names_to_index()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io._check_atom_array_length"><code class="docutils literal notranslate"><span class="pre">_check_atom_array_length()</span></code></a></li>

@@ -363,7 +363,7 @@ document.write(`
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.encoder</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_encoder</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.masked_attention</span><span class="w"> </span><span class="kn">import</span> <span class="n">MaskedAttentionEnum</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.projection</span><span class="w"> </span><span class="kn">import</span> <span class="n">final_projection</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.data_structures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelInputs</span><span class="p">,</span> <span class="n">SamplingEnum</span><span class="p">,</span> <span class="n">SamplingInputs</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.data_structures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelInputs</span><span class="p">,</span> <span class="n">SamplingInputs</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.decoding_order</span><span class="w"> </span><span class="kn">import</span> <span class="n">DecodingOrderFn</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
   <span class="n">AtomMask</span><span class="p">,</span>
@@ -379,7 +379,7 @@ document.write(`
 <span class="p">)</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.initialize</span><span class="w"> </span><span class="kn">import</span> <span class="n">sampling_encode</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.sampling_step</span><span class="w"> </span><span class="kn">import</span> <span class="n">preload_sampling_step_decoder</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.sampling_step</span><span class="w"> </span><span class="kn">import</span> <span class="n">SamplingEnum</span><span class="p">,</span> <span class="n">preload_sampling_step_decoder</span>
 
 <span class="n">SamplerFnBase</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">[</span>
   <span class="p">[</span>
@@ -417,7 +417,7 @@ document.write(`
 
 
 <div class="viewcode-block" id="make_sample_sequences">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.sampling.sample.html#prxteinmpnn.sampling.sample.make_sample_sequences">[docs]</a>
+<a class="viewcode-back" href="../../../api/prxteinmpnn.sampling.sample.html#prxteinmpnn.sampling.make_sample_sequences">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">make_sample_sequences</span><span class="p">(</span>
   <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
   <span class="n">decoding_order_fn</span><span class="p">:</span> <span class="n">DecodingOrderFn</span><span class="p">,</span>

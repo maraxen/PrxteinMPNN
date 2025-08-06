@@ -479,7 +479,7 @@ document.write(`
     <span class="n">sampling_strategy</span><span class="o">=</span><span class="n">sampling_strategy</span><span class="p">,</span>
   <span class="p">)</span>
 
-  <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;k_neighbors&quot;</span><span class="p">,</span> <span class="s2">&quot;iterations&quot;</span><span class="p">,</span> <span class="s2">&quot;hyperparameters&quot;</span><span class="p">))</span>
+  <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;k_neighbors&quot;</span><span class="p">,</span> <span class="s2">&quot;augment_eps&quot;</span><span class="p">))</span>
   <span class="k">def</span><span class="w"> </span><span class="nf">sample_sequences</span><span class="p">(</span>  <span class="c1"># noqa: PLR0913</span>
     <span class="n">prng_key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
     <span class="n">sequence</span><span class="p">:</span> <span class="n">ProteinSequence</span><span class="p">,</span>

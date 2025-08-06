@@ -131,7 +131,7 @@ def make_sample_sequences(
     sampling_strategy=sampling_strategy,
   )
 
-  @partial(jax.jit, static_argnames=("k_neighbors", "iterations", "hyperparameters"))
+  @partial(jax.jit, static_argnames=("k_neighbors", "augment_eps"))
   def sample_sequences(  # noqa: PLR0913
     prng_key: PRNGKeyArray,
     sequence: ProteinSequence,

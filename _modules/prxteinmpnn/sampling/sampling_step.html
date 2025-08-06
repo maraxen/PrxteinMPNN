@@ -354,6 +354,7 @@ document.write(`
 <span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">PRNGKeyArray</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.decoder</span><span class="w"> </span><span class="kn">import</span> <span class="n">RunConditionalDecoderFn</span>
@@ -473,7 +474,7 @@ document.write(`
 
   <span class="n">s_i</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">one_hot</span><span class="p">(</span><span class="n">sampled_aa</span><span class="p">,</span> <span class="mi">21</span><span class="p">)</span>
 
-  <span class="n">sequence</span> <span class="o">=</span> <span class="n">sequence</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">s_i</span><span class="p">)</span>
+  <span class="n">sequence</span> <span class="o">=</span> <span class="n">sequence</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">s_i</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>
   <span class="n">logits</span> <span class="o">=</span> <span class="n">logits</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">logits</span><span class="p">)</span>
 
   <span class="k">return</span> <span class="n">next_prng_key</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">logits</span></div>
@@ -554,7 +555,7 @@ document.write(`
   <span class="p">)</span>
   <span class="n">ste_logits</span> <span class="o">=</span> <span class="n">initial_logits</span> <span class="o">-</span> <span class="n">learning_rate</span> <span class="o">*</span> <span class="n">grad</span>
 
-  <span class="n">updated_sequence</span> <span class="o">=</span> <span class="n">ste_logits</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+  <span class="n">updated_sequence</span> <span class="o">=</span> <span class="n">ste_logits</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>
   <span class="k">return</span> <span class="n">prng_key</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">new_node_features</span><span class="p">,</span> <span class="n">updated_sequence</span><span class="p">,</span> <span class="n">final_logits</span></div>
 
 

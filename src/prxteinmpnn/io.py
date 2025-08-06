@@ -444,7 +444,7 @@ def protein_structure_to_model_inputs(
     residue_index=protein_structure.residue_index,
     chain_index=protein_structure.chain_index,
     lengths=jnp.array([len(protein_structure.aatype)], dtype=jnp.int32),
-    bias=jnp.zeros((len(protein_structure.aatype), 20), dtype=jnp.float32)
+    bias=jnp.zeros((len(protein_structure.aatype), 21), dtype=jnp.float32)
     if bias is None
     else bias,
   )

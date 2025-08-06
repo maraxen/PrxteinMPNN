@@ -12,9 +12,7 @@ dependencies = [
     "jaxtyping",
     "jaxlib",
     "joblib",
-    "pytest",
     "flax",
-    "chex",
     "biotite",
     "foldcomp",
 ]
@@ -39,6 +37,7 @@ docs = [
 tests = [
     "pytest",
     "pytest-cov",
+    "chex",
 ]
 dev = [
   "ruff",
@@ -55,6 +54,7 @@ dev = [
   "myst-nb",
   "pytest",
   "pytest-cov",
+  "chex",
 ]
 
 [tool.setuptools]

@@ -13,12 +13,13 @@ This section contains practical examples demonstrating PrxteinMPNN usage.
 Basic Examples
 --------------
 
-* :doc:`basic_example` - Simple protein design workflow
+* :doc:`basic_example` - Simple protein design workflow (IN PROGRESS)
+
 
 Advanced Examples  
 -----------------
 
-* :doc:`advanced_example` - Complex multi-step protein design
+* :doc:`advanced_example` - Complex multi-step protein design (IN PROGRESS)
 
 Code Examples
 -------------

@@ -1,15 +1,21 @@
 PrxteinMPNN Documentation
 =========================
 
+.. image:: https://img.shields.io/badge/coverage-90%25-brightgreen.svg
+  :target: https://github.com/yourusername/PrxteinMPNN/actions/workflows/pytest.yml
+  :alt: Test coverage
+
+`Run on Colab <https://colab.research.google.com/github/maraxen/PrxteinMPNN/blob/main/examples/example_notebook.ipynb>`_
+
 Welcome to PrxteinMPNN's documentation! This project provides a functional interface for ProteinMPNN, leveraging the JAX ecosystem for accelerated computation.
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+  :maxdepth: 2
+  :caption: Contents:
 
-   api/modules
-   tutorials/index
-   examples/index
+  api/modules
+  tutorials/index
+  examples/index
 
 Key Features
 ------------
@@ -24,28 +30,13 @@ Installation
 
 .. code-block:: bash
 
-   pip install -e .
+  pip install -e .
 
 For development:
 
 .. code-block:: bash
 
-   pip install -e ".[dev]"
+  pip install -e ".[dev]"
 
 Use notes
 ------------
-```python
-!pip install nest_asyncio
-import nest_asyncio
-nest_asyncio.apply()
-```
-
-is needed if running `foldcomp_utils.model_from_id` in a notebook
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`

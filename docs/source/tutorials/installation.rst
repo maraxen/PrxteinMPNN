@@ -7,8 +7,14 @@ Requirements
 ------------
 
 * Python >= 3.11
+
 * JAX ecosystem (jax, jaxlib, flax)
-* Additional scientific computing libraries
+* NumPy
+* joblib
+* jaxtyping
+* foldcomp (for protein databases)
+* biotite (for structure and trajectory file handling)
+* Testing (chex, pytest, pytest-cov)
 
 Basic Installation
 ------------------

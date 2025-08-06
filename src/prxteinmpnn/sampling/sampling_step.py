@@ -3,6 +3,7 @@
 prxteinmpnn.sampling.sampling
 """
 
+import enum
 from collections.abc import Callable
 from functools import partial
 
@@ -11,7 +12,6 @@ from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.model.decoder import RunConditionalDecoderFn
 from prxteinmpnn.model.projection import final_projection
-from prxteinmpnn.utils.data_structures import SamplingEnum
 from prxteinmpnn.utils.types import (
   AtomMask,
   AutoRegressiveMask,
@@ -40,6 +40,17 @@ SamplingStepFn = Callable[
   [*SamplingStepInput],
   SamplingStepState,
 ]
+
+
+class SamplingEnum(enum.Enum):
+  """Enum for different sampling strategies."""
+
+  GREEDY = "greedy"
+  TOP_K = "top_k"
+  TOP_P = "top_p"
+  TEMPERATURE = "temperature"
+  BEAM_SEARCH = "beam_search"
+  STRAIGHT_THROUGH = "straight_through"
 
 
 def sample_temperature_step(

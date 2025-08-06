@@ -8,6 +8,7 @@ from collections.abc import Callable
 from functools import partial
 
 import jax
+import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.model.decoder import RunConditionalDecoderFn
@@ -122,7 +123,7 @@ def sample_temperature_step(
 
   s_i = jax.nn.one_hot(sampled_aa, 21)
 
-  sequence = sequence.at[i].set(s_i)
+  sequence = sequence.at[i].set(s_i).astype(jnp.int8)
   logits = logits.at[i].set(logits)
 
   return next_prng_key, edge_features, node_features, sequence, logits
@@ -200,7 +201,7 @@ def sample_straight_through_estimator_step(
   )
   ste_logits = initial_logits - learning_rate * grad
 
-  updated_sequence = ste_logits.argmax(axis=-1)
+  updated_sequence = ste_logits.argmax(axis=-1).astype(jnp.int8)
   return prng_key, edge_features, new_node_features, updated_sequence, final_logits
 
 

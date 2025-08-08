@@ -454,6 +454,30 @@ document.write(`
 
 
 
+<div class="viewcode-block" id="protein_sequence_to_string">
+<a class="viewcode-back" href="../../api/prxteinmpnn.io.html#prxteinmpnn.io.protein_sequence_to_string">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">protein_sequence_to_string</span><span class="p">(</span>
+  <span class="n">sequence</span><span class="p">:</span> <span class="n">ProteinSequence</span><span class="p">,</span>
+  <span class="n">aa_map</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Convert a ProteinSequence to a string.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    sequence: A ProteinSequence containing amino acid type indices.</span>
+<span class="sd">    aa_map: A dictionary mapping amino acid type indices to their corresponding names. If None,</span>
+<span class="sd">      uses the default `restype_order` mapping.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    A string representation of the protein sequence.</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="n">aa_map</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">aa_map</span> <span class="o">=</span> <span class="n">restype_order</span>
+
+  <span class="k">return</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">aa_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">aa</span><span class="p">,</span> <span class="s2">&quot;UNK&quot;</span><span class="p">)</span> <span class="k">for</span> <span class="n">aa</span> <span class="ow">in</span> <span class="n">sequence</span><span class="p">])</span></div>
+
+
+
 <div class="viewcode-block" id="residue_names_to_aatype">
 <a class="viewcode-back" href="../../api/prxteinmpnn.io.html#prxteinmpnn.io.residue_names_to_aatype">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">residue_names_to_aatype</span><span class="p">(</span>

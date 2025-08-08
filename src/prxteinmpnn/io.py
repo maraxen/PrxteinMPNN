@@ -99,6 +99,27 @@ def string_to_protein_sequence(
   )
 
 
+def protein_sequence_to_string(
+  sequence: ProteinSequence,
+  aa_map: dict | None = None,
+) -> str:
+  """Convert a ProteinSequence to a string.
+
+  Args:
+    sequence: A ProteinSequence containing amino acid type indices.
+    aa_map: A dictionary mapping amino acid type indices to their corresponding names. If None,
+      uses the default `restype_order` mapping.
+
+  Returns:
+    A string representation of the protein sequence.
+
+  """
+  if aa_map is None:
+    aa_map = restype_order
+
+  return "".join([aa_map.get(aa, "UNK") for aa in sequence])
+
+
 def residue_names_to_aatype(
   residue_names: np.ndarray,
   aa_map: dict | None = None,

@@ -19,6 +19,7 @@ if TYPE_CHECKING:
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
     AtomMask,
+    BackboneDihedrals,
     ChainIndex,
     InputBias,
     InputLengths,
@@ -54,37 +55,10 @@ class ProteinStructure:
   atom_mask: AtomMask
   residue_index: ResidueIndex
   chain_index: ChainIndex
-
-
-@dataclass(frozen=True)
-class DihedralStructure:
-  """Protein structure representation with dihedral angles.
-
-  Attributes:
-    dihedrals (jnp.ndarray): Dihedral angles in radians. Shape is (num_res, num_dihedrals),
-      where num_res is the number of residues and num_dihedrals is the number of dihedral angles
-      per residue (e.g., 7 for standard residues).
-    aatype (ProteinSequence): Amino-acid type for each residue represented as an integer between
-      0 and 20, where 20 is 'X'. Shape is (num_res,).
-    atom_mask (AtomMask): Binary float mask to indicate presence of a particular atom.
-      1.0 if an atom is present and 0.0 if not. This should be used for loss masking.
-      Shape is (num_res, num_atom_type).
-    residue_index (ResidueIndex): Residue index as used in PDB. It is not necessarily
-      continuous or 0-indexed. Shape is (num_res,).
-
-  """
-
-  phi_angles: jnp.ndarray
-  psi_angles: jnp.ndarray
-  omega_angles: jnp.ndarray
-  aatype: ProteinSequence
-  atom_mask: AtomMask
-  residue_index: ResidueIndex
-  chain_index: ChainIndex
+  dihedrals: BackboneDihedrals | None = None
 
 
 ProteinEnsemble = Iterator["ProteinStructure"]
-ProteinDihedralEnsemble = Iterator["DihedralStructure"]
 
 
 @dataclass(frozen=True)

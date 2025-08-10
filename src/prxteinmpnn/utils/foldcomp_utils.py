@@ -6,11 +6,16 @@ from collections.abc import Iterator, Sequence
 from functools import cache
 
 import foldcomp
+import jax.numpy as jnp
 import nest_asyncio
 
-from prxteinmpnn.io import from_string, protein_structure_to_model_inputs
+from prxteinmpnn.io import (
+  from_string,
+  protein_structure_to_model_inputs,
+  string_to_protein_sequence,
+)
 from prxteinmpnn.mpnn import ModelWeights, ProteinMPNNModelVersion, get_mpnn_model
-from prxteinmpnn.utils.data_structures import ModelInputs, ProteinStructure
+from prxteinmpnn.utils.data_structures import DihedralStructure, ModelInputs, ProteinStructure
 from prxteinmpnn.utils.types import ModelParameters
 
 
@@ -81,6 +86,62 @@ def _get_protein_structures_from_database(
   for _, pdb in proteins:
     protein_structure = from_string(pdb)
     yield protein_structure
+
+
+def _get_protein_dihdrals_from_database(
+  proteins: foldcomp.FoldcompDatabase,  # type: ignore[attr-access]
+) -> Iterator[DihedralStructure]:
+  """Retrieve protein dihedral structures from the FoldComp database.
+
+  Args:
+    proteins: The FoldComp protein database object.
+
+  Returns:
+    An iterator over DihedralStructure objects containing the dihedral angle data
+    for the specified protein IDs.
+
+  """
+  for _, fcz in proteins:
+    dihedrals = foldcomp.get_data(fcz)  # type: ignore[attr-access]
+    phi_angles = dihedrals["phi"]
+    psi_angles = dihedrals["psi"]
+    omega_angles = dihedrals["omega"]
+    residue_sequence = string_to_protein_sequence(dihedrals["residues"])
+    yield DihedralStructure(
+      phi_angles=phi_angles,
+      psi_angles=psi_angles,
+      omega_angles=omega_angles,
+      aatype=residue_sequence,
+      atom_mask=jnp.ones(len(residue_sequence)),
+      residue_index=jnp.arange(len(residue_sequence)),
+      chain_index=jnp.zeros(len(residue_sequence), dtype=jnp.int32),
+    )
+
+
+def get_dihedral_structures(
+  protein_ids: Sequence[str],
+  database: FoldCompDatabaseEnum = FoldCompDatabaseEnum.AFDB_REP_V4,
+) -> Iterator[DihedralStructure]:
+  """Retrieve protein dihedral structures from the FoldComp database.
+
+  Args:
+    protein_ids: A sequence of protein IDs to retrieve.
+    database: The FoldCompDatabase enum value specifying which database to use.
+
+  Returns:
+    An iterator over DihedralStructure objects containing the dihedral angle data
+    for the specified protein IDs.
+
+  Example:
+    >>> ids = ["P12345", "Q67890"]
+    >>> structures = get_dihderal_structures(ids)
+    >>> for struct in structures:
+    ...     print(struct)
+
+  """
+  _setup_foldcomp_database(database)
+  with foldcomp.open(database.value, ids=protein_ids, decompress=False) as proteins:  # type: ignore[attr-access]
+    yield from _get_protein_dihdrals_from_database(proteins)
 
 
 def get_protein_structures(

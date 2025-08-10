@@ -15,7 +15,12 @@ from jax import vmap
 
 from prxteinmpnn.utils.aa_convert import af_to_mpnn
 from prxteinmpnn.utils.coordinates import compute_cb_precise
-from prxteinmpnn.utils.data_structures import ModelInputs, ProteinEnsemble, ProteinStructure
+from prxteinmpnn.utils.data_structures import (
+  DihedralStructure,
+  ModelInputs,
+  ProteinEnsemble,
+  ProteinStructure,
+)
 from prxteinmpnn.utils.residue_constants import (
   atom_order,
   resname_to_idx,
@@ -292,8 +297,8 @@ def process_atom_array(
 
   atom_mask = atom37_indices != -1
 
-  coords_37 = jnp.zeros((num_residues, 37, 3), dtype=jnp.float32)
-  atom_mask_37 = jnp.zeros((num_residues, 37), dtype=jnp.float32)
+  coords_37 = jnp.zeros((num_residues, 37, 3), dtype=jnp.float64)
+  atom_mask_37 = jnp.zeros((num_residues, 37), dtype=jnp.bool)
 
   res_indices_flat = jnp.asarray(residue_inv_indices)[atom_mask]
   atom_indices_flat = atom37_indices[atom_mask]
@@ -301,7 +306,7 @@ def process_atom_array(
   coords_37 = coords_37.at[res_indices_flat, atom_indices_flat].set(
     jnp.asarray(atom_array.coord)[atom_mask],
   )
-  atom_mask_37 = atom_mask_37.at[res_indices_flat, atom_indices_flat].set(1.0)
+  atom_mask_37 = atom_mask_37.at[res_indices_flat, atom_indices_flat].set(1)
 
   aatype = residue_names_to_aatype(residue_names)
   nitrogen_mask = atom_mask_37[:, atom_map["N"]] == 1
@@ -317,6 +322,25 @@ def process_atom_array(
     atom_mask=atom_mask_37,
     residue_index=residue_indices,
     chain_index=chain_index,
+  )
+
+
+def process_atom_array_to_dihedrals(
+  atom_array: AtomArray,
+  atom_map: dict[str, int] | None = None,
+  chain_id: Sequence[str] | str | None = None,
+) -> DihedralStructure:
+  """Process an AtomArray to create a DihedralStructure."""
+  protein_structure = process_atom_array(atom_array, atom_map, chain_id)
+  phi, psi, omega = structure.dihedral_backbone(atom_array)
+  return DihedralStructure(
+    phi_angles=phi,
+    psi_angles=psi,
+    omega_angles=omega,
+    aatype=protein_structure.aatype,
+    atom_mask=protein_structure.atom_mask,
+    residue_index=protein_structure.residue_index,
+    chain_index=protein_structure.chain_index,
   )
 
 
@@ -420,7 +444,6 @@ def from_string(
   pdb_file = PDBFile.read(StringIO(pdb_string))
   atom_array = pdb_file.get_structure(
     model=model,
-    extra_fields=["b_factor"],
   )
 
   if isinstance(atom_array, AtomArrayStack) and atom_array.stack_depth() > 0:

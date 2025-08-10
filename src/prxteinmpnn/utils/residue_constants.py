@@ -364,6 +364,7 @@ residue_atoms = {
   "VAL": ["C", "CA", "CB", "CG1", "CG2", "N", "O"],
 }
 
+
 # Naming swaps for ambiguous atom names.
 # Due to symmetries in the amino acids the naming of atoms is ambiguous in
 # 4 of the 20 amino acids.

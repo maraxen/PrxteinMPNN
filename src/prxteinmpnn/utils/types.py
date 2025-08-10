@@ -45,3 +45,4 @@ CEELoss = Float[Array, ""]  # Cross-entropy loss
 SamplingHyperparameters = tuple[float | int, ...]
 
 AlphaCarbonMask = Int[Array, "num_residues 3"]
+BackboneDihedrals = Float[Array, "num_residues 3"]  # Dihedral angles for backbone atoms

@@ -425,9 +425,7 @@ document.write(`
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils._setup_foldcomp_database"><code class="docutils literal notranslate"><span class="pre">_setup_foldcomp_database()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils._get_protein_structures_from_database"><code class="docutils literal notranslate"><span class="pre">_get_protein_structures_from_database()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils._get_protein_dihdrals_from_database"><code class="docutils literal notranslate"><span class="pre">_get_protein_dihdrals_from_database()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.get_dihedral_structures"><code class="docutils literal notranslate"><span class="pre">get_dihedral_structures()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils._from_fcz"><code class="docutils literal notranslate"><span class="pre">_from_fcz()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.get_protein_structures"><code class="docutils literal notranslate"><span class="pre">get_protein_structures()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.model_from_id"><code class="docutils literal notranslate"><span class="pre">model_from_id()</span></code></a></li>
 </ul>
@@ -588,9 +586,9 @@ document.write(`
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils._get_protein_structures_from_database">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.foldcomp_utils.</span></span><span class="sig-name descname"><span class="pre">_get_protein_structures_from_database</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">proteins</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/foldcomp_utils.html#_get_protein_structures_from_database"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils._get_protein_structures_from_database" title="Link to this definition">#</a></dt>
-<dd><p>Retrieve protein structures from the FoldComp database.</p>
+<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils._from_fcz">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.foldcomp_utils.</span></span><span class="sig-name descname"><span class="pre">_from_fcz</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">proteins</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/foldcomp_utils.html#_from_fcz"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils._from_fcz" title="Link to this definition">#</a></dt>
+<dd><p>Retrieve protein dihedral structures from the FoldComp database.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>proteins</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">FoldcompDatabase</span></code></span>) – The FoldComp protein database object.</p>
@@ -599,56 +597,10 @@ document.write(`
 <dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Iterator" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Iterator</span></code></a>[<a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinStructure" title="prxteinmpnn.utils.data_structures.ProteinStructure"><code class="xref py py-class docutils literal notranslate"><span class="pre">ProteinStructure</span></code></a>]</span></p>
 </dd>
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>An iterator over ProteinStructure objects containing the structure data
-for the specified protein IDs.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils._get_protein_dihdrals_from_database">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.foldcomp_utils.</span></span><span class="sig-name descname"><span class="pre">_get_protein_dihdrals_from_database</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">proteins</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/foldcomp_utils.html#_get_protein_dihdrals_from_database"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils._get_protein_dihdrals_from_database" title="Link to this definition">#</a></dt>
-<dd><p>Retrieve protein dihedral structures from the FoldComp database.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>proteins</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">FoldcompDatabase</span></code></span>) – The FoldComp protein database object.</p>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Iterator" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Iterator</span></code></a>[<a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.DihedralStructure" title="prxteinmpnn.utils.data_structures.DihedralStructure"><code class="xref py py-class docutils literal notranslate"><span class="pre">DihedralStructure</span></code></a>]</span></p>
-</dd>
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p>An iterator over DihedralStructure objects containing the dihedral angle data
 for the specified protein IDs.</p>
 </dd>
 </dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="prxteinmpnn.utils.foldcomp_utils.get_dihedral_structures">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.foldcomp_utils.</span></span><span class="sig-name descname"><span class="pre">get_dihedral_structures</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">protein_ids</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">database</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">FoldCompDatabaseEnum.AFDB_REP_V4</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/foldcomp_utils.html#get_dihedral_structures"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.foldcomp_utils.get_dihedral_structures" title="Link to this definition">#</a></dt>
-<dd><p>Retrieve protein dihedral structures from the FoldComp database.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>protein_ids</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Sequence</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]</span>) – A sequence of protein IDs to retrieve.</p></li>
-<li><p><strong>database</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum" title="prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum"><code class="xref py py-class docutils literal notranslate"><span class="pre">FoldCompDatabaseEnum</span></code></a></span>) – The FoldCompDatabase enum value specifying which database to use.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Iterator" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Iterator</span></code></a>[<a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.DihedralStructure" title="prxteinmpnn.utils.data_structures.DihedralStructure"><code class="xref py py-class docutils literal notranslate"><span class="pre">DihedralStructure</span></code></a>]</span></p>
-</dd>
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>An iterator over DihedralStructure objects containing the dihedral angle data
-for the specified protein IDs.</p>
-</dd>
-</dl>
-<p class="rubric">Example</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">ids</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;P12345&quot;</span><span class="p">,</span> <span class="s2">&quot;Q67890&quot;</span><span class="p">]</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">structures</span> <span class="o">=</span> <span class="n">get_dihderal_structures</span><span class="p">(</span><span class="n">ids</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">struct</span> <span class="ow">in</span> <span class="n">structures</span><span class="p">:</span>
-<span class="gp">... </span>    <span class="nb">print</span><span class="p">(</span><span class="n">struct</span><span class="p">)</span>
-</pre></div>
-</div>
 </dd></dl>
 
 <dl class="py function">
@@ -782,9 +734,7 @@ for the specified protein IDs.</p>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils._setup_foldcomp_database"><code class="docutils literal notranslate"><span class="pre">_setup_foldcomp_database()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils._get_protein_structures_from_database"><code class="docutils literal notranslate"><span class="pre">_get_protein_structures_from_database()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils._get_protein_dihdrals_from_database"><code class="docutils literal notranslate"><span class="pre">_get_protein_dihdrals_from_database()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.get_dihedral_structures"><code class="docutils literal notranslate"><span class="pre">get_dihedral_structures()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils._from_fcz"><code class="docutils literal notranslate"><span class="pre">_from_fcz()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.get_protein_structures"><code class="docutils literal notranslate"><span class="pre">get_protein_structures()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.foldcomp_utils.model_from_id"><code class="docutils literal notranslate"><span class="pre">model_from_id()</span></code></a></li>
 </ul>

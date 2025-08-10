@@ -405,7 +405,38 @@ document.write(`
 
 
 
+<div class="viewcode-block" id="DihedralStructure">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.DihedralStructure">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">DihedralStructure</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Protein structure representation with dihedral angles.</span>
+
+<span class="sd">  Attributes:</span>
+<span class="sd">    dihedrals (jnp.ndarray): Dihedral angles in radians. Shape is (num_res, num_dihedrals),</span>
+<span class="sd">      where num_res is the number of residues and num_dihedrals is the number of dihedral angles</span>
+<span class="sd">      per residue (e.g., 7 for standard residues).</span>
+<span class="sd">    aatype (ProteinSequence): Amino-acid type for each residue represented as an integer between</span>
+<span class="sd">      0 and 20, where 20 is &#39;X&#39;. Shape is (num_res,).</span>
+<span class="sd">    atom_mask (AtomMask): Binary float mask to indicate presence of a particular atom.</span>
+<span class="sd">      1.0 if an atom is present and 0.0 if not. This should be used for loss masking.</span>
+<span class="sd">      Shape is (num_res, num_atom_type).</span>
+<span class="sd">    residue_index (ResidueIndex): Residue index as used in PDB. It is not necessarily</span>
+<span class="sd">      continuous or 0-indexed. Shape is (num_res,).</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+
+  <span class="n">phi_angles</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span>
+  <span class="n">psi_angles</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span>
+  <span class="n">omega_angles</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span>
+  <span class="n">aatype</span><span class="p">:</span> <span class="n">ProteinSequence</span>
+  <span class="n">atom_mask</span><span class="p">:</span> <span class="n">AtomMask</span>
+  <span class="n">residue_index</span><span class="p">:</span> <span class="n">ResidueIndex</span>
+  <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span></div>
+
+
+
 <span class="n">ProteinEnsemble</span> <span class="o">=</span> <span class="n">Iterator</span><span class="p">[</span><span class="s2">&quot;ProteinStructure&quot;</span><span class="p">]</span>
+<span class="n">ProteinDihedralEnsemble</span> <span class="o">=</span> <span class="n">Iterator</span><span class="p">[</span><span class="s2">&quot;DihedralStructure&quot;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="ModelInputs">

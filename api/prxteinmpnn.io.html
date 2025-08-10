@@ -404,6 +404,7 @@ document.write(`
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io._process_chain_id"><code class="docutils literal notranslate"><span class="pre">_process_chain_id()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io._fill_in_cb_coordinates"><code class="docutils literal notranslate"><span class="pre">_fill_in_cb_coordinates()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io.process_atom_array"><code class="docutils literal notranslate"><span class="pre">process_atom_array()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io.process_atom_array_to_dihedrals"><code class="docutils literal notranslate"><span class="pre">process_atom_array_to_dihedrals()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io.from_structure_file"><code class="docutils literal notranslate"><span class="pre">from_structure_file()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io.from_trajectory"><code class="docutils literal notranslate"><span class="pre">from_trajectory()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io.from_string"><code class="docutils literal notranslate"><span class="pre">from_string()</span></code></a></li>
@@ -647,6 +648,24 @@ uses the default <cite>restype_order</cite> mapping.</p></li>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.io.process_atom_array_to_dihedrals">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.io.</span></span><span class="sig-name descname"><span class="pre">process_atom_array_to_dihedrals</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atom_array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">atom_map</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chain_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/io.html#process_atom_array_to_dihedrals"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.io.process_atom_array_to_dihedrals" title="Link to this definition">#</a></dt>
+<dd><p>Process an AtomArray to create a DihedralStructure.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.DihedralStructure" title="prxteinmpnn.utils.data_structures.DihedralStructure"><code class="xref py py-class docutils literal notranslate"><span class="pre">DihedralStructure</span></code></a></span></p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>atom_array</strong> (<em>AtomArray</em>)</p></li>
+<li><p><strong>atom_map</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><em>dict</em></a><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em>, </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a><em>] </em><em>| </em><em>None</em>)</p></li>
+<li><p><strong>chain_id</strong> (<a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.13)"><em>Sequence</em></a><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em>] </em><em>| </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em> | </em><em>None</em>)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="prxteinmpnn.io.from_structure_file">
 <span class="sig-prename descclassname"><span class="pre">prxteinmpnn.io.</span></span><span class="sig-name descname"><span class="pre">from_structure_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chain_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/io.html#from_structure_file"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.io.from_structure_file" title="Link to this definition">#</a></dt>
 <dd><p>Construct a Protein object from a structure file (PDB, PDBx/mmCIF).</p>
@@ -800,6 +819,7 @@ structure is parsed.</p></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io._process_chain_id"><code class="docutils literal notranslate"><span class="pre">_process_chain_id()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io._fill_in_cb_coordinates"><code class="docutils literal notranslate"><span class="pre">_fill_in_cb_coordinates()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io.process_atom_array"><code class="docutils literal notranslate"><span class="pre">process_atom_array()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io.process_atom_array_to_dihedrals"><code class="docutils literal notranslate"><span class="pre">process_atom_array_to_dihedrals()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io.from_structure_file"><code class="docutils literal notranslate"><span class="pre">from_structure_file()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io.from_trajectory"><code class="docutils literal notranslate"><span class="pre">from_trajectory()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.io.from_string"><code class="docutils literal notranslate"><span class="pre">from_string()</span></code></a></li>

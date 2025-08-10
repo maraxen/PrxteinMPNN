@@ -16,7 +16,6 @@ from jax import vmap
 from prxteinmpnn.utils.aa_convert import af_to_mpnn
 from prxteinmpnn.utils.coordinates import compute_cb_precise
 from prxteinmpnn.utils.data_structures import (
-  DihedralStructure,
   ModelInputs,
   ProteinEnsemble,
   ProteinStructure,
@@ -315,6 +314,8 @@ def process_atom_array(
   atom_mask_37 = atom_mask_37[nitrogen_mask]
   residue_indices = residue_indices[nitrogen_mask]
   chain_index = chain_index[nitrogen_mask]
+  phi, psi, omega = structure.dihedral_backbone(atom_array)
+  dihedrals = jnp.stack([phi, psi, omega], axis=-1) if phi is not None else None
 
   return ProteinStructure(
     coordinates=coords_37,
@@ -322,25 +323,7 @@ def process_atom_array(
     atom_mask=atom_mask_37,
     residue_index=residue_indices,
     chain_index=chain_index,
-  )
-
-
-def process_atom_array_to_dihedrals(
-  atom_array: AtomArray,
-  atom_map: dict[str, int] | None = None,
-  chain_id: Sequence[str] | str | None = None,
-) -> DihedralStructure:
-  """Process an AtomArray to create a DihedralStructure."""
-  protein_structure = process_atom_array(atom_array, atom_map, chain_id)
-  phi, psi, omega = structure.dihedral_backbone(atom_array)
-  return DihedralStructure(
-    phi_angles=phi,
-    psi_angles=psi,
-    omega_angles=omega,
-    aatype=protein_structure.aatype,
-    atom_mask=protein_structure.atom_mask,
-    residue_index=protein_structure.residue_index,
-    chain_index=protein_structure.chain_index,
+    dihedrals=dihedrals,
   )
 
 
@@ -410,7 +393,6 @@ def from_trajectory(
   atom_stack = structure_io.load_structure(
     trajectory_file,
     template=topology_file,
-    extra_fields=["b_factor"],
   )
 
   if not isinstance(atom_stack, AtomArrayStack):

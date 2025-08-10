@@ -352,6 +352,7 @@ document.write(`
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">enum</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterator</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
@@ -364,7 +365,6 @@ document.write(`
   <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">AlphaCarbonMask</span><span class="p">,</span>
     <span class="n">AtomMask</span><span class="p">,</span>
-    <span class="n">BFactors</span><span class="p">,</span>
     <span class="n">ChainIndex</span><span class="p">,</span>
     <span class="n">InputBias</span><span class="p">,</span>
     <span class="n">InputLengths</span><span class="p">,</span>
@@ -394,9 +394,6 @@ document.write(`
 <span class="sd">      Shape is [num_res, num_atom_type].</span>
 <span class="sd">    residue_index (AtomResidueIndex): Residue index as used in PDB. It is not necessarily</span>
 <span class="sd">      continuous or 0-indexed. Shape is [num_res].</span>
-<span class="sd">    b_factors (BFactors): B-factors, or temperature factors, of each residue</span>
-<span class="sd">      (in sq. angstroms units), representing the displacement of the residue from its ground truth</span>
-<span class="sd">      mean value. Shape is [num_res, num_atom_type].</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
 
@@ -404,9 +401,11 @@ document.write(`
   <span class="n">aatype</span><span class="p">:</span> <span class="n">ProteinSequence</span>
   <span class="n">atom_mask</span><span class="p">:</span> <span class="n">AtomMask</span>
   <span class="n">residue_index</span><span class="p">:</span> <span class="n">ResidueIndex</span>
-  <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span>
-  <span class="n">b_factors</span><span class="p">:</span> <span class="n">BFactors</span></div>
+  <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span></div>
 
+
+
+<span class="n">ProteinEnsemble</span> <span class="o">=</span> <span class="n">Iterator</span><span class="p">[</span><span class="s2">&quot;ProteinStructure&quot;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="ModelInputs">

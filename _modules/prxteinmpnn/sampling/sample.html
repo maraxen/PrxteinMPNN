@@ -489,7 +489,7 @@ document.write(`
     <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span><span class="p">,</span>
     <span class="n">bias</span><span class="p">:</span> <span class="n">InputBias</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">k_neighbors</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">48</span><span class="p">,</span>
-    <span class="n">augment_eps</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>  <span class="c1"># TODO(mar): maybe move k_neighbors and augment_eps to factory args # noqa: TD003, FIX002, E501</span>
+    <span class="n">augment_eps</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
     <span class="n">hyperparameters</span><span class="p">:</span> <span class="n">SamplingHyperparameters</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,),</span>
     <span class="n">iterations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
   <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span>
@@ -552,7 +552,7 @@ document.write(`
       <span class="n">initial_carry</span><span class="p">,</span>
     <span class="p">)</span>
 
-    <span class="k">return</span> <span class="n">final_carry</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="n">final_carry</span><span class="p">[</span><span class="mi">4</span><span class="p">],</span> <span class="n">decoding_order</span>
+    <span class="k">return</span> <span class="n">final_carry</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="n">final_carry</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span> <span class="o">+</span> <span class="n">bias</span><span class="p">,</span> <span class="n">decoding_order</span>
 
   <span class="k">if</span> <span class="n">sampling_inputs</span><span class="p">:</span>
     <span class="k">return</span> <span class="n">partial</span><span class="p">(</span>

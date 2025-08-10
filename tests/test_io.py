@@ -203,7 +203,6 @@ def test_process_atom_array(mock_atom_array: AtomArray):
   chex.assert_shape(protein_structure.aatype, (num_residues,))
   chex.assert_shape(protein_structure.atom_mask, (num_residues, num_atoms))
   chex.assert_shape(protein_structure.residue_index, (num_residues,))
-  chex.assert_shape(protein_structure.b_factors, (num_residues, num_atoms))
 
   # Expected aatype
   expected_aatype = af_to_mpnn(jnp.array([resname_to_idx["ALA"], resname_to_idx["CYS"]], dtype=jnp.int8))
@@ -213,11 +212,10 @@ def test_process_atom_array(mock_atom_array: AtomArray):
   expected_res_index = jnp.array([1, 2], dtype=jnp.int32)
   chex.assert_trees_all_close(protein_structure.residue_index, expected_res_index)
 
-  # Check coordinates, mask, and b-factors for a specific atom (ALA, CA)
+  # Check coordinates and mask for a specific atom (ALA, CA)
   ala_ca_coord = jnp.array([2.0, 3.0, 4.0])
   chex.assert_trees_all_close(protein_structure.coordinates[0, 1, :], ala_ca_coord)
   assert protein_structure.atom_mask[0, 1] == 1.0
-  assert protein_structure.b_factors[0, 1] == 11.0
 
   # Check that a non-standard atom was ignored
   cys_mask = protein_structure.atom_mask[1]
@@ -370,7 +368,6 @@ def test_from_string(mock_pdb_file_content):
   ala_ca_coord = jnp.array([2.0, 3.0, 4.0])
   chex.assert_trees_all_close(protein_structure.coordinates[0, 1, :], ala_ca_coord)
   assert protein_structure.atom_mask[0, 1] == 1.0
-  assert protein_structure.b_factors[0, 1] == 11.0
 
 
 def test_from_string_no_chain_filter(mock_pdb_file_content):

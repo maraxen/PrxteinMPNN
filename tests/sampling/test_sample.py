@@ -119,7 +119,7 @@ def test_make_sample_sequences(mock_model_parameters):
   residue_indices = jnp.arange(L)
   chain_indices = jnp.zeros((L,))
   key, sequence_key = jax.random.split(key)
-  initial_sequence = jax.random.randint(sequence_key, (L,), 0, 21, dtype=jnp.int32)
+  initial_sequence = jax.random.randint(sequence_key, (L,), 0, 21, dtype=jnp.int8)
   key, sample_key = jax.random.split(key)
 
   # Run sampling

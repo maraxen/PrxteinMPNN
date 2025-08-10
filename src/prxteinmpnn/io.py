@@ -1,7 +1,7 @@
 """Utilities for processing structure and trajectory files."""
 
 import pathlib
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from io import StringIO
 from typing import cast
 
@@ -15,7 +15,7 @@ from jax import vmap
 
 from prxteinmpnn.utils.aa_convert import af_to_mpnn
 from prxteinmpnn.utils.coordinates import compute_cb_precise
-from prxteinmpnn.utils.data_structures import ModelInputs, ProteinStructure
+from prxteinmpnn.utils.data_structures import ModelInputs, ProteinEnsemble, ProteinStructure
 from prxteinmpnn.utils.residue_constants import (
   atom_order,
   resname_to_idx,
@@ -294,7 +294,6 @@ def process_atom_array(
 
   coords_37 = jnp.zeros((num_residues, 37, 3), dtype=jnp.float32)
   atom_mask_37 = jnp.zeros((num_residues, 37), dtype=jnp.float32)
-  bfactors_37 = jnp.zeros((num_residues, 37), dtype=jnp.float32)
 
   res_indices_flat = jnp.asarray(residue_inv_indices)[atom_mask]
   atom_indices_flat = atom37_indices[atom_mask]
@@ -303,9 +302,6 @@ def process_atom_array(
     jnp.asarray(atom_array.coord)[atom_mask],
   )
   atom_mask_37 = atom_mask_37.at[res_indices_flat, atom_indices_flat].set(1.0)
-  bfactors_37 = bfactors_37.at[res_indices_flat, atom_indices_flat].set(
-    jnp.asarray(atom_array.b_factor)[atom_mask],
-  )
 
   aatype = residue_names_to_aatype(residue_names)
   nitrogen_mask = atom_mask_37[:, atom_map["N"]] == 1
@@ -314,7 +310,6 @@ def process_atom_array(
   atom_mask_37 = atom_mask_37[nitrogen_mask]
   residue_indices = residue_indices[nitrogen_mask]
   chain_index = chain_index[nitrogen_mask]
-  bfactors_37 = bfactors_37[nitrogen_mask]
 
   return ProteinStructure(
     coordinates=coords_37,
@@ -322,7 +317,6 @@ def process_atom_array(
     atom_mask=atom_mask_37,
     residue_index=residue_indices,
     chain_index=chain_index,
-    b_factors=bfactors_37,
   )
 
 
@@ -367,7 +361,7 @@ def from_trajectory(
   trajectory_file: str,
   topology_file: str | None = None,
   chain_id: str | Sequence[str] | None = None,
-) -> Iterator["ProteinStructure"]:
+) -> ProteinEnsemble:
   """Construct ProteinStructure objects from a trajectory file.
 
   This function reads a trajectory and yields a ProteinStructure for each frame.

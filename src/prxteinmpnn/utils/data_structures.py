@@ -6,6 +6,7 @@ prxteinmpnn.utils.data_structures
 from __future__ import annotations
 
 import enum
+from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
 import jax
@@ -18,7 +19,6 @@ if TYPE_CHECKING:
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
     AtomMask,
-    BFactors,
     ChainIndex,
     InputBias,
     InputLengths,
@@ -46,9 +46,6 @@ class ProteinStructure:
       Shape is [num_res, num_atom_type].
     residue_index (AtomResidueIndex): Residue index as used in PDB. It is not necessarily
       continuous or 0-indexed. Shape is [num_res].
-    b_factors (BFactors): B-factors, or temperature factors, of each residue
-      (in sq. angstroms units), representing the displacement of the residue from its ground truth
-      mean value. Shape is [num_res, num_atom_type].
 
   """
 
@@ -57,7 +54,9 @@ class ProteinStructure:
   atom_mask: AtomMask
   residue_index: ResidueIndex
   chain_index: ChainIndex
-  b_factors: BFactors
+
+
+ProteinEnsemble = Iterator["ProteinStructure"]
 
 
 @dataclass(frozen=True)

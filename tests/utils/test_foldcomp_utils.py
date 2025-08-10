@@ -31,7 +31,6 @@ def dummy_protein_structure() -> ProteinStructure:
     atom_mask=jnp.ones((10, 37)),
     residue_index=jnp.arange(10),
     chain_index=jnp.zeros(10, dtype=jnp.int32),
-    b_factors=jnp.zeros((10, 37)),
   )
 
 

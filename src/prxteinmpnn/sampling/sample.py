@@ -141,7 +141,7 @@ def make_sample_sequences(
     chain_index: ChainIndex,
     bias: InputBias | None = None,
     k_neighbors: int = 48,
-    augment_eps: float = 0.0,  # TODO(mar): maybe move k_neighbors and augment_eps to factory args # noqa: TD003, FIX002, E501
+    augment_eps: float = 0.0,
     hyperparameters: SamplingHyperparameters = (0.0,),
     iterations: int = 1,
   ) -> tuple[
@@ -204,7 +204,7 @@ def make_sample_sequences(
       initial_carry,
     )
 
-    return final_carry[3], final_carry[4], decoding_order
+    return final_carry[3], final_carry[4] + bias, decoding_order
 
   if sampling_inputs:
     return partial(

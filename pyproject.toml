@@ -15,6 +15,7 @@ dependencies = [
     "flax",
     "biotite",
     "foldcomp",
+    "gmmx",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",

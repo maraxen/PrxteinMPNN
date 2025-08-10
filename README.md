@@ -149,4 +149,4 @@ Contributions are welcome! Please see the [contributing guidelines](CONTRIBUTING
 
 ---
 
-*Built with ❤️ using JAX for the protein design community*
+## Built with ❤️ using JAX for the protein design community

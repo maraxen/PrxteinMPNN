@@ -362,7 +362,6 @@ document.write(`
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.aa_convert</span><span class="w"> </span><span class="kn">import</span> <span class="n">af_to_mpnn</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.coordinates</span><span class="w"> </span><span class="kn">import</span> <span class="n">compute_cb_precise</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.data_structures</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-  <span class="n">DihedralStructure</span><span class="p">,</span>
   <span class="n">ModelInputs</span><span class="p">,</span>
   <span class="n">ProteinEnsemble</span><span class="p">,</span>
   <span class="n">ProteinStructure</span><span class="p">,</span>
@@ -693,6 +692,8 @@ document.write(`
   <span class="n">atom_mask_37</span> <span class="o">=</span> <span class="n">atom_mask_37</span><span class="p">[</span><span class="n">nitrogen_mask</span><span class="p">]</span>
   <span class="n">residue_indices</span> <span class="o">=</span> <span class="n">residue_indices</span><span class="p">[</span><span class="n">nitrogen_mask</span><span class="p">]</span>
   <span class="n">chain_index</span> <span class="o">=</span> <span class="n">chain_index</span><span class="p">[</span><span class="n">nitrogen_mask</span><span class="p">]</span>
+  <span class="n">phi</span><span class="p">,</span> <span class="n">psi</span><span class="p">,</span> <span class="n">omega</span> <span class="o">=</span> <span class="n">structure</span><span class="o">.</span><span class="n">dihedral_backbone</span><span class="p">(</span><span class="n">atom_array</span><span class="p">)</span>
+  <span class="n">dihedrals</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">phi</span><span class="p">,</span> <span class="n">psi</span><span class="p">,</span> <span class="n">omega</span><span class="p">],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span> <span class="k">if</span> <span class="n">phi</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
 
   <span class="k">return</span> <span class="n">ProteinStructure</span><span class="p">(</span>
     <span class="n">coordinates</span><span class="o">=</span><span class="n">coords_37</span><span class="p">,</span>
@@ -700,28 +701,7 @@ document.write(`
     <span class="n">atom_mask</span><span class="o">=</span><span class="n">atom_mask_37</span><span class="p">,</span>
     <span class="n">residue_index</span><span class="o">=</span><span class="n">residue_indices</span><span class="p">,</span>
     <span class="n">chain_index</span><span class="o">=</span><span class="n">chain_index</span><span class="p">,</span>
-  <span class="p">)</span></div>
-
-
-
-<div class="viewcode-block" id="process_atom_array_to_dihedrals">
-<a class="viewcode-back" href="../../api/prxteinmpnn.io.html#prxteinmpnn.io.process_atom_array_to_dihedrals">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">process_atom_array_to_dihedrals</span><span class="p">(</span>
-  <span class="n">atom_array</span><span class="p">:</span> <span class="n">AtomArray</span><span class="p">,</span>
-  <span class="n">atom_map</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-  <span class="n">chain_id</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DihedralStructure</span><span class="p">:</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Process an AtomArray to create a DihedralStructure.&quot;&quot;&quot;</span>
-  <span class="n">protein_structure</span> <span class="o">=</span> <span class="n">process_atom_array</span><span class="p">(</span><span class="n">atom_array</span><span class="p">,</span> <span class="n">atom_map</span><span class="p">,</span> <span class="n">chain_id</span><span class="p">)</span>
-  <span class="n">phi</span><span class="p">,</span> <span class="n">psi</span><span class="p">,</span> <span class="n">omega</span> <span class="o">=</span> <span class="n">structure</span><span class="o">.</span><span class="n">dihedral_backbone</span><span class="p">(</span><span class="n">atom_array</span><span class="p">)</span>
-  <span class="k">return</span> <span class="n">DihedralStructure</span><span class="p">(</span>
-    <span class="n">phi_angles</span><span class="o">=</span><span class="n">phi</span><span class="p">,</span>
-    <span class="n">psi_angles</span><span class="o">=</span><span class="n">psi</span><span class="p">,</span>
-    <span class="n">omega_angles</span><span class="o">=</span><span class="n">omega</span><span class="p">,</span>
-    <span class="n">aatype</span><span class="o">=</span><span class="n">protein_structure</span><span class="o">.</span><span class="n">aatype</span><span class="p">,</span>
-    <span class="n">atom_mask</span><span class="o">=</span><span class="n">protein_structure</span><span class="o">.</span><span class="n">atom_mask</span><span class="p">,</span>
-    <span class="n">residue_index</span><span class="o">=</span><span class="n">protein_structure</span><span class="o">.</span><span class="n">residue_index</span><span class="p">,</span>
-    <span class="n">chain_index</span><span class="o">=</span><span class="n">protein_structure</span><span class="o">.</span><span class="n">chain_index</span><span class="p">,</span>
+    <span class="n">dihedrals</span><span class="o">=</span><span class="n">dihedrals</span><span class="p">,</span>
   <span class="p">)</span></div>
 
 
@@ -797,7 +777,6 @@ document.write(`
   <span class="n">atom_stack</span> <span class="o">=</span> <span class="n">structure_io</span><span class="o">.</span><span class="n">load_structure</span><span class="p">(</span>
     <span class="n">trajectory_file</span><span class="p">,</span>
     <span class="n">template</span><span class="o">=</span><span class="n">topology_file</span><span class="p">,</span>
-    <span class="n">extra_fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;b_factor&quot;</span><span class="p">],</span>
   <span class="p">)</span>
 
   <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">atom_stack</span><span class="p">,</span> <span class="n">AtomArrayStack</span><span class="p">):</span>

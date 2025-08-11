@@ -550,6 +550,18 @@ document.write(`
   <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="p">(</span><span class="n">new_node_features</span><span class="p">,</span> <span class="n">_</span><span class="p">)),</span> <span class="n">grad</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">value_and_grad</span><span class="p">(</span><span class="n">loss_fn</span><span class="p">,</span> <span class="n">has_aux</span><span class="o">=</span><span class="kc">True</span><span class="p">)(</span>
     <span class="n">current_logits</span><span class="p">,</span>
   <span class="p">)</span>
+
+  <span class="n">grad_norm</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">grad</span><span class="p">)</span>
+  <span class="n">has_nan</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">grad_norm</span><span class="p">)</span>
+  <span class="n">jax</span><span class="o">.</span><span class="n">debug</span><span class="o">.</span><span class="n">print</span><span class="p">(</span>
+    <span class="s2">&quot;➡️ Iteration </span><span class="si">{_i}</span><span class="s2">, Grad Norm: </span><span class="si">{n}</span><span class="s2">, Is NaN: </span><span class="si">{nan}</span><span class="s2">&quot;</span><span class="p">,</span>
+    <span class="n">_i</span><span class="o">=</span><span class="n">_i</span><span class="p">,</span>
+    <span class="n">n</span><span class="o">=</span><span class="n">grad_norm</span><span class="p">,</span>
+    <span class="n">nan</span><span class="o">=</span><span class="n">has_nan</span><span class="p">,</span>
+  <span class="p">)</span>
+  <span class="n">clip_threshold</span> <span class="o">=</span> <span class="mf">1.0</span>
+  <span class="n">grad</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">grad_norm</span> <span class="o">&gt;</span> <span class="n">clip_threshold</span><span class="p">,</span> <span class="n">grad</span> <span class="o">*</span> <span class="p">(</span><span class="n">clip_threshold</span> <span class="o">/</span> <span class="n">grad_norm</span><span class="p">),</span> <span class="n">grad</span><span class="p">)</span>
+
   <span class="n">updated_logits</span> <span class="o">=</span> <span class="n">current_logits</span> <span class="o">-</span> <span class="n">learning_rate</span> <span class="o">*</span> <span class="n">grad</span>
 
   <span class="n">updated_sequence</span> <span class="o">=</span> <span class="n">updated_logits</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>

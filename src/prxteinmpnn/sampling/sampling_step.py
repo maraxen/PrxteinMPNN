@@ -129,9 +129,6 @@ def sample_temperature_step(
   return next_prng_key, edge_features, node_features, sequence, logits
 
 
-DEFAULT_LEARNING_RATE = 1e-2
-
-
 def sample_straight_through_estimator_step(
   _i: int,
   carry: SamplingStepState,
@@ -140,7 +137,7 @@ def sample_straight_through_estimator_step(
   mask: AtomMask,
   autoregressive_mask: AutoRegressiveMask,
   model_parameters: ModelParameters,
-  hyperparameters: tuple[float] = (DEFAULT_LEARNING_RATE,),
+  hyperparameters: tuple[float, Logits],
 ) -> SamplingStepState:
   """Single autoregressive sampling step with straight-through estimator.
 
@@ -153,7 +150,7 @@ def sample_straight_through_estimator_step(
     autoregressive_mask: Mask for autoregressive decoding.
     model_parameters: Model parameters for the model.
     hyperparameters: Hyperparameters for the straight-through estimator. In this case, the
-      learning rate.
+      learning rate in the first position and the target logits in the second position.
 
   Returns:
     Updated carry state and None for scan output.
@@ -176,7 +173,7 @@ def sample_straight_through_estimator_step(
       carry,
 
   """
-  learning_rate = hyperparameters[0]
+  learning_rate, target_logits = hyperparameters
   prng_key, edge_features, node_features, sequence, initial_logits = carry
 
   @jax.jit
@@ -194,7 +191,7 @@ def sample_straight_through_estimator_step(
     )
     output_logits = final_projection(model_parameters, updated_node_features)
 
-    return ste_loss(output_logits, input_logits, mask), (updated_node_features, output_logits)
+    return ste_loss(output_logits, target_logits, mask), (updated_node_features, output_logits)
 
   (_, (new_node_features, final_logits)), grad = jax.value_and_grad(loss_fn, has_aux=True)(
     initial_logits,

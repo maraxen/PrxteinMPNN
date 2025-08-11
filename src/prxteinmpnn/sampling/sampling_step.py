@@ -173,7 +173,7 @@ def sample_straight_through_estimator_step(
       carry,
 
   """
-  learning_rate, target_logits = hyperparameters
+  learning_rate, target_logits = hyperparameters[0], hyperparameters[1]
   prng_key, edge_features, node_features, sequence, initial_logits = carry
 
   @jax.jit

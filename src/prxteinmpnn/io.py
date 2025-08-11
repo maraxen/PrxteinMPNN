@@ -13,7 +13,7 @@ from biotite.structure import io as structure_io
 from biotite.structure.io.pdb import PDBFile
 from jax import vmap
 
-from prxteinmpnn.utils.aa_convert import af_to_mpnn
+from prxteinmpnn.utils.aa_convert import af_to_mpnn, mpnn_to_af
 from prxteinmpnn.utils.coordinates import compute_cb_precise
 from prxteinmpnn.utils.data_structures import (
   ModelInputs,
@@ -121,7 +121,9 @@ def protein_sequence_to_string(
   if aa_map is None:
     aa_map = restype_order
 
-  return "".join([aa_map.get(aa, "UNK") for aa in sequence])
+  af_seq = mpnn_to_af(sequence)
+
+  return "".join([aa_map.get(aa, "UNK") for aa in af_seq])
 
 
 def residue_names_to_aatype(

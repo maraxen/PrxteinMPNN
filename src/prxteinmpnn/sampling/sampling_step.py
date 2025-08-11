@@ -196,6 +196,18 @@ def sample_straight_through_estimator_step(
   (_, (new_node_features, _)), grad = jax.value_and_grad(loss_fn, has_aux=True)(
     current_logits,
   )
+
+  grad_norm = jnp.linalg.norm(grad)
+  has_nan = jnp.isnan(grad_norm)
+  jax.debug.print(
+    "➡️ Iteration {_i}, Grad Norm: {n}, Is NaN: {nan}",
+    _i=_i,
+    n=grad_norm,
+    nan=has_nan,
+  )
+  clip_threshold = 1.0
+  grad = jnp.where(grad_norm > clip_threshold, grad * (clip_threshold / grad_norm), grad)
+
   updated_logits = current_logits - learning_rate * grad
 
   updated_sequence = updated_logits.argmax(axis=-1).astype(jnp.int8)

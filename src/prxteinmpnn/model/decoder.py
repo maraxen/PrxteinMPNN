@@ -407,6 +407,19 @@ def make_decoder(
         mask: AtomMask,
       ) -> NodeFeatures:
         """Run the decoder with the provided edge features and neighbor indices."""
+        nodes_expanded = jnp.tile(
+          jnp.expand_dims(node_features, -2),
+          [1, edge_features.shape[1], 1],
+        )
+        zeros_expanded = jnp.tile(
+          jnp.expand_dims(jnp.zeros_like(node_features), -2),
+          [1, edge_features.shape[1], 1],
+        )
+
+        decoder_input_features = jnp.concatenate(
+          [nodes_expanded, zeros_expanded, edge_features],
+          -1,
+        )
 
         def decoder_loop_body(
           i: Int,
@@ -416,7 +429,7 @@ def make_decoder(
           current_layer_params = jax.tree_util.tree_map(lambda x: x[i], all_decoder_layer_params)
           return decode_layer_fn(
             loop_node_features,
-            edge_features,
+            decoder_input_features,
             mask,
             current_layer_params,
             scale,

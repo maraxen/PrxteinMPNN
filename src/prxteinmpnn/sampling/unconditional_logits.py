@@ -13,6 +13,7 @@ from prxteinmpnn.model.encoder import make_encoder
 from prxteinmpnn.model.masked_attention import MaskedAttentionEnum
 from prxteinmpnn.model.projection import final_projection
 from prxteinmpnn.sampling.initialize import sampling_encode
+from prxteinmpnn.utils.data_structures import ModelInputs
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
   AtomMask,
@@ -46,6 +47,7 @@ ConditionalLogitsFn = Callable[
 def make_unconditional_logits_fn(
   model_parameters: ModelParameters,
   decoding_order_fn: DecodingOrderFn,
+  model_inputs: ModelInputs | None = None,
   num_encoder_layers: int = 3,
   num_decoder_layers: int = 3,
 ) -> ConditionalLogitsFn:
@@ -58,15 +60,8 @@ def make_unconditional_logits_fn(
   Args:
     model_parameters: A dictionary of the pre-trained ProteinMPNN model parameters.
     decoding_order_fn: A function that generates the decoding order.
-    structure_coordinates: A JAX array of shape `(L, 3)` containing the atomic coordinates
-      of the protein structure.
-    sequence: A JAX array of shape `(L,)` representing the one-hot encoded protein sequence.
-    mask: A JAX array of shape `(L,)` with a boolean mask for valid atoms.
-    residue_index: A JAX array of shape `(L,)` with the residue indices.
-    chain_index: A JAX array of shape `(L,)` with the chain indices.
-    prng_key: JAX pseudo-random number generator key for feature augmentation.
-    bias: An optional JAX array of shape `(L, 21)` to add a bias to the final logits. Defaults to
-      None.
+    model_inputs: Optional ModelInputs containing structure coordinates, mask, residue index,
+      and chain index. If provided, these will be used directly in the logits computation.
     k_neighbors: The number of neighbors to consider for each residue. Defaults to 48.
     augment_eps: The epsilon value for data augmentation. Defaults to 0.0.
     num_encoder_layers: The number of encoder layers to use. Defaults to 3.
@@ -115,7 +110,7 @@ def make_unconditional_logits_fn(
   )
 
   @partial(jax.jit, static_argnames=("k_neighbors", "augment_eps"))
-  def uncondition_logits(
+  def unconditioned_logits(
     prng_key: PRNGKeyArray,
     structure_coordinates: StructureAtomicCoordinates,
     mask: AtomMask,
@@ -156,4 +151,13 @@ def make_unconditional_logits_fn(
 
     return logits + bias, decoded_node_features, edge_features
 
-  return uncondition_logits
+  if model_inputs is not None:
+    return partial(
+      unconditioned_logits,
+      structure_coordinates=model_inputs.structure_coordinates,
+      mask=model_inputs.mask,
+      residue_index=model_inputs.residue_index,
+      chain_index=model_inputs.chain_index,
+    )
+
+  return unconditioned_logits

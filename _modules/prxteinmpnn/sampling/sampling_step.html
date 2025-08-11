@@ -527,7 +527,7 @@ document.write(`
 <span class="sd">      carry,</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
-  <span class="n">learning_rate</span><span class="p">,</span> <span class="n">target_logits</span> <span class="o">=</span> <span class="n">hyperparameters</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">hyperparameters</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+  <span class="n">learning_rate</span><span class="p">,</span> <span class="n">_target_logits</span> <span class="o">=</span> <span class="n">hyperparameters</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">hyperparameters</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
   <span class="n">prng_key</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">initial_logits</span> <span class="o">=</span> <span class="n">carry</span>
 
   <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
@@ -545,7 +545,7 @@ document.write(`
     <span class="p">)</span>
     <span class="n">output_logits</span> <span class="o">=</span> <span class="n">final_projection</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="n">updated_node_features</span><span class="p">)</span>
 
-    <span class="k">return</span> <span class="n">ste_loss</span><span class="p">(</span><span class="n">output_logits</span><span class="p">,</span> <span class="n">target_logits</span><span class="p">,</span> <span class="n">mask</span><span class="p">),</span> <span class="p">(</span><span class="n">updated_node_features</span><span class="p">,</span> <span class="n">output_logits</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ste_loss</span><span class="p">(</span><span class="n">output_logits</span><span class="p">,</span> <span class="n">input_logits</span><span class="p">,</span> <span class="n">mask</span><span class="p">),</span> <span class="p">(</span><span class="n">updated_node_features</span><span class="p">,</span> <span class="n">output_logits</span><span class="p">)</span>
 
   <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="p">(</span><span class="n">new_node_features</span><span class="p">,</span> <span class="n">final_logits</span><span class="p">)),</span> <span class="n">grad</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">value_and_grad</span><span class="p">(</span><span class="n">loss_fn</span><span class="p">,</span> <span class="n">has_aux</span><span class="o">=</span><span class="kc">True</span><span class="p">)(</span>
     <span class="n">initial_logits</span><span class="p">,</span>

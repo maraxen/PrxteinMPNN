@@ -193,13 +193,13 @@ def sample_straight_through_estimator_step(
 
     return ste_loss(output_logits, target_logits, mask), (updated_node_features, output_logits)
 
-  (_, (new_node_features, final_logits)), grad = jax.value_and_grad(loss_fn, has_aux=True)(
+  (_, (new_node_features, _)), grad = jax.value_and_grad(loss_fn, has_aux=True)(
     current_logits,
   )
-  ste_logits = current_logits - learning_rate * grad
+  updated_logits = current_logits - learning_rate * grad
 
-  updated_sequence = ste_logits.argmax(axis=-1).astype(jnp.int8)
-  return prng_key, edge_features, new_node_features, updated_sequence, final_logits
+  updated_sequence = updated_logits.argmax(axis=-1).astype(jnp.int8)
+  return prng_key, edge_features, new_node_features, updated_sequence, updated_logits
 
 
 def preload_sampling_step_decoder(

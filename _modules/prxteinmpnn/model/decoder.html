@@ -712,6 +712,63 @@ document.write(`
     <span class="n">decoding_enum</span><span class="p">,</span>
     <span class="n">num_decoder_layers</span><span class="p">,</span>
   <span class="p">)</span>
+  <span class="k">if</span> <span class="n">decoding_enum</span> <span class="ow">is</span> <span class="n">DecodingEnum</span><span class="o">.</span><span class="n">CONDITIONAL</span><span class="p">:</span>
+
+    <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">run_conditional_decoder</span><span class="p">(</span>
+      <span class="n">node_features</span><span class="p">:</span> <span class="n">NodeFeatures</span><span class="p">,</span>
+      <span class="n">edge_features</span><span class="p">:</span> <span class="n">EdgeFeatures</span><span class="p">,</span>
+      <span class="n">neighbor_indices</span><span class="p">:</span> <span class="n">NeighborIndices</span><span class="p">,</span>
+      <span class="n">mask</span><span class="p">:</span> <span class="n">AtomMask</span><span class="p">,</span>
+      <span class="n">ar_mask</span><span class="p">:</span> <span class="n">AutoRegressiveMask</span><span class="p">,</span>
+      <span class="n">sequence</span><span class="p">:</span> <span class="n">ProteinSequence</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NodeFeatures</span><span class="p">:</span>
+<span class="w">      </span><span class="sd">&quot;&quot;&quot;Run the decoder with the provided edge features and neighbor indices.&quot;&quot;&quot;</span>
+      <span class="n">node_edge_features</span><span class="p">,</span> <span class="n">sequence_edge_features</span> <span class="o">=</span> <span class="n">initialize_conditional_decoder</span><span class="p">(</span>
+        <span class="n">sequence</span><span class="p">,</span>
+        <span class="n">node_features</span><span class="p">,</span>
+        <span class="n">edge_features</span><span class="p">,</span>
+        <span class="n">neighbor_indices</span><span class="p">,</span>
+        <span class="n">model_parameters</span><span class="p">,</span>
+      <span class="p">)</span>
+      <span class="n">attention_mask</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">take_along_axis</span><span class="p">(</span>
+        <span class="n">ar_mask</span><span class="p">,</span>
+        <span class="n">neighbor_indices</span><span class="p">,</span>
+        <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+      <span class="p">)</span>
+      <span class="n">mask_bw</span> <span class="o">=</span> <span class="n">mask</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">attention_mask</span>
+      <span class="n">mask_fw</span> <span class="o">=</span> <span class="n">mask</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">attention_mask</span><span class="p">)</span>
+      <span class="n">masked_node_edge_features</span> <span class="o">=</span> <span class="n">mask_fw</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">node_edge_features</span>
+
+      <span class="k">def</span><span class="w"> </span><span class="nf">decoder_loop_body</span><span class="p">(</span>
+        <span class="n">i</span><span class="p">:</span> <span class="n">Int</span><span class="p">,</span>
+        <span class="n">carry</span><span class="p">:</span> <span class="n">NodeFeatures</span><span class="p">,</span>
+      <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NodeFeatures</span><span class="p">:</span>
+        <span class="n">loop_node_features</span> <span class="o">=</span> <span class="n">carry</span>
+        <span class="n">current_layer_params</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">all_decoder_layer_params</span><span class="p">)</span>
+        <span class="n">current_features</span> <span class="o">=</span> <span class="n">concatenate_neighbor_nodes</span><span class="p">(</span>
+          <span class="n">loop_node_features</span><span class="p">,</span>
+          <span class="n">sequence_edge_features</span><span class="p">,</span>
+          <span class="n">neighbor_indices</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">loop_edge_features</span> <span class="o">=</span> <span class="p">(</span><span class="n">mask_bw</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">current_features</span><span class="p">)</span> <span class="o">+</span> <span class="n">masked_node_edge_features</span>
+        <span class="k">return</span> <span class="n">decode_layer_fn</span><span class="p">(</span>
+          <span class="n">loop_node_features</span><span class="p">,</span>
+          <span class="n">loop_edge_features</span><span class="p">,</span>
+          <span class="n">mask</span><span class="p">,</span>
+          <span class="n">attention_mask</span><span class="p">,</span>
+          <span class="n">current_layer_params</span><span class="p">,</span>
+          <span class="n">scale</span><span class="p">,</span>
+        <span class="p">)</span>
+
+      <span class="k">return</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">fori_loop</span><span class="p">(</span>
+        <span class="mi">0</span><span class="p">,</span>
+        <span class="n">num_decoder_layers</span><span class="p">,</span>
+        <span class="n">decoder_loop_body</span><span class="p">,</span>
+        <span class="n">node_features</span><span class="p">,</span>
+      <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">run_conditional_decoder</span>
   <span class="k">if</span> <span class="n">decoding_enum</span> <span class="ow">is</span> <span class="n">DecodingEnum</span><span class="o">.</span><span class="n">UNCONDITIONAL</span><span class="p">:</span>
     <span class="k">if</span> <span class="n">attention_mask_enum</span> <span class="ow">is</span> <span class="n">MaskedAttentionEnum</span><span class="o">.</span><span class="n">NONE</span><span class="p">:</span>
 
@@ -778,63 +835,7 @@ document.write(`
       <span class="p">)</span>
 
     <span class="k">return</span> <span class="n">run_masked_attention_decoder</span>
-  <span class="k">if</span> <span class="n">decoding_enum</span> <span class="ow">is</span> <span class="n">DecodingEnum</span><span class="o">.</span><span class="n">CONDITIONAL</span><span class="p">:</span>
 
-    <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">run_conditional_decoder</span><span class="p">(</span>
-      <span class="n">node_features</span><span class="p">:</span> <span class="n">NodeFeatures</span><span class="p">,</span>
-      <span class="n">edge_features</span><span class="p">:</span> <span class="n">EdgeFeatures</span><span class="p">,</span>
-      <span class="n">neighbor_indices</span><span class="p">:</span> <span class="n">NeighborIndices</span><span class="p">,</span>
-      <span class="n">mask</span><span class="p">:</span> <span class="n">AtomMask</span><span class="p">,</span>
-      <span class="n">ar_mask</span><span class="p">:</span> <span class="n">AutoRegressiveMask</span><span class="p">,</span>
-      <span class="n">sequence</span><span class="p">:</span> <span class="n">ProteinSequence</span><span class="p">,</span>
-    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NodeFeatures</span><span class="p">:</span>
-<span class="w">      </span><span class="sd">&quot;&quot;&quot;Run the decoder with the provided edge features and neighbor indices.&quot;&quot;&quot;</span>
-      <span class="n">node_edge_features</span><span class="p">,</span> <span class="n">sequence_edge_features</span> <span class="o">=</span> <span class="n">initialize_conditional_decoder</span><span class="p">(</span>
-        <span class="n">sequence</span><span class="p">,</span>
-        <span class="n">node_features</span><span class="p">,</span>
-        <span class="n">edge_features</span><span class="p">,</span>
-        <span class="n">neighbor_indices</span><span class="p">,</span>
-        <span class="n">model_parameters</span><span class="p">,</span>
-      <span class="p">)</span>
-      <span class="n">attention_mask</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">take_along_axis</span><span class="p">(</span>
-        <span class="n">ar_mask</span><span class="p">,</span>
-        <span class="n">neighbor_indices</span><span class="p">,</span>
-        <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-      <span class="p">)</span>
-      <span class="n">mask_bw</span> <span class="o">=</span> <span class="n">mask</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">attention_mask</span>
-      <span class="n">mask_fw</span> <span class="o">=</span> <span class="n">mask</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">attention_mask</span><span class="p">)</span>
-      <span class="n">masked_node_edge_features</span> <span class="o">=</span> <span class="n">mask_fw</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">node_edge_features</span>
-
-      <span class="k">def</span><span class="w"> </span><span class="nf">decoder_loop_body</span><span class="p">(</span>
-        <span class="n">i</span><span class="p">:</span> <span class="n">Int</span><span class="p">,</span>
-        <span class="n">carry</span><span class="p">:</span> <span class="n">NodeFeatures</span><span class="p">,</span>
-      <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NodeFeatures</span><span class="p">:</span>
-        <span class="n">loop_node_features</span> <span class="o">=</span> <span class="n">carry</span>
-        <span class="n">current_layer_params</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">all_decoder_layer_params</span><span class="p">)</span>
-        <span class="n">current_features</span> <span class="o">=</span> <span class="n">concatenate_neighbor_nodes</span><span class="p">(</span>
-          <span class="n">loop_node_features</span><span class="p">,</span>
-          <span class="n">sequence_edge_features</span><span class="p">,</span>
-          <span class="n">neighbor_indices</span><span class="p">,</span>
-        <span class="p">)</span>
-        <span class="n">loop_edge_features</span> <span class="o">=</span> <span class="p">(</span><span class="n">mask_bw</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">current_features</span><span class="p">)</span> <span class="o">+</span> <span class="n">masked_node_edge_features</span>
-        <span class="k">return</span> <span class="n">decode_layer_fn</span><span class="p">(</span>
-          <span class="n">loop_node_features</span><span class="p">,</span>
-          <span class="n">loop_edge_features</span><span class="p">,</span>
-          <span class="n">mask</span><span class="p">,</span>
-          <span class="n">attention_mask</span><span class="p">,</span>
-          <span class="n">current_layer_params</span><span class="p">,</span>
-          <span class="n">scale</span><span class="p">,</span>
-        <span class="p">)</span>
-
-      <span class="k">return</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">fori_loop</span><span class="p">(</span>
-        <span class="mi">0</span><span class="p">,</span>
-        <span class="n">num_decoder_layers</span><span class="p">,</span>
-        <span class="n">decoder_loop_body</span><span class="p">,</span>
-        <span class="n">node_features</span><span class="p">,</span>
-      <span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">run_conditional_decoder</span>
   <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Unknown decoding enum: </span><span class="si">{</span><span class="n">decoding_enum</span><span class="si">}</span><span class="s2">&quot;</span>
   <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
 

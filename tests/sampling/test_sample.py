@@ -121,6 +121,7 @@ def test_make_sample_sequences(mock_model_parameters):
   key, sequence_key = jax.random.split(key)
   initial_sequence = jax.random.randint(sequence_key, (L,), 0, 21, dtype=jnp.int8)
   key, sample_key = jax.random.split(key)
+  hyperparameters = (0.01, jnp.zeros((L, 21), dtype=jnp.float32))
 
   # Run sampling
   sampled_sequence, logits, decoding_order = sample_sequences_fn(
@@ -130,6 +131,7 @@ def test_make_sample_sequences(mock_model_parameters):
     mask=mask,
     residue_index=residue_indices,
     chain_index=chain_indices,
+    hyperparameters=hyperparameters,
     k_neighbors=K,
     iterations=L,
   )

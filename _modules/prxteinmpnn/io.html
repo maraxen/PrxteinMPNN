@@ -359,7 +359,7 @@ document.write(`
 <span class="kn">from</span><span class="w"> </span><span class="nn">biotite.structure.io.pdb</span><span class="w"> </span><span class="kn">import</span> <span class="n">PDBFile</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">jax</span><span class="w"> </span><span class="kn">import</span> <span class="n">vmap</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.aa_convert</span><span class="w"> </span><span class="kn">import</span> <span class="n">af_to_mpnn</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.aa_convert</span><span class="w"> </span><span class="kn">import</span> <span class="n">af_to_mpnn</span><span class="p">,</span> <span class="n">mpnn_to_af</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.coordinates</span><span class="w"> </span><span class="kn">import</span> <span class="n">compute_cb_precise</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.data_structures</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
   <span class="n">ModelInputs</span><span class="p">,</span>
@@ -478,7 +478,9 @@ document.write(`
   <span class="k">if</span> <span class="n">aa_map</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
     <span class="n">aa_map</span> <span class="o">=</span> <span class="n">restype_order</span>
 
-  <span class="k">return</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">aa_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">aa</span><span class="p">,</span> <span class="s2">&quot;UNK&quot;</span><span class="p">)</span> <span class="k">for</span> <span class="n">aa</span> <span class="ow">in</span> <span class="n">sequence</span><span class="p">])</span></div>
+  <span class="n">af_seq</span> <span class="o">=</span> <span class="n">mpnn_to_af</span><span class="p">(</span><span class="n">sequence</span><span class="p">)</span>
+
+  <span class="k">return</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">aa_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">aa</span><span class="p">,</span> <span class="s2">&quot;UNK&quot;</span><span class="p">)</span> <span class="k">for</span> <span class="n">aa</span> <span class="ow">in</span> <span class="n">af_seq</span><span class="p">])</span></div>
 
 
 

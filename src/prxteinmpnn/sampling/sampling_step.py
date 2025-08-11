@@ -174,7 +174,7 @@ def sample_straight_through_estimator_step(
 
   """
   learning_rate, _target_logits = hyperparameters[0], hyperparameters[1]
-  prng_key, edge_features, node_features, sequence, initial_logits = carry
+  prng_key, edge_features, node_features, _sequence, current_logits = carry
 
   @jax.jit
   def loss_fn(input_logits: Logits) -> tuple[CEELoss, tuple[NodeFeatures, Logits]]:
@@ -194,9 +194,9 @@ def sample_straight_through_estimator_step(
     return ste_loss(output_logits, input_logits, mask), (updated_node_features, output_logits)
 
   (_, (new_node_features, final_logits)), grad = jax.value_and_grad(loss_fn, has_aux=True)(
-    initial_logits,
+    current_logits,
   )
-  ste_logits = initial_logits - learning_rate * grad
+  ste_logits = current_logits - learning_rate * grad
 
   updated_sequence = ste_logits.argmax(axis=-1).astype(jnp.int8)
   return prng_key, edge_features, new_node_features, updated_sequence, final_logits

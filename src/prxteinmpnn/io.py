@@ -98,8 +98,10 @@ def string_to_protein_sequence(
   if aa_map is None:
     unk_index = unk_restype_index
 
-  return string_key_to_index(np.array(list(sequence), dtype="U3"), aa_map, unk_index).astype(
-    jnp.int8,
+  return af_to_mpnn(
+    string_key_to_index(np.array(list(sequence), dtype="U3"), aa_map, unk_index).astype(
+      jnp.int8,
+    ),
   )
 
 

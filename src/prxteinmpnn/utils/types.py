@@ -1,6 +1,6 @@
 """Type definitions for the PrxteinMPNN project."""
 
-from jaxtyping import Array, Bool, Float, Int, PRNGKeyArray, PyTree
+from jaxtyping import Array, ArrayLike, Bool, Float, Int, PRNGKeyArray, PyTree
 
 NodeFeatures = Int[Array, "num_atoms num_features"]  # Node features
 EdgeFeatures = Float[Array, "num_atoms num_neighbors num_features"]  # Edge features
@@ -42,7 +42,7 @@ ChainIndex = Int[Array, "num_residues"]  # Index of chains in the structure
 DecodingOrderInputs = tuple[PRNGKeyArray, int]
 DecodingOrderOutputs = tuple[DecodingOrder, PRNGKeyArray]
 CEELoss = Float[Array, ""]  # Cross-entropy loss
-SamplingHyperparameters = tuple[float | int, ...]
+SamplingHyperparameters = tuple[float | int | ArrayLike, ...]
 
 AlphaCarbonMask = Int[Array, "num_residues 3"]
 BackboneDihedrals = Float[Array, "num_residues 3"]  # Dihedral angles for backbone atoms

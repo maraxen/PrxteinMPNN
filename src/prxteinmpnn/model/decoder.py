@@ -340,6 +340,63 @@ def make_decoder(
     decoding_enum,
     num_decoder_layers,
   )
+  if decoding_enum is DecodingEnum.CONDITIONAL:
+
+    @jax.jit
+    def run_conditional_decoder(
+      node_features: NodeFeatures,
+      edge_features: EdgeFeatures,
+      neighbor_indices: NeighborIndices,
+      mask: AtomMask,
+      ar_mask: AutoRegressiveMask,
+      sequence: ProteinSequence,
+    ) -> NodeFeatures:
+      """Run the decoder with the provided edge features and neighbor indices."""
+      node_edge_features, sequence_edge_features = initialize_conditional_decoder(
+        sequence,
+        node_features,
+        edge_features,
+        neighbor_indices,
+        model_parameters,
+      )
+      attention_mask = jnp.take_along_axis(
+        ar_mask,
+        neighbor_indices,
+        axis=1,
+      )
+      mask_bw = mask[:, None] * attention_mask
+      mask_fw = mask[:, None] * (1 - attention_mask)
+      masked_node_edge_features = mask_fw[..., None] * node_edge_features
+
+      def decoder_loop_body(
+        i: Int,
+        carry: NodeFeatures,
+      ) -> NodeFeatures:
+        loop_node_features = carry
+        current_layer_params = jax.tree_util.tree_map(lambda x: x[i], all_decoder_layer_params)
+        current_features = concatenate_neighbor_nodes(
+          loop_node_features,
+          sequence_edge_features,
+          neighbor_indices,
+        )
+        loop_edge_features = (mask_bw[..., None] * current_features) + masked_node_edge_features
+        return decode_layer_fn(
+          loop_node_features,
+          loop_edge_features,
+          mask,
+          attention_mask,
+          current_layer_params,
+          scale,
+        )
+
+      return jax.lax.fori_loop(
+        0,
+        num_decoder_layers,
+        decoder_loop_body,
+        node_features,
+      )
+
+    return run_conditional_decoder
   if decoding_enum is DecodingEnum.UNCONDITIONAL:
     if attention_mask_enum is MaskedAttentionEnum.NONE:
 
@@ -406,62 +463,6 @@ def make_decoder(
       )
 
     return run_masked_attention_decoder
-  if decoding_enum is DecodingEnum.CONDITIONAL:
 
-    @jax.jit
-    def run_conditional_decoder(
-      node_features: NodeFeatures,
-      edge_features: EdgeFeatures,
-      neighbor_indices: NeighborIndices,
-      mask: AtomMask,
-      ar_mask: AutoRegressiveMask,
-      sequence: ProteinSequence,
-    ) -> NodeFeatures:
-      """Run the decoder with the provided edge features and neighbor indices."""
-      node_edge_features, sequence_edge_features = initialize_conditional_decoder(
-        sequence,
-        node_features,
-        edge_features,
-        neighbor_indices,
-        model_parameters,
-      )
-      attention_mask = jnp.take_along_axis(
-        ar_mask,
-        neighbor_indices,
-        axis=1,
-      )
-      mask_bw = mask[:, None] * attention_mask
-      mask_fw = mask[:, None] * (1 - attention_mask)
-      masked_node_edge_features = mask_fw[..., None] * node_edge_features
-
-      def decoder_loop_body(
-        i: Int,
-        carry: NodeFeatures,
-      ) -> NodeFeatures:
-        loop_node_features = carry
-        current_layer_params = jax.tree_util.tree_map(lambda x: x[i], all_decoder_layer_params)
-        current_features = concatenate_neighbor_nodes(
-          loop_node_features,
-          sequence_edge_features,
-          neighbor_indices,
-        )
-        loop_edge_features = (mask_bw[..., None] * current_features) + masked_node_edge_features
-        return decode_layer_fn(
-          loop_node_features,
-          loop_edge_features,
-          mask,
-          attention_mask,
-          current_layer_params,
-          scale,
-        )
-
-      return jax.lax.fori_loop(
-        0,
-        num_decoder_layers,
-        decoder_loop_body,
-        node_features,
-      )
-
-    return run_conditional_decoder
   msg = f"Unknown decoding enum: {decoding_enum}"
   raise ValueError(msg)

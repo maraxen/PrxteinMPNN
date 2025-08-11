@@ -527,7 +527,7 @@ document.write(`
 <span class="sd">      carry,</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
-  <span class="n">learning_rate</span><span class="p">,</span> <span class="n">target_logits</span> <span class="o">=</span> <span class="n">hyperparameters</span>
+  <span class="n">learning_rate</span><span class="p">,</span> <span class="n">target_logits</span> <span class="o">=</span> <span class="n">hyperparameters</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">hyperparameters</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
   <span class="n">prng_key</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">initial_logits</span> <span class="o">=</span> <span class="n">carry</span>
 
   <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>

@@ -137,6 +137,7 @@ def sample_temperature_step(
     initial_inner_carry,
   )
 
+  output_sequence = output_sequence.argmax(axis=-1).astype(jnp.int8)
   return final_new_loop_key, edge_features, node_features, output_sequence, logits
 
 

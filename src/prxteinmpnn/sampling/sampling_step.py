@@ -96,6 +96,7 @@ def sample_temperature_step(
     current_key,
   )
   decoding_order = jnp.argsort(jnp.sum(autoregressive_mask, axis=1))
+  jax.debug.print("Decoding order: {}", decoding_order)
   num_residues = node_features.shape[0]
 
   def update_sequence(
@@ -114,6 +115,7 @@ def sample_temperature_step(
       one_hot_sequence,
     )
     logits = final_projection(model_parameters, updated_node_features)
+    jax.debug.print("Step {i}, logits at pos 10: {logits}", i=i, logits=all_logits[10, :5])
     gumbel_key, next_loop_key = jax.random.split(loop_key)
     position_logits = (logits[position] / temperature) + jax.random.gumbel(
       gumbel_key,

@@ -123,7 +123,7 @@ def sample_temperature_step(
       temperature_key,
       logits[position].shape,
     )
-    jax.debug.print("Logits at position {i}: {logits}", i=i, logits=logits[position])
+    jax.debug.print("Logits at position {i}: {logits}", i=i, logits=logits)
     new_aa = logits.argmax(axis=-1).astype(jnp.int8)
     jax.debug.print("New amino acid at position {i}: {new_aa}", i=i, new_aa=new_aa)
     sequence = sequence.at[position].set(new_aa)

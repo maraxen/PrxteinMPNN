@@ -17,15 +17,18 @@ from prxteinmpnn.utils.types import (
   AtomMask,
   AutoRegressiveMask,
   CEELoss,
+  ChainIndex,
   Logits,
   ModelParameters,
   NeighborIndices,
   NodeFeatures,
   ProteinSequence,
+  ResidueIndex,
   SamplingHyperparameters,
   SequenceEdgeFeatures,
 )
 
+from .initialize import SamplingModelPassOutput
 from .ste import ste_loss, straight_through_estimator
 
 SamplingStepState = tuple[
@@ -41,6 +44,8 @@ SamplingStepFn = Callable[
   [*SamplingStepInput],
   SamplingStepState,
 ]
+
+SampleModelPassOnlyPRNGFn = Callable[[PRNGKeyArray], SamplingModelPassOutput]
 
 
 class SamplingEnum(enum.Enum):
@@ -135,8 +140,8 @@ def sample_straight_through_estimator_step(
   decoder: RunConditionalDecoderFn,
   neighbor_indices: NeighborIndices,
   mask: AtomMask,
-  autoregressive_mask: AutoRegressiveMask,
   model_parameters: ModelParameters,
+  sample_model_pass_fn_only_prng: SampleModelPassOnlyPRNGFn,
   hyperparameters: tuple[float, Logits],
 ) -> SamplingStepState:
   """Single autoregressive sampling step with straight-through estimator.
@@ -149,6 +154,8 @@ def sample_straight_through_estimator_step(
     mask: Atom mask for valid atoms.
     autoregressive_mask: Mask for autoregressive decoding.
     model_parameters: Model parameters for the model.
+    sample_model_pass_fn_only_prng: Function that takes a PRNG key and returns the model pass
+      output.
     hyperparameters: Hyperparameters for the straight-through estimator. In this case, the
       learning rate in the first position and the target logits in the second position.
 
@@ -174,7 +181,17 @@ def sample_straight_through_estimator_step(
 
   """
   learning_rate, target_logits = hyperparameters[0], hyperparameters[1]
-  prng_key, edge_features, node_features, _sequence, current_logits = carry
+  current_key, edge_features, node_features, _sequence, current_logits = carry
+  (
+    node_features,
+    edge_features,
+    neighbor_indices,
+    mask,
+    autoregressive_mask,
+    next_rng_key,
+  ) = sample_model_pass_fn_only_prng(
+    current_key,
+  )
 
   @jax.jit
   def loss_fn(input_logits: Logits) -> tuple[CEELoss, tuple[NodeFeatures, Logits]]:
@@ -211,14 +228,22 @@ def sample_straight_through_estimator_step(
   updated_logits = current_logits - learning_rate * grad
 
   updated_sequence = updated_logits.argmax(axis=-1).astype(jnp.int8)
-  return prng_key, edge_features, new_node_features, updated_sequence, updated_logits
+  return next_rng_key, edge_features, new_node_features, updated_sequence, updated_logits
 
 
 def preload_sampling_step_decoder(
   decoder: RunConditionalDecoderFn,
   sampling_strategy: SamplingEnum,
 ) -> Callable[
-  [NeighborIndices, AtomMask, AutoRegressiveMask, ModelParameters, SamplingHyperparameters],
+  [
+    NeighborIndices,
+    AtomMask,
+    ResidueIndex,
+    ChainIndex,
+    ModelParameters,
+    SampleModelPassOnlyPRNGFn,
+    SamplingHyperparameters,
+  ],
   SamplingStepFn,
 ]:
   """Preload the sampling step decoder."""
@@ -256,16 +281,20 @@ def preload_sampling_step_decoder(
     model_parameters: ModelParameters,
     neighbor_indices: NeighborIndices,
     mask: AtomMask,
-    autoregressive_mask: AutoRegressiveMask,
+    residue_index: ResidueIndex,
+    chain_index: ChainIndex,
+    sample_model_pass_fn_only_prng: SampleModelPassOnlyPRNGFn,
     hyperparameters: SamplingHyperparameters,
   ) -> SamplingStepFn:
     """Get the sampling step function based on the sampling strategy."""
     return partial(
       decoding_loaded_step_fn,
       neighbor_indices=neighbor_indices,
+      residue_index=residue_index,
+      chain_index=chain_index,
       mask=mask,
-      autoregressive_mask=autoregressive_mask,
       model_parameters=model_parameters,
+      sample_model_pass_fn_only_prng=sample_model_pass_fn_only_prng,
       hyperparameters=hyperparameters,
     )
 

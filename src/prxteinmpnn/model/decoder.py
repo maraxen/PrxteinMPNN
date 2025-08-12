@@ -21,6 +21,7 @@ from prxteinmpnn.utils.types import (
   NeighborIndices,
   NodeEdgeFeatures,
   NodeFeatures,
+  OneHotProteinSequence,
   ProteinSequence,
   SequenceEdgeFeatures,
 )
@@ -137,7 +138,7 @@ def decoder_parameter_pytree(
 
 @jax.jit
 def initialize_conditional_decoder(
-  sequence: ProteinSequence,
+  one_hot_sequence: OneHotProteinSequence,
   node_features: NodeFeatures,
   edge_features: EdgeFeatures,
   neighbor_indices: NeighborIndices,
@@ -146,18 +147,18 @@ def initialize_conditional_decoder(
   """Initialize the decoder with node and edge features.
 
   Args:
-    sequence: Sequence of tokens to embed. Should be converted to int.
+    one_hot_sequence: One-hot encoded sequence of shape (num_residues, num_classes).
     node_features: Node features of shape (num_atoms, num_features).
-    edge_features: Edge features of shape (num_atoms, num_neighbors, num_features).
+    edge_features: EdgeFeatures of shape (num_atoms, num_neighbors, num_features).
     neighbor_indices: Indices of neighboring nodes of shape (num_atoms, num_neighbors).
-    layer_params: Model parameters for the embedding layer.
+    layer_params: ModelParameters for the embedding layer.
 
   Returns:
     A tuple of node-edge features and sequence-edge features.
 
   """
   sequence_weights = layer_params["protein_mpnn/~/embed_token"]["W_s"]
-  embedded_sequence = sequence_weights[sequence]
+  embedded_sequence = sequence_weights @ one_hot_sequence
 
   node_edge_features = concatenate_neighbor_nodes(
     jnp.zeros_like(node_features),
@@ -349,11 +350,11 @@ def make_decoder(
       neighbor_indices: NeighborIndices,
       mask: AtomMask,
       ar_mask: AutoRegressiveMask,
-      sequence: ProteinSequence,
+      one_hot_sequence: OneHotProteinSequence,
     ) -> NodeFeatures:
       """Run the decoder with the provided edge features and neighbor indices."""
       node_edge_features, sequence_edge_features = initialize_conditional_decoder(
-        sequence,
+        one_hot_sequence,
         node_features,
         edge_features,
         neighbor_indices,

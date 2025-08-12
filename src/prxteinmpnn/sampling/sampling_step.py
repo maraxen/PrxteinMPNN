@@ -119,15 +119,15 @@ def sample_temperature_step(
     )
     logits = final_projection(model_parameters, updated_node_features)
     temperature_key, next_prng_key = jax.random.split(current_prng_key)
-    logits = (logits[position] / temperature) + jax.random.gumbel(
+    position_logits = (logits[position] / temperature) + jax.random.gumbel(
       temperature_key,
       logits[position].shape,
     )
-    jax.debug.print("Logits at position {i}: {logits}", i=i, logits=logits)
-    new_aa = logits.argmax(axis=-1).astype(jnp.int8)
+    jax.debug.print("Logits at position {i}: {logits}", i=i, logits=position_logits)
+    new_aa = position_logits.argmax(axis=-1).astype(jnp.int8)
     jax.debug.print("New amino acid at position {i}: {new_aa}", i=i, new_aa=new_aa)
     sequence = sequence.at[position].set(new_aa)
-    logits = logits.at[position].set(logits)
+    logits = logits.at[position].set(position_logits)
     return next_prng_key, sequence, logits
 
   next_prng_key, sequence, logits = jax.lax.fori_loop(

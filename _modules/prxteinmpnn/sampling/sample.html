@@ -378,8 +378,9 @@ document.write(`
   <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
 <span class="p">)</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">SamplingConfig</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.initialize</span><span class="w"> </span><span class="kn">import</span> <span class="n">sampling_encode</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.sampling_step</span><span class="w"> </span><span class="kn">import</span> <span class="n">SamplingEnum</span><span class="p">,</span> <span class="n">preload_sampling_step_decoder</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.sampling_step</span><span class="w"> </span><span class="kn">import</span> <span class="n">preload_sampling_step_decoder</span>
 
 <span class="n">SamplerFnBase</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">[</span>
   <span class="p">[</span>
@@ -421,7 +422,7 @@ document.write(`
 <span class="k">def</span><span class="w"> </span><span class="nf">make_sample_sequences</span><span class="p">(</span>
   <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
   <span class="n">decoding_order_fn</span><span class="p">:</span> <span class="n">DecodingOrderFn</span><span class="p">,</span>
-  <span class="n">sampling_strategy</span><span class="p">:</span> <span class="n">SamplingEnum</span> <span class="o">=</span> <span class="n">SamplingEnum</span><span class="o">.</span><span class="n">TEMPERATURE</span><span class="p">,</span>
+  <span class="n">config</span><span class="p">:</span> <span class="n">SamplingConfig</span><span class="p">,</span>
   <span class="n">num_encoder_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
   <span class="n">num_decoder_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
   <span class="n">model_inputs</span><span class="p">:</span> <span class="n">ModelInputs</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -432,8 +433,7 @@ document.write(`
 <span class="sd">  Args:</span>
 <span class="sd">    model_parameters (ModelParameters): Pre-trained ProteinMPNN model parameters.</span>
 <span class="sd">    decoding_order_fn (DecodingOrderFn): Function to generate decoding order.</span>
-<span class="sd">    sampling_strategy (SamplingEnum): Strategy for sampling from logits. Default is temperature</span>
-<span class="sd">      sampling.</span>
+<span class="sd">    config (SamplingConfig): Configuration for sampling, including strategy and hyperparameters.</span>
 <span class="sd">    num_encoder_layers (int): Number of encoder layers. Default is 3.</span>
 <span class="sd">    num_decoder_layers (int): Number of decoder layers. Default is 3.</span>
 <span class="sd">    model_inputs (ModelInputs | None): Optional model inputs for sampling. Output function signature</span>
@@ -479,7 +479,7 @@ document.write(`
   <span class="p">)</span>
 
   <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;k_neighbors&quot;</span><span class="p">,</span> <span class="s2">&quot;augment_eps&quot;</span><span class="p">,</span> <span class="s2">&quot;hyperparameters&quot;</span><span class="p">,</span> <span class="s2">&quot;iterations&quot;</span><span class="p">))</span>
-  <span class="k">def</span><span class="w"> </span><span class="nf">sample_sequences</span><span class="p">(</span>  <span class="c1"># noqa: PLR0913</span>
+  <span class="k">def</span><span class="w"> </span><span class="nf">sample_sequences</span><span class="p">(</span>
     <span class="n">prng_key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
     <span class="n">sequence</span><span class="p">:</span> <span class="n">ProteinSequence</span><span class="p">,</span>
     <span class="n">structure_coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
@@ -489,8 +489,6 @@ document.write(`
     <span class="n">bias</span><span class="p">:</span> <span class="n">InputBias</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">k_neighbors</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">48</span><span class="p">,</span>
     <span class="n">augment_eps</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
-    <span class="n">hyperparameters</span><span class="p">:</span> <span class="n">SamplingHyperparameters</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,),</span>
-    <span class="n">iterations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
   <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span>
     <span class="n">ProteinSequence</span><span class="p">,</span>
     <span class="n">Logits</span><span class="p">,</span>
@@ -499,8 +497,6 @@ document.write(`
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Sample sequences from a structure using autoregressive decoding.&quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="n">bias</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
       <span class="n">bias</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">structure_coordinates</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">21</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
-
-    <span class="n">optimizer</span> <span class="o">=</span> <span class="n">hyperparameters</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="n">sampling_strategy</span> <span class="o">==</span> <span class="n">SamplingEnum</span><span class="o">.</span><span class="n">STRAIGHT_THROUGH</span> <span class="k">else</span> <span class="kc">None</span>
 
     <span class="p">(</span>
       <span class="n">node_features</span><span class="p">,</span>
@@ -562,18 +558,14 @@ document.write(`
       <span class="n">augment_eps</span><span class="o">=</span><span class="n">augment_eps</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
     <span class="p">)</span>
 
-    <span class="n">make_sampling_step_fn</span> <span class="o">=</span> <span class="n">preload_sampling_step_decoder</span><span class="p">(</span>
+    <span class="n">sample_step</span> <span class="o">=</span> <span class="n">preload_sampling_step_decoder</span><span class="p">(</span>
       <span class="n">decoder</span><span class="p">,</span>
       <span class="n">sample_model_pass_fn_only_prng</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
-      <span class="n">sampling_strategy</span><span class="p">,</span>
-    <span class="p">)</span>
-
-    <span class="n">sample_step</span> <span class="o">=</span> <span class="n">make_sampling_step_fn</span><span class="p">(</span>
       <span class="n">model_parameters</span><span class="p">,</span>
-      <span class="n">hyperparameters</span><span class="p">,</span>
+      <span class="n">config</span><span class="p">,</span>
     <span class="p">)</span>
 
-    <span class="n">opt_state</span> <span class="o">=</span> <span class="n">optimizer</span><span class="o">.</span><span class="n">init</span><span class="p">(</span><span class="n">logits</span><span class="p">)</span> <span class="k">if</span> <span class="n">optimizer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>  <span class="c1"># type: ignore[assignment]</span>
+    <span class="n">opt_state</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">optimizer</span><span class="o">.</span><span class="n">init</span><span class="p">(</span><span class="n">logits</span><span class="p">)</span> <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">optimizer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>  <span class="c1"># type: ignore[assignment]</span>
 
     <span class="n">initial_carry</span> <span class="o">=</span> <span class="p">(</span>
       <span class="n">next_rng_key</span><span class="p">,</span>
@@ -586,7 +578,7 @@ document.write(`
 
     <span class="n">final_carry</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">fori_loop</span><span class="p">(</span>
       <span class="mi">0</span><span class="p">,</span>
-      <span class="n">iterations</span><span class="p">,</span>
+      <span class="n">config</span><span class="o">.</span><span class="n">iterations</span><span class="p">,</span>
       <span class="n">sample_step</span><span class="p">,</span>
       <span class="n">initial_carry</span><span class="p">,</span>
     <span class="p">)</span>

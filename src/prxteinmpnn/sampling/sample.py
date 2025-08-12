@@ -181,12 +181,26 @@ def make_sample_sequences(
     )
 
     logits = final_projection(model_parameters, decoded_node_features) + bias
+
+    sample_model_pass_fn_only_prng = partial(
+      sample_model_pass,
+      model_parameters=model_parameters,  # type: ignore[arg-type]
+      structure_coordinates=structure_coordinates,  # type: ignore[arg-type]
+      mask=mask,  # type: ignore[arg-type]
+      residue_index=residue_index,  # type: ignore[arg-type]
+      chain_index=chain_index,  # type: ignore[arg-type]
+      k_neighbors=k_neighbors,  # type: ignore[arg-type]
+      augment_eps=augment_eps,  # type: ignore[arg-type]
+    )
+
     sample_step = make_sampling_step_fn(
-      model_parameters,
-      neighbor_indices,
-      mask,
-      autoregressive_mask,
-      hyperparameters,
+      model_parameters=model_parameters,  # type: ignore[arg-type]
+      neighbor_indices=neighbor_indices,
+      residue_index=residue_index,
+      chain_index=chain_index,
+      mask=mask,
+      sample_model_pass_fn_only_prng=sample_model_pass_fn_only_prng,
+      hyperparameters=hyperparameters,
     )
 
     initial_carry = (
@@ -194,6 +208,7 @@ def make_sample_sequences(
       edge_features,
       node_features,
       sequence,
+      autoregressive_mask,
       logits,
     )
 

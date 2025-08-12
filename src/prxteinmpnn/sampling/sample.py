@@ -190,19 +190,14 @@ def make_sample_sequences(
     )
 
     make_sampling_step_fn = preload_sampling_step_decoder(
-      decoder=decoder,
-      sample_model_pass_fn_only_prng=sample_model_pass_fn_only_prng,  # type: ignore[arg-type]
-      sampling_strategy=sampling_strategy,
+      decoder,
+      sample_model_pass_fn_only_prng,  # type: ignore[arg-type]
+      sampling_strategy,
     )
 
     sample_step = make_sampling_step_fn(
-      model_parameters=model_parameters,  # type: ignore[arg-type]
-      neighbor_indices=neighbor_indices,
-      residue_index=residue_index,
-      chain_index=chain_index,
-      mask=mask,
-      sample_model_pass_fn_only_prng=sample_model_pass_fn_only_prng,
-      hyperparameters=hyperparameters,
+      model_parameters,
+      hyperparameters,
     )
 
     initial_carry = (

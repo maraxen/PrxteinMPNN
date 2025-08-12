@@ -24,6 +24,7 @@ AttentionMask = Bool[Array, "num_atoms num_atoms"]  # Attention mask for nodes
 Logits = Float[Array, "num_residues num_classes"]  # Logits for classification
 DecodingOrder = Int[Array, "num_residues"]  # Order of residues for autoregressive decoding
 ProteinSequence = Int[Array, "num_residues"]  # Sequence of residues
+OneHotProteinSequence = Float[Array, "num_residues num_classes"]  # One-hot encoded protein sequence
 NodeEdgeFeatures = Float[
   Array,
   "num_atoms num_neighbors num_features",

@@ -193,14 +193,13 @@ def sample_straight_through_estimator_step(
   def loss_fn(input_logits: Logits) -> tuple[CEELoss, tuple[NodeFeatures, Logits]]:
     """Compute the loss for the straight-through estimator."""
     ste_logits = straight_through_estimator(input_logits)
-    ste_sequence = ste_logits.argmax(axis=-1)
     updated_node_features = decoder(
       node_features,
       edge_features,
       neighbor_indices,
       mask,
       autoregressive_mask,
-      ste_sequence,
+      ste_logits,
     )
     output_logits = final_projection(model_parameters, updated_node_features)
 

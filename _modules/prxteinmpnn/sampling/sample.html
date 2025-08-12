@@ -442,6 +442,9 @@ document.write(`
 <span class="sd">    sampling_inputs (SamplingInputs | None): Optional sampling inputs for sequence sampling. Output</span>
 <span class="sd">      function signature does not require any arguments, as it uses the attributes of</span>
 <span class="sd">      `sampling_inputs`.</span>
+<span class="sd">    optimizer (optax.GradientTransformation | None): Optional optimizer for straight-through</span>
+<span class="sd">      estimator. If provided, the sampling function will optimize the logits using this optimizer.</span>
+<span class="sd">      If not provided, the sampling function will not perform optimization.</span>
 
 <span class="sd">    If both `model_inputs` and `sampling_inputs` are provided, `sampling_inputs` will be used.</span>
 
@@ -497,6 +500,26 @@ document.write(`
     <span class="k">if</span> <span class="n">bias</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
       <span class="n">bias</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">structure_coordinates</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">21</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
 
+    <span class="n">optimizer</span> <span class="o">=</span> <span class="n">hyperparameters</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="n">sampling_strategy</span> <span class="o">==</span> <span class="n">SamplingEnum</span><span class="o">.</span><span class="n">STRAIGHT_THROUGH</span> <span class="k">else</span> <span class="kc">None</span>
+
+    <span class="p">(</span>
+      <span class="n">node_features</span><span class="p">,</span>
+      <span class="n">edge_features</span><span class="p">,</span>
+      <span class="n">neighbor_indices</span><span class="p">,</span>
+      <span class="n">decoding_order</span><span class="p">,</span>
+      <span class="n">autoregressive_mask</span><span class="p">,</span>
+      <span class="n">next_rng_key</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">=</span> <span class="n">sample_model_pass</span><span class="p">(</span>
+      <span class="n">prng_key</span><span class="p">,</span>
+      <span class="n">model_parameters</span><span class="p">,</span>
+      <span class="n">structure_coordinates</span><span class="p">,</span>
+      <span class="n">mask</span><span class="p">,</span>
+      <span class="n">residue_index</span><span class="p">,</span>
+      <span class="n">chain_index</span><span class="p">,</span>
+      <span class="n">k_neighbors</span><span class="p">,</span>
+      <span class="n">augment_eps</span><span class="p">,</span>
+    <span class="p">)</span>
+
     <span class="p">(</span>
       <span class="n">node_features</span><span class="p">,</span>
       <span class="n">edge_features</span><span class="p">,</span>
@@ -550,12 +573,15 @@ document.write(`
       <span class="n">hyperparameters</span><span class="p">,</span>
     <span class="p">)</span>
 
+    <span class="n">opt_state</span> <span class="o">=</span> <span class="n">optimizer</span><span class="o">.</span><span class="n">init</span><span class="p">(</span><span class="n">logits</span><span class="p">)</span> <span class="k">if</span> <span class="n">optimizer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>  <span class="c1"># type: ignore[assignment]</span>
+
     <span class="n">initial_carry</span> <span class="o">=</span> <span class="p">(</span>
       <span class="n">next_rng_key</span><span class="p">,</span>
       <span class="n">edge_features</span><span class="p">,</span>
       <span class="n">node_features</span><span class="p">,</span>
       <span class="n">sequence</span><span class="p">,</span>
       <span class="n">logits</span><span class="p">,</span>
+      <span class="n">opt_state</span><span class="p">,</span>
     <span class="p">)</span>
 
     <span class="n">final_carry</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">fori_loop</span><span class="p">(</span>

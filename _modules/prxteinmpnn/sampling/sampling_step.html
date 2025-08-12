@@ -355,6 +355,7 @@ document.write(`
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">optax</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">PRNGKeyArray</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.decoder</span><span class="w"> </span><span class="kn">import</span> <span class="n">RunConditionalDecoderFn</span>
@@ -381,6 +382,7 @@ document.write(`
   <span class="n">NodeFeatures</span><span class="p">,</span>
   <span class="n">ProteinSequence</span><span class="p">,</span>
   <span class="n">Logits</span><span class="p">,</span>
+  <span class="n">optax</span><span class="o">.</span><span class="n">OptState</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">]</span>
 <span class="n">SamplingStepInput</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">SamplingStepState</span><span class="p">]</span>
 
@@ -454,7 +456,7 @@ document.write(`
 
 <span class="sd">  &quot;&quot;&quot;</span>
   <span class="n">temperature</span> <span class="o">=</span> <span class="n">hyperparameters</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-  <span class="n">prng_key</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">logits</span> <span class="o">=</span> <span class="n">carry</span>
+  <span class="n">prng_key</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">logits</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">carry</span>
 
   <span class="n">current_prng_key</span><span class="p">,</span> <span class="n">next_prng_key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">prng_key</span><span class="p">)</span>
 
@@ -480,7 +482,7 @@ document.write(`
   <span class="n">sequence</span> <span class="o">=</span> <span class="n">sequence</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">s_i</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>
   <span class="n">logits</span> <span class="o">=</span> <span class="n">logits</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">logits</span><span class="p">)</span>
 
-  <span class="k">return</span> <span class="n">next_prng_key</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">logits</span></div>
+  <span class="k">return</span> <span class="n">next_prng_key</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">logits</span><span class="p">,</span> <span class="kc">None</span></div>
 
 
 
@@ -492,7 +494,7 @@ document.write(`
   <span class="n">decoder</span><span class="p">:</span> <span class="n">RunConditionalDecoderFn</span><span class="p">,</span>
   <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
   <span class="n">sample_model_pass_fn_only_prng</span><span class="p">:</span> <span class="n">SampleModelPassOnlyPRNGFn</span><span class="p">,</span>
-  <span class="n">hyperparameters</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="n">Logits</span><span class="p">],</span>
+  <span class="n">hyperparameters</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Logits</span><span class="p">,</span> <span class="n">optax</span><span class="o">.</span><span class="n">GradientTransformation</span><span class="p">],</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SamplingStepState</span><span class="p">:</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Single autoregressive sampling step with straight-through estimator.</span>
 
@@ -530,8 +532,8 @@ document.write(`
 <span class="sd">      carry,</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
-  <span class="n">learning_rate</span><span class="p">,</span> <span class="n">target_logits</span> <span class="o">=</span> <span class="n">hyperparameters</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">hyperparameters</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-  <span class="n">current_key</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">_sequence</span><span class="p">,</span> <span class="n">current_logits</span> <span class="o">=</span> <span class="n">carry</span>
+  <span class="n">target_logits</span><span class="p">,</span> <span class="n">optimizer</span> <span class="o">=</span> <span class="n">hyperparameters</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">hyperparameters</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+  <span class="n">current_key</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">_sequence</span><span class="p">,</span> <span class="n">current_logits</span><span class="p">,</span> <span class="n">opt_state</span> <span class="o">=</span> <span class="n">carry</span>
 
   <span class="n">jax</span><span class="o">.</span><span class="n">debug</span><span class="o">.</span><span class="n">print</span><span class="p">(</span>
     <span class="s2">&quot;➡️ Iteration </span><span class="si">{_i}</span><span class="s2">, Current sequence: </span><span class="si">{_sequence}</span><span class="s2">&quot;</span><span class="p">,</span>
@@ -569,19 +571,18 @@ document.write(`
     <span class="n">current_logits</span><span class="p">,</span>
   <span class="p">)</span>
 
-  <span class="n">grad_norm</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">grad</span><span class="p">)</span>
-  <span class="n">has_nan</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">grad_norm</span><span class="p">)</span>
-  <span class="n">jax</span><span class="o">.</span><span class="n">debug</span><span class="o">.</span><span class="n">print</span><span class="p">(</span>
-    <span class="s2">&quot;➡️ Iteration </span><span class="si">{_i}</span><span class="s2">, Grad Norm: </span><span class="si">{n}</span><span class="s2">, Is NaN: </span><span class="si">{nan}</span><span class="s2">&quot;</span><span class="p">,</span>
-    <span class="n">_i</span><span class="o">=</span><span class="n">_i</span><span class="p">,</span>
-    <span class="n">n</span><span class="o">=</span><span class="n">grad_norm</span><span class="p">,</span>
-    <span class="n">nan</span><span class="o">=</span><span class="n">has_nan</span><span class="p">,</span>
-  <span class="p">)</span>
+  <span class="n">updates</span><span class="p">,</span> <span class="n">new_opt_state</span> <span class="o">=</span> <span class="n">optimizer</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">grad</span><span class="p">,</span> <span class="n">opt_state</span><span class="p">)</span>  <span class="c1"># type: ignore[arg-type]</span>
+  <span class="n">updated_logits</span> <span class="o">=</span> <span class="n">optax</span><span class="o">.</span><span class="n">apply_updates</span><span class="p">(</span><span class="n">current_logits</span><span class="p">,</span> <span class="n">updates</span><span class="p">)</span>
 
-  <span class="n">updated_logits</span> <span class="o">=</span> <span class="n">current_logits</span> <span class="o">-</span> <span class="n">learning_rate</span> <span class="o">*</span> <span class="n">grad</span>
-
-  <span class="n">updated_sequence</span> <span class="o">=</span> <span class="n">updated_logits</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>
-  <span class="k">return</span> <span class="n">next_rng_key</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">new_node_features</span><span class="p">,</span> <span class="n">updated_sequence</span><span class="p">,</span> <span class="n">updated_logits</span></div>
+  <span class="n">updated_sequence</span> <span class="o">=</span> <span class="n">updated_logits</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>  <span class="c1"># type: ignore[no-any-return]</span>
+  <span class="k">return</span> <span class="p">(</span>
+    <span class="n">next_rng_key</span><span class="p">,</span>
+    <span class="n">edge_features</span><span class="p">,</span>
+    <span class="n">new_node_features</span><span class="p">,</span>
+    <span class="n">updated_sequence</span><span class="p">,</span>
+    <span class="n">updated_logits</span><span class="p">,</span>  <span class="c1"># type: ignore[no-any-return]</span>
+    <span class="n">new_opt_state</span><span class="p">,</span>
+  <span class="p">)</span></div>
 
 
 

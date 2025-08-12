@@ -512,7 +512,7 @@ document.write(`
 
 <span class="sd">  &quot;&quot;&quot;</span>
   <span class="n">sequence_weights</span> <span class="o">=</span> <span class="n">layer_params</span><span class="p">[</span><span class="s2">&quot;protein_mpnn/~/embed_token&quot;</span><span class="p">][</span><span class="s2">&quot;W_s&quot;</span><span class="p">]</span>
-  <span class="n">embedded_sequence</span> <span class="o">=</span> <span class="n">sequence_weights</span> <span class="o">@</span> <span class="n">one_hot_sequence</span>
+  <span class="n">embedded_sequence</span> <span class="o">=</span> <span class="n">one_hot_sequence</span> <span class="o">@</span> <span class="n">sequence_weights</span><span class="o">.</span><span class="n">T</span>
 
   <span class="n">node_edge_features</span> <span class="o">=</span> <span class="n">concatenate_neighbor_nodes</span><span class="p">(</span>
     <span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">node_features</span><span class="p">),</span>

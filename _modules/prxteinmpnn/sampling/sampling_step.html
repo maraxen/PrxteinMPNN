@@ -543,6 +543,8 @@ document.write(`
     <span class="n">current_key</span><span class="p">,</span>
   <span class="p">)</span>
 
+  <span class="n">jax</span><span class="o">.</span><span class="n">debug</span><span class="o">.</span><span class="n">print</span><span class="p">(</span><span class="s2">&quot;➡️ Iteration </span><span class="si">{_i}</span><span class="s2">, Mask Sum: </span><span class="si">{s}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">_i</span><span class="o">=</span><span class="n">_i</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">mask</span><span class="p">))</span>
+
   <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
   <span class="k">def</span><span class="w"> </span><span class="nf">loss_fn</span><span class="p">(</span><span class="n">input_logits</span><span class="p">:</span> <span class="n">Logits</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">CEELoss</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">NodeFeatures</span><span class="p">,</span> <span class="n">Logits</span><span class="p">]]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Compute the loss for the straight-through estimator.&quot;&quot;&quot;</span>

@@ -17,13 +17,11 @@ from prxteinmpnn.utils.types import (
   AtomMask,
   AutoRegressiveMask,
   CEELoss,
-  ChainIndex,
   Logits,
   ModelParameters,
   NeighborIndices,
   NodeFeatures,
   ProteinSequence,
-  ResidueIndex,
   SamplingHyperparameters,
   SequenceEdgeFeatures,
 )
@@ -138,8 +136,6 @@ def sample_straight_through_estimator_step(
   _i: int,
   carry: SamplingStepState,
   decoder: RunConditionalDecoderFn,
-  neighbor_indices: NeighborIndices,
-  mask: AtomMask,
   model_parameters: ModelParameters,
   sample_model_pass_fn_only_prng: SampleModelPassOnlyPRNGFn,
   hyperparameters: tuple[float, Logits],
@@ -233,15 +229,11 @@ def sample_straight_through_estimator_step(
 
 def preload_sampling_step_decoder(
   decoder: RunConditionalDecoderFn,
+  sample_model_pass_fn_only_prng: SampleModelPassOnlyPRNGFn,
   sampling_strategy: SamplingEnum,
 ) -> Callable[
   [
-    NeighborIndices,
-    AtomMask,
-    ResidueIndex,
-    ChainIndex,
     ModelParameters,
-    SampleModelPassOnlyPRNGFn,
     SamplingHyperparameters,
   ],
   SamplingStepFn,
@@ -250,15 +242,14 @@ def preload_sampling_step_decoder(
   match sampling_strategy:
     case SamplingEnum.TEMPERATURE:
       """Get the temperature sampling step function."""
-      decoding_loaded_step_fn = partial(
-        sample_temperature_step,
-        decoder=decoder,
-      )
+      msg = "Temperature sampling is not implemented yet."
+      raise NotImplementedError(msg)
     case SamplingEnum.STRAIGHT_THROUGH:
       """Get the straight-through sampling step function."""
       decoding_loaded_step_fn = partial(
         sample_straight_through_estimator_step,
         decoder=decoder,
+        sample_model_pass_fn_only_prng=sample_model_pass_fn_only_prng,
       )
     case SamplingEnum.BEAM_SEARCH:
       """Beam search sampling is not implemented yet."""
@@ -279,22 +270,12 @@ def preload_sampling_step_decoder(
 
   def get_sampling_step_fn(
     model_parameters: ModelParameters,
-    neighbor_indices: NeighborIndices,
-    mask: AtomMask,
-    residue_index: ResidueIndex,
-    chain_index: ChainIndex,
-    sample_model_pass_fn_only_prng: SampleModelPassOnlyPRNGFn,
     hyperparameters: SamplingHyperparameters,
   ) -> SamplingStepFn:
     """Get the sampling step function based on the sampling strategy."""
     return partial(
       decoding_loaded_step_fn,
-      neighbor_indices=neighbor_indices,
-      residue_index=residue_index,
-      chain_index=chain_index,
-      mask=mask,
       model_parameters=model_parameters,
-      sample_model_pass_fn_only_prng=sample_model_pass_fn_only_prng,
       hyperparameters=hyperparameters,
     )
 

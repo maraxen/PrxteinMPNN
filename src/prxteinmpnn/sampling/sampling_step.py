@@ -9,6 +9,7 @@ from functools import partial
 
 import jax
 import jax.numpy as jnp
+import optax
 from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.model.decoder import RunConditionalDecoderFn
@@ -35,6 +36,7 @@ SamplingStepState = tuple[
   NodeFeatures,
   ProteinSequence,
   Logits,
+  optax.OptState | None,
 ]
 SamplingStepInput = tuple[int, SamplingStepState]
 
@@ -103,7 +105,7 @@ def sample_temperature_step(
 
   """
   temperature = hyperparameters[0]
-  prng_key, edge_features, node_features, sequence, logits = carry
+  prng_key, edge_features, node_features, sequence, logits, _ = carry
 
   current_prng_key, next_prng_key = jax.random.split(prng_key)
 
@@ -129,7 +131,7 @@ def sample_temperature_step(
   sequence = sequence.at[i].set(s_i).astype(jnp.int8)
   logits = logits.at[i].set(logits)
 
-  return next_prng_key, edge_features, node_features, sequence, logits
+  return next_prng_key, edge_features, node_features, sequence, logits, None
 
 
 def sample_straight_through_estimator_step(
@@ -138,7 +140,7 @@ def sample_straight_through_estimator_step(
   decoder: RunConditionalDecoderFn,
   model_parameters: ModelParameters,
   sample_model_pass_fn_only_prng: SampleModelPassOnlyPRNGFn,
-  hyperparameters: tuple[float, Logits],
+  hyperparameters: tuple[Logits, optax.GradientTransformation],
 ) -> SamplingStepState:
   """Single autoregressive sampling step with straight-through estimator.
 
@@ -176,8 +178,8 @@ def sample_straight_through_estimator_step(
       carry,
 
   """
-  learning_rate, target_logits = hyperparameters[0], hyperparameters[1]
-  current_key, edge_features, node_features, _sequence, current_logits = carry
+  target_logits, optimizer = hyperparameters[0], hyperparameters[1]
+  current_key, edge_features, node_features, _sequence, current_logits, opt_state = carry
 
   jax.debug.print(
     "➡️ Iteration {_i}, Current sequence: {_sequence}",
@@ -215,19 +217,18 @@ def sample_straight_through_estimator_step(
     current_logits,
   )
 
-  grad_norm = jnp.linalg.norm(grad)
-  has_nan = jnp.isnan(grad_norm)
-  jax.debug.print(
-    "➡️ Iteration {_i}, Grad Norm: {n}, Is NaN: {nan}",
-    _i=_i,
-    n=grad_norm,
-    nan=has_nan,
+  updates, new_opt_state = optimizer.update(grad, opt_state)  # type: ignore[arg-type]
+  updated_logits = optax.apply_updates(current_logits, updates)
+
+  updated_sequence = updated_logits.argmax(axis=-1).astype(jnp.int8)  # type: ignore[no-any-return]
+  return (
+    next_rng_key,
+    edge_features,
+    new_node_features,
+    updated_sequence,
+    updated_logits,  # type: ignore[no-any-return]
+    new_opt_state,
   )
-
-  updated_logits = current_logits - learning_rate * grad
-
-  updated_sequence = updated_logits.argmax(axis=-1).astype(jnp.int8)
-  return next_rng_key, edge_features, new_node_features, updated_sequence, updated_logits
 
 
 def preload_sampling_step_decoder(

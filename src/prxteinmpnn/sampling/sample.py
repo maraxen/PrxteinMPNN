@@ -94,6 +94,9 @@ def make_sample_sequences(
     sampling_inputs (SamplingInputs | None): Optional sampling inputs for sequence sampling. Output
       function signature does not require any arguments, as it uses the attributes of
       `sampling_inputs`.
+    optimizer (optax.GradientTransformation | None): Optional optimizer for straight-through
+      estimator. If provided, the sampling function will optimize the logits using this optimizer.
+      If not provided, the sampling function will not perform optimization.
 
     If both `model_inputs` and `sampling_inputs` are provided, `sampling_inputs` will be used.
 
@@ -149,6 +152,26 @@ def make_sample_sequences(
     if bias is None:
       bias = jnp.zeros((structure_coordinates.shape[0], 21), dtype=jnp.float32)
 
+    optimizer = hyperparameters[1] if sampling_strategy == SamplingEnum.STRAIGHT_THROUGH else None
+
+    (
+      node_features,
+      edge_features,
+      neighbor_indices,
+      decoding_order,
+      autoregressive_mask,
+      next_rng_key,
+    ) = sample_model_pass(
+      prng_key,
+      model_parameters,
+      structure_coordinates,
+      mask,
+      residue_index,
+      chain_index,
+      k_neighbors,
+      augment_eps,
+    )
+
     (
       node_features,
       edge_features,
@@ -202,12 +225,15 @@ def make_sample_sequences(
       hyperparameters,
     )
 
+    opt_state = optimizer.init(logits) if optimizer is not None else None  # type: ignore[assignment]
+
     initial_carry = (
       next_rng_key,
       edge_features,
       node_features,
       sequence,
       logits,
+      opt_state,
     )
 
     final_carry = jax.lax.fori_loop(

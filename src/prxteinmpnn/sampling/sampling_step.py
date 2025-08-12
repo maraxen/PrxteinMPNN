@@ -268,7 +268,7 @@ def preload_sampling_step_decoder(
       msg = f"Unknown sampling strategy: {sampling_strategy}"
       raise ValueError(msg)
 
-  def get_sampling_step_fn(
+  def sampling_step_fn(
     model_parameters: ModelParameters,
     hyperparameters: SamplingHyperparameters,
   ) -> SamplingStepFn:
@@ -279,4 +279,4 @@ def preload_sampling_step_decoder(
       hyperparameters=hyperparameters,
     )
 
-  return get_sampling_step_fn
+  return sampling_step_fn

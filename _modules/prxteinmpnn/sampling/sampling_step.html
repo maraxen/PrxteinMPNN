@@ -431,10 +431,7 @@ document.write(`
 <span class="sd">    )</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
-  <span class="n">current_key</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">carry</span>
-
-  <span class="n">sequence</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">node_features</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">21</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
-  <span class="n">logits</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">node_features</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">21</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+  <span class="n">current_key</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">carry</span>
 
   <span class="p">(</span>
     <span class="n">node_features</span><span class="p">,</span>
@@ -442,19 +439,19 @@ document.write(`
     <span class="n">neighbor_indices</span><span class="p">,</span>
     <span class="n">mask</span><span class="p">,</span>
     <span class="n">autoregressive_mask</span><span class="p">,</span>
-    <span class="n">next_prng_key</span><span class="p">,</span>
+    <span class="n">decoding_key</span><span class="p">,</span>
   <span class="p">)</span> <span class="o">=</span> <span class="n">sample_model_pass_fn_only_prng</span><span class="p">(</span>
     <span class="n">current_key</span><span class="p">,</span>
   <span class="p">)</span>
-
   <span class="n">decoding_order</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">autoregressive_mask</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
+  <span class="n">num_residues</span> <span class="o">=</span> <span class="n">node_features</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 
   <span class="k">def</span><span class="w"> </span><span class="nf">update_sequence</span><span class="p">(</span>
     <span class="n">i</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
     <span class="n">inner_carry</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">PRNGKeyArray</span><span class="p">,</span> <span class="n">OneHotProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">],</span>
   <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">PRNGKeyArray</span><span class="p">,</span> <span class="n">ProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Update the sequence at the current position.&quot;&quot;&quot;</span>
-    <span class="n">current_prng_key</span><span class="p">,</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">logits</span> <span class="o">=</span> <span class="n">inner_carry</span>
+    <span class="n">loop_key</span><span class="p">,</span> <span class="n">one_hot_sequence</span><span class="p">,</span> <span class="n">all_logits</span> <span class="o">=</span> <span class="n">inner_carry</span>
     <span class="n">position</span> <span class="o">=</span> <span class="n">decoding_order</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
     <span class="n">updated_node_features</span> <span class="o">=</span> <span class="n">decoder</span><span class="p">(</span>
       <span class="n">node_features</span><span class="p">,</span>
@@ -462,26 +459,33 @@ document.write(`
       <span class="n">neighbor_indices</span><span class="p">,</span>
       <span class="n">mask</span><span class="p">,</span>
       <span class="n">autoregressive_mask</span><span class="p">,</span>
-      <span class="n">sequence</span><span class="p">,</span>
+      <span class="n">one_hot_sequence</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">logits</span> <span class="o">=</span> <span class="n">final_projection</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="n">updated_node_features</span><span class="p">)</span>
-    <span class="n">temperature_key</span><span class="p">,</span> <span class="n">next_prng_key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">current_prng_key</span><span class="p">)</span>
+    <span class="n">gumbel_key</span><span class="p">,</span> <span class="n">next_loop_key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">loop_key</span><span class="p">)</span>
     <span class="n">position_logits</span> <span class="o">=</span> <span class="p">(</span><span class="n">logits</span><span class="p">[</span><span class="n">position</span><span class="p">]</span> <span class="o">/</span> <span class="n">temperature</span><span class="p">)</span> <span class="o">+</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">gumbel</span><span class="p">(</span>
-      <span class="n">temperature_key</span><span class="p">,</span>
+      <span class="n">gumbel_key</span><span class="p">,</span>
       <span class="n">logits</span><span class="p">[</span><span class="n">position</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
     <span class="p">)</span>
-    <span class="n">sequence</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">one_hot</span><span class="p">(</span><span class="n">position_logits</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">20</span><span class="p">]</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="mi">21</span><span class="p">)</span>
+    <span class="n">new_amino_acid</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">one_hot</span><span class="p">(</span><span class="n">position_logits</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">20</span><span class="p">]</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="mi">21</span><span class="p">)</span>
+    <span class="n">one_hot_sequence</span> <span class="o">=</span> <span class="n">one_hot_sequence</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">position</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">new_amino_acid</span><span class="p">)</span>
     <span class="n">logits</span> <span class="o">=</span> <span class="n">logits</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">position</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">position_logits</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">next_prng_key</span><span class="p">,</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">logits</span>
+    <span class="k">return</span> <span class="n">next_loop_key</span><span class="p">,</span> <span class="n">one_hot_sequence</span><span class="p">,</span> <span class="n">logits</span>
 
-  <span class="n">next_prng_key</span><span class="p">,</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">logits</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">fori_loop</span><span class="p">(</span>
-    <span class="mi">0</span><span class="p">,</span>
-    <span class="n">sequence</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
-    <span class="n">update_sequence</span><span class="p">,</span>
-    <span class="p">(</span><span class="n">next_prng_key</span><span class="p">,</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">logits</span><span class="p">),</span>
+  <span class="n">initial_inner_carry</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">decoding_key</span><span class="p">,</span>
+    <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_residues</span><span class="p">,</span> <span class="mi">21</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span>
+    <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_residues</span><span class="p">,</span> <span class="mi">21</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span>
   <span class="p">)</span>
 
-  <span class="k">return</span> <span class="n">next_prng_key</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">logits</span></div>
+  <span class="n">final_new_loop_key</span><span class="p">,</span> <span class="n">output_sequence</span><span class="p">,</span> <span class="n">logits</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">fori_loop</span><span class="p">(</span>
+    <span class="mi">0</span><span class="p">,</span>
+    <span class="n">num_residues</span><span class="p">,</span>
+    <span class="n">update_sequence</span><span class="p">,</span>
+    <span class="n">initial_inner_carry</span><span class="p">,</span>
+  <span class="p">)</span>
+
+  <span class="k">return</span> <span class="n">final_new_loop_key</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">output_sequence</span><span class="p">,</span> <span class="n">logits</span></div>
 
 
 

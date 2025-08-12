@@ -625,7 +625,7 @@ document.write(`
       <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Unknown sampling strategy: </span><span class="si">{</span><span class="n">sampling_strategy</span><span class="si">}</span><span class="s2">&quot;</span>
       <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
 
-  <span class="k">def</span><span class="w"> </span><span class="nf">get_sampling_step_fn</span><span class="p">(</span>
+  <span class="k">def</span><span class="w"> </span><span class="nf">sampling_step_fn</span><span class="p">(</span>
     <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
     <span class="n">hyperparameters</span><span class="p">:</span> <span class="n">SamplingHyperparameters</span><span class="p">,</span>
   <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SamplingStepFn</span><span class="p">:</span>
@@ -636,7 +636,7 @@ document.write(`
       <span class="n">hyperparameters</span><span class="o">=</span><span class="n">hyperparameters</span><span class="p">,</span>
     <span class="p">)</span>
 
-  <span class="k">return</span> <span class="n">get_sampling_step_fn</span></div>
+  <span class="k">return</span> <span class="n">sampling_step_fn</span></div>
 
 </pre></div>
 

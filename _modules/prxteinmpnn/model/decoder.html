@@ -367,6 +367,7 @@ document.write(`
   <span class="n">NeighborIndices</span><span class="p">,</span>
   <span class="n">NodeEdgeFeatures</span><span class="p">,</span>
   <span class="n">NodeFeatures</span><span class="p">,</span>
+  <span class="n">OneHotProteinSequence</span><span class="p">,</span>
   <span class="n">ProteinSequence</span><span class="p">,</span>
   <span class="n">SequenceEdgeFeatures</span><span class="p">,</span>
 <span class="p">)</span>
@@ -491,7 +492,7 @@ document.write(`
 <a class="viewcode-back" href="../../../api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.initialize_conditional_decoder">[docs]</a>
 <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">initialize_conditional_decoder</span><span class="p">(</span>
-  <span class="n">sequence</span><span class="p">:</span> <span class="n">ProteinSequence</span><span class="p">,</span>
+  <span class="n">one_hot_sequence</span><span class="p">:</span> <span class="n">OneHotProteinSequence</span><span class="p">,</span>
   <span class="n">node_features</span><span class="p">:</span> <span class="n">NodeFeatures</span><span class="p">,</span>
   <span class="n">edge_features</span><span class="p">:</span> <span class="n">EdgeFeatures</span><span class="p">,</span>
   <span class="n">neighbor_indices</span><span class="p">:</span> <span class="n">NeighborIndices</span><span class="p">,</span>
@@ -500,18 +501,18 @@ document.write(`
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Initialize the decoder with node and edge features.</span>
 
 <span class="sd">  Args:</span>
-<span class="sd">    sequence: Sequence of tokens to embed. Should be converted to int.</span>
+<span class="sd">    one_hot_sequence: One-hot encoded sequence of shape (num_residues, num_classes).</span>
 <span class="sd">    node_features: Node features of shape (num_atoms, num_features).</span>
-<span class="sd">    edge_features: Edge features of shape (num_atoms, num_neighbors, num_features).</span>
+<span class="sd">    edge_features: EdgeFeatures of shape (num_atoms, num_neighbors, num_features).</span>
 <span class="sd">    neighbor_indices: Indices of neighboring nodes of shape (num_atoms, num_neighbors).</span>
-<span class="sd">    layer_params: Model parameters for the embedding layer.</span>
+<span class="sd">    layer_params: ModelParameters for the embedding layer.</span>
 
 <span class="sd">  Returns:</span>
 <span class="sd">    A tuple of node-edge features and sequence-edge features.</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
   <span class="n">sequence_weights</span> <span class="o">=</span> <span class="n">layer_params</span><span class="p">[</span><span class="s2">&quot;protein_mpnn/~/embed_token&quot;</span><span class="p">][</span><span class="s2">&quot;W_s&quot;</span><span class="p">]</span>
-  <span class="n">embedded_sequence</span> <span class="o">=</span> <span class="n">sequence_weights</span><span class="p">[</span><span class="n">sequence</span><span class="p">]</span>
+  <span class="n">embedded_sequence</span> <span class="o">=</span> <span class="n">sequence_weights</span> <span class="o">@</span> <span class="n">one_hot_sequence</span>
 
   <span class="n">node_edge_features</span> <span class="o">=</span> <span class="n">concatenate_neighbor_nodes</span><span class="p">(</span>
     <span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">node_features</span><span class="p">),</span>
@@ -721,11 +722,11 @@ document.write(`
       <span class="n">neighbor_indices</span><span class="p">:</span> <span class="n">NeighborIndices</span><span class="p">,</span>
       <span class="n">mask</span><span class="p">:</span> <span class="n">AtomMask</span><span class="p">,</span>
       <span class="n">ar_mask</span><span class="p">:</span> <span class="n">AutoRegressiveMask</span><span class="p">,</span>
-      <span class="n">sequence</span><span class="p">:</span> <span class="n">ProteinSequence</span><span class="p">,</span>
+      <span class="n">one_hot_sequence</span><span class="p">:</span> <span class="n">OneHotProteinSequence</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NodeFeatures</span><span class="p">:</span>
 <span class="w">      </span><span class="sd">&quot;&quot;&quot;Run the decoder with the provided edge features and neighbor indices.&quot;&quot;&quot;</span>
       <span class="n">node_edge_features</span><span class="p">,</span> <span class="n">sequence_edge_features</span> <span class="o">=</span> <span class="n">initialize_conditional_decoder</span><span class="p">(</span>
-        <span class="n">sequence</span><span class="p">,</span>
+        <span class="n">one_hot_sequence</span><span class="p">,</span>
         <span class="n">node_features</span><span class="p">,</span>
         <span class="n">edge_features</span><span class="p">,</span>
         <span class="n">neighbor_indices</span><span class="p">,</span>

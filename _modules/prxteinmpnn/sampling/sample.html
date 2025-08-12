@@ -515,13 +515,15 @@ document.write(`
       <span class="n">augment_eps</span><span class="p">,</span>
     <span class="p">)</span>
 
+    <span class="n">one_hot_sequence</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">one_hot</span><span class="p">(</span><span class="n">sequence</span><span class="p">,</span> <span class="mi">21</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
     <span class="n">decoded_node_features</span> <span class="o">=</span> <span class="n">decoder</span><span class="p">(</span>
       <span class="n">node_features</span><span class="p">,</span>
       <span class="n">edge_features</span><span class="p">,</span>
       <span class="n">neighbor_indices</span><span class="p">,</span>
       <span class="n">mask</span><span class="p">,</span>
       <span class="n">autoregressive_mask</span><span class="p">,</span>
-      <span class="n">sequence</span><span class="p">,</span>
+      <span class="n">one_hot_sequence</span><span class="p">,</span>
     <span class="p">)</span>
 
     <span class="n">logits</span> <span class="o">=</span> <span class="n">final_projection</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="n">decoded_node_features</span><span class="p">)</span> <span class="o">+</span> <span class="n">bias</span>

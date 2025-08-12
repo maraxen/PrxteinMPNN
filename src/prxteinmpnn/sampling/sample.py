@@ -130,7 +130,7 @@ def make_sample_sequences(
     decoding_order_fn=decoding_order_fn,
   )
 
-  @partial(jax.jit, static_argnames=("k_neighbors", "augment_eps", "hyperparameters", "iterations"))
+  @partial(jax.jit, static_argnames=("k_neighbors", "augment_eps"))
   def sample_sequences(
     prng_key: PRNGKeyArray,
     sequence: ProteinSequence,

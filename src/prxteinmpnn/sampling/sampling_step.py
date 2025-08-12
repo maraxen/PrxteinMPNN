@@ -217,8 +217,6 @@ def sample_straight_through_estimator_step(
     n=grad_norm,
     nan=has_nan,
   )
-  clip_threshold = 1.0
-  grad = jnp.where(grad_norm > clip_threshold, grad * (clip_threshold / grad_norm), grad)
 
   updated_logits = current_logits - learning_rate * grad
 

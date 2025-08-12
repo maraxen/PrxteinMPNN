@@ -158,7 +158,6 @@ def initialize_conditional_decoder(
 
   """
   sequence_weights = layer_params["protein_mpnn/~/embed_token"]["W_s"]
-  jax.debug.print("Sequence weights shape: {shape}", shape=sequence_weights.shape)
   embedded_sequence = one_hot_sequence @ sequence_weights
 
   node_edge_features = concatenate_neighbor_nodes(

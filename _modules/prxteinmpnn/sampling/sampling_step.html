@@ -532,6 +532,12 @@ document.write(`
 <span class="sd">  &quot;&quot;&quot;</span>
   <span class="n">learning_rate</span> <span class="o">=</span> <span class="n">hyperparameters</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
   <span class="n">current_key</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">_sequence</span><span class="p">,</span> <span class="n">current_logits</span> <span class="o">=</span> <span class="n">carry</span>
+
+  <span class="n">jax</span><span class="o">.</span><span class="n">debug</span><span class="o">.</span><span class="n">print</span><span class="p">(</span>
+    <span class="s2">&quot;➡️ Iteration </span><span class="si">{_i}</span><span class="s2">, Current sequence: </span><span class="si">{_sequence}</span><span class="s2">&quot;</span><span class="p">,</span>
+    <span class="n">_i</span><span class="o">=</span><span class="n">_i</span><span class="p">,</span>
+    <span class="n">_sequence</span><span class="o">=</span><span class="n">_sequence</span><span class="p">[:</span><span class="mi">10</span><span class="p">],</span>
+  <span class="p">)</span>
   <span class="p">(</span>
     <span class="n">node_features</span><span class="p">,</span>
     <span class="n">edge_features</span><span class="p">,</span>

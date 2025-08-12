@@ -17,6 +17,7 @@ from prxteinmpnn.utils.types import (
   Logits,
   ModelParameters,
   NodeFeatures,
+  OneHotProteinSequence,
   ProteinSequence,
   SequenceEdgeFeatures,
 )
@@ -82,7 +83,10 @@ def sample_temperature_step(
     )
 
   """
-  current_key, edge_features, node_features, sequence, logits = carry
+  current_key, edge_features, node_features, _, _ = carry
+
+  sequence = jnp.zeros((node_features.shape[0], 21), dtype=jnp.float32)
+  logits = jnp.zeros((node_features.shape[0], 21), dtype=jnp.float32)
 
   (
     node_features,
@@ -99,23 +103,18 @@ def sample_temperature_step(
 
   def update_sequence(
     i: int,
-    inner_carry: tuple[PRNGKeyArray, ProteinSequence, Logits],
+    inner_carry: tuple[PRNGKeyArray, OneHotProteinSequence, Logits],
   ) -> tuple[PRNGKeyArray, ProteinSequence, Logits]:
     """Update the sequence at the current position."""
     current_prng_key, sequence, logits = inner_carry
     position = decoding_order[i]
-    one_hot_sequence = jax.nn.one_hot(
-      sequence,
-      num_classes=21,
-      dtype=jnp.float32,
-    )
     updated_node_features = decoder(
       node_features,
       edge_features,
       neighbor_indices,
       mask,
       autoregressive_mask,
-      one_hot_sequence,
+      sequence,
     )
     logits = final_projection(model_parameters, updated_node_features)
     temperature_key, next_prng_key = jax.random.split(current_prng_key)
@@ -123,10 +122,7 @@ def sample_temperature_step(
       temperature_key,
       logits[position].shape,
     )
-    jax.debug.print("Logits at position {i}: {logits}", i=i, logits=position_logits)
-    new_aa = position_logits.argmax(axis=-1).astype(jnp.int8)
-    jax.debug.print("New amino acid at position {i}: {new_aa}", i=i, new_aa=new_aa)
-    sequence = sequence.at[position].set(new_aa)
+    sequence = jax.nn.one_hot(position_logits[..., :20].argmax(-1), 21)
     logits = logits.at[position].set(position_logits)
     return next_prng_key, sequence, logits
 

@@ -571,8 +571,6 @@ document.write(`
     <span class="n">n</span><span class="o">=</span><span class="n">grad_norm</span><span class="p">,</span>
     <span class="n">nan</span><span class="o">=</span><span class="n">has_nan</span><span class="p">,</span>
   <span class="p">)</span>
-  <span class="n">clip_threshold</span> <span class="o">=</span> <span class="mf">1.0</span>
-  <span class="n">grad</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">grad_norm</span> <span class="o">&gt;</span> <span class="n">clip_threshold</span><span class="p">,</span> <span class="n">grad</span> <span class="o">*</span> <span class="p">(</span><span class="n">clip_threshold</span> <span class="o">/</span> <span class="n">grad_norm</span><span class="p">),</span> <span class="n">grad</span><span class="p">)</span>
 
   <span class="n">updated_logits</span> <span class="o">=</span> <span class="n">current_logits</span> <span class="o">-</span> <span class="n">learning_rate</span> <span class="o">*</span> <span class="n">grad</span>
 

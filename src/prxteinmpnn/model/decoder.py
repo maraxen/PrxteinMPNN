@@ -158,7 +158,7 @@ def initialize_conditional_decoder(
 
   """
   sequence_weights = layer_params["protein_mpnn/~/embed_token"]["W_s"]
-  embedded_sequence = sequence_weights @ one_hot_sequence
+  embedded_sequence = one_hot_sequence @ sequence_weights.T
 
   node_edge_features = concatenate_neighbor_nodes(
     jnp.zeros_like(node_features),

@@ -176,7 +176,7 @@ def sample_straight_through_estimator_step(
       carry,
 
   """
-  learning_rate, _target_logits = hyperparameters[0], hyperparameters[1]
+  learning_rate = hyperparameters[0]
   current_key, edge_features, node_features, _sequence, current_logits = carry
   (
     node_features,

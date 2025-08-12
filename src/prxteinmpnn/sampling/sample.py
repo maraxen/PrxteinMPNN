@@ -126,10 +126,6 @@ def make_sample_sequences(
     encoder=encoder,
     decoding_order_fn=decoding_order_fn,
   )
-  make_sampling_step_fn = preload_sampling_step_decoder(
-    decoder=decoder,
-    sampling_strategy=sampling_strategy,
-  )
 
   @partial(jax.jit, static_argnames=("k_neighbors", "augment_eps"))
   def sample_sequences(  # noqa: PLR0913
@@ -191,6 +187,12 @@ def make_sample_sequences(
       chain_index=chain_index,  # type: ignore[arg-type]
       k_neighbors=k_neighbors,  # type: ignore[arg-type]
       augment_eps=augment_eps,  # type: ignore[arg-type]
+    )
+
+    make_sampling_step_fn = preload_sampling_step_decoder(
+      decoder=decoder,
+      sample_model_pass_fn_only_prng=sample_model_pass_fn_only_prng,  # type: ignore[arg-type]
+      sampling_strategy=sampling_strategy,
     )
 
     sample_step = make_sampling_step_fn(

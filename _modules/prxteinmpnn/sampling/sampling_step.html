@@ -452,7 +452,7 @@ document.write(`
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Update the sequence at the current position.&quot;&quot;&quot;</span>
     <span class="n">current_prng_key</span><span class="p">,</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">logits</span> <span class="o">=</span> <span class="n">inner_carry</span>
     <span class="n">position</span> <span class="o">=</span> <span class="n">decoding_order</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
-    <span class="n">sequence</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">one_hot</span><span class="p">(</span>
+    <span class="n">one_hot_sequence</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">one_hot</span><span class="p">(</span>
       <span class="n">sequence</span><span class="p">,</span>
       <span class="n">num_classes</span><span class="o">=</span><span class="mi">21</span><span class="p">,</span>
       <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
@@ -463,7 +463,7 @@ document.write(`
       <span class="n">neighbor_indices</span><span class="p">,</span>
       <span class="n">mask</span><span class="p">,</span>
       <span class="n">autoregressive_mask</span><span class="p">,</span>
-      <span class="n">sequence</span><span class="p">,</span>
+      <span class="n">one_hot_sequence</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">logits</span> <span class="o">=</span> <span class="n">final_projection</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="n">updated_node_features</span><span class="p">)</span>
     <span class="n">temperature_key</span><span class="p">,</span> <span class="n">next_prng_key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">current_prng_key</span><span class="p">)</span>

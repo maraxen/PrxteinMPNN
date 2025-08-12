@@ -205,7 +205,6 @@ def make_sample_sequences(
       edge_features,
       node_features,
       sequence,
-      autoregressive_mask,
       logits,
     )
 

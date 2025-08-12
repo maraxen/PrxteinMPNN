@@ -547,14 +547,13 @@ document.write(`
   <span class="k">def</span><span class="w"> </span><span class="nf">loss_fn</span><span class="p">(</span><span class="n">input_logits</span><span class="p">:</span> <span class="n">Logits</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">CEELoss</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">NodeFeatures</span><span class="p">,</span> <span class="n">Logits</span><span class="p">]]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Compute the loss for the straight-through estimator.&quot;&quot;&quot;</span>
     <span class="n">ste_logits</span> <span class="o">=</span> <span class="n">straight_through_estimator</span><span class="p">(</span><span class="n">input_logits</span><span class="p">)</span>
-    <span class="n">ste_sequence</span> <span class="o">=</span> <span class="n">ste_logits</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
     <span class="n">updated_node_features</span> <span class="o">=</span> <span class="n">decoder</span><span class="p">(</span>
       <span class="n">node_features</span><span class="p">,</span>
       <span class="n">edge_features</span><span class="p">,</span>
       <span class="n">neighbor_indices</span><span class="p">,</span>
       <span class="n">mask</span><span class="p">,</span>
       <span class="n">autoregressive_mask</span><span class="p">,</span>
-      <span class="n">ste_sequence</span><span class="p">,</span>
+      <span class="n">ste_logits</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">output_logits</span> <span class="o">=</span> <span class="n">final_projection</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="n">updated_node_features</span><span class="p">)</span>
 

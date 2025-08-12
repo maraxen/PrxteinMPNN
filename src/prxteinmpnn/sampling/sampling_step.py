@@ -99,13 +99,13 @@ def sample_temperature_step(
 
   def update_sequence(
     i: int,
-    carry: tuple[PRNGKeyArray, ProteinSequence, Logits],
+    inner_carry: tuple[PRNGKeyArray, ProteinSequence, Logits],
   ) -> tuple[PRNGKeyArray, ProteinSequence, Logits]:
     """Update the sequence at the current position."""
+    current_prng_key, sequence, logits = inner_carry
     position = decoding_order[i]
-    current_prng_key, sequence, logits = carry
     sequence = jax.nn.one_hot(
-      carry,
+      sequence,
       num_classes=21,
       dtype=jnp.float32,
     )
@@ -133,7 +133,7 @@ def sample_temperature_step(
     sequence.shape[0],
     update_sequence,
     (next_prng_key, sequence, logits),
-  )[1]
+  )
 
   return next_prng_key, edge_features, node_features, sequence, logits
 

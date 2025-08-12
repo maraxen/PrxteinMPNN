@@ -13,15 +13,11 @@ from jaxtyping import PRNGKeyArray
 from prxteinmpnn.model.decoder import RunConditionalDecoderFn
 from prxteinmpnn.model.projection import final_projection
 from prxteinmpnn.utils.types import (
-  AtomMask,
-  AutoRegressiveMask,
   CEELoss,
   Logits,
   ModelParameters,
-  NeighborIndices,
   NodeFeatures,
   ProteinSequence,
-  SamplingHyperparameters,
   SequenceEdgeFeatures,
 )
 
@@ -47,27 +43,22 @@ SampleModelPassOnlyPRNGFn = Callable[[PRNGKeyArray], SamplingModelPassOutput]
 
 
 def sample_temperature_step(
-  i: int,
+  _i: int,
   carry: SamplingStepState,
   decoder: RunConditionalDecoderFn,
-  neighbor_indices: NeighborIndices,
-  mask: AtomMask,
-  autoregressive_mask: AutoRegressiveMask,
   model_parameters: ModelParameters,
-  hyperparameters: SamplingHyperparameters = (1.0,),
+  sample_model_pass_fn_only_prng: SampleModelPassOnlyPRNGFn,
+  temperature: float,
 ) -> SamplingStepState:
   """Single autoregressive sampling step with temperature scaling.
 
   Args:
-    i: Current iteration.
+    _i: Current iteration.
     carry: Tuple containing current state (rng_key, edge_features, node_features, sequence, logits).
     decoder: Decoder function to update node features.
-    neighbor_indices: Indices of neighboring nodes.
-    mask: Atom mask for valid atoms.
-    autoregressive_mask: Mask for autoregressive decoding.
     model_parameters: Model parameters for the model.
-    hyperparameters: Hyperparameters for sampling. In this case, the temperature for scaling
-      logits.
+    sample_model_pass_fn_only_prng: Function to run a single pass through the model.
+    temperature: Temperature for scaling logits.
 
   Returns:
     Updated carry state and None for scan output.
@@ -91,10 +82,18 @@ def sample_temperature_step(
     )
 
   """
-  temperature = hyperparameters[0]
-  prng_key, edge_features, node_features, sequence, logits = carry
+  current_key, edge_features, node_features, sequence, logits = carry
 
-  current_prng_key, next_prng_key = jax.random.split(prng_key)
+  (
+    node_features,
+    edge_features,
+    neighbor_indices,
+    mask,
+    autoregressive_mask,
+    next_prng_key,
+  ) = sample_model_pass_fn_only_prng(
+    current_key,
+  )
 
   updated_node_features = decoder(
     node_features,
@@ -109,14 +108,10 @@ def sample_temperature_step(
 
   logits = final_projection(model_parameters, updated_node_features)
 
-  logits = logits / temperature + jax.random.gumbel(current_prng_key, logits.shape)
+  temperature_key, next_prng_key = jax.random.split(next_prng_key)
+  logits = logits / temperature + jax.random.gumbel(temperature_key, logits.shape)
 
-  sampled_aa = logits[:20].argmax()
-
-  s_i = jax.nn.one_hot(sampled_aa, 21)
-
-  sequence = sequence.at[i].set(s_i).astype(jnp.int8)
-  logits = logits.at[i].set(logits)
+  sequence = logits.argmax(axis=-1).astype(jnp.int8)
 
   return next_prng_key, edge_features, node_features, sequence, logits
 
@@ -222,8 +217,12 @@ def preload_sampling_step_decoder(
   match sampling_config.sampling_strategy:
     case SamplingEnum.TEMPERATURE:
       """Get the temperature sampling step function."""
-      msg = "Temperature sampling is not implemented yet."
-      raise NotImplementedError(msg)
+      decoding_loaded_step_fn = partial(
+        sample_temperature_step,
+        decoder=decoder,
+        sample_model_pass_fn_only_prng=sample_model_pass_fn_only_prng,
+        temperature=sampling_config.temperature,  # type: ignore[arg-type]
+      )
     case SamplingEnum.STRAIGHT_THROUGH:
       """Get the straight-through sampling step function."""
       decoding_loaded_step_fn = partial(

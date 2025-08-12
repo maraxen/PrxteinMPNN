@@ -359,15 +359,11 @@ document.write(`
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.decoder</span><span class="w"> </span><span class="kn">import</span> <span class="n">RunConditionalDecoderFn</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.projection</span><span class="w"> </span><span class="kn">import</span> <span class="n">final_projection</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-  <span class="n">AtomMask</span><span class="p">,</span>
-  <span class="n">AutoRegressiveMask</span><span class="p">,</span>
   <span class="n">CEELoss</span><span class="p">,</span>
   <span class="n">Logits</span><span class="p">,</span>
   <span class="n">ModelParameters</span><span class="p">,</span>
-  <span class="n">NeighborIndices</span><span class="p">,</span>
   <span class="n">NodeFeatures</span><span class="p">,</span>
   <span class="n">ProteinSequence</span><span class="p">,</span>
-  <span class="n">SamplingHyperparameters</span><span class="p">,</span>
   <span class="n">SequenceEdgeFeatures</span><span class="p">,</span>
 <span class="p">)</span>
 
@@ -395,27 +391,22 @@ document.write(`
 <div class="viewcode-block" id="sample_temperature_step">
 <a class="viewcode-back" href="../../../api/prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.sampling_step.sample_temperature_step">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">sample_temperature_step</span><span class="p">(</span>
-  <span class="n">i</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+  <span class="n">_i</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
   <span class="n">carry</span><span class="p">:</span> <span class="n">SamplingStepState</span><span class="p">,</span>
   <span class="n">decoder</span><span class="p">:</span> <span class="n">RunConditionalDecoderFn</span><span class="p">,</span>
-  <span class="n">neighbor_indices</span><span class="p">:</span> <span class="n">NeighborIndices</span><span class="p">,</span>
-  <span class="n">mask</span><span class="p">:</span> <span class="n">AtomMask</span><span class="p">,</span>
-  <span class="n">autoregressive_mask</span><span class="p">:</span> <span class="n">AutoRegressiveMask</span><span class="p">,</span>
   <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
-  <span class="n">hyperparameters</span><span class="p">:</span> <span class="n">SamplingHyperparameters</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.0</span><span class="p">,),</span>
+  <span class="n">sample_model_pass_fn_only_prng</span><span class="p">:</span> <span class="n">SampleModelPassOnlyPRNGFn</span><span class="p">,</span>
+  <span class="n">temperature</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SamplingStepState</span><span class="p">:</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Single autoregressive sampling step with temperature scaling.</span>
 
 <span class="sd">  Args:</span>
-<span class="sd">    i: Current iteration.</span>
+<span class="sd">    _i: Current iteration.</span>
 <span class="sd">    carry: Tuple containing current state (rng_key, edge_features, node_features, sequence, logits).</span>
 <span class="sd">    decoder: Decoder function to update node features.</span>
-<span class="sd">    neighbor_indices: Indices of neighboring nodes.</span>
-<span class="sd">    mask: Atom mask for valid atoms.</span>
-<span class="sd">    autoregressive_mask: Mask for autoregressive decoding.</span>
 <span class="sd">    model_parameters: Model parameters for the model.</span>
-<span class="sd">    hyperparameters: Hyperparameters for sampling. In this case, the temperature for scaling</span>
-<span class="sd">      logits.</span>
+<span class="sd">    sample_model_pass_fn_only_prng: Function to run a single pass through the model.</span>
+<span class="sd">    temperature: Temperature for scaling logits.</span>
 
 <span class="sd">  Returns:</span>
 <span class="sd">    Updated carry state and None for scan output.</span>
@@ -439,10 +430,18 @@ document.write(`
 <span class="sd">    )</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
-  <span class="n">temperature</span> <span class="o">=</span> <span class="n">hyperparameters</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-  <span class="n">prng_key</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">logits</span> <span class="o">=</span> <span class="n">carry</span>
+  <span class="n">current_key</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">logits</span> <span class="o">=</span> <span class="n">carry</span>
 
-  <span class="n">current_prng_key</span><span class="p">,</span> <span class="n">next_prng_key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">prng_key</span><span class="p">)</span>
+  <span class="p">(</span>
+    <span class="n">node_features</span><span class="p">,</span>
+    <span class="n">edge_features</span><span class="p">,</span>
+    <span class="n">neighbor_indices</span><span class="p">,</span>
+    <span class="n">mask</span><span class="p">,</span>
+    <span class="n">autoregressive_mask</span><span class="p">,</span>
+    <span class="n">next_prng_key</span><span class="p">,</span>
+  <span class="p">)</span> <span class="o">=</span> <span class="n">sample_model_pass_fn_only_prng</span><span class="p">(</span>
+    <span class="n">current_key</span><span class="p">,</span>
+  <span class="p">)</span>
 
   <span class="n">updated_node_features</span> <span class="o">=</span> <span class="n">decoder</span><span class="p">(</span>
     <span class="n">node_features</span><span class="p">,</span>
@@ -457,14 +456,10 @@ document.write(`
 
   <span class="n">logits</span> <span class="o">=</span> <span class="n">final_projection</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="n">updated_node_features</span><span class="p">)</span>
 
-  <span class="n">logits</span> <span class="o">=</span> <span class="n">logits</span> <span class="o">/</span> <span class="n">temperature</span> <span class="o">+</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">gumbel</span><span class="p">(</span><span class="n">current_prng_key</span><span class="p">,</span> <span class="n">logits</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+  <span class="n">temperature_key</span><span class="p">,</span> <span class="n">next_prng_key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">next_prng_key</span><span class="p">)</span>
+  <span class="n">logits</span> <span class="o">=</span> <span class="n">logits</span> <span class="o">/</span> <span class="n">temperature</span> <span class="o">+</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">gumbel</span><span class="p">(</span><span class="n">temperature_key</span><span class="p">,</span> <span class="n">logits</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
 
-  <span class="n">sampled_aa</span> <span class="o">=</span> <span class="n">logits</span><span class="p">[:</span><span class="mi">20</span><span class="p">]</span><span class="o">.</span><span class="n">argmax</span><span class="p">()</span>
-
-  <span class="n">s_i</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">one_hot</span><span class="p">(</span><span class="n">sampled_aa</span><span class="p">,</span> <span class="mi">21</span><span class="p">)</span>
-
-  <span class="n">sequence</span> <span class="o">=</span> <span class="n">sequence</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">s_i</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>
-  <span class="n">logits</span> <span class="o">=</span> <span class="n">logits</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">logits</span><span class="p">)</span>
+  <span class="n">sequence</span> <span class="o">=</span> <span class="n">logits</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>
 
   <span class="k">return</span> <span class="n">next_prng_key</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">logits</span></div>
 
@@ -576,8 +571,12 @@ document.write(`
   <span class="k">match</span> <span class="n">sampling_config</span><span class="o">.</span><span class="n">sampling_strategy</span><span class="p">:</span>
     <span class="k">case</span> <span class="n">SamplingEnum</span><span class="o">.</span><span class="n">TEMPERATURE</span><span class="p">:</span>
 <span class="w">      </span><span class="sd">&quot;&quot;&quot;Get the temperature sampling step function.&quot;&quot;&quot;</span>
-      <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Temperature sampling is not implemented yet.&quot;</span>
-      <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+      <span class="n">decoding_loaded_step_fn</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span>
+        <span class="n">sample_temperature_step</span><span class="p">,</span>
+        <span class="n">decoder</span><span class="o">=</span><span class="n">decoder</span><span class="p">,</span>
+        <span class="n">sample_model_pass_fn_only_prng</span><span class="o">=</span><span class="n">sample_model_pass_fn_only_prng</span><span class="p">,</span>
+        <span class="n">temperature</span><span class="o">=</span><span class="n">sampling_config</span><span class="o">.</span><span class="n">temperature</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
+      <span class="p">)</span>
     <span class="k">case</span> <span class="n">SamplingEnum</span><span class="o">.</span><span class="n">STRAIGHT_THROUGH</span><span class="p">:</span>
 <span class="w">      </span><span class="sd">&quot;&quot;&quot;Get the straight-through sampling step function.&quot;&quot;&quot;</span>
       <span class="n">decoding_loaded_step_fn</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span>

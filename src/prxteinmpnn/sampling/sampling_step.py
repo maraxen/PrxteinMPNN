@@ -104,7 +104,7 @@ def sample_temperature_step(
     """Update the sequence at the current position."""
     current_prng_key, sequence, logits = inner_carry
     position = decoding_order[i]
-    sequence = jax.nn.one_hot(
+    one_hot_sequence = jax.nn.one_hot(
       sequence,
       num_classes=21,
       dtype=jnp.float32,
@@ -115,7 +115,7 @@ def sample_temperature_step(
       neighbor_indices,
       mask,
       autoregressive_mask,
-      sequence,
+      one_hot_sequence,
     )
     logits = final_projection(model_parameters, updated_node_features)
     temperature_key, next_prng_key = jax.random.split(current_prng_key)

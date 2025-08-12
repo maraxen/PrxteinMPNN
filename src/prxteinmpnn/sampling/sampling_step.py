@@ -176,7 +176,7 @@ def sample_straight_through_estimator_step(
       carry,
 
   """
-  learning_rate = hyperparameters[0]
+  learning_rate, target_logits = hyperparameters[0], hyperparameters[1]
   current_key, edge_features, node_features, _sequence, current_logits = carry
 
   jax.debug.print(
@@ -209,7 +209,7 @@ def sample_straight_through_estimator_step(
     )
     output_logits = final_projection(model_parameters, updated_node_features)
 
-    return ste_loss(output_logits, input_logits, mask), (updated_node_features, output_logits)
+    return ste_loss(output_logits, target_logits, mask), (updated_node_features, output_logits)
 
   (_, (new_node_features, _)), grad = jax.value_and_grad(loss_fn, has_aux=True)(
     current_logits,

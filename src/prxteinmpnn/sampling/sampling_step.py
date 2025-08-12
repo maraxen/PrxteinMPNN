@@ -189,6 +189,8 @@ def sample_straight_through_estimator_step(
     current_key,
   )
 
+  jax.debug.print("➡️ Iteration {_i}, Mask Sum: {s}", _i=_i, s=jnp.sum(mask))
+
   @jax.jit
   def loss_fn(input_logits: Logits) -> tuple[CEELoss, tuple[NodeFeatures, Logits]]:
     """Compute the loss for the straight-through estimator."""

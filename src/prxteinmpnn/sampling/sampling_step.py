@@ -121,8 +121,8 @@ def sample_temperature_step(
     )
     new_amino_acid = jax.nn.one_hot(position_logits[..., :20].argmax(-1), 21)
     one_hot_sequence = one_hot_sequence.at[position].set(new_amino_acid)
-    logits = logits.at[position].set(position_logits)
-    return next_loop_key, one_hot_sequence, logits
+    all_logits = all_logits.at[position].set(position_logits)
+    return next_loop_key, one_hot_sequence, all_logits
 
   initial_inner_carry = (
     decoding_key,

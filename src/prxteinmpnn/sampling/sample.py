@@ -217,15 +217,12 @@ def make_sample_sequences(
       config,
     )
 
-    opt_state = config.optimizer.init(logits) if config.optimizer is not None else None  # type: ignore[assignment]
-
     initial_carry = (
       next_rng_key,
       edge_features,
       node_features,
       sequence,
       logits,
-      opt_state,
     )
 
     final_carry = jax.lax.fori_loop(

@@ -8,7 +8,6 @@ from functools import partial
 
 import jax
 import jax.numpy as jnp
-import optax
 from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.model.decoder import RunConditionalDecoderFn
@@ -36,7 +35,6 @@ SamplingStepState = tuple[
   NodeFeatures,
   ProteinSequence,
   Logits,
-  optax.OptState | None,
 ]
 SamplingStepInput = tuple[int, SamplingStepState]
 
@@ -94,7 +92,7 @@ def sample_temperature_step(
 
   """
   temperature = hyperparameters[0]
-  prng_key, edge_features, node_features, sequence, logits, _ = carry
+  prng_key, edge_features, node_features, sequence, logits = carry
 
   current_prng_key, next_prng_key = jax.random.split(prng_key)
 
@@ -120,7 +118,7 @@ def sample_temperature_step(
   sequence = sequence.at[i].set(s_i).astype(jnp.int8)
   logits = logits.at[i].set(logits)
 
-  return next_prng_key, edge_features, node_features, sequence, logits, None
+  return next_prng_key, edge_features, node_features, sequence, logits
 
 
 def sample_straight_through_estimator_step(
@@ -129,7 +127,7 @@ def sample_straight_through_estimator_step(
   decoder: RunConditionalDecoderFn,
   model_parameters: ModelParameters,
   sample_model_pass_fn_only_prng: SampleModelPassOnlyPRNGFn,
-  optimizer: optax.GradientTransformation,
+  learning_rate: float,
   target_logits: Logits,
 ) -> SamplingStepState:
   """Single autoregressive sampling step with straight-through estimator.
@@ -140,7 +138,7 @@ def sample_straight_through_estimator_step(
     decoder: Decoder function to update node features.
     model_parameters: Model parameters for the model.
     sample_model_pass_fn_only_prng: Function to run a single pass through the model.
-    optimizer: Optax optimizer for updating logits.
+    learning_rate: Learning rate for updating logits.
     target_logits: Target logits for the straight-through estimator.
 
   Returns:
@@ -164,7 +162,7 @@ def sample_straight_through_estimator_step(
       carry,
 
   """
-  current_key, edge_features, node_features, _sequence, current_logits, opt_state = carry
+  current_key, edge_features, node_features, _sequence, current_logits = carry
 
   jax.debug.print(
     "➡️ Iteration {_i}, Current sequence: {_sequence}",
@@ -202,8 +200,7 @@ def sample_straight_through_estimator_step(
     current_logits,
   )
 
-  updates, new_opt_state = optimizer.update(grad, opt_state)  # type: ignore[arg-type]
-  updated_logits = optax.apply_updates(current_logits, updates)
+  updated_logits = current_logits - learning_rate * grad
 
   updated_sequence = updated_logits.argmax(axis=-1).astype(jnp.int8)  # type: ignore[no-any-return]
   return (
@@ -211,8 +208,7 @@ def sample_straight_through_estimator_step(
     edge_features,
     new_node_features,
     updated_sequence,
-    updated_logits,  # type: ignore[no-any-return]
-    new_opt_state,
+    updated_logits,
   )
 
 
@@ -234,7 +230,7 @@ def preload_sampling_step_decoder(
         sample_straight_through_estimator_step,
         decoder=decoder,
         sample_model_pass_fn_only_prng=sample_model_pass_fn_only_prng,
-        optimizer=sampling_config.optimizer,  # type: ignore[arg-type]
+        learning_rate=sampling_config.learning_rate,  # type: ignore[arg-type]
         target_logits=sampling_config.target_logits,  # type: ignore[arg-type]
       )
     case SamplingEnum.BEAM_SEARCH:

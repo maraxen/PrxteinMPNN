@@ -394,11 +394,11 @@ document.write(`
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingConfig"><code class="docutils literal notranslate"><span class="pre">SamplingConfig</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingConfig.iterations"><code class="docutils literal notranslate"><span class="pre">SamplingConfig.iterations</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingConfig.learning_rate"><code class="docutils literal notranslate"><span class="pre">SamplingConfig.learning_rate</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingConfig.replace"><code class="docutils literal notranslate"><span class="pre">SamplingConfig.replace()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingConfig.target_logits"><code class="docutils literal notranslate"><span class="pre">SamplingConfig.target_logits</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingConfig.temperature"><code class="docutils literal notranslate"><span class="pre">SamplingConfig.temperature</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingConfig.iterations"><code class="docutils literal notranslate"><span class="pre">SamplingConfig.iterations</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingConfig.sampling_strategy"><code class="docutils literal notranslate"><span class="pre">SamplingConfig.sampling_strategy</span></code></a></li>
 </ul>
 </li>
@@ -428,20 +428,25 @@ document.write(`
 <p>Sampling utilities for PrXteinMPNN.</p>
 <dl class="py class">
 <dt class="sig sig-object py" id="prxteinmpnn.sampling.SamplingConfig">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">prxteinmpnn.sampling.</span></span><span class="sig-name descname"><span class="pre">SamplingConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">iterations</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sampling_strategy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temperature</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_logits</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">learning_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/sampling/config.html#SamplingConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.sampling.SamplingConfig" title="Link to this definition">#</a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">prxteinmpnn.sampling.</span></span><span class="sig-name descname"><span class="pre">SamplingConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sampling_strategy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">iterations</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temperature</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_logits</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">learning_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/sampling/config.html#SamplingConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.sampling.SamplingConfig" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
 <p>Configuration for sequence sampling.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>iterations</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
 <li><p><strong>sampling_strategy</strong> (<a class="reference internal" href="#prxteinmpnn.sampling.SamplingEnum" title="prxteinmpnn.sampling.config.SamplingEnum"><em>SamplingEnum</em></a>)</p></li>
+<li><p><strong>iterations</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
 <li><p><strong>temperature</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>)</p></li>
 <li><p><strong>target_logits</strong> (<em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_classes'</em><em>] </em><em>| </em><em>None</em>)</p></li>
 <li><p><strong>learning_rate</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>)</p></li>
 </ul>
 </dd>
 </dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.sampling.SamplingConfig.iterations">
+<span class="sig-name descname"><span class="pre">iterations</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#prxteinmpnn.sampling.SamplingConfig.iterations" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
 <dl class="py attribute">
 <dt class="sig sig-object py" id="prxteinmpnn.sampling.SamplingConfig.learning_rate">
 <span class="sig-name descname"><span class="pre">learning_rate</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.1</span></em><a class="headerlink" href="#prxteinmpnn.sampling.SamplingConfig.learning_rate" title="Link to this definition">#</a></dt>
@@ -461,11 +466,6 @@ document.write(`
 <dl class="py attribute">
 <dt class="sig sig-object py" id="prxteinmpnn.sampling.SamplingConfig.temperature">
 <span class="sig-name descname"><span class="pre">temperature</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1.0</span></em><a class="headerlink" href="#prxteinmpnn.sampling.SamplingConfig.temperature" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="prxteinmpnn.sampling.SamplingConfig.iterations">
-<span class="sig-name descname"><span class="pre">iterations</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a></em><a class="headerlink" href="#prxteinmpnn.sampling.SamplingConfig.iterations" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
@@ -617,11 +617,11 @@ If not provided, the sampling function will not perform optimization.</p></li>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingConfig"><code class="docutils literal notranslate"><span class="pre">SamplingConfig</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingConfig.iterations"><code class="docutils literal notranslate"><span class="pre">SamplingConfig.iterations</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingConfig.learning_rate"><code class="docutils literal notranslate"><span class="pre">SamplingConfig.learning_rate</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingConfig.replace"><code class="docutils literal notranslate"><span class="pre">SamplingConfig.replace()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingConfig.target_logits"><code class="docutils literal notranslate"><span class="pre">SamplingConfig.target_logits</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingConfig.temperature"><code class="docutils literal notranslate"><span class="pre">SamplingConfig.temperature</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingConfig.iterations"><code class="docutils literal notranslate"><span class="pre">SamplingConfig.iterations</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingConfig.sampling_strategy"><code class="docutils literal notranslate"><span class="pre">SamplingConfig.sampling_strategy</span></code></a></li>
 </ul>
 </li>

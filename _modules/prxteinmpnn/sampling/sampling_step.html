@@ -447,13 +447,13 @@ document.write(`
 
   <span class="k">def</span><span class="w"> </span><span class="nf">update_sequence</span><span class="p">(</span>
     <span class="n">i</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
-    <span class="n">carry</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">PRNGKeyArray</span><span class="p">,</span> <span class="n">ProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">],</span>
+    <span class="n">inner_carry</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">PRNGKeyArray</span><span class="p">,</span> <span class="n">ProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">],</span>
   <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">PRNGKeyArray</span><span class="p">,</span> <span class="n">ProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Update the sequence at the current position.&quot;&quot;&quot;</span>
+    <span class="n">current_prng_key</span><span class="p">,</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">logits</span> <span class="o">=</span> <span class="n">inner_carry</span>
     <span class="n">position</span> <span class="o">=</span> <span class="n">decoding_order</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
-    <span class="n">current_prng_key</span><span class="p">,</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">logits</span> <span class="o">=</span> <span class="n">carry</span>
     <span class="n">sequence</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">one_hot</span><span class="p">(</span>
-      <span class="n">carry</span><span class="p">,</span>
+      <span class="n">sequence</span><span class="p">,</span>
       <span class="n">num_classes</span><span class="o">=</span><span class="mi">21</span><span class="p">,</span>
       <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
     <span class="p">)</span>
@@ -481,7 +481,7 @@ document.write(`
     <span class="n">sequence</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
     <span class="n">update_sequence</span><span class="p">,</span>
     <span class="p">(</span><span class="n">next_prng_key</span><span class="p">,</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">logits</span><span class="p">),</span>
-  <span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+  <span class="p">)</span>
 
   <span class="k">return</span> <span class="n">next_prng_key</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">logits</span></div>
 

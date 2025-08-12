@@ -124,13 +124,15 @@ def make_score_sequence(
       attention_mask,
     )
 
+    one_hot_sequence = jax.nn.one_hot(sequence, 21, dtype=jnp.float32)
+
     node_features = decoder(
       node_features,
       edge_features,
       neighbor_indices,
       mask,
       autoregressive_mask,
-      sequence,
+      one_hot_sequence,
     )
     logits = final_projection(
       model_parameters,

@@ -95,6 +95,12 @@ def sample_temperature_step(
     current_key,
   )
 
+  sequence = jax.nn.one_hot(
+    sequence,
+    num_classes=logits.shape[-1],
+    dtype=jnp.float32,
+  )
+
   updated_node_features = decoder(
     node_features,
     edge_features,
@@ -159,11 +165,6 @@ def sample_straight_through_estimator_step(
   """
   current_key, edge_features, node_features, _sequence, current_logits = carry
 
-  jax.debug.print(
-    "➡️ Iteration {_i}, Current sequence: {_sequence}",
-    _i=_i,
-    _sequence=_sequence[:10],
-  )
   (
     node_features,
     edge_features,

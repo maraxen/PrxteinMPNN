@@ -565,15 +565,12 @@ document.write(`
       <span class="n">config</span><span class="p">,</span>
     <span class="p">)</span>
 
-    <span class="n">opt_state</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">optimizer</span><span class="o">.</span><span class="n">init</span><span class="p">(</span><span class="n">logits</span><span class="p">)</span> <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">optimizer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>  <span class="c1"># type: ignore[assignment]</span>
-
     <span class="n">initial_carry</span> <span class="o">=</span> <span class="p">(</span>
       <span class="n">next_rng_key</span><span class="p">,</span>
       <span class="n">edge_features</span><span class="p">,</span>
       <span class="n">node_features</span><span class="p">,</span>
       <span class="n">sequence</span><span class="p">,</span>
       <span class="n">logits</span><span class="p">,</span>
-      <span class="n">opt_state</span><span class="p">,</span>
     <span class="p">)</span>
 
     <span class="n">final_carry</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">fori_loop</span><span class="p">(</span>

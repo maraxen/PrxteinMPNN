@@ -2,8 +2,7 @@
 
 import enum
 
-import optax
-from flax.struct import dataclass, field
+from flax.struct import dataclass
 
 from prxteinmpnn.utils.types import Logits
 
@@ -26,8 +25,8 @@ class SamplingConfig:
   # Static parameters that control the computation graph
   iterations: int
   sampling_strategy: SamplingEnum
-  optimizer: optax.GradientTransformation | None = field(pytree_node=False, default=None)
 
   # Dynamic parameters (data) used within the computation
   temperature: float = 1.0
   target_logits: Logits | None = None
+  learning_rate: float = 0.1

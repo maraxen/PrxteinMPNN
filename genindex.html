@@ -463,12 +463,8 @@ document.write(`
 <h2 id="B">B</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.sampling_step.SamplingEnum.BEAM_SEARCH">BEAM_SEARCH (prxteinmpnn.sampling.sampling_step.SamplingEnum attribute)</a>
-
-      <ul>
-        <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingEnum.BEAM_SEARCH">(prxteinmpnn.sampling.SamplingEnum attribute)</a>
+      <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingEnum.BEAM_SEARCH">BEAM_SEARCH (prxteinmpnn.sampling.SamplingEnum attribute)</a>
 </li>
-      </ul></li>
       <li><a href="api/prxteinmpnn.utils.data_structures.html#id10">bias (prxteinmpnn.utils.data_structures.ModelInputs attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ModelInputs.bias">[1]</a>
 
       <ul>
@@ -619,18 +615,14 @@ document.write(`
 </li>
       <li><a href="api/prxteinmpnn.model.features.html#prxteinmpnn.model.features.get_edge_chains_neighbors">get_edge_chains_neighbors() (in module prxteinmpnn.model.features)</a>
 </li>
-      <li><a href="api/prxteinmpnn.mpnn.html#prxteinmpnn.mpnn.get_mpnn_model">get_mpnn_model() (in module prxteinmpnn.mpnn)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/prxteinmpnn.mpnn.html#prxteinmpnn.mpnn.get_mpnn_model">get_mpnn_model() (in module prxteinmpnn.mpnn)</a>
+</li>
       <li><a href="api/prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.get_protein_structures">get_protein_structures() (in module prxteinmpnn.utils.foldcomp_utils)</a>
 </li>
-      <li><a href="api/prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.sampling_step.SamplingEnum.GREEDY">GREEDY (prxteinmpnn.sampling.sampling_step.SamplingEnum attribute)</a>
-
-      <ul>
-        <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingEnum.GREEDY">(prxteinmpnn.sampling.SamplingEnum attribute)</a>
+      <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingEnum.GREEDY">GREEDY (prxteinmpnn.sampling.SamplingEnum attribute)</a>
 </li>
-      </ul></li>
   </ul></td>
 </tr></table>
 
@@ -659,8 +651,12 @@ document.write(`
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.initialize_node_features">initialize_node_features() (in module prxteinmpnn.model.encoder)</a>
 </li>
-      <li><a href="api/prxteinmpnn.utils.data_structures.html#id13">iterations (prxteinmpnn.utils.data_structures.SamplingInputs attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingInputs.iterations">[1]</a>
+      <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingConfig.iterations">iterations (prxteinmpnn.sampling.SamplingConfig attribute)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.utils.data_structures.html#id13">(prxteinmpnn.utils.data_structures.SamplingInputs attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingInputs.iterations">[1]</a>
 </li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
@@ -837,6 +833,10 @@ document.write(`
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.OligomerType">OligomerType (class in prxteinmpnn.utils.data_structures)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingConfig.optimizer">optimizer (prxteinmpnn.sampling.SamplingConfig attribute)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -1089,9 +1089,11 @@ document.write(`
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/prxteinmpnn.utils.decoding_order.html#prxteinmpnn.utils.decoding_order.random_decoding_order">random_decoding_order() (in module prxteinmpnn.utils.decoding_order)</a>
 </li>
-      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ModelInputs.replace">replace() (prxteinmpnn.utils.data_structures.ModelInputs method)</a>
+      <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingConfig.replace">replace() (prxteinmpnn.sampling.SamplingConfig method)</a>
 
       <ul>
+        <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ModelInputs.replace">(prxteinmpnn.utils.data_structures.ModelInputs method)</a>
+</li>
         <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinStructure.replace">(prxteinmpnn.utils.data_structures.ProteinStructure method)</a>
 </li>
         <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingInputs.replace">(prxteinmpnn.utils.data_structures.SamplingInputs method)</a>
@@ -1121,12 +1123,12 @@ document.write(`
 </li>
       <li><a href="api/prxteinmpnn.sampling.initialize.html#prxteinmpnn.sampling.initialize.sampling_encode">sampling_encode() (in module prxteinmpnn.sampling.initialize)</a>
 </li>
-      <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingEnum">SamplingEnum (class in prxteinmpnn.sampling)</a>
-
-      <ul>
-        <li><a href="api/prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.sampling_step.SamplingEnum">(class in prxteinmpnn.sampling.sampling_step)</a>
+      <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingConfig.sampling_strategy">sampling_strategy (prxteinmpnn.sampling.SamplingConfig attribute)</a>
 </li>
-      </ul></li>
+      <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingConfig">SamplingConfig (class in prxteinmpnn.sampling)</a>
+</li>
+      <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingEnum">SamplingEnum (class in prxteinmpnn.sampling)</a>
+</li>
       <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingInputs">SamplingInputs (class in prxteinmpnn.utils.data_structures)</a>
 </li>
       <li><a href="api/prxteinmpnn.utils.data_structures.html#id5">sequence (prxteinmpnn.utils.data_structures.ModelInputs attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ModelInputs.sequence">[1]</a>
@@ -1135,10 +1137,10 @@ document.write(`
 </li>
       <li><a href="api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.setup_encoder">setup_encoder() (in module prxteinmpnn.model.encoder)</a>
 </li>
-      <li><a href="api/prxteinmpnn.utils.decoding_order.html#prxteinmpnn.utils.decoding_order.single_decoding_order">single_decoding_order() (in module prxteinmpnn.utils.decoding_order)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/prxteinmpnn.utils.decoding_order.html#prxteinmpnn.utils.decoding_order.single_decoding_order">single_decoding_order() (in module prxteinmpnn.utils.decoding_order)</a>
+</li>
       <li><a href="api/prxteinmpnn.mpnn.html#prxteinmpnn.mpnn.ModelWeights.SOLUBLE">SOLUBLE (prxteinmpnn.mpnn.ModelWeights attribute)</a>
 </li>
       <li><a href="api/prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.Bond.stddev">stddev (prxteinmpnn.utils.residue_constants.Bond attribute)</a>
@@ -1149,12 +1151,8 @@ document.write(`
       </ul></li>
       <li><a href="api/prxteinmpnn.sampling.ste.html#prxteinmpnn.sampling.ste.ste_loss">ste_loss() (in module prxteinmpnn.sampling.ste)</a>
 </li>
-      <li><a href="api/prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.sampling_step.SamplingEnum.STRAIGHT_THROUGH">STRAIGHT_THROUGH (prxteinmpnn.sampling.sampling_step.SamplingEnum attribute)</a>
-
-      <ul>
-        <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingEnum.STRAIGHT_THROUGH">(prxteinmpnn.sampling.SamplingEnum attribute)</a>
+      <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingEnum.STRAIGHT_THROUGH">STRAIGHT_THROUGH (prxteinmpnn.sampling.SamplingEnum attribute)</a>
 </li>
-      </ul></li>
       <li><a href="api/prxteinmpnn.sampling.ste.html#prxteinmpnn.sampling.ste.straight_through_estimator">straight_through_estimator() (in module prxteinmpnn.sampling.ste)</a>
 </li>
       <li><a href="api/prxteinmpnn.io.html#prxteinmpnn.io.string_key_to_index">string_key_to_index() (in module prxteinmpnn.io)</a>
@@ -1173,28 +1171,20 @@ document.write(`
 <h2 id="T">T</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.sampling_step.SamplingEnum.TEMPERATURE">TEMPERATURE (prxteinmpnn.sampling.sampling_step.SamplingEnum attribute)</a>
-
-      <ul>
-        <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingEnum.TEMPERATURE">(prxteinmpnn.sampling.SamplingEnum attribute)</a>
+      <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingConfig.target_logits">target_logits (prxteinmpnn.sampling.SamplingConfig attribute)</a>
 </li>
-      </ul></li>
-      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.OligomerType.TIED_HOMOOLIGOMER">TIED_HOMOOLIGOMER (prxteinmpnn.utils.data_structures.OligomerType attribute)</a>
+      <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingConfig.temperature">temperature (prxteinmpnn.sampling.SamplingConfig attribute)</a>
+</li>
+      <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingEnum.TEMPERATURE">TEMPERATURE (prxteinmpnn.sampling.SamplingEnum attribute)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.sampling_step.SamplingEnum.TOP_K">TOP_K (prxteinmpnn.sampling.sampling_step.SamplingEnum attribute)</a>
-
-      <ul>
-        <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingEnum.TOP_K">(prxteinmpnn.sampling.SamplingEnum attribute)</a>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.OligomerType.TIED_HOMOOLIGOMER">TIED_HOMOOLIGOMER (prxteinmpnn.utils.data_structures.OligomerType attribute)</a>
 </li>
-      </ul></li>
-      <li><a href="api/prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.sampling_step.SamplingEnum.TOP_P">TOP_P (prxteinmpnn.sampling.sampling_step.SamplingEnum attribute)</a>
-
-      <ul>
-        <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingEnum.TOP_P">(prxteinmpnn.sampling.SamplingEnum attribute)</a>
+      <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingEnum.TOP_K">TOP_K (prxteinmpnn.sampling.SamplingEnum attribute)</a>
 </li>
-      </ul></li>
+      <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingEnum.TOP_P">TOP_P (prxteinmpnn.sampling.SamplingEnum attribute)</a>
+</li>
   </ul></td>
 </tr></table>
 

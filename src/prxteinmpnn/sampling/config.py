@@ -23,10 +23,9 @@ class SamplingConfig:
   """Configuration for sequence sampling."""
 
   # Static parameters that control the computation graph
-  iterations: int
   sampling_strategy: SamplingEnum
 
-  # Dynamic parameters (data) used within the computation
+  iterations: int = 1
   temperature: float = 1.0
   target_logits: Logits | None = None
   learning_rate: float = 0.1

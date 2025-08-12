@@ -95,29 +95,45 @@ def sample_temperature_step(
     current_key,
   )
 
-  sequence = jax.nn.one_hot(
-    sequence,
-    num_classes=logits.shape[-1],
-    dtype=jnp.float32,
-  )
+  decoding_order = jnp.argsort(jnp.sum(autoregressive_mask, axis=1))
 
-  updated_node_features = decoder(
-    node_features,
-    edge_features,
-    neighbor_indices,
-    mask,
-    autoregressive_mask,
-    sequence,
-  )
+  def update_sequence(
+    i: int,
+    carry: tuple[PRNGKeyArray, ProteinSequence, Logits],
+  ) -> tuple[PRNGKeyArray, ProteinSequence, Logits]:
+    """Update the sequence at the current position."""
+    position = decoding_order[i]
+    current_prng_key, sequence, logits = carry
+    sequence = jax.nn.one_hot(
+      carry,
+      num_classes=21,
+      dtype=jnp.float32,
+    )
+    updated_node_features = decoder(
+      node_features,
+      edge_features,
+      neighbor_indices,
+      mask,
+      autoregressive_mask,
+      sequence,
+    )
+    logits = final_projection(model_parameters, updated_node_features)
+    temperature_key, next_prng_key = jax.random.split(current_prng_key)
+    logits = (logits[position] / temperature) + jax.random.gumbel(
+      temperature_key,
+      logits[position].shape,
+    )
+    new_aa = logits.argmax(axis=-1).astype(jnp.int8)
+    sequence = sequence.at[position].set(new_aa)
+    logits = logits.at[position].set(logits)
+    return next_prng_key, sequence, logits
 
-  node_features = updated_node_features
-
-  logits = final_projection(model_parameters, updated_node_features)
-
-  temperature_key, next_prng_key = jax.random.split(next_prng_key)
-  logits = logits / temperature + jax.random.gumbel(temperature_key, logits.shape)
-
-  sequence = logits.argmax(axis=-1).astype(jnp.int8)
+  next_prng_key, sequence, logits = jax.lax.fori_loop(
+    0,
+    sequence.shape[0],
+    update_sequence,
+    (next_prng_key, sequence, logits),
+  )[1]
 
   return next_prng_key, edge_features, node_features, sequence, logits
 

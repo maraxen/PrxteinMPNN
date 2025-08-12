@@ -32,8 +32,9 @@ from prxteinmpnn.utils.types import (
   StructureAtomicCoordinates,
 )
 
+from .config import SamplingConfig
 from .initialize import sampling_encode
-from .sampling_step import SamplingEnum, preload_sampling_step_decoder
+from .sampling_step import preload_sampling_step_decoder
 
 SamplerFnBase = Callable[
   [
@@ -73,7 +74,7 @@ SamplerFn = SamplerFnBase | SamplerFnFromModelInputs | SamplerFnFromSamplingInpu
 def make_sample_sequences(
   model_parameters: ModelParameters,
   decoding_order_fn: DecodingOrderFn,
-  sampling_strategy: SamplingEnum = SamplingEnum.TEMPERATURE,
+  config: SamplingConfig,
   num_encoder_layers: int = 3,
   num_decoder_layers: int = 3,
   model_inputs: ModelInputs | None = None,
@@ -84,8 +85,7 @@ def make_sample_sequences(
   Args:
     model_parameters (ModelParameters): Pre-trained ProteinMPNN model parameters.
     decoding_order_fn (DecodingOrderFn): Function to generate decoding order.
-    sampling_strategy (SamplingEnum): Strategy for sampling from logits. Default is temperature
-      sampling.
+    config (SamplingConfig): Configuration for sampling, including strategy and hyperparameters.
     num_encoder_layers (int): Number of encoder layers. Default is 3.
     num_decoder_layers (int): Number of decoder layers. Default is 3.
     model_inputs (ModelInputs | None): Optional model inputs for sampling. Output function signature
@@ -131,7 +131,7 @@ def make_sample_sequences(
   )
 
   @partial(jax.jit, static_argnames=("k_neighbors", "augment_eps", "hyperparameters", "iterations"))
-  def sample_sequences(  # noqa: PLR0913
+  def sample_sequences(
     prng_key: PRNGKeyArray,
     sequence: ProteinSequence,
     structure_coordinates: StructureAtomicCoordinates,
@@ -141,8 +141,6 @@ def make_sample_sequences(
     bias: InputBias | None = None,
     k_neighbors: int = 48,
     augment_eps: float = 0.0,
-    hyperparameters: SamplingHyperparameters = (0.0,),
-    iterations: int = 1,
   ) -> tuple[
     ProteinSequence,
     Logits,
@@ -151,8 +149,6 @@ def make_sample_sequences(
     """Sample sequences from a structure using autoregressive decoding."""
     if bias is None:
       bias = jnp.zeros((structure_coordinates.shape[0], 21), dtype=jnp.float32)
-
-    optimizer = hyperparameters[1] if sampling_strategy == SamplingEnum.STRAIGHT_THROUGH else None
 
     (
       node_features,
@@ -214,18 +210,14 @@ def make_sample_sequences(
       augment_eps=augment_eps,  # type: ignore[arg-type]
     )
 
-    make_sampling_step_fn = preload_sampling_step_decoder(
+    sample_step = preload_sampling_step_decoder(
       decoder,
       sample_model_pass_fn_only_prng,  # type: ignore[arg-type]
-      sampling_strategy,
-    )
-
-    sample_step = make_sampling_step_fn(
       model_parameters,
-      hyperparameters,
+      config,
     )
 
-    opt_state = optimizer.init(logits) if optimizer is not None else None  # type: ignore[assignment]
+    opt_state = config.optimizer.init(logits) if config.optimizer is not None else None  # type: ignore[assignment]
 
     initial_carry = (
       next_rng_key,
@@ -238,7 +230,7 @@ def make_sample_sequences(
 
     final_carry = jax.lax.fori_loop(
       0,
-      iterations,
+      config.iterations,
       sample_step,
       initial_carry,
     )

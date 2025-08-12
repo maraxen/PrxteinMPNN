@@ -3,7 +3,6 @@
 prxteinmpnn.sampling.sampling
 """
 
-import enum
 from collections.abc import Callable
 from functools import partial
 
@@ -27,6 +26,7 @@ from prxteinmpnn.utils.types import (
   SequenceEdgeFeatures,
 )
 
+from .config import SamplingConfig, SamplingEnum
 from .initialize import SamplingModelPassOutput
 from .ste import ste_loss, straight_through_estimator
 
@@ -46,17 +46,6 @@ SamplingStepFn = Callable[
 ]
 
 SampleModelPassOnlyPRNGFn = Callable[[PRNGKeyArray], SamplingModelPassOutput]
-
-
-class SamplingEnum(enum.Enum):
-  """Enum for different sampling strategies."""
-
-  GREEDY = "greedy"
-  TOP_K = "top_k"
-  TOP_P = "top_p"
-  TEMPERATURE = "temperature"
-  BEAM_SEARCH = "beam_search"
-  STRAIGHT_THROUGH = "straight_through"
 
 
 def sample_temperature_step(
@@ -140,7 +129,8 @@ def sample_straight_through_estimator_step(
   decoder: RunConditionalDecoderFn,
   model_parameters: ModelParameters,
   sample_model_pass_fn_only_prng: SampleModelPassOnlyPRNGFn,
-  hyperparameters: tuple[Logits, optax.GradientTransformation],
+  optimizer: optax.GradientTransformation,
+  target_logits: Logits,
 ) -> SamplingStepState:
   """Single autoregressive sampling step with straight-through estimator.
 
@@ -148,14 +138,10 @@ def sample_straight_through_estimator_step(
     _i: Current iteration.
     carry: Tuple containing current state (rng_key, edge_features, node_features, sequence, logits).
     decoder: Decoder function to update node features.
-    neighbor_indices: Indices of neighboring nodes.
-    mask: Atom mask for valid atoms.
-    autoregressive_mask: Mask for autoregressive decoding.
     model_parameters: Model parameters for the model.
-    sample_model_pass_fn_only_prng: Function that takes a PRNG key and returns the model pass
-      output.
-    hyperparameters: Hyperparameters for the straight-through estimator. In this case, the
-      learning rate in the first position and the target logits in the second position.
+    sample_model_pass_fn_only_prng: Function to run a single pass through the model.
+    optimizer: Optax optimizer for updating logits.
+    target_logits: Target logits for the straight-through estimator.
 
   Returns:
     Updated carry state and None for scan output.
@@ -178,7 +164,6 @@ def sample_straight_through_estimator_step(
       carry,
 
   """
-  target_logits, optimizer = hyperparameters[0], hyperparameters[1]
   current_key, edge_features, node_features, _sequence, current_logits, opt_state = carry
 
   jax.debug.print(
@@ -234,16 +219,11 @@ def sample_straight_through_estimator_step(
 def preload_sampling_step_decoder(
   decoder: RunConditionalDecoderFn,
   sample_model_pass_fn_only_prng: SampleModelPassOnlyPRNGFn,
-  sampling_strategy: SamplingEnum,
-) -> Callable[
-  [
-    ModelParameters,
-    SamplingHyperparameters,
-  ],
-  SamplingStepFn,
-]:
+  model_parameters: ModelParameters,
+  sampling_config: SamplingConfig,
+) -> SamplingStepFn:
   """Preload the sampling step decoder."""
-  match sampling_strategy:
+  match sampling_config.sampling_strategy:
     case SamplingEnum.TEMPERATURE:
       """Get the temperature sampling step function."""
       msg = "Temperature sampling is not implemented yet."
@@ -254,6 +234,8 @@ def preload_sampling_step_decoder(
         sample_straight_through_estimator_step,
         decoder=decoder,
         sample_model_pass_fn_only_prng=sample_model_pass_fn_only_prng,
+        optimizer=sampling_config.optimizer,  # type: ignore[arg-type]
+        target_logits=sampling_config.target_logits,  # type: ignore[arg-type]
       )
     case SamplingEnum.BEAM_SEARCH:
       """Beam search sampling is not implemented yet."""
@@ -269,18 +251,10 @@ def preload_sampling_step_decoder(
       raise NotImplementedError(msg)
     case _:
       """Raise an error for unknown sampling strategies."""
-      msg = f"Unknown sampling strategy: {sampling_strategy}"
+      msg = f"Unknown sampling strategy: {sampling_config.sampling_strategy}"
       raise ValueError(msg)
 
-  def sampling_step_fn(
-    model_parameters: ModelParameters,
-    hyperparameters: SamplingHyperparameters,
-  ) -> SamplingStepFn:
-    """Get the sampling step function based on the sampling strategy."""
-    return partial(
-      decoding_loaded_step_fn,
-      model_parameters=model_parameters,
-      hyperparameters=hyperparameters,
-    )
-
-  return sampling_step_fn
+  return partial(
+    decoding_loaded_step_fn,
+    model_parameters=model_parameters,
+  )

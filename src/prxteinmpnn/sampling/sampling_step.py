@@ -83,10 +83,7 @@ def sample_temperature_step(
     )
 
   """
-  current_key, edge_features, node_features, _, _ = carry
-
-  sequence = jnp.zeros((node_features.shape[0], 21), dtype=jnp.float32)
-  logits = jnp.zeros((node_features.shape[0], 21), dtype=jnp.float32)
+  current_key, _, _, _, _ = carry
 
   (
     node_features,
@@ -94,19 +91,19 @@ def sample_temperature_step(
     neighbor_indices,
     mask,
     autoregressive_mask,
-    next_prng_key,
+    decoding_key,
   ) = sample_model_pass_fn_only_prng(
     current_key,
   )
-
   decoding_order = jnp.argsort(jnp.sum(autoregressive_mask, axis=1))
+  num_residues = node_features.shape[0]
 
   def update_sequence(
     i: int,
     inner_carry: tuple[PRNGKeyArray, OneHotProteinSequence, Logits],
   ) -> tuple[PRNGKeyArray, ProteinSequence, Logits]:
     """Update the sequence at the current position."""
-    current_prng_key, sequence, logits = inner_carry
+    loop_key, one_hot_sequence, all_logits = inner_carry
     position = decoding_order[i]
     updated_node_features = decoder(
       node_features,
@@ -114,26 +111,33 @@ def sample_temperature_step(
       neighbor_indices,
       mask,
       autoregressive_mask,
-      sequence,
+      one_hot_sequence,
     )
     logits = final_projection(model_parameters, updated_node_features)
-    temperature_key, next_prng_key = jax.random.split(current_prng_key)
+    gumbel_key, next_loop_key = jax.random.split(loop_key)
     position_logits = (logits[position] / temperature) + jax.random.gumbel(
-      temperature_key,
+      gumbel_key,
       logits[position].shape,
     )
-    sequence = jax.nn.one_hot(position_logits[..., :20].argmax(-1), 21)
+    new_amino_acid = jax.nn.one_hot(position_logits[..., :20].argmax(-1), 21)
+    one_hot_sequence = one_hot_sequence.at[position].set(new_amino_acid)
     logits = logits.at[position].set(position_logits)
-    return next_prng_key, sequence, logits
+    return next_loop_key, one_hot_sequence, logits
 
-  next_prng_key, sequence, logits = jax.lax.fori_loop(
-    0,
-    sequence.shape[0],
-    update_sequence,
-    (next_prng_key, sequence, logits),
+  initial_inner_carry = (
+    decoding_key,
+    jnp.zeros((num_residues, 21), dtype=jnp.float32),
+    jnp.zeros((num_residues, 21), dtype=jnp.float32),
   )
 
-  return next_prng_key, edge_features, node_features, sequence, logits
+  final_new_loop_key, output_sequence, logits = jax.lax.fori_loop(
+    0,
+    num_residues,
+    update_sequence,
+    initial_inner_carry,
+  )
+
+  return final_new_loop_key, edge_features, node_features, output_sequence, logits
 
 
 def sample_straight_through_estimator_step(

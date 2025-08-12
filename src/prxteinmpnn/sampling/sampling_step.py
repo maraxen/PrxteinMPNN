@@ -178,6 +178,12 @@ def sample_straight_through_estimator_step(
   """
   learning_rate = hyperparameters[0]
   current_key, edge_features, node_features, _sequence, current_logits = carry
+
+  jax.debug.print(
+    "➡️ Iteration {_i}, Current sequence: {_sequence}",
+    _i=_i,
+    _sequence=_sequence[:10],
+  )
   (
     node_features,
     edge_features,

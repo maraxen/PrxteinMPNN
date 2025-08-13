@@ -455,6 +455,7 @@ def make_decoder(
             attention_mask=att_mask_batch,
             scale=scale,
           )
+          updated_node_features_position = updated_node_features_position.squeeze(0)
           return loop_all_layers_features.at[layer_num + 1, position].set(
             updated_node_features_position,
           )

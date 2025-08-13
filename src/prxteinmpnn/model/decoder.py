@@ -207,9 +207,6 @@ def initialize_conditional_decoder(
   return node_edge_features, sequence_edge_features
 
 
-TWO_D = 2
-
-
 @jax.jit
 def decode_message(
   node_features: NodeFeatures,
@@ -231,9 +228,6 @@ def decode_message(
     jnp.expand_dims(node_features, -2),
     [1, edge_features.shape[-2], 1],
   )
-
-  if edge_features.ndim == TWO_D:
-    edge_features = jnp.expand_dims(edge_features, 0)
 
   node_edge_features = jnp.concatenate([node_features_expand, edge_features], -1)
 
@@ -276,10 +270,6 @@ def decoder_normalize(
   node_features = node_features + dense_layer(layer_params, node_features)
   norm2_params = layer_params["norm2"]
   node_features = layer_normalization(node_features, norm2_params)
-
-  if mask.ndim == 0:
-    return mask * node_features
-
   return mask[:, None] * node_features
 
 
@@ -452,12 +442,17 @@ def make_decoder(
 
           layer_params = jax.tree_util.tree_map(lambda x: x[layer_num], all_decoder_layer_params)
 
+          nf_batch = jnp.expand_dims(layer_input_node_features[position], 0)
+          ef_batch = jnp.expand_dims(total_input_features_position, 0)
+          mask_batch = jnp.expand_dims(mask_position, 0)
+          att_mask_batch = jnp.expand_dims(mask_bw_position, 0)
+
           updated_node_features_position = decode_layer_fn(
-            layer_input_node_features[position],
-            total_input_features_position,
-            mask=mask_position,
+            nf_batch,
+            ef_batch,
+            mask=mask_batch,
             layer_params=layer_params,
-            attention_mask=mask_bw_position,
+            attention_mask=att_mask_batch,
             scale=scale,
           )
           return loop_all_layers_features.at[layer_num + 1, position].set(

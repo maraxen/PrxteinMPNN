@@ -565,6 +565,9 @@ document.write(`
 
 
 
+<span class="n">TWO_D</span> <span class="o">=</span> <span class="mi">2</span>
+
+
 <div class="viewcode-block" id="decode_message">
 <a class="viewcode-back" href="../../../api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.decode_message">[docs]</a>
 <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
@@ -588,6 +591,10 @@ document.write(`
     <span class="n">jnp</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">node_features</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">),</span>
     <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">edge_features</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">],</span> <span class="mi">1</span><span class="p">],</span>
   <span class="p">)</span>
+
+  <span class="k">if</span> <span class="n">edge_features</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="n">TWO_D</span><span class="p">:</span>
+    <span class="n">edge_features</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">edge_features</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
   <span class="n">node_edge_features</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">node_features_expand</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
 
   <span class="n">w1</span><span class="p">,</span> <span class="n">b1</span><span class="p">,</span> <span class="n">w2</span><span class="p">,</span> <span class="n">b2</span><span class="p">,</span> <span class="n">w3</span><span class="p">,</span> <span class="n">b3</span> <span class="o">=</span> <span class="p">(</span>

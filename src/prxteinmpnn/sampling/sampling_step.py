@@ -47,7 +47,6 @@ def sample_temperature_step(
   _i: int,
   carry: SamplingStepState,
   decoder: RunAutoregressiveDecoderFn,
-  _model_parameters: ModelParameters,
   sample_model_pass_fn_only_prng: SampleModelPassOnlyPRNGFn,
   temperature: float,
 ) -> SamplingStepState:
@@ -221,6 +220,7 @@ def preload_sampling_step_decoder(
         sample_straight_through_estimator_step,
         decoder=decoder,
         sample_model_pass_fn_only_prng=sample_model_pass_fn_only_prng,
+        model_parameters=model_parameters,  # type: ignore[arg-type]
         learning_rate=sampling_config.learning_rate,  # type: ignore[arg-type]
         target_logits=sampling_config.target_logits,  # type: ignore[arg-type]
       )
@@ -241,7 +241,4 @@ def preload_sampling_step_decoder(
       msg = f"Unknown sampling strategy: {sampling_config.sampling_strategy}"
       raise ValueError(msg)
 
-  return partial(
-    decoding_loaded_step_fn,
-    model_parameters=model_parameters,
-  )
+  return decoding_loaded_step_fn

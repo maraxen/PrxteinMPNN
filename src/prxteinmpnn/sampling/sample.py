@@ -130,7 +130,7 @@ def make_sample_sequences(
   if config.sampling_strategy == SamplingEnum.TEMPERATURE:
     decoder = make_decoder(
       model_parameters=model_parameters,
-      attention_mask_enum=MaskedAttentionEnum.CROSS,
+      attention_mask_enum=MaskedAttentionEnum.NONE,
       decoding_enum=DecodingEnum.AUTOREGRESSIVE,
       num_decoder_layers=num_decoder_layers,
     )

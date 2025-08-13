@@ -473,7 +473,8 @@ def make_decoder(
           key,
           logits_position.shape,
         )
-        sequence_position = jax.nn.one_hot(sampled_logits.argmax(-1), num_classes=21)
+        sampled_idx = sampled_logits[..., :20].argmax(-1)
+        sequence_position = jax.nn.one_hot(sampled_idx, num_classes=21)
 
         embedded_sequence_position = embed_sequence(model_parameters, sequence_position)
         next_embedded_sequence_state = embedded_sequence_state.at[position].set(

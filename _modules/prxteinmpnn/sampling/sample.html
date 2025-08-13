@@ -478,7 +478,7 @@ document.write(`
   <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">sampling_strategy</span> <span class="o">==</span> <span class="n">SamplingEnum</span><span class="o">.</span><span class="n">TEMPERATURE</span><span class="p">:</span>
     <span class="n">decoder</span> <span class="o">=</span> <span class="n">make_decoder</span><span class="p">(</span>
       <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>
-      <span class="n">attention_mask_enum</span><span class="o">=</span><span class="n">MaskedAttentionEnum</span><span class="o">.</span><span class="n">CROSS</span><span class="p">,</span>
+      <span class="n">attention_mask_enum</span><span class="o">=</span><span class="n">MaskedAttentionEnum</span><span class="o">.</span><span class="n">NONE</span><span class="p">,</span>
       <span class="n">decoding_enum</span><span class="o">=</span><span class="n">DecodingEnum</span><span class="o">.</span><span class="n">AUTOREGRESSIVE</span><span class="p">,</span>
       <span class="n">num_decoder_layers</span><span class="o">=</span><span class="n">num_decoder_layers</span><span class="p">,</span>
     <span class="p">)</span>

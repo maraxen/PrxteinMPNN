@@ -784,10 +784,11 @@ document.write(`
         <span class="n">scan_inputs</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="n">PRNGKeyArray</span><span class="p">],</span>
       <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span>
         <span class="nb">tuple</span><span class="p">[</span><span class="n">NodeFeatures</span><span class="p">,</span> <span class="n">NodeFeatures</span><span class="p">,</span> <span class="n">Logits</span><span class="p">],</span>
-        <span class="nb">tuple</span><span class="p">[</span><span class="n">OneHotProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">],</span>
+        <span class="n">OneHotProteinSequence</span><span class="p">,</span>  <span class="c1"># MODIFIED: We only need to collect the sequence</span>
       <span class="p">]:</span>
         <span class="n">all_layers_node_features</span><span class="p">,</span> <span class="n">embedded_sequence_state</span><span class="p">,</span> <span class="n">all_logits</span> <span class="o">=</span> <span class="n">carry</span>
         <span class="n">position</span><span class="p">,</span> <span class="n">key</span> <span class="o">=</span> <span class="n">scan_inputs</span>
+        <span class="c1"># ... (no changes inside this part of the function until the return)</span>
         <span class="n">fixed_context_features_position</span> <span class="o">=</span> <span class="n">fixed_context_features</span><span class="p">[</span><span class="n">position</span><span class="p">]</span>
         <span class="n">position_neighborhood_indices</span> <span class="o">=</span> <span class="n">neighbor_indices</span><span class="p">[</span><span class="n">position</span><span class="p">]</span>
         <span class="n">mask_position</span> <span class="o">=</span> <span class="n">mask</span><span class="p">[</span><span class="n">position</span><span class="p">]</span>
@@ -858,7 +859,8 @@ document.write(`
         <span class="n">all_logits</span> <span class="o">=</span> <span class="n">all_logits</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">position</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">sampled_logits</span><span class="p">)</span>
 
         <span class="n">next_carry</span> <span class="o">=</span> <span class="p">(</span><span class="n">final_all_layers_node_features</span><span class="p">,</span> <span class="n">next_embedded_sequence_state</span><span class="p">,</span> <span class="n">all_logits</span><span class="p">)</span>
-        <span class="n">outputs_position_collect</span> <span class="o">=</span> <span class="p">(</span><span class="n">sequence_position</span><span class="p">,</span> <span class="n">all_logits</span><span class="p">)</span>
+
+        <span class="n">outputs_position_collect</span> <span class="o">=</span> <span class="n">sequence_position</span>
         <span class="k">return</span> <span class="n">next_carry</span><span class="p">,</span> <span class="n">outputs_position_collect</span>
 
       <span class="n">num_residues</span> <span class="o">=</span> <span class="n">node_features</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
@@ -880,15 +882,17 @@ document.write(`
 
       <span class="n">scan_inputs</span> <span class="o">=</span> <span class="p">(</span><span class="n">decoding_order</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">prng_key</span><span class="p">,</span> <span class="n">num_residues</span><span class="p">))</span>
 
-      <span class="n">_</span><span class="p">,</span> <span class="n">collected_outputs</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">scan</span><span class="p">(</span>
+      <span class="n">final_carry</span><span class="p">,</span> <span class="n">sequence_in_decoding_order</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">scan</span><span class="p">(</span>
         <span class="n">autoregressive_step</span><span class="p">,</span>
         <span class="n">initial_carry</span><span class="p">,</span>
         <span class="n">scan_inputs</span><span class="p">,</span>
       <span class="p">)</span>
 
-      <span class="n">_</span><span class="p">,</span> <span class="n">final_logits</span> <span class="o">=</span> <span class="n">collected_outputs</span>
-      <span class="n">final_sequence</span> <span class="o">=</span> <span class="n">final_logits</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>  <span class="c1"># type: ignore[no-any-return]</span>
-      <span class="k">return</span> <span class="n">final_sequence</span><span class="p">,</span> <span class="n">final_logits</span>
+      <span class="n">final_all_logits</span> <span class="o">=</span> <span class="n">final_carry</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+      <span class="n">final_sequence</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">sequence_in_decoding_order</span><span class="p">)</span>
+      <span class="n">final_sequence</span> <span class="o">=</span> <span class="n">final_sequence</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">decoding_order</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">sequence_in_decoding_order</span><span class="p">)</span>
+
+      <span class="k">return</span> <span class="n">final_sequence</span><span class="p">,</span> <span class="n">final_all_logits</span>
 
     <span class="k">return</span> <span class="n">run_autoregressive_decoder</span>
   <span class="k">if</span> <span class="n">decoding_enum</span> <span class="ow">is</span> <span class="n">DecodingEnum</span><span class="o">.</span><span class="n">CONDITIONAL</span><span class="p">:</span>

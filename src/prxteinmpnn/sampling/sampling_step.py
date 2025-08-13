@@ -107,6 +107,8 @@ def sample_temperature_step(
     temperature,
   )
 
+  output_sequence = output_sequence.argmax(axis=-1).astype(jnp.int8)  # type: ignore[no-any-return]
+
   return final_new_loop_key, edge_features, node_features, output_sequence, logits
 
 

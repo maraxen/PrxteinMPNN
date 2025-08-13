@@ -214,6 +214,10 @@ def make_sample_sequences(
       config,
     )
 
+    if config.sampling_strategy == SamplingEnum.TEMPERATURE:
+      _, _, _, output_sequence, output_logits = sample_step(next_rng_key)
+      return output_sequence, output_logits, decoding_order
+
     initial_carry = (
       next_rng_key,
       edge_features,
@@ -221,15 +225,8 @@ def make_sample_sequences(
       sequence,
       logits,
     )
-
-    final_carry = jax.lax.fori_loop(
-      0,
-      config.iterations,
-      sample_step,
-      initial_carry,
-    )
-
-    return final_carry[3], final_carry[4] + bias, decoding_order
+    _, _, _, output_sequence, output_logits = sample_step(initial_carry)
+    return output_sequence, output_logits, decoding_order
 
   if sampling_inputs:
     return partial(

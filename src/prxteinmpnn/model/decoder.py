@@ -8,9 +8,10 @@ from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
+from jaxtyping import PRNGKeyArray
 
 if TYPE_CHECKING:
-  from jaxtyping import Array, PRNGKeyArray
+  from jaxtyping import Array
 
 from prxteinmpnn.utils.gelu import GeLU
 from prxteinmpnn.utils.normalize import layer_normalization

@@ -515,8 +515,8 @@ document.write(`
   <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
   <span class="n">one_hot_sequence</span><span class="p">:</span> <span class="n">OneHotProteinSequence</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NodeFeatures</span><span class="p">:</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Embeds a one-hot encoded sequence.&quot;&quot;&quot;</span>
-  <span class="n">w_s</span> <span class="o">=</span> <span class="n">model_parameters</span><span class="p">[</span><span class="s2">&quot;protein_mpnn/~/embed_positionoken&quot;</span><span class="p">][</span><span class="s2">&quot;W_s&quot;</span><span class="p">]</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Embed a one-hot encoded sequence.&quot;&quot;&quot;</span>
+  <span class="n">w_s</span> <span class="o">=</span> <span class="n">model_parameters</span><span class="p">[</span><span class="s2">&quot;protein_mpnn/~/embed_token&quot;</span><span class="p">][</span><span class="s2">&quot;W_s&quot;</span><span class="p">]</span>
   <span class="k">return</span> <span class="n">one_hot_sequence</span> <span class="o">@</span> <span class="n">w_s</span></div>
 
 

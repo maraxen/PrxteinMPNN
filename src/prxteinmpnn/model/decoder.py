@@ -161,8 +161,8 @@ def embed_sequence(
   model_parameters: ModelParameters,
   one_hot_sequence: OneHotProteinSequence,
 ) -> NodeFeatures:
-  """Embeds a one-hot encoded sequence."""
-  w_s = model_parameters["protein_mpnn/~/embed_positionoken"]["W_s"]
+  """Embed a one-hot encoded sequence."""
+  w_s = model_parameters["protein_mpnn/~/embed_token"]["W_s"]
   return one_hot_sequence @ w_s
 
 

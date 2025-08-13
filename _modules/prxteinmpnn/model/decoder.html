@@ -848,7 +848,6 @@ document.write(`
           <span class="n">key</span><span class="p">,</span>
           <span class="n">logits_position</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="n">sampled_logits</span> <span class="o">=</span> <span class="n">sampled_logits</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="n">sampled_idx</span> <span class="o">=</span> <span class="n">sampled_logits</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">20</span><span class="p">]</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
         <span class="n">sequence_position</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">one_hot</span><span class="p">(</span><span class="n">sampled_idx</span><span class="p">,</span> <span class="n">num_classes</span><span class="o">=</span><span class="mi">21</span><span class="p">)</span>
 
@@ -887,10 +886,9 @@ document.write(`
         <span class="n">scan_inputs</span><span class="p">,</span>
       <span class="p">)</span>
 
-      <span class="n">sequence_all</span><span class="p">,</span> <span class="n">final_logits</span> <span class="o">=</span> <span class="n">collected_outputs</span>
-      <span class="n">final_sequence</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">sequence_all</span><span class="p">)</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">decoding_order</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">sequence_all</span><span class="p">)</span>
-
-      <span class="k">return</span> <span class="n">final_sequence</span><span class="p">,</span> <span class="n">all_logits</span>
+      <span class="n">_</span><span class="p">,</span> <span class="n">final_logits</span> <span class="o">=</span> <span class="n">collected_outputs</span>
+      <span class="n">final_sequence</span> <span class="o">=</span> <span class="n">final_logits</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>  <span class="c1"># type: ignore[no-any-return]</span>
+      <span class="k">return</span> <span class="n">final_sequence</span><span class="p">,</span> <span class="n">final_logits</span>
 
     <span class="k">return</span> <span class="n">run_autoregressive_decoder</span>
   <span class="k">if</span> <span class="n">decoding_enum</span> <span class="ow">is</span> <span class="n">DecodingEnum</span><span class="o">.</span><span class="n">CONDITIONAL</span><span class="p">:</span>

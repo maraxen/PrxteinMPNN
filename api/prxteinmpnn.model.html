@@ -370,7 +370,9 @@ document.write(`
   </button>
 `);
 </script>
-
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
 </div></div>
       
     </div>
@@ -386,6 +388,24 @@ document.write(`
     <div id="print-main-content">
         <div id="jb-print-toc">
             
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.MaskedAttentionEnum"><code class="docutils literal notranslate"><span class="pre">MaskedAttentionEnum</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.MaskedAttentionEnum.NONE"><code class="docutils literal notranslate"><span class="pre">MaskedAttentionEnum.NONE</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.MaskedAttentionEnum.CROSS"><code class="docutils literal notranslate"><span class="pre">MaskedAttentionEnum.CROSS</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.MaskedAttentionEnum.CONDITIONAL"><code class="docutils literal notranslate"><span class="pre">MaskedAttentionEnum.CONDITIONAL</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.dense_layer"><code class="docutils literal notranslate"><span class="pre">dense_layer()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.extract_features"><code class="docutils literal notranslate"><span class="pre">extract_features()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.final_projection"><code class="docutils literal notranslate"><span class="pre">final_projection()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.make_decoder"><code class="docutils literal notranslate"><span class="pre">make_decoder()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.make_encoder"><code class="docutils literal notranslate"><span class="pre">make_encoder()</span></code></a></li>
+</ul>
+            </nav>
         </div>
     </div>
 </div>
@@ -395,12 +415,159 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="model">
-<h1>model<a class="headerlink" href="#model" title="Link to this heading">#</a></h1>
+  <section id="module-prxteinmpnn.model">
+<span id="model"></span><h1>model<a class="headerlink" href="#module-prxteinmpnn.model" title="Link to this heading">#</a></h1>
+<p>ProteinMPNN implemented in a functional JAX interface.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="prxteinmpnn.model.MaskedAttentionEnum">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.</span></span><span class="sig-name descname"><span class="pre">MaskedAttentionEnum</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/masked_attention.html#MaskedAttentionEnum"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.MaskedAttentionEnum" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Enum</span></code></a></p>
+<p>Enum for different types of masked attention.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.model.MaskedAttentionEnum.NONE">
+<span class="sig-name descname"><span class="pre">NONE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'none'</span></em><a class="headerlink" href="#prxteinmpnn.model.MaskedAttentionEnum.NONE" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.model.MaskedAttentionEnum.CROSS">
+<span class="sig-name descname"><span class="pre">CROSS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'cross'</span></em><a class="headerlink" href="#prxteinmpnn.model.MaskedAttentionEnum.CROSS" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.model.MaskedAttentionEnum.CONDITIONAL">
+<span class="sig-name descname"><span class="pre">CONDITIONAL</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'conditional'</span></em><a class="headerlink" href="#prxteinmpnn.model.MaskedAttentionEnum.CONDITIONAL" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.model.dense_layer">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.</span></span><span class="sig-name descname"><span class="pre">dense_layer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">layer_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">node_features</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/dense.html#dense_layer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.dense_layer" title="Link to this definition">#</a></dt>
+<dd><p>Apply a dense layer to node features.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code></span></p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>layer_parameters</strong> (<em>PyTree</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em>, </em><em>'P'</em><em>]</em>)</p></li>
+<li><p><strong>node_features</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_atoms num_features'</em><em>]</em>)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.model.extract_features">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.</span></span><span class="sig-name descname"><span class="pre">extract_features</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prng_key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">structure_coordinates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residue_index</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chain_index</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k_neighbors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">48</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">augment_eps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/features.html#extract_features"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.extract_features" title="Link to this definition">#</a></dt>
+<dd><p>Extract features from protein structure coordinates.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>structure_coordinates</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms</span> <span class="pre">3']</span></code></span>) – Atomic coordinates of the protein structure.</p></li>
+<li><p><strong>mask</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code></span>) – Mask indicating valid atoms in the structure.</p></li>
+<li><p><strong>residue_index</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code></span>) – Residue indices for each atom.</p></li>
+<li><p><strong>chain_index</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code></span>) – Chain indices for each atom.</p></li>
+<li><p><strong>model_parameters</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">PyTree[str,</span> <span class="pre">'P']</span></code></span>) – Model parameters for the feature extraction.</p></li>
+<li><p><strong>prng_key</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Union</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Key[Array,</span> <span class="pre">'']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">UInt32[Array,</span> <span class="pre">'2']</span></code>]</span>) – JAX random key for stochastic operations.</p></li>
+<li><p><strong>k_neighbors</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a></span>) – Maximum number of neighbors to consider for each atom.</p></li>
+<li><p><strong>augment_eps</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></a></span>) – Standard deviation for Gaussian noise augmentation.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Edge features after concatenation and normalization.
+edge_indices: Indices of neighboring atoms.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>edge_features</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.model.final_projection">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.</span></span><span class="sig-name descname"><span class="pre">final_projection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">node_features</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/projection.html#final_projection"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.final_projection" title="Link to this definition">#</a></dt>
+<dd><p>Convert node features to logits.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>model_parameters</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">PyTree[str,</span> <span class="pre">'P']</span></code></span>) – Model parameters for the final projection.</p></li>
+<li><p><strong>node_features</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code></span>) – Node features after the last MPNN layer.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The final logits for the model.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Logits</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.model.make_decoder">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.</span></span><span class="sig-name descname"><span class="pre">make_decoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attention_mask_enum</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decoding_enum</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">DecodingEnum.UNCONDITIONAL</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_decoder_layers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/decoder.html#make_decoder"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.make_decoder" title="Link to this definition">#</a></dt>
+<dd><p>Create a function to run the decoder with given model parameters.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Callable</span></code></a>[[<code class="xref py py-class docutils literal notranslate"><span class="pre">Unpack</span></code>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code>]]], <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>] | <a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Callable</span></code></a>[[<code class="xref py py-class docutils literal notranslate"><span class="pre">Unpack</span></code>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Bool[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_atoms']</span></code>]]], <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>] | <a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Callable</span></code></a>[[<code class="xref py py-class docutils literal notranslate"><span class="pre">Unpack</span></code>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Union</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Key[Array,</span> <span class="pre">'']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">UInt32[Array,</span> <span class="pre">'2']</span></code>], <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Bool[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_residues']</span></code>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></a>]]], <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_classes']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_classes']</span></code>]] | <a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Callable</span></code></a>[[<code class="xref py py-class docutils literal notranslate"><span class="pre">Unpack</span></code>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Bool[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_residues']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code>]]], <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>]</span></p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>model_parameters</strong> (<em>PyTree</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em>, </em><em>'P'</em><em>]</em>)</p></li>
+<li><p><strong>attention_mask_enum</strong> (<a class="reference internal" href="prxteinmpnn.model.masked_attention.html#prxteinmpnn.model.masked_attention.MaskedAttentionEnum" title="prxteinmpnn.model.masked_attention.MaskedAttentionEnum"><em>MaskedAttentionEnum</em></a>)</p></li>
+<li><p><strong>decoding_enum</strong> (<a class="reference internal" href="prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.DecodingEnum" title="prxteinmpnn.model.decoder.DecodingEnum"><em>DecodingEnum</em></a>)</p></li>
+<li><p><strong>num_decoder_layers</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+<li><p><strong>scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.model.make_encoder">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.</span></span><span class="sig-name descname"><span class="pre">make_encoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attention_mask_enum</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_encoder_layers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/encoder.html#make_encoder"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.make_encoder" title="Link to this definition">#</a></dt>
+<dd><p>Create a function to run the encoder with given model parameters.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Callable</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/constants.html#Ellipsis" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">...</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>]]</span></p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>model_parameters</strong> (<em>ModelParameters</em>)</p></li>
+<li><p><strong>attention_mask_enum</strong> (<a class="reference internal" href="#prxteinmpnn.model.MaskedAttentionEnum" title="prxteinmpnn.model.MaskedAttentionEnum"><em>MaskedAttentionEnum</em></a>)</p></li>
+<li><p><strong>num_encoder_layers</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+<li><p><strong>scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
 <div class="toctree-wrapper compound">
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.model.encoder.html">encoder</a></li>
-<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.model.decoder.html">decoder</a></li>
+<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.model.encoder.html">encoder</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.encoder_parameter_pytree"><code class="docutils literal notranslate"><span class="pre">encoder_parameter_pytree()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.encode"><code class="docutils literal notranslate"><span class="pre">encode()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.encoder_normalize"><code class="docutils literal notranslate"><span class="pre">encoder_normalize()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.make_encode_layer"><code class="docutils literal notranslate"><span class="pre">make_encode_layer()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.initialize_node_features"><code class="docutils literal notranslate"><span class="pre">initialize_node_features()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.setup_encoder"><code class="docutils literal notranslate"><span class="pre">setup_encoder()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.make_encoder"><code class="docutils literal notranslate"><span class="pre">make_encoder()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.model.decoder.html">decoder</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.DecodingEnum"><code class="docutils literal notranslate"><span class="pre">DecodingEnum</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.decoder_parameter_pytree"><code class="docutils literal notranslate"><span class="pre">decoder_parameter_pytree()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.embed_sequence"><code class="docutils literal notranslate"><span class="pre">embed_sequence()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.initialize_conditional_decoder"><code class="docutils literal notranslate"><span class="pre">initialize_conditional_decoder()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.decode_message"><code class="docutils literal notranslate"><span class="pre">decode_message()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.decoder_normalize"><code class="docutils literal notranslate"><span class="pre">decoder_normalize()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.make_decode_layer"><code class="docutils literal notranslate"><span class="pre">make_decode_layer()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.setup_decoder"><code class="docutils literal notranslate"><span class="pre">setup_decoder()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder._check_enums"><code class="docutils literal notranslate"><span class="pre">_check_enums()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.make_decoder"><code class="docutils literal notranslate"><span class="pre">make_decoder()</span></code></a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.model.projection.html">projection</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.projection.html#prxteinmpnn.model.projection.final_projection"><code class="docutils literal notranslate"><span class="pre">final_projection()</span></code></a></li>
 </ul>
@@ -410,7 +577,14 @@ document.write(`
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.masked_attention.html#prxteinmpnn.model.masked_attention.mask_attention"><code class="docutils literal notranslate"><span class="pre">mask_attention()</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.model.features.html">features</a></li>
+<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.model.features.html">features</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.features.html#prxteinmpnn.model.features.get_edge_chains_neighbors"><code class="docutils literal notranslate"><span class="pre">get_edge_chains_neighbors()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.features.html#prxteinmpnn.model.features.encode_positions"><code class="docutils literal notranslate"><span class="pre">encode_positions()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.features.html#prxteinmpnn.model.features.embed_edges"><code class="docutils literal notranslate"><span class="pre">embed_edges()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.features.html#prxteinmpnn.model.features.extract_features"><code class="docutils literal notranslate"><span class="pre">extract_features()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.features.html#prxteinmpnn.model.features.project_features"><code class="docutils literal notranslate"><span class="pre">project_features()</span></code></a></li>
+</ul>
+</li>
 </ul>
 </div>
 </section>
@@ -450,6 +624,31 @@ document.write(`
             </div>
             
             
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.MaskedAttentionEnum"><code class="docutils literal notranslate"><span class="pre">MaskedAttentionEnum</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.MaskedAttentionEnum.NONE"><code class="docutils literal notranslate"><span class="pre">MaskedAttentionEnum.NONE</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.MaskedAttentionEnum.CROSS"><code class="docutils literal notranslate"><span class="pre">MaskedAttentionEnum.CROSS</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.MaskedAttentionEnum.CONDITIONAL"><code class="docutils literal notranslate"><span class="pre">MaskedAttentionEnum.CONDITIONAL</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.dense_layer"><code class="docutils literal notranslate"><span class="pre">dense_layer()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.extract_features"><code class="docutils literal notranslate"><span class="pre">extract_features()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.final_projection"><code class="docutils literal notranslate"><span class="pre">final_projection()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.make_decoder"><code class="docutils literal notranslate"><span class="pre">make_decoder()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.make_encoder"><code class="docutils literal notranslate"><span class="pre">make_encoder()</span></code></a></li>
+</ul>
+  </nav></div>
+
+</div></div>
               
             
           </div>

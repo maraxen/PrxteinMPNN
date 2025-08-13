@@ -9,6 +9,9 @@ from typing import TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 
+if TYPE_CHECKING:
+  from jaxtyping import Array, PRNGKeyArray
+
 from prxteinmpnn.utils.gelu import GeLU
 from prxteinmpnn.utils.normalize import layer_normalization
 from prxteinmpnn.utils.types import (
@@ -16,6 +19,7 @@ from prxteinmpnn.utils.types import (
   AttentionMask,
   AutoRegressiveMask,
   EdgeFeatures,
+  Logits,
   Message,
   ModelParameters,
   NeighborIndices,
@@ -25,6 +29,8 @@ from prxteinmpnn.utils.types import (
   ProteinSequence,
   SequenceEdgeFeatures,
 )
+
+from .projection import final_projection
 
 if TYPE_CHECKING:
   from jaxtyping import Int
@@ -43,6 +49,7 @@ class DecodingEnum(enum.Enum):
 
   CONDITIONAL = "conditional"
   UNCONDITIONAL = "unconditional"
+  AUTOREGRESSIVE = "autoregressive"
 
 
 DecodeMessageInputs = tuple[
@@ -97,6 +104,19 @@ RunConditionalDecoderInputs = tuple[
   ProteinSequence,
 ]
 RunConditionalDecoderFn = Callable[[*RunConditionalDecoderInputs], NodeFeatures]
+RunAutoregressiveDecoderInputs = tuple[
+  PRNGKeyArray,
+  NodeFeatures,
+  EdgeFeatures,
+  NeighborIndices,
+  AtomMask,
+  AutoRegressiveMask,
+  float,
+]
+RunAutoregressiveDecoderFn = Callable[
+  [*RunAutoregressiveDecoderInputs],
+  tuple[OneHotProteinSequence, Logits],
+]
 
 
 def decoder_parameter_pytree(
@@ -136,6 +156,15 @@ def decoder_parameter_pytree(
   return jax.tree_util.tree_map(lambda *args: jnp.stack(args), *all_decoder_layer_params_list)
 
 
+def embed_sequence(
+  model_parameters: ModelParameters,
+  one_hot_sequence: OneHotProteinSequence,
+) -> NodeFeatures:
+  """Embeds a one-hot encoded sequence."""
+  w_s = model_parameters["protein_mpnn/~/embed_positionoken"]["W_s"]
+  return one_hot_sequence @ w_s
+
+
 @jax.jit
 def initialize_conditional_decoder(
   one_hot_sequence: OneHotProteinSequence,
@@ -157,8 +186,7 @@ def initialize_conditional_decoder(
     A tuple of node-edge features and sequence-edge features.
 
   """
-  sequence_weights = layer_params["protein_mpnn/~/embed_token"]["W_s"]
-  embedded_sequence = one_hot_sequence @ sequence_weights
+  embedded_sequence = embed_sequence(layer_params, one_hot_sequence)
 
   node_edge_features = concatenate_neighbor_nodes(
     jnp.zeros_like(node_features),
@@ -329,7 +357,9 @@ def make_decoder(
   decoding_enum: DecodingEnum = DecodingEnum.UNCONDITIONAL,
   num_decoder_layers: int = 3,
   scale: float = 30.0,
-) -> RunDecoderFn | RunMaskedAttentionDecoderFn | RunConditionalDecoderFn:
+) -> (
+  RunDecoderFn | RunMaskedAttentionDecoderFn | RunAutoregressiveDecoderFn | RunConditionalDecoderFn
+):
   """Create a function to run the decoder with given model parameters."""
   _check_enums(
     attention_mask_enum,
@@ -341,6 +371,143 @@ def make_decoder(
     decoding_enum,
     num_decoder_layers,
   )
+  if decoding_enum is DecodingEnum.AUTOREGRESSIVE:
+
+    @jax.jit
+    def run_autoregressive_decoder(
+      prng_key: PRNGKeyArray,
+      node_features: NodeFeatures,
+      edge_features: EdgeFeatures,
+      neighbor_indices: NeighborIndices,
+      mask: AtomMask,
+      ar_mask: AutoRegressiveMask,
+      temperature: float = 1.0,
+    ) -> tuple[OneHotProteinSequence, Logits]:
+      """Run a full, efficient, local-update autoregressive sampling process."""
+      attention_mask = jnp.take_along_axis(ar_mask, neighbor_indices, axis=1)
+      mask_1d = mask[:, None]
+      mask_bw = mask_1d * attention_mask
+      mask_fw = mask_1d * (1 - attention_mask)
+      decoding_order = jnp.argsort(jnp.sum(ar_mask, axis=1))
+
+      context_edge_features = concatenate_neighbor_nodes(
+        jnp.zeros_like(node_features),
+        edge_features,
+        neighbor_indices,
+      )
+      fixed_context_features = concatenate_neighbor_nodes(
+        node_features,
+        context_edge_features,
+        neighbor_indices,
+      )
+      fixed_context_features = mask_fw[..., None] * fixed_context_features
+
+      def autoregressive_step(
+        carry: tuple[NodeFeatures, NodeFeatures, Logits],
+        scan_inputs: tuple[Array, PRNGKeyArray],
+      ) -> tuple[
+        tuple[NodeFeatures, NodeFeatures, Logits],
+        tuple[OneHotProteinSequence, Logits],
+      ]:
+        all_layers_node_features, embedded_sequence_state, all_logits = carry
+        position, key = scan_inputs
+        fixed_context_features_position = fixed_context_features[position]
+        position_neighborhood_indices = neighbor_indices[position]
+        mask_position = mask[position]
+        mask_bw_position = mask_bw[position]
+        edge_features_position = edge_features[position]
+        neighbor_sequence_features = embedded_sequence_state[position_neighborhood_indices]
+        sequence_edge_features_position = concatenate_neighbor_nodes(
+          neighbor_sequence_features,
+          edge_features_position,
+          position_neighborhood_indices,
+        )
+
+        def decoder_layer_loop(
+          layer_num: int,
+          loop_all_layers_features: NodeFeatures,
+        ) -> NodeFeatures:
+          layer_input_node_features = loop_all_layers_features[layer_num]
+
+          decoder_input_features_position = concatenate_neighbor_nodes(
+            layer_input_node_features,
+            sequence_edge_features_position,
+            position_neighborhood_indices,
+          )
+          total_input_features_position = (
+            mask_bw_position[..., None] * decoder_input_features_position
+          ) + fixed_context_features_position
+
+          layer_params = jax.tree_util.tree_map(lambda x: x[layer_num], all_decoder_layer_params)
+
+          updated_node_features_position = decode_layer_fn(
+            layer_input_node_features[position],
+            total_input_features_position,
+            mask=mask_position,
+            layer_params=layer_params,
+            attention_mask=mask_bw_position,
+            scale=scale,
+          )
+          return loop_all_layers_features.at[layer_num + 1, position].set(
+            updated_node_features_position,
+          )
+
+        final_all_layers_node_features = jax.lax.fori_loop(
+          0,
+          num_decoder_layers,
+          decoder_layer_loop,
+          all_layers_node_features,
+        )
+        final_node_features_position = final_all_layers_node_features[-1, position]
+
+        logits_position = final_projection(model_parameters, final_node_features_position)
+        sampled_logits = logits_position / temperature + jax.random.gumbel(
+          key,
+          logits_position.shape,
+        )
+        sequence_position = jax.nn.one_hot(sampled_logits.argmax(-1), num_classes=21)
+
+        embedded_sequence_position = embed_sequence(model_parameters, sequence_position)
+        next_embedded_sequence_state = embedded_sequence_state.at[position].set(
+          embedded_sequence_position,
+        )
+        all_logits = all_logits.at[position].set(sampled_logits)
+
+        next_carry = (final_all_layers_node_features, next_embedded_sequence_state, all_logits)
+        outputs_position_collect = (sequence_position, all_logits)
+        return next_carry, outputs_position_collect
+
+      num_residues = node_features.shape[0]
+      initial_all_layers_node_features = jnp.array(
+        [node_features] + [jnp.zeros_like(node_features)] * num_decoder_layers,
+      )
+      initial_embedded_sequence_state = jnp.zeros_like(
+        embed_sequence(
+          model_parameters,
+          jax.nn.one_hot(jnp.zeros(num_residues, dtype=jnp.int32), num_classes=21),
+        ),
+      )
+      all_logits = jnp.zeros((num_residues, 21), dtype=jnp.float32)
+      initial_carry = (
+        initial_all_layers_node_features,
+        initial_embedded_sequence_state,
+        all_logits,
+      )
+
+      scan_inputs = (decoding_order, jax.random.split(prng_key, num_residues))
+
+      _, collected_outputs = jax.lax.scan(
+        autoregressive_step,
+        initial_carry,
+        scan_inputs,
+      )
+
+      sequence_all, final_logits = collected_outputs
+      final_sequence = jnp.zeros_like(sequence_all).at[decoding_order].set(sequence_all)
+
+      return final_sequence, all_logits
+
+    return run_autoregressive_decoder
   if decoding_enum is DecodingEnum.CONDITIONAL:
 
     @jax.jit

@@ -351,7 +351,7 @@ document.write(`
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">cast</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">cast</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
@@ -372,6 +372,8 @@ document.write(`
 <span class="kn">from</span><span class="w"> </span><span class="nn">.initialize</span><span class="w"> </span><span class="kn">import</span> <span class="n">SamplingModelPassOutput</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.ste</span><span class="w"> </span><span class="kn">import</span> <span class="n">ste_loss</span><span class="p">,</span> <span class="n">straight_through_estimator</span>
 
+<span class="n">SampleModelPassOnlyPRNGFn</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">PRNGKeyArray</span><span class="p">],</span> <span class="n">SamplingModelPassOutput</span><span class="p">]</span>
+
 <span class="n">SamplingStepState</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">[</span>
   <span class="n">PRNGKeyArray</span><span class="p">,</span>
   <span class="n">SequenceEdgeFeatures</span><span class="p">,</span>
@@ -379,21 +381,21 @@ document.write(`
   <span class="n">ProteinSequence</span><span class="p">,</span>
   <span class="n">Logits</span><span class="p">,</span>
 <span class="p">]</span>
-<span class="n">SamplingStepInput</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">SamplingStepState</span><span class="p">]</span>
+<span class="n">SamplingStepInput</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">[</span>
+  <span class="n">Any</span><span class="p">,</span>
+  <span class="o">...</span><span class="p">,</span>
+<span class="p">]</span>
 
 <span class="n">SamplingStepFn</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">[</span>
   <span class="p">[</span><span class="o">*</span><span class="n">SamplingStepInput</span><span class="p">],</span>
   <span class="n">SamplingStepState</span><span class="p">,</span>
 <span class="p">]</span>
 
-<span class="n">SampleModelPassOnlyPRNGFn</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">PRNGKeyArray</span><span class="p">],</span> <span class="n">SamplingModelPassOutput</span><span class="p">]</span>
 
-
-<div class="viewcode-block" id="sample_temperature_step">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.sampling_step.sample_temperature_step">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">sample_temperature_step</span><span class="p">(</span>
-  <span class="n">_i</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
-  <span class="n">carry</span><span class="p">:</span> <span class="n">SamplingStepState</span><span class="p">,</span>
+<div class="viewcode-block" id="temperature_sample">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.sampling_step.temperature_sample">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">temperature_sample</span><span class="p">(</span>
+  <span class="n">prng_key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
   <span class="n">decoder</span><span class="p">:</span> <span class="n">RunAutoregressiveDecoderFn</span><span class="p">,</span>
   <span class="n">sample_model_pass_fn_only_prng</span><span class="p">:</span> <span class="n">SampleModelPassOnlyPRNGFn</span><span class="p">,</span>
   <span class="n">temperature</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
@@ -401,10 +403,8 @@ document.write(`
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Single autoregressive sampling step with temperature scaling.</span>
 
 <span class="sd">  Args:</span>
-<span class="sd">    _i: Current iteration.</span>
-<span class="sd">    carry: Tuple containing current state (rng_key, edge_features, node_features, sequence, logits).</span>
-<span class="sd">    decoder: Decoder function to update node features.</span>
-<span class="sd">    model_parameters: Model parameters for the model.</span>
+<span class="sd">    prng_key: Random key for JAX operations.</span>
+<span class="sd">    decoder: Decoder function to update node features. Preloaded autoregressive decoder.</span>
 <span class="sd">    sample_model_pass_fn_only_prng: Function to run a single pass through the model.</span>
 <span class="sd">    temperature: Temperature for scaling logits.</span>
 
@@ -430,10 +430,6 @@ document.write(`
 <span class="sd">    )</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
-  <span class="n">current_key</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">carry</span>
-
-  <span class="n">current_key</span><span class="p">,</span> <span class="n">final_new_loop_key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">current_key</span><span class="p">)</span>
-
   <span class="p">(</span>
     <span class="n">node_features</span><span class="p">,</span>
     <span class="n">edge_features</span><span class="p">,</span>
@@ -442,7 +438,7 @@ document.write(`
     <span class="n">autoregressive_mask</span><span class="p">,</span>
     <span class="n">decoding_key</span><span class="p">,</span>
   <span class="p">)</span> <span class="o">=</span> <span class="n">sample_model_pass_fn_only_prng</span><span class="p">(</span>
-    <span class="n">current_key</span><span class="p">,</span>
+    <span class="n">prng_key</span><span class="p">,</span>
   <span class="p">)</span>
 
   <span class="n">output_sequence</span><span class="p">,</span> <span class="n">logits</span> <span class="o">=</span> <span class="n">decoder</span><span class="p">(</span>
@@ -455,33 +451,35 @@ document.write(`
     <span class="n">temperature</span><span class="p">,</span>
   <span class="p">)</span>
 
-  <span class="n">output_sequence</span> <span class="o">=</span> <span class="n">output_sequence</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>  <span class="c1"># type: ignore[no-any-return]</span>
+  <span class="n">output_sequence</span> <span class="o">=</span> <span class="n">output_sequence</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>
 
-  <span class="k">return</span> <span class="n">final_new_loop_key</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">output_sequence</span><span class="p">,</span> <span class="n">logits</span></div>
+  <span class="k">return</span> <span class="n">prng_key</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">output_sequence</span><span class="p">,</span> <span class="n">logits</span></div>
 
 
 
-<div class="viewcode-block" id="sample_straight_through_estimator_step">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.sampling_step.sample_straight_through_estimator_step">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">sample_straight_through_estimator_step</span><span class="p">(</span>
-  <span class="n">_i</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
-  <span class="n">carry</span><span class="p">:</span> <span class="n">SamplingStepState</span><span class="p">,</span>
+<div class="viewcode-block" id="ste_sample">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.sampling_step.ste_sample">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">ste_sample</span><span class="p">(</span>
+  <span class="n">initial_carry</span><span class="p">:</span> <span class="n">SamplingStepState</span><span class="p">,</span>
   <span class="n">decoder</span><span class="p">:</span> <span class="n">RunConditionalDecoderFn</span><span class="p">,</span>
-  <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
   <span class="n">sample_model_pass_fn_only_prng</span><span class="p">:</span> <span class="n">SampleModelPassOnlyPRNGFn</span><span class="p">,</span>
+  <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
   <span class="n">learning_rate</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
   <span class="n">target_logits</span><span class="p">:</span> <span class="n">Logits</span><span class="p">,</span>
+  <span class="n">iterations</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SamplingStepState</span><span class="p">:</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Single autoregressive sampling step with straight-through estimator.</span>
 
 <span class="sd">  Args:</span>
-<span class="sd">    _i: Current iteration.</span>
-<span class="sd">    carry: Tuple containing current state (rng_key, edge_features, node_features, sequence, logits).</span>
+<span class="sd">    initial_carry: Tuple containing initial state (rng_key, edge_features, node_features, sequence,</span>
+<span class="sd">      logits).</span>
 <span class="sd">    decoder: Decoder function to update node features.</span>
 <span class="sd">    model_parameters: Model parameters for the model.</span>
 <span class="sd">    sample_model_pass_fn_only_prng: Function to run a single pass through the model.</span>
 <span class="sd">    learning_rate: Learning rate for updating logits.</span>
 <span class="sd">    target_logits: Target logits for the straight-through estimator.</span>
+<span class="sd">    iterations: Number of iterations for the straight-through estimator.</span>
+
 
 <span class="sd">  Returns:</span>
 <span class="sd">    Updated carry state and None for scan output.</span>
@@ -504,49 +502,60 @@ document.write(`
 <span class="sd">      carry,</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
-  <span class="n">current_key</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">_sequence</span><span class="p">,</span> <span class="n">current_logits</span> <span class="o">=</span> <span class="n">carry</span>
 
-  <span class="p">(</span>
-    <span class="n">node_features</span><span class="p">,</span>
-    <span class="n">edge_features</span><span class="p">,</span>
-    <span class="n">neighbor_indices</span><span class="p">,</span>
-    <span class="n">mask</span><span class="p">,</span>
-    <span class="n">autoregressive_mask</span><span class="p">,</span>
-    <span class="n">next_rng_key</span><span class="p">,</span>
-  <span class="p">)</span> <span class="o">=</span> <span class="n">sample_model_pass_fn_only_prng</span><span class="p">(</span>
-    <span class="n">current_key</span><span class="p">,</span>
-  <span class="p">)</span>
+  <span class="k">def</span><span class="w"> </span><span class="nf">sampling_step</span><span class="p">(</span><span class="n">_i</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">carry</span><span class="p">:</span> <span class="n">SamplingStepState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SamplingStepState</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Single sampling step for the straight-through estimator.&quot;&quot;&quot;</span>
+    <span class="p">(</span>
+      <span class="n">current_key</span><span class="p">,</span>
+      <span class="n">edge_features</span><span class="p">,</span>
+      <span class="n">node_features</span><span class="p">,</span>
+      <span class="n">_sequence</span><span class="p">,</span>
+      <span class="n">current_logits</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">=</span> <span class="n">carry</span>
 
-  <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
-  <span class="k">def</span><span class="w"> </span><span class="nf">loss_fn</span><span class="p">(</span><span class="n">input_logits</span><span class="p">:</span> <span class="n">Logits</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">CEELoss</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">NodeFeatures</span><span class="p">,</span> <span class="n">Logits</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Compute the loss for the straight-through estimator.&quot;&quot;&quot;</span>
-    <span class="n">ste_logits</span> <span class="o">=</span> <span class="n">straight_through_estimator</span><span class="p">(</span><span class="n">input_logits</span><span class="p">)</span>
-    <span class="n">updated_node_features</span> <span class="o">=</span> <span class="n">decoder</span><span class="p">(</span>
+    <span class="p">(</span>
       <span class="n">node_features</span><span class="p">,</span>
       <span class="n">edge_features</span><span class="p">,</span>
       <span class="n">neighbor_indices</span><span class="p">,</span>
       <span class="n">mask</span><span class="p">,</span>
       <span class="n">autoregressive_mask</span><span class="p">,</span>
-      <span class="n">ste_logits</span><span class="p">,</span>
+      <span class="n">next_rng_key</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">=</span> <span class="n">sample_model_pass_fn_only_prng</span><span class="p">(</span>
+      <span class="n">current_key</span><span class="p">,</span>
     <span class="p">)</span>
-    <span class="n">output_logits</span> <span class="o">=</span> <span class="n">final_projection</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="n">updated_node_features</span><span class="p">)</span>
 
-    <span class="k">return</span> <span class="n">ste_loss</span><span class="p">(</span><span class="n">output_logits</span><span class="p">,</span> <span class="n">target_logits</span><span class="p">,</span> <span class="n">mask</span><span class="p">),</span> <span class="p">(</span><span class="n">updated_node_features</span><span class="p">,</span> <span class="n">output_logits</span><span class="p">)</span>
+    <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">loss_fn</span><span class="p">(</span><span class="n">input_logits</span><span class="p">:</span> <span class="n">Logits</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">CEELoss</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">NodeFeatures</span><span class="p">,</span> <span class="n">Logits</span><span class="p">]]:</span>
+<span class="w">      </span><span class="sd">&quot;&quot;&quot;Compute the loss for the straight-through estimator.&quot;&quot;&quot;</span>
+      <span class="n">ste_logits</span> <span class="o">=</span> <span class="n">straight_through_estimator</span><span class="p">(</span><span class="n">input_logits</span><span class="p">)</span>
+      <span class="n">updated_node_features</span> <span class="o">=</span> <span class="n">decoder</span><span class="p">(</span>
+        <span class="n">node_features</span><span class="p">,</span>
+        <span class="n">edge_features</span><span class="p">,</span>
+        <span class="n">neighbor_indices</span><span class="p">,</span>
+        <span class="n">mask</span><span class="p">,</span>
+        <span class="n">autoregressive_mask</span><span class="p">,</span>
+        <span class="n">ste_logits</span><span class="p">,</span>
+      <span class="p">)</span>
+      <span class="n">output_logits</span> <span class="o">=</span> <span class="n">final_projection</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="n">updated_node_features</span><span class="p">)</span>
 
-  <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="p">(</span><span class="n">new_node_features</span><span class="p">,</span> <span class="n">_</span><span class="p">)),</span> <span class="n">grad</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">value_and_grad</span><span class="p">(</span><span class="n">loss_fn</span><span class="p">,</span> <span class="n">has_aux</span><span class="o">=</span><span class="kc">True</span><span class="p">)(</span>
-    <span class="n">current_logits</span><span class="p">,</span>
-  <span class="p">)</span>
+      <span class="k">return</span> <span class="n">ste_loss</span><span class="p">(</span><span class="n">output_logits</span><span class="p">,</span> <span class="n">target_logits</span><span class="p">,</span> <span class="n">mask</span><span class="p">),</span> <span class="p">(</span><span class="n">updated_node_features</span><span class="p">,</span> <span class="n">output_logits</span><span class="p">)</span>
 
-  <span class="n">updated_logits</span> <span class="o">=</span> <span class="n">current_logits</span> <span class="o">-</span> <span class="n">learning_rate</span> <span class="o">*</span> <span class="n">grad</span>
+    <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="p">(</span><span class="n">new_node_features</span><span class="p">,</span> <span class="n">_</span><span class="p">)),</span> <span class="n">grad</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">value_and_grad</span><span class="p">(</span><span class="n">loss_fn</span><span class="p">,</span> <span class="n">has_aux</span><span class="o">=</span><span class="kc">True</span><span class="p">)(</span>
+      <span class="n">current_logits</span><span class="p">,</span>
+    <span class="p">)</span>
 
-  <span class="n">updated_sequence</span> <span class="o">=</span> <span class="n">updated_logits</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>  <span class="c1"># type: ignore[no-any-return]</span>
-  <span class="k">return</span> <span class="p">(</span>
-    <span class="n">next_rng_key</span><span class="p">,</span>
-    <span class="n">edge_features</span><span class="p">,</span>
-    <span class="n">new_node_features</span><span class="p">,</span>
-    <span class="n">updated_sequence</span><span class="p">,</span>
-    <span class="n">updated_logits</span><span class="p">,</span>
-  <span class="p">)</span></div>
+    <span class="n">updated_logits</span> <span class="o">=</span> <span class="n">current_logits</span> <span class="o">-</span> <span class="n">learning_rate</span> <span class="o">*</span> <span class="n">grad</span>
+
+    <span class="n">updated_sequence</span> <span class="o">=</span> <span class="n">updated_logits</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span>
+      <span class="n">next_rng_key</span><span class="p">,</span>
+      <span class="n">edge_features</span><span class="p">,</span>
+      <span class="n">new_node_features</span><span class="p">,</span>
+      <span class="n">updated_sequence</span><span class="p">,</span>
+      <span class="n">updated_logits</span><span class="p">,</span>
+    <span class="p">)</span>
+
+  <span class="k">return</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">fori_loop</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">iterations</span><span class="p">,</span> <span class="n">sampling_step</span><span class="p">,</span> <span class="n">initial_carry</span><span class="p">)</span></div>
 
 
 
@@ -564,7 +573,7 @@ document.write(`
 <span class="w">      </span><span class="sd">&quot;&quot;&quot;Get the temperature sampling step function.&quot;&quot;&quot;</span>
       <span class="n">decoder</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span><span class="s2">&quot;RunAutoregressiveDecoderFn&quot;</span><span class="p">,</span> <span class="n">decoder</span><span class="p">)</span>
       <span class="n">decoding_loaded_step_fn</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span>
-        <span class="n">sample_temperature_step</span><span class="p">,</span>
+        <span class="n">temperature_sample</span><span class="p">,</span>
         <span class="n">decoder</span><span class="o">=</span><span class="n">decoder</span><span class="p">,</span>
         <span class="n">sample_model_pass_fn_only_prng</span><span class="o">=</span><span class="n">sample_model_pass_fn_only_prng</span><span class="p">,</span>
         <span class="n">temperature</span><span class="o">=</span><span class="n">sampling_config</span><span class="o">.</span><span class="n">temperature</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
@@ -573,12 +582,13 @@ document.write(`
 <span class="w">      </span><span class="sd">&quot;&quot;&quot;Get the straight-through sampling step function.&quot;&quot;&quot;</span>
       <span class="n">decoder</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span><span class="s2">&quot;RunConditionalDecoderFn&quot;</span><span class="p">,</span> <span class="n">decoder</span><span class="p">)</span>
       <span class="n">decoding_loaded_step_fn</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span>
-        <span class="n">sample_straight_through_estimator_step</span><span class="p">,</span>
+        <span class="n">ste_sample</span><span class="p">,</span>
         <span class="n">decoder</span><span class="o">=</span><span class="n">decoder</span><span class="p">,</span>
         <span class="n">sample_model_pass_fn_only_prng</span><span class="o">=</span><span class="n">sample_model_pass_fn_only_prng</span><span class="p">,</span>
         <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
         <span class="n">learning_rate</span><span class="o">=</span><span class="n">sampling_config</span><span class="o">.</span><span class="n">learning_rate</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
         <span class="n">target_logits</span><span class="o">=</span><span class="n">sampling_config</span><span class="o">.</span><span class="n">target_logits</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
+        <span class="n">iterations</span><span class="o">=</span><span class="n">sampling_config</span><span class="o">.</span><span class="n">iterations</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
       <span class="p">)</span>
     <span class="k">case</span> <span class="n">SamplingEnum</span><span class="o">.</span><span class="n">BEAM_SEARCH</span><span class="p">:</span>
 <span class="w">      </span><span class="sd">&quot;&quot;&quot;Beam search sampling is not implemented yet.&quot;&quot;&quot;</span>
@@ -597,7 +607,7 @@ document.write(`
       <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Unknown sampling strategy: </span><span class="si">{</span><span class="n">sampling_config</span><span class="o">.</span><span class="n">sampling_strategy</span><span class="si">}</span><span class="s2">&quot;</span>
       <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
 
-  <span class="k">return</span> <span class="n">decoding_loaded_step_fn</span></div>
+  <span class="k">return</span> <span class="k">lambda</span> <span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="n">decoding_loaded_step_fn</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span></div>
 
 </pre></div>
 

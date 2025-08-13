@@ -562,6 +562,10 @@ document.write(`
       <span class="n">config</span><span class="p">,</span>
     <span class="p">)</span>
 
+    <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">sampling_strategy</span> <span class="o">==</span> <span class="n">SamplingEnum</span><span class="o">.</span><span class="n">TEMPERATURE</span><span class="p">:</span>
+      <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">output_sequence</span><span class="p">,</span> <span class="n">output_logits</span> <span class="o">=</span> <span class="n">sample_step</span><span class="p">(</span><span class="n">next_rng_key</span><span class="p">)</span>
+      <span class="k">return</span> <span class="n">output_sequence</span><span class="p">,</span> <span class="n">output_logits</span><span class="p">,</span> <span class="n">decoding_order</span>
+
     <span class="n">initial_carry</span> <span class="o">=</span> <span class="p">(</span>
       <span class="n">next_rng_key</span><span class="p">,</span>
       <span class="n">edge_features</span><span class="p">,</span>
@@ -569,15 +573,8 @@ document.write(`
       <span class="n">sequence</span><span class="p">,</span>
       <span class="n">logits</span><span class="p">,</span>
     <span class="p">)</span>
-
-    <span class="n">final_carry</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">fori_loop</span><span class="p">(</span>
-      <span class="mi">0</span><span class="p">,</span>
-      <span class="n">config</span><span class="o">.</span><span class="n">iterations</span><span class="p">,</span>
-      <span class="n">sample_step</span><span class="p">,</span>
-      <span class="n">initial_carry</span><span class="p">,</span>
-    <span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">final_carry</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="n">final_carry</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span> <span class="o">+</span> <span class="n">bias</span><span class="p">,</span> <span class="n">decoding_order</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">output_sequence</span><span class="p">,</span> <span class="n">output_logits</span> <span class="o">=</span> <span class="n">sample_step</span><span class="p">(</span><span class="n">initial_carry</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">output_sequence</span><span class="p">,</span> <span class="n">output_logits</span><span class="p">,</span> <span class="n">decoding_order</span>
 
   <span class="k">if</span> <span class="n">sampling_inputs</span><span class="p">:</span>
     <span class="k">return</span> <span class="n">partial</span><span class="p">(</span>

@@ -5,19 +5,19 @@ prxteinmpnn.sampling.sampling
 
 from collections.abc import Callable
 from functools import partial
+from typing import cast
 
 import jax
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
-from prxteinmpnn.model.decoder import RunConditionalDecoderFn
+from prxteinmpnn.model.decoder import RunAutoregressiveDecoderFn, RunConditionalDecoderFn
 from prxteinmpnn.model.projection import final_projection
 from prxteinmpnn.utils.types import (
   CEELoss,
   Logits,
   ModelParameters,
   NodeFeatures,
-  OneHotProteinSequence,
   ProteinSequence,
   SequenceEdgeFeatures,
 )
@@ -46,8 +46,8 @@ SampleModelPassOnlyPRNGFn = Callable[[PRNGKeyArray], SamplingModelPassOutput]
 def sample_temperature_step(
   _i: int,
   carry: SamplingStepState,
-  decoder: RunConditionalDecoderFn,
-  model_parameters: ModelParameters,
+  decoder: RunAutoregressiveDecoderFn,
+  _model_parameters: ModelParameters,
   sample_model_pass_fn_only_prng: SampleModelPassOnlyPRNGFn,
   temperature: float,
 ) -> SamplingStepState:
@@ -85,6 +85,8 @@ def sample_temperature_step(
   """
   current_key, _, _, _, _ = carry
 
+  current_key, final_new_loop_key = jax.random.split(current_key)
+
   (
     node_features,
     edge_features,
@@ -95,51 +97,17 @@ def sample_temperature_step(
   ) = sample_model_pass_fn_only_prng(
     current_key,
   )
-  decoding_order = jnp.argsort(jnp.sum(autoregressive_mask, axis=1))
-  jax.debug.print("Decoding order: {}", decoding_order)
-  num_residues = node_features.shape[0]
 
-  def update_sequence(
-    i: int,
-    inner_carry: tuple[PRNGKeyArray, OneHotProteinSequence, Logits],
-  ) -> tuple[PRNGKeyArray, ProteinSequence, Logits]:
-    """Update the sequence at the current position."""
-    loop_key, one_hot_sequence, all_logits = inner_carry
-    position = decoding_order[i]
-    updated_node_features = decoder(
-      node_features,
-      edge_features,
-      neighbor_indices,
-      mask,
-      autoregressive_mask,
-      one_hot_sequence,
-    )
-    logits = final_projection(model_parameters, updated_node_features)
-    jax.debug.print("Step {i}, logits at pos 10: {logits}", i=i, logits=all_logits[10, :5])
-    gumbel_key, next_loop_key = jax.random.split(loop_key)
-    position_logits = (logits[position] / temperature) + jax.random.gumbel(
-      gumbel_key,
-      logits[position].shape,
-    )
-    new_amino_acid = jax.nn.one_hot(position_logits[..., :20].argmax(-1), 21)
-    one_hot_sequence = one_hot_sequence.at[position].set(new_amino_acid)
-    all_logits = all_logits.at[position].set(position_logits)
-    return next_loop_key, one_hot_sequence, all_logits
-
-  initial_inner_carry = (
+  output_sequence, logits = decoder(
     decoding_key,
-    jnp.zeros((num_residues, 21), dtype=jnp.float32),
-    jnp.zeros((num_residues, 21), dtype=jnp.float32),
+    node_features,
+    edge_features,
+    neighbor_indices,
+    mask,
+    autoregressive_mask,
+    temperature,
   )
 
-  final_new_loop_key, output_sequence, logits = jax.lax.fori_loop(
-    0,
-    num_residues,
-    update_sequence,
-    initial_inner_carry,
-  )
-
-  output_sequence = output_sequence.argmax(axis=-1).astype(jnp.int8)
   return final_new_loop_key, edge_features, node_features, output_sequence, logits
 
 
@@ -230,7 +198,7 @@ def sample_straight_through_estimator_step(
 
 
 def preload_sampling_step_decoder(
-  decoder: RunConditionalDecoderFn,
+  decoder: RunConditionalDecoderFn | RunAutoregressiveDecoderFn,
   sample_model_pass_fn_only_prng: SampleModelPassOnlyPRNGFn,
   model_parameters: ModelParameters,
   sampling_config: SamplingConfig,
@@ -239,6 +207,7 @@ def preload_sampling_step_decoder(
   match sampling_config.sampling_strategy:
     case SamplingEnum.TEMPERATURE:
       """Get the temperature sampling step function."""
+      decoder = cast("RunAutoregressiveDecoderFn", decoder)
       decoding_loaded_step_fn = partial(
         sample_temperature_step,
         decoder=decoder,
@@ -247,6 +216,7 @@ def preload_sampling_step_decoder(
       )
     case SamplingEnum.STRAIGHT_THROUGH:
       """Get the straight-through sampling step function."""
+      decoder = cast("RunConditionalDecoderFn", decoder)
       decoding_loaded_step_fn = partial(
         sample_straight_through_estimator_step,
         decoder=decoder,

@@ -13,7 +13,11 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
-from prxteinmpnn.model.decoder import DecodingEnum, RunConditionalDecoderFn, make_decoder
+from prxteinmpnn.model.decoder import (
+  DecodingEnum,
+  RunConditionalDecoderFn,
+  make_decoder,
+)
 from prxteinmpnn.model.encoder import make_encoder
 from prxteinmpnn.model.masked_attention import MaskedAttentionEnum
 from prxteinmpnn.model.projection import final_projection
@@ -32,7 +36,7 @@ from prxteinmpnn.utils.types import (
   StructureAtomicCoordinates,
 )
 
-from .config import SamplingConfig
+from .config import SamplingConfig, SamplingEnum
 from .initialize import sampling_encode
 from .sampling_step import preload_sampling_step_decoder
 
@@ -116,13 +120,21 @@ def make_sample_sequences(
     attention_mask_enum=MaskedAttentionEnum.CROSS,
     num_encoder_layers=num_encoder_layers,
   )
-
   decoder = make_decoder(
     model_parameters=model_parameters,
     attention_mask_enum=MaskedAttentionEnum.CONDITIONAL,
     decoding_enum=DecodingEnum.CONDITIONAL,
     num_decoder_layers=num_decoder_layers,
   )
+
+  if config.sampling_strategy == SamplingEnum.TEMPERATURE:
+    decoder = make_decoder(
+      model_parameters=model_parameters,
+      attention_mask_enum=MaskedAttentionEnum.CROSS,
+      decoding_enum=DecodingEnum.AUTOREGRESSIVE,
+      num_decoder_layers=num_decoder_layers,
+    )
+
   decoder = cast("RunConditionalDecoderFn", decoder)
 
   sample_model_pass = sampling_encode(
@@ -168,36 +180,21 @@ def make_sample_sequences(
       augment_eps,
     )
 
-    (
-      node_features,
-      edge_features,
-      neighbor_indices,
-      decoding_order,
-      autoregressive_mask,
-      next_rng_key,
-    ) = sample_model_pass(
-      prng_key,
-      model_parameters,
-      structure_coordinates,
-      mask,
-      residue_index,
-      chain_index,
-      k_neighbors,
-      augment_eps,
-    )
-
     one_hot_sequence = jax.nn.one_hot(sequence, 21, dtype=jnp.float32)
 
-    decoded_node_features = decoder(
-      node_features,
-      edge_features,
-      neighbor_indices,
-      mask,
-      autoregressive_mask,
-      one_hot_sequence,
-    )
+    if config.sampling_strategy != SamplingEnum.TEMPERATURE:
+      decoded_node_features = decoder(
+        node_features,
+        edge_features,
+        neighbor_indices,
+        mask,
+        autoregressive_mask,
+        one_hot_sequence,
+      )
 
-    logits = final_projection(model_parameters, decoded_node_features) + bias
+      logits = final_projection(model_parameters, decoded_node_features) + bias
+    else:
+      logits = jnp.zeros((node_features.shape[0], 21), dtype=jnp.float32)
 
     sample_model_pass_fn_only_prng = partial(
       sample_model_pass,

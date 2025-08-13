@@ -473,7 +473,6 @@ def make_decoder(
           key,
           logits_position.shape,
         )
-        sampled_logits = sampled_logits.mean(0, keepdims=True)
         sampled_idx = sampled_logits[..., :20].argmax(-1)
         sequence_position = jax.nn.one_hot(sampled_idx, num_classes=21)
 
@@ -512,10 +511,9 @@ def make_decoder(
         scan_inputs,
       )
 
-      sequence_all, final_logits = collected_outputs
-      final_sequence = jnp.zeros_like(sequence_all).at[decoding_order].set(sequence_all)
-
-      return final_sequence, all_logits
+      _, final_logits = collected_outputs
+      final_sequence = final_logits.argmax(axis=-1).astype(jnp.int8)  # type: ignore[no-any-return]
+      return final_sequence, final_logits
 
     return run_autoregressive_decoder
   if decoding_enum is DecodingEnum.CONDITIONAL:

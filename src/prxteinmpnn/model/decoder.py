@@ -207,6 +207,9 @@ def initialize_conditional_decoder(
   return node_edge_features, sequence_edge_features
 
 
+TWO_D = 2
+
+
 @jax.jit
 def decode_message(
   node_features: NodeFeatures,
@@ -228,6 +231,10 @@ def decode_message(
     jnp.expand_dims(node_features, -2),
     [1, edge_features.shape[-2], 1],
   )
+
+  if edge_features.ndim == TWO_D:
+    edge_features = jnp.expand_dims(edge_features, 0)
+
   node_edge_features = jnp.concatenate([node_features_expand, edge_features], -1)
 
   w1, b1, w2, b2, w3, b3 = (

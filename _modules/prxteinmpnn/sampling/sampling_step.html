@@ -395,7 +395,6 @@ document.write(`
   <span class="n">_i</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
   <span class="n">carry</span><span class="p">:</span> <span class="n">SamplingStepState</span><span class="p">,</span>
   <span class="n">decoder</span><span class="p">:</span> <span class="n">RunAutoregressiveDecoderFn</span><span class="p">,</span>
-  <span class="n">_model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
   <span class="n">sample_model_pass_fn_only_prng</span><span class="p">:</span> <span class="n">SampleModelPassOnlyPRNGFn</span><span class="p">,</span>
   <span class="n">temperature</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SamplingStepState</span><span class="p">:</span>
@@ -575,6 +574,7 @@ document.write(`
         <span class="n">sample_straight_through_estimator_step</span><span class="p">,</span>
         <span class="n">decoder</span><span class="o">=</span><span class="n">decoder</span><span class="p">,</span>
         <span class="n">sample_model_pass_fn_only_prng</span><span class="o">=</span><span class="n">sample_model_pass_fn_only_prng</span><span class="p">,</span>
+        <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
         <span class="n">learning_rate</span><span class="o">=</span><span class="n">sampling_config</span><span class="o">.</span><span class="n">learning_rate</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
         <span class="n">target_logits</span><span class="o">=</span><span class="n">sampling_config</span><span class="o">.</span><span class="n">target_logits</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
       <span class="p">)</span>
@@ -595,10 +595,7 @@ document.write(`
       <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Unknown sampling strategy: </span><span class="si">{</span><span class="n">sampling_config</span><span class="o">.</span><span class="n">sampling_strategy</span><span class="si">}</span><span class="s2">&quot;</span>
       <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
 
-  <span class="k">return</span> <span class="n">partial</span><span class="p">(</span>
-    <span class="n">decoding_loaded_step_fn</span><span class="p">,</span>
-    <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>
-  <span class="p">)</span></div>
+  <span class="k">return</span> <span class="n">decoding_loaded_step_fn</span></div>
 
 </pre></div>
 

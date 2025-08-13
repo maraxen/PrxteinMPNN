@@ -409,10 +409,11 @@ def make_decoder(
         scan_inputs: tuple[Array, PRNGKeyArray],
       ) -> tuple[
         tuple[NodeFeatures, NodeFeatures, Logits],
-        tuple[OneHotProteinSequence, Logits],
+        OneHotProteinSequence,  # MODIFIED: We only need to collect the sequence
       ]:
         all_layers_node_features, embedded_sequence_state, all_logits = carry
         position, key = scan_inputs
+        # ... (no changes inside this part of the function until the return)
         fixed_context_features_position = fixed_context_features[position]
         position_neighborhood_indices = neighbor_indices[position]
         mask_position = mask[position]
@@ -483,7 +484,8 @@ def make_decoder(
         all_logits = all_logits.at[position].set(sampled_logits)
 
         next_carry = (final_all_layers_node_features, next_embedded_sequence_state, all_logits)
-        outputs_position_collect = (sequence_position, all_logits)
+
+        outputs_position_collect = sequence_position
         return next_carry, outputs_position_collect
 
       num_residues = node_features.shape[0]
@@ -505,15 +507,17 @@ def make_decoder(
 
       scan_inputs = (decoding_order, jax.random.split(prng_key, num_residues))
 
-      _, collected_outputs = jax.lax.scan(
+      final_carry, sequence_in_decoding_order = jax.lax.scan(
         autoregressive_step,
         initial_carry,
         scan_inputs,
       )
 
-      _, final_logits = collected_outputs
-      final_sequence = final_logits.argmax(axis=-1).astype(jnp.int8)  # type: ignore[no-any-return]
-      return final_sequence, final_logits
+      final_all_logits = final_carry[2]
+      final_sequence = jnp.zeros_like(sequence_in_decoding_order)
+      final_sequence = final_sequence.at[decoding_order].set(sequence_in_decoding_order)
+
+      return final_sequence, final_all_logits
 
     return run_autoregressive_decoder
   if decoding_enum is DecodingEnum.CONDITIONAL:

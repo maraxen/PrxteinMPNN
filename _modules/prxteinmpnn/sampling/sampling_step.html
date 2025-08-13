@@ -455,6 +455,8 @@ document.write(`
     <span class="n">temperature</span><span class="p">,</span>
   <span class="p">)</span>
 
+  <span class="n">output_sequence</span> <span class="o">=</span> <span class="n">output_sequence</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>  <span class="c1"># type: ignore[no-any-return]</span>
+
   <span class="k">return</span> <span class="n">final_new_loop_key</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">output_sequence</span><span class="p">,</span> <span class="n">logits</span></div>
 
 

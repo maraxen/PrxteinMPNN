@@ -447,6 +447,8 @@ def make_decoder(
             layer_params=current_layer_params,
           )
 
+          updated_node_features_position = jnp.squeeze(updated_node_features_position, 0)
+
           return current_state_tensor.at[layer_num + 1, position].set(
             updated_node_features_position,
           )

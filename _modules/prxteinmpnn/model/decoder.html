@@ -822,6 +822,8 @@ document.write(`
             <span class="n">layer_params</span><span class="o">=</span><span class="n">current_layer_params</span><span class="p">,</span>
           <span class="p">)</span>
 
+          <span class="n">updated_node_features_position</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="n">updated_node_features_position</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
           <span class="k">return</span> <span class="n">current_state_tensor</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">layer_num</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">position</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span>
             <span class="n">updated_node_features_position</span><span class="p">,</span>
           <span class="p">)</span>

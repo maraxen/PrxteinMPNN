@@ -12,7 +12,6 @@ import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.model.decoder import RunAutoregressiveDecoderFn, RunConditionalDecoderFn
-from prxteinmpnn.model.projection import final_projection
 from prxteinmpnn.utils.types import (
   CEELoss,
   Logits,
@@ -24,7 +23,7 @@ from prxteinmpnn.utils.types import (
 
 from .config import SamplingConfig, SamplingEnum
 from .initialize import SamplingModelPassOutput
-from .ste import ste_loss, straight_through_estimator
+from .ste import ste_loss
 
 SampleModelPassOnlyPRNGFn = Callable[[PRNGKeyArray], SamplingModelPassOutput]
 
@@ -110,14 +109,12 @@ def temperature_sample(
 
 def ste_sample(
   initial_carry: SamplingStepState,
-  decoder: RunConditionalDecoderFn,
+  decoder: RunAutoregressiveDecoderFn,
   sample_model_pass_fn_only_prng: SampleModelPassOnlyPRNGFn,
-  model_parameters: ModelParameters,
   learning_rate: float,
-  target_logits: Logits,
   iterations: int,
 ) -> SamplingStepState:
-  """Single autoregressive sampling step with straight-through estimator.
+  """Autoregressive sampling with straight-through estimator.
 
   Args:
     initial_carry: Tuple containing initial state (rng_key, edge_features, node_features, sequence,
@@ -174,22 +171,21 @@ def ste_sample(
     )
 
     @jax.jit
-    def loss_fn(input_logits: Logits) -> tuple[CEELoss, tuple[NodeFeatures, Logits]]:
+    def loss_fn(input_logits: Logits) -> CEELoss:
       """Compute the loss for the straight-through estimator."""
-      ste_logits = straight_through_estimator(input_logits)
-      updated_node_features = decoder(
+      output_logits, _ = decoder(
+        next_rng_key,
         node_features,
         edge_features,
         neighbor_indices,
         mask,
         autoregressive_mask,
-        ste_logits,
+        1.0,
       )
-      output_logits = final_projection(model_parameters, updated_node_features)
 
-      return ste_loss(output_logits, target_logits, mask), (updated_node_features, output_logits)
+      return ste_loss(output_logits, input_logits, mask)
 
-    (_, (new_node_features, _)), grad = jax.value_and_grad(loss_fn, has_aux=True)(
+    _, grad = jax.value_and_grad(loss_fn, has_aux=False)(
       current_logits,
     )
 
@@ -199,7 +195,7 @@ def ste_sample(
     return (
       next_rng_key,
       edge_features,
-      new_node_features,
+      node_features,
       updated_sequence,
       updated_logits,
     )
@@ -226,14 +222,12 @@ def preload_sampling_step_decoder(
       )
     case SamplingEnum.STRAIGHT_THROUGH:
       """Get the straight-through sampling step function."""
-      decoder = cast("RunConditionalDecoderFn", decoder)
+      decoder = cast("RunAutoregressiveDecoderFn", decoder)
       decoding_loaded_step_fn = partial(
         ste_sample,
         decoder=decoder,
         sample_model_pass_fn_only_prng=sample_model_pass_fn_only_prng,
-        model_parameters=model_parameters,  # type: ignore[arg-type]
         learning_rate=sampling_config.learning_rate,  # type: ignore[arg-type]
-        target_logits=sampling_config.target_logits,  # type: ignore[arg-type]
         iterations=sampling_config.iterations,  # type: ignore[arg-type]
       )
     case SamplingEnum.BEAM_SEARCH:

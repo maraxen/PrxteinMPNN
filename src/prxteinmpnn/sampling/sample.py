@@ -181,20 +181,7 @@ def make_sample_sequences(
     )
 
     one_hot_sequence = jax.nn.one_hot(sequence, 21, dtype=jnp.float32)
-
-    if config.sampling_strategy != SamplingEnum.TEMPERATURE:
-      decoded_node_features = decoder(
-        node_features,
-        edge_features,
-        neighbor_indices,
-        mask,
-        autoregressive_mask,
-        one_hot_sequence,
-      )
-
-      logits = final_projection(model_parameters, decoded_node_features) + bias
-    else:
-      logits = jnp.zeros((node_features.shape[0], 21), dtype=jnp.float32)
+    logits = jnp.zeros((node_features.shape[0], 21), dtype=jnp.float32)
 
     sample_model_pass_fn_only_prng = partial(
       sample_model_pass,

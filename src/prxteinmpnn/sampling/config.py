@@ -10,11 +10,7 @@ from prxteinmpnn.utils.types import Logits
 class SamplingEnum(enum.Enum):
   """Enum for different sampling strategies."""
 
-  GREEDY = "greedy"
-  TOP_K = "top_k"
-  TOP_P = "top_p"
   TEMPERATURE = "temperature"
-  BEAM_SEARCH = "beam_search"
   STRAIGHT_THROUGH = "straight_through"
 
 

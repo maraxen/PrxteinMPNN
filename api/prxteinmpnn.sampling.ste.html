@@ -375,9 +375,7 @@ document.write(`
   </button>
 `);
 </script>
-<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
-    <span class="fa-solid fa-list"></span>
-</button>
+
 </div></div>
       
     </div>
@@ -393,15 +391,6 @@ document.write(`
     <div id="print-main-content">
         <div id="jb-print-toc">
             
-            <div>
-                <h2> Contents </h2>
-            </div>
-            <nav aria-label="Page">
-                <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.ste.straight_through_estimator"><code class="docutils literal notranslate"><span class="pre">straight_through_estimator()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.ste.ste_loss"><code class="docutils literal notranslate"><span class="pre">ste_loss()</span></code></a></li>
-</ul>
-            </nav>
         </div>
     </div>
 </div>
@@ -411,63 +400,8 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="module-prxteinmpnn.sampling.ste">
-<span id="ste"></span><h1>ste<a class="headerlink" href="#module-prxteinmpnn.sampling.ste" title="Link to this heading">#</a></h1>
-<p>Straight-Through Estimator (STE) for JAX.</p>
-<p>prxteinmpnn.sampling.ste</p>
-<p>Note: Only use this for discrete optimization problems where you want to allow gradients
-to pass through the argmax operation. Useful for tasks like protein sequence
-optimization when a model outputs logits for amino acid sequences.</p>
-<p>Unclear if the optimized sequences will be valid proteins, so this is a heuristic
-approach to allow gradient-based optimization on discrete outputs to assess how well
-other samplers are navigating model landscapes.</p>
-<dl class="py function">
-<dt class="sig sig-object py" id="prxteinmpnn.sampling.ste.straight_through_estimator">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.sampling.ste.</span></span><span class="sig-name descname"><span class="pre">straight_through_estimator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">logits</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/sampling/ste.html#straight_through_estimator"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.sampling.ste.straight_through_estimator" title="Link to this definition">#</a></dt>
-<dd><p>Implement the straight-through estimator (STE).</p>
-<p>Allow gradients to pass through the discrete argmax operation.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_classes']</span></code></span></p>
-</dd>
-<dt class="field-even">Parameters<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>logits</strong> (<em>Logits</em>)</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="prxteinmpnn.sampling.ste.ste_loss">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.sampling.ste.</span></span><span class="sig-name descname"><span class="pre">ste_loss</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">logits_to_optimize</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_logits</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-08</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/sampling/ste.html#ste_loss"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.sampling.ste.ste_loss" title="Link to this definition">#</a></dt>
-<dd><p>Calculate cross-entropy between one-hot sequence (from STE) and target distribution.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>logits_to_optimize</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_classes']</span></code></span>) – Logits to optimize, shape (sequence_length, num_classes).</p></li>
-<li><p><strong>target_logits</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_classes']</span></code></span>) – Target logits for the sequence, shape (sequence_length, num_classes).
-These are the logits from the model that we want to match, such as MPNN model’s
-unconditional logits.</p></li>
-<li><p><strong>mask</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code></span>) – Boolean mask indicating valid positions in the sequence.
-Used to ignore padding or invalid positions.</p></li>
-<li><p><strong>eps</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></a></span>) – Small value to avoid division by zero.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'']</span></code></span></p>
-</dd>
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Loss value as a scalar.</p>
-</dd>
-</dl>
-<p class="rubric">Example</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">logits_to_optimize</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.8</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">]])</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">target_logits</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.8</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.7</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">]])</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">mask</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="kc">True</span><span class="p">,</span> <span class="kc">True</span><span class="p">])</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">loss</span> <span class="o">=</span> <span class="n">ste_loss</span><span class="p">(</span><span class="n">logits_to_optimize</span><span class="p">,</span> <span class="n">target_logits</span><span class="p">,</span> <span class="n">mask</span><span class="p">)</span>
-</pre></div>
-</div>
-</dd></dl>
-
+  <section id="ste">
+<h1>ste<a class="headerlink" href="#ste" title="Link to this heading">#</a></h1>
 </section>
 
 
@@ -505,22 +439,6 @@ Used to ignore padding or invalid positions.</p></li>
             </div>
             
             
-              
-                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
-
-
-  <div class="sidebar-secondary-item">
-  <div class="page-toc tocsection onthispage">
-    <i class="fa-solid fa-list"></i> Contents
-  </div>
-  <nav class="bd-toc-nav page-toc">
-    <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.ste.straight_through_estimator"><code class="docutils literal notranslate"><span class="pre">straight_through_estimator()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.ste.ste_loss"><code class="docutils literal notranslate"><span class="pre">ste_loss()</span></code></a></li>
-</ul>
-  </nav></div>
-
-</div></div>
               
             
           </div>

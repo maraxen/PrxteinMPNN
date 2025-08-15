@@ -450,7 +450,7 @@ def make_decoder(
           updated_node_features_position = decode_layer_fn(
             node_features_in[position],
             jnp.expand_dims(decoding_context, axis=0),
-            mask_t=mask_position,
+            mask=mask_position,
             layer_params=current_layer_params,
             scale=scale,
           )

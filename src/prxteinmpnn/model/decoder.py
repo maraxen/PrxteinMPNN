@@ -57,6 +57,7 @@ DecodeMessageInputs = tuple[
 ]
 DecodeMessageFn = Callable[[*DecodeMessageInputs], Message]
 
+
 DecoderNormalizeInputs = tuple[
   Message,
   NodeFeatures,
@@ -65,6 +66,7 @@ DecoderNormalizeInputs = tuple[
   float,
 ]
 DecoderNormalizeFn = Callable[[*DecoderNormalizeInputs], NodeFeatures]
+
 
 MaskedAttentionDecoderInputs = tuple[
   NodeFeatures,
@@ -83,6 +85,7 @@ DecoderInputs = tuple[
   float,
 ]
 DecoderFn = Callable[[*DecoderInputs], NodeFeatures]
+
 
 RunDecoderInputs = tuple[NodeFeatures, EdgeFeatures, AtomMask]
 RunDecoderFn = Callable[[*RunDecoderInputs], NodeFeatures]
@@ -127,8 +130,10 @@ def decoder_parameter_pytree(
     model_parameters: Model parameters for the decoder.
     num_decoder_layers: Number of decoder layers to set up.
 
+
   Returns:
     Decoder parameters as a PyTree.
+
 
   """
   all_decoder_layer_params_list = []
@@ -180,8 +185,10 @@ def initialize_conditional_decoder(
     neighbor_indices: Indices of neighboring nodes of shape (num_atoms, num_neighbors).
     layer_params: ModelParameters for the embedding layer.
 
+
   Returns:
     A tuple of node-edge features and sequence-edge features.
+
 
   """
   embedded_sequence = embed_sequence(layer_params, one_hot_sequence)
@@ -217,8 +224,10 @@ def decode_message(
     edge_features: Edge features of shape (num_atoms, num_neighbors, num_features).
     layer_params: Model parameters for the encoding layer.
 
+
   Returns:
     Message: decoded messages of shape (num_atoms, num_neighbors, num_features).
+
 
   """
   node_features_expand = jnp.tile(
@@ -257,17 +266,21 @@ def decoder_normalize(
     layer_params: Model parameters for the normalization layer.
     scale: Scaling factor for normalization.
 
+
   Returns:
     Updated node features after normalization.
 
+
   """
-  node_features = node_features + (jnp.sum(message, -2) / scale)
+  aggregated_message = jnp.sum(message, -2) / scale
+  node_features = node_features + aggregated_message
   norm1_params = layer_params["norm1"]
-  node_features = layer_normalization(node_features, norm1_params)
-  node_features = node_features + dense_layer(layer_params, node_features)
+  node_features_norm1 = layer_normalization(node_features, norm1_params)
+  dense_output = dense_layer(layer_params, node_features_norm1)
+  node_features = node_features_norm1 + dense_output
   norm2_params = layer_params["norm2"]
-  node_features = layer_normalization(node_features, norm2_params)
-  return mask[:, None] * node_features
+  node_features_norm2 = layer_normalization(node_features, norm2_params)
+  return mask[:, None] * node_features_norm2
 
 
 def make_decode_layer(
@@ -396,90 +409,90 @@ def make_decoder(
         edge_features,
         neighbor_indices,
       )
-      # 3. Concatenate central node features with neighbor+edge features
-      encoder_context = (
-        concatenate_neighbor_nodes(
-          node_features,
-          encoder_edge_neighbors,
-          neighbor_indices,
-        )
-        * mask_fw[..., None]
+      encoder_context = concatenate_neighbor_nodes(
+        node_features,
+        encoder_edge_neighbors,
+        neighbor_indices,
       )
+      encoder_context = encoder_context * mask_fw[..., None]
 
       def autoregressive_step(
-        carry: tuple[NodeFeatures, SequenceEdgeFeatures, Logits],
+        carry: tuple[NodeFeatures, SequenceEdgeFeatures, Logits, OneHotProteinSequence],
         scan_inputs: tuple[Int, PRNGKeyArray],
-      ) -> tuple[tuple[NodeFeatures, SequenceEdgeFeatures, Logits], OneHotProteinSequence]:
-        all_layers_node_features, embedded_sequence_state, all_logits = carry
+      ) -> tuple[tuple[NodeFeatures, SequenceEdgeFeatures, Logits, OneHotProteinSequence], None]:
+        all_layers_node_features, embedded_sequence_state, all_logits, sequence = carry
         position, key = scan_inputs
 
         encoder_context_position = encoder_context[position]
         position_neighborhood_indices = neighbor_indices[position]
-        mask_position = jnp.expand_dims(mask[position], axis=0)
+        mask_position = mask[position]
         mask_bw_position = mask_bw[position]
-        edge_features_position = edge_features[position]
-        sequence_edge_neighbors = concatenate_neighbor_nodes(
+        edge_sequence_features = concatenate_neighbor_nodes(
           embedded_sequence_state,
-          edge_features_position,
+          edge_features[position],
           position_neighborhood_indices,
         )
 
         def decoder_layer_loop(layer_num: int, current_state_tensor: NodeFeatures) -> NodeFeatures:
-          node_features_for_layer = current_state_tensor[layer_num]
+          node_features_in = current_state_tensor[layer_num]
           current_layer_params = jax.tree_util.tree_map(
             lambda x: x[layer_num],
             all_decoder_layer_params,
           )
-
-          edge_sequence_node_decoder = concatenate_neighbor_nodes(
-            node_features_for_layer,
-            sequence_edge_neighbors,
+          decoder_context_position = concatenate_neighbor_nodes(
+            node_features_in,
+            edge_sequence_features,
             position_neighborhood_indices,
           )
-          edge_sequence_node_position = (
-            mask_bw_position[..., None] * edge_sequence_node_decoder + encoder_context_position
+          decoding_context = (
+            mask_bw_position[..., None] * decoder_context_position + encoder_context_position
           )
-          edge_sequence_node_position = jnp.expand_dims(edge_sequence_node_position, 0)
           updated_node_features_position = decode_layer_fn(
-            node_features_for_layer[position],
-            edge_sequence_node_position,
-            mask=mask_position,
+            node_features_in[position],
+            jnp.expand_dims(decoding_context, axis=0),
+            mask_t=mask_position,
             layer_params=current_layer_params,
+            scale=scale,
           )
-
-          updated_node_features_position = jnp.squeeze(updated_node_features_position, 0)
 
           return current_state_tensor.at[layer_num + 1, position].set(
-            updated_node_features_position,
+            jnp.squeeze(updated_node_features_position),
           )
 
-        final_state_for_position = jax.lax.fori_loop(
+        updated_state_for_position = jax.lax.fori_loop(
           0,
           num_decoder_layers,
           decoder_layer_loop,
           all_layers_node_features,
         )
-        final_state_for_position = jnp.asarray(final_state_for_position, dtype=jnp.float32)
-        final_node_features_position = final_state_for_position[-1, position]
 
-        logits_position = final_projection(model_parameters, final_node_features_position)
+        final_node_features_position = updated_state_for_position[-1, position]
+
+        logits_position = jnp.squeeze(
+          final_projection(model_parameters, final_node_features_position),
+        )
+
+        next_all_logits = all_logits.at[position].set(logits_position)
         sampled_logits = logits_position / temperature + jax.random.gumbel(
           key,
           logits_position.shape,
         )
+
         sampled_idx = sampled_logits[..., :20].argmax(-1)
         one_hot_sequence_position = jax.nn.one_hot(sampled_idx, num_classes=21)
 
         embedded_sequence_position = embed_sequence(model_parameters, one_hot_sequence_position)
         next_embedded_sequence_state = embedded_sequence_state.at[position].set(
-          embedded_sequence_position,
+          jnp.squeeze(embedded_sequence_position),
         )
-        next_all_logits = all_logits.at[position].set(logits_position)
+        updated_sequence = sequence.at[position].set(one_hot_sequence_position)
 
-        next_all_layers_node_features = final_state_for_position
-
-        next_carry = (next_all_layers_node_features, next_embedded_sequence_state, next_all_logits)
-        return next_carry, one_hot_sequence_position
+        return (
+          updated_state_for_position,
+          next_embedded_sequence_state,
+          next_all_logits,
+          updated_sequence,
+        ), None
 
       num_residues = node_features.shape[0]
       initial_all_layers_node_features = jnp.array(
@@ -489,24 +502,24 @@ def make_decoder(
         node_features,
       )
       all_logits = jnp.zeros((num_residues, 21), dtype=jnp.float32)
+      initial_sequence = jnp.zeros((num_residues, 21), dtype=jnp.float32)
       initial_carry = (
         initial_all_layers_node_features,
         initial_embedded_sequence_state,
         all_logits,
+        initial_sequence,
       )
 
       scan_inputs = (decoding_order, jax.random.split(prng_key, num_residues))
 
-      final_carry, sequence_in_decoding_order = jax.lax.scan(
+      final_carry, _ = jax.lax.scan(
         autoregressive_step,
         initial_carry,
         scan_inputs,
       )
 
       final_all_logits = final_carry[2]
-      final_sequence = jnp.zeros_like(sequence_in_decoding_order)
-      final_sequence = final_sequence.at[decoding_order].set(sequence_in_decoding_order)
-
+      final_sequence = final_carry[3]
       return final_sequence, final_all_logits
 
     return run_autoregressive_decoder

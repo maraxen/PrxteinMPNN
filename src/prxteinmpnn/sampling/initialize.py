@@ -17,7 +17,6 @@ from prxteinmpnn.utils.types import (
   AtomMask,
   AutoRegressiveMask,
   ChainIndex,
-  DecodingOrder,
   EdgeFeatures,
   ModelParameters,
   NeighborIndices,
@@ -41,7 +40,7 @@ SamplingModelPassOutput = tuple[
   NodeFeatures,
   EdgeFeatures,
   NeighborIndices,
-  DecodingOrder,
+  AtomMask,
   AutoRegressiveMask,
   PRNGKeyArray,
 ]
@@ -103,7 +102,7 @@ def sampling_encode(
       node_features,
       edge_features,
       neighbor_indices,
-      decoding_order,
+      mask,
       autoregressive_mask,
       next_rng_key,
     )

@@ -3,7 +3,7 @@
 import chex
 import jax
 import jax.numpy as jnp
-from prxteinmpnn.sampling.ste import ste_loss, straight_through_estimator
+from prxteinmpnn.model.ste import ste_loss, straight_through_estimator
 
 
 def test_straight_through_estimator():

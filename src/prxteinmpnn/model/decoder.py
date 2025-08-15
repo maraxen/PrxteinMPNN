@@ -24,14 +24,23 @@ from prxteinmpnn.utils.types import (
   NodeEdgeFeatures,
   NodeFeatures,
   OneHotProteinSequence,
-  ProteinSequence,
   SequenceEdgeFeatures,
 )
 
 from .projection import final_projection
+from .ste import straight_through_estimator
 
 if TYPE_CHECKING:
   from jaxtyping import Int
+
+  from .decoding_signatures import (
+    DecoderFn,
+    MaskedAttentionDecoderFn,
+    RunAutoregressiveDecoderFn,
+    RunConditionalDecoderFn,
+    RunDecoderFn,
+    RunMaskedAttentionDecoderFn,
+  )
 
 
 import enum
@@ -48,76 +57,7 @@ class DecodingEnum(enum.Enum):
   CONDITIONAL = "conditional"
   UNCONDITIONAL = "unconditional"
   AUTOREGRESSIVE = "autoregressive"
-
-
-DecodeMessageInputs = tuple[
-  NodeFeatures,
-  EdgeFeatures,
-  ModelParameters,
-]
-DecodeMessageFn = Callable[[*DecodeMessageInputs], Message]
-
-
-DecoderNormalizeInputs = tuple[
-  Message,
-  NodeFeatures,
-  AtomMask,
-  ModelParameters,
-  float,
-]
-DecoderNormalizeFn = Callable[[*DecoderNormalizeInputs], NodeFeatures]
-
-
-MaskedAttentionDecoderInputs = tuple[
-  NodeFeatures,
-  EdgeFeatures,
-  AtomMask,
-  AttentionMask,
-  ModelParameters,
-  float,
-]
-MaskedAttentionDecoderFn = Callable[[*MaskedAttentionDecoderInputs], NodeFeatures]
-DecoderInputs = tuple[
-  NodeFeatures,
-  EdgeFeatures,
-  AtomMask,
-  ModelParameters,
-  float,
-]
-DecoderFn = Callable[[*DecoderInputs], NodeFeatures]
-
-
-RunDecoderInputs = tuple[NodeFeatures, EdgeFeatures, AtomMask]
-RunDecoderFn = Callable[[*RunDecoderInputs], NodeFeatures]
-RunMaskedAttentionDecoderInputs = tuple[
-  NodeFeatures,
-  EdgeFeatures,
-  AtomMask,
-  AttentionMask,
-]
-RunMaskedAttentionDecoderFn = Callable[[*RunMaskedAttentionDecoderInputs], NodeFeatures]
-RunConditionalDecoderInputs = tuple[
-  NodeFeatures,
-  EdgeFeatures,
-  NeighborIndices,
-  AtomMask,
-  AutoRegressiveMask,
-  ProteinSequence,
-]
-RunConditionalDecoderFn = Callable[[*RunConditionalDecoderInputs], NodeFeatures]
-RunAutoregressiveDecoderInputs = tuple[
-  PRNGKeyArray,
-  NodeFeatures,
-  EdgeFeatures,
-  NeighborIndices,
-  AtomMask,
-  AutoRegressiveMask,
-  float,
-]
-RunAutoregressiveDecoderFn = Callable[
-  [*RunAutoregressiveDecoderInputs],
-  tuple[OneHotProteinSequence, Logits],
-]
+  STE_AUTOREGRESSIVE = "ste_autoregressive"
 
 
 def decoder_parameter_pytree(
@@ -345,7 +285,9 @@ def setup_decoder(
   all_decoder_layer_params = decoder_parameter_pytree(model_parameters, num_decoder_layers)
   if decoding_enum is DecodingEnum.CONDITIONAL:
     decode_layer_fn = make_decode_layer(attention_mask_enum=MaskedAttentionEnum.CONDITIONAL)
-  elif decoding_enum is DecodingEnum.AUTOREGRESSIVE:
+  elif (
+    decoding_enum is DecodingEnum.AUTOREGRESSIVE or decoding_enum is DecodingEnum.STE_AUTOREGRESSIVE
+  ):
     decode_layer_fn = make_decode_layer(attention_mask_enum=MaskedAttentionEnum.NONE)
   else:
     decode_layer_fn = make_decode_layer(attention_mask_enum=attention_mask_enum)
@@ -523,6 +465,133 @@ def make_decoder(
       return final_sequence, final_all_logits
 
     return run_autoregressive_decoder
+  if decoding_enum is DecodingEnum.STE_AUTOREGRESSIVE:
+
+    @jax.jit
+    def run_ste_autoregressive_decoder(
+      prng_key: PRNGKeyArray,
+      node_features: NodeFeatures,
+      edge_features: EdgeFeatures,
+      neighbor_indices: NeighborIndices,
+      mask: AtomMask,
+      ar_mask: AutoRegressiveMask,
+    ) -> tuple[OneHotProteinSequence, Logits]:
+      """Run a differentiable autoregressive sampling process using STE."""
+      # This setup part is identical to the original autoregressive decoder
+      attention_mask = jnp.take_along_axis(ar_mask, neighbor_indices, axis=1)
+      mask_1d = mask[:, None]
+      mask_bw = mask_1d * attention_mask
+      mask_fw = mask_1d * (1 - attention_mask)
+      decoding_order = jnp.argsort(jnp.sum(ar_mask, axis=1))
+      encoder_edge_neighbors = concatenate_neighbor_nodes(
+        jnp.zeros_like(node_features),
+        edge_features,
+        neighbor_indices,
+      )
+      encoder_context = concatenate_neighbor_nodes(
+        node_features,
+        encoder_edge_neighbors,
+        neighbor_indices,
+      )
+      encoder_context = encoder_context * mask_fw[..., None]
+
+      def autoregressive_step(
+        carry: tuple[NodeFeatures, SequenceEdgeFeatures, Logits, OneHotProteinSequence],
+        scan_inputs: tuple[Int, PRNGKeyArray],
+      ) -> tuple[tuple[NodeFeatures, SequenceEdgeFeatures, Logits, OneHotProteinSequence], None]:
+        all_layers_node_features, embedded_sequence_state, all_logits, sequence = carry
+        position, _ = scan_inputs  # key from scan_inputs is ignored
+
+        encoder_context_position = encoder_context[position]
+        position_neighborhood_indices = neighbor_indices[position]
+        mask_position = mask[position]
+        mask_bw_position = mask_bw[position]
+        edge_sequence_features = concatenate_neighbor_nodes(
+          embedded_sequence_state,
+          edge_features[position],
+          position_neighborhood_indices,
+        )
+
+        def decoder_layer_loop(layer_num: int, current_state_tensor: NodeFeatures) -> NodeFeatures:
+          node_features_in = current_state_tensor[layer_num]
+          current_layer_params = jax.tree_util.tree_map(
+            lambda x: x[layer_num],
+            all_decoder_layer_params,
+          )
+          decoder_context_position = concatenate_neighbor_nodes(
+            node_features_in,
+            edge_sequence_features,
+            position_neighborhood_indices,
+          )
+          decoding_context = (
+            mask_bw_position[..., None] * decoder_context_position + encoder_context_position
+          )
+          updated_node_features_position = decode_layer_fn(
+            node_features_in[position],
+            jnp.expand_dims(decoding_context, axis=0),
+            mask=mask_position,
+            layer_params=current_layer_params,
+            scale=scale,
+          )
+          return current_state_tensor.at[layer_num + 1, position].set(
+            jnp.squeeze(updated_node_features_position),
+          )
+
+        updated_state_for_position = jax.lax.fori_loop(
+          0,
+          num_decoder_layers,
+          decoder_layer_loop,
+          all_layers_node_features,
+        )
+        final_node_features_position = updated_state_for_position[-1, position]
+        logits_position = jnp.squeeze(
+          final_projection(model_parameters, final_node_features_position),
+        )
+        next_all_logits = all_logits.at[position].set(logits_position)
+
+        logits_for_sampling = logits_position[..., :20]
+        one_hot_for_sampling = straight_through_estimator(logits_for_sampling)
+
+        padding = jnp.zeros(
+          (*one_hot_for_sampling.shape[:-1], 1),
+          dtype=one_hot_for_sampling.dtype,
+        )
+        one_hot_sequence_position = jnp.concatenate([one_hot_for_sampling, padding], axis=-1)
+        embedded_sequence_position = embed_sequence(model_parameters, one_hot_sequence_position)
+        next_embedded_sequence_state = embedded_sequence_state.at[position].set(
+          jnp.squeeze(embedded_sequence_position),
+        )
+        updated_sequence = sequence.at[position].set(one_hot_sequence_position)
+
+        return (
+          updated_state_for_position,
+          next_embedded_sequence_state,
+          next_all_logits,
+          updated_sequence,
+        ), None
+
+      num_residues = node_features.shape[0]
+      initial_all_layers_node_features = jnp.array(
+        [node_features] + [jnp.zeros_like(node_features)] * num_decoder_layers,
+      )
+      initial_embedded_sequence_state = jnp.zeros_like(node_features)
+      all_logits = jnp.zeros((num_residues, 21), dtype=jnp.float32)
+      initial_sequence = jnp.zeros((num_residues, 21), dtype=jnp.float32)
+      initial_carry = (
+        initial_all_layers_node_features,
+        initial_embedded_sequence_state,
+        all_logits,
+        initial_sequence,
+      )
+
+      scan_inputs = (decoding_order, jax.random.split(prng_key, num_residues))
+      final_carry, _ = jax.lax.scan(autoregressive_step, initial_carry, scan_inputs)
+
+      final_all_logits = final_carry[2]
+      final_sequence = final_carry[3]
+      return final_sequence, final_all_logits
+
+    return run_ste_autoregressive_decoder
   if decoding_enum is DecodingEnum.CONDITIONAL:
 
     @jax.jit

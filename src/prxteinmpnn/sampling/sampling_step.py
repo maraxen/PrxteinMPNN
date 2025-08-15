@@ -7,13 +7,11 @@ from collections.abc import Callable
 from functools import partial
 from typing import Any, cast
 
-import jax
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.model.decoder import RunAutoregressiveDecoderFn, RunConditionalDecoderFn
 from prxteinmpnn.utils.types import (
-  CEELoss,
   Logits,
   ModelParameters,
   NodeFeatures,
@@ -23,7 +21,6 @@ from prxteinmpnn.utils.types import (
 
 from .config import SamplingConfig, SamplingEnum
 from .initialize import SamplingModelPassOutput
-from .ste import ste_loss
 
 SampleModelPassOnlyPRNGFn = Callable[[PRNGKeyArray], SamplingModelPassOutput]
 
@@ -108,99 +105,38 @@ def temperature_sample(
 
 
 def ste_sample(
-  initial_carry: SamplingStepState,
-  decoder: RunAutoregressiveDecoderFn,
+  prng_key: PRNGKeyArray,
+  decoder: RunSTEAutoregressiveDecoderFn,
   sample_model_pass_fn_only_prng: SampleModelPassOnlyPRNGFn,
-  learning_rate: float,
-  iterations: int,
 ) -> SamplingStepState:
-  """Autoregressive sampling with straight-through estimator.
+  """Single autoregressive sampling step using the Straight-Through Estimator.
 
-  Args:
-    initial_carry: Tuple containing initial state (rng_key, edge_features, node_features, sequence,
-      logits).
-    decoder: Decoder function to update node features.
-    model_parameters: Model parameters for the model.
-    sample_model_pass_fn_only_prng: Function to run a single pass through the model.
-    learning_rate: Learning rate for updating logits.
-    target_logits: Target logits for the straight-through estimator.
-    iterations: Number of iterations for the straight-through estimator.
-
-
-  Returns:
-    Updated carry state and None for scan output.
-
-  Example:
-    carry = (rng_key, edge_features, node_features, sequence, logits)
-    sample_step = partial(
-      sample_straight_through_estimator_step,
-      decoder=decoder,
-      neighbor_indices=neighbor_indices,
-      mask=mask,
-      autoregressive_mask=autoregressive_mask,
-      model_parameters=model_parameters,
-      learning_rate=learning_rate,
-    )
-    final_carry, _ = jax.lax.fori_loop(
-      0,
-      iterations,
-      sample_step,
-      carry,
-
+  This is now a single-pass generative function, not an optimization loop.
   """
+  # This part is identical to temperature_sample
+  (
+    node_features,
+    edge_features,
+    neighbor_indices,
+    mask,
+    autoregressive_mask,
+    decoding_key,
+  ) = sample_model_pass_fn_only_prng(
+    prng_key,
+  )
 
-  def sampling_step(_i: int, carry: SamplingStepState) -> SamplingStepState:
-    """Single sampling step for the straight-through estimator."""
-    (
-      current_key,
-      edge_features,
-      node_features,
-      _sequence,
-      current_logits,
-    ) = carry
+  output_sequence_one_hot, logits = decoder(
+    decoding_key,
+    node_features,
+    edge_features,
+    neighbor_indices,
+    mask,
+    autoregressive_mask,
+  )
 
-    (
-      node_features,
-      edge_features,
-      neighbor_indices,
-      mask,
-      autoregressive_mask,
-      next_rng_key,
-    ) = sample_model_pass_fn_only_prng(
-      current_key,
-    )
+  output_sequence = output_sequence_one_hot.argmax(axis=-1).astype(jnp.int8)
 
-    @jax.jit
-    def loss_fn(input_logits: Logits) -> CEELoss:
-      """Compute the loss for the straight-through estimator."""
-      output_logits, _ = decoder(
-        next_rng_key,
-        node_features,
-        edge_features,
-        neighbor_indices,
-        mask,
-        autoregressive_mask,
-        1.0,
-      )
-
-      return ste_loss(output_logits, input_logits, mask)
-
-    _, grad = jax.value_and_grad(loss_fn, has_aux=False)(
-      current_logits,
-    )
-
-    updated_logits = current_logits - learning_rate * grad
-
-    updated_sequence = updated_logits.argmax(axis=-1).astype(jnp.int8)
-    return (
-      next_rng_key,
-      edge_features,
-      node_features,
-      updated_sequence,
-      updated_logits,
-    )
-
-  return jax.lax.fori_loop(0, iterations, sampling_step, initial_carry)
+  return prng_key, edge_features, node_features, output_sequence, logits
 
 
 def preload_sampling_step_decoder(
@@ -229,6 +165,7 @@ def preload_sampling_step_decoder(
         sample_model_pass_fn_only_prng=sample_model_pass_fn_only_prng,
         learning_rate=sampling_config.learning_rate,  # type: ignore[arg-type]
         iterations=sampling_config.iterations,  # type: ignore[arg-type]
+        temperature=sampling_config.temperature,  # type: ignore[arg-type]
       )
     case SamplingEnum.BEAM_SEARCH:
       """Beam search sampling is not implemented yet."""

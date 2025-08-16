@@ -1,13 +1,20 @@
-"""Implements sequence optimization using a conditional decoder and STE."""
+"""Implements sequence optimization by guiding a differentiable autoregressive decoder."""
+
+from collections.abc import Callable
+from functools import partial
 
 import jax
 import jax.numpy as jnp
 import optax
 from jaxtyping import PRNGKeyArray
 
-from prxteinmpnn.model.decoder import RunConditionalDecoderFn
+from prxteinmpnn.model.decoding_signatures import (
+  RunConditionalDecoderFn,
+  RunSTEAutoregressiveDecoderFn,
+)
 from prxteinmpnn.model.projection import final_projection
-from prxteinmpnn.model.ste import straight_through_estimator
+from prxteinmpnn.utils.autoregression import generate_ar_mask
+from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
   AtomMask,
   EdgeFeatures,
@@ -19,73 +26,153 @@ from prxteinmpnn.utils.types import (
 )
 
 
-def _cross_entropy_loss(
+@partial(jax.jit, static_argnames=("conditional_decoder"))
+def _score_sequence_loss(
   generated_one_hot: jax.Array,
-  scored_logits: Logits,
-  mask: AtomMask,
-) -> jnp.ndarray:
-  """Calculate the cross-entropy between a generated sequence and the model's scoring."""
-  log_probs = jax.nn.log_softmax(scored_logits, axis=-1)
-  loss_per_position = -jnp.sum(generated_one_hot * log_probs, axis=-1)
-  return (loss_per_position * mask).sum() / (mask.sum() + 1e-8)
-
-
-def optimize_sequence(
-  prng_key: PRNGKeyArray,
   conditional_decoder: RunConditionalDecoderFn,
   model_parameters: ModelParameters,
   node_features: NodeFeatures,
   edge_features: EdgeFeatures,
+  autoregressive_mask: jax.Array,
   neighbor_indices: NeighborIndices,
   mask: AtomMask,
-  num_steps: int,
-  learning_rate: float,
-) -> ProteinSequence:
-  """Optimizes a sequence to maximize its conditional log-likelihood using STE."""
-  num_residues, num_classes = node_features.shape[0], 21
-  key, logit_key = jax.random.split(prng_key)
-  latent_logits = jax.random.normal(logit_key, (num_residues, num_classes))
-
-  optimizer = optax.adam(learning_rate)
-  opt_state = optimizer.init(latent_logits)
-
-  # Use a zeroed-out autoregressive mask for full-context scoring
-  autoregressive_mask = jnp.zeros((num_residues, num_residues), dtype=jnp.int32)
-
-  @jax.jit
-  def update_step(carry, _):
-    current_logits, current_opt_state = carry
-
-    def loss_fn(logits_to_optimize: Logits):
-      # Convert continuous logits to a discrete sequence via STE
-      generated_sequence_one_hot = straight_through_estimator(logits_to_optimize)
-
-      # Score the complete sequence with the conditional decoder
-      scored_features = conditional_decoder(
-        node_features,
-        edge_features,
-        neighbor_indices,
-        mask,
-        autoregressive_mask,
-        generated_sequence_one_hot,
-      )
-      # Project features to get scoring logits
-      scored_logits = final_projection(model_parameters, scored_features)
-
-      # Calculate loss
-      return _cross_entropy_loss(generated_sequence_one_hot, scored_logits, mask)
-
-    loss_value, grads = jax.value_and_grad(loss_fn)(current_logits)
-    updates, next_opt_state = optimizer.update(grads, current_opt_state)
-    next_logits = optax.apply_updates(current_logits, updates)
-
-    return (next_logits, next_opt_state), loss_value
-
-  (final_logits, _), _ = jax.lax.scan(
-    update_step,
-    (latent_logits, opt_state),
-    None,
-    length=num_steps,
+) -> jnp.ndarray:
+  """Calculate the negative log-likelihood of a sequence using the conditional decoder."""
+  scored_features = conditional_decoder(
+    node_features,
+    edge_features,
+    neighbor_indices,
+    mask,
+    autoregressive_mask,
+    generated_one_hot,
   )
+  scored_logits = final_projection(model_parameters, scored_features)
 
-  return final_logits.argmax(axis=-1).astype(jnp.int8)
+  log_probs = jax.nn.log_softmax(scored_logits, axis=-1)
+  loss_per_position = -jnp.sum(generated_one_hot * log_probs, axis=-1)
+
+  return (loss_per_position * mask).sum() / (mask.sum() + 1e-8)
+
+
+def make_optimize_sequence_fn(
+  ste_autoregressive_decoder: RunSTEAutoregressiveDecoderFn,
+  conditional_decoder: RunConditionalDecoderFn,
+  decoding_order_fn: DecodingOrderFn,
+  model_parameters: ModelParameters,
+) -> Callable[
+  [PRNGKeyArray, NodeFeatures, EdgeFeatures, NeighborIndices, AtomMask, int, float],
+  tuple[ProteinSequence, Logits],
+]:
+  """Create a function to optimize a sequence using the STE autoregressive decoder.
+
+  Args:
+    ste_autoregressive_decoder: The STE autoregressive decoder function.
+    conditional_decoder: The conditional decoder function to score sequences.
+    decoding_order_fn: Function to generate decoding orders.
+    model_parameters: Model parameters for the decoder.
+
+  Returns:
+    A function that takes a PRNG key, node features, edge features, neighbor indices,
+    atom mask, number of optimization steps, and learning rate, and returns the optimized sequence
+    and its logits.
+
+  """
+
+  def optimize_sequence(
+    prng_key: PRNGKeyArray,
+    node_features: NodeFeatures,
+    edge_features: EdgeFeatures,
+    neighbor_indices: NeighborIndices,
+    mask: AtomMask,
+    num_steps: int,
+    learning_rate: float,
+  ) -> tuple[ProteinSequence, Logits]:
+    """Optimize a sequence by guiding the STE autoregressive decoder.
+
+    Args:
+      prng_key: JAX PRNG key for random operations.
+      node_features: Node features for the structure.
+      edge_features: Edge features for the structure.
+      neighbor_indices: Indices of neighboring nodes.
+      mask: Atom mask indicating valid positions.
+      num_steps: Number of optimization steps to perform.
+      learning_rate: Learning rate for the optimizer.
+
+    Returns:
+      A tuple containing the optimized sequence as a one-hot encoded array and the logits.
+
+    """
+    num_residues, num_classes = node_features.shape[0], 21
+
+    guiding_logits = jnp.zeros((num_residues, num_classes))
+
+    optimizer = optax.adam(learning_rate)
+    opt_state = optimizer.init(guiding_logits)
+
+    @jax.jit
+    def update_step(
+      carry: tuple[Logits, optax.OptState],
+      key: PRNGKeyArray,
+    ) -> tuple[tuple[Logits, optax.OptState], jnp.ndarray]:
+      current_guiding_logits, current_opt_state = carry
+
+      sampler_decoding_order, next_key = decoding_order_fn(key, num_residues)
+      score_decoding_order, next_key = decoding_order_fn(next_key, num_residues)
+      ar_mask = generate_ar_mask(sampler_decoding_order)
+      score_ar_mask = generate_ar_mask(score_decoding_order)
+
+      def loss_fn(guides: Logits) -> jnp.ndarray:
+        generated_sequence_one_hot, _ = ste_autoregressive_decoder(
+          next_key,
+          node_features,
+          edge_features,
+          neighbor_indices,
+          mask,
+          ar_mask,
+          guides,
+        )
+
+        return _score_sequence_loss(
+          generated_sequence_one_hot,
+          conditional_decoder,
+          model_parameters,
+          node_features,
+          edge_features,
+          score_ar_mask,
+          neighbor_indices,
+          mask,
+        )
+
+      loss_value, grads = jax.value_and_grad(loss_fn)(current_guiding_logits)
+      updates, next_opt_state = optimizer.update(grads, current_opt_state)
+      next_guiding_logits = optax.apply_updates(current_guiding_logits, updates)
+
+      return (next_guiding_logits, next_opt_state), loss_value  # type: ignore[return-value]
+
+    # Run the optimization loop, feeding a new key to each step.
+    keys = jax.random.split(prng_key, num_steps)
+    (final_guiding_logits, _), losses = jax.lax.scan(
+      update_step,
+      (guiding_logits, opt_state),
+      keys,
+    )
+
+    # Generate the final sequence using the optimized guides and one final random order.
+    final_key, prng_key = jax.random.split(prng_key)
+    final_decoding_order, _ = decoding_order_fn(final_key, num_residues)
+    final_ar_mask = generate_ar_mask(final_decoding_order)
+
+    final_sequence_one_hot, final_logits = ste_autoregressive_decoder(
+      prng_key,
+      node_features,
+      edge_features,
+      neighbor_indices,
+      mask,
+      final_ar_mask,
+      final_guiding_logits,
+    )
+    final_sequence = final_sequence_one_hot.argmax(axis=-1).astype(jnp.int8)
+
+    return final_sequence, final_logits
+
+  return optimize_sequence

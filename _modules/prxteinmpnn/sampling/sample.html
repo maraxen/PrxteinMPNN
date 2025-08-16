@@ -7,7 +7,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>prxteinmpnn.scoring.score &#8212; PrxteinMPNN 0.1.0 documentation</title>
+    <title>prxteinmpnn.sampling.sample &#8212; PrxteinMPNN 0.1.0 documentation</title>
   
   
   
@@ -46,7 +46,7 @@
     <script src="../../../_static/copybutton.js?v=30646c52"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
     <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/prxteinmpnn/scoring/score';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/prxteinmpnn/sampling/sample';</script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -343,26 +343,28 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <h1>Source code for prxteinmpnn.scoring.score</h1><div class="highlight"><pre>
-<span></span><span class="sd">&quot;&quot;&quot;Score a given sequence on a structure using the ProteinMPNN model.&quot;&quot;&quot;</span>
+  <h1>Source code for prxteinmpnn.sampling.sample</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Factory for creating sequence sampling and optimization functions.&quot;&quot;&quot;</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">cast</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">Float</span><span class="p">,</span> <span class="n">PRNGKeyArray</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">PRNGKeyArray</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.decoder</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+  <span class="n">DecodingEnum</span><span class="p">,</span>
+  <span class="n">make_decoder</span><span class="p">,</span>
+<span class="p">)</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
-  <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.decoding_signatures</span><span class="w"> </span><span class="kn">import</span> <span class="n">RunConditionalDecoderFn</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.decoder</span><span class="w"> </span><span class="kn">import</span> <span class="n">DecodingEnum</span><span class="p">,</span> <span class="n">make_decoder</span>
+  <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.decoding_signatures</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">RunAutoregressiveDecoderFn</span><span class="p">,</span>
+    <span class="n">RunConditionalDecoderFn</span><span class="p">,</span>
+    <span class="n">RunSTEAutoregressiveDecoderFn</span><span class="p">,</span>
+  <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.encoder</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_encoder</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.features</span><span class="w"> </span><span class="kn">import</span> <span class="n">extract_features</span><span class="p">,</span> <span class="n">project_features</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.masked_attention</span><span class="w"> </span><span class="kn">import</span> <span class="n">MaskedAttentionEnum</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.projection</span><span class="w"> </span><span class="kn">import</span> <span class="n">final_projection</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.autoregression</span><span class="w"> </span><span class="kn">import</span> <span class="n">generate_ar_mask</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.data_structures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelInputs</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.decoding_order</span><span class="w"> </span><span class="kn">import</span> <span class="n">DecodingOrderFn</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
@@ -376,144 +378,141 @@ document.write(`
   <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
 <span class="p">)</span>
 
-<span class="n">ScoringFnBase</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">[</span>
-  <span class="p">[</span>
-    <span class="n">PRNGKeyArray</span><span class="p">,</span>
-    <span class="n">ProteinSequence</span><span class="p">,</span>
-    <span class="n">DecodingOrder</span><span class="p">,</span>
-    <span class="n">ModelParameters</span><span class="p">,</span>
-    <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
-    <span class="n">AtomMask</span><span class="p">,</span>
-    <span class="n">ResidueIndex</span><span class="p">,</span>
-    <span class="n">ChainIndex</span><span class="p">,</span>
-    <span class="nb">int</span><span class="p">,</span>
-    <span class="nb">float</span><span class="p">,</span>
-  <span class="p">],</span>
-  <span class="nb">tuple</span><span class="p">[</span><span class="n">Float</span><span class="p">,</span> <span class="n">Logits</span><span class="p">,</span> <span class="n">DecodingOrder</span><span class="p">],</span>
-<span class="p">]</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">SamplingConfig</span><span class="p">,</span> <span class="n">SamplingEnum</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.initialize</span><span class="w"> </span><span class="kn">import</span> <span class="n">sampling_encode</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.sampling_step</span><span class="w"> </span><span class="kn">import</span> <span class="n">preload_sampling_step_decoder</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.ste_optimize</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_optimize_sequence_fn</span>
 
-<span class="n">ScoringFnFromModelInputs</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">[</span>
-  <span class="p">[</span>
-    <span class="n">PRNGKeyArray</span><span class="p">,</span>
-    <span class="n">ProteinSequence</span><span class="p">,</span>
-  <span class="p">],</span>
-  <span class="nb">tuple</span><span class="p">[</span><span class="n">Float</span><span class="p">,</span> <span class="n">Logits</span><span class="p">,</span> <span class="n">DecodingOrder</span><span class="p">],</span>
-<span class="p">]</span>
-
-<span class="n">ScoringFn</span> <span class="o">=</span> <span class="n">ScoringFnBase</span> <span class="o">|</span> <span class="n">ScoringFnFromModelInputs</span>
-
-<span class="n">SCORE_EPS</span> <span class="o">=</span> <span class="mf">1e-8</span>
+<span class="c1"># Simplified type hints</span>
+<span class="n">SamplerFn</span> <span class="o">=</span> <span class="n">partial</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">ProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">,</span> <span class="n">DecodingOrder</span><span class="p">]]</span>
 
 
-<div class="viewcode-block" id="make_score_sequence">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.scoring.score.html#prxteinmpnn.scoring.score.make_score_sequence">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">make_score_sequence</span><span class="p">(</span>
+<div class="viewcode-block" id="make_sample_sequences">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.sampling.sample.html#prxteinmpnn.sampling.make_sample_sequences">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">make_sample_sequences</span><span class="p">(</span>
   <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
   <span class="n">decoding_order_fn</span><span class="p">:</span> <span class="n">DecodingOrderFn</span><span class="p">,</span>
+  <span class="n">config</span><span class="p">:</span> <span class="n">SamplingConfig</span><span class="p">,</span>
   <span class="n">num_encoder_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
   <span class="n">num_decoder_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
   <span class="n">model_inputs</span><span class="p">:</span> <span class="n">ModelInputs</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ScoringFn</span><span class="p">:</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Create a function to score a sequence on a structure.&quot;&quot;&quot;</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SamplerFn</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Create a function to sample or optimize sequences from a structure.&quot;&quot;&quot;</span>
   <span class="n">encoder</span> <span class="o">=</span> <span class="n">make_encoder</span><span class="p">(</span>
     <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>
     <span class="n">attention_mask_enum</span><span class="o">=</span><span class="n">MaskedAttentionEnum</span><span class="o">.</span><span class="n">CROSS</span><span class="p">,</span>
     <span class="n">num_encoder_layers</span><span class="o">=</span><span class="n">num_encoder_layers</span><span class="p">,</span>
   <span class="p">)</span>
 
-  <span class="n">decoder</span><span class="p">:</span> <span class="n">RunConditionalDecoderFn</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span>
+  <span class="n">conditional_decoder</span><span class="p">:</span> <span class="n">RunConditionalDecoderFn</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span>
     <span class="s2">&quot;RunConditionalDecoderFn&quot;</span><span class="p">,</span>
     <span class="n">make_decoder</span><span class="p">(</span>
       <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>
-      <span class="n">attention_mask_enum</span><span class="o">=</span><span class="n">MaskedAttentionEnum</span><span class="o">.</span><span class="n">NONE</span><span class="p">,</span>
+      <span class="n">attention_mask_enum</span><span class="o">=</span><span class="n">MaskedAttentionEnum</span><span class="o">.</span><span class="n">CONDITIONAL</span><span class="p">,</span>
       <span class="n">decoding_enum</span><span class="o">=</span><span class="n">DecodingEnum</span><span class="o">.</span><span class="n">CONDITIONAL</span><span class="p">,</span>
       <span class="n">num_decoder_layers</span><span class="o">=</span><span class="n">num_decoder_layers</span><span class="p">,</span>
     <span class="p">),</span>
   <span class="p">)</span>
+  <span class="n">ste_autoregressive_decoder</span><span class="p">:</span> <span class="n">RunSTEAutoregressiveDecoderFn</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span>
+    <span class="s2">&quot;RunSTEAutoregressiveDecoderFn&quot;</span><span class="p">,</span>
+    <span class="n">make_decoder</span><span class="p">(</span>
+      <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>
+      <span class="n">attention_mask_enum</span><span class="o">=</span><span class="n">MaskedAttentionEnum</span><span class="o">.</span><span class="n">NONE</span><span class="p">,</span>
+      <span class="n">decoding_enum</span><span class="o">=</span><span class="n">DecodingEnum</span><span class="o">.</span><span class="n">STE_AUTOREGRESSIVE</span><span class="p">,</span>
+      <span class="n">num_decoder_layers</span><span class="o">=</span><span class="n">num_decoder_layers</span><span class="p">,</span>
+    <span class="p">),</span>
+  <span class="p">)</span>
+  <span class="n">autoregressive_decoder</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span>
+    <span class="s2">&quot;RunAutoregressiveDecoderFn&quot;</span><span class="p">,</span>
+    <span class="n">make_decoder</span><span class="p">(</span>
+      <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>
+      <span class="n">attention_mask_enum</span><span class="o">=</span><span class="n">MaskedAttentionEnum</span><span class="o">.</span><span class="n">NONE</span><span class="p">,</span>
+      <span class="n">decoding_enum</span><span class="o">=</span><span class="n">DecodingEnum</span><span class="o">.</span><span class="n">AUTOREGRESSIVE</span><span class="p">,</span>
+      <span class="n">num_decoder_layers</span><span class="o">=</span><span class="n">num_decoder_layers</span><span class="p">,</span>
+    <span class="p">),</span>
+  <span class="p">)</span>
+
+  <span class="n">sample_model_pass</span> <span class="o">=</span> <span class="n">sampling_encode</span><span class="p">(</span><span class="n">encoder</span><span class="o">=</span><span class="n">encoder</span><span class="p">,</span> <span class="n">decoding_order_fn</span><span class="o">=</span><span class="n">decoding_order_fn</span><span class="p">)</span>
+
+  <span class="n">optimize_seq_fn</span> <span class="o">=</span> <span class="n">make_optimize_sequence_fn</span><span class="p">(</span>
+    <span class="n">ste_autoregressive_decoder</span><span class="o">=</span><span class="n">ste_autoregressive_decoder</span><span class="p">,</span>
+    <span class="n">conditional_decoder</span><span class="o">=</span><span class="n">conditional_decoder</span><span class="p">,</span>
+    <span class="n">decoding_order_fn</span><span class="o">=</span><span class="n">decoding_order_fn</span><span class="p">,</span>
+    <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>
+  <span class="p">)</span>
 
   <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;k_neighbors&quot;</span><span class="p">,</span> <span class="s2">&quot;augment_eps&quot;</span><span class="p">))</span>
-  <span class="k">def</span><span class="w"> </span><span class="nf">score_sequence</span><span class="p">(</span>
+  <span class="k">def</span><span class="w"> </span><span class="nf">sample_or_optimize_fn</span><span class="p">(</span>
     <span class="n">prng_key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
-    <span class="n">sequence</span><span class="p">:</span> <span class="n">ProteinSequence</span><span class="p">,</span>
     <span class="n">structure_coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
     <span class="n">mask</span><span class="p">:</span> <span class="n">AtomMask</span><span class="p">,</span>
     <span class="n">residue_index</span><span class="p">:</span> <span class="n">ResidueIndex</span><span class="p">,</span>
     <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span><span class="p">,</span>
     <span class="n">k_neighbors</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">48</span><span class="p">,</span>
-    <span class="n">augment_eps</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>  <span class="c1"># TODO(mar): maybe move k_neighbors and augment_eps to factory args # noqa: TD003, FIX002, E501</span>
-  <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Float</span><span class="p">,</span> <span class="n">Logits</span><span class="p">,</span> <span class="n">DecodingOrder</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Score a sequence on a structure using the ProteinMPNN model.&quot;&quot;&quot;</span>
-    <span class="n">decoding_order</span><span class="p">,</span> <span class="n">prng_key</span> <span class="o">=</span> <span class="n">decoding_order_fn</span><span class="p">(</span><span class="n">prng_key</span><span class="p">,</span> <span class="n">sequence</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-    <span class="n">autoregressive_mask</span> <span class="o">=</span> <span class="n">generate_ar_mask</span><span class="p">(</span><span class="n">decoding_order</span><span class="p">)</span>
-
-    <span class="n">edge_features</span><span class="p">,</span> <span class="n">neighbor_indices</span><span class="p">,</span> <span class="n">prng_key</span> <span class="o">=</span> <span class="n">extract_features</span><span class="p">(</span>
+    <span class="n">augment_eps</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+  <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">,</span> <span class="n">DecodingOrder</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Dispatches to either the optimization or sampling function.&quot;&quot;&quot;</span>
+    <span class="p">(</span>
+      <span class="n">node_features</span><span class="p">,</span>
+      <span class="n">edge_features</span><span class="p">,</span>
+      <span class="n">neighbor_indices</span><span class="p">,</span>
+      <span class="n">decoding_order</span><span class="p">,</span>
+      <span class="n">_</span><span class="p">,</span>
+      <span class="n">next_rng_key</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">=</span> <span class="n">sample_model_pass</span><span class="p">(</span>
       <span class="n">prng_key</span><span class="p">,</span>
       <span class="n">model_parameters</span><span class="p">,</span>
       <span class="n">structure_coordinates</span><span class="p">,</span>
       <span class="n">mask</span><span class="p">,</span>
       <span class="n">residue_index</span><span class="p">,</span>
       <span class="n">chain_index</span><span class="p">,</span>
-      <span class="n">k_neighbors</span><span class="o">=</span><span class="n">k_neighbors</span><span class="p">,</span>
-      <span class="n">augment_eps</span><span class="o">=</span><span class="n">augment_eps</span><span class="p">,</span>
+      <span class="n">k_neighbors</span><span class="p">,</span>
+      <span class="n">augment_eps</span><span class="p">,</span>
     <span class="p">)</span>
 
-    <span class="n">edge_features</span> <span class="o">=</span> <span class="n">project_features</span><span class="p">(</span>
-      <span class="n">model_parameters</span><span class="p">,</span>
-      <span class="n">edge_features</span><span class="p">,</span>
+    <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">sampling_strategy</span> <span class="o">==</span> <span class="n">SamplingEnum</span><span class="o">.</span><span class="n">STRAIGHT_THROUGH</span><span class="p">:</span>
+      <span class="n">output_sequence</span><span class="p">,</span> <span class="n">output_logits</span> <span class="o">=</span> <span class="n">optimize_seq_fn</span><span class="p">(</span>
+        <span class="n">next_rng_key</span><span class="p">,</span>
+        <span class="n">node_features</span><span class="p">,</span>
+        <span class="n">edge_features</span><span class="p">,</span>
+        <span class="n">neighbor_indices</span><span class="p">,</span>
+        <span class="n">mask</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">iterations</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">learning_rate</span><span class="p">,</span>
+      <span class="p">)</span>
+      <span class="k">return</span> <span class="n">output_sequence</span><span class="p">,</span> <span class="n">output_logits</span><span class="p">,</span> <span class="n">decoding_order</span>
+    <span class="n">sample_model_pass_fn</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span>
+      <span class="n">sample_model_pass</span><span class="p">,</span>
+      <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
+      <span class="n">structure_coordinates</span><span class="o">=</span><span class="n">structure_coordinates</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
+      <span class="n">mask</span><span class="o">=</span><span class="n">mask</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
+      <span class="n">residue_index</span><span class="o">=</span><span class="n">residue_index</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
+      <span class="n">chain_index</span><span class="o">=</span><span class="n">chain_index</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
+      <span class="n">k_neighbors</span><span class="o">=</span><span class="n">k_neighbors</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
+      <span class="n">augment_eps</span><span class="o">=</span><span class="n">augment_eps</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
     <span class="p">)</span>
-
-    <span class="n">attention_mask</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">take_along_axis</span><span class="p">(</span>
-      <span class="n">mask</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">mask</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:],</span>
-      <span class="n">neighbor_indices</span><span class="p">,</span>
-      <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+    <span class="n">sample_step</span> <span class="o">=</span> <span class="n">preload_sampling_step_decoder</span><span class="p">(</span>
+      <span class="n">autoregressive_decoder</span><span class="p">,</span>
+      <span class="n">sample_model_pass_fn</span><span class="p">,</span>
+      <span class="n">config</span><span class="p">,</span>
     <span class="p">)</span>
-
-    <span class="n">node_features</span><span class="p">,</span> <span class="n">edge_features</span> <span class="o">=</span> <span class="n">encoder</span><span class="p">(</span>
-      <span class="n">edge_features</span><span class="p">,</span>
-      <span class="n">neighbor_indices</span><span class="p">,</span>
-      <span class="n">mask</span><span class="p">,</span>
-      <span class="n">attention_mask</span><span class="p">,</span>
-    <span class="p">)</span>
-
-    <span class="n">one_hot_sequence</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">one_hot</span><span class="p">(</span><span class="n">sequence</span><span class="p">,</span> <span class="mi">21</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
-
-    <span class="n">node_features</span> <span class="o">=</span> <span class="n">decoder</span><span class="p">(</span>
-      <span class="n">node_features</span><span class="p">,</span>
-      <span class="n">edge_features</span><span class="p">,</span>
-      <span class="n">neighbor_indices</span><span class="p">,</span>
-      <span class="n">mask</span><span class="p">,</span>
-      <span class="n">autoregressive_mask</span><span class="p">,</span>
-      <span class="n">one_hot_sequence</span><span class="p">,</span>
-    <span class="p">)</span>
-    <span class="n">logits</span> <span class="o">=</span> <span class="n">final_projection</span><span class="p">(</span>
-      <span class="n">model_parameters</span><span class="p">,</span>
-      <span class="n">node_features</span><span class="p">,</span>
-    <span class="p">)</span>
-
-    <span class="n">log_probability</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">log_softmax</span><span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">20</span><span class="p">]</span>
-
-    <span class="n">scored_sequence_one_hot</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">one_hot</span><span class="p">(</span><span class="n">sequence</span><span class="p">,</span> <span class="n">num_classes</span><span class="o">=</span><span class="mi">21</span><span class="p">)[</span>
-      <span class="o">...</span><span class="p">,</span>
-      <span class="p">:</span><span class="mi">20</span><span class="p">,</span>
-    <span class="p">]</span>
-
-    <span class="n">score</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="n">scored_sequence_one_hot</span> <span class="o">*</span> <span class="n">log_probability</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
-    <span class="n">masked_score_sum</span> <span class="o">=</span> <span class="p">(</span><span class="n">score</span> <span class="o">*</span> <span class="n">mask</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
-    <span class="n">mask_sum</span> <span class="o">=</span> <span class="n">mask</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">+</span> <span class="n">SCORE_EPS</span>
-
-    <span class="k">return</span> <span class="n">masked_score_sum</span> <span class="o">/</span> <span class="n">mask_sum</span><span class="p">,</span> <span class="n">logits</span><span class="p">,</span> <span class="n">decoding_order</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">output_sequence</span><span class="p">,</span> <span class="n">output_logits</span> <span class="o">=</span> <span class="n">sample_step</span><span class="p">(</span><span class="n">prng_key</span><span class="o">=</span><span class="n">next_rng_key</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">output_sequence</span><span class="p">,</span> <span class="n">output_logits</span><span class="p">,</span> <span class="n">decoding_order</span>
 
   <span class="k">if</span> <span class="n">model_inputs</span><span class="p">:</span>
+    <span class="n">structure_coordinates</span> <span class="o">=</span> <span class="n">model_inputs</span><span class="o">.</span><span class="n">structure_coordinates</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">model_inputs</span><span class="o">.</span><span class="n">mask</span>
+    <span class="n">residue_index</span> <span class="o">=</span> <span class="n">model_inputs</span><span class="o">.</span><span class="n">residue_index</span>
+    <span class="n">chain_index</span> <span class="o">=</span> <span class="n">model_inputs</span><span class="o">.</span><span class="n">chain_index</span>
     <span class="k">return</span> <span class="n">partial</span><span class="p">(</span>
-      <span class="n">score_sequence</span><span class="p">,</span>
-      <span class="n">structure_coordinates</span><span class="o">=</span><span class="n">model_inputs</span><span class="o">.</span><span class="n">structure_coordinates</span><span class="p">,</span>
-      <span class="n">mask</span><span class="o">=</span><span class="n">model_inputs</span><span class="o">.</span><span class="n">mask</span><span class="p">,</span>
-      <span class="n">residue_index</span><span class="o">=</span><span class="n">model_inputs</span><span class="o">.</span><span class="n">residue_index</span><span class="p">,</span>
-      <span class="n">chain_index</span><span class="o">=</span><span class="n">model_inputs</span><span class="o">.</span><span class="n">chain_index</span><span class="p">,</span>
-      <span class="n">k_neighbors</span><span class="o">=</span><span class="n">model_inputs</span><span class="o">.</span><span class="n">k_neighbors</span><span class="p">,</span>
-      <span class="n">augment_eps</span><span class="o">=</span><span class="n">model_inputs</span><span class="o">.</span><span class="n">augment_eps</span><span class="p">,</span>
+      <span class="n">sample_or_optimize_fn</span><span class="p">,</span>
+      <span class="n">structure_coordinates</span><span class="o">=</span><span class="n">structure_coordinates</span><span class="p">,</span>
+      <span class="n">mask</span><span class="o">=</span><span class="n">mask</span><span class="p">,</span>
+      <span class="n">residue_index</span><span class="o">=</span><span class="n">residue_index</span><span class="p">,</span>
+      <span class="n">chain_index</span><span class="o">=</span><span class="n">chain_index</span><span class="p">,</span>
     <span class="p">)</span>
-  <span class="k">return</span> <span class="n">score_sequence</span></div>
+
+  <span class="k">return</span> <span class="n">sample_or_optimize_fn</span>  <span class="c1"># type: ignore[return-value]</span></div>
 
 </pre></div>
 

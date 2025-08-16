@@ -1,7 +1,7 @@
 """Factory for creating sequence sampling and optimization functions."""
 
-from dataclasses import asdict
 from functools import partial
+from typing import TYPE_CHECKING, cast
 
 import jax
 from jaxtyping import PRNGKeyArray
@@ -10,6 +10,13 @@ from prxteinmpnn.model.decoder import (
   DecodingEnum,
   make_decoder,
 )
+
+if TYPE_CHECKING:
+  from prxteinmpnn.model.decoding_signatures import (
+    RunAutoregressiveDecoderFn,
+    RunConditionalDecoderFn,
+    RunSTEAutoregressiveDecoderFn,
+  )
 from prxteinmpnn.model.encoder import make_encoder
 from prxteinmpnn.model.masked_attention import MaskedAttentionEnum
 from prxteinmpnn.utils.data_structures import ModelInputs
@@ -28,7 +35,7 @@ from prxteinmpnn.utils.types import (
 from .config import SamplingConfig, SamplingEnum
 from .initialize import sampling_encode
 from .sampling_step import preload_sampling_step_decoder
-from .ste_optimize import optimize_sequence
+from .ste_optimize import make_optimize_sequence_fn
 
 # Simplified type hints
 SamplerFn = partial[tuple[ProteinSequence, Logits, DecodingOrder]]
@@ -49,20 +56,42 @@ def make_sample_sequences(
     num_encoder_layers=num_encoder_layers,
   )
 
-  is_optimizing = config.sampling_strategy == SamplingEnum.STRAIGHT_THROUGH
-
-  # Select the appropriate decoder for the task
-  decoding_enum = DecodingEnum.CONDITIONAL if is_optimizing else DecodingEnum.AUTOREGRESSIVE
-  decoder = make_decoder(
-    model_parameters=model_parameters,
-    attention_mask_enum=MaskedAttentionEnum.CONDITIONAL
-    if is_optimizing
-    else MaskedAttentionEnum.NONE,
-    decoding_enum=decoding_enum,
-    num_decoder_layers=num_decoder_layers,
+  conditional_decoder: RunConditionalDecoderFn = cast(
+    "RunConditionalDecoderFn",
+    make_decoder(
+      model_parameters=model_parameters,
+      attention_mask_enum=MaskedAttentionEnum.CONDITIONAL,
+      decoding_enum=DecodingEnum.CONDITIONAL,
+      num_decoder_layers=num_decoder_layers,
+    ),
+  )
+  ste_autoregressive_decoder: RunSTEAutoregressiveDecoderFn = cast(
+    "RunSTEAutoregressiveDecoderFn",
+    make_decoder(
+      model_parameters=model_parameters,
+      attention_mask_enum=MaskedAttentionEnum.NONE,
+      decoding_enum=DecodingEnum.STE_AUTOREGRESSIVE,
+      num_decoder_layers=num_decoder_layers,
+    ),
+  )
+  autoregressive_decoder = cast(
+    "RunAutoregressiveDecoderFn",
+    make_decoder(
+      model_parameters=model_parameters,
+      attention_mask_enum=MaskedAttentionEnum.NONE,
+      decoding_enum=DecodingEnum.AUTOREGRESSIVE,
+      num_decoder_layers=num_decoder_layers,
+    ),
   )
 
   sample_model_pass = sampling_encode(encoder=encoder, decoding_order_fn=decoding_order_fn)
+
+  optimize_seq_fn = make_optimize_sequence_fn(
+    ste_autoregressive_decoder=ste_autoregressive_decoder,
+    conditional_decoder=conditional_decoder,
+    decoding_order_fn=decoding_order_fn,
+    model_parameters=model_parameters,
+  )
 
   @partial(jax.jit, static_argnames=("k_neighbors", "augment_eps"))
   def sample_or_optimize_fn(
@@ -93,32 +122,29 @@ def make_sample_sequences(
       augment_eps,
     )
 
-    if is_optimizing:
-      output_sequence, output_logits = optimize_sequence(
-        prng_key=next_rng_key,
-        conditional_decoder=decoder,
-        model_parameters=model_parameters,
-        node_features=node_features,
-        edge_features=edge_features,
-        neighbor_indices=neighbor_indices,
-        mask=mask,
-        num_steps=config.iterations,
-        learning_rate=config.learning_rate,
+    if config.sampling_strategy == SamplingEnum.STRAIGHT_THROUGH:
+      output_sequence, output_logits = optimize_seq_fn(
+        next_rng_key,
+        node_features,
+        edge_features,
+        neighbor_indices,
+        mask,
+        config.iterations,
+        config.learning_rate,
       )
       return output_sequence, output_logits, decoding_order
-    # Temperature sampling
     sample_model_pass_fn = partial(
       sample_model_pass,
-      model_parameters=model_parameters,
-      structure_coordinates=structure_coordinates,
-      mask=mask,
-      residue_index=residue_index,
-      chain_index=chain_index,
-      k_neighbors=k_neighbors,
-      augment_eps=augment_eps,
+      model_parameters=model_parameters,  # type: ignore[arg-type]
+      structure_coordinates=structure_coordinates,  # type: ignore[arg-type]
+      mask=mask,  # type: ignore[arg-type]
+      residue_index=residue_index,  # type: ignore[arg-type]
+      chain_index=chain_index,  # type: ignore[arg-type]
+      k_neighbors=k_neighbors,  # type: ignore[arg-type]
+      augment_eps=augment_eps,  # type: ignore[arg-type]
     )
     sample_step = preload_sampling_step_decoder(
-      decoder,
+      autoregressive_decoder,
       sample_model_pass_fn,
       config,
     )
@@ -126,6 +152,16 @@ def make_sample_sequences(
     return output_sequence, output_logits, decoding_order
 
   if model_inputs:
-    return partial(sample_or_optimize_fn, **asdict(model_inputs))
+    structure_coordinates = model_inputs.structure_coordinates
+    mask = model_inputs.mask
+    residue_index = model_inputs.residue_index
+    chain_index = model_inputs.chain_index
+    return partial(
+      sample_or_optimize_fn,
+      structure_coordinates=structure_coordinates,
+      mask=mask,
+      residue_index=residue_index,
+      chain_index=chain_index,
+    )
 
-  return sample_or_optimize_fn
+  return sample_or_optimize_fn  # type: ignore[return-value]

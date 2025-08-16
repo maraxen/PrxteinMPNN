@@ -2,13 +2,16 @@
 
 from collections.abc import Callable
 from functools import partial
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import jax
 import jax.numpy as jnp
 from jaxtyping import Float, PRNGKeyArray
 
-from prxteinmpnn.model.decoder import DecodingEnum, RunConditionalDecoderFn, make_decoder
+if TYPE_CHECKING:
+  from prxteinmpnn.model.decoding_signatures import RunConditionalDecoderFn
+
+from prxteinmpnn.model.decoder import DecodingEnum, make_decoder
 from prxteinmpnn.model.encoder import make_encoder
 from prxteinmpnn.model.features import extract_features, project_features
 from prxteinmpnn.model.masked_attention import MaskedAttentionEnum

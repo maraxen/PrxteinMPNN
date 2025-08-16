@@ -2,36 +2,37 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from functools import partial
 from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
-from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.utils.gelu import GeLU
 from prxteinmpnn.utils.normalize import layer_normalization
-from prxteinmpnn.utils.types import (
-  AtomMask,
-  AttentionMask,
-  AutoRegressiveMask,
-  EdgeFeatures,
-  Logits,
-  Message,
-  ModelParameters,
-  NeighborIndices,
-  NodeEdgeFeatures,
-  NodeFeatures,
-  OneHotProteinSequence,
-  SequenceEdgeFeatures,
-)
 
 from .projection import final_projection
 from .ste import straight_through_estimator
 
 if TYPE_CHECKING:
-  from jaxtyping import Int
+  from collections.abc import Callable
+
+  from jaxtyping import Int, PRNGKeyArray
+
+  from prxteinmpnn.utils.types import (
+    AtomMask,
+    AttentionMask,
+    AutoRegressiveMask,
+    EdgeFeatures,
+    Logits,
+    Message,
+    ModelParameters,
+    NeighborIndices,
+    NodeEdgeFeatures,
+    NodeFeatures,
+    OneHotProteinSequence,
+    SequenceEdgeFeatures,
+  )
 
   from .decoding_signatures import (
     DecoderFn,
@@ -220,6 +221,8 @@ def decoder_normalize(
   node_features = node_features_norm1 + dense_output
   norm2_params = layer_params["norm2"]
   node_features_norm2 = layer_normalization(node_features, norm2_params)
+  if jnp.ndim(mask) == 0:
+    return mask * node_features_norm2
   return mask[:, None] * node_features_norm2
 
 
@@ -327,7 +330,7 @@ def make_decoder(
     decoding_enum,
     num_decoder_layers,
   )
-  if decoding_enum is DecodingEnum.AUTOREGRESSIVE:
+  if decoding_enum == DecodingEnum.AUTOREGRESSIVE:
 
     @jax.jit
     def run_autoregressive_decoder(
@@ -465,7 +468,7 @@ def make_decoder(
       return final_sequence, final_all_logits
 
     return run_autoregressive_decoder
-  if decoding_enum is DecodingEnum.STE_AUTOREGRESSIVE:
+  if decoding_enum == DecodingEnum.STE_AUTOREGRESSIVE:
 
     @jax.jit
     def run_ste_autoregressive_decoder(
@@ -475,8 +478,11 @@ def make_decoder(
       neighbor_indices: NeighborIndices,
       mask: AtomMask,
       ar_mask: AutoRegressiveMask,
+      bias: Logits | None = None,
     ) -> tuple[OneHotProteinSequence, Logits]:
       """Run a differentiable autoregressive sampling process using STE."""
+      if bias is None:
+        bias = jnp.zeros((node_features.shape[0], 21), dtype=jnp.float32)
       # This setup part is identical to the original autoregressive decoder
       attention_mask = jnp.take_along_axis(ar_mask, neighbor_indices, axis=1)
       mask_1d = mask[:, None]
@@ -559,7 +565,7 @@ def make_decoder(
         one_hot_sequence_position = jnp.concatenate([one_hot_for_sampling, padding], axis=-1)
         embedded_sequence_position = embed_sequence(model_parameters, one_hot_sequence_position)
         next_embedded_sequence_state = embedded_sequence_state.at[position].set(
-          jnp.squeeze(embedded_sequence_position),
+          embedded_sequence_position,
         )
         updated_sequence = sequence.at[position].set(one_hot_sequence_position)
 
@@ -587,12 +593,12 @@ def make_decoder(
       scan_inputs = (decoding_order, jax.random.split(prng_key, num_residues))
       final_carry, _ = jax.lax.scan(autoregressive_step, initial_carry, scan_inputs)
 
-      final_all_logits = final_carry[2]
+      final_all_logits = final_carry[2] + jnp.expand_dims(bias, axis=0)
       final_sequence = final_carry[3]
       return final_sequence, final_all_logits
 
     return run_ste_autoregressive_decoder
-  if decoding_enum is DecodingEnum.CONDITIONAL:
+  if decoding_enum == DecodingEnum.CONDITIONAL:
 
     @jax.jit
     def run_conditional_decoder(
@@ -649,8 +655,8 @@ def make_decoder(
       )
 
     return run_conditional_decoder
-  if decoding_enum is DecodingEnum.UNCONDITIONAL:
-    if attention_mask_enum is MaskedAttentionEnum.NONE:
+  if decoding_enum == DecodingEnum.UNCONDITIONAL:
+    if attention_mask_enum == MaskedAttentionEnum.NONE:
 
       @jax.jit
       def run_decoder(

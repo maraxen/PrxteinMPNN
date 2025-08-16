@@ -5,7 +5,7 @@ from functools import partial
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
-from prxteinmpnn.model.decoder import RunAutoregressiveDecoderFn
+from prxteinmpnn.model.decoding_signatures import RunAutoregressiveDecoderFn
 from prxteinmpnn.utils.types import Logits, ProteinSequence
 
 from .config import SamplingConfig, SamplingEnum

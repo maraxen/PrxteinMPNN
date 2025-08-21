@@ -357,10 +357,9 @@ document.write(`
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
   <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.decoding_signatures</span><span class="w"> </span><span class="kn">import</span> <span class="n">RunConditionalDecoderFn</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.decoder</span><span class="w"> </span><span class="kn">import</span> <span class="n">DecodingEnum</span><span class="p">,</span> <span class="n">make_decoder</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.decoder</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_decoder</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.encoder</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_encoder</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.features</span><span class="w"> </span><span class="kn">import</span> <span class="n">extract_features</span><span class="p">,</span> <span class="n">project_features</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.masked_attention</span><span class="w"> </span><span class="kn">import</span> <span class="n">MaskedAttentionEnum</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.projection</span><span class="w"> </span><span class="kn">import</span> <span class="n">final_projection</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.autoregression</span><span class="w"> </span><span class="kn">import</span> <span class="n">generate_ar_mask</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.data_structures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelInputs</span>
@@ -417,7 +416,7 @@ document.write(`
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Create a function to score a sequence on a structure.&quot;&quot;&quot;</span>
   <span class="n">encoder</span> <span class="o">=</span> <span class="n">make_encoder</span><span class="p">(</span>
     <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>
-    <span class="n">attention_mask_enum</span><span class="o">=</span><span class="n">MaskedAttentionEnum</span><span class="o">.</span><span class="n">CROSS</span><span class="p">,</span>
+    <span class="n">attention_mask_type</span><span class="o">=</span><span class="s2">&quot;cross&quot;</span><span class="p">,</span>
     <span class="n">num_encoder_layers</span><span class="o">=</span><span class="n">num_encoder_layers</span><span class="p">,</span>
   <span class="p">)</span>
 
@@ -425,8 +424,8 @@ document.write(`
     <span class="s2">&quot;RunConditionalDecoderFn&quot;</span><span class="p">,</span>
     <span class="n">make_decoder</span><span class="p">(</span>
       <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>
-      <span class="n">attention_mask_enum</span><span class="o">=</span><span class="n">MaskedAttentionEnum</span><span class="o">.</span><span class="n">NONE</span><span class="p">,</span>
-      <span class="n">decoding_enum</span><span class="o">=</span><span class="n">DecodingEnum</span><span class="o">.</span><span class="n">CONDITIONAL</span><span class="p">,</span>
+      <span class="n">attention_mask_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+      <span class="n">decoding_approach</span><span class="o">=</span><span class="s2">&quot;conditional&quot;</span><span class="p">,</span>
       <span class="n">num_decoder_layers</span><span class="o">=</span><span class="n">num_decoder_layers</span><span class="p">,</span>
     <span class="p">),</span>
   <span class="p">)</span>

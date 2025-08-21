@@ -354,7 +354,7 @@ document.write(`
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.decoding_signatures</span><span class="w"> </span><span class="kn">import</span> <span class="n">RunAutoregressiveDecoderFn</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Logits</span><span class="p">,</span> <span class="n">ProteinSequence</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">SamplingConfig</span><span class="p">,</span> <span class="n">SamplingEnum</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">SamplingConfig</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.initialize</span><span class="w"> </span><span class="kn">import</span> <span class="n">SamplingModelPassOutput</span>
 
 <span class="n">SampleModelPassFn</span> <span class="o">=</span> <span class="n">partial</span><span class="p">[</span><span class="n">SamplingModelPassOutput</span><span class="p">]</span>
@@ -402,7 +402,7 @@ document.write(`
   <span class="n">sampling_config</span><span class="p">:</span> <span class="n">SamplingConfig</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SamplingStepFn</span><span class="p">:</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Preloads the sampling step decoder for the specified strategy.&quot;&quot;&quot;</span>
-  <span class="k">if</span> <span class="n">sampling_config</span><span class="o">.</span><span class="n">sampling_strategy</span> <span class="o">==</span> <span class="n">SamplingEnum</span><span class="o">.</span><span class="n">TEMPERATURE</span><span class="p">:</span>
+  <span class="k">if</span> <span class="n">sampling_config</span><span class="o">.</span><span class="n">sampling_strategy</span> <span class="o">==</span> <span class="s2">&quot;temperature&quot;</span><span class="p">:</span>
     <span class="k">return</span> <span class="n">partial</span><span class="p">(</span>
       <span class="n">temperature_sample</span><span class="p">,</span>
       <span class="n">decoder</span><span class="o">=</span><span class="n">decoder</span><span class="p">,</span>

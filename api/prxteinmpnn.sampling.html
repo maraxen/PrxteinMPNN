@@ -402,11 +402,6 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingConfig.sampling_strategy"><code class="docutils literal notranslate"><span class="pre">SamplingConfig.sampling_strategy</span></code></a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingEnum"><code class="docutils literal notranslate"><span class="pre">SamplingEnum</span></code></a><ul class="visible nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingEnum.TEMPERATURE"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.TEMPERATURE</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingEnum.STRAIGHT_THROUGH"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.STRAIGHT_THROUGH</span></code></a></li>
-</ul>
-</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.make_sample_sequences"><code class="docutils literal notranslate"><span class="pre">make_sample_sequences()</span></code></a></li>
 </ul>
             </nav>
@@ -430,7 +425,7 @@ document.write(`
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>sampling_strategy</strong> (<a class="reference internal" href="#prxteinmpnn.sampling.SamplingEnum" title="prxteinmpnn.sampling.config.SamplingEnum"><em>SamplingEnum</em></a>)</p></li>
+<li><p><strong>sampling_strategy</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><em>Literal</em></a><em>[</em><em>'temperature'</em><em>, </em><em>'straight_through'</em><em>]</em>)</p></li>
 <li><p><strong>iterations</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
 <li><p><strong>temperature</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>)</p></li>
 <li><p><strong>target_logits</strong> (<em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_classes'</em><em>] </em><em>| </em><em>None</em>)</p></li>
@@ -466,24 +461,7 @@ document.write(`
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="prxteinmpnn.sampling.SamplingConfig.sampling_strategy">
-<span class="sig-name descname"><span class="pre">sampling_strategy</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#prxteinmpnn.sampling.SamplingEnum" title="prxteinmpnn.sampling.config.SamplingEnum"><code class="xref py py-class docutils literal notranslate"><span class="pre">SamplingEnum</span></code></a></em><a class="headerlink" href="#prxteinmpnn.sampling.SamplingConfig.sampling_strategy" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="prxteinmpnn.sampling.SamplingEnum">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">prxteinmpnn.sampling.</span></span><span class="sig-name descname"><span class="pre">SamplingEnum</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/sampling/config.html#SamplingEnum"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.sampling.SamplingEnum" title="Link to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Enum</span></code></a></p>
-<p>Enum for different sampling strategies.</p>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="prxteinmpnn.sampling.SamplingEnum.TEMPERATURE">
-<span class="sig-name descname"><span class="pre">TEMPERATURE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'temperature'</span></em><a class="headerlink" href="#prxteinmpnn.sampling.SamplingEnum.TEMPERATURE" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="prxteinmpnn.sampling.SamplingEnum.STRAIGHT_THROUGH">
-<span class="sig-name descname"><span class="pre">STRAIGHT_THROUGH</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'straight_through'</span></em><a class="headerlink" href="#prxteinmpnn.sampling.SamplingEnum.STRAIGHT_THROUGH" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">sampling_strategy</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Literal</span></code></a><span class="pre">[</span><code class="docutils literal notranslate"><span class="pre">'temperature'</span></code><span class="pre">,</span> <code class="docutils literal notranslate"><span class="pre">'straight_through'</span></code><span class="pre">]</span></em><a class="headerlink" href="#prxteinmpnn.sampling.SamplingConfig.sampling_strategy" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -581,11 +559,6 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingConfig.target_logits"><code class="docutils literal notranslate"><span class="pre">SamplingConfig.target_logits</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingConfig.temperature"><code class="docutils literal notranslate"><span class="pre">SamplingConfig.temperature</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingConfig.sampling_strategy"><code class="docutils literal notranslate"><span class="pre">SamplingConfig.sampling_strategy</span></code></a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingEnum"><code class="docutils literal notranslate"><span class="pre">SamplingEnum</span></code></a><ul class="visible nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingEnum.TEMPERATURE"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.TEMPERATURE</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.SamplingEnum.STRAIGHT_THROUGH"><code class="docutils literal notranslate"><span class="pre">SamplingEnum.STRAIGHT_THROUGH</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.make_sample_sequences"><code class="docutils literal notranslate"><span class="pre">make_sample_sequences()</span></code></a></li>

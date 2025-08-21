@@ -398,13 +398,6 @@ document.write(`
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.DecodingEnum"><code class="docutils literal notranslate"><span class="pre">DecodingEnum</span></code></a><ul class="visible nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.DecodingEnum.CONDITIONAL"><code class="docutils literal notranslate"><span class="pre">DecodingEnum.CONDITIONAL</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.DecodingEnum.UNCONDITIONAL"><code class="docutils literal notranslate"><span class="pre">DecodingEnum.UNCONDITIONAL</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.DecodingEnum.AUTOREGRESSIVE"><code class="docutils literal notranslate"><span class="pre">DecodingEnum.AUTOREGRESSIVE</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.DecodingEnum.STE_AUTOREGRESSIVE"><code class="docutils literal notranslate"><span class="pre">DecodingEnum.STE_AUTOREGRESSIVE</span></code></a></li>
-</ul>
-</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.decoder_parameter_pytree"><code class="docutils literal notranslate"><span class="pre">decoder_parameter_pytree()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.embed_sequence"><code class="docutils literal notranslate"><span class="pre">embed_sequence()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.initialize_conditional_decoder"><code class="docutils literal notranslate"><span class="pre">initialize_conditional_decoder()</span></code></a></li>
@@ -412,7 +405,6 @@ document.write(`
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.decoder_normalize"><code class="docutils literal notranslate"><span class="pre">decoder_normalize()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.make_decode_layer"><code class="docutils literal notranslate"><span class="pre">make_decode_layer()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.setup_decoder"><code class="docutils literal notranslate"><span class="pre">setup_decoder()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder._check_enums"><code class="docutils literal notranslate"><span class="pre">_check_enums()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.make_decoder"><code class="docutils literal notranslate"><span class="pre">make_decoder()</span></code></a></li>
 </ul>
             </nav>
@@ -428,33 +420,6 @@ document.write(`
   <section id="module-prxteinmpnn.model.decoder">
 <span id="decoder"></span><h1>decoder<a class="headerlink" href="#module-prxteinmpnn.model.decoder" title="Link to this heading">#</a></h1>
 <p>Decoder module for the PrxteinMPNN model.</p>
-<dl class="py class">
-<dt class="sig sig-object py" id="prxteinmpnn.model.decoder.DecodingEnum">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.decoder.</span></span><span class="sig-name descname"><span class="pre">DecodingEnum</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/decoder.html#DecodingEnum"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.decoder.DecodingEnum" title="Link to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Enum</span></code></a></p>
-<p>Enum for different types of decoders.</p>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="prxteinmpnn.model.decoder.DecodingEnum.CONDITIONAL">
-<span class="sig-name descname"><span class="pre">CONDITIONAL</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'conditional'</span></em><a class="headerlink" href="#prxteinmpnn.model.decoder.DecodingEnum.CONDITIONAL" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="prxteinmpnn.model.decoder.DecodingEnum.UNCONDITIONAL">
-<span class="sig-name descname"><span class="pre">UNCONDITIONAL</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'unconditional'</span></em><a class="headerlink" href="#prxteinmpnn.model.decoder.DecodingEnum.UNCONDITIONAL" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="prxteinmpnn.model.decoder.DecodingEnum.AUTOREGRESSIVE">
-<span class="sig-name descname"><span class="pre">AUTOREGRESSIVE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'autoregressive'</span></em><a class="headerlink" href="#prxteinmpnn.model.decoder.DecodingEnum.AUTOREGRESSIVE" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="prxteinmpnn.model.decoder.DecodingEnum.STE_AUTOREGRESSIVE">
-<span class="sig-name descname"><span class="pre">STE_AUTOREGRESSIVE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'ste_autoregressive'</span></em><a class="headerlink" href="#prxteinmpnn.model.decoder.DecodingEnum.STE_AUTOREGRESSIVE" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
 <dl class="py function">
 <dt class="sig sig-object py" id="prxteinmpnn.model.decoder.decoder_parameter_pytree">
 <span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.decoder.</span></span><span class="sig-name descname"><span class="pre">decoder_parameter_pytree</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_decoder_layers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/decoder.html#decoder_parameter_pytree"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.decoder.decoder_parameter_pytree" title="Link to this definition">#</a></dt>
@@ -561,21 +526,21 @@ document.write(`
 
 <dl class="py function">
 <dt class="sig sig-object py" id="prxteinmpnn.model.decoder.make_decode_layer">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.decoder.</span></span><span class="sig-name descname"><span class="pre">make_decode_layer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">attention_mask_enum</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/decoder.html#make_decode_layer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.decoder.make_decode_layer" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.decoder.</span></span><span class="sig-name descname"><span class="pre">make_decode_layer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">attention_mask_type</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/decoder.html#make_decode_layer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.decoder.make_decode_layer" title="Link to this definition">#</a></dt>
 <dd><p>Create a function to run the decoder with given model parameters.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Callable</span></code></a>[[<code class="xref py py-class docutils literal notranslate"><span class="pre">Unpack</span></code>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Bool[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_atoms']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">PyTree[str,</span> <span class="pre">'P']</span></code>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></a>]]], <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>] | <a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Callable</span></code></a>[[<code class="xref py py-class docutils literal notranslate"><span class="pre">Unpack</span></code>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">PyTree[str,</span> <span class="pre">'P']</span></code>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></a>]]], <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>]</span></p>
 </dd>
 <dt class="field-even">Parameters<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>attention_mask_enum</strong> (<a class="reference internal" href="prxteinmpnn.model.masked_attention.html#prxteinmpnn.model.masked_attention.MaskedAttentionEnum" title="prxteinmpnn.model.masked_attention.MaskedAttentionEnum"><em>MaskedAttentionEnum</em></a>)</p>
+<dd class="field-even"><p><strong>attention_mask_type</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><em>Literal</em></a><em>[</em><em>'none'</em><em>, </em><em>'cross'</em><em>, </em><em>'conditional'</em><em>] </em><em>| </em><em>None</em>)</p>
 </dd>
 </dl>
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="prxteinmpnn.model.decoder.setup_decoder">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.decoder.</span></span><span class="sig-name descname"><span class="pre">setup_decoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attention_mask_enum</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decoding_enum</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_decoder_layers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/decoder.html#setup_decoder"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.decoder.setup_decoder" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.decoder.</span></span><span class="sig-name descname"><span class="pre">setup_decoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attention_mask_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decoding_approach</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_decoder_layers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/decoder.html#setup_decoder"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.decoder.setup_decoder" title="Link to this definition">#</a></dt>
 <dd><p>Set up the decoder parameters and initial node features.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
@@ -584,8 +549,8 @@ document.write(`
 <dt class="field-even">Parameters<span class="colon">:</span></dt>
 <dd class="field-even"><ul class="simple">
 <li><p><strong>model_parameters</strong> (<em>PyTree</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em>, </em><em>'P'</em><em>]</em>)</p></li>
-<li><p><strong>attention_mask_enum</strong> (<a class="reference internal" href="prxteinmpnn.model.masked_attention.html#prxteinmpnn.model.masked_attention.MaskedAttentionEnum" title="prxteinmpnn.model.masked_attention.MaskedAttentionEnum"><em>MaskedAttentionEnum</em></a>)</p></li>
-<li><p><strong>decoding_enum</strong> (<a class="reference internal" href="#prxteinmpnn.model.decoder.DecodingEnum" title="prxteinmpnn.model.decoder.DecodingEnum"><em>DecodingEnum</em></a>)</p></li>
+<li><p><strong>attention_mask_type</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><em>Literal</em></a><em>[</em><em>'none'</em><em>, </em><em>'cross'</em><em>, </em><em>'conditional'</em><em>] </em><em>| </em><em>None</em>)</p></li>
+<li><p><strong>decoding_approach</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><em>Literal</em></a><em>[</em><em>'conditional'</em><em>, </em><em>'autoregressive'</em><em>, </em><em>'ste_autoregressive'</em><em>, </em><em>'unconditional'</em><em>]</em>)</p></li>
 <li><p><strong>num_decoder_layers</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
 </ul>
 </dd>
@@ -593,25 +558,8 @@ document.write(`
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="prxteinmpnn.model.decoder._check_enums">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.decoder.</span></span><span class="sig-name descname"><span class="pre">_check_enums</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">attention_mask_enum</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decoding_enum</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/decoder.html#_check_enums"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.decoder._check_enums" title="Link to this definition">#</a></dt>
-<dd><p>Check if the provided enums are valid.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span></p>
-</dd>
-<dt class="field-even">Parameters<span class="colon">:</span></dt>
-<dd class="field-even"><ul class="simple">
-<li><p><strong>attention_mask_enum</strong> (<a class="reference internal" href="prxteinmpnn.model.masked_attention.html#prxteinmpnn.model.masked_attention.MaskedAttentionEnum" title="prxteinmpnn.model.masked_attention.MaskedAttentionEnum"><em>MaskedAttentionEnum</em></a>)</p></li>
-<li><p><strong>decoding_enum</strong> (<a class="reference internal" href="#prxteinmpnn.model.decoder.DecodingEnum" title="prxteinmpnn.model.decoder.DecodingEnum"><em>DecodingEnum</em></a>)</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
 <dt class="sig sig-object py" id="prxteinmpnn.model.decoder.make_decoder">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.decoder.</span></span><span class="sig-name descname"><span class="pre">make_decoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attention_mask_enum</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decoding_enum</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">DecodingEnum.UNCONDITIONAL</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_decoder_layers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/decoder.html#make_decoder"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.decoder.make_decoder" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.decoder.</span></span><span class="sig-name descname"><span class="pre">make_decoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attention_mask_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decoding_approach</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'unconditional'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_decoder_layers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/decoder.html#make_decoder"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.decoder.make_decoder" title="Link to this definition">#</a></dt>
 <dd><p>Create a function to run the decoder with given model parameters.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
@@ -620,8 +568,8 @@ document.write(`
 <dt class="field-even">Parameters<span class="colon">:</span></dt>
 <dd class="field-even"><ul class="simple">
 <li><p><strong>model_parameters</strong> (<em>PyTree</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em>, </em><em>'P'</em><em>]</em>)</p></li>
-<li><p><strong>attention_mask_enum</strong> (<a class="reference internal" href="prxteinmpnn.model.masked_attention.html#prxteinmpnn.model.masked_attention.MaskedAttentionEnum" title="prxteinmpnn.model.masked_attention.MaskedAttentionEnum"><em>MaskedAttentionEnum</em></a>)</p></li>
-<li><p><strong>decoding_enum</strong> (<a class="reference internal" href="#prxteinmpnn.model.decoder.DecodingEnum" title="prxteinmpnn.model.decoder.DecodingEnum"><em>DecodingEnum</em></a>)</p></li>
+<li><p><strong>attention_mask_type</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><em>Literal</em></a><em>[</em><em>'none'</em><em>, </em><em>'cross'</em><em>, </em><em>'conditional'</em><em>] </em><em>| </em><em>None</em>)</p></li>
+<li><p><strong>decoding_approach</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><em>Literal</em></a><em>[</em><em>'conditional'</em><em>, </em><em>'autoregressive'</em><em>, </em><em>'ste_autoregressive'</em><em>, </em><em>'unconditional'</em><em>]</em>)</p></li>
 <li><p><strong>num_decoder_layers</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
 <li><p><strong>scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>)</p></li>
 </ul>
@@ -676,13 +624,6 @@ document.write(`
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.DecodingEnum"><code class="docutils literal notranslate"><span class="pre">DecodingEnum</span></code></a><ul class="visible nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.DecodingEnum.CONDITIONAL"><code class="docutils literal notranslate"><span class="pre">DecodingEnum.CONDITIONAL</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.DecodingEnum.UNCONDITIONAL"><code class="docutils literal notranslate"><span class="pre">DecodingEnum.UNCONDITIONAL</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.DecodingEnum.AUTOREGRESSIVE"><code class="docutils literal notranslate"><span class="pre">DecodingEnum.AUTOREGRESSIVE</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.DecodingEnum.STE_AUTOREGRESSIVE"><code class="docutils literal notranslate"><span class="pre">DecodingEnum.STE_AUTOREGRESSIVE</span></code></a></li>
-</ul>
-</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.decoder_parameter_pytree"><code class="docutils literal notranslate"><span class="pre">decoder_parameter_pytree()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.embed_sequence"><code class="docutils literal notranslate"><span class="pre">embed_sequence()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.initialize_conditional_decoder"><code class="docutils literal notranslate"><span class="pre">initialize_conditional_decoder()</span></code></a></li>
@@ -690,7 +631,6 @@ document.write(`
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.decoder_normalize"><code class="docutils literal notranslate"><span class="pre">decoder_normalize()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.make_decode_layer"><code class="docutils literal notranslate"><span class="pre">make_decode_layer()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.setup_decoder"><code class="docutils literal notranslate"><span class="pre">setup_decoder()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder._check_enums"><code class="docutils literal notranslate"><span class="pre">_check_enums()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.make_decoder"><code class="docutils literal notranslate"><span class="pre">make_decoder()</span></code></a></li>
 </ul>
   </nav></div>

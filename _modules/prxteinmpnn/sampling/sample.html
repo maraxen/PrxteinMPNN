@@ -350,10 +350,10 @@ document.write(`
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">cast</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">PRNGKeyArray</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.decoder</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-  <span class="n">DecodingEnum</span><span class="p">,</span>
   <span class="n">make_decoder</span><span class="p">,</span>
 <span class="p">)</span>
 
@@ -364,7 +364,6 @@ document.write(`
     <span class="n">RunSTEAutoregressiveDecoderFn</span><span class="p">,</span>
   <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.encoder</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_encoder</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.masked_attention</span><span class="w"> </span><span class="kn">import</span> <span class="n">MaskedAttentionEnum</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.data_structures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelInputs</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.decoding_order</span><span class="w"> </span><span class="kn">import</span> <span class="n">DecodingOrderFn</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
@@ -378,7 +377,7 @@ document.write(`
   <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
 <span class="p">)</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">SamplingConfig</span><span class="p">,</span> <span class="n">SamplingEnum</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">SamplingConfig</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.initialize</span><span class="w"> </span><span class="kn">import</span> <span class="n">sampling_encode</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.sampling_step</span><span class="w"> </span><span class="kn">import</span> <span class="n">preload_sampling_step_decoder</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.ste_optimize</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_optimize_sequence_fn</span>
@@ -400,7 +399,7 @@ document.write(`
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Create a function to sample or optimize sequences from a structure.&quot;&quot;&quot;</span>
   <span class="n">encoder</span> <span class="o">=</span> <span class="n">make_encoder</span><span class="p">(</span>
     <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>
-    <span class="n">attention_mask_enum</span><span class="o">=</span><span class="n">MaskedAttentionEnum</span><span class="o">.</span><span class="n">CROSS</span><span class="p">,</span>
+    <span class="n">attention_mask_type</span><span class="o">=</span><span class="s2">&quot;cross&quot;</span><span class="p">,</span>
     <span class="n">num_encoder_layers</span><span class="o">=</span><span class="n">num_encoder_layers</span><span class="p">,</span>
   <span class="p">)</span>
 
@@ -408,8 +407,8 @@ document.write(`
     <span class="s2">&quot;RunConditionalDecoderFn&quot;</span><span class="p">,</span>
     <span class="n">make_decoder</span><span class="p">(</span>
       <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>
-      <span class="n">attention_mask_enum</span><span class="o">=</span><span class="n">MaskedAttentionEnum</span><span class="o">.</span><span class="n">CONDITIONAL</span><span class="p">,</span>
-      <span class="n">decoding_enum</span><span class="o">=</span><span class="n">DecodingEnum</span><span class="o">.</span><span class="n">CONDITIONAL</span><span class="p">,</span>
+      <span class="n">attention_mask_type</span><span class="o">=</span><span class="s2">&quot;conditional&quot;</span><span class="p">,</span>
+      <span class="n">decoding_approach</span><span class="o">=</span><span class="s2">&quot;conditional&quot;</span><span class="p">,</span>
       <span class="n">num_decoder_layers</span><span class="o">=</span><span class="n">num_decoder_layers</span><span class="p">,</span>
     <span class="p">),</span>
   <span class="p">)</span>
@@ -417,8 +416,8 @@ document.write(`
     <span class="s2">&quot;RunSTEAutoregressiveDecoderFn&quot;</span><span class="p">,</span>
     <span class="n">make_decoder</span><span class="p">(</span>
       <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>
-      <span class="n">attention_mask_enum</span><span class="o">=</span><span class="n">MaskedAttentionEnum</span><span class="o">.</span><span class="n">NONE</span><span class="p">,</span>
-      <span class="n">decoding_enum</span><span class="o">=</span><span class="n">DecodingEnum</span><span class="o">.</span><span class="n">STE_AUTOREGRESSIVE</span><span class="p">,</span>
+      <span class="n">attention_mask_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+      <span class="n">decoding_approach</span><span class="o">=</span><span class="s2">&quot;ste_autoregressive&quot;</span><span class="p">,</span>
       <span class="n">num_decoder_layers</span><span class="o">=</span><span class="n">num_decoder_layers</span><span class="p">,</span>
     <span class="p">),</span>
   <span class="p">)</span>
@@ -426,8 +425,8 @@ document.write(`
     <span class="s2">&quot;RunAutoregressiveDecoderFn&quot;</span><span class="p">,</span>
     <span class="n">make_decoder</span><span class="p">(</span>
       <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>
-      <span class="n">attention_mask_enum</span><span class="o">=</span><span class="n">MaskedAttentionEnum</span><span class="o">.</span><span class="n">NONE</span><span class="p">,</span>
-      <span class="n">decoding_enum</span><span class="o">=</span><span class="n">DecodingEnum</span><span class="o">.</span><span class="n">AUTOREGRESSIVE</span><span class="p">,</span>
+      <span class="n">attention_mask_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+      <span class="n">decoding_approach</span><span class="o">=</span><span class="s2">&quot;autoregressive&quot;</span><span class="p">,</span>
       <span class="n">num_decoder_layers</span><span class="o">=</span><span class="n">num_decoder_layers</span><span class="p">,</span>
     <span class="p">),</span>
   <span class="p">)</span>
@@ -470,7 +469,7 @@ document.write(`
       <span class="n">augment_eps</span><span class="p">,</span>
     <span class="p">)</span>
 
-    <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">sampling_strategy</span> <span class="o">==</span> <span class="n">SamplingEnum</span><span class="o">.</span><span class="n">STRAIGHT_THROUGH</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">sampling_strategy</span> <span class="o">==</span> <span class="s2">&quot;straight_through&quot;</span><span class="p">:</span>
       <span class="n">output_sequence</span><span class="p">,</span> <span class="n">output_logits</span> <span class="o">=</span> <span class="n">optimize_seq_fn</span><span class="p">(</span>
         <span class="n">next_rng_key</span><span class="p">,</span>
         <span class="n">node_features</span><span class="p">,</span>
@@ -480,6 +479,7 @@ document.write(`
         <span class="n">config</span><span class="o">.</span><span class="n">iterations</span><span class="p">,</span>
         <span class="n">config</span><span class="o">.</span><span class="n">learning_rate</span><span class="p">,</span>
       <span class="p">)</span>
+      <span class="n">output_sequence</span> <span class="o">=</span> <span class="n">output_sequence</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>
       <span class="k">return</span> <span class="n">output_sequence</span><span class="p">,</span> <span class="n">output_logits</span><span class="p">,</span> <span class="n">decoding_order</span>
     <span class="n">sample_model_pass_fn</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span>
       <span class="n">sample_model_pass</span><span class="p">,</span>

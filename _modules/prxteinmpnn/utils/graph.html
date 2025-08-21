@@ -354,8 +354,8 @@ document.write(`
 <span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">Array</span><span class="p">,</span> <span class="n">Int</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-  <span class="n">AtomResidueIndex</span><span class="p">,</span>
   <span class="n">NeighborIndices</span><span class="p">,</span>
+  <span class="n">ResidueIndex</span><span class="p">,</span>
 <span class="p">)</span>
 
 <span class="n">NeighborOffsets</span> <span class="o">=</span> <span class="n">Int</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;num_residues num_neighbors&quot;</span><span class="p">]</span>
@@ -365,7 +365,7 @@ document.write(`
 <a class="viewcode-back" href="../../../api/prxteinmpnn.utils.graph.html#prxteinmpnn.utils.graph.compute_neighbor_offsets">[docs]</a>
 <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">compute_neighbor_offsets</span><span class="p">(</span>
-  <span class="n">residue_indices</span><span class="p">:</span> <span class="n">AtomResidueIndex</span><span class="p">,</span>
+  <span class="n">residue_indices</span><span class="p">:</span> <span class="n">ResidueIndex</span><span class="p">,</span>
   <span class="n">neighbor_indices</span><span class="p">:</span> <span class="n">NeighborIndices</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Compute offsets between residues for neighbor indices.</span>

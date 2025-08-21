@@ -427,9 +427,9 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id8"><code class="docutils literal notranslate"><span class="pre">ModelInputs.chain_index</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id9"><code class="docutils literal notranslate"><span class="pre">ModelInputs.lengths</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id10"><code class="docutils literal notranslate"><span class="pre">ModelInputs.bias</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.replace"><code class="docutils literal notranslate"><span class="pre">ModelInputs.replace()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.k_neighbors"><code class="docutils literal notranslate"><span class="pre">ModelInputs.k_neighbors</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.augment_eps"><code class="docutils literal notranslate"><span class="pre">ModelInputs.augment_eps</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.replace"><code class="docutils literal notranslate"><span class="pre">ModelInputs.replace()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs"><code class="docutils literal notranslate"><span class="pre">SamplingInputs</span></code></a><ul class="visible nav section-nav flex-column">
@@ -448,13 +448,6 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id11"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.prng_key</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id12"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.hyperparameters</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id13"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.iterations</span></code></a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType"><code class="docutils literal notranslate"><span class="pre">OligomerType</span></code></a><ul class="visible nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType.MONOMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.MONOMER</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType.HETEROMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.HETEROMER</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType.HOMOOLIGOMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.HOMOOLIGOMER</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType.TIED_HOMOOLIGOMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.TIED_HOMOOLIGOMER</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -731,6 +724,12 @@ Shape is (sum(lengths), num_classes), where num_classes is the number of classes
 Defaults to zero bias of shape (sum(lengths), 20).</p>
 </dd></dl>
 
+<dl class="py method">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ModelInputs.replace">
+<span class="sig-name descname"><span class="pre">replace</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">updates</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ModelInputs.replace" title="Link to this definition">#</a></dt>
+<dd><p>Returns a new object replacing the specified fields with new values.</p>
+</dd></dl>
+
 <dl class="py attribute">
 <dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ModelInputs.k_neighbors">
 <span class="sig-name descname"><span class="pre">k_neighbors</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">48</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ModelInputs.k_neighbors" title="Link to this definition">#</a></dt>
@@ -741,12 +740,6 @@ Defaults to zero bias of shape (sum(lengths), 20).</p>
 <dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ModelInputs.augment_eps">
 <span class="sig-name descname"><span class="pre">augment_eps</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ModelInputs.augment_eps" title="Link to this definition">#</a></dt>
 <dd><p>Epsilon value for adding noise to the backbone coordinates, used for data augmentation.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ModelInputs.replace">
-<span class="sig-name descname"><span class="pre">replace</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">updates</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ModelInputs.replace" title="Link to this definition">#</a></dt>
-<dd><p>Returns a new object replacing the specified fields with new values.</p>
 </dd></dl>
 
 </dd></dl>
@@ -922,33 +915,6 @@ top-k, etc.</p>
 
 </dd></dl>
 
-<dl class="py class">
-<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.OligomerType">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.data_structures.</span></span><span class="sig-name descname"><span class="pre">OligomerType</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/data_structures.html#OligomerType"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.data_structures.OligomerType" title="Link to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Enum</span></code></a></p>
-<p>Enum for different types of oligomers.</p>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.OligomerType.MONOMER">
-<span class="sig-name descname"><span class="pre">MONOMER</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'monomer'</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.OligomerType.MONOMER" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.OligomerType.HETEROMER">
-<span class="sig-name descname"><span class="pre">HETEROMER</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'heteromer'</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.OligomerType.HETEROMER" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.OligomerType.HOMOOLIGOMER">
-<span class="sig-name descname"><span class="pre">HOMOOLIGOMER</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'homooligomer'</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.OligomerType.HOMOOLIGOMER" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.OligomerType.TIED_HOMOOLIGOMER">
-<span class="sig-name descname"><span class="pre">TIED_HOMOOLIGOMER</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'tied_homooligomer'</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.OligomerType.TIED_HOMOOLIGOMER" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
 </section>
 
 
@@ -1025,9 +991,9 @@ top-k, etc.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id8"><code class="docutils literal notranslate"><span class="pre">ModelInputs.chain_index</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id9"><code class="docutils literal notranslate"><span class="pre">ModelInputs.lengths</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id10"><code class="docutils literal notranslate"><span class="pre">ModelInputs.bias</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.replace"><code class="docutils literal notranslate"><span class="pre">ModelInputs.replace()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.k_neighbors"><code class="docutils literal notranslate"><span class="pre">ModelInputs.k_neighbors</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.augment_eps"><code class="docutils literal notranslate"><span class="pre">ModelInputs.augment_eps</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ModelInputs.replace"><code class="docutils literal notranslate"><span class="pre">ModelInputs.replace()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.SamplingInputs"><code class="docutils literal notranslate"><span class="pre">SamplingInputs</span></code></a><ul class="visible nav section-nav flex-column">
@@ -1046,13 +1012,6 @@ top-k, etc.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id11"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.prng_key</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id12"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.hyperparameters</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id13"><code class="docutils literal notranslate"><span class="pre">SamplingInputs.iterations</span></code></a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType"><code class="docutils literal notranslate"><span class="pre">OligomerType</span></code></a><ul class="visible nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType.MONOMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.MONOMER</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType.HETEROMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.HETEROMER</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType.HOMOOLIGOMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.HOMOOLIGOMER</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.OligomerType.TIED_HOMOOLIGOMER"><code class="docutils literal notranslate"><span class="pre">OligomerType.TIED_HOMOOLIGOMER</span></code></a></li>
 </ul>
 </li>
 </ul>

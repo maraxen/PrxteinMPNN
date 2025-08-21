@@ -374,7 +374,7 @@ document.write(`
 
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.dense</span><span class="w"> </span><span class="kn">import</span> <span class="n">dense_layer</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.masked_attention</span><span class="w"> </span><span class="kn">import</span> <span class="n">MaskedAttentionEnum</span><span class="p">,</span> <span class="n">mask_attention</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.masked_attention</span><span class="w"> </span><span class="kn">import</span> <span class="n">MaskedAttentionType</span><span class="p">,</span> <span class="n">mask_attention</span>
 
 
 <div class="viewcode-block" id="encoder_parameter_pytree">
@@ -525,10 +525,10 @@ document.write(`
 <div class="viewcode-block" id="make_encode_layer">
 <a class="viewcode-back" href="../../../api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.make_encode_layer">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">make_encode_layer</span><span class="p">(</span>
-  <span class="n">attention_mask_enum</span><span class="p">:</span> <span class="n">MaskedAttentionEnum</span><span class="p">,</span>
+  <span class="n">attention_mask_type</span><span class="p">:</span> <span class="n">MaskedAttentionType</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Message</span><span class="p">]:</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Create a function to run the encoder with given model parameters.&quot;&quot;&quot;</span>
-  <span class="k">if</span> <span class="n">attention_mask_enum</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">MaskedAttentionEnum</span><span class="o">.</span><span class="n">NONE</span><span class="p">:</span>
+  <span class="k">if</span> <span class="n">attention_mask_type</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
 
     <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">masked_attn_encoder_fn</span><span class="p">(</span>
@@ -598,12 +598,12 @@ document.write(`
 <a class="viewcode-back" href="../../../api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.setup_encoder">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">setup_encoder</span><span class="p">(</span>
   <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
-  <span class="n">attention_mask_enum</span><span class="p">:</span> <span class="n">MaskedAttentionEnum</span><span class="p">,</span>
+  <span class="n">attention_mask_type</span><span class="p">:</span> <span class="n">MaskedAttentionType</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
   <span class="n">num_encoder_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ModelParameters</span><span class="p">,</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Message</span><span class="p">]]:</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Set up the encoder parameters and initial node features.&quot;&quot;&quot;</span>
   <span class="n">all_encoder_layer_params</span> <span class="o">=</span> <span class="n">encoder_parameter_pytree</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="n">num_encoder_layers</span><span class="p">)</span>
-  <span class="n">encode_layer_fn</span> <span class="o">=</span> <span class="n">make_encode_layer</span><span class="p">(</span><span class="n">attention_mask_enum</span><span class="o">=</span><span class="n">attention_mask_enum</span><span class="p">)</span>
+  <span class="n">encode_layer_fn</span> <span class="o">=</span> <span class="n">make_encode_layer</span><span class="p">(</span><span class="n">attention_mask_type</span><span class="o">=</span><span class="n">attention_mask_type</span><span class="p">)</span>
   <span class="k">return</span> <span class="n">all_encoder_layer_params</span><span class="p">,</span> <span class="n">encode_layer_fn</span></div>
 
 
@@ -612,18 +612,18 @@ document.write(`
 <a class="viewcode-back" href="../../../api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.make_encoder">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">make_encoder</span><span class="p">(</span>
   <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
-  <span class="n">attention_mask_enum</span><span class="p">:</span> <span class="n">MaskedAttentionEnum</span><span class="p">,</span>
+  <span class="n">attention_mask_type</span><span class="p">:</span> <span class="n">MaskedAttentionType</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
   <span class="n">num_encoder_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
   <span class="n">scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">30.0</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">NodeFeatures</span><span class="p">,</span> <span class="n">EdgeFeatures</span><span class="p">]]:</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Create a function to run the encoder with given model parameters.&quot;&quot;&quot;</span>
   <span class="n">all_encoder_layer_params</span><span class="p">,</span> <span class="n">encode_layer_fn</span> <span class="o">=</span> <span class="n">setup_encoder</span><span class="p">(</span>
     <span class="n">model_parameters</span><span class="p">,</span>
-    <span class="n">attention_mask_enum</span><span class="p">,</span>
+    <span class="n">attention_mask_type</span><span class="p">,</span>
     <span class="n">num_encoder_layers</span><span class="p">,</span>
   <span class="p">)</span>
 
-  <span class="k">if</span> <span class="n">attention_mask_enum</span> <span class="ow">is</span> <span class="n">MaskedAttentionEnum</span><span class="o">.</span><span class="n">NONE</span><span class="p">:</span>
+  <span class="k">if</span> <span class="n">attention_mask_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
 
     <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">run_encoder</span><span class="p">(</span>

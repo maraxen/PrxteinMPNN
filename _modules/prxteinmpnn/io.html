@@ -446,16 +446,18 @@ document.write(`
 <span class="sd">    A ProteinSequence containing the amino acid type indices corresponding to the input string.</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
-  <span class="k">if</span> <span class="n">aa_map</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-    <span class="n">aa_map</span> <span class="o">=</span> <span class="n">restype_order</span>
-
-  <span class="k">if</span> <span class="n">aa_map</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+  <span class="k">if</span> <span class="n">unk_index</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
     <span class="n">unk_index</span> <span class="o">=</span> <span class="n">unk_restype_index</span>
 
-  <span class="k">return</span> <span class="n">af_to_mpnn</span><span class="p">(</span>
-    <span class="n">string_key_to_index</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">sequence</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;U3&quot;</span><span class="p">),</span> <span class="n">aa_map</span><span class="p">,</span> <span class="n">unk_index</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span>
-      <span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">,</span>
-    <span class="p">),</span>
+  <span class="k">if</span> <span class="n">aa_map</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">aa_map</span> <span class="o">=</span> <span class="n">restype_order</span>
+    <span class="k">return</span> <span class="n">af_to_mpnn</span><span class="p">(</span>
+      <span class="n">string_key_to_index</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">sequence</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;U3&quot;</span><span class="p">),</span> <span class="n">aa_map</span><span class="p">,</span> <span class="n">unk_index</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span>
+        <span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">,</span>
+      <span class="p">),</span>
+    <span class="p">)</span>
+  <span class="k">return</span> <span class="n">string_key_to_index</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">sequence</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;U3&quot;</span><span class="p">),</span> <span class="n">aa_map</span><span class="p">,</span> <span class="n">unk_index</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span>
+    <span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">,</span>
   <span class="p">)</span></div>
 
 

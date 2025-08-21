@@ -349,7 +349,7 @@ document.write(`
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Literal</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
@@ -390,24 +390,12 @@ document.write(`
   <span class="p">)</span>
 
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">enum</span>
-
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.concatenate</span><span class="w"> </span><span class="kn">import</span> <span class="n">concatenate_neighbor_nodes</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.dense</span><span class="w"> </span><span class="kn">import</span> <span class="n">dense_layer</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.masked_attention</span><span class="w"> </span><span class="kn">import</span> <span class="n">MaskedAttentionEnum</span><span class="p">,</span> <span class="n">mask_attention</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.masked_attention</span><span class="w"> </span><span class="kn">import</span> <span class="n">MaskedAttentionType</span><span class="p">,</span> <span class="n">mask_attention</span>
 
-
-<div class="viewcode-block" id="DecodingEnum">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.DecodingEnum">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">DecodingEnum</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">Enum</span><span class="p">):</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Enum for different types of decoders.&quot;&quot;&quot;</span>
-
-  <span class="n">CONDITIONAL</span> <span class="o">=</span> <span class="s2">&quot;conditional&quot;</span>
-  <span class="n">UNCONDITIONAL</span> <span class="o">=</span> <span class="s2">&quot;unconditional&quot;</span>
-  <span class="n">AUTOREGRESSIVE</span> <span class="o">=</span> <span class="s2">&quot;autoregressive&quot;</span>
-  <span class="n">STE_AUTOREGRESSIVE</span> <span class="o">=</span> <span class="s2">&quot;ste_autoregressive&quot;</span></div>
-
+<span class="n">DecodingApproach</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;conditional&quot;</span><span class="p">,</span> <span class="s2">&quot;autoregressive&quot;</span><span class="p">,</span> <span class="s2">&quot;ste_autoregressive&quot;</span><span class="p">,</span> <span class="s2">&quot;unconditional&quot;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="decoder_parameter_pytree">
@@ -593,13 +581,10 @@ document.write(`
 <div class="viewcode-block" id="make_decode_layer">
 <a class="viewcode-back" href="../../../api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.make_decode_layer">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">make_decode_layer</span><span class="p">(</span>
-  <span class="n">attention_mask_enum</span><span class="p">:</span> <span class="n">MaskedAttentionEnum</span><span class="p">,</span>
+  <span class="n">attention_mask_type</span><span class="p">:</span> <span class="n">MaskedAttentionType</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MaskedAttentionDecoderFn</span> <span class="o">|</span> <span class="n">DecoderFn</span><span class="p">:</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Create a function to run the decoder with given model parameters.&quot;&quot;&quot;</span>
-  <span class="k">if</span> <span class="p">(</span>
-    <span class="n">attention_mask_enum</span> <span class="ow">is</span> <span class="n">MaskedAttentionEnum</span><span class="o">.</span><span class="n">NONE</span>
-    <span class="ow">or</span> <span class="n">attention_mask_enum</span> <span class="ow">is</span> <span class="n">MaskedAttentionEnum</span><span class="o">.</span><span class="n">CROSS</span>
-  <span class="p">):</span>
+  <span class="k">if</span> <span class="n">attention_mask_type</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">attention_mask_type</span> <span class="o">==</span> <span class="s2">&quot;cross&quot;</span><span class="p">:</span>
 
     <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;scale&quot;</span><span class="p">,))</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">decoder_fn</span><span class="p">(</span>
@@ -649,37 +634,19 @@ document.write(`
 <a class="viewcode-back" href="../../../api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.setup_decoder">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">setup_decoder</span><span class="p">(</span>
   <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
-  <span class="n">attention_mask_enum</span><span class="p">:</span> <span class="n">MaskedAttentionEnum</span><span class="p">,</span>
-  <span class="n">decoding_enum</span><span class="p">:</span> <span class="n">DecodingEnum</span><span class="p">,</span>
+  <span class="n">attention_mask_type</span><span class="p">:</span> <span class="n">MaskedAttentionType</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="n">decoding_approach</span><span class="p">:</span> <span class="n">DecodingApproach</span><span class="p">,</span>
   <span class="n">num_decoder_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ModelParameters</span><span class="p">,</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Message</span><span class="p">]]:</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Set up the decoder parameters and initial node features.&quot;&quot;&quot;</span>
   <span class="n">all_decoder_layer_params</span> <span class="o">=</span> <span class="n">decoder_parameter_pytree</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="n">num_decoder_layers</span><span class="p">)</span>
-  <span class="k">if</span> <span class="n">decoding_enum</span> <span class="ow">is</span> <span class="n">DecodingEnum</span><span class="o">.</span><span class="n">CONDITIONAL</span><span class="p">:</span>
-    <span class="n">decode_layer_fn</span> <span class="o">=</span> <span class="n">make_decode_layer</span><span class="p">(</span><span class="n">attention_mask_enum</span><span class="o">=</span><span class="n">MaskedAttentionEnum</span><span class="o">.</span><span class="n">CONDITIONAL</span><span class="p">)</span>
-  <span class="k">elif</span> <span class="p">(</span>
-    <span class="n">decoding_enum</span> <span class="ow">is</span> <span class="n">DecodingEnum</span><span class="o">.</span><span class="n">AUTOREGRESSIVE</span> <span class="ow">or</span> <span class="n">decoding_enum</span> <span class="ow">is</span> <span class="n">DecodingEnum</span><span class="o">.</span><span class="n">STE_AUTOREGRESSIVE</span>
-  <span class="p">):</span>
-    <span class="n">decode_layer_fn</span> <span class="o">=</span> <span class="n">make_decode_layer</span><span class="p">(</span><span class="n">attention_mask_enum</span><span class="o">=</span><span class="n">MaskedAttentionEnum</span><span class="o">.</span><span class="n">NONE</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">decoding_approach</span> <span class="o">==</span> <span class="s2">&quot;conditional&quot;</span><span class="p">:</span>
+    <span class="n">decode_layer_fn</span> <span class="o">=</span> <span class="n">make_decode_layer</span><span class="p">(</span><span class="n">attention_mask_type</span><span class="o">=</span><span class="s2">&quot;conditional&quot;</span><span class="p">)</span>
+  <span class="k">elif</span> <span class="n">decoding_approach</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">&quot;autoregressive&quot;</span><span class="p">,</span> <span class="s2">&quot;ste_autoregressive&quot;</span><span class="p">}:</span>
+    <span class="n">decode_layer_fn</span> <span class="o">=</span> <span class="n">make_decode_layer</span><span class="p">(</span><span class="n">attention_mask_type</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
   <span class="k">else</span><span class="p">:</span>
-    <span class="n">decode_layer_fn</span> <span class="o">=</span> <span class="n">make_decode_layer</span><span class="p">(</span><span class="n">attention_mask_enum</span><span class="o">=</span><span class="n">attention_mask_enum</span><span class="p">)</span>
+    <span class="n">decode_layer_fn</span> <span class="o">=</span> <span class="n">make_decode_layer</span><span class="p">(</span><span class="n">attention_mask_type</span><span class="o">=</span><span class="n">attention_mask_type</span><span class="p">)</span>
   <span class="k">return</span> <span class="n">all_decoder_layer_params</span><span class="p">,</span> <span class="n">decode_layer_fn</span></div>
-
-
-
-<div class="viewcode-block" id="_check_enums">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.model.decoder.html#prxteinmpnn.model._check_enums">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">_check_enums</span><span class="p">(</span>
-  <span class="n">attention_mask_enum</span><span class="p">:</span> <span class="n">MaskedAttentionEnum</span><span class="p">,</span>
-  <span class="n">decoding_enum</span><span class="p">:</span> <span class="n">DecodingEnum</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Check if the provided enums are valid.&quot;&quot;&quot;</span>
-  <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">attention_mask_enum</span><span class="p">,</span> <span class="n">MaskedAttentionEnum</span><span class="p">):</span>
-    <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Unknown attention mask enum: </span><span class="si">{</span><span class="n">attention_mask_enum</span><span class="si">}</span><span class="s2">&quot;</span>
-    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
-  <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">decoding_enum</span><span class="p">,</span> <span class="n">DecodingEnum</span><span class="p">):</span>
-    <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Unknown decoding enum: </span><span class="si">{</span><span class="n">decoding_enum</span><span class="si">}</span><span class="s2">&quot;</span>
-    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
 
 
 
@@ -687,25 +654,21 @@ document.write(`
 <a class="viewcode-back" href="../../../api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.make_decoder">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">make_decoder</span><span class="p">(</span>
   <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
-  <span class="n">attention_mask_enum</span><span class="p">:</span> <span class="n">MaskedAttentionEnum</span><span class="p">,</span>
-  <span class="n">decoding_enum</span><span class="p">:</span> <span class="n">DecodingEnum</span> <span class="o">=</span> <span class="n">DecodingEnum</span><span class="o">.</span><span class="n">UNCONDITIONAL</span><span class="p">,</span>
+  <span class="n">attention_mask_type</span><span class="p">:</span> <span class="n">MaskedAttentionType</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="n">decoding_approach</span><span class="p">:</span> <span class="n">DecodingApproach</span> <span class="o">=</span> <span class="s2">&quot;unconditional&quot;</span><span class="p">,</span>
   <span class="n">num_decoder_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
   <span class="n">scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">30.0</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="p">(</span>
   <span class="n">RunDecoderFn</span> <span class="o">|</span> <span class="n">RunMaskedAttentionDecoderFn</span> <span class="o">|</span> <span class="n">RunAutoregressiveDecoderFn</span> <span class="o">|</span> <span class="n">RunConditionalDecoderFn</span>
 <span class="p">):</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Create a function to run the decoder with given model parameters.&quot;&quot;&quot;</span>
-  <span class="n">_check_enums</span><span class="p">(</span>
-    <span class="n">attention_mask_enum</span><span class="p">,</span>
-    <span class="n">decoding_enum</span><span class="p">,</span>
-  <span class="p">)</span>
   <span class="n">all_decoder_layer_params</span><span class="p">,</span> <span class="n">decode_layer_fn</span> <span class="o">=</span> <span class="n">setup_decoder</span><span class="p">(</span>
     <span class="n">model_parameters</span><span class="p">,</span>
-    <span class="n">attention_mask_enum</span><span class="p">,</span>
-    <span class="n">decoding_enum</span><span class="p">,</span>
+    <span class="n">attention_mask_type</span><span class="p">,</span>
+    <span class="n">decoding_approach</span><span class="p">,</span>
     <span class="n">num_decoder_layers</span><span class="p">,</span>
   <span class="p">)</span>
-  <span class="k">if</span> <span class="n">decoding_enum</span> <span class="o">==</span> <span class="n">DecodingEnum</span><span class="o">.</span><span class="n">AUTOREGRESSIVE</span><span class="p">:</span>
+  <span class="k">if</span> <span class="n">decoding_approach</span> <span class="o">==</span> <span class="s2">&quot;autoregressive&quot;</span><span class="p">:</span>
 
     <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">run_autoregressive_decoder</span><span class="p">(</span>
@@ -843,7 +806,7 @@ document.write(`
       <span class="k">return</span> <span class="n">final_sequence</span><span class="p">,</span> <span class="n">final_all_logits</span>
 
     <span class="k">return</span> <span class="n">run_autoregressive_decoder</span>
-  <span class="k">if</span> <span class="n">decoding_enum</span> <span class="o">==</span> <span class="n">DecodingEnum</span><span class="o">.</span><span class="n">STE_AUTOREGRESSIVE</span><span class="p">:</span>
+  <span class="k">if</span> <span class="n">decoding_approach</span> <span class="o">==</span> <span class="s2">&quot;ste_autoregressive&quot;</span><span class="p">:</span>
 
     <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">run_ste_autoregressive_decoder</span><span class="p">(</span>
@@ -926,7 +889,7 @@ document.write(`
         <span class="p">)</span>
         <span class="n">final_node_features_position</span> <span class="o">=</span> <span class="n">updated_state_for_position</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">position</span><span class="p">]</span>
         <span class="n">logits_position</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span>
-          <span class="n">final_projection</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="n">final_node_features_position</span><span class="p">),</span>
+          <span class="n">final_projection</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="n">final_node_features_position</span><span class="p">)</span> <span class="o">+</span> <span class="n">bias</span><span class="p">[</span><span class="n">position</span><span class="p">],</span>
         <span class="p">)</span>
         <span class="n">next_all_logits</span> <span class="o">=</span> <span class="n">all_logits</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">position</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">logits_position</span><span class="p">)</span>
 
@@ -968,12 +931,12 @@ document.write(`
       <span class="n">scan_inputs</span> <span class="o">=</span> <span class="p">(</span><span class="n">decoding_order</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">prng_key</span><span class="p">,</span> <span class="n">num_residues</span><span class="p">))</span>
       <span class="n">final_carry</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">scan</span><span class="p">(</span><span class="n">autoregressive_step</span><span class="p">,</span> <span class="n">initial_carry</span><span class="p">,</span> <span class="n">scan_inputs</span><span class="p">)</span>
 
-      <span class="n">final_all_logits</span> <span class="o">=</span> <span class="n">final_carry</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="n">jnp</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">bias</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+      <span class="n">final_all_logits</span> <span class="o">=</span> <span class="n">final_carry</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
       <span class="n">final_sequence</span> <span class="o">=</span> <span class="n">final_carry</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
       <span class="k">return</span> <span class="n">final_sequence</span><span class="p">,</span> <span class="n">final_all_logits</span>
 
     <span class="k">return</span> <span class="n">run_ste_autoregressive_decoder</span>
-  <span class="k">if</span> <span class="n">decoding_enum</span> <span class="o">==</span> <span class="n">DecodingEnum</span><span class="o">.</span><span class="n">CONDITIONAL</span><span class="p">:</span>
+  <span class="k">if</span> <span class="n">decoding_approach</span> <span class="o">==</span> <span class="s2">&quot;conditional&quot;</span><span class="p">:</span>
 
     <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">run_conditional_decoder</span><span class="p">(</span>
@@ -1030,8 +993,8 @@ document.write(`
       <span class="p">)</span>
 
     <span class="k">return</span> <span class="n">run_conditional_decoder</span>
-  <span class="k">if</span> <span class="n">decoding_enum</span> <span class="o">==</span> <span class="n">DecodingEnum</span><span class="o">.</span><span class="n">UNCONDITIONAL</span><span class="p">:</span>
-    <span class="k">if</span> <span class="n">attention_mask_enum</span> <span class="o">==</span> <span class="n">MaskedAttentionEnum</span><span class="o">.</span><span class="n">NONE</span><span class="p">:</span>
+  <span class="k">if</span> <span class="n">decoding_approach</span> <span class="o">==</span> <span class="s2">&quot;unconditional&quot;</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">attention_mask_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
 
       <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
       <span class="k">def</span><span class="w"> </span><span class="nf">run_decoder</span><span class="p">(</span>
@@ -1110,7 +1073,7 @@ document.write(`
 
     <span class="k">return</span> <span class="n">run_masked_attention_decoder</span>
 
-  <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Unknown decoding enum: </span><span class="si">{</span><span class="n">decoding_enum</span><span class="si">}</span><span class="s2">&quot;</span>
+  <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Unknown decoding enum: </span><span class="si">{</span><span class="n">decoding_approach</span><span class="si">}</span><span class="s2">&quot;</span>
   <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
 
 </pre></div>

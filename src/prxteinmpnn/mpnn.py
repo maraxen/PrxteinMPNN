@@ -3,34 +3,27 @@
 prxteinmpnn.mpnn
 """
 
-import enum
 import pathlib
+from typing import Literal
 
 import jax
 import jax.numpy as jnp
 import joblib
 from jaxtyping import PyTree
 
+ModelVersion = Literal[
+  "v_48_002.pkl",
+  "v_48_010.pkl",
+  "v_48_020.pkl",
+  "v_48_030.pkl",
+]
 
-class ProteinMPNNModelVersion(enum.Enum):
-  """Enum for different ProteinMPNN model configurations."""
-
-  V_48_002 = "v_48_002.pkl"
-  V_48_010 = "v_48_010.pkl"
-  V_48_020 = "v_48_020.pkl"
-  V_48_030 = "v_48_030.pkl"
-
-
-class ModelWeights(enum.Enum):
-  """Enum for different sets of model weights."""
-
-  DEFAULT = "original"
-  SOLUBLE = "soluble"
+ModelWeights = Literal["original", "soluble"]
 
 
 def get_mpnn_model(
-  model_version: ProteinMPNNModelVersion = ProteinMPNNModelVersion.V_48_020,
-  model_weights: ModelWeights = ModelWeights.DEFAULT,
+  model_version: ModelVersion = "v_48_020.pkl",
+  model_weights: ModelWeights = "original",
 ) -> PyTree:
   """Create a ProteinMPNN model with specified configuration and weights.
 
@@ -49,7 +42,7 @@ def get_mpnn_model(
 
   """
   base_dir = pathlib.Path(__file__).parent
-  model_path = base_dir / "model" / model_weights.value / model_version.value
+  model_path = base_dir / "model" / model_weights / model_version
   if not model_path.exists():
     msg = f"Model file not found: {model_path}"
     raise FileNotFoundError(msg)

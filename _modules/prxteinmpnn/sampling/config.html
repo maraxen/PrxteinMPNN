@@ -346,21 +346,13 @@ document.write(`
   <h1>Source code for prxteinmpnn.sampling.config</h1><div class="highlight"><pre>
 <span></span><span class="sd">&quot;&quot;&quot;Configuration for sequence sampling in the PrxteinMPNN project.&quot;&quot;&quot;</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">enum</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">flax.struct</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Logits</span>
 
-
-<div class="viewcode-block" id="SamplingEnum">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingEnum">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">SamplingEnum</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">Enum</span><span class="p">):</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Enum for different sampling strategies.&quot;&quot;&quot;</span>
-
-  <span class="n">TEMPERATURE</span> <span class="o">=</span> <span class="s2">&quot;temperature&quot;</span>
-  <span class="n">STRAIGHT_THROUGH</span> <span class="o">=</span> <span class="s2">&quot;straight_through&quot;</span></div>
-
+<span class="n">SamplingStrategy</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;temperature&quot;</span><span class="p">,</span> <span class="s2">&quot;straight_through&quot;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="SamplingConfig">
@@ -369,9 +361,7 @@ document.write(`
 <span class="k">class</span><span class="w"> </span><span class="nc">SamplingConfig</span><span class="p">:</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Configuration for sequence sampling.&quot;&quot;&quot;</span>
 
-  <span class="c1"># Static parameters that control the computation graph</span>
-  <span class="n">sampling_strategy</span><span class="p">:</span> <span class="n">SamplingEnum</span>
-
+  <span class="n">sampling_strategy</span><span class="p">:</span> <span class="n">SamplingStrategy</span>
   <span class="n">iterations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
   <span class="n">temperature</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
   <span class="n">target_logits</span><span class="p">:</span> <span class="n">Logits</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>

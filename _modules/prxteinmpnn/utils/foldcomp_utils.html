@@ -359,7 +359,7 @@ document.write(`
   <span class="n">protein_structure_to_model_inputs</span><span class="p">,</span>
   <span class="n">string_to_protein_sequence</span><span class="p">,</span>
 <span class="p">)</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.mpnn</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelWeights</span><span class="p">,</span> <span class="n">ProteinMPNNModelVersion</span><span class="p">,</span> <span class="n">get_mpnn_model</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.mpnn</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelVersion</span><span class="p">,</span> <span class="n">ModelWeights</span><span class="p">,</span> <span class="n">get_mpnn_model</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.data_structures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelInputs</span><span class="p">,</span> <span class="n">ProteinStructure</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelParameters</span>
 
@@ -492,7 +492,7 @@ document.write(`
 <span class="k">def</span><span class="w"> </span><span class="nf">model_from_id</span><span class="p">(</span>
   <span class="n">protein_ids</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
   <span class="n">model_weights</span><span class="p">:</span> <span class="n">ModelWeights</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-  <span class="n">model_version</span><span class="p">:</span> <span class="n">ProteinMPNNModelVersion</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="n">model_version</span><span class="p">:</span> <span class="n">ModelVersion</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ModelParameters</span><span class="p">,</span> <span class="n">Iterator</span><span class="p">[</span><span class="n">ModelInputs</span><span class="p">]]:</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Get the MPNN model and inputs for specific protein IDs.</span>
 
@@ -513,8 +513,8 @@ document.write(`
 
 <span class="sd">  &quot;&quot;&quot;</span>
   <span class="n">base_model</span> <span class="o">=</span> <span class="n">get_mpnn_model</span><span class="p">(</span>
-    <span class="n">model_version</span><span class="o">=</span><span class="n">model_version</span> <span class="ow">or</span> <span class="n">ProteinMPNNModelVersion</span><span class="o">.</span><span class="n">V_48_002</span><span class="p">,</span>
-    <span class="n">model_weights</span><span class="o">=</span><span class="n">model_weights</span> <span class="ow">or</span> <span class="n">ModelWeights</span><span class="o">.</span><span class="n">DEFAULT</span><span class="p">,</span>
+    <span class="n">model_version</span><span class="o">=</span><span class="n">model_version</span> <span class="ow">or</span> <span class="s2">&quot;v_48_020.pkl&quot;</span><span class="p">,</span>
+    <span class="n">model_weights</span><span class="o">=</span><span class="n">model_weights</span> <span class="ow">or</span> <span class="s2">&quot;original&quot;</span><span class="p">,</span>
   <span class="p">)</span>
 
   <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">protein_ids</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>

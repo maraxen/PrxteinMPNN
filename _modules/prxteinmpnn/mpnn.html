@@ -349,42 +349,29 @@ document.write(`
 <span class="sd">prxteinmpnn.mpnn</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">enum</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">pathlib</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">joblib</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">PyTree</span>
 
+<span class="n">ModelVersion</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span>
+  <span class="s2">&quot;v_48_002.pkl&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;v_48_010.pkl&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;v_48_020.pkl&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;v_48_030.pkl&quot;</span><span class="p">,</span>
+<span class="p">]</span>
 
-<div class="viewcode-block" id="ProteinMPNNModelVersion">
-<a class="viewcode-back" href="../../api/prxteinmpnn.mpnn.html#prxteinmpnn.mpnn.ProteinMPNNModelVersion">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">ProteinMPNNModelVersion</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">Enum</span><span class="p">):</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Enum for different ProteinMPNN model configurations.&quot;&quot;&quot;</span>
-
-  <span class="n">V_48_002</span> <span class="o">=</span> <span class="s2">&quot;v_48_002.pkl&quot;</span>
-  <span class="n">V_48_010</span> <span class="o">=</span> <span class="s2">&quot;v_48_010.pkl&quot;</span>
-  <span class="n">V_48_020</span> <span class="o">=</span> <span class="s2">&quot;v_48_020.pkl&quot;</span>
-  <span class="n">V_48_030</span> <span class="o">=</span> <span class="s2">&quot;v_48_030.pkl&quot;</span></div>
-
-
-
-<div class="viewcode-block" id="ModelWeights">
-<a class="viewcode-back" href="../../api/prxteinmpnn.mpnn.html#prxteinmpnn.mpnn.ModelWeights">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">ModelWeights</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">Enum</span><span class="p">):</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Enum for different sets of model weights.&quot;&quot;&quot;</span>
-
-  <span class="n">DEFAULT</span> <span class="o">=</span> <span class="s2">&quot;original&quot;</span>
-  <span class="n">SOLUBLE</span> <span class="o">=</span> <span class="s2">&quot;soluble&quot;</span></div>
-
+<span class="n">ModelWeights</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;original&quot;</span><span class="p">,</span> <span class="s2">&quot;soluble&quot;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="get_mpnn_model">
 <a class="viewcode-back" href="../../api/prxteinmpnn.mpnn.html#prxteinmpnn.mpnn.get_mpnn_model">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_mpnn_model</span><span class="p">(</span>
-  <span class="n">model_version</span><span class="p">:</span> <span class="n">ProteinMPNNModelVersion</span> <span class="o">=</span> <span class="n">ProteinMPNNModelVersion</span><span class="o">.</span><span class="n">V_48_020</span><span class="p">,</span>
-  <span class="n">model_weights</span><span class="p">:</span> <span class="n">ModelWeights</span> <span class="o">=</span> <span class="n">ModelWeights</span><span class="o">.</span><span class="n">DEFAULT</span><span class="p">,</span>
+  <span class="n">model_version</span><span class="p">:</span> <span class="n">ModelVersion</span> <span class="o">=</span> <span class="s2">&quot;v_48_020.pkl&quot;</span><span class="p">,</span>
+  <span class="n">model_weights</span><span class="p">:</span> <span class="n">ModelWeights</span> <span class="o">=</span> <span class="s2">&quot;original&quot;</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PyTree</span><span class="p">:</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Create a ProteinMPNN model with specified configuration and weights.</span>
 
@@ -403,7 +390,7 @@ document.write(`
 
 <span class="sd">  &quot;&quot;&quot;</span>
   <span class="n">base_dir</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
-  <span class="n">model_path</span> <span class="o">=</span> <span class="n">base_dir</span> <span class="o">/</span> <span class="s2">&quot;model&quot;</span> <span class="o">/</span> <span class="n">model_weights</span><span class="o">.</span><span class="n">value</span> <span class="o">/</span> <span class="n">model_version</span><span class="o">.</span><span class="n">value</span>
+  <span class="n">model_path</span> <span class="o">=</span> <span class="n">base_dir</span> <span class="o">/</span> <span class="s2">&quot;model&quot;</span> <span class="o">/</span> <span class="n">model_weights</span> <span class="o">/</span> <span class="n">model_version</span>
   <span class="k">if</span> <span class="ow">not</span> <span class="n">model_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
     <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Model file not found: </span><span class="si">{</span><span class="n">model_path</span><span class="si">}</span><span class="s2">&quot;</span>
     <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>

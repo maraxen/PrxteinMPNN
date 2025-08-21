@@ -351,9 +351,8 @@ document.write(`
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">enum</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterator</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Literal</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
@@ -493,16 +492,7 @@ document.write(`
 
 
 
-<div class="viewcode-block" id="OligomerType">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.OligomerType">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">OligomerType</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">Enum</span><span class="p">):</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Enum for different types of oligomers.&quot;&quot;&quot;</span>
-
-  <span class="n">MONOMER</span> <span class="o">=</span> <span class="s2">&quot;monomer&quot;</span>
-  <span class="n">HETEROMER</span> <span class="o">=</span> <span class="s2">&quot;heteromer&quot;</span>
-  <span class="n">HOMOOLIGOMER</span> <span class="o">=</span> <span class="s2">&quot;homooligomer&quot;</span>
-  <span class="n">TIED_HOMOOLIGOMER</span> <span class="o">=</span> <span class="s2">&quot;tied_homooligomer&quot;</span></div>
-
+<span class="n">OligomerType</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;monomer&quot;</span><span class="p">,</span> <span class="s2">&quot;heteromer&quot;</span><span class="p">,</span> <span class="s2">&quot;homooligomer&quot;</span><span class="p">,</span> <span class="s2">&quot;tied_homooligomer&quot;</span><span class="p">]</span>
 </pre></div>
 
                 </article>

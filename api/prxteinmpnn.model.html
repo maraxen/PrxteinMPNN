@@ -393,12 +393,6 @@ document.write(`
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.MaskedAttentionEnum"><code class="docutils literal notranslate"><span class="pre">MaskedAttentionEnum</span></code></a><ul class="visible nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.MaskedAttentionEnum.NONE"><code class="docutils literal notranslate"><span class="pre">MaskedAttentionEnum.NONE</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.MaskedAttentionEnum.CROSS"><code class="docutils literal notranslate"><span class="pre">MaskedAttentionEnum.CROSS</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.MaskedAttentionEnum.CONDITIONAL"><code class="docutils literal notranslate"><span class="pre">MaskedAttentionEnum.CONDITIONAL</span></code></a></li>
-</ul>
-</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.dense_layer"><code class="docutils literal notranslate"><span class="pre">dense_layer()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.extract_features"><code class="docutils literal notranslate"><span class="pre">extract_features()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.final_projection"><code class="docutils literal notranslate"><span class="pre">final_projection()</span></code></a></li>
@@ -418,28 +412,6 @@ document.write(`
   <section id="module-prxteinmpnn.model">
 <span id="model"></span><h1>model<a class="headerlink" href="#module-prxteinmpnn.model" title="Link to this heading">#</a></h1>
 <p>ProteinMPNN implemented in a functional JAX interface.</p>
-<dl class="py class">
-<dt class="sig sig-object py" id="prxteinmpnn.model.MaskedAttentionEnum">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.</span></span><span class="sig-name descname"><span class="pre">MaskedAttentionEnum</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/masked_attention.html#MaskedAttentionEnum"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.MaskedAttentionEnum" title="Link to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/enum.html#enum.Enum" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Enum</span></code></a></p>
-<p>Enum for different types of masked attention.</p>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="prxteinmpnn.model.MaskedAttentionEnum.NONE">
-<span class="sig-name descname"><span class="pre">NONE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'none'</span></em><a class="headerlink" href="#prxteinmpnn.model.MaskedAttentionEnum.NONE" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="prxteinmpnn.model.MaskedAttentionEnum.CROSS">
-<span class="sig-name descname"><span class="pre">CROSS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'cross'</span></em><a class="headerlink" href="#prxteinmpnn.model.MaskedAttentionEnum.CROSS" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="prxteinmpnn.model.MaskedAttentionEnum.CONDITIONAL">
-<span class="sig-name descname"><span class="pre">CONDITIONAL</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'conditional'</span></em><a class="headerlink" href="#prxteinmpnn.model.MaskedAttentionEnum.CONDITIONAL" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
 <dl class="py function">
 <dt class="sig sig-object py" id="prxteinmpnn.model.dense_layer">
 <span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.</span></span><span class="sig-name descname"><span class="pre">dense_layer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">layer_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">node_features</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/dense.html#dense_layer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.dense_layer" title="Link to this definition">#</a></dt>
@@ -506,7 +478,7 @@ edge_indices: Indices of neighboring atoms.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="prxteinmpnn.model.make_decoder">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.</span></span><span class="sig-name descname"><span class="pre">make_decoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attention_mask_enum</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decoding_enum</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">DecodingEnum.UNCONDITIONAL</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_decoder_layers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/decoder.html#make_decoder"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.make_decoder" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.</span></span><span class="sig-name descname"><span class="pre">make_decoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attention_mask_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decoding_approach</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'unconditional'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_decoder_layers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/decoder.html#make_decoder"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.make_decoder" title="Link to this definition">#</a></dt>
 <dd><p>Create a function to run the decoder with given model parameters.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
@@ -515,8 +487,8 @@ edge_indices: Indices of neighboring atoms.</p>
 <dt class="field-even">Parameters<span class="colon">:</span></dt>
 <dd class="field-even"><ul class="simple">
 <li><p><strong>model_parameters</strong> (<em>ModelParameters</em>)</p></li>
-<li><p><strong>attention_mask_enum</strong> (<a class="reference internal" href="#prxteinmpnn.model.MaskedAttentionEnum" title="prxteinmpnn.model.MaskedAttentionEnum"><em>MaskedAttentionEnum</em></a>)</p></li>
-<li><p><strong>decoding_enum</strong> (<a class="reference internal" href="prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.DecodingEnum" title="prxteinmpnn.model.decoder.DecodingEnum"><em>DecodingEnum</em></a>)</p></li>
+<li><p><strong>attention_mask_type</strong> (<em>MaskedAttentionType</em><em> | </em><em>None</em>)</p></li>
+<li><p><strong>decoding_approach</strong> (<em>DecodingApproach</em>)</p></li>
 <li><p><strong>num_decoder_layers</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
 <li><p><strong>scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>)</p></li>
 </ul>
@@ -526,7 +498,7 @@ edge_indices: Indices of neighboring atoms.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="prxteinmpnn.model.make_encoder">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.</span></span><span class="sig-name descname"><span class="pre">make_encoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attention_mask_enum</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_encoder_layers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/encoder.html#make_encoder"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.make_encoder" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.</span></span><span class="sig-name descname"><span class="pre">make_encoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attention_mask_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_encoder_layers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/encoder.html#make_encoder"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.make_encoder" title="Link to this definition">#</a></dt>
 <dd><p>Create a function to run the encoder with given model parameters.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
@@ -535,7 +507,7 @@ edge_indices: Indices of neighboring atoms.</p>
 <dt class="field-even">Parameters<span class="colon">:</span></dt>
 <dd class="field-even"><ul class="simple">
 <li><p><strong>model_parameters</strong> (<em>ModelParameters</em>)</p></li>
-<li><p><strong>attention_mask_enum</strong> (<a class="reference internal" href="#prxteinmpnn.model.MaskedAttentionEnum" title="prxteinmpnn.model.MaskedAttentionEnum"><em>MaskedAttentionEnum</em></a>)</p></li>
+<li><p><strong>attention_mask_type</strong> (<em>MaskedAttentionType</em><em> | </em><em>None</em>)</p></li>
 <li><p><strong>num_encoder_layers</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
 <li><p><strong>scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>)</p></li>
 </ul>
@@ -556,7 +528,6 @@ edge_indices: Indices of neighboring atoms.</p>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.model.decoder.html">decoder</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.DecodingEnum"><code class="docutils literal notranslate"><span class="pre">DecodingEnum</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.decoder_parameter_pytree"><code class="docutils literal notranslate"><span class="pre">decoder_parameter_pytree()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.embed_sequence"><code class="docutils literal notranslate"><span class="pre">embed_sequence()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.initialize_conditional_decoder"><code class="docutils literal notranslate"><span class="pre">initialize_conditional_decoder()</span></code></a></li>
@@ -564,7 +535,6 @@ edge_indices: Indices of neighboring atoms.</p>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.decoder_normalize"><code class="docutils literal notranslate"><span class="pre">decoder_normalize()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.make_decode_layer"><code class="docutils literal notranslate"><span class="pre">make_decode_layer()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.setup_decoder"><code class="docutils literal notranslate"><span class="pre">setup_decoder()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder._check_enums"><code class="docutils literal notranslate"><span class="pre">_check_enums()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.make_decoder"><code class="docutils literal notranslate"><span class="pre">make_decoder()</span></code></a></li>
 </ul>
 </li>
@@ -573,7 +543,6 @@ edge_indices: Indices of neighboring atoms.</p>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.model.masked_attention.html">masked_attention</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.masked_attention.html#prxteinmpnn.model.masked_attention.MaskedAttentionEnum"><code class="docutils literal notranslate"><span class="pre">MaskedAttentionEnum</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.masked_attention.html#prxteinmpnn.model.masked_attention.mask_attention"><code class="docutils literal notranslate"><span class="pre">mask_attention()</span></code></a></li>
 </ul>
 </li>
@@ -634,12 +603,6 @@ edge_indices: Indices of neighboring atoms.</p>
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.MaskedAttentionEnum"><code class="docutils literal notranslate"><span class="pre">MaskedAttentionEnum</span></code></a><ul class="visible nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.MaskedAttentionEnum.NONE"><code class="docutils literal notranslate"><span class="pre">MaskedAttentionEnum.NONE</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.MaskedAttentionEnum.CROSS"><code class="docutils literal notranslate"><span class="pre">MaskedAttentionEnum.CROSS</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.MaskedAttentionEnum.CONDITIONAL"><code class="docutils literal notranslate"><span class="pre">MaskedAttentionEnum.CONDITIONAL</span></code></a></li>
-</ul>
-</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.dense_layer"><code class="docutils literal notranslate"><span class="pre">dense_layer()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.extract_features"><code class="docutils literal notranslate"><span class="pre">extract_features()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.final_projection"><code class="docutils literal notranslate"><span class="pre">final_projection()</span></code></a></li>

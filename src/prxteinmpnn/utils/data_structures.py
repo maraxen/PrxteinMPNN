@@ -5,9 +5,8 @@ prxteinmpnn.utils.data_structures
 
 from __future__ import annotations
 
-import enum
 from collections.abc import Iterator
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import jax
 import jax.numpy as jnp
@@ -138,10 +137,4 @@ class SamplingInputs(ModelInputs):
   """Number of iterations for sampling."""
 
 
-class OligomerType(enum.Enum):
-  """Enum for different types of oligomers."""
-
-  MONOMER = "monomer"
-  HETEROMER = "heteromer"
-  HOMOOLIGOMER = "homooligomer"
-  TIED_HOMOOLIGOMER = "tied_homooligomer"
+OligomerType = Literal["monomer", "heteromer", "homooligomer", "tied_homooligomer"]

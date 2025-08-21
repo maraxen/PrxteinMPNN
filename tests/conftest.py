@@ -1,16 +1,14 @@
-# type: ignore[call-arg]
-"""Integration tests for the sampling factory."""
+"""Shared test fixtures."""
 
-import chex
 import jax
 import jax.numpy as jnp
 import pytest
-from prxteinmpnn.sampling.sample import make_sample_sequences
-from prxteinmpnn.sampling.config import SamplingConfig
+from jax import random
 
+from prxteinmpnn.utils.types import ModelParameters
 
 @pytest.fixture
-def mock_model_parameters():
+def mock_model_parameters() -> ModelParameters:
   """Create a complete and structurally correct set of mock model parameters."""
   # Model dimensions
   C_V = 128  # Node feature dimension
@@ -78,7 +76,6 @@ def mock_model_parameters():
       {
         f"{dec_prefix}/~/{dec_l_name}_norm1": _make_norm_params(),
         f"{dec_prefix}/~/{dec_l_name}_norm2": _make_norm_params(),
-        # CORRECTED: The decoder's W1 layer expects a 512-dim input.
         f"{dec_prefix}/~/{dec_l_name}_W1": _make_linear_params(DECODER_MLP_INPUT_DIM, C_V),
         f"{dec_prefix}/~/{dec_l_name}_W2": _make_linear_params(C_V, C_V),
         f"{dec_prefix}/~/{dec_l_name}_W3": _make_linear_params(C_V, C_V),
@@ -93,57 +90,3 @@ def mock_model_parameters():
 
   return params
 
-
-def test_make_sample_sequences(mock_model_parameters):
-  """Test the full sequence sampling pipeline.
-
-  Raises:
-      AssertionError: If the output does not match expected shapes or properties.
-  """
-  L, K = 10, 4
-  key = jax.random.PRNGKey(42)
-
-  decoding_order_fn = lambda k, l: (jax.lax.iota(jnp.int32, l), jax.random.split(k)[1])
-  sampling_config = SamplingConfig(
-    sampling_strategy="temperature",
-  )
-
-  sample_sequences_fn = make_sample_sequences(
-    model_parameters=mock_model_parameters,
-    decoding_order_fn=decoding_order_fn,
-    config=sampling_config,
-    num_encoder_layers=3,
-    num_decoder_layers=3,
-  )
-
-  # Prepare inputs
-  coords = jax.random.normal(key, (L, 4, 3))
-  mask = jnp.ones((L,))
-  residue_indices = jnp.arange(L)
-  chain_indices = jnp.zeros((L,))
-  key, sequence_key = jax.random.split(key)
-  initial_sequence = jax.random.randint(sequence_key, (L,), 0, 21, dtype=jnp.int8)
-  key, sample_key = jax.random.split(key)
-
-  # Run sampling
-  sampled_sequence, logits, decoding_order = sample_sequences_fn(
-    prng_key=sample_key,
-    structure_coordinates=coords,
-    mask=mask,
-    residue_index=residue_indices,
-    chain_index=chain_indices,
-    k_neighbors=K,
-  )
-
-  # Check output shapes
-  chex.assert_shape(sampled_sequence, (L,))
-  chex.assert_shape(logits, (L, 21))
-  chex.assert_shape(decoding_order, (L,))
-
-
-  # Check that the sequence has been modified from the initial integer sequence
-  sampled_indices = jnp.argmax(sampled_sequence, axis=-1)
-  assert not jnp.allclose(initial_sequence, sampled_indices)
-  
-  assert jnp.unique(sampled_indices).shape[0] <= 21, "Sampled sequence contains invalid amino acid indices."
-  

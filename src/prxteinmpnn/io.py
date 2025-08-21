@@ -92,16 +92,18 @@ def string_to_protein_sequence(
     A ProteinSequence containing the amino acid type indices corresponding to the input string.
 
   """
-  if aa_map is None:
-    aa_map = restype_order
-
-  if aa_map is None:
+  if unk_index is None:
     unk_index = unk_restype_index
 
-  return af_to_mpnn(
-    string_key_to_index(np.array(list(sequence), dtype="U3"), aa_map, unk_index).astype(
-      jnp.int8,
-    ),
+  if aa_map is None:
+    aa_map = restype_order
+    return af_to_mpnn(
+      string_key_to_index(np.array(list(sequence), dtype="U3"), aa_map, unk_index).astype(
+        jnp.int8,
+      ),
+    )
+  return string_key_to_index(np.array(list(sequence), dtype="U3"), aa_map, unk_index).astype(
+    jnp.int8,
   )
 
 

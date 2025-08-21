@@ -23,7 +23,7 @@ from prxteinmpnn.model.encoder import (
   make_encoder,
   setup_encoder,
 )
-from prxteinmpnn.model.masked_attention import MaskedAttentionEnum
+from prxteinmpnn.model.masked_attention import MaskedAttentionType
 
 # --- Fixtures and helpers ---
 
@@ -147,16 +147,16 @@ def test_encoder_normalize_shapes(dummy_inputs, minimal_model_parameters):
 
 
 @pytest.mark.parametrize(
-  "attention_mask_enum",
-  [MaskedAttentionEnum.NONE, MaskedAttentionEnum.CROSS, MaskedAttentionEnum.CONDITIONAL],
+  "attention_mask_type",
+  [None, "cross", "conditional"],
 )
-def test_make_encode_layer(dummy_inputs, minimal_model_parameters, attention_mask_enum):
+def test_make_encode_layer(dummy_inputs, minimal_model_parameters, attention_mask_type):
   """Test make_encode_layer returns a callable and runs without error."""
   node_features, edge_features, neighbor_indices, mask, attention_mask = dummy_inputs
   enc_pytree = encoder_parameter_pytree(minimal_model_parameters, num_encoder_layers=3)
   layer_params = jax.tree_util.tree_map(lambda x: x[0], enc_pytree)
-  encode_layer_fn = make_encode_layer(attention_mask_enum)
-  if attention_mask_enum is MaskedAttentionEnum.NONE:
+  encode_layer_fn = make_encode_layer(attention_mask_type)
+  if attention_mask_type is None:
     node_out, edge_out = encode_layer_fn(
       node_features,
       edge_features,
@@ -183,7 +183,7 @@ def test_setup_encoder_returns_pytree_and_fn(minimal_model_parameters):
   """Test setup_encoder returns encoder params and a callable."""
   params, fn = setup_encoder(
     minimal_model_parameters,
-    MaskedAttentionEnum.NONE,
+    None,
     num_encoder_layers=3,
   )
   assert isinstance(params, dict)
@@ -191,19 +191,19 @@ def test_setup_encoder_returns_pytree_and_fn(minimal_model_parameters):
 
 
 @pytest.mark.parametrize(
-  "attention_mask_enum",
-  [MaskedAttentionEnum.NONE, MaskedAttentionEnum.CROSS, MaskedAttentionEnum.CONDITIONAL],
+  "attention_mask_type",
+  [None, "cross", "conditional"],
 )
-def test_make_encoder_runs(dummy_inputs, minimal_model_parameters, attention_mask_enum):
+def test_make_encoder_runs(dummy_inputs, minimal_model_parameters, attention_mask_type):
   """Test make_encoder returns a callable that runs and outputs correct shapes."""
   _, edge_features, neighbor_indices, mask, attention_mask = dummy_inputs
   encoder_fn = make_encoder(
     minimal_model_parameters,
-    attention_mask_enum,
+    attention_mask_type,
     num_encoder_layers=3,
     scale=30.0,
   )
-  if attention_mask_enum is MaskedAttentionEnum.NONE:
+  if attention_mask_type is None:
     node_out, edge_out = encoder_fn(edge_features, neighbor_indices, mask)
   else:
     node_out, edge_out = encoder_fn(edge_features, neighbor_indices, mask, attention_mask)

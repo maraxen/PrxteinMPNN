@@ -5,11 +5,11 @@ from .decoder import make_decoder
 from .dense import dense_layer
 from .encoder import make_encoder
 from .features import extract_features
-from .masked_attention import MaskedAttentionEnum
+from .masked_attention import MaskedAttentionType
 from .projection import final_projection
 
 __all__ = [
-  "MaskedAttentionEnum",
+  "MaskedAttentionType",
   "decoder",
   "dense",
   "dense_layer",

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import jax
 import jax.numpy as jnp
@@ -44,21 +44,12 @@ if TYPE_CHECKING:
   )
 
 
-import enum
-
 from prxteinmpnn.utils.concatenate import concatenate_neighbor_nodes
 
 from .dense import dense_layer
-from .masked_attention import MaskedAttentionEnum, mask_attention
+from .masked_attention import MaskedAttentionType, mask_attention
 
-
-class DecodingEnum(enum.Enum):
-  """Enum for different types of decoders."""
-
-  CONDITIONAL = "conditional"
-  UNCONDITIONAL = "unconditional"
-  AUTOREGRESSIVE = "autoregressive"
-  STE_AUTOREGRESSIVE = "ste_autoregressive"
+DecodingApproach = Literal["conditional", "autoregressive", "ste_autoregressive", "unconditional"]
 
 
 def decoder_parameter_pytree(
@@ -227,13 +218,10 @@ def decoder_normalize(
 
 
 def make_decode_layer(
-  attention_mask_enum: MaskedAttentionEnum,
+  attention_mask_type: MaskedAttentionType | None,
 ) -> MaskedAttentionDecoderFn | DecoderFn:
   """Create a function to run the decoder with given model parameters."""
-  if (
-    attention_mask_enum is MaskedAttentionEnum.NONE
-    or attention_mask_enum is MaskedAttentionEnum.CROSS
-  ):
+  if attention_mask_type is None or attention_mask_type == "cross":
 
     @partial(jax.jit, static_argnames=("scale",))
     def decoder_fn(
@@ -280,57 +268,38 @@ def make_decode_layer(
 
 def setup_decoder(
   model_parameters: ModelParameters,
-  attention_mask_enum: MaskedAttentionEnum,
-  decoding_enum: DecodingEnum,
+  attention_mask_type: MaskedAttentionType | None,
+  decoding_approach: DecodingApproach,
   num_decoder_layers: int = 3,
 ) -> tuple[ModelParameters, Callable[..., Message]]:
   """Set up the decoder parameters and initial node features."""
   all_decoder_layer_params = decoder_parameter_pytree(model_parameters, num_decoder_layers)
-  if decoding_enum is DecodingEnum.CONDITIONAL:
-    decode_layer_fn = make_decode_layer(attention_mask_enum=MaskedAttentionEnum.CONDITIONAL)
-  elif (
-    decoding_enum is DecodingEnum.AUTOREGRESSIVE or decoding_enum is DecodingEnum.STE_AUTOREGRESSIVE
-  ):
-    decode_layer_fn = make_decode_layer(attention_mask_enum=MaskedAttentionEnum.NONE)
+  if decoding_approach == "conditional":
+    decode_layer_fn = make_decode_layer(attention_mask_type="conditional")
+  elif decoding_approach in {"autoregressive", "ste_autoregressive"}:
+    decode_layer_fn = make_decode_layer(attention_mask_type=None)
   else:
-    decode_layer_fn = make_decode_layer(attention_mask_enum=attention_mask_enum)
+    decode_layer_fn = make_decode_layer(attention_mask_type=attention_mask_type)
   return all_decoder_layer_params, decode_layer_fn
-
-
-def _check_enums(
-  attention_mask_enum: MaskedAttentionEnum,
-  decoding_enum: DecodingEnum,
-) -> None:
-  """Check if the provided enums are valid."""
-  if not isinstance(attention_mask_enum, MaskedAttentionEnum):
-    msg = f"Unknown attention mask enum: {attention_mask_enum}"
-    raise TypeError(msg)
-  if not isinstance(decoding_enum, DecodingEnum):
-    msg = f"Unknown decoding enum: {decoding_enum}"
-    raise TypeError(msg)
 
 
 def make_decoder(
   model_parameters: ModelParameters,
-  attention_mask_enum: MaskedAttentionEnum,
-  decoding_enum: DecodingEnum = DecodingEnum.UNCONDITIONAL,
+  attention_mask_type: MaskedAttentionType | None,
+  decoding_approach: DecodingApproach = "unconditional",
   num_decoder_layers: int = 3,
   scale: float = 30.0,
 ) -> (
   RunDecoderFn | RunMaskedAttentionDecoderFn | RunAutoregressiveDecoderFn | RunConditionalDecoderFn
 ):
   """Create a function to run the decoder with given model parameters."""
-  _check_enums(
-    attention_mask_enum,
-    decoding_enum,
-  )
   all_decoder_layer_params, decode_layer_fn = setup_decoder(
     model_parameters,
-    attention_mask_enum,
-    decoding_enum,
+    attention_mask_type,
+    decoding_approach,
     num_decoder_layers,
   )
-  if decoding_enum == DecodingEnum.AUTOREGRESSIVE:
+  if decoding_approach == "autoregressive":
 
     @jax.jit
     def run_autoregressive_decoder(
@@ -468,7 +437,7 @@ def make_decoder(
       return final_sequence, final_all_logits
 
     return run_autoregressive_decoder
-  if decoding_enum == DecodingEnum.STE_AUTOREGRESSIVE:
+  if decoding_approach == "ste_autoregressive":
 
     @jax.jit
     def run_ste_autoregressive_decoder(
@@ -551,7 +520,7 @@ def make_decoder(
         )
         final_node_features_position = updated_state_for_position[-1, position]
         logits_position = jnp.squeeze(
-          final_projection(model_parameters, final_node_features_position),
+          final_projection(model_parameters, final_node_features_position) + bias[position],
         )
         next_all_logits = all_logits.at[position].set(logits_position)
 
@@ -593,12 +562,12 @@ def make_decoder(
       scan_inputs = (decoding_order, jax.random.split(prng_key, num_residues))
       final_carry, _ = jax.lax.scan(autoregressive_step, initial_carry, scan_inputs)
 
-      final_all_logits = final_carry[2] + jnp.expand_dims(bias, axis=0)
+      final_all_logits = final_carry[2]
       final_sequence = final_carry[3]
       return final_sequence, final_all_logits
 
     return run_ste_autoregressive_decoder
-  if decoding_enum == DecodingEnum.CONDITIONAL:
+  if decoding_approach == "conditional":
 
     @jax.jit
     def run_conditional_decoder(
@@ -655,8 +624,8 @@ def make_decoder(
       )
 
     return run_conditional_decoder
-  if decoding_enum == DecodingEnum.UNCONDITIONAL:
-    if attention_mask_enum == MaskedAttentionEnum.NONE:
+  if decoding_approach == "unconditional":
+    if attention_mask_type is None:
 
       @jax.jit
       def run_decoder(
@@ -735,5 +704,5 @@ def make_decoder(
 
     return run_masked_attention_decoder
 
-  msg = f"Unknown decoding enum: {decoding_enum}"
+  msg = f"Unknown decoding enum: {decoding_approach}"
   raise ValueError(msg)

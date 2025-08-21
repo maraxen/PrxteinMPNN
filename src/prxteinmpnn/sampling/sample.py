@@ -4,10 +4,10 @@ from functools import partial
 from typing import TYPE_CHECKING, cast
 
 import jax
+import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.model.decoder import (
-  DecodingEnum,
   make_decoder,
 )
 
@@ -18,7 +18,6 @@ if TYPE_CHECKING:
     RunSTEAutoregressiveDecoderFn,
   )
 from prxteinmpnn.model.encoder import make_encoder
-from prxteinmpnn.model.masked_attention import MaskedAttentionEnum
 from prxteinmpnn.utils.data_structures import ModelInputs
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
@@ -32,7 +31,7 @@ from prxteinmpnn.utils.types import (
   StructureAtomicCoordinates,
 )
 
-from .config import SamplingConfig, SamplingEnum
+from .config import SamplingConfig
 from .initialize import sampling_encode
 from .sampling_step import preload_sampling_step_decoder
 from .ste_optimize import make_optimize_sequence_fn
@@ -52,7 +51,7 @@ def make_sample_sequences(
   """Create a function to sample or optimize sequences from a structure."""
   encoder = make_encoder(
     model_parameters=model_parameters,
-    attention_mask_enum=MaskedAttentionEnum.CROSS,
+    attention_mask_type="cross",
     num_encoder_layers=num_encoder_layers,
   )
 
@@ -60,8 +59,8 @@ def make_sample_sequences(
     "RunConditionalDecoderFn",
     make_decoder(
       model_parameters=model_parameters,
-      attention_mask_enum=MaskedAttentionEnum.CONDITIONAL,
-      decoding_enum=DecodingEnum.CONDITIONAL,
+      attention_mask_type="conditional",
+      decoding_approach="conditional",
       num_decoder_layers=num_decoder_layers,
     ),
   )
@@ -69,8 +68,8 @@ def make_sample_sequences(
     "RunSTEAutoregressiveDecoderFn",
     make_decoder(
       model_parameters=model_parameters,
-      attention_mask_enum=MaskedAttentionEnum.NONE,
-      decoding_enum=DecodingEnum.STE_AUTOREGRESSIVE,
+      attention_mask_type=None,
+      decoding_approach="ste_autoregressive",
       num_decoder_layers=num_decoder_layers,
     ),
   )
@@ -78,8 +77,8 @@ def make_sample_sequences(
     "RunAutoregressiveDecoderFn",
     make_decoder(
       model_parameters=model_parameters,
-      attention_mask_enum=MaskedAttentionEnum.NONE,
-      decoding_enum=DecodingEnum.AUTOREGRESSIVE,
+      attention_mask_type=None,
+      decoding_approach="autoregressive",
       num_decoder_layers=num_decoder_layers,
     ),
   )
@@ -122,7 +121,7 @@ def make_sample_sequences(
       augment_eps,
     )
 
-    if config.sampling_strategy == SamplingEnum.STRAIGHT_THROUGH:
+    if config.sampling_strategy == "straight_through":
       output_sequence, output_logits = optimize_seq_fn(
         next_rng_key,
         node_features,
@@ -132,6 +131,7 @@ def make_sample_sequences(
         config.iterations,
         config.learning_rate,
       )
+      output_sequence = output_sequence.argmax(axis=-1).astype(jnp.int8)
       return output_sequence, output_logits, decoding_order
     sample_model_pass_fn = partial(
       sample_model_pass,

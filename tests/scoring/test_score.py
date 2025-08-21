@@ -232,8 +232,8 @@ class TestMakeScoreSequence:
     mock_decoding_order_fn,
   ):
     """Test that encoder and decoder are created with correct parameters."""
-    from prxteinmpnn.model.decoder import DecodingEnum
-    from prxteinmpnn.model.masked_attention import MaskedAttentionEnum
+    from prxteinmpnn.model.decoder import DecodingApproach
+    from prxteinmpnn.model.masked_attention import MaskedAttentionType
 
     make_score_sequence(
       model_parameters=mock_model_parameters,
@@ -245,15 +245,15 @@ class TestMakeScoreSequence:
     # Verify encoder creation
     mock_make_encoder.assert_called_once_with(
       model_parameters=mock_model_parameters,
-      attention_mask_enum=MaskedAttentionEnum.CROSS,
+      attention_mask_type="cross",
       num_encoder_layers=5,
     )
 
     # Verify decoder creation
     mock_make_decoder.assert_called_once_with(
       model_parameters=mock_model_parameters,
-      attention_mask_enum=MaskedAttentionEnum.NONE,
-      decoding_enum=DecodingEnum.CONDITIONAL,
+      attention_mask_type=None,
+      decoding_approach="conditional",
       num_decoder_layers=7,
     )
 

@@ -18,9 +18,9 @@ _MPNN_TO_AF_PERM = jnp.array(
 
 def af_to_mpnn(sequence: ProteinSequence) -> ProteinSequence:
   """Convert a sequence of integer indices from AlphaFold's to ProteinMPNN's alphabet order."""
-  return _AF_TO_MPNN_PERM[sequence]
+  return _AF_TO_MPNN_PERM[sequence].astype(jnp.int8)
 
 
 def mpnn_to_af(sequence: ProteinSequence) -> ProteinSequence:
   """Convert a sequence of integer indices from ProteinMPNN's to AlphaFold's alphabet order."""
-  return _MPNN_TO_AF_PERM[sequence]
+  return _MPNN_TO_AF_PERM[sequence].astype(jnp.int8)

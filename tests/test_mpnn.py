@@ -11,45 +11,13 @@ import pytest
 
 from prxteinmpnn.mpnn import (
   ModelWeights,
-  ProteinMPNNModelVersion,
+  ModelVersion,
   get_mpnn_model,
 )
 
 
-def test_protein_mpnn_model_version_enum():
-  """Test that ProteinMPNNModelVersion enum has expected members and values.
-
-  Args:
-    None
-
-  Returns:
-    None
-
-  Raises:
-    AssertionError: If enum members or values are not as expected.
-
-  """
-  assert ProteinMPNNModelVersion.V_48_002.value == "v_48_002.pkl"
-  assert ProteinMPNNModelVersion.V_48_010.value == "v_48_010.pkl"
-  assert ProteinMPNNModelVersion.V_48_020.value == "v_48_020.pkl"
-  assert ProteinMPNNModelVersion.V_48_030.value == "v_48_030.pkl"
 
 
-def test_model_weights_enum():
-  """Test that ModelWeights enum has expected members and values.
-
-  Args:
-    None
-
-  Returns:
-    None
-
-  Raises:
-    AssertionError: If enum members or values are not as expected.
-
-  """
-  assert ModelWeights.DEFAULT.value == "original"
-  assert ModelWeights.SOLUBLE.value == "soluble"
 
 
 @patch("prxteinmpnn.mpnn.joblib.load")
@@ -90,7 +58,7 @@ def test_get_mpnn_model_defaults(mock_path: MagicMock, mock_load: MagicMock):
 
   # Assert: Verify the path construction
   expected_model_path = (
-    mock_base_dir / "model" / ModelWeights.DEFAULT.value / ProteinMPNNModelVersion.V_48_002.value
+    mock_base_dir / "model" / "original" / "v_48_002.pkl"
   )
   mock_load.assert_called_once_with(expected_model_path)
 
@@ -124,15 +92,15 @@ def test_get_mpnn_model_custom_args(mock_path: MagicMock, mock_load: MagicMock):
   mock_load.return_value = {"model_state_dict": {"params": np.array([1.0])}}
   mock_base_dir = MagicMock(spec=Path)
   mock_path.return_value.parent = mock_base_dir
-  custom_version = ProteinMPNNModelVersion.V_48_030
-  custom_weights = ModelWeights.SOLUBLE
+  custom_version = "v_48_030.pkl"
+  custom_weights = "soluble"
 
   # Act
   get_mpnn_model(model_version=custom_version, model_weights=custom_weights)
 
   # Assert
   expected_model_path = (
-    mock_base_dir / "model" / custom_weights.value / custom_version.value
+    mock_base_dir / "model" / custom_weights / custom_version
   )
   mock_load.assert_called_once_with(expected_model_path)
 

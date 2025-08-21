@@ -13,7 +13,7 @@ from prxteinmpnn.io import (
   protein_structure_to_model_inputs,
   string_to_protein_sequence,
 )
-from prxteinmpnn.mpnn import ModelWeights, ProteinMPNNModelVersion, get_mpnn_model
+from prxteinmpnn.mpnn import ModelVersion, ModelWeights, get_mpnn_model
 from prxteinmpnn.utils.data_structures import ModelInputs, ProteinStructure
 from prxteinmpnn.utils.types import ModelParameters
 
@@ -132,7 +132,7 @@ def get_protein_structures(
 def model_from_id(
   protein_ids: str | Sequence[str],
   model_weights: ModelWeights | None = None,
-  model_version: ProteinMPNNModelVersion | None = None,
+  model_version: ModelVersion | None = None,
 ) -> tuple[ModelParameters, Iterator[ModelInputs]]:
   """Get the MPNN model and inputs for specific protein IDs.
 
@@ -153,8 +153,8 @@ def model_from_id(
 
   """
   base_model = get_mpnn_model(
-    model_version=model_version or ProteinMPNNModelVersion.V_48_002,
-    model_weights=model_weights or ModelWeights.DEFAULT,
+    model_version=model_version or "v_48_020.pkl",
+    model_weights=model_weights or "original",
   )
 
   if isinstance(protein_ids, str):

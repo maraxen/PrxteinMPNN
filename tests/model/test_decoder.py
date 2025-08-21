@@ -9,7 +9,7 @@ import pytest
 import jax
 
 from prxteinmpnn.model.decoder import (
-  DecodingEnum,
+  DecodingApproach,
   decode_message,
   decoder_normalize,
   decoder_parameter_pytree,
@@ -18,19 +18,10 @@ from prxteinmpnn.model.decoder import (
   make_decoder,
   setup_decoder,
 )
-from prxteinmpnn.model.masked_attention import MaskedAttentionEnum
+from prxteinmpnn.model.masked_attention import MaskedAttentionType
 
 
 # ruff : noqa: D102, ANN201, S101
-class TestDecodingEnum:
-  """Test the DecodingEnum."""
-
-  def test_conditional_value(self):
-    assert DecodingEnum.CONDITIONAL.value == "conditional"
-
-  def test_unconditional_value(self):
-    assert DecodingEnum.UNCONDITIONAL.value == "unconditional"
-
 
 class TestDecoderParameterPytree:
   """Test decoder parameter pytree function."""
@@ -86,7 +77,7 @@ class TestInitializeConditionalDecoder:
 
   def test_initialize_conditional_decoder(self):
     # Create mock inputs
-    sequence = jnp.array([1, 2, 3])
+    sequence = jax.nn.one_hot(jnp.array([1, 2, 3]), num_classes=20)  # Mock one-hot encoded sequence
     node_features = jnp.ones((3, 4))
     edge_features = jnp.ones((3, 2, 5))
     neighbor_indices = jnp.array([[0, 1], [1, 2], [0, 2]])
@@ -94,7 +85,7 @@ class TestInitializeConditionalDecoder:
     # Mock layer params with embed_token
     layer_params = {
       "protein_mpnn/~/embed_token": {
-        "W_s": jnp.ones((10, 4)),  # vocab_size=10, embedding_dim=4
+        "W_s": jnp.ones((20, 4)),  # vocab_size=10, embedding_dim=4
       },
     }
     
@@ -161,11 +152,11 @@ class TestMakeDecodeLayer:
   """Test make_decode_layer function."""
 
   def test_make_decode_layer_cross_attention(self):
-    decode_fn = make_decode_layer(MaskedAttentionEnum.CROSS)
+    decode_fn = make_decode_layer("cross")
     assert callable(decode_fn)
 
   def test_make_decode_layer_conditional_attention(self):
-    decode_fn = make_decode_layer(MaskedAttentionEnum.CONDITIONAL)
+    decode_fn = make_decode_layer("conditional")
     assert callable(decode_fn)
 
 
@@ -199,8 +190,8 @@ class TestSetupDecoder:
 
     params, decode_fn = setup_decoder(
       model_params,
-      MaskedAttentionEnum.NONE,
-      DecodingEnum.UNCONDITIONAL,
+      None,
+      "unconditional",
       num_decoder_layers=1,
     )
 
@@ -232,32 +223,11 @@ class TestMakeDecoder:
 
     decoder_fn = make_decoder(
       model_params,
-      MaskedAttentionEnum.NONE,
-      DecodingEnum.UNCONDITIONAL,
+      None,
+      "unconditional",
       num_decoder_layers=1,
     )
 
     assert callable(decoder_fn)
 
-  def test_make_decoder_invalid_enum_raises_error(self):
-    model_params = {"dummy": jnp.array([1.0])}
-
-    # Create a mock enum that's not handled
-    class InvalidEnum:
-      pass
-
-    with pytest.raises(TypeError, match="Unknown decoding enum: *"):
-      make_decoder(
-        model_params,
-        MaskedAttentionEnum.NONE,
-        InvalidEnum(),  # type: ignore[arg-type]
-        num_decoder_layers=1,
-      )
-    
-    with pytest.raises(TypeError, match="Unknown attention mask enum: *"):
-      make_decoder(
-        model_params,
-        InvalidEnum(),  # type: ignore[arg-type]
-        DecodingEnum.UNCONDITIONAL,
-        num_decoder_layers=1,
-      )
+  

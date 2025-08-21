@@ -1,45 +1,53 @@
 """Tests for sampling step implementations."""
 
-import jax.numpy as jnp
 import pytest
-from prxteinmpnn.model.decoder import RunConditionalDecoderFn
+from prxteinmpnn.model.decoding_signatures import RunAutoregressiveDecoderFn
 from prxteinmpnn.sampling.sampling_step import (
-  preload_sampling_step_decoder,
-  sample_straight_through_estimator_step,
-  sample_temperature_step,
-  SamplingEnum,
+    preload_sampling_step_decoder,
+    temperature_sample,
 )
+from prxteinmpnn.sampling.config import SamplingConfig
 
 
 def test_preload_sampling_step_decoder():
-  """Test the preloading of sampling step decoders.
+    """Test the preloading of sampling step decoders.
 
-  Raises:
-      NotImplementedError: For unimplemented sampling strategies.
-      ValueError: For unknown sampling strategies.
-  """
-  # Mock a decoder function
-  mock_decoder: RunConditionalDecoderFn = lambda *args: args[0]
+    Tests that the preload_sampling_step_decoder correctly configures temperature
+    sampling and raises appropriate errors for unsupported strategies.
 
-  # Test Temperature sampling
-  preloaded_fn_temp = preload_sampling_step_decoder(mock_decoder, SamplingEnum.TEMPERATURE)
-  sampling_step_fn_temp = preloaded_fn_temp(None, None, None, None, 1.0)  # type: ignore[call-arg]
-  assert sampling_step_fn_temp.func is sample_temperature_step  # type: ignore[attr-defined]
+    Raises:
+        NotImplementedError: For unimplemented sampling strategies.
+    """
+    # Mock functions
+    mock_decoder: RunAutoregressiveDecoderFn = lambda *args: args[0]  # type: ignore
+    mock_model_pass = lambda *args, **kwargs: (None, None, None, None, None, None)  # type: ignore
 
-  # Test Straight-Through sampling
-  preloaded_fn_ste = preload_sampling_step_decoder(
-    mock_decoder, SamplingEnum.STRAIGHT_THROUGH
-  )
-  sampling_step_fn_ste = preloaded_fn_ste(None, None, None, None, 0.01)  # type: ignore[call-arg]
-  assert sampling_step_fn_ste.func is sample_straight_through_estimator_step  # type: ignore[attr-defined]
+    # Test Temperature sampling configuration
+    temp_config = SamplingConfig(
+        sampling_strategy="temperature",
+        temperature=1.0
+    )
+    
+    preloaded_fn = preload_sampling_step_decoder(
+        decoder=mock_decoder,
+        sample_model_pass_fn=mock_model_pass,
+        sampling_config=temp_config
+    )
+    
+    # Verify the preloaded function is using temperature_sample
+    assert preloaded_fn.func is temperature_sample
+    assert preloaded_fn.keywords["temperature"] == 1.0
+    assert preloaded_fn.keywords["decoder"] is mock_decoder
 
-  # Test unimplemented strategies
-  with pytest.raises(NotImplementedError):
-    preload_sampling_step_decoder(mock_decoder, SamplingEnum.BEAM_SEARCH)
-
-  with pytest.raises(NotImplementedError):
-    preload_sampling_step_decoder(mock_decoder, SamplingEnum.GREEDY)
-
-  # Test invalid strategy
-  with pytest.raises(ValueError):
-    preload_sampling_step_decoder(mock_decoder, "invalid_strategy") # type: ignore[call-arg]
+    # Test unsupported strategy raises NotImplementedError
+    unsupported_config = SamplingConfig(
+        sampling_strategy="beam_search",
+        temperature=1.0
+    )
+    
+    with pytest.raises(NotImplementedError, match="Unsupported sampling strategy"):
+        preload_sampling_step_decoder(
+            decoder=mock_decoder,
+            sample_model_pass_fn=mock_model_pass,
+            sampling_config=unsupported_config
+        )

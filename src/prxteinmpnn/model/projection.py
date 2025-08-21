@@ -25,4 +25,4 @@ def final_projection(
     model_parameters["protein_mpnn/~/W_out"]["w"],
     model_parameters["protein_mpnn/~/W_out"]["b"],
   )
-  return jnp.dot(node_features, w_out) + b_out  # + bias
+  return jnp.dot(node_features, w_out) + b_out

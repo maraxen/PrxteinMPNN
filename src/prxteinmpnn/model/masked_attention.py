@@ -1,19 +1,13 @@
 """Masked attention functions."""
 
-import enum
+from typing import Literal
 
 import jax
 import jax.numpy as jnp
 
 from prxteinmpnn.utils.types import AttentionMask, Message
 
-
-class MaskedAttentionEnum(enum.Enum):
-  """Enum for different types of masked attention."""
-
-  NONE = "none"
-  CROSS = "cross"
-  CONDITIONAL = "conditional"
+MaskedAttentionType = Literal["none", "cross", "conditional"]
 
 
 @jax.jit

@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 
 from .dense import dense_layer
-from .masked_attention import MaskedAttentionEnum, mask_attention
+from .masked_attention import MaskedAttentionType, mask_attention
 
 
 def encoder_parameter_pytree(
@@ -168,10 +168,10 @@ def encoder_normalize(
 
 
 def make_encode_layer(
-  attention_mask_enum: MaskedAttentionEnum,
+  attention_mask_type: MaskedAttentionType | None = None,
 ) -> Callable[..., Message]:
   """Create a function to run the encoder with given model parameters."""
-  if attention_mask_enum is not MaskedAttentionEnum.NONE:
+  if attention_mask_type is not None:
 
     @jax.jit
     def masked_attn_encoder_fn(
@@ -235,29 +235,29 @@ def initialize_node_features(
 
 def setup_encoder(
   model_parameters: ModelParameters,
-  attention_mask_enum: MaskedAttentionEnum,
+  attention_mask_type: MaskedAttentionType | None = None,
   num_encoder_layers: int = 3,
 ) -> tuple[ModelParameters, Callable[..., Message]]:
   """Set up the encoder parameters and initial node features."""
   all_encoder_layer_params = encoder_parameter_pytree(model_parameters, num_encoder_layers)
-  encode_layer_fn = make_encode_layer(attention_mask_enum=attention_mask_enum)
+  encode_layer_fn = make_encode_layer(attention_mask_type=attention_mask_type)
   return all_encoder_layer_params, encode_layer_fn
 
 
 def make_encoder(
   model_parameters: ModelParameters,
-  attention_mask_enum: MaskedAttentionEnum,
+  attention_mask_type: MaskedAttentionType | None = None,
   num_encoder_layers: int = 3,
   scale: float = 30.0,
 ) -> Callable[..., tuple[NodeFeatures, EdgeFeatures]]:
   """Create a function to run the encoder with given model parameters."""
   all_encoder_layer_params, encode_layer_fn = setup_encoder(
     model_parameters,
-    attention_mask_enum,
+    attention_mask_type,
     num_encoder_layers,
   )
 
-  if attention_mask_enum is MaskedAttentionEnum.NONE:
+  if attention_mask_type is None:
 
     @jax.jit
     def run_encoder(

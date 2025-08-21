@@ -8,7 +8,7 @@ from jaxtyping import PRNGKeyArray
 from prxteinmpnn.model.decoding_signatures import RunAutoregressiveDecoderFn
 from prxteinmpnn.utils.types import Logits, ProteinSequence
 
-from .config import SamplingConfig, SamplingEnum
+from .config import SamplingConfig
 from .initialize import SamplingModelPassOutput
 
 SampleModelPassFn = partial[SamplingModelPassOutput]
@@ -51,7 +51,7 @@ def preload_sampling_step_decoder(
   sampling_config: SamplingConfig,
 ) -> SamplingStepFn:
   """Preloads the sampling step decoder for the specified strategy."""
-  if sampling_config.sampling_strategy == SamplingEnum.TEMPERATURE:
+  if sampling_config.sampling_strategy == "temperature":
     return partial(
       temperature_sample,
       decoder=decoder,

@@ -492,6 +492,7 @@ def test_string_to_protein_sequence():
     restype_order.get("Z", unk_restype_index),
     restype_order.get("X", unk_restype_index),
   ], dtype=jnp.int8)
+  expected = af_to_mpnn(expected)
   result = io.string_to_protein_sequence(seq)
   chex.assert_trees_all_close(result, expected)
 

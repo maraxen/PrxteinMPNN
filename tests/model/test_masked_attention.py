@@ -3,7 +3,7 @@
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.model.masked_attention import MaskedAttentionEnum, mask_attention
+from prxteinmpnn.model.masked_attention import MaskedAttentionType, mask_attention
 
 
 @pytest.fixture
@@ -116,23 +116,3 @@ def test_mask_attention_one_mask(message):
     "Masked output should match the original message when mask is all ones."
   )
 
-
-def test_masked_attention_enum_values():
-  """Test the MaskedAttentionEnum values.
-
-  Args:
-    None
-
-  Returns:
-    None
-
-  Raises:
-    AssertionError: If enum values are incorrect.
-
-  Example:
-    >>> test_masked_attention_enum_values()
-
-  """
-  assert MaskedAttentionEnum.NONE.value == "none"
-  assert MaskedAttentionEnum.CROSS.value == "cross"
-  assert MaskedAttentionEnum.CONDITIONAL.value == "conditional"

@@ -11,10 +11,9 @@ from jaxtyping import Float, PRNGKeyArray
 if TYPE_CHECKING:
   from prxteinmpnn.model.decoding_signatures import RunConditionalDecoderFn
 
-from prxteinmpnn.model.decoder import DecodingEnum, make_decoder
+from prxteinmpnn.model.decoder import make_decoder
 from prxteinmpnn.model.encoder import make_encoder
 from prxteinmpnn.model.features import extract_features, project_features
-from prxteinmpnn.model.masked_attention import MaskedAttentionEnum
 from prxteinmpnn.model.projection import final_projection
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.data_structures import ModelInputs
@@ -69,7 +68,7 @@ def make_score_sequence(
   """Create a function to score a sequence on a structure."""
   encoder = make_encoder(
     model_parameters=model_parameters,
-    attention_mask_enum=MaskedAttentionEnum.CROSS,
+    attention_mask_type="cross",
     num_encoder_layers=num_encoder_layers,
   )
 
@@ -77,8 +76,8 @@ def make_score_sequence(
     "RunConditionalDecoderFn",
     make_decoder(
       model_parameters=model_parameters,
-      attention_mask_enum=MaskedAttentionEnum.NONE,
-      decoding_enum=DecodingEnum.CONDITIONAL,
+      attention_mask_type=None,
+      decoding_approach="conditional",
       num_decoder_layers=num_decoder_layers,
     ),
   )

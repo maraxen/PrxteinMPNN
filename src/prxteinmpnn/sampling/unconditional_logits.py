@@ -2,15 +2,14 @@
 
 from collections.abc import Callable
 from functools import partial
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import jax
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
-from prxteinmpnn.model.decoder import DecodingEnum, RunDecoderFn, make_decoder
+from prxteinmpnn.model.decoder import make_decoder
 from prxteinmpnn.model.encoder import make_encoder
-from prxteinmpnn.model.masked_attention import MaskedAttentionEnum
 from prxteinmpnn.model.projection import final_projection
 from prxteinmpnn.sampling.initialize import sampling_encode
 from prxteinmpnn.utils.data_structures import ModelInputs
@@ -27,6 +26,9 @@ from prxteinmpnn.utils.types import (
   ResidueIndex,
   StructureAtomicCoordinates,
 )
+
+if TYPE_CHECKING:
+  from prxteinmpnn.model.decoding_signatures import RunDecoderFn
 
 ConditionalLogitsFn = Callable[
   [
@@ -92,14 +94,14 @@ def make_unconditional_logits_fn(
   """
   encoder = make_encoder(
     model_parameters=model_parameters,
-    attention_mask_enum=MaskedAttentionEnum.CROSS,
+    attention_mask_type="cross",
     num_encoder_layers=num_encoder_layers,
   )
 
   decoder = make_decoder(
     model_parameters=model_parameters,
-    attention_mask_enum=MaskedAttentionEnum.NONE,
-    decoding_enum=DecodingEnum.UNCONDITIONAL,
+    attention_mask_type=None,
+    decoding_approach="unconditional",
     num_decoder_layers=num_decoder_layers,
   )
   decoder = cast("RunDecoderFn", decoder)

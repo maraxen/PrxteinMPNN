@@ -22,7 +22,7 @@ from prxteinmpnn.utils.types import (
   ModelParameters,
   NeighborIndices,
   NodeFeatures,
-  ProteinSequence,
+  OneHotProteinSequence,
 )
 
 
@@ -61,7 +61,7 @@ def make_optimize_sequence_fn(
   model_parameters: ModelParameters,
 ) -> Callable[
   [PRNGKeyArray, NodeFeatures, EdgeFeatures, NeighborIndices, AtomMask, int, float],
-  tuple[ProteinSequence, Logits],
+  tuple[OneHotProteinSequence, Logits],
 ]:
   """Create a function to optimize a sequence using the STE autoregressive decoder.
 
@@ -86,7 +86,7 @@ def make_optimize_sequence_fn(
     mask: AtomMask,
     num_steps: int,
     learning_rate: float,
-  ) -> tuple[ProteinSequence, Logits]:
+  ) -> tuple[OneHotProteinSequence, Logits]:
     """Optimize a sequence by guiding the STE autoregressive decoder.
 
     Args:
@@ -149,7 +149,6 @@ def make_optimize_sequence_fn(
 
       return (next_guiding_logits, next_opt_state), loss_value  # type: ignore[return-value]
 
-    # Run the optimization loop, feeding a new key to each step.
     keys = jax.random.split(prng_key, num_steps)
     (final_guiding_logits, _), losses = jax.lax.scan(
       update_step,
@@ -157,7 +156,6 @@ def make_optimize_sequence_fn(
       keys,
     )
 
-    # Generate the final sequence using the optimized guides and one final random order.
     final_key, prng_key = jax.random.split(prng_key)
     final_decoding_order, _ = decoding_order_fn(final_key, num_residues)
     final_ar_mask = generate_ar_mask(final_decoding_order)
@@ -171,8 +169,7 @@ def make_optimize_sequence_fn(
       final_ar_mask,
       final_guiding_logits,
     )
-    final_sequence = final_sequence_one_hot.argmax(axis=-1).astype(jnp.int8)
 
-    return final_sequence, final_logits
+    return final_sequence_one_hot, final_logits
 
   return optimize_sequence

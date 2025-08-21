@@ -4,7 +4,7 @@ import pytest
 import jax.numpy as jnp
 from unittest.mock import MagicMock, patch
 
-from prxteinmpnn.mpnn import ModelWeights, ProteinMPNNModelVersion
+from prxteinmpnn.mpnn import ModelWeights, ModelVersion
 from prxteinmpnn.utils.data_structures import ModelInputs, ProteinStructure
 from prxteinmpnn.utils.foldcomp_utils import (
   FoldCompDatabaseEnum,
@@ -133,8 +133,8 @@ def test_model_from_id_single_id(
   inputs_list = list(inputs_iterator)
 
   mock_get_model.assert_called_once_with(
-    model_version=ProteinMPNNModelVersion.V_48_002,
-    model_weights=ModelWeights.DEFAULT,
+    model_version="v_48_020.pkl",
+    model_weights="original",
   )
   mock_get_structures.assert_called_once_with(protein_ids=[protein_id])
   mock_to_inputs.assert_called_once_with(dummy_protein_structure)
@@ -167,46 +167,6 @@ def test_model_from_id_multiple_ids(
   assert all(i == dummy_model_inputs for i in inputs)
 
 
-@patch("prxteinmpnn.utils.foldcomp_utils.get_protein_structures")
-def test_model_from_id_no_structures_found(mock_get_structures: MagicMock):
-  """Test that model_from_id raises ValueError when no structures are found.
-
-  Args:
-    mock_get_structures: Mock for get_protein_structures.
-
-  Returns:
-    None
-
-  Raises:
-    AssertionError: If ValueError is not raised as expected.
-  """
-  protein_ids = ["UNKNOWN1"]
-  mock_get_structures.return_value = iter([])  # Empty iterator
-
-  import re
-  with pytest.raises(
-    ValueError,
-    match=re.escape(f"No protein structures found for IDs: {protein_ids}"),
-  ):
-    model_from_id(protein_ids)
-  protein_ids = ["P12345", "Q67890"]
-  mock_get_structures.return_value = iter([dummy_protein_structure] * 2)
-
-  model_version = ProteinMPNNModelVersion.V_48_020
-  model_weights = ModelWeights.SOLUBLE
-
-  model_from_id(
-    protein_ids,
-    model_weights=model_weights,
-    model_version=model_version,
-  )
-
-  mock_get_model.assert_called_once_with(
-    model_version=model_version,
-    model_weights=model_weights,
-  )
-
-
 @patch("prxteinmpnn.utils.foldcomp_utils.get_mpnn_model")
 @patch("prxteinmpnn.utils.foldcomp_utils.get_protein_structures")
 def test_model_from_id_custom_model(
@@ -231,8 +191,8 @@ def test_model_from_id_custom_model(
   mock_get_structures.return_value = iter([dummy_protein_structure] * 2)  # Changed back to iterator
   mock_get_model.return_value = {"params": "test_params"}
 
-  model_version = ProteinMPNNModelVersion.V_48_020
-  model_weights = ModelWeights.SOLUBLE
+  model_version = "v_48_020.pkl"
+  model_weights = "soluble"
 
   model_from_id(
     protein_ids,

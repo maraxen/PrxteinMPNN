@@ -347,9 +347,9 @@ document.write(`
 <span></span><span class="sd">&quot;&quot;&quot;Utilities for processing and manipulating protein structures from foldcomp.&quot;&quot;&quot;</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">enum</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterator</span><span class="p">,</span> <span class="n">Sequence</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">cache</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">foldcomp</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
@@ -363,42 +363,37 @@ document.write(`
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.data_structures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelInputs</span><span class="p">,</span> <span class="n">ProteinStructure</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelParameters</span>
 
-
-<div class="viewcode-block" id="FoldCompDatabaseEnum">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.FoldCompDatabaseEnum">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">FoldCompDatabaseEnum</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">Enum</span><span class="p">):</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Enum for FoldComp databases.&quot;&quot;&quot;</span>
-
-  <span class="n">ESMATLAS_FULL</span> <span class="o">=</span> <span class="s2">&quot;esmatlas&quot;</span>
-  <span class="n">ESMATLAS_v2023_02</span> <span class="o">=</span> <span class="s2">&quot;esmatlas_v2023_02&quot;</span>
-  <span class="n">ESMATLAS_HIGH_QUALITY</span> <span class="o">=</span> <span class="s2">&quot;highquality_clust30&quot;</span>
-  <span class="n">AFDB_UNIPROT_V4</span> <span class="o">=</span> <span class="s2">&quot;afdb_uniprot_v4&quot;</span>
-  <span class="n">AFDB_SWISSPROT_V4</span> <span class="o">=</span> <span class="s2">&quot;afdb_swissprot_v4&quot;</span>
-  <span class="n">AFDB_REP_V4</span> <span class="o">=</span> <span class="s2">&quot;afdb_rep_v4&quot;</span>
-  <span class="n">AFDB_REP_DARK_V4</span> <span class="o">=</span> <span class="s2">&quot;afdb_rep_dark_v4&quot;</span>
-  <span class="n">AFDB_H_SAPIENS</span> <span class="o">=</span> <span class="s2">&quot;afdb_h_sapiens&quot;</span>
-  <span class="n">AFDB_A_THALIANA</span> <span class="o">=</span> <span class="s2">&quot;a_thaliana&quot;</span>
-  <span class="n">AFDB_C_ALBICANS</span> <span class="o">=</span> <span class="s2">&quot;c_albicans&quot;</span>
-  <span class="n">AFDB_C_ELEGANS</span> <span class="o">=</span> <span class="s2">&quot;c_elegans&quot;</span>
-  <span class="n">AFDB_D_DISCOIDEUM</span> <span class="o">=</span> <span class="s2">&quot;d_discoideum&quot;</span>
-  <span class="n">AFDB_D_MELANOGASTER</span> <span class="o">=</span> <span class="s2">&quot;d_melanogaster&quot;</span>
-  <span class="n">AFDB_D_RERIO</span> <span class="o">=</span> <span class="s2">&quot;d_rerio&quot;</span>
-  <span class="n">AFDB_E_COLI</span> <span class="o">=</span> <span class="s2">&quot;e_coli&quot;</span>
-  <span class="n">AFDB_G_MAX</span> <span class="o">=</span> <span class="s2">&quot;g_max&quot;</span>
-  <span class="n">AFDB_M_JANNASCHII</span> <span class="o">=</span> <span class="s2">&quot;m_jannaschii&quot;</span>
-  <span class="n">AFDB_M_MUSCULUS</span> <span class="o">=</span> <span class="s2">&quot;m_musculus&quot;</span>
-  <span class="n">AFDB_O_SATIVA</span> <span class="o">=</span> <span class="s2">&quot;o_sativa&quot;</span>
-  <span class="n">AFDB_R_NORVEGICUS</span> <span class="o">=</span> <span class="s2">&quot;r_norvegicus&quot;</span>
-  <span class="n">AFDB_S_CEREVISIAE</span> <span class="o">=</span> <span class="s2">&quot;s_cerevisiae&quot;</span>
-  <span class="n">AFDB_S_POMBE</span> <span class="o">=</span> <span class="s2">&quot;s_pombe&quot;</span>
-  <span class="n">AFDB_Z_MAYS</span> <span class="o">=</span> <span class="s2">&quot;z_mays&quot;</span></div>
-
+<span class="n">FoldCompDatabase</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span>
+  <span class="s2">&quot;esmatlas&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;esmatlas_v2023_02&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;highquality_clust30&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;afdb_uniprot_v4&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;afdb_swissprot_v4&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;afdb_rep_v4&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;afdb_rep_dark_v4&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;afdb_h_sapiens&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;a_thaliana&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;c_albicans&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;c_elegans&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;d_discoideum&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;d_melanogaster&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;d_rerio&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;e_coli&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;g_max&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;m_jannaschii&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;m_musculus&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;o_sativa&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;r_norvegicus&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;s_cerevisiae&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;s_pombe&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;z_mays&quot;</span><span class="p">,</span>
+<span class="p">]</span>
 
 
 <div class="viewcode-block" id="_setup_foldcomp_database">
 <a class="viewcode-back" href="../../../api/prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils._setup_foldcomp_database">[docs]</a>
 <span class="nd">@cache</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">_setup_foldcomp_database</span><span class="p">(</span><span class="n">database</span><span class="p">:</span> <span class="n">FoldCompDatabaseEnum</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_setup_foldcomp_database</span><span class="p">(</span><span class="n">database</span><span class="p">:</span> <span class="n">FoldCompDatabase</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Set up the FoldComp database, handling sync and async contexts.</span>
 
 <span class="sd">  Args:</span>
@@ -408,16 +403,16 @@ document.write(`
 <span class="sd">    None</span>
 
 <span class="sd">  Example:</span>
-<span class="sd">    &gt;&gt;&gt; _setup_foldcomp_database(FoldCompDatabase.ESMATLAS_FULL)</span>
+<span class="sd">    &gt;&gt;&gt; _setup_foldcomp_database(&quot;esmatlas&quot;)</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
   <span class="k">try</span><span class="p">:</span>
     <span class="n">loop</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">get_running_loop</span><span class="p">()</span>
     <span class="n">nest_asyncio</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span>
-    <span class="n">coro</span> <span class="o">=</span> <span class="n">foldcomp</span><span class="o">.</span><span class="n">setup_async</span><span class="p">(</span><span class="n">database</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+    <span class="n">coro</span> <span class="o">=</span> <span class="n">foldcomp</span><span class="o">.</span><span class="n">setup_async</span><span class="p">(</span><span class="n">database</span><span class="p">)</span>
     <span class="n">loop</span><span class="o">.</span><span class="n">run_until_complete</span><span class="p">(</span><span class="n">coro</span><span class="p">)</span>
   <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
-    <span class="n">foldcomp</span><span class="o">.</span><span class="n">setup</span><span class="p">(</span><span class="n">database</span><span class="o">.</span><span class="n">value</span><span class="p">)</span></div>
+    <span class="n">foldcomp</span><span class="o">.</span><span class="n">setup</span><span class="p">(</span><span class="n">database</span><span class="p">)</span></div>
 
 
 
@@ -462,7 +457,7 @@ document.write(`
 <a class="viewcode-back" href="../../../api/prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.get_protein_structures">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_protein_structures</span><span class="p">(</span>
   <span class="n">protein_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
-  <span class="n">database</span><span class="p">:</span> <span class="n">FoldCompDatabaseEnum</span> <span class="o">=</span> <span class="n">FoldCompDatabaseEnum</span><span class="o">.</span><span class="n">AFDB_REP_V4</span><span class="p">,</span>
+  <span class="n">database</span><span class="p">:</span> <span class="n">FoldCompDatabase</span> <span class="o">=</span> <span class="s2">&quot;afdb_rep_v4&quot;</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="n">ProteinStructure</span><span class="p">]:</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Retrieve protein structures from the FoldComp database.</span>
 
@@ -482,7 +477,7 @@ document.write(`
 
 <span class="sd">  &quot;&quot;&quot;</span>
   <span class="n">_setup_foldcomp_database</span><span class="p">(</span><span class="n">database</span><span class="p">)</span>
-  <span class="k">with</span> <span class="n">foldcomp</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">database</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">ids</span><span class="o">=</span><span class="n">protein_ids</span><span class="p">,</span> <span class="n">decompress</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="k">as</span> <span class="n">proteins</span><span class="p">:</span>  <span class="c1"># type: ignore[attr-access]</span>
+  <span class="k">with</span> <span class="n">foldcomp</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">database</span><span class="p">,</span> <span class="n">ids</span><span class="o">=</span><span class="n">protein_ids</span><span class="p">,</span> <span class="n">decompress</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="k">as</span> <span class="n">proteins</span><span class="p">:</span>  <span class="c1"># type: ignore[attr-access]</span>
     <span class="k">yield from</span> <span class="n">_from_fcz</span><span class="p">(</span><span class="n">proteins</span><span class="p">)</span></div>
 
 

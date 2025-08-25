@@ -98,6 +98,7 @@ def make_optimize_sequence_fn(
       mask: Atom mask indicating valid positions.
       num_steps: Number of optimization steps to perform.
       learning_rate: Learning rate for the optimizer.
+      temperature: Temperature for the softmax distribution.
 
     Returns:
       A tuple containing the optimized sequence as a one-hot encoded array and the logits.

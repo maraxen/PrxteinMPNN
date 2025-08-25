@@ -142,8 +142,7 @@ def test_make_sample_sequences(mock_model_parameters):
 
 
   # Check that the sequence has been modified from the initial integer sequence
-  sampled_indices = jnp.argmax(sampled_sequence, axis=-1)
-  assert not jnp.allclose(initial_sequence, sampled_indices)
+  assert not jnp.allclose(initial_sequence, sampled_sequence)
   
-  assert jnp.unique(sampled_indices).shape[0] <= 21, "Sampled sequence contains invalid amino acid indices."
+  assert jnp.unique(sampled_sequence).shape[0] <= 21, "Sampled sequence contains invalid amino acid indices."
   

@@ -15,7 +15,6 @@ if TYPE_CHECKING:
   from prxteinmpnn.model.decoding_signatures import (
     RunAutoregressiveDecoderFn,
     RunConditionalDecoderFn,
-    RunSTEAutoregressiveDecoderFn,
   )
 from prxteinmpnn.model.encoder import make_encoder
 from prxteinmpnn.utils.data_structures import ModelInputs
@@ -64,15 +63,7 @@ def make_sample_sequences(
       num_decoder_layers=num_decoder_layers,
     ),
   )
-  ste_autoregressive_decoder: RunSTEAutoregressiveDecoderFn = cast(
-    "RunSTEAutoregressiveDecoderFn",
-    make_decoder(
-      model_parameters=model_parameters,
-      attention_mask_type=None,
-      decoding_approach="ste_autoregressive",
-      num_decoder_layers=num_decoder_layers,
-    ),
-  )
+
   autoregressive_decoder = cast(
     "RunAutoregressiveDecoderFn",
     make_decoder(
@@ -86,7 +77,7 @@ def make_sample_sequences(
   sample_model_pass = sampling_encode(encoder=encoder, decoding_order_fn=decoding_order_fn)
 
   optimize_seq_fn = make_optimize_sequence_fn(
-    ste_autoregressive_decoder=ste_autoregressive_decoder,
+    autoregressive_decoder=autoregressive_decoder,
     conditional_decoder=conditional_decoder,
     decoding_order_fn=decoding_order_fn,
     model_parameters=model_parameters,
@@ -130,6 +121,7 @@ def make_sample_sequences(
         mask,
         config.iterations,
         config.learning_rate,
+        config.temperature,
       )
       output_sequence = output_sequence.argmax(axis=-1).astype(jnp.int8)
       return output_sequence, output_logits, decoding_order

@@ -9,8 +9,8 @@ import optax
 from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.model.decoding_signatures import (
+  RunAutoregressiveDecoderFn,
   RunConditionalDecoderFn,
-  RunSTEAutoregressiveDecoderFn,
 )
 from prxteinmpnn.model.projection import final_projection
 from prxteinmpnn.utils.autoregression import generate_ar_mask
@@ -55,18 +55,18 @@ def _score_sequence_loss(
 
 
 def make_optimize_sequence_fn(
-  ste_autoregressive_decoder: RunSTEAutoregressiveDecoderFn,
+  autoregressive_decoder: RunAutoregressiveDecoderFn,
   conditional_decoder: RunConditionalDecoderFn,
   decoding_order_fn: DecodingOrderFn,
   model_parameters: ModelParameters,
 ) -> Callable[
-  [PRNGKeyArray, NodeFeatures, EdgeFeatures, NeighborIndices, AtomMask, int, float],
+  [PRNGKeyArray, NodeFeatures, EdgeFeatures, NeighborIndices, AtomMask, int, float, float],
   tuple[OneHotProteinSequence, Logits],
 ]:
   """Create a function to optimize a sequence using the STE autoregressive decoder.
 
   Args:
-    ste_autoregressive_decoder: The STE autoregressive decoder function.
+    autoregressive_decoder: The autoregressive decoder function with STE.
     conditional_decoder: The conditional decoder function to score sequences.
     decoding_order_fn: Function to generate decoding orders.
     model_parameters: Model parameters for the decoder.
@@ -86,6 +86,7 @@ def make_optimize_sequence_fn(
     mask: AtomMask,
     num_steps: int,
     learning_rate: float,
+    temperature: float,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Optimize a sequence by guiding the STE autoregressive decoder.
 
@@ -122,13 +123,14 @@ def make_optimize_sequence_fn(
       score_ar_mask = generate_ar_mask(score_decoding_order)
 
       def loss_fn(guides: Logits) -> jnp.ndarray:
-        generated_sequence_one_hot, _ = ste_autoregressive_decoder(
+        generated_sequence_one_hot, _ = autoregressive_decoder(
           next_key,
           node_features,
           edge_features,
           neighbor_indices,
           mask,
           ar_mask,
+          temperature,
           guides,
         )
 
@@ -160,13 +162,14 @@ def make_optimize_sequence_fn(
     final_decoding_order, _ = decoding_order_fn(final_key, num_residues)
     final_ar_mask = generate_ar_mask(final_decoding_order)
 
-    final_sequence_one_hot, final_logits = ste_autoregressive_decoder(
+    final_sequence_one_hot, final_logits = autoregressive_decoder(
       prng_key,
       node_features,
       edge_features,
       neighbor_indices,
       mask,
       final_ar_mask,
+      temperature,
       final_guiding_logits,
     )
 

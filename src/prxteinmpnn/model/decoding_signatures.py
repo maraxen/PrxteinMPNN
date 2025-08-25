@@ -11,7 +11,6 @@ from prxteinmpnn.utils.types import (
   AttentionMask,
   AutoRegressiveMask,
   EdgeFeatures,
-  InputBias,
   Logits,
   Message,
   ModelParameters,
@@ -83,23 +82,10 @@ RunAutoregressiveDecoderInputs = tuple[
   NeighborIndices,
   AtomMask,
   AutoRegressiveMask,
-  float,
+  float | None,
+  Logits | None,
 ]
 RunAutoregressiveDecoderFn = Callable[
   [*RunAutoregressiveDecoderInputs],
-  tuple[OneHotProteinSequence, Logits],
-]
-
-RunSTEAutoregressiveDecoderInputs = tuple[
-  PRNGKeyArray,
-  NodeFeatures,
-  EdgeFeatures,
-  NeighborIndices,
-  AtomMask,
-  AutoRegressiveMask,
-  InputBias | None,
-]
-RunSTEAutoregressiveDecoderFn = Callable[
-  [*RunSTEAutoregressiveDecoderInputs],
   tuple[OneHotProteinSequence, Logits],
 ]

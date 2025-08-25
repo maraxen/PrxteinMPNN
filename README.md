@@ -37,10 +37,10 @@ pip install -e ".[dev]"
 ```python
 import jax
 import jax.numpy as jnp
-from prxteinmpnn.mpnn import ProteinMPNNModelVersion, ModelWeights, get_mpnn_model
+from prxteinmpnn.mpnn import get_mpnn_model
 from prxteinmpnn.io import from_structure_file, protein_structure_to_model_inputs
 from prxteinmpnn.scoring.score import make_score_sequence
-from prxteinmpnn.sampling import make_sample_sequences, SamplingEnum
+from prxteinmpnn.sampling import make_sample_sequences, SamplingConfig
 from prxteinmpnn.utils.decoding_order import random_decoding_order
 
 # Load a protein structure
@@ -48,8 +48,8 @@ protein_structure = from_structure_file(filename="path/to/structure.pdb")
 
 # Get the MPNN model
 model = get_mpnn_model(
-    model_version=ProteinMPNNModelVersion.V_48_020,
-    model_weights=ModelWeights.DEFAULT
+    model_version="v_48_020",
+    model_weights="original"
 )
 
 # Get model inputs for the structure
@@ -58,7 +58,7 @@ model_inputs = protein_structure_to_model_inputs(protein_structure)
 # Score sequences
 key = jax.random.PRNGKey(0)
 score_sequence = make_score_sequence(
-    parameters, 
+    model, 
     random_decoding_order, 
     model_inputs=model_inputs
 )
@@ -70,19 +70,15 @@ original_score, original_logits, decoding_order = score_sequence(
 )
 
 # Sample new sequences
+config = SamplingConfig(sampling_strategy="temperature", temperature=0.1)
 sample_sequence = make_sample_sequences(
-    parameters,
+    model,
     random_decoding_order,
-    sampling_strategy=SamplingEnum.TEMPERATURE,
+    config=config,
     model_inputs=model_inputs
 )
 
-sampled_sequence, logits, decoding_order = sample_sequence(
-    key,
-    model_inputs.sequence,
-    hyperparameters=(0.1,),  # Temperature
-    iterations=100
-)
+sampled_sequence, logits, decoding_order = sample_sequence(key)
 ```
 
 ## 🛠️ Requirements

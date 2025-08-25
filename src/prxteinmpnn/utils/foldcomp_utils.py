@@ -1,9 +1,9 @@
 """Utilities for processing and manipulating protein structures from foldcomp."""
 
 import asyncio
-import enum
 from collections.abc import Iterator, Sequence
 from functools import cache
+from typing import Literal
 
 import foldcomp
 import jax.numpy as jnp
@@ -17,37 +17,35 @@ from prxteinmpnn.mpnn import ModelVersion, ModelWeights, get_mpnn_model
 from prxteinmpnn.utils.data_structures import ModelInputs, ProteinStructure
 from prxteinmpnn.utils.types import ModelParameters
 
-
-class FoldCompDatabaseEnum(enum.Enum):
-  """Enum for FoldComp databases."""
-
-  ESMATLAS_FULL = "esmatlas"
-  ESMATLAS_v2023_02 = "esmatlas_v2023_02"
-  ESMATLAS_HIGH_QUALITY = "highquality_clust30"
-  AFDB_UNIPROT_V4 = "afdb_uniprot_v4"
-  AFDB_SWISSPROT_V4 = "afdb_swissprot_v4"
-  AFDB_REP_V4 = "afdb_rep_v4"
-  AFDB_REP_DARK_V4 = "afdb_rep_dark_v4"
-  AFDB_H_SAPIENS = "afdb_h_sapiens"
-  AFDB_A_THALIANA = "a_thaliana"
-  AFDB_C_ALBICANS = "c_albicans"
-  AFDB_C_ELEGANS = "c_elegans"
-  AFDB_D_DISCOIDEUM = "d_discoideum"
-  AFDB_D_MELANOGASTER = "d_melanogaster"
-  AFDB_D_RERIO = "d_rerio"
-  AFDB_E_COLI = "e_coli"
-  AFDB_G_MAX = "g_max"
-  AFDB_M_JANNASCHII = "m_jannaschii"
-  AFDB_M_MUSCULUS = "m_musculus"
-  AFDB_O_SATIVA = "o_sativa"
-  AFDB_R_NORVEGICUS = "r_norvegicus"
-  AFDB_S_CEREVISIAE = "s_cerevisiae"
-  AFDB_S_POMBE = "s_pombe"
-  AFDB_Z_MAYS = "z_mays"
+FoldCompDatabase = Literal[
+  "esmatlas",
+  "esmatlas_v2023_02",
+  "highquality_clust30",
+  "afdb_uniprot_v4",
+  "afdb_swissprot_v4",
+  "afdb_rep_v4",
+  "afdb_rep_dark_v4",
+  "afdb_h_sapiens",
+  "a_thaliana",
+  "c_albicans",
+  "c_elegans",
+  "d_discoideum",
+  "d_melanogaster",
+  "d_rerio",
+  "e_coli",
+  "g_max",
+  "m_jannaschii",
+  "m_musculus",
+  "o_sativa",
+  "r_norvegicus",
+  "s_cerevisiae",
+  "s_pombe",
+  "z_mays",
+]
 
 
 @cache
-def _setup_foldcomp_database(database: FoldCompDatabaseEnum) -> None:
+def _setup_foldcomp_database(database: FoldCompDatabase) -> None:
   """Set up the FoldComp database, handling sync and async contexts.
 
   Args:
@@ -57,16 +55,16 @@ def _setup_foldcomp_database(database: FoldCompDatabaseEnum) -> None:
     None
 
   Example:
-    >>> _setup_foldcomp_database(FoldCompDatabase.ESMATLAS_FULL)
+    >>> _setup_foldcomp_database("esmatlas")
 
   """
   try:
     loop = asyncio.get_running_loop()
     nest_asyncio.apply()
-    coro = foldcomp.setup_async(database.value)
+    coro = foldcomp.setup_async(database)
     loop.run_until_complete(coro)
   except RuntimeError:
-    foldcomp.setup(database.value)
+    foldcomp.setup(database)
 
 
 def _from_fcz(
@@ -105,7 +103,7 @@ def _from_fcz(
 
 def get_protein_structures(
   protein_ids: Sequence[str],
-  database: FoldCompDatabaseEnum = FoldCompDatabaseEnum.AFDB_REP_V4,
+  database: FoldCompDatabase = "afdb_rep_v4",
 ) -> Iterator[ProteinStructure]:
   """Retrieve protein structures from the FoldComp database.
 
@@ -125,7 +123,7 @@ def get_protein_structures(
 
   """
   _setup_foldcomp_database(database)
-  with foldcomp.open(database.value, ids=protein_ids, decompress=False) as proteins:  # type: ignore[attr-access]
+  with foldcomp.open(database, ids=protein_ids, decompress=False) as proteins:  # type: ignore[attr-access]
     yield from _from_fcz(proteins)
 
 

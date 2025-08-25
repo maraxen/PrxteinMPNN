@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, patch
 from prxteinmpnn.mpnn import ModelWeights, ModelVersion
 from prxteinmpnn.utils.data_structures import ModelInputs, ProteinStructure
 from prxteinmpnn.utils.foldcomp_utils import (
-  FoldCompDatabaseEnum,
   _setup_foldcomp_database,
   get_protein_structures,
   model_from_id,
@@ -49,30 +48,23 @@ def dummy_model_inputs() -> ModelInputs:
   )
 
 
-def test_foldcomp_database_enum_members():
-  """Test FoldCompDatabaseEnum members and values."""
-  assert FoldCompDatabaseEnum.ESMATLAS_FULL.value == "esmatlas"
-  assert FoldCompDatabaseEnum.AFDB_H_SAPIENS.value == "afdb_h_sapiens"
-  assert len(list(FoldCompDatabaseEnum)) > 0
-
-
 @patch("foldcomp.setup")
 def test_setup_foldcomp_database_calls_setup(mock_setup: MagicMock):
   """Test _setup_foldcomp_database calls foldcomp.setup."""
   _setup_foldcomp_database.cache_clear()
-  db = FoldCompDatabaseEnum.AFDB_SWISSPROT_V4
+  db = "afdb_swissprot_v4"
   _setup_foldcomp_database(db)
-  mock_setup.assert_called_once_with(db.value)
+  mock_setup.assert_called_once_with(db)
 
 
 @patch("foldcomp.setup")
 def test_setup_foldcomp_database_cache(mock_setup: MagicMock):
   """Test _setup_foldcomp_database is cached."""
   _setup_foldcomp_database.cache_clear()
-  db = FoldCompDatabaseEnum.ESMATLAS_HIGH_QUALITY
+  db = "highquality_clust30"
   _setup_foldcomp_database(db)
   _setup_foldcomp_database(db)
-  mock_setup.assert_called_once_with(db.value)
+  mock_setup.assert_called_once_with(db)
 
 
 @patch("foldcomp.open")
@@ -86,13 +78,13 @@ def test_get_protein_structures_yields_structures(
 ):
   """Test get_protein_structures yields ProteinStructure objects."""
   protein_ids = ["P12345", "Q67890"]
-  db = FoldCompDatabaseEnum.AFDB_REP_V4
+  db = "afdb_rep_v4"
   mock_proteins_iter = MagicMock()
   mock_foldcomp_open.return_value.__enter__.return_value = mock_proteins_iter
   mock_from_fcz.return_value = iter([dummy_protein_structure, dummy_protein_structure])
   result = list(get_protein_structures(protein_ids, database=db))
   mock_setup.assert_called_once_with(db)
-  mock_foldcomp_open.assert_called_once_with(db.value, ids=protein_ids, decompress=False)
+  mock_foldcomp_open.assert_called_once_with(db, ids=protein_ids, decompress=False)
   mock_from_fcz.assert_called_once_with(mock_proteins_iter)
   assert len(result) == 2
   assert all(isinstance(s, ProteinStructure) for s in result)

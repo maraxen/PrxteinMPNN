@@ -1,6 +1,6 @@
 """Conformational-inference from ProteinMPNN logits."""
 
-import enum
+from typing import Literal, get_args
 
 import jax.numpy as jnp
 from gmmx import GaussianMixtureModelJax
@@ -19,17 +19,12 @@ from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.entropy import posterior_mean_std
 from prxteinmpnn.utils.types import EdgeFeatures, InputBias, Logits, ModelParameters, NodeFeatures
 
+ConformationalInferenceStrategy = Literal["logits", "node_features", "edge_features"]
+"""Determines what features to use for conformational inference.
 
-class ConformationalInferenceStrategy(enum.Enum):
-  """Determines what features to use for conformational inference.
-
-  Options are LOGITS (output conditional logits), NODE_FEATURES (decoded node features),
-  and EDGE_FEATURES (edge features from the encoder).
-  """
-
-  LOGITS = "logits"
-  NODE_FEATURES = "node_features"
-  EDGE_FEATURES = "edge_features"
+Options are "logits" (output conditional logits), "node_features" (decoded node features),
+and "edge_features" (edge features from the encoder).
+"""
 
 
 def _infer_residue_states(
@@ -102,7 +97,7 @@ def infer_residue_states(
 
   Args:
     gmm: Fitted GaussianMixtureModelJax object.
-    features: Input features, shape (n_timesteps, n_residues, n_features).
+    features: Input features, shape (n_frames, n_residues, n_features).
     eps_std_scale: Scaling factor for DBSCAN epsilon.
     min_cluster_weight: Minimum cluster weight threshold.
 
@@ -170,9 +165,12 @@ def infer_conformations(
     5
 
   """
-  if not isinstance(inference_strategy, ConformationalInferenceStrategy):
-    msg = "Invalid inference strategy used."
-    raise TypeError(msg)
+  if inference_strategy not in get_args(ConformationalInferenceStrategy):
+    msg = (
+      f"Invalid inference_strategy: {inference_strategy}. "
+      f"Must be one of {get_args(ConformationalInferenceStrategy)}"
+    )
+    raise ValueError(msg)
 
   residue_states_generator = residue_states_from_ensemble(
     prng_key=prng_key,
@@ -183,14 +181,15 @@ def infer_conformations(
   )
 
   match inference_strategy:
-    case ConformationalInferenceStrategy.LOGITS:
+    case "logits":
       states = (states[0] for _, states, _ in residue_states_generator)
-    case ConformationalInferenceStrategy.NODE_FEATURES:
+    case "node_features":
       states = (states[1] for _, states, _ in residue_states_generator)
-    case ConformationalInferenceStrategy.EDGE_FEATURES:
+    case "edge_features":
       states = (states[2] for _, states, _ in residue_states_generator)
     case _:
-      msg = "Invalid inference strategy used."
+      # This case should be unreachable due to the check above
+      msg = f"Invalid inference strategy used: {inference_strategy}"
       raise ValueError(msg)
 
   all_states = jnp.array(tuple(states))

@@ -1,4 +1,4 @@
-"""Dataclasses and enums for the PrxteinMPNN project.
+"""Dataclasses for the PrxteinMPNN project.
 
 prxteinmpnn.utils.data_structures
 """

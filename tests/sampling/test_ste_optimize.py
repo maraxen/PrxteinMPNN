@@ -60,11 +60,16 @@ def mock_ste_decoder(
   neighbor_indices: NeighborIndices,
   mask: AtomMask,
   autoregressive_mask: jax.Array,
-  guiding_logits: jax.Array,
+  temperature: float | None,
+  guiding_logits: jax.Array | None,
 ) -> tuple[jax.Array, jax.Array]:
   """Mock STE decoder that returns random one-hot vectors."""
   num_residues = node_features.shape[0]
-  sequence = random.categorical(key, guiding_logits, axis=-1)
+  if guiding_logits is None:
+    guiding_logits = jnp.zeros((num_residues, 21))
+  if temperature is None:
+    temperature = 1.0
+  sequence = random.categorical(key, guiding_logits / temperature, axis=-1)
   one_hot = jax.nn.one_hot(sequence, 21)
   logits = jnp.zeros_like(guiding_logits)
   return one_hot, logits
@@ -113,8 +118,9 @@ def test_optimize_sequence(mock_data):
     mock_data['edge_features'],
     mock_data['neighbor_indices'],
     mock_data['mask'],
-    num_steps=2,
-    learning_rate=0.001,
+    2,
+    0.001,
+    0.1,
   )
 
   assert isinstance(sequence, jnp.ndarray)
@@ -140,8 +146,9 @@ def test_optimize_sequence_differentiable(mock_data):
       mock_data['edge_features'],
       mock_data['neighbor_indices'],
       mock_data['mask'],
-      num_steps=1,
-      learning_rate=0.001,
+      1,
+      0.001,
+      0.1,
     )
     return jnp.sum(sequence)
 

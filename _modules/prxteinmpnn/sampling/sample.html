@@ -361,7 +361,6 @@ document.write(`
   <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.decoding_signatures</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">RunAutoregressiveDecoderFn</span><span class="p">,</span>
     <span class="n">RunConditionalDecoderFn</span><span class="p">,</span>
-    <span class="n">RunSTEAutoregressiveDecoderFn</span><span class="p">,</span>
   <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.encoder</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_encoder</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.data_structures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelInputs</span>
@@ -412,15 +411,7 @@ document.write(`
       <span class="n">num_decoder_layers</span><span class="o">=</span><span class="n">num_decoder_layers</span><span class="p">,</span>
     <span class="p">),</span>
   <span class="p">)</span>
-  <span class="n">ste_autoregressive_decoder</span><span class="p">:</span> <span class="n">RunSTEAutoregressiveDecoderFn</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span>
-    <span class="s2">&quot;RunSTEAutoregressiveDecoderFn&quot;</span><span class="p">,</span>
-    <span class="n">make_decoder</span><span class="p">(</span>
-      <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>
-      <span class="n">attention_mask_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-      <span class="n">decoding_approach</span><span class="o">=</span><span class="s2">&quot;ste_autoregressive&quot;</span><span class="p">,</span>
-      <span class="n">num_decoder_layers</span><span class="o">=</span><span class="n">num_decoder_layers</span><span class="p">,</span>
-    <span class="p">),</span>
-  <span class="p">)</span>
+
   <span class="n">autoregressive_decoder</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span>
     <span class="s2">&quot;RunAutoregressiveDecoderFn&quot;</span><span class="p">,</span>
     <span class="n">make_decoder</span><span class="p">(</span>
@@ -434,7 +425,7 @@ document.write(`
   <span class="n">sample_model_pass</span> <span class="o">=</span> <span class="n">sampling_encode</span><span class="p">(</span><span class="n">encoder</span><span class="o">=</span><span class="n">encoder</span><span class="p">,</span> <span class="n">decoding_order_fn</span><span class="o">=</span><span class="n">decoding_order_fn</span><span class="p">)</span>
 
   <span class="n">optimize_seq_fn</span> <span class="o">=</span> <span class="n">make_optimize_sequence_fn</span><span class="p">(</span>
-    <span class="n">ste_autoregressive_decoder</span><span class="o">=</span><span class="n">ste_autoregressive_decoder</span><span class="p">,</span>
+    <span class="n">autoregressive_decoder</span><span class="o">=</span><span class="n">autoregressive_decoder</span><span class="p">,</span>
     <span class="n">conditional_decoder</span><span class="o">=</span><span class="n">conditional_decoder</span><span class="p">,</span>
     <span class="n">decoding_order_fn</span><span class="o">=</span><span class="n">decoding_order_fn</span><span class="p">,</span>
     <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>
@@ -478,6 +469,7 @@ document.write(`
         <span class="n">mask</span><span class="p">,</span>
         <span class="n">config</span><span class="o">.</span><span class="n">iterations</span><span class="p">,</span>
         <span class="n">config</span><span class="o">.</span><span class="n">learning_rate</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">temperature</span><span class="p">,</span>
       <span class="p">)</span>
       <span class="n">output_sequence</span> <span class="o">=</span> <span class="n">output_sequence</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>
       <span class="k">return</span> <span class="n">output_sequence</span><span class="p">,</span> <span class="n">output_logits</span><span class="p">,</span> <span class="n">decoding_order</span>

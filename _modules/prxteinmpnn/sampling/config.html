@@ -354,6 +354,8 @@ document.write(`
 
 <span class="n">SamplingStrategy</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;temperature&quot;</span><span class="p">,</span> <span class="s2">&quot;straight_through&quot;</span><span class="p">]</span>
 
+<span class="n">DEFAULT_TEMPERATURE</span> <span class="o">=</span> <span class="mf">1e-8</span>
+
 
 <div class="viewcode-block" id="SamplingConfig">
 <a class="viewcode-back" href="../../../api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingConfig">[docs]</a>
@@ -363,7 +365,7 @@ document.write(`
 
   <span class="n">sampling_strategy</span><span class="p">:</span> <span class="n">SamplingStrategy</span>
   <span class="n">iterations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
-  <span class="n">temperature</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+  <span class="n">temperature</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">DEFAULT_TEMPERATURE</span>
   <span class="n">target_logits</span><span class="p">:</span> <span class="n">Logits</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
   <span class="n">learning_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span></div>
 

@@ -395,7 +395,7 @@ document.write(`
 <span class="kn">from</span><span class="w"> </span><span class="nn">.dense</span><span class="w"> </span><span class="kn">import</span> <span class="n">dense_layer</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.masked_attention</span><span class="w"> </span><span class="kn">import</span> <span class="n">MaskedAttentionType</span><span class="p">,</span> <span class="n">mask_attention</span>
 
-<span class="n">DecodingApproach</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;conditional&quot;</span><span class="p">,</span> <span class="s2">&quot;autoregressive&quot;</span><span class="p">,</span> <span class="s2">&quot;ste_autoregressive&quot;</span><span class="p">,</span> <span class="s2">&quot;unconditional&quot;</span><span class="p">]</span>
+<span class="n">DecodingApproach</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;conditional&quot;</span><span class="p">,</span> <span class="s2">&quot;autoregressive&quot;</span><span class="p">,</span> <span class="s2">&quot;unconditional&quot;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="decoder_parameter_pytree">
@@ -677,15 +677,18 @@ document.write(`
       <span class="n">edge_features</span><span class="p">:</span> <span class="n">EdgeFeatures</span><span class="p">,</span>
       <span class="n">neighbor_indices</span><span class="p">:</span> <span class="n">NeighborIndices</span><span class="p">,</span>
       <span class="n">mask</span><span class="p">:</span> <span class="n">AtomMask</span><span class="p">,</span>
-      <span class="n">ar_mask</span><span class="p">:</span> <span class="n">AutoRegressiveMask</span><span class="p">,</span>
-      <span class="n">temperature</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+      <span class="n">autoregressive_mask</span><span class="p">:</span> <span class="n">AutoRegressiveMask</span><span class="p">,</span>
+      <span class="n">temperature</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+      <span class="n">bias</span><span class="p">:</span> <span class="n">Logits</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">OneHotProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">]:</span>
 <span class="w">      </span><span class="sd">&quot;&quot;&quot;Run a full, efficient, local-update autoregressive sampling process.&quot;&quot;&quot;</span>
-      <span class="n">attention_mask</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">take_along_axis</span><span class="p">(</span><span class="n">ar_mask</span><span class="p">,</span> <span class="n">neighbor_indices</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+      <span class="k">if</span> <span class="n">bias</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">bias</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">node_features</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">21</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+      <span class="n">attention_mask</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">take_along_axis</span><span class="p">(</span><span class="n">autoregressive_mask</span><span class="p">,</span> <span class="n">neighbor_indices</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
       <span class="n">mask_1d</span> <span class="o">=</span> <span class="n">mask</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
       <span class="n">mask_bw</span> <span class="o">=</span> <span class="n">mask_1d</span> <span class="o">*</span> <span class="n">attention_mask</span>
       <span class="n">mask_fw</span> <span class="o">=</span> <span class="n">mask_1d</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">attention_mask</span><span class="p">)</span>
-      <span class="n">decoding_order</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">ar_mask</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
+      <span class="n">decoding_order</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">autoregressive_mask</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
 
       <span class="n">encoder_edge_neighbors</span> <span class="o">=</span> <span class="n">concatenate_neighbor_nodes</span><span class="p">(</span>
         <span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">node_features</span><span class="p">),</span>
@@ -760,9 +763,14 @@ document.write(`
           <span class="n">key</span><span class="p">,</span>
           <span class="n">logits_position</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
         <span class="p">)</span>
+        <span class="n">sampled_logits</span> <span class="o">=</span> <span class="n">sampled_logits</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">20</span><span class="p">]</span>
 
-        <span class="n">sampled_idx</span> <span class="o">=</span> <span class="n">sampled_logits</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">20</span><span class="p">]</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
-        <span class="n">one_hot_sequence_position</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">one_hot</span><span class="p">(</span><span class="n">sampled_idx</span><span class="p">,</span> <span class="n">num_classes</span><span class="o">=</span><span class="mi">21</span><span class="p">)</span>
+        <span class="n">one_hot_for_sampling</span> <span class="o">=</span> <span class="n">straight_through_estimator</span><span class="p">(</span><span class="n">sampled_logits</span><span class="p">)</span>
+        <span class="n">padding</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span>
+          <span class="p">(</span><span class="o">*</span><span class="n">one_hot_for_sampling</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="mi">1</span><span class="p">),</span>
+          <span class="n">dtype</span><span class="o">=</span><span class="n">one_hot_for_sampling</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">one_hot_sequence_position</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">one_hot_for_sampling</span><span class="p">,</span> <span class="n">padding</span><span class="p">],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
 
         <span class="n">embedded_sequence_position</span> <span class="o">=</span> <span class="n">embed_sequence</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="n">one_hot_sequence_position</span><span class="p">)</span>
         <span class="n">next_embedded_sequence_state</span> <span class="o">=</span> <span class="n">embedded_sequence_state</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">position</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span>
@@ -806,136 +814,7 @@ document.write(`
       <span class="k">return</span> <span class="n">final_sequence</span><span class="p">,</span> <span class="n">final_all_logits</span>
 
     <span class="k">return</span> <span class="n">run_autoregressive_decoder</span>
-  <span class="k">if</span> <span class="n">decoding_approach</span> <span class="o">==</span> <span class="s2">&quot;ste_autoregressive&quot;</span><span class="p">:</span>
 
-    <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">run_ste_autoregressive_decoder</span><span class="p">(</span>
-      <span class="n">prng_key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
-      <span class="n">node_features</span><span class="p">:</span> <span class="n">NodeFeatures</span><span class="p">,</span>
-      <span class="n">edge_features</span><span class="p">:</span> <span class="n">EdgeFeatures</span><span class="p">,</span>
-      <span class="n">neighbor_indices</span><span class="p">:</span> <span class="n">NeighborIndices</span><span class="p">,</span>
-      <span class="n">mask</span><span class="p">:</span> <span class="n">AtomMask</span><span class="p">,</span>
-      <span class="n">ar_mask</span><span class="p">:</span> <span class="n">AutoRegressiveMask</span><span class="p">,</span>
-      <span class="n">bias</span><span class="p">:</span> <span class="n">Logits</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">OneHotProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">]:</span>
-<span class="w">      </span><span class="sd">&quot;&quot;&quot;Run a differentiable autoregressive sampling process using STE.&quot;&quot;&quot;</span>
-      <span class="k">if</span> <span class="n">bias</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">bias</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">node_features</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">21</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
-      <span class="c1"># This setup part is identical to the original autoregressive decoder</span>
-      <span class="n">attention_mask</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">take_along_axis</span><span class="p">(</span><span class="n">ar_mask</span><span class="p">,</span> <span class="n">neighbor_indices</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-      <span class="n">mask_1d</span> <span class="o">=</span> <span class="n">mask</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
-      <span class="n">mask_bw</span> <span class="o">=</span> <span class="n">mask_1d</span> <span class="o">*</span> <span class="n">attention_mask</span>
-      <span class="n">mask_fw</span> <span class="o">=</span> <span class="n">mask_1d</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">attention_mask</span><span class="p">)</span>
-      <span class="n">decoding_order</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">ar_mask</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
-      <span class="n">encoder_edge_neighbors</span> <span class="o">=</span> <span class="n">concatenate_neighbor_nodes</span><span class="p">(</span>
-        <span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">node_features</span><span class="p">),</span>
-        <span class="n">edge_features</span><span class="p">,</span>
-        <span class="n">neighbor_indices</span><span class="p">,</span>
-      <span class="p">)</span>
-      <span class="n">encoder_context</span> <span class="o">=</span> <span class="n">concatenate_neighbor_nodes</span><span class="p">(</span>
-        <span class="n">node_features</span><span class="p">,</span>
-        <span class="n">encoder_edge_neighbors</span><span class="p">,</span>
-        <span class="n">neighbor_indices</span><span class="p">,</span>
-      <span class="p">)</span>
-      <span class="n">encoder_context</span> <span class="o">=</span> <span class="n">encoder_context</span> <span class="o">*</span> <span class="n">mask_fw</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
-
-      <span class="k">def</span><span class="w"> </span><span class="nf">autoregressive_step</span><span class="p">(</span>
-        <span class="n">carry</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">NodeFeatures</span><span class="p">,</span> <span class="n">SequenceEdgeFeatures</span><span class="p">,</span> <span class="n">Logits</span><span class="p">,</span> <span class="n">OneHotProteinSequence</span><span class="p">],</span>
-        <span class="n">scan_inputs</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Int</span><span class="p">,</span> <span class="n">PRNGKeyArray</span><span class="p">],</span>
-      <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">NodeFeatures</span><span class="p">,</span> <span class="n">SequenceEdgeFeatures</span><span class="p">,</span> <span class="n">Logits</span><span class="p">,</span> <span class="n">OneHotProteinSequence</span><span class="p">],</span> <span class="kc">None</span><span class="p">]:</span>
-        <span class="n">all_layers_node_features</span><span class="p">,</span> <span class="n">embedded_sequence_state</span><span class="p">,</span> <span class="n">all_logits</span><span class="p">,</span> <span class="n">sequence</span> <span class="o">=</span> <span class="n">carry</span>
-        <span class="n">position</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">scan_inputs</span>  <span class="c1"># key from scan_inputs is ignored</span>
-
-        <span class="n">encoder_context_position</span> <span class="o">=</span> <span class="n">encoder_context</span><span class="p">[</span><span class="n">position</span><span class="p">]</span>
-        <span class="n">position_neighborhood_indices</span> <span class="o">=</span> <span class="n">neighbor_indices</span><span class="p">[</span><span class="n">position</span><span class="p">]</span>
-        <span class="n">mask_position</span> <span class="o">=</span> <span class="n">mask</span><span class="p">[</span><span class="n">position</span><span class="p">]</span>
-        <span class="n">mask_bw_position</span> <span class="o">=</span> <span class="n">mask_bw</span><span class="p">[</span><span class="n">position</span><span class="p">]</span>
-        <span class="n">edge_sequence_features</span> <span class="o">=</span> <span class="n">concatenate_neighbor_nodes</span><span class="p">(</span>
-          <span class="n">embedded_sequence_state</span><span class="p">,</span>
-          <span class="n">edge_features</span><span class="p">[</span><span class="n">position</span><span class="p">],</span>
-          <span class="n">position_neighborhood_indices</span><span class="p">,</span>
-        <span class="p">)</span>
-
-        <span class="k">def</span><span class="w"> </span><span class="nf">decoder_layer_loop</span><span class="p">(</span><span class="n">layer_num</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">current_state_tensor</span><span class="p">:</span> <span class="n">NodeFeatures</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NodeFeatures</span><span class="p">:</span>
-          <span class="n">node_features_in</span> <span class="o">=</span> <span class="n">current_state_tensor</span><span class="p">[</span><span class="n">layer_num</span><span class="p">]</span>
-          <span class="n">current_layer_params</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span>
-            <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="n">layer_num</span><span class="p">],</span>
-            <span class="n">all_decoder_layer_params</span><span class="p">,</span>
-          <span class="p">)</span>
-          <span class="n">decoder_context_position</span> <span class="o">=</span> <span class="n">concatenate_neighbor_nodes</span><span class="p">(</span>
-            <span class="n">node_features_in</span><span class="p">,</span>
-            <span class="n">edge_sequence_features</span><span class="p">,</span>
-            <span class="n">position_neighborhood_indices</span><span class="p">,</span>
-          <span class="p">)</span>
-          <span class="n">decoding_context</span> <span class="o">=</span> <span class="p">(</span>
-            <span class="n">mask_bw_position</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">decoder_context_position</span> <span class="o">+</span> <span class="n">encoder_context_position</span>
-          <span class="p">)</span>
-          <span class="n">updated_node_features_position</span> <span class="o">=</span> <span class="n">decode_layer_fn</span><span class="p">(</span>
-            <span class="n">node_features_in</span><span class="p">[</span><span class="n">position</span><span class="p">],</span>
-            <span class="n">jnp</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">decoding_context</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
-            <span class="n">mask</span><span class="o">=</span><span class="n">mask_position</span><span class="p">,</span>
-            <span class="n">layer_params</span><span class="o">=</span><span class="n">current_layer_params</span><span class="p">,</span>
-            <span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">,</span>
-          <span class="p">)</span>
-          <span class="k">return</span> <span class="n">current_state_tensor</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">layer_num</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">position</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span>
-            <span class="n">jnp</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="n">updated_node_features_position</span><span class="p">),</span>
-          <span class="p">)</span>
-
-        <span class="n">updated_state_for_position</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">fori_loop</span><span class="p">(</span>
-          <span class="mi">0</span><span class="p">,</span>
-          <span class="n">num_decoder_layers</span><span class="p">,</span>
-          <span class="n">decoder_layer_loop</span><span class="p">,</span>
-          <span class="n">all_layers_node_features</span><span class="p">,</span>
-        <span class="p">)</span>
-        <span class="n">final_node_features_position</span> <span class="o">=</span> <span class="n">updated_state_for_position</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">position</span><span class="p">]</span>
-        <span class="n">logits_position</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span>
-          <span class="n">final_projection</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="n">final_node_features_position</span><span class="p">)</span> <span class="o">+</span> <span class="n">bias</span><span class="p">[</span><span class="n">position</span><span class="p">],</span>
-        <span class="p">)</span>
-        <span class="n">next_all_logits</span> <span class="o">=</span> <span class="n">all_logits</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">position</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">logits_position</span><span class="p">)</span>
-
-        <span class="n">logits_for_sampling</span> <span class="o">=</span> <span class="n">logits_position</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">20</span><span class="p">]</span>
-        <span class="n">one_hot_for_sampling</span> <span class="o">=</span> <span class="n">straight_through_estimator</span><span class="p">(</span><span class="n">logits_for_sampling</span><span class="p">)</span>
-
-        <span class="n">padding</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span>
-          <span class="p">(</span><span class="o">*</span><span class="n">one_hot_for_sampling</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="mi">1</span><span class="p">),</span>
-          <span class="n">dtype</span><span class="o">=</span><span class="n">one_hot_for_sampling</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
-        <span class="p">)</span>
-        <span class="n">one_hot_sequence_position</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">one_hot_for_sampling</span><span class="p">,</span> <span class="n">padding</span><span class="p">],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
-        <span class="n">embedded_sequence_position</span> <span class="o">=</span> <span class="n">embed_sequence</span><span class="p">(</span><span class="n">model_parameters</span><span class="p">,</span> <span class="n">one_hot_sequence_position</span><span class="p">)</span>
-        <span class="n">next_embedded_sequence_state</span> <span class="o">=</span> <span class="n">embedded_sequence_state</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">position</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span>
-          <span class="n">embedded_sequence_position</span><span class="p">,</span>
-        <span class="p">)</span>
-        <span class="n">updated_sequence</span> <span class="o">=</span> <span class="n">sequence</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">position</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">one_hot_sequence_position</span><span class="p">)</span>
-
-        <span class="k">return</span> <span class="p">(</span>
-          <span class="n">updated_state_for_position</span><span class="p">,</span>
-          <span class="n">next_embedded_sequence_state</span><span class="p">,</span>
-          <span class="n">next_all_logits</span><span class="p">,</span>
-          <span class="n">updated_sequence</span><span class="p">,</span>
-        <span class="p">),</span> <span class="kc">None</span>
-
-      <span class="n">num_residues</span> <span class="o">=</span> <span class="n">node_features</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-      <span class="n">initial_all_layers_node_features</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
-        <span class="p">[</span><span class="n">node_features</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">node_features</span><span class="p">)]</span> <span class="o">*</span> <span class="n">num_decoder_layers</span><span class="p">,</span>
-      <span class="p">)</span>
-      <span class="n">initial_embedded_sequence_state</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">node_features</span><span class="p">)</span>
-      <span class="n">all_logits</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_residues</span><span class="p">,</span> <span class="mi">21</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
-      <span class="n">initial_sequence</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_residues</span><span class="p">,</span> <span class="mi">21</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
-      <span class="n">initial_carry</span> <span class="o">=</span> <span class="p">(</span>
-        <span class="n">initial_all_layers_node_features</span><span class="p">,</span>
-        <span class="n">initial_embedded_sequence_state</span><span class="p">,</span>
-        <span class="n">all_logits</span><span class="p">,</span>
-        <span class="n">initial_sequence</span><span class="p">,</span>
-      <span class="p">)</span>
-
-      <span class="n">scan_inputs</span> <span class="o">=</span> <span class="p">(</span><span class="n">decoding_order</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">prng_key</span><span class="p">,</span> <span class="n">num_residues</span><span class="p">))</span>
-      <span class="n">final_carry</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">scan</span><span class="p">(</span><span class="n">autoregressive_step</span><span class="p">,</span> <span class="n">initial_carry</span><span class="p">,</span> <span class="n">scan_inputs</span><span class="p">)</span>
-
-      <span class="n">final_all_logits</span> <span class="o">=</span> <span class="n">final_carry</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
-      <span class="n">final_sequence</span> <span class="o">=</span> <span class="n">final_carry</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
-      <span class="k">return</span> <span class="n">final_sequence</span><span class="p">,</span> <span class="n">final_all_logits</span>
-
-    <span class="k">return</span> <span class="n">run_ste_autoregressive_decoder</span>
   <span class="k">if</span> <span class="n">decoding_approach</span> <span class="o">==</span> <span class="s2">&quot;conditional&quot;</span><span class="p">:</span>
 
     <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>

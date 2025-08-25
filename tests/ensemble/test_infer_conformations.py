@@ -138,9 +138,9 @@ class TestInferConformations:
     @pytest.mark.parametrize(
         "strategy, feature_index, feature_dim",
         [
-            (ConformationalInferenceStrategy.LOGITS, 0, 21),
-            (ConformationalInferenceStrategy.NODE_FEATURES, 1, 128),
-            (ConformationalInferenceStrategy.EDGE_FEATURES, 2, 64),
+            ("logits", 0, 21),
+            ("node_features", 1, 128),
+            ("edge_features", 2, 64),
         ]
     )
     def test_inference_strategy_selects_correct_features(
@@ -205,7 +205,7 @@ class TestInferConformations:
         infer_conformations(
             prng_key,
             model_params,
-            ConformationalInferenceStrategy.LOGITS,
+            "logits",
             decoding_fn,
             ensemble,
             bias=bias,
@@ -233,7 +233,7 @@ class TestInferConformations:
         Tests that using an invalid strategy string raises a ValueError.
         """
         prng_key, model_params, decoding_fn, ensemble = mock_inputs
-        with pytest.raises(TypeError, match="Invalid inference strategy used."):
+        with pytest.raises(ValueError, match="Invalid inference_strategy:"):
             infer_conformations(
                 prng_key, model_params, "INVALID_STRATEGY", decoding_fn, ensemble
             )
@@ -252,7 +252,7 @@ class TestInferConformations:
             infer_conformations(
                 prng_key,
                 model_parameters,
-                ConformationalInferenceStrategy.LOGITS,
+                "logits",
                 decoding_order_fn,
                 ensemble,
             )

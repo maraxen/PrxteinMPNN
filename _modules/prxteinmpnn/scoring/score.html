@@ -363,7 +363,7 @@ document.write(`
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.projection</span><span class="w"> </span><span class="kn">import</span> <span class="n">final_projection</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.autoregression</span><span class="w"> </span><span class="kn">import</span> <span class="n">generate_ar_mask</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.data_structures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelInputs</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.decoding_order</span><span class="w"> </span><span class="kn">import</span> <span class="n">DecodingOrderFn</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.decoding_order</span><span class="w"> </span><span class="kn">import</span> <span class="n">DecodingOrderFn</span><span class="p">,</span> <span class="n">random_decoding_order</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
   <span class="n">AtomMask</span><span class="p">,</span>
   <span class="n">ChainIndex</span><span class="p">,</span>
@@ -408,7 +408,8 @@ document.write(`
 <a class="viewcode-back" href="../../../api/prxteinmpnn.scoring.score.html#prxteinmpnn.scoring.score.make_score_sequence">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">make_score_sequence</span><span class="p">(</span>
   <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
-  <span class="n">decoding_order_fn</span><span class="p">:</span> <span class="n">DecodingOrderFn</span><span class="p">,</span>
+  <span class="n">decoding_order_fn</span><span class="p">:</span> <span class="n">DecodingOrderFn</span> <span class="o">=</span> <span class="n">random_decoding_order</span><span class="p">,</span>
+  <span class="n">generate_ar_mask_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">DecodingOrder</span><span class="p">],</span> <span class="n">AtomMask</span><span class="p">]</span> <span class="o">=</span> <span class="n">generate_ar_mask</span><span class="p">,</span>
   <span class="n">num_encoder_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
   <span class="n">num_decoder_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
   <span class="n">model_inputs</span><span class="p">:</span> <span class="n">ModelInputs</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -443,7 +444,7 @@ document.write(`
   <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Float</span><span class="p">,</span> <span class="n">Logits</span><span class="p">,</span> <span class="n">DecodingOrder</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Score a sequence on a structure using the ProteinMPNN model.&quot;&quot;&quot;</span>
     <span class="n">decoding_order</span><span class="p">,</span> <span class="n">prng_key</span> <span class="o">=</span> <span class="n">decoding_order_fn</span><span class="p">(</span><span class="n">prng_key</span><span class="p">,</span> <span class="n">sequence</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-    <span class="n">autoregressive_mask</span> <span class="o">=</span> <span class="n">generate_ar_mask</span><span class="p">(</span><span class="n">decoding_order</span><span class="p">)</span>
+    <span class="n">autoregressive_mask</span> <span class="o">=</span> <span class="n">generate_ar_mask_fn</span><span class="p">(</span><span class="n">decoding_order</span><span class="p">)</span>
 
     <span class="n">edge_features</span><span class="p">,</span> <span class="n">neighbor_indices</span><span class="p">,</span> <span class="n">prng_key</span> <span class="o">=</span> <span class="n">extract_features</span><span class="p">(</span>
       <span class="n">prng_key</span><span class="p">,</span>

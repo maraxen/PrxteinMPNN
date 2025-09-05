@@ -30,7 +30,7 @@ from prxteinmpnn.utils.types import (
 if TYPE_CHECKING:
   from prxteinmpnn.model.decoding_signatures import RunDecoderFn
 
-ConditionalLogitsFn = Callable[
+UnconditionalLogitsFn = Callable[
   [
     PRNGKeyArray,
     StructureAtomicCoordinates,
@@ -52,7 +52,7 @@ def make_unconditional_logits_fn(
   model_inputs: ModelInputs | None = None,
   num_encoder_layers: int = 3,
   num_decoder_layers: int = 3,
-) -> ConditionalLogitsFn:
+) -> UnconditionalLogitsFn:
   """Perform one conditional pass on the model to get the logits for a given sequence.
 
   This function sets up the ProteinMPNN model, runs a single encoder pass to extract features,

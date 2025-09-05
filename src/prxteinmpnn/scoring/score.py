@@ -17,7 +17,7 @@ from prxteinmpnn.model.features import extract_features, project_features
 from prxteinmpnn.model.projection import final_projection
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.data_structures import ModelInputs
-from prxteinmpnn.utils.decoding_order import DecodingOrderFn
+from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
 from prxteinmpnn.utils.types import (
   AtomMask,
   ChainIndex,
@@ -60,7 +60,8 @@ SCORE_EPS = 1e-8
 
 def make_score_sequence(
   model_parameters: ModelParameters,
-  decoding_order_fn: DecodingOrderFn,
+  decoding_order_fn: DecodingOrderFn = random_decoding_order,
+  generate_ar_mask_fn: Callable[[DecodingOrder], AtomMask] = generate_ar_mask,
   num_encoder_layers: int = 3,
   num_decoder_layers: int = 3,
   model_inputs: ModelInputs | None = None,
@@ -95,7 +96,7 @@ def make_score_sequence(
   ) -> tuple[Float, Logits, DecodingOrder]:
     """Score a sequence on a structure using the ProteinMPNN model."""
     decoding_order, prng_key = decoding_order_fn(prng_key, sequence.shape[0])
-    autoregressive_mask = generate_ar_mask(decoding_order)
+    autoregressive_mask = generate_ar_mask_fn(decoding_order)
 
     edge_features, neighbor_indices, prng_key = extract_features(
       prng_key,

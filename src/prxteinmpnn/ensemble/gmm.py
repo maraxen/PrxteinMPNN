@@ -24,5 +24,5 @@ def make_fit_gmm(n_components: int = 100, n_features: int = 21) -> GMMFitFn:
 
   """
   gmm = GaussianMixtureModelJax.create(n_components=n_components, n_features=n_features)
-  em_fitter = EMFitter(tol=1e-3, max_iter=100)
+  em_fitter = EMFitter(tol=1e-3, max_iter=100, reg_covar=1e-6)
   return partial(em_fitter.fit, gmm=gmm)

@@ -17,6 +17,7 @@ from prxteinmpnn.model.features import extract_features, project_features
 from prxteinmpnn.model.projection import final_projection
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
+from prxteinmpnn.utils.residue_constants import atom_order
 from prxteinmpnn.utils.types import (
   AtomMask,
   AutoRegressiveMask,
@@ -25,6 +26,7 @@ from prxteinmpnn.utils.types import (
   DecodingOrder,
   Logits,
   ModelParameters,
+  OneHotProteinSequence,
   ProteinSequence,
   ResidueIndex,
   StructureAtomicCoordinates,
@@ -75,7 +77,7 @@ def make_score_sequence(
   @partial(jax.jit, static_argnames=("k_neighbors",))
   def score_sequence(
     prng_key: PRNGKeyArray,
-    sequence: ProteinSequence,
+    sequence: ProteinSequence | OneHotProteinSequence,
     structure_coordinates: StructureAtomicCoordinates,
     mask: AtomMask,
     residue_index: ResidueIndex,
@@ -88,24 +90,26 @@ def make_score_sequence(
     decoding_order, prng_key = decoding_order_fn(prng_key, sequence.shape[0])
     autoregressive_mask = generate_ar_mask(decoding_order) if ar_mask is None else ar_mask
 
+    residue_mask = mask[:, atom_order["CA"]]
+    jax.debug.print("Extracting features...")
     edge_features, neighbor_indices, prng_key = extract_features(
       prng_key,
       model_parameters,
       structure_coordinates,
-      mask,
+      residue_mask,
       residue_index,
       chain_index,
       k_neighbors=k_neighbors,
       backbone_noise=backbone_noise,
     )
-
+    jax.debug.print("Features extracted. Projecting features...")
     edge_features = project_features(
       model_parameters,
       edge_features,
     )
 
     attention_mask = jnp.take_along_axis(
-      mask[:, None] * mask[None, :],
+      residue_mask[:, None] * residue_mask[None, :],
       neighbor_indices,
       axis=1,
     )
@@ -113,19 +117,17 @@ def make_score_sequence(
     node_features, edge_features = encoder(
       edge_features,
       neighbor_indices,
-      mask,
+      residue_mask,
       attention_mask,
     )
-
-    one_hot_sequence = jax.nn.one_hot(sequence, 21, dtype=jnp.float32)
 
     node_features = decoder(
       node_features,
       edge_features,
       neighbor_indices,
-      mask,
+      residue_mask,
       autoregressive_mask,
-      one_hot_sequence,
+      sequence,
     )
     logits = final_projection(
       model_parameters,
@@ -134,14 +136,12 @@ def make_score_sequence(
 
     log_probability = jax.nn.log_softmax(logits, axis=-1)[..., :20]
 
-    scored_sequence_one_hot = jax.nn.one_hot(sequence, num_classes=21)[
-      ...,
-      :20,
-    ]
+    if sequence.ndim == 1:
+      sequence = jax.nn.one_hot(sequence, num_classes=21)
 
-    score = -(scored_sequence_one_hot * log_probability).sum(-1)
-    masked_score_sum = (score * mask).sum(-1)
-    mask_sum = mask.sum() + SCORE_EPS
+    score = -(sequence[..., :20] * log_probability).sum(-1)
+    masked_score_sum = (score * residue_mask).sum(-1)
+    mask_sum = residue_mask.sum() + SCORE_EPS
 
     return masked_score_sum / mask_sum, logits, decoding_order
 

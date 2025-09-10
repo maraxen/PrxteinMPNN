@@ -19,6 +19,7 @@ def _pad_protein_to_length(protein: Protein, new_length: int, mapping: jax.Array
   """
   padded_coords = jnp.zeros((new_length, 37, 3), dtype=protein.coordinates.dtype)
   padded_aatype = jnp.full((new_length,), -1, dtype=protein.aatype.dtype)
+  padded_one_hot_sequence = jnp.zeros((new_length, 21), dtype=jnp.float32)
   padded_atom_mask = jnp.zeros((new_length, 37), dtype=protein.atom_mask.dtype)
   padded_residue_index = jnp.zeros((new_length,), dtype=protein.residue_index.dtype)
   padded_chain_index = jnp.zeros((new_length,), dtype=protein.chain_index.dtype)
@@ -40,6 +41,9 @@ def _pad_protein_to_length(protein: Protein, new_length: int, mapping: jax.Array
   padded_chain_index = padded_chain_index.at[valid_indices].set(
     protein.chain_index[original_indices],
   )
+  padded_one_hot_sequence = padded_one_hot_sequence.at[valid_indices].set(
+    protein.one_hot_sequence[original_indices],
+  )
 
   return Protein(
     coordinates=padded_coords,
@@ -48,6 +52,7 @@ def _pad_protein_to_length(protein: Protein, new_length: int, mapping: jax.Array
     residue_index=padded_residue_index,
     chain_index=padded_chain_index,
     dihedrals=None,  # Dihedrals are dropped as they are non-trivial to align
+    one_hot_sequence=padded_one_hot_sequence,
   )
 
 
@@ -268,6 +273,14 @@ async def batch_and_pad_proteins(
     return jnp.stack(leaves)
 
   padded_batched_protein = jax.tree_util.tree_map(stack_leaves, *padded_proteins)
+  jax.debug.print(
+    "Padded batched protein shapes: coords {}, aatype {}, atom_mask {}, residue_index {}, chain_index {}",
+    padded_batched_protein.coordinates.shape,
+    padded_batched_protein.aatype.shape,
+    padded_batched_protein.atom_mask.shape,
+    padded_batched_protein.residue_index.shape,
+    padded_batched_protein.chain_index.shape,
+  )
 
   aligned_sequences_tokens = None
   if sequences_to_score:

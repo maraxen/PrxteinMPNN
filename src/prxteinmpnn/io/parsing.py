@@ -1,11 +1,14 @@
 """Utilities for processing structure and trajectory files."""
 
+import io
 import pathlib
+import tempfile
 import warnings
 from collections.abc import Mapping, Sequence
 from io import StringIO
 from typing import Any, cast
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 from biotite import structure
@@ -302,7 +305,7 @@ def process_atom_array(
 
   atom_mask = atom37_indices != -1
 
-  coords_37 = jnp.zeros((num_residues, 37, 3), dtype=jnp.float64)
+  coords_37 = jnp.zeros((num_residues, 37, 3), dtype=jnp.float32)
   atom_mask_37 = jnp.zeros((num_residues, 37), dtype=jnp.bool)
 
   res_indices_flat = jnp.asarray(residue_inv_indices)[atom_mask]
@@ -330,6 +333,7 @@ def process_atom_array(
     residue_index=residue_indices,
     chain_index=chain_index,
     dihedrals=dihedrals,
+    one_hot_sequence=jax.nn.one_hot(aatype, num_classes=21),
   )
 
 
@@ -477,6 +481,11 @@ def parse_input(
       A ProteinEnsemble containing one or more parsed ProteinStructure objects.
 
   """
+  if isinstance(source, io.StringIO):
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".pdb") as tmp:
+      tmp.write(source.read())
+      source = pathlib.Path(tmp.name)
+
   proteins = []
   try:
     atom_array_or_stack = structure_io.load_structure(

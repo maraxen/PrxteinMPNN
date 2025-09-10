@@ -71,6 +71,9 @@ def get_protein_structures(
     for one of the requested protein IDs.
 
   """
+  import jax  # noqa: PLC0415
+
+  jax.config.update("jax_enable_x64", True)
   output_proteins: list[Protein] = []
   _setup_foldcomp_database(database)
   with foldcomp.open(database, ids=protein_ids, decompress=False) as proteins:  # type: ignore[attr-access]

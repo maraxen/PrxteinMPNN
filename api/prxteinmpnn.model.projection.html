@@ -375,9 +375,7 @@ document.write(`
   </button>
 `);
 </script>
-<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
-    <span class="fa-solid fa-list"></span>
-</button>
+
 </div></div>
       
     </div>
@@ -393,14 +391,6 @@ document.write(`
     <div id="print-main-content">
         <div id="jb-print-toc">
             
-            <div>
-                <h2> Contents </h2>
-            </div>
-            <nav aria-label="Page">
-                <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.projection.final_projection"><code class="docutils literal notranslate"><span class="pre">final_projection()</span></code></a></li>
-</ul>
-            </nav>
         </div>
     </div>
 </div>
@@ -410,29 +400,8 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="module-prxteinmpnn.model.projection">
-<span id="projection"></span><h1>projection<a class="headerlink" href="#module-prxteinmpnn.model.projection" title="Link to this heading">#</a></h1>
-<p>Final projection layer for the PrxteinMPNN model.</p>
-<dl class="py function">
-<dt class="sig sig-object py" id="prxteinmpnn.model.projection.final_projection">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.projection.</span></span><span class="sig-name descname"><span class="pre">final_projection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">node_features</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/projection.html#final_projection"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.projection.final_projection" title="Link to this definition">#</a></dt>
-<dd><p>Convert node features to logits.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>model_parameters</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">PyTree[str,</span> <span class="pre">'P']</span></code></span>) – Model parameters for the final projection.</p></li>
-<li><p><strong>node_features</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code></span>) – Node features after the last MPNN layer.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The final logits for the model.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Logits</p>
-</dd>
-</dl>
-</dd></dl>
-
+  <section id="projection">
+<h1>projection<a class="headerlink" href="#projection" title="Link to this heading">#</a></h1>
 </section>
 
 
@@ -470,21 +439,6 @@ document.write(`
             </div>
             
             
-              
-                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
-
-
-  <div class="sidebar-secondary-item">
-  <div class="page-toc tocsection onthispage">
-    <i class="fa-solid fa-list"></i> Contents
-  </div>
-  <nav class="bd-toc-nav page-toc">
-    <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.projection.final_projection"><code class="docutils literal notranslate"><span class="pre">final_projection()</span></code></a></li>
-</ul>
-  </nav></div>
-
-</div></div>
               
             
           </div>

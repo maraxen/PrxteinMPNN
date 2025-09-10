@@ -351,34 +351,26 @@ document.write(`
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterator</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncGenerator</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Literal</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">flax.struct</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">flax.struct</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
-  <span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">PRNGKeyArray</span>
-
   <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-    <span class="n">AlphaCarbonMask</span><span class="p">,</span>
     <span class="n">AtomMask</span><span class="p">,</span>
     <span class="n">BackboneDihedrals</span><span class="p">,</span>
     <span class="n">ChainIndex</span><span class="p">,</span>
-    <span class="n">InputBias</span><span class="p">,</span>
-    <span class="n">InputLengths</span><span class="p">,</span>
     <span class="n">ProteinSequence</span><span class="p">,</span>
     <span class="n">ResidueIndex</span><span class="p">,</span>
-    <span class="n">SamplingHyperparameters</span><span class="p">,</span>
     <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
   <span class="p">)</span>
 
 
-<div class="viewcode-block" id="ProteinStructure">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinStructure">[docs]</a>
+<div class="viewcode-block" id="Protein">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein">[docs]</a>
 <span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">ProteinStructure</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Protein</span><span class="p">:</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Protein structure representation.</span>
 
 <span class="sd">  Attributes:</span>
@@ -406,90 +398,7 @@ document.write(`
 
 
 
-<span class="n">ProteinEnsemble</span> <span class="o">=</span> <span class="n">Iterator</span><span class="p">[</span><span class="s2">&quot;ProteinStructure&quot;</span><span class="p">]</span>
-
-
-<div class="viewcode-block" id="ModelInputs">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ModelInputs">[docs]</a>
-<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">ModelInputs</span><span class="p">:</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Dataclass for general model inputs.</span>
-
-<span class="sd">  Note that any of these can be stacked together to form a batch of inputs.</span>
-
-<span class="sd">  Attributes:</span>
-<span class="sd">    structure_coordinates (StructureAtomicCoordinates): Atomic coordinates of the structure.</span>
-<span class="sd">      Shape is (num_residues, num_atoms, 3), where num_residues is the number of residues</span>
-<span class="sd">      and num_atoms is the number of atoms per residue (e.g., 37 for standard residues).</span>
-<span class="sd">    sequence (Sequence): Sequence of amino acids as an array of integers.</span>
-<span class="sd">      Shape is (num_residues,), where num_residues is the number of residues.</span>
-<span class="sd">    mask (AtomMask): Mask for the model input, indicating valid atoms in the structure.</span>
-<span class="sd">      Shape is (num_residues, num_atoms), where num_atoms is the number of atoms per residue.</span>
-<span class="sd">    residue_index (ResidueIndex): Index of residues in the structure, used for mapping atoms</span>
-<span class="sd">      in structures to their residues. Shape is (num_residues,).</span>
-<span class="sd">    chain_index (ChainIndex): Index of chains in the structure, used for mapping</span>
-<span class="sd">      atoms in structures to their chains. Shape is (num_residues,).</span>
-<span class="sd">    lengths (InputLengths): Lengths of the sequences in the batch, used for padding and</span>
-<span class="sd">      batching. Shape is (num_sequences,), where num_sequences is the number of sequences in the</span>
-<span class="sd">      batch.</span>
-<span class="sd">    bias (InputBias): Bias for the model input, used for classification tasks.</span>
-<span class="sd">      Defaults to zero bias of shape (sum(lengths), 20), where 20 is the number of amino acid types.</span>
-<span class="sd">      Shape is (sum(lengths), num_classes), where num_classes is the number of classes</span>
-<span class="sd">      (e.g., 20 for amino acids).</span>
-
-<span class="sd">  &quot;&quot;&quot;</span>
-
-  <span class="n">structure_coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([]))</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Structure atomic coordinates for the model input.&quot;&quot;&quot;</span>
-  <span class="n">sequence</span><span class="p">:</span> <span class="n">ProteinSequence</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([]))</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;A sequence of amino acids for the model input. As MPNN-alphabet based array of integers.&quot;&quot;&quot;</span>
-  <span class="n">mask</span><span class="p">:</span> <span class="n">AlphaCarbonMask</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([]))</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Mask for the model input, indicating valid atoms structure.&quot;&quot;&quot;</span>
-  <span class="n">residue_index</span><span class="p">:</span> <span class="n">ResidueIndex</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([]))</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Index of residues in the structure, used for mapping atoms in structures to their residues.&quot;&quot;&quot;</span>
-  <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([]))</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Index of chains in the structure, used for mapping atoms in structures to their chains.&quot;&quot;&quot;</span>
-  <span class="n">lengths</span><span class="p">:</span> <span class="n">InputLengths</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([]))</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Lengths of the sequences in the batch, used for padding and batching.&quot;&quot;&quot;</span>
-  <span class="n">bias</span><span class="p">:</span> <span class="n">InputBias</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="kc">None</span><span class="p">)</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Bias for the model input, used for classification tasks.</span>
-<span class="sd">  Defaults to zero bias of shape (sum(lengths), 20).&quot;&quot;&quot;</span>
-  <span class="n">k_neighbors</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">48</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Number of neighbors to consider for each atom in the structure.&quot;&quot;&quot;</span>
-  <span class="n">augment_eps</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Epsilon value for adding noise to the backbone coordinates, used for data augmentation.&quot;&quot;&quot;</span></div>
-
-
-
-<div class="viewcode-block" id="SamplingInputs">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.SamplingInputs">[docs]</a>
-<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">SamplingInputs</span><span class="p">(</span><span class="n">ModelInputs</span><span class="p">):</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Dataclass for inputs used in sequence sampling.</span>
-
-<span class="sd">  Attributes:</span>
-<span class="sd">    prng_key (PRNGKeyArray): Random key for JAX operations.</span>
-<span class="sd">    initial_sequence (ProteinSequence): Initial sequence of amino acids as an array of integers.</span>
-<span class="sd">    structure_coordinates (StructureAtomicCoordinates): Atomic coordinates of the structure.</span>
-<span class="sd">    mask (AtomMask): Mask indicating valid atoms in the structure.</span>
-<span class="sd">    residue_index (AtomResidueIndex): Index of residues in the structure.</span>
-<span class="sd">    chain_index (AtomChainIndex): Index of chains in the structure.</span>
-<span class="sd">    bias (InputBias | None): Bias for the model input, used for classification tasks.</span>
-<span class="sd">    k_neighbors (int): Number of neighbors to consider for each atom.</span>
-<span class="sd">    augment_eps (float): Epsilon value for adding noise to the backbone coordinates.</span>
-<span class="sd">    hyperparameters (SamplingHyperparameters): Hyperparameters for sampling, e.g., temperature,</span>
-<span class="sd">      top-k, etc.</span>
-<span class="sd">    iterations (int): Number of iterations for sampling.</span>
-
-<span class="sd">  &quot;&quot;&quot;</span>
-
-  <span class="n">prng_key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">PRNGKey</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Random key for JAX operations.&quot;&quot;&quot;</span>
-  <span class="n">hyperparameters</span><span class="p">:</span> <span class="n">SamplingHyperparameters</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,)</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Hyperparameters for sampling, e.g., temperature, top-k, etc.&quot;&quot;&quot;</span>
-  <span class="n">iterations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Number of iterations for sampling.&quot;&quot;&quot;</span></div>
-
+<span class="n">ProteinEnsemble</span> <span class="o">=</span> <span class="n">AsyncGenerator</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Protein</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span>
 
 
 <span class="n">OligomerType</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;monomer&quot;</span><span class="p">,</span> <span class="s2">&quot;heteromer&quot;</span><span class="p">,</span> <span class="s2">&quot;homooligomer&quot;</span><span class="p">,</span> <span class="s2">&quot;tied_homooligomer&quot;</span><span class="p">]</span>

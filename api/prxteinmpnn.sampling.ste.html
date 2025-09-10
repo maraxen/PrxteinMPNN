@@ -400,16 +400,8 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="module-prxteinmpnn.sampling.ste">
-<span id="ste"></span><h1>ste<a class="headerlink" href="#module-prxteinmpnn.sampling.ste" title="Link to this heading">#</a></h1>
-<p>Straight-Through Estimator (STE) for JAX.</p>
-<p>prxteinmpnn.sampling.ste</p>
-<p>Note: Only use this for discrete optimization problems where you want to allow gradients
-to pass through the argmax operation. Useful for tasks like protein sequence
-optimization when a model outputs logits for amino acid sequences.</p>
-<p>Unclear if the optimized sequences will be valid proteins, so this is a heuristic
-approach to allow gradient-based optimization on discrete outputs to assess how well
-other samplers are navigating model landscapes.</p>
+  <section id="ste">
+<h1>ste<a class="headerlink" href="#ste" title="Link to this heading">#</a></h1>
 </section>
 
 

@@ -349,8 +349,6 @@ document.write(`
 <span class="sd">prxteinmpnn.utils.coordinates</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
-
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">PRNGKeyArray</span>
@@ -360,24 +358,25 @@ document.write(`
   <span class="n">AlphaCarbonDistance</span><span class="p">,</span>
   <span class="n">AtomicCoordinate</span><span class="p">,</span>
   <span class="n">BackboneCoordinates</span><span class="p">,</span>
+  <span class="n">BackboneNoise</span><span class="p">,</span>
   <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
 <span class="p">)</span>
 
 
 <div class="viewcode-block" id="apply_noise_to_coordinates">
 <a class="viewcode-back" href="../../../api/prxteinmpnn.utils.coordinates.html#prxteinmpnn.utils.coordinates.apply_noise_to_coordinates">[docs]</a>
-<span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;augment_eps&quot;</span><span class="p">,))</span>
+<span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">apply_noise_to_coordinates</span><span class="p">(</span>
   <span class="n">key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
   <span class="n">coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
-  <span class="n">augment_eps</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+  <span class="n">backbone_noise</span><span class="p">:</span> <span class="n">BackboneNoise</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">StructureAtomicCoordinates</span><span class="p">,</span> <span class="n">PRNGKeyArray</span><span class="p">]:</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Add Gaussian noise to atomic coordinates.</span>
 
 <span class="sd">  Args:</span>
 <span class="sd">    coordinates: Atomic coordinates of the protein structure. (N, 37, 3)</span>
 <span class="sd">    key: JAX random key for stochastic operations.</span>
-<span class="sd">    augment_eps: Standard deviation for Gaussian noise augmentation.</span>
+<span class="sd">    backbone_noise: Standard deviation for Gaussian noise augmentation.</span>
 
 <span class="sd">  Returns:</span>
 <span class="sd">    Tuple of noisy coordinates and the updated JAX random key.</span>
@@ -388,10 +387,21 @@ document.write(`
 
 <span class="sd">  &quot;&quot;&quot;</span>
   <span class="n">key</span><span class="p">,</span> <span class="n">coord_key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
-  <span class="k">if</span> <span class="n">augment_eps</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-    <span class="n">noise</span> <span class="o">=</span> <span class="n">augment_eps</span> <span class="o">*</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="n">coord_key</span><span class="p">,</span> <span class="n">coordinates</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">coordinates</span> <span class="o">+</span> <span class="n">noise</span><span class="p">,</span> <span class="n">key</span>
-  <span class="k">return</span> <span class="n">coordinates</span><span class="p">,</span> <span class="n">key</span></div>
+
+  <span class="k">def</span><span class="w"> </span><span class="nf">add_noise</span><span class="p">(</span><span class="n">coords</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">StructureAtomicCoordinates</span><span class="p">:</span>
+    <span class="n">noise</span> <span class="o">=</span> <span class="n">backbone_noise</span> <span class="o">*</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="n">coord_key</span><span class="p">,</span> <span class="n">coords</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">coords</span> <span class="o">+</span> <span class="n">noise</span>
+
+  <span class="k">def</span><span class="w"> </span><span class="nf">no_noise</span><span class="p">(</span><span class="n">coords</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">StructureAtomicCoordinates</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">coords</span>
+
+  <span class="n">noisy_coordinates</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">cond</span><span class="p">(</span>
+    <span class="n">backbone_noise</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="n">add_noise</span><span class="p">,</span>
+    <span class="n">no_noise</span><span class="p">,</span>
+    <span class="n">coordinates</span><span class="p">,</span>
+  <span class="p">)</span>
+  <span class="k">return</span> <span class="n">noisy_coordinates</span><span class="p">,</span> <span class="n">key</span></div>
 
 
 

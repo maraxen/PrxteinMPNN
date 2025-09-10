@@ -14,6 +14,7 @@ import numpy as np
 from prxteinmpnn.io.parsing import (
   string_to_protein_sequence,
 )
+from prxteinmpnn.utils.data_structures import ProteinEnsemble, ProteinTuple
 
 logger = logging.getLogger(__name__)
 
@@ -53,10 +54,10 @@ def _setup_foldcomp_database(database: FoldCompDatabase) -> None:
   foldcomp.setup(database)
 
 
-def get_protein_structures(
+async def get_protein_structures(
   protein_ids: Sequence[str],
   database: FoldCompDatabase = "afdb_rep_v4",
-) -> list[tuple]:
+) -> ProteinEnsemble:
   """Retrieve protein structures from the FoldComp database and return them as a list of ensembles.
 
   This is a synchronous, blocking function designed to be run in an executor.
@@ -70,10 +71,9 @@ def get_protein_structures(
     for one of the requested protein IDs.
 
   """
-  output_proteins: list[tuple] = []
   _setup_foldcomp_database(database)
   with foldcomp.open(database, ids=protein_ids, decompress=False) as proteins:  # type: ignore[attr-access]
-    for _, fcz in proteins:
+    for name, fcz in proteins:
       try:
         fcz_data = foldcomp.get_data(fcz)  # type: ignore[attr-access]
 
@@ -86,18 +86,18 @@ def get_protein_structures(
         sequence = string_to_protein_sequence(fcz_data["residues"])
         num_res = len(sequence)
 
-        output_proteins.append(
-          (
-            coordinates,
-            sequence,
-            np.ones_like(sequence, dtype=np.bool_),
-            np.arange(num_res),
-            np.zeros(num_res, dtype=np.int32),
-            dihedrals,
+        yield (
+          ProteinTuple(
+            coordinates=coordinates,
+            aatype=sequence,
+            atom_mask=np.ones_like(sequence, dtype=np.bool_),
+            residue_index=np.arange(num_res),
+            chain_index=np.zeros(num_res, dtype=np.int32),
+            dihedrals=dihedrals,
           ),
+          name,
         )
       except Exception as e:  # noqa: BLE001
         msg = f"Failed to process a FoldComp entry. Error: {e}"
         logger.warning(msg)
         continue
-  return output_proteins

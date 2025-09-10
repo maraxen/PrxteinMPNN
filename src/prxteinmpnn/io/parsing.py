@@ -14,6 +14,7 @@ from biotite.structure import AtomArray, AtomArrayStack
 from biotite.structure import io as structure_io
 from jax import vmap
 
+from prxteinmpnn.utils.data_structures import ProteinEnsemble, ProteinTuple
 from prxteinmpnn.utils.residue_constants import (
   atom_order,
   resname_to_idx,
@@ -385,7 +386,7 @@ def process_atom_array(
   atom_array: AtomArray,
   atom_map: dict[str, int] | None = None,
   chain_id: Sequence[str] | str | None = None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray | None]:
+) -> ProteinTuple:
   """Process an AtomArray to create a Protein inputs."""
   if atom_map is None:
     atom_map = atom_order
@@ -428,25 +429,24 @@ def process_atom_array(
   chain_index = chain_index[nitrogen_mask]
   phi, psi, omega = structure.dihedral_backbone(atom_array)
   dihedrals = np.stack([phi, psi, omega], axis=-1) if phi is not None else None
-
-  return (
-    coords_37,
-    aatype,
-    atom_mask_37,
-    residue_indices,
-    chain_index,
-    dihedrals,
+  return ProteinTuple(
+    coordinates=coords_37,
+    aatype=aatype,
+    atom_mask=atom_mask_37,
+    residue_index=residue_indices,
+    chain_index=chain_index,
+    dihedrals=dihedrals,
   )
 
 
-def parse_input(
+async def parse_input(
   source: str | StringIO | pathlib.Path,
   *,
   model: int | None = None,
   altloc: str = "first",
   chain_id: Sequence[str] | str | None = None,
-  **kwargs: dict[str, Any],
-) -> list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray | None]]:
+  **kwargs: Any,
+) -> ProteinEnsemble:
   """Parse a structure file or string into a list of Protein objects.
 
   This is a synchronous, CPU-bound function intended to be run in an executor
@@ -469,7 +469,6 @@ def parse_input(
       tmp.write(source.read())
       source = pathlib.Path(tmp.name)
 
-  proteins = []
   try:
     atom_array_or_stack = structure_io.load_structure(
       source,
@@ -479,18 +478,12 @@ def parse_input(
     )
 
     if isinstance(atom_array_or_stack, AtomArrayStack):
-      proteins.extend(process_atom_array(frame, chain_id=chain_id) for frame in atom_array_or_stack)
+      for frame in atom_array_or_stack:
+        yield (process_atom_array(frame, chain_id=chain_id), str(source))
     elif isinstance(atom_array_or_stack, AtomArray):
-      proteins.append(
-        process_atom_array(atom_array_or_stack, chain_id=chain_id),
-      )
+      yield (process_atom_array(atom_array_or_stack, chain_id=chain_id), str(source))
 
   except Exception as e:
     msg = f"Failed to parse structure from source: {e}"
     warnings.warn(msg, stacklevel=2)
     raise RuntimeError(msg) from e
-
-  if not proteins:
-    warnings.warn("No valid structures were parsed from the provided source.", stacklevel=2)
-
-  return proteins

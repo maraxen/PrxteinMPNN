@@ -5,39 +5,28 @@ import re
 import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from concurrent.futures import ProcessPoolExecutor
 from io import StringIO
 from typing import Any
 
 import aiohttp
-import anyio
+from anyio import to_thread
 
+from prxteinmpnn.io.parsing import parse_input
 from prxteinmpnn.utils.data_structures import ProteinEnsemble
-from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase
+from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase, get_protein_structures
 
 
-def _parse_input_worker(source: str | StringIO, **kwargs: Any) -> list[tuple]:
-  """Worker function to run in a separate process, ensuring JAX uses CPU."""
-  import os
-
-  os.environ["JAX_PLATFORMS"] = "cpu"
-
-  from prxteinmpnn.io.parsing import parse_input
-
-  return parse_input(source, **kwargs)
+async def _parse_input_worker(source: str | StringIO, kwargs: dict[str, Any]) -> ProteinEnsemble:
+  """Worker function to run in a separate process."""
+  return await to_thread.run_sync(parse_input, source, **kwargs)
 
 
-def _get_protein_structures_worker(
+async def _get_protein_structures_worker(
   protein_ids: Sequence[str],
   database: FoldCompDatabase,
-) -> list[tuple]:
-  """Worker function for FoldComp, ensuring JAX uses CPU."""
-  import os
-
-  os.environ["JAX_PLATFORMS"] = "cpu"
-  from prxteinmpnn.utils.foldcomp_utils import get_protein_structures
-
-  return get_protein_structures(protein_ids, database)
+) -> ProteinEnsemble:
+  """Worker function for FoldComp."""
+  return await to_thread.run_sync(get_protein_structures, protein_ids, database)
 
 
 class InputSource(ABC):
@@ -49,7 +38,7 @@ class InputSource(ABC):
     self.kwargs = kwargs
 
   @abstractmethod
-  async def process(self, executor: ProcessPoolExecutor) -> ProteinEnsemble:
+  async def process(self) -> ProteinEnsemble:
     """Process the input source and yield Protein."""
     raise NotImplementedError
     yield  # This makes this method an async generator
@@ -58,13 +47,11 @@ class InputSource(ABC):
 class FilePathSource(InputSource):
   """Handles processing of a single structure file."""
 
-  async def process(self, executor: ProcessPoolExecutor) -> ProteinEnsemble:
+  async def process(self) -> ProteinEnsemble:
     """Process a single structure file."""
     try:
-      future = executor.submit(_parse_input_worker, self.value, **self.kwargs)  # type: ignore[arg-type]
-      proteins = await anyio.to_thread.run_sync(future.result)  # type: ignore[attr-access]
-      for protein in proteins:
-        yield protein, self.value
+      async for protein, source in await _parse_input_worker(self.value, self.kwargs):
+        yield protein, source
     except FileNotFoundError:
       warnings.warn(f"File not found: '{self.value}'", stacklevel=2)
     except Exception as e:  # noqa: BLE001
@@ -74,36 +61,34 @@ class FilePathSource(InputSource):
 class DirectorySource(InputSource):
   """Handles recursive processing of directories."""
 
-  async def process(self, executor: ProcessPoolExecutor) -> ProteinEnsemble:
+  async def process(self) -> ProteinEnsemble:
     """Recursively process all structure files in a directory."""
 
     async def _find_files() -> list[pathlib.Path]:
       """Asynchronously find all files in the directory."""
-      return await anyio.to_thread.run_sync(lambda: list(self.value.rglob("*")))  # type: ignore[attr-access]
+      return await to_thread.run_sync(lambda: list(self.value.rglob("*")))
 
     files = await _find_files()
     for file_path in files:
       if file_path.is_file() and file_path.suffix in [".pdb", ".cif", ".xtc", ".dcd"]:
         handler = FilePathSource(str(file_path), **self.kwargs)
-        async for protein in handler.process(executor):
-          yield protein
+        async for protein, source in handler.process():
+          yield protein, source
 
 
 class PDBIDSource(InputSource):
   """Handles fetching and processing of PDB IDs from RCSB."""
 
-  async def process(self, executor: ProcessPoolExecutor) -> ProteinEnsemble:
+  async def process(self) -> ProteinEnsemble:
     """Fetch and process a PDB structure by its ID."""
     url = f"https://files.rcsb.org/download/{self.value}.pdb"
     try:
       async with aiohttp.ClientSession() as session, session.get(url) as response:
         response.raise_for_status()
         content = await response.text()
+        async for protein, source in await _parse_input_worker(StringIO(content), self.kwargs):
+          yield protein, source
 
-        future = executor.submit(_parse_input_worker, StringIO(content), **self.kwargs)  # type: ignore[arg-type]
-        proteins = await anyio.to_thread.run_sync(future.result)  # type: ignore[attr-access]
-        for protein in proteins:
-          yield protein, self.value
     except Exception as e:  # noqa: BLE001
       warnings.warn(f"Failed to fetch or process PDB ID '{self.value}': {e}", stacklevel=2)
 
@@ -111,13 +96,11 @@ class PDBIDSource(InputSource):
 class StringIOSource(InputSource):
   """Handles processing of in-memory StringIO objects."""
 
-  async def process(self, executor: ProcessPoolExecutor) -> ProteinEnsemble:
+  async def process(self) -> ProteinEnsemble:
     """Process a StringIO object containing structure data."""
     try:
-      future = executor.submit(_parse_input_worker, self.value, **self.kwargs)  # type: ignore[arg-type]
-      proteins = await anyio.to_thread.run_sync(future.result)  # type: ignore[attr-access]
-      for protein in proteins:
-        yield protein, "StringIO"
+      async for protein, source in await _parse_input_worker(self.value, self.kwargs):
+        yield protein, source
     except Exception as e:  # noqa: BLE001
       warnings.warn(f"Failed to process StringIO input: {e}", stacklevel=2)
 
@@ -135,16 +118,14 @@ class FoldCompSource(InputSource):
     super().__init__(value, **kwargs)
     self.db: FoldCompDatabase = foldcomp_database
 
-  async def process(self, executor: ProcessPoolExecutor) -> ProteinEnsemble:
+  async def process(self) -> ProteinEnsemble:
     """Fetch and process structures from FoldComp by their IDs."""
     if not self.db:
       warnings.warn("FoldComp IDs provided but no database specified.", stacklevel=2)
       return
     try:
-      future = executor.submit(_get_protein_structures_worker, self.value, self.db)
-      proteins = await anyio.to_thread.run_sync(future.result)  # type: ignore[attr-access]
-      for protein in proteins:
-        yield protein, self.value
+      async for protein, source in await _get_protein_structures_worker(self.value, self.db):
+        yield protein, source
     except Exception as e:  # noqa: BLE001
       warnings.warn(f"Failed to process FoldComp IDs: {e}", stacklevel=2)
 

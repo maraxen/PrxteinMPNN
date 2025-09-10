@@ -1,14 +1,12 @@
 """Handlers for various input sources to load protein structures."""
 
-import multiprocessing
 from collections.abc import Sequence
-from concurrent.futures import ProcessPoolExecutor
 from io import StringIO
 from typing import Any
 
 import anyio
 
-from prxteinmpnn.utils.data_structures import ProteinEnsemble
+from prxteinmpnn.utils.data_structures import ProteinTuple
 from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase
 
 from .input_sources import (
@@ -24,7 +22,7 @@ async def load(
   foldcomp_database: FoldCompDatabase | None = None,
   max_concurrency: int = 10,
   **kwargs: dict[str, Any],
-) -> ProteinEnsemble:
+) -> tuple[list[ProteinTuple], list[str]]:
   """Asynchronously loads model inputs from various sources with high efficiency.
 
   This function processes inputs concurrently, using a process pool for CPU-bound
@@ -54,18 +52,28 @@ async def load(
 
   valid_handlers = [h for h in handlers if h is not None]
 
-  # Use the 'spawn' start method for multiprocessing to avoid deadlocks with JAX's
-  # multithreaded backend, which is incompatible with the default 'fork' method.
-  with ProcessPoolExecutor(mp_context=multiprocessing.get_context("spawn")) as executor:
-    semaphore = anyio.Semaphore(max_concurrency)
+  items = []
+  limiter = anyio.CapacityLimiter(max_concurrency)
 
-    async def process_with_semaphore(
-      handler: InputSource,
-    ) -> ProteinEnsemble:
-      async with semaphore:
-        async for protein in handler.process(executor):
-          yield protein
+  async def process_and_collect(handler: InputSource, results: list) -> None:
+    """Process an input source and collect results."""
+    async with limiter:
+      results.extend([protein async for protein in handler.process()])
 
+  async with anyio.create_task_group() as tg:
     for handler in valid_handlers:
-      async for protein in process_with_semaphore(handler):
-        yield protein
+      tg.start_soon(process_and_collect, handler, items)
+
+  if not items:
+    msg = "Cannot batch an empty ProteinEnsemble."
+    raise ValueError(msg)
+
+  _proteins, sources = zip(*items, strict=False)
+
+  if not isinstance(sources, list):
+    sources = list(sources)
+
+  if not isinstance(_proteins, list):
+    _proteins = list(_proteins)
+
+  return _proteins, sources

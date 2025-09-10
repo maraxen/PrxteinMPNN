@@ -9,20 +9,7 @@ from biotite.sequence import ProteinSequence as BiotiteProteinSequence
 from biotite.sequence import align
 
 from prxteinmpnn.utils.aa_convert import protein_sequence_to_string, string_to_protein_sequence
-from prxteinmpnn.utils.data_structures import Protein, ProteinEnsemble, ProteinTuple
-
-
-def tuple_to_protein(t: ProteinTuple) -> Protein:
-  """Convert a ProteinTuple to a Protein dataclass."""
-  return Protein(
-    coordinates=jnp.array(t[0]).astype(jnp.float32),
-    aatype=jnp.array(t[1]).astype(jnp.int8),
-    atom_mask=jnp.array(t[2]).astype(jnp.float16),
-    residue_index=jnp.array(t[3]).astype(jnp.int32),
-    chain_index=jnp.array(t[4]).astype(jnp.int32),
-    dihedrals=None if t[5] is None else jnp.array(t[5]).astype(jnp.float32),
-    one_hot_sequence=jax.nn.one_hot(jnp.array(t[1]), 21, dtype=jnp.float32),
-  )
+from prxteinmpnn.utils.data_structures import Protein
 
 
 def _pad_protein_to_length(protein: Protein, new_length: int, mapping: jax.Array) -> Protein:
@@ -220,9 +207,9 @@ def _pad_single_token_seq(
 
 
 async def batch_and_pad_proteins(
-  ensemble: ProteinEnsemble,
+  proteins: list[Protein],
   sequences_to_score: Sequence[str] | None = None,
-) -> tuple[Protein, list[str], jax.Array | None]:
+) -> tuple[Protein, jax.Array | None]:
   """Consume a ProteinEnsemble stream, then pad and stack the proteins into a single batched Pytree.
 
   This function is responsible for aligning both the protein structures and any
@@ -244,16 +231,6 @@ async def batch_and_pad_proteins(
           or None if not provided.
 
   """
-  items = [item async for item in ensemble]
-
-  if not items:
-    msg = "Cannot batch an empty ProteinEnsemble."
-    raise ValueError(msg)
-
-  _proteins, sources = zip(*items, strict=False)
-
-  proteins = [tuple_to_protein(p) for p in _proteins]
-
   protein_seq_strs = [protein_sequence_to_string(p.aatype) for p in proteins]
   all_seq_strs = list(protein_seq_strs)
   if sequences_to_score:
@@ -309,4 +286,4 @@ async def batch_and_pad_proteins(
     else:
       aligned_sequences_tokens = jnp.empty((0, msa_length), dtype=jnp.int8)
 
-  return padded_batched_protein, list(sources), aligned_sequences_tokens
+  return padded_batched_protein, aligned_sequences_tokens

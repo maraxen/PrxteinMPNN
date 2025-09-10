@@ -31,6 +31,9 @@ def _get_protein_structures_worker(
   database: FoldCompDatabase,
 ) -> list[Protein]:
   """Worker function for FoldComp, ensuring JAX uses CPU."""
+  import os  # noqa: PLC0415
+
+  os.environ["JAX_PLATFORMS"] = "cpu"
   import jax  # noqa: PLC0415
 
   jax.config.update("jax_platform_name", "cpu")

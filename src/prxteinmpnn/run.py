@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from functools import partial
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
   from prxteinmpnn.utils.types import (
     AtomMask,
     ChainIndex,
-    ProteinSequence,
+    OneHotProteinSequence,
     ResidueIndex,
     StructureAtomicCoordinates,
   )
@@ -28,6 +29,7 @@ if TYPE_CHECKING:
 
 from prxteinmpnn.io.process import load
 from prxteinmpnn.mpnn import get_mpnn_model
+from prxteinmpnn.sampling.conditional_logits import make_conditional_logits_fn
 from prxteinmpnn.scoring.score import make_score_sequence
 from prxteinmpnn.utils.batching import (
   batch_and_pad_proteins,
@@ -36,8 +38,6 @@ from prxteinmpnn.utils.batching import (
 AlignmentStrategy = Literal["sequence", "structure"]
 
 logger = logging.getLogger(__name__)
-import sys
-
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
 
 
@@ -148,20 +148,14 @@ async def categorical_jacobian(
   rng_key: int = 0,
   backbone_noise: float | list[float] | ArrayLike = 0.0,
   mode: Literal["full", "diagonal"] = "full",
-  batch_size: int = 32,
+  outer_batch_size: int = 1,
+  inner_batch_size: int = 32,
   **kwargs: Any,  # noqa: ANN401
 ) -> dict[str, jax.Array | dict[str, jax.Array | list[str] | str] | None]:
   """Compute the Jacobian of the model's logits with respect to the input sequence.
 
   This function calculates the derivative of the output logits at all positions
   with respect to the one-hot encoded input sequence at all positions.
-
-  ⚠️ **Warning on Memory Usage**: The full Jacobian tensor for a protein of
-  length L is of shape (L, 21, L, 21), which can too large to fit in
-  memory, especially if you are examining it across many structures. As an option,
-  this function can compute only the diagonal blocks of the Jacobian, i.e.,
-  (∂ logits[i] / ∂ seq[i]), resulting in a much more manageable shape of
-  (L, 21, 21). To compute this diagonal matrix, set `mode="diagonal"`.
 
   Args:
       inputs: An async stream of structures (files, PDB IDs, etc.).
@@ -171,7 +165,8 @@ async def categorical_jacobian(
       rng_key: The random number generator key.
       backbone_noise: The amount of noise to add to the backbone.
       mode: "full" to compute the full Jacobian, "diagonal" for only diagonal blocks.
-      batch_size: The batch size for processing structures.
+      inner_batch_size: The batch size for processing sequences across a structure.
+      outer_batch_size: The batch size for processing structures.
       **kwargs: Additional keyword arguments for structure loading.
 
   Returns:
@@ -189,16 +184,15 @@ async def categorical_jacobian(
   logger.info("Computing categorical Jacobian in %s mode.", mode)
 
   protein_stream = load(inputs, foldcomp_database=foldcomp_database, **kwargs)
-
   logger.info("Loaded protein stream, batching and padding proteins.")
 
   batched_proteins, sources, _ = await batch_and_pad_proteins(protein_stream)
-
   logger.info("Batched and padded proteins, loading model.")
 
   model_parameters = get_mpnn_model(model_version=model_version, model_weights=model_weights)
   logger.info("Loaded model parameters.")
-  score_single_pair = make_score_sequence(model_parameters=model_parameters)
+
+  conditional_logits_fn = make_conditional_logits_fn(model_parameters=model_parameters)
   logger.info("Created scoring function.")
 
   def compute_jacobian_for_structure(
@@ -210,48 +204,29 @@ async def categorical_jacobian(
     noise: jax.Array,
   ) -> jax.Array:
     """Compute the Jacobian for a single protein structure and noise level."""
-    jax.debug.print(
-      "Shapes: coords {}, mask {}, res_ix {}, chain_ix {}, seq {}, noise {}",
-      coords.shape,
-      atom_mask.shape,
-      residue_ix.shape,
-      chain_ix.shape,
-      one_hot_sequence.shape,
-      noise.shape,
-    )
+    length = one_hot_sequence.shape[0]
+    all_seqs = jnp.eye(21)[jnp.arange(21).repeat(length).reshape(length, 21)]
+    residue_mask = atom_mask[:, 0]
 
     def logit_fn(one_hot_sequence: jax.Array) -> jax.Array:
-      ar_mask = 1 - jnp.eye(one_hot_sequence.shape[0], dtype=jnp.bool_)
-
-      _, logits, _ = score_single_pair(
+      logits, _, _ = conditional_logits_fn(
         jax.random.key(rng_key),
+        coords,
         one_hot_sequence,
-        coords,  # type: ignore[arg-type]
-        atom_mask,
+        residue_mask,
         residue_ix,
         chain_ix,
+        None,
         48,
         noise,
-        ar_mask,
       )
       return logits
 
-    jax.debug.print("Computing Jacobian for structure of length {}", one_hot_sequence.shape[0])
-
-    if mode == "diagonal":
-
-      def get_logit_at_pos(one_hot_at_pos: jax.Array, pos: int) -> jax.Array:
-        """Return logits at `pos` when only `seq[pos]` is changed."""
-        modified_sequence = one_hot_sequence.at[pos].set(one_hot_at_pos)
-        return logit_fn(modified_sequence)[pos]
-
-      return jax.vmap(
-        jax.jacrev(get_logit_at_pos, argnums=0),
-        in_axes=(0, 0),
-      )(one_hot_sequence, jnp.arange(one_hot_sequence.shape[0]))
-
-    jax.debug.print("Computing full Jacobian.")
-    return jax.jacrev(logit_fn)(one_hot_sequence)
+    return jax.lax.map(
+      logit_fn,
+      all_seqs,
+      batch_size=inner_batch_size,
+    )
 
   vmap_over_noise = jax.vmap(
     compute_jacobian_for_structure,
@@ -265,7 +240,7 @@ async def categorical_jacobian(
       AtomMask,
       ResidueIndex,
       ChainIndex,
-      ProteinSequence,
+      OneHotProteinSequence,
     ],
   ) -> jax.Array:
     """Map over a single structure, vmapping over noise levels."""
@@ -280,7 +255,7 @@ async def categorical_jacobian(
       batched_proteins.chain_index,
       batched_proteins.one_hot_sequence,
     ),
-    batch_size=batch_size,
+    batch_size=outer_batch_size,
   )
 
   return {

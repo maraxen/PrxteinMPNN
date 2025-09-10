@@ -22,6 +22,7 @@ from prxteinmpnn.utils.types import (
   Logits,
   ModelParameters,
   NodeFeatures,
+  OneHotProteinSequence,
   ProteinSequence,
   ResidueIndex,
   StructureAtomicCoordinates,
@@ -121,7 +122,7 @@ def make_conditional_logits_fn(
   def condition_logits(
     prng_key: PRNGKeyArray,
     structure_coordinates: StructureAtomicCoordinates,
-    sequence: ProteinSequence,
+    sequence: ProteinSequence | OneHotProteinSequence,
     mask: AtomMask,
     residue_index: ResidueIndex,
     chain_index: ChainIndex,
@@ -135,7 +136,7 @@ def make_conditional_logits_fn(
     if backbone_noise is None:
       backbone_noise = jnp.array(0.0, dtype=jnp.float32)
 
-    autoregressive_mask = 1 - jnp.eye(structure_coordinates.shape[0], dtype=jnp.float32)
+    autoregressive_mask = 1 - jnp.eye(structure_coordinates.shape[0])
 
     (
       node_features,
@@ -155,8 +156,8 @@ def make_conditional_logits_fn(
       k_neighbors,
       backbone_noise,
     )
-
-    one_hot_sequence = jax.nn.one_hot(sequence, 21, dtype=jnp.float32)
+    if sequence.ndim == 1:
+      sequence = jax.nn.one_hot(sequence, 21, dtype=jnp.float32)
 
     decoded_node_features = decoder(
       node_features,
@@ -164,7 +165,7 @@ def make_conditional_logits_fn(
       neighbor_indices,
       mask,
       autoregressive_mask,
-      one_hot_sequence,
+      sequence,
     )
 
     logits = final_projection(model_parameters, decoded_node_features)

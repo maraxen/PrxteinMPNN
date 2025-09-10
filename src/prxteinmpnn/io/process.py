@@ -1,5 +1,6 @@
 """Handlers for various input sources to load protein structures."""
 
+import multiprocessing
 from collections.abc import Sequence
 from concurrent.futures import ProcessPoolExecutor
 from io import StringIO
@@ -53,7 +54,9 @@ async def load(
 
   valid_handlers = [h for h in handlers if h is not None]
 
-  with ProcessPoolExecutor() as executor:
+  # Use the 'spawn' start method for multiprocessing to avoid deadlocks with JAX's
+  # multithreaded backend, which is incompatible with the default 'fork' method.
+  with ProcessPoolExecutor(mp_context=multiprocessing.get_context("spawn")) as executor:
     semaphore = anyio.Semaphore(max_concurrency)
 
     async def process_with_semaphore(

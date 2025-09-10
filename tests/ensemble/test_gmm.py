@@ -53,7 +53,7 @@ def test_make_fit_gmm_default_parameters(mock_em_fitter, mock_gmm, mock_logits):
   mock_gmm.create.assert_called_once_with(n_components=100, n_features=21)
   
   # Verify EMFitter was created with correct parameters
-  mock_em_fitter.assert_called_once_with(tol=1e-3, max_iter=100)
+  mock_em_fitter.assert_called_once_with(tol=1e-3, max_iter=100, reg_covar=1e-6)
   
   # Test fitting
   result = gmm_fit_fn(mock_logits)
@@ -222,7 +222,7 @@ def test_make_fit_gmm_em_fitter_configuration(mock_em_fitter, mock_gmm):
   make_fit_gmm()
   
   # Verify EMFitter was called with expected tolerance and max iterations
-  mock_em_fitter.assert_called_once_with(tol=1e-3, max_iter=100)
+  mock_em_fitter.assert_called_once_with(tol=1e-3, max_iter=100, reg_covar=1e-6)
 
 
 def test_make_fit_gmm_edge_cases():

@@ -370,7 +370,9 @@ document.write(`
   </button>
 `);
 </script>
-
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
 </div></div>
       
     </div>
@@ -386,6 +388,14 @@ document.write(`
     <div id="print-main-content">
         <div id="jb-print-toc">
             
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.make_sample_sequences"><code class="docutils literal notranslate"><span class="pre">make_sample_sequences()</span></code></a></li>
+</ul>
+            </nav>
         </div>
     </div>
 </div>
@@ -395,13 +405,44 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="sampling-module">
-<h1>sampling module<a class="headerlink" href="#sampling-module" title="Link to this heading">#</a></h1>
+  <section id="module-prxteinmpnn.sampling">
+<span id="sampling-module"></span><h1>sampling module<a class="headerlink" href="#module-prxteinmpnn.sampling" title="Link to this heading">#</a></h1>
+<p>Sampling utilities for PrXteinMPNN.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.sampling.make_sample_sequences">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.sampling.</span></span><span class="sig-name descname"><span class="pre">make_sample_sequences</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decoding_order_fn</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sampling_strategy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'temperature'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_encoder_layers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_decoder_layers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/sampling/sample.html#make_sample_sequences"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.sampling.make_sample_sequences" title="Link to this definition">#</a></dt>
+<dd><p>Create a function to sample or optimize sequences from a structure.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">partial</span></code>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_classes']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code>]]</span></p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>model_parameters</strong> (<em>PyTree</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em>, </em><em>'P'</em><em>]</em>)</p></li>
+<li><p><strong>decoding_order_fn</strong> (<a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><em>Callable</em></a><em>[</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Unpack" title="(in Python v3.13)"><em>Unpack</em></a><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><em>tuple</em></a><em>[</em><em>Key</em><em>[</em><em>Array</em><em>, </em><em>''</em><em>] </em><em>| </em><em>UInt32</em><em>[</em><em>Array</em><em>, </em><em>'2'</em><em>]</em><em>, </em><em>Int</em><em>]</em><em>]</em><em>]</em><em>, </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><em>tuple</em></a><em>[</em><em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues'</em><em>]</em><em>, </em><em>Key</em><em>[</em><em>Array</em><em>, </em><em>''</em><em>] </em><em>| </em><em>UInt32</em><em>[</em><em>Array</em><em>, </em><em>'2'</em><em>]</em><em>]</em><em>]</em>)</p></li>
+<li><p><strong>sampling_strategy</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><em>Literal</em></a><em>[</em><em>'temperature'</em><em>, </em><em>'straight_through'</em><em>]</em>)</p></li>
+<li><p><strong>num_encoder_layers</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+<li><p><strong>num_decoder_layers</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
 <div class="toctree-wrapper compound">
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.sampling.initialize.html">initialize</a></li>
-<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.sampling.sample.html">sample</a></li>
-<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.sampling.sampling_step.html">sampling_step</a></li>
+<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.sampling.initialize.html">initialize</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.sampling.initialize.html#prxteinmpnn.sampling.initialize.sampling_encode"><code class="docutils literal notranslate"><span class="pre">sampling_encode()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.sampling.sample.html">sample</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.sampling.sample.html#prxteinmpnn.sampling.sample.make_sample_sequences"><code class="docutils literal notranslate"><span class="pre">make_sample_sequences()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.sampling.sampling_step.html">sampling_step</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.sampling_step.temperature_sample"><code class="docutils literal notranslate"><span class="pre">temperature_sample()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.sampling_step.preload_sampling_step_decoder"><code class="docutils literal notranslate"><span class="pre">preload_sampling_step_decoder()</span></code></a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.sampling.ste.html">ste</a></li>
 </ul>
 </div>
@@ -442,6 +483,21 @@ document.write(`
             </div>
             
             
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.make_sample_sequences"><code class="docutils literal notranslate"><span class="pre">make_sample_sequences()</span></code></a></li>
+</ul>
+  </nav></div>
+
+</div></div>
               
             
           </div>

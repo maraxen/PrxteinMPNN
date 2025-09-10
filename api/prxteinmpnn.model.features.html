@@ -375,7 +375,9 @@ document.write(`
   </button>
 `);
 </script>
-
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
 </div></div>
       
     </div>
@@ -391,6 +393,18 @@ document.write(`
     <div id="print-main-content">
         <div id="jb-print-toc">
             
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.features.get_edge_chains_neighbors"><code class="docutils literal notranslate"><span class="pre">get_edge_chains_neighbors()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.features.encode_positions"><code class="docutils literal notranslate"><span class="pre">encode_positions()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.features.embed_edges"><code class="docutils literal notranslate"><span class="pre">embed_edges()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.features.extract_features"><code class="docutils literal notranslate"><span class="pre">extract_features()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.features.project_features"><code class="docutils literal notranslate"><span class="pre">project_features()</span></code></a></li>
+</ul>
+            </nav>
         </div>
     </div>
 </div>
@@ -400,8 +414,105 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="features">
-<h1>features<a class="headerlink" href="#features" title="Link to this heading">#</a></h1>
+  <section id="module-prxteinmpnn.model.features">
+<span id="features"></span><h1>features<a class="headerlink" href="#module-prxteinmpnn.model.features" title="Link to this heading">#</a></h1>
+<p>Feature extraction for protein structures in the PrxteinMPNN model.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.model.features.get_edge_chains_neighbors">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.features.</span></span><span class="sig-name descname"><span class="pre">get_edge_chains_neighbors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chain_index</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">neighbor_indices</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/features.html#get_edge_chains_neighbors"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.features.get_edge_chains_neighbors" title="Link to this definition">#</a></dt>
+<dd><p>Compute edge chains for neighbors.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors']</span></code></span></p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>chain_index</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues'</em><em>]</em>)</p></li>
+<li><p><strong>neighbor_indices</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_atoms num_neighbors'</em><em>]</em>)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.model.features.encode_positions">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.features.</span></span><span class="sig-name descname"><span class="pre">encode_positions</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">neighbor_offsets</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_chains_neighbors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/features.html#encode_positions"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.features.encode_positions" title="Link to this definition">#</a></dt>
+<dd><p>Encode positions based on neighbor offsets and edge chains.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">(2</span> <span class="pre">*</span> <span class="pre">MAXIMUM_RELATIVE_FEATURES</span> <span class="pre">+</span> <span class="pre">2)']</span></code></span></p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>neighbor_offsets</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_neighbors'</em><em>]</em>)</p></li>
+<li><p><strong>edge_chains_neighbors</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_atoms num_neighbors'</em><em>]</em>)</p></li>
+<li><p><strong>model_parameters</strong> (<em>PyTree</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em>, </em><em>'P'</em><em>]</em>)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.model.features.embed_edges">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.features.</span></span><span class="sig-name descname"><span class="pre">embed_edges</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">edge_features</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/features.html#embed_edges"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.features.embed_edges" title="Link to this definition">#</a></dt>
+<dd><p>Embed edge features using model parameters.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code></span></p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>edge_features</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_atoms num_neighbors</em><em> (</em><em>2 * MAXIMUM_RELATIVE_FEATURES + 2</em><em>)</em><em>'</em><em>]</em>)</p></li>
+<li><p><strong>model_parameters</strong> (<em>PyTree</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em>, </em><em>'P'</em><em>]</em>)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.model.features.extract_features">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.features.</span></span><span class="sig-name descname"><span class="pre">extract_features</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prng_key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">structure_coordinates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residue_index</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chain_index</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k_neighbors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">48</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backbone_noise</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/features.html#extract_features"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.features.extract_features" title="Link to this definition">#</a></dt>
+<dd><p>Extract features from protein structure coordinates.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>structure_coordinates</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms</span> <span class="pre">3']</span></code></span>) – Atomic coordinates of the protein structure.</p></li>
+<li><p><strong>mask</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code></span>) – Mask indicating valid atoms in the structure.</p></li>
+<li><p><strong>residue_index</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code></span>) – Residue indices for each atom.</p></li>
+<li><p><strong>chain_index</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code></span>) – Chain indices for each atom.</p></li>
+<li><p><strong>model_parameters</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">PyTree[str,</span> <span class="pre">'P']</span></code></span>) – Model parameters for the feature extraction.</p></li>
+<li><p><strong>prng_key</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Union</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Key[Array,</span> <span class="pre">'']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">UInt32[Array,</span> <span class="pre">'2']</span></code>]</span>) – JAX random key for stochastic operations.</p></li>
+<li><p><strong>k_neighbors</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a></span>) – Maximum number of neighbors to consider for each atom.</p></li>
+<li><p><strong>backbone_noise</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'n']</span></code> | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span>) – Standard deviation for Gaussian noise augmentation.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Edge features after concatenation and normalization.
+edge_indices: Indices of neighboring atoms.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>edge_features</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.model.features.project_features">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.features.</span></span><span class="sig-name descname"><span class="pre">project_features</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_features</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/features.html#project_features"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.features.project_features" title="Link to this definition">#</a></dt>
+<dd><p>Project edge features using model parameters.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code></span></p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>model_parameters</strong> (<em>PyTree</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em>, </em><em>'P'</em><em>]</em>)</p></li>
+<li><p><strong>edge_features</strong> (<em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_atoms num_neighbors num_features'</em><em>]</em>)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
 </section>
 
 
@@ -439,6 +550,25 @@ document.write(`
             </div>
             
             
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.features.get_edge_chains_neighbors"><code class="docutils literal notranslate"><span class="pre">get_edge_chains_neighbors()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.features.encode_positions"><code class="docutils literal notranslate"><span class="pre">encode_positions()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.features.embed_edges"><code class="docutils literal notranslate"><span class="pre">embed_edges()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.features.extract_features"><code class="docutils literal notranslate"><span class="pre">extract_features()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.features.project_features"><code class="docutils literal notranslate"><span class="pre">project_features()</span></code></a></li>
+</ul>
+  </nav></div>
+
+</div></div>
               
             
           </div>

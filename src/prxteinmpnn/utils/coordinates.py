@@ -3,8 +3,6 @@
 prxteinmpnn.utils.coordinates
 """
 
-from functools import partial
-
 import jax
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
@@ -14,22 +12,23 @@ from prxteinmpnn.utils.types import (
   AlphaCarbonDistance,
   AtomicCoordinate,
   BackboneCoordinates,
+  BackboneNoise,
   StructureAtomicCoordinates,
 )
 
 
-@partial(jax.jit, static_argnames=("augment_eps",))
+@jax.jit
 def apply_noise_to_coordinates(
   key: PRNGKeyArray,
   coordinates: StructureAtomicCoordinates,
-  augment_eps: float = 0.0,
+  backbone_noise: BackboneNoise,
 ) -> tuple[StructureAtomicCoordinates, PRNGKeyArray]:
   """Add Gaussian noise to atomic coordinates.
 
   Args:
     coordinates: Atomic coordinates of the protein structure. (N, 37, 3)
     key: JAX random key for stochastic operations.
-    augment_eps: Standard deviation for Gaussian noise augmentation.
+    backbone_noise: Standard deviation for Gaussian noise augmentation.
 
   Returns:
     Tuple of noisy coordinates and the updated JAX random key.
@@ -40,10 +39,21 @@ def apply_noise_to_coordinates(
 
   """
   key, coord_key = jax.random.split(key)
-  if augment_eps > 0:
-    noise = augment_eps * jax.random.normal(coord_key, coordinates.shape)
-    return coordinates + noise, key
-  return coordinates, key
+
+  def add_noise(coords: StructureAtomicCoordinates) -> StructureAtomicCoordinates:
+    noise = backbone_noise * jax.random.normal(coord_key, coords.shape)
+    return coords + noise
+
+  def no_noise(coords: StructureAtomicCoordinates) -> StructureAtomicCoordinates:
+    return coords
+
+  noisy_coordinates = jax.lax.cond(
+    backbone_noise > 0,
+    add_noise,
+    no_noise,
+    coordinates,
+  )
+  return noisy_coordinates, key
 
 
 @jax.jit

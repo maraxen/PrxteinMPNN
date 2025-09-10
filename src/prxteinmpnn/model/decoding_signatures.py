@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from jaxtyping import PRNGKeyArray
+from jaxtyping import PRNGKeyArray, Float
 
 from prxteinmpnn.utils.types import (
   AtomMask,
@@ -82,7 +82,7 @@ RunAutoregressiveDecoderInputs = tuple[
   NeighborIndices,
   AtomMask,
   AutoRegressiveMask,
-  float | None,
+  Float | None,
   Logits | None,
 ]
 RunAutoregressiveDecoderFn = Callable[

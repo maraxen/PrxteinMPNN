@@ -1,9 +1,10 @@
 """Utilities for processing structure and trajectory files."""
 
 import pathlib
+import warnings
 from collections.abc import Mapping, Sequence
 from io import StringIO
-from typing import cast
+from typing import Any, cast
 
 import jax.numpy as jnp
 import numpy as np
@@ -16,17 +17,16 @@ from jax import vmap
 from prxteinmpnn.utils.aa_convert import af_to_mpnn, mpnn_to_af
 from prxteinmpnn.utils.coordinates import compute_cb_precise
 from prxteinmpnn.utils.data_structures import (
-  ModelInputs,
-  ProteinEnsemble,
-  ProteinStructure,
+  Protein,
 )
 from prxteinmpnn.utils.residue_constants import (
   atom_order,
   resname_to_idx,
   restype_order,
+  restype_order_with_x,
   unk_restype_index,
 )
-from prxteinmpnn.utils.types import AtomChainIndex, ChainIndex, InputBias, ProteinSequence
+from prxteinmpnn.utils.types import AtomChainIndex, ChainIndex, ProteinSequence
 
 
 def _check_if_file_empty(file_path: str) -> bool:
@@ -123,11 +123,11 @@ def protein_sequence_to_string(
 
   """
   if aa_map is None:
-    aa_map = restype_order
+    aa_map = {i: aa for aa, i in restype_order_with_x.items()}
 
   af_seq = mpnn_to_af(sequence)
 
-  return "".join([aa_map.get(aa, "UNK") for aa in af_seq])
+  return "".join([aa_map.get(int(aa), "X") for aa in af_seq])
 
 
 def residue_names_to_aatype(
@@ -277,7 +277,7 @@ def process_atom_array(
   atom_array: AtomArray,
   atom_map: dict[str, int] | None = None,
   chain_id: Sequence[str] | str | None = None,
-) -> ProteinStructure:
+) -> Protein:
   """Process an AtomArray to create a ProteinStructure."""
   if atom_map is None:
     atom_map = atom_order
@@ -323,7 +323,7 @@ def process_atom_array(
   phi, psi, omega = structure.dihedral_backbone(atom_array)
   dihedrals = jnp.stack([phi, psi, omega], axis=-1) if phi is not None else None
 
-  return ProteinStructure(
+  return Protein(
     coordinates=coords_37,
     aatype=aatype,
     atom_mask=atom_mask_37,
@@ -337,7 +337,7 @@ def from_structure_file(
   file_path: str,
   model: int = 1,
   chain_id: str | Sequence[str] | None = None,
-) -> ProteinStructure:
+) -> Protein:
   """Construct a Protein object from a structure file (PDB, PDBx/mmCIF).
 
   This implementation uses biotite for robust parsing and JAX for efficient
@@ -370,11 +370,11 @@ def from_structure_file(
   return process_atom_array(atom_array, chain_id=chain_id)
 
 
-def from_trajectory(
+async def from_trajectory(
   trajectory_file: str,
   topology_file: str | None = None,
   chain_id: str | Sequence[str] | None = None,
-) -> ProteinEnsemble:
+) -> list[Protein]:
   """Construct ProteinStructure objects from a trajectory file.
 
   This function reads a trajectory and yields a ProteinStructure for each frame.
@@ -405,14 +405,14 @@ def from_trajectory(
     msg = f"Unexpected transformation to {type(atom_stack)}."
     raise TypeError(msg)
 
-  return (process_atom_array(frame, chain_id=chain_id) for frame in atom_stack)
+  return [process_atom_array(frame, chain_id=chain_id) for frame in atom_stack]
 
 
 def from_string(
   pdb_string: str,
   model: int = 1,
   chain_id: str | Sequence[str] | None = None,
-) -> ProteinStructure:
+) -> Protein:
   """Construct a ProteinStructure from a PDB string.
 
   Args:
@@ -430,9 +430,15 @@ def from_string(
     raise ValueError(msg)
 
   pdb_file = PDBFile.read(StringIO(pdb_string))
-  atom_array = pdb_file.get_structure(
-    model=model,
-  )
+  try:
+    atom_array = pdb_file.get_structure(
+      model=model,
+    )
+  except ValueError as e:
+    if "model" in str(e) and "does not exist" in str(e):
+      msg = "No models found in the provided PDB string."
+      raise ValueError(msg) from e
+    raise
 
   if isinstance(atom_array, AtomArrayStack) and atom_array.stack_depth() > 0:
     atom_array = atom_array[0]
@@ -446,31 +452,53 @@ def from_string(
   return process_atom_array(atom_array, chain_id=chain_id)
 
 
-def protein_structure_to_model_inputs(
-  protein_structure: ProteinStructure,
-  bias: InputBias | None = None,
-) -> ModelInputs:
-  """Convert a ProteinStructure to model inputs.
+def parse_input(
+  source: str | StringIO | pathlib.Path,
+  *,
+  model: int | None = None,
+  altloc: str = "first",
+  chain_id: Sequence[str] | str | None = None,
+  **kwargs: dict[str, Any],
+) -> list[Protein]:
+  """Parse a structure file or string into a list of Protein objects.
+
+  This is a synchronous, CPU-bound function intended to be run in an executor
+  to avoid blocking the main event loop.
 
   Args:
-    protein_structure: A ProteinStructure object containing the structure data.
-    bias: An optional InputBias jnp.ndarray with shape (num_residues, 20) containing
-    bias information. This will shift output probabilities for each residue. Default
-    to zero.
+      source: A file path (str) or a file-like object (StringIO) containing
+              the structure data.
+      model: The model number to load. If None, all models are loaded.
+      altloc: The alternate location identifier to use.
+      chain_id: Specific chain(s) to parse from the structure.
+      **kwargs: Additional keyword arguments to pass to the structure loader.
 
   Returns:
-    A ModelInputs containing the model inputs derived from the ProteinStructure.
+      A ProteinEnsemble containing one or more parsed ProteinStructure objects.
 
   """
-  mask = protein_structure.atom_mask[:, 1]
-  return ModelInputs(
-    structure_coordinates=protein_structure.coordinates,
-    sequence=protein_structure.aatype,
-    mask=mask,
-    residue_index=protein_structure.residue_index,
-    chain_index=protein_structure.chain_index,
-    lengths=jnp.array([len(protein_structure.aatype)], dtype=jnp.int32),
-    bias=jnp.zeros((len(protein_structure.aatype), 21), dtype=jnp.float32)
-    if bias is None
-    else bias,
-  )
+  proteins = []
+  try:
+    atom_array_or_stack = structure_io.load_structure(
+      source,
+      model=model,
+      altloc=altloc,
+      **kwargs,
+    )
+
+    if isinstance(atom_array_or_stack, AtomArrayStack):
+      proteins.extend(process_atom_array(frame, chain_id=chain_id) for frame in atom_array_or_stack)
+    elif isinstance(atom_array_or_stack, AtomArray):
+      proteins.append(
+        process_atom_array(atom_array_or_stack, chain_id=chain_id),
+      )
+
+  except Exception as e:
+    msg = f"Failed to parse structure from source: {e}"
+    warnings.warn(msg, stacklevel=2)
+    raise RuntimeError(msg) from e
+
+  if not proteins:
+    warnings.warn("No valid structures were parsed from the provided source.", stacklevel=2)
+
+  return proteins

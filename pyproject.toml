@@ -38,7 +38,10 @@ docs = [
 tests = [
     "pytest",
     "pytest-cov",
+    "pytest-asyncio",
+    "trio",
     "chex",
+    "anyio",
 ]
 dev = [
   "ruff",
@@ -55,7 +58,10 @@ dev = [
   "myst-nb",
   "pytest",
   "pytest-cov",
+  "pytest-asyncio",
+  "trio",
   "chex",
+  "anyio",
 ]
 
 [tool.setuptools]

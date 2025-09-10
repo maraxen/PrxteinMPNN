@@ -16,6 +16,10 @@ dependencies = [
     "biotite",
     "foldcomp",
     "gmmx",
+    "aiohttp",
+    "numpy",
+    "aiofiles",
+    "anyio",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",

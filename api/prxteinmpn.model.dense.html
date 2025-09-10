@@ -364,7 +364,9 @@ document.write(`
   </button>
 `);
 </script>
-
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
 </div></div>
       
     </div>
@@ -380,6 +382,14 @@ document.write(`
     <div id="print-main-content">
         <div id="jb-print-toc">
             
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.dense.dense_layer"><code class="docutils literal notranslate"><span class="pre">dense_layer()</span></code></a></li>
+</ul>
+            </nav>
         </div>
     </div>
 </div>
@@ -389,8 +399,26 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="dense">
-<h1>dense<a class="headerlink" href="#dense" title="Link to this heading">#</a></h1>
+  <section id="module-prxteinmpnn.model.dense">
+<span id="dense"></span><h1>dense<a class="headerlink" href="#module-prxteinmpnn.model.dense" title="Link to this heading">#</a></h1>
+<p>Dense layer implementation for ProteinMPNN.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.model.dense.dense_layer">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.dense.</span></span><span class="sig-name descname"><span class="pre">dense_layer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">layer_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">node_features</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/dense.html#dense_layer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.dense.dense_layer" title="Link to this definition">#</a></dt>
+<dd><p>Apply a dense layer to node features.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code></span></p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>layer_parameters</strong> (<em>PyTree</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em>, </em><em>'P'</em><em>]</em>)</p></li>
+<li><p><strong>node_features</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_atoms num_features'</em><em>]</em>)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
 </section>
 
 
@@ -410,6 +438,21 @@ document.write(`
             </div>
             
             
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.dense.dense_layer"><code class="docutils literal notranslate"><span class="pre">dense_layer()</span></code></a></li>
+</ul>
+  </nav></div>
+
+</div></div>
               
             
           </div>

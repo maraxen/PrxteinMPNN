@@ -8,20 +8,12 @@ from collections.abc import Mapping, Sequence
 from io import StringIO
 from typing import Any, cast
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 from biotite import structure
 from biotite.structure import AtomArray, AtomArrayStack
 from biotite.structure import io as structure_io
-from biotite.structure.io.pdb import PDBFile
 from jax import vmap
 
-from prxteinmpnn.utils.aa_convert import af_to_mpnn, mpnn_to_af
-from prxteinmpnn.utils.coordinates import compute_cb_precise
-from prxteinmpnn.utils.data_structures import (
-  Protein,
-)
 from prxteinmpnn.utils.residue_constants import (
   atom_order,
   resname_to_idx,
@@ -29,7 +21,26 @@ from prxteinmpnn.utils.residue_constants import (
   restype_order_with_x,
   unk_restype_index,
 )
-from prxteinmpnn.utils.types import AtomChainIndex, ChainIndex, ProteinSequence
+
+MPNN_ALPHABET = "ACDEFGHIKLMNPQRSTVWYX"
+AF_ALPHABET = "ARNDCQEGHILKMFPSTWYVX"
+_AF_TO_MPNN_PERM = np.array(
+  [MPNN_ALPHABET.index(k) for k in AF_ALPHABET],
+)
+
+_MPNN_TO_AF_PERM = np.array(
+  [AF_ALPHABET.index(k) for k in MPNN_ALPHABET],
+)
+
+
+def af_to_mpnn(sequence: np.ndarray) -> np.ndarray:
+  """Convert a sequence of integer indices from AlphaFold's to ProteinMPNN's alphabet order."""
+  return _AF_TO_MPNN_PERM[sequence]
+
+
+def mpnn_to_af(sequence: np.ndarray) -> np.ndarray:
+  """Convert a sequence of integer indices from ProteinMPNN's to AlphaFold's alphabet order."""
+  return _MPNN_TO_AF_PERM[sequence]
 
 
 def _check_if_file_empty(file_path: str) -> bool:
@@ -42,11 +53,109 @@ def _check_if_file_empty(file_path: str) -> bool:
     return True
 
 
+def extend_coordinate(
+  atom_a: np.ndarray,
+  atom_b: np.ndarray,
+  atom_c: np.ndarray,
+  bond_length: float,
+  bond_angle: float,
+  dihedral_angle: float,
+) -> np.ndarray:
+  """Compute the position of a fourth atom (D) given three atoms (A, B, C) and internal coordinates.
+
+  Given coordinates for atoms A, B, and C, and the desired bond length, bond angle, and dihedral
+  angle, compute the coordinates of atom D such that:
+    - |C-D| = bond_length
+    - angle(B, C, D) = bond_angle
+    - dihedral(A, B, C, D) = dihedral_angle
+
+  Args:
+    atom_a: Coordinates of atom A, shape (3,).
+    atom_b: Coordinates of atom B, shape (3,).
+    atom_c: Coordinates of atom C, shape (3,).
+    bond_length: Desired bond length between C and D.
+    bond_angle: Desired bond angle (in radians) at atom C.
+    dihedral_angle: Desired dihedral angle (in radians) for atoms A-B-C-D.
+
+  Returns:
+    Coordinates of atom D, shape (3,).
+
+  Example:
+    >>> d = extend_coordinate(a, b, c, 1.5, 2.0, 3.14)
+    >>> d.shape
+    (3,)
+
+  """
+
+  def normalize(vec: np.ndarray) -> np.ndarray:
+    return vec / np.linalg.norm(vec)
+
+  bc = normalize(atom_b - atom_c)
+  normal = normalize(np.cross(atom_b - atom_a, bc))
+  term1 = bond_length * np.cos(bond_angle) * bc
+  term2 = bond_length * np.sin(bond_angle) * np.cos(dihedral_angle) * np.cross(normal, bc)
+  term3 = bond_length * np.sin(bond_angle) * np.sin(dihedral_angle) * -normal
+  return atom_c + term1 + term2 + term3
+
+
+def compute_cb_precise(
+  n_coord: np.ndarray,
+  ca_coord: np.ndarray,
+  c_coord: np.ndarray,
+) -> np.ndarray:
+  """Compute the C-beta atom position from backbone N, CA, and C coordinates.
+
+  Does so precisely using trigonometric relationships based on the backbone geometry.
+
+  Specifically, the position of the C-beta atom is determined by:
+
+  - The bond length between the alpha carbon and the C-beta atom.
+  - The bond angle between the nitrogen, alpha carbon, and C-beta atoms.
+  - The dihedral angle involving the nitrogen, alpha carbon, and C-beta atoms.
+
+
+  Unlike the compute_c_beta function, this function does not use a linear combination of bond
+  vectors with approximate fixed coefficients. This is more accurate and flexible for different
+  configurations of the protein backbone, but more computationally intensive.
+
+  It is used in preparation of the atomic coordinates for the model input.
+  It is not used in the model itself, but rather in the preprocessing of the input data
+  to ensure that the C-beta atom is correctly placed based on the backbone structure.
+
+  Uses standard geometry for C-beta placement:
+    - N-CA-CB bond length: 1.522 Å
+    - N-CA-CB bond angle: 1.927 radians
+    - C-N-CA-CB dihedral angle: -2.143 radians
+
+  Args:
+    n_coord: Coordinates of the N atom, shape (3,).
+    ca_coord: Coordinates of the CA atom, shape (3,).
+    c_coord: Coordinates of the C atom, shape (3,).
+
+  Returns:
+    Coordinates of the C-beta atom, shape (3,).
+
+  Example:
+    >>> cb = compute_cb_precise(n, ca, c)
+    >>> cb.shape
+    (3,)
+
+  """
+  return extend_coordinate(
+    c_coord,
+    n_coord,
+    ca_coord,
+    bond_length=1.522,
+    bond_angle=1.927,
+    dihedral_angle=-2.143,
+  )
+
+
 def string_key_to_index(
   string_keys: np.ndarray,
   key_map: Mapping[str, int],
   unk_index: int | None = None,
-) -> jnp.ndarray:
+) -> np.ndarray:
   """Convert string keys to integer indices based on a mapping.
 
   Efficient vectorized implementation to convert a 1D array of string keys
@@ -74,14 +183,14 @@ def string_key_to_index(
   found_keys = sorted_keys[indices]
   is_known = found_keys == string_keys
 
-  return jnp.where(is_known, sorted_values[indices], unk_index)
+  return np.where(is_known, sorted_values[indices], unk_index)
 
 
 def string_to_protein_sequence(
   sequence: str,
   aa_map: dict | None = None,
   unk_index: int | None = None,
-) -> ProteinSequence:
+) -> np.ndarray:
   """Convert a string sequence to a ProteinSequence.
 
   Args:
@@ -101,17 +210,13 @@ def string_to_protein_sequence(
   if aa_map is None:
     aa_map = restype_order
     return af_to_mpnn(
-      string_key_to_index(np.array(list(sequence), dtype="U3"), aa_map, unk_index).astype(
-        jnp.int8,
-      ),
+      string_key_to_index(np.array(list(sequence), dtype="U3"), aa_map, unk_index),
     )
-  return string_key_to_index(np.array(list(sequence), dtype="U3"), aa_map, unk_index).astype(
-    jnp.int8,
-  )
+  return string_key_to_index(np.array(list(sequence), dtype="U3"), aa_map, unk_index)
 
 
 def protein_sequence_to_string(
-  sequence: ProteinSequence,
+  sequence: np.ndarray,
   aa_map: dict | None = None,
 ) -> str:
   """Convert a ProteinSequence to a string.
@@ -136,7 +241,7 @@ def protein_sequence_to_string(
 def residue_names_to_aatype(
   residue_names: np.ndarray,
   aa_map: dict | None = None,
-) -> ProteinSequence:
+) -> np.ndarray:
   """Convert 3-letter residue names to amino acid type indices.
 
   Args:
@@ -153,13 +258,13 @@ def residue_names_to_aatype(
 
   aa_indices = string_key_to_index(residue_names, aa_map, unk_restype_index)
   aa_indices = af_to_mpnn(aa_indices)
-  return jnp.asarray(aa_indices, dtype=jnp.int8)
+  return np.asarray(aa_indices, dtype=np.int8)
 
 
 def atom_names_to_index(
   atom_names: np.ndarray,
   atom_map: dict | None = None,
-) -> ProteinSequence:
+) -> np.ndarray:
   """Convert atom names to atom type indices.
 
   Args:
@@ -175,7 +280,7 @@ def atom_names_to_index(
     atom_map = atom_order
 
   atom_indices = string_key_to_index(atom_names, atom_map, -1)
-  return jnp.asarray(atom_indices, dtype=jnp.int8)
+  return np.asarray(atom_indices)
 
 
 def _check_atom_array_length(atom_array: AtomArray) -> None:
@@ -195,24 +300,24 @@ def _check_atom_array_length(atom_array: AtomArray) -> None:
 
 def _get_chain_index(
   atom_array: AtomArray,
-) -> AtomChainIndex:
+) -> np.ndarray:
   """Get the chain index from the AtomArray."""
   if atom_array.chain_id is None:
-    return jnp.zeros(atom_array.array_length(), dtype=jnp.int32)
+    return np.zeros(atom_array.array_length(), dtype=np.int32)
 
-  if atom_array.chain_id.dtype != jnp.int32:
-    return jnp.asarray(
+  if atom_array.chain_id.dtype != np.int32:
+    return np.asarray(
       np.char.encode(atom_array.chain_id.astype("U1")).view(np.uint8) - ord("A"),
-      dtype=jnp.int32,
+      dtype=np.int32,
     )
 
-  return jnp.asarray(atom_array.chain_id, dtype=jnp.int32)
+  return np.asarray(atom_array.chain_id, dtype=np.int32)
 
 
 def _process_chain_id(
   atom_array: AtomArray,
   chain_id: Sequence[str] | str | None = None,
-) -> tuple[AtomArray, AtomChainIndex]:
+) -> tuple[AtomArray, np.ndarray]:
   """Process the chain_id of the AtomArray."""
   if chain_id is None:
     chain_index = _get_chain_index(atom_array)
@@ -236,10 +341,10 @@ def _process_chain_id(
 
 
 def _fill_in_cb_coordinates(
-  coords_37: jnp.ndarray,
+  coords_37: np.ndarray,
   residue_names: np.ndarray,
   atom_map: dict[str, int] | None = None,
-) -> jnp.ndarray:
+) -> np.ndarray:
   """Fill in the CB coordinates for residues that have them.
 
   Args:
@@ -261,7 +366,7 @@ def _fill_in_cb_coordinates(
   """
   if atom_map is None:
     atom_map = atom_order
-  is_glycine = jnp.array([name == "GLY" for name in residue_names])
+  is_glycine = np.array([name == "GLY" for name in residue_names])
 
   n_coords = coords_37[:, atom_map["N"], :]
   ca_coords = coords_37[:, atom_map["CA"], :]
@@ -271,28 +376,28 @@ def _fill_in_cb_coordinates(
 
   original_cbs = coords_37[:, atom_map["CB"], :]
 
-  updated_cbs = jnp.where(is_glycine[:, None], precise_cbs, original_cbs)
-
-  return coords_37.at[:, atom_map["CB"], :].set(updated_cbs)
+  updated_cbs = np.where(is_glycine[:, None], precise_cbs, original_cbs)
+  coords_37[:, atom_map["CB"], :] = updated_cbs
+  return coords_37
 
 
 def process_atom_array(
   atom_array: AtomArray,
   atom_map: dict[str, int] | None = None,
   chain_id: Sequence[str] | str | None = None,
-) -> Protein:
-  """Process an AtomArray to create a ProteinStructure."""
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray | None]:
+  """Process an AtomArray to create a Protein inputs."""
   if atom_map is None:
     atom_map = atom_order
   atom_array, chain_index = _process_chain_id(atom_array, chain_id)
   _check_atom_array_length(atom_array)
   num_residues = structure.get_residue_count(atom_array)
   residue_indices, residue_names = structure.get_residues(atom_array)
-  residue_indices = jnp.asarray(residue_indices, dtype=jnp.int32)
-  chain_index: ChainIndex = chain_index[structure.get_residue_starts(atom_array)]
+  residue_indices = np.asarray(residue_indices, dtype=np.int32)
+  chain_index = chain_index[structure.get_residue_starts(atom_array)]
   residue_inv_indices = structure.get_residue_positions(
     atom_array,
-    jnp.arange(atom_array.array_length()),
+    np.arange(atom_array.array_length()),
   )
 
   atom_names = atom_array.atom_name
@@ -305,16 +410,14 @@ def process_atom_array(
 
   atom_mask = atom37_indices != -1
 
-  coords_37 = jnp.zeros((num_residues, 37, 3), dtype=jnp.float32)
-  atom_mask_37 = jnp.zeros((num_residues, 37), dtype=jnp.bool)
+  coords_37 = np.zeros((num_residues, 37, 3), dtype=np.float32)
+  atom_mask_37 = np.zeros((num_residues, 37), dtype=np.bool)
 
-  res_indices_flat = jnp.asarray(residue_inv_indices)[atom_mask]
+  res_indices_flat = np.asarray(residue_inv_indices)[atom_mask]
   atom_indices_flat = atom37_indices[atom_mask]
 
-  coords_37 = coords_37.at[res_indices_flat, atom_indices_flat].set(
-    jnp.asarray(atom_array.coord)[atom_mask],
-  )
-  atom_mask_37 = atom_mask_37.at[res_indices_flat, atom_indices_flat].set(1)
+  coords_37[res_indices_flat, atom_indices_flat] = np.asarray(atom_array.coord)[atom_mask]
+  atom_mask_37[res_indices_flat, atom_indices_flat] = 1
 
   aatype = residue_names_to_aatype(residue_names)
   nitrogen_mask = atom_mask_37[:, atom_map["N"]] == 1
@@ -324,136 +427,16 @@ def process_atom_array(
   residue_indices = residue_indices[nitrogen_mask]
   chain_index = chain_index[nitrogen_mask]
   phi, psi, omega = structure.dihedral_backbone(atom_array)
-  dihedrals = jnp.stack([phi, psi, omega], axis=-1) if phi is not None else None
+  dihedrals = np.stack([phi, psi, omega], axis=-1) if phi is not None else None
 
-  return Protein(
-    coordinates=coords_37,
-    aatype=aatype,
-    atom_mask=atom_mask_37,
-    residue_index=residue_indices,
-    chain_index=chain_index,
-    dihedrals=dihedrals,
-    one_hot_sequence=jax.nn.one_hot(aatype, num_classes=21),
+  return (
+    coords_37,
+    aatype,
+    atom_mask_37,
+    residue_indices,
+    chain_index,
+    dihedrals,
   )
-
-
-def from_structure_file(
-  file_path: str,
-  model: int = 1,
-  chain_id: str | Sequence[str] | None = None,
-) -> Protein:
-  """Construct a Protein object from a structure file (PDB, PDBx/mmCIF).
-
-  This implementation uses biotite for robust parsing and JAX for efficient
-  vectorized processing to create a dense, fixed-size representation for
-  each residue (37 atoms).
-
-  WARNING: All non-standard residue types will be converted into UNK. All
-    atoms not in the canonical 37-atom set will be ignored.
-
-  Args:
-    file_path: The path to the structure file.
-    model: The model number to load from the structure file. Defaults to 1.
-    chain_id: If specified, only this chain is parsed. If None, the entire
-      structure is parsed.
-
-  Returns:
-    A new `ProteinStructure` parsed from the file contents.
-
-  """
-  if _check_if_file_empty(file_path):
-    msg = (
-      f"The file '{file_path}' is empty or does not exist. Please provide a valid structure file."
-    )
-    raise FileNotFoundError(msg)
-  atom_array = structure_io.load_structure(file_path, model=model, extra_fields=["b_factor"])
-
-  if not isinstance(atom_array, AtomArray):
-    msg = f"Unexpected transformation to {type(atom_array)}."
-    raise TypeError(msg)
-  return process_atom_array(atom_array, chain_id=chain_id)
-
-
-async def from_trajectory(
-  trajectory_file: str,
-  topology_file: str | None = None,
-  chain_id: str | Sequence[str] | None = None,
-) -> list[Protein]:
-  """Construct ProteinStructure objects from a trajectory file.
-
-  This function reads a trajectory and yields a ProteinStructure for each frame.
-
-  Args:
-    trajectory_file: Path to the trajectory file (e.g., DCD, XTC, multi-model PDB).
-    topology_file: Path to the topology file (e.g., PDB, PSF), required for
-                    coordinate-only trajectory formats.
-    chain_id: If specified, only atoms from this chain will be included.
-
-  Returns:
-    An iterator that yields a ProteinStructure for each frame in the trajectory.
-
-  """
-  if _check_if_file_empty(trajectory_file):
-    msg = (
-      f"The file '{trajectory_file}' is empty or does not exist. "
-      "Please provide a valid trajectory file."
-    )
-    raise FileNotFoundError(msg)
-
-  atom_stack = structure_io.load_structure(
-    trajectory_file,
-    template=topology_file,
-  )
-
-  if not isinstance(atom_stack, AtomArrayStack):
-    msg = f"Unexpected transformation to {type(atom_stack)}."
-    raise TypeError(msg)
-
-  return [process_atom_array(frame, chain_id=chain_id) for frame in atom_stack]
-
-
-def from_string(
-  pdb_string: str,
-  model: int = 1,
-  chain_id: str | Sequence[str] | None = None,
-) -> Protein:
-  """Construct a ProteinStructure from a PDB string.
-
-  Args:
-    pdb_string: The PDB formatted string.
-    model: The model number to load from the structure string. Defaults to 1.
-    chain_id: If specified, only this chain is parsed. If None, the entire
-      structure is parsed.
-
-  Returns:
-    A new `ProteinStructure` parsed from the PDB string.
-
-  """
-  if not pdb_string.strip():
-    msg = "AtomArray is empty."
-    raise ValueError(msg)
-
-  pdb_file = PDBFile.read(StringIO(pdb_string))
-  try:
-    atom_array = pdb_file.get_structure(
-      model=model,
-    )
-  except ValueError as e:
-    if "model" in str(e) and "does not exist" in str(e):
-      msg = "No models found in the provided PDB string."
-      raise ValueError(msg) from e
-    raise
-
-  if isinstance(atom_array, AtomArrayStack) and atom_array.stack_depth() > 0:
-    atom_array = atom_array[0]
-  elif isinstance(atom_array, AtomArrayStack) and atom_array.stack_depth() == 0:
-    msg = "No models found in the provided PDB string."
-    raise ValueError(msg)
-  if not isinstance(atom_array, AtomArray):
-    msg = f"Unexpected transformation to {type(atom_array)}."
-    raise TypeError(msg)
-
-  return process_atom_array(atom_array, chain_id=chain_id)
 
 
 def parse_input(
@@ -463,7 +446,7 @@ def parse_input(
   altloc: str = "first",
   chain_id: Sequence[str] | str | None = None,
   **kwargs: dict[str, Any],
-) -> list[Protein]:
+) -> list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray | None]]:
   """Parse a structure file or string into a list of Protein objects.
 
   This is a synchronous, CPU-bound function intended to be run in an executor

@@ -8,8 +8,21 @@ import numpy as np
 from biotite.sequence import ProteinSequence as BiotiteProteinSequence
 from biotite.sequence import align
 
-from prxteinmpnn.io.parsing import protein_sequence_to_string, string_to_protein_sequence
-from prxteinmpnn.utils.data_structures import Protein, ProteinEnsemble
+from prxteinmpnn.utils.aa_convert import protein_sequence_to_string, string_to_protein_sequence
+from prxteinmpnn.utils.data_structures import Protein, ProteinEnsemble, ProteinTuple
+
+
+def tuple_to_protein(t: ProteinTuple) -> Protein:
+  """Convert a ProteinTuple to a Protein dataclass."""
+  return Protein(
+    coordinates=jnp.array(t.coordinates).astype(jnp.float32),
+    aatype=jnp.array(t.aatype).astype(jnp.int8),
+    atom_mask=jnp.array(t.atom_mask).astype(jnp.float16),
+    residue_index=jnp.array(t.residue_index).astype(jnp.int32),
+    chain_index=jnp.array(t.chain_index).astype(jnp.int32),
+    dihedrals=None if t.dihedrals is None else jnp.array(t.dihedrals).astype(jnp.float32),
+    one_hot_sequence=jax.nn.one_hot(jnp.array(t.aatype), 21, dtype=jnp.float32),
+  )
 
 
 def _pad_protein_to_length(protein: Protein, new_length: int, mapping: jax.Array) -> Protein:
@@ -237,7 +250,9 @@ async def batch_and_pad_proteins(
     msg = "Cannot batch an empty ProteinEnsemble."
     raise ValueError(msg)
 
-  proteins, sources = zip(*items, strict=False)
+  _proteins, sources = zip(*items, strict=False)
+
+  proteins = [tuple_to_protein(p) for p in _proteins]
 
   protein_seq_strs = [protein_sequence_to_string(p.aatype) for p in proteins]
   all_seq_strs = list(protein_seq_strs)
@@ -273,14 +288,6 @@ async def batch_and_pad_proteins(
     return jnp.stack(leaves)
 
   padded_batched_protein = jax.tree_util.tree_map(stack_leaves, *padded_proteins)
-  jax.debug.print(
-    "Padded batched protein shapes: coords {}, aatype {}, atom_mask {}, residue_index {}, chain_index {}",
-    padded_batched_protein.coordinates.shape,
-    padded_batched_protein.aatype.shape,
-    padded_batched_protein.atom_mask.shape,
-    padded_batched_protein.residue_index.shape,
-    padded_batched_protein.chain_index.shape,
-  )
 
   aligned_sequences_tokens = None
   if sequences_to_score:

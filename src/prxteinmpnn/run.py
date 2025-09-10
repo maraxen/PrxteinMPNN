@@ -56,7 +56,8 @@ async def score(
   """Score all provided sequences against all input structures.
 
   This function streams and processes structures asynchronously, then uses a
-  memory-efficient JAX map to perform the scoring on a GPU or TPU.
+  memory-efficient JAX map
+  to score all provided sequences against each structure.
 
   Args:
       inputs: An async stream of structures (files, PDB IDs, etc.).
@@ -182,7 +183,6 @@ async def categorical_jacobian(
     backbone_noise = jnp.asarray(backbone_noise)
 
   logger.info("Computing categorical Jacobian in %s mode.", mode)
-
   protein_stream = load(inputs, foldcomp_database=foldcomp_database, **kwargs)
   logger.info("Loaded protein stream, batching and padding proteins.")
 
@@ -253,7 +253,7 @@ async def categorical_jacobian(
       batched_proteins.atom_mask,
       batched_proteins.residue_index,
       batched_proteins.chain_index,
-      batched_proteins.one_hot_sequence,
+      batched_proteins.one_hot_sequence,  # type: ignore[arg-type]
     ),
     batch_size=outer_batch_size,
   )

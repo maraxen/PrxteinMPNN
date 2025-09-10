@@ -9,12 +9,11 @@ from functools import cache
 from typing import Literal
 
 import foldcomp
-import jax.numpy as jnp
+import numpy as np
 
 from prxteinmpnn.io.parsing import (
   string_to_protein_sequence,
 )
-from prxteinmpnn.utils.data_structures import Protein
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +56,7 @@ def _setup_foldcomp_database(database: FoldCompDatabase) -> None:
 def get_protein_structures(
   protein_ids: Sequence[str],
   database: FoldCompDatabase = "afdb_rep_v4",
-) -> list[Protein]:
+) -> list[tuple]:
   """Retrieve protein structures from the FoldComp database and return them as a list of ensembles.
 
   This is a synchronous, blocking function designed to be run in an executor.
@@ -71,33 +70,30 @@ def get_protein_structures(
     for one of the requested protein IDs.
 
   """
-  import jax  # noqa: PLC0415
-
-  jax.config.update("jax_enable_x64", True)
-  output_proteins: list[Protein] = []
+  output_proteins: list[tuple] = []
   _setup_foldcomp_database(database)
   with foldcomp.open(database, ids=protein_ids, decompress=False) as proteins:  # type: ignore[attr-access]
     for _, fcz in proteins:
       try:
         fcz_data = foldcomp.get_data(fcz)  # type: ignore[attr-access]
 
-        phi = jnp.array(fcz_data["phi"], dtype=jnp.float64)
-        psi = jnp.array(fcz_data["psi"], dtype=jnp.float64)
-        omega = jnp.array(fcz_data["omega"], dtype=jnp.float64)
-        dihedrals = jnp.stack([phi, psi, omega], axis=-1)
+        phi = np.array(fcz_data["phi"], dtype=np.float64)
+        psi = np.array(fcz_data["psi"], dtype=np.float64)
+        omega = np.array(fcz_data["omega"], dtype=np.float64)
+        dihedrals = np.stack([phi, psi, omega], axis=-1)
 
-        coordinates = jnp.array(fcz_data["coordinates"], dtype=jnp.float64)
+        coordinates = np.array(fcz_data["coordinates"], dtype=np.float64)
         sequence = string_to_protein_sequence(fcz_data["residues"])
         num_res = len(sequence)
 
         output_proteins.append(
-          Protein(
-            coordinates=coordinates,
-            dihedrals=dihedrals,
-            aatype=sequence,
-            atom_mask=jnp.ones_like(sequence, dtype=jnp.bool_),
-            residue_index=jnp.arange(num_res),
-            chain_index=jnp.zeros(num_res, dtype=jnp.int32),
+          (
+            coordinates,
+            sequence,
+            np.ones_like(sequence, dtype=np.bool_),
+            np.arange(num_res),
+            np.zeros(num_res, dtype=np.int32),
+            dihedrals,
           ),
         )
       except Exception as e:  # noqa: BLE001

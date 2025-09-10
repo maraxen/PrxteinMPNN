@@ -12,10 +12,10 @@ from prxteinmpnn.model.decoder import make_decoder
 from prxteinmpnn.model.encoder import make_encoder
 from prxteinmpnn.model.projection import final_projection
 from prxteinmpnn.sampling.initialize import sampling_encode
-from prxteinmpnn.utils.data_structures import ModelInputs
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
   AtomMask,
+  BackboneNoise,
   ChainIndex,
   EdgeFeatures,
   InputBias,
@@ -30,7 +30,7 @@ from prxteinmpnn.utils.types import (
 if TYPE_CHECKING:
   from prxteinmpnn.model.decoding_signatures import RunDecoderFn
 
-ConditionalLogitsFn = Callable[
+UnconditionalLogitsFn = Callable[
   [
     PRNGKeyArray,
     StructureAtomicCoordinates,
@@ -40,7 +40,7 @@ ConditionalLogitsFn = Callable[
     ChainIndex,
     InputBias | None,
     int,
-    float,
+    BackboneNoise | None,
   ],
   tuple[Logits, NodeFeatures, EdgeFeatures],
 ]
@@ -49,10 +49,9 @@ ConditionalLogitsFn = Callable[
 def make_unconditional_logits_fn(
   model_parameters: ModelParameters,
   decoding_order_fn: DecodingOrderFn,
-  model_inputs: ModelInputs | None = None,
   num_encoder_layers: int = 3,
   num_decoder_layers: int = 3,
-) -> ConditionalLogitsFn:
+) -> UnconditionalLogitsFn:
   """Perform one conditional pass on the model to get the logits for a given sequence.
 
   This function sets up the ProteinMPNN model, runs a single encoder pass to extract features,
@@ -62,10 +61,8 @@ def make_unconditional_logits_fn(
   Args:
     model_parameters: A dictionary of the pre-trained ProteinMPNN model parameters.
     decoding_order_fn: A function that generates the decoding order.
-    model_inputs: Optional ModelInputs containing structure coordinates, mask, residue index,
-      and chain index. If provided, these will be used directly in the logits computation.
     k_neighbors: The number of neighbors to consider for each residue. Defaults to 48.
-    augment_eps: The epsilon value for data augmentation. Defaults to 0.0.
+    backbone_noise: The epsilon value for data augmentation. Defaults to 0.0.
     num_encoder_layers: The number of encoder layers to use. Defaults to 3.
     num_decoder_layers: The number of decoder layers to use. Defaults to 3.
 
@@ -111,7 +108,7 @@ def make_unconditional_logits_fn(
     decoding_order_fn=decoding_order_fn,
   )
 
-  @partial(jax.jit, static_argnames=("k_neighbors", "augment_eps"))
+  @partial(jax.jit, static_argnames=("k_neighbors",))
   def unconditioned_logits(
     prng_key: PRNGKeyArray,
     structure_coordinates: StructureAtomicCoordinates,
@@ -120,7 +117,7 @@ def make_unconditional_logits_fn(
     chain_index: ChainIndex,
     bias: InputBias | None = None,
     k_neighbors: int = 48,
-    augment_eps: float = 0.0,
+    backbone_noise: BackboneNoise | None = None,
   ) -> tuple[Logits, NodeFeatures, EdgeFeatures]:
     if bias is None:
       bias = jnp.zeros((structure_coordinates.shape[0], 21), dtype=jnp.float32)
@@ -139,8 +136,9 @@ def make_unconditional_logits_fn(
       mask,
       residue_index,
       chain_index,
+      None,
       k_neighbors,
-      augment_eps,
+      backbone_noise,
     )
 
     decoded_node_features = decoder(
@@ -152,14 +150,5 @@ def make_unconditional_logits_fn(
     logits = final_projection(model_parameters, decoded_node_features)
 
     return logits + bias, decoded_node_features, edge_features
-
-  if model_inputs is not None:
-    return partial(
-      unconditioned_logits,
-      structure_coordinates=model_inputs.structure_coordinates,
-      mask=model_inputs.mask,
-      residue_index=model_inputs.residue_index,
-      chain_index=model_inputs.chain_index,
-    )
 
   return unconditioned_logits

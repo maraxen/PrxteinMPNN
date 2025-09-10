@@ -6,7 +6,7 @@ from functools import partial
 import jax
 import jax.numpy as jnp
 import optax
-from jaxtyping import PRNGKeyArray
+from jaxtyping import Float, Int, PRNGKeyArray
 
 from prxteinmpnn.model.decoding_signatures import (
   RunAutoregressiveDecoderFn,
@@ -60,7 +60,7 @@ def make_optimize_sequence_fn(
   decoding_order_fn: DecodingOrderFn,
   model_parameters: ModelParameters,
 ) -> Callable[
-  [PRNGKeyArray, NodeFeatures, EdgeFeatures, NeighborIndices, AtomMask, int, float, float],
+  [PRNGKeyArray, NodeFeatures, EdgeFeatures, NeighborIndices, AtomMask, Int, Float, Float],
   tuple[OneHotProteinSequence, Logits],
 ]:
   """Create a function to optimize a sequence using the STE autoregressive decoder.
@@ -84,9 +84,9 @@ def make_optimize_sequence_fn(
     edge_features: EdgeFeatures,
     neighbor_indices: NeighborIndices,
     mask: AtomMask,
-    num_steps: int,
-    learning_rate: float,
-    temperature: float,
+    iterations: Int,
+    learning_rate: Float,
+    temperature: Float,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Optimize a sequence by guiding the STE autoregressive decoder.
 
@@ -96,7 +96,7 @@ def make_optimize_sequence_fn(
       edge_features: Edge features for the structure.
       neighbor_indices: Indices of neighboring nodes.
       mask: Atom mask indicating valid positions.
-      num_steps: Number of optimization steps to perform.
+      iterations: Number of optimization steps to perform.
       learning_rate: Learning rate for the optimizer.
       temperature: Temperature for the softmax distribution.
 
@@ -152,7 +152,7 @@ def make_optimize_sequence_fn(
 
       return (next_guiding_logits, next_opt_state), loss_value  # type: ignore[return-value]
 
-    keys = jax.random.split(prng_key, num_steps)
+    keys = jax.random.split(prng_key, iterations)
     (final_guiding_logits, _), losses = jax.lax.scan(
       update_step,
       (guiding_logits, opt_state),

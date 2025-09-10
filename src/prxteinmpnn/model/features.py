@@ -16,6 +16,7 @@ from prxteinmpnn.utils.normalize import layer_normalization
 from prxteinmpnn.utils.radial_basis import compute_radial_basis
 from prxteinmpnn.utils.types import (
   AtomMask,
+  BackboneNoise,
   ChainIndex,
   EdgeFeatures,
   ModelParameters,
@@ -73,7 +74,7 @@ def embed_edges(
   return jnp.dot(edge_features, edge_emb_params["w"])
 
 
-@partial(jax.jit, static_argnames=("k_neighbors", "augment_eps"))
+@partial(jax.jit, static_argnames=("k_neighbors",))
 def extract_features(
   prng_key: PRNGKeyArray,
   model_parameters: ModelParameters,
@@ -82,7 +83,7 @@ def extract_features(
   residue_index: ResidueIndex,
   chain_index: ChainIndex,
   k_neighbors: int = 48,
-  augment_eps: float = 0.0,
+  backbone_noise: BackboneNoise | None = None,
 ) -> tuple[EdgeFeatures, NeighborIndices, PRNGKeyArray]:
   """Extract features from protein structure coordinates.
 
@@ -94,17 +95,20 @@ def extract_features(
     model_parameters: Model parameters for the feature extraction.
     prng_key: JAX random key for stochastic operations.
     k_neighbors: Maximum number of neighbors to consider for each atom.
-    augment_eps: Standard deviation for Gaussian noise augmentation.
+    backbone_noise: Standard deviation for Gaussian noise augmentation.
 
   Returns:
     edge_features: Edge features after concatenation and normalization.
     edge_indices: Indices of neighboring atoms.
 
   """
+  if backbone_noise is None:
+    backbone_noise = jnp.array(0.0, dtype=jnp.float32)
+
   noised_coordinates, prng_key = apply_noise_to_coordinates(
     prng_key,
     structure_coordinates,
-    augment_eps=augment_eps,
+    backbone_noise=backbone_noise,
   )
   backbone_atom_coordinates = compute_backbone_coordinates(noised_coordinates)
   distances = compute_backbone_distance(backbone_atom_coordinates)

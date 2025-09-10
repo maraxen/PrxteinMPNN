@@ -17,7 +17,7 @@ from .ste import straight_through_estimator
 if TYPE_CHECKING:
   from collections.abc import Callable
 
-  from jaxtyping import Int, PRNGKeyArray
+  from jaxtyping import Float, Int, PRNGKeyArray
 
   from prxteinmpnn.utils.types import (
     AtomMask,
@@ -309,12 +309,16 @@ def make_decoder(
       neighbor_indices: NeighborIndices,
       mask: AtomMask,
       autoregressive_mask: AutoRegressiveMask,
-      temperature: float | None = 1.0,
+      temperature: Float | None = None,
       bias: Logits | None = None,
     ) -> tuple[OneHotProteinSequence, Logits]:
       """Run a full, efficient, local-update autoregressive sampling process."""
       if bias is None:
         bias = jnp.zeros((node_features.shape[0], 21), dtype=jnp.float32)
+
+      if temperature is None:
+        temperature = jnp.array(1.0, dtype=jnp.float32)
+
       attention_mask = jnp.take_along_axis(autoregressive_mask, neighbor_indices, axis=1)
       mask_1d = mask[:, None]
       mask_bw = mask_1d * attention_mask

@@ -400,6 +400,9 @@ document.write(`
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.aa_convert.af_to_mpnn"><code class="docutils literal notranslate"><span class="pre">af_to_mpnn()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.aa_convert.mpnn_to_af"><code class="docutils literal notranslate"><span class="pre">mpnn_to_af()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.aa_convert.string_key_to_index"><code class="docutils literal notranslate"><span class="pre">string_key_to_index()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.aa_convert.string_to_protein_sequence"><code class="docutils literal notranslate"><span class="pre">string_to_protein_sequence()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.aa_convert.protein_sequence_to_string"><code class="docutils literal notranslate"><span class="pre">protein_sequence_to_string()</span></code></a></li>
 </ul>
             </nav>
         </div>
@@ -438,6 +441,75 @@ document.write(`
 </dd>
 <dt class="field-even">Parameters<span class="colon">:</span></dt>
 <dd class="field-even"><p><strong>sequence</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues'</em><em>]</em>)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.aa_convert.string_key_to_index">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.aa_convert.</span></span><span class="sig-name descname"><span class="pre">string_key_to_index</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">string_keys</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">key_map</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unk_index</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/aa_convert.html#string_key_to_index"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.aa_convert.string_key_to_index" title="Link to this definition">#</a></dt>
+<dd><p>Convert string keys to integer indices based on a mapping.</p>
+<p>Efficient vectorized implementation to convert a 1D array of string keys
+to a 1D array of integer indices using a provided mapping. If a key is not found in the mapping,
+it is replaced with a specified unknown index.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>string_keys</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.3)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code></a></span>) – A 1D array of string keys.</p></li>
+<li><p><strong>key_map</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Mapping</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]</span>) – A dictionary mapping string keys to integer indices.</p></li>
+<li><p><strong>unk_index</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a> | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span>) – The index to use for unknown keys not found in the mapping. If None, uses the
+length of the key_map as the unknown index.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.jax.dev/en/latest/_autosummary/jax.Array.html#jax.Array" title="(in JAX)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Array</span></code></a></span></p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A 1D array of integer indices corresponding to the string keys.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.aa_convert.string_to_protein_sequence">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.aa_convert.</span></span><span class="sig-name descname"><span class="pre">string_to_protein_sequence</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sequence</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">aa_map</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unk_index</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/aa_convert.html#string_to_protein_sequence"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.aa_convert.string_to_protein_sequence" title="Link to this definition">#</a></dt>
+<dd><p>Convert a string sequence to a ProteinSequence.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sequence</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a></span>) – A string containing the protein sequence.</p></li>
+<li><p><strong>aa_map</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a> | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span>) – A dictionary mapping amino acid names to integer indices. If None, uses the default
+<cite>restype_order</cite> mapping.</p></li>
+<li><p><strong>unk_index</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a> | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span>) – The index to use for unknown amino acids not found in the mapping. If None, uses
+<cite>unk_restype_index</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code></span></p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A ProteinSequence containing the amino acid type indices corresponding to the input string.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.aa_convert.protein_sequence_to_string">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.aa_convert.</span></span><span class="sig-name descname"><span class="pre">protein_sequence_to_string</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sequence</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">aa_map</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/aa_convert.html#protein_sequence_to_string"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.aa_convert.protein_sequence_to_string" title="Link to this definition">#</a></dt>
+<dd><p>Convert a ProteinSequence to a string.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sequence</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code></span>) – A ProteinSequence containing amino acid type indices.</p></li>
+<li><p><strong>aa_map</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a> | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span>) – A dictionary mapping amino acid type indices to their corresponding names. If None,
+uses the default <cite>restype_order</cite> mapping.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a></span></p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A string representation of the protein sequence.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -491,6 +563,9 @@ document.write(`
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.aa_convert.af_to_mpnn"><code class="docutils literal notranslate"><span class="pre">af_to_mpnn()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.aa_convert.mpnn_to_af"><code class="docutils literal notranslate"><span class="pre">mpnn_to_af()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.aa_convert.string_key_to_index"><code class="docutils literal notranslate"><span class="pre">string_key_to_index()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.aa_convert.string_to_protein_sequence"><code class="docutils literal notranslate"><span class="pre">string_to_protein_sequence()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.aa_convert.protein_sequence_to_string"><code class="docutils literal notranslate"><span class="pre">protein_sequence_to_string()</span></code></a></li>
 </ul>
   </nav></div>
 

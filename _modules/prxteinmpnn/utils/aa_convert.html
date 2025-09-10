@@ -346,8 +346,17 @@ document.write(`
   <h1>Source code for prxteinmpnn.utils.aa_convert</h1><div class="highlight"><pre>
 <span></span><span class="sd">&quot;&quot;&quot;Utility functions for converting between AlphaFold and ProteinMPNN amino acid orders.&quot;&quot;&quot;</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mapping</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.residue_constants</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+  <span class="n">restype_order</span><span class="p">,</span>
+  <span class="n">restype_order_with_x</span><span class="p">,</span>
+  <span class="n">unk_restype_index</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProteinSequence</span>
 
 <span class="n">MPNN_ALPHABET</span> <span class="o">=</span> <span class="s2">&quot;ACDEFGHIKLMNPQRSTVWYX&quot;</span>
@@ -375,6 +384,106 @@ document.write(`
 <span class="k">def</span><span class="w"> </span><span class="nf">mpnn_to_af</span><span class="p">(</span><span class="n">sequence</span><span class="p">:</span> <span class="n">ProteinSequence</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ProteinSequence</span><span class="p">:</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Convert a sequence of integer indices from ProteinMPNN&#39;s to AlphaFold&#39;s alphabet order.&quot;&quot;&quot;</span>
   <span class="k">return</span> <span class="n">_MPNN_TO_AF_PERM</span><span class="p">[</span><span class="n">sequence</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="string_key_to_index">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.aa_convert.html#prxteinmpnn.utils.aa_convert.string_key_to_index">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">string_key_to_index</span><span class="p">(</span>
+  <span class="n">string_keys</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+  <span class="n">key_map</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span>
+  <span class="n">unk_index</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Convert string keys to integer indices based on a mapping.</span>
+
+<span class="sd">  Efficient vectorized implementation to convert a 1D array of string keys</span>
+<span class="sd">  to a 1D array of integer indices using a provided mapping. If a key is not found in the mapping,</span>
+<span class="sd">  it is replaced with a specified unknown index.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    string_keys: A 1D array of string keys.</span>
+<span class="sd">    key_map: A dictionary mapping string keys to integer indices.</span>
+<span class="sd">    unk_index: The index to use for unknown keys not found in the mapping. If None, uses the</span>
+<span class="sd">      length of the key_map as the unknown index.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    A 1D array of integer indices corresponding to the string keys.</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="n">unk_index</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">unk_index</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">key_map</span><span class="p">)</span>
+
+  <span class="n">sorted_keys</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">key_map</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+  <span class="n">sorted_values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">key_map</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">sorted_keys</span><span class="p">])</span>
+  <span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">searchsorted</span><span class="p">(</span><span class="n">sorted_keys</span><span class="p">,</span> <span class="n">string_keys</span><span class="p">)</span>
+  <span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">sorted_keys</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+
+  <span class="n">found_keys</span> <span class="o">=</span> <span class="n">sorted_keys</span><span class="p">[</span><span class="n">indices</span><span class="p">]</span>
+  <span class="n">is_known</span> <span class="o">=</span> <span class="n">found_keys</span> <span class="o">==</span> <span class="n">string_keys</span>
+
+  <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">is_known</span><span class="p">,</span> <span class="n">sorted_values</span><span class="p">[</span><span class="n">indices</span><span class="p">],</span> <span class="n">unk_index</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="string_to_protein_sequence">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.aa_convert.html#prxteinmpnn.utils.aa_convert.string_to_protein_sequence">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">string_to_protein_sequence</span><span class="p">(</span>
+  <span class="n">sequence</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+  <span class="n">aa_map</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="n">unk_index</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ProteinSequence</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Convert a string sequence to a ProteinSequence.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    sequence: A string containing the protein sequence.</span>
+<span class="sd">    aa_map: A dictionary mapping amino acid names to integer indices. If None, uses the default</span>
+<span class="sd">      `restype_order` mapping.</span>
+<span class="sd">    unk_index: The index to use for unknown amino acids not found in the mapping. If None, uses</span>
+<span class="sd">      `unk_restype_index`.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    A ProteinSequence containing the amino acid type indices corresponding to the input string.</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="n">unk_index</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">unk_index</span> <span class="o">=</span> <span class="n">unk_restype_index</span>
+
+  <span class="k">if</span> <span class="n">aa_map</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">aa_map</span> <span class="o">=</span> <span class="n">restype_order</span>
+    <span class="k">return</span> <span class="n">af_to_mpnn</span><span class="p">(</span>
+      <span class="n">string_key_to_index</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">sequence</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;U3&quot;</span><span class="p">),</span> <span class="n">aa_map</span><span class="p">,</span> <span class="n">unk_index</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span>
+        <span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">,</span>
+      <span class="p">),</span>
+    <span class="p">)</span>
+  <span class="k">return</span> <span class="n">string_key_to_index</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">sequence</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;U3&quot;</span><span class="p">),</span> <span class="n">aa_map</span><span class="p">,</span> <span class="n">unk_index</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span>
+    <span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">,</span>
+  <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="protein_sequence_to_string">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.aa_convert.html#prxteinmpnn.utils.aa_convert.protein_sequence_to_string">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">protein_sequence_to_string</span><span class="p">(</span>
+  <span class="n">sequence</span><span class="p">:</span> <span class="n">ProteinSequence</span><span class="p">,</span>
+  <span class="n">aa_map</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Convert a ProteinSequence to a string.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    sequence: A ProteinSequence containing amino acid type indices.</span>
+<span class="sd">    aa_map: A dictionary mapping amino acid type indices to their corresponding names. If None,</span>
+<span class="sd">      uses the default `restype_order` mapping.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    A string representation of the protein sequence.</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="n">aa_map</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">aa_map</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="n">aa</span> <span class="k">for</span> <span class="n">aa</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">restype_order_with_x</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+
+  <span class="n">af_seq</span> <span class="o">=</span> <span class="n">mpnn_to_af</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">sequence</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+
+  <span class="k">return</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">aa_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">aa</span><span class="p">),</span> <span class="s2">&quot;X&quot;</span><span class="p">)</span> <span class="k">for</span> <span class="n">aa</span> <span class="ow">in</span> <span class="n">af_seq</span><span class="p">])</span></div>
 
 </pre></div>
 

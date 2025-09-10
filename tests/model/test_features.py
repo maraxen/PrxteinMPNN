@@ -189,7 +189,7 @@ def test_extract_features_shapes(mock_model_parameters):
     residue_indices,
     chain_indices,
     k_neighbors=2,
-    augment_eps=0.0,
+    backbone_noise=0.0,
   )
 
   assert edge_features.shape[0] == num_residues
@@ -229,7 +229,7 @@ def test_extract_features_with_noise(mock_model_parameters):
     residue_indices,
     chain_indices,
     k_neighbors=2,
-    augment_eps=0.1,
+    backbone_noise=0.1,
   )
   assert edge_features.shape[0] == num_residues
   assert neighbor_indices.shape == (num_residues, 2)

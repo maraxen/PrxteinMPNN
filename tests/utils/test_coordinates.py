@@ -25,11 +25,12 @@ def test_apply_noise_to_coordinates():
   coords = jnp.ones((10, 5, 3))
 
   # Test with no noise
-  coords_no_noise, _ = apply_noise_to_coordinates(KEY, coords, augment_eps=0.0)
+  
+  coords_no_noise, _ = apply_noise_to_coordinates(KEY, coords, backbone_noise=jnp.array(0.0))
   chex.assert_trees_all_equal(coords, coords_no_noise)
 
   # Test with noise
-  coords_with_noise, _ = apply_noise_to_coordinates(KEY, coords, augment_eps=0.1)
+  coords_with_noise, _ = apply_noise_to_coordinates(KEY, coords, backbone_noise=jnp.array(0.1))
   chex.assert_shape(coords, coords_with_noise.shape)
   assert not jnp.allclose(coords, coords_with_noise)
 

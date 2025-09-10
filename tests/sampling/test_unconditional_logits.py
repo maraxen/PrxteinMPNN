@@ -7,7 +7,6 @@ from jax import random
 from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.sampling.unconditional_logits import make_unconditional_logits_fn
-from prxteinmpnn.utils.data_structures import ModelInputs
 from prxteinmpnn.utils.types import (
   AtomMask,
   ChainIndex,
@@ -57,29 +56,6 @@ def test_make_unconditional_logits_fn(mock_model_parameters, mock_structure_data
   assert not jnp.any(jnp.isnan(logits))
   assert node_features.shape[0] == num_residues
   assert edge_features.shape[:2] == (num_residues, num_residues)
-
-
-def test_make_unconditional_logits_fn_with_model_inputs(mock_model_parameters, mock_structure_data):
-  """Test that unconditional logits function works with ModelInputs."""
-  model_inputs = ModelInputs(
-    structure_coordinates=mock_structure_data['structure_coordinates'],
-    mask=mock_structure_data['mask'],
-    residue_index=mock_structure_data['residue_index'],
-    chain_index=mock_structure_data['chain_index'],
-  )
-
-  logits_fn = make_unconditional_logits_fn(
-    model_parameters=mock_model_parameters,
-    decoding_order_fn=mock_decoding_order_fn,
-    model_inputs=model_inputs,
-  )
-
-  key = random.PRNGKey(0)
-  logits, node_features, edge_features = logits_fn(key)
-
-  num_residues = mock_structure_data['structure_coordinates'].shape[0]
-  assert logits.shape == (num_residues, 21)
-  assert not jnp.any(jnp.isnan(logits))
 
 
 def test_make_unconditional_logits_fn_with_bias(mock_model_parameters, mock_structure_data):

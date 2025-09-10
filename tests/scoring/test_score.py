@@ -9,7 +9,6 @@ import pytest
 from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.scoring.score import make_score_sequence
-from prxteinmpnn.utils.data_structures import ModelInputs
 
 
 class TestMakeScoreSequence:
@@ -78,20 +77,11 @@ class TestMakeScoreSequence:
       "residue_indices": jnp.arange(seq_len),
       "chain_indices": jnp.zeros((seq_len,), dtype=jnp.int32),
       "k_neighbors": 48,
-      "augment_eps": 0.0,
+      "backbone_noise": 0.0,
+      "ar_mask": jnp.ones((seq_len, seq_len), dtype=jnp.bool_),
     }
 
-  @pytest.fixture
-  def mock_model_inputs(self, sample_inputs):
-    """Create mock ModelInputs for testing."""
-    return ModelInputs(
-      structure_coordinates=sample_inputs["structure_coordinates"],
-      mask=sample_inputs["mask"],
-      residue_index=sample_inputs["residue_indices"],
-      chain_index=sample_inputs["chain_indices"],
-      k_neighbors=sample_inputs["k_neighbors"],
-      augment_eps=sample_inputs["augment_eps"],
-    )
+
 
   @patch("prxteinmpnn.scoring.score.make_encoder")
   @patch("prxteinmpnn.scoring.score.make_decoder")
@@ -137,7 +127,6 @@ class TestMakeScoreSequence:
       decoding_order_fn=mock_decoding_order_fn,
       num_encoder_layers=3,
       num_decoder_layers=3,
-      model_inputs=None,
     )
 
     # Test scoring function
@@ -149,7 +138,8 @@ class TestMakeScoreSequence:
       sample_inputs["residue_indices"],
       sample_inputs["chain_indices"],
       sample_inputs["k_neighbors"],
-      sample_inputs["augment_eps"],
+      sample_inputs["backbone_noise"],
+      sample_inputs["ar_mask"],
     )
 
     # Verify result shape and type
@@ -160,67 +150,6 @@ class TestMakeScoreSequence:
     chex.assert_shape(decoding_order, (seq_len,))
     chex.assert_type(decoding_order, jnp.int32)
 
-  @patch("prxteinmpnn.scoring.score.make_encoder")
-  @patch("prxteinmpnn.scoring.score.make_decoder")
-  @patch("prxteinmpnn.scoring.score.extract_features")
-  @patch("prxteinmpnn.scoring.score.project_features")
-  @patch("prxteinmpnn.scoring.score.final_projection")
-  @patch("prxteinmpnn.scoring.score.generate_ar_mask")
-  def test_make_score_sequence_with_model_inputs(
-    self,
-    mock_generate_ar_mask,
-    mock_final_projection,
-    mock_project_features,
-    mock_extract_features,
-    mock_make_decoder,
-    mock_make_encoder,
-    mock_model_parameters,
-    mock_decoding_order_fn,
-    sample_inputs,
-    mock_model_inputs,
-  ):
-    """Test make_score_sequence with model inputs returns partial scoring function."""
-    # Setup mocks
-    mock_encoder = Mock()
-    mock_decoder = Mock()
-    mock_make_encoder.return_value = mock_encoder
-    mock_make_decoder.return_value = mock_decoder
-    
-    seq_len = sample_inputs["sequence"].shape[0]
-    mock_generate_ar_mask.return_value = jnp.ones((seq_len, seq_len), dtype=jnp.bool_)
-    # Fix: neighbor_indices should be integer type
-    mock_extract_features.return_value = (
-      jnp.ones((seq_len, 10)),  # edge_features
-      jnp.ones((seq_len, 48), dtype=jnp.int32),  # neighbor_indices
-      sample_inputs["prng_key"],  # prng_key
-    )
-    mock_project_features.return_value = jnp.ones((seq_len, 10))
-    mock_encoder.return_value = (jnp.ones((seq_len, 128)), jnp.ones((seq_len, 10)))
-    mock_decoder.return_value = jnp.ones((seq_len, 128))
-    mock_final_projection.return_value = jnp.ones((seq_len, 20))
-
-    # Create scoring function with model inputs
-    scoring_fn = make_score_sequence(
-      model_parameters=mock_model_parameters,
-      decoding_order_fn=mock_decoding_order_fn,
-      num_encoder_layers=3,
-      num_decoder_layers=3,
-      model_inputs=mock_model_inputs,
-    )
-
-    # Test scoring function (should only need prng_key and sequence)
-    score, logits, decoding_order = scoring_fn(
-      sample_inputs["prng_key"],
-      sample_inputs["sequence"],
-    )
-
-    # Verify result shape and type
-    chex.assert_shape(score, ())  # Should be a scalar score
-    chex.assert_type(score, jnp.floating)
-    chex.assert_shape(logits, (seq_len, 20))
-    chex.assert_type(logits, jnp.floating)
-    chex.assert_shape(decoding_order, (seq_len,))
-    chex.assert_type(decoding_order, jnp.int32)
 
   @patch("prxteinmpnn.scoring.score.make_encoder")
   @patch("prxteinmpnn.scoring.score.make_decoder")
@@ -301,7 +230,7 @@ class TestMakeScoreSequence:
     )
 
     # Compile the function
-    compiled_fn = jax.jit(scoring_fn, static_argnames=("k_neighbors", "augment_eps"))
+    compiled_fn = jax.jit(scoring_fn, static_argnames=("k_neighbors",))
     
     # Test that compiled function works
     score, logits, decoding_order = compiled_fn(
@@ -312,7 +241,7 @@ class TestMakeScoreSequence:
       sample_inputs["residue_indices"],
       sample_inputs["chain_indices"],
       k_neighbors=48,
-      augment_eps=0.0,
+      backbone_noise=0.0,
     )
     
     chex.assert_shape(score, ())
@@ -373,10 +302,11 @@ class TestMakeScoreSequence:
         "residue_index": jnp.arange(seq_len),
         "chain_index": jnp.zeros((seq_len,), dtype=jnp.int32),
         "k_neighbors": 48,
-        "augment_eps": 0.0,
+        "backbone_noise": 0.0,
+        "ar_mask": None,
       }
 
-      score, logits, decoding_order = scoring_fn(**inputs)
+      score, logits, decoding_order = scoring_fn(**inputs)  # type: ignore[arg-type]
       chex.assert_shape(score, ())
       chex.assert_type(score, jnp.floating)
       chex.assert_shape(logits, (seq_len, 20))
@@ -390,29 +320,10 @@ class TestMakeScoreSequence:
     scoring_fn_base = make_score_sequence(
       model_parameters=mock_model_parameters,
       decoding_order_fn=mock_decoding_order_fn,
-      model_inputs=None,
     )
     
     # Should be callable with all parameters
     assert callable(scoring_fn_base)
-
-    # Test with model inputs - create a proper mock with required attributes
-    mock_model_inputs = Mock(spec=ModelInputs)
-    mock_model_inputs.structure_coordinates = jnp.ones((10, 4, 3))
-    mock_model_inputs.mask = jnp.ones((10,), dtype=jnp.bool_)
-    mock_model_inputs.residue_index = jnp.arange(10)
-    mock_model_inputs.chain_index = jnp.zeros((10,), dtype=jnp.int32)
-    mock_model_inputs.k_neighbors = 48
-    mock_model_inputs.augment_eps = 0.0
-    
-    scoring_fn_partial = make_score_sequence(
-      model_parameters=mock_model_parameters,
-      decoding_order_fn=mock_decoding_order_fn,
-      model_inputs=mock_model_inputs,
-    )
-    
-    # Should be callable (partial function)
-    assert callable(scoring_fn_partial)
 
   @patch("prxteinmpnn.scoring.score.make_encoder")
   @patch("prxteinmpnn.scoring.score.make_decoder")
@@ -471,7 +382,8 @@ class TestMakeScoreSequence:
       sample_inputs["residue_indices"],
       sample_inputs["chain_indices"],
       sample_inputs["k_neighbors"],
-      sample_inputs["augment_eps"],
+      sample_inputs["backbone_noise"],
+      sample_inputs["ar_mask"],
     )
 
     assert jnp.all(jnp.isfinite(score))

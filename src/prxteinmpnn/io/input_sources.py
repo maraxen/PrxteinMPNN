@@ -12,13 +12,18 @@ from typing import Any
 import aiohttp
 import anyio
 
-from prxteinmpnn.io.parsing import parse_input
 from prxteinmpnn.utils.data_structures import ProteinEnsemble
-from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase, get_protein_structures
+from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase
 
 
 def _parse_input_worker(source: str | StringIO, **kwargs: Any) -> list[tuple]:
   """Worker function to run in a separate process, ensuring JAX uses CPU."""
+  import os
+
+  os.environ["JAX_PLATFORMS"] = "cpu"
+
+  from prxteinmpnn.io.parsing import parse_input
+
   return parse_input(source, **kwargs)
 
 
@@ -27,6 +32,11 @@ def _get_protein_structures_worker(
   database: FoldCompDatabase,
 ) -> list[tuple]:
   """Worker function for FoldComp, ensuring JAX uses CPU."""
+  import os
+
+  os.environ["JAX_PLATFORMS"] = "cpu"
+  from prxteinmpnn.utils.foldcomp_utils import get_protein_structures
+
   return get_protein_structures(protein_ids, database)
 
 

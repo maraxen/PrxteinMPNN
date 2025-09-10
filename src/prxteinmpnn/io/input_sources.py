@@ -11,6 +11,7 @@ from typing import Any
 
 import aiohttp
 import anyio
+import jax
 
 from prxteinmpnn.utils.data_structures import Protein, ProteinEnsemble
 from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase
@@ -18,12 +19,12 @@ from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase
 
 def _parse_input_worker(source: str | StringIO, **kwargs: Any) -> list[Protein]:
   """Worker function to run in a separate process, ensuring JAX uses CPU."""
-  import jax  # noqa: PLC0415
+  cpu_device = jax.devices("cpu")[0]
 
-  jax.config.update("jax_platform_name", "cpu")
-  from prxteinmpnn.io.parsing import parse_input  # noqa: PLC0415
+  with jax.default_device(cpu_device):
+    from prxteinmpnn.io.parsing import parse_input  # noqa: PLC0415
 
-  return parse_input(source, **kwargs)
+    return parse_input(source, **kwargs)
 
 
 def _get_protein_structures_worker(
@@ -31,15 +32,11 @@ def _get_protein_structures_worker(
   database: FoldCompDatabase,
 ) -> list[Protein]:
   """Worker function for FoldComp, ensuring JAX uses CPU."""
-  import os  # noqa: PLC0415
+  cpu_device = jax.devices("cpu")[0]
+  with jax.default_device(cpu_device):
+    from prxteinmpnn.utils.foldcomp_utils import get_protein_structures  # noqa: PLC0415
 
-  os.environ["JAX_PLATFORMS"] = "cpu"
-  import jax  # noqa: PLC0415
-
-  jax.config.update("jax_platform_name", "cpu")
-  from prxteinmpnn.utils.foldcomp_utils import get_protein_structures  # noqa: PLC0415
-
-  return get_protein_structures(protein_ids, database)
+    return get_protein_structures(protein_ids, database)
 
 
 class InputSource(ABC):

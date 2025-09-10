@@ -11,32 +11,23 @@ from typing import Any
 
 import aiohttp
 import anyio
-import jax
 
-from prxteinmpnn.utils.data_structures import Protein, ProteinEnsemble
-from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase
+from prxteinmpnn.io.parsing import parse_input
+from prxteinmpnn.utils.data_structures import ProteinEnsemble
+from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase, get_protein_structures
 
 
-def _parse_input_worker(source: str | StringIO, **kwargs: Any) -> list[Protein]:
+def _parse_input_worker(source: str | StringIO, **kwargs: Any) -> list[tuple]:
   """Worker function to run in a separate process, ensuring JAX uses CPU."""
-  cpu_device = jax.devices("cpu")[0]
-
-  with jax.default_device(cpu_device):
-    from prxteinmpnn.io.parsing import parse_input  # noqa: PLC0415
-
-    return parse_input(source, **kwargs)
+  return parse_input(source, **kwargs)
 
 
 def _get_protein_structures_worker(
   protein_ids: Sequence[str],
   database: FoldCompDatabase,
-) -> list[Protein]:
+) -> list[tuple]:
   """Worker function for FoldComp, ensuring JAX uses CPU."""
-  cpu_device = jax.devices("cpu")[0]
-  with jax.default_device(cpu_device):
-    from prxteinmpnn.utils.foldcomp_utils import get_protein_structures  # noqa: PLC0415
-
-    return get_protein_structures(protein_ids, database)
+  return get_protein_structures(protein_ids, database)
 
 
 class InputSource(ABC):
@@ -64,6 +55,8 @@ class FilePathSource(InputSource):
       proteins = await anyio.to_thread.run_sync(future.result)  # type: ignore[attr-access]
       for protein in proteins:
         yield protein, self.value
+    except FileNotFoundError:
+      warnings.warn(f"File not found: '{self.value}'", stacklevel=2)
     except Exception as e:  # noqa: BLE001
       warnings.warn(f"Failed to process file '{self.value}': {e}", stacklevel=2)
 

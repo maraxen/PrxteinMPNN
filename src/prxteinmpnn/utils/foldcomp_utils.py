@@ -1,21 +1,22 @@
-"""Utilities for processing and manipulating protein structures from foldcomp."""
+"""Utilities for processing and manipulating protein structures from foldcomp.
 
-import asyncio
-from collections.abc import Iterator, Sequence
+prxteinmpnn.utils.foldcomp_utils
+"""
+
+import logging
+from collections.abc import Sequence
 from functools import cache
 from typing import Literal
 
 import foldcomp
 import jax.numpy as jnp
-import nest_asyncio
 
-from prxteinmpnn.io import (
-  protein_structure_to_model_inputs,
+from prxteinmpnn.io.parsing import (
   string_to_protein_sequence,
 )
-from prxteinmpnn.mpnn import ModelVersion, ModelWeights, get_mpnn_model
-from prxteinmpnn.utils.data_structures import ModelInputs, ProteinStructure
-from prxteinmpnn.utils.types import ModelParameters
+from prxteinmpnn.utils.data_structures import Protein
+
+logger = logging.getLogger(__name__)
 
 FoldCompDatabase = Literal[
   "esmatlas",
@@ -46,130 +47,58 @@ FoldCompDatabase = Literal[
 
 @cache
 def _setup_foldcomp_database(database: FoldCompDatabase) -> None:
-  """Set up the FoldComp database, handling sync and async contexts.
+  """Set up the FoldComp database synchronously.
 
-  Args:
-    database: The FoldCompDatabase enum value specifying which database to set up.
-
-  Returns:
-    None
-
-  Example:
-    >>> _setup_foldcomp_database("esmatlas")
-
+  This is designed to be called from within a synchronous worker process.
   """
-  try:
-    loop = asyncio.get_running_loop()
-    nest_asyncio.apply()
-    coro = foldcomp.setup_async(database)
-    loop.run_until_complete(coro)
-  except RuntimeError:
-    foldcomp.setup(database)
-
-
-def _from_fcz(
-  proteins: foldcomp.FoldcompDatabase,  # type: ignore[attr-access]
-) -> Iterator[ProteinStructure]:
-  """Retrieve protein dihedral structures from the FoldComp database.
-
-  Args:
-    proteins: The FoldComp protein database object.
-
-  Returns:
-    An iterator over DihedralStructure objects containing the dihedral angle data
-    for the specified protein IDs.
-
-  """
-  for _, fcz in proteins:
-    fcz_data = foldcomp.get_data(fcz)  # type: ignore[attr-access]
-    phi_angles = jnp.array(fcz_data["phi"], dtype=jnp.float64)
-    psi_angles = jnp.array(fcz_data["psi"], dtype=jnp.float64)
-    omega_angles = jnp.array(fcz_data["omega"], dtype=jnp.float64)
-    dihedrals = jnp.stack(
-      [phi_angles, psi_angles, omega_angles],
-      axis=-1,
-    )
-    coordinates = jnp.array(fcz_data["coordinates"], dtype=jnp.float64)
-    residue_sequence = string_to_protein_sequence(fcz_data["residues"])
-    yield ProteinStructure(
-      coordinates=coordinates,
-      dihedrals=dihedrals,
-      aatype=residue_sequence,
-      atom_mask=jnp.ones(len(residue_sequence)),
-      residue_index=jnp.arange(len(residue_sequence)),
-      chain_index=jnp.zeros(len(residue_sequence), dtype=jnp.int32),
-    )
+  foldcomp.setup(database)
 
 
 def get_protein_structures(
   protein_ids: Sequence[str],
   database: FoldCompDatabase = "afdb_rep_v4",
-) -> Iterator[ProteinStructure]:
-  """Retrieve protein structures from the FoldComp database.
+) -> list[Protein]:
+  """Retrieve protein structures from the FoldComp database and return them as a list of ensembles.
+
+  This is a synchronous, blocking function designed to be run in an executor.
 
   Args:
     protein_ids: A sequence of protein IDs to retrieve.
-    database: The FoldCompDatabase enum value specifying which database to use.
+    database: The FoldCompDatabase to use.
 
   Returns:
-    An iterator over ProteinStructure objects containing the structure data
-    for the specified protein IDs.
-
-  Example:
-    >>> ids = ["P12345", "Q67890"]
-    >>> structures = get_protein_structures(ids)
-    >>> for struct in structures:
-    ...     print(struct)
+    A list of ProteinEnsemble objects. Each ensemble contains the structure(s)
+    for one of the requested protein IDs.
 
   """
+  output_proteins: list[Protein] = []
   _setup_foldcomp_database(database)
   with foldcomp.open(database, ids=protein_ids, decompress=False) as proteins:  # type: ignore[attr-access]
-    yield from _from_fcz(proteins)
+    for _, fcz in proteins:
+      try:
+        fcz_data = foldcomp.get_data(fcz)  # type: ignore[attr-access]
 
+        phi = jnp.array(fcz_data["phi"], dtype=jnp.float64)
+        psi = jnp.array(fcz_data["psi"], dtype=jnp.float64)
+        omega = jnp.array(fcz_data["omega"], dtype=jnp.float64)
+        dihedrals = jnp.stack([phi, psi, omega], axis=-1)
 
-def model_from_id(
-  protein_ids: str | Sequence[str],
-  model_weights: ModelWeights | None = None,
-  model_version: ModelVersion | None = None,
-) -> tuple[ModelParameters, Iterator[ModelInputs]]:
-  """Get the MPNN model and inputs for specific protein IDs.
+        coordinates = jnp.array(fcz_data["coordinates"], dtype=jnp.float64)
+        sequence = string_to_protein_sequence(fcz_data["residues"])
+        num_res = len(sequence)
 
-  Args:
-    protein_ids: The ID(s) of the protein(s) to retrieve the model for.
-    model_weights: The weights to use for the model.
-    model_version: The model version to use.
-
-  Returns:
-    A tuple containing the MPNN model parameters and model inputs.
-
-  Raises:
-    ValueError: If no protein structures are found for the given IDs.
-
-  Example:
-    >>> model, inputs = model_from_id("P12345")
-    >>> # Use model and inputs for inference
-
-  """
-  base_model = get_mpnn_model(
-    model_version=model_version or "v_48_020.pkl",
-    model_weights=model_weights or "original",
-  )
-
-  if isinstance(protein_ids, str):
-    protein_ids = [protein_ids]
-  structures = list(get_protein_structures(protein_ids=protein_ids))
-  if not structures:
-    msg = f"No protein structures found for IDs: {protein_ids}"
-    raise ValueError(msg)
-
-  model_inputs = (protein_structure_to_model_inputs(structure) for structure in structures)
-  first_input = next(model_inputs, None)
-  if first_input is None:
-    msg = f"No model inputs generated for protein structures: {protein_ids}"
-    raise ValueError(msg)
-
-  def model_inputs_with_first() -> Iterator[ModelInputs]:
-    yield first_input
-    yield from model_inputs
-
-  return base_model, model_inputs_with_first()
+        output_proteins.append(
+          Protein(
+            coordinates=coordinates,
+            dihedrals=dihedrals,
+            aatype=sequence,
+            atom_mask=jnp.ones_like(sequence, dtype=jnp.bool_),
+            residue_index=jnp.arange(num_res),
+            chain_index=jnp.zeros(num_res, dtype=jnp.int32),
+          ),
+        )
+      except Exception as e:  # noqa: BLE001
+        msg = f"Failed to process a FoldComp entry. Error: {e}"
+        logger.warning(msg)
+        continue
+  return output_proteins

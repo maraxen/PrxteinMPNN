@@ -257,7 +257,7 @@ def test_conditional_logits_deterministic(mock_model_parameters):
     residue_index=residue_indices,
     chain_index=chain_indices,
     k_neighbors=K,
-    augment_eps=0.0,  # No augmentation for determinism
+    backbone_noise=0.0,  # No augmentation for determinism
   )
 
   logits2 = conditional_logits_fn(
@@ -268,7 +268,7 @@ def test_conditional_logits_deterministic(mock_model_parameters):
     residue_index=residue_indices,
     chain_index=chain_indices,
     k_neighbors=K,
-    augment_eps=0.0,  # No augmentation for determinism
+    backbone_noise=0.0,  # No augmentation for determinism
   )
 
   # Check that outputs are identical

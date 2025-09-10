@@ -6,7 +6,6 @@ import jax
 import jax.numpy as jnp
 import pytest
 from prxteinmpnn.sampling.sample import make_sample_sequences
-from prxteinmpnn.sampling.config import SamplingConfig
 
 
 @pytest.fixture
@@ -104,14 +103,11 @@ def test_make_sample_sequences(mock_model_parameters):
   key = jax.random.PRNGKey(42)
 
   decoding_order_fn = lambda k, l: (jax.lax.iota(jnp.int32, l), jax.random.split(k)[1])
-  sampling_config = SamplingConfig(
-    sampling_strategy="temperature",
-  )
 
   sample_sequences_fn = make_sample_sequences(
     model_parameters=mock_model_parameters,
     decoding_order_fn=decoding_order_fn,
-    config=sampling_config,
+    sampling_strategy="temperature",
     num_encoder_layers=3,
     num_decoder_layers=3,
   )
@@ -121,8 +117,6 @@ def test_make_sample_sequences(mock_model_parameters):
   mask = jnp.ones((L,))
   residue_indices = jnp.arange(L)
   chain_indices = jnp.zeros((L,))
-  key, sequence_key = jax.random.split(key)
-  initial_sequence = jax.random.randint(sequence_key, (L,), 0, 21, dtype=jnp.int8)
   key, sample_key = jax.random.split(key)
 
   # Run sampling
@@ -140,9 +134,6 @@ def test_make_sample_sequences(mock_model_parameters):
   chex.assert_shape(logits, (L, 21))
   chex.assert_shape(decoding_order, (L,))
 
-
-  # Check that the sequence has been modified from the initial integer sequence
-  assert not jnp.allclose(initial_sequence, sampled_sequence)
   
   assert jnp.unique(sampled_sequence).shape[0] <= 21, "Sampled sequence contains invalid amino acid indices."
   

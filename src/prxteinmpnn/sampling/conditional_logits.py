@@ -15,6 +15,7 @@ from prxteinmpnn.sampling.initialize import sampling_encode
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
   AtomMask,
+  BackboneNoise,
   ChainIndex,
   EdgeFeatures,
   InputBias,
@@ -39,7 +40,7 @@ ConditionalLogitsFn = Callable[
     ChainIndex,
     InputBias | None,
     int,
-    float,
+    BackboneNoise | None,
   ],
   tuple[Logits, NodeFeatures, EdgeFeatures],
 ]
@@ -47,7 +48,7 @@ ConditionalLogitsFn = Callable[
 
 def make_conditional_logits_fn(
   model_parameters: ModelParameters,
-  decoding_order_fn: DecodingOrderFn,
+  decoding_order_fn: DecodingOrderFn | None = None,
   num_encoder_layers: int = 3,
   num_decoder_layers: int = 3,
 ) -> ConditionalLogitsFn:
@@ -70,7 +71,7 @@ def make_conditional_logits_fn(
     bias: An optional JAX array of shape `(L, 21)` to add a bias to the final logits. Defaults to
       None.
     k_neighbors: The number of neighbors to consider for each residue. Defaults to 48.
-    augment_eps: The epsilon value for data augmentation. Defaults to 0.0.
+    backbone_noise: The epsilon value for data augmentation. Defaults to 0.0.
     num_encoder_layers: The number of encoder layers to use. Defaults to 3.
     num_decoder_layers: The number of decoder layers to use. Defaults to 3.
 
@@ -116,7 +117,7 @@ def make_conditional_logits_fn(
     decoding_order_fn=decoding_order_fn,
   )
 
-  @partial(jax.jit, static_argnames=("k_neighbors", "augment_eps"))
+  @partial(jax.jit, static_argnames=("k_neighbors",))
   def condition_logits(
     prng_key: PRNGKeyArray,
     structure_coordinates: StructureAtomicCoordinates,
@@ -126,17 +127,22 @@ def make_conditional_logits_fn(
     chain_index: ChainIndex,
     bias: InputBias | None = None,
     k_neighbors: int = 48,
-    augment_eps: float = 0.0,
+    backbone_noise: BackboneNoise | None = None,
   ) -> tuple[Logits, NodeFeatures, EdgeFeatures]:
     if bias is None:
       bias = jnp.zeros((structure_coordinates.shape[0], 21), dtype=jnp.float32)
+
+    if backbone_noise is None:
+      backbone_noise = jnp.array(0.0, dtype=jnp.float32)
+
+    autoregressive_mask = 1 - jnp.eye(structure_coordinates.shape[0], dtype=jnp.float32)
 
     (
       node_features,
       edge_features,
       neighbor_indices,
-      _,
-      autoregressive_mask,
+      _,  # decoding_order
+      _,  # autoregressive_mask
       _,  # next_rng_key (not needed for this function)
     ) = sample_model_pass(
       prng_key,
@@ -145,8 +151,9 @@ def make_conditional_logits_fn(
       mask,
       residue_index,
       chain_index,
+      autoregressive_mask,
       k_neighbors,
-      augment_eps,
+      backbone_noise,
     )
 
     one_hot_sequence = jax.nn.one_hot(sequence, 21, dtype=jnp.float32)

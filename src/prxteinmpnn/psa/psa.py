@@ -7,7 +7,7 @@ and principal strains from protein structures. The calculations are implemented 
 import jax.numpy as jnp
 from jax import jit
 
-from prxteinmpnn.utils.data_structures import ProteinStructure
+from prxteinmpnn.utils.data_structures import Protein
 
 
 @jit
@@ -66,7 +66,7 @@ def calculate_principal_strains(green_lagrange_strain: jnp.ndarray) -> jnp.ndarr
   return jnp.linalg.eigvalsh(green_lagrange_strain)
 
 
-def run_psa(reference_structure: ProteinStructure, deformed_structure: ProteinStructure) -> dict:
+def run_psa(reference_structure: Protein, deformed_structure: Protein) -> dict:
   """Run the full Protein Strain Analysis.
 
   Args:

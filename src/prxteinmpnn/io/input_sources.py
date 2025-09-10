@@ -4,6 +4,7 @@ import pathlib
 import re
 import warnings
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from concurrent.futures import ProcessPoolExecutor
 from io import StringIO
 from typing import Any
@@ -12,9 +13,30 @@ import aiohttp
 import anyio
 
 from prxteinmpnn.utils.data_structures import Protein, ProteinEnsemble
-from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase, get_protein_structures
+from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase
 
-from .parsing import parse_input
+
+def _parse_input_worker(source: str | StringIO, **kwargs: Any) -> list[Protein]:
+  """Worker function to run in a separate process, ensuring JAX uses CPU."""
+  import jax  # noqa: PLC0415
+
+  jax.config.update("jax_platform_name", "cpu")
+  from prxteinmpnn.io.parsing import parse_input  # noqa: PLC0415
+
+  return parse_input(source, **kwargs)
+
+
+def _get_protein_structures_worker(
+  protein_ids: Sequence[str],
+  database: FoldCompDatabase,
+) -> list[Protein]:
+  """Worker function for FoldComp, ensuring JAX uses CPU."""
+  import jax  # noqa: PLC0415
+
+  jax.config.update("jax_platform_name", "cpu")
+  from prxteinmpnn.utils.foldcomp_utils import get_protein_structures  # noqa: PLC0415
+
+  return get_protein_structures(protein_ids, database)
 
 
 class InputSource(ABC):
@@ -38,12 +60,8 @@ class FilePathSource(InputSource):
   async def process(self, executor: ProcessPoolExecutor) -> ProteinEnsemble:
     """Process a single structure file."""
     try:
-
-      def _parse() -> list[Protein]:
-        future = executor.submit(parse_input, self.value, **self.kwargs)  # type: ignore[arg-type]
-        return future.result()
-
-      proteins = await anyio.to_thread.run_sync(_parse)  # type: ignore[attr-access]
+      future = executor.submit(_parse_input_worker, self.value, **self.kwargs)  # type: ignore[arg-type]
+      proteins = await anyio.to_thread.run_sync(future.result)  # type: ignore[attr-access]
       for protein in proteins:
         yield protein, self.value
     except Exception as e:  # noqa: BLE001
@@ -71,7 +89,7 @@ class DirectorySource(InputSource):
 class PDBIDSource(InputSource):
   """Handles fetching and processing of PDB IDs from RCSB."""
 
-  async def process(self, executor: ProcessPoolExecutor) -> ProteinEnsemble:  # noqa: ARG002
+  async def process(self, executor: ProcessPoolExecutor) -> ProteinEnsemble:
     """Fetch and process a PDB structure by its ID."""
     url = f"https://files.rcsb.org/download/{self.value}.pdb"
     try:
@@ -79,7 +97,8 @@ class PDBIDSource(InputSource):
         response.raise_for_status()
         content = await response.text()
 
-        proteins = await anyio.to_thread.run_sync(parse_input, StringIO(content), **self.kwargs)  # type: ignore[attr-access]
+        future = executor.submit(_parse_input_worker, StringIO(content), **self.kwargs)  # type: ignore[arg-type]
+        proteins = await anyio.to_thread.run_sync(future.result)  # type: ignore[attr-access]
         for protein in proteins:
           yield protein, self.value
     except Exception as e:  # noqa: BLE001
@@ -89,10 +108,11 @@ class PDBIDSource(InputSource):
 class StringIOSource(InputSource):
   """Handles processing of in-memory StringIO objects."""
 
-  async def process(self, executor: ProcessPoolExecutor) -> ProteinEnsemble:  # noqa: ARG002
+  async def process(self, executor: ProcessPoolExecutor) -> ProteinEnsemble:
     """Process a StringIO object containing structure data."""
     try:
-      proteins = await anyio.to_thread.run_sync(parse_input, self.value, **self.kwargs)  # type: ignore[attr-access]
+      future = executor.submit(_parse_input_worker, self.value, **self.kwargs)  # type: ignore[arg-type]
+      proteins = await anyio.to_thread.run_sync(future.result)  # type: ignore[attr-access]
       for protein in proteins:
         yield protein, "StringIO"
     except Exception as e:  # noqa: BLE001
@@ -118,12 +138,8 @@ class FoldCompSource(InputSource):
       warnings.warn("FoldComp IDs provided but no database specified.", stacklevel=2)
       return
     try:
-
-      def _get_structures() -> list[Protein]:
-        future = executor.submit(get_protein_structures, self.value, self.db)
-        return future.result()
-
-      proteins = await anyio.to_thread.run_sync(_get_structures)  # type: ignore[attr-access]
+      future = executor.submit(_get_protein_structures_worker, self.value, self.db)
+      proteins = await anyio.to_thread.run_sync(future.result)  # type: ignore[attr-access]
       for protein in proteins:
         yield protein, self.value
     except Exception as e:  # noqa: BLE001

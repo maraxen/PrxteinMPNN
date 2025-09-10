@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from functools import partial
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -16,6 +17,13 @@ if TYPE_CHECKING:
 
   from prxteinmpnn.mpnn import ModelVersion, ModelWeights
   from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase
+  from prxteinmpnn.utils.types import (
+    AtomMask,
+    ChainIndex,
+    ProteinSequence,
+    ResidueIndex,
+    StructureAtomicCoordinates,
+  )
 
 
 from prxteinmpnn.io.process import load
@@ -26,6 +34,11 @@ from prxteinmpnn.utils.batching import (
 )
 
 AlignmentStrategy = Literal["sequence", "structure"]
+
+logger = logging.getLogger(__name__)
+import sys
+
+logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
 
 
 async def score(
@@ -173,55 +186,72 @@ async def categorical_jacobian(
   else:
     backbone_noise = jnp.asarray(backbone_noise)
 
+  logger.info("Computing categorical Jacobian in %s mode.", mode)
+
   protein_stream = load(inputs, foldcomp_database=foldcomp_database, **kwargs)
+
+  logger.info("Loaded protein stream, batching and padding proteins.")
 
   batched_proteins, sources, _ = await batch_and_pad_proteins(protein_stream)
 
+  logger.info("Batched and padded proteins, loading model.")
+
   model_parameters = get_mpnn_model(model_version=model_version, model_weights=model_weights)
+  logger.info("Loaded model parameters.")
   score_single_pair = make_score_sequence(model_parameters=model_parameters)
+  logger.info("Created scoring function.")
 
   def compute_jacobian_for_structure(
     coords: jax.Array,
     atom_mask: jax.Array,
     residue_ix: jax.Array,
     chain_ix: jax.Array,
-    native_seq: jax.Array,
+    one_hot_sequence: jax.Array,
     noise: jax.Array,
   ) -> jax.Array:
     """Compute the Jacobian for a single protein structure and noise level."""
+    jax.debug.print(
+      "Shapes: coords {}, mask {}, res_ix {}, chain_ix {}, seq {}, noise {}",
+      coords.shape,
+      atom_mask.shape,
+      residue_ix.shape,
+      chain_ix.shape,
+      one_hot_sequence.shape,
+      noise.shape,
+    )
 
     def logit_fn(one_hot_sequence: jax.Array) -> jax.Array:
-      sequence_indices = jnp.argmax(one_hot_sequence, axis=-1)
-      ar_mask = 1 - jnp.eye(sequence_indices.shape[0], dtype=jnp.bool_)
+      ar_mask = 1 - jnp.eye(one_hot_sequence.shape[0], dtype=jnp.bool_)
 
       _, logits, _ = score_single_pair(
-        coordinates=coords,  # type: ignore[arg-type]
-        sequence=sequence_indices,
-        atom_mask=atom_mask,
-        residue_index=residue_ix,
-        chain_index=chain_ix,
-        prng_key=jax.random.key(rng_key),
-        k_neighbors=48,
-        backbone_noise=noise,
-        ar_mask=ar_mask,
+        jax.random.key(rng_key),
+        one_hot_sequence,
+        coords,  # type: ignore[arg-type]
+        atom_mask,
+        residue_ix,
+        chain_ix,
+        48,
+        noise,
+        ar_mask,
       )
       return logits
 
-    native_one_hot = jax.nn.one_hot(native_seq, num_classes=21)
+    jax.debug.print("Computing Jacobian for structure of length {}", one_hot_sequence.shape[0])
 
     if mode == "diagonal":
 
       def get_logit_at_pos(one_hot_at_pos: jax.Array, pos: int) -> jax.Array:
         """Return logits at `pos` when only `seq[pos]` is changed."""
-        modified_sequence = native_one_hot.at[pos].set(one_hot_at_pos)
+        modified_sequence = one_hot_sequence.at[pos].set(one_hot_at_pos)
         return logit_fn(modified_sequence)[pos]
 
       return jax.vmap(
         jax.jacrev(get_logit_at_pos, argnums=0),
         in_axes=(0, 0),
-      )(native_one_hot, jnp.arange(native_one_hot.shape[0]))
+      )(one_hot_sequence, jnp.arange(one_hot_sequence.shape[0]))
 
-    return jax.jacrev(logit_fn)(native_one_hot)
+    jax.debug.print("Computing full Jacobian.")
+    return jax.jacrev(logit_fn)(one_hot_sequence)
 
   vmap_over_noise = jax.vmap(
     compute_jacobian_for_structure,
@@ -229,7 +259,17 @@ async def categorical_jacobian(
     out_axes=0,
   )
 
-  mapped_fn = partial(vmap_over_noise, noise=backbone_noise)
+  def mapped_fn(
+    input_tuple: tuple[
+      StructureAtomicCoordinates,
+      AtomMask,
+      ResidueIndex,
+      ChainIndex,
+      ProteinSequence,
+    ],
+  ) -> jax.Array:
+    """Map over a single structure, vmapping over noise levels."""
+    return vmap_over_noise(*input_tuple, backbone_noise)
 
   jacobians: jax.Array = jax.lax.map(
     mapped_fn,
@@ -238,7 +278,7 @@ async def categorical_jacobian(
       batched_proteins.atom_mask,
       batched_proteins.residue_index,
       batched_proteins.chain_index,
-      batched_proteins.aatype,
+      batched_proteins.one_hot_sequence,
     ),
     batch_size=batch_size,
   )

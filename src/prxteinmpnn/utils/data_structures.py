@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     AtomMask,
     BackboneDihedrals,
     ChainIndex,
+    OneHotProteinSequence,
     ProteinSequence,
     ResidueIndex,
     StructureAtomicCoordinates,
@@ -43,6 +44,7 @@ class Protein:
 
   coordinates: StructureAtomicCoordinates
   aatype: ProteinSequence
+  one_hot_sequence: OneHotProteinSequence
   atom_mask: AtomMask
   residue_index: ResidueIndex
   chain_index: ChainIndex

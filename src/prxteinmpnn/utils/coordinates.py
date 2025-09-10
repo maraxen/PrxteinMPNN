@@ -38,11 +38,13 @@ def apply_noise_to_coordinates(
     >>> noisy_coords, new_key = apply_noise_to_coordinates(coords, key, 0.1)
 
   """
+  jax.debug.print("Applying noise with std: {}", backbone_noise)
   key, coord_key = jax.random.split(key)
 
   def add_noise(coords: StructureAtomicCoordinates) -> StructureAtomicCoordinates:
-    noise = backbone_noise * jax.random.normal(coord_key, coords.shape)
-    return coords + noise
+    noise = jax.random.normal(coord_key, coords.shape)
+    jax.debug.print("Noise shape: {}", noise.shape)
+    return coords + backbone_noise * noise
 
   def no_noise(coords: StructureAtomicCoordinates) -> StructureAtomicCoordinates:
     return coords
@@ -53,6 +55,8 @@ def apply_noise_to_coordinates(
     no_noise,
     coordinates,
   )
+  jax.debug.print("Noise applied.")
+  jax.debug.print("Noisy coordinates shape: {}", noisy_coordinates.shape)
   return noisy_coordinates, key
 
 

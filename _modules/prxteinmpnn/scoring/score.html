@@ -363,6 +363,7 @@ document.write(`
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.projection</span><span class="w"> </span><span class="kn">import</span> <span class="n">final_projection</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.autoregression</span><span class="w"> </span><span class="kn">import</span> <span class="n">generate_ar_mask</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.decoding_order</span><span class="w"> </span><span class="kn">import</span> <span class="n">DecodingOrderFn</span><span class="p">,</span> <span class="n">random_decoding_order</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.residue_constants</span><span class="w"> </span><span class="kn">import</span> <span class="n">atom_order</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
   <span class="n">AtomMask</span><span class="p">,</span>
   <span class="n">AutoRegressiveMask</span><span class="p">,</span>
@@ -371,6 +372,7 @@ document.write(`
   <span class="n">DecodingOrder</span><span class="p">,</span>
   <span class="n">Logits</span><span class="p">,</span>
   <span class="n">ModelParameters</span><span class="p">,</span>
+  <span class="n">OneHotProteinSequence</span><span class="p">,</span>
   <span class="n">ProteinSequence</span><span class="p">,</span>
   <span class="n">ResidueIndex</span><span class="p">,</span>
   <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
@@ -423,7 +425,7 @@ document.write(`
   <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;k_neighbors&quot;</span><span class="p">,))</span>
   <span class="k">def</span><span class="w"> </span><span class="nf">score_sequence</span><span class="p">(</span>
     <span class="n">prng_key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
-    <span class="n">sequence</span><span class="p">:</span> <span class="n">ProteinSequence</span><span class="p">,</span>
+    <span class="n">sequence</span><span class="p">:</span> <span class="n">ProteinSequence</span> <span class="o">|</span> <span class="n">OneHotProteinSequence</span><span class="p">,</span>
     <span class="n">structure_coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
     <span class="n">mask</span><span class="p">:</span> <span class="n">AtomMask</span><span class="p">,</span>
     <span class="n">residue_index</span><span class="p">:</span> <span class="n">ResidueIndex</span><span class="p">,</span>
@@ -436,24 +438,26 @@ document.write(`
     <span class="n">decoding_order</span><span class="p">,</span> <span class="n">prng_key</span> <span class="o">=</span> <span class="n">decoding_order_fn</span><span class="p">(</span><span class="n">prng_key</span><span class="p">,</span> <span class="n">sequence</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
     <span class="n">autoregressive_mask</span> <span class="o">=</span> <span class="n">generate_ar_mask</span><span class="p">(</span><span class="n">decoding_order</span><span class="p">)</span> <span class="k">if</span> <span class="n">ar_mask</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">ar_mask</span>
 
+    <span class="n">residue_mask</span> <span class="o">=</span> <span class="n">mask</span><span class="p">[:,</span> <span class="n">atom_order</span><span class="p">[</span><span class="s2">&quot;CA&quot;</span><span class="p">]]</span>
+    <span class="n">jax</span><span class="o">.</span><span class="n">debug</span><span class="o">.</span><span class="n">print</span><span class="p">(</span><span class="s2">&quot;Extracting features...&quot;</span><span class="p">)</span>
     <span class="n">edge_features</span><span class="p">,</span> <span class="n">neighbor_indices</span><span class="p">,</span> <span class="n">prng_key</span> <span class="o">=</span> <span class="n">extract_features</span><span class="p">(</span>
       <span class="n">prng_key</span><span class="p">,</span>
       <span class="n">model_parameters</span><span class="p">,</span>
       <span class="n">structure_coordinates</span><span class="p">,</span>
-      <span class="n">mask</span><span class="p">,</span>
+      <span class="n">residue_mask</span><span class="p">,</span>
       <span class="n">residue_index</span><span class="p">,</span>
       <span class="n">chain_index</span><span class="p">,</span>
       <span class="n">k_neighbors</span><span class="o">=</span><span class="n">k_neighbors</span><span class="p">,</span>
       <span class="n">backbone_noise</span><span class="o">=</span><span class="n">backbone_noise</span><span class="p">,</span>
     <span class="p">)</span>
-
+    <span class="n">jax</span><span class="o">.</span><span class="n">debug</span><span class="o">.</span><span class="n">print</span><span class="p">(</span><span class="s2">&quot;Features extracted. Projecting features...&quot;</span><span class="p">)</span>
     <span class="n">edge_features</span> <span class="o">=</span> <span class="n">project_features</span><span class="p">(</span>
       <span class="n">model_parameters</span><span class="p">,</span>
       <span class="n">edge_features</span><span class="p">,</span>
     <span class="p">)</span>
 
     <span class="n">attention_mask</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">take_along_axis</span><span class="p">(</span>
-      <span class="n">mask</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">mask</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:],</span>
+      <span class="n">residue_mask</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">residue_mask</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:],</span>
       <span class="n">neighbor_indices</span><span class="p">,</span>
       <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
     <span class="p">)</span>
@@ -461,19 +465,17 @@ document.write(`
     <span class="n">node_features</span><span class="p">,</span> <span class="n">edge_features</span> <span class="o">=</span> <span class="n">encoder</span><span class="p">(</span>
       <span class="n">edge_features</span><span class="p">,</span>
       <span class="n">neighbor_indices</span><span class="p">,</span>
-      <span class="n">mask</span><span class="p">,</span>
+      <span class="n">residue_mask</span><span class="p">,</span>
       <span class="n">attention_mask</span><span class="p">,</span>
     <span class="p">)</span>
-
-    <span class="n">one_hot_sequence</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">one_hot</span><span class="p">(</span><span class="n">sequence</span><span class="p">,</span> <span class="mi">21</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
 
     <span class="n">node_features</span> <span class="o">=</span> <span class="n">decoder</span><span class="p">(</span>
       <span class="n">node_features</span><span class="p">,</span>
       <span class="n">edge_features</span><span class="p">,</span>
       <span class="n">neighbor_indices</span><span class="p">,</span>
-      <span class="n">mask</span><span class="p">,</span>
+      <span class="n">residue_mask</span><span class="p">,</span>
       <span class="n">autoregressive_mask</span><span class="p">,</span>
-      <span class="n">one_hot_sequence</span><span class="p">,</span>
+      <span class="n">sequence</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">logits</span> <span class="o">=</span> <span class="n">final_projection</span><span class="p">(</span>
       <span class="n">model_parameters</span><span class="p">,</span>
@@ -482,14 +484,12 @@ document.write(`
 
     <span class="n">log_probability</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">log_softmax</span><span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">20</span><span class="p">]</span>
 
-    <span class="n">scored_sequence_one_hot</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">one_hot</span><span class="p">(</span><span class="n">sequence</span><span class="p">,</span> <span class="n">num_classes</span><span class="o">=</span><span class="mi">21</span><span class="p">)[</span>
-      <span class="o">...</span><span class="p">,</span>
-      <span class="p">:</span><span class="mi">20</span><span class="p">,</span>
-    <span class="p">]</span>
+    <span class="k">if</span> <span class="n">sequence</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+      <span class="n">sequence</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">one_hot</span><span class="p">(</span><span class="n">sequence</span><span class="p">,</span> <span class="n">num_classes</span><span class="o">=</span><span class="mi">21</span><span class="p">)</span>
 
-    <span class="n">score</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="n">scored_sequence_one_hot</span> <span class="o">*</span> <span class="n">log_probability</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
-    <span class="n">masked_score_sum</span> <span class="o">=</span> <span class="p">(</span><span class="n">score</span> <span class="o">*</span> <span class="n">mask</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
-    <span class="n">mask_sum</span> <span class="o">=</span> <span class="n">mask</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">+</span> <span class="n">SCORE_EPS</span>
+    <span class="n">score</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="n">sequence</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">20</span><span class="p">]</span> <span class="o">*</span> <span class="n">log_probability</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">masked_score_sum</span> <span class="o">=</span> <span class="p">(</span><span class="n">score</span> <span class="o">*</span> <span class="n">residue_mask</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">mask_sum</span> <span class="o">=</span> <span class="n">residue_mask</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">+</span> <span class="n">SCORE_EPS</span>
 
     <span class="k">return</span> <span class="n">masked_score_sum</span> <span class="o">/</span> <span class="n">mask_sum</span><span class="p">,</span> <span class="n">logits</span><span class="p">,</span> <span class="n">decoding_order</span>
 

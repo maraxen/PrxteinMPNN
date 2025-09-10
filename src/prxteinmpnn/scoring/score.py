@@ -16,10 +16,11 @@ from prxteinmpnn.model.encoder import make_encoder
 from prxteinmpnn.model.features import extract_features, project_features
 from prxteinmpnn.model.projection import final_projection
 from prxteinmpnn.utils.autoregression import generate_ar_mask
-from prxteinmpnn.utils.data_structures import ModelInputs
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
 from prxteinmpnn.utils.types import (
   AtomMask,
+  AutoRegressiveMask,
+  BackboneNoise,
   ChainIndex,
   DecodingOrder,
   Logits,
@@ -29,31 +30,21 @@ from prxteinmpnn.utils.types import (
   StructureAtomicCoordinates,
 )
 
-ScoringFnBase = Callable[
+ScoringFn = Callable[
   [
     PRNGKeyArray,
     ProteinSequence,
-    DecodingOrder,
-    ModelParameters,
     StructureAtomicCoordinates,
     AtomMask,
     ResidueIndex,
     ChainIndex,
     int,
-    float,
+    BackboneNoise | None,
+    AutoRegressiveMask | None,
   ],
   tuple[Float, Logits, DecodingOrder],
 ]
 
-ScoringFnFromModelInputs = Callable[
-  [
-    PRNGKeyArray,
-    ProteinSequence,
-  ],
-  tuple[Float, Logits, DecodingOrder],
-]
-
-ScoringFn = ScoringFnBase | ScoringFnFromModelInputs
 
 SCORE_EPS = 1e-8
 
@@ -61,10 +52,8 @@ SCORE_EPS = 1e-8
 def make_score_sequence(
   model_parameters: ModelParameters,
   decoding_order_fn: DecodingOrderFn = random_decoding_order,
-  generate_ar_mask_fn: Callable[[DecodingOrder], AtomMask] = generate_ar_mask,
   num_encoder_layers: int = 3,
   num_decoder_layers: int = 3,
-  model_inputs: ModelInputs | None = None,
 ) -> ScoringFn:
   """Create a function to score a sequence on a structure."""
   encoder = make_encoder(
@@ -83,7 +72,7 @@ def make_score_sequence(
     ),
   )
 
-  @partial(jax.jit, static_argnames=("k_neighbors", "augment_eps"))
+  @partial(jax.jit, static_argnames=("k_neighbors",))
   def score_sequence(
     prng_key: PRNGKeyArray,
     sequence: ProteinSequence,
@@ -92,11 +81,12 @@ def make_score_sequence(
     residue_index: ResidueIndex,
     chain_index: ChainIndex,
     k_neighbors: int = 48,
-    augment_eps: float = 0.0,  # TODO(mar): maybe move k_neighbors and augment_eps to factory args # noqa: TD003, FIX002, E501
+    backbone_noise: BackboneNoise | None = None,
+    ar_mask: AutoRegressiveMask | None = None,
   ) -> tuple[Float, Logits, DecodingOrder]:
     """Score a sequence on a structure using the ProteinMPNN model."""
     decoding_order, prng_key = decoding_order_fn(prng_key, sequence.shape[0])
-    autoregressive_mask = generate_ar_mask_fn(decoding_order)
+    autoregressive_mask = generate_ar_mask(decoding_order) if ar_mask is None else ar_mask
 
     edge_features, neighbor_indices, prng_key = extract_features(
       prng_key,
@@ -106,7 +96,7 @@ def make_score_sequence(
       residue_index,
       chain_index,
       k_neighbors=k_neighbors,
-      augment_eps=augment_eps,
+      backbone_noise=backbone_noise,
     )
 
     edge_features = project_features(
@@ -155,14 +145,4 @@ def make_score_sequence(
 
     return masked_score_sum / mask_sum, logits, decoding_order
 
-  if model_inputs:
-    return partial(
-      score_sequence,
-      structure_coordinates=model_inputs.structure_coordinates,
-      mask=model_inputs.mask,
-      residue_index=model_inputs.residue_index,
-      chain_index=model_inputs.chain_index,
-      k_neighbors=model_inputs.k_neighbors,
-      augment_eps=model_inputs.augment_eps,
-    )
   return score_sequence

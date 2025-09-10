@@ -113,7 +113,7 @@ def infer_residue_states(
   )
 
 
-def infer_conformations(
+async def infer_conformations(
   prng_key: PRNGKeyArray,
   model_parameters: ModelParameters,
   inference_strategy: ConformationalInferenceStrategy,
@@ -182,17 +182,19 @@ def infer_conformations(
 
   match inference_strategy:
     case "logits":
-      states = (states[0] for _, states, _ in residue_states_generator)
+      inference_strategy_int = 0
     case "node_features":
-      states = (states[1] for _, states, _ in residue_states_generator)
+      inference_strategy_int = 1
     case "edge_features":
-      states = (states[2] for _, states, _ in residue_states_generator)
+      inference_strategy_int = 2
     case _:
       # This case should be unreachable due to the check above
       msg = f"Invalid inference strategy used: {inference_strategy}"
       raise ValueError(msg)
 
-  all_states = jnp.array(tuple(states))
+  all_states = jnp.array(
+    [states[inference_strategy_int] async for _, states in residue_states_generator],
+  )
 
   if all_states.size == 0:
     msg = "Input array for GMM fitting cannot be empty."

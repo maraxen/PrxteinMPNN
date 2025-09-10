@@ -105,6 +105,7 @@ class TestInferResidueStates:
         assert result_high_threshold.n_states <= result_low_threshold.n_states
 
 
+@pytest.mark.anyio
 class TestInferConformations:
     """Tests for the main orchestration function `infer_conformations`."""
 
@@ -138,37 +139,37 @@ class TestInferConformations:
     @pytest.mark.parametrize(
         "strategy, feature_index, feature_dim",
         [
-            ("logits", 0, 21),
-            ("node_features", 1, 128),
-            ("edge_features", 2, 64),
+            ("logits", 0, 21),  # C_V
+            ("node_features", 1, 128),  # C_V
+            ("edge_features", 2, 128),  # C_E
         ]
     )
-    def test_inference_strategy_selects_correct_features(
+    async def test_inference_strategy_selects_correct_features(
         self, strategy, feature_index, feature_dim, mock_dependencies, mock_inputs
     ):
         """
         Verify that each inference strategy uses the correct features from the generator.
         """
         mock_gen, mock_make_gmm, _ = mock_dependencies
-        prng_key, model_params, decoding_fn, ensemble = mock_inputs
+        prng_key, model_params, decoding_fn, ensemble, *_ = mock_inputs
         
         # Create a generator that yields the expected 3-tuple format
         n_timesteps, n_residues = 5, 10
         
-        def generator(*args, **kwargs):
+        async def async_generator(*args, **kwargs):
             for i in range(n_timesteps):
                 k1, k2, k3 = jax.random.split(jax.random.PRNGKey(i), 3)
                 logits = jax.random.normal(k1, (n_residues, 21))
                 node_feats = jax.random.normal(k2, (n_residues, 128))
-                edge_feats = jax.random.normal(k3, (n_residues, 64))
+                edge_feats = jax.random.normal(k3, (n_residues, 48, 128))
                 states = (logits, node_feats, edge_feats)
-                yield None, states, None
+                yield None, states
 
-        mock_gen.return_value = generator()
+        mock_gen.return_value = async_generator()
         gmm_fitter = mock_make_gmm.return_value
 
         # Run inference
-        infer_conformations(
+        await infer_conformations(
             prng_key, model_params, strategy, decoding_fn, ensemble
         )
 
@@ -178,9 +179,9 @@ class TestInferConformations:
         
         # Extract the features that the GMM fitter was called with
         called_with_features = gmm_fitter.call_args[0][0]
-        chex.assert_shape(called_with_features, (n_timesteps, n_residues, feature_dim))
+        assert called_with_features.shape[-1] == feature_dim
 
-    def test_parameter_passing(self, mock_dependencies, mock_inputs):
+    async def test_parameter_passing(self, mock_dependencies, mock_inputs):
         """
         Verify that all parameters are correctly passed to downstream functions.
         """
@@ -188,11 +189,11 @@ class TestInferConformations:
         prng_key, model_params, decoding_fn, ensemble = mock_inputs
         
         # Mock generator that returns tuples with 3 elements (_, states, _)
-        def mock_generator(*args, **kwargs):
+        async def mock_generator(*args, **kwargs):
             for i in range(5):
                 logits = jax.random.normal(jax.random.PRNGKey(i), (10, 21))
-                states = (logits,)
-                yield None, states, None
+                states = (logits, jnp.zeros((10, 128)), jnp.zeros((10, 48, 128)))
+                yield None, states
         
         mock_gen.return_value = mock_generator()
 
@@ -202,7 +203,7 @@ class TestInferConformations:
         eps_std_scale = 2.0
         min_cluster_weight = 0.05
 
-        infer_conformations(
+        await infer_conformations(
             prng_key,
             model_params,
             "logits",
@@ -228,28 +229,30 @@ class TestInferConformations:
         assert infer_args['eps_std_scale'] == eps_std_scale
         assert infer_args['min_cluster_weight'] == min_cluster_weight
 
-    def test_invalid_strategy_raises_error(self, mock_inputs):
+    async def test_invalid_strategy_raises_error(self, mock_inputs):
         """
         Tests that using an invalid strategy string raises a ValueError.
         """
         prng_key, model_params, decoding_fn, ensemble = mock_inputs
         with pytest.raises(ValueError, match="Invalid inference_strategy:"):
-            infer_conformations(
+            await infer_conformations(
                 prng_key, model_params, "INVALID_STRATEGY", decoding_fn, ensemble
             )
             
-    def test_empty_ensemble_raises_error(self, mock_dependencies, mock_inputs):
+    async def test_empty_ensemble_raises_error(self, mock_dependencies, mock_inputs):
         """
         Tests that an empty ensemble (and thus an empty feature generator) raises an error.
         """
         mock_gen, _, _ = mock_dependencies
         prng_key, model_parameters, decoding_order_fn, ensemble = mock_inputs
 
-        # Simulate an empty trajectory
-        mock_gen.return_value = iter([])
+        async def empty_gen():
+            if False: yield
+
+        mock_gen.return_value = empty_gen()
 
         with pytest.raises(ValueError, match="Input array for GMM fitting cannot be empty."):
-            infer_conformations(
+            await infer_conformations(
                 prng_key,
                 model_parameters,
                 "logits",

@@ -16,6 +16,7 @@ from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
   AtomMask,
   AutoRegressiveMask,
+  BackboneNoise,
   ChainIndex,
   EdgeFeatures,
   ModelParameters,
@@ -27,13 +28,14 @@ from prxteinmpnn.utils.types import (
 
 SamplingModelPassInput = tuple[
   PRNGKeyArray,
+  ModelParameters,
   StructureAtomicCoordinates,
   AtomMask,
   ResidueIndex,
   ChainIndex,
-  ModelParameters,
+  AutoRegressiveMask | None,
   int,  # k_neighbors
-  float,  # augment_eps
+  BackboneNoise | None,
 ]
 
 SamplingModelPassOutput = tuple[
@@ -53,11 +55,11 @@ SamplingModelPassFn = Callable[
 
 def sampling_encode(
   encoder: Callable[..., tuple[NodeFeatures, EdgeFeatures]],
-  decoding_order_fn: DecodingOrderFn,
+  decoding_order_fn: DecodingOrderFn | None,
 ) -> SamplingModelPassFn:
   """Create a function to run a single pass through the encoder."""
 
-  @partial(jax.jit, static_argnames=("k_neighbors", "augment_eps"))
+  @partial(jax.jit, static_argnames=("k_neighbors",))
   def sample_model_pass(
     prng_key: PRNGKeyArray,
     model_parameters: ModelParameters,
@@ -65,13 +67,19 @@ def sampling_encode(
     mask: AtomMask,
     residue_index: ResidueIndex,
     chain_index: ChainIndex,
+    autoregressive_mask: AutoRegressiveMask | None = None,
     k_neighbors: int = 48,
-    augment_eps: float = 0.0,
+    backbone_noise: BackboneNoise | None = None,
   ) -> SamplingModelPassOutput:
     """Run a single pass through the encoder and decoder to prepare for sampling."""
-    decoding_order, next_rng_key = decoding_order_fn(prng_key, structure_coordinates.shape[0])
+    if decoding_order_fn is not None:
+      decoding_order, next_rng_key = decoding_order_fn(prng_key, structure_coordinates.shape[0])
+    else:
+      decoding_order, next_rng_key = jnp.arange(structure_coordinates.shape[0]), prng_key
 
-    autoregressive_mask = generate_ar_mask(decoding_order)
+    ar_mask = (
+      generate_ar_mask(decoding_order) if autoregressive_mask is None else autoregressive_mask
+    )
 
     edge_features, neighbor_indices, next_rng_key = extract_features(
       next_rng_key,
@@ -81,7 +89,7 @@ def sampling_encode(
       residue_index,
       chain_index,
       k_neighbors=k_neighbors,
-      augment_eps=augment_eps,
+      backbone_noise=backbone_noise,
     )
 
     edge_features = project_features(model_parameters, edge_features)
@@ -103,7 +111,7 @@ def sampling_encode(
       edge_features,
       neighbor_indices,
       mask,
-      autoregressive_mask,
+      ar_mask,
       next_rng_key,
     )
 

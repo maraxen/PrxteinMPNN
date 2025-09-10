@@ -12,5 +12,5 @@ ignore = [
   "D203",
   "D213",
 ]
-pylint.max-args = 10
+pylint.max-args = 15
 

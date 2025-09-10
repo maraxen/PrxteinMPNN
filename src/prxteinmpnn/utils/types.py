@@ -48,3 +48,6 @@ SamplingHyperparameters = tuple[float | int | Array | GradientTransformation, ..
 
 AlphaCarbonMask = Int[Array, "num_residues 3"]
 BackboneDihedrals = Float[Array, "num_residues 3"]  # Dihedral angles for backbone atoms
+BackboneNoise = Float[Array, "n"]  # Noise added to backbone coordinates
+
+Temperature = Float[Array, ""]  # Temperature for sampling

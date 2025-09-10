@@ -1,11 +1,11 @@
 """Factory for creating sequence sampling and optimization functions."""
 
 from functools import partial
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 import jax
 import jax.numpy as jnp
-from jaxtyping import PRNGKeyArray
+from jaxtyping import Float, Int, PRNGKeyArray
 
 from prxteinmpnn.model.decoder import (
   make_decoder,
@@ -17,12 +17,13 @@ if TYPE_CHECKING:
     RunConditionalDecoderFn,
   )
 from prxteinmpnn.model.encoder import make_encoder
-from prxteinmpnn.utils.data_structures import ModelInputs
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
-  AtomMask,
+  AlphaCarbonMask,
+  BackboneNoise,
   ChainIndex,
   DecodingOrder,
+  InputBias,
   Logits,
   ModelParameters,
   ProteinSequence,
@@ -30,7 +31,6 @@ from prxteinmpnn.utils.types import (
   StructureAtomicCoordinates,
 )
 
-from .config import SamplingConfig
 from .initialize import sampling_encode
 from .sampling_step import preload_sampling_step_decoder
 from .ste_optimize import make_optimize_sequence_fn
@@ -42,10 +42,9 @@ SamplerFn = partial[tuple[ProteinSequence, Logits, DecodingOrder]]
 def make_sample_sequences(
   model_parameters: ModelParameters,
   decoding_order_fn: DecodingOrderFn,
-  config: SamplingConfig,
+  sampling_strategy: Literal["temperature", "straight_through"] = "temperature",
   num_encoder_layers: int = 3,
   num_decoder_layers: int = 3,
-  model_inputs: ModelInputs | None = None,
 ) -> SamplerFn:
   """Create a function to sample or optimize sequences from a structure."""
   encoder = make_encoder(
@@ -83,17 +82,32 @@ def make_sample_sequences(
     model_parameters=model_parameters,
   )
 
-  @partial(jax.jit, static_argnames=("k_neighbors", "augment_eps"))
+  @partial(jax.jit, static_argnames=("k_neighbors"))
   def sample_or_optimize_fn(
     prng_key: PRNGKeyArray,
     structure_coordinates: StructureAtomicCoordinates,
-    mask: AtomMask,
+    mask: AlphaCarbonMask,
     residue_index: ResidueIndex,
     chain_index: ChainIndex,
     k_neighbors: int = 48,
-    augment_eps: float = 0.0,
+    bias: InputBias | None = None,
+    fixed_positions: Int | None = None,
+    backbone_noise: BackboneNoise | None = None,
+    iterations: Int | None = None,
+    learning_rate: Float | None = None,
+    temperature: Float | None = None,
   ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
     """Dispatches to either the optimization or sampling function."""
+    bias, fixed_positions, iterations, learning_rate, temperature = (
+      bias
+      if bias is not None
+      else jnp.zeros((structure_coordinates.shape[0], 21), dtype=jnp.float32),
+      fixed_positions if fixed_positions is not None else jnp.array([], dtype=jnp.int32),
+      iterations if iterations is not None else 1,
+      learning_rate if learning_rate is not None else 1e-4,
+      temperature if temperature is not None else 1.0,
+    )
+
     (
       node_features,
       edge_features,
@@ -108,20 +122,21 @@ def make_sample_sequences(
       mask,
       residue_index,
       chain_index,
+      None,
       k_neighbors,
-      augment_eps,
+      backbone_noise,
     )
 
-    if config.sampling_strategy == "straight_through":
+    if sampling_strategy == "straight_through":
       output_sequence, output_logits = optimize_seq_fn(
         next_rng_key,
         node_features,
         edge_features,
         neighbor_indices,
         mask,
-        config.iterations,
-        config.learning_rate,
-        config.temperature,
+        iterations,
+        learning_rate,
+        temperature,
       )
       output_sequence = output_sequence.argmax(axis=-1).astype(jnp.int8)
       return output_sequence, output_logits, decoding_order
@@ -133,27 +148,15 @@ def make_sample_sequences(
       residue_index=residue_index,  # type: ignore[arg-type]
       chain_index=chain_index,  # type: ignore[arg-type]
       k_neighbors=k_neighbors,  # type: ignore[arg-type]
-      augment_eps=augment_eps,  # type: ignore[arg-type]
+      backbone_noise=backbone_noise,  # type: ignore[arg-type]
     )
     sample_step = preload_sampling_step_decoder(
       autoregressive_decoder,
       sample_model_pass_fn,
-      config,
+      sampling_strategy=sampling_strategy,
+      temperature=temperature,
     )
-    _, output_sequence, output_logits = sample_step(prng_key=next_rng_key)
+    _, output_sequence, output_logits = sample_step(prng_key=next_rng_key, bias=bias)
     return output_sequence, output_logits, decoding_order
-
-  if model_inputs:
-    structure_coordinates = model_inputs.structure_coordinates
-    mask = model_inputs.mask
-    residue_index = model_inputs.residue_index
-    chain_index = model_inputs.chain_index
-    return partial(
-      sample_or_optimize_fn,
-      structure_coordinates=structure_coordinates,
-      mask=mask,
-      residue_index=residue_index,
-      chain_index=chain_index,
-    )
 
   return sample_or_optimize_fn  # type: ignore[return-value]

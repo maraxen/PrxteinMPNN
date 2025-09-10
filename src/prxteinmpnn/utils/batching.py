@@ -15,13 +15,13 @@ from prxteinmpnn.utils.data_structures import Protein, ProteinEnsemble, ProteinT
 def tuple_to_protein(t: ProteinTuple) -> Protein:
   """Convert a ProteinTuple to a Protein dataclass."""
   return Protein(
-    coordinates=jnp.array(t.coordinates).astype(jnp.float32),
-    aatype=jnp.array(t.aatype).astype(jnp.int8),
-    atom_mask=jnp.array(t.atom_mask).astype(jnp.float16),
-    residue_index=jnp.array(t.residue_index).astype(jnp.int32),
-    chain_index=jnp.array(t.chain_index).astype(jnp.int32),
-    dihedrals=None if t.dihedrals is None else jnp.array(t.dihedrals).astype(jnp.float32),
-    one_hot_sequence=jax.nn.one_hot(jnp.array(t.aatype), 21, dtype=jnp.float32),
+    coordinates=jnp.array(t[0]).astype(jnp.float32),
+    aatype=jnp.array(t[1]).astype(jnp.int8),
+    atom_mask=jnp.array(t[2]).astype(jnp.float16),
+    residue_index=jnp.array(t[3]).astype(jnp.int32),
+    chain_index=jnp.array(t[4]).astype(jnp.int32),
+    dihedrals=None if t[5] is None else jnp.array(t[5]).astype(jnp.float32),
+    one_hot_sequence=jax.nn.one_hot(jnp.array(t[1]), 21, dtype=jnp.float32),
   )
 
 

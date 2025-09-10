@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import logging
+import multiprocessing as mp
 import sys
 from functools import partial
 from typing import TYPE_CHECKING, Any, Literal
+
+mp.set_start_method("spawn", force=True)
 
 import jax
 import jax.numpy as jnp
@@ -26,7 +29,6 @@ if TYPE_CHECKING:
     StructureAtomicCoordinates,
   )
 
-
 from prxteinmpnn.io.process import load
 from prxteinmpnn.mpnn import get_mpnn_model
 from prxteinmpnn.sampling.conditional_logits import make_conditional_logits_fn
@@ -34,11 +36,25 @@ from prxteinmpnn.scoring.score import make_score_sequence
 from prxteinmpnn.utils.batching import (
   batch_and_pad_proteins,
 )
+from prxteinmpnn.utils.data_structures import Protein, ProteinTuple
 
 AlignmentStrategy = Literal["sequence", "structure"]
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
+
+
+def tuple_to_protein(t: ProteinTuple) -> Protein:
+  """Convert a ProteinTuple to a Protein dataclass."""
+  return Protein(
+    coordinates=jnp.array(t[0]).astype(jnp.float32),
+    aatype=jnp.array(t[1]).astype(jnp.int8),
+    atom_mask=jnp.array(t[2]).astype(jnp.float16),
+    residue_index=jnp.array(t[3]).astype(jnp.int32),
+    chain_index=jnp.array(t[4]).astype(jnp.int32),
+    dihedrals=None if t[5] is None else jnp.array(t[5]).astype(jnp.float32),
+    one_hot_sequence=jax.nn.one_hot(jnp.array(t[1]), 21, dtype=jnp.float32),
+  )
 
 
 async def score(
@@ -82,10 +98,12 @@ async def score(
   else:
     backbone_noise = jnp.asarray(backbone_noise)
 
-  protein_stream = load(inputs, foldcomp_database=foldcomp_database, **kwargs)
+  _proteins, sources = await load(inputs, foldcomp_database=foldcomp_database, **kwargs)
 
-  batched_proteins, sources, batched_sequences = await batch_and_pad_proteins(
-    protein_stream,
+  proteins = [tuple_to_protein(p) for p in _proteins]
+
+  batched_proteins, batched_sequences = await batch_and_pad_proteins(
+    proteins,
     sequences_to_score=sequences_to_score,
   )
 
@@ -183,10 +201,12 @@ async def categorical_jacobian(
     backbone_noise = jnp.asarray(backbone_noise)
 
   logger.info("Computing categorical Jacobian in %s mode.", mode)
-  protein_stream = load(inputs, foldcomp_database=foldcomp_database, **kwargs)
+  _proteins, sources = await load(inputs, foldcomp_database=foldcomp_database, **kwargs)
   logger.info("Loaded protein stream, batching and padding proteins.")
 
-  batched_proteins, sources, _ = await batch_and_pad_proteins(protein_stream)
+  proteins = [tuple_to_protein(p) for p in _proteins]
+
+  batched_proteins, _ = await batch_and_pad_proteins(proteins)
   logger.info("Batched and padded proteins, loading model.")
 
   model_parameters = get_mpnn_model(model_version=model_version, model_weights=model_weights)

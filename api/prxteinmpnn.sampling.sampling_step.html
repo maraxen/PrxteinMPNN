@@ -375,9 +375,7 @@ document.write(`
   </button>
 `);
 </script>
-<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
-    <span class="fa-solid fa-list"></span>
-</button>
+
 </div></div>
       
     </div>
@@ -393,15 +391,6 @@ document.write(`
     <div id="print-main-content">
         <div id="jb-print-toc">
             
-            <div>
-                <h2> Contents </h2>
-            </div>
-            <nav aria-label="Page">
-                <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.sampling_step.temperature_sample"><code class="docutils literal notranslate"><span class="pre">temperature_sample()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.sampling_step.preload_sampling_step_decoder"><code class="docutils literal notranslate"><span class="pre">preload_sampling_step_decoder()</span></code></a></li>
-</ul>
-            </nav>
         </div>
     </div>
 </div>
@@ -411,46 +400,8 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="module-prxteinmpnn.sampling.sampling_step">
-<span id="sampling-step"></span><h1>sampling_step<a class="headerlink" href="#module-prxteinmpnn.sampling.sampling_step" title="Link to this heading">#</a></h1>
-<p>Defines the single-pass autoregressive sampling step.</p>
-<dl class="py function">
-<dt class="sig sig-object py" id="prxteinmpnn.sampling.sampling_step.temperature_sample">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.sampling.sampling_step.</span></span><span class="sig-name descname"><span class="pre">temperature_sample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">decoder</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sample_model_pass_fn</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temperature</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prng_key</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/sampling/sampling_step.html#temperature_sample"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.sampling.sampling_step.temperature_sample" title="Link to this definition">#</a></dt>
-<dd><p>Single autoregressive sampling step with temperature scaling.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Union</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Key[Array,</span> <span class="pre">'']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">UInt32[Array,</span> <span class="pre">'2']</span></code>], <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_classes']</span></code>]</span></p>
-</dd>
-<dt class="field-even">Parameters<span class="colon">:</span></dt>
-<dd class="field-even"><ul class="simple">
-<li><p><strong>decoder</strong> (<a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><em>Callable</em></a><em>[</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Unpack" title="(in Python v3.13)"><em>Unpack</em></a><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><em>tuple</em></a><em>[</em><em>Key</em><em>[</em><em>Array</em><em>, </em><em>''</em><em>] </em><em>| </em><em>UInt32</em><em>[</em><em>Array</em><em>, </em><em>'2'</em><em>]</em><em>, </em><em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_atoms num_features'</em><em>]</em><em>, </em><em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_atoms num_neighbors num_features'</em><em>]</em><em>, </em><em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_atoms num_neighbors'</em><em>]</em><em>, </em><em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_atoms'</em><em>]</em><em>, </em><em>Bool</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_residues'</em><em>]</em><em>, </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a><em> | </em><em>None</em><em>, </em><em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_classes'</em><em>] </em><em>| </em><em>None</em><em>]</em><em>]</em><em>]</em><em>, </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><em>tuple</em></a><em>[</em><em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_classes'</em><em>]</em><em>, </em><em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_classes'</em><em>]</em><em>]</em><em>]</em>)</p></li>
-<li><p><strong>sample_model_pass_fn</strong> (<em>partial</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><em>tuple</em></a><em>[</em><em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_atoms num_features'</em><em>]</em><em>, </em><em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_atoms num_neighbors num_features'</em><em>]</em><em>, </em><em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_atoms num_neighbors'</em><em>]</em><em>, </em><em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_atoms'</em><em>]</em><em>, </em><em>Bool</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_residues'</em><em>]</em><em>, </em><em>Key</em><em>[</em><em>Array</em><em>, </em><em>''</em><em>] </em><em>| </em><em>UInt32</em><em>[</em><em>Array</em><em>, </em><em>'2'</em><em>]</em><em>]</em><em>]</em>)</p></li>
-<li><p><strong>temperature</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>)</p></li>
-<li><p><strong>prng_key</strong> (<em>Key</em><em>[</em><em>Array</em><em>, </em><em>''</em><em>] </em><em>| </em><em>UInt32</em><em>[</em><em>Array</em><em>, </em><em>'2'</em><em>]</em>)</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="prxteinmpnn.sampling.sampling_step.preload_sampling_step_decoder">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.sampling.sampling_step.</span></span><span class="sig-name descname"><span class="pre">preload_sampling_step_decoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">decoder</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sample_model_pass_fn</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sampling_config</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/sampling/sampling_step.html#preload_sampling_step_decoder"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.sampling.sampling_step.preload_sampling_step_decoder" title="Link to this definition">#</a></dt>
-<dd><p>Preloads the sampling step decoder for the specified strategy.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">partial</span></code>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Union</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Key[Array,</span> <span class="pre">'']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">UInt32[Array,</span> <span class="pre">'2']</span></code>], <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_classes']</span></code>]]</span></p>
-</dd>
-<dt class="field-even">Parameters<span class="colon">:</span></dt>
-<dd class="field-even"><ul class="simple">
-<li><p><strong>decoder</strong> (<a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><em>Callable</em></a><em>[</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Unpack" title="(in Python v3.13)"><em>Unpack</em></a><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><em>tuple</em></a><em>[</em><em>Key</em><em>[</em><em>Array</em><em>, </em><em>''</em><em>] </em><em>| </em><em>UInt32</em><em>[</em><em>Array</em><em>, </em><em>'2'</em><em>]</em><em>, </em><em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_atoms num_features'</em><em>]</em><em>, </em><em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_atoms num_neighbors num_features'</em><em>]</em><em>, </em><em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_atoms num_neighbors'</em><em>]</em><em>, </em><em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_atoms'</em><em>]</em><em>, </em><em>Bool</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_residues'</em><em>]</em><em>, </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a><em> | </em><em>None</em><em>, </em><em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_classes'</em><em>] </em><em>| </em><em>None</em><em>]</em><em>]</em><em>]</em><em>, </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><em>tuple</em></a><em>[</em><em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_classes'</em><em>]</em><em>, </em><em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_classes'</em><em>]</em><em>]</em><em>]</em>)</p></li>
-<li><p><strong>sample_model_pass_fn</strong> (<em>partial</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><em>tuple</em></a><em>[</em><em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_atoms num_features'</em><em>]</em><em>, </em><em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_atoms num_neighbors num_features'</em><em>]</em><em>, </em><em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_atoms num_neighbors'</em><em>]</em><em>, </em><em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_atoms'</em><em>]</em><em>, </em><em>Bool</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_residues'</em><em>]</em><em>, </em><em>Key</em><em>[</em><em>Array</em><em>, </em><em>''</em><em>] </em><em>| </em><em>UInt32</em><em>[</em><em>Array</em><em>, </em><em>'2'</em><em>]</em><em>]</em><em>]</em>)</p></li>
-<li><p><strong>sampling_config</strong> (<a class="reference internal" href="prxteinmpnn.sampling.html#prxteinmpnn.sampling.SamplingConfig" title="prxteinmpnn.sampling.config.SamplingConfig"><em>SamplingConfig</em></a>)</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
+  <section id="sampling-step">
+<h1>sampling_step<a class="headerlink" href="#sampling-step" title="Link to this heading">#</a></h1>
 </section>
 
 
@@ -488,22 +439,6 @@ document.write(`
             </div>
             
             
-              
-                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
-
-
-  <div class="sidebar-secondary-item">
-  <div class="page-toc tocsection onthispage">
-    <i class="fa-solid fa-list"></i> Contents
-  </div>
-  <nav class="bd-toc-nav page-toc">
-    <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.sampling_step.temperature_sample"><code class="docutils literal notranslate"><span class="pre">temperature_sample()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sampling.sampling_step.preload_sampling_step_decoder"><code class="docutils literal notranslate"><span class="pre">preload_sampling_step_decoder()</span></code></a></li>
-</ul>
-  </nav></div>
-
-</div></div>
               
             
           </div>

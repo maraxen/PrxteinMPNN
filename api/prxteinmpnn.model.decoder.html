@@ -375,9 +375,7 @@ document.write(`
   </button>
 `);
 </script>
-<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
-    <span class="fa-solid fa-list"></span>
-</button>
+
 </div></div>
       
     </div>
@@ -393,21 +391,6 @@ document.write(`
     <div id="print-main-content">
         <div id="jb-print-toc">
             
-            <div>
-                <h2> Contents </h2>
-            </div>
-            <nav aria-label="Page">
-                <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.decoder_parameter_pytree"><code class="docutils literal notranslate"><span class="pre">decoder_parameter_pytree()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.embed_sequence"><code class="docutils literal notranslate"><span class="pre">embed_sequence()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.initialize_conditional_decoder"><code class="docutils literal notranslate"><span class="pre">initialize_conditional_decoder()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.decode_message"><code class="docutils literal notranslate"><span class="pre">decode_message()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.decoder_normalize"><code class="docutils literal notranslate"><span class="pre">decoder_normalize()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.make_decode_layer"><code class="docutils literal notranslate"><span class="pre">make_decode_layer()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.setup_decoder"><code class="docutils literal notranslate"><span class="pre">setup_decoder()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.make_decoder"><code class="docutils literal notranslate"><span class="pre">make_decoder()</span></code></a></li>
-</ul>
-            </nav>
         </div>
     </div>
 </div>
@@ -417,166 +400,8 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="module-prxteinmpnn.model.decoder">
-<span id="decoder"></span><h1>decoder<a class="headerlink" href="#module-prxteinmpnn.model.decoder" title="Link to this heading">#</a></h1>
-<p>Decoder module for the PrxteinMPNN model.</p>
-<dl class="py function">
-<dt class="sig sig-object py" id="prxteinmpnn.model.decoder.decoder_parameter_pytree">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.decoder.</span></span><span class="sig-name descname"><span class="pre">decoder_parameter_pytree</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_decoder_layers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/decoder.html#decoder_parameter_pytree"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.decoder.decoder_parameter_pytree" title="Link to this definition">#</a></dt>
-<dd><p>Make the model weights accessible as a PyTree.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>model_parameters</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">PyTree[str,</span> <span class="pre">'P']</span></code></span>) – Model parameters for the decoder.</p></li>
-<li><p><strong>num_decoder_layers</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a></span>) – Number of decoder layers to set up.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">PyTree[str,</span> <span class="pre">'P']</span></code></span></p>
-</dd>
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Decoder parameters as a PyTree.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="prxteinmpnn.model.decoder.embed_sequence">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.decoder.</span></span><span class="sig-name descname"><span class="pre">embed_sequence</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">one_hot_sequence</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/decoder.html#embed_sequence"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.decoder.embed_sequence" title="Link to this definition">#</a></dt>
-<dd><p>Embed a one-hot encoded sequence.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code></span></p>
-</dd>
-<dt class="field-even">Parameters<span class="colon">:</span></dt>
-<dd class="field-even"><ul class="simple">
-<li><p><strong>model_parameters</strong> (<em>PyTree</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em>, </em><em>'P'</em><em>]</em>)</p></li>
-<li><p><strong>one_hot_sequence</strong> (<em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_classes'</em><em>]</em>)</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="prxteinmpnn.model.decoder.initialize_conditional_decoder">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.decoder.</span></span><span class="sig-name descname"><span class="pre">initialize_conditional_decoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">one_hot_sequence</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">node_features</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_features</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">neighbor_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">layer_params</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/decoder.html#initialize_conditional_decoder"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.decoder.initialize_conditional_decoder" title="Link to this definition">#</a></dt>
-<dd><p>Initialize the decoder with node and edge features.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>one_hot_sequence</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_classes']</span></code></span>) – One-hot encoded sequence of shape (num_residues, num_classes).</p></li>
-<li><p><strong>node_features</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code></span>) – Node features of shape (num_atoms, num_features).</p></li>
-<li><p><strong>edge_features</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code></span>) – EdgeFeatures of shape (num_atoms, num_neighbors, num_features).</p></li>
-<li><p><strong>neighbor_indices</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors']</span></code></span>) – Indices of neighboring nodes of shape (num_atoms, num_neighbors).</p></li>
-<li><p><strong>layer_params</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">PyTree[str,</span> <span class="pre">'P']</span></code></span>) – ModelParameters for the embedding layer.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>]</span></p>
-</dd>
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>A tuple of node-edge features and sequence-edge features.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="prxteinmpnn.model.decoder.decode_message">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.decoder.</span></span><span class="sig-name descname"><span class="pre">decode_message</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node_features</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_features</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">layer_params</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/decoder.html#decode_message"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.decoder.decode_message" title="Link to this definition">#</a></dt>
-<dd><p>Decode node and edge features into messages.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>node_features</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code></span>) – Node features of shape (num_atoms, num_features).</p></li>
-<li><p><strong>edge_features</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code></span>) – Edge features of shape (num_atoms, num_neighbors, num_features).</p></li>
-<li><p><strong>layer_params</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">PyTree[str,</span> <span class="pre">'P']</span></code></span>) – Model parameters for the encoding layer.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>decoded messages of shape (num_atoms, num_neighbors, num_features).</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Message</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="prxteinmpnn.model.decoder.decoder_normalize">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.decoder.</span></span><span class="sig-name descname"><span class="pre">decoder_normalize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">message</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">node_features</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">layer_params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/decoder.html#decoder_normalize"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.decoder.decoder_normalize" title="Link to this definition">#</a></dt>
-<dd><p>Normalize the decoded messages and update node features.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>message</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code></span>) – decoded messages of shape (num_atoms, num_neighbors, num_features).</p></li>
-<li><p><strong>node_features</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code></span>) – Node features of shape (num_atoms, num_features).</p></li>
-<li><p><strong>mask</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code></span>) – Atom mask indicating valid atoms.</p></li>
-<li><p><strong>layer_params</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">PyTree[str,</span> <span class="pre">'P']</span></code></span>) – Model parameters for the normalization layer.</p></li>
-<li><p><strong>scale</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></a></span>) – Scaling factor for normalization.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code></span></p>
-</dd>
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Updated node features after normalization.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="prxteinmpnn.model.decoder.make_decode_layer">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.decoder.</span></span><span class="sig-name descname"><span class="pre">make_decode_layer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">attention_mask_type</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/decoder.html#make_decode_layer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.decoder.make_decode_layer" title="Link to this definition">#</a></dt>
-<dd><p>Create a function to run the decoder with given model parameters.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Callable</span></code></a>[[<code class="xref py py-class docutils literal notranslate"><span class="pre">Unpack</span></code>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Bool[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_atoms']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">PyTree[str,</span> <span class="pre">'P']</span></code>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></a>]]], <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>] | <a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Callable</span></code></a>[[<code class="xref py py-class docutils literal notranslate"><span class="pre">Unpack</span></code>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">PyTree[str,</span> <span class="pre">'P']</span></code>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></a>]]], <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>]</span></p>
-</dd>
-<dt class="field-even">Parameters<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>attention_mask_type</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><em>Literal</em></a><em>[</em><em>'none'</em><em>, </em><em>'cross'</em><em>, </em><em>'conditional'</em><em>] </em><em>| </em><em>None</em>)</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="prxteinmpnn.model.decoder.setup_decoder">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.decoder.</span></span><span class="sig-name descname"><span class="pre">setup_decoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attention_mask_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decoding_approach</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_decoder_layers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/decoder.html#setup_decoder"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.decoder.setup_decoder" title="Link to this definition">#</a></dt>
-<dd><p>Set up the decoder parameters and initial node features.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">PyTree[str,</span> <span class="pre">'P']</span></code>, <a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Callable</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/constants.html#Ellipsis" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">...</span></code></a>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>]]</span></p>
-</dd>
-<dt class="field-even">Parameters<span class="colon">:</span></dt>
-<dd class="field-even"><ul class="simple">
-<li><p><strong>model_parameters</strong> (<em>PyTree</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em>, </em><em>'P'</em><em>]</em>)</p></li>
-<li><p><strong>attention_mask_type</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><em>Literal</em></a><em>[</em><em>'none'</em><em>, </em><em>'cross'</em><em>, </em><em>'conditional'</em><em>] </em><em>| </em><em>None</em>)</p></li>
-<li><p><strong>decoding_approach</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><em>Literal</em></a><em>[</em><em>'conditional'</em><em>, </em><em>'autoregressive'</em><em>, </em><em>'unconditional'</em><em>]</em>)</p></li>
-<li><p><strong>num_decoder_layers</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="prxteinmpnn.model.decoder.make_decoder">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.decoder.</span></span><span class="sig-name descname"><span class="pre">make_decoder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_parameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attention_mask_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">decoding_approach</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'unconditional'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_decoder_layers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/decoder.html#make_decoder"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.decoder.make_decoder" title="Link to this definition">#</a></dt>
-<dd><p>Create a function to run the decoder with given model parameters.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Callable</span></code></a>[[<code class="xref py py-class docutils literal notranslate"><span class="pre">Unpack</span></code>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code>]]], <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>] | <a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Callable</span></code></a>[[<code class="xref py py-class docutils literal notranslate"><span class="pre">Unpack</span></code>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Bool[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_atoms']</span></code>]]], <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>] | <a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Callable</span></code></a>[[<code class="xref py py-class docutils literal notranslate"><span class="pre">Unpack</span></code>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Union</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Key[Array,</span> <span class="pre">'']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">UInt32[Array,</span> <span class="pre">'2']</span></code>], <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Bool[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_residues']</span></code>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></a> | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_classes']</span></code> | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a>]]], <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_classes']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_classes']</span></code>]] | <a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Callable</span></code></a>[[<code class="xref py py-class docutils literal notranslate"><span class="pre">Unpack</span></code>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Bool[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_residues']</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code>]]], <code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_features']</span></code>]</span></p>
-</dd>
-<dt class="field-even">Parameters<span class="colon">:</span></dt>
-<dd class="field-even"><ul class="simple">
-<li><p><strong>model_parameters</strong> (<em>PyTree</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em>, </em><em>'P'</em><em>]</em>)</p></li>
-<li><p><strong>attention_mask_type</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><em>Literal</em></a><em>[</em><em>'none'</em><em>, </em><em>'cross'</em><em>, </em><em>'conditional'</em><em>] </em><em>| </em><em>None</em>)</p></li>
-<li><p><strong>decoding_approach</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><em>Literal</em></a><em>[</em><em>'conditional'</em><em>, </em><em>'autoregressive'</em><em>, </em><em>'unconditional'</em><em>]</em>)</p></li>
-<li><p><strong>num_decoder_layers</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
-<li><p><strong>scale</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>)</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
+  <section id="decoder">
+<h1>decoder<a class="headerlink" href="#decoder" title="Link to this heading">#</a></h1>
 </section>
 
 
@@ -614,28 +439,6 @@ document.write(`
             </div>
             
             
-              
-                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
-
-
-  <div class="sidebar-secondary-item">
-  <div class="page-toc tocsection onthispage">
-    <i class="fa-solid fa-list"></i> Contents
-  </div>
-  <nav class="bd-toc-nav page-toc">
-    <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.decoder_parameter_pytree"><code class="docutils literal notranslate"><span class="pre">decoder_parameter_pytree()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.embed_sequence"><code class="docutils literal notranslate"><span class="pre">embed_sequence()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.initialize_conditional_decoder"><code class="docutils literal notranslate"><span class="pre">initialize_conditional_decoder()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.decode_message"><code class="docutils literal notranslate"><span class="pre">decode_message()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.decoder_normalize"><code class="docutils literal notranslate"><span class="pre">decoder_normalize()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.make_decode_layer"><code class="docutils literal notranslate"><span class="pre">make_decode_layer()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.setup_decoder"><code class="docutils literal notranslate"><span class="pre">setup_decoder()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.decoder.make_decoder"><code class="docutils literal notranslate"><span class="pre">make_decoder()</span></code></a></li>
-</ul>
-  </nav></div>
-
-</div></div>
               
             
           </div>

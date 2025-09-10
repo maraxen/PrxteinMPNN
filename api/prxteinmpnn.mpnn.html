@@ -370,9 +370,7 @@ document.write(`
   </button>
 `);
 </script>
-<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
-    <span class="fa-solid fa-list"></span>
-</button>
+
 </div></div>
       
     </div>
@@ -388,14 +386,6 @@ document.write(`
     <div id="print-main-content">
         <div id="jb-print-toc">
             
-            <div>
-                <h2> Contents </h2>
-            </div>
-            <nav aria-label="Page">
-                <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.mpnn.get_mpnn_model"><code class="docutils literal notranslate"><span class="pre">get_mpnn_model()</span></code></a></li>
-</ul>
-            </nav>
         </div>
     </div>
 </div>
@@ -405,37 +395,8 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="module-prxteinmpnn.mpnn">
-<span id="prxteinmpnn-mpnn"></span><h1>prxteinmpnn.mpnn<a class="headerlink" href="#module-prxteinmpnn.mpnn" title="Link to this heading">#</a></h1>
-<p>Core module for the PrxteinMPNN model.</p>
-<p>prxteinmpnn.mpnn</p>
-<dl class="py function">
-<dt class="sig sig-object py" id="prxteinmpnn.mpnn.get_mpnn_model">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.mpnn.</span></span><span class="sig-name descname"><span class="pre">get_mpnn_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_version</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'v_48_020.pkl'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'original'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/mpnn.html#get_mpnn_model"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.mpnn.get_mpnn_model" title="Link to this definition">#</a></dt>
-<dd><p>Create a ProteinMPNN model with specified configuration and weights.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>model_version</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Literal</span></code></a>[<code class="docutils literal notranslate"><span class="pre">'v_48_002.pkl'</span></code>, <code class="docutils literal notranslate"><span class="pre">'v_48_010.pkl'</span></code>, <code class="docutils literal notranslate"><span class="pre">'v_48_020.pkl'</span></code>, <code class="docutils literal notranslate"><span class="pre">'v_48_030.pkl'</span></code>]</span>) – The model configuration to use.</p></li>
-<li><p><strong>model_weights</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Literal</span></code></a>[<code class="docutils literal notranslate"><span class="pre">'original'</span></code>, <code class="docutils literal notranslate"><span class="pre">'soluble'</span></code>]</span>) – The weights to load for the model.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">PyTree</span></code></span></p>
-</dd>
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>A PyTree containing the model parameters.</p>
-</dd>
-<dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#FileNotFoundError" title="(in Python v3.13)"><strong>FileNotFoundError</strong></a> – If the model file does not exist.</p>
-</dd>
-</dl>
-<p class="rubric">Example</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">params</span> <span class="o">=</span> <span class="n">get_mpnn_model</span><span class="p">()</span>
-</pre></div>
-</div>
-</dd></dl>
-
+  <section id="prxteinmpnn-mpnn">
+<h1>prxteinmpnn.mpnn<a class="headerlink" href="#prxteinmpnn-mpnn" title="Link to this heading">#</a></h1>
 </section>
 
 
@@ -473,21 +434,6 @@ document.write(`
             </div>
             
             
-              
-                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
-
-
-  <div class="sidebar-secondary-item">
-  <div class="page-toc tocsection onthispage">
-    <i class="fa-solid fa-list"></i> Contents
-  </div>
-  <nav class="bd-toc-nav page-toc">
-    <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.mpnn.get_mpnn_model"><code class="docutils literal notranslate"><span class="pre">get_mpnn_model()</span></code></a></li>
-</ul>
-  </nav></div>
-
-</div></div>
               
             
           </div>

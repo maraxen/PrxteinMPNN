@@ -344,24 +344,25 @@ document.write(`
                 <article class="bd-article">
                   
   <h1>Source code for prxteinmpnn.utils.foldcomp_utils</h1><div class="highlight"><pre>
-<span></span><span class="sd">&quot;&quot;&quot;Utilities for processing and manipulating protein structures from foldcomp.&quot;&quot;&quot;</span>
+<span></span><span class="sd">&quot;&quot;&quot;Utilities for processing and manipulating protein structures from foldcomp.</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterator</span><span class="p">,</span> <span class="n">Sequence</span>
+<span class="sd">prxteinmpnn.utils.foldcomp_utils</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">cache</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">foldcomp</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">nest_asyncio</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.io</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-  <span class="n">protein_structure_to_model_inputs</span><span class="p">,</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.io.parsing</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
   <span class="n">string_to_protein_sequence</span><span class="p">,</span>
 <span class="p">)</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.mpnn</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelVersion</span><span class="p">,</span> <span class="n">ModelWeights</span><span class="p">,</span> <span class="n">get_mpnn_model</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.data_structures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelInputs</span><span class="p">,</span> <span class="n">ProteinStructure</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelParameters</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.data_structures</span><span class="w"> </span><span class="kn">import</span> <span class="n">Protein</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 <span class="n">FoldCompDatabase</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span>
   <span class="s2">&quot;esmatlas&quot;</span><span class="p">,</span>
@@ -394,62 +395,11 @@ document.write(`
 <a class="viewcode-back" href="../../../api/prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils._setup_foldcomp_database">[docs]</a>
 <span class="nd">@cache</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">_setup_foldcomp_database</span><span class="p">(</span><span class="n">database</span><span class="p">:</span> <span class="n">FoldCompDatabase</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Set up the FoldComp database, handling sync and async contexts.</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Set up the FoldComp database synchronously.</span>
 
-<span class="sd">  Args:</span>
-<span class="sd">    database: The FoldCompDatabase enum value specifying which database to set up.</span>
-
-<span class="sd">  Returns:</span>
-<span class="sd">    None</span>
-
-<span class="sd">  Example:</span>
-<span class="sd">    &gt;&gt;&gt; _setup_foldcomp_database(&quot;esmatlas&quot;)</span>
-
+<span class="sd">  This is designed to be called from within a synchronous worker process.</span>
 <span class="sd">  &quot;&quot;&quot;</span>
-  <span class="k">try</span><span class="p">:</span>
-    <span class="n">loop</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">get_running_loop</span><span class="p">()</span>
-    <span class="n">nest_asyncio</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span>
-    <span class="n">coro</span> <span class="o">=</span> <span class="n">foldcomp</span><span class="o">.</span><span class="n">setup_async</span><span class="p">(</span><span class="n">database</span><span class="p">)</span>
-    <span class="n">loop</span><span class="o">.</span><span class="n">run_until_complete</span><span class="p">(</span><span class="n">coro</span><span class="p">)</span>
-  <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
-    <span class="n">foldcomp</span><span class="o">.</span><span class="n">setup</span><span class="p">(</span><span class="n">database</span><span class="p">)</span></div>
-
-
-
-<div class="viewcode-block" id="_from_fcz">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils._from_fcz">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">_from_fcz</span><span class="p">(</span>
-  <span class="n">proteins</span><span class="p">:</span> <span class="n">foldcomp</span><span class="o">.</span><span class="n">FoldcompDatabase</span><span class="p">,</span>  <span class="c1"># type: ignore[attr-access]</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="n">ProteinStructure</span><span class="p">]:</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Retrieve protein dihedral structures from the FoldComp database.</span>
-
-<span class="sd">  Args:</span>
-<span class="sd">    proteins: The FoldComp protein database object.</span>
-
-<span class="sd">  Returns:</span>
-<span class="sd">    An iterator over DihedralStructure objects containing the dihedral angle data</span>
-<span class="sd">    for the specified protein IDs.</span>
-
-<span class="sd">  &quot;&quot;&quot;</span>
-  <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">fcz</span> <span class="ow">in</span> <span class="n">proteins</span><span class="p">:</span>
-    <span class="n">fcz_data</span> <span class="o">=</span> <span class="n">foldcomp</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">fcz</span><span class="p">)</span>  <span class="c1"># type: ignore[attr-access]</span>
-    <span class="n">phi_angles</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">fcz_data</span><span class="p">[</span><span class="s2">&quot;phi&quot;</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
-    <span class="n">psi_angles</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">fcz_data</span><span class="p">[</span><span class="s2">&quot;psi&quot;</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
-    <span class="n">omega_angles</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">fcz_data</span><span class="p">[</span><span class="s2">&quot;omega&quot;</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
-    <span class="n">dihedrals</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
-      <span class="p">[</span><span class="n">phi_angles</span><span class="p">,</span> <span class="n">psi_angles</span><span class="p">,</span> <span class="n">omega_angles</span><span class="p">],</span>
-      <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
-    <span class="p">)</span>
-    <span class="n">coordinates</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">fcz_data</span><span class="p">[</span><span class="s2">&quot;coordinates&quot;</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
-    <span class="n">residue_sequence</span> <span class="o">=</span> <span class="n">string_to_protein_sequence</span><span class="p">(</span><span class="n">fcz_data</span><span class="p">[</span><span class="s2">&quot;residues&quot;</span><span class="p">])</span>
-    <span class="k">yield</span> <span class="n">ProteinStructure</span><span class="p">(</span>
-      <span class="n">coordinates</span><span class="o">=</span><span class="n">coordinates</span><span class="p">,</span>
-      <span class="n">dihedrals</span><span class="o">=</span><span class="n">dihedrals</span><span class="p">,</span>
-      <span class="n">aatype</span><span class="o">=</span><span class="n">residue_sequence</span><span class="p">,</span>
-      <span class="n">atom_mask</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">residue_sequence</span><span class="p">)),</span>
-      <span class="n">residue_index</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">residue_sequence</span><span class="p">)),</span>
-      <span class="n">chain_index</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">residue_sequence</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span>
-    <span class="p">)</span></div>
+  <span class="n">foldcomp</span><span class="o">.</span><span class="n">setup</span><span class="p">(</span><span class="n">database</span><span class="p">)</span></div>
 
 
 
@@ -458,78 +408,51 @@ document.write(`
 <span class="k">def</span><span class="w"> </span><span class="nf">get_protein_structures</span><span class="p">(</span>
   <span class="n">protein_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
   <span class="n">database</span><span class="p">:</span> <span class="n">FoldCompDatabase</span> <span class="o">=</span> <span class="s2">&quot;afdb_rep_v4&quot;</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="n">ProteinStructure</span><span class="p">]:</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Retrieve protein structures from the FoldComp database.</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Protein</span><span class="p">]:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Retrieve protein structures from the FoldComp database and return them as a list of ensembles.</span>
+
+<span class="sd">  This is a synchronous, blocking function designed to be run in an executor.</span>
 
 <span class="sd">  Args:</span>
 <span class="sd">    protein_ids: A sequence of protein IDs to retrieve.</span>
-<span class="sd">    database: The FoldCompDatabase enum value specifying which database to use.</span>
+<span class="sd">    database: The FoldCompDatabase to use.</span>
 
 <span class="sd">  Returns:</span>
-<span class="sd">    An iterator over ProteinStructure objects containing the structure data</span>
-<span class="sd">    for the specified protein IDs.</span>
-
-<span class="sd">  Example:</span>
-<span class="sd">    &gt;&gt;&gt; ids = [&quot;P12345&quot;, &quot;Q67890&quot;]</span>
-<span class="sd">    &gt;&gt;&gt; structures = get_protein_structures(ids)</span>
-<span class="sd">    &gt;&gt;&gt; for struct in structures:</span>
-<span class="sd">    ...     print(struct)</span>
+<span class="sd">    A list of ProteinEnsemble objects. Each ensemble contains the structure(s)</span>
+<span class="sd">    for one of the requested protein IDs.</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
+  <span class="n">output_proteins</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Protein</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
   <span class="n">_setup_foldcomp_database</span><span class="p">(</span><span class="n">database</span><span class="p">)</span>
   <span class="k">with</span> <span class="n">foldcomp</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">database</span><span class="p">,</span> <span class="n">ids</span><span class="o">=</span><span class="n">protein_ids</span><span class="p">,</span> <span class="n">decompress</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="k">as</span> <span class="n">proteins</span><span class="p">:</span>  <span class="c1"># type: ignore[attr-access]</span>
-    <span class="k">yield from</span> <span class="n">_from_fcz</span><span class="p">(</span><span class="n">proteins</span><span class="p">)</span></div>
+    <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">fcz</span> <span class="ow">in</span> <span class="n">proteins</span><span class="p">:</span>
+      <span class="k">try</span><span class="p">:</span>
+        <span class="n">fcz_data</span> <span class="o">=</span> <span class="n">foldcomp</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">fcz</span><span class="p">)</span>  <span class="c1"># type: ignore[attr-access]</span>
 
+        <span class="n">phi</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">fcz_data</span><span class="p">[</span><span class="s2">&quot;phi&quot;</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+        <span class="n">psi</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">fcz_data</span><span class="p">[</span><span class="s2">&quot;psi&quot;</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+        <span class="n">omega</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">fcz_data</span><span class="p">[</span><span class="s2">&quot;omega&quot;</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+        <span class="n">dihedrals</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">phi</span><span class="p">,</span> <span class="n">psi</span><span class="p">,</span> <span class="n">omega</span><span class="p">],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
 
+        <span class="n">coordinates</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">fcz_data</span><span class="p">[</span><span class="s2">&quot;coordinates&quot;</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+        <span class="n">sequence</span> <span class="o">=</span> <span class="n">string_to_protein_sequence</span><span class="p">(</span><span class="n">fcz_data</span><span class="p">[</span><span class="s2">&quot;residues&quot;</span><span class="p">])</span>
+        <span class="n">num_res</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">sequence</span><span class="p">)</span>
 
-<div class="viewcode-block" id="model_from_id">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.model_from_id">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">model_from_id</span><span class="p">(</span>
-  <span class="n">protein_ids</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
-  <span class="n">model_weights</span><span class="p">:</span> <span class="n">ModelWeights</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-  <span class="n">model_version</span><span class="p">:</span> <span class="n">ModelVersion</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ModelParameters</span><span class="p">,</span> <span class="n">Iterator</span><span class="p">[</span><span class="n">ModelInputs</span><span class="p">]]:</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Get the MPNN model and inputs for specific protein IDs.</span>
-
-<span class="sd">  Args:</span>
-<span class="sd">    protein_ids: The ID(s) of the protein(s) to retrieve the model for.</span>
-<span class="sd">    model_weights: The weights to use for the model.</span>
-<span class="sd">    model_version: The model version to use.</span>
-
-<span class="sd">  Returns:</span>
-<span class="sd">    A tuple containing the MPNN model parameters and model inputs.</span>
-
-<span class="sd">  Raises:</span>
-<span class="sd">    ValueError: If no protein structures are found for the given IDs.</span>
-
-<span class="sd">  Example:</span>
-<span class="sd">    &gt;&gt;&gt; model, inputs = model_from_id(&quot;P12345&quot;)</span>
-<span class="sd">    &gt;&gt;&gt; # Use model and inputs for inference</span>
-
-<span class="sd">  &quot;&quot;&quot;</span>
-  <span class="n">base_model</span> <span class="o">=</span> <span class="n">get_mpnn_model</span><span class="p">(</span>
-    <span class="n">model_version</span><span class="o">=</span><span class="n">model_version</span> <span class="ow">or</span> <span class="s2">&quot;v_48_020.pkl&quot;</span><span class="p">,</span>
-    <span class="n">model_weights</span><span class="o">=</span><span class="n">model_weights</span> <span class="ow">or</span> <span class="s2">&quot;original&quot;</span><span class="p">,</span>
-  <span class="p">)</span>
-
-  <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">protein_ids</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-    <span class="n">protein_ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">protein_ids</span><span class="p">]</span>
-  <span class="n">structures</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">get_protein_structures</span><span class="p">(</span><span class="n">protein_ids</span><span class="o">=</span><span class="n">protein_ids</span><span class="p">))</span>
-  <span class="k">if</span> <span class="ow">not</span> <span class="n">structures</span><span class="p">:</span>
-    <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;No protein structures found for IDs: </span><span class="si">{</span><span class="n">protein_ids</span><span class="si">}</span><span class="s2">&quot;</span>
-    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
-
-  <span class="n">model_inputs</span> <span class="o">=</span> <span class="p">(</span><span class="n">protein_structure_to_model_inputs</span><span class="p">(</span><span class="n">structure</span><span class="p">)</span> <span class="k">for</span> <span class="n">structure</span> <span class="ow">in</span> <span class="n">structures</span><span class="p">)</span>
-  <span class="n">first_input</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">model_inputs</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-  <span class="k">if</span> <span class="n">first_input</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-    <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;No model inputs generated for protein structures: </span><span class="si">{</span><span class="n">protein_ids</span><span class="si">}</span><span class="s2">&quot;</span>
-    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
-
-  <span class="k">def</span><span class="w"> </span><span class="nf">model_inputs_with_first</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="n">ModelInputs</span><span class="p">]:</span>
-    <span class="k">yield</span> <span class="n">first_input</span>
-    <span class="k">yield from</span> <span class="n">model_inputs</span>
-
-  <span class="k">return</span> <span class="n">base_model</span><span class="p">,</span> <span class="n">model_inputs_with_first</span><span class="p">()</span></div>
+        <span class="n">output_proteins</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+          <span class="n">Protein</span><span class="p">(</span>
+            <span class="n">coordinates</span><span class="o">=</span><span class="n">coordinates</span><span class="p">,</span>
+            <span class="n">dihedrals</span><span class="o">=</span><span class="n">dihedrals</span><span class="p">,</span>
+            <span class="n">aatype</span><span class="o">=</span><span class="n">sequence</span><span class="p">,</span>
+            <span class="n">atom_mask</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">sequence</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">bool_</span><span class="p">),</span>
+            <span class="n">residue_index</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_res</span><span class="p">),</span>
+            <span class="n">chain_index</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">num_res</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span>
+          <span class="p">),</span>
+        <span class="p">)</span>
+      <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Failed to process a FoldComp entry. Error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="k">continue</span>
+  <span class="k">return</span> <span class="n">output_proteins</span></div>
 
 </pre></div>
 

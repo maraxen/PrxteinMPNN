@@ -346,6 +346,7 @@ document.write(`
   <h1>Source code for prxteinmpnn.io.process</h1><div class="highlight"><pre>
 <span></span><span class="sd">&quot;&quot;&quot;Handlers for various input sources to load protein structures.&quot;&quot;&quot;</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">multiprocessing</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">concurrent.futures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProcessPoolExecutor</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">io</span><span class="w"> </span><span class="kn">import</span> <span class="n">StringIO</span>
@@ -401,7 +402,9 @@ document.write(`
 
   <span class="n">valid_handlers</span> <span class="o">=</span> <span class="p">[</span><span class="n">h</span> <span class="k">for</span> <span class="n">h</span> <span class="ow">in</span> <span class="n">handlers</span> <span class="k">if</span> <span class="n">h</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
 
-  <span class="k">with</span> <span class="n">ProcessPoolExecutor</span><span class="p">()</span> <span class="k">as</span> <span class="n">executor</span><span class="p">:</span>
+  <span class="c1"># Use the &#39;spawn&#39; start method for multiprocessing to avoid deadlocks with JAX&#39;s</span>
+  <span class="c1"># multithreaded backend, which is incompatible with the default &#39;fork&#39; method.</span>
+  <span class="k">with</span> <span class="n">ProcessPoolExecutor</span><span class="p">(</span><span class="n">mp_context</span><span class="o">=</span><span class="n">multiprocessing</span><span class="o">.</span><span class="n">get_context</span><span class="p">(</span><span class="s2">&quot;spawn&quot;</span><span class="p">))</span> <span class="k">as</span> <span class="n">executor</span><span class="p">:</span>
     <span class="n">semaphore</span> <span class="o">=</span> <span class="n">anyio</span><span class="o">.</span><span class="n">Semaphore</span><span class="p">(</span><span class="n">max_concurrency</span><span class="p">)</span>
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">process_with_semaphore</span><span class="p">(</span>

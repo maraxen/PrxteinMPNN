@@ -32,11 +32,14 @@ if TYPE_CHECKING:
 from prxteinmpnn.io.process import load
 from prxteinmpnn.mpnn import get_mpnn_model
 from prxteinmpnn.sampling.conditional_logits import make_conditional_logits_fn
+from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.scoring.score import make_score_sequence
 from prxteinmpnn.utils.batching import (
   batch_and_pad_proteins,
 )
 from prxteinmpnn.utils.data_structures import Protein, ProteinTuple
+from prxteinmpnn.utils.decoding_order import random_decoding_order
+from prxteinmpnn.utils.residue_constants import atom_order
 
 AlignmentStrategy = Literal["sequence", "structure"]
 
@@ -60,6 +63,9 @@ def tuple_to_protein(t: ProteinTuple) -> Protein:
 async def score(
   inputs: Sequence[str | StringIO] | str | StringIO,
   sequences_to_score: Sequence[str],
+  chain_id: Sequence[str] | str | None = None,
+  model: int | None = None,
+  altloc: Literal["first", "all"] = "first",
   model_version: ModelVersion = "v_48_020.pkl",
   model_weights: ModelWeights = "original",
   foldcomp_database: FoldCompDatabase | None = None,
@@ -78,6 +84,9 @@ async def score(
   Args:
       inputs: An async stream of structures (files, PDB IDs, etc.).
       sequences_to_score: A list of protein sequences (strings) to score.
+      chain_id: Specific chain(s) to parse from the structure.
+      model: The model number to load. If None, all models are loaded.
+      altloc: The alternate location identifier to use.
       model_version: The model version to use.
       model_weights: The model weights to use.
       foldcomp_database: The FoldComp database to use for FoldComp IDs.
@@ -98,7 +107,14 @@ async def score(
   else:
     backbone_noise = jnp.asarray(backbone_noise)
 
-  _proteins, sources = await load(inputs, foldcomp_database=foldcomp_database, **kwargs)
+  _proteins, sources = await load(
+    inputs,
+    model=model,
+    altloc=altloc,
+    chain_id=chain_id,
+    foldcomp_database=foldcomp_database,
+    **kwargs,
+  )
 
   proteins = [tuple_to_protein(p) for p in _proteins]
 
@@ -159,8 +175,135 @@ async def score(
   }
 
 
+async def sample(
+  inputs: Sequence[str | StringIO] | str | StringIO,
+  chain_id: Sequence[str] | str | None = None,
+  model: int | None = None,
+  altloc: Literal["first", "all"] = "first",
+  model_version: ModelVersion = "v_48_020.pkl",
+  model_weights: ModelWeights = "original",
+  foldcomp_database: FoldCompDatabase | None = None,
+  rng_key: int = 0,
+  backbone_noise: float | list[float] | ArrayLike = 0.0,
+  num_samples: int = 1,
+  sampling_strategy: Literal["temperature", "straight_through"] = "temperature",
+  temperature: float = 0.1,
+  bias: ArrayLike | None = None,
+  fixed_positions: ArrayLike | None = None,
+  iterations: int | None = None,
+  learning_rate: float | None = None,
+  batch_size: int = 32,
+  **kwargs: Any,  # noqa: ANN401
+) -> dict[str, jax.Array | dict[str, jax.Array | list[str]]]:
+  """Sample new sequences for the given input structures.
+
+  This function streams and processes structures asynchronously, then uses a
+  memory-efficient JAX map to sample new sequences for each structure.
+
+  Args:
+      inputs: An async stream of structures (files, PDB IDs, etc.).
+      chain_id: Specific chain(s) to parse from the structure.
+      model: The model number to load. If None, all models are loaded.
+      altloc: The alternate location identifier to use.
+      model_version: The model version to use.
+      model_weights: The model weights to use.
+      foldcomp_database: The FoldComp database to use for FoldComp IDs.
+      rng_key: The random number generator key.
+      backbone_noise: The amount of noise to add to the backbone. Can be a single
+          float or a list/array of floats to sample with multiple noise levels.
+      num_samples: The number of sequences to sample per structure/noise level.
+      sampling_strategy: The sampling strategy to use ("temperature" or "straight_through").
+      temperature: The sampling temperature.
+      bias: An optional array to bias the logits.
+      fixed_positions: An optional array of residue indices to keep fixed.
+      iterations: Number of optimization iterations for "straight_through" sampling.
+      learning_rate: Learning rate for "straight_through" sampling.
+      batch_size: The batch size for processing structures.
+      **kwargs: Additional keyword arguments for structure loading.
+
+  Returns:
+      A dictionary containing sampled sequences, logits, and metadata. The sequences
+      will have a shape of (num_structures, num_noise_levels, num_samples, length).
+
+  """
+  if isinstance(backbone_noise, float):
+    backbone_noise = jnp.array([backbone_noise])
+  else:
+    backbone_noise = jnp.asarray(backbone_noise)
+
+  _proteins, sources = await load(
+    inputs,
+    model=model,
+    altloc=altloc,
+    chain_id=chain_id,
+    foldcomp_database=foldcomp_database,
+    **kwargs,
+  )
+
+  proteins = [tuple_to_protein(p) for p in _proteins]
+
+  batched_proteins, _ = await batch_and_pad_proteins(proteins)
+
+  model_parameters = get_mpnn_model(model_version=model_version, model_weights=model_weights)
+  sampler_fn = make_sample_sequences(
+    model_parameters=model_parameters,
+    decoding_order_fn=random_decoding_order,
+    sampling_strategy=sampling_strategy,
+  )
+
+  keys = jax.random.split(jax.random.key(rng_key), num_samples)
+  vmap_samples = jax.vmap(
+    sampler_fn,
+    in_axes=(0, None, None, None, None, None, None, None, None, None, None, None),
+    out_axes=0,
+  )
+
+  vmap_noises = jax.vmap(
+    vmap_samples,
+    in_axes=(None, None, None, None, None, None, None, None, 0, None, None, None),
+    out_axes=0,
+  )
+
+  residue_mask = batched_proteins.atom_mask[:, :, atom_order["CA"]]
+
+  mapped_fn = partial(
+    vmap_noises,
+    keys,
+    k_neighbors=48,
+    bias=bias,
+    fixed_positions=fixed_positions,
+    backbone_noise=backbone_noise,
+    iterations=iterations,
+    learning_rate=learning_rate,
+    temperature=temperature,
+  )
+
+  sampled_sequences, logits, _ = jax.lax.map(
+    mapped_fn,
+    (
+      batched_proteins.coordinates,
+      residue_mask,
+      batched_proteins.residue_index,
+      batched_proteins.chain_index,
+    ),
+    batch_size=batch_size,
+  )
+
+  return {
+    "sampled_sequences": sampled_sequences,
+    "logits": logits,
+    "metadata": {
+      "protein_sources": sources,
+      "backbone_noise_levels": backbone_noise,
+    },
+  }
+
+
 async def categorical_jacobian(
   inputs: Sequence[str | StringIO] | str | StringIO,
+  chain_id: Sequence[str] | str | None = None,
+  model: int | None = None,
+  altloc: Literal["first", "all"] = "first",
   model_version: ModelVersion = "v_48_020.pkl",
   model_weights: ModelWeights = "original",
   foldcomp_database: FoldCompDatabase | None = None,
@@ -178,6 +321,9 @@ async def categorical_jacobian(
 
   Args:
       inputs: An async stream of structures (files, PDB IDs, etc.).
+      chain_id: Specific chain(s) to parse from the structure.
+      model: The model number to load. If None, all models are loaded.
+      altloc: The alternate location identifier to use.
       model_version: The model version to use.
       model_weights: The model weights to use.
       foldcomp_database: The FoldComp database to use for FoldComp IDs.
@@ -201,7 +347,14 @@ async def categorical_jacobian(
     backbone_noise = jnp.asarray(backbone_noise)
 
   logger.info("Computing categorical Jacobian in %s mode.", mode)
-  _proteins, sources = await load(inputs, foldcomp_database=foldcomp_database, **kwargs)
+  _proteins, sources = await load(
+    inputs,
+    model=model,
+    altloc=altloc,
+    chain_id=chain_id,
+    foldcomp_database=foldcomp_database,
+    **kwargs,
+  )
   logger.info("Loaded protein stream, batching and padding proteins.")
 
   proteins = [tuple_to_protein(p) for p in _proteins]
@@ -263,7 +416,7 @@ async def categorical_jacobian(
       OneHotProteinSequence,
     ],
   ) -> jax.Array:
-    """Map over a single structure, vmapping over noise levels."""
+    """Map over a single structure, vector mapping over noise levels."""
     return vmap_over_noise(*input_tuple, backbone_noise)
 
   jacobians: jax.Array = jax.lax.map(

@@ -445,7 +445,7 @@ async def parse_input(
   model: int | None = None,
   altloc: str = "first",
   chain_id: Sequence[str] | str | None = None,
-  **kwargs: Any,
+  **kwargs: Any,  # noqa: ANN401
 ) -> ProteinEnsemble:
   """Parse a structure file or string into a list of Protein objects.
 

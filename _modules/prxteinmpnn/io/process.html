@@ -348,7 +348,7 @@ document.write(`
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">io</span><span class="w"> </span><span class="kn">import</span> <span class="n">StringIO</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Literal</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">anyio</span>
 
@@ -369,7 +369,10 @@ document.write(`
   <span class="n">inputs</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="n">StringIO</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">StringIO</span><span class="p">,</span>
   <span class="n">foldcomp_database</span><span class="p">:</span> <span class="n">FoldCompDatabase</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
   <span class="n">max_concurrency</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
-  <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+  <span class="n">model</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="n">altloc</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;first&quot;</span><span class="p">,</span> <span class="s2">&quot;all&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;first&quot;</span><span class="p">,</span>
+  <span class="n">chain_id</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>  <span class="c1"># noqa: ANN401</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="n">ProteinTuple</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Asynchronously loads model inputs from various sources with high efficiency.</span>
 
@@ -381,6 +384,11 @@ document.write(`
 <span class="sd">              PDB IDs, FoldComp IDs, or StringIO objects.</span>
 <span class="sd">      foldcomp_database: A FoldCompDatabase instance for resolving FoldComp IDs.</span>
 <span class="sd">      max_concurrency: The maximum number of inputs to process concurrently.</span>
+<span class="sd">      model: The model number to use when parsing PDB files with multiple models.</span>
+<span class="sd">      altloc: How to handle alternate locations in PDB files. &#39;first&#39; uses the</span>
+<span class="sd">              first alternate location, &#39;all&#39; uses all locations.</span>
+<span class="sd">      chain_id: Specific chain(s) to extract from the structure(s). Can be a single</span>
+<span class="sd">                chain ID, a sequence of chain IDs, or None to include all chains.</span>
 <span class="sd">      **kwargs: Additional keyword arguments passed to the parsing function.</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
@@ -393,6 +401,8 @@ document.write(`
   <span class="n">other_inputs</span> <span class="o">=</span> <span class="p">[</span>
     <span class="n">item</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">inputs</span> <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">_FOLDCOMP_PATTERN</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">item</span><span class="p">))</span>
   <span class="p">]</span>
+
+  <span class="n">kwargs</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span> <span class="n">altloc</span><span class="o">=</span><span class="n">altloc</span><span class="p">,</span> <span class="n">chain_id</span><span class="o">=</span><span class="n">chain_id</span><span class="p">)</span>
 
   <span class="n">handlers</span> <span class="o">=</span> <span class="p">[</span><span class="n">get_source_handler</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">other_inputs</span><span class="p">]</span>
   <span class="k">if</span> <span class="n">foldcomp_ids</span> <span class="ow">and</span> <span class="n">foldcomp_database</span><span class="p">:</span>

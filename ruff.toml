@@ -14,3 +14,7 @@ ignore = [
 ]
 pylint.max-args = 15
 
+[lint.per-file-ignores]
+"src/prxteinmpnn/run.py" = ["E402", "PLR0913"]
+
+

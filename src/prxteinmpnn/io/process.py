@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 from io import StringIO
-from typing import Any
+from typing import Any, Literal
 
 import anyio
 
@@ -21,7 +21,10 @@ async def load(
   inputs: Sequence[str | StringIO] | str | StringIO,
   foldcomp_database: FoldCompDatabase | None = None,
   max_concurrency: int = 10,
-  **kwargs: dict[str, Any],
+  model: int | None = None,
+  altloc: Literal["first", "all"] = "first",
+  chain_id: Sequence[str] | str | None = None,
+  **kwargs: Any,  # noqa: ANN401
 ) -> tuple[list[ProteinTuple], list[str]]:
   """Asynchronously loads model inputs from various sources with high efficiency.
 
@@ -33,6 +36,11 @@ async def load(
               PDB IDs, FoldComp IDs, or StringIO objects.
       foldcomp_database: A FoldCompDatabase instance for resolving FoldComp IDs.
       max_concurrency: The maximum number of inputs to process concurrently.
+      model: The model number to use when parsing PDB files with multiple models.
+      altloc: How to handle alternate locations in PDB files. 'first' uses the
+              first alternate location, 'all' uses all locations.
+      chain_id: Specific chain(s) to extract from the structure(s). Can be a single
+                chain ID, a sequence of chain IDs, or None to include all chains.
       **kwargs: Additional keyword arguments passed to the parsing function.
 
   """
@@ -45,6 +53,8 @@ async def load(
   other_inputs = [
     item for item in inputs if not (isinstance(item, str) and _FOLDCOMP_PATTERN.match(item))
   ]
+
+  kwargs.update(model=model, altloc=altloc, chain_id=chain_id)
 
   handlers = [get_source_handler(item, **kwargs) for item in other_inputs]
   if foldcomp_ids and foldcomp_database:

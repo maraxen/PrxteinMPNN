@@ -5,9 +5,14 @@ from collections.abc import Sequence
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.utils.aa_convert import string_to_protein_sequence
 from prxteinmpnn.utils.align import smith_waterman_affine
-from prxteinmpnn.utils.data_structures import Protein
+from prxteinmpnn.utils.data_structures import Protein, ProteinEnsemble
+from prxteinmpnn.utils.types import ProteinSequence
+
+# Constants for array dimensionality checks
+_1D_ARRAY = 1
+_2D_ARRAY = 2
+_3D_ARRAY = 3
 
 # BLOSUM62 scoring matrix with an added column/row for gaps
 _AA_SCORE_MATRIX = jnp.array(
@@ -88,11 +93,12 @@ def _pad_protein_to_length(protein: Protein, new_length: int, mapping: jax.Array
   )
 
 
-def batch_and_pad_sequences(sequences: Sequence[str]) -> tuple[jax.Array, jax.Array]:
-  """Convert string sequences to a padded JAX array of MPNN indices and masks.
+def batch_and_pad_sequences(sequences: Sequence[ProteinSequence]) -> tuple[jax.Array, jax.Array]:
+  """Batch and pad pre-tokenized protein sequences for JAX operations.
 
   Args:
-    sequences (Sequence[str]): A list or tuple of protein sequence strings.
+    sequences (Sequence[ProteinSequence]): A list or tuple of pre-tokenized protein sequences.
+      Each sequence should be a JAX array of integer amino acid indices.
 
   Returns:
     tuple[jax.Array, jax.Array]: A tuple containing the padded tokenized sequences
@@ -106,16 +112,14 @@ def batch_and_pad_sequences(sequences: Sequence[str]) -> tuple[jax.Array, jax.Ar
     msg = "Cannot process an empty list of sequences."
     raise ValueError(msg)
 
-  tokenized = [string_to_protein_sequence(s) for s in sequences]
-
   # Treat scalars as length 1, otherwise use the array's length.
   def get_len(arr: jax.Array) -> int:
     return arr.shape[0] if arr.ndim > 0 else 1
 
-  max_len = max((get_len(s) for s in tokenized), default=0)
+  max_len = max((get_len(s) for s in sequences), default=0)
 
   # Handle case where all inputs are empty strings.
-  if max_len == 0 and not any(sequences):
+  if max_len == 0:
     return jnp.empty((len(sequences), 0), dtype=jnp.int8), jnp.empty(
       (len(sequences), 0),
       dtype=jnp.bool_,
@@ -129,10 +133,10 @@ def batch_and_pad_sequences(sequences: Sequence[str]) -> tuple[jax.Array, jax.Ar
     padding_needed = max_len - arr.shape[0]
     return jnp.pad(arr, (0, padding_needed), "constant", constant_values=val)
 
-  batched_tokens = jnp.stack([_pad(s, -1) for s in tokenized])
+  batched_tokens = jnp.stack([_pad(s, -1) for s in sequences])
 
   padded_masks = []
-  for s in tokenized:
+  for s in sequences:
     current_len = get_len(s)
     mask = jnp.ones(current_len, dtype=jnp.bool_)
     padding_needed = max_len - current_len
@@ -278,3 +282,179 @@ def perform_star_alignment(
     aligned_proteins.append(_pad_protein_to_length(protein, msa_length, mapping))
 
   return aligned_proteins
+
+
+def _generate_cross_protein_mapping(
+  proteins: Sequence[Protein],
+  gap_open: float = -10.0,
+  gap_extend: float = -1.0,
+  temp: float = 1.0,
+) -> jax.Array:
+  """Generate cross-protein position mapping using sequence alignment.
+
+  Creates a mapping array for cross-protein position comparisons using
+  Smith-Waterman alignment. Only upper triangle is computed for memory efficiency.
+
+  Args:
+    proteins (Sequence[Protein]): List of protein objects to align.
+    gap_open (float): Gap opening penalty for alignment.
+    gap_extend (float): Gap extension penalty for alignment.
+    temp (float): Temperature parameter for soft alignment.
+
+  Returns:
+    jax.Array: Upper triangle mapping array of shape (num_pairs, max_length, 2)
+      where num_pairs = n*(n-1)/2 for n proteins. Each entry contains
+      [pos_in_protein_i, pos_in_protein_j] or [-1, -1] for unaligned positions.
+
+  """
+  if len(proteins) < 2:  # noqa: PLR2004
+    return jnp.array([]).reshape(0, 0, 2)
+
+  n_proteins = len(proteins)
+  max_len = max(p.aatype.shape[0] for p in proteins)
+  n_pairs = (n_proteins * (n_proteins - 1)) // 2
+
+  # Initialize mapping array
+  mapping = jnp.full((n_pairs, max_len, 2), -1, dtype=jnp.int32)
+
+  pair_idx = 0
+  for i in range(n_proteins):
+    for j in range(i + 1, n_proteins):
+      seq_i = jnp.clip(proteins[i].aatype, 0, 20)
+      seq_j = jnp.clip(proteins[j].aatype, 0, 20)
+
+      # Generate scoring matrix
+      score_matrix = _AA_SCORE_MATRIX[seq_i[:, None], seq_j[None, :]]
+      lengths = jnp.array([seq_i.shape[0], seq_j.shape[0]])
+
+      # Perform alignment
+      sw_aligner = smith_waterman_affine(batch=False)
+      try:
+        traceback = sw_aligner(score_matrix, lengths, gap_extend, gap_open, temp)
+
+        # Extract aligned positions
+        aligned_i = jnp.argmax(traceback, axis=1)
+        aligned_j = jnp.arange(traceback.shape[1])
+
+        # Create position mapping for valid alignments
+        valid_alignments = jnp.max(traceback, axis=1) > 0
+        valid_i = aligned_i[valid_alignments]
+        valid_j = aligned_j[valid_alignments]
+
+        # Ensure we don't exceed max_len
+        n_valid = min(len(valid_i), max_len)
+        if n_valid > 0:
+          pair_mapping = jnp.stack([valid_i[:n_valid], valid_j[:n_valid]], axis=1)
+          mapping = mapping.at[pair_idx, :n_valid].set(pair_mapping)
+
+      except Exception:  # noqa: BLE001
+        # If alignment fails, leave as -1 (no mapping)
+        pass
+
+      pair_idx += 1
+
+  return mapping
+
+
+def _get_pair_index(i: int, j: int, n: int) -> int:
+  """Get the index in upper triangle storage for protein pair (i,j)."""
+  if i >= j:
+    msg = f"Invalid pair indices: i={i} must be < j={j}"
+    raise ValueError(msg)
+  return i * n - (i * (i + 1)) // 2 + j - i - 1
+
+
+def batch_and_pad_proteins(
+  proteins: Sequence[Protein],
+  sequences_to_score: Sequence[jax.Array] | None = None,
+  *,
+  calculate_cross_diff: bool = False,
+) -> tuple[ProteinEnsemble, jax.Array | None]:
+  """Batch and pad a list of Protein objects to create a ProteinEnsemble.
+
+  This function takes a list of Protein objects, determines the maximum length
+  among them, and pads each protein's data to this length. The padded data is
+  then combined into a single ProteinEnsemble object using JAX-idiomatic operations.
+
+  Args:
+    proteins (Sequence[Protein]): A list of Protein objects to batch and pad.
+    sequences_to_score (Sequence[jax.Array] | None): Optional pre-tokenized sequences
+      to batch and pad alongside the proteins.
+    calculate_cross_diff (bool): Whether to calculate cross-protein mapping for
+      position comparisons. Defaults to False to avoid expensive computation.
+
+  Returns:
+    tuple[ProteinEnsemble, jax.Array | None]: A tuple containing:
+      - ProteinEnsemble: The batched and padded proteins with optional mapping
+      - jax.Array | None: Batched sequences if sequences_to_score was provided
+
+  Raises:
+    ValueError: If the input protein list is empty.
+
+  Example:
+    >>> protein1 = Protein(coordinates=jnp.ones((10, 37, 3)), ...)
+    >>> protein2 = Protein(coordinates=jnp.ones((15, 37, 3)), ...)
+    >>> ensemble, _ = batch_and_pad_proteins([protein1, protein2])
+    >>> ensemble.coordinates.shape
+    (2, 15, 37, 3)
+
+  """
+  if not proteins:
+    msg = "Cannot process an empty list of proteins."
+    raise ValueError(msg)
+
+  # Extract all attributes as lists for vectorized operations
+  coords_list = [p.coordinates for p in proteins]
+  aatype_list = [p.aatype for p in proteins]
+  atom_mask_list = [p.atom_mask for p in proteins]
+  residue_index_list = [p.residue_index for p in proteins]
+  chain_index_list = [p.chain_index for p in proteins]
+  one_hot_list = [p.one_hot_sequence for p in proteins]
+
+  # Compute max length vectorized
+  lengths = jnp.array([coords.shape[0] for coords in coords_list])
+  max_len = int(lengths.max())
+
+  # Pad all arrays using vmap for efficient vectorization
+  def pad_array(arr: jax.Array, target_len: int, fill_value: float = 0) -> jax.Array:
+    """Pad a single array to target length."""
+    padding_needed = target_len - arr.shape[0]
+    if arr.ndim == _1D_ARRAY:
+      return jnp.pad(arr, (0, padding_needed), constant_values=fill_value)
+    if arr.ndim == _2D_ARRAY:
+      return jnp.pad(arr, ((0, padding_needed), (0, 0)), constant_values=fill_value)
+    if arr.ndim == _3D_ARRAY:
+      return jnp.pad(arr, ((0, padding_needed), (0, 0), (0, 0)), constant_values=fill_value)
+    msg = f"Unsupported array dimensionality: {arr.ndim}"
+    raise ValueError(msg)
+
+  # Vectorized padding operations
+  padded_coords = jnp.stack([pad_array(coords, max_len) for coords in coords_list])
+  padded_aatype = jnp.stack([pad_array(aatype, max_len, -1) for aatype in aatype_list])
+  padded_atom_mask = jnp.stack([pad_array(mask, max_len) for mask in atom_mask_list])
+  padded_residue = jnp.stack([pad_array(res, max_len) for res in residue_index_list])
+  padded_chain = jnp.stack([pad_array(chain, max_len) for chain in chain_index_list])
+  padded_one_hot = jnp.stack([pad_array(oh, max_len) for oh in one_hot_list])
+
+  # Generate cross-protein mapping if requested
+  mapping = None
+  if calculate_cross_diff:
+    mapping = _generate_cross_protein_mapping(proteins)
+
+  # Handle sequences if provided
+  batched_sequences = None
+  if sequences_to_score is not None:
+    batched_sequences, _ = batch_and_pad_sequences(sequences_to_score)
+
+  ensemble = ProteinEnsemble(
+    coordinates=padded_coords,
+    aatype=padded_aatype,
+    atom_mask=padded_atom_mask,
+    residue_index=padded_residue,
+    chain_index=padded_chain,
+    dihedrals=None,
+    one_hot_sequence=padded_one_hot,
+    mapping=mapping,
+  )
+
+  return ensemble, batched_sequences

@@ -403,6 +403,7 @@ async def categorical_jacobian(
   backbone_noise: float | list[float] | ArrayLike = 0.0,
   mode: Literal["full", "diagonal"] = "full",
   outer_batch_size: int = 1,
+  inner_batch_size: int = 16,
   *,
   calculate_cross_diff: bool = False,
   **kwargs: Any,  # noqa: ANN401
@@ -473,6 +474,8 @@ async def categorical_jacobian(
     """Compute the full categorical Jacobian for a single protein structure and noise level."""
     length = one_hot_sequence.shape[0]
     residue_mask = atom_mask[:, 0]
+    one_hot_flat = one_hot_sequence.flatten()
+    input_dim = one_hot_flat.shape[0]
 
     def logit_fn(one_hot_flat: jax.Array) -> jax.Array:
       """Compute logits from flattened one-hot sequence."""
@@ -490,9 +493,20 @@ async def categorical_jacobian(
       )
       return logits.flatten()  # Shape: (length * 21,)
 
-    # Compute full Jacobian: d(output_logits) / d(input_onehot)
-    # Input: (length * 21,), Output: (length * 21,)
-    jacobian_flat = jax.jacfwd(logit_fn)(one_hot_sequence.flatten())
+    def jvp_fn(tangent: jax.Array) -> jax.Array:
+      """Compute the Jacobian-vector product for a single tangent vector."""
+      return jax.jvp(logit_fn, (one_hot_flat,), (tangent,))[1]
+
+    def chunked_jacobian(idx: jax.Array) -> jax.Array:
+      """Compute the Jacobian matrix of logits with respect to the input one-hot sequence."""
+      tangent = jax.nn.one_hot(idx, num_classes=input_dim, dtype=one_hot_flat.dtype)
+      return jvp_fn(tangent)
+
+    jacobian_flat = jax.lax.map(
+      chunked_jacobian,
+      jnp.arange(input_dim),
+      batch_size=inner_batch_size,
+    )  # Shape: (length * 21, length * 21)
 
     # Reshape to (length, 21, length, 21)
     return jacobian_flat.reshape(length, 21, length, 21)

@@ -91,7 +91,6 @@ def make_score_sequence(
     autoregressive_mask = generate_ar_mask(decoding_order) if ar_mask is None else ar_mask
 
     residue_mask = mask[:, atom_order["CA"]]
-    jax.debug.print("Extracting features...")
     edge_features, neighbor_indices, prng_key = extract_features(
       prng_key,
       model_parameters,
@@ -102,7 +101,6 @@ def make_score_sequence(
       k_neighbors=k_neighbors,
       backbone_noise=backbone_noise,
     )
-    jax.debug.print("Features extracted. Projecting features...")
     edge_features = project_features(
       model_parameters,
       edge_features,

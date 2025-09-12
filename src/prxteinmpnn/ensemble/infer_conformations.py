@@ -14,7 +14,7 @@ from prxteinmpnn.ensemble.dbscan import (
 )
 from prxteinmpnn.ensemble.gmm import make_fit_gmm
 from prxteinmpnn.ensemble.residue_states import residue_states_from_ensemble
-from prxteinmpnn.utils.data_structures import ProteinEnsemble
+from prxteinmpnn.utils.data_structures import ProteinStream
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.entropy import posterior_mean_std
 from prxteinmpnn.utils.types import EdgeFeatures, InputBias, Logits, ModelParameters, NodeFeatures
@@ -118,7 +118,7 @@ async def infer_conformations(
   model_parameters: ModelParameters,
   inference_strategy: ConformationalInferenceStrategy,
   decoding_order_fn: DecodingOrderFn,
-  ensemble: ProteinEnsemble,
+  ensemble: ProteinStream,
   bias: InputBias | None = None,
   gmm_n_components: int = 100,
   eps_std_scale: float = 1.0,

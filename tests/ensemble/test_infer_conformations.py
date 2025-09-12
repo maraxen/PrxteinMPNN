@@ -13,7 +13,7 @@ from prxteinmpnn.ensemble.infer_conformations import (
     infer_conformations,
     infer_residue_states,
 )
-from prxteinmpnn.utils.data_structures import ProteinEnsemble
+from prxteinmpnn.utils.data_structures import ProteinStream
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import InputBias, ModelParameters
 
@@ -133,7 +133,7 @@ class TestInferConformations:
         prng_key = jax.random.PRNGKey(42)
         model_parameters = Mock(spec=ModelParameters)
         decoding_order_fn = Mock(spec=DecodingOrderFn)
-        ensemble = Mock(spec=ProteinEnsemble)
+        ensemble = Mock(spec=ProteinStream)
         return prng_key, model_parameters, decoding_order_fn, ensemble
 
     @pytest.mark.parametrize(

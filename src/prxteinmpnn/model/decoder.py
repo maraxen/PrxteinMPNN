@@ -18,6 +18,7 @@ if TYPE_CHECKING:
   from collections.abc import Callable
 
   from jaxtyping import Float, Int, PRNGKeyArray
+  import jax
 
   from prxteinmpnn.utils.types import (
     AtomMask,

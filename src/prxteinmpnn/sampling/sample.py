@@ -76,8 +76,7 @@ def make_sample_sequences(
   sample_model_pass = sampling_encode(encoder=encoder, decoding_order_fn=decoding_order_fn)
 
   optimize_seq_fn = make_optimize_sequence_fn(
-    autoregressive_decoder=autoregressive_decoder,
-    conditional_decoder=conditional_decoder,
+    decoder=conditional_decoder,
     decoding_order_fn=decoding_order_fn,
     model_parameters=model_parameters,
   )

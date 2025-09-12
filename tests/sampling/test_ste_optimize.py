@@ -1,15 +1,12 @@
 """Tests for the STE sequence optimization module."""
 
-from typing import Callable
-
 import jax
 import jax.numpy as jnp
 import pytest
 from jax import random
 from jaxtyping import PRNGKeyArray
 
-from prxteinmpnn.sampling.ste_optimize import _score_sequence_loss, make_optimize_sequence_fn
-from prxteinmpnn.utils.autoregression import generate_ar_mask
+from prxteinmpnn.sampling.ste_optimize import make_optimize_sequence_fn
 from prxteinmpnn.utils.types import (
   AtomMask,
   EdgeFeatures,
@@ -27,7 +24,7 @@ def mock_data(mock_model_parameters):
   num_features = 128
 
   node_features = random.normal(key, (num_residues, num_features))
-  edge_features = random.normal(key, (num_residues, num_residues, num_features))
+  edge_features = random.normal(key, (num_residues, 32, num_features))
   neighbor_indices = jnp.zeros((num_residues, 32), dtype=jnp.int32)
   mask = jnp.ones((num_residues,), dtype=jnp.float32)
 
@@ -53,59 +50,15 @@ def mock_conditional_decoder(
   return node_features
 
 
-def mock_ste_decoder(
-  key: PRNGKeyArray,
-  node_features: NodeFeatures,
-  edge_features: EdgeFeatures,
-  neighbor_indices: NeighborIndices,
-  mask: AtomMask,
-  autoregressive_mask: jax.Array,
-  temperature: float | None,
-  guiding_logits: jax.Array | None,
-) -> tuple[jax.Array, jax.Array]:
-  """Mock STE decoder that returns random one-hot vectors."""
-  num_residues = node_features.shape[0]
-  if guiding_logits is None:
-    guiding_logits = jnp.zeros((num_residues, 21))
-  if temperature is None:
-    temperature = 1.0
-  sequence = random.categorical(key, guiding_logits / temperature, axis=-1)
-  one_hot = jax.nn.one_hot(sequence, 21)
-  logits = jnp.zeros_like(guiding_logits)
-  return one_hot, logits
-
-
 def mock_decoding_order_fn(key: PRNGKeyArray, num_residues: int) -> tuple[jax.Array, PRNGKeyArray]:
   """Mock decoding order function that returns sequential ordering."""
   new_key = random.split(key)[0]
   return jnp.arange(num_residues), new_key
 
 
-def test_score_sequence_loss(mock_data):
-  """Test that sequence loss computation works correctly."""
-  sequence_one_hot = jax.nn.one_hot(jnp.zeros(mock_data['num_residues'], dtype=jnp.int32), 21)
-  ar_mask = generate_ar_mask(jnp.arange(mock_data['num_residues']))
-  
-  loss = _score_sequence_loss(
-    sequence_one_hot,
-    mock_conditional_decoder,
-    mock_data['model_parameters'],
-    mock_data['node_features'],
-    mock_data['edge_features'],
-    ar_mask,
-    mock_data['neighbor_indices'],
-    mock_data['mask'],
-  )
-
-  assert isinstance(loss, jnp.ndarray)
-  assert loss.shape == ()  # Should be a scalar
-  assert not jnp.isnan(loss)
-
-
 def test_optimize_sequence(mock_data):
   """Test that sequence optimization runs without errors."""
   optimize_fn = make_optimize_sequence_fn(
-    mock_ste_decoder,
     mock_conditional_decoder,
     mock_decoding_order_fn,
     mock_data['model_parameters'],
@@ -133,7 +86,6 @@ def test_optimize_sequence(mock_data):
 def test_optimize_sequence_differentiable(mock_data):
   """Test that the optimization process is differentiable."""
   optimize_fn = make_optimize_sequence_fn(
-    mock_ste_decoder,
     mock_conditional_decoder,
     mock_decoding_order_fn,
     mock_data['model_parameters'],

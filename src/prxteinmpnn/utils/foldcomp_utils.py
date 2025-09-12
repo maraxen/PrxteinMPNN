@@ -14,7 +14,7 @@ import numpy as np
 from prxteinmpnn.io.parsing import (
   string_to_protein_sequence,
 )
-from prxteinmpnn.utils.data_structures import ProteinEnsemble, ProteinTuple
+from prxteinmpnn.utils.data_structures import ProteinStream, ProteinTuple
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ def _setup_foldcomp_database(database: FoldCompDatabase) -> None:
 async def get_protein_structures(
   protein_ids: Sequence[str],
   database: FoldCompDatabase = "afdb_rep_v4",
-) -> ProteinEnsemble:
+) -> ProteinStream:
   """Retrieve protein structures from the FoldComp database and return them as a list of ensembles.
 
   This is a synchronous, blocking function designed to be run in an executor.
@@ -90,7 +90,7 @@ async def get_protein_structures(
           ProteinTuple(
             coordinates=coordinates,
             aatype=sequence,
-            atom_mask=np.ones_like(sequence, dtype=np.bool_),
+            atom_mask=np.ones((num_res, 37), dtype=np.bool_),  # should probably change this?
             residue_index=np.arange(num_res),
             chain_index=np.zeros(num_res, dtype=np.int32),
             dihedrals=dihedrals,

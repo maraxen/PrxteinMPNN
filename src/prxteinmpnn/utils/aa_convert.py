@@ -93,12 +93,15 @@ def string_to_protein_sequence(
 
   if aa_map is None:
     aa_map = restype_order
+    # Corrected line: Split the string into a list of characters for string_key_to_index
     return af_to_mpnn(
-      string_key_to_index(np.array(sequence, dtype="U3"), aa_map, unk_index).astype(
+      string_key_to_index(np.array(list(sequence)), aa_map, unk_index).astype(
         jnp.int8,
       ),
     )
-  return string_key_to_index(np.array(list(sequence), dtype="U3"), aa_map, unk_index).astype(
+  # This part was already correct for when aa_map is explicitly provided,
+  # as it correctly uses list(sequence).
+  return string_key_to_index(np.array(list(sequence)), aa_map, unk_index).astype(
     jnp.int8,
   )
 

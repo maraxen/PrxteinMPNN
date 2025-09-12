@@ -1,183 +1,626 @@
-"""Utilities for aligning protein structure ensembles."""
+"""Utilities for aligning proteins."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
-
-import jax.numpy as jnp
-import numpy as np
-from biotite.sequence import ProteinSequence as BiotiteProteinSequence
-from biotite.sequence import align
-
-from prxteinmpnn.io.parsing import protein_sequence_to_string
-from prxteinmpnn.utils.data_structures import Protein
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-  from collections.abc import Sequence
+  from collections.abc import Callable
+
+import jax
+import jax.numpy as jnp
 
 
-def _pad_protein_to_length(protein: Protein, new_length: int, mapping: np.ndarray) -> Protein:
-  """Pad a Protein object to a new length based on an alignment mapping.
-
-  Args:
-      protein: The original Protein object.
-      new_length: The target length after padding.
-      mapping: An array where mapping[i] is the original index for the new
-        position i, or -1 for a gap.
-
-  Returns:
-      A new, padded Protein object.
-
-  """
-  padded_coords = jnp.zeros((new_length, 37, 3), dtype=protein.coordinates.dtype)
-  padded_aatype = jnp.full((new_length,), -1, dtype=protein.aatype.dtype)
-  padded_atom_mask = jnp.zeros((new_length, 37), dtype=protein.atom_mask.dtype)
-  padded_residue_index = jnp.zeros((new_length,), dtype=protein.residue_index.dtype)
-  padded_chain_index = jnp.zeros((new_length,), dtype=protein.chain_index.dtype)
-
-  valid_indices = mapping != -1
-  original_indices = mapping[valid_indices]
-
-  padded_coords = padded_coords.at[valid_indices].set(protein.coordinates[original_indices])
-  padded_aatype = padded_aatype.at[valid_indices].set(protein.aatype[original_indices])
-  padded_atom_mask = padded_atom_mask.at[valid_indices].set(protein.atom_mask[original_indices])
-  padded_residue_index = padded_residue_index.at[valid_indices].set(
-    protein.residue_index[original_indices],
-  )
-  padded_chain_index = padded_chain_index.at[valid_indices].set(
-    protein.chain_index[original_indices],
-  )
-
-  return Protein(
-    coordinates=padded_coords,
-    aatype=padded_aatype,
-    atom_mask=padded_atom_mask,
-    residue_index=padded_residue_index,
-    chain_index=padded_chain_index,
-    dihedrals=None,  # Dihedrals are dropped as they are non-trivial to align
-  )
-
-
-def align_ensemble(
-  ensemble: Sequence[Protein],
-  strategy: Literal["sequence", "structure"] = "sequence",
-  reference_index: int = 0,
-) -> list[Protein]:
-  """Aligns an ensemble of protein structures.
-
-  This function aligns all structures in an ensemble to a reference structure,
-  producing a new list of Protein objects with padded arrays to ensure all
-  structures have the same length corresponding to the alignment. This is
-  achieved by performing a star-alignment using `biotite`.
-
-  To optimize for cases with identical sequences (e.g., MD trajectories), this
-  function first identifies unique sequences. Alignments are performed only on
-  this unique subset, and the results are then mapped back to all proteins in
-  the original ensemble.
+def smith_waterman_no_gap(unroll_factor: int = 2, *, batch: bool = True) -> Callable:
+  """Get a JAX-jit function for Smith-Waterman (local alignment) with no gap penalty.
 
   Args:
-      ensemble: A list of Protein structures.
-      strategy: The alignment strategy to use. Currently, only "sequence" is
-          supported.
-      reference_index: The index of the structure in the ensemble to use as
-          the reference for alignment.
+    unroll_factor (int): The unroll parameter for `jax.lax.scan` for performance tuning.
+    batch (bool): If True, the returned function will be vmapped for batch processing.
 
   Returns:
-      A new list of aligned and padded Protein structures.
-
-  Raises:
-      NotImplementedError: If 'structure' alignment is requested.
-      ValueError: If the ensemble is empty.
+    Callable: A function that performs the alignment traceback.
 
   """
-  if not ensemble:
-    msg = "Cannot align an empty ensemble."
-    raise ValueError(msg)
 
-  if strategy == "structure":
-    msg = "Structural alignment is not yet implemented."
-    raise NotImplementedError(msg)
+  def rotate_matrix(
+    score_matrix: jax.Array,
+    mask: jax.Array | None = None,
+  ) -> tuple[dict[str, jax.Array], tuple[jax.Array, jax.Array], tuple[jax.Array, jax.Array]]:
+    """Rotate the score matrix for striped dynamic programming.
 
-  # Identify unique sequences to avoid redundant alignments
-  sequences_str = [protein_sequence_to_string(p.aatype) for p in ensemble]
-  unique_sequences, inverse_indices = np.unique(sequences_str, return_inverse=True)
+    Args:
+      score_matrix (jax.Array): The input score matrix.
+      mask (jax.Array | None): An optional mask to apply to the matrix.
 
-  # If all sequences are identical, no alignment is needed.
-  if len(unique_sequences) == 1:
-    return list(ensemble)
+    Returns:
+      tuple: A tuple containing the rotated data, previous scores, and indices.
 
-  # Align the unique sequences
-  unique_biotite_seqs = [BiotiteProteinSequence(s) for s in unique_sequences]
-  ref_unique_idx = inverse_indices[reference_index]
-  ref_biotite_seq = unique_biotite_seqs[ref_unique_idx]
+    """
+    a, b = score_matrix.shape
+    ar, br = jnp.arange(a)[::-1, None], jnp.arange(b)[None, :]
+    i, j = (br - ar) + (a - 1), (ar + br) // 2
+    n, m = (a + b - 1), (a + b) // 2
+    zero = jnp.zeros([n, m])
+    if mask is None:
+      mask = jnp.array(1.0)
+    rotated_data = {
+      "score": zero.at[i, j].set(score_matrix),
+      "mask": zero.at[i, j].set(mask),
+      "parity": (jnp.arange(n) + a % 2) % 2,
+    }
+    previous_scores = (jnp.zeros(m), jnp.zeros(m))
+    return rotated_data, previous_scores, (i, j)
 
-  pairwise_alignments = [
-    align.align_optimal(  # type: ignore[attr-access]
-      ref_biotite_seq,
-      s,
-      align.SubstitutionMatrix.std_protein_matrix(),
-      gap_penalty=(-10, -1),
-      terminal_penalty=False,
-    )[0]
-    if i != ref_unique_idx
-    else None
-    for i, s in enumerate(unique_biotite_seqs)
-  ]
+  def compute_scoring_matrix(
+    score_matrix: jax.Array,
+    sequence_lengths: jax.Array,
+    temperature: float = 1.0,
+  ) -> jax.Array:
+    """Compute the scoring matrix for Smith-Waterman alignment.
 
-  # Build the master alignment columns from all unique pairwise alignments
-  msa_cols = [(i, 0) for i in range(len(ref_biotite_seq))]
+    Args:
+      score_matrix (jax.Array): The input score matrix.
+      sequence_lengths (jax.Array): The lengths of the two sequences.
+      temperature (float): The temperature parameter for the soft maximum function.
 
-  for aln in pairwise_alignments:
-    if aln is None:
-      continue
-    ref_trace = aln.trace[0]
-    last_ref_idx = -1
-    insertion_count = 0
-    for ref_idx_in_aln in ref_trace:
-      if ref_idx_in_aln != -1:
-        last_ref_idx = ref_idx_in_aln
-        insertion_count = 0
+    Returns:
+      jax.Array: The maximum score in the scoring matrix.
+
+    """
+
+    def _soft_maximum(values: jax.Array, axis: int | None = None) -> jax.Array:
+      """Compute the soft maximum of values along a specified axis.
+
+      Args:
+        values (jax.Array): The input values.
+        axis (int | None): The axis along which to compute the soft maximum.
+
+      Returns:
+        jax.Array: The soft maximum values.
+
+      """
+      return temperature * jax.nn.logsumexp(values / temperature, axis)
+
+    def _conditional_select(
+      condition: jax.Array,
+      true_value: jax.Array,
+      false_value: jax.Array,
+    ) -> jax.Array:
+      """Select values based on a boolean condition.
+
+      Args:
+        condition (jax.Array): The boolean condition.
+        true_value (jax.Array): The value to select if the condition is true.
+        false_value (jax.Array): The value to select if the condition is false.
+
+      Returns:
+        jax.Array: The selected value.
+
+      """
+      return condition * true_value + (1 - condition) * false_value
+
+    def _scan_step(
+      previous_scores: tuple[jax.Array, jax.Array],
+      rotated_data: dict[str, jax.Array],
+    ) -> tuple:
+      """Perform a single step of the scan for computing the scoring matrix.
+
+      Args:
+        previous_scores (tuple): A tuple containing the previous two rows of scores.
+        rotated_data (dict): A dictionary containing the rotated matrix data.
+
+      Returns:
+        tuple: A tuple containing the updated previous scores and the current masked scores.
+
+      """
+      h_previous, h_current = previous_scores  # previous two rows of scoring (hij) mtx
+      h_current_shifted = _conditional_select(
+        rotated_data["parity"],
+        jnp.pad(h_current[:-1], [1, 0]),
+        jnp.pad(h_current[1:], [0, 1]),
+      )
+      h_combined = jnp.stack([h_previous + rotated_data["score"], h_current, h_current_shifted], -1)
+      h_masked = rotated_data["mask"] * _soft_maximum(h_combined, -1)
+      return (h_current, h_masked), h_masked
+
+    a, b = score_matrix.shape
+    real_a, real_b = sequence_lengths
+    mask = (jnp.arange(a) < real_a)[:, None] * (jnp.arange(b) < real_b)[None, :]
+
+    rotated_data, previous_scores, indices = rotate_matrix(score_matrix, mask=mask)
+    final_scores = jax.lax.scan(_scan_step, previous_scores, rotated_data, unroll=unroll_factor)[
+      -1
+    ][indices]
+    return final_scores.max()
+
+  traceback_function = jax.grad(compute_scoring_matrix, argnums=0)
+  return jax.vmap(traceback_function, (0, 0, None)) if batch else traceback_function
+
+
+def smith_waterman(unroll_factor: int = 2, ninf: float = -1e30, *, batch: bool = True) -> Callable:
+  """Get a JAX-jit function for Smith-Waterman (local alignment) with a gap penalty.
+
+  Args:
+    unroll_factor (int): The unroll parameter for `jax.lax.scan` for performance tuning.
+    ninf (float): A large negative number representing negative infinity, used for padding.
+    batch (bool): If True, the returned function will be vmapped for batch processing.
+
+  Returns:
+    Callable: A function that performs the alignment traceback.
+
+  """
+
+  def _rotate_matrix(
+    score_matrix: jax.Array,
+  ) -> tuple[dict[str, jax.Array], tuple[jax.Array, jax.Array], tuple[jax.Array, jax.Array]]:
+    """Rotate the score matrix for striped dynamic programming.
+
+    Args:
+      score_matrix (jax.Array): The input score matrix.
+
+    Returns:
+      tuple: A tuple containing the rotated data, previous scores, and indices.
+
+    """
+    a, b = score_matrix.shape
+    ar, br = jnp.arange(a)[::-1, None], jnp.arange(b)[None, :]
+    i, j = (br - ar) + (a - 1), (ar + br) // 2
+    n, m = (a + b - 1), (a + b) // 2
+    rotated_data = {
+      "score": jnp.full([n, m], ninf).at[i, j].set(score_matrix),
+      "parity": (jnp.arange(n) + a % 2) % 2,
+    }
+    previous_scores = (jnp.full(m, ninf), jnp.full(m, ninf))
+    return rotated_data, previous_scores, (i, j)
+
+  def _compute_scoring_matrix(
+    score_matrix: jax.Array,
+    sequence_lengths: jax.Array,
+    gap: float = 0.0,
+    temperature: float = 1.0,
+  ) -> jax.Array:
+    """Compute the scoring matrix for Smith-Waterman alignment with gap penalty.
+
+    Args:
+      score_matrix (jax.Array): The input score matrix.
+      sequence_lengths (jax.Array): The lengths of the two sequences.
+      gap (float): The gap penalty.
+      temperature (float): The temperature parameter for the soft maximum function.
+
+    Returns:
+      jax.Array: The maximum score in the scoring matrix.
+
+    """
+
+    def _soft_maximum(
+      values: jax.Array,
+      axis: int | None = None,
+      mask: jax.Array | None = None,
+    ) -> jax.Array:
+      """Compute the soft maximum of values along a specified axis.
+
+      Args:
+        values (jax.Array): The input values.
+        axis (int | None): The axis along which to compute the soft maximum.
+        mask (jax.Array | None): An optional mask to apply to the values before logsumexp.
+
+      Returns:
+        jax.Array: The soft maximum values.
+
+      """
+      values = jnp.maximum(values, ninf)
+      if mask is None:
+        return temperature * jax.nn.logsumexp(values / temperature, axis)
+
+      # Apply mask for logsumexp
+      max_values = values.max(axis, keepdims=True)
+      return temperature * (
+        max_values
+        + jnp.log(jnp.sum(mask * jnp.exp((values - max_values) / temperature), axis=axis))
+      )
+
+    def _conditional_select(
+      condition: jax.Array,
+      true_value: jax.Array,
+      false_value: jax.Array,
+    ) -> jax.Array:
+      """Select values based on a boolean condition.
+
+      Args:
+        condition (jax.Array): The boolean condition.
+        true_value (jax.Array): The value to select if the condition is true.
+        false_value (jax.Array): The value to select if the condition is false.
+
+      Returns:
+        jax.Array: The selected value.
+
+      """
+      return condition * true_value + (1 - condition) * false_value
+
+    def _pad(vals: jax.Array, shape: list) -> jax.Array:
+      """Pad an array with negative infinity values.
+
+      Args:
+        vals (jax.Array): The input array.
+        shape (list): The padding shape.
+
+      Returns:
+        jax.Array: The padded array.
+
+      """
+      return jnp.pad(vals, shape, constant_values=(ninf, ninf))
+
+    def _step(previous_scores: tuple, rotated_data: dict) -> tuple:
+      previous_row, current_row = previous_scores
+      shifted_row = _conditional_select(
+        rotated_data["parity"],
+        _pad(current_row[:-1], [1, 0]),
+        _pad(current_row[1:], [0, 1]),
+      )
+      combined_scores = jnp.stack(
+        [
+          previous_row + rotated_data["score"],
+          current_row + gap,
+          shifted_row + gap,
+          rotated_data["score"],
+        ],
+        axis=-1,
+      )
+      updated_row = _soft_maximum(combined_scores, axis=-1)
+      return (
+        current_row,
+        updated_row,
+      ), updated_row  # Return updated previous scores and current masked scores
+
+    a, b = score_matrix.shape
+    real_a, real_b = sequence_lengths
+    mask = (jnp.arange(a) < real_a)[:, None] * (jnp.arange(b) < real_b)[None, :]
+
+    # Apply negative infinity to masked out regions of the score matrix
+    score_matrix = score_matrix + ninf * (1 - mask)
+
+    # Rotate the score matrix (excluding the first row/column for alignment)
+    # The first row/column are implicitly handled by the initial `ninf` values in `prev`.
+    rotated_data, previous_scores, indices = _rotate_matrix(score_matrix[:-1, :-1])
+
+    # Perform the scan to compute the scoring matrix
+    _final_scores, h_all = jax.lax.scan(
+      _step,
+      previous_scores,
+      rotated_data,
+      unroll=unroll_factor,
+    )
+    final_scores = h_all[indices]
+
+    return _soft_maximum(final_scores + score_matrix[1:, 1:], mask=mask[1:, 1:]).max()
+
+  traceback_function = jax.grad(_compute_scoring_matrix, argnums=0)
+  return jax.vmap(traceback_function, (0, 0, None, None)) if batch else traceback_function
+
+
+def smith_waterman_affine(  # noqa: C901
+  unroll: int = 2,
+  ninf: float = -1e30,
+  *,
+  restrict_turns: bool = True,
+  penalize_turns: bool = True,
+  batch: bool = True,
+) -> Callable:
+  """Get a JAX-jit function for Smith-Waterman with affine gap penalties.
+
+  Args:
+    restrict_turns (bool): Whether to restrict turns in the alignment (e.g., no U-turns).
+    penalize_turns (bool): Whether to apply penalties for turns (e.g., for non-diagonal moves).
+    unroll (int): The unroll parameter for `jax.lax.scan`.
+    ninf (float): A large negative number to represent negative infinity.
+    batch (bool): If True, the returned function will be vmapped for batch processing.
+
+  Returns:
+    Callable: A function that performs the alignment traceback.
+
+  """
+
+  def _rotate_matrix(
+    score_matrix: jax.Array,
+  ) -> tuple[dict[str, jax.Array], tuple[jax.Array, jax.Array], tuple[jax.Array, jax.Array]]:
+    """Rotate the score matrix for striped dynamic programming.
+
+    Args:
+      score_matrix (jax.Array): The input score matrix.
+
+    Returns:
+      tuple: A tuple containing the rotated data, previous scores, and indices.
+
+    """
+    a, b = score_matrix.shape
+    ar, br = jnp.arange(a)[::-1, None], jnp.arange(b)[None, :]
+    i, j = (br - ar) + (a - 1), (ar + br) // 2
+    n, m = (a + b - 1), (a + b) // 2
+    rotated_data = {
+      "score": jnp.full([n, m], ninf).at[i, j].set(score_matrix),
+      "parity": (jnp.arange(n) + a % 2) % 2,
+    }
+    previous_scores = (jnp.full((m, 3), ninf), jnp.full((m, 3), ninf))
+    return rotated_data, previous_scores, (i, j)
+
+  def _compute_scoring_matrix(
+    score_matrix: jax.Array,
+    lengths: jax.Array,
+    gap: float = 0.0,
+    open_penalty: float = 0.0,
+    temperature: float = 1.0,
+  ) -> jax.Array:
+    """Compute the scoring matrix for Smith-Waterman alignment with affine gap penalties.
+
+    Args:
+      score_matrix (jax.Array): The input score matrix.
+      lengths (jax.Array): The lengths of the two sequences.
+      gap (float): The gap extension penalty.
+      open_penalty (float): The gap opening penalty.
+      temperature (float): The temperature parameter for the soft maximum function.
+
+    Returns:
+      jax.Array: The maximum score in the scoring matrix.
+
+    """
+
+    def _soft_maximum(
+      values: jax.Array,
+      axis: int | None = None,
+      mask: jax.Array | None = None,
+    ) -> jax.Array:
+      def _logsumexp(y: jax.Array) -> jax.Array:
+        y = jnp.maximum(y, ninf)
+        if mask is None:
+          return jax.nn.logsumexp(y, axis=axis)
+        max_y = y.max(axis, keepdims=True)
+        return y.max(axis) + jnp.log(jnp.sum(mask * jnp.exp(y - max_y), axis=axis))
+
+      return temperature * _logsumexp(values / temperature)
+
+    def _conditional_select(
+      condition: jax.Array,
+      true_value: jax.Array,
+      false_value: jax.Array,
+    ) -> jax.Array:
+      """Select values based on a boolean condition.
+
+      Args:
+        condition (jax.Array): The boolean condition.
+        true_value (jax.Array): The value to select if the condition is true.
+        false_value (jax.Array): The value to select if the condition is false.
+
+      Returns:
+        jax.Array: The selected value.
+
+      """
+      return condition * true_value + (1 - condition) * false_value
+
+    def _pad(vals: jax.Array, shape: list) -> jax.Array:
+      """Pad an array with negative infinity values.
+
+      Args:
+        vals (jax.Array): The input array.
+        shape (list): The padding shape.
+
+      Returns:
+        jax.Array: The padded array.
+
+      """
+      return jnp.pad(vals, shape, constant_values=(ninf, ninf))
+
+    def _scan_step(
+      previous_scores: tuple[jax.Array, jax.Array],
+      rotated_data: dict[str, jax.Array],
+    ) -> tuple:
+      """Perform a single step of the scan for computing the scoring matrix.
+
+      Args:
+        previous_scores (tuple): A tuple containing the previous two rows of scores.
+        rotated_data (dict): A dictionary containing the rotated matrix data.
+
+      Returns:
+        tuple: A tuple containing the updated previous scores and the current masked scores.
+
+      """
+      h_previous, h_current = previous_scores
+      aligned_score = jnp.pad(h_previous, [[0, 0], [0, 1]]) + rotated_data["score"][:, None]
+      right_score = _conditional_select(
+        rotated_data["parity"],
+        _pad(h_current[:-1], [[1, 0], [0, 0]]),
+        h_current,
+      )
+      down_score = _conditional_select(
+        rotated_data["parity"],
+        h_current,
+        _pad(h_current[1:], [[0, 1], [0, 0]]),
+      )
+
+      # Initialize right and down variables
+      right = jnp.zeros_like(h_current)
+      down = jnp.zeros_like(h_current)
+
+      if penalize_turns:
+        right += jnp.stack([open_penalty, gap, open_penalty])
+        down += jnp.stack([open_penalty, open_penalty, gap])
       else:
-        insertion_count += 1
-        new_col = (last_ref_idx, insertion_count)
-        if new_col not in msa_cols:
-          msa_cols.append(new_col)
+        gap_pen = jnp.stack([open_penalty, gap, gap])
+        right += gap_pen
+        down += gap_pen
 
-  msa_cols.sort()
-  msa_length = len(msa_cols)
-  col_to_msa_pos = {col: i for i, col in enumerate(msa_cols)}
+      if restrict_turns:
+        right_score = right_score[:, :2]
 
-  # Compute the mapping from original to aligned indices for each unique sequence
-  unique_mappings = {}
-  for i, biotite_seq in enumerate(unique_biotite_seqs):
-    mapping = np.full(msa_length, -1, dtype=int)
-    if i == ref_unique_idx:
-      for ref_idx in range(len(biotite_seq)):
-        msa_pos = col_to_msa_pos.get((ref_idx, 0))
-        if msa_pos is not None:
-          mapping[msa_pos] = ref_idx
-    else:
-      aln = pairwise_alignments[i]
-      ref_trace, tgt_trace = aln.trace[0], aln.trace[1]  # type: ignore[attr-access]
-      last_ref_idx, insertion_count = -1, 0
-      for _, (ref_idx, tgt_idx) in enumerate(zip(ref_trace, tgt_trace, strict=False)):
-        if ref_idx != -1:
-          last_ref_idx, insertion_count = ref_idx, 0
-          col = (ref_idx, 0)
-        else:
-          insertion_count += 1
-          col = (last_ref_idx, insertion_count)
-        msa_pos = col_to_msa_pos.get(col)
-        if msa_pos is not None and tgt_idx != -1:
-          mapping[msa_pos] = tgt_idx
-    unique_mappings[i] = mapping
+      h0_aligned = _soft_maximum(aligned_score, -1)
+      h0_right = _soft_maximum(right_score, -1)
+      h0_down = _soft_maximum(down_score, -1)
+      h0 = jnp.stack([h0_aligned, h0_right, h0_down], axis=-1)
+      return (h_current, h0), h0
 
-  # Apply the pre-computed mappings to the full ensemble
-  aligned_proteins: list[Protein | None] = [None] * len(ensemble)
-  for i, protein in enumerate(ensemble):
-    unique_idx = inverse_indices[i]
-    mapping = unique_mappings[unique_idx]
-    padded_protein = _pad_protein_to_length(protein, msa_length, mapping)
-    aligned_proteins[i] = padded_protein
+    a, b = score_matrix.shape
+    real_a, real_b = lengths
+    mask = (jnp.arange(a) < real_a)[:, None] * (jnp.arange(b) < real_b)[None, :]
+    score_matrix = score_matrix + ninf * (1 - mask)
 
-  return aligned_proteins  # type: ignore[return-value]
+    rotated_data, previous_scores, indices = _rotate_matrix(score_matrix[:-1, :-1])
+    _final_scores, h_all = jax.lax.scan(_scan_step, previous_scores, rotated_data, unroll=unroll)
+    final_scores = h_all[indices]
+    return _soft_maximum(
+      final_scores + score_matrix[1:, 1:, None],
+      mask=mask[1:, 1:, None],
+    ).max()
+
+  traceback_function = jax.grad(_compute_scoring_matrix, argnums=0)
+  return jax.vmap(traceback_function, (0, 0, None, None, None)) if batch else traceback_function
+
+
+def needleman_wunsch_alignment(unroll_factor: int = 2, *, batch: bool = True) -> Callable:
+  """Get a JAX-jit function for Needleman-Wunsch (global alignment).
+
+  Args:
+    unroll_factor (int): The unroll parameter for `jax.lax.scan` for performance tuning.
+    batch (bool): If True, the returned function will be vmapped for batch processing.
+
+  Returns:
+    Callable: A function that performs the alignment traceback.
+
+  """
+
+  def prepare_rotated_data(
+    score_matrix: jax.Array,
+    sequence_lengths: jax.Array,
+    gap_penalty: float,
+  ) -> dict:
+    """Prepare the rotated data structure for Needleman-Wunsch alignment.
+
+    Args:
+      score_matrix (jax.Array): The input score matrix.
+      sequence_lengths (jax.Array): The lengths of the two sequences.
+      gap_penalty (float): The gap penalty.
+      temperature (float): The temperature parameter for soft maximum computation.
+
+    Returns:
+      dict: A dictionary containing the rotated score matrix, mask, initial conditions, and indices.
+
+    """
+    num_rows, num_cols = score_matrix.shape
+    seq_len_a, seq_len_b = sequence_lengths
+
+    # Create a mask for valid sequence positions
+    mask = (jnp.arange(num_rows) < seq_len_a)[:, None] * (jnp.arange(num_cols) < seq_len_b)[None, :]
+    mask = jnp.pad(mask, [[1, 0], [1, 0]])
+
+    # Pad the score matrix
+    score_matrix = jnp.pad(score_matrix, [[1, 0], [1, 0]])
+
+    # Rotate the score matrix for striped dynamic programming
+    num_rows, num_cols = score_matrix.shape
+    row_indices, col_indices = jnp.arange(num_rows)[::-1, None], jnp.arange(num_cols)[None, :]
+    i_indices, j_indices = (
+      (col_indices - row_indices) + (num_rows - 1),
+      (row_indices + col_indices) // 2,
+    )
+    num_diagonals, max_diagonal_length = (num_rows + num_cols - 1), (num_rows + num_cols) // 2
+    zero_matrix = jnp.zeros((num_diagonals, max_diagonal_length))
+
+    rotated_data = {
+      "rotated_scores": zero_matrix.at[i_indices, j_indices].set(score_matrix),
+      "rotated_mask": zero_matrix.at[i_indices, j_indices].set(mask),
+      "parity": (jnp.arange(num_diagonals) + num_rows % 2) % 2,
+    }
+
+    # Initialize gap penalties for the first row and column
+    initial_row = gap_penalty * jnp.arange(num_rows)
+    initial_col = gap_penalty * jnp.arange(num_cols)
+    initial_conditions = (
+      jnp.zeros((num_rows, num_cols)).at[:, 0].set(initial_row).at[0, :].set(initial_col)
+    )
+    rotated_data["initial_conditions"] = zero_matrix.at[i_indices, j_indices].set(
+      initial_conditions,
+    )
+
+    return {
+      "rotated_data": rotated_data,
+      "previous_scores": (jnp.zeros(max_diagonal_length), jnp.zeros(max_diagonal_length)),
+      "indices": (i_indices, j_indices),
+      "sequence_lengths": sequence_lengths,
+    }
+
+  def compute_scoring_matrix(
+    score_matrix: jax.Array,
+    sequence_lengths: jax.Array,
+    gap_penalty: float = 0.0,
+    temperature: float = 1.0,
+  ) -> jax.Array:
+    """Compute the scoring matrix for Needleman-Wunsch alignment.
+
+    Args:
+      score_matrix (jax.Array): The input score matrix.
+      sequence_lengths (jax.Array): The lengths of the two sequences.
+      gap_penalty (float): The gap penalty.
+      temperature (float): The temperature parameter for soft maximum computation.
+
+    Returns:
+      jax.Array: The final alignment score.
+
+    """
+
+    def _logsumexp(
+      values: jax.Array,
+      axis: int | None = None,
+      mask: jax.Array | None = None,
+    ) -> jax.Array:
+      """Compute the log-sum-exp of values along a specified axis."""
+      if mask is None:
+        return jax.nn.logsumexp(values, axis=axis)
+      max_values = values.max(axis, keepdims=True)
+      return values.max(axis) + jnp.log(jnp.sum(mask * jnp.exp(values - max_values), axis=axis))
+
+    def _soft_maximum(
+      values: jax.Array,
+      axis: int | None = None,
+      mask: jax.Array | None = None,
+    ) -> jax.Array:
+      """Compute the soft maximum of values along a specified axis."""
+      return temperature * _logsumexp(values / temperature, axis, mask)
+
+    def _conditional_select(
+      condition: jax.Array,
+      true_value: jax.Array,
+      false_value: jax.Array,
+    ) -> jax.Array:
+      """Select values based on a boolean condition."""
+      return condition * true_value + (1 - condition) * false_value
+
+    def _scan_step(previous_scores: tuple, rotated_data: dict) -> tuple:
+      """Perform a single step of the scan for computing the scoring matrix."""
+      previous_row, current_row = previous_scores
+      alignment_score = previous_row + rotated_data["rotated_scores"]
+      turn_score = _conditional_select(
+        rotated_data["parity"],
+        jnp.pad(current_row[:-1], [1, 0]),
+        jnp.pad(current_row[1:], [0, 1]),
+      )
+      combined_scores = jnp.stack(
+        [alignment_score, current_row + gap_penalty, turn_score + gap_penalty],
+      )
+      updated_row = rotated_data["rotated_mask"] * _soft_maximum(combined_scores, axis=0)
+      updated_row += rotated_data["initial_conditions"]
+      return (current_row, updated_row), updated_row
+
+    rotated_data = prepare_rotated_data(
+      score_matrix,
+      sequence_lengths=sequence_lengths,
+      gap_penalty=gap_penalty,
+    )
+    final_scores = jax.lax.scan(
+      _scan_step,
+      rotated_data["previous_scores"],
+      rotated_data["rotated_data"],
+      unroll=unroll_factor,
+    )[-1][rotated_data["indices"]]
+    return final_scores[rotated_data["sequence_lengths"][0], rotated_data["sequence_lengths"][1]]
+
+  traceback_function = jax.grad(compute_scoring_matrix, argnums=0)
+  return jax.vmap(traceback_function, (0, 0, None, None)) if batch else traceback_function

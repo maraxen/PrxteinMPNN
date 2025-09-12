@@ -56,7 +56,7 @@ class ProteinTuple(NamedTuple):
 
 @dataclass(frozen=True)
 class Protein:
-  """Protein structure representation.
+  """Protein structure or ensemble representation.
 
   Attributes:
     coordinates (StructureAtomicCoordinates): Atom positions in the structure, represented as a
@@ -83,7 +83,7 @@ class Protein:
   dihedrals: BackboneDihedrals | None = None
 
 
-ProteinEnsemble = AsyncGenerator[tuple[ProteinTuple, str], None]
+ProteinStream = AsyncGenerator[tuple[ProteinTuple, str], None]
 
 
 OligomerType = Literal["monomer", "heteromer", "homooligomer", "tied_homooligomer"]

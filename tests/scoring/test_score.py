@@ -69,13 +69,14 @@ class TestMakeScoreSequence:
   def sample_inputs(self):
     """Create sample inputs for testing."""
     seq_len = 10
+    num_atoms = 37  # All atoms
     return {
       "prng_key": jax.random.PRNGKey(42),
       "sequence": jnp.ones((seq_len,), dtype=jnp.int32),
-      "structure_coordinates": jnp.ones((seq_len, 4, 3)),
-      "mask": jnp.ones((seq_len,), dtype=jnp.bool_),
-      "residue_indices": jnp.arange(seq_len),
-      "chain_indices": jnp.zeros((seq_len,), dtype=jnp.int32),
+      "structure_coordinates": jnp.ones((seq_len, num_atoms, 3)),
+      "mask": jnp.ones((seq_len, num_atoms), dtype=jnp.bool_),
+      "residue_index": jnp.arange(seq_len),
+      "chain_index": jnp.zeros((seq_len,), dtype=jnp.int32),
       "k_neighbors": 48,
       "backbone_noise": 0.0,
       "ar_mask": jnp.ones((seq_len, seq_len), dtype=jnp.bool_),
@@ -135,8 +136,8 @@ class TestMakeScoreSequence:
       sample_inputs["sequence"],
       sample_inputs["structure_coordinates"],
       sample_inputs["mask"],
-      sample_inputs["residue_indices"],
-      sample_inputs["chain_indices"],
+      sample_inputs["residue_index"],
+      sample_inputs["chain_index"],
       sample_inputs["k_neighbors"],
       sample_inputs["backbone_noise"],
       sample_inputs["ar_mask"],
@@ -238,8 +239,8 @@ class TestMakeScoreSequence:
       sample_inputs["sequence"],
       sample_inputs["structure_coordinates"],
       sample_inputs["mask"],
-      sample_inputs["residue_indices"],
-      sample_inputs["chain_indices"],
+      sample_inputs["residue_index"],
+      sample_inputs["chain_index"],
       k_neighbors=48,
       backbone_noise=0.0,
     )
@@ -294,19 +295,27 @@ class TestMakeScoreSequence:
       mock_final_projection.return_value = jnp.ones((seq_len, 20))
 
       # Create inputs for this sequence length
-      inputs = {
-        "prng_key": jax.random.PRNGKey(42),
-        "sequence": jnp.ones((seq_len,), dtype=jnp.int32),
-        "structure_coordinates": jnp.ones((seq_len, 4, 3)),
-        "mask": jnp.ones((seq_len,), dtype=jnp.bool_),
-        "residue_index": jnp.arange(seq_len),
-        "chain_index": jnp.zeros((seq_len,), dtype=jnp.int32),
-        "k_neighbors": 48,
-        "backbone_noise": 0.0,
-        "ar_mask": None,
-      }
+      prng_key = jax.random.PRNGKey(42)
+      sequence = jnp.ones((seq_len,), dtype=jnp.int32)
+      structure_coordinates = jnp.ones((seq_len, 37, 3))
+      mask = jnp.ones((seq_len, 37), dtype=jnp.bool_)
+      residue_index = jnp.arange(seq_len)
+      chain_index = jnp.zeros((seq_len,), dtype=jnp.int32)
+      k_neighbors = 48
+      backbone_noise = jnp.array(0.0)
+      ar_mask = None
 
-      score, logits, decoding_order = scoring_fn(**inputs)  # type: ignore[arg-type]
+      score, logits, decoding_order = scoring_fn(
+        prng_key,
+        sequence,
+        structure_coordinates,
+        mask,
+        residue_index,
+        chain_index,
+        k_neighbors,
+        backbone_noise,
+        ar_mask,
+      )
       chex.assert_shape(score, ())
       chex.assert_type(score, jnp.floating)
       chex.assert_shape(logits, (seq_len, 20))
@@ -379,8 +388,8 @@ class TestMakeScoreSequence:
       sample_inputs["sequence"],
       sample_inputs["structure_coordinates"],
       sample_inputs["mask"],
-      sample_inputs["residue_indices"],
-      sample_inputs["chain_indices"],
+      sample_inputs["residue_index"],
+      sample_inputs["chain_index"],
       sample_inputs["k_neighbors"],
       sample_inputs["backbone_noise"],
       sample_inputs["ar_mask"],

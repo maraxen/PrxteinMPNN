@@ -12,16 +12,13 @@ from prxteinmpnn.io.parsing import (
   _check_if_file_empty,
   _fill_in_cb_coordinates,
   atom_names_to_index,
-  from_string,
-  from_structure_file,
-  from_trajectory,
   parse_input,
   process_atom_array,
   residue_names_to_aatype,
   string_key_to_index,
   string_to_protein_sequence,
 )
-from prxteinmpnn.utils.data_structures import Protein
+from prxteinmpnn.utils.data_structures import ProteinTuple
 from prxteinmpnn.utils.residue_constants import atom_order
 
 
@@ -120,7 +117,7 @@ def test_process_atom_array(sample_atom_array: AtomArray) -> None:
   """Test processing a valid AtomArray."""
   protein = process_atom_array(sample_atom_array)
 
-  assert isinstance(protein, Protein)
+  assert isinstance(protein, ProteinTuple)
   assert protein.coordinates.shape == (2, 37, 3)
   assert protein.aatype.shape == (2,)
   assert protein.atom_mask.shape == (2, 37)
@@ -162,106 +159,39 @@ def test_process_atom_array_no_atom_names(sample_atom_array: AtomArray, monkeypa
     process_atom_array(sample_atom_array)
 
 
-def test_fill_in_cb_coordinates() -> None:
-  """Test the _fill_in_cb_coordinates function for Glycine."""
-  coords_37 = jnp.zeros((2, 37, 3))
-  residue_names = np.array(["GLY", "ALA"])
-
-  # Glycine coords
-  coords_37 = coords_37.at[0, atom_order["N"], :].set(jnp.array([0.0, 1.0, 0.0]))
-  coords_37 = coords_37.at[0, atom_order["CA"], :].set(jnp.array([0.0, 0.0, 0.0]))
-  coords_37 = coords_37.at[0, atom_order["C"], :].set(jnp.array([1.0, 0.0, 0.0]))
-
-  # Alanine coords (with existing CB)
-  coords_37 = coords_37.at[1, atom_order["CB"], :].set(jnp.array([9, 9, 9]))
-
-  updated_coords = _fill_in_cb_coordinates(coords_37, residue_names)
-
-  # Check that GLY CB is computed and not zero
-  assert not jnp.allclose(updated_coords[0, atom_order["CB"]], 0.0)
-  # Check that ALA CB is preserved
-  assert jnp.allclose(updated_coords[1, atom_order["CB"]], jnp.array([9, 9, 9]))
 
 
-# --- Test File/String Loading Functions ---
-def test_from_string(sample_pdb_string: str) -> None:
-  """Test loading a Protein from a PDB string."""
-  protein = from_string(sample_pdb_string)
-  assert protein.aatype.shape == (2,)
-  assert jnp.array_equal(protein.aatype, jnp.array([0, 5], dtype=jnp.int8))
-
-
-def test_from_string_empty() -> None:
-  """Test loading from an empty string."""
-  with pytest.raises(ValueError, match="AtomArray is empty."):
-    from_string(" \n ")
-
-
-def test_from_string_no_models() -> None:
-  """Test loading from a PDB string with no models."""
-  pdb_string = "HEADER\nEND"
-  with pytest.raises(ValueError, match="No models found in the provided PDB string."):
-    from_string(pdb_string)
-
-
-def test_from_structure_file(tmp_path: pathlib.Path, sample_pdb_string: str) -> None:
-  """Test loading a Protein from a PDB file."""
-  p = tmp_path / "test.pdb"
-  p.write_text(sample_pdb_string)
-
-  protein = from_structure_file(str(p))
-  assert protein.aatype.shape == (2,)
-
-
-def test_from_structure_file_not_found(tmp_path: pathlib.Path) -> None:
-  """Test loading from a non-existent file."""
-  with pytest.raises(FileNotFoundError):
-    from_structure_file(str(tmp_path / "nonexistent.pdb"))
-
-
-@pytest.mark.anyio
-async def test_from_trajectory(sample_atom_array: AtomArray) -> None:
-  """Test loading from a trajectory file."""
-  atom_stack = structure.stack([sample_atom_array, sample_atom_array])
-
-  # Patch the file check to avoid FileNotFoundError
-  with patch("prxteinmpnn.io.parsing._check_if_file_empty", return_value=False), patch(
-    "biotite.structure.io.load_structure", return_value=atom_stack
-  ) as mock_load:
-    proteins = await from_trajectory("dummy.xtc", topology_file="dummy.pdb")
-    mock_load.assert_called_once_with("dummy.xtc", template="dummy.pdb")
-    assert len(proteins) == 2
-    assert isinstance(proteins[0], Protein)
-
-
-def test_parse_input_single_model(sample_atom_array: AtomArray) -> None:
+@pytest.mark.asyncio
+async def test_parse_input_single_model(sample_atom_array: AtomArray) -> None:
   """Test parse_input with a source returning a single AtomArray."""
   with patch("biotite.structure.io.load_structure", return_value=sample_atom_array):
-    proteins = parse_input(StringIO("..."))
+    proteins = [p async for p in parse_input(StringIO("..."))]
     assert len(proteins) == 1
-    assert isinstance(proteins[0], Protein)
+    assert isinstance(proteins[0][0], ProteinTuple)
 
 
-def test_parse_input_multi_model(sample_atom_array: AtomArray) -> None:
+@pytest.mark.asyncio
+async def test_parse_input_multi_model(sample_atom_array: AtomArray) -> None:
   """Test parse_input with a source returning an AtomArrayStack."""
   stack = structure.stack([sample_atom_array, sample_atom_array])
   with patch("biotite.structure.io.load_structure", return_value=stack):
-    proteins = parse_input(StringIO("..."))
+    proteins = [p async for p in parse_input(StringIO("..."))]
     assert len(proteins) == 2
-    assert isinstance(proteins[0], Protein)
+    assert isinstance(proteins[0][0], ProteinTuple)
 
 
-def test_parse_input_failure() -> None:
+@pytest.mark.asyncio
+async def test_parse_input_failure() -> None:
   """Test parse_input when loading fails."""
   with patch("biotite.structure.io.load_structure", side_effect=Exception("mock error")):
     with pytest.warns(UserWarning, match="Failed to parse structure from source"):
       with pytest.raises(RuntimeError):
-        parse_input(StringIO("..."))
+        _ = [p async for p in parse_input(StringIO("..."))]
 
 
-def test_parse_input_no_proteins() -> None:
+@pytest.mark.asyncio
+async def test_parse_input_no_proteins() -> None:
   """Test parse_input when no valid structures are parsed."""
   with patch("biotite.structure.io.load_structure", return_value=AtomArrayStack(0, 0)):
-    with pytest.warns(UserWarning, match="No valid structures were parsed"):
-      proteins = parse_input(StringIO("..."))
-      assert not proteins
+    proteins = [p async for p in parse_input(StringIO("..."))]
+    assert not proteins

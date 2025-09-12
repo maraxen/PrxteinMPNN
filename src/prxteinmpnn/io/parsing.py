@@ -1,4 +1,9 @@
-"""Utilities for processing structure and trajectory files."""
+"""Utilities for processing structure and trajectory files.
+
+prxteinmpnn.io.parsing
+
+This uses numpy to allow for multiprocessing and avoid conflicts with Jax.
+"""
 
 import io
 import pathlib
@@ -14,7 +19,7 @@ from biotite.structure import AtomArray, AtomArrayStack
 from biotite.structure import io as structure_io
 from jax import vmap
 
-from prxteinmpnn.utils.data_structures import ProteinEnsemble, ProteinTuple
+from prxteinmpnn.utils.data_structures import ProteinStream, ProteinTuple
 from prxteinmpnn.utils.residue_constants import (
   atom_order,
   resname_to_idx,
@@ -443,10 +448,10 @@ async def parse_input(
   source: str | StringIO | pathlib.Path,
   *,
   model: int | None = None,
-  altloc: str = "first",
+  altloc: str | None = None,
   chain_id: Sequence[str] | str | None = None,
   **kwargs: Any,  # noqa: ANN401
-) -> ProteinEnsemble:
+) -> ProteinStream:
   """Parse a structure file or string into a list of Protein objects.
 
   This is a synchronous, CPU-bound function intended to be run in an executor

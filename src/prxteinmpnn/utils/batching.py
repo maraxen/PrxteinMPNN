@@ -286,9 +286,9 @@ def perform_star_alignment(
 
 def _generate_cross_protein_mapping(
   proteins: Sequence[Protein],
-  gap_open: float = -10.0,
-  gap_extend: float = -1.0,
-  temp: float = 1.0,
+  gap_open: float = -1.0,
+  gap_extend: float = -0.1,
+  temp: float = 0.1,
 ) -> jax.Array:
   """Generate cross-protein position mapping using sequence alignment.
 
@@ -332,14 +332,18 @@ def _generate_cross_protein_mapping(
       try:
         traceback = sw_aligner(score_matrix, lengths, gap_extend, gap_open, temp)
 
-        # Extract aligned positions
-        aligned_i = jnp.argmax(traceback, axis=1)
-        aligned_j = jnp.arange(traceback.shape[1])
+        # Extract aligned positions - use both dimensions of traceback
+        # traceback shape is (len_i, len_j) where high values indicate alignment
+        threshold = jnp.max(traceback) * 0.1  # Use 10% of max as threshold
 
-        # Create position mapping for valid alignments
-        valid_alignments = jnp.max(traceback, axis=1) > 0
-        valid_i = aligned_i[valid_alignments]
-        valid_j = aligned_j[valid_alignments]
+        # Find positions where alignment score is above threshold
+        align_mask = traceback > threshold
+        i_indices, j_indices = jnp.where(align_mask, size=max_len, fill_value=-1)
+
+        # Filter out the fill values and create mapping
+        valid_mask = (i_indices != -1) & (j_indices != -1)
+        valid_i = i_indices[valid_mask]
+        valid_j = j_indices[valid_mask]
 
         # Ensure we don't exceed max_len
         n_valid = min(len(valid_i), max_len)
@@ -348,8 +352,19 @@ def _generate_cross_protein_mapping(
           mapping = mapping.at[pair_idx, :n_valid].set(pair_mapping)
 
       except Exception:  # noqa: BLE001
-        # If alignment fails, leave as -1 (no mapping)
-        pass
+        # If alignment fails, try simple diagonal mapping for similar length sequences
+        len_i, len_j = seq_i.shape[0], seq_j.shape[0]
+        min_len = min(len_i, len_j, max_len)
+        max_length_diff = 10
+        if abs(len_i - len_j) <= max_length_diff:  # If sequences are similar in length
+          diagonal_mapping = jnp.stack(
+            [
+              jnp.arange(min_len),
+              jnp.arange(min_len),
+            ],
+            axis=1,
+          )
+          mapping = mapping.at[pair_idx, :min_len].set(diagonal_mapping)
 
       pair_idx += 1
 
@@ -439,7 +454,13 @@ def batch_and_pad_proteins(
   # Generate cross-protein mapping if requested
   mapping = None
   if calculate_cross_diff:
-    mapping = _generate_cross_protein_mapping(proteins)
+    # Use milder gap penalties for similar sequences
+    mapping = _generate_cross_protein_mapping(
+      proteins,
+      gap_open=-0.5,  # Much milder gap opening penalty
+      gap_extend=-0.1,  # Mild gap extension penalty
+      temp=0.5,  # Higher temperature for softer alignment
+    )
 
   # Handle sequences if provided
   batched_sequences = None

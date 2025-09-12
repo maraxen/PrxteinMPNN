@@ -428,6 +428,22 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.Protein.replace"><code class="docutils literal notranslate"><span class="pre">Protein.replace()</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.coordinates"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.coordinates</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.aatype"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.aatype</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.atom_mask"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.atom_mask</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.residue_index"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.residue_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id10"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.coordinates</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id11"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.aatype</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.one_hot_sequence"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.one_hot_sequence</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id12"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.atom_mask</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id13"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.residue_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.chain_index"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.chain_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.dihedrals"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.dihedrals</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.mapping"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.mapping</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.replace"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.replace()</span></code></a></li>
+</ul>
+</li>
 </ul>
             </nav>
         </div>
@@ -686,6 +702,125 @@ continuous or 0-indexed. Shape is [num_res].</p>
 
 </dd></dl>
 
+<dl class="py class">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ProteinEnsemble">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.data_structures.</span></span><span class="sig-name descname"><span class="pre">ProteinEnsemble</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">coordinates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">aatype</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">one_hot_sequence</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">atom_mask</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residue_index</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chain_index</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dihedrals</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mapping</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/data_structures.html#ProteinEnsemble"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Protein structure or ensemble representation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>coordinates</strong> (<em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_atoms 3'</em><em>]</em>)</p></li>
+<li><p><strong>aatype</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues'</em><em>]</em>)</p></li>
+<li><p><strong>one_hot_sequence</strong> (<em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_classes'</em><em>]</em>)</p></li>
+<li><p><strong>atom_mask</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_atoms'</em><em>]</em>)</p></li>
+<li><p><strong>residue_index</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues'</em><em>]</em>)</p></li>
+<li><p><strong>chain_index</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues'</em><em>]</em>)</p></li>
+<li><p><strong>dihedrals</strong> (<em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_residues 3'</em><em>] </em><em>| </em><em>None</em>)</p></li>
+<li><p><strong>mapping</strong> (<a class="reference external" href="https://docs.jax.dev/en/latest/_autosummary/jax.Array.html#jax.Array" title="(in JAX)"><em>Array</em></a><em> | </em><em>None</em>)</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ProteinEnsemble.coordinates">
+<span class="sig-name descname"><span class="pre">coordinates</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.coordinates" title="Link to this definition">#</a></dt>
+<dd><p>Atom positions in the structure, represented as a
+3D array. Cartesian coordinates of atoms in angstroms. The atom types correspond to
+residue_constants.atom_types, i.e. the first three are N, CA, CB. Shape is
+(num_res, num_atom_type, 3), where num_res is the number of residues, num_atom_type is the
+number of atom types (e.g., N, CA, CB, C, O), and 3 is the spatial dimension (x, y, z).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>StructureAtomicCoordinates</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ProteinEnsemble.aatype">
+<span class="sig-name descname"><span class="pre">aatype</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.aatype" title="Link to this definition">#</a></dt>
+<dd><p>Amino-acid type for each residue represented as an integer between 0 and 20,
+where 20 is ‘X’. Shape is [num_res].</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Sequence</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ProteinEnsemble.atom_mask">
+<span class="sig-name descname"><span class="pre">atom_mask</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.atom_mask" title="Link to this definition">#</a></dt>
+<dd><p>Binary float mask to indicate presence of a particular atom.
+1.0 if an atom is present and 0.0 if not. This should be used for loss masking.
+Shape is [num_res, num_atom_type].</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>AtomMask</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ProteinEnsemble.residue_index">
+<span class="sig-name descname"><span class="pre">residue_index</span></span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.residue_index" title="Link to this definition">#</a></dt>
+<dd><p>Residue index as used in PDB. It is not necessarily
+continuous or 0-indexed. Shape is [num_res].</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>AtomResidueIndex</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id10">
+<span class="sig-name descname"><span class="pre">coordinates</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms</span> <span class="pre">3']</span></code></em><a class="headerlink" href="#id10" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id11">
+<span class="sig-name descname"><span class="pre">aatype</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code></em><a class="headerlink" href="#id11" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ProteinEnsemble.one_hot_sequence">
+<span class="sig-name descname"><span class="pre">one_hot_sequence</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_classes']</span></code></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.one_hot_sequence" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id12">
+<span class="sig-name descname"><span class="pre">atom_mask</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code></em><a class="headerlink" href="#id12" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id13">
+<span class="sig-name descname"><span class="pre">residue_index</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code></em><a class="headerlink" href="#id13" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ProteinEnsemble.chain_index">
+<span class="sig-name descname"><span class="pre">chain_index</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.chain_index" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ProteinEnsemble.dihedrals">
+<span class="sig-name descname"><span class="pre">dihedrals</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_residues</span> <span class="pre">3']</span></code> <span class="pre">|</span> <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.dihedrals" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ProteinEnsemble.mapping">
+<span class="sig-name descname"><span class="pre">mapping</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.jax.dev/en/latest/_autosummary/jax.Array.html#jax.Array" title="(in JAX)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Array</span></code></a> <span class="pre">|</span> <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.mapping" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.ProteinEnsemble.replace">
+<span class="sig-name descname"><span class="pre">replace</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">updates</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.replace" title="Link to this definition">#</a></dt>
+<dd><p>Returns a new object replacing the specified fields with new values.</p>
+</dd></dl>
+
+</dd></dl>
+
 </section>
 
 
@@ -761,6 +896,22 @@ continuous or 0-indexed. Shape is [num_res].</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.Protein.chain_index"><code class="docutils literal notranslate"><span class="pre">Protein.chain_index</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.Protein.dihedrals"><code class="docutils literal notranslate"><span class="pre">Protein.dihedrals</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.Protein.replace"><code class="docutils literal notranslate"><span class="pre">Protein.replace()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.coordinates"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.coordinates</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.aatype"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.aatype</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.atom_mask"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.atom_mask</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.residue_index"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.residue_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id10"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.coordinates</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id11"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.aatype</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.one_hot_sequence"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.one_hot_sequence</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id12"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.atom_mask</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id13"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.residue_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.chain_index"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.chain_index</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.dihedrals"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.dihedrals</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.mapping"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.mapping</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.ProteinEnsemble.replace"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.replace()</span></code></a></li>
 </ul>
 </li>
 </ul>

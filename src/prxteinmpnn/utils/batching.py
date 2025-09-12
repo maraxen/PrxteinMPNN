@@ -109,7 +109,7 @@ def batch_and_pad_sequences(sequences: Sequence[str]) -> tuple[jax.Array, jax.Ar
   tokenized = [string_to_protein_sequence(s) for s in sequences]
 
   # Treat scalars as length 1, otherwise use the array's length.
-  def get_len(arr):
+  def get_len(arr: jax.Array) -> int:
     return arr.shape[0] if arr.ndim > 0 else 1
 
   max_len = max((get_len(s) for s in tokenized), default=0)
@@ -121,7 +121,7 @@ def batch_and_pad_sequences(sequences: Sequence[str]) -> tuple[jax.Array, jax.Ar
       dtype=jnp.bool_,
     )
 
-  def _pad(arr: jax.Array, val: int | bool) -> jax.Array:
+  def _pad(arr: jax.Array, val: int | bool) -> jax.Array:  # noqa: FBT001
     """Pad an array, correctly handling scalars by reshaping them first."""
     if arr.ndim == 0:
       arr = arr.reshape(1)  # Reshape scalar to a 1-element array

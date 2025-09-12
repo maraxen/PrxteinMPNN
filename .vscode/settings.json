@@ -6,6 +6,8 @@
   "python.testing.pytestEnabled": true,
   "cSpell.words": [
     "AATYPE",
+    "ACDE",
+    "ACDEFGH",
     "ACDEFGHIKLMNPQRSTVWYX",
     "ACEG",
     "afdb",
@@ -26,6 +28,7 @@
     "autobuild",
     "autodoc",
     "bfactors",
+    "BLOSUM",
     "cerevisiae",
     "chex",
     "cimist",
@@ -69,8 +72,10 @@
     "mpnn",
     "multimodel",
     "musculus",
+    "needleman",
     "Neumann",
     "neumman",
+    "ninf",
     "norvegicus",
     "numpy",
     "oligomer",
@@ -107,6 +112,8 @@
     "uniprot",
     "venv",
     "vmap",
-    "waals"
+    "vmapped",
+    "waals",
+    "wunsch"
   ]
 }

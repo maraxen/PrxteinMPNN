@@ -447,7 +447,6 @@ async def categorical_jacobian(
     foldcomp_database=foldcomp_database,
     **kwargs,
   )
-  logger.info("Loaded protein sequences: %s", [p[1] for p in _proteins])
   logger.info("Loaded protein stream, batching and padding proteins.")
 
   proteins = [tuple_to_protein(p) for p in _proteins]

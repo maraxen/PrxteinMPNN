@@ -357,6 +357,7 @@ document.write(`
 <span class="kn">from</span><span class="w"> </span><span class="nn">flax.struct</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+  <span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
   <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 
   <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
@@ -436,6 +437,39 @@ document.write(`
 
 
 <span class="n">ProteinStream</span> <span class="o">=</span> <span class="n">AsyncGenerator</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">ProteinTuple</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="ProteinEnsemble">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinEnsemble">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ProteinEnsemble</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Protein structure or ensemble representation.</span>
+
+<span class="sd">  Attributes:</span>
+<span class="sd">    coordinates (StructureAtomicCoordinates): Atom positions in the structure, represented as a</span>
+<span class="sd">      3D array. Cartesian coordinates of atoms in angstroms. The atom types correspond to</span>
+<span class="sd">      residue_constants.atom_types, i.e. the first three are N, CA, CB. Shape is</span>
+<span class="sd">      (num_res, num_atom_type, 3), where num_res is the number of residues, num_atom_type is the</span>
+<span class="sd">      number of atom types (e.g., N, CA, CB, C, O), and 3 is the spatial dimension (x, y, z).</span>
+<span class="sd">    aatype (Sequence): Amino-acid type for each residue represented as an integer between 0 and 20,</span>
+<span class="sd">      where 20 is &#39;X&#39;. Shape is [num_res].</span>
+<span class="sd">    atom_mask (AtomMask): Binary float mask to indicate presence of a particular atom.</span>
+<span class="sd">      1.0 if an atom is present and 0.0 if not. This should be used for loss masking.</span>
+<span class="sd">      Shape is [num_res, num_atom_type].</span>
+<span class="sd">    residue_index (AtomResidueIndex): Residue index as used in PDB. It is not necessarily</span>
+<span class="sd">      continuous or 0-indexed. Shape is [num_res].</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+
+  <span class="n">coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span>
+  <span class="n">aatype</span><span class="p">:</span> <span class="n">ProteinSequence</span>
+  <span class="n">one_hot_sequence</span><span class="p">:</span> <span class="n">OneHotProteinSequence</span>
+  <span class="n">atom_mask</span><span class="p">:</span> <span class="n">AtomMask</span>
+  <span class="n">residue_index</span><span class="p">:</span> <span class="n">ResidueIndex</span>
+  <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span>
+  <span class="n">dihedrals</span><span class="p">:</span> <span class="n">BackboneDihedrals</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">mapping</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
+
 
 
 <span class="n">OligomerType</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;monomer&quot;</span><span class="p">,</span> <span class="s2">&quot;heteromer&quot;</span><span class="p">,</span> <span class="s2">&quot;homooligomer&quot;</span><span class="p">,</span> <span class="s2">&quot;tied_homooligomer&quot;</span><span class="p">]</span>

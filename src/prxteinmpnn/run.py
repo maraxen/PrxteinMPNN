@@ -549,6 +549,25 @@ async def categorical_jacobian(
       batched_ensemble.mapping,
     )
 
+    if cross_protein_diffs.size > 0:
+      not_nan_mask = ~jnp.isnan(cross_protein_diffs).all(axis=(1, 3, 5))
+      valid_residues = not_nan_mask.any(axis=(0, 2)) | not_nan_mask.any(axis=(0, 1))
+      valid_indices = jnp.where(valid_residues, size=valid_residues.sum().item())[0]
+
+      if valid_indices.size > 0:
+        cross_protein_diffs = cross_protein_diffs[:, :, valid_indices][:, :, :, :, valid_indices, :]
+      else:
+        cross_protein_diffs = jnp.empty(
+          (
+            cross_protein_diffs.shape[0],
+            cross_protein_diffs.shape[1],
+            0,
+            21,
+            0,
+            21,
+          ),
+        )
+
   return {
     "categorical_jacobians": jacobians,
     "cross_protein_diffs": cross_protein_diffs,

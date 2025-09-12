@@ -5,6 +5,7 @@ import re
 import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from functools import partial
 from io import StringIO
 from typing import Any
 
@@ -12,19 +13,26 @@ import aiohttp
 from anyio import to_thread
 
 from prxteinmpnn.io.parsing import parse_input
-from prxteinmpnn.utils.data_structures import ProteinEnsemble
+from prxteinmpnn.utils.data_structures import ProteinStream
 from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase, get_protein_structures
 
 
-async def _parse_input_worker(source: str | StringIO, kwargs: dict[str, Any]) -> ProteinEnsemble:
+async def _parse_input_worker(
+  source: str | StringIO,
+  **kwargs: Any,  # noqa: ANN401
+) -> ProteinStream:
   """Worker function to run in a separate process."""
-  return await to_thread.run_sync(parse_input, source, **kwargs)
+  partial_parse_input = partial(
+    parse_input,
+    **kwargs,
+  )
+  return await to_thread.run_sync(partial_parse_input, source)
 
 
 async def _get_protein_structures_worker(
   protein_ids: Sequence[str],
   database: FoldCompDatabase,
-) -> ProteinEnsemble:
+) -> ProteinStream:
   """Worker function for FoldComp."""
   return await to_thread.run_sync(get_protein_structures, protein_ids, database)
 
@@ -38,7 +46,7 @@ class InputSource(ABC):
     self.kwargs = kwargs
 
   @abstractmethod
-  async def process(self) -> ProteinEnsemble:
+  async def process(self) -> ProteinStream:
     """Process the input source and yield Protein."""
     raise NotImplementedError
     yield  # This makes this method an async generator
@@ -47,10 +55,10 @@ class InputSource(ABC):
 class FilePathSource(InputSource):
   """Handles processing of a single structure file."""
 
-  async def process(self) -> ProteinEnsemble:
+  async def process(self) -> ProteinStream:
     """Process a single structure file."""
     try:
-      async for protein, source in await _parse_input_worker(self.value, self.kwargs):
+      async for protein, source in await _parse_input_worker(self.value, **self.kwargs):
         yield protein, source
     except FileNotFoundError:
       warnings.warn(f"File not found: '{self.value}'", stacklevel=2)
@@ -61,7 +69,7 @@ class FilePathSource(InputSource):
 class DirectorySource(InputSource):
   """Handles recursive processing of directories."""
 
-  async def process(self) -> ProteinEnsemble:
+  async def process(self) -> ProteinStream:
     """Recursively process all structure files in a directory."""
 
     async def _find_files() -> list[pathlib.Path]:
@@ -79,14 +87,14 @@ class DirectorySource(InputSource):
 class PDBIDSource(InputSource):
   """Handles fetching and processing of PDB IDs from RCSB."""
 
-  async def process(self) -> ProteinEnsemble:
+  async def process(self) -> ProteinStream:
     """Fetch and process a PDB structure by its ID."""
     url = f"https://files.rcsb.org/download/{self.value}.pdb"
     try:
       async with aiohttp.ClientSession() as session, session.get(url) as response:
         response.raise_for_status()
         content = await response.text()
-        async for protein, source in await _parse_input_worker(StringIO(content), self.kwargs):
+        async for protein, source in await _parse_input_worker(StringIO(content), **self.kwargs):
           yield protein, source
 
     except Exception as e:  # noqa: BLE001
@@ -96,10 +104,10 @@ class PDBIDSource(InputSource):
 class StringIOSource(InputSource):
   """Handles processing of in-memory StringIO objects."""
 
-  async def process(self) -> ProteinEnsemble:
+  async def process(self) -> ProteinStream:
     """Process a StringIO object containing structure data."""
     try:
-      async for protein, source in await _parse_input_worker(self.value, self.kwargs):
+      async for protein, source in await _parse_input_worker(self.value, **self.kwargs):
         yield protein, source
     except Exception as e:  # noqa: BLE001
       warnings.warn(f"Failed to process StringIO input: {e}", stacklevel=2)
@@ -118,7 +126,7 @@ class FoldCompSource(InputSource):
     super().__init__(value, **kwargs)
     self.db: FoldCompDatabase = foldcomp_database
 
-  async def process(self) -> ProteinEnsemble:
+  async def process(self) -> ProteinStream:
     """Fetch and process structures from FoldComp by their IDs."""
     if not self.db:
       warnings.warn("FoldComp IDs provided but no database specified.", stacklevel=2)

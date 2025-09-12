@@ -6,7 +6,7 @@ import pytest
 import chex
 from unittest.mock import Mock, patch
 from prxteinmpnn.ensemble.residue_states import residue_states_from_ensemble
-from prxteinmpnn.utils.data_structures import Protein, ProteinEnsemble
+from prxteinmpnn.utils.data_structures import Protein
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import ModelParameters
 
@@ -108,28 +108,32 @@ def mock_decoding_order_fn():
 
 
 @pytest.fixture
-def mock_protein_ensemble() -> ProteinEnsemble:
+def mock_protein_ensemble() -> Protein:
     """Create a mock protein ensemble with 3 frames, all with the same sequence."""
+    n_frames = 3
+    key = jax.random.PRNGKey(100)
+    keys = jax.random.split(key, n_frames)
 
-    async def _ensemble_generator() -> ProteinEnsemble:
-        # Use a fixed sequence to make alignment predictable (no change in length)
-        aatype = jax.random.randint(jax.random.PRNGKey(100), (L_GLOBAL,), 0, 21, dtype=jnp.int8)
-        for i in range(3):
-            protein = Protein(
-                coordinates=jax.random.normal(jax.random.PRNGKey(i), (L_GLOBAL, 37, 3)),
-                aatype=aatype,
-                atom_mask=jnp.ones((L_GLOBAL, 37), dtype=jnp.int32),
-                residue_index=jnp.arange(L_GLOBAL, dtype=jnp.int32),
-                chain_index=jnp.zeros(L_GLOBAL, dtype=jnp.int32),
-            )
-            yield protein, f"protein_{i}"
+    aatype = jax.random.randint(key, (L_GLOBAL,), 0, 21, dtype=jnp.int8)
+    one_hot_sequence = jax.nn.one_hot(aatype, 21)
 
-    return _ensemble_generator()
+    def create_protein(k):
+        return Protein(
+            coordinates=jax.random.normal(k, (L_GLOBAL, 37, 3)),
+            aatype=aatype,
+            one_hot_sequence=one_hot_sequence,
+            atom_mask=jnp.ones((L_GLOBAL, 37), dtype=jnp.int32),
+            residue_index=jnp.arange(L_GLOBAL, dtype=jnp.int32),
+            chain_index=jnp.zeros(L_GLOBAL, dtype=jnp.int32),
+        )
+
+    proteins = [create_protein(k) for k in keys]
+    
+    return jax.tree_util.tree_map(lambda *x: jnp.stack(x), *proteins)
 
 
-@pytest.mark.anyio
 @patch('prxteinmpnn.ensemble.residue_states.make_conditional_logits_fn')
-async def test_residue_states_from_ensemble_structure(
+def test_residue_states_from_ensemble_structure(
     mock_make_logits_fn, mock_model_parameters, mock_decoding_order_fn, mock_protein_ensemble
 ):
     """Tests the output structure and length from a standard ensemble."""
@@ -144,100 +148,77 @@ async def test_residue_states_from_ensemble_structure(
     ))
     mock_make_logits_fn.return_value = mock_logits_fn
 
-    states_generator = residue_states_from_ensemble(
+    logits, node_features, edge_features = residue_states_from_ensemble(
         prng_key=key,
         model_parameters=mock_model_parameters,
         decoding_order_fn=mock_decoding_order_fn,
         ensemble=mock_protein_ensemble,
     )
-    states_list = [s async for s in states_generator]
 
     # 1. Check the number of yielded items
-    assert len(states_list) == n_frames, "Should yield one tuple per frame in the ensemble."
+    assert logits.shape[0] == n_frames, "Should yield one tuple per frame in the ensemble."
 
     # 2. Check the structure of each yielded item
-    ref_seq, (logits, node_features, edge_features) = states_list[0]
-
-    chex.assert_shape(ref_seq, (L_GLOBAL,))
-    chex.assert_shape(logits, (L_GLOBAL, 21))
-    chex.assert_shape(node_features, (L_GLOBAL, 128))
-    chex.assert_shape(edge_features, (L_GLOBAL, K_NEIGHBORS, 128))
+    chex.assert_shape(logits, (n_frames, L_GLOBAL, 21))
+    chex.assert_shape(node_features, (n_frames, L_GLOBAL, 128))
+    chex.assert_shape(edge_features, (n_frames, L_GLOBAL, K_NEIGHBORS, 128))
 
 
-@pytest.mark.anyio
-async def test_residue_states_empty_ensemble(mock_model_parameters, mock_decoding_order_fn):
+def test_residue_states_empty_ensemble(mock_model_parameters, mock_decoding_order_fn):
   """Tests that an empty ensemble correctly yields no results."""
+  empty_protein = Protein(
+        coordinates=jnp.empty((0, 37, 3)),
+        aatype=jnp.empty((0,), dtype=jnp.int8),
+        one_hot_sequence=jnp.empty((0, 21)),
+        atom_mask=jnp.empty((0, 37), dtype=jnp.int32),
+        residue_index=jnp.empty((0,), dtype=jnp.int32),
+        chain_index=jnp.empty((0,), dtype=jnp.int32),
+    )
 
-  async def _empty_generator():
-      if False:
-          yield
-
-  states_generator = residue_states_from_ensemble(
+  logits, nodes, edges = residue_states_from_ensemble(
       prng_key=jax.random.PRNGKey(42),
       model_parameters=mock_model_parameters,
       decoding_order_fn=mock_decoding_order_fn,
-      ensemble=_empty_generator(),
+      ensemble=empty_protein,
   )
-  states_list = [s async for s in states_generator]
-  assert not states_list
+  assert logits.shape[0] == 0
+  assert nodes.shape[0] == 0
+  assert edges.shape[0] == 0
 
 
-@pytest.mark.anyio
 @patch('prxteinmpnn.ensemble.residue_states.make_conditional_logits_fn')
-async def test_residue_states_single_frame_ensemble(
+def test_residue_states_single_frame_ensemble(
     mock_make_logits_fn, mock_model_parameters, mock_decoding_order_fn
 ):
     """Tests that an ensemble with a single frame yields exactly one result."""
     key = jax.random.PRNGKey(456)
 
-    async def _single_generator():
-        protein = Protein(
-            coordinates=jax.random.normal(key, (L_GLOBAL, 37, 3)),
-            aatype=jax.random.randint(key, (L_GLOBAL,), 0, 21, dtype=jnp.int8),
-            atom_mask=jnp.ones((L_GLOBAL, 37), dtype=jnp.int32),
-            residue_index=jnp.arange(L_GLOBAL, dtype=jnp.int32),
-            chain_index=jnp.zeros(L_GLOBAL, dtype=jnp.int32),
-        )
-        yield protein, "single_protein"
+    aatype = jax.random.randint(key, (L_GLOBAL,), 0, 21, dtype=jnp.int8)
+    one_hot_sequence = jax.nn.one_hot(aatype, 21)
+    protein = Protein(
+        coordinates=jax.random.normal(key, (L_GLOBAL, 37, 3)),
+        aatype=aatype,
+        one_hot_sequence=one_hot_sequence,
+        atom_mask=jnp.ones((L_GLOBAL, 37), dtype=jnp.int32),
+        residue_index=jnp.arange(L_GLOBAL, dtype=jnp.int32),
+        chain_index=jnp.zeros(L_GLOBAL, dtype=jnp.int32),
+    )
+    single_frame_ensemble = jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, axis=0), protein)
 
-    mock_make_logits_fn.return_value = Mock(return_value=(None, None, None))
+    mock_logits_fn = Mock(return_value=(
+        jnp.ones((L_GLOBAL, 21)),
+        jnp.zeros((L_GLOBAL, 128)),
+        jnp.zeros((L_GLOBAL, K_NEIGHBORS, 128)),
+    ))
+    mock_make_logits_fn.return_value = mock_logits_fn
 
-    states_generator = residue_states_from_ensemble(
+    logits, _, _ = residue_states_from_ensemble(
         prng_key=key,
         model_parameters=mock_model_parameters,
         decoding_order_fn=mock_decoding_order_fn,
-        ensemble=_single_generator(),
+        ensemble=single_frame_ensemble,
     )
-    states_list = [s async for s in states_generator]
 
-    assert len(states_list) == 1, "A single-frame ensemble should yield exactly one result."
+    assert logits.shape[0] == 1, "A single-frame ensemble should yield exactly one result."
 
 
-@pytest.mark.anyio
-@patch('jax.random.fold_in')
-@patch('prxteinmpnn.ensemble.residue_states.make_conditional_logits_fn')
-async def test_prng_key_generation_with_fold_in(
-    mock_make_logits_fn, mock_fold_in, mock_model_parameters, mock_decoding_order_fn, mock_protein_ensemble
-):
-    """Tests that PRNG keys are correctly generated using fold_in for each frame."""
-    key = jax.random.PRNGKey(789)
-    n_frames = 3
-    # The actual return value doesn't matter, only the number of calls
-    mock_make_logits_fn.return_value.return_value = (None, None, None)
-
-    # Consume the generator to trigger the calls
-    states_generator = residue_states_from_ensemble(
-        prng_key=key,
-        model_parameters=mock_model_parameters,
-        decoding_order_fn=mock_decoding_order_fn,
-        ensemble=mock_protein_ensemble,
-    )
-    _ = [s async for s in states_generator]
-
-    # The main key is folded in for each frame.
-    assert mock_fold_in.call_count == n_frames
-
-    # Check that it was called with indices 0, 1, 2, ...
-    for i in range(n_frames):
-        call_index = mock_fold_in.call_args_list[i].args[1]
-        assert call_index == i

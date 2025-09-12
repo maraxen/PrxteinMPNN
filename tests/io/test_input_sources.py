@@ -1,5 +1,4 @@
 import pathlib
-from concurrent.futures import ProcessPoolExecutor
 from io import StringIO
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -26,12 +25,6 @@ async def _collect(async_gen):
 
 
 # --- Fixtures ---
-
-
-@pytest.fixture
-def mock_executor():
-  """Fixture for a mock ProcessPoolExecutor."""
-  return ProcessPoolExecutor()
 
 
 @pytest.fixture
@@ -76,29 +69,42 @@ ATOM 2 C CA ALA A 1 1 ? 28.150 35.200 24.340
 
 
 @pytest.mark.anyio
-async def test_filepathsource_process_success(mock_executor, sample_pdb_string, tmp_path):
+async def test_filepathsource_process_success(mock_protein, sample_pdb_string, tmp_path):
   """Test FilePathSource successfully processes a file."""
   pdb_file = tmp_path / "test.pdb"
   pdb_file.write_text(sample_pdb_string)
 
   source = FilePathSource(str(pdb_file))
-  results = await _collect(source.process(mock_executor))
+
+  async def mock_async_gen():
+    yield (mock_protein, str(pdb_file))
+
+  with patch(
+    "prxteinmpnn.io.input_sources._parse_input_worker",
+    return_value=mock_async_gen(),
+  ):
+    results = await _collect(source.process())
 
   assert len(results) == 1
   protein, path = results[0]
-  assert isinstance(protein, Protein)
+  assert protein is mock_protein
   assert path == str(pdb_file)
 
 
 @pytest.mark.anyio
-async def test_filepathsource_process_failure(mock_executor, tmp_path):
+async def test_filepathsource_process_failure(tmp_path):
   """Test FilePathSource handles exceptions during processing."""
   bad_file = tmp_path / "bad.pdb"
   bad_file.touch()  # Create an empty file that will fail parsing
 
   source = FilePathSource(str(bad_file))
   with pytest.warns(UserWarning, match=f"Failed to process file '{bad_file}'"):
-    results = await _collect(source.process(mock_executor))
+    with patch(
+      "prxteinmpnn.io.input_sources._parse_input_worker",
+      new_callable=AsyncMock,
+    ) as mock_worker:
+      mock_worker.side_effect = Exception("parsing failed")
+      results = await _collect(source.process())
 
   assert results == []
 
@@ -107,7 +113,9 @@ async def test_filepathsource_process_failure(mock_executor, tmp_path):
 
 
 @pytest.mark.anyio
-async def test_directorysource_process(mock_executor, sample_pdb_string, sample_cif_string, tmp_path):
+async def test_directorysource_process(
+  mock_protein, sample_pdb_string, sample_cif_string, tmp_path
+):
   """Test DirectorySource recursively finds and processes files."""
   d = tmp_path / "sub"
   d.mkdir()
@@ -119,7 +127,18 @@ async def test_directorysource_process(mock_executor, sample_pdb_string, sample_
   ignored_file.touch()
 
   source = DirectorySource(tmp_path)
-  results = await _collect(source.process(mock_executor))
+
+  async def mock_gen_p1():
+    yield (mock_protein, str(p1))
+
+  async def mock_gen_p2():
+    yield (mock_protein, str(p2))
+
+  with patch(
+    "prxteinmpnn.io.input_sources._parse_input_worker",
+    side_effect=[mock_gen_p1(), mock_gen_p2()],
+  ):
+    results = await _collect(source.process())
 
   assert len(results) == 2
   yielded_paths = {item[1] for item in results}
@@ -129,25 +148,22 @@ async def test_directorysource_process(mock_executor, sample_pdb_string, sample_
 # --- PDBIDSource Tests ---
 
 
-@patch("prxteinmpnn.io.input_sources.parse_input")
 @pytest.mark.anyio
-async def test_pdbidsource_process_success(mock_parse_input, mock_executor, mock_protein, monkeypatch):
+async def test_pdbidsource_process_success(mock_protein, monkeypatch):
   """Test PDBIDSource successfully fetches and processes a PDB ID."""
   pdb_id = "1ABC"
   pdb_content = "ATOM..."
 
   mock_response = AsyncMock()
-  mock_response.raise_for_status = AsyncMock()  # Must be async
+  mock_response.raise_for_status = AsyncMock()
   mock_response.text = AsyncMock(return_value=pdb_content)
 
-  # This is the context manager returned by session.get()
   mock_get_context_manager = AsyncMock()
   mock_get_context_manager.__aenter__.return_value = mock_response
 
   mock_session = AsyncMock()
   mock_session.get = MagicMock(return_value=mock_get_context_manager)
 
-  # The ClientSession itself is an async context manager
   mock_client_session_context_manager = AsyncMock()
   mock_client_session_context_manager.__aenter__.return_value = mock_session
 
@@ -155,35 +171,41 @@ async def test_pdbidsource_process_success(mock_parse_input, mock_executor, mock
     "aiohttp.ClientSession", MagicMock(return_value=mock_client_session_context_manager)
   )
 
-  mock_parse_input.return_value = [mock_protein]
-
   source = PDBIDSource(pdb_id)
-  results = await _collect(source.process(mock_executor))
+
+  async def mock_async_gen():
+    yield (mock_protein, pdb_id)
+
+  with patch(
+    "prxteinmpnn.io.input_sources._parse_input_worker",
+    return_value=mock_async_gen(),
+  ) as mock_worker:
+    results = await _collect(source.process())
 
   assert results == [(mock_protein, pdb_id)]
   mock_session.get.assert_called_once_with(f"https://files.rcsb.org/download/{pdb_id}.pdb")
-  mock_parse_input.assert_called_once()
-  string_io_arg = mock_parse_input.call_args[0][0]
+  mock_worker.assert_called_once()
+  string_io_arg = mock_worker.call_args[0][0]
   assert isinstance(string_io_arg, StringIO)
   assert string_io_arg.getvalue() == pdb_content
 
 
 @pytest.mark.anyio
-async def test_pdbidsource_process_fetch_failure(mock_executor, monkeypatch):
+async def test_pdbidsource_process_fetch_failure(monkeypatch):
   """Test PDBIDSource handles HTTP fetch failures."""
   pdb_id = "1XYZ"
 
   mock_response = AsyncMock()
-  mock_response.raise_for_status.side_effect = ClientResponseError(MagicMock(), MagicMock(), status=404)
+  mock_response.raise_for_status.side_effect = ClientResponseError(
+    MagicMock(), MagicMock(), status=404
+  )
 
-  # This is the context manager returned by session.get()
   mock_get_context_manager = AsyncMock()
   mock_get_context_manager.__aenter__.return_value = mock_response
 
   mock_session = AsyncMock()
   mock_session.get = MagicMock(return_value=mock_get_context_manager)
 
-  # The ClientSession itself is an async context manager
   mock_client_session_context_manager = AsyncMock()
   mock_client_session_context_manager.__aenter__.return_value = mock_session
 
@@ -192,7 +214,7 @@ async def test_pdbidsource_process_fetch_failure(mock_executor, monkeypatch):
   )
   source = PDBIDSource(pdb_id)
   with pytest.warns(UserWarning, match=f"Failed to fetch or process PDB ID '{pdb_id}'"):
-    results = await _collect(source.process(mock_executor))
+    results = await _collect(source.process())
 
   assert results == []
 
@@ -200,30 +222,39 @@ async def test_pdbidsource_process_fetch_failure(mock_executor, monkeypatch):
 # --- StringIOSource Tests ---
 
 
-@patch("prxteinmpnn.io.input_sources.parse_input")
 @pytest.mark.anyio
-async def test_stringiosource_process_success(mock_parse_input, mock_executor, mock_protein):
+async def test_stringiosource_process_success(mock_protein):
   """Test StringIOSource successfully processes a StringIO object."""
   string_io = StringIO("ATOM...")
-  mock_parse_input.return_value = [mock_protein]
 
   source = StringIOSource(string_io)
-  results = await _collect(source.process(mock_executor))
+
+  async def mock_async_gen():
+    yield (mock_protein, "StringIO")
+
+  with patch(
+    "prxteinmpnn.io.input_sources._parse_input_worker",
+    return_value=mock_async_gen(),
+  ) as mock_worker:
+    results = await _collect(source.process())
 
   assert results == [(mock_protein, "StringIO")]
-  mock_parse_input.assert_called_once_with(string_io, **{})
+  mock_worker.assert_called_once_with(string_io, **{})
 
 
-@patch("prxteinmpnn.io.input_sources.parse_input")
 @pytest.mark.anyio
-async def test_stringiosource_process_failure(mock_parse_input, mock_executor):
+async def test_stringiosource_process_failure():
   """Test StringIOSource handles exceptions during processing."""
   string_io = StringIO("ATOM...")
-  mock_parse_input.side_effect = ValueError("Parsing failed")
 
   source = StringIOSource(string_io)
   with pytest.warns(UserWarning, match="Failed to process StringIO input: Parsing failed"):
-    results = await _collect(source.process(mock_executor))
+    with patch(
+      "prxteinmpnn.io.input_sources._parse_input_worker",
+      new_callable=AsyncMock,
+    ) as mock_worker:
+      mock_worker.side_effect = ValueError("Parsing failed")
+      results = await _collect(source.process())
 
   assert results == []
 
@@ -234,50 +265,51 @@ async def test_stringiosource_process_failure(mock_parse_input, mock_executor):
 @pytest.mark.anyio
 async def test_foldcomp_process_no_db_warns():
   """Test that process warns and yields nothing when no FoldComp database is provided."""
-  source = FoldCompSource(["AF-ABCDEF-1-model_v1"], foldcomp_database=None)
+  source = FoldCompSource(["AF-ABCDEF-1-model_v1"], foldcomp_database=None)  # type: ignore
   with pytest.warns(UserWarning, match="FoldComp IDs provided but no database specified."):
-    results = await _collect(source.process(None))
+    results = await _collect(source.process())
   assert results == []
 
 
-@patch("prxteinmpnn.io.input_sources.get_protein_structures")
 @pytest.mark.anyio
-async def test_foldcomp_process_success_yields(mock_get_structures, mock_executor):
+async def test_foldcomp_process_success_yields():
   """Test that process yields protein objects paired with the provided IDs on success."""
   fake_proteins = [MagicMock(spec=Protein), MagicMock(spec=Protein)]
   ids = ["AF-ABCDE1-1-model_v1"]
-  db = "fake_db"
+  db = "esmatlas"
 
-  with patch.object(mock_executor, "submit") as mock_submit:
-    future = MagicMock()
-    future.result.return_value = fake_proteins
-    mock_submit.return_value = future
+  source = FoldCompSource(ids, foldcomp_database=db)
 
-    source = FoldCompSource(ids, foldcomp_database=db)
-    results = await _collect(source.process(mock_executor))
+  async def mock_async_gen():
+    yield (fake_proteins[0], ids[0])
+    yield (fake_proteins[1], ids[0])
 
-    expected = [(fake_proteins[0], ids), (fake_proteins[1], ids)]
+  with patch(
+    "prxteinmpnn.io.input_sources._get_protein_structures_worker",
+    return_value=mock_async_gen(),
+  ) as mock_worker:
+    results = await _collect(source.process())
+
+    expected = [(fake_proteins[0], ids[0]), (fake_proteins[1], ids[0])]
     assert results == expected
-    mock_submit.assert_called_once_with(mock_get_structures, ids, db)
+    mock_worker.assert_called_once_with(ids, db)
 
 
-@patch("prxteinmpnn.io.input_sources.get_protein_structures")
 @pytest.mark.anyio
-async def test_foldcomp_process_exception_warns(mock_get_structures, mock_executor):
+async def test_foldcomp_process_exception_warns():
   """Test that exceptions from the foldcomp fetch are caught and produce a warning."""
   ids = ["AF-ERR01-1-model_v1"]
-  db = "db"
+  db = "esmatlas"
 
-  with patch.object(mock_executor, "submit") as mock_submit:
-    future = MagicMock()
-    future.result.side_effect = RuntimeError("simulated failure")
-    mock_submit.return_value = future
-
-    source = FoldCompSource(ids, foldcomp_database=db)
-    with pytest.warns(UserWarning, match="Failed to process FoldComp IDs:"):
-      results = await _collect(source.process(mock_executor))
-    assert results == []
-    mock_submit.assert_called_once_with(mock_get_structures, ids, db)
+  source = FoldCompSource(ids, foldcomp_database=db)
+  with pytest.warns(UserWarning, match="Failed to process FoldComp IDs:"):
+    with patch(
+      "prxteinmpnn.io.input_sources._get_protein_structures_worker",
+      new_callable=AsyncMock,
+    ) as mock_worker:
+      mock_worker.side_effect = RuntimeError("simulated failure")
+      results = await _collect(source.process())
+  assert results == []
 
 
 # --- get_source_handler Tests ---

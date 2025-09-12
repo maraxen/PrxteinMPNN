@@ -20,6 +20,7 @@ def dummy_protein() -> Protein:
     atom_mask=jnp.ones((10, 37)),
     residue_index=jnp.arange(10),
     chain_index=jnp.zeros(10, dtype=jnp.int32),
+    one_hot_sequence=jnp.zeros((10, 21))
   )
 
 
@@ -28,26 +29,57 @@ async def async_gen_from_list(items):
   for item in items:
     yield item
 
+    @pytest.mark.anyio
+    class TestLoadFunction:
+      """Tests for the load function."""
 
-@pytest.mark.anyio
-class TestLoadFunction:
-  """Tests for the load function."""
+      async def test_load_single_input(self, dummy_protein):
+        """Test loading from a single valid input string."""
+        mock_handler = MagicMock()
+        mock_handler.process.return_value = [(dummy_protein, "file.pdb")]
 
-  async def test_load_single_input(self, dummy_protein):
-    """Test loading from a single valid input string."""
-    mock_handler = MagicMock()
-    mock_handler.process.return_value = async_gen_from_list([(dummy_protein, "file.pdb")])
+        with patch("prxteinmpnn.io.process.get_source_handler", return_value=mock_handler) as mock_get_handler, patch(
+          "prxteinmpnn.io.process.anyio.create_task_group"
+        ) as mock_task_group:
+          # Mock the async context manager
+          mock_tg = MagicMock()
+          mock_task_group.return_value.__aenter__.return_value = mock_tg
 
-    with patch("prxteinmpnn.io.process.get_source_handler", return_value=mock_handler) as mock_get_handler, patch(
-      "prxteinmpnn.io.process.ProcessPoolExecutor",
-    ):
-      inputs = "file.pdb"
-      results = [p async for p in load(inputs)]
+          async def process_and_collect(handler, results):
+            results.extend(handler.process())
 
-      mock_get_handler.assert_called_once_with(inputs, **{})
-      mock_handler.process.assert_called_once()
-      assert len(results) == 1
-      assert results[0] == (dummy_protein, "file.pdb")
+          mock_tg.start_soon.side_effect = process_and_collect
+
+          inputs = "file.pdb"
+          proteins, sources = await load(inputs)
+
+          expected_kwargs = {"model": None, "altloc": "first", "chain_id": None}
+          mock_get_handler.assert_called_once_with(inputs, **expected_kwargs)
+          mock_handler.process.assert_called_once()
+          assert len(proteins) == 1
+          assert len(sources) == 1
+          assert proteins[0] == dummy_protein
+          assert sources[0] == "file.pdb"
+
+      async def test_load_raises_error_on_empty_result(self):
+        """Test that load raises a ValueError if no proteins are loaded."""
+        mock_handler = MagicMock()
+        mock_handler.process.return_value = []  # No proteins processed
+
+        with patch("prxteinmpnn.io.process.get_source_handler", return_value=mock_handler), patch(
+          "prxteinmpnn.io.process.anyio.create_task_group"
+        ) as mock_task_group:
+          mock_tg = MagicMock()
+          mock_task_group.return_value.__aenter__.return_value = mock_tg
+
+          async def process_and_collect(handler, results):
+            results.extend(handler.process())
+
+          mock_tg.start_soon.side_effect = process_and_collect
+
+          with pytest.raises(ValueError, match="Cannot batch an empty ProteinEnsemble."):
+            await load("file.pdb")
+
 
   async def test_load_stringio_input(self, dummy_protein):
     """Test loading from a single StringIO input."""
@@ -59,7 +91,7 @@ class TestLoadFunction:
     with patch("prxteinmpnn.io.process.get_source_handler", return_value=mock_handler) as mock_get_handler, patch(
       "prxteinmpnn.io.process.ProcessPoolExecutor",
     ):
-      results = [p async for p in load(string_io_input)]
+      results = [p for p in await load(string_io_input)]
 
       mock_get_handler.assert_called_once_with(string_io_input, **{})
       mock_handler.process.assert_called_once()

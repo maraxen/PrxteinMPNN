@@ -136,14 +136,16 @@ def make_conditional_logits_fn(
     if backbone_noise is None:
       backbone_noise = jnp.array(0.0, dtype=jnp.float32)
 
-    autoregressive_mask = 1 - jnp.eye(structure_coordinates.shape[0])
+    autoregressive_mask = (
+      1 - jnp.eye(structure_coordinates.shape[0]) if decoding_order_fn is None else None
+    )
 
     (
       node_features,
       edge_features,
       neighbor_indices,
       _,  # decoding_order
-      _,  # autoregressive_mask
+      autoregressive_mask,  # autoregressive_mask
       _,  # next_rng_key (not needed for this function)
     ) = sample_model_pass(
       prng_key,

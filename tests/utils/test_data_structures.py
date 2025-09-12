@@ -15,6 +15,7 @@ def test_protein_structure_frozen():
     p = Protein(
         coordinates=jnp.zeros((1, 1, 3)),
         aatype=jnp.zeros((1,)),
+        one_hot_sequence=jnp.zeros((1, 21)),
         atom_mask=jnp.zeros((1, 1)),
         residue_index=jnp.zeros((1,)),
         chain_index=jnp.zeros((1,)),

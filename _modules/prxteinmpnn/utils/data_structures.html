@@ -407,7 +407,7 @@ document.write(`
 <a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein">[docs]</a>
 <span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">Protein</span><span class="p">:</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Protein structure representation.</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Protein structure or ensemble representation.</span>
 
 <span class="sd">  Attributes:</span>
 <span class="sd">    coordinates (StructureAtomicCoordinates): Atom positions in the structure, represented as a</span>
@@ -435,7 +435,7 @@ document.write(`
 
 
 
-<span class="n">ProteinEnsemble</span> <span class="o">=</span> <span class="n">AsyncGenerator</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">ProteinTuple</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span>
+<span class="n">ProteinStream</span> <span class="o">=</span> <span class="n">AsyncGenerator</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">ProteinTuple</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span>
 
 
 <span class="n">OligomerType</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;monomer&quot;</span><span class="p">,</span> <span class="s2">&quot;heteromer&quot;</span><span class="p">,</span> <span class="s2">&quot;homooligomer&quot;</span><span class="p">,</span> <span class="s2">&quot;tied_homooligomer&quot;</span><span class="p">]</span>

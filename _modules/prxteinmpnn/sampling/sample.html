@@ -424,8 +424,7 @@ document.write(`
   <span class="n">sample_model_pass</span> <span class="o">=</span> <span class="n">sampling_encode</span><span class="p">(</span><span class="n">encoder</span><span class="o">=</span><span class="n">encoder</span><span class="p">,</span> <span class="n">decoding_order_fn</span><span class="o">=</span><span class="n">decoding_order_fn</span><span class="p">)</span>
 
   <span class="n">optimize_seq_fn</span> <span class="o">=</span> <span class="n">make_optimize_sequence_fn</span><span class="p">(</span>
-    <span class="n">autoregressive_decoder</span><span class="o">=</span><span class="n">autoregressive_decoder</span><span class="p">,</span>
-    <span class="n">conditional_decoder</span><span class="o">=</span><span class="n">conditional_decoder</span><span class="p">,</span>
+    <span class="n">decoder</span><span class="o">=</span><span class="n">conditional_decoder</span><span class="p">,</span>
     <span class="n">decoding_order_fn</span><span class="o">=</span><span class="n">decoding_order_fn</span><span class="p">,</span>
     <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>
   <span class="p">)</span>

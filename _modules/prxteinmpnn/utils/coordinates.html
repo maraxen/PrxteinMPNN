@@ -386,12 +386,10 @@ document.write(`
 <span class="sd">    &gt;&gt;&gt; noisy_coords, new_key = apply_noise_to_coordinates(coords, key, 0.1)</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
-  <span class="n">jax</span><span class="o">.</span><span class="n">debug</span><span class="o">.</span><span class="n">print</span><span class="p">(</span><span class="s2">&quot;Applying noise with std: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">backbone_noise</span><span class="p">)</span>
   <span class="n">key</span><span class="p">,</span> <span class="n">coord_key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
 
   <span class="k">def</span><span class="w"> </span><span class="nf">add_noise</span><span class="p">(</span><span class="n">coords</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">StructureAtomicCoordinates</span><span class="p">:</span>
     <span class="n">noise</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="n">coord_key</span><span class="p">,</span> <span class="n">coords</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-    <span class="n">jax</span><span class="o">.</span><span class="n">debug</span><span class="o">.</span><span class="n">print</span><span class="p">(</span><span class="s2">&quot;Noise shape: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">noise</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">coords</span> <span class="o">+</span> <span class="n">backbone_noise</span> <span class="o">*</span> <span class="n">noise</span>
 
   <span class="k">def</span><span class="w"> </span><span class="nf">no_noise</span><span class="p">(</span><span class="n">coords</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">StructureAtomicCoordinates</span><span class="p">:</span>
@@ -403,8 +401,6 @@ document.write(`
     <span class="n">no_noise</span><span class="p">,</span>
     <span class="n">coordinates</span><span class="p">,</span>
   <span class="p">)</span>
-  <span class="n">jax</span><span class="o">.</span><span class="n">debug</span><span class="o">.</span><span class="n">print</span><span class="p">(</span><span class="s2">&quot;Noise applied.&quot;</span><span class="p">)</span>
-  <span class="n">jax</span><span class="o">.</span><span class="n">debug</span><span class="o">.</span><span class="n">print</span><span class="p">(</span><span class="s2">&quot;Noisy coordinates shape: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">noisy_coordinates</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
   <span class="k">return</span> <span class="n">noisy_coordinates</span><span class="p">,</span> <span class="n">key</span></div>
 
 

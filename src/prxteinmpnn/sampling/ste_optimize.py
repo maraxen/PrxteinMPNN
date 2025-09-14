@@ -94,24 +94,6 @@ def make_optimize_sequence_fn(
     optimizer = optax.adam(learning_rate)
     opt_state = optimizer.init(sequence_logits)
 
-    node_features_batched = jnp.repeat(
-      node_features[jnp.newaxis, ...],
-      batch_size,
-      axis=0,
-    )
-    edge_features_batched = jnp.repeat(
-      edge_features[jnp.newaxis, ...],
-      batch_size,
-      axis=0,
-    )
-    neighbor_indices_batched = jnp.repeat(
-      neighbor_indices[jnp.newaxis, ...],
-      batch_size,
-      axis=0,
-    )
-
-    mask_batched = jnp.repeat(mask[jnp.newaxis, ...], batch_size, axis=0)
-
     @jax.jit
     def update_step(
       carry: tuple[Logits, optax.OptState],
@@ -128,20 +110,16 @@ def make_optimize_sequence_fn(
 
       def loss_fn(logits: Logits) -> jnp.ndarray:
         one_hot_sequence = straight_through_estimator(logits / temperature)
-        one_hot_sequence_batched = jnp.repeat(
-          one_hot_sequence[jnp.newaxis, ...],
-          batch_size,
-          axis=0,
+
+        decoded_features = jax.vmap(decoder, in_axes=(None, None, None, None, 0, None))(
+          node_features,
+          edge_features,
+          neighbor_indices,
+          mask,
+          ar_mask,
+          one_hot_sequence,
         )
 
-        decoded_features = decoder(
-          node_features_batched,
-          edge_features_batched,
-          neighbor_indices_batched,
-          mask_batched,
-          ar_mask,
-          one_hot_sequence_batched,
-        )
         output_logits = final_projection(model_parameters, decoded_features)
 
         loss = optax.softmax_cross_entropy(logits=output_logits, labels=one_hot_sequence)

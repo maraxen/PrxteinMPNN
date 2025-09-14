@@ -62,7 +62,7 @@ def tuple_to_protein(t: ProteinTuple) -> Protein:
   )
 
 
-def _compute_cross_protein_jacobian_diffs(
+def compute_cross_protein_jacobian_diffs(
   jacobians: jax.Array,
   mapping: jax.Array,
 ) -> jax.Array:
@@ -83,12 +83,13 @@ def _compute_cross_protein_jacobian_diffs(
   if n_pairs == 0:
     return jnp.empty((0, noise_levels, max_len, 21, max_len, 21))
 
-  def compute_pair_diff(pair_idx: jax.Array) -> jax.Array:
+  def compute_pair_diff(
+    pair_idx: jax.Array,
+    protein_indices: jax.Array,
+  ) -> jax.Array:
     """Compute Jacobian difference for a single protein pair."""
     pair_mapping = mapping[pair_idx]  # (max_length, 2)
-
-    protein_i_idx = 0
-    protein_j_idx = pair_idx + 1
+    protein_i_idx, protein_j_idx = protein_indices
 
     # Check if the pair is valid (both proteins exist)
     pair_valid = protein_j_idx < batch_size
@@ -133,9 +134,12 @@ def _compute_cross_protein_jacobian_diffs(
     # Apply mask: where valid, use difference; where invalid, use NaN
     return jnp.where(mask_broadcast, diff, jnp.nan)
 
-  # Compute differences for all pairs
   pair_indices = jnp.arange(n_pairs)
-  return jax.vmap(compute_pair_diff)(pair_indices)
+  rows, cols = jnp.triu_indices(batch_size, k=1)
+  protein_indices = jnp.stack([rows, cols], axis=-1)
+  jax.debug.print("protein_indices: {}", protein_indices)
+
+  return jax.vmap(compute_pair_diff)(pair_indices, protein_indices)
 
 
 async def score(
@@ -502,13 +506,12 @@ async def categorical_jacobian(
       batch_size=inner_batch_size,
     )
 
-    raw_jacobian = jacobian_flat.reshape(length, 21, length, 21)
-    return apc_corrected_frobenius_norm(raw_jacobian)
+    return jacobian_flat.reshape(length, 21, length, 21)
 
   vmap_over_noise = jax.vmap(
     compute_jacobian_for_structure,
     in_axes=(None, None, None, None, None, 0),
-    out_axes=0,
+    out_axes=(0, 0),
   )
 
   def mapped_fn(
@@ -534,11 +537,21 @@ async def categorical_jacobian(
     ),
     batch_size=outer_batch_size,
   )
+  logger.info("Computed categorical Jacobians.")
+  apc_jacobians = jax.vmap(
+    jax.vmap(
+      apc_corrected_frobenius_norm,
+      in_axes=0,
+      out_axes=0,
+    ),
+    in_axes=0,
+    out_axes=0,
+  )(jacobians)
 
   cross_protein_diffs = None
   if calculate_cross_diff and batched_ensemble.mapping is not None:
-    cross_protein_diffs = _compute_cross_protein_jacobian_diffs(
-      jacobians,
+    cross_protein_diffs = compute_cross_protein_jacobian_diffs(
+      apc_jacobians,
       batched_ensemble.mapping,
     )
 
@@ -560,6 +573,7 @@ async def categorical_jacobian(
             21,
           ),
         )
+    logger.info("Computed cross-protein Jacobian differences.")
 
   return {
     "categorical_jacobians": jacobians,

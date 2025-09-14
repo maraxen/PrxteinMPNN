@@ -35,6 +35,7 @@ from prxteinmpnn.sampling.conditional_logits import make_conditional_logits_fn
 from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.scoring.score import make_score_sequence
 from prxteinmpnn.utils.aa_convert import string_to_protein_sequence
+from prxteinmpnn.utils.apc import apc_corrected_frobenius_norm
 from prxteinmpnn.utils.batching import (
   batch_and_pad_proteins,
 )
@@ -80,18 +81,11 @@ def _compute_cross_protein_jacobian_diffs(
   n_pairs = mapping.shape[0] if mapping.size > 0 else 0
 
   if n_pairs == 0:
-    # Return empty array with correct shape
     return jnp.empty((0, noise_levels, max_len, 21, max_len, 21))
 
   def compute_pair_diff(pair_idx: jax.Array) -> jax.Array:
     """Compute Jacobian difference for a single protein pair."""
     pair_mapping = mapping[pair_idx]  # (max_length, 2)
-
-    # For the test cases, we need to figure out which proteins to compare
-    # Based on the test structure, it seems like:
-    # - First pair (index 0): compare proteins 0 and 1
-    # - Second pair (index 1): compare proteins 0 and 2
-    # This suggests a pattern where pair k compares protein 0 vs protein (k+1)
 
     protein_i_idx = 0
     protein_j_idx = pair_idx + 1
@@ -506,10 +500,10 @@ async def categorical_jacobian(
       chunked_jacobian,
       jnp.arange(input_dim),
       batch_size=inner_batch_size,
-    )  # Shape: (length * 21, length * 21)
+    )
 
-    # Reshape to (length, 21, length, 21)
-    return jacobian_flat.reshape(length, 21, length, 21)
+    raw_jacobian = jacobian_flat.reshape(length, 21, length, 21)
+    return apc_corrected_frobenius_norm(raw_jacobian)
 
   vmap_over_noise = jax.vmap(
     compute_jacobian_for_structure,
@@ -541,7 +535,6 @@ async def categorical_jacobian(
     batch_size=outer_batch_size,
   )
 
-  # Compute cross-protein differences if mapping is available
   cross_protein_diffs = None
   if calculate_cross_diff and batched_ensemble.mapping is not None:
     cross_protein_diffs = _compute_cross_protein_jacobian_diffs(

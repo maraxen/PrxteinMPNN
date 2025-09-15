@@ -20,6 +20,9 @@ dependencies = [
     "numpy",
     "aiofiles",
     "anyio",
+    "mdtraj",
+    "optax",
+    "h5py",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",

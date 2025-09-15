@@ -344,6 +344,7 @@ document.write(`
  | <a href="#R"><strong>R</strong></a>
  | <a href="#S"><strong>S</strong></a>
  | <a href="#T"><strong>T</strong></a>
+ | <a href="#V"><strong>V</strong></a>
  
 </div>
 <h2 id="_">_</h2>
@@ -372,6 +373,8 @@ document.write(`
 </li>
         <li><a href="api/prxteinmpnn.utils.data_structures.html#id1">(prxteinmpnn.utils.data_structures.ProteinTuple attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinTuple.aatype">[1]</a>
 </li>
+        <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.aatype">(prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures attribute)</a>
+</li>
       </ul></li>
       <li><a href="api/prxteinmpnn.utils.aa_convert.html#prxteinmpnn.utils.aa_convert.af_to_mpnn">af_to_mpnn() (in module prxteinmpnn.utils.aa_convert)</a>
 </li>
@@ -394,6 +397,8 @@ document.write(`
 </li>
       </ul></li>
       <li><a href="api/prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.BondAngle.atom3name">atom3name (prxteinmpnn.utils.residue_constants.BondAngle attribute)</a>
+</li>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.atom_indices_flat">atom_indices_flat (prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures attribute)</a>
 </li>
       <li><a href="api/prxteinmpnn.utils.data_structures.html#id8">atom_mask (prxteinmpnn.utils.data_structures.Protein attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.atom_mask">[1]</a>
 
@@ -428,6 +433,8 @@ document.write(`
 </li>
         <li><a href="api/prxteinmpnn.utils.data_structures.html#id4">(prxteinmpnn.utils.data_structures.ProteinTuple attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinTuple.chain_index">[1]</a>
 </li>
+        <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.chain_index">(prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures attribute)</a>
+</li>
       </ul></li>
       <li><a href="api/prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.chi_angle_atom">chi_angle_atom() (in module prxteinmpnn.utils.residue_constants)</a>
 </li>
@@ -435,10 +442,10 @@ document.write(`
 </li>
       <li><a href="api/prxteinmpnn.utils.coordinates.html#prxteinmpnn.utils.coordinates.compute_backbone_distance">compute_backbone_distance() (in module prxteinmpnn.utils.coordinates)</a>
 </li>
-      <li><a href="api/prxteinmpnn.utils.coordinates.html#prxteinmpnn.utils.coordinates.compute_c_beta">compute_c_beta() (in module prxteinmpnn.utils.coordinates)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/prxteinmpnn.utils.coordinates.html#prxteinmpnn.utils.coordinates.compute_c_beta">compute_c_beta() (in module prxteinmpnn.utils.coordinates)</a>
+</li>
       <li><a href="api/prxteinmpnn.utils.coordinates.html#prxteinmpnn.utils.coordinates.compute_cb_precise">compute_cb_precise() (in module prxteinmpnn.utils.coordinates)</a>
 </li>
       <li><a href="api/prxteinmpnn.utils.graph.html#prxteinmpnn.utils.graph.compute_neighbor_offsets">compute_neighbor_offsets() (in module prxteinmpnn.utils.graph)</a>
@@ -680,7 +687,13 @@ document.write(`
 <h2 id="N">N</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.nitrogen_mask">nitrogen_mask (prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures attribute)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/prxteinmpnn.utils.normalize.html#prxteinmpnn.utils.normalize.normalize">normalize() (in module prxteinmpnn.utils.normalize)</a>
+</li>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.num_residues">num_residues (prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures attribute)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -947,6 +960,8 @@ document.write(`
         <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinEnsemble.replace">(prxteinmpnn.utils.data_structures.ProteinEnsemble method)</a>
 </li>
       </ul></li>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.res_indices_flat">res_indices_flat (prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures attribute)</a>
+</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/prxteinmpnn.utils.data_structures.html#id9">residue_index (prxteinmpnn.utils.data_structures.Protein attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.residue_index">[1]</a>
@@ -957,6 +972,8 @@ document.write(`
         <li><a href="api/prxteinmpnn.utils.data_structures.html#id3">(prxteinmpnn.utils.data_structures.ProteinTuple attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinTuple.residue_index">[1]</a>
 </li>
       </ul></li>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.residue_indices">residue_indices (prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures attribute)</a>
+</li>
   </ul></td>
 </tr></table>
 
@@ -973,6 +990,8 @@ document.write(`
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.static_atom_mask_37">static_atom_mask_37 (prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures attribute)</a>
+</li>
       <li><a href="api/prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.Bond.stddev">stddev (prxteinmpnn.utils.residue_constants.Bond attribute)</a>
 
       <ul>
@@ -990,6 +1009,18 @@ document.write(`
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.sampling_step.temperature_sample">temperature_sample() (in module prxteinmpnn.sampling.sampling_step)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures">TrajectoryStaticFeatures (class in prxteinmpnn.utils.data_structures)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="V">V</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.valid_atom_mask">valid_atom_mask (prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures attribute)</a>
 </li>
   </ul></td>
 </tr></table>

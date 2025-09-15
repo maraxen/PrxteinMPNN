@@ -370,6 +370,8 @@ document.write(`
     <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
   <span class="p">)</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TypedDict</span>
+
 
 <div class="viewcode-block" id="ProteinTuple">
 <a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinTuple">[docs]</a>
@@ -381,8 +383,10 @@ document.write(`
 <span class="sd">      3D array. Cartesian coordinates of atoms in angstroms.</span>
 <span class="sd">      The atom types correspond to residue_constants.atom_types, i.e. the first three are N, CA, CB.</span>
 <span class="sd">      Shape is (num_res, num_atom_type, 3), where num_res is the number of residues,</span>
-<span class="sd">      num_atom_type is the number of atom types (e.g., N, CA, CB, C, O), and 3 is the spatial dimension (x, y, z).</span>
-<span class="sd">    aatype (ProteinSequence): Amino-acid type for each residue represented as an integer between 0 and 20,</span>
+<span class="sd">      num_atom_type is the number of atom types (e.g., N, CA, CB, C, O), and 3 is the spatial</span>
+<span class="sd">      dimension (x, y, z).</span>
+<span class="sd">    aatype (ProteinSequence): Amino-acid type for each residue represented as an integer between 0</span>
+<span class="sd">    and 20,</span>
 <span class="sd">      where 20 is &#39;X&#39;. Shape is [num_res].</span>
 <span class="sd">    atom_mask (AtomMask): Binary float mask to indicate presence of a particular atom.</span>
 <span class="sd">      1.0 if an atom is present and 0.0 if not. This should be used for loss masking.</span>
@@ -401,6 +405,23 @@ document.write(`
   <span class="n">residue_index</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
   <span class="n">chain_index</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
   <span class="n">dihedrals</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+
+<div class="viewcode-block" id="TrajectoryStaticFeatures">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">TrajectoryStaticFeatures</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;A container for pre-computed, frame-invariant protein features.&quot;&quot;&quot;</span>
+
+  <span class="n">aatype</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+  <span class="n">static_atom_mask_37</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+  <span class="n">residue_indices</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+  <span class="n">chain_index</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+  <span class="n">res_indices_flat</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+  <span class="n">atom_indices_flat</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+  <span class="n">valid_atom_mask</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+  <span class="n">nitrogen_mask</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+  <span class="n">num_residues</span><span class="p">:</span> <span class="nb">int</span></div>
 
 
 

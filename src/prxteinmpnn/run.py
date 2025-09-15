@@ -400,8 +400,9 @@ async def categorical_jacobian(
   rng_key: int = 0,
   backbone_noise: float | list[float] | ArrayLike = 0.0,
   mode: Literal["full", "diagonal"] = "full",
-  outer_batch_size: int = 1,
-  inner_batch_size: int = 16,
+  protein_batch_size: int = 1,
+  noise_batch_size: int = 1,
+  jacobian_batch_size: int = 16,
   *,
   calculate_cross_diff: bool = False,
   **kwargs: Any,  # noqa: ANN401
@@ -504,15 +505,10 @@ async def categorical_jacobian(
     jacobian_flat = jax.lax.map(
       chunked_jacobian,
       jnp.arange(input_dim),
-      batch_size=inner_batch_size,
+      batch_size=jacobian_batch_size,
     )
 
     return jacobian_flat.reshape(length, 21, length, 21)
-
-  vmap_over_noise = jax.vmap(
-    compute_jacobian_for_structure,
-    in_axes=(None, None, None, None, None, 0),
-  )
 
   def mapped_fn(
     input_tuple: tuple[
@@ -523,8 +519,15 @@ async def categorical_jacobian(
       OneHotProteinSequence,
     ],
   ) -> jax.Array:
-    """Map over a single structure, vector mapping over noise levels."""
-    return vmap_over_noise(*input_tuple, backbone_noise)
+    """Map over a single structure, mapping over noise levels."""
+    return jax.lax.map(
+      partial(
+        compute_jacobian_for_structure,
+        *input_tuple,
+      ),
+      backbone_noise,
+      batch_size=noise_batch_size,
+    )
 
   jacobians: jax.Array = jax.lax.map(
     mapped_fn,
@@ -535,7 +538,7 @@ async def categorical_jacobian(
       batched_ensemble.chain_index,
       batched_ensemble.one_hot_sequence,  # type: ignore[arg-type]
     ),
-    batch_size=outer_batch_size,
+    batch_size=protein_batch_size,
   )
   logger.info("Computed categorical Jacobians.")
   apc_jacobians = jax.vmap(

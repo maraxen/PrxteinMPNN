@@ -512,7 +512,6 @@ async def categorical_jacobian(
   vmap_over_noise = jax.vmap(
     compute_jacobian_for_structure,
     in_axes=(None, None, None, None, None, 0),
-    out_axes=(0, 0),
   )
 
   def mapped_fn(

@@ -24,6 +24,8 @@ if TYPE_CHECKING:
     StructureAtomicCoordinates,
   )
 
+from typing import TypedDict
+
 
 class ProteinTuple(NamedTuple):
   """Tuple-based protein structure representation.
@@ -33,8 +35,10 @@ class ProteinTuple(NamedTuple):
       3D array. Cartesian coordinates of atoms in angstroms.
       The atom types correspond to residue_constants.atom_types, i.e. the first three are N, CA, CB.
       Shape is (num_res, num_atom_type, 3), where num_res is the number of residues,
-      num_atom_type is the number of atom types (e.g., N, CA, CB, C, O), and 3 is the spatial dimension (x, y, z).
-    aatype (ProteinSequence): Amino-acid type for each residue represented as an integer between 0 and 20,
+      num_atom_type is the number of atom types (e.g., N, CA, CB, C, O), and 3 is the spatial
+      dimension (x, y, z).
+    aatype (ProteinSequence): Amino-acid type for each residue represented as an integer between 0
+    and 20,
       where 20 is 'X'. Shape is [num_res].
     atom_mask (AtomMask): Binary float mask to indicate presence of a particular atom.
       1.0 if an atom is present and 0.0 if not. This should be used for loss masking.
@@ -53,6 +57,20 @@ class ProteinTuple(NamedTuple):
   residue_index: np.ndarray
   chain_index: np.ndarray
   dihedrals: np.ndarray | None = None
+
+
+class TrajectoryStaticFeatures(TypedDict):
+  """A container for pre-computed, frame-invariant protein features."""
+
+  aatype: np.ndarray
+  static_atom_mask_37: np.ndarray
+  residue_indices: np.ndarray
+  chain_index: np.ndarray
+  res_indices_flat: np.ndarray
+  atom_indices_flat: np.ndarray
+  valid_atom_mask: np.ndarray
+  nitrogen_mask: np.ndarray
+  num_residues: int
 
 
 @dataclass(frozen=True)

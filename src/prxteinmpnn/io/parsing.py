@@ -13,13 +13,14 @@ from collections.abc import Mapping, Sequence
 from io import StringIO
 from typing import Any, cast
 
+import mdtraj as md
 import numpy as np
 from biotite import structure
 from biotite.structure import AtomArray, AtomArrayStack
 from biotite.structure import io as structure_io
 from jax import vmap
 
-from prxteinmpnn.utils.data_structures import ProteinStream, ProteinTuple
+from prxteinmpnn.utils.data_structures import ProteinStream, ProteinTuple, TrajectoryStaticFeatures
 from prxteinmpnn.utils.residue_constants import (
   atom_order,
   resname_to_idx,
@@ -52,9 +53,12 @@ def mpnn_to_af(sequence: np.ndarray) -> np.ndarray:
 def _check_if_file_empty(file_path: str) -> bool:
   """Check if the file is empty."""
   path = pathlib.Path(file_path)
+  suffix = path.suffix.lower()
   try:
     with path.open() as f:
-      return f.readable() and f.read().strip() == ""
+      if suffix not in {".h5", ".hdf5"}:
+        return f.readable() and f.read().strip() == ""
+      return not f.readable()
   except FileNotFoundError:
     return True
 
@@ -289,7 +293,7 @@ def atom_names_to_index(
   return np.asarray(atom_indices)
 
 
-def _check_atom_array_length(atom_array: AtomArray) -> None:
+def _check_atom_array_length(atom_array: AtomArray | AtomArrayStack) -> None:
   """Check if the AtomArray has a valid length.
 
   Args:
@@ -305,7 +309,7 @@ def _check_atom_array_length(atom_array: AtomArray) -> None:
 
 
 def _get_chain_index(
-  atom_array: AtomArray,
+  atom_array: AtomArray | AtomArrayStack,
 ) -> np.ndarray:
   """Get the chain index from the AtomArray."""
   if atom_array.chain_id is None:
@@ -321,9 +325,9 @@ def _get_chain_index(
 
 
 def _process_chain_id(
-  atom_array: AtomArray,
+  atom_array: AtomArray | AtomArrayStack,
   chain_id: Sequence[str] | str | None = None,
-) -> tuple[AtomArray, np.ndarray]:
+) -> tuple[AtomArray | AtomArrayStack, np.ndarray]:
   """Process the chain_id of the AtomArray."""
   if chain_id is None:
     chain_index = _get_chain_index(atom_array)
@@ -339,11 +343,16 @@ def _process_chain_id(
   if atom_array.chain_id is None:
     msg = "Chain ID is not available in the structure."
     raise ValueError(msg)
-
-  indices_to_include = np.isin(atom_array.chain_id, chain_id)
-  atom_array = cast("AtomArray", atom_array[indices_to_include])
+  chain_mask = np.isin(atom_array.chain_id, chain_id)
+  if isinstance(atom_array, AtomArrayStack):
+    atom_array = cast("AtomArray | AtomArrayStack", atom_array[:, chain_mask])
+  else:
+    atom_array = cast("AtomArray | AtomArrayStack", atom_array[chain_mask])
   chain_index = _get_chain_index(atom_array)
-  return atom_array, chain_index
+  return (
+    atom_array,
+    chain_index,
+  )
 
 
 def _fill_in_cb_coordinates(
@@ -387,14 +396,14 @@ def _fill_in_cb_coordinates(
   return coords_37
 
 
-def process_atom_array(
-  atom_array: AtomArray,
+def _extract_biotite_static_features(
+  atom_array: AtomArray | AtomArrayStack,
   atom_map: dict[str, int] | None = None,
   chain_id: Sequence[str] | str | None = None,
-) -> ProteinTuple:
-  """Process an AtomArray to create a Protein inputs."""
+) -> tuple[TrajectoryStaticFeatures, AtomArray | AtomArrayStack]:
   if atom_map is None:
     atom_map = atom_order
+
   atom_array, chain_index = _process_chain_id(atom_array, chain_id)
   _check_atom_array_length(atom_array)
   num_residues = structure.get_residue_count(atom_array)
@@ -416,32 +425,344 @@ def process_atom_array(
 
   atom_mask = atom37_indices != -1
 
-  coords_37 = np.zeros((num_residues, 37, 3), dtype=np.float32)
   atom_mask_37 = np.zeros((num_residues, 37), dtype=np.bool)
 
   res_indices_flat = np.asarray(residue_inv_indices)[atom_mask]
   atom_indices_flat = atom37_indices[atom_mask]
 
-  coords_37[res_indices_flat, atom_indices_flat] = np.asarray(atom_array.coord)[atom_mask]
   atom_mask_37[res_indices_flat, atom_indices_flat] = 1
 
   aatype = residue_names_to_aatype(residue_names)
   nitrogen_mask = atom_mask_37[:, atom_map["N"]] == 1
-  coords_37 = coords_37[nitrogen_mask]
   aatype = aatype[nitrogen_mask]
   atom_mask_37 = atom_mask_37[nitrogen_mask]
   residue_indices = residue_indices[nitrogen_mask]
   chain_index = chain_index[nitrogen_mask]
-  phi, psi, omega = structure.dihedral_backbone(atom_array)
-  dihedrals = np.stack([phi, psi, omega], axis=-1) if phi is not None else None
-  return ProteinTuple(
-    coordinates=coords_37,
-    aatype=aatype,
-    atom_mask=atom_mask_37,
-    residue_index=residue_indices,
+
+  return TrajectoryStaticFeatures(
+    aatype=residue_names_to_aatype(residue_names),
+    static_atom_mask_37=atom_mask_37,
+    residue_indices=residue_indices,
     chain_index=chain_index,
-    dihedrals=dihedrals,
+    res_indices_flat=res_indices_flat,
+    atom_indices_flat=atom_indices_flat,
+    valid_atom_mask=atom_mask,
+    nitrogen_mask=nitrogen_mask,
+    num_residues=num_residues,
+  ), atom_array
+
+
+def atom_array_dihedrals(
+  atom_array: AtomArray | AtomArrayStack,
+) -> np.ndarray | None:
+  """Compute backbone dihedral angles (phi, psi, omega) for the given AtomArray.
+
+  Args:
+    atom_array: An AtomArray or AtomArrayStack containing the atomic coordinates and topology.
+    chain_mask: A boolean array indicating which atoms belong to the selected chain(s).
+
+  Returns:
+    A 2D array of shape (num_residues, 3) or 3D array with shape (num_frames, num_residues, 3)
+    containing the dihedral angles in radians.
+    The three columns correspond to phi, psi, and omega angles respectively.
+
+  """
+  phi, psi, omega = structure.dihedral_backbone(atom_array)
+  phi = np.asarray(phi)
+  psi = np.asarray(psi)
+  omega = np.asarray(omega)
+  return np.stack([phi, psi, omega], axis=-1) if phi is not None else None
+
+
+def mdtraj_dihedrals(
+  traj: md.Trajectory,
+  num_residues: int,
+  nitrogen_mask: np.ndarray,
+) -> np.ndarray | None:
+  """Compute backbone dihedral angles (phi, psi, omega) for the given md.Trajectory chunk.
+
+  Args:
+    traj: An md.Trajectory containing the atomic coordinates and topology.
+    num_residues: The number of residues in the trajectory.
+    chain_mask: A boolean array indicating which atoms belong to the selected chain(s).
+    nitrogen_mask: A boolean array indicating which residues have backbone nitrogen atoms.
+
+  Returns:
+    A 2D array of shape (num_residues, 3) containing the dihedral angles in radians.
+    The three columns correspond to phi, psi, and omega angles respectively.
+
+  """
+  phi_indices, phi_angles = md.compute_phi(traj)
+  psi_indices, psi_angles = md.compute_psi(traj)
+  omega_indices, omega_angles = md.compute_omega(traj)
+
+  dihedrals = np.full((num_residues, 3), np.nan, dtype=np.float64)
+  if phi_indices.size > 0:
+    dihedrals[phi_indices[:, 1], 0] = phi_angles[0]
+  if psi_indices.size > 0:
+    dihedrals[psi_indices[:, 1], 1] = psi_angles[0]
+  if omega_indices.size > 0:
+    dihedrals[omega_indices[:, 0], 2] = omega_angles[0]
+
+  return dihedrals[nitrogen_mask]
+
+
+def process_coordinates(
+  coordinates: np.ndarray,
+  num_residues: int,
+  res_indices_flat: np.ndarray,
+  atom_indices_flat: np.ndarray,
+  valid_atom_mask: np.ndarray,
+) -> np.ndarray:
+  """Process an AtomArray to create a Protein inputs."""
+  coords_37 = np.zeros((num_residues, 37, 3), dtype=np.float32)
+
+  coords_37[res_indices_flat, atom_indices_flat] = np.asarray(
+    coordinates,
+  )[valid_atom_mask]
+
+  return coords_37
+
+
+def _select_chain_mdtraj(
+  traj: md.Trajectory,
+  chain_id: Sequence[str] | str | None = None,
+) -> md.Trajectory:
+  """Select specific chains from an md.Trajectory."""
+  if traj.top is None:
+    msg = "Trajectory does not have a topology."
+    raise ValueError(msg)
+  if chain_id is not None:
+    if isinstance(chain_id, str):
+      chain_id = [chain_id]
+    selection = " or ".join(f"chainid {cid}" for cid in chain_id)
+    atom_indices = traj.top.select(selection)
+    if atom_indices.size == 0:
+      msg = f"No atoms found for chain(s) {chain_id}."
+      warnings.warn(msg, stacklevel=2)
+      raise ValueError(msg)
+
+    traj = traj.atom_slice(atom_indices)
+
+  return traj
+
+
+def _extract_mdtraj_static_features(
+  traj_chunk: md.Trajectory,
+  atom_map: dict[str, int] | None = None,
+) -> TrajectoryStaticFeatures:
+  """Extract frame-invariant (static) features from a trajectory chunk's topology."""
+  if traj_chunk.top is None:
+    msg = "Trajectory does not have a topology."
+    raise ValueError(msg)
+  if atom_map is None:
+    atom_map = atom_order
+
+  topology = traj_chunk.top
+  if topology is None:
+    msg = "Trajectory does not have a topology."
+    raise ValueError(msg)
+  num_residues = topology.n_residues
+  if num_residues == 0:
+    msg = "Trajectory has no residues after filtering."
+    raise ValueError(msg)
+
+  # Pre-compute all static topology-derived information
+  atom_names = np.array([a.name for a in topology.atoms])
+  atom37_indices = atom_names_to_index(atom_names.astype("U5"))
+  residue_inv_indices = np.array([a.residue.index for a in topology.atoms])
+  valid_atom_mask = atom37_indices != -1
+  res_indices_flat = residue_inv_indices[valid_atom_mask]
+  atom_indices_flat = atom37_indices[valid_atom_mask]
+
+  residue_names = np.array([r.name for r in topology.residues])
+  aatype = residue_names_to_aatype(residue_names)
+  residue_indices = np.array([r.resSeq for r in topology.residues], dtype=np.int32)
+
+  chain_ids_per_res = [r.chain.index for r in topology.residues]
+  unique_chain_ids = sorted(set(chain_ids_per_res))
+  chain_map = {cid: i for i, cid in enumerate(unique_chain_ids)}
+  chain_index = np.array([chain_map[cid] for cid in chain_ids_per_res], dtype=np.int32)
+  static_atom_mask_37 = np.zeros((num_residues, 37), dtype=bool)
+  static_atom_mask_37[res_indices_flat, atom_indices_flat] = True
+  nitrogen_mask = static_atom_mask_37[:, atom_map["N"]]
+
+  if not np.any(nitrogen_mask):
+    msg = "No residues with backbone nitrogen atoms found."
+    warnings.warn(msg, stacklevel=2)
+    raise ValueError(msg)
+
+  return TrajectoryStaticFeatures(
+    aatype=aatype[nitrogen_mask],
+    static_atom_mask_37=static_atom_mask_37[nitrogen_mask],
+    residue_indices=residue_indices[nitrogen_mask],
+    chain_index=chain_index[nitrogen_mask],
+    res_indices_flat=res_indices_flat,
+    atom_indices_flat=atom_indices_flat,
+    valid_atom_mask=valid_atom_mask,
+    nitrogen_mask=nitrogen_mask,
+    num_residues=num_residues,
   )
+
+
+def _prepare_source(source: str | StringIO | pathlib.Path) -> pathlib.Path:
+  """Prepare the source for parsing by converting to Path and validating."""
+  if isinstance(source, io.StringIO):
+    with tempfile.NamedTemporaryFile(
+      mode="w",
+      delete=False,
+      suffix=".pdb",
+    ) as tmp:  # TODO: suffix based on format
+      tmp.write(source.read())
+      return pathlib.Path(tmp.name)
+
+  if isinstance(source, str):
+    if _check_if_file_empty(source):
+      msg = f"The file at {source} is empty."
+      warnings.warn(msg, stacklevel=2)
+      raise ValueError(msg)
+    return pathlib.Path(source)
+
+  return source
+
+
+async def _parse_hdf5(
+  source: pathlib.Path,
+  chain_id: Sequence[str] | str | None,
+  *,
+  extract_dihedrals: bool = False,
+) -> ProteinStream:
+  """Parse HDF5 structure files directly using mdtraj."""
+  try:
+    dihedrals = None
+    first_frame = md.load_frame(str(source), 0)
+    first_frame = _select_chain_mdtraj(first_frame, chain_id=chain_id)
+    static_features = _extract_mdtraj_static_features(
+      first_frame,
+    )
+    traj_iterator = md.iterload(str(source))
+    for traj_chunk in traj_iterator:
+      for frame in traj_chunk:
+        coords = frame.xyz
+        if extract_dihedrals:
+          dihedrals = mdtraj_dihedrals(
+            frame,
+            static_features["num_residues"],
+            static_features["nitrogen_mask"],
+          )
+          coords = process_coordinates(
+            coords,
+            static_features["num_residues"],
+            static_features["res_indices_flat"],
+            static_features["atom_indices_flat"],
+            static_features["valid_atom_mask"],
+          )
+        yield (
+          ProteinTuple(
+            coordinates=coords,
+            aatype=static_features["aatype"],
+            atom_mask=static_features["static_atom_mask_37"],
+            residue_index=static_features["residue_indices"],
+            chain_index=static_features["chain_index"],
+            dihedrals=dihedrals,
+          ),
+          str(source),
+        )
+  except Exception as e:
+    msg = f"Failed to parse HDF5 structure from source: {e}"
+    warnings.warn(msg, stacklevel=2)
+    raise RuntimeError(msg) from e
+
+
+def _validate_atom_array_type(atom_array: Any) -> None:  # noqa: ANN401
+  """Validate that the atom array is of the expected type.
+
+  Args:
+    atom_array: The atom array to validate.
+
+  Raises:
+    TypeError: If the atom array is not an AtomArray or AtomArrayStack.
+
+  """
+  if not isinstance(atom_array, (AtomArray, AtomArrayStack)):
+    msg = f"Expected AtomArray or AtomArrayStack, but got {type(atom_array)}."
+    raise TypeError(msg)
+
+
+async def _parse_biotite(
+  source: pathlib.Path,
+  model: int | None,
+  altloc: str | None,
+  chain_id: Sequence[str] | str | None,
+  *,
+  extract_dihedrals: bool = False,
+  **kwargs: Any,  # noqa: ANN401
+) -> ProteinStream:
+  """Parse standard structure files using biotite."""
+  try:
+    altloc = altloc if altloc is not None else "first"
+    dihedrals = None
+    atom_array = structure_io.load_structure(
+      source,
+      model=model,
+      altloc=altloc,
+      **kwargs,
+    )
+    _validate_atom_array_type(atom_array)
+
+    if isinstance(atom_array, (AtomArray, AtomArrayStack)):
+      static_features, atom_array = _extract_biotite_static_features(atom_array, chain_id=chain_id)
+
+      if isinstance(atom_array, AtomArrayStack):
+        for frame in atom_array:
+          if extract_dihedrals:
+            dihedrals = atom_array_dihedrals(frame)
+          coords = np.asarray(frame.coord)
+          coords = process_coordinates(
+            coords,
+            static_features["num_residues"],
+            static_features["res_indices_flat"],
+            static_features["atom_indices_flat"],
+            static_features["valid_atom_mask"],
+          )
+          yield (
+            ProteinTuple(
+              coordinates=coords,
+              aatype=static_features["aatype"],
+              atom_mask=static_features["static_atom_mask_37"],
+              residue_index=static_features["residue_indices"],
+              chain_index=static_features["chain_index"],
+              dihedrals=dihedrals,
+            ),
+            str(source),
+          )
+      elif isinstance(atom_array, AtomArray):
+        if extract_dihedrals:
+          dihedrals = atom_array_dihedrals(atom_array)
+        coords = np.asarray(atom_array.coord)
+        coords = process_coordinates(
+          coords,
+          static_features["num_residues"],
+          static_features["res_indices_flat"],
+          static_features["atom_indices_flat"],
+          static_features["valid_atom_mask"],
+        )
+        yield (
+          ProteinTuple(
+            coordinates=coords,
+            aatype=static_features["aatype"],
+            atom_mask=static_features["static_atom_mask_37"],
+            residue_index=static_features["residue_indices"],
+            chain_index=static_features["chain_index"],
+            dihedrals=dihedrals,
+          ),
+          str(source),
+        )
+
+  except Exception as e:
+    msg = f"Failed to parse structure from source: {e}"
+    warnings.warn(msg, stacklevel=2)
+    raise RuntimeError(msg) from e
 
 
 async def parse_input(
@@ -450,6 +771,7 @@ async def parse_input(
   model: int | None = None,
   altloc: str | None = None,
   chain_id: Sequence[str] | str | None = None,
+  extract_dihedrals: bool = False,
   **kwargs: Any,  # noqa: ANN401
 ) -> ProteinStream:
   """Parse a structure file or string into a list of Protein objects.
@@ -463,32 +785,26 @@ async def parse_input(
       model: The model number to load. If None, all models are loaded.
       altloc: The alternate location identifier to use.
       chain_id: Specific chain(s) to parse from the structure.
+      extract_dihedrals: Whether to compute and include backbone dihedral angles.
       **kwargs: Additional keyword arguments to pass to the structure loader.
 
   Returns:
       A ProteinEnsemble containing one or more parsed ProteinStructure objects.
 
   """
-  if isinstance(source, io.StringIO):
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".pdb") as tmp:
-      tmp.write(source.read())
-      source = pathlib.Path(tmp.name)
+  prepared_source = _prepare_source(source)
 
-  try:
-    atom_array_or_stack = structure_io.load_structure(
-      source,
-      model=model,
-      altloc=altloc,
-      **kwargs,
-    )
+  if prepared_source.suffix in {".h5", ".hdf5"}:
+    async for result in _parse_hdf5(prepared_source, chain_id, extract_dihedrals=extract_dihedrals):
+      yield result
+    return
 
-    if isinstance(atom_array_or_stack, AtomArrayStack):
-      for frame in atom_array_or_stack:
-        yield (process_atom_array(frame, chain_id=chain_id), str(source))
-    elif isinstance(atom_array_or_stack, AtomArray):
-      yield (process_atom_array(atom_array_or_stack, chain_id=chain_id), str(source))
-
-  except Exception as e:
-    msg = f"Failed to parse structure from source: {e}"
-    warnings.warn(msg, stacklevel=2)
-    raise RuntimeError(msg) from e
+  async for result in _parse_biotite(
+    prepared_source,
+    model,
+    altloc,
+    chain_id,
+    extract_dihedrals=extract_dihedrals,
+    **kwargs,
+  ):
+    yield result

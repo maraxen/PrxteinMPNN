@@ -423,6 +423,7 @@ async def categorical_jacobian(
       backbone_noise: The amount of noise to add to the backbone.
       mode: "full" to compute the full Jacobian, "diagonal" for only diagonal blocks.
       outer_batch_size: The batch size for processing structures.
+      inner_batch_size: The batch size for Jacobian computation.
       calculate_cross_diff: Whether to calculate cross-protein differences using mapping.
       **kwargs: Additional keyword arguments for structure loading.
 
@@ -577,6 +578,7 @@ async def categorical_jacobian(
 
   return {
     "categorical_jacobians": jacobians,
+    "apc_corrected_jacobians": apc_jacobians,
     "cross_protein_diffs": cross_protein_diffs,
     "mapping": batched_ensemble.mapping,
     "metadata": {

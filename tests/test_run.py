@@ -12,7 +12,7 @@ from prxteinmpnn.run import (
   sample,
   score,
   tuple_to_protein,
-  _compute_cross_protein_jacobian_diffs,
+  compute_cross_protein_jacobian_diffs,
 )
 from prxteinmpnn.utils.data_structures import Protein, ProteinEnsemble, ProteinTuple
 
@@ -328,7 +328,7 @@ class TestCategoricalJacobian:
       patch("prxteinmpnn.run.batch_and_pad_proteins") as mock_batch,
       patch("prxteinmpnn.run.get_mpnn_model") as mock_model,
       patch("prxteinmpnn.run.make_conditional_logits_fn") as mock_logits_fn,
-      patch("prxteinmpnn.run._compute_cross_protein_jacobian_diffs") as mock_cross_diff,
+      patch("prxteinmpnn.run.compute_cross_protein_jacobian_diffs") as mock_cross_diff,
     ):
       mock_load.return_value = ([mock_protein_tuple], ["test.pdb"])
 
@@ -369,14 +369,14 @@ class TestCategoricalJacobian:
 
 
 class TestComputeCrossProteinJacobianDiffs:
-  """Test the _compute_cross_protein_jacobian_diffs function."""
+  """Test the compute_cross_protein_jacobian_diffs function."""
 
   def test_empty_mapping(self) -> None:
     """Test with empty mapping array."""
     jacobians = jnp.ones((2, 3, 5, 21, 5, 21))  # batch_size=2, noise_levels=3, L=5
     mapping = jnp.empty((0, 5, 2))  # Empty mapping
 
-    result = _compute_cross_protein_jacobian_diffs(jacobians, mapping)
+    result = compute_cross_protein_jacobian_diffs(jacobians, mapping)
     
     assert result.shape == (0, 3, 5, 21, 5, 21)
     assert result.size == 0
@@ -394,7 +394,7 @@ class TestComputeCrossProteinJacobianDiffs:
       [[0, 0], [1, 1], [2, 2], [3, 3]]  # One pair, perfect alignment
     ])  # Shape: (1, 4, 2)
     
-    result = _compute_cross_protein_jacobian_diffs(jacobians, mapping)
+    result = compute_cross_protein_jacobian_diffs(jacobians, mapping)
     
     assert result.shape == (1, 3, 4, 21, 4, 21)
     
@@ -415,7 +415,7 @@ class TestComputeCrossProteinJacobianDiffs:
       [[0, 0], [-1, -1], [2, 1], [3, 3], [-1, -1]]  # Positions 0,2,3 aligned
     ])  # Shape: (1, 5, 2)
     
-    result = _compute_cross_protein_jacobian_diffs(jacobians, mapping)
+    result = compute_cross_protein_jacobian_diffs(jacobians, mapping)
     
     assert result.shape == (1, 2, 5, 21, 5, 21)
     
@@ -441,11 +441,12 @@ class TestComputeCrossProteinJacobianDiffs:
     mapping = jnp.array([
       [[0, 0], [1, 1], [-1, -1]],  # Pair (0,1): positions 0,1 aligned
       [[0, 0], [-1, -1], [2, 2]],  # Pair (0,2): positions 0,2 aligned
+      [[-1, -1], [1, 1], [2, 2]],  # Pair (1,2): positions 1,2 aligned
     ])  # Shape: (2, 3, 2)
     
-    result = _compute_cross_protein_jacobian_diffs(jacobians, mapping)
+    result = compute_cross_protein_jacobian_diffs(jacobians, mapping)
     
-    assert result.shape == (2, 1, 3, 21, 3, 21)
+    assert result.shape == (3, 1, 3, 21, 3, 21)
     
     # Check pair (0,1): 1.0 - 2.0 = -1.0
     assert jnp.allclose(result[0, 0, 0, 5, 1, 10], -1.0)
@@ -455,7 +456,7 @@ class TestComputeCrossProteinJacobianDiffs:
     # Check pair (0,2): 1.0 - 3.0 = -2.0
     assert jnp.allclose(result[1, 0, 0, 0, 2, 15], -2.0)
     assert jnp.isnan(result[1, 0, 1, 5, 0, 5])  # Position 1 not aligned
-    assert jnp.allclose(result[1, 0, 2, 10, 0, 0], -2.0)
+    assert jnp.allclose(result[1, 2, 10, 0, 0], -2.0)
 
   def test_invalid_protein_indices(self) -> None:
     """Test with mapping containing invalid protein indices."""
@@ -466,7 +467,7 @@ class TestComputeCrossProteinJacobianDiffs:
       [[0, 5], [1, 1], [-1, -1]]  # First position maps to invalid protein 5
     ])  # Shape: (1, 3, 2)
     
-    result = _compute_cross_protein_jacobian_diffs(jacobians, mapping)
+    result = compute_cross_protein_jacobian_diffs(jacobians, mapping)
     
     assert result.shape == (1, 1, 3, 21, 3, 21)
     
@@ -495,7 +496,7 @@ class TestComputeCrossProteinJacobianDiffs:
       [[0, 0], [1, 1]]  # Perfect alignment
     ])  # Shape: (1, 2, 2)
     
-    result = _compute_cross_protein_jacobian_diffs(jacobians, mapping)
+    result = compute_cross_protein_jacobian_diffs(jacobians, mapping)
     
     assert result.shape == (1, 3, 2, 21, 2, 21)
     
@@ -515,8 +516,8 @@ class TestComputeCrossProteinJacobianDiffs:
       [[0, 0]]  # Single position alignment
     ])  # Shape: (1, 1, 2)
     
-    result = _compute_cross_protein_jacobian_diffs(jacobians, mapping)
-    
+    result = compute_cross_protein_jacobian_diffs(jacobians, mapping)
+
     assert result.shape == (1, 1, 1, 21, 1, 21)
     assert jnp.allclose(result[0, 0, 0, 0, 0, 0], 10.0 - 5.0)  # 5.0
 
@@ -537,11 +538,11 @@ class TestComputeCrossProteinJacobianDiffs:
       [[0, 0], [1, 1]]  # Perfect alignment
     ])
     
-    result = _compute_cross_protein_jacobian_diffs(jacobians, mapping)
+    result = compute_cross_protein_jacobian_diffs(jacobians, mapping)
     
     # Check specific positions
     assert jnp.allclose(result[0, 0, 0, 5, 1, 10], 100.0 - 150.0)  # -50.0
     assert jnp.allclose(result[0, 0, 1, 3, 0, 7], 200.0 - 250.0)   # -50.0
-    
+
     # Check that other positions are 0 (since base Jacobians are 0)
     assert jnp.allclose(result[0, 0, 0, 0, 0, 0], 0.0)

@@ -84,7 +84,6 @@ class TestSample:
                     jnp.ones((1, 10)),
                     jnp.ones((1, 10, 21)),
                     jnp.ones((1, 10)),
-                    {},
                 )
             )
             mock_make_sample.return_value = mock_sample_fn
@@ -97,9 +96,8 @@ class TestSample:
 
             assert "sequences" in result
             assert "logits" in result
-            assert "scores" in result
             assert "metadata" in result
-            assert isinstance(result["sequences"], list)
+            assert isinstance(result["sequences"], jax.Array)
             assert isinstance(result["logits"], jax.Array)
 
 
@@ -119,15 +117,13 @@ class TestCategoricalJacobian:
             mock_get_model.return_value = {"params": {}}
             
             # Mock the logits function to return something with the correct shape
-            mock_make_logits_fn.return_value = lambda a, b, c, d, e: jnp.ones((10, 21))
+            mock_make_logits_fn.return_value = mock_make_logits_fn.return_value = lambda *args, **kwargs: (jnp.ones((10, 21)), None, None)
 
             result = categorical_jacobian(
                 inputs="test.pdb",
                 backbone_noise=0.1,
             )
-
-            assert "jacobian" in result
-            assert "metadata" in result
-            assert isinstance(result["jacobian"], jax.Array)
+            assert "categorical_jacobians" in result
+            assert isinstance(result["categorical_jacobians"], jax.Array)
             # Shape: (batch, noise, L, C, L, C)
-            assert result["jacobian"].shape == (1, 1, 10, 21, 10, 21)
+            assert result["categorical_jacobians"].shape == (1, 1, 10, 21, 10, 21)

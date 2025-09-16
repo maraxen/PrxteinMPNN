@@ -33,54 +33,39 @@ def test_create_protein_dataset(
     mock_protein_batch: ProteinBatch,
 ) -> None:
     """Test the end-to-end creation of a protein dataset."""
-    # Mock the return values of the components
-    mock_source_instance = MagicMock()
-    mock_source.return_value = mock_source_instance
+    # 1. Mock the Data Source to return a real list, which behaves like a sequence.
+    #    This is the key change to fix the test.
+    mock_source.return_value = ["mock_raw_protein"]
 
+    # 2. Mock the Parsing operation to process the raw data into a Protein object
+    mock_protein = mock_protein_batch[0]
     mock_parse_instance = MagicMock()
+    mock_parse_instance.return_value = mock_protein
     mock_parse_op.return_value = mock_parse_instance
 
+    # 3. Mock the collate function to return the final batch
     mock_pad_and_collate.return_value = mock_protein_batch
 
-    # Define some inputs
+    # Define inputs for the function under test
     inputs = ["test.pdb"]
     batch_size = 32
 
     # Create the dataset
     dataset = create_protein_dataset(inputs, batch_size)
 
-    # Assert that the dataset is an IterDataset
+    # Assert that the dataset is the correct type
     assert isinstance(dataset, grain.IterDataset)
 
-    # To test the pipeline, we can iterate through it.
-    # We need to mock the underlying data source to return something.
-    # Let's assume the source would yield two items that the parser handles.
-    with patch.object(grain.MapDataset, "source") as mock_map_source:
-        # Create a mock MapDataset that we can control
-        mock_map_ds = MagicMock()
-        mock_map_source.return_value = mock_map_ds
+    # Iterate the dataset to trigger the pipeline and check the output
+    output_batches = list(dataset)
+    assert len(output_batches) == 1
+    assert output_batches[0] == mock_protein_batch
 
-        # Simulate the pipeline steps
-        mock_map_ds.map.return_value.filter.return_value.batch.return_value.to_iter_dataset.return_value = [
-            mock_protein_batch
-        ]
-
-        # Re-create the dataset to use the patched source
-        dataset = create_protein_dataset(inputs, batch_size)
-
-        # Iterate and check the output
-        output_batches = list(dataset)
-        assert len(output_batches) == 1
-        assert output_batches[0] == mock_protein_batch
-
-        # Check that our components were called
-        mock_source.assert_called_with(inputs, None)
-        mock_parse_op.assert_called_with(parse_kwargs={})
-        # The batch_fn is not directly callable in this mock setup,
-        # but we can check that the batch method was called with it.
-        mock_map_ds.map.return_value.filter.return_value.batch.assert_called_with(
-            batch_size, batch_fn=mock_pad_and_collate
-        )
+    # Check that our mocked components were called as expected
+    mock_source.assert_called_with(inputs, None)
+    mock_parse_op.assert_called_with(parse_kwargs={})
+    mock_parse_instance.assert_called_with("mock_raw_protein")
+    mock_pad_and_collate.assert_called_with([mock_protein])
 
 
 def test_create_protein_dataset_with_workers() -> None:

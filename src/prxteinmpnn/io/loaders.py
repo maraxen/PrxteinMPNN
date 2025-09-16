@@ -42,12 +42,12 @@ def create_protein_dataset(
 
   ds = ds.filter(lambda x: x is not None)
 
-  ds = ds.batch(batch_size, batch_fn=operations.pad_and_collate_proteins)
+  ds = ds.to_iter_dataset()
 
-  iter_ds = ds.to_iter_dataset()
+  ds = ds.batch(batch_size, batch_fn=operations.pad_and_collate_proteins)
 
   if num_workers > 0:
     mp_options = grain.MultiprocessingOptions(num_workers=num_workers)
-    iter_ds = iter_ds.mp_prefetch(mp_options)
+    ds = ds.mp_prefetch(mp_options)
 
-  return iter_ds
+  return ds

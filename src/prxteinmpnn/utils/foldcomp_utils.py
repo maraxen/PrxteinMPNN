@@ -54,7 +54,7 @@ def _setup_foldcomp_database(database: FoldCompDatabase) -> None:
   foldcomp.setup(database)
 
 
-async def get_protein_structures(
+def get_protein_structures(
   protein_ids: Sequence[str],
   database: FoldCompDatabase = "afdb_rep_v4",
 ) -> ProteinStream:
@@ -82,20 +82,18 @@ async def get_protein_structures(
         omega = np.array(fcz_data["omega"], dtype=np.float64)
         dihedrals = np.stack([phi, psi, omega], axis=-1)
 
-        coordinates = np.array(fcz_data["coordinates"], dtype=np.float64)
+        coordinates = np.array(fcz_data["coordinates"], dtype=np.float32)
         sequence = string_to_protein_sequence(fcz_data["residues"])
         num_res = len(sequence)
 
-        yield (
-          ProteinTuple(
-            coordinates=coordinates,
-            aatype=sequence,
-            atom_mask=np.ones((num_res, 37), dtype=np.bool_),  # should probably change this?
-            residue_index=np.arange(num_res),
-            chain_index=np.zeros(num_res, dtype=np.int32),
-            dihedrals=dihedrals,
-          ),
-          name,
+        yield ProteinTuple(
+          coordinates=coordinates,
+          aatype=sequence,
+          atom_mask=np.ones((coordinates.shape[0], 37), dtype=np.bool_),
+          residue_index=np.arange(num_res),
+          chain_index=np.zeros(num_res, dtype=np.int32),
+          dihedrals=dihedrals,
+          source=str(name),
         )
       except Exception as e:  # noqa: BLE001
         msg = f"Failed to process a FoldComp entry. Error: {e}"

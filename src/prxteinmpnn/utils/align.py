@@ -624,3 +624,113 @@ def needleman_wunsch_alignment(unroll_factor: int = 2, *, batch: bool = True) ->
 
   traceback_function = jax.grad(compute_scoring_matrix, argnums=0)
   return jax.vmap(traceback_function, (0, 0, None, None)) if batch else traceback_function
+
+
+# BLOSUM62 scoring matrix with an added column/row for gaps.
+# Order: A, R, N, D, C, Q, E, G, H, I, L, K, M, F, P, S, T, W, Y, V, Gap
+_AA_SCORE_MATRIX = jnp.array(
+  [
+    [4, -1, -2, -2, 0, -1, -1, 0, -2, -1, -1, -1, -1, -2, -1, 1, 0, -3, -2, 0, -4],
+    [-1, 5, 0, -2, -3, 1, 0, -2, 0, -3, -2, 2, -1, -3, -2, -1, -1, -3, -2, -3, -4],
+    [-2, 0, 6, 1, -3, 0, 0, 0, 1, -3, -3, 0, -2, -3, -2, 1, 0, -4, -2, -3, -4],
+    [-2, -2, 1, 6, -3, 0, 2, -1, -1, -3, -4, -1, -3, -3, -1, 0, -1, -4, -3, -3, -4],
+    [0, -3, -3, -3, 9, -3, -4, -3, -3, -1, -1, -3, -1, -2, -3, -1, -1, -2, -2, -1, -4],
+    [-1, 1, 0, 0, -3, 5, 2, -2, 0, -3, -2, 1, 0, -3, -1, 0, -1, -2, -1, -2, -4],
+    [-1, 0, 0, 2, -4, 2, 5, -2, 0, -3, -3, 1, -2, -3, -1, 0, -1, -3, -2, -2, -4],
+    [0, -2, 0, -1, -3, -2, -2, 6, -2, -4, -4, -2, -3, -3, -2, 0, -2, -2, -3, -3, -4],
+    [-2, 0, 1, -1, -3, 0, 0, -2, 8, -3, -3, -1, -2, -1, -2, -1, -2, -2, 2, -3, -4],
+    [-1, -3, -3, -3, -1, -3, -3, -4, -3, 4, 2, -3, 1, 0, -3, -2, -1, -3, -1, 3, -4],
+    [-1, -2, -3, -4, -1, -2, -3, -4, -3, 2, 4, -2, 2, 0, -3, -2, -1, -2, -1, 1, -4],
+    [-1, 2, 0, -1, -3, 1, 1, -2, -1, -3, -2, 5, -1, -3, -1, 0, -1, -3, -2, -2, -4],
+    [-1, -1, -2, -3, -1, 0, -2, -3, -2, 1, 2, -1, 5, 0, -2, -1, -1, -1, -1, 1, -4],
+    [-2, -3, -3, -3, -2, -3, -3, -3, -1, 0, 0, -3, 0, 6, -4, -2, -2, 1, 3, -1, -4],
+    [-1, -2, -2, -1, -3, -1, -1, -2, -2, -3, -3, -1, -2, -4, 7, -1, -1, -4, -3, -2, -4],
+    [1, -1, 1, 0, -1, 0, 0, 0, -1, -2, -2, 0, -1, -2, -1, 4, 1, -3, -2, -2, -4],
+    [0, -1, 0, -1, -1, -1, -1, -2, -2, -1, -1, -1, -1, -2, -1, 1, 5, -2, -2, 0, -4],
+    [-3, -3, -4, -4, -2, -2, -3, -2, -2, -3, -2, -3, -1, 1, -4, -3, -2, 11, 2, -3, -4],
+    [-2, -2, -2, -3, -2, -1, -2, -3, 2, -1, -1, -2, -1, 3, -3, -2, -2, 2, 7, -1, -4],
+    [0, -3, -3, -3, -1, -2, -2, -3, -3, 3, 1, -2, 1, -1, -2, -2, 0, -3, -1, 4, -4],
+    [-4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, 1],
+  ],
+  dtype=jnp.float32,
+)
+
+_MINIMUM_PROTEINS_COUNT = 2
+
+
+def align_sequences(
+  protein_sequences_stacked: jax.Array,
+  gap_open: float = -1.0,
+  gap_extend: float = -0.1,
+  temp: float = 0.1,
+) -> jax.Array:
+  """Generate cross-protein position mapping using batched sequence alignment.
+
+  Creates a mapping array for cross-protein position comparisons using
+  Smith-Waterman alignment. This version uses `jax.vmap` for efficient computation
+  of all pairwise alignments.
+
+  Args:
+      protein_sequences_stacked: Stacked array of protein sequences of shape
+          (n_proteins, max_length). Assumes -1 for padded positions.
+      gap_open: Gap opening penalty for alignment.
+      gap_extend: Gap extension penalty for alignment.
+      temp: Temperature parameter for soft alignment.
+
+  Returns:
+      Upper triangle mapping array of shape (num_pairs, max_length, 2)
+      where num_pairs = n*(n-1)/2. Each entry contains [pos_in_protein_i,
+      pos_in_protein_j] or [-1, -1] for unaligned positions.
+
+  """
+  n_proteins, max_seq_len = protein_sequences_stacked.shape
+
+  if n_proteins < _MINIMUM_PROTEINS_COUNT:
+    return jnp.empty((0, max_seq_len, 2), dtype=jnp.int32)
+
+  true_lengths = jnp.sum(protein_sequences_stacked != -1, axis=1)
+  sw_aligner = smith_waterman_affine(batch=False)
+
+  def _align_and_map_pair(
+    seq_a: jax.Array,
+    len_a: jax.Array,
+    seq_b: jax.Array,
+    len_b: jax.Array,
+  ) -> jax.Array:
+    """Aligns a single pair of sequences and extracts a one-to-one mapping."""
+    seq_a_clipped = jnp.clip(jax.lax.dynamic_slice(seq_a, (0,), (len_a,)), 0, 20)
+    seq_b_clipped = jnp.clip(jax.lax.dynamic_slice(seq_b, (0,), (len_b,)), 0, 20)
+
+    score_matrix = _AA_SCORE_MATRIX[seq_a_clipped[:, None], seq_b_clipped[None, :]]
+    lengths = jnp.array([len_a, len_b])
+
+    traceback = sw_aligner(score_matrix, lengths, gap_extend, gap_open, temp)
+
+    best_j_for_i = jnp.argmax(traceback, axis=1)  # shape (len_a,)
+    best_i_for_j = jnp.argmax(traceback, axis=0)  # shape (len_b,)
+
+    i_indices = jnp.arange(len_a)
+    mutual_alignment_mask = best_i_for_j[best_j_for_i] == i_indices
+
+    scores = jnp.max(traceback, axis=1)
+    score_threshold = jnp.max(scores) * 0.1
+    final_mask = mutual_alignment_mask & (scores > score_threshold)
+
+    aligned_i = i_indices[final_mask]
+    aligned_j = best_j_for_i[final_mask]
+
+    n_aligned = aligned_i.shape[0]
+    pad_width = (0, max_seq_len - n_aligned)
+    padded_i = jnp.pad(aligned_i, pad_width, constant_values=-1)
+    padded_j = jnp.pad(aligned_j, pad_width, constant_values=-1)
+
+    return jnp.stack([padded_i, padded_j], axis=-1)
+
+  i_indices, j_indices = jnp.triu_indices(n_proteins, k=1)
+
+  seqs_a = protein_sequences_stacked[i_indices]
+  lengths_a = true_lengths[i_indices]
+  seqs_b = protein_sequences_stacked[j_indices]
+  lengths_b = true_lengths[j_indices]
+
+  return jax.vmap(_align_and_map_pair)(seqs_a, lengths_a, seqs_b, lengths_b)

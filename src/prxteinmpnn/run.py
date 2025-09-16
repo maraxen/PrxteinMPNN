@@ -29,17 +29,14 @@ if TYPE_CHECKING:
     StructureAtomicCoordinates,
   )
 
-from prxteinmpnn.io.process import load
+from prxteinmpnn.io import loaders
 from prxteinmpnn.mpnn import get_mpnn_model
 from prxteinmpnn.sampling.conditional_logits import make_conditional_logits_fn
 from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.scoring.score import make_score_sequence
 from prxteinmpnn.utils.aa_convert import string_to_protein_sequence
 from prxteinmpnn.utils.apc import apc_corrected_frobenius_norm
-from prxteinmpnn.utils.batching import (
-  batch_and_pad_proteins,
-)
-from prxteinmpnn.utils.data_structures import Protein, ProteinTuple
+from prxteinmpnn.utils.catjac import CombineCatJacTranformFn, make_combine_jac
 from prxteinmpnn.utils.decoding_order import random_decoding_order
 from prxteinmpnn.utils.residue_constants import atom_order
 
@@ -49,100 +46,11 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
 
 
-def tuple_to_protein(t: ProteinTuple) -> Protein:
-  """Convert a ProteinTuple to a Protein dataclass."""
-  return Protein(
-    coordinates=jnp.array(t[0]).astype(jnp.float32),
-    aatype=jnp.array(t[1]).astype(jnp.int8),
-    atom_mask=jnp.array(t[2]).astype(jnp.float16),
-    residue_index=jnp.array(t[3]).astype(jnp.int32),
-    chain_index=jnp.array(t[4]).astype(jnp.int32),
-    dihedrals=None if t[5] is None else jnp.array(t[5]).astype(jnp.float32),
-    one_hot_sequence=jax.nn.one_hot(jnp.array(t[1]), 21, dtype=jnp.float32),
-  )
+def _loader_inputs(inputs: Sequence[str | StringIO] | str | StringIO) -> Sequence[str | StringIO]:
+  return (inputs,) if not isinstance(inputs, Sequence) else inputs
 
 
-def compute_cross_protein_jacobian_diffs(
-  jacobians: jax.Array,
-  mapping: jax.Array,
-) -> jax.Array:
-  """Compute cross-protein Jacobian differences using alignment mapping.
-
-  Args:
-    jacobians: Jacobian tensors of shape (batch_size, noise_levels, L, 21, L, 21)
-    mapping: Cross-protein mapping of shape (num_pairs, max_length, 2)
-
-  Returns:
-    Cross-protein Jacobian differences where mapping is valid, NaN otherwise.
-    Shape: (num_pairs, noise_levels, L, 21, L, 21)
-
-  """
-  batch_size, noise_levels, max_len, _, _, _ = jacobians.shape
-  n_pairs = mapping.shape[0] if mapping.size > 0 else 0
-
-  if n_pairs == 0:
-    return jnp.empty((0, noise_levels, max_len, 21, max_len, 21))
-
-  def compute_pair_diff(
-    pair_idx: jax.Array,
-    protein_indices: jax.Array,
-  ) -> jax.Array:
-    """Compute Jacobian difference for a single protein pair."""
-    pair_mapping = mapping[pair_idx]  # (max_length, 2)
-    protein_i_idx, protein_j_idx = protein_indices
-
-    # Check if the pair is valid (both proteins exist)
-    pair_valid = protein_j_idx < batch_size
-
-    # Use safe indexing to avoid out of bounds access
-    safe_j_idx = jnp.minimum(protein_j_idx, batch_size - 1)
-
-    # Get the Jacobians for both proteins
-    jac_i = jacobians[protein_i_idx]  # (noise_levels, max_len, 21, max_len, 21)
-    jac_j = jacobians[safe_j_idx]  # (noise_levels, max_len, 21, max_len, 21)
-
-    # Compute base difference
-    diff = jac_i - jac_j
-
-    # Create validity mask based on alignment
-    # Check both that the position is not -1 AND that it's within valid range
-    valid_mask = (
-      (pair_mapping[:, 0] != -1)
-      & (pair_mapping[:, 1] != -1)
-      & (pair_mapping[:, 0] < max_len)
-      & (pair_mapping[:, 1] < max_len)
-      & (pair_mapping[:, 0] >= 0)
-      & (pair_mapping[:, 1] >= 0)
-    )
-
-    # Create a position-wise mask for the Jacobian
-    def create_position_mask(pos_i: int, pos_j: int) -> jax.Array:
-      """Check if both positions are valid in the alignment."""
-      return valid_mask[pos_i] & valid_mask[pos_j]
-
-    # Apply mask to all position pairs
-    position_indices = jnp.arange(max_len)
-    position_mask = jax.vmap(
-      lambda i: jax.vmap(lambda j: create_position_mask(i, j))(position_indices),
-    )(position_indices)
-
-    # Broadcast position mask over noise levels and amino acid dimensions
-    # position_mask is (max_len, max_len), we need (noise_levels, max_len, 21, max_len, 21)
-    # Also combine with pair validity
-    mask_broadcast = pair_valid & position_mask[None, :, None, :, None]
-
-    # Apply mask: where valid, use difference; where invalid, use NaN
-    return jnp.where(mask_broadcast, diff, jnp.nan)
-
-  pair_indices = jnp.arange(n_pairs)
-  rows, cols = jnp.triu_indices(batch_size, k=1)
-  protein_indices = jnp.stack([rows, cols], axis=-1)
-  jax.debug.print("protein_indices: {}", protein_indices)
-
-  return jax.vmap(compute_pair_diff)(pair_indices, protein_indices)
-
-
-async def score(
+def score(
   inputs: Sequence[str | StringIO] | str | StringIO,
   sequences_to_score: Sequence[str],
   chain_id: Sequence[str] | str | None = None,
@@ -155,16 +63,16 @@ async def score(
   backbone_noise: float | list[float] | ArrayLike = 0.0,
   ar_mask: None | ArrayLike = None,
   batch_size: int = 32,
+  num_workers: int = 0,
   **kwargs: Any,  # noqa: ANN401
 ) -> dict[str, jax.Array | dict[str, jax.Array | list[str]] | None]:
   """Score all provided sequences against all input structures.
 
-  This function streams and processes structures asynchronously, then uses a
-  memory-efficient JAX map
-  to score all provided sequences against each structure.
+  This function uses a high-performance Grain pipeline to load and process
+  structures, then scores all provided sequences against each structure.
 
   Args:
-      inputs: An async stream of structures (files, PDB IDs, etc.).
+      inputs: A single or sequence of inputs (files, PDB IDs, etc.).
       sequences_to_score: A list of protein sequences (strings) to score.
       chain_id: Specific chain(s) to parse from the structure.
       model: The model number to load. If None, all models are loaded.
@@ -175,13 +83,12 @@ async def score(
       rng_key: The random number generator key.
       backbone_noise: The amount of noise to add to the backbone.
       ar_mask: An optional array of shape (L, L) to mask out certain residue pairs.
-        If None, a full autoregressive mask will be used.
-      batch_size: The batch size for processing structures.
+      batch_size: The number of structures to process in a single batch.
+      num_workers: Number of parallel workers for data loading.
       **kwargs: Additional keyword arguments for structure loading.
 
   Returns:
-      A dictionary containing scores, logits, and metadata. The scores will
-      have a shape of (num_structures, num_noise_levels, num_sequences).
+      A dictionary containing scores, logits, and metadata.
 
   """
   if isinstance(backbone_noise, float):
@@ -189,82 +96,77 @@ async def score(
   else:
     backbone_noise = jnp.asarray(backbone_noise)
 
-  _proteins, sources = await load(
-    inputs,
-    model=model,
-    altloc=altloc,
-    chain_id=chain_id,
-    foldcomp_database=foldcomp_database,
-    **kwargs,
-  )
-
-  proteins = [tuple_to_protein(p) for p in _proteins]
-
-  # Convert string sequences to integer arrays
-  if sequences_to_score:
-    integer_sequences = [string_to_protein_sequence(s) for s in sequences_to_score]
-  else:
-    integer_sequences = None
-
-  batched_ensemble, batched_sequences = batch_and_pad_proteins(
-    proteins,
-    sequences_to_score=integer_sequences,
-  )
-
-  if batched_sequences is None:
-    msg = "sequences_to_score must be provided to the score function."
+  # Prepare sequences to be scored
+  if not sequences_to_score:
+    msg = (
+      "No sequences provided for scoring. `sequences_to_score` must be a non-empty list of strings."
+    )
     raise ValueError(msg)
+  integer_sequences = [string_to_protein_sequence(s) for s in sequences_to_score]
+  batched_sequences, _ = jnp.concatenate(integer_sequences)
+
+  parse_kwargs = {"chain_id": chain_id, "model": model, "altloc": altloc, **kwargs}
+  protein_iterator = loaders.create_protein_dataset(
+    _loader_inputs(inputs),
+    batch_size=batch_size,
+    foldcomp_database=foldcomp_database,
+    parse_kwargs=parse_kwargs,
+    num_workers=num_workers,
+  )
 
   model_parameters = get_mpnn_model(model_version=model_version, model_weights=model_weights)
   score_single_pair = make_score_sequence(model_parameters=model_parameters)
 
-  if ar_mask is None:
-    ar_mask = 1 - jnp.eye(batched_ensemble.aatype.shape[1], dtype=jnp.bool_)
+  all_scores, all_logits = [], []
 
-  vmap_sequences = jax.vmap(
-    score_single_pair,
-    in_axes=(None, 0, None, None, None, None, None, None, None),
-    out_axes=0,
-  )
+  for batched_ensemble in protein_iterator:
+    max_len = batched_ensemble.coordinates.shape[1]
+    current_ar_mask = (
+      1 - jnp.eye(max_len, dtype=jnp.bool_) if ar_mask is None else jnp.asarray(ar_mask)
+    )
 
-  vmap_noises = jax.vmap(
-    vmap_sequences,
-    in_axes=(None, None, None, None, None, None, None, 0, None),
-    out_axes=0,
-  )
-
-  mapped_fn = partial(
-    vmap_noises,
-    prng_key=jax.random.key(rng_key),  # type: ignore[arg-type]
-    sequence=batched_sequences,  # type: ignore[arg-type]
-    k_neighbors=48,  # type: ignore[arg-type]
-    ar_mask=ar_mask,  # type: ignore[arg-type]
-    backbone_noise=backbone_noise,  # type: ignore[arg-type]
-  )
-
-  scores, logits, _ = jax.lax.map(
-    mapped_fn,
-    (
+    vmap_sequences = jax.vmap(
+      score_single_pair,
+      in_axes=(None, 0, None, None, None, None, None, None, None),
+      out_axes=0,
+    )
+    vmap_noises = jax.vmap(
+      vmap_sequences,
+      in_axes=(None, None, None, None, None, None, None, 0, None),
+      out_axes=0,
+    )
+    vmap_structures = jax.vmap(
+      vmap_noises,
+      in_axes=(None, None, 0, 0, 0, 0, None, None, None),
+      out_axes=0,
+    )
+    scores, logits, _ = vmap_structures(
+      jax.random.key(rng_key),
+      batched_sequences,
       batched_ensemble.coordinates,
       batched_ensemble.atom_mask,
       batched_ensemble.residue_index,
       batched_ensemble.chain_index,
-    ),
-    batch_size=batch_size,
-  )
+      48,
+      backbone_noise,
+      current_ar_mask,
+    )
+    all_scores.append(scores)
+    all_logits.append(logits)
+
+  if not all_scores:
+    return {"scores": None, "logits": None, "metadata": None}
 
   return {
-    "scores": scores,
-    "logits": logits,
-    "mapping": batched_ensemble.mapping,
+    "scores": jnp.concatenate(all_scores, axis=0),
+    "logits": jnp.concatenate(all_logits, axis=0),
     "metadata": {
-      "protein_sources": sources,
       "backbone_noise_levels": backbone_noise,
     },
   }
 
 
-async def sample(
+def sample(
   inputs: Sequence[str | StringIO] | str | StringIO,
   chain_id: Sequence[str] | str | None = None,
   model: int | None = None,
@@ -282,15 +184,16 @@ async def sample(
   iterations: int | None = None,
   learning_rate: float | None = None,
   batch_size: int = 32,
+  num_workers: int = 0,
   **kwargs: Any,  # noqa: ANN401
 ) -> dict[str, jax.Array | dict[str, jax.Array | list[str]] | None]:
   """Sample new sequences for the given input structures.
 
-  This function streams and processes structures asynchronously, then uses a
-  memory-efficient JAX map to sample new sequences for each structure.
+  This function uses a high-performance Grain pipeline to load and process
+  structures, then samples new sequences for each structure.
 
   Args:
-      inputs: An async stream of structures (files, PDB IDs, etc.).
+      inputs: A single or sequence of inputs (files, PDB IDs, etc.).
       chain_id: Specific chain(s) to parse from the structure.
       model: The model number to load. If None, all models are loaded.
       altloc: The alternate location identifier to use.
@@ -298,21 +201,20 @@ async def sample(
       model_weights: The model weights to use.
       foldcomp_database: The FoldComp database to use for FoldComp IDs.
       rng_key: The random number generator key.
-      backbone_noise: The amount of noise to add to the backbone. Can be a single
-          float or a list/array of floats to sample with multiple noise levels.
+      backbone_noise: The amount of noise to add to the backbone.
       num_samples: The number of sequences to sample per structure/noise level.
-      sampling_strategy: The sampling strategy to use ("temperature" or "straight_through").
+      sampling_strategy: The sampling strategy to use.
       temperature: The sampling temperature.
       bias: An optional array to bias the logits.
       fixed_positions: An optional array of residue indices to keep fixed.
       iterations: Number of optimization iterations for "straight_through" sampling.
       learning_rate: Learning rate for "straight_through" sampling.
-      batch_size: The batch size for processing structures.
+      batch_size: The number of structures to process in a single batch.
+      num_workers: Number of parallel workers for data loading.
       **kwargs: Additional keyword arguments for structure loading.
 
   Returns:
-      A dictionary containing sampled sequences, logits, and metadata. The sequences
-      will have a shape of (num_structures, num_noise_levels, num_samples, length).
+      A dictionary containing sampled sequences, logits, and metadata.
 
   """
   if isinstance(backbone_noise, float):
@@ -320,18 +222,14 @@ async def sample(
   else:
     backbone_noise = jnp.asarray(backbone_noise)
 
-  _proteins, sources = await load(
-    inputs,
-    model=model,
-    altloc=altloc,
-    chain_id=chain_id,
+  parse_kwargs = {"chain_id": chain_id, "model": model, "altloc": altloc, **kwargs}
+  protein_iterator = loaders.create_protein_dataset(
+    _loader_inputs(inputs),
+    batch_size=batch_size,
     foldcomp_database=foldcomp_database,
-    **kwargs,
+    parse_kwargs=parse_kwargs,
+    num_workers=num_workers,
   )
-
-  proteins = [tuple_to_protein(p) for p in _proteins]
-
-  batched_ensemble, _ = batch_and_pad_proteins(proteins)
 
   model_parameters = get_mpnn_model(model_version=model_version, model_weights=model_weights)
   sampler_fn = make_sample_sequences(
@@ -340,56 +238,70 @@ async def sample(
     sampling_strategy=sampling_strategy,
   )
 
-  keys = jax.random.split(jax.random.key(rng_key), num_samples)
-  vmap_samples = jax.vmap(
-    sampler_fn,
-    in_axes=(0, None, None, None, None, None, None, None, None, None, None, None),
-    out_axes=0,
-  )
+  all_sequences, all_logits = [], []
 
-  vmap_noises = jax.vmap(
-    vmap_samples,
-    in_axes=(None, None, None, None, None, None, None, None, 0, None, None, None),
-    out_axes=0,
-  )
+  for batched_ensemble in protein_iterator:
+    residue_mask = batched_ensemble.atom_mask[:, :, atom_order["CA"]]
+    keys = jax.random.split(jax.random.key(rng_key), num_samples)
 
-  residue_mask = batched_ensemble.atom_mask[:, :, atom_order["CA"]]
-
-  mapped_fn = partial(
-    vmap_noises,
-    keys,
-    k_neighbors=48,
-    bias=bias,
-    fixed_positions=fixed_positions,
-    backbone_noise=backbone_noise,
-    iterations=iterations,
-    learning_rate=learning_rate,
-    temperature=temperature,
-  )
-
-  sampled_sequences, logits, _ = jax.lax.map(
-    mapped_fn,
-    (
+    vmap_samples = jax.vmap(
+      sampler_fn,
+      in_axes=(0, None, None, None, None, None, None, None, None, None, None, None),
+      out_axes=0,
+    )
+    vmap_noises = jax.vmap(
+      vmap_samples,
+      in_axes=(None, None, None, None, None, None, None, None, 0, None, None, None),
+      out_axes=0,
+    )
+    vmap_structures = jax.vmap(
+      vmap_noises,
+      in_axes=(
+        None,  # keys
+        0,  # coordinates
+        0,  # residue_mask
+        0,  # residue_index
+        0,  # chain_index
+        None,  # k_neighbors
+        None,  # bias
+        None,  # fixed_positions
+        None,  # backbone_noise
+        None,  # iterations
+        None,  # learning_rate
+        None,  # temperature
+      ),
+      out_axes=0,
+    )
+    sampled_sequences, logits, _ = vmap_structures(
+      keys,
       batched_ensemble.coordinates,
       residue_mask,
       batched_ensemble.residue_index,
       batched_ensemble.chain_index,
-    ),
-    batch_size=batch_size,
-  )
+      48,
+      bias,
+      fixed_positions,
+      backbone_noise,
+      iterations,
+      learning_rate,
+      temperature,
+    )
+    all_sequences.append(sampled_sequences)
+    all_logits.append(logits)
+
+  if not all_sequences:
+    return {"sampled_sequences": None, "logits": None, "metadata": None}
 
   return {
-    "sampled_sequences": sampled_sequences,
-    "logits": logits,
-    "mapping": batched_ensemble.mapping,
+    "sampled_sequences": jnp.concatenate(all_sequences, axis=0),
+    "logits": jnp.concatenate(all_logits, axis=0),
     "metadata": {
-      "protein_sources": sources,
       "backbone_noise_levels": backbone_noise,
     },
   }
 
 
-async def categorical_jacobian(
+def categorical_jacobian(
   inputs: Sequence[str | StringIO] | str | StringIO,
   chain_id: Sequence[str] | str | None = None,
   model: int | None = None,
@@ -399,21 +311,30 @@ async def categorical_jacobian(
   foldcomp_database: FoldCompDatabase | None = None,
   rng_key: int = 0,
   backbone_noise: float | list[float] | ArrayLike = 0.0,
-  mode: Literal["full", "diagonal"] = "full",
-  protein_batch_size: int = 1,
+  batch_size: int = 1,
   noise_batch_size: int = 1,
   jacobian_batch_size: int = 16,
+  combine_batch_size: int = 4,
+  num_workers: int = 0,
+  combine_fn: CombineCatJacTranformFn | Literal["add", "subtract"] = "add",
+  combine_fn_kwargs: dict[str, Any] | None = None,
+  combine_weights: jax.Array | None = None,
   *,
-  calculate_cross_diff: bool = False,
+  combine: bool = False,
   **kwargs: Any,  # noqa: ANN401
-) -> dict[str, jax.Array | dict[str, jax.Array | list[str] | str] | None]:
+) -> dict[
+  str,
+  jax.Array
+  | dict[
+    str,
+    jax.Array | Sequence[str] | str | int | dict[str, Any] | FoldCompDatabase | None,
+  ]
+  | None,
+]:
   """Compute the Jacobian of the model's logits with respect to the input sequence.
 
-  This function calculates the derivative of the output logits at all positions
-  with respect to the one-hot encoded input sequence at all positions.
-
   Args:
-      inputs: An async stream of structures (files, PDB IDs, etc.).
+      inputs: A single or sequence of inputs (files, PDB IDs, etc.).
       chain_id: Specific chain(s) to parse from the structure.
       model: The model number to load. If None, all models are loaded.
       altloc: The alternate location identifier to use.
@@ -423,14 +344,15 @@ async def categorical_jacobian(
       rng_key: The random number generator key.
       backbone_noise: The amount of noise to add to the backbone.
       mode: "full" to compute the full Jacobian, "diagonal" for only diagonal blocks.
-      outer_batch_size: The batch size for processing structures.
-      inner_batch_size: The batch size for Jacobian computation.
-      calculate_cross_diff: Whether to calculate cross-protein differences using mapping.
+      batch_size: The number of structures to process in a single batch.
+      noise_batch_size: Batch size for noise levels in Jacobian computation.
+      jacobian_batch_size: Inner batch size for Jacobian computation.
+      num_workers: Number of parallel workers for data loading.
+      calculate_cross_diff: Whether to calculate cross-protein differences.
       **kwargs: Additional keyword arguments for structure loading.
 
   Returns:
-      A dictionary containing the Jacobian tensor and metadata. The shape of the
-      Jacobian will be (num_structures, num_noise_levels, L, 21, L, 21).
+      A dictionary containing the Jacobian tensor and metadata.
 
   """
   if isinstance(backbone_noise, float):
@@ -438,154 +360,133 @@ async def categorical_jacobian(
   else:
     backbone_noise = jnp.asarray(backbone_noise)
 
-  logger.info("Computing categorical Jacobian in %s mode.", mode)
-  _proteins, sources = await load(
-    inputs,
-    model=model,
-    altloc=altloc,
-    chain_id=chain_id,
+  parse_kwargs = {"chain_id": chain_id, "model": model, "altloc": altloc, **kwargs}
+  protein_iterator = loaders.create_protein_dataset(
+    _loader_inputs(inputs),
+    batch_size=batch_size,
     foldcomp_database=foldcomp_database,
-    **kwargs,
+    parse_kwargs=parse_kwargs,
+    num_workers=num_workers,
   )
-  logger.info("Loaded protein stream, batching and padding proteins.")
-
-  proteins = [tuple_to_protein(p) for p in _proteins]
-
-  batched_ensemble, _ = batch_and_pad_proteins(
-    proteins,
-    calculate_cross_diff=calculate_cross_diff,
-  )
-  logger.info("Batched and padded proteins, loading model.")
 
   model_parameters = get_mpnn_model(model_version=model_version, model_weights=model_weights)
-  logger.info("Loaded model parameters.")
-
   conditional_logits_fn = make_conditional_logits_fn(model_parameters=model_parameters)
-  logger.info("Created scoring function.")
 
-  def compute_jacobian_for_structure(
-    coords: jax.Array,
-    atom_mask: jax.Array,
-    residue_ix: jax.Array,
-    chain_ix: jax.Array,
-    one_hot_sequence: jax.Array,
-    noise: jax.Array,
-  ) -> jax.Array:
-    """Compute the full categorical Jacobian for a single protein structure and noise level."""
-    length = one_hot_sequence.shape[0]
-    residue_mask = atom_mask[:, 0]
-    one_hot_flat = one_hot_sequence.flatten()
-    input_dim = one_hot_flat.shape[0]
+  all_jacobians = []
+  all_sequences = []
+  for batched_ensemble in protein_iterator:
 
-    def logit_fn(one_hot_flat: jax.Array) -> jax.Array:
-      """Compute logits from flattened one-hot sequence."""
-      one_hot_2d = one_hot_flat.reshape(length, 21)
-      logits, _, _ = conditional_logits_fn(
-        jax.random.key(rng_key),
-        coords,
-        one_hot_2d,
-        residue_mask,
-        residue_ix,
-        chain_ix,
-        None,
-        48,
-        noise,
+    def compute_jacobian_for_structure(
+      coords: jax.Array,
+      atom_mask: jax.Array,
+      residue_ix: jax.Array,
+      chain_ix: jax.Array,
+      one_hot_sequence: jax.Array,
+      noise: jax.Array,
+    ) -> jax.Array:
+      length = one_hot_sequence.shape[0]
+      residue_mask = atom_mask[:, 0]
+      one_hot_flat = one_hot_sequence.flatten()
+      input_dim = one_hot_flat.shape[0]
+
+      def logit_fn(one_hot_flat: jax.Array) -> jax.Array:
+        one_hot_2d = one_hot_flat.reshape(length, 21)
+        logits, _, _ = conditional_logits_fn(
+          jax.random.key(rng_key),
+          coords,
+          one_hot_2d,
+          residue_mask,
+          residue_ix,
+          chain_ix,
+          None,
+          48,
+          noise,
+        )
+        return logits.flatten()
+
+      def jvp_fn(tangent: jax.Array) -> jax.Array:
+        return jax.jvp(logit_fn, (one_hot_flat,), (tangent,))[1]
+
+      def chunked_jacobian(idx: jax.Array) -> jax.Array:
+        tangent = jax.nn.one_hot(idx, num_classes=input_dim, dtype=one_hot_flat.dtype)
+        return jvp_fn(tangent)
+
+      jacobian_flat = jax.lax.map(
+        chunked_jacobian,
+        jnp.arange(input_dim),
+        batch_size=jacobian_batch_size,
       )
-      return logits.flatten()  # Shape: (length * 21,)
+      return jacobian_flat.reshape(length, 21, length, 21)
 
-    def jvp_fn(tangent: jax.Array) -> jax.Array:
-      """Compute the Jacobian-vector product for a single tangent vector."""
-      return jax.jvp(logit_fn, (one_hot_flat,), (tangent,))[1]
+    def mapped_fn(
+      coords: StructureAtomicCoordinates,
+      atom_mask: AtomMask,
+      residue_ix: ResidueIndex,
+      chain_ix: ChainIndex,
+      one_hot_sequence: OneHotProteinSequence,
+    ) -> jax.Array:
+      """Compute Jacobians for a single structure across multiple noise levels."""
+      return jax.lax.map(
+        partial(
+          compute_jacobian_for_structure,
+          coords,
+          atom_mask,
+          residue_ix,
+          chain_ix,
+          one_hot_sequence,
+        ),
+        backbone_noise,
+        batch_size=noise_batch_size,
+      )
 
-    def chunked_jacobian(idx: jax.Array) -> jax.Array:
-      """Compute the Jacobian matrix of logits with respect to the input one-hot sequence."""
-      tangent = jax.nn.one_hot(idx, num_classes=input_dim, dtype=one_hot_flat.dtype)
-      return jvp_fn(tangent)
-
-    jacobian_flat = jax.lax.map(
-      chunked_jacobian,
-      jnp.arange(input_dim),
-      batch_size=jacobian_batch_size,
-    )
-
-    return jacobian_flat.reshape(length, 21, length, 21)
-
-  def mapped_fn(
-    input_tuple: tuple[
-      StructureAtomicCoordinates,
-      AtomMask,
-      ResidueIndex,
-      ChainIndex,
-      OneHotProteinSequence,
-    ],
-  ) -> jax.Array:
-    """Map over a single structure, mapping over noise levels."""
-    return jax.lax.map(
-      partial(
-        compute_jacobian_for_structure,
-        *input_tuple,
-      ),
-      backbone_noise,
-      batch_size=noise_batch_size,
-    )
-
-  jacobians: jax.Array = jax.lax.map(
-    mapped_fn,
-    (
+    jacobians_batch = jax.vmap(mapped_fn)(
       batched_ensemble.coordinates,
       batched_ensemble.atom_mask,
       batched_ensemble.residue_index,
       batched_ensemble.chain_index,
-      batched_ensemble.one_hot_sequence,  # type: ignore[arg-type]
-    ),
-    batch_size=protein_batch_size,
-  )
-  logger.info("Computed categorical Jacobians.")
-  apc_jacobians = jax.vmap(
-    jax.vmap(
-      apc_corrected_frobenius_norm,
-      in_axes=0,
-      out_axes=0,
-    ),
-    in_axes=0,
-    out_axes=0,
-  )(jacobians)
-
-  cross_protein_diffs = None
-  if calculate_cross_diff and batched_ensemble.mapping is not None:
-    cross_protein_diffs = compute_cross_protein_jacobian_diffs(
-      apc_jacobians,
-      batched_ensemble.mapping,
+      batched_ensemble.one_hot_sequence,
     )
 
-    if cross_protein_diffs.size > 0:
-      not_nan_mask = ~jnp.isnan(cross_protein_diffs).all(axis=(1, 3, 5))
-      valid_residues = not_nan_mask.any(axis=(0, 2)) | not_nan_mask.any(axis=(0, 1))
-      valid_indices = jnp.where(valid_residues, size=valid_residues.sum().item())[0]
+    all_jacobians.append(jacobians_batch)
+    all_sequences.append(batched_ensemble.one_hot_sequence)
 
-      if valid_indices.size > 0:
-        cross_protein_diffs = cross_protein_diffs[:, :, valid_indices][:, :, :, :, valid_indices, :]
-      else:
-        cross_protein_diffs = jnp.empty(
-          (
-            cross_protein_diffs.shape[0],
-            cross_protein_diffs.shape[1],
-            0,
-            21,
-            0,
-            21,
-          ),
-        )
-    logger.info("Computed cross-protein Jacobian differences.")
+  if not all_jacobians:
+    return {"categorical_jacobians": None, "metadata": None}
+
+  jacobians = jnp.concatenate(all_jacobians, axis=0)
+  apc_jacobians = jax.vmap(jax.vmap(apc_corrected_frobenius_norm))(jacobians)
+
+  combine_jacs_fn = make_combine_jac(
+    combine_fn=combine_fn,
+    fn_kwargs=combine_fn_kwargs,
+    batch_size=combine_batch_size,
+  )
+
+  combined_jacs = (
+    combine_jacs_fn(jacobians, jnp.concatenate(all_sequences, axis=0), combine_weights)
+    if combine
+    else None
+  )
 
   return {
     "categorical_jacobians": jacobians,
     "apc_corrected_jacobians": apc_jacobians,
-    "cross_protein_diffs": cross_protein_diffs,
-    "mapping": batched_ensemble.mapping,
+    "combined": combined_jacs,
     "metadata": {
-      "protein_sources": sources,
       "backbone_noise_levels": backbone_noise,
-      "computation_mode": mode,
+      "chain_id": chain_id,
+      "model": model,
+      "altloc": altloc,
+      "model_version": model_version,
+      "model_weights": model_weights,
+      "combine_function": combine_fn if isinstance(combine_fn, str) else combine_fn.__name__,
+      "combine_function_kwargs": combine_fn_kwargs,
+      "combine_weights": combine_weights,
+      "foldcomp_database": foldcomp_database,
+      "jacobian_batch_size": jacobian_batch_size,
+      "noise_batch_size": noise_batch_size,
+      "combine_batch_size": combine_batch_size,
+      "num_workers": num_workers,
+      "rng_key": rng_key,
     },
   }

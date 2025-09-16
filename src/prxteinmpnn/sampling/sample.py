@@ -1,5 +1,6 @@
 """Factory for creating sequence sampling and optimization functions."""
 
+from collections.abc import Callable
 from functools import partial
 from typing import TYPE_CHECKING, Literal, cast
 
@@ -36,7 +37,21 @@ from .sampling_step import preload_sampling_step_decoder
 from .ste_optimize import make_optimize_sequence_fn
 
 # Simplified type hints
-SamplerFn = partial[tuple[ProteinSequence, Logits, DecodingOrder]]
+SamplerInputs = tuple[
+  PRNGKeyArray,
+  StructureAtomicCoordinates,
+  AlphaCarbonMask,
+  ResidueIndex,
+  ChainIndex,
+  int,
+  InputBias | None,
+  Int | None,
+  BackboneNoise | None,
+  Int | None,
+  Float | None,
+  Float | None,
+]
+SamplerFn = Callable[..., tuple[ProteinSequence, Logits, DecodingOrder]]
 
 
 def make_sample_sequences(

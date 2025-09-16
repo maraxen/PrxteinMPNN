@@ -51,3 +51,5 @@ BackboneDihedrals = Float[Array, "num_residues 3"]  # Dihedral angles for backbo
 BackboneNoise = Float[Array, "n"]  # Noise added to backbone coordinates
 
 Temperature = Float[Array, ""]  # Temperature for sampling
+CategoricalJacobian = Float[Array, "num_residues num_classes num_residues num_classes"]
+InterproteinMapping = Int[Array, "num_pairs max_length 2"]  # Mapping between protein pairs

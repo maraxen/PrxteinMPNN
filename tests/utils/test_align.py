@@ -3,7 +3,8 @@
 import jax.numpy as jnp
 import pytest
 
-from src.prxteinmpnn.utils.align import (
+from prxteinmpnn.utils.align import (
+    align_sequences,
     needleman_wunsch_alignment,
     smith_waterman,
     smith_waterman_affine,
@@ -83,3 +84,18 @@ def test_needleman_wunsch_alignment(sample_score_matrix, sample_sequence_lengths
     assert isinstance(result, jnp.ndarray), "Result should be a JAX array."
     assert result.shape == sample_score_matrix.shape, "Result shape should match the score matrix shape."
     assert result.sum() > 0, "Sum of alignment trace should be positive."
+
+
+def test_align_sequences():
+    """Test the align_sequences function."""
+    # Test with two identical sequences
+    seqs = jnp.array([[0, 1, 2, 3], [0, 1, 2, 3]])
+    alignment = align_sequences(seqs)
+    assert alignment.shape == (1, 4, 2)
+    assert jnp.all(alignment[0, :, 0] == jnp.arange(4))
+    assert jnp.all(alignment[0, :, 1] == jnp.arange(4))
+
+    # Test with a gap
+    seqs = jnp.array([[0, 1, 2, 3], [0, 1, 4, 3]])
+    alignment = align_sequences(seqs)
+    assert alignment.shape == (1, 4, 2)

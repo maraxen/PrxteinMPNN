@@ -2,10 +2,12 @@
 
 prxteinmpnn.io.parsing
 
-This uses numpy to allow for multiprocessing and avoid conflicts with Jax.
+This module has been refactored to contain only synchronous parsing logic,
+making it suitable for use in parallel worker processes managed by Grain.
+All async operations and direct I/O handling have been moved to the
+`sources.py` and `operations.py` modules.
 """
 
-import io
 import pathlib
 import tempfile
 import warnings
@@ -18,7 +20,6 @@ import numpy as np
 from biotite import structure
 from biotite.structure import AtomArray, AtomArrayStack
 from biotite.structure import io as structure_io
-from jax import vmap
 
 from prxteinmpnn.utils.data_structures import ProteinStream, ProteinTuple, TrajectoryStaticFeatures
 from prxteinmpnn.utils.residue_constants import (
@@ -71,31 +72,7 @@ def extend_coordinate(
   bond_angle: float,
   dihedral_angle: float,
 ) -> np.ndarray:
-  """Compute the position of a fourth atom (D) given three atoms (A, B, C) and internal coordinates.
-
-  Given coordinates for atoms A, B, and C, and the desired bond length, bond angle, and dihedral
-  angle, compute the coordinates of atom D such that:
-    - |C-D| = bond_length
-    - angle(B, C, D) = bond_angle
-    - dihedral(A, B, C, D) = dihedral_angle
-
-  Args:
-    atom_a: Coordinates of atom A, shape (3,).
-    atom_b: Coordinates of atom B, shape (3,).
-    atom_c: Coordinates of atom C, shape (3,).
-    bond_length: Desired bond length between C and D.
-    bond_angle: Desired bond angle (in radians) at atom C.
-    dihedral_angle: Desired dihedral angle (in radians) for atoms A-B-C-D.
-
-  Returns:
-    Coordinates of atom D, shape (3,).
-
-  Example:
-    >>> d = extend_coordinate(a, b, c, 1.5, 2.0, 3.14)
-    >>> d.shape
-    (3,)
-
-  """
+  """Compute fourth atom (D) position given three atoms (A, B, C) and internal coordinates."""
 
   def normalize(vec: np.ndarray) -> np.ndarray:
     return vec / np.linalg.norm(vec)
@@ -113,44 +90,7 @@ def compute_cb_precise(
   ca_coord: np.ndarray,
   c_coord: np.ndarray,
 ) -> np.ndarray:
-  """Compute the C-beta atom position from backbone N, CA, and C coordinates.
-
-  Does so precisely using trigonometric relationships based on the backbone geometry.
-
-  Specifically, the position of the C-beta atom is determined by:
-
-  - The bond length between the alpha carbon and the C-beta atom.
-  - The bond angle between the nitrogen, alpha carbon, and C-beta atoms.
-  - The dihedral angle involving the nitrogen, alpha carbon, and C-beta atoms.
-
-
-  Unlike the compute_c_beta function, this function does not use a linear combination of bond
-  vectors with approximate fixed coefficients. This is more accurate and flexible for different
-  configurations of the protein backbone, but more computationally intensive.
-
-  It is used in preparation of the atomic coordinates for the model input.
-  It is not used in the model itself, but rather in the preprocessing of the input data
-  to ensure that the C-beta atom is correctly placed based on the backbone structure.
-
-  Uses standard geometry for C-beta placement:
-    - N-CA-CB bond length: 1.522 Å
-    - N-CA-CB bond angle: 1.927 radians
-    - C-N-CA-CB dihedral angle: -2.143 radians
-
-  Args:
-    n_coord: Coordinates of the N atom, shape (3,).
-    ca_coord: Coordinates of the CA atom, shape (3,).
-    c_coord: Coordinates of the C atom, shape (3,).
-
-  Returns:
-    Coordinates of the C-beta atom, shape (3,).
-
-  Example:
-    >>> cb = compute_cb_precise(n, ca, c)
-    >>> cb.shape
-    (3,)
-
-  """
+  """Compute the C-beta atom position from backbone N, CA, and C coordinates."""
   return extend_coordinate(
     c_coord,
     n_coord,
@@ -166,22 +106,7 @@ def string_key_to_index(
   key_map: Mapping[str, int],
   unk_index: int | None = None,
 ) -> np.ndarray:
-  """Convert string keys to integer indices based on a mapping.
-
-  Efficient vectorized implementation to convert a 1D array of string keys
-  to a 1D array of integer indices using a provided mapping. If a key is not found in the mapping,
-  it is replaced with a specified unknown index.
-
-  Args:
-    string_keys: A 1D array of string keys.
-    key_map: A dictionary mapping string keys to integer indices.
-    unk_index: The index to use for unknown keys not found in the mapping. If None, uses the
-      length of the key_map as the unknown index.
-
-  Returns:
-    A 1D array of integer indices corresponding to the string keys.
-
-  """
+  """Convert string keys to integer indices based on a mapping."""
   if unk_index is None:
     unk_index = len(key_map)
 
@@ -201,19 +126,7 @@ def string_to_protein_sequence(
   aa_map: dict | None = None,
   unk_index: int | None = None,
 ) -> np.ndarray:
-  """Convert a string sequence to a ProteinSequence.
-
-  Args:
-    sequence: A string containing the protein sequence.
-    aa_map: A dictionary mapping amino acid names to integer indices. If None, uses the default
-      `restype_order` mapping.
-    unk_index: The index to use for unknown amino acids not found in the mapping. If None, uses
-      `unk_restype_index`.
-
-  Returns:
-    A ProteinSequence containing the amino acid type indices corresponding to the input string.
-
-  """
+  """Convert a string sequence to a ProteinSequence."""
   if unk_index is None:
     unk_index = unk_restype_index
 
@@ -229,17 +142,7 @@ def protein_sequence_to_string(
   sequence: np.ndarray,
   aa_map: dict | None = None,
 ) -> str:
-  """Convert a ProteinSequence to a string.
-
-  Args:
-    sequence: A ProteinSequence containing amino acid type indices.
-    aa_map: A dictionary mapping amino acid type indices to their corresponding names. If None,
-      uses the default `restype_order` mapping.
-
-  Returns:
-    A string representation of the protein sequence.
-
-  """
+  """Convert a ProteinSequence to a string."""
   if aa_map is None:
     aa_map = {i: aa for aa, i in restype_order_with_x.items()}
 
@@ -252,17 +155,7 @@ def residue_names_to_aatype(
   residue_names: np.ndarray,
   aa_map: dict | None = None,
 ) -> np.ndarray:
-  """Convert 3-letter residue names to amino acid type indices.
-
-  Args:
-    residue_names: A 1D array of residue names (strings).
-    aa_map: A dictionary mapping residue names to integer indices. If None, uses the default
-      `resname_to_idx` mapping.
-
-  Returns:
-    A 1D array of amino acid type indices corresponding to the residue names.
-
-  """
+  """Convert 3-letter residue names to amino acid type indices."""
   if aa_map is None:
     aa_map = resname_to_idx
 
@@ -275,17 +168,7 @@ def atom_names_to_index(
   atom_names: np.ndarray,
   atom_map: dict | None = None,
 ) -> np.ndarray:
-  """Convert atom names to atom type indices.
-
-  Args:
-    atom_names: A 1D array of atom names (strings).
-    atom_map: A dictionary mapping atom names to integer indices. If None, uses the default
-      `atomname_to_idx` mapping.
-
-  Returns:
-    A 1D array of atom type indices corresponding to the atom names.
-
-  """
+  """Convert atom names to atom type indices."""
   if atom_map is None:
     atom_map = atom_order
 
@@ -294,15 +177,7 @@ def atom_names_to_index(
 
 
 def _check_atom_array_length(atom_array: AtomArray | AtomArrayStack) -> None:
-  """Check if the AtomArray has a valid length.
-
-  Args:
-    atom_array: The AtomArray to check.
-
-  Raises:
-    ValueError: If the AtomArray is empty.
-
-  """
+  """Check if the AtomArray has a valid length."""
   if atom_array.array_length() == 0:
     msg = "AtomArray is empty."
     raise ValueError(msg)
@@ -355,47 +230,6 @@ def _process_chain_id(
   )
 
 
-def _fill_in_cb_coordinates(
-  coords_37: np.ndarray,
-  residue_names: np.ndarray,
-  atom_map: dict[str, int] | None = None,
-) -> np.ndarray:
-  """Fill in the CB coordinates for residues that have them.
-
-  Args:
-    coords_37: A 2D array of shape (N, 37, 3) containing the coordinates of the atoms.
-    residue_names: A 1D array of residue names corresponding to the coordinates.
-    atom_map: A dictionary mapping residue names to their atom indices. If None, uses the default
-      `atom_order` mapping.
-
-  Returns:
-    A 2D array of shape (N, 37, 3) with the C-beta coordinates filled in for residues that have
-      them.
-    For glycine residues, the C-beta coordinates are computed precisely based on the N, CA, and C
-      atoms.
-    For other residues, the original C-beta coordinates are retained if they exist.
-
-    NOTE: This is not part of the pipeline, as despite this happening in the original code, it is
-      bypassed during feature extraction.
-
-  """
-  if atom_map is None:
-    atom_map = atom_order
-  is_glycine = np.array([name == "GLY" for name in residue_names])
-
-  n_coords = coords_37[:, atom_map["N"], :]
-  ca_coords = coords_37[:, atom_map["CA"], :]
-  c_coords = coords_37[:, atom_map["C"], :]
-
-  precise_cbs = vmap(compute_cb_precise)(n_coords, ca_coords, c_coords)
-
-  original_cbs = coords_37[:, atom_map["CB"], :]
-
-  updated_cbs = np.where(is_glycine[:, None], precise_cbs, original_cbs)
-  coords_37[:, atom_map["CB"], :] = updated_cbs
-  return coords_37
-
-
 def _extract_biotite_static_features(
   atom_array: AtomArray | AtomArrayStack,
   atom_map: dict[str, int] | None = None,
@@ -425,7 +259,7 @@ def _extract_biotite_static_features(
 
   atom_mask = atom37_indices != -1
 
-  atom_mask_37 = np.zeros((num_residues, 37), dtype=np.bool)
+  atom_mask_37 = np.zeros((num_residues, 37), dtype=bool)
 
   res_indices_flat = np.asarray(residue_inv_indices)[atom_mask]
   atom_indices_flat = atom37_indices[atom_mask]
@@ -455,23 +289,15 @@ def _extract_biotite_static_features(
 def atom_array_dihedrals(
   atom_array: AtomArray | AtomArrayStack,
 ) -> np.ndarray | None:
-  """Compute backbone dihedral angles (phi, psi, omega) for the given AtomArray.
-
-  Args:
-    atom_array: An AtomArray or AtomArrayStack containing the atomic coordinates and topology.
-    chain_mask: A boolean array indicating which atoms belong to the selected chain(s).
-
-  Returns:
-    A 2D array of shape (num_residues, 3) or 3D array with shape (num_frames, num_residues, 3)
-    containing the dihedral angles in radians.
-    The three columns correspond to phi, psi, and omega angles respectively.
-
-  """
+  """Compute backbone dihedral angles (phi, psi, omega) for the given AtomArray."""
   phi, psi, omega = structure.dihedral_backbone(atom_array)
   phi = np.asarray(phi)
   psi = np.asarray(psi)
   omega = np.asarray(omega)
-  return np.stack([phi, psi, omega], axis=-1) if phi is not None else None
+  if phi is None or psi is None or omega is None:
+    return None
+  dihedrals = np.stack([phi, psi, omega], axis=-1)
+  return dihedrals[~np.any(np.isnan(dihedrals), axis=-1)]
 
 
 def mdtraj_dihedrals(
@@ -479,19 +305,7 @@ def mdtraj_dihedrals(
   num_residues: int,
   nitrogen_mask: np.ndarray,
 ) -> np.ndarray | None:
-  """Compute backbone dihedral angles (phi, psi, omega) for the given md.Trajectory chunk.
-
-  Args:
-    traj: An md.Trajectory containing the atomic coordinates and topology.
-    num_residues: The number of residues in the trajectory.
-    chain_mask: A boolean array indicating which atoms belong to the selected chain(s).
-    nitrogen_mask: A boolean array indicating which residues have backbone nitrogen atoms.
-
-  Returns:
-    A 2D array of shape (num_residues, 3) containing the dihedral angles in radians.
-    The three columns correspond to phi, psi, and omega angles respectively.
-
-  """
+  """Compute backbone dihedral angles (phi, psi, omega) for the given md.Trajectory chunk."""
   phi_indices, phi_angles = md.compute_phi(traj)
   psi_indices, psi_angles = md.compute_psi(traj)
   omega_indices, omega_angles = md.compute_omega(traj)
@@ -605,29 +419,8 @@ def _extract_mdtraj_static_features(
   )
 
 
-def _prepare_source(source: str | StringIO | pathlib.Path) -> pathlib.Path:
-  """Prepare the source for parsing by converting to Path and validating."""
-  if isinstance(source, io.StringIO):
-    with tempfile.NamedTemporaryFile(
-      mode="w",
-      delete=False,
-      suffix=".pdb",
-    ) as tmp:  # TODO: suffix based on format
-      tmp.write(source.read())
-      return pathlib.Path(tmp.name)
-
-  if isinstance(source, str):
-    if _check_if_file_empty(source):
-      msg = f"The file at {source} is empty."
-      warnings.warn(msg, stacklevel=2)
-      raise ValueError(msg)
-    return pathlib.Path(source)
-
-  return source
-
-
-async def _parse_hdf5(
-  source: pathlib.Path,
+def _parse_hdf5(
+  source: str | StringIO | pathlib.Path,
   chain_id: Sequence[str] | str | None,
   *,
   extract_dihedrals: bool = False,
@@ -650,23 +443,22 @@ async def _parse_hdf5(
             static_features["num_residues"],
             static_features["nitrogen_mask"],
           )
-          coords = process_coordinates(
-            coords,
-            static_features["num_residues"],
-            static_features["res_indices_flat"],
-            static_features["atom_indices_flat"],
-            static_features["valid_atom_mask"],
-          )
-        yield (
-          ProteinTuple(
-            coordinates=coords,
-            aatype=static_features["aatype"],
-            atom_mask=static_features["static_atom_mask_37"],
-            residue_index=static_features["residue_indices"],
-            chain_index=static_features["chain_index"],
-            dihedrals=dihedrals,
-          ),
-          str(source),
+
+        coords_37 = process_coordinates(
+          coords[0],  # MDTraj xyz is (n_frames, n_atoms, 3)
+          static_features["num_residues"],
+          static_features["res_indices_flat"],
+          static_features["atom_indices_flat"],
+          static_features["valid_atom_mask"],
+        )
+        yield ProteinTuple(
+          coordinates=coords_37,
+          aatype=static_features["aatype"],
+          atom_mask=static_features["static_atom_mask_37"],
+          residue_index=static_features["residue_indices"],
+          chain_index=static_features["chain_index"],
+          dihedrals=dihedrals,
+          source=str(source),
         )
   except Exception as e:
     msg = f"Failed to parse HDF5 structure from source: {e}"
@@ -674,29 +466,21 @@ async def _parse_hdf5(
     raise RuntimeError(msg) from e
 
 
-def _validate_atom_array_type(atom_array: Any) -> None:  # noqa: ANN401
-  """Validate that the atom array is of the expected type.
-
-  Args:
-    atom_array: The atom array to validate.
-
-  Raises:
-    TypeError: If the atom array is not an AtomArray or AtomArrayStack.
-
-  """
+def _validate_atom_array_type(atom_array: Any) -> None:
+  """Validate that the atom array is of the expected type."""
   if not isinstance(atom_array, (AtomArray, AtomArrayStack)):
     msg = f"Expected AtomArray or AtomArrayStack, but got {type(atom_array)}."
     raise TypeError(msg)
 
 
-async def _parse_biotite(
-  source: pathlib.Path,
+def _parse_biotite(
+  source: str | StringIO | pathlib.Path,
   model: int | None,
   altloc: str | None,
   chain_id: Sequence[str] | str | None,
   *,
   extract_dihedrals: bool = False,
-  **kwargs: Any,  # noqa: ANN401
+  **kwargs: Any,
 ) -> ProteinStream:
   """Parse standard structure files using biotite."""
   try:
@@ -718,45 +502,41 @@ async def _parse_biotite(
           if extract_dihedrals:
             dihedrals = atom_array_dihedrals(frame)
           coords = np.asarray(frame.coord)
-          coords = process_coordinates(
+          coords_37 = process_coordinates(
             coords,
             static_features["num_residues"],
             static_features["res_indices_flat"],
             static_features["atom_indices_flat"],
             static_features["valid_atom_mask"],
           )
-          yield (
-            ProteinTuple(
-              coordinates=coords,
-              aatype=static_features["aatype"],
-              atom_mask=static_features["static_atom_mask_37"],
-              residue_index=static_features["residue_indices"],
-              chain_index=static_features["chain_index"],
-              dihedrals=dihedrals,
-            ),
-            str(source),
+          yield ProteinTuple(
+            coordinates=coords_37,
+            aatype=static_features["aatype"],
+            atom_mask=static_features["static_atom_mask_37"],
+            residue_index=static_features["residue_indices"],
+            chain_index=static_features["chain_index"],
+            dihedrals=dihedrals,
+            source=str(source),
           )
       elif isinstance(atom_array, AtomArray):
         if extract_dihedrals:
           dihedrals = atom_array_dihedrals(atom_array)
         coords = np.asarray(atom_array.coord)
-        coords = process_coordinates(
+        coords_37 = process_coordinates(
           coords,
           static_features["num_residues"],
           static_features["res_indices_flat"],
           static_features["atom_indices_flat"],
           static_features["valid_atom_mask"],
         )
-        yield (
-          ProteinTuple(
-            coordinates=coords,
-            aatype=static_features["aatype"],
-            atom_mask=static_features["static_atom_mask_37"],
-            residue_index=static_features["residue_indices"],
-            chain_index=static_features["chain_index"],
-            dihedrals=dihedrals,
-          ),
-          str(source),
+        yield ProteinTuple(
+          coordinates=coords_37,
+          aatype=static_features["aatype"],
+          atom_mask=static_features["static_atom_mask_37"],
+          residue_index=static_features["residue_indices"],
+          chain_index=static_features["chain_index"],
+          dihedrals=dihedrals,
+          source=str(source),
         )
 
   except Exception as e:
@@ -765,46 +545,52 @@ async def _parse_biotite(
     raise RuntimeError(msg) from e
 
 
-async def parse_input(
+def parse_input(
   source: str | StringIO | pathlib.Path,
   *,
   model: int | None = None,
   altloc: str | None = None,
   chain_id: Sequence[str] | str | None = None,
   extract_dihedrals: bool = False,
-  **kwargs: Any,  # noqa: ANN401
+  **kwargs: Any,
 ) -> ProteinStream:
-  """Parse a structure file or string into a list of Protein objects.
+  """Parse a structure file or string into a generator of ProteinTuples.
 
-  This is a synchronous, CPU-bound function intended to be run in an executor
-  to avoid blocking the main event loop.
+  This is a synchronous, CPU-bound function intended to be run in a worker process.
+  It dispatches to the correct low-level parser based on file type.
 
   Args:
-      source: A file path (str) or a file-like object (StringIO) containing
-              the structure data.
+      source: A file path (str or Path) or a file-like object (StringIO).
       model: The model number to load. If None, all models are loaded.
       altloc: The alternate location identifier to use.
       chain_id: Specific chain(s) to parse from the structure.
       extract_dihedrals: Whether to compute and include backbone dihedral angles.
       **kwargs: Additional keyword arguments to pass to the structure loader.
 
-  Returns:
-      A ProteinEnsemble containing one or more parsed ProteinStructure objects.
+  Yields:
+      A tuple containing a `ProteinTuple` and the source identifier string.
 
   """
-  prepared_source = _prepare_source(source)
+  if isinstance(source, StringIO):
+    with tempfile.NamedTemporaryFile(
+      mode="w",
+      delete=False,
+      suffix=".pdb",
+    ) as tmp:  # TODO: suffix based on format
+      tmp.write(source.read())
+      source = pathlib.Path(tmp.name)
 
-  if prepared_source.suffix in {".h5", ".hdf5"}:
-    async for result in _parse_hdf5(prepared_source, chain_id, extract_dihedrals=extract_dihedrals):
-      yield result
-    return
+  if isinstance(source, (str, pathlib.Path)):
+    path = pathlib.Path(source)
+    if path.suffix.lower() in {".h5", ".hdf5"}:
+      yield from _parse_hdf5(path, chain_id, extract_dihedrals=extract_dihedrals)
+      return
 
-  async for result in _parse_biotite(
-    prepared_source,
+  yield from _parse_biotite(
+    source,
     model,
-    altloc,
-    chain_id,
+    altloc=altloc,
+    chain_id=chain_id,
     extract_dihedrals=extract_dihedrals,
     **kwargs,
-  ):
-    yield result
+  )

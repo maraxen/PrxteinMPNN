@@ -23,6 +23,7 @@ dependencies = [
     "mdtraj",
     "optax",
     "h5py",
+    "grain",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",

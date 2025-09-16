@@ -5,14 +5,15 @@ prxteinmpnn.utils.data_structures
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
+from collections.abc import Generator, Sequence
 from typing import TYPE_CHECKING, Literal, NamedTuple
 
+import jax.numpy as jnp
 from flax.struct import dataclass
 
 if TYPE_CHECKING:
-  import jax
   import numpy as np
+  from jaxtyping import Int
 
   from prxteinmpnn.utils.types import (
     AtomMask,
@@ -57,6 +58,8 @@ class ProteinTuple(NamedTuple):
   residue_index: np.ndarray
   chain_index: np.ndarray
   dihedrals: np.ndarray | None = None
+  source: str | None = None
+  mapping: np.ndarray | None = None
 
 
 class TrajectoryStaticFeatures(TypedDict):
@@ -100,9 +103,39 @@ class Protein:
   residue_index: ResidueIndex
   chain_index: ChainIndex
   dihedrals: BackboneDihedrals | None = None
+  mapping: Int | None = None
+
+  @classmethod
+  def from_tuple(cls, protein_tuple: ProteinTuple) -> Protein:
+    """Create a Protein instance from a ProteinTuple.
+
+    Args:
+        protein_tuple (ProteinTuple): The input protein tuple.
+
+    Returns:
+        Protein: The output protein dataclass.
+
+    """
+    return cls(
+      coordinates=jnp.asarray(protein_tuple.coordinates, dtype=jnp.float32),
+      aatype=jnp.asarray(protein_tuple.aatype, dtype=jnp.int8),
+      one_hot_sequence=jnp.eye(21)[protein_tuple.aatype],
+      atom_mask=jnp.asarray(protein_tuple.atom_mask, dtype=jnp.float32),
+      residue_index=jnp.asarray(protein_tuple.residue_index, dtype=jnp.int32),
+      chain_index=jnp.asarray(protein_tuple.chain_index, dtype=jnp.int32),
+      dihedrals=(
+        None
+        if protein_tuple.dihedrals is None
+        else jnp.asarray(protein_tuple.dihedrals, dtype=jnp.float64)
+      ),
+      mapping=jnp.asarray(protein_tuple.mapping, dtype=jnp.int32)
+      if protein_tuple.mapping is not None
+      else None,
+    )
 
 
-ProteinStream = AsyncGenerator[tuple[ProteinTuple, str], None]
+ProteinStream = Generator[ProteinTuple, None]
+ProteinBatch = Sequence[Protein]
 
 
 @dataclass(frozen=True)
@@ -122,6 +155,11 @@ class ProteinEnsemble:
       Shape is [num_res, num_atom_type].
     residue_index (AtomResidueIndex): Residue index as used in PDB. It is not necessarily
       continuous or 0-indexed. Shape is [num_res].
+    chain_index (ChainIndex): Chain index for each residue. Shape is [num_res].
+    dihedrals (BackboneDihedrals | None): Dihedral angles for backbone atoms (phi, psi, omega).
+      Shape is [num_res, 3]. If not provided, defaults to None.
+    mapping (jnp.Array | None): Optional array mapping residues in the ensemble to original
+      structure indices. Shape is [num_res, num_frames]. If not provided, defaults to None.
 
   """
 
@@ -132,7 +170,7 @@ class ProteinEnsemble:
   residue_index: ResidueIndex
   chain_index: ChainIndex
   dihedrals: BackboneDihedrals | None = None
-  mapping: jax.Array | None = None
+  mapping: Int | None = None
 
 
 OligomerType = Literal["monomer", "heteromer", "homooligomer", "tied_homooligomer"]

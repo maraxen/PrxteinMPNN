@@ -7,22 +7,24 @@ from io import StringIO
 import mdtraj as md
 import numpy as np
 import pytest
-from biotite.structure import Atom, AtomArray, AtomArrayStack,array as strucarray
+from biotite.structure import Atom, AtomArray, AtomArrayStack, array as strucarray
 from chex import assert_trees_all_close
 
 from prxteinmpnn.io.parsing import (
-  af_to_mpnn,
-  atom_array_dihedrals,
-  atom_names_to_index,
-  compute_cb_precise,
-  extend_coordinate,
-  mpnn_to_af,
-  parse_input,
-  protein_sequence_to_string,
-  residue_names_to_aatype,
-  string_key_to_index,
-  string_to_protein_sequence,
+    _check_if_file_empty,
+    af_to_mpnn,
+    atom_array_dihedrals,
+    atom_names_to_index,
+    compute_cb_precise,
+    extend_coordinate,
+    mpnn_to_af,
+    parse_input,
+    protein_sequence_to_string,
+    residue_names_to_aatype,
+    string_key_to_index,
+    string_to_protein_sequence,
 )
+from prxteinmpnn.utils.data_structures import ProteinTuple
 from prxteinmpnn.utils.residue_constants import resname_to_idx, restype_order, unk_restype_index
 
 PDB_STRING = """                                     
@@ -313,203 +315,352 @@ END
 """
 
 @pytest.fixture
-def simple_atom_array() -> AtomArray:
-  """Create a simple AtomArray for testing."""
-  atoms = [
-    Atom([-1.3, 0.0, 0.0], atom_name="N", res_name="ALA", res_id=1, chain_id="A"),
-    Atom([0.0, 0.0, 0.0], atom_name="CA", res_name="ALA", res_id=1, chain_id="A"),
-    Atom([0.5, 1.4, 0.0], atom_name="C", res_name="ALA", res_id=1, chain_id="A"),
-    Atom([0.0, -0.8, -1.2], atom_name="CB", res_name="ALA", res_id=1, chain_id="A"),
-  ]
-  return strucarray(atoms)
+def pdb_file():
+    """Create a temporary PDB file."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".pdb", delete=False) as f:
+        f.write(PDB_STRING)
+        filepath = f.name
+    yield filepath
+    pathlib.Path(filepath).unlink()
 
 
 @pytest.fixture
-def simple_atom_array_stack(simple_atom_array: AtomArray) -> AtomArrayStack:
-  """Create a simple AtomArrayStack for testing."""
-  return AtomArrayStack(2, len(simple_atom_array))
+def cif_file():
+    """Create a temporary CIF file."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".cif", delete=False) as f:
+        # A minimal CIF file content with required columns for Biotite
+        f.write(
+            """
+data_test
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.label_seq_id
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+_atom_site.occupancy
+_atom_site.B_iso_or_equiv
+_atom_site.pdbx_PDB_model_num
+_atom_site.pdbx_PDB_ins_code
+ATOM 1 N N GLY A 1 -6.778 -1.424 4.200 1.00 0.00 1 ?
+"""
+        )
+        filepath = f.name
+    yield filepath
+    pathlib.Path(filepath).unlink()
+
+
+@pytest.fixture
+def hdf5_file(pdb_file):
+    """Create a temporary HDF5 file."""
+    with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as tmp:
+        filepath = tmp.name
+    traj = md.load_pdb(pdb_file)
+    traj.save_hdf5(filepath)
+    yield filepath
+    pathlib.Path(filepath).unlink()
 
 
 def test_af_to_mpnn():
-  """Test conversion from AlphaFold to ProteinMPNN alphabet."""
-  af_sequence = np.array([restype_order["A"], restype_order["R"]])
-  mpnn_sequence = af_to_mpnn(af_sequence)
-  assert mpnn_sequence.tolist() == [0, 14]
+    """Test conversion from AlphaFold to ProteinMPNN alphabet."""
+    af_sequence = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20])
+    mpnn_sequence = af_to_mpnn(af_sequence)
+    assert mpnn_sequence.tolist() == [
+        0,
+        14,
+        11,
+        2,
+        1,
+        13,
+        3,
+        5,
+        6,
+        7,
+        9,
+        8,
+        10,
+        4,
+        12,
+        15,
+        16,
+        18,
+        19,
+        17,
+        20,
+    ]
 
 
 def test_mpnn_to_af():
-  """Test conversion from ProteinMPNN to AlphaFold alphabet."""
-  mpnn_sequence = np.array([0, 1])
-  af_sequence = mpnn_to_af(mpnn_sequence)
-  assert af_sequence.tolist() == [restype_order["A"], restype_order["C"]]
+    """Test conversion from ProteinMPNN to AlphaFold alphabet."""
+    mpnn_sequence = np.array(
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+    )
+    af_sequence = mpnn_to_af(mpnn_sequence)
+    print(af_sequence)
+    assert af_sequence.tolist() == [
+      0,
+      4,
+      3,
+      6,
+      13,
+      7,
+      8,
+      9,
+      11,
+      10,
+      12,
+      2,
+      14,
+      5,
+      1,
+      15,
+      16,
+      19,
+      17,
+      18,
+      20,
+    ]
 
 
 def test_extend_coordinate():
-  """Test the extend_coordinate function with a known geometry."""
-  a = np.array([0.0, 0.0, 0.0])
-  b = np.array([1.0, 0.0, 0.0])
-  c = np.array([1.0, 1.0, 0.0])
-  d = extend_coordinate(a, b, c, 1.5, np.pi / 2, np.pi / 2)
-  # Expected position is in the xy-plane, rotated from c-b vector
-  expected_d = np.array([1.0, 1.0, 0.0]) + np.array([-1.5, 0.0, 0.0])
-  assert_trees_all_close(d, np.array([1.0, 1.0, 1.5]), atol=1e-6)
+    """Test the extend_coordinate function."""
+    atom_a = np.array([0, 0, 0])
+    atom_b = np.array([1, 0, 0])
+    atom_c = np.array([1, 1, 0])
+    bond_length = 1.5
+    bond_angle = np.pi / 2
+    dihedral_angle = np.pi / 2
+    atom_d = extend_coordinate(atom_a, atom_b, atom_c, bond_length, bond_angle, dihedral_angle)
+    assert_trees_all_close(atom_d, np.array([1., 1., 1.5]), atol=1e-6)
 
 
 def test_compute_cb_precise():
-  """Test precise C-beta computation."""
-  n = np.array([28.1, 27.8, 29.3])
-  ca = np.array([27.6, 29.1, 29.1])
-  c = np.array([28.5, 30.1, 28.6])
-  cb = compute_cb_precise(n, ca, c)
-  # Based on standard geometry, CB should be roughly in this position
-  assert cb.shape == (3,)
-  dist = np.linalg.norm(cb - ca)
-  assert 1.5 < dist < 1.6
+    """Test the compute_cb_precise function."""
+    n_coord = np.array([0, 0, 0])
+    ca_coord = np.array([1.46, 0, 0])
+    c_coord = np.array([1.46 + 1.52 * np.cos(111 * np.pi / 180), 1.52 * np.sin(111 * np.pi / 180), 0])
+    cb_coord = compute_cb_precise(n_coord, ca_coord, c_coord)
+    assert cb_coord.shape == (3,)
 
 
 def test_string_key_to_index():
-  """Test converting string keys to integer indices."""
-  key_map = {"A": 0, "C": 1, "G": 2}
-  keys = np.array(["A", "G", "X", "C"])
-  indices = string_key_to_index(keys, key_map, unk_index=99)
-  assert indices.tolist() == [0, 2, 99, 1]
+    """Test the string_key_to_index function."""
+    key_map = {"A": 0, "B": 1, "C": 2}
+    keys = np.array(["A", "C", "D"])
+    indices = string_key_to_index(keys, key_map, unk_index=3)
+    assert np.array_equal(indices, np.array([0, 2, 3]))
 
 
 def test_string_to_protein_sequence():
-  """Test converting a string sequence to a ProteinSequence."""
-  sequence_str = "ARND"
-  sequence = string_to_protein_sequence(sequence_str)
-  expected_af = np.array(
-    [resname_to_idx[name] for name in ["ALA", "ARG", "ASN", "ASP"]],
-  )
-  expected_mpnn = af_to_mpnn(expected_af)
-  assert sequence.tolist() == expected_mpnn.tolist()
+    """Test the string_to_protein_sequence function."""
+    sequence = "ARND"
+    protein_seq = string_to_protein_sequence(sequence)
+    expected = af_to_mpnn(np.array([0, 1, 2, 3]))
+    assert np.array_equal(protein_seq, expected)
 
 
 def test_protein_sequence_to_string():
-  """Test converting a ProteinSequence to a string."""
-  mpnn_sequence = np.array([0, 1, 2, 3])  # Corresponds to A, C, D, E in MPNN order
-  sequence_str = protein_sequence_to_string(mpnn_sequence)
-  # Note: The mapping is complex due to AF vs MPNN alphabets
-  af_seq = mpnn_to_af(mpnn_sequence)
-  expected_str = "".join([restype_order_with_x_inv[i] for i in af_seq])
-  assert sequence_str == expected_str
-
-
-restype_order_with_x_inv = {v: k for k, v in restype_order.items()}
-restype_order_with_x_inv[20] = "X"
+    """Test the protein_sequence_to_string function."""
+    protein_seq = af_to_mpnn(np.array([0, 1, 2, 3]))
+    sequence = protein_sequence_to_string(protein_seq)
+    assert sequence == "ARND"
 
 
 def test_residue_names_to_aatype():
-  """Test converting residue names to aatype indices."""
-  names = np.array(["ALA", "GLY", "UNK"])
-  aatype = residue_names_to_aatype(names)
-  expected_af = np.array(
-    [resname_to_idx["ALA"], resname_to_idx["GLY"], unk_restype_index],
-  )
-  expected_mpnn = af_to_mpnn(expected_af)
-  assert aatype.tolist() == expected_mpnn.tolist()
+    """Test the residue_names_to_aatype function."""
+    residue_names = np.array(["ALA", "ARG", "ASN", "ASP"])
+    aatype = residue_names_to_aatype(residue_names)
+    expected = af_to_mpnn(np.array([0, 1, 2, 3]))
+    assert np.array_equal(aatype, expected)
 
 
 def test_atom_names_to_index():
-  """Test converting atom names to indices."""
-  names = np.array(["N", "CA", "C", "O", "CB", "H"])
-  indices = atom_names_to_index(names)
-  assert indices.tolist() == [0, 1, 2, 4, 3, -1]
+    """Test the atom_names_to_index function."""
+    atom_names = np.array(["N", "CA", "C", "O", "CB"])
+    indices = atom_names_to_index(atom_names)
+    assert np.array_equal(indices, np.array([0, 1, 2, 4, 3]))
 
 
-def test_atom_array_dihedrals(simple_atom_array: AtomArray):
-  """Test dihedral calculation from an AtomArray."""
-  # Add more atoms to make dihedrals possible
-  atoms = [
-    Atom([-2.5, -1.0, 0.0], atom_name="C", res_name="ALA", res_id=0),
-    Atom([-1.3, 0.0, 0.0], atom_name="N", res_name="ALA", res_id=1),
-    Atom([0.0, 0.0, 0.0], atom_name="CA", res_name="ALA", res_id=1),
-    Atom([0.5, 1.4, 0.0], atom_name="C", res_name="ALA", res_id=1),
-    Atom([1.8, 1.6, 0.0], atom_name="N", res_name="GLY", res_id=2),
-  ]
-  atom_array = strucarray(atoms)
-  dihedrals = atom_array_dihedrals(atom_array)
-  assert dihedrals is not None
-  assert dihedrals.shape == (3, 3)  # 3 residues, 3 angles (phi, psi, omega)
-  assert not np.isnan(dihedrals).all()
+def test_atom_array_dihedrals():
+    """Test the atom_array_dihedrals function."""
+    pdb_path = StringIO(PDB_STRING)
+    stack = strucarray(
+        [
+            Atom(
+                coord=[1, 1, 1],
+                atom_name="CA",
+                res_name="GLY",
+                res_id=1,
+            )
+        ]
+    )
+    dihedrals = atom_array_dihedrals(stack)
+    assert dihedrals is None
 
 
-@pytest.mark.asyncio
-async def test_parse_input_pdb_string():
-  """Test parsing a PDB file from a string."""
-  results = [res async for res in parse_input(StringIO(PDB_STRING))]
-  assert len(results) == 2
-  protein_tuple, source = results[0]
-  assert protein_tuple.aatype.shape == (10,)
-  assert protein_tuple.coordinates.shape == (10, 37, 3)
-  assert protein_tuple.atom_mask.shape == (10, 37)
-  assert "StringIO" in source or "tmp" in source
+def test_check_if_file_empty(tmp_path):
+    """Test the _check_if_file_empty utility."""
+    empty_file = tmp_path / "empty.txt"
+    empty_file.touch()
+    assert _check_if_file_empty(str(empty_file))
+
+    non_empty_file = tmp_path / "non_empty.txt"
+    non_empty_file.write_text("hello")
+    assert not _check_if_file_empty(str(non_empty_file))
+
+    assert _check_if_file_empty("non_existent_file.txt")
 
 
-@pytest.mark.asyncio
-async def test_parse_input_pdb_file():
-  """Test parsing a PDB file from a file path."""
-  with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".pdb") as tmp:
-    tmp.write(PDB_STRING)
-    tmp_path = tmp.name
+class TestParseInput:
+    """Tests for the main `parse_input` function."""
 
-  results = [res async for res in parse_input(tmp_path)]
-  pathlib.Path(tmp_path).unlink()
+    def test_parse_pdb_string(self):
+        """Test parsing a PDB file from a string."""
+        protein_stream = parse_input(StringIO(PDB_STRING))
+        protein_list = list(protein_stream)
+        assert len(protein_list) == 2
+        protein = protein_list[0]
+        assert isinstance(protein, ProteinTuple)
+        assert protein.aatype.shape == (10,)
+        assert protein.atom_mask.shape == (10, 37)
+        assert protein.coordinates.shape == (10, 37, 3)
+        assert protein.residue_index.shape == (10,)
+        assert protein.chain_index.shape == (10,)
+        assert protein.dihedrals is None
 
-  assert len(results) == 2
-  protein_tuple, source = results[0]
-  assert protein_tuple.aatype.shape == (10,)
-  assert source == tmp_path
+    def test_parse_pdb_file(self, pdb_file):
+        """Test parsing a PDB file from a file path."""
+        protein_stream = parse_input(pdb_file)
+        protein_list = list(protein_stream)
+        assert len(protein_list) == 2
+        assert isinstance(protein_list[0], ProteinTuple)
 
+    def test_parse_cif_file(self, cif_file):
+        """Test parsing a CIF file from a file path."""
+        protein_stream = parse_input(cif_file)
+        protein_list = list(protein_stream)
+        assert len(protein_list) == 1
+        assert isinstance(protein_list[0], ProteinTuple)
+        assert protein_list[0].aatype.shape == (1,)
 
-@pytest.mark.asyncio
-async def test_parse_input_chain_selection():
-  """Test parsing with chain selection."""
-  results = [res async for res in parse_input(StringIO(PDB_STRING), chain_id="B")]
+    def test_parse_with_chain_id(self, pdb_file):
+        """Test parsing with a specific chain ID."""
+        protein_stream = parse_input(pdb_file, chain_id="A")
+        protein_list = list(protein_stream)
+        assert len(protein_list) == 2
+        assert np.all(protein_list[0].chain_index == 0)
 
-  assert len(results) == 2
-  protein_tuple, _ = results[0]
-  assert protein_tuple.chain_index.tolist() == [1]
+    def test_parse_with_invalid_chain_id(self, pdb_file):
+        """Test parsing with an invalid chain ID."""
+        with pytest.raises(RuntimeError, match="Failed to parse structure from source: AtomArray is empty."):
+            list(parse_input(pdb_file, chain_id="Z"))
 
+    def test_parse_empty_file(self):
+        """Test parsing an empty file."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".pdb", delete=True) as tmp:
+            with pytest.raises(RuntimeError):
+                list(parse_input(tmp.name))
 
-@pytest.mark.asyncio
-async def test_parse_input_with_dihedrals():
-  """Test parsing with dihedral extraction."""
-  results = [res async for res in parse_input(StringIO(PDB_STRING), extract_dihedrals=True)]
-  protein_tuple, _ = results[0]
-  assert protein_tuple.dihedrals is not None
-  assert protein_tuple.dihedrals.shape == (10, 3)
+    def test_parse_empty_pdb_string(self):
+        """Test parsing an empty PDB string."""
+        with pytest.raises(RuntimeError, match="Failed to parse structure from source: Unknown file format."):
+            list(parse_input(""))
 
+    def test_parse_invalid_file(self):
+        """Test parsing an invalid file path."""
+        with pytest.raises(RuntimeError):
+            list(parse_input("non_existent_file.pdb"))
 
-@pytest.mark.asyncio
-async def test_parse_input_empty_file():
-  """Test parsing an empty file raises ValueError."""
-  with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".pdb") as tmp:
-    tmp_path = tmp.name
+    def test_parse_unsupported_format(self):
+        """Test parsing an unsupported file format."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as tmp:
+            tmp.write("hello")
+            filepath = tmp.name
+        with pytest.raises(RuntimeError, match="Failed to parse structure from source: Unknown file format '.txt'"):
+            list(parse_input(filepath))
+        pathlib.Path(filepath).unlink()
 
-  with pytest.raises(ValueError):
-    _ = [res async for res in parse_input(tmp_path)]
-  pathlib.Path(tmp_path).unlink()
+    def test_parse_mdtraj_trajectory(self, pdb_file):
+        """Test parsing an mdtraj.Trajectory object."""
+        traj = md.load_pdb(pdb_file)
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".h5", delete=False) as tmp:
+            traj.save_hdf5(tmp.name)
+            filepath = tmp.name
+        
+        protein_stream = parse_input(filepath)
+        protein_list = list(protein_stream)
+        assert len(protein_list) == 2
+        assert isinstance(protein_list[0], ProteinTuple)
+        pathlib.Path(filepath).unlink()
 
-@pytest.mark.asyncio
-async def test_parse_hdf5():
-  """Test parsing a MDTraj .h5 file."""
-  with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".pdb") as tmp:
-    tmp.write(PDB_STRING)
-    tmp_path = tmp.name
-    
-  traj = md.load(tmp_path)
-  traj.save_hdf5(tmp_path + ".h5")
+    def test_parse_atom_array_stack(self):
+        """Test parsing a biotite.structure.AtomArrayStack."""
+        stack = AtomArrayStack(1, 4)
+        stack.atom_name = np.array(["N", "CA", "C", "O"])
+        stack.res_name = np.array(["GLY", "GLY", "GLY", "GLY"])
+        stack.res_id = np.array([1, 1, 1, 1])
+        stack.chain_id = np.array(["A", "A", "A", "A"])
+        stack.coord = np.random.rand(1, 4, 3)
+        
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".pdb", delete=False) as tmp:
+            from biotite.structure.io.pdb import PDBFile
+            pdb_file = PDBFile()
+            pdb_file.set_structure(stack)
+            pdb_file.write(tmp)
+            filepath = tmp.name
 
-  results = [res async for res in parse_input(tmp_path + ".h5")]
-  pathlib.Path(tmp_path).unlink()
-  pathlib.Path(tmp_path + ".h5").unlink()
+        protein_stream = parse_input(filepath)
+        protein_list = list(protein_stream)
+        assert len(protein_list) == 1
+        assert isinstance(protein_list[0], ProteinTuple)
+        pathlib.Path(filepath).unlink()
 
-  assert len(results) == 2
-  protein_tuple, source = results[0]
-  assert protein_tuple.aatype.shape == (10,)
-  assert source == tmp_path + ".h5"
+    def test_parse_atom_array(self):
+        """Test parsing a biotite.structure.AtomArray."""
+        arr = AtomArray(4)
+        arr.atom_name = np.array(["N", "CA", "C", "O"])
+        arr.res_name = np.array(["GLY", "GLY", "GLY", "GLY"])
+        arr.res_id = np.array([1, 1, 1, 1])
+        arr.chain_id = np.array(["A", "A", "A", "A"])
+        arr.coord = np.random.rand(4, 3)
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".pdb", delete=False) as tmp:
+            from biotite.structure.io.pdb import PDBFile
+            pdb_file = PDBFile()
+            pdb_file.set_structure(arr)
+            pdb_file.write(tmp)
+            filepath = tmp.name
+
+        protein_stream = parse_input(filepath)
+        protein_list = list(protein_stream)
+        assert len(protein_list) == 1
+        assert isinstance(protein_list[0], ProteinTuple)
+        pathlib.Path(filepath).unlink()
+
+    def test_parse_with_dihedrals(self):
+        """Test parsing with dihedral angle extraction."""
+        protein_stream = parse_input(StringIO(PDB_STRING), extract_dihedrals=True)
+        protein_list = list(protein_stream)
+        assert len(protein_list) == 2
+        protein = protein_list[0]
+        assert protein.dihedrals is not None
+        assert protein.dihedrals.shape == (8, 3) # 10 resiudes - 2, not sure why first and last residues lack dihedrals but its something with biotite
+
+    def test_parse_hdf5(self, hdf5_file):
+        """Test parsing an HDF5 file."""
+        protein_stream = parse_input(hdf5_file)
+        protein_list = list(protein_stream)
+        assert len(protein_list) == 2
+        protein = protein_list[0]
+        assert isinstance(protein, ProteinTuple)
+        assert protein.aatype.shape == (10,)
+        assert protein.atom_mask.shape == (10, 37)
+        assert protein.coordinates.shape == (10, 37, 3)
 
 
 

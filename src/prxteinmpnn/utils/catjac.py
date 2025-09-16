@@ -10,142 +10,114 @@ import jax.numpy as jnp
 from prxteinmpnn.utils.align import align_sequences
 from prxteinmpnn.utils.types import CategoricalJacobian, InterproteinMapping, ProteinSequence
 
-CombineCatJacFn = Callable[
-  [CategoricalJacobian, ProteinSequence, jax.Array | None],
-  CategoricalJacobian,
+CombineCatJacPairFn = Callable[
+  [
+    CategoricalJacobian,  # Jacobian for protein A
+    CategoricalJacobian,  # Jacobian for protein B (to be mapped)
+    InterproteinMapping,  # The (L, 2) index map from B to A
+    jax.Array,  # The scalar weight for the pair
+  ],
+  CategoricalJacobian,  # The combined Jacobian
 ]
-CombineCatJacTranformFn = (
-  Callable[
-    [CategoricalJacobian, InterproteinMapping, jax.Array | None, Any],
-    CategoricalJacobian,
-  ]
-  | Callable[
-    [CategoricalJacobian, InterproteinMapping, jax.Array | None],
-    CategoricalJacobian,
-  ]
-)
+
+# The public-facing function that operates on the whole batch
+CombineCatJacFn = Callable[
+  [
+    jax.Array,  # Full batch of Jacobians, shape (N, ...)
+    ProteinSequence,  # Full batch of sequences, shape (N, L)
+    jax.Array | None,  # Per-protein weights, shape (N,)
+  ],
+  jax.Array,  # Final combined Jacobians, shape (N*(N-1)/2, ...)
+]
+
+# The factory that creates the public-facing function
 CombineCatJacFnFactory = Callable[
-  [CombineCatJacTranformFn | Literal["add", "subtract"]],
+  [
+    CombineCatJacPairFn | Literal["add", "subtract"],
+  ],
   CombineCatJacFn,
 ]
 
 
-def add_jacobians(
-  jacobians: CategoricalJacobian,
-  mapping: InterproteinMapping,
-  weights: jax.Array | None = None,
+def _gather_mapped_jacobian(
+  jacobian_to_map: CategoricalJacobian,
+  mapping: jax.Array,
 ) -> CategoricalJacobian:
-  """Combine two Jacobian tensors by summing them.
+  """Remaps a Jacobian using an index map from an alignment."""
+  k_indices = mapping[:, 1]
+  valid_mask = k_indices != -1
+  k_indices_clipped = jnp.maximum(0, k_indices)
 
-  Args:
-    jacobians: Jacobian tensor of shape (batch_size, noise_levels, L, 21, L, 21)
-    mapping: Integer mapping array of shape (batch_size, L) indicating residue correspondences.
-    weights: Optional weights for each protein in the batch, shape (batch_size,)
+  mapped_jac = jacobian_to_map[:, k_indices_clipped][:, :, :, k_indices_clipped]
 
-  Returns:
-    Combined Jacobian tensor of the same shape as inputs.
+  mask_i = valid_mask[:, None, None, None]
+  mask_j = valid_mask[None, None, :, None]
 
-  """
-  return jacobians + jnp.einsum(
-    "b n i a j c, b i i' -> b n i' a j c",
-    jacobians,
-    mapping,
-  ) * (weights[:, None, None, None, None, None] if weights is not None else 1.0)
+  return mapped_jac * mask_i * mask_j
 
 
-def subtract_jacobians(
-  jacobians: CategoricalJacobian,
-  mapping: InterproteinMapping,
-  weights: jax.Array | None = None,
+def _add_jacobians_mapped(
+  jac1: CategoricalJacobian,
+  jac2: CategoricalJacobian,
+  mapping: jax.Array,
+  weights: jax.Array,
 ) -> CategoricalJacobian:
-  """Compute the difference between two Jacobian tensors.
+  """Add jac1 to the mapped version of jac2."""
+  mapped_jac2 = _gather_mapped_jacobian(jac2, mapping)
+  return jac1 + mapped_jac2 * weights
 
-  Args:
-    jacobians: Jacobian tensor of shape (batch_size, noise_levels, L, 21, L, 21)
-    mapping: Integer mapping array of shape (batch_size, L) indicating residue correspondences.
-    weights: Optional weights for each protein in the batch, shape (batch_size,)
 
-  Returns:
-    Difference Jacobian tensor of the same shape as inputs.
+def _subtract_jacobians_mapped(
+  jac1: CategoricalJacobian,
+  jac2: CategoricalJacobian,
+  mapping: jax.Array,
+  weights: jax.Array,
+) -> CategoricalJacobian:
+  """Subtracts the mapped version of jac2 from jac1."""
+  mapped_jac2 = _gather_mapped_jacobian(jac2, mapping)
+  return jac1 - mapped_jac2 * weights
 
-  """
-  return jacobians - jnp.einsum(
-    "b n i a j c, b i i' -> b n i' a j c",
-    jacobians,
-    mapping,
-  ) * (weights[:, None, None, None, None, None] if weights is not None else 1.0)
+
+_MIN_NUMBER_PROTEINS = 2
 
 
 def make_combine_jac(
-  combine_fn: CombineCatJacTranformFn | Literal["add", "subtract"],
+  combine_fn: Literal["add", "subtract"] | CombineCatJacPairFn,  # Simplified for clarity
   fn_kwargs: dict[str, Any] | None = None,
   batch_size: int | None = None,
 ) -> CombineCatJacFn:
-  """Create a function to combine Jacobians using a specified operation.
-
-  Args:
-    combine_fn: A function that takes two Jacobian tensors and combines them
-      (e.g., add_jacobians or subtract_jacobians).
-    fn_kwargs: Optional keyword arguments for the combine function.
-    batch_size: Optional batch size for processing pairs of proteins.
-
-  Returns:
-    A function that takes Jacobians, sequences, and weights, and applies the combination operation.
-
-  """
-  if isinstance(combine_fn, str):
-    if combine_fn == "add":
-      combine_fn = add_jacobians
-    elif combine_fn == "subtract":
-      combine_fn = subtract_jacobians
-    else:
-      msg = f"Invalid combine_fn string: {combine_fn}"
-      raise ValueError(msg)
-
-  _combine_fn = partial(combine_fn, **fn_kwargs) if fn_kwargs is not None else combine_fn
+  """Create a function to combine Jacobians using a specified operation."""
+  if combine_fn == "add":
+    _combine_fn = _add_jacobians_mapped
+  elif combine_fn == "subtract":
+    _combine_fn = _subtract_jacobians_mapped
+  else:
+    _combine_fn = partial(combine_fn, **(fn_kwargs or {}))
 
   def combine_jacobians(
     jacobians: jax.Array,
     sequences: ProteinSequence,
     weights: jax.Array | None = None,
   ) -> jax.Array:
-    """Compute cross-protein Jacobian combinations for all pairs.
-
-    Args:
-      jacobians: Jacobian tensors of shape (N, noise_levels, L, 21, L, 21)
-      sequences: Integer-encoded sequences of shape (N, L)
-      weights: Optional weights for each protein in the batch, shape (N,)
-
-    Returns:
-      Combined Jacobians for all pairs.
-      Shape: (N*(N-1), noise_levels, L, 21, L, 21)
-
-    """
+    """Compute cross-protein Jacobian combinations for all pairs."""
+    if weights is None:
+      weights = jnp.ones((jacobians.shape[0],), dtype=jacobians.dtype)
     n_proteins = jacobians.shape[0]
-    if n_proteins < 2:
+    if n_proteins < _MIN_NUMBER_PROTEINS:
       return jnp.empty((0, *jacobians.shape[1:]))
 
-    # Generate all pairs of indices (i, j) where i != j
-    idx = jnp.arange(n_proteins)
-    i, j = jnp.meshgrid(idx, idx)
-    i, j = i.flatten(), j.flatten()
-    mask = i != j
-    i, j = i[mask], j[mask]
+    i_indices, j_indices = jnp.triu_indices(n_proteins, k=1)
 
-    # Gather data for each pair
-    jac_i = jax.tree_util.tree_map(lambda x: x[i], jacobians)
-    seq_i = jax.tree_util.tree_map(lambda x: x[i], sequences)
-    seq_j = jax.tree_util.tree_map(lambda x: x[j], sequences)
-    weights_i = jax.tree_util.tree_map(lambda x: x[i], weights) if weights is not None else None
+    jac_i = jacobians[i_indices]
+    jac_j = jacobians[j_indices]
+    pair_weights = weights[i_indices]
+    all_mappings = align_sequences(sequences)
 
-    # Align sequences for each pair
-    # align_sequences expects (batch, L), so we vmap it over the pairs
-    mapping = jax.vmap(align_sequences)(jnp.stack([seq_i, seq_j], axis=1))
+    xs = (jac_i, jac_j, all_mappings, pair_weights)
 
-    # Combine Jacobians for each pair
     return jax.lax.map(
-      _combine_fn,
-      (jac_i, mapping, weights_i),
+      lambda x: _combine_fn(*x),
+      xs,
       batch_size=batch_size,
     )
 

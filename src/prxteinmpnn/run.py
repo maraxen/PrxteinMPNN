@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import multiprocessing as mp
 import sys
+from collections.abc import Sequence
 from functools import partial
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -14,7 +15,6 @@ import jax
 import jax.numpy as jnp
 
 if TYPE_CHECKING:
-  from collections.abc import Sequence
   from io import StringIO
 
   from jaxtyping import ArrayLike
@@ -36,7 +36,7 @@ from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.scoring.score import make_score_sequence
 from prxteinmpnn.utils.aa_convert import string_to_protein_sequence
 from prxteinmpnn.utils.apc import apc_corrected_frobenius_norm
-from prxteinmpnn.utils.catjac import CombineCatJacTranformFn, make_combine_jac
+from prxteinmpnn.utils.catjac import CombineCatJacPairFn, make_combine_jac
 from prxteinmpnn.utils.decoding_order import random_decoding_order
 from prxteinmpnn.utils.residue_constants import atom_order
 
@@ -103,7 +103,7 @@ def score(
     )
     raise ValueError(msg)
   integer_sequences = [string_to_protein_sequence(s) for s in sequences_to_score]
-  batched_sequences, _ = jnp.concatenate(integer_sequences)
+  batched_sequences = jnp.concatenate(integer_sequences)
 
   parse_kwargs = {"chain_id": chain_id, "model": model, "altloc": altloc, **kwargs}
   protein_iterator = loaders.create_protein_dataset(
@@ -293,7 +293,7 @@ def sample(
     return {"sampled_sequences": None, "logits": None, "metadata": None}
 
   return {
-    "sampled_sequences": jnp.concatenate(all_sequences, axis=0),
+    "sequences": jnp.concatenate(all_sequences, axis=0),
     "logits": jnp.concatenate(all_logits, axis=0),
     "metadata": {
       "backbone_noise_levels": backbone_noise,
@@ -316,7 +316,7 @@ def categorical_jacobian(
   jacobian_batch_size: int = 16,
   combine_batch_size: int = 4,
   num_workers: int = 0,
-  combine_fn: CombineCatJacTranformFn | Literal["add", "subtract"] = "add",
+  combine_fn: CombineCatJacPairFn | Literal["add", "subtract"] = "add",
   combine_fn_kwargs: dict[str, Any] | None = None,
   combine_weights: jax.Array | None = None,
   *,
@@ -343,12 +343,15 @@ def categorical_jacobian(
       foldcomp_database: The FoldComp database to use for FoldComp IDs.
       rng_key: The random number generator key.
       backbone_noise: The amount of noise to add to the backbone.
-      mode: "full" to compute the full Jacobian, "diagonal" for only diagonal blocks.
       batch_size: The number of structures to process in a single batch.
       noise_batch_size: Batch size for noise levels in Jacobian computation.
       jacobian_batch_size: Inner batch size for Jacobian computation.
+      combine_batch_size: Batch size for combining Jacobians.
       num_workers: Number of parallel workers for data loading.
-      calculate_cross_diff: Whether to calculate cross-protein differences.
+      combine_fn: Function or string specifying how to combine Jacobian pairs (e.g., "add", "subtract").
+      combine_fn_kwargs: Optional dictionary of keyword arguments for the combine function.
+      combine_weights: Optional weights to use when combining Jacobians.
+      combine: Whether to combine Jacobians across samples.
       **kwargs: Additional keyword arguments for structure loading.
 
   Returns:
@@ -461,9 +464,15 @@ def categorical_jacobian(
     fn_kwargs=combine_fn_kwargs,
     batch_size=combine_batch_size,
   )
+  # merge batch and noise dimensions
+  reshaped_jacobians = jacobians.reshape((-1, *jacobians.shape[2:]))
+  all_sequences = jnp.tile(jnp.concatenate(all_sequences, axis=0), (backbone_noise.shape[0], 1, 1))
+
+  if combine_weights is None and combine:
+    combine_weights = jnp.ones((all_sequences.shape[0],), dtype=jnp.float32)
 
   combined_jacs = (
-    combine_jacs_fn(jacobians, jnp.concatenate(all_sequences, axis=0), combine_weights)
+    combine_jacs_fn(reshaped_jacobians, jnp.concatenate(all_sequences, axis=0), combine_weights)
     if combine
     else None
   )

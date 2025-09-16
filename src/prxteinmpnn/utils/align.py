@@ -27,23 +27,14 @@ def smith_waterman_no_gap(unroll_factor: int = 2, *, batch: bool = True) -> Call
     score_matrix: jax.Array,
     mask: jax.Array | None = None,
   ) -> tuple[dict[str, jax.Array], tuple[jax.Array, jax.Array], tuple[jax.Array, jax.Array]]:
-    """Rotate the score matrix for striped dynamic programming.
-
-    Args:
-      score_matrix (jax.Array): The input score matrix.
-      mask (jax.Array | None): An optional mask to apply to the matrix.
-
-    Returns:
-      tuple: A tuple containing the rotated data, previous scores, and indices.
-
-    """
+    """Rotate the score matrix for striped dynamic programming."""
     a, b = score_matrix.shape
     ar, br = jnp.arange(a)[::-1, None], jnp.arange(b)[None, :]
     i, j = (br - ar) + (a - 1), (ar + br) // 2
     n, m = (a + b - 1), (a + b) // 2
     zero = jnp.zeros([n, m])
     if mask is None:
-      mask = jnp.array(1.0)
+      mask = jnp.ones(score_matrix.shape, dtype=jnp.bool_)
     rotated_data = {
       "score": zero.at[i, j].set(score_matrix),
       "mask": zero.at[i, j].set(mask),
@@ -54,14 +45,14 @@ def smith_waterman_no_gap(unroll_factor: int = 2, *, batch: bool = True) -> Call
 
   def compute_scoring_matrix(
     score_matrix: jax.Array,
-    sequence_lengths: jax.Array,
+    masks: tuple[jax.Array, jax.Array],
     temperature: float = 1.0,
   ) -> jax.Array:
     """Compute the scoring matrix for Smith-Waterman alignment.
 
     Args:
       score_matrix (jax.Array): The input score matrix.
-      sequence_lengths (jax.Array): The lengths of the two sequences.
+      masks (tuple): A tuple of boolean masks for the two sequences.
       temperature (float): The temperature parameter for the soft maximum function.
 
     Returns:
@@ -70,16 +61,7 @@ def smith_waterman_no_gap(unroll_factor: int = 2, *, batch: bool = True) -> Call
     """
 
     def _soft_maximum(values: jax.Array, axis: int | None = None) -> jax.Array:
-      """Compute the soft maximum of values along a specified axis.
-
-      Args:
-        values (jax.Array): The input values.
-        axis (int | None): The axis along which to compute the soft maximum.
-
-      Returns:
-        jax.Array: The soft maximum values.
-
-      """
+      """Compute the soft maximum of values along a specified axis."""
       return temperature * jax.nn.logsumexp(values / temperature, axis)
 
     def _conditional_select(
@@ -87,33 +69,14 @@ def smith_waterman_no_gap(unroll_factor: int = 2, *, batch: bool = True) -> Call
       true_value: jax.Array,
       false_value: jax.Array,
     ) -> jax.Array:
-      """Select values based on a boolean condition.
-
-      Args:
-        condition (jax.Array): The boolean condition.
-        true_value (jax.Array): The value to select if the condition is true.
-        false_value (jax.Array): The value to select if the condition is false.
-
-      Returns:
-        jax.Array: The selected value.
-
-      """
+      """Select values based on a boolean condition."""
       return condition * true_value + (1 - condition) * false_value
 
     def _scan_step(
       previous_scores: tuple[jax.Array, jax.Array],
       rotated_data: dict[str, jax.Array],
     ) -> tuple:
-      """Perform a single step of the scan for computing the scoring matrix.
-
-      Args:
-        previous_scores (tuple): A tuple containing the previous two rows of scores.
-        rotated_data (dict): A dictionary containing the rotated matrix data.
-
-      Returns:
-        tuple: A tuple containing the updated previous scores and the current masked scores.
-
-      """
+      """Perform a single step of the scan for computing the scoring matrix."""
       h_previous, h_current = previous_scores  # previous two rows of scoring (hij) mtx
       h_current_shifted = _conditional_select(
         rotated_data["parity"],
@@ -124,11 +87,10 @@ def smith_waterman_no_gap(unroll_factor: int = 2, *, batch: bool = True) -> Call
       h_masked = rotated_data["mask"] * _soft_maximum(h_combined, -1)
       return (h_current, h_masked), h_masked
 
-    a, b = score_matrix.shape
-    real_a, real_b = sequence_lengths
-    mask = (jnp.arange(a) < real_a)[:, None] * (jnp.arange(b) < real_b)[None, :]
+    mask_a, mask_b = masks
+    combined_mask = mask_a[:, None] & mask_b[None, :]
 
-    rotated_data, previous_scores, indices = rotate_matrix(score_matrix, mask=mask)
+    rotated_data, previous_scores, indices = rotate_matrix(score_matrix, mask=combined_mask)
     final_scores = jax.lax.scan(_scan_step, previous_scores, rotated_data, unroll=unroll_factor)[
       -1
     ][indices]
@@ -154,15 +116,7 @@ def smith_waterman(unroll_factor: int = 2, ninf: float = -1e30, *, batch: bool =
   def _rotate_matrix(
     score_matrix: jax.Array,
   ) -> tuple[dict[str, jax.Array], tuple[jax.Array, jax.Array], tuple[jax.Array, jax.Array]]:
-    """Rotate the score matrix for striped dynamic programming.
-
-    Args:
-      score_matrix (jax.Array): The input score matrix.
-
-    Returns:
-      tuple: A tuple containing the rotated data, previous scores, and indices.
-
-    """
+    """Rotate the score matrix for striped dynamic programming."""
     a, b = score_matrix.shape
     ar, br = jnp.arange(a)[::-1, None], jnp.arange(b)[None, :]
     i, j = (br - ar) + (a - 1), (ar + br) // 2
@@ -176,7 +130,7 @@ def smith_waterman(unroll_factor: int = 2, ninf: float = -1e30, *, batch: bool =
 
   def _compute_scoring_matrix(
     score_matrix: jax.Array,
-    sequence_lengths: jax.Array,
+    masks: tuple[jax.Array, jax.Array],
     gap: float = 0.0,
     temperature: float = 1.0,
   ) -> jax.Array:
@@ -184,7 +138,7 @@ def smith_waterman(unroll_factor: int = 2, ninf: float = -1e30, *, batch: bool =
 
     Args:
       score_matrix (jax.Array): The input score matrix.
-      sequence_lengths (jax.Array): The lengths of the two sequences.
+      masks (tuple): A tuple of boolean masks for the two sequences.
       gap (float): The gap penalty.
       temperature (float): The temperature parameter for the soft maximum function.
 
@@ -198,22 +152,11 @@ def smith_waterman(unroll_factor: int = 2, ninf: float = -1e30, *, batch: bool =
       axis: int | None = None,
       mask: jax.Array | None = None,
     ) -> jax.Array:
-      """Compute the soft maximum of values along a specified axis.
-
-      Args:
-        values (jax.Array): The input values.
-        axis (int | None): The axis along which to compute the soft maximum.
-        mask (jax.Array | None): An optional mask to apply to the values before logsumexp.
-
-      Returns:
-        jax.Array: The soft maximum values.
-
-      """
+      """Compute the soft maximum of values along a specified axis."""
       values = jnp.maximum(values, ninf)
       if mask is None:
         return temperature * jax.nn.logsumexp(values / temperature, axis)
 
-      # Apply mask for logsumexp
       max_values = values.max(axis, keepdims=True)
       return temperature * (
         max_values
@@ -225,30 +168,11 @@ def smith_waterman(unroll_factor: int = 2, ninf: float = -1e30, *, batch: bool =
       true_value: jax.Array,
       false_value: jax.Array,
     ) -> jax.Array:
-      """Select values based on a boolean condition.
-
-      Args:
-        condition (jax.Array): The boolean condition.
-        true_value (jax.Array): The value to select if the condition is true.
-        false_value (jax.Array): The value to select if the condition is false.
-
-      Returns:
-        jax.Array: The selected value.
-
-      """
+      """Select values based on a boolean condition."""
       return condition * true_value + (1 - condition) * false_value
 
     def _pad(vals: jax.Array, shape: list) -> jax.Array:
-      """Pad an array with negative infinity values.
-
-      Args:
-        vals (jax.Array): The input array.
-        shape (list): The padding shape.
-
-      Returns:
-        jax.Array: The padded array.
-
-      """
+      """Pad an array with negative infinity values."""
       return jnp.pad(vals, shape, constant_values=(ninf, ninf))
 
     def _step(previous_scores: tuple, rotated_data: dict) -> tuple:
@@ -271,20 +195,13 @@ def smith_waterman(unroll_factor: int = 2, ninf: float = -1e30, *, batch: bool =
       return (
         current_row,
         updated_row,
-      ), updated_row  # Return updated previous scores and current masked scores
+      ), updated_row
 
-    a, b = score_matrix.shape
-    real_a, real_b = sequence_lengths
-    mask = (jnp.arange(a) < real_a)[:, None] * (jnp.arange(b) < real_b)[None, :]
+    mask_a, mask_b = masks
+    combined_mask = mask_a[:, None] & mask_b[None, :]
+    score_matrix = jnp.where(combined_mask, score_matrix, ninf)
 
-    # Apply negative infinity to masked out regions of the score matrix
-    score_matrix = score_matrix + ninf * (1 - mask)
-
-    # Rotate the score matrix (excluding the first row/column for alignment)
-    # The first row/column are implicitly handled by the initial `ninf` values in `prev`.
     rotated_data, previous_scores, indices = _rotate_matrix(score_matrix[:-1, :-1])
-
-    # Perform the scan to compute the scoring matrix
     _final_scores, h_all = jax.lax.scan(
       _step,
       previous_scores,
@@ -293,7 +210,7 @@ def smith_waterman(unroll_factor: int = 2, ninf: float = -1e30, *, batch: bool =
     )
     final_scores = h_all[indices]
 
-    return _soft_maximum(final_scores + score_matrix[1:, 1:], mask=mask[1:, 1:]).max()
+    return _soft_maximum(final_scores + score_matrix[1:, 1:], mask=combined_mask[1:, 1:]).max()
 
   traceback_function = jax.grad(_compute_scoring_matrix, argnums=0)
   return jax.vmap(traceback_function, (0, 0, None, None)) if batch else traceback_function
@@ -324,15 +241,7 @@ def smith_waterman_affine(  # noqa: C901
   def _rotate_matrix(
     score_matrix: jax.Array,
   ) -> tuple[dict[str, jax.Array], tuple[jax.Array, jax.Array], tuple[jax.Array, jax.Array]]:
-    """Rotate the score matrix for striped dynamic programming.
-
-    Args:
-      score_matrix (jax.Array): The input score matrix.
-
-    Returns:
-      tuple: A tuple containing the rotated data, previous scores, and indices.
-
-    """
+    """Rotate the score matrix for striped dynamic programming."""
     a, b = score_matrix.shape
     ar, br = jnp.arange(a)[::-1, None], jnp.arange(b)[None, :]
     i, j = (br - ar) + (a - 1), (ar + br) // 2
@@ -346,24 +255,12 @@ def smith_waterman_affine(  # noqa: C901
 
   def _compute_scoring_matrix(
     score_matrix: jax.Array,
-    lengths: jax.Array,
+    masks: tuple[jax.Array, jax.Array],
     gap: float = 0.0,
     open_penalty: float = 0.0,
     temperature: float = 1.0,
   ) -> jax.Array:
-    """Compute the scoring matrix for Smith-Waterman alignment with affine gap penalties.
-
-    Args:
-      score_matrix (jax.Array): The input score matrix.
-      lengths (jax.Array): The lengths of the two sequences.
-      gap (float): The gap extension penalty.
-      open_penalty (float): The gap opening penalty.
-      temperature (float): The temperature parameter for the soft maximum function.
-
-    Returns:
-      jax.Array: The maximum score in the scoring matrix.
-
-    """
+    """Compute the scoring matrix for Smith-Waterman alignment with affine gap penalties."""
 
     def _soft_maximum(
       values: jax.Array,
@@ -384,46 +281,18 @@ def smith_waterman_affine(  # noqa: C901
       true_value: jax.Array,
       false_value: jax.Array,
     ) -> jax.Array:
-      """Select values based on a boolean condition.
-
-      Args:
-        condition (jax.Array): The boolean condition.
-        true_value (jax.Array): The value to select if the condition is true.
-        false_value (jax.Array): The value to select if the condition is false.
-
-      Returns:
-        jax.Array: The selected value.
-
-      """
+      """Select values based on a boolean condition."""
       return condition * true_value + (1 - condition) * false_value
 
     def _pad(vals: jax.Array, shape: list) -> jax.Array:
-      """Pad an array with negative infinity values.
-
-      Args:
-        vals (jax.Array): The input array.
-        shape (list): The padding shape.
-
-      Returns:
-        jax.Array: The padded array.
-
-      """
+      """Pad an array with negative infinity values."""
       return jnp.pad(vals, shape, constant_values=(ninf, ninf))
 
     def _scan_step(
       previous_scores: tuple[jax.Array, jax.Array],
       rotated_data: dict[str, jax.Array],
     ) -> tuple:
-      """Perform a single step of the scan for computing the scoring matrix.
-
-      Args:
-        previous_scores (tuple): A tuple containing the previous two rows of scores.
-        rotated_data (dict): A dictionary containing the rotated matrix data.
-
-      Returns:
-        tuple: A tuple containing the updated previous scores and the current masked scores.
-
-      """
+      """Perform a single step of the scan for computing the scoring matrix."""
       h_previous, h_current = previous_scores
       aligned_score = jnp.pad(h_previous, [[0, 0], [0, 1]]) + rotated_data["score"][:, None]
       right_score = _conditional_select(
@@ -437,7 +306,6 @@ def smith_waterman_affine(  # noqa: C901
         _pad(h_current[1:], [[0, 1], [0, 0]]),
       )
 
-      # Initialize right and down variables
       right = jnp.zeros_like(h_current)
       down = jnp.zeros_like(h_current)
 
@@ -458,17 +326,16 @@ def smith_waterman_affine(  # noqa: C901
       h0 = jnp.stack([h0_aligned, h0_right, h0_down], axis=-1)
       return (h_current, h0), h0
 
-    a, b = score_matrix.shape
-    real_a, real_b = lengths
-    mask = (jnp.arange(a) < real_a)[:, None] * (jnp.arange(b) < real_b)[None, :]
-    score_matrix = score_matrix + ninf * (1 - mask)
+    mask_a, mask_b = masks
+    combined_mask = mask_a[:, None] & mask_b[None, :]
+    score_matrix = jnp.where(combined_mask, score_matrix, ninf)
 
     rotated_data, previous_scores, indices = _rotate_matrix(score_matrix[:-1, :-1])
     _final_scores, h_all = jax.lax.scan(_scan_step, previous_scores, rotated_data, unroll=unroll)
     final_scores = h_all[indices]
     return _soft_maximum(
       final_scores + score_matrix[1:, 1:, None],
-      mask=mask[1:, 1:, None],
+      mask=combined_mask[1:, 1:, None],
     ).max()
 
   traceback_function = jax.grad(_compute_scoring_matrix, argnums=0)
@@ -486,35 +353,23 @@ def needleman_wunsch_alignment(unroll_factor: int = 2, *, batch: bool = True) ->
     Callable: A function that performs the alignment traceback.
 
   """
+  ninf = -1e30
 
   def prepare_rotated_data(
     score_matrix: jax.Array,
-    sequence_lengths: jax.Array,
+    masks: tuple[jax.Array, jax.Array],
     gap_penalty: float,
   ) -> dict:
-    """Prepare the rotated data structure for Needleman-Wunsch alignment.
-
-    Args:
-      score_matrix (jax.Array): The input score matrix.
-      sequence_lengths (jax.Array): The lengths of the two sequences.
-      gap_penalty (float): The gap penalty.
-      temperature (float): The temperature parameter for soft maximum computation.
-
-    Returns:
-      dict: A dictionary containing the rotated score matrix, mask, initial conditions, and indices.
-
-    """
+    """Prepare the rotated data structure for Needleman-Wunsch alignment."""
+    mask_a, mask_b = masks
     num_rows, num_cols = score_matrix.shape
-    seq_len_a, seq_len_b = sequence_lengths
 
-    # Create a mask for valid sequence positions
-    mask = (jnp.arange(num_rows) < seq_len_a)[:, None] * (jnp.arange(num_cols) < seq_len_b)[None, :]
-    mask = jnp.pad(mask, [[1, 0], [1, 0]])
+    combined_mask = mask_a[:, None] & mask_b[None, :]
+    combined_mask = jnp.pad(combined_mask, [[1, 0], [1, 0]])
 
-    # Pad the score matrix
+    score_matrix = jnp.where(combined_mask[1:, 1:], score_matrix, ninf)
     score_matrix = jnp.pad(score_matrix, [[1, 0], [1, 0]])
 
-    # Rotate the score matrix for striped dynamic programming
     num_rows, num_cols = score_matrix.shape
     row_indices, col_indices = jnp.arange(num_rows)[::-1, None], jnp.arange(num_cols)[None, :]
     i_indices, j_indices = (
@@ -526,52 +381,50 @@ def needleman_wunsch_alignment(unroll_factor: int = 2, *, batch: bool = True) ->
 
     rotated_data = {
       "rotated_scores": zero_matrix.at[i_indices, j_indices].set(score_matrix),
-      "rotated_mask": zero_matrix.at[i_indices, j_indices].set(mask),
+      "rotated_mask": zero_matrix.at[i_indices, j_indices].set(combined_mask),
       "parity": (jnp.arange(num_diagonals) + num_rows % 2) % 2,
     }
 
-    # Initialize gap penalties for the first row and column
-    initial_row = gap_penalty * jnp.arange(num_rows)
-    initial_col = gap_penalty * jnp.arange(num_cols)
-    initial_conditions = (
-      jnp.zeros((num_rows, num_cols)).at[:, 0].set(initial_row).at[0, :].set(initial_col)
+    initial_row = jnp.where(
+      jnp.arange(num_rows) < mask_a.sum(),
+      gap_penalty * jnp.arange(num_rows),
+      ninf,
     )
+    initial_col = jnp.where(
+      jnp.arange(num_cols) < mask_b.sum(),
+      gap_penalty * jnp.arange(num_cols),
+      ninf,
+    )
+
+    initial_conditions = (
+      jnp.full((num_rows, num_cols), ninf).at[:, 0].set(initial_row).at[0, :].set(initial_col)
+    )
+
     rotated_data["initial_conditions"] = zero_matrix.at[i_indices, j_indices].set(
       initial_conditions,
     )
 
     return {
       "rotated_data": rotated_data,
-      "previous_scores": (jnp.zeros(max_diagonal_length), jnp.zeros(max_diagonal_length)),
+      "previous_scores": (jnp.full(max_diagonal_length, ninf), jnp.full(max_diagonal_length, ninf)),
       "indices": (i_indices, j_indices),
-      "sequence_lengths": sequence_lengths,
+      "seq_len_a": mask_a.sum(),
+      "seq_len_b": mask_b.sum(),
     }
 
   def compute_scoring_matrix(
     score_matrix: jax.Array,
-    sequence_lengths: jax.Array,
+    masks: tuple[jax.Array, jax.Array],
     gap_penalty: float = 0.0,
     temperature: float = 1.0,
   ) -> jax.Array:
-    """Compute the scoring matrix for Needleman-Wunsch alignment.
-
-    Args:
-      score_matrix (jax.Array): The input score matrix.
-      sequence_lengths (jax.Array): The lengths of the two sequences.
-      gap_penalty (float): The gap penalty.
-      temperature (float): The temperature parameter for soft maximum computation.
-
-    Returns:
-      jax.Array: The final alignment score.
-
-    """
+    """Compute the scoring matrix for Needleman-Wunsch alignment."""
 
     def _logsumexp(
       values: jax.Array,
       axis: int | None = None,
       mask: jax.Array | None = None,
     ) -> jax.Array:
-      """Compute the log-sum-exp of values along a specified axis."""
       if mask is None:
         return jax.nn.logsumexp(values, axis=axis)
       max_values = values.max(axis, keepdims=True)
@@ -582,7 +435,6 @@ def needleman_wunsch_alignment(unroll_factor: int = 2, *, batch: bool = True) ->
       axis: int | None = None,
       mask: jax.Array | None = None,
     ) -> jax.Array:
-      """Compute the soft maximum of values along a specified axis."""
       return temperature * _logsumexp(values / temperature, axis, mask)
 
     def _conditional_select(
@@ -590,17 +442,15 @@ def needleman_wunsch_alignment(unroll_factor: int = 2, *, batch: bool = True) ->
       true_value: jax.Array,
       false_value: jax.Array,
     ) -> jax.Array:
-      """Select values based on a boolean condition."""
       return condition * true_value + (1 - condition) * false_value
 
     def _scan_step(previous_scores: tuple, rotated_data: dict) -> tuple:
-      """Perform a single step of the scan for computing the scoring matrix."""
       previous_row, current_row = previous_scores
       alignment_score = previous_row + rotated_data["rotated_scores"]
       turn_score = _conditional_select(
         rotated_data["parity"],
-        jnp.pad(current_row[:-1], [1, 0]),
-        jnp.pad(current_row[1:], [0, 1]),
+        jnp.pad(current_row[:-1], [1, 0], constant_values=(ninf, ninf)),
+        jnp.pad(current_row[1:], [0, 1], constant_values=(ninf, ninf)),
       )
       combined_scores = jnp.stack(
         [alignment_score, current_row + gap_penalty, turn_score + gap_penalty],
@@ -611,7 +461,7 @@ def needleman_wunsch_alignment(unroll_factor: int = 2, *, batch: bool = True) ->
 
     rotated_data = prepare_rotated_data(
       score_matrix,
-      sequence_lengths=sequence_lengths,
+      masks=masks,
       gap_penalty=gap_penalty,
     )
     final_scores = jax.lax.scan(
@@ -620,7 +470,7 @@ def needleman_wunsch_alignment(unroll_factor: int = 2, *, batch: bool = True) ->
       rotated_data["rotated_data"],
       unroll=unroll_factor,
     )[-1][rotated_data["indices"]]
-    return final_scores[rotated_data["sequence_lengths"][0], rotated_data["sequence_lengths"][1]]
+    return final_scores[rotated_data["seq_len_a"], rotated_data["seq_len_b"]]
 
   traceback_function = jax.grad(compute_scoring_matrix, argnums=0)
   return jax.vmap(traceback_function, (0, 0, None, None)) if batch else traceback_function
@@ -685,7 +535,7 @@ def align_sequences(
   """
   n_proteins, max_seq_len = protein_sequences_stacked.shape
 
-  if n_proteins < _MINIMUM_PROTEINS_COUNT:
+  if n_proteins < _MINIMUM_PROTEINS_COUNT or max_seq_len == 0:
     return jnp.empty((0, max_seq_len, 2), dtype=jnp.int32)
 
   true_lengths = jnp.sum(protein_sequences_stacked != -1, axis=1)
@@ -693,44 +543,48 @@ def align_sequences(
 
   def _align_and_map_pair(
     seq_a: jax.Array,
-    len_a: jax.Array,
+    mask_a: jax.Array,
     seq_b: jax.Array,
-    len_b: jax.Array,
+    mask_b: jax.Array,
   ) -> jax.Array:
     """Aligns a single pair of sequences and extracts a one-to-one mapping."""
-    seq_a_clipped = jnp.clip(jax.lax.dynamic_slice(seq_a, (0,), (len_a,)), 0, 20)
-    seq_b_clipped = jnp.clip(jax.lax.dynamic_slice(seq_b, (0,), (len_b,)), 0, 20)
+    # Clip values on the full padded sequences
+    seq_a_clipped = jnp.clip(seq_a, 0, 20)
+    seq_b_clipped = jnp.clip(seq_b, 0, 20)
 
-    score_matrix = _AA_SCORE_MATRIX[seq_a_clipped[:, None], seq_b_clipped[None, :]]
-    lengths = jnp.array([len_a, len_b])
+    # Apply the mask to set invalid positions to -1 for score matrix lookup
+    seq_a_masked = jnp.where(mask_a, seq_a_clipped, -1)
+    seq_b_masked = jnp.where(mask_b, seq_b_clipped, -1)
 
-    traceback = sw_aligner(score_matrix, lengths, gap_extend, gap_open, temp)
+    score_matrix = _AA_SCORE_MATRIX[seq_a_masked[:, None], seq_b_masked[None, :]]
+    masks_tuple = (mask_a, mask_b)
 
-    best_j_for_i = jnp.argmax(traceback, axis=1)  # shape (len_a,)
-    best_i_for_j = jnp.argmax(traceback, axis=0)  # shape (len_b,)
+    traceback = sw_aligner(score_matrix, masks_tuple, gap_extend, gap_open, temp)
 
-    i_indices = jnp.arange(len_a)
+    # The traceback is now over the padded, max-length arrays
+    best_j_for_i = jnp.argmax(traceback, axis=1)
+    best_i_for_j = jnp.argmax(traceback, axis=0)
+
+    # Create indices for the full padded arrays
+    i_indices = jnp.arange(traceback.shape[0])
     mutual_alignment_mask = best_i_for_j[best_j_for_i] == i_indices
 
     scores = jnp.max(traceback, axis=1)
     score_threshold = jnp.max(scores) * 0.1
-    final_mask = mutual_alignment_mask & (scores > score_threshold)
+    final_mask = mutual_alignment_mask & (scores > score_threshold) & mask_a
 
-    aligned_i = i_indices[final_mask]
-    aligned_j = best_j_for_i[final_mask]
-
-    n_aligned = aligned_i.shape[0]
-    pad_width = (0, max_seq_len - n_aligned)
-    padded_i = jnp.pad(aligned_i, pad_width, constant_values=-1)
-    padded_j = jnp.pad(aligned_j, pad_width, constant_values=-1)
+    # Use jnp.where to generate the padded aligned indices.
+    # This avoids the non-concrete boolean index error.
+    padded_i = jnp.where(final_mask, i_indices, -1)
+    padded_j = jnp.where(final_mask, best_j_for_i, -1)
 
     return jnp.stack([padded_i, padded_j], axis=-1)
 
   i_indices, j_indices = jnp.triu_indices(n_proteins, k=1)
 
   seqs_a = protein_sequences_stacked[i_indices]
-  lengths_a = true_lengths[i_indices]
+  masks_a = jnp.arange(max_seq_len) < true_lengths[i_indices][:, None]
   seqs_b = protein_sequences_stacked[j_indices]
-  lengths_b = true_lengths[j_indices]
+  masks_b = jnp.arange(max_seq_len) < true_lengths[j_indices][:, None]
 
-  return jax.vmap(_align_and_map_pair)(seqs_a, lengths_a, seqs_b, lengths_b)
+  return jax.vmap(_align_and_map_pair)(seqs_a, masks_a, seqs_b, masks_b)

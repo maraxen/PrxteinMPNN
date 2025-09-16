@@ -294,7 +294,14 @@ def atom_array_dihedrals(
   phi = np.asarray(phi)
   psi = np.asarray(psi)
   omega = np.asarray(omega)
-  if phi is None or psi is None or omega is None:
+  if (
+    phi is None
+    or psi is None
+    or omega is None
+    or np.all(np.isnan(phi))
+    or np.all(np.isnan(psi))
+    or np.all(np.isnan(omega))
+  ):
     return None
   dihedrals = np.stack([phi, psi, omega], axis=-1)
   return dihedrals[~np.any(np.isnan(dihedrals), axis=-1)]

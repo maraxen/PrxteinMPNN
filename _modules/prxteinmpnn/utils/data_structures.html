@@ -351,14 +351,15 @@ document.write(`
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncGenerator</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Generator</span><span class="p">,</span> <span class="n">Sequence</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">NamedTuple</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">flax.struct</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
-  <span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
   <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+  <span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">Int</span>
 
   <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">AtomMask</span><span class="p">,</span>
@@ -404,7 +405,9 @@ document.write(`
   <span class="n">atom_mask</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
   <span class="n">residue_index</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
   <span class="n">chain_index</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
-  <span class="n">dihedrals</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
+  <span class="n">dihedrals</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">source</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">mapping</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
 
 
 
@@ -453,11 +456,44 @@ document.write(`
   <span class="n">atom_mask</span><span class="p">:</span> <span class="n">AtomMask</span>
   <span class="n">residue_index</span><span class="p">:</span> <span class="n">ResidueIndex</span>
   <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span>
-  <span class="n">dihedrals</span><span class="p">:</span> <span class="n">BackboneDihedrals</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
+  <span class="n">dihedrals</span><span class="p">:</span> <span class="n">BackboneDihedrals</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">mapping</span><span class="p">:</span> <span class="n">Int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="Protein.from_tuple">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.from_tuple">[docs]</a>
+  <span class="nd">@classmethod</span>
+  <span class="k">def</span><span class="w"> </span><span class="nf">from_tuple</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">protein_tuple</span><span class="p">:</span> <span class="n">ProteinTuple</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Protein</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a Protein instance from a ProteinTuple.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        protein_tuple (ProteinTuple): The input protein tuple.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Protein: The output protein dataclass.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+      <span class="n">coordinates</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">coordinates</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span>
+      <span class="n">aatype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">aatype</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">),</span>
+      <span class="n">one_hot_sequence</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="mi">21</span><span class="p">)[</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">aatype</span><span class="p">],</span>
+      <span class="n">atom_mask</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">atom_mask</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span>
+      <span class="n">residue_index</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">residue_index</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span>
+      <span class="n">chain_index</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">chain_index</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span>
+      <span class="n">dihedrals</span><span class="o">=</span><span class="p">(</span>
+        <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">protein_tuple</span><span class="o">.</span><span class="n">dihedrals</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">dihedrals</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+      <span class="p">),</span>
+      <span class="n">mapping</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">mapping</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+      <span class="k">if</span> <span class="n">protein_tuple</span><span class="o">.</span><span class="n">mapping</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+      <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span></div>
+</div>
 
 
 
-<span class="n">ProteinStream</span> <span class="o">=</span> <span class="n">AsyncGenerator</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">ProteinTuple</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span>
+<span class="n">ProteinStream</span> <span class="o">=</span> <span class="n">Generator</span><span class="p">[</span><span class="n">ProteinTuple</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+<span class="n">ProteinBatch</span> <span class="o">=</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Protein</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="ProteinEnsemble">
@@ -479,6 +515,11 @@ document.write(`
 <span class="sd">      Shape is [num_res, num_atom_type].</span>
 <span class="sd">    residue_index (AtomResidueIndex): Residue index as used in PDB. It is not necessarily</span>
 <span class="sd">      continuous or 0-indexed. Shape is [num_res].</span>
+<span class="sd">    chain_index (ChainIndex): Chain index for each residue. Shape is [num_res].</span>
+<span class="sd">    dihedrals (BackboneDihedrals | None): Dihedral angles for backbone atoms (phi, psi, omega).</span>
+<span class="sd">      Shape is [num_res, 3]. If not provided, defaults to None.</span>
+<span class="sd">    mapping (jnp.Array | None): Optional array mapping residues in the ensemble to original</span>
+<span class="sd">      structure indices. Shape is [num_res, num_frames]. If not provided, defaults to None.</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
 
@@ -489,7 +530,7 @@ document.write(`
   <span class="n">residue_index</span><span class="p">:</span> <span class="n">ResidueIndex</span>
   <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span>
   <span class="n">dihedrals</span><span class="p">:</span> <span class="n">BackboneDihedrals</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-  <span class="n">mapping</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
+  <span class="n">mapping</span><span class="p">:</span> <span class="n">Int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
 
 
 

@@ -24,6 +24,7 @@ dependencies = [
     "optax",
     "h5py",
     "grain",
+    "ray",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",

@@ -158,6 +158,13 @@
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1 current active has-children"><a class="reference internal" href="modules.html">API Reference</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification</span></code></a></li>
+
+
+
+
+
+
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -420,8 +427,6 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.static_atom_mask_37"><code class="docutils literal notranslate"><span class="pre">TrajectoryStaticFeatures.static_atom_mask_37</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.residue_indices"><code class="docutils literal notranslate"><span class="pre">TrajectoryStaticFeatures.residue_indices</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.chain_index"><code class="docutils literal notranslate"><span class="pre">TrajectoryStaticFeatures.chain_index</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.res_indices_flat"><code class="docutils literal notranslate"><span class="pre">TrajectoryStaticFeatures.res_indices_flat</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.atom_indices_flat"><code class="docutils literal notranslate"><span class="pre">TrajectoryStaticFeatures.atom_indices_flat</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.valid_atom_mask"><code class="docutils literal notranslate"><span class="pre">TrajectoryStaticFeatures.valid_atom_mask</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.nitrogen_mask"><code class="docutils literal notranslate"><span class="pre">TrajectoryStaticFeatures.nitrogen_mask</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.num_residues"><code class="docutils literal notranslate"><span class="pre">TrajectoryStaticFeatures.num_residues</span></code></a></li>
@@ -651,16 +656,6 @@ Shape is [num_res, 3]. If not provided, defaults to None.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.chain_index">
 <span class="sig-name descname"><span class="pre">chain_index</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">np.ndarray</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.chain_index" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.res_indices_flat">
-<span class="sig-name descname"><span class="pre">res_indices_flat</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">np.ndarray</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.res_indices_flat" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.atom_indices_flat">
-<span class="sig-name descname"><span class="pre">atom_indices_flat</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">np.ndarray</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.atom_indices_flat" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
@@ -1039,8 +1034,6 @@ structure indices. Shape is [num_res, num_frames]. If not provided, defaults to 
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.static_atom_mask_37"><code class="docutils literal notranslate"><span class="pre">TrajectoryStaticFeatures.static_atom_mask_37</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.residue_indices"><code class="docutils literal notranslate"><span class="pre">TrajectoryStaticFeatures.residue_indices</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.chain_index"><code class="docutils literal notranslate"><span class="pre">TrajectoryStaticFeatures.chain_index</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.res_indices_flat"><code class="docutils literal notranslate"><span class="pre">TrajectoryStaticFeatures.res_indices_flat</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.atom_indices_flat"><code class="docutils literal notranslate"><span class="pre">TrajectoryStaticFeatures.atom_indices_flat</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.valid_atom_mask"><code class="docutils literal notranslate"><span class="pre">TrajectoryStaticFeatures.valid_atom_mask</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.nitrogen_mask"><code class="docutils literal notranslate"><span class="pre">TrajectoryStaticFeatures.nitrogen_mask</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.num_residues"><code class="docutils literal notranslate"><span class="pre">TrajectoryStaticFeatures.num_residues</span></code></a></li>

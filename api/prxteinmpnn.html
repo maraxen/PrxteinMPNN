@@ -156,8 +156,15 @@
         <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
-<ul class="nav bd-sidenav">
-<li class="toctree-l1 has-children"><a class="reference internal" href="modules.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="modules.html">API Reference</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2 current active"><a class="current reference internal" href="#"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification</span></code></a></li>
+
+
+
+
+
+
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -385,6 +392,82 @@ document.write(`
     <div id="print-main-content">
         <div id="jb-print-toc">
             
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.JacobianSpecification.combine"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.combine</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.JacobianSpecification.combine_batch_size"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.combine_batch_size</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.JacobianSpecification.combine_fn"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.combine_fn</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.JacobianSpecification.combine_fn_kwargs"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.combine_fn_kwargs</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.JacobianSpecification.combine_results"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.combine_results</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.JacobianSpecification.combine_weights"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.combine_weights</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.JacobianSpecification.compute_apc"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.compute_apc</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.JacobianSpecification.jacobian_batch_size"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.jacobian_batch_size</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.JacobianSpecification.noise_batch_size"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.noise_batch_size</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.JacobianSpecification.output_h5_path"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.output_h5_path</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification"><code class="docutils literal notranslate"><span class="pre">RunSpecification</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.inputs"><code class="docutils literal notranslate"><span class="pre">RunSpecification.inputs</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.model_weights"><code class="docutils literal notranslate"><span class="pre">RunSpecification.model_weights</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.model_version"><code class="docutils literal notranslate"><span class="pre">RunSpecification.model_version</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.batch_size"><code class="docutils literal notranslate"><span class="pre">RunSpecification.batch_size</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.backbone_noise"><code class="docutils literal notranslate"><span class="pre">RunSpecification.backbone_noise</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.foldcomp_database"><code class="docutils literal notranslate"><span class="pre">RunSpecification.foldcomp_database</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.num_workers"><code class="docutils literal notranslate"><span class="pre">RunSpecification.num_workers</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.ar_mask"><code class="docutils literal notranslate"><span class="pre">RunSpecification.ar_mask</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.random_seed"><code class="docutils literal notranslate"><span class="pre">RunSpecification.random_seed</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.chain_id"><code class="docutils literal notranslate"><span class="pre">RunSpecification.chain_id</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.model"><code class="docutils literal notranslate"><span class="pre">RunSpecification.model</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.altloc"><code class="docutils literal notranslate"><span class="pre">RunSpecification.altloc</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id0"><code class="docutils literal notranslate"><span class="pre">RunSpecification.altloc</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id1"><code class="docutils literal notranslate"><span class="pre">RunSpecification.ar_mask</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id2"><code class="docutils literal notranslate"><span class="pre">RunSpecification.backbone_noise</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id3"><code class="docutils literal notranslate"><span class="pre">RunSpecification.batch_size</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id4"><code class="docutils literal notranslate"><span class="pre">RunSpecification.chain_id</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id5"><code class="docutils literal notranslate"><span class="pre">RunSpecification.foldcomp_database</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id6"><code class="docutils literal notranslate"><span class="pre">RunSpecification.model</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id7"><code class="docutils literal notranslate"><span class="pre">RunSpecification.model_version</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id8"><code class="docutils literal notranslate"><span class="pre">RunSpecification.model_weights</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id9"><code class="docutils literal notranslate"><span class="pre">RunSpecification.num_workers</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id10"><code class="docutils literal notranslate"><span class="pre">RunSpecification.random_seed</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id11"><code class="docutils literal notranslate"><span class="pre">RunSpecification.inputs</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.SamplingSpecification"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.SamplingSpecification.bias"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.bias</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.SamplingSpecification.fixed_positions"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.fixed_positions</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.SamplingSpecification.iterations"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.iterations</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.SamplingSpecification.learning_rate"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.learning_rate</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.SamplingSpecification.num_samples"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.num_samples</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.SamplingSpecification.sampling_strategy"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.sampling_strategy</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.SamplingSpecification.temperature"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.temperature</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.ScoringSpecification"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.ScoringSpecification.sequences_to_score"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.sequences_to_score</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.ScoringSpecification.temperature"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.temperature</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.ScoringSpecification.return_logits"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.return_logits</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.ScoringSpecification.return_decoding_orders"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.return_decoding_orders</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.ScoringSpecification.return_all_scores"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.return_all_scores</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.ScoringSpecification.score_batch_size"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.score_batch_size</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id12"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.return_all_scores</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id13"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.return_decoding_orders</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id14"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.return_logits</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id15"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.score_batch_size</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id16"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.sequences_to_score</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id17"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.temperature</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.categorical_jacobian"><code class="docutils literal notranslate"><span class="pre">categorical_jacobian()</span></code></a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sample"><code class="docutils literal notranslate"><span class="pre">sample()</span></code></a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.score"><code class="docutils literal notranslate"><span class="pre">score()</span></code></a></li>
+</ul>
+
+            </nav>
         </div>
     </div>
 </div>
@@ -395,6 +478,581 @@ document.write(`
                 <article class="bd-article">
                   
   <p id="module-prxteinmpnn">PrxteinMPNN: A functional interface for ProteinMPNN.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="prxteinmpnn.JacobianSpecification">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">prxteinmpnn.</span></span><span class="sig-name descname"><span class="pre">JacobianSpecification</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inputs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'original'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_version</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'v_48_020.pkl'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batch_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">32</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backbone_noise</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(0.0,)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">foldcomp_database</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ar_mask</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">42</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chain_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">altloc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'first'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">noise_batch_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jacobian_batch_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">16</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">combine</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">combine_batch_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">combine_weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">combine_fn</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'add'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">combine_fn_kwargs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_h5_path</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compute_apc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">combine_results</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/run.html#JacobianSpecification"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.JacobianSpecification" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#prxteinmpnn.RunSpecification" title="prxteinmpnn.run.RunSpecification"><code class="xref py py-class docutils literal notranslate"><span class="pre">RunSpecification</span></code></a></p>
+<p>Configuration for computing categorical Jacobians.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inputs</strong> (<em>Sequence</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em> | </em><em>StringIO</em><em>] </em><em>| </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em> | </em><em>StringIO</em>)</p></li>
+<li><p><strong>model_weights</strong> (<em>ModelWeights</em>)</p></li>
+<li><p><strong>model_version</strong> (<em>ModelVersion</em>)</p></li>
+<li><p><strong>batch_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+<li><p><strong>backbone_noise</strong> (<em>Sequence</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a><em>] </em><em>| </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>)</p></li>
+<li><p><strong>foldcomp_database</strong> (<em>FoldCompDatabase</em><em> | </em><em>None</em>)</p></li>
+<li><p><strong>num_workers</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+<li><p><strong>ar_mask</strong> (<em>None</em><em> | </em><em>ArrayLike</em>)</p></li>
+<li><p><strong>random_seed</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+<li><p><strong>chain_id</strong> (<em>Sequence</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em>] </em><em>| </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em> | </em><em>None</em>)</p></li>
+<li><p><strong>model</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a><em> | </em><em>None</em>)</p></li>
+<li><p><strong>altloc</strong> (<em>Literal</em><em>[</em><em>'first'</em><em>, </em><em>'all'</em><em>]</em>)</p></li>
+<li><p><strong>noise_batch_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+<li><p><strong>jacobian_batch_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+<li><p><strong>combine</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><em>bool</em></a>)</p></li>
+<li><p><strong>combine_batch_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+<li><p><strong>combine_weights</strong> (<em>ArrayLike</em><em> | </em><em>None</em>)</p></li>
+<li><p><strong>combine_fn</strong> (<em>CombineCatJacPairFn</em><em> | </em><em>Literal</em><em>[</em><em>'add'</em><em>, </em><em>'subtract'</em><em>]</em>)</p></li>
+<li><p><strong>combine_fn_kwargs</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><em>dict</em></a><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em>, </em><em>Any</em><em>] </em><em>| </em><em>None</em>)</p></li>
+<li><p><strong>output_h5_path</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em> | </em><em>Path</em><em> | </em><em>None</em>)</p></li>
+<li><p><strong>compute_apc</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><em>bool</em></a>)</p></li>
+<li><p><strong>combine_results</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><em>bool</em></a>)</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.JacobianSpecification.combine">
+<span class="sig-name descname"><span class="pre">combine</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></em><a class="headerlink" href="#prxteinmpnn.JacobianSpecification.combine" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.JacobianSpecification.combine_batch_size">
+<span class="sig-name descname"><span class="pre">combine_batch_size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">8</span></em><a class="headerlink" href="#prxteinmpnn.JacobianSpecification.combine_batch_size" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.JacobianSpecification.combine_fn">
+<span class="sig-name descname"><span class="pre">combine_fn</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">CombineCatJacPairFn</span> <span class="pre">|</span> <span class="pre">Literal['add',</span> <span class="pre">'subtract']</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'add'</span></em><a class="headerlink" href="#prxteinmpnn.JacobianSpecification.combine_fn" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.JacobianSpecification.combine_fn_kwargs">
+<span class="sig-name descname"><span class="pre">combine_fn_kwargs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">dict[str,</span> <span class="pre">Any]</span> <span class="pre">|</span> <span class="pre">None</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#prxteinmpnn.JacobianSpecification.combine_fn_kwargs" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.JacobianSpecification.combine_results">
+<span class="sig-name descname"><span class="pre">combine_results</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></em><a class="headerlink" href="#prxteinmpnn.JacobianSpecification.combine_results" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.JacobianSpecification.combine_weights">
+<span class="sig-name descname"><span class="pre">combine_weights</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ArrayLike</span> <span class="pre">|</span> <span class="pre">None</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#prxteinmpnn.JacobianSpecification.combine_weights" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.JacobianSpecification.compute_apc">
+<span class="sig-name descname"><span class="pre">compute_apc</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">True</span></em><a class="headerlink" href="#prxteinmpnn.JacobianSpecification.compute_apc" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.JacobianSpecification.jacobian_batch_size">
+<span class="sig-name descname"><span class="pre">jacobian_batch_size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">16</span></em><a class="headerlink" href="#prxteinmpnn.JacobianSpecification.jacobian_batch_size" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.JacobianSpecification.noise_batch_size">
+<span class="sig-name descname"><span class="pre">noise_batch_size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#prxteinmpnn.JacobianSpecification.noise_batch_size" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.JacobianSpecification.output_h5_path">
+<span class="sig-name descname"><span class="pre">output_h5_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span> <span class="pre">|</span> <span class="pre">Path</span> <span class="pre">|</span> <span class="pre">None</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#prxteinmpnn.JacobianSpecification.output_h5_path" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="prxteinmpnn.RunSpecification">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">prxteinmpnn.</span></span><span class="sig-name descname"><span class="pre">RunSpecification</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inputs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'original'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_version</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'v_48_020.pkl'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batch_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">32</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backbone_noise</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(0.0,)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">foldcomp_database</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ar_mask</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">42</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chain_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">altloc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'first'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/run.html#RunSpecification"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.RunSpecification" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Configuration for running the model.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inputs</strong> (<em>Sequence</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em> | </em><em>StringIO</em><em>] </em><em>| </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em> | </em><em>StringIO</em>)</p></li>
+<li><p><strong>model_weights</strong> (<em>ModelWeights</em>)</p></li>
+<li><p><strong>model_version</strong> (<em>ModelVersion</em>)</p></li>
+<li><p><strong>batch_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+<li><p><strong>backbone_noise</strong> (<em>Sequence</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a><em>] </em><em>| </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>)</p></li>
+<li><p><strong>foldcomp_database</strong> (<em>FoldCompDatabase</em><em> | </em><em>None</em>)</p></li>
+<li><p><strong>num_workers</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+<li><p><strong>ar_mask</strong> (<em>None</em><em> | </em><em>ArrayLike</em>)</p></li>
+<li><p><strong>random_seed</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+<li><p><strong>chain_id</strong> (<em>Sequence</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em>] </em><em>| </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em> | </em><em>None</em>)</p></li>
+<li><p><strong>model</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a><em> | </em><em>None</em>)</p></li>
+<li><p><strong>altloc</strong> (<em>Literal</em><em>[</em><em>'first'</em><em>, </em><em>'all'</em><em>]</em>)</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.RunSpecification.inputs">
+<span class="sig-name descname"><span class="pre">inputs</span></span><a class="headerlink" href="#prxteinmpnn.RunSpecification.inputs" title="Link to this definition">#</a></dt>
+<dd><p>A sequence of input file paths or StringIO objects, or a single input.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.RunSpecification.model_weights">
+<span class="sig-name descname"><span class="pre">model_weights</span></span><a class="headerlink" href="#prxteinmpnn.RunSpecification.model_weights" title="Link to this definition">#</a></dt>
+<dd><p>The model weights to use (default is “original”).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.RunSpecification.model_version">
+<span class="sig-name descname"><span class="pre">model_version</span></span><a class="headerlink" href="#prxteinmpnn.RunSpecification.model_version" title="Link to this definition">#</a></dt>
+<dd><p>The model version to use (default is “v_48_020.pkl”).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.RunSpecification.batch_size">
+<span class="sig-name descname"><span class="pre">batch_size</span></span><a class="headerlink" href="#prxteinmpnn.RunSpecification.batch_size" title="Link to this definition">#</a></dt>
+<dd><p>The batch size to use (default is 32).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.RunSpecification.backbone_noise">
+<span class="sig-name descname"><span class="pre">backbone_noise</span></span><a class="headerlink" href="#prxteinmpnn.RunSpecification.backbone_noise" title="Link to this definition">#</a></dt>
+<dd><p>The backbone noise levels to use (default is (0.0,)).
+Can be a single float or a sequence of floats.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.RunSpecification.foldcomp_database">
+<span class="sig-name descname"><span class="pre">foldcomp_database</span></span><a class="headerlink" href="#prxteinmpnn.RunSpecification.foldcomp_database" title="Link to this definition">#</a></dt>
+<dd><p>An optional path to a FoldComp database (default is None).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.RunSpecification.num_workers">
+<span class="sig-name descname"><span class="pre">num_workers</span></span><a class="headerlink" href="#prxteinmpnn.RunSpecification.num_workers" title="Link to this definition">#</a></dt>
+<dd><p>The number of worker processes for data loading (default is 0).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.RunSpecification.ar_mask">
+<span class="sig-name descname"><span class="pre">ar_mask</span></span><a class="headerlink" href="#prxteinmpnn.RunSpecification.ar_mask" title="Link to this definition">#</a></dt>
+<dd><p>An optional array-like mask for autoregressive positions (default is None).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.RunSpecification.random_seed">
+<span class="sig-name descname"><span class="pre">random_seed</span></span><a class="headerlink" href="#prxteinmpnn.RunSpecification.random_seed" title="Link to this definition">#</a></dt>
+<dd><p>The random seed to use (default is 42).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.RunSpecification.chain_id">
+<span class="sig-name descname"><span class="pre">chain_id</span></span><a class="headerlink" href="#prxteinmpnn.RunSpecification.chain_id" title="Link to this definition">#</a></dt>
+<dd><p>An optional chain ID to use (default is None).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.RunSpecification.model">
+<span class="sig-name descname"><span class="pre">model</span></span><a class="headerlink" href="#prxteinmpnn.RunSpecification.model" title="Link to this definition">#</a></dt>
+<dd><p>An optional model ID to use (default is None).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.RunSpecification.altloc">
+<span class="sig-name descname"><span class="pre">altloc</span></span><a class="headerlink" href="#prxteinmpnn.RunSpecification.altloc" title="Link to this definition">#</a></dt>
+<dd><p>The alternate location to use (default is “first”).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id0">
+<span class="sig-name descname"><span class="pre">altloc</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Literal['first',</span> <span class="pre">'all']</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'first'</span></em><a class="headerlink" href="#id0" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id1">
+<span class="sig-name descname"><span class="pre">ar_mask</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">None</span> <span class="pre">|</span> <span class="pre">ArrayLike</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id1" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id2">
+<span class="sig-name descname"><span class="pre">backbone_noise</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Sequence[float]</span> <span class="pre">|</span> <span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">(0.0,)</span></em><a class="headerlink" href="#id2" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id3">
+<span class="sig-name descname"><span class="pre">batch_size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">32</span></em><a class="headerlink" href="#id3" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id4">
+<span class="sig-name descname"><span class="pre">chain_id</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Sequence[str]</span> <span class="pre">|</span> <span class="pre">str</span> <span class="pre">|</span> <span class="pre">None</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id4" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id5">
+<span class="sig-name descname"><span class="pre">foldcomp_database</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">FoldCompDatabase</span> <span class="pre">|</span> <span class="pre">None</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id5" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id6">
+<span class="sig-name descname"><span class="pre">model</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span> <span class="pre">|</span> <span class="pre">None</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id6" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id7">
+<span class="sig-name descname"><span class="pre">model_version</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ModelVersion</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'v_48_020.pkl'</span></em><a class="headerlink" href="#id7" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id8">
+<span class="sig-name descname"><span class="pre">model_weights</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ModelWeights</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'original'</span></em><a class="headerlink" href="#id8" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id9">
+<span class="sig-name descname"><span class="pre">num_workers</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0</span></em><a class="headerlink" href="#id9" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id10">
+<span class="sig-name descname"><span class="pre">random_seed</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">42</span></em><a class="headerlink" href="#id10" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id11">
+<span class="sig-name descname"><span class="pre">inputs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Sequence[str</span> <span class="pre">|</span> <span class="pre">StringIO]</span> <span class="pre">|</span> <span class="pre">str</span> <span class="pre">|</span> <span class="pre">StringIO</span></em><a class="headerlink" href="#id11" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="prxteinmpnn.SamplingSpecification">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">prxteinmpnn.</span></span><span class="sig-name descname"><span class="pre">SamplingSpecification</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inputs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'original'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_version</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'v_48_020.pkl'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batch_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">32</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backbone_noise</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(0.0,)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">foldcomp_database</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ar_mask</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">42</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chain_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">altloc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'first'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_samples</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sampling_strategy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'temperature'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temperature</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bias</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed_positions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">iterations</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">learning_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/run.html#SamplingSpecification"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.SamplingSpecification" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#prxteinmpnn.RunSpecification" title="prxteinmpnn.run.RunSpecification"><code class="xref py py-class docutils literal notranslate"><span class="pre">RunSpecification</span></code></a></p>
+<p>Configuration for sampling sequences.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inputs</strong> (<em>Sequence</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em> | </em><em>StringIO</em><em>] </em><em>| </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em> | </em><em>StringIO</em>)</p></li>
+<li><p><strong>model_weights</strong> (<em>ModelWeights</em>)</p></li>
+<li><p><strong>model_version</strong> (<em>ModelVersion</em>)</p></li>
+<li><p><strong>batch_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+<li><p><strong>backbone_noise</strong> (<em>Sequence</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a><em>] </em><em>| </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>)</p></li>
+<li><p><strong>foldcomp_database</strong> (<em>FoldCompDatabase</em><em> | </em><em>None</em>)</p></li>
+<li><p><strong>num_workers</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+<li><p><strong>ar_mask</strong> (<em>None</em><em> | </em><em>ArrayLike</em>)</p></li>
+<li><p><strong>random_seed</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+<li><p><strong>chain_id</strong> (<em>Sequence</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em>] </em><em>| </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em> | </em><em>None</em>)</p></li>
+<li><p><strong>model</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a><em> | </em><em>None</em>)</p></li>
+<li><p><strong>altloc</strong> (<em>Literal</em><em>[</em><em>'first'</em><em>, </em><em>'all'</em><em>]</em>)</p></li>
+<li><p><strong>num_samples</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+<li><p><strong>sampling_strategy</strong> (<em>Literal</em><em>[</em><em>'temperature'</em><em>, </em><em>'straight_through'</em><em>]</em>)</p></li>
+<li><p><strong>temperature</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>)</p></li>
+<li><p><strong>bias</strong> (<em>ArrayLike</em><em> | </em><em>None</em>)</p></li>
+<li><p><strong>fixed_positions</strong> (<em>ArrayLike</em><em> | </em><em>None</em>)</p></li>
+<li><p><strong>iterations</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a><em> | </em><em>None</em>)</p></li>
+<li><p><strong>learning_rate</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a><em> | </em><em>None</em>)</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.SamplingSpecification.bias">
+<span class="sig-name descname"><span class="pre">bias</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ArrayLike</span> <span class="pre">|</span> <span class="pre">None</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#prxteinmpnn.SamplingSpecification.bias" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.SamplingSpecification.fixed_positions">
+<span class="sig-name descname"><span class="pre">fixed_positions</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ArrayLike</span> <span class="pre">|</span> <span class="pre">None</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#prxteinmpnn.SamplingSpecification.fixed_positions" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.SamplingSpecification.iterations">
+<span class="sig-name descname"><span class="pre">iterations</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span> <span class="pre">|</span> <span class="pre">None</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#prxteinmpnn.SamplingSpecification.iterations" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.SamplingSpecification.learning_rate">
+<span class="sig-name descname"><span class="pre">learning_rate</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span> <span class="pre">|</span> <span class="pre">None</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#prxteinmpnn.SamplingSpecification.learning_rate" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.SamplingSpecification.num_samples">
+<span class="sig-name descname"><span class="pre">num_samples</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#prxteinmpnn.SamplingSpecification.num_samples" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.SamplingSpecification.sampling_strategy">
+<span class="sig-name descname"><span class="pre">sampling_strategy</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Literal['temperature',</span> <span class="pre">'straight_through']</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'temperature'</span></em><a class="headerlink" href="#prxteinmpnn.SamplingSpecification.sampling_strategy" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.SamplingSpecification.temperature">
+<span class="sig-name descname"><span class="pre">temperature</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.1</span></em><a class="headerlink" href="#prxteinmpnn.SamplingSpecification.temperature" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="prxteinmpnn.ScoringSpecification">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">prxteinmpnn.</span></span><span class="sig-name descname"><span class="pre">ScoringSpecification</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inputs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'original'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_version</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'v_48_020.pkl'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batch_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">32</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backbone_noise</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(0.0,)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">foldcomp_database</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ar_mask</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">42</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chain_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">altloc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'first'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sequences_to_score</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">()</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temperature</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_logits</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_decoding_orders</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_all_scores</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">score_batch_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">16</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/run.html#ScoringSpecification"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.ScoringSpecification" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#prxteinmpnn.RunSpecification" title="prxteinmpnn.run.RunSpecification"><code class="xref py py-class docutils literal notranslate"><span class="pre">RunSpecification</span></code></a></p>
+<p>Configuration for scoring sequences.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inputs</strong> (<em>Sequence</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em> | </em><em>StringIO</em><em>] </em><em>| </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em> | </em><em>StringIO</em>)</p></li>
+<li><p><strong>model_weights</strong> (<em>ModelWeights</em>)</p></li>
+<li><p><strong>model_version</strong> (<em>ModelVersion</em>)</p></li>
+<li><p><strong>batch_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+<li><p><strong>backbone_noise</strong> (<em>Sequence</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a><em>] </em><em>| </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>)</p></li>
+<li><p><strong>foldcomp_database</strong> (<em>FoldCompDatabase</em><em> | </em><em>None</em>)</p></li>
+<li><p><strong>num_workers</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+<li><p><strong>ar_mask</strong> (<em>None</em><em> | </em><em>ArrayLike</em>)</p></li>
+<li><p><strong>random_seed</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+<li><p><strong>chain_id</strong> (<em>Sequence</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em>] </em><em>| </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em> | </em><em>None</em>)</p></li>
+<li><p><strong>model</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a><em> | </em><em>None</em>)</p></li>
+<li><p><strong>altloc</strong> (<em>Literal</em><em>[</em><em>'first'</em><em>, </em><em>'all'</em><em>]</em>)</p></li>
+<li><p><strong>sequences_to_score</strong> (<em>Sequence</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><em>str</em></a><em>]</em>)</p></li>
+<li><p><strong>temperature</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><em>float</em></a>)</p></li>
+<li><p><strong>return_logits</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><em>bool</em></a>)</p></li>
+<li><p><strong>return_decoding_orders</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><em>bool</em></a>)</p></li>
+<li><p><strong>return_all_scores</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><em>bool</em></a>)</p></li>
+<li><p><strong>score_batch_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.ScoringSpecification.sequences_to_score">
+<span class="sig-name descname"><span class="pre">sequences_to_score</span></span><a class="headerlink" href="#prxteinmpnn.ScoringSpecification.sequences_to_score" title="Link to this definition">#</a></dt>
+<dd><p>A sequence of amino acid sequences to score.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.ScoringSpecification.temperature">
+<span class="sig-name descname"><span class="pre">temperature</span></span><a class="headerlink" href="#prxteinmpnn.ScoringSpecification.temperature" title="Link to this definition">#</a></dt>
+<dd><p>The temperature for scoring (default is 1.0).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.ScoringSpecification.return_logits">
+<span class="sig-name descname"><span class="pre">return_logits</span></span><a class="headerlink" href="#prxteinmpnn.ScoringSpecification.return_logits" title="Link to this definition">#</a></dt>
+<dd><p>Whether to return the raw logits (default is False).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.ScoringSpecification.return_decoding_orders">
+<span class="sig-name descname"><span class="pre">return_decoding_orders</span></span><a class="headerlink" href="#prxteinmpnn.ScoringSpecification.return_decoding_orders" title="Link to this definition">#</a></dt>
+<dd><p>Whether to return decoding orders (default is False).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.ScoringSpecification.return_all_scores">
+<span class="sig-name descname"><span class="pre">return_all_scores</span></span><a class="headerlink" href="#prxteinmpnn.ScoringSpecification.return_all_scores" title="Link to this definition">#</a></dt>
+<dd><p>Whether to return scores for all sequences (default is False).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="prxteinmpnn.ScoringSpecification.score_batch_size">
+<span class="sig-name descname"><span class="pre">score_batch_size</span></span><a class="headerlink" href="#prxteinmpnn.ScoringSpecification.score_batch_size" title="Link to this definition">#</a></dt>
+<dd><p>The batch size for scoring sequences (default is 16).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id12">
+<span class="sig-name descname"><span class="pre">return_all_scores</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></em><a class="headerlink" href="#id12" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id13">
+<span class="sig-name descname"><span class="pre">return_decoding_orders</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></em><a class="headerlink" href="#id13" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id14">
+<span class="sig-name descname"><span class="pre">return_logits</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></em><a class="headerlink" href="#id14" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id15">
+<span class="sig-name descname"><span class="pre">score_batch_size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">16</span></em><a class="headerlink" href="#id15" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id16">
+<span class="sig-name descname"><span class="pre">sequences_to_score</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Sequence[str]</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">()</span></em><a class="headerlink" href="#id16" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id17">
+<span class="sig-name descname"><span class="pre">temperature</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1.0</span></em><a class="headerlink" href="#id17" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.categorical_jacobian">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.</span></span><span class="sig-name descname"><span class="pre">categorical_jacobian</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spec</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/run.html#categorical_jacobian"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.categorical_jacobian" title="Link to this definition">#</a></dt>
+<dd><p>Compute the Jacobian of the model’s logits with respect to the input sequence.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>spec</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#prxteinmpnn.JacobianSpecification" title="prxteinmpnn.run.JacobianSpecification"><code class="xref py py-class docutils literal notranslate"><span class="pre">JacobianSpecification</span></code></a> | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span>) – An optional JacobianConfig object. If None, a default will be created using</p></li>
+<li><p><strong>kwargs</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code></a></span>) – inputs: A single or sequence of inputs (files, PDB IDs, etc.).
+chain_id: Specific chain(s) to parse from the structure.
+model: The model number to load. If None, all models are loaded.
+altloc: The alternate location identifier to use.
+model_version: The model version to use.
+model_weights: The model weights to use.
+foldcomp_database: The FoldComp database to use for FoldComp IDs.
+random_seed: The random number generator key.
+backbone_noise: The amount of noise to add to the backbone.
+batch_size: The number of structures to process in a single batch.
+noise_batch_size: Batch size for noise levels in Jacobian computation.
+jacobian_batch_size: Inner batch size for Jacobian computation.
+combine_batch_size: Batch size for combining Jacobians.
+num_workers: Number of parallel workers for data loading.
+combine_fn: Function or string specifying how to combine Jacobian pairs (e.g., “add”,
+“subtract”).
+combine_fn_kwargs: Optional dictionary of keyword arguments for the combine function.
+combine_weights: Optional weights to use when combining Jacobians.
+combine: Whether to combine Jacobians across samples.
+output_h5_path: Optional path to an HDF5 file for streaming output.
+compute_apc: Whether to compute APC-corrected Frobenius norm.</p></li>
+<li><p><strong>set</strong> (<em>options are provided as keyword arguments. The following options can be</em>) – inputs: A single or sequence of inputs (files, PDB IDs, etc.).
+chain_id: Specific chain(s) to parse from the structure.
+model: The model number to load. If None, all models are loaded.
+altloc: The alternate location identifier to use.
+model_version: The model version to use.
+model_weights: The model weights to use.
+foldcomp_database: The FoldComp database to use for FoldComp IDs.
+random_seed: The random number generator key.
+backbone_noise: The amount of noise to add to the backbone.
+batch_size: The number of structures to process in a single batch.
+noise_batch_size: Batch size for noise levels in Jacobian computation.
+jacobian_batch_size: Inner batch size for Jacobian computation.
+combine_batch_size: Batch size for combining Jacobians.
+num_workers: Number of parallel workers for data loading.
+combine_fn: Function or string specifying how to combine Jacobian pairs (e.g., “add”,
+“subtract”).
+combine_fn_kwargs: Optional dictionary of keyword arguments for the combine function.
+combine_weights: Optional weights to use when combining Jacobians.
+combine: Whether to combine Jacobians across samples.
+output_h5_path: Optional path to an HDF5 file for streaming output.
+compute_apc: Whether to compute APC-corrected Frobenius norm.</p></li>
+<li><p><strong>**kwargs</strong> – Additional keyword arguments for structure loading.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>, <a class="reference external" href="https://docs.jax.dev/en/latest/_autosummary/jax.Array.html#jax.Array" title="(in JAX)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Array</span></code></a> | <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>, <a class="reference internal" href="#prxteinmpnn.JacobianSpecification" title="prxteinmpnn.run.JacobianSpecification"><code class="xref py py-class docutils literal notranslate"><span class="pre">JacobianSpecification</span></code></a>] | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a>]</span></p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A dictionary containing the Jacobian tensor and metadata.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.sample">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.</span></span><span class="sig-name descname"><span class="pre">sample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spec</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/run.html#sample"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.sample" title="Link to this definition">#</a></dt>
+<dd><p>Sample new sequences for the given input structures.</p>
+<p>This function uses a high-performance Grain pipeline to load and process
+structures, then samples new sequences for each structure.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>spec</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#prxteinmpnn.SamplingSpecification" title="prxteinmpnn.run.SamplingSpecification"><code class="xref py py-class docutils literal notranslate"><span class="pre">SamplingSpecification</span></code></a> | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span>) – An optional SamplingSpecification object. If None, a default will be created using</p></li>
+<li><p><strong>kwargs</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code></a></span>) – inputs: A single or sequence of inputs (files, PDB IDs, etc.).
+chain_id: Specific chain(s) to parse from the structure.
+model: The model number to load. If None, all models are loaded.
+altloc: The alternate location identifier to use.
+model_version: The model version to use.
+model_weights: The model weights to use.
+foldcomp_database: The FoldComp database to use for FoldComp IDs.
+random_seed: The random number generator key.
+backbone_noise: The amount of noise to add to the backbone.
+num_samples: The number of sequences to sample per structure/noise level.
+sampling_strategy: The sampling strategy to use.
+temperature: The sampling temperature.
+bias: An optional array to bias the logits.
+fixed_positions: An optional array of residue indices to keep fixed.
+iterations: Number of optimization iterations for “straight_through” sampling.
+learning_rate: Learning rate for “straight_through” sampling.
+batch_size: The number of structures to process in a single batch.
+num_workers: Number of parallel workers for data loading.</p></li>
+<li><p><strong>set</strong> (<em>options are provided as keyword arguments. The following options can be</em>) – inputs: A single or sequence of inputs (files, PDB IDs, etc.).
+chain_id: Specific chain(s) to parse from the structure.
+model: The model number to load. If None, all models are loaded.
+altloc: The alternate location identifier to use.
+model_version: The model version to use.
+model_weights: The model weights to use.
+foldcomp_database: The FoldComp database to use for FoldComp IDs.
+random_seed: The random number generator key.
+backbone_noise: The amount of noise to add to the backbone.
+num_samples: The number of sequences to sample per structure/noise level.
+sampling_strategy: The sampling strategy to use.
+temperature: The sampling temperature.
+bias: An optional array to bias the logits.
+fixed_positions: An optional array of residue indices to keep fixed.
+iterations: Number of optimization iterations for “straight_through” sampling.
+learning_rate: Learning rate for “straight_through” sampling.
+batch_size: The number of structures to process in a single batch.
+num_workers: Number of parallel workers for data loading.</p></li>
+<li><p><strong>**kwargs</strong> – Additional keyword arguments for structure loading.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>, <a class="reference external" href="https://docs.jax.dev/en/latest/_autosummary/jax.Array.html#jax.Array" title="(in JAX)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Array</span></code></a> | <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>, <a class="reference internal" href="#prxteinmpnn.SamplingSpecification" title="prxteinmpnn.run.SamplingSpecification"><code class="xref py py-class docutils literal notranslate"><span class="pre">SamplingSpecification</span></code></a>] | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a>]</span></p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A dictionary containing sampled sequences, logits, and metadata.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.score">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.</span></span><span class="sig-name descname"><span class="pre">score</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spec</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/run.html#score"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.score" title="Link to this definition">#</a></dt>
+<dd><p>Score all provided sequences against all input structures.</p>
+<p>This function uses a high-performance Grain pipeline to load and process
+structures, then scores all provided sequences against each structure.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>spec</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="#prxteinmpnn.ScoringSpecification" title="prxteinmpnn.run.ScoringSpecification"><code class="xref py py-class docutils literal notranslate"><span class="pre">ScoringSpecification</span></code></a> | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span>) – An optional ScoringSpecification object. If None, a default will be created using</p></li>
+<li><p><strong>kwargs</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.13)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Any</span></code></a></span>) – inputs: A single or sequence of inputs (files, PDB IDs, etc.).
+sequences_to_score: A list of protein sequences (strings) to score.
+chain_id: Specific chain(s) to parse from the structure.
+model: The model number to load. If None, all models are loaded.
+altloc: The alternate location identifier to use.
+model_version: The model version to use.
+model_weights: The model weights to use.
+foldcomp_database: The FoldComp database to use for FoldComp IDs.
+random_seed: The random number generator key.
+backbone_noise: The amount of noise to add to the backbone.
+ar_mask: An optional array of shape (L, L) to mask out certain residue pairs.
+batch_size: The number of structures to process in a single batch.
+num_workers: Number of parallel workers for data loading.</p></li>
+<li><p><strong>set</strong> (<em>options are provided as keyword arguments. The following options can be</em>) – inputs: A single or sequence of inputs (files, PDB IDs, etc.).
+sequences_to_score: A list of protein sequences (strings) to score.
+chain_id: Specific chain(s) to parse from the structure.
+model: The model number to load. If None, all models are loaded.
+altloc: The alternate location identifier to use.
+model_version: The model version to use.
+model_weights: The model weights to use.
+foldcomp_database: The FoldComp database to use for FoldComp IDs.
+random_seed: The random number generator key.
+backbone_noise: The amount of noise to add to the backbone.
+ar_mask: An optional array of shape (L, L) to mask out certain residue pairs.
+batch_size: The number of structures to process in a single batch.
+num_workers: Number of parallel workers for data loading.</p></li>
+<li><p><strong>**kwargs</strong> – Additional keyword arguments for structure loading.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>, <a class="reference external" href="https://docs.jax.dev/en/latest/_autosummary/jax.Array.html#jax.Array" title="(in JAX)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Array</span></code></a> | <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>, <a class="reference internal" href="#prxteinmpnn.ScoringSpecification" title="prxteinmpnn.run.ScoringSpecification"><code class="xref py py-class docutils literal notranslate"><span class="pre">ScoringSpecification</span></code></a>] | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a>]</span></p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A dictionary containing scores, logits, and metadata.</p>
+</dd>
+</dl>
+</dd></dl>
+
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
@@ -481,6 +1139,89 @@ document.write(`
             </div>
             
             
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.JacobianSpecification.combine"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.combine</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.JacobianSpecification.combine_batch_size"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.combine_batch_size</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.JacobianSpecification.combine_fn"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.combine_fn</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.JacobianSpecification.combine_fn_kwargs"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.combine_fn_kwargs</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.JacobianSpecification.combine_results"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.combine_results</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.JacobianSpecification.combine_weights"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.combine_weights</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.JacobianSpecification.compute_apc"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.compute_apc</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.JacobianSpecification.jacobian_batch_size"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.jacobian_batch_size</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.JacobianSpecification.noise_batch_size"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.noise_batch_size</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.JacobianSpecification.output_h5_path"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.output_h5_path</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification"><code class="docutils literal notranslate"><span class="pre">RunSpecification</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.inputs"><code class="docutils literal notranslate"><span class="pre">RunSpecification.inputs</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.model_weights"><code class="docutils literal notranslate"><span class="pre">RunSpecification.model_weights</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.model_version"><code class="docutils literal notranslate"><span class="pre">RunSpecification.model_version</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.batch_size"><code class="docutils literal notranslate"><span class="pre">RunSpecification.batch_size</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.backbone_noise"><code class="docutils literal notranslate"><span class="pre">RunSpecification.backbone_noise</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.foldcomp_database"><code class="docutils literal notranslate"><span class="pre">RunSpecification.foldcomp_database</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.num_workers"><code class="docutils literal notranslate"><span class="pre">RunSpecification.num_workers</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.ar_mask"><code class="docutils literal notranslate"><span class="pre">RunSpecification.ar_mask</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.random_seed"><code class="docutils literal notranslate"><span class="pre">RunSpecification.random_seed</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.chain_id"><code class="docutils literal notranslate"><span class="pre">RunSpecification.chain_id</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.model"><code class="docutils literal notranslate"><span class="pre">RunSpecification.model</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.RunSpecification.altloc"><code class="docutils literal notranslate"><span class="pre">RunSpecification.altloc</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id0"><code class="docutils literal notranslate"><span class="pre">RunSpecification.altloc</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id1"><code class="docutils literal notranslate"><span class="pre">RunSpecification.ar_mask</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id2"><code class="docutils literal notranslate"><span class="pre">RunSpecification.backbone_noise</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id3"><code class="docutils literal notranslate"><span class="pre">RunSpecification.batch_size</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id4"><code class="docutils literal notranslate"><span class="pre">RunSpecification.chain_id</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id5"><code class="docutils literal notranslate"><span class="pre">RunSpecification.foldcomp_database</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id6"><code class="docutils literal notranslate"><span class="pre">RunSpecification.model</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id7"><code class="docutils literal notranslate"><span class="pre">RunSpecification.model_version</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id8"><code class="docutils literal notranslate"><span class="pre">RunSpecification.model_weights</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id9"><code class="docutils literal notranslate"><span class="pre">RunSpecification.num_workers</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id10"><code class="docutils literal notranslate"><span class="pre">RunSpecification.random_seed</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id11"><code class="docutils literal notranslate"><span class="pre">RunSpecification.inputs</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.SamplingSpecification"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.SamplingSpecification.bias"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.bias</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.SamplingSpecification.fixed_positions"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.fixed_positions</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.SamplingSpecification.iterations"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.iterations</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.SamplingSpecification.learning_rate"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.learning_rate</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.SamplingSpecification.num_samples"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.num_samples</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.SamplingSpecification.sampling_strategy"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.sampling_strategy</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.SamplingSpecification.temperature"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.temperature</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.ScoringSpecification"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.ScoringSpecification.sequences_to_score"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.sequences_to_score</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.ScoringSpecification.temperature"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.temperature</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.ScoringSpecification.return_logits"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.return_logits</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.ScoringSpecification.return_decoding_orders"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.return_decoding_orders</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.ScoringSpecification.return_all_scores"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.return_all_scores</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.ScoringSpecification.score_batch_size"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.score_batch_size</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id12"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.return_all_scores</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id13"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.return_decoding_orders</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id14"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.return_logits</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id15"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.score_batch_size</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id16"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.sequences_to_score</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id17"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.temperature</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.categorical_jacobian"><code class="docutils literal notranslate"><span class="pre">categorical_jacobian()</span></code></a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.sample"><code class="docutils literal notranslate"><span class="pre">sample()</span></code></a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.score"><code class="docutils literal notranslate"><span class="pre">score()</span></code></a></li>
+</ul>
+
+  </nav></div>
+
+</div></div>
               
             
           </div>

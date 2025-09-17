@@ -157,6 +157,13 @@
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../api/modules.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.html"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification</span></code></a></li>
+
+
+
+
+
+
 <li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -360,6 +367,7 @@ document.write(`
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.autoregression</span><span class="w"> </span><span class="kn">import</span> <span class="n">generate_ar_mask</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.decoding_order</span><span class="w"> </span><span class="kn">import</span> <span class="n">DecodingOrderFn</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+  <span class="n">AlphaCarbonMask</span><span class="p">,</span>
   <span class="n">AtomMask</span><span class="p">,</span>
   <span class="n">AutoRegressiveMask</span><span class="p">,</span>
   <span class="n">BackboneNoise</span><span class="p">,</span>
@@ -412,7 +420,7 @@ document.write(`
     <span class="n">prng_key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
     <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
     <span class="n">structure_coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
-    <span class="n">mask</span><span class="p">:</span> <span class="n">AtomMask</span><span class="p">,</span>
+    <span class="n">mask</span><span class="p">:</span> <span class="n">AlphaCarbonMask</span><span class="p">,</span>
     <span class="n">residue_index</span><span class="p">:</span> <span class="n">ResidueIndex</span><span class="p">,</span>
     <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span><span class="p">,</span>
     <span class="n">autoregressive_mask</span><span class="p">:</span> <span class="n">AutoRegressiveMask</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>

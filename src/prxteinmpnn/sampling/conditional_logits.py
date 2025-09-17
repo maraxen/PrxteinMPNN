@@ -14,6 +14,7 @@ from prxteinmpnn.model.projection import final_projection
 from prxteinmpnn.sampling.initialize import sampling_encode
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
+  AlphaCarbonMask,
   AtomMask,
   BackboneNoise,
   ChainIndex,
@@ -123,7 +124,7 @@ def make_conditional_logits_fn(
     prng_key: PRNGKeyArray,
     structure_coordinates: StructureAtomicCoordinates,
     sequence: ProteinSequence | OneHotProteinSequence,
-    mask: AtomMask,
+    mask: AlphaCarbonMask,
     residue_index: ResidueIndex,
     chain_index: ChainIndex,
     bias: InputBias | None = None,

@@ -268,21 +268,22 @@ def _extract_biotite_static_features(
 
   aatype = residue_names_to_aatype(residue_names)
   nitrogen_mask = atom_mask_37[:, atom_map["N"]] == 1
+
   aatype = aatype[nitrogen_mask]
   atom_mask_37 = atom_mask_37[nitrogen_mask]
   residue_indices = residue_indices[nitrogen_mask]
   chain_index = chain_index[nitrogen_mask]
+  valid_residue_mask = nitrogen_mask[np.asarray(residue_inv_indices)]
+  atom_mask &= valid_residue_mask
 
   return TrajectoryStaticFeatures(
-    aatype=residue_names_to_aatype(residue_names),
+    aatype=aatype,
     static_atom_mask_37=atom_mask_37,
     residue_indices=residue_indices,
     chain_index=chain_index,
-    res_indices_flat=res_indices_flat,
-    atom_indices_flat=atom_indices_flat,
     valid_atom_mask=atom_mask,
     nitrogen_mask=nitrogen_mask,
-    num_residues=num_residues,
+    num_residues=aatype.shape[0],
   ), atom_array
 
 
@@ -331,17 +332,14 @@ def mdtraj_dihedrals(
 def process_coordinates(
   coordinates: np.ndarray,
   num_residues: int,
-  res_indices_flat: np.ndarray,
-  atom_indices_flat: np.ndarray,
+  atom_37_indices: np.ndarray,
   valid_atom_mask: np.ndarray,
 ) -> np.ndarray:
   """Process an AtomArray to create a Protein inputs."""
   coords_37 = np.zeros((num_residues, 37, 3), dtype=np.float32)
-
-  coords_37[res_indices_flat, atom_indices_flat] = np.asarray(
+  coords_37[atom_37_indices] = np.asarray(
     coordinates,
   )[valid_atom_mask]
-
   return coords_37
 
 
@@ -418,8 +416,6 @@ def _extract_mdtraj_static_features(
     static_atom_mask_37=static_atom_mask_37[nitrogen_mask],
     residue_indices=residue_indices[nitrogen_mask],
     chain_index=chain_index[nitrogen_mask],
-    res_indices_flat=res_indices_flat,
-    atom_indices_flat=atom_indices_flat,
     valid_atom_mask=valid_atom_mask,
     nitrogen_mask=nitrogen_mask,
     num_residues=num_residues,
@@ -454,8 +450,7 @@ def _parse_hdf5(
         coords_37 = process_coordinates(
           coords[0],  # MDTraj xyz is (n_frames, n_atoms, 3)
           static_features["num_residues"],
-          static_features["res_indices_flat"],
-          static_features["atom_indices_flat"],
+          static_features["static_atom_mask_37"],
           static_features["valid_atom_mask"],
         )
         yield ProteinTuple(
@@ -512,8 +507,7 @@ def _parse_biotite(
           coords_37 = process_coordinates(
             coords,
             static_features["num_residues"],
-            static_features["res_indices_flat"],
-            static_features["atom_indices_flat"],
+            static_features["static_atom_mask_37"],
             static_features["valid_atom_mask"],
           )
           yield ProteinTuple(
@@ -532,8 +526,7 @@ def _parse_biotite(
         coords_37 = process_coordinates(
           coords,
           static_features["num_residues"],
-          static_features["res_indices_flat"],
-          static_features["atom_indices_flat"],
+          static_features["static_atom_mask_37"],
           static_features["valid_atom_mask"],
         )
         yield ProteinTuple(

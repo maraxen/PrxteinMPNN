@@ -69,8 +69,6 @@ class TrajectoryStaticFeatures(TypedDict):
   static_atom_mask_37: np.ndarray
   residue_indices: np.ndarray
   chain_index: np.ndarray
-  res_indices_flat: np.ndarray
-  atom_indices_flat: np.ndarray
   valid_atom_mask: np.ndarray
   nitrogen_mask: np.ndarray
   num_residues: int

@@ -76,7 +76,7 @@ class ParseStructure(grain.transforms.Map):
     super().__init__()
     self.parse_kwargs: dict[str, Any] = parse_kwargs or {}
 
-  def map(self, element: tuple[str, Any]) -> list[ProteinTuple] | None:  # type: ignore[override]
+  def map(self, element: tuple[str, Any]) -> list[ProteinTuple] | None:  # type: ignore[override]  # noqa: PLR0911
     """Parse a single categorized input element.
 
     Args:
@@ -113,6 +113,9 @@ class ParseStructure(grain.transforms.Map):
     return None
 
 
+_MAX_TRIES = 5
+
+
 def pad_and_collate_proteins(elements: Sequence[ProteinTuple]) -> Protein:
   """Batch and pad a list of ProteinTuples into a ProteinBatch.
 
@@ -136,6 +139,16 @@ def pad_and_collate_proteins(elements: Sequence[ProteinTuple]) -> Protein:
     msg = "Cannot collate an empty list of proteins."
     warnings.warn(msg, stacklevel=2)
     raise ValueError(msg)
+
+  tries = 0
+  while not all(isinstance(p, ProteinTuple) for p in elements):
+    if any(isinstance(p, Sequence) for p in elements):
+      elements = [p[0] if isinstance(p, Sequence) else p for p in elements]  # type: ignore[index]
+      tries += 1
+    if tries > _MAX_TRIES:
+      msg = "Too many nested sequences in elements; cannot collate."
+      warnings.warn(msg, stacklevel=2)
+      raise ValueError(msg)
 
   proteins = [Protein.from_tuple(p) for p in elements]
   max_len = max(p.coordinates.shape[0] for p in proteins)

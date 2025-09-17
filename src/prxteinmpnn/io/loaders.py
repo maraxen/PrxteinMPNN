@@ -39,11 +39,7 @@ def create_protein_dataset(
   ds = grain.MapDataset.source(source)
 
   ds = ds.map(operations.ParseStructure(parse_kwargs=parse_kwargs))
-
-  ds = ds.filter(lambda x: x is not None)
-
   ds = ds.to_iter_dataset()
-
   ds = ds.batch(batch_size, batch_fn=operations.pad_and_collate_proteins)
 
   if num_workers > 0:

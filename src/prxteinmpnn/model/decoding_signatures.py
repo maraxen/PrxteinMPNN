@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from jaxtyping import PRNGKeyArray, Float
+from jaxtyping import Float, PRNGKeyArray
 
 from prxteinmpnn.utils.types import (
   AtomMask,

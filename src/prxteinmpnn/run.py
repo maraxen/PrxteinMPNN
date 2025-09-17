@@ -5,13 +5,15 @@ from __future__ import annotations
 import logging
 import multiprocessing as mp
 import sys
-from collections.abc import Sequence
+from collections.abc import Generator, Sequence
 from dataclasses import dataclass
 from functools import partial
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 mp.set_start_method("spawn", force=True)
 
+import h5py
 import jax
 import jax.numpy as jnp
 
@@ -33,15 +35,14 @@ if TYPE_CHECKING:
     StructureAtomicCoordinates,
   )
 
-
 from prxteinmpnn.io import loaders
 from prxteinmpnn.mpnn import get_mpnn_model
-from prxteinmpnn.sampling.conditional_logits import make_conditional_logits_fn
+from prxteinmpnn.sampling.conditional_logits import ConditionalLogitsFn, make_conditional_logits_fn
 from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.scoring.score import make_score_sequence
 from prxteinmpnn.utils.aa_convert import string_to_protein_sequence
 from prxteinmpnn.utils.apc import apc_corrected_frobenius_norm
-from prxteinmpnn.utils.catjac import make_combine_jac
+from prxteinmpnn.utils.catjac import combine_jacobians_h5_stream, make_combine_jac
 from prxteinmpnn.utils.decoding_order import random_decoding_order
 from prxteinmpnn.utils.residue_constants import atom_order
 
@@ -160,6 +161,15 @@ class JacobianSpecification(RunSpecification):
   combine_weights: ArrayLike | None = None
   combine_fn: CombineCatJacPairFn | Literal["add", "subtract"] = "add"
   combine_fn_kwargs: dict[str, Any] | None = None
+  output_h5_path: str | Path | None = None
+  compute_apc: bool = True
+  combine_results: bool = False
+
+  def __post_init__(self) -> None:
+    """Post-initialization processing."""
+    super().__post_init__()
+    if self.output_h5_path and isinstance(self.output_h5_path, str):
+      object.__setattr__(self, "output_h5_path", Path(self.output_h5_path))
 
 
 def _prep_protein_stream_and_model(spec: RunSpecification) -> tuple[IterDataset, ModelParameters]:
@@ -217,7 +227,6 @@ def score(
   if spec is None:
     spec = ScoringSpecification(**kwargs)
 
-  # Prepare sequences to be scored
   if not spec.sequences_to_score:
     msg = (
       "No sequences provided for scoring. `sequences_to_score` must be a non-empty list of strings."
@@ -407,7 +416,7 @@ def categorical_jacobian(
   """Compute the Jacobian of the model's logits with respect to the input sequence.
 
   Args:
-      spec: An optional JacobianSpecification object. If None, a default will be created using
+      spec: An optional JacobianConfig object. If None, a default will be created using
       kwargs, options are provided as keyword arguments. The following options can be set:
         inputs: A single or sequence of inputs (files, PDB IDs, etc.).
         chain_id: Specific chain(s) to parse from the structure.
@@ -428,6 +437,8 @@ def categorical_jacobian(
         combine_fn_kwargs: Optional dictionary of keyword arguments for the combine function.
         combine_weights: Optional weights to use when combining Jacobians.
         combine: Whether to combine Jacobians across samples.
+        output_h5_path: Optional path to an HDF5 file for streaming output.
+        compute_apc: Whether to compute APC-corrected Frobenius norm.
       **kwargs: Additional keyword arguments for structure loading.
 
   Returns:
@@ -440,8 +451,35 @@ def categorical_jacobian(
   protein_iterator, model_parameters = _prep_protein_stream_and_model(spec)
   conditional_logits_fn = make_conditional_logits_fn(model_parameters=model_parameters)
 
-  all_jacobians = []
-  all_sequences = []
+  if spec.output_h5_path:
+    result = _categorical_jacobian_streaming(spec, protein_iterator, conditional_logits_fn)
+    if spec.combine_results:
+      if not spec.output_h5_path:
+        msg = "output_h5_path must be provided for streaming."
+        raise ValueError(msg)
+      if not spec.combine_weights is not None:
+        msg = "combine_weights must be provided for streaming."
+        raise ValueError(msg)
+      if isinstance(spec.combine_fn, str):
+        msg = "combine_fn must be a callable for streaming."
+        raise TypeError(msg)
+      combine_jacobians_h5_stream(
+        h5_path=spec.output_h5_path,
+        combine_fn=spec.combine_fn,
+        fn_kwargs=spec.combine_fn_kwargs or {},
+        batch_size=spec.combine_batch_size,
+        weights=jnp.asarray(spec.combine_weights),
+      )
+    return result
+  return _categorical_jacobian_in_memory(spec, protein_iterator, conditional_logits_fn)
+
+
+def _compute_jacobian_batches(
+  spec: JacobianSpecification,
+  protein_iterator: IterDataset,
+  conditional_logits_fn: ConditionalLogitsFn,
+) -> Generator[tuple[jax.Array, jax.Array], None, None]:
+  """Generate and yield Jacobian batches."""
   for batched_ensemble in protein_iterator:
 
     def compute_jacobian_for_structure(
@@ -514,15 +552,31 @@ def categorical_jacobian(
       batched_ensemble.chain_index,
       batched_ensemble.one_hot_sequence,
     )
+    yield jacobians_batch, batched_ensemble.one_hot_sequence
 
+
+def _categorical_jacobian_in_memory(
+  spec: JacobianSpecification,
+  protein_iterator: IterDataset,
+  conditional_logits_fn: Any,
+) -> dict[str, jax.Array | dict[str, JacobianSpecification] | None]:
+  """Compute Jacobians and store them in memory."""
+  all_jacobians, all_sequences = [], []
+  for jacobians_batch, one_hot_sequence_batch in _compute_jacobian_batches(
+    spec,
+    protein_iterator,
+    conditional_logits_fn,
+  ):
     all_jacobians.append(jacobians_batch)
-    all_sequences.append(batched_ensemble.one_hot_sequence)
+    all_sequences.append(one_hot_sequence_batch)
 
   if not all_jacobians:
     return {"categorical_jacobians": None, "metadata": None}
 
   jacobians = jnp.concatenate(all_jacobians, axis=0)
-  apc_jacobians = jax.vmap(jax.vmap(apc_corrected_frobenius_norm))(jacobians)
+  apc_jacobians = (
+    jax.vmap(jax.vmap(apc_corrected_frobenius_norm))(jacobians) if spec.compute_apc else None
+  )
 
   combine_jacs_fn = make_combine_jac(
     combine_fn=spec.combine_fn,
@@ -531,18 +585,22 @@ def categorical_jacobian(
   )
   # merge batch and noise dimensions
   reshaped_jacobians = jacobians.reshape((-1, *jacobians.shape[2:]))
-  all_sequences = jnp.tile(
-    jnp.concatenate(all_sequences, axis=0),
-    ((jnp.asarray(spec.backbone_noise).shape[0]), 1, 1),
+  all_sequences_arr = jnp.concatenate(all_sequences, axis=0)
+  if not isinstance(spec.backbone_noise, Sequence):
+    msg = "backbone_noise must be a sequence."
+    raise TypeError(msg)
+  tiled_sequences = jnp.tile(
+    all_sequences_arr,
+    (len(spec.backbone_noise), 1, 1),
   )
 
   if spec.combine_weights is None and spec.combine:
-    spec.combine_weights = jnp.ones((all_sequences.shape[0],), dtype=jnp.float32)
+    spec.combine_weights = jnp.ones((tiled_sequences.shape[0],), dtype=jnp.float32)
 
   combined_jacs = (
     combine_jacs_fn(
       reshaped_jacobians,
-      jnp.concatenate(all_sequences, axis=0),
+      tiled_sequences,
       jnp.asarray(spec.combine_weights, dtype=jnp.float32),
     )
     if spec.combine
@@ -553,6 +611,79 @@ def categorical_jacobian(
     "categorical_jacobians": jacobians,
     "apc_corrected_jacobians": apc_jacobians,
     "combined": combined_jacs,
+    "metadata": {
+      "spec": spec,
+    },
+  }
+
+
+_EXTRA_DIM_JAC = 7  # (1, B, N_noise, L, 21, L, 21)
+
+
+def _compute_and_write_jacobians_streaming(
+  f: h5py.File,
+  spec: JacobianSpecification,
+  protein_iterator: IterDataset,
+  conditional_logits_fn: Any,
+) -> None:
+  """Compute Jacobians and stream them to an HDF5 file."""
+  jac_ds = f.create_dataset(
+    "categorical_jacobians",
+    (0, 0, 0, 0, 0, 0),
+    maxshape=(None, None, None, None, None, None),
+    chunks=True,
+  )
+  seq_ds = f.create_dataset(
+    "one_hot_sequences",
+    (0, 0, 0),
+    maxshape=(None, None, None),
+    chunks=True,
+  )
+  apc_ds = (
+    f.create_dataset(
+      "apc_corrected_jacobians",
+      (0, 0, 0, 0),
+      maxshape=(None, None, None, None),
+      chunks=True,
+    )
+    if spec.compute_apc
+    else None
+  )
+  for jacobians_batch, one_hot_sequence_batch in _compute_jacobian_batches(
+    spec,
+    protein_iterator,
+    conditional_logits_fn,
+  ):
+    current_size = jac_ds.shape[0]
+    new_size = current_size + jacobians_batch.shape[0]
+
+    jac_ds.resize((new_size, *jacobians_batch.shape[1:]))
+    seq_ds.resize((new_size, *one_hot_sequence_batch.shape[1:]))
+
+    jac_ds[current_size:new_size] = jacobians_batch
+    seq_ds[current_size:new_size] = one_hot_sequence_batch
+
+    if apc_ds:
+      apc_jacobians = jax.vmap(jax.vmap(apc_corrected_frobenius_norm))(jacobians_batch)
+      apc_ds.resize((new_size, *apc_jacobians.shape[1:]))
+      apc_ds[current_size:new_size] = apc_jacobians
+
+
+def _categorical_jacobian_streaming(
+  spec: JacobianSpecification,
+  protein_iterator: IterDataset,
+  conditional_logits_fn: Any,
+) -> dict[str, Any]:
+  """Compute Jacobians and stream them to an HDF5 file."""
+  if not spec.output_h5_path:
+    msg = "output_h5_path must be provided for streaming."
+    raise ValueError(msg)
+
+  with h5py.File(spec.output_h5_path, "w") as f:
+    _compute_and_write_jacobians_streaming(f, spec, protein_iterator, conditional_logits_fn)
+
+  return {
+    "output_h5_path": str(spec.output_h5_path),
     "metadata": {
       "spec": spec,
     },

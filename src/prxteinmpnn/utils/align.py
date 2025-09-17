@@ -7,6 +7,9 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
   from collections.abc import Callable
 
+  from prxteinmpnn.utils.types import OneHotProteinSequence, ProteinSequence
+
+
 import jax
 import jax.numpy as jnp
 
@@ -506,10 +509,11 @@ _AA_SCORE_MATRIX = jnp.array(
 )
 
 _MINIMUM_PROTEINS_COUNT = 2
+_ONE_HOT_NDIM = 3
 
 
 def align_sequences(
-  protein_sequences_stacked: jax.Array,
+  protein_sequences_stacked: ProteinSequence | OneHotProteinSequence,
   gap_open: float = -1.0,
   gap_extend: float = -0.1,
   temp: float = 0.1,
@@ -533,6 +537,12 @@ def align_sequences(
       pos_in_protein_j] or [-1, -1] for unaligned positions.
 
   """
+  if (
+    protein_sequences_stacked.dtype == jnp.float32
+    and protein_sequences_stacked.ndim == _ONE_HOT_NDIM
+  ):
+    protein_sequences_stacked = jnp.argmax(protein_sequences_stacked, axis=-1)
+
   n_proteins, max_seq_len = protein_sequences_stacked.shape
 
   if n_proteins < _MINIMUM_PROTEINS_COUNT or max_seq_len == 0:

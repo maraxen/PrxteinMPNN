@@ -10,6 +10,9 @@ from prxteinmpnn.run import (
     categorical_jacobian,
     sample,
     score,
+    ScoringSpecification, 
+    SamplingSpecification,
+    JacobianSpecification,
 )
 from prxteinmpnn.utils.data_structures import Protein, ProteinBatch
 

@@ -17,8 +17,8 @@ from .ste import straight_through_estimator
 if TYPE_CHECKING:
   from collections.abc import Callable
 
-  from jaxtyping import Float, Int, PRNGKeyArray
   import jax
+  from jaxtyping import Float, Int, PRNGKeyArray
 
   from prxteinmpnn.utils.types import (
     AtomMask,

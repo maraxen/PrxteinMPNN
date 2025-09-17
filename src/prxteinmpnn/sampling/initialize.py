@@ -14,6 +14,7 @@ from prxteinmpnn.model.features import extract_features, project_features
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
+  AlphaCarbonMask,
   AtomMask,
   AutoRegressiveMask,
   BackboneNoise,
@@ -64,7 +65,7 @@ def sampling_encode(
     prng_key: PRNGKeyArray,
     model_parameters: ModelParameters,
     structure_coordinates: StructureAtomicCoordinates,
-    mask: AtomMask,
+    mask: AlphaCarbonMask,
     residue_index: ResidueIndex,
     chain_index: ChainIndex,
     autoregressive_mask: AutoRegressiveMask | None = None,

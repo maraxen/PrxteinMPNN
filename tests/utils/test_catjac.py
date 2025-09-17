@@ -14,6 +14,11 @@ from prxteinmpnn.utils.catjac import (
 )
 # We assume a mock or real align_sequences is available for the factory tests
 from prxteinmpnn.utils.align import align_sequences
+import tempfile
+import h5py
+import numpy as np
+from pathlib import Path
+from prxteinmpnn.utils.catjac import combine_jacobians_h5_stream
 
 
 @pytest.fixture
@@ -129,3 +134,216 @@ def test_make_combine_jac_custom_function(
     simple_add_fn = make_combine_jac("add")
     simple_added = simple_add_fn(sample_jacobians, sample_sequences, None)
     assert not jnp.allclose(combined, simple_added)
+    
+
+
+
+
+
+@pytest.fixture
+def temp_h5_file(sample_jacobians, sample_sequences):
+  """Create a temporary HDF5 file with sample data."""
+  with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as tmp:
+    tmp_path = Path(tmp.name)
+  
+  # Convert JAX arrays to numpy for HDF5 storage
+  jacobians_np = np.array(sample_jacobians)
+  sequences_np = np.array(sample_sequences)
+  
+  with h5py.File(tmp_path, "w") as f:
+    f.create_dataset("categorical_jacobians", data=jacobians_np, chunks=True, maxshape=(None, *jacobians_np.shape[1:]))
+    f.create_dataset("one_hot_sequences", data=sequences_np, chunks=True, maxshape=(None, *sequences_np.shape[1:]))
+  
+  yield tmp_path
+  
+  # Cleanup
+  tmp_path.unlink(missing_ok=True)
+
+
+def test_combine_jacobians_h5_stream_basic(temp_h5_file, sample_weights):
+  """Test basic functionality of combine_jacobians_h5_stream."""
+  def simple_combine(jac_A, jac_B, mapping, weights):
+    return _add_jacobians_mapped(jac_A, jac_B, mapping, weights)
+  
+  combine_jacobians_h5_stream(
+    h5_path=temp_h5_file,
+    combine_fn=simple_combine,
+    fn_kwargs={},
+    batch_size=1,
+    weights=sample_weights,
+  )
+  
+  # Verify output dataset was created
+  with h5py.File(temp_h5_file, "r") as f:
+    assert "combined_catjac" in f
+    combined_data = f["combined_catjac"]
+    # Should have n_samples * n_samples = 2 * 2 = 4 pairs
+    assert combined_data.shape[0] == 4
+    assert combined_data.dtype == np.float32
+
+
+def test_combine_jacobians_h5_stream_mismatched_jacobian_sequence_length(temp_h5_file):
+  """Test ValueError when jacobians and sequences have mismatched lengths."""
+  # Add mismatched sequence data
+  with h5py.File(temp_h5_file, "a") as f:
+    # Original has 2 jacobians, add 3 sequences
+    f["one_hot_sequences"].resize((3, 5))
+  
+  weights = jnp.ones(2)
+  
+  with pytest.raises(ValueError, match="Jacobian and sequence arrays must have the same length"):
+    combine_jacobians_h5_stream(
+      h5_path=temp_h5_file,
+      combine_fn=_add_jacobians_mapped,
+      fn_kwargs={},
+      batch_size=1,
+      weights=weights,
+    )
+
+
+def test_combine_jacobians_h5_stream_mismatched_weights_length(temp_h5_file):
+  """Test ValueError when weights array doesn't match number of samples."""
+  # Weights with wrong length
+  weights = jnp.ones(3)  # Should be 2 to match sample data
+  
+  with pytest.raises(ValueError, match="Weights array must match number of samples"):
+    combine_jacobians_h5_stream(
+      h5_path=temp_h5_file,
+      combine_fn=_add_jacobians_mapped,
+      fn_kwargs={},
+      batch_size=1,
+      weights=weights,
+    )
+
+
+def test_combine_jacobians_h5_stream_with_fn_kwargs(temp_h5_file, sample_weights):
+  """Test combine_jacobians_h5_stream with function kwargs."""
+  def custom_combine_with_kwargs(jac_A, jac_B, mapping, weights, scale_factor=1.0):
+    mapped_jac_B = _gather_mapped_jacobian(jac_B, mapping)
+    return jac_A + scale_factor * mapped_jac_B * weights
+  
+  fn_kwargs = {"scale_factor": 2.0}
+  
+  combine_jacobians_h5_stream(
+    h5_path=temp_h5_file,
+    combine_fn=custom_combine_with_kwargs,
+    fn_kwargs=fn_kwargs,
+    batch_size=1,
+    weights=sample_weights,
+  )
+  
+  with h5py.File(temp_h5_file, "r") as f:
+    assert "combined_catjac" in f
+    combined_data = f["combined_catjac"]
+    assert combined_data.shape[0] == 4
+
+
+def test_combine_jacobians_h5_stream_different_batch_sizes(temp_h5_file, sample_weights):
+  """Test combine_jacobians_h5_stream with different batch sizes."""
+  for batch_size in [1, 2, 4]:
+    # Reset file for each test
+    with h5py.File(temp_h5_file, "a") as f:
+      if "combined_catjac" in f:
+        del f["combined_catjac"]
+    
+    combine_jacobians_h5_stream(
+      h5_path=temp_h5_file,
+      combine_fn=_add_jacobians_mapped,
+      fn_kwargs={},
+      batch_size=batch_size,
+      weights=sample_weights,
+    )
+    
+    with h5py.File(temp_h5_file, "r") as f:
+      combined_data = f["combined_catjac"]
+      assert combined_data.shape[0] == 4
+      assert combined_data.dtype == np.float32
+
+
+def test_combine_jacobians_h5_stream_output_shape_consistency(temp_h5_file, sample_weights):
+  """Test that output shape is consistent regardless of processing order."""
+  combine_jacobians_h5_stream(
+    h5_path=temp_h5_file,
+    combine_fn=_subtract_jacobians_mapped,
+    fn_kwargs={},
+    batch_size=1,
+    weights=sample_weights,
+  )
+  
+  with h5py.File(temp_h5_file, "r") as f:
+    jacobians = f["categorical_jacobians"]
+    combined_data = f["combined_catjac"]
+    
+    # Output should have same shape as input jacobians except for batch dimension
+    expected_shape = (4, *jacobians.shape[1:])
+    assert combined_data.shape == expected_shape
+
+
+@pytest.fixture
+def larger_h5_file():
+  """Create a larger HDF5 file for batch processing tests."""
+  with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as tmp:
+    tmp_path = Path(tmp.name)
+  
+  # Create larger test data
+  key = jax.random.PRNGKey(42)
+  jacobians = jax.random.normal(key, shape=(4, 3, 5, 21, 5, 21))
+  sequences = jnp.array([[0, 1, 2, 3, 4], [4, 3, 2, 1, 0], [1, 2, 3, 4, 0], [2, 3, 4, 0, 1]])
+  
+  jacobians_np = np.array(jacobians)
+  sequences_np = np.array(sequences)
+  
+  with h5py.File(tmp_path, "w") as f:
+    f.create_dataset("categorical_jacobians", data=jacobians_np, chunks=True)
+    f.create_dataset("one_hot_sequences", data=sequences_np, chunks=True)
+  
+  yield tmp_path
+  
+  tmp_path.unlink(missing_ok=True)
+
+
+def test_combine_jacobians_h5_stream_larger_dataset(larger_h5_file):
+  """Test combine_jacobians_h5_stream with a larger dataset."""
+  weights = jnp.ones(4)
+  
+  combine_jacobians_h5_stream(
+    h5_path=larger_h5_file,
+    combine_fn=_add_jacobians_mapped,
+    fn_kwargs={},
+    batch_size=2,
+    weights=weights,
+  )
+  
+  with h5py.File(larger_h5_file, "r") as f:
+    combined_data = f["combined_catjac"]
+    # Should have 4 * 4 = 16 pairs
+    assert combined_data.shape[0] == 16
+    assert combined_data.dtype == np.float32
+
+
+def test_combine_jacobians_h5_stream_empty_dataset():
+  """Test combine_jacobians_h5_stream with empty dataset."""
+  with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as tmp:
+    tmp_path = Path(tmp.name)
+  
+  # Create empty datasets
+  with h5py.File(tmp_path, "w") as f:
+    f.create_dataset("categorical_jacobians", shape=(0, 3, 5, 21, 5, 21), chunks=True)
+    f.create_dataset("one_hot_sequences", shape=(0, 5), chunks=True)
+  
+  weights = jnp.array([])
+  
+  try:
+    combine_jacobians_h5_stream(
+      h5_path=tmp_path,
+      combine_fn=_add_jacobians_mapped,
+      fn_kwargs={},
+      batch_size=1,
+      weights=weights,
+    )
+    
+    with h5py.File(tmp_path, "r") as f:
+      combined_data = f["combined_catjac"]
+      assert combined_data.shape[0] == 0
+  finally:
+    tmp_path.unlink(missing_ok=True)

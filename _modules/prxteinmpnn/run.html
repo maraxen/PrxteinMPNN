@@ -395,7 +395,12 @@ document.write(`
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.scoring.score</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_score_sequence</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.aa_convert</span><span class="w"> </span><span class="kn">import</span> <span class="n">string_to_protein_sequence</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.apc</span><span class="w"> </span><span class="kn">import</span> <span class="n">apc_corrected_frobenius_norm</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.catjac</span><span class="w"> </span><span class="kn">import</span> <span class="n">combine_jacobians_h5_stream</span><span class="p">,</span> <span class="n">make_combine_jac</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.catjac</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+  <span class="n">_add_jacobians_mapped</span><span class="p">,</span>
+  <span class="n">_subtract_jacobians_mapped</span><span class="p">,</span>
+  <span class="n">combine_jacobians_h5_stream</span><span class="p">,</span>
+  <span class="n">make_combine_jac</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.decoding_order</span><span class="w"> </span><span class="kn">import</span> <span class="n">random_decoding_order</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.residue_constants</span><span class="w"> </span><span class="kn">import</span> <span class="n">atom_order</span>
 
@@ -832,9 +837,12 @@ document.write(`
       <span class="k">if</span> <span class="ow">not</span> <span class="n">spec</span><span class="o">.</span><span class="n">combine_weights</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;combine_weights must be provided for streaming.&quot;</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
-      <span class="n">combine_fn</span> <span class="o">=</span> <span class="p">(</span>
-        <span class="n">make_combine_jac</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">combine_fn</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">combine_fn</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="n">spec</span><span class="o">.</span><span class="n">combine_fn</span>  <span class="c1"># pyright: ignore[reportArgumentType]</span>
-      <span class="p">)</span>
+      <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">combine_fn</span> <span class="o">==</span> <span class="s2">&quot;add&quot;</span><span class="p">:</span>
+        <span class="n">combine_fn</span> <span class="o">=</span> <span class="n">_add_jacobians_mapped</span>
+      <span class="k">elif</span> <span class="n">spec</span><span class="o">.</span><span class="n">combine_fn</span> <span class="o">==</span> <span class="s2">&quot;subtract&quot;</span><span class="p">:</span>
+        <span class="n">combine_fn</span> <span class="o">=</span> <span class="n">_subtract_jacobians_mapped</span>
+      <span class="k">else</span><span class="p">:</span>
+        <span class="n">combine_fn</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">combine_fn</span>
       <span class="n">jax</span><span class="o">.</span><span class="n">clear_caches</span><span class="p">()</span>  <span class="c1"># free up memory</span>
       <span class="n">combine_jacobians_h5_stream</span><span class="p">(</span>
         <span class="n">h5_path</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">,</span>

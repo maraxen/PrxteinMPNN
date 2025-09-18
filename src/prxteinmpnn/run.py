@@ -42,7 +42,12 @@ from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.scoring.score import make_score_sequence
 from prxteinmpnn.utils.aa_convert import string_to_protein_sequence
 from prxteinmpnn.utils.apc import apc_corrected_frobenius_norm
-from prxteinmpnn.utils.catjac import combine_jacobians_h5_stream, make_combine_jac
+from prxteinmpnn.utils.catjac import (
+  _add_jacobians_mapped,
+  _subtract_jacobians_mapped,
+  combine_jacobians_h5_stream,
+  make_combine_jac,
+)
 from prxteinmpnn.utils.decoding_order import random_decoding_order
 from prxteinmpnn.utils.residue_constants import atom_order
 
@@ -459,9 +464,12 @@ def categorical_jacobian(
       if not spec.combine_weights is not None:
         msg = "combine_weights must be provided for streaming."
         raise ValueError(msg)
-      combine_fn = (
-        make_combine_jac(spec.combine_fn) if isinstance(spec.combine_fn, str) else spec.combine_fn  # pyright: ignore[reportArgumentType]
-      )
+      if spec.combine_fn == "add":
+        combine_fn = _add_jacobians_mapped
+      elif spec.combine_fn == "subtract":
+        combine_fn = _subtract_jacobians_mapped
+      else:
+        combine_fn = spec.combine_fn
       jax.clear_caches()  # free up memory
       combine_jacobians_h5_stream(
         h5_path=spec.output_h5_path,

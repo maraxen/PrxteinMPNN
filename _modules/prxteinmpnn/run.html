@@ -539,6 +539,8 @@ document.write(`
   <span class="n">combine_fn_kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
   <span class="n">output_h5_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
   <span class="n">compute_apc</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+  <span class="n">apc_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span>
+  <span class="n">apc_residue_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1000</span>
 
   <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Post-initialization processing.&quot;&quot;&quot;</span>
@@ -1239,7 +1241,15 @@ document.write(`
     <span class="n">seq_ds</span><span class="p">[</span><span class="n">current_size</span><span class="p">:</span><span class="n">new_size</span><span class="p">]</span> <span class="o">=</span> <span class="n">one_hot_sequence_batch</span>
 
     <span class="k">if</span> <span class="n">apc_ds</span><span class="p">:</span>
-      <span class="n">apc_jacobians</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">apc_corrected_frobenius_norm</span><span class="p">))(</span><span class="n">jacobians_batch</span><span class="p">)</span>
+      <span class="n">apc_jacobians</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">map</span><span class="p">(</span>
+        <span class="k">lambda</span> <span class="n">jac</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">map</span><span class="p">(</span>
+          <span class="n">apc_corrected_frobenius_norm</span><span class="p">,</span>
+          <span class="n">jac</span><span class="p">,</span>
+          <span class="n">batch_size</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">apc_residue_batch_size</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">jacobians_batch</span><span class="p">,</span>
+        <span class="n">batch_size</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">apc_batch_size</span><span class="p">,</span>
+      <span class="p">)</span>
       <span class="n">apc_ds</span><span class="o">.</span><span class="n">resize</span><span class="p">((</span><span class="n">new_size</span><span class="p">,</span> <span class="o">*</span><span class="n">apc_jacobians</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:]))</span>
       <span class="n">apc_ds</span><span class="p">[</span><span class="n">current_size</span><span class="p">:</span><span class="n">new_size</span><span class="p">]</span> <span class="o">=</span> <span class="n">apc_jacobians</span>
     <span class="n">f</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>

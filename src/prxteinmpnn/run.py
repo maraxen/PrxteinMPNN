@@ -459,13 +459,13 @@ def categorical_jacobian(
       if not spec.combine_weights is not None:
         msg = "combine_weights must be provided for streaming."
         raise ValueError(msg)
-      if isinstance(spec.combine_fn, str):
-        msg = "combine_fn must be a callable for streaming."
-        raise TypeError(msg)
+      combine_fn = (
+        make_combine_jac(spec.combine_fn) if isinstance(spec.combine_fn, str) else spec.combine_fn  # pyright: ignore[reportArgumentType]
+      )
       jax.clear_caches()  # free up memory
       combine_jacobians_h5_stream(
         h5_path=spec.output_h5_path,
-        combine_fn=spec.combine_fn,
+        combine_fn=combine_fn,  # pyright: ignore[reportArgumentType]
         fn_kwargs=spec.combine_fn_kwargs or {},
         batch_size=spec.combine_batch_size,
         weights=jnp.asarray(spec.combine_weights),

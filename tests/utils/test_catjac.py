@@ -88,17 +88,19 @@ def test_subtract_jacobians(sample_pair_tuple):
 def test_make_combine_jac_add(sample_jacobians, sample_sequences):
     """Test the make_combine_jac factory with 'add' operation."""
     combine_fn = make_combine_jac("add")
-    combined = combine_fn(sample_jacobians, sample_sequences, None)
+    combined, mapping = combine_fn(sample_jacobians, sample_sequences, None)
     # For N=2, triu_indices gives 1 pair, so the batch size is 1.
     assert combined.shape == (1, 3, 5, 21, 5, 21)
+    assert mapping.shape == (1, 5, 2)
 
 
 def test_make_combine_jac_subtract(sample_jacobians, sample_sequences):
     """Test the make_combine_jac factory with 'subtract' operation."""
     combine_fn = make_combine_jac("subtract")
-    combined = combine_fn(sample_jacobians, sample_sequences, None)
+    combined, mapping = combine_fn(sample_jacobians, sample_sequences, None)
     # For N=2, triu_indices gives 1 pair, so the batch size is 1.
     assert combined.shape == (1, 3, 5, 21, 5, 21)
+    assert mapping.shape == (1, 5, 2)
 
 
 def test_make_combine_jac_subtract_identity_is_zero(
@@ -112,10 +114,10 @@ def test_make_combine_jac_subtract_identity_is_zero(
     combine_fn = make_combine_jac("subtract")
 
     # The result of J_0 - map(J_0) for the single pair (0, 1) should be zero.
-    result = combine_fn(identical_jacobians, identical_sequences, None)
+    jac, _ = combine_fn(identical_jacobians, identical_sequences, None)
 
     # Check that the result is close to zero within a small tolerance
-    assert_trees_all_close(result, jnp.zeros_like(result), atol=1e-6)
+    assert_trees_all_close(jac, jnp.zeros_like(jac), atol=1e-6)
     
 def test_make_combine_jac_custom_function(
     sample_jacobians, sample_sequences, sample_pair_tuple
@@ -128,11 +130,11 @@ def test_make_combine_jac_custom_function(
 
     combine_fn = make_combine_jac(custom_combine)
 
-    combined = combine_fn(sample_jacobians, sample_sequences, None)
+    combined, mapping = combine_fn(sample_jacobians, sample_sequences, None)
     assert combined.shape == (1, 3, 5, 21, 5, 21)
     # Ensure the result is different from simple addition
     simple_add_fn = make_combine_jac("add")
-    simple_added = simple_add_fn(sample_jacobians, sample_sequences, None)
+    simple_added, _ = simple_add_fn(sample_jacobians, sample_sequences, None)
     assert not jnp.allclose(combined, simple_added)
     
 
@@ -177,9 +179,9 @@ def test_combine_jacobians_h5_stream_basic(temp_h5_file, sample_weights):
   with h5py.File(temp_h5_file, "r") as f:
     assert "combined_catjac" in f
     combined_data = f["combined_catjac"]
-    # Should have n_samples * n_samples = 2 * 2 = 4 pairs
-    assert combined_data.shape[0] == 4
-    assert combined_data.dtype == np.float32
+    # Should have n_samples * (n_samples - 1) / 2 = 2 * 1 / 2 = 1 pair
+    assert combined_data.shape[0] == 1 # pyright: ignore[reportAttributeAccessIssue]
+    assert combined_data.dtype == np.float32 # pyright: ignore[reportAttributeAccessIssue]
 
 
 def test_combine_jacobians_h5_stream_mismatched_jacobian_sequence_length(temp_h5_file):
@@ -187,11 +189,11 @@ def test_combine_jacobians_h5_stream_mismatched_jacobian_sequence_length(temp_h5
   # Add mismatched sequence data
   with h5py.File(temp_h5_file, "a") as f:
     # Original has 2 jacobians, add 3 sequences
-    f["one_hot_sequences"].resize((3, 5))
+    f["one_hot_sequences"].resize((3, 5)) # pyright: ignore[reportAttributeAccessIssue]
   
   weights = jnp.ones(2)
   
-  with pytest.raises(ValueError, match="Jacobian and sequence arrays must have the same length"):
+  with pytest.raises(ValueError, match="Jacobian, sequence, and weights arrays must have the same length."):
     combine_jacobians_h5_stream(
       h5_path=temp_h5_file,
       combine_fn=_add_jacobians_mapped,
@@ -206,7 +208,7 @@ def test_combine_jacobians_h5_stream_mismatched_weights_length(temp_h5_file):
   # Weights with wrong length
   weights = jnp.ones(3)  # Should be 2 to match sample data
   
-  with pytest.raises(ValueError, match="Weights array must match number of samples"):
+  with pytest.raises(ValueError, match="Jacobian, sequence, and weights arrays must have the same length."):
     combine_jacobians_h5_stream(
       h5_path=temp_h5_file,
       combine_fn=_add_jacobians_mapped,
@@ -235,7 +237,7 @@ def test_combine_jacobians_h5_stream_with_fn_kwargs(temp_h5_file, sample_weights
   with h5py.File(temp_h5_file, "r") as f:
     assert "combined_catjac" in f
     combined_data = f["combined_catjac"]
-    assert combined_data.shape[0] == 4
+    assert combined_data.shape[0] == 1 # pyright: ignore[reportAttributeAccessIssue]
 
 
 def test_combine_jacobians_h5_stream_different_batch_sizes(temp_h5_file, sample_weights):
@@ -256,8 +258,15 @@ def test_combine_jacobians_h5_stream_different_batch_sizes(temp_h5_file, sample_
     
     with h5py.File(temp_h5_file, "r") as f:
       combined_data = f["combined_catjac"]
-      assert combined_data.shape[0] == 4
-      assert combined_data.dtype == np.float32
+      assert combined_data.shape[0] == 1 # pyright: ignore[reportAttributeAccessIssue]
+      assert combined_data.dtype == np.float32 # pyright: ignore[reportAttributeAccessIssue]
+    
+    #clear for next iteration
+    with h5py.File(temp_h5_file, "a") as f:
+      if "combined_catjac" in f:
+        del f["combined_catjac"]
+      if "mappings" in f:
+        del f["mappings"]
 
 
 def test_combine_jacobians_h5_stream_output_shape_consistency(temp_h5_file, sample_weights):
@@ -275,8 +284,8 @@ def test_combine_jacobians_h5_stream_output_shape_consistency(temp_h5_file, samp
     combined_data = f["combined_catjac"]
     
     # Output should have same shape as input jacobians except for batch dimension
-    expected_shape = (4, *jacobians.shape[1:])
-    assert combined_data.shape == expected_shape
+    expected_shape = (1, *jacobians.shape[1:]) # pyright: ignore[reportAttributeAccessIssue]
+    assert combined_data.shape == expected_shape # pyright: ignore[reportAttributeAccessIssue]
 
 
 @pytest.fixture
@@ -316,9 +325,9 @@ def test_combine_jacobians_h5_stream_larger_dataset(larger_h5_file):
   
   with h5py.File(larger_h5_file, "r") as f:
     combined_data = f["combined_catjac"]
-    # Should have 4 * 4 = 16 pairs
-    assert combined_data.shape[0] == 16
-    assert combined_data.dtype == np.float32
+    # Should have 4 * 3 / 2 = 6 pairs
+    assert combined_data.shape[0] == 6 # pyright: ignore[reportAttributeAccessIssue]
+    assert combined_data.dtype == np.float32 # pyright: ignore[reportAttributeAccessIssue]
 
 
 def test_combine_jacobians_h5_stream_empty_dataset():
@@ -344,6 +353,6 @@ def test_combine_jacobians_h5_stream_empty_dataset():
     
     with h5py.File(tmp_path, "r") as f:
       combined_data = f["combined_catjac"]
-      assert combined_data.shape[0] == 0
+      assert combined_data.shape[0] == 0 # pyright: ignore[reportAttributeAccessIssue]
   finally:
     tmp_path.unlink(missing_ok=True)

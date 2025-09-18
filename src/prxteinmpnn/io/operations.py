@@ -45,7 +45,7 @@ def _fetch_pdb(pdb_id: str) -> str:
 
 def _fetch_md_cath(md_cath_id: str) -> pathlib.Path:
   """Fetch h5 content from the MD-CATH data bank and save to disk."""
-  url = f"https://huggingface.co/datasets/compsciencelab/mdCATH/resolve/main/data/mdcath_dataset_{md_cath_id}.h5  "
+  url = f"https://huggingface.co/datasets/compsciencelab/mdCATH/resolve/main/data/mdcath_dataset_{md_cath_id}.h5"
   response = requests.get(url, timeout=60)
   response.raise_for_status()
   data_dir = pathlib.Path("mdcath_data")

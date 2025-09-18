@@ -527,7 +527,6 @@ document.write(`
   <span class="n">combine_fn_kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
   <span class="n">output_h5_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
   <span class="n">compute_apc</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
-  <span class="n">combine_results</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 
   <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Post-initialization processing.&quot;&quot;&quot;</span>
@@ -826,7 +825,7 @@ document.write(`
 
   <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">:</span>
     <span class="n">result</span> <span class="o">=</span> <span class="n">_categorical_jacobian_streaming</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">protein_iterator</span><span class="p">,</span> <span class="n">conditional_logits_fn</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">combine_results</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">combine</span><span class="p">:</span>
       <span class="k">if</span> <span class="ow">not</span> <span class="n">spec</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">:</span>
         <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;output_h5_path must be provided for streaming.&quot;</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>

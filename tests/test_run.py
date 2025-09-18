@@ -99,6 +99,27 @@ class TestScore:
             assert isinstance(result["scores"], jax.Array)
             assert isinstance(result["logits"], jax.Array)
 
+    def test_score_streaming(self, tmp_path, cif_file) -> None:
+        """Test that score correctly creates and populates an HDF5 file."""
+        h5_path = tmp_path / "test_scoring_streaming.h5"
+
+        spec = ScoringSpecification(
+            inputs=[cif_file],
+            sequences_to_score=["TESTSEQUENCE"],
+            output_h5_path=h5_path,
+            backbone_noise=[0.1],
+        )
+        result = score(spec=spec)
+
+        assert "output_h5_path" in result
+        assert h5_path.exists()
+
+        with h5py.File(h5_path, "r") as f:
+            assert "scores" in f
+            assert "logits" in f
+            assert f["scores"].shape[0] > 0
+            assert f["logits"].shape[0] > 0
+
 
 class TestSample:
     """Test the sample function."""
@@ -134,6 +155,26 @@ class TestSample:
             assert "metadata" in result
             assert isinstance(result["sequences"], jax.Array)
             assert isinstance(result["logits"], jax.Array)
+
+    def test_sample_streaming(self, tmp_path, cif_file) -> None:
+        """Test that sample correctly creates and populates an HDF5 file."""
+        h5_path = tmp_path / "test_sampling_streaming.h5"
+
+        spec = SamplingSpecification(
+            inputs=[cif_file],
+            output_h5_path=h5_path,
+            backbone_noise=[0.1],
+        )
+        result = sample(spec=spec)
+
+        assert "output_h5_path" in result
+        assert h5_path.exists()
+
+        with h5py.File(h5_path, "r") as f:
+            assert "sequences" in f
+            assert "logits" in f
+            assert f["sequences"].shape[0] > 0
+            assert f["logits"].shape[0] > 0
 
 
 class TestCategoricalJacobian:

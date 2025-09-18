@@ -463,6 +463,7 @@ def categorical_jacobian(
       if isinstance(spec.combine_fn, str):
         msg = "combine_fn must be a callable for streaming."
         raise TypeError(msg)
+      jax.clear_caches()  # free up memory
       combine_jacobians_h5_stream(
         h5_path=spec.output_h5_path,
         combine_fn=spec.combine_fn,
@@ -597,20 +598,21 @@ def _categorical_jacobian_in_memory(
   if spec.combine_weights is None and spec.combine:
     spec.combine_weights = jnp.ones((tiled_sequences.shape[0],), dtype=jnp.float32)
 
-  combined_jacs = (
+  combined_jacs, mapping = (
     combine_jacs_fn(
       reshaped_jacobians,
       tiled_sequences,
       jnp.asarray(spec.combine_weights, dtype=jnp.float32),
     )
     if spec.combine
-    else None
+    else (None, None)
   )
 
   return {
     "categorical_jacobians": jacobians,
     "apc_corrected_jacobians": apc_jacobians,
     "combined": combined_jacs,
+    "mapping": mapping,
     "metadata": {
       "spec": spec,
     },
@@ -667,6 +669,7 @@ def _compute_and_write_jacobians_streaming(
       apc_jacobians = jax.vmap(jax.vmap(apc_corrected_frobenius_norm))(jacobians_batch)
       apc_ds.resize((new_size, *apc_jacobians.shape[1:]))
       apc_ds[current_size:new_size] = apc_jacobians
+    f.flush()
 
 
 def _categorical_jacobian_streaming(

@@ -35,7 +35,7 @@ CombineCatJacFn = Callable[
     ProteinSequence,  # Full batch of sequences, shape (N, L)
     jax.Array | None,  # Per-protein weights, shape (N,)
   ],
-  jax.Array,  # Final combined Jacobians, shape (N*(N-1)/2, ...)
+  tuple[CategoricalJacobian, jax.Array],  # Final combined Jacobians, shape (N*(N-1)/2, ...)
 ]
 
 # The factory that creates the public-facing function
@@ -106,13 +106,16 @@ def make_combine_jac(
     jacobians: jax.Array,
     sequences: ProteinSequence | OneHotProteinSequence,
     weights: jax.Array | None = None,
-  ) -> jax.Array:
+  ) -> tuple[CategoricalJacobian, jax.Array]:
     """Compute cross-protein Jacobian combinations for all pairs."""
     if weights is None:
       weights = jnp.ones((jacobians.shape[0],), dtype=jacobians.dtype)
     n_proteins = jacobians.shape[0]
     if n_proteins < _MIN_NUMBER_PROTEINS:
-      return jnp.empty((0, *jacobians.shape[1:]), dtype=jacobians.dtype)
+      return jnp.empty((0, *jacobians.shape[1:]), dtype=jacobians.dtype), jnp.empty(
+        (0, 2),
+        dtype=jnp.int32,
+      )
 
     i_indices, j_indices = jnp.triu_indices(n_proteins, k=1)
 
@@ -120,7 +123,6 @@ def make_combine_jac(
     jac_j = jacobians[j_indices]
     pair_weights = weights[i_indices]
 
-    # align_sequences expects a batch of sequences and returns mappings for triu pairs
     all_mappings = align_sequences(sequences)
 
     xs = (jac_i, jac_j, all_mappings, pair_weights)
@@ -129,7 +131,7 @@ def make_combine_jac(
       lambda x: _combine_fn(*x),
       xs,
       batch_size=batch_size,
-    )
+    ), all_mappings
 
   return combine_jacobians
 
@@ -141,41 +143,27 @@ def combine_jacobians_h5_stream(
   batch_size: int,
   weights: jax.Array,
 ) -> None:
-  """Combine all pairs of Jacobians from an HDF5 file and save to the same file.
-
-  This function efficiently streams data from and to the HDF5 file without loading
-  all data into memory at once. It processes data in batches and writes results
-  incrementally.
-
-  Args:
-    h5_path (str | Path): Path to the input HDF5 file.
-    combine_fn (CombineCatJacPairFn): Function to combine Jacobian pairs.
-    fn_kwargs (dict): Additional keyword arguments for combine_fn.
-    batch_size (int): Batch size for processing blocks of pairs.
-    weights (jax.Array): Per-protein weights, shape (N,).
-
-  Raises:
-    ValueError: If input arrays have mismatched lengths.
-
-  """
+  """Combine all pairs of Jacobians from an HDF5 file and save to the same file."""
   with h5py.File(str(h5_path), "a") as f:
     if "combined_catjac" in f:
       del f["combined_catjac"]
+    if "mappings" in f:
+      del f["mappings"]
 
-    # Get dataset references without loading data
     jacobians_dset = f["categorical_jacobians"]
     sequences_dset = f["one_hot_sequences"]
 
-    n_samples = jacobians_dset.shape[0]  # type: ignore[reportAttributeAccessIssue]
-    if n_samples != sequences_dset.shape[0]:  # type: ignore[reportAttributeAccessIssue]
-      msg = "Jacobian and sequence arrays must have the same length."
-      raise ValueError(msg)
-    if n_samples != weights.shape[0]:
-      msg = "Weights array must match number of samples."
+    n_samples = jacobians_dset.shape[0]  # pyright: ignore[reportAttributeAccessIssue]
+    if n_samples != sequences_dset.shape[0] or n_samples != weights.shape[0]:  # pyright: ignore[reportAttributeAccessIssue]
+      msg = "Jacobian, sequence, and weights arrays must have the same length."
       raise ValueError(msg)
 
-    if n_samples == 0:
-      f.create_dataset("combined_catjac", shape=(0,), dtype="float32")
+    i_indices_all, j_indices_all = jnp.triu_indices(n_samples, k=1)
+    total_pairs = len(i_indices_all)
+
+    if total_pairs == 0:
+      f.create_dataset("combined_catjac", shape=(0, *jacobians_dset.shape[1:]), dtype="float32")  # pyright: ignore[reportAttributeAccessIssue]
+      f.create_dataset("mappings", shape=(0, sequences_dset.shape[1], 2), dtype="int32")  # pyright: ignore[reportAttributeAccessIssue]
       return
 
     _combine_fn_with_kwargs = partial(combine_fn, **(fn_kwargs or {}))
@@ -186,48 +174,59 @@ def combine_jacobians_h5_stream(
       seq_i: OneHotProteinSequence,
       seq_j: OneHotProteinSequence,
       w_i: jax.Array,
-    ) -> CategoricalJacobian:
+    ) -> tuple[CategoricalJacobian, jax.Array]:
       mapping = align_sequences(jnp.stack([seq_i, seq_j]))[0]
-      return _combine_fn_with_kwargs(jac_i, jac_j, mapping, w_i)
+      return _combine_fn_with_kwargs(jac_i, jac_j, mapping, w_i), mapping
 
-    _vmapped_j = jax.vmap(_process_pair, in_axes=(None, 0, None, 0, None))
-    _vmapped_i_j = jax.jit(jax.vmap(_vmapped_j, in_axes=(0, None, 0, None, 0)))
+    _vmapped_process_pairs = jax.jit(jax.vmap(_process_pair))
 
-    out_shape = jacobians_dset.shape[1:]  # type: ignore[reportAttributeAccessIssue]
-    total_pairs = n_samples * n_samples
+    out_shape = jacobians_dset.shape[1:]  # pyright: ignore[reportAttributeAccessIssue]
+    n_residues = sequences_dset.shape[1]  # pyright: ignore[reportAttributeAccessIssue]
 
-    # Create output dataset with chunking for efficient streaming
-    chunk_size = min(total_pairs, 1000)
+    chunk_size = min(batch_size, 100, total_pairs)
     dset = f.create_dataset(
       "combined_catjac",
-      shape=(total_pairs, *out_shape),
+      (total_pairs, *out_shape),
       dtype="float32",
       chunks=(chunk_size, *out_shape),
-      compression="gzip",
-      compression_opts=1,
+    )
+    mapping_dset = f.create_dataset(
+      "mappings",
+      (total_pairs, n_residues, 2),
+      dtype="int32",
+      chunks=(chunk_size, n_residues, 2),
     )
 
-    idx = 0
-    for i in range(0, n_samples, batch_size):
-      i_end = min(i + batch_size, n_samples)
+    write_idx = 0
+    # ** NEW STRATEGY: Iterate through each 'i' **
+    for i in range(n_samples - 1):
+      # For each i, the corresponding j's are always an increasing sequence
+      j_indices_for_i = np.arange(i + 1, n_samples)
+      if len(j_indices_for_i) == 0:
+        continue
 
-      # Stream jacobians and sequences for batch i
-      jac_batch_i = jax.device_put(jacobians_dset[i:i_end])  # type: ignore[reportIndexIssue]
-      seq_batch_i = jax.device_put(sequences_dset[i:i_end])  # type: ignore[reportIndexIssue]
-      w_batch_i = jax.device_put(weights[i:i_end])
+      # Load the data for 'i' once
+      jac_i = jax.device_put(jacobians_dset[i])  # pyright: ignore[reportIndexIssue]
+      seq_i = jax.device_put(sequences_dset[i])  # pyright: ignore[reportIndexIssue]
+      w_i = jax.device_put(weights[i])
 
-      for j in range(0, n_samples, batch_size):
-        j_end = min(j + batch_size, n_samples)
+      # Process the corresponding 'j's in batches to manage memory
+      for j_start in range(0, len(j_indices_for_i), batch_size):
+        j_end = j_start + batch_size
+        j_idx_batch = j_indices_for_i[j_start:j_end]
 
-        if (i_end - i == 0) or (j_end - j == 0):
-          continue
+        # This read is now guaranteed to be sorted, fixing the h5py error
+        jac_batch_j = jax.device_put(jacobians_dset[j_idx_batch])  # pyright: ignore[reportIndexIssue]
+        seq_batch_j = jax.device_put(sequences_dset[j_idx_batch])  # pyright: ignore[reportIndexIssue]
 
-        # Stream jacobians and sequences for batch j
-        jac_batch_j = jax.device_put(jacobians_dset[j:j_end])  # type: ignore[reportIndexIssue]
-        seq_batch_j = jax.device_put(sequences_dset[j:j_end])  # type: ignore[reportIndexIssue]
+        # Prepare batch for vmap by repeating the 'i' data
+        current_batch_size = len(j_idx_batch)
+        jac_batch_i = jnp.repeat(jac_i[None, ...], current_batch_size, axis=0)
+        seq_batch_i = jnp.repeat(seq_i[None, ...], current_batch_size, axis=0)
+        w_batch_i = jnp.repeat(w_i, current_batch_size, axis=0)
 
-        # Compute all combinations between the two batches
-        combined_block = _vmapped_i_j(
+        # Compute combinations for the batch
+        combined_block, mapping_block = _vmapped_process_pairs(
           jac_batch_i,
           jac_batch_j,
           seq_batch_i,
@@ -235,13 +234,10 @@ def combine_jacobians_h5_stream(
           w_batch_i,
         )
 
-        n_pairs = (i_end - i) * (j_end - j)
-        combined_flat = combined_block.reshape((n_pairs, *out_shape))
+        # Write results to the correct slice in the output file
+        write_end_idx = write_idx + current_batch_size
+        dset[write_idx:write_end_idx] = np.array(combined_block)
+        mapping_dset[write_idx:write_end_idx] = np.array(mapping_block)
 
-        # Stream write to HDF5
-        dset[idx : idx + n_pairs] = np.array(combined_flat)
-
-        # Force flush to disk to free memory
+        write_idx = write_end_idx
         f.flush()
-
-        idx += n_pairs

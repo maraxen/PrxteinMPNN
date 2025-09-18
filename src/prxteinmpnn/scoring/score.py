@@ -90,6 +90,9 @@ def make_score_sequence(
     decoding_order, prng_key = decoding_order_fn(prng_key, sequence.shape[0])
     autoregressive_mask = generate_ar_mask(decoding_order) if ar_mask is None else ar_mask
 
+    if sequence.ndim == 1:
+      sequence = jax.nn.one_hot(sequence, num_classes=21)
+
     residue_mask = mask[:, atom_order["CA"]]
     edge_features, neighbor_indices, prng_key = extract_features(
       prng_key,

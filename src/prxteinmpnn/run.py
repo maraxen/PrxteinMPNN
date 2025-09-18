@@ -163,7 +163,6 @@ class JacobianSpecification(RunSpecification):
   combine_fn_kwargs: dict[str, Any] | None = None
   output_h5_path: str | Path | None = None
   compute_apc: bool = True
-  combine_results: bool = False
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""
@@ -453,7 +452,7 @@ def categorical_jacobian(
 
   if spec.output_h5_path:
     result = _categorical_jacobian_streaming(spec, protein_iterator, conditional_logits_fn)
-    if spec.combine_results:
+    if spec.combine:
       if not spec.output_h5_path:
         msg = "output_h5_path must be provided for streaming."
         raise ValueError(msg)

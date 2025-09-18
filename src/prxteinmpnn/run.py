@@ -175,6 +175,8 @@ class JacobianSpecification(RunSpecification):
   combine_fn_kwargs: dict[str, Any] | None = None
   output_h5_path: str | Path | None = None
   compute_apc: bool = True
+  apc_batch_size: int = 8
+  apc_residue_batch_size: int = 1000
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""
@@ -865,7 +867,15 @@ def _compute_and_write_jacobians_streaming(
     seq_ds[current_size:new_size] = one_hot_sequence_batch
 
     if apc_ds:
-      apc_jacobians = jax.vmap(jax.vmap(apc_corrected_frobenius_norm))(jacobians_batch)
+      apc_jacobians = jax.lax.map(
+        lambda jac: jax.lax.map(
+          apc_corrected_frobenius_norm,
+          jac,
+          batch_size=spec.apc_residue_batch_size,
+        ),
+        jacobians_batch,
+        batch_size=spec.apc_batch_size,
+      )
       apc_ds.resize((new_size, *apc_jacobians.shape[1:]))
       apc_ds[current_size:new_size] = apc_jacobians
     f.flush()

@@ -470,6 +470,7 @@ document.write(`
 <span class="sd">      return_decoding_orders: Whether to return decoding orders (default is False).</span>
 <span class="sd">      return_all_scores: Whether to return scores for all sequences (default is False).</span>
 <span class="sd">      score_batch_size: The batch size for scoring sequences (default is 16).</span>
+<span class="sd">      output_h5_path: Optional path to an HDF5 file for streaming output.</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
 
@@ -479,6 +480,7 @@ document.write(`
   <span class="n">return_decoding_orders</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
   <span class="n">return_all_scores</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
   <span class="n">score_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">16</span>
+  <span class="n">output_h5_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
   <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Post-initialization processing.&quot;&quot;&quot;</span>
@@ -488,7 +490,9 @@ document.write(`
         <span class="s2">&quot;No sequences provided for scoring.&quot;</span>
         <span class="s2">&quot;`sequences_to_score` must be a non-empty list of strings.&quot;</span>
       <span class="p">)</span>
-      <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
+      <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;output_h5_path&quot;</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">))</span></div>
 
 
 
@@ -505,6 +509,7 @@ document.write(`
   <span class="n">fixed_positions</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
   <span class="n">iterations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
   <span class="n">learning_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">output_h5_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
   <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Post-initialization processing.&quot;&quot;&quot;</span>
@@ -513,7 +518,9 @@ document.write(`
       <span class="bp">self</span><span class="o">.</span><span class="n">iterations</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">learning_rate</span> <span class="ow">is</span> <span class="kc">None</span>
     <span class="p">):</span>
       <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;For &#39;straight_through&#39; sampling, &#39;iterations&#39; and &#39;learning_rate&#39; must be provided.&quot;</span>
-      <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
+      <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;output_h5_path&quot;</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">))</span></div>
 
 
 
@@ -566,7 +573,7 @@ document.write(`
 <span class="k">def</span><span class="w"> </span><span class="nf">score</span><span class="p">(</span>
   <span class="n">spec</span><span class="p">:</span> <span class="n">ScoringSpecification</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
   <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ScoringSpecification</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]:</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Score all provided sequences against all input structures.</span>
 
 <span class="sd">  This function uses a high-performance Grain pipeline to load and process</span>
@@ -597,6 +604,9 @@ document.write(`
 <span class="sd">  &quot;&quot;&quot;</span>
   <span class="k">if</span> <span class="n">spec</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
     <span class="n">spec</span> <span class="o">=</span> <span class="n">ScoringSpecification</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+  <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">_score_streaming</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
 
   <span class="k">if</span> <span class="ow">not</span> <span class="n">spec</span><span class="o">.</span><span class="n">sequences_to_score</span><span class="p">:</span>
     <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
@@ -660,12 +670,93 @@ document.write(`
 
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_score_streaming</span><span class="p">(</span>
+  <span class="n">spec</span><span class="p">:</span> <span class="n">ScoringSpecification</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ScoringSpecification</span><span class="p">]]:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Score sequences and stream results to an HDF5 file.&quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="ow">not</span> <span class="n">spec</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">:</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;output_h5_path must be provided for streaming.&quot;</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+  <span class="n">integer_sequences</span> <span class="o">=</span> <span class="p">[</span><span class="n">string_to_protein_sequence</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">spec</span><span class="o">.</span><span class="n">sequences_to_score</span><span class="p">]</span>
+  <span class="n">batched_sequences</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">integer_sequences</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">batched_sequences</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+    <span class="n">batched_sequences</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">batched_sequences</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+  <span class="n">protein_iterator</span><span class="p">,</span> <span class="n">model_parameters</span> <span class="o">=</span> <span class="n">_prep_protein_stream_and_model</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+  <span class="n">score_single_pair</span> <span class="o">=</span> <span class="n">make_score_sequence</span><span class="p">(</span><span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">)</span>
+
+  <span class="k">with</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">scores_ds</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">create_dataset</span><span class="p">(</span>
+      <span class="s2">&quot;scores&quot;</span><span class="p">,</span>
+      <span class="p">(</span><span class="mi">0</span><span class="p">,),</span>
+      <span class="n">maxshape</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,),</span>
+      <span class="n">chunks</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+      <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;f4&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">logits_ds</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">create_dataset</span><span class="p">(</span>
+      <span class="s2">&quot;logits&quot;</span><span class="p">,</span>
+      <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+      <span class="n">maxshape</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+      <span class="n">chunks</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+      <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;f4&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">batched_ensemble</span> <span class="ow">in</span> <span class="n">protein_iterator</span><span class="p">:</span>
+      <span class="n">max_len</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+      <span class="n">current_ar_mask</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="mi">1</span> <span class="o">-</span> <span class="n">jnp</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">max_len</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">bool_</span><span class="p">)</span> <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">ar_mask</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">ar_mask</span><span class="p">)</span>
+      <span class="p">)</span>
+
+      <span class="n">vmap_sequences</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span>
+        <span class="n">score_single_pair</span><span class="p">,</span>
+        <span class="n">in_axes</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="n">out_axes</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+      <span class="p">)</span>
+      <span class="n">vmap_noises</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span>
+        <span class="n">vmap_sequences</span><span class="p">,</span>
+        <span class="n">in_axes</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="n">out_axes</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+      <span class="p">)</span>
+      <span class="n">vmap_structures</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span>
+        <span class="n">vmap_noises</span><span class="p">,</span>
+        <span class="n">in_axes</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="n">out_axes</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+      <span class="p">)</span>
+      <span class="n">scores</span><span class="p">,</span> <span class="n">logits</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">vmap_structures</span><span class="p">(</span>
+        <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">key</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">random_seed</span><span class="p">),</span>
+        <span class="n">batched_sequences</span><span class="p">,</span>
+        <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">coordinates</span><span class="p">,</span>
+        <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">atom_mask</span><span class="p">,</span>
+        <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">residue_index</span><span class="p">,</span>
+        <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">chain_index</span><span class="p">,</span>
+        <span class="mi">48</span><span class="p">,</span>
+        <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">backbone_noise</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span>
+        <span class="n">current_ar_mask</span><span class="p">,</span>
+      <span class="p">)</span>
+
+      <span class="n">scores_ds</span><span class="o">.</span><span class="n">resize</span><span class="p">(</span><span class="n">scores_ds</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">scores</span><span class="o">.</span><span class="n">size</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+      <span class="n">scores_ds</span><span class="p">[</span><span class="o">-</span><span class="n">scores</span><span class="o">.</span><span class="n">size</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">scores</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+
+      <span class="n">logits_ds</span><span class="o">.</span><span class="n">resize</span><span class="p">(</span><span class="n">logits_ds</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">logits</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+      <span class="n">logits_ds</span><span class="p">[</span><span class="o">-</span><span class="n">logits</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="p">:,</span> <span class="p">:,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">logits</span>
+
+      <span class="n">f</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+  <span class="k">return</span> <span class="p">{</span>
+    <span class="s2">&quot;output_h5_path&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">),</span>
+    <span class="s2">&quot;metadata&quot;</span><span class="p">:</span> <span class="p">{</span>
+      <span class="s2">&quot;specification&quot;</span><span class="p">:</span> <span class="n">spec</span><span class="p">,</span>
+    <span class="p">},</span>
+  <span class="p">}</span>
+
+
 <div class="viewcode-block" id="sample">
 <a class="viewcode-back" href="../../api/prxteinmpnn.html#prxteinmpnn.sample">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">sample</span><span class="p">(</span>
   <span class="n">spec</span><span class="p">:</span> <span class="n">SamplingSpecification</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
   <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">SamplingSpecification</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]:</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Sample new sequences for the given input structures.</span>
 
 <span class="sd">  This function uses a high-performance Grain pipeline to load and process</span>
@@ -700,6 +791,9 @@ document.write(`
 <span class="sd">  &quot;&quot;&quot;</span>
   <span class="k">if</span> <span class="n">spec</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
     <span class="n">spec</span> <span class="o">=</span> <span class="n">SamplingSpecification</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+  <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">_sample_streaming</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
 
   <span class="n">protein_iterator</span><span class="p">,</span> <span class="n">model_parameters</span> <span class="o">=</span> <span class="n">_prep_protein_stream_and_model</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
   <span class="n">sampler_fn</span> <span class="o">=</span> <span class="n">make_sample_sequences</span><span class="p">(</span>
@@ -774,6 +868,104 @@ document.write(`
     <span class="p">},</span>
   <span class="p">}</span></div>
 
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_sample_streaming</span><span class="p">(</span>
+  <span class="n">spec</span><span class="p">:</span> <span class="n">SamplingSpecification</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">SamplingSpecification</span><span class="p">]]:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Sample new sequences and stream results to an HDF5 file.&quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="ow">not</span> <span class="n">spec</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">:</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;output_h5_path must be provided for streaming.&quot;</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+  <span class="n">protein_iterator</span><span class="p">,</span> <span class="n">model_parameters</span> <span class="o">=</span> <span class="n">_prep_protein_stream_and_model</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+  <span class="n">sampler_fn</span> <span class="o">=</span> <span class="n">make_sample_sequences</span><span class="p">(</span>
+    <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>
+    <span class="n">decoding_order_fn</span><span class="o">=</span><span class="n">random_decoding_order</span><span class="p">,</span>
+    <span class="n">sampling_strategy</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">sampling_strategy</span><span class="p">,</span>
+  <span class="p">)</span>
+
+  <span class="k">with</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">seq_ds</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">create_dataset</span><span class="p">(</span>
+      <span class="s2">&quot;sequences&quot;</span><span class="p">,</span>
+      <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+      <span class="n">maxshape</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+      <span class="n">chunks</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+      <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;i4&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">logits_ds</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">create_dataset</span><span class="p">(</span>
+      <span class="s2">&quot;logits&quot;</span><span class="p">,</span>
+      <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+      <span class="n">maxshape</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+      <span class="n">chunks</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+      <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;f4&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">batched_ensemble</span> <span class="ow">in</span> <span class="n">protein_iterator</span><span class="p">:</span>
+      <span class="n">residue_mask</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">atom_mask</span><span class="p">[:,</span> <span class="p">:,</span> <span class="n">atom_order</span><span class="p">[</span><span class="s2">&quot;CA&quot;</span><span class="p">]]</span>
+      <span class="n">keys</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">key</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">random_seed</span><span class="p">),</span> <span class="n">spec</span><span class="o">.</span><span class="n">num_samples</span><span class="p">)</span>
+
+      <span class="n">vmap_samples</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span>
+        <span class="n">sampler_fn</span><span class="p">,</span>
+        <span class="n">in_axes</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="n">out_axes</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+      <span class="p">)</span>
+      <span class="n">vmap_noises</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span>
+        <span class="n">vmap_samples</span><span class="p">,</span>
+        <span class="n">in_axes</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="n">out_axes</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+      <span class="p">)</span>
+      <span class="n">vmap_structures</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span>
+        <span class="n">vmap_noises</span><span class="p">,</span>
+        <span class="n">in_axes</span><span class="o">=</span><span class="p">(</span>
+          <span class="kc">None</span><span class="p">,</span>  <span class="c1"># keys</span>
+          <span class="mi">0</span><span class="p">,</span>  <span class="c1"># coordinates</span>
+          <span class="mi">0</span><span class="p">,</span>  <span class="c1"># residue_mask</span>
+          <span class="mi">0</span><span class="p">,</span>  <span class="c1"># residue_index</span>
+          <span class="mi">0</span><span class="p">,</span>  <span class="c1"># chain_index</span>
+          <span class="kc">None</span><span class="p">,</span>  <span class="c1"># k_neighbors</span>
+          <span class="kc">None</span><span class="p">,</span>  <span class="c1"># bias</span>
+          <span class="kc">None</span><span class="p">,</span>  <span class="c1"># fixed_positions</span>
+          <span class="kc">None</span><span class="p">,</span>  <span class="c1"># backbone_noise</span>
+          <span class="kc">None</span><span class="p">,</span>  <span class="c1"># iterations</span>
+          <span class="kc">None</span><span class="p">,</span>  <span class="c1"># learning_rate</span>
+          <span class="kc">None</span><span class="p">,</span>  <span class="c1"># temperature</span>
+        <span class="p">),</span>
+        <span class="n">out_axes</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+      <span class="p">)</span>
+      <span class="n">sampled_sequences</span><span class="p">,</span> <span class="n">logits</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">vmap_structures</span><span class="p">(</span>
+        <span class="n">keys</span><span class="p">,</span>
+        <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">coordinates</span><span class="p">,</span>
+        <span class="n">residue_mask</span><span class="p">,</span>
+        <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">residue_index</span><span class="p">,</span>
+        <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">chain_index</span><span class="p">,</span>
+        <span class="mi">48</span><span class="p">,</span>
+        <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">bias</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span> <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">bias</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">fixed_positions</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">fixed_positions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">backbone_noise</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">backbone_noise</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">spec</span><span class="o">.</span><span class="n">iterations</span><span class="p">,</span>
+        <span class="n">spec</span><span class="o">.</span><span class="n">learning_rate</span><span class="p">,</span>
+        <span class="n">spec</span><span class="o">.</span><span class="n">temperature</span><span class="p">,</span>
+      <span class="p">)</span>
+
+      <span class="n">seq_ds</span><span class="o">.</span><span class="n">resize</span><span class="p">(</span><span class="n">seq_ds</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">sampled_sequences</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+      <span class="n">seq_ds</span><span class="p">[</span><span class="o">-</span><span class="n">sampled_sequences</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="p">:,</span> <span class="p">:,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">sampled_sequences</span>
+
+      <span class="n">logits_ds</span><span class="o">.</span><span class="n">resize</span><span class="p">(</span><span class="n">logits_ds</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">logits</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+      <span class="n">logits_ds</span><span class="p">[</span><span class="o">-</span><span class="n">logits</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="p">:,</span> <span class="p">:,</span> <span class="p">:,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">logits</span>
+
+      <span class="n">f</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+  <span class="k">return</span> <span class="p">{</span>
+    <span class="s2">&quot;output_h5_path&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">),</span>
+    <span class="s2">&quot;metadata&quot;</span><span class="p">:</span> <span class="p">{</span>
+      <span class="s2">&quot;specification&quot;</span><span class="p">:</span> <span class="n">spec</span><span class="p">,</span>
+    <span class="p">},</span>
+  <span class="p">}</span>
 
 
 <div class="viewcode-block" id="categorical_jacobian">

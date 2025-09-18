@@ -836,6 +836,7 @@ document.write(`
       <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">combine_fn</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
         <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;combine_fn must be a callable for streaming.&quot;</span>
         <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+      <span class="n">jax</span><span class="o">.</span><span class="n">clear_caches</span><span class="p">()</span>  <span class="c1"># free up memory</span>
       <span class="n">combine_jacobians_h5_stream</span><span class="p">(</span>
         <span class="n">h5_path</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">,</span>
         <span class="n">combine_fn</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">combine_fn</span><span class="p">,</span>
@@ -971,20 +972,21 @@ document.write(`
   <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">combine_weights</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">spec</span><span class="o">.</span><span class="n">combine</span><span class="p">:</span>
     <span class="n">spec</span><span class="o">.</span><span class="n">combine_weights</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">tiled_sequences</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
 
-  <span class="n">combined_jacs</span> <span class="o">=</span> <span class="p">(</span>
+  <span class="n">combined_jacs</span><span class="p">,</span> <span class="n">mapping</span> <span class="o">=</span> <span class="p">(</span>
     <span class="n">combine_jacs_fn</span><span class="p">(</span>
       <span class="n">reshaped_jacobians</span><span class="p">,</span>
       <span class="n">tiled_sequences</span><span class="p">,</span>
       <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">combine_weights</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span>
     <span class="p">)</span>
     <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">combine</span>
-    <span class="k">else</span> <span class="kc">None</span>
+    <span class="k">else</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
   <span class="p">)</span>
 
   <span class="k">return</span> <span class="p">{</span>
     <span class="s2">&quot;categorical_jacobians&quot;</span><span class="p">:</span> <span class="n">jacobians</span><span class="p">,</span>
     <span class="s2">&quot;apc_corrected_jacobians&quot;</span><span class="p">:</span> <span class="n">apc_jacobians</span><span class="p">,</span>
     <span class="s2">&quot;combined&quot;</span><span class="p">:</span> <span class="n">combined_jacs</span><span class="p">,</span>
+    <span class="s2">&quot;mapping&quot;</span><span class="p">:</span> <span class="n">mapping</span><span class="p">,</span>
     <span class="s2">&quot;metadata&quot;</span><span class="p">:</span> <span class="p">{</span>
       <span class="s2">&quot;spec&quot;</span><span class="p">:</span> <span class="n">spec</span><span class="p">,</span>
     <span class="p">},</span>
@@ -1041,6 +1043,7 @@ document.write(`
       <span class="n">apc_jacobians</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">apc_corrected_frobenius_norm</span><span class="p">))(</span><span class="n">jacobians_batch</span><span class="p">)</span>
       <span class="n">apc_ds</span><span class="o">.</span><span class="n">resize</span><span class="p">((</span><span class="n">new_size</span><span class="p">,</span> <span class="o">*</span><span class="n">apc_jacobians</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:]))</span>
       <span class="n">apc_ds</span><span class="p">[</span><span class="n">current_size</span><span class="p">:</span><span class="n">new_size</span><span class="p">]</span> <span class="o">=</span> <span class="n">apc_jacobians</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_categorical_jacobian_streaming</span><span class="p">(</span>

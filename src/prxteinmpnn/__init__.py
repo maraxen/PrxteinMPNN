@@ -1,5 +1,8 @@
 """PrxteinMPNN: A functional interface for ProteinMPNN."""
 
+import multiprocessing as mp
+
+mp.set_start_method("spawn", force=True)
 from .run import (
   JacobianSpecification,
   RunSpecification,

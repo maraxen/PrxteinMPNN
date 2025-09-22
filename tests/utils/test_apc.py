@@ -1,6 +1,10 @@
 """Unit tests for Average Product Correction (APC) utilities."""
 
+import tempfile
+from pathlib import Path
+
 import chex
+import h5py
 import jax
 import jax.numpy as jnp
 import pytest
@@ -100,3 +104,14 @@ def test_apc_corrected_frobenius_norm_pipeline(sample_jacobian: jax.Array):
     # The sum of each row and column of the corrected matrix should be close to zero
     assert jnp.allclose(jnp.sum(corrected_matrix, axis=0), 0.0, atol=1e-6)
     assert jnp.allclose(jnp.sum(corrected_matrix, axis=1), 0.0, atol=1e-6)
+    
+    corrected_matrix = apc_corrected_frobenius_norm(sample_jacobian, residue_batch_size=32)
+    chex.assert_shape(corrected_matrix, (sample_jacobian.shape[0], sample_jacobian.shape[0]))
+    chex.assert_type(corrected_matrix, jnp.float32)
+    
+    assert jnp.allclose(jnp.sum(corrected_matrix, axis=0), 0.0, atol=1e-6)
+    assert jnp.allclose(jnp.sum(corrected_matrix, axis=1), 0.0, atol=1e-6)
+
+    
+
+

@@ -142,8 +142,9 @@ class JacobianSpecification(RunSpecification):
   jacobian_batch_size: int = 16
   combine: bool = False
   combine_batch_size: int = 8
+  combine_noise_batch_size: int = 1
   combine_weights: ArrayLike | None = None
-  combine_fn: CombineCatJacPairFn | Literal["add", "subtract"] = "add"
+  combine_fn: CombineCatJacPairFn | None = None
   combine_fn_kwargs: dict[str, Any] | None = None
   output_h5_path: str | Path | None = None
   compute_apc: bool = True

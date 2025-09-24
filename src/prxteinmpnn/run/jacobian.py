@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import sys
-from collections.abc import Generator, Sequence
+from collections.abc import Generator
 from functools import partial
 from typing import TYPE_CHECKING, Any
 
@@ -26,8 +26,6 @@ if TYPE_CHECKING:
 from prxteinmpnn.sampling.conditional_logits import ConditionalLogitsFn, make_conditional_logits_fn
 from prxteinmpnn.utils.apc import apc_corrected_frobenius_norm
 from prxteinmpnn.utils.catjac import (
-  _add_jacobians_mapped,
-  _subtract_jacobians_mapped,
   combine_jacobians_h5_stream,
   make_combine_jac,
 )
@@ -98,12 +96,8 @@ def categorical_jacobian(
       if not spec.combine_weights is not None:
         msg = "combine_weights must be provided for streaming."
         raise ValueError(msg)
-      if spec.combine_fn == "add":
-        combine_fn = _add_jacobians_mapped
-      elif spec.combine_fn == "subtract":
-        combine_fn = _subtract_jacobians_mapped
-      else:
-        combine_fn = spec.combine_fn
+
+      combine_fn = spec.combine_fn
       combine_jacobians_h5_stream(
         h5_path=spec.output_h5_path,
         combine_fn=combine_fn,  # pyright: ignore[reportArgumentType]
@@ -224,24 +218,11 @@ def _categorical_jacobian_in_memory(
     fn_kwargs=spec.combine_fn_kwargs,
     batch_size=spec.combine_batch_size,
   )
-  # merge batch and noise dimensions
-  reshaped_jacobians = jacobians.reshape((-1, *jacobians.shape[2:]))
-  all_sequences_arr = jnp.concatenate(all_sequences, axis=0)
-  if not isinstance(spec.backbone_noise, Sequence):
-    msg = "backbone_noise must be a sequence."
-    raise TypeError(msg)
-  tiled_sequences = jnp.tile(
-    all_sequences_arr,
-    (len(spec.backbone_noise), 1, 1),
-  )
-
-  if spec.combine_weights is None and spec.combine:
-    spec.combine_weights = jnp.ones((tiled_sequences.shape[0],), dtype=jnp.float32)
 
   combined_jacs, mapping = (
     combine_jacs_fn(
-      reshaped_jacobians,
-      tiled_sequences,
+      jacobians,
+      jnp.concatenate(all_sequences, axis=0),
       jnp.asarray(spec.combine_weights, dtype=jnp.float32),
     )
     if spec.combine

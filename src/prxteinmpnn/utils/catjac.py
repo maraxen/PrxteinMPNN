@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from functools import partial
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import h5py
 import jax
@@ -64,84 +64,120 @@ def _gather_mapped_jacobian(
   return mapped_jac * mask_i * mask_j
 
 
-def _add_jacobians_mapped(
+def _combine_mapped_jacobians(
   jac1: CategoricalJacobian,
   jac2: CategoricalJacobian,
   mapping: jax.Array,
-  weights: jax.Array,
+  weights: jax.Array | None = None,
+  batch_size: int = 1,
 ) -> CategoricalJacobian:
-  """Add jac1 to the mapped version of jac2."""
+  """Add jac1 to the mapped version of jac2, weighted by weights."""
   mapped_jac2 = _gather_mapped_jacobian(jac2, mapping)
-  return jac1 + mapped_jac2 * weights
 
+  weights = (
+    jnp.ones((2,), dtype=jac1.dtype) if weights is None else jnp.array(weights, dtype=jac1.dtype)
+  )
 
-def _subtract_jacobians_mapped(
-  jac1: CategoricalJacobian,
-  jac2: CategoricalJacobian,
-  mapping: jax.Array,
-  weights: jax.Array,
-) -> CategoricalJacobian:
-  """Subtracts the mapped version of jac2 from jac1."""
-  mapped_jac2 = _gather_mapped_jacobian(jac2, mapping)
-  return jac1 - mapped_jac2 * weights
+  def combine_slice(jac1_slice: jax.Array) -> jax.Array:
+    return (jac1_slice * weights[0]) + (mapped_jac2 * weights[1])
+
+  combined = jax.lax.map(combine_slice, jac1, batch_size=batch_size)
+
+  noise_levels = jac1.shape[0]
+  return combined.reshape(noise_levels * noise_levels, *combined.shape[2:])
 
 
 _MIN_NUMBER_PROTEINS = 2
 
 
 def make_combine_jac(
-  combine_fn: Literal["add", "subtract"] | CombineCatJacPairFn,
+  combine_fn: CombineCatJacPairFn | None = None,
   fn_kwargs: dict[str, Any] | None = None,
   batch_size: int = 1,
+  combine_noise_batch_size: int = 1,
 ) -> CombineCatJacFn:
   """Create a function to combine Jacobians using a specified operation."""
-  if combine_fn == "add":
-    _combine_fn = _add_jacobians_mapped
-  elif combine_fn == "subtract":
-    _combine_fn = _subtract_jacobians_mapped
+  if combine_fn is None:
+    _combine_fn = _combine_mapped_jacobians
   else:
     _combine_fn = partial(combine_fn, **(fn_kwargs or {}))
+
+  _combine_fn = partial(_combine_fn, batch_size=combine_noise_batch_size)
 
   def combine_jacobians(
     jacobians: jax.Array,
     sequences: ProteinSequence | OneHotProteinSequence,
     weights: jax.Array | None = None,
   ) -> tuple[CategoricalJacobian, jax.Array]:
-    """Compute cross-protein Jacobian combinations for all pairs."""
-    if weights is None:
-      weights = jnp.ones((jacobians.shape[0],), dtype=jacobians.dtype)
+    """Compute cross-protein Jacobian combinations for all pairs.
+
+    Args:
+      jacobians: Shape (N, K, L, A, L, A) for N proteins.
+      sequences: Shape (N, L) or (N, L, A) for N proteins.
+      weights: The weights to apply. Can be one of:
+        - None: Defaults to addition ([1.0, 1.0]) for all pairs.
+        - Scalar: Applied to every protein (e.g., w -> [w, w] for each pair).
+        - 1D Array (shape N,): Per-protein weights [w_0, w_1, ...].
+
+    Returns:
+      A tuple containing:
+        - Combined Jacobians, shape (num_pairs, K*K, L, A, L, A).
+        - Mappings, shape (num_pairs, L, 2).
+
+    """
     n_proteins = jacobians.shape[0]
     if n_proteins < _MIN_NUMBER_PROTEINS:
-      return jnp.empty((0, *jacobians.shape[1:]), dtype=jacobians.dtype), jnp.empty(
-        (0, 2),
-        dtype=jnp.int32,
-      )
+      return jnp.empty((0, *jacobians.shape[1:])), jnp.empty((0, 2), dtype=jnp.int32)
 
     i_indices, j_indices = jnp.triu_indices(n_proteins, k=1)
+    num_pairs = len(i_indices)
+
+    if weights is None:
+      combination_weights = jnp.ones((num_pairs, 2), dtype=jacobians.dtype)
+    else:
+      weights = jnp.asarray(weights, dtype=jacobians.dtype)
+      if weights.ndim == 0:
+        per_protein = jnp.full((n_proteins,), weights)
+        combination_weights = jnp.stack(
+          [per_protein[i_indices], per_protein[j_indices]],
+          axis=-1,
+        )
+      elif weights.ndim == 1:
+        if weights.shape[0] != n_proteins:
+          msg = f"Invalid weights shape {weights.shape}, must be (N,) where N={n_proteins}."
+          raise ValueError(msg)
+        combination_weights = jnp.stack(
+          [weights[i_indices], weights[j_indices]],
+          axis=-1,
+        )
+      else:
+        msg = f"Invalid weights shape {weights.shape}, must be scalar or (N,)."
+        raise ValueError(msg)
 
     jac_i = jacobians[i_indices]
     jac_j = jacobians[j_indices]
-    pair_weights = weights[i_indices]
-
     all_mappings = align_sequences(sequences)
 
-    xs = (jac_i, jac_j, all_mappings, pair_weights)
+    xs = (jac_i, jac_j, all_mappings, combination_weights)
 
-    return jax.lax.map(
+    combined_jacs = jax.lax.map(
       lambda x: _combine_fn(*x),
       xs,
       batch_size=batch_size,
-    ), all_mappings
+    )
+
+    return combined_jacs, all_mappings
 
   return combine_jacobians
 
 
 def combine_jacobians_h5_stream(
   h5_path: str | Path,
-  combine_fn: CombineCatJacPairFn,
-  fn_kwargs: dict,
-  batch_size: int,
-  weights: jax.Array,
+  combine_fn: CombineCatJacPairFn | None = None,
+  fn_kwargs: dict | None = None,
+  batch_size: int = 1,
+  combine_noise_batch_size: int = 1,
+  weights: jax.Array | None = None,
 ) -> None:
   """Combine all pairs of Jacobians from an HDF5 file and save to the same file."""
   with h5py.File(str(h5_path), "a") as f:
@@ -150,37 +186,37 @@ def combine_jacobians_h5_stream(
     if "mappings" in f:
       del f["mappings"]
 
-    jacobians_dset = f["categorical_jacobians"]
-    sequences_dset = f["one_hot_sequences"]
+    jacobians_dset = cast("np.ndarray", f["categorical_jacobians"])
+    sequences_dset = cast("np.ndarray", f["one_hot_sequences"])
 
-    n_samples = jacobians_dset.shape[0]  # pyright: ignore[reportAttributeAccessIssue]
-    if n_samples != sequences_dset.shape[0] or n_samples != weights.shape[0]:  # pyright: ignore[reportAttributeAccessIssue]
-      msg = "Jacobian, sequence, and weights arrays must have the same length."
+    n_samples = jacobians_dset.shape[0]
+    if n_samples != sequences_dset.shape[0]:
+      msg = "Jacobian and sequence arrays must have the same length."
       raise ValueError(msg)
 
     i_indices_all, j_indices_all = jnp.triu_indices(n_samples, k=1)
     total_pairs = len(i_indices_all)
 
     if total_pairs == 0:
-      f.create_dataset("combined_catjac", shape=(0, *jacobians_dset.shape[1:]), dtype="float32")  # pyright: ignore[reportAttributeAccessIssue]
-      f.create_dataset("mappings", shape=(0, sequences_dset.shape[1], 2), dtype="int32")  # pyright: ignore[reportAttributeAccessIssue]
-      return
+      f.create_dataset("combined_catjac", shape=(0, *jacobians_dset.shape[1:]), dtype="float32")
+      f.create_dataset("mappings", shape=(0, sequences_dset.shape[1], 2), dtype="int32")
+    _combine_fn = _combine_mapped_jacobians if combine_fn is None else combine_fn
+    _combine_fn = partial(_combine_fn, **(fn_kwargs or {}))
+    _combine_fn = partial(_combine_fn, batch_size=combine_noise_batch_size)
 
-    _combine_fn_with_kwargs = partial(combine_fn, **(fn_kwargs or {}))
-
+    @jax.jit
+    @jax.vmap
     def _process_pair(
       jac_i: CategoricalJacobian,
       jac_j: CategoricalJacobian,
       seq_i: OneHotProteinSequence,
       seq_j: OneHotProteinSequence,
-      w_i: jax.Array,
+      pair_weights: jax.Array,
     ) -> tuple[CategoricalJacobian, jax.Array]:
       mapping = align_sequences(jnp.stack([seq_i, seq_j]))[0]
-      return _combine_fn_with_kwargs(jac_i, jac_j, mapping, w_i), mapping
+      return _combine_fn(jac_i, jac_j, mapping, pair_weights), mapping
 
-    _vmapped_process_pairs = jax.jit(jax.vmap(_process_pair))
-
-    out_shape = jacobians_dset.shape[1:]  # pyright: ignore[reportAttributeAccessIssue]
+    out_shape = (jacobians_dset.shape[1] ** 2, *jacobians_dset.shape[2:])  # pyright: ignore[reportAttributeAccessIssue]
     n_residues = sequences_dset.shape[1]  # pyright: ignore[reportAttributeAccessIssue]
 
     chunk_size = min(batch_size, 100, total_pairs)
@@ -197,47 +233,41 @@ def combine_jacobians_h5_stream(
       chunks=(chunk_size, n_residues, 2),
     )
 
-    write_idx = 0
-    # ** NEW STRATEGY: Iterate through each 'i' **
-    for i in range(n_samples - 1):
-      # For each i, the corresponding j's are always an increasing sequence
-      j_indices_for_i = np.arange(i + 1, n_samples)
-      if len(j_indices_for_i) == 0:
+    if weights is None:
+      weights = jnp.ones(n_samples)
+
+    for start_idx in range(0, total_pairs, batch_size):
+      end_idx = min(start_idx + batch_size, total_pairs)
+      if start_idx >= end_idx:
         continue
 
-      # Load the data for 'i' once
-      jac_i = jax.device_put(jacobians_dset[i])  # pyright: ignore[reportIndexIssue]
-      seq_i = jax.device_put(sequences_dset[i])  # pyright: ignore[reportIndexIssue]
-      w_i = jax.device_put(weights[i])
+      i_idx_batch = i_indices_all[start_idx:end_idx]
+      j_idx_batch = j_indices_all[start_idx:end_idx]
 
-      # Process the corresponding 'j's in batches to manage memory
-      for j_start in range(0, len(j_indices_for_i), batch_size):
-        j_end = j_start + batch_size
-        j_idx_batch = j_indices_for_i[j_start:j_end]
+      unique_indices, inverse_indices = np.unique(
+        np.concatenate([i_idx_batch, j_idx_batch]),
+        return_inverse=True,
+      )
+      inv_i, inv_j = np.split(inverse_indices, 2)
 
-        # This read is now guaranteed to be sorted, fixing the h5py error
-        jac_batch_j = jax.device_put(jacobians_dset[j_idx_batch])  # pyright: ignore[reportIndexIssue]
-        seq_batch_j = jax.device_put(sequences_dset[j_idx_batch])  # pyright: ignore[reportIndexIssue]
+      jac_data = jax.device_put(jacobians_dset[unique_indices])
+      seq_data = jax.device_put(sequences_dset[unique_indices])
+      w_data = jax.device_put(weights[unique_indices])
 
-        # Prepare batch for vmap by repeating the 'i' data
-        current_batch_size = len(j_idx_batch)
-        jac_batch_i = jnp.repeat(jac_i[None, ...], current_batch_size, axis=0)
-        seq_batch_i = jnp.repeat(seq_i[None, ...], current_batch_size, axis=0)
-        w_batch_i = jnp.repeat(w_i, current_batch_size, axis=0)
+      jac_batch_i, jac_batch_j = jac_data[inv_i], jac_data[inv_j]
+      seq_batch_i, seq_batch_j = seq_data[inv_i], seq_data[inv_j]
 
-        # Compute combinations for the batch
-        combined_block, mapping_block = _vmapped_process_pairs(
-          jac_batch_i,
-          jac_batch_j,
-          seq_batch_i,
-          seq_batch_j,
-          w_batch_i,
-        )
+      w_batch_i, w_batch_j = w_data[inv_i], w_data[inv_j]
+      combination_weights_batch = jnp.stack([w_batch_i, w_batch_j], axis=-1)
 
-        # Write results to the correct slice in the output file
-        write_end_idx = write_idx + current_batch_size
-        dset[write_idx:write_end_idx] = np.array(combined_block)
-        mapping_dset[write_idx:write_end_idx] = np.array(mapping_block)
+      combined_block, mapping_block = _process_pair(
+        jac_batch_i,
+        jac_batch_j,
+        seq_batch_i,
+        seq_batch_j,
+        combination_weights_batch,
+      )
 
-        write_idx = write_end_idx
-        f.flush()
+      dset[start_idx:end_idx] = np.array(combined_block)
+      mapping_dset[start_idx:end_idx] = np.array(mapping_block)
+      f.flush()

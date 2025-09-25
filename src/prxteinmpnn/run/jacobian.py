@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import sys
-from collections.abc import Generator
 from functools import partial
 from typing import TYPE_CHECKING, Any
 
@@ -13,6 +12,8 @@ import jax
 import jax.numpy as jnp
 
 if TYPE_CHECKING:
+  from collections.abc import Generator
+
   from grain.python import IterDataset
 
   from prxteinmpnn.utils.types import (
@@ -39,7 +40,7 @@ logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
 
 def categorical_jacobian(
   spec: JacobianSpecification | None = None,
-  **kwargs: Any,
+  **kwargs: Any,  # noqa: ANN401
 ) -> dict[
   str,
   jax.Array

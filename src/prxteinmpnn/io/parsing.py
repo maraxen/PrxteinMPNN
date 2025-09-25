@@ -461,6 +461,7 @@ def _parse_hdf5(
           chain_index=static_features["chain_index"],
           dihedrals=dihedrals,
           source=str(source),
+          full_coordinates=coords[0],
         )
   except Exception as e:
     msg = f"Failed to parse HDF5 structure from source: {e}"
@@ -518,6 +519,7 @@ def _parse_biotite(
             chain_index=static_features["chain_index"],
             dihedrals=dihedrals,
             source=str(source),
+            full_coordinates=coords,
           )
       elif isinstance(atom_array, AtomArray):
         if extract_dihedrals:
@@ -537,6 +539,7 @@ def _parse_biotite(
           chain_index=static_features["chain_index"],
           dihedrals=dihedrals,
           source=str(source),
+          full_coordinates=coords,
         )
 
   except Exception as e:

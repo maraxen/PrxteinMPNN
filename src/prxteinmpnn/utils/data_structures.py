@@ -57,6 +57,7 @@ class ProteinTuple(NamedTuple):
   atom_mask: np.ndarray
   residue_index: np.ndarray
   chain_index: np.ndarray
+  full_coordinates: np.ndarray | None = None
   dihedrals: np.ndarray | None = None
   source: str | None = None
   mapping: np.ndarray | None = None
@@ -102,6 +103,7 @@ class Protein:
   chain_index: ChainIndex
   dihedrals: BackboneDihedrals | None = None
   mapping: Int | None = None
+  full_coordinates: StructureAtomicCoordinates | None = None
 
   @classmethod
   def from_tuple(cls, protein_tuple: ProteinTuple) -> Protein:
@@ -129,6 +131,11 @@ class Protein:
       mapping=jnp.asarray(protein_tuple.mapping, dtype=jnp.int32)
       if protein_tuple.mapping is not None
       else None,
+      full_coordinates=(
+        None
+        if protein_tuple.full_coordinates is None
+        else jnp.asarray(protein_tuple.full_coordinates, dtype=jnp.float32)
+      ),
     )
 
 

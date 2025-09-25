@@ -48,7 +48,7 @@ UnconditionalLogitsFn = Callable[
 
 def make_unconditional_logits_fn(
   model_parameters: ModelParameters,
-  decoding_order_fn: DecodingOrderFn,
+  decoding_order_fn: DecodingOrderFn | None = None,
   num_encoder_layers: int = 3,
   num_decoder_layers: int = 3,
 ) -> UnconditionalLogitsFn:

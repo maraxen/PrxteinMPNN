@@ -18,8 +18,10 @@ if TYPE_CHECKING:
 
   from jaxtyping import ArrayLike
 
+  from prxteinmpnn.ensemble.dbscan import ConformationalStates
   from prxteinmpnn.mpnn import ModelVersion, ModelWeights
   from prxteinmpnn.utils.catjac import CombineCatJacPairFn
+  from prxteinmpnn.utils.decoding_order import DecodingOrderFn
   from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase
 
 
@@ -51,6 +53,8 @@ class RunSpecification:
       chain_id: An optional chain ID to use (default is None).
       model: An optional model ID to use (default is None).
       altloc: The alternate location to use (default is "first").
+      decoding_order_fn: An optional function to generate the decoding order (default is None).
+      conformational_states: ConformationalStates to use for coarse graining the inference.
 
   """
 
@@ -66,6 +70,8 @@ class RunSpecification:
   chain_id: Sequence[str] | str | None = None
   model: int | None = None
   altloc: Literal["first", "all"] = "first"
+  decoding_order_fn: DecodingOrderFn | None = None
+  conformational_states: ConformationalStates | None = None
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""
@@ -150,6 +156,37 @@ class JacobianSpecification(RunSpecification):
   compute_apc: bool = True
   apc_batch_size: int = 8
   apc_residue_batch_size: int = 1000
+
+  def __post_init__(self) -> None:
+    """Post-initialization processing."""
+    super().__post_init__()
+    if self.output_h5_path and isinstance(self.output_h5_path, str):
+      object.__setattr__(self, "output_h5_path", Path(self.output_h5_path))
+
+
+@dataclass
+class ConformationalInferenceSpecification(RunSpecification):
+  """Configuration for deriving states from a protein ensemble.
+
+  Attributes:
+      output_h5_path: Optional path to an HDF5 file for streaming output.
+      batch_size: The batch size for processing proteins (default is 8).
+
+  """
+
+  output_h5_path: str | Path | None = None
+  batch_size: int = 8
+  inference_strategy: Literal["unconditional", "conditional", "vmm", "coordinates"] = (
+    "unconditional"
+  )
+  inference_features: Sequence[
+    Literal["logits", "node_features", "edge_features", "backbone_coordinates", "full_coordinates"]
+  ] = ("logits",)
+  mode: Literal["global", "per"] = "global"
+  gmm_n_components: int = 100
+  eps_std_scale: float = 1.0
+  min_cluster_weight: float = 0.01
+  gmm_init: Literal["kmeans", "random"] = "kmeans"
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""

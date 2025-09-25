@@ -224,7 +224,7 @@ def combine_jacobians_h5_stream(
       "combined_catjac",
       (total_pairs, *out_shape),
       dtype="float32",
-      chunks=(chunk_size, *out_shape),
+      chunks=(1, 1, *out_shape[1:]),
     )
     mapping_dset = f.create_dataset(
       "mappings",

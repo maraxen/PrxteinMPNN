@@ -26,8 +26,8 @@ from prxteinmpnn.utils.types import Logits
 
 
 @struct.dataclass
-class ResidueConformationalStates:
-  """Represents the final inferred conformational states for a residue.
+class ConformationalStates:
+  """Represents the final inferred conformational states for a residue or protein.
 
   Attributes:
     n_states: The total number of conformational states found (excluding noise).

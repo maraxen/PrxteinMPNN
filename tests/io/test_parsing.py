@@ -532,6 +532,7 @@ class TestParseInput:
         assert protein.residue_index.shape == (10,)
         assert protein.chain_index.shape == (10,)
         assert protein.dihedrals is None
+        assert protein.full_coordinates is not None
 
     def test_parse_pdb_file(self, pdb_file):
         """Test parsing a PDB file from a file path."""

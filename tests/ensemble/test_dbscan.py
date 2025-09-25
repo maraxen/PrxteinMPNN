@@ -7,7 +7,7 @@ import pytest
 from unittest.mock import Mock, patch
 
 from prxteinmpnn.ensemble.dbscan import (
-  ResidueConformationalStates,
+  ConformationalStates,
   GMMClusteringResult,
   EntropyTrace,
   compute_component_distances,
@@ -29,7 +29,7 @@ class TestResidueConformationalStates:
     Example:
       >>> test_residue_conformational_states_creation()
     """
-    states = ResidueConformationalStates(
+    states = ConformationalStates(
       n_states=5,
       mle_entropy=1.2,
       mle_entropy_se=0.1,

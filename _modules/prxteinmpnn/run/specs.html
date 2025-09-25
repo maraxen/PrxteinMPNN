@@ -371,8 +371,10 @@ document.write(`
 
   <span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArrayLike</span>
 
+  <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.ensemble.dbscan</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConformationalStates</span>
   <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.mpnn</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelVersion</span><span class="p">,</span> <span class="n">ModelWeights</span>
   <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.catjac</span><span class="w"> </span><span class="kn">import</span> <span class="n">CombineCatJacPairFn</span>
+  <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.decoding_order</span><span class="w"> </span><span class="kn">import</span> <span class="n">DecodingOrderFn</span>
   <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.foldcomp_utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">FoldCompDatabase</span>
 
 
@@ -406,6 +408,8 @@ document.write(`
 <span class="sd">      chain_id: An optional chain ID to use (default is None).</span>
 <span class="sd">      model: An optional model ID to use (default is None).</span>
 <span class="sd">      altloc: The alternate location to use (default is &quot;first&quot;).</span>
+<span class="sd">      decoding_order_fn: An optional function to generate the decoding order (default is None).</span>
+<span class="sd">      conformational_states: ConformationalStates to use for coarse graining the inference.</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
 
@@ -421,6 +425,8 @@ document.write(`
   <span class="n">chain_id</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
   <span class="n">model</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
   <span class="n">altloc</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;first&quot;</span><span class="p">,</span> <span class="s2">&quot;all&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;first&quot;</span>
+  <span class="n">decoding_order_fn</span><span class="p">:</span> <span class="n">DecodingOrderFn</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">conformational_states</span><span class="p">:</span> <span class="n">ConformationalStates</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
   <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Post-initialization processing.&quot;&quot;&quot;</span>
@@ -521,6 +527,37 @@ document.write(`
     <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
       <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;output_h5_path&quot;</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">))</span></div>
 
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ConformationalInferenceSpecification</span><span class="p">(</span><span class="n">RunSpecification</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Configuration for deriving states from a protein ensemble.</span>
+
+<span class="sd">  Attributes:</span>
+<span class="sd">      output_h5_path: Optional path to an HDF5 file for streaming output.</span>
+<span class="sd">      batch_size: The batch size for processing proteins (default is 8).</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+
+  <span class="n">output_h5_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span>
+  <span class="n">inference_strategy</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;unconditional&quot;</span><span class="p">,</span> <span class="s2">&quot;conditional&quot;</span><span class="p">,</span> <span class="s2">&quot;vmm&quot;</span><span class="p">,</span> <span class="s2">&quot;coordinates&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s2">&quot;unconditional&quot;</span>
+  <span class="p">)</span>
+  <span class="n">inference_features</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span>
+    <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;logits&quot;</span><span class="p">,</span> <span class="s2">&quot;node_features&quot;</span><span class="p">,</span> <span class="s2">&quot;edge_features&quot;</span><span class="p">,</span> <span class="s2">&quot;backbone_coordinates&quot;</span><span class="p">,</span> <span class="s2">&quot;full_coordinates&quot;</span><span class="p">]</span>
+  <span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;logits&quot;</span><span class="p">,)</span>
+  <span class="n">mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;global&quot;</span><span class="p">,</span> <span class="s2">&quot;per&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;global&quot;</span>
+  <span class="n">gmm_n_components</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span>
+  <span class="n">eps_std_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+  <span class="n">min_cluster_weight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span>
+  <span class="n">gmm_init</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;kmeans&quot;</span><span class="p">,</span> <span class="s2">&quot;random&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;kmeans&quot;</span>
+
+  <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Post-initialization processing.&quot;&quot;&quot;</span>
+    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__post_init__</span><span class="p">()</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;output_h5_path&quot;</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">))</span>
 </pre></div>
 
                 </article>

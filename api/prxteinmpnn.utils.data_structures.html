@@ -644,42 +644,55 @@ Shape is [num_res, 3]. If not provided, defaults to None.</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.data_structures.</span></span><span class="sig-name descname"><span class="pre">TrajectoryStaticFeatures</span></span><a class="reference internal" href="../_modules/prxteinmpnn/utils/data_structures.html#TrajectoryStaticFeatures"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures" title="Link to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypedDict" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypedDict</span></code></a></p>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.data_structures.</span></span><span class="sig-name descname"><span class="pre">TrajectoryStaticFeatures</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">aatype</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">static_atom_mask_37</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residue_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chain_index</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">valid_atom_mask</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nitrogen_mask</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_residues</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/data_structures.html#TrajectoryStaticFeatures"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
 <p>A container for pre-computed, frame-invariant protein features.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>aatype</strong> (<em>np.ndarray</em>)</p></li>
+<li><p><strong>static_atom_mask_37</strong> (<em>np.ndarray</em>)</p></li>
+<li><p><strong>residue_indices</strong> (<em>np.ndarray</em>)</p></li>
+<li><p><strong>chain_index</strong> (<em>np.ndarray</em>)</p></li>
+<li><p><strong>valid_atom_mask</strong> (<em>np.ndarray</em>)</p></li>
+<li><p><strong>nitrogen_mask</strong> (<em>np.ndarray</em>)</p></li>
+<li><p><strong>num_residues</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a>)</p></li>
+</ul>
+</dd>
+</dl>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.aatype">
-<span class="sig-name descname"><span class="pre">aatype</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">np.ndarray</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.aatype" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">aatype</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.3)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code></a></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.aatype" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.static_atom_mask_37">
-<span class="sig-name descname"><span class="pre">static_atom_mask_37</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">np.ndarray</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.static_atom_mask_37" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">static_atom_mask_37</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.3)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code></a></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.static_atom_mask_37" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.residue_indices">
-<span class="sig-name descname"><span class="pre">residue_indices</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">np.ndarray</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.residue_indices" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">residue_indices</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.3)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code></a></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.residue_indices" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.chain_index">
-<span class="sig-name descname"><span class="pre">chain_index</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">np.ndarray</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.chain_index" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">chain_index</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.3)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code></a></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.chain_index" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.valid_atom_mask">
-<span class="sig-name descname"><span class="pre">valid_atom_mask</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">np.ndarray</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.valid_atom_mask" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">valid_atom_mask</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.3)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code></a></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.valid_atom_mask" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.nitrogen_mask">
-<span class="sig-name descname"><span class="pre">nitrogen_mask</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">np.ndarray</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.nitrogen_mask" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">nitrogen_mask</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.3)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ndarray</span></code></a></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.nitrogen_mask" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.num_residues">
-<span class="sig-name descname"><span class="pre">num_residues</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.num_residues" title="Link to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">num_residues</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a></em><a class="headerlink" href="#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.num_residues" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -692,15 +705,15 @@ Shape is [num_res, 3]. If not provided, defaults to None.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>coordinates</strong> (<em>StructureAtomicCoordinates</em>)</p></li>
-<li><p><strong>aatype</strong> (<em>ProteinSequence</em>)</p></li>
-<li><p><strong>one_hot_sequence</strong> (<em>OneHotProteinSequence</em>)</p></li>
-<li><p><strong>atom_mask</strong> (<em>AtomMask</em>)</p></li>
-<li><p><strong>residue_index</strong> (<em>ResidueIndex</em>)</p></li>
-<li><p><strong>chain_index</strong> (<em>ChainIndex</em>)</p></li>
-<li><p><strong>dihedrals</strong> (<em>BackboneDihedrals</em><em> | </em><em>None</em>)</p></li>
+<li><p><strong>coordinates</strong> (<em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_atoms 3'</em><em>]</em>)</p></li>
+<li><p><strong>aatype</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues'</em><em>]</em>)</p></li>
+<li><p><strong>one_hot_sequence</strong> (<em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_classes'</em><em>]</em>)</p></li>
+<li><p><strong>atom_mask</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_atoms'</em><em>]</em>)</p></li>
+<li><p><strong>residue_index</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues'</em><em>]</em>)</p></li>
+<li><p><strong>chain_index</strong> (<em>Int</em><em>[</em><em>Array</em><em>, </em><em>'num_residues'</em><em>]</em>)</p></li>
+<li><p><strong>dihedrals</strong> (<em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_residues 3'</em><em>] </em><em>| </em><em>None</em>)</p></li>
 <li><p><strong>mapping</strong> (<em>Int</em><em> | </em><em>None</em>)</p></li>
-<li><p><strong>full_coordinates</strong> (<em>StructureAtomicCoordinates</em><em> | </em><em>None</em>)</p></li>
+<li><p><strong>full_coordinates</strong> (<em>Float</em><em>[</em><em>Array</em><em>, </em><em>'num_residues num_atoms 3'</em><em>] </em><em>| </em><em>None</em>)</p></li>
 </ul>
 </dd>
 </dl>

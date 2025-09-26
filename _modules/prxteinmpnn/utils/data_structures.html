@@ -410,7 +410,6 @@ document.write(`
   <span class="n">coordinates</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
   <span class="n">aatype</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
   <span class="n">atom_mask</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
-  <span class="n">nitrogen_mask</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
   <span class="n">residue_index</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
   <span class="n">chain_index</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
   <span class="n">full_coordinates</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
@@ -462,7 +461,6 @@ document.write(`
   <span class="n">aatype</span><span class="p">:</span> <span class="n">ProteinSequence</span>
   <span class="n">one_hot_sequence</span><span class="p">:</span> <span class="n">OneHotProteinSequence</span>
   <span class="n">atom_mask</span><span class="p">:</span> <span class="n">AtomMask</span>
-  <span class="n">nitrogen_mask</span><span class="p">:</span> <span class="n">AtomMask</span>
   <span class="n">residue_index</span><span class="p">:</span> <span class="n">ResidueIndex</span>
   <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span>
   <span class="n">dihedrals</span><span class="p">:</span> <span class="n">BackboneDihedrals</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
@@ -489,7 +487,6 @@ document.write(`
       <span class="n">atom_mask</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">atom_mask</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span>
       <span class="n">residue_index</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">residue_index</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span>
       <span class="n">chain_index</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">chain_index</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span>
-      <span class="n">nitrogen_mask</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">nitrogen_mask</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span>
       <span class="n">dihedrals</span><span class="o">=</span><span class="p">(</span>
         <span class="kc">None</span>
         <span class="k">if</span> <span class="n">protein_tuple</span><span class="o">.</span><span class="n">dihedrals</span> <span class="ow">is</span> <span class="kc">None</span>

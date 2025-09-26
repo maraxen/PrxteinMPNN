@@ -736,6 +736,7 @@ def _parse_biotite(
   model: int | None,
   altloc: str | None,
   chain_id: Sequence[str] | str | None,
+  topology: str | pathlib.Path | None = None,
   *,
   extract_dihedrals: bool = False,
   **kwargs: Any,
@@ -756,6 +757,7 @@ def _parse_biotite(
       source,
       model=model,
       altloc=altloc,
+      template=topology,
       **kwargs,
     )
     logger.debug("Structure loaded successfully using Biotite.")
@@ -897,6 +899,7 @@ def parse_input(
       altloc=altloc,
       chain_id=chain_id,
       extract_dihedrals=extract_dihedrals,
+      topology=topology,
       **kwargs,
     )
 

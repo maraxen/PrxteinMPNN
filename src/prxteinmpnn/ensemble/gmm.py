@@ -33,6 +33,9 @@ def _kmeans_plusplus_init(
   num_clusters: int,
 ) -> Centroids:
   """K-Means++ initialization for selecting well-separated initial centroids."""
+  logger.info("Initializing centroids with K-Means++...")
+  logger.info("Number of clusters: %d", num_clusters)
+  logger.info("Data shape: %s", data.shape)
   n_samples, n_features = data.shape
   centroids = jnp.zeros((num_clusters, n_features))
   key, subkey = random.split(key)

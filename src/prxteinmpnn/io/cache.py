@@ -143,6 +143,9 @@ def preprocess_inputs_to_hdf5(
       foldcomp_database: An optional FoldCompDatabase for resolving FoldComp IDs.
 
   """
+  if pathlib.Path(output_path).exists():
+    logger.info("Cache found at %s. Skipping preprocessing.", output_path)
+    return
   logger.info("Starting preprocessing of inputs to %s...", output_path)
   parse_kwargs = parse_kwargs or {}
 

@@ -165,7 +165,7 @@ def make_fit_gmm(
       resp=responsibilities,
       reg_covar=reg_covar,
     )
-    fitted_gmm, _ = em_fitter.fit(gmm=gmm, data=data)
-    return fitted_gmm
+    fitted_gmm_result = em_fitter.fit(gmm=gmm, x=data)
+    return fitted_gmm_result.gmm
 
   return fit_gmm

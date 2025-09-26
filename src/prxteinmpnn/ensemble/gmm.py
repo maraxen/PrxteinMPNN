@@ -106,7 +106,7 @@ def _kmeans(
 def make_fit_gmm_streaming(
   n_components: int,
   batch_size: int = 4096,
-  kmeans_init_samples: int = 10000,
+  kmeans_init_samples: int = 1000,
   kmeans_max_iters: int = 100,
   gmm_max_iters: int = 100,
   reg_covar: float = 1e-6,
@@ -120,12 +120,13 @@ def make_fit_gmm_streaming(
 
   def fit_gmm(dataset: h5py.Dataset, key: PRNGKeyArray) -> GaussianMixtureModelJax:
     n_total_samples = dataset.shape[0]
-    logger.info("Running K-Means++ on a subset of %d samples...", kmeans_init_samples)
+    init_samples = min(kmeans_init_samples, n_total_samples)
+    logger.info("Running K-Means++ on a subset of %d samples...", init_samples)
     key, subkey = random.split(key)
     sample_indices = random.choice(
       subkey,
       n_total_samples,
-      shape=(kmeans_init_samples,),
+      shape=(init_samples,),
       replace=False,
     )
     init_data = jnp.array(dataset[jnp.sort(sample_indices)])

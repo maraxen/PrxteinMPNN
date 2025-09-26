@@ -1,16 +1,24 @@
 """Provides a high-level API for creating Grain-based data loaders."""
 
 import pathlib
+from collections.abc import Sequence
+from pathlib import Path
+from typing import IO
 
 import grain
 
+from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase
+
 from . import operations, sources
+from .cache import preprocess_inputs_to_hdf5
 
 
 def create_protein_dataset(
-  hdf5_path: str | pathlib.Path,
+  inputs: str | Path | Sequence[str | Path | IO[str]],
   batch_size: int,
   num_workers: int = 0,
+  foldcomp_database: FoldCompDatabase | None = None,
+  preprocess_path: str | pathlib.Path = "preprocessed_data.hdf5",
 ) -> grain.IterDataset:
   """Construct a high-performance protein data pipeline using Grain from a preprocessed HDF5 file.
 
@@ -27,10 +35,17 @@ def create_protein_dataset(
       A Grain IterDataset that yields batches of padded `Protein` objects.
 
   """
-  source = sources.HDF5DataSource(hdf5_path)
+  if not isinstance(inputs, Sequence) or isinstance(inputs, (str, pathlib.Path)):
+    inputs = (inputs,)
+  preprocess_inputs_to_hdf5(
+    inputs,
+    output_path=preprocess_path,
+    foldcomp_database=foldcomp_database,
+  )
+  source = sources.HDF5DataSource(preprocess_path)
 
   ds = grain.MapDataset.source(source)
-  ds = ds.map(operations.LoadHDF5Frame(hdf5_path))
+  ds = ds.map(operations.LoadHDF5Frame(preprocess_path))
 
   ds = ds.to_iter_dataset()
   ds = ds.batch(batch_size, batch_fn=operations.pad_and_collate_proteins)

@@ -855,6 +855,7 @@ def parse_input(
   """
   logger.info("Starting input parsing for source: %s", source)
   temp_path = None
+  tmp_top_path = None
 
   if isinstance(source, StringIO):
     logger.debug("Source is StringIO. Creating temporary PDB file.")
@@ -899,13 +900,13 @@ def parse_input(
         "Topology file %s has unsupported extension for Biotite. Using MDTraj for topology loading.",
         topology,
       )
-      md_top = md.load(str(topology)).topology
+      traj_holder = md.load_frame(source, 0, top=topology)
       with tempfile.NamedTemporaryFile(
         mode="w",
         delete=False,
         suffix=".pdb",
       ) as tmp_top:
-        md_top.save_pdb(tmp_top.name)
+        traj_holder.save_pdb(tmp_top.name)
         tmp_top_path = pathlib.Path(tmp_top.name)
         logger.info("Converted topology saved to temporary file: %s", tmp_top_path)
         topology = tmp_top_path
@@ -921,9 +922,14 @@ def parse_input(
 
   finally:
     if temp_path is not None:
-      # Clean up temporary file created from StringIO
       try:
         temp_path.unlink()
         logger.debug("Cleaned up temporary file: %s", temp_path)
       except OSError as e:
         logger.warning("Could not delete temporary file %s: %s", temp_path, e)
+    if tmp_top_path is not None:
+      try:
+        tmp_top_path.unlink()
+        logger.debug("Cleaned up temporary topology file: %s", tmp_top_path)
+      except OSError as e:
+        logger.warning("Could not delete temporary topology file %s: %s", tmp_top_path, e)

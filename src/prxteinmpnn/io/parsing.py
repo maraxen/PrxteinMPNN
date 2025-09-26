@@ -26,7 +26,6 @@ from biotite.structure import io as structure_io
 from prxteinmpnn.utils.data_structures import ProteinStream, ProteinTuple, TrajectoryStaticFeatures
 from prxteinmpnn.utils.residue_constants import (
   atom_order,
-  residue_atoms,
   resname_to_idx,
   restype_order,
   restype_order_with_x,
@@ -539,12 +538,16 @@ def _parse_mdtraj_hdf5(
   chain_id: Sequence[str] | str | None,
   *,
   extract_dihedrals: bool = False,
+  topology: str | pathlib.Path | None = None,
 ) -> ProteinStream:
   """Parse HDF5 structure files directly using mdtraj."""
   logger.info("Starting MDTraj HDF5 parsing for source: %s", source)
   try:
     dihedrals = None
-    first_frame = md.load_frame(str(source), 0)
+    if not topology:
+      first_frame = md.load_frame(str(source), 0)
+    else:
+      first_frame = md.load_frame(str(source), 0, top=str(topology))
     logger.debug("Loaded first frame to determine topology.")
 
     first_frame = _select_chain_mdtraj(first_frame, chain_id=chain_id)
@@ -826,6 +829,7 @@ def parse_input(
   model: int | None = None,
   altloc: str | None = None,
   chain_id: Sequence[str] | str | None = None,
+  topology: str | pathlib.Path | None = None,
   extract_dihedrals: bool = False,
   **kwargs: Any,
 ) -> ProteinStream:
@@ -839,6 +843,7 @@ def parse_input(
       model: The model number to load. If None, all models are loaded.
       altloc: The alternate location identifier to use.
       chain_id: Specific chain(s) to parse from the structure.
+      topology: Optional topology file path for formats requiring separate topology.
       extract_dihedrals: Whether to compute and include backbone dihedral angles.
       **kwargs: Additional keyword arguments to pass to the structure loader.
 
@@ -872,7 +877,12 @@ def parse_input(
           yield from _parse_mdcath_hdf5(path, chain_id, extract_dihedrals=extract_dihedrals)
         elif h5_structure == "mdtraj":
           logger.info("Dispatching to MDTraj HDF5 parser.")
-          yield from _parse_mdtraj_hdf5(path, chain_id, extract_dihedrals=extract_dihedrals)
+          yield from _parse_mdtraj_hdf5(
+            path,
+            chain_id,
+            topology=topology,
+            extract_dihedrals=extract_dihedrals,
+          )
         else:
           logger.warning("Unknown HDF5 structure, returning early.")
         return

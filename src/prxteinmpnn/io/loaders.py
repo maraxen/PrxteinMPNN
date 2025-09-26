@@ -17,6 +17,7 @@ def create_protein_dataset(
   inputs: str | Path | Sequence[str | Path | IO[str]],
   batch_size: int,
   num_workers: int = 0,
+  parse_kwargs: dict | None = None,
   foldcomp_database: FoldCompDatabase | None = None,
   preprocess_path: str | pathlib.Path = "preprocessed_data.hdf5",
 ) -> grain.IterDataset:
@@ -40,6 +41,7 @@ def create_protein_dataset(
   preprocess_inputs_to_hdf5(
     inputs,
     output_path=preprocess_path,
+    parse_kwargs=parse_kwargs,
     foldcomp_database=foldcomp_database,
   )
   source = sources.HDF5DataSource(preprocess_path)

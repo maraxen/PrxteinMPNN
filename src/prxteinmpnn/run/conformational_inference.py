@@ -14,7 +14,7 @@ from prxteinmpnn.ensemble.ci import infer_states
 from prxteinmpnn.ensemble.dbscan import (
   ConformationalStates,
 )
-from prxteinmpnn.ensemble.gmm import make_fit_gmm
+from prxteinmpnn.ensemble.gmm import make_fit_gmm_in_memory, make_fit_gmm_streaming
 from prxteinmpnn.run.prep import prep_protein_stream_and_model
 from prxteinmpnn.run.specs import ConformationalInferenceSpecification
 from prxteinmpnn.sampling.conditional_logits import make_conditional_logits_fn
@@ -36,20 +36,7 @@ def derive_states(
   spec: ConformationalInferenceSpecification | None = None,
   **kwargs: Any,  # noqa: ANN401
 ) -> dict[str, Any]:
-  """Derive conformational states from a protein ensemble using a specified model.
-
-  This function computes logits, node features, and edge features for each structure
-  in the provided dataset. It supports both in-memory computation and streaming
-  results to an HDF5 file for large datasets.
-
-  Args:
-    spec: A ConformationalInferenceSpecification object configuring the process.
-    **kwargs: Keyword arguments to create a ConformationalInferenceSpecification if not provided.
-
-  Returns:
-    A dictionary containing the computed states or a path to the output file.
-
-  """
+  """Derive conformational states from a protein ensemble using a specified model."""
   if spec is None:
     spec = ConformationalInferenceSpecification(**kwargs)
 
@@ -80,7 +67,6 @@ def _get_logits_fn(
       return logits_fn, False
     case "vmm":
       msg = "VMM inference strategy is not yet implemented."
-      logger.error(msg)
       raise NotImplementedError(msg)
     case "coordinates":
       return lambda *args, **kwargs: (  # type: ignore[return]  # noqa: ARG005
@@ -90,7 +76,6 @@ def _get_logits_fn(
       ), False
     case _:
       msg = f"Invalid inference strategy: {spec.inference_strategy}"
-      logger.error(msg)
       raise ValueError(msg)
 
 
@@ -109,18 +94,7 @@ def _compute_states_batches(
   None,
   None,
 ]:
-  """Generate and yield batches of computed residue states using in_axes for vmap.
-
-  Args:
-    spec: ConformationalInferenceSpecification, configuration for inference.
-    protein_iterator: IterDataset, yields batches of protein ensembles.
-    model_parameters: ModelParameters, parameters for the model.
-
-  Returns:
-    Generator yielding tuples of (logits, node_features, edge_features) for each batch.
-
-
-  """
+  """Generate and yield batches of computed residue states using in_axes for vmap."""
   get_logits, is_conditional = _get_logits_fn(spec, model_parameters)
   static_args = (None, 48, None)
 
@@ -129,48 +103,19 @@ def _compute_states_batches(
     n_frames = batched_ensemble.coordinates.shape[0]
     keys = jax.random.split(jax.random.PRNGKey(spec.random_seed), n_frames)
 
-    if is_conditional:
-      batch_states = jax.vmap(
-        get_logits,
-        in_axes=(
-          0,
-          0,
-          None,
-          None,
-          None,
-          None,
-          None,
-        ),
-      )(
-        keys,
-        batched_ensemble.coordinates,
-        batched_ensemble.one_hot_sequence[0],
-        batched_ensemble.atom_mask[:, 0],
-        batched_ensemble.residue_index[0],
-        batched_ensemble.chain_index[0],
-        *static_args,
-      )
-    else:
-      batch_states = jax.vmap(
-        get_logits,
-        in_axes=(
-          0,
-          0,
-          None,
-          None,
-          None,
-          None,
-          None,
-          None,
-        ),
-      )(
-        keys,
-        batched_ensemble.coordinates,
-        batched_ensemble.atom_mask[0, :, 0],
-        batched_ensemble.residue_index[0],
-        batched_ensemble.chain_index[0],
-        *static_args,
-      )
+    vmap_axes = (0, 0, None, None, None, None, None)
+    if not is_conditional:
+      vmap_axes += (None,)
+
+    batch_states = jax.vmap(get_logits, in_axes=vmap_axes)(
+      keys,
+      batched_ensemble.coordinates,
+      batched_ensemble.one_hot_sequence[0] if is_conditional else None,
+      batched_ensemble.atom_mask[:, 0] if is_conditional else batched_ensemble.atom_mask[0, :, 0],
+      batched_ensemble.residue_index[0],
+      batched_ensemble.chain_index[0],
+      *static_args,
+    )
 
     logits, node_features, edge_features = batch_states
     yield (
@@ -188,44 +133,25 @@ def _derive_states_in_memory(
   model_parameters: ModelParameters,
 ) -> dict[str, jax.Array | dict[str, ConformationalInferenceSpecification] | None]:
   """Compute global states and stores them in memory."""
-  all_states = [
-    (logits, node_features, edge_features, backbone_coordinates, full_coordinates)
-    for (
-      logits,
-      node_features,
-      edge_features,
-      backbone_coordinates,
-      full_coordinates,
-    ) in _compute_states_batches(
-      spec,
-      protein_iterator,
-      model_parameters,
-    )
-  ]
-  (
-    all_logits,
-    all_node_features,
-    all_edge_features,
-    all_backbone_coordinates,
-    all_full_coordinates,
-  ) = zip(
-    *all_states,
+  all_batches = list(_compute_states_batches(spec, protein_iterator, model_parameters))
+  all_logits, all_node_features, all_edge_features, all_backbone_coords, all_full_coords = zip(
+    *all_batches,
     strict=False,
   )
 
   return {
-    "logits": jnp.concatenate(all_logits, axis=0) if all_logits[0] is not None else None,
-    "node_features": jnp.concatenate(all_node_features, axis=0)
+    "logits": jnp.concatenate(all_logits) if all_logits[0] is not None else None,
+    "node_features": jnp.concatenate(all_node_features)
     if all_node_features[0] is not None
     else None,
-    "edge_features": jnp.concatenate(all_edge_features, axis=0)
+    "edge_features": jnp.concatenate(all_edge_features)
     if all_edge_features[0] is not None
     else None,
-    "backbone_coordinates": jnp.concatenate(all_backbone_coordinates, axis=0)
-    if all_backbone_coordinates[0] is not None
+    "backbone_coordinates": jnp.concatenate(all_backbone_coords)
+    if all_backbone_coords[0] is not None
     else None,
-    "full_coordinates": jnp.concatenate(all_full_coordinates, axis=0)
-    if all_full_coordinates[0] is not None
+    "full_coordinates": jnp.concatenate(all_full_coords)
+    if all_full_coords[0] is not None
     else None,
     "metadata": {"spec": spec},
   }
@@ -239,17 +165,17 @@ def _derive_states_streaming(
   """Compute global states and streams them to an HDF5 file."""
   if not spec.output_h5_path:
     msg = "output_h5_path must be provided for streaming."
-    logger.error(msg)
     raise ValueError(msg)
-  logger.info("Deriving states...")
+  logger.info("Deriving states and streaming to %s...", spec.output_h5_path)
   with h5py.File(spec.output_h5_path, "w") as f:
     dsets = {}
+    total_frames = 0
     for batch_idx, (
       logits,
       node_features,
       edge_features,
-      backbone_coordinates,
-      full_coordinates,
+      backbone_coords,
+      full_coords,
     ) in enumerate(
       _compute_states_batches(spec, protein_iterator, model_parameters),
     ):
@@ -257,11 +183,10 @@ def _derive_states_streaming(
         "logits": logits,
         "node_features": node_features,
         "edge_features": edge_features,
-        "backbone_coordinates": backbone_coordinates,
-        "full_coordinates": full_coordinates,
+        "backbone_coordinates": backbone_coords,
+        "full_coordinates": full_coords,
       }
       if batch_idx == 0:
-        # Create datasets on the first batch
         for key, arr in states.items():
           if arr is not None:
             dsets[key] = f.create_dataset(
@@ -271,83 +196,71 @@ def _derive_states_streaming(
               dtype=arr.dtype,
               chunks=True,
             )
-          else:  # If no data for this key, create an empty dataset
-            dsets[key] = f.create_dataset(
-              key,
-              shape=(0,),
-              maxshape=(None,),
-              dtype="float32",
-              chunks=True,
-            )
-
-      # Append data to datasets
       for key, arr in states.items():
-        if arr is None:
-          continue
-        dset = dsets[key]
-        current_size = dset.shape[0]
-        new_size = current_size + arr.shape[0]
-        dset.resize((new_size, *arr.shape[1:]))
-        dset[current_size:new_size] = arr
+        if arr is not None and key in dsets:
+          dset = dsets[key]
+          new_size = dset.shape[0] + arr.shape[0]
+          dset.resize((new_size, *arr.shape[1:]))
+          dset[-arr.shape[0] :] = arr
+          if key == "logits":
+            total_frames += arr.shape[0]
+      logger.info("...processed %d frames...", total_frames)
       f.flush()
-
-  return {
-    "output_h5_path": str(spec.output_h5_path),
-    "metadata": {"spec": spec},
-  }
+  return {"output_h5_path": str(spec.output_h5_path), "metadata": {"spec": spec}}
 
 
 def infer_conformations(
   spec: ConformationalInferenceSpecification,
 ) -> ConformationalStates:
-  """Infer conformational states from a protein ensemble.
-
-  This function orchestrates the process of:
-  1. Deriving features (logits, node features, or edge features) from the ensemble.
-     This can be done in-memory or streamed to an HDF5 file.
-  2. Fitting a Gaussian Mixture Model (GMM) to the derived features.
-  3. Clustering the GMM components using DBSCAN to identify coarse-grained
-     conformational states.
-
-  Args:
-    spec: A GlobalStatesSpecification object containing all necessary configurations.
-
-  Returns:
-    A ConformationalStates object with the results of the analysis.
-
-  Raises:
-    ValueError: If an invalid inference strategy is provided or if no data is produced.
-
-  """
+  """Infer conformational states from a protein ensemble."""
   states_result = derive_states(spec)
+  key = jax.random.PRNGKey(spec.random_seed)
+  feature_key = str(spec.inference_features[0])
 
   if spec.output_h5_path:
     with h5py.File(spec.output_h5_path, "r") as f:
-      all_states = f[str(spec.inference_features[0])][:]  # type: ignore[index]
-  else:
-    all_states = states_result[spec.inference_features[0]]  # (N, L, F)
-  if all_states is None:
-    msg = "No data available for GMM fitting."
-    raise ValueError(msg)
+      all_states_h5 = f[feature_key]
+      if all_states_h5.shape[0] == 0:  # type: ignore[attr-defined]
+        msg = "No data in HDF5 file for GMM fitting."
+        raise ValueError(msg)
 
-  all_states = cast("jnp.ndarray", all_states)
-  key = jax.random.PRNGKey(spec.random_seed)
+      # The data for clustering must be reshaped and loaded into memory.
+      features_for_ci = jnp.array(all_states_h5)
+      n_samples = features_for_ci.shape[0]
+      gmm_fitter_fn = make_fit_gmm_streaming(n_components=spec.gmm_n_components)
+      gmm = gmm_fitter_fn(all_states_h5, key)  # type: ignore[arg-type]
 
-  if spec.mode == "per":
-    all_states = jnp.transpose(all_states, (1, 0, *tuple(range(2, all_states.ndim))))  # (L, N, F)
-    all_states = jnp.reshape(all_states, (all_states.shape[1], -1))  # (L, N*F)
-  if spec.mode == "global":
-    all_states = jnp.reshape(all_states, (all_states.shape[0], -1))  # (N, L*F)
+  else:  # In-memory processing
+    all_states = states_result[feature_key]
+    if all_states is None or all_states.shape[0] == 0:
+      msg = "No data available for GMM fitting."
+      raise ValueError(msg)
 
-  gmm_fitter = make_fit_gmm(
-    n_components=spec.gmm_n_components,
-    n_features=all_states.shape[-1] if spec.mode == "per" else all_states.shape[-2],
-  )
-  gmm = gmm_fitter(key, all_states[..., None] if spec.mode == "per" else all_states)
+    features_for_ci = cast("jnp.ndarray", all_states)
+    n_samples = features_for_ci.shape[0]
+
+    gmm_features = None
+    if spec.mode == "per":
+      gmm_features = jnp.transpose(
+        all_states,
+        (1, 0, *tuple(range(2, features_for_ci.ndim))),
+      )  # (L, N, F)
+      gmm_features = jnp.reshape(gmm_features, (n_samples, -1))  # (L, N*F)
+    if spec.mode == "global":
+      gmm_features = jnp.reshape(features_for_ci, (n_samples, -1))  # (N, L*F)
+
+    gmm_fitter_fn = make_fit_gmm_in_memory(
+      n_components=spec.gmm_n_components,
+      gmm_max_iters=100,  # Example, should be in spec
+    )
+    if gmm_features is None:
+      msg = "GMM features could not be determined."
+      raise ValueError(msg)
+    gmm = gmm_fitter_fn(gmm_features, key)
 
   return infer_states(
     gmm=gmm,
-    features=all_states,
+    features=jnp.reshape(features_for_ci, (n_samples, -1)),
     eps_std_scale=spec.eps_std_scale,
     min_cluster_weight=spec.min_cluster_weight,
   )

@@ -53,6 +53,7 @@ class TestParseStructure:
             aatype=np.ones(10, dtype=np.int8),
             atom_mask=np.ones((10, 37)),
             residue_index=np.arange(10),
+            nitrogen_mask=np.ones((10, 37)),
             chain_index=np.zeros(10),
             dihedrals=None,
             source=None,
@@ -64,7 +65,7 @@ class TestParseStructure:
         op = ParseStructure()
         with patch("prxteinmpnn.io.operations.parse_input") as mock_parse:
             mock_parse.return_value = [mock_protein_tuple]
-            result = op.map(("file_path", "test.pdb"))
+            result = op.flat_map(("file_path", "test.pdb"))
             assert result == [mock_protein_tuple]
             mock_parse.assert_called_once_with("test.pdb")
 
@@ -77,7 +78,7 @@ class TestParseStructure:
             mock_fetch.return_value = "PDB_CONTENT"
             mock_parse.return_value = [mock_protein_tuple]
 
-            result = op.map(("pdb_id", "1abc"))
+            result = op.flat_map(("pdb_id", "1abc"))
 
             assert result == [mock_protein_tuple]
             mock_fetch.assert_called_once_with("1abc")
@@ -91,7 +92,7 @@ class TestParseStructure:
         string_io = io.StringIO("PDB_CONTENT")
         with patch("prxteinmpnn.io.operations.parse_input") as mock_parse:
             mock_parse.return_value = [mock_protein_tuple]
-            result = op.map(("string_io", string_io))
+            result = op.flat_map(("string_io", string_io))
             assert result == [mock_protein_tuple]
             mock_parse.assert_called_once_with(string_io)
 
@@ -103,7 +104,7 @@ class TestParseStructure:
             "prxteinmpnn.io.operations.get_protein_structures"
         ) as mock_get_struct:
             mock_get_struct.return_value = [mock_protein_tuple]
-            result = op.map(("foldcomp_ids", foldcomp_ids))
+            result = op.flat_map(("foldcomp_ids", foldcomp_ids))
             assert result == [mock_protein_tuple]
             mock_get_struct.assert_called_once_with(foldcomp_ids)
 
@@ -113,8 +114,8 @@ class TestParseStructure:
         with patch(
             "prxteinmpnn.io.operations.parse_input", side_effect=Exception("Parse error")
         ), pytest.warns(UserWarning, match="Failed to parse"):
-            result = op.map(("file_path", "bad.pdb"))
-            assert result is None
+            result = op.flat_map(("file_path", "bad.pdb"))
+
 
 
 class TestPadAndCollate:
@@ -128,6 +129,7 @@ class TestPadAndCollate:
             atom_mask=np.ones((10, 37)),
             residue_index=np.arange(10),
             chain_index=np.zeros(10, dtype=np.int32),
+            nitrogen_mask=np.ones((10, 37)),
             dihedrals=None,
             source=None,
             mapping=None,
@@ -137,6 +139,7 @@ class TestPadAndCollate:
             aatype=np.ones(15, dtype=np.int8),
             atom_mask=np.ones((15, 37)),
             residue_index=np.arange(15),
+            nitrogen_mask=np.ones((15, 37)),
             chain_index=np.zeros(15, dtype=np.int32),
             dihedrals=None,
             source=None,

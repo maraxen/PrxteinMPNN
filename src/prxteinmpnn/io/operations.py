@@ -6,7 +6,7 @@ for parsing, transforming, and batching protein data.
 
 import pathlib
 import warnings
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from io import StringIO
 from typing import Any
 
@@ -16,7 +16,7 @@ import jax.numpy as jnp
 import requests
 
 from prxteinmpnn.io.parsing import parse_input
-from prxteinmpnn.utils.data_structures import Protein, ProteinTuple
+from prxteinmpnn.utils.data_structures import Protein, ProteinStream, ProteinTuple
 from prxteinmpnn.utils.foldcomp_utils import get_protein_structures
 
 
@@ -56,7 +56,7 @@ def _fetch_md_cath(md_cath_id: str) -> pathlib.Path:
   return md_cath_file
 
 
-class ParseStructure(grain.transforms.Map):
+class ParseStructure(grain.experimental.FlatMapTransform):
   """Parse a protein structure from various sources.
 
   This Grain MapOperation takes a categorized input from `MixedInputDataSource`
@@ -76,41 +76,32 @@ class ParseStructure(grain.transforms.Map):
     super().__init__()
     self.parse_kwargs: dict[str, Any] = parse_kwargs or {}
 
-  def map(self, element: tuple[str, Any]) -> list[ProteinTuple] | None:  # type: ignore[override]  # noqa: PLR0911
-    """Parse a single categorized input element.
+  def flat_map(self, element: tuple[str, Any]) -> ProteinStream | Iterator[Any]:  # type: ignore[override]
+    """Parse a single categorized input and yields ProteinTuples.
 
-    Args:
-      element (tuple[str, Any]): The input type and value.
-
-    Returns:
-      Optional[list[ProteinTuple]]: List of ProteinTuples, or None if parsing fails.
-
-    Raises:
-      None: Warnings are issued instead of raising exceptions.
-
-    Example:
-      >>> op = ParseStructure()
-      >>> op.map(("file_path", "example.pdb"))
-
+    Instead of returning a list of all frames, this method returns an
+    iterator that Grain will use to create multiple output records.
     """
     input_type, value = element
     try:
       if input_type == "file_path":
-        return list(parse_input(value, **self.parse_kwargs))
+        # Return the generator directly instead of list(generator)
+        return parse_input(value, **self.parse_kwargs)
       if input_type == "pdb_id":
         pdb_content = _fetch_pdb(value)
-        return list(parse_input(StringIO(pdb_content), **self.parse_kwargs))
+        return parse_input(StringIO(pdb_content), **self.parse_kwargs)
       if input_type == "string_io":
-        return list(parse_input(value, **self.parse_kwargs))
+        return parse_input(value, **self.parse_kwargs)
       if input_type == "md_cath_id":
         md_cath_file = _fetch_md_cath(value)
-        return list(parse_input(md_cath_file, **self.parse_kwargs))
+        return parse_input(md_cath_file, **self.parse_kwargs)
       if input_type == "foldcomp_ids":
-        return list(get_protein_structures(value))
-    except Exception as e:  # noqa: BLE001
+        return get_protein_structures(value)
+    except Exception as e:
       warnings.warn(f"Failed to parse {input_type} '{value}': {e}", stacklevel=2)
-      return None
-    return None
+      # Return an empty iterator on failure
+      return iter([])
+    return iter([])
 
 
 _MAX_TRIES = 5

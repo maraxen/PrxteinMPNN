@@ -7,18 +7,24 @@ Gaussian Mixture Model (GMM), leading to potentially faster convergence and
 more stable results.
 """
 
-from collections.abc import Callable
+import logging
+from collections.abc import Callable, Generator
 
+import h5py
 import jax
 import jax.numpy as jnp
-from gmmx import EMFitter, GaussianMixtureModelJax
+from gmmx.gmm import GaussianMixtureModelJax
 from jax import random
 from jaxtyping import Array, Float, Int, PRNGKeyArray
+
+from .em_fit import fit_gmm_generator, fit_gmm_in_memory
 
 EnsembleData = Float[Array, "num_samples num_features"]
 Centroids = Float[Array, "num_clusters num_features"]
 Labels = Int[Array, "num_samples"]
-GMMFitFn = Callable[[EnsembleData, PRNGKeyArray], GaussianMixtureModelJax]
+GMMFitFnStreaming = Callable[[h5py.Dataset, PRNGKeyArray], GaussianMixtureModelJax]
+GMMFitFnInMemory = Callable[[EnsembleData, PRNGKeyArray], GaussianMixtureModelJax]
+logger = logging.getLogger(__name__)
 
 
 def _kmeans_plusplus_init(
@@ -26,17 +32,7 @@ def _kmeans_plusplus_init(
   data: EnsembleData,
   num_clusters: int,
 ) -> Centroids:
-  """K-Means++ initialization for selecting well-separated initial centroids.
-
-  Args:
-      data: The data points with shape (n_samples, n_features).
-      num_clusters: The number of clusters.
-      key: A JAX PRNG key.
-
-  Returns:
-      The initial centroids with shape (num_clusters, n_features).
-
-  """
+  """K-Means++ initialization for selecting well-separated initial centroids."""
   n_samples, n_features = data.shape
   centroids = jnp.zeros((num_clusters, n_features))
   key, subkey = random.split(key)
@@ -48,21 +44,16 @@ def _kmeans_plusplus_init(
     state: tuple[Centroids, PRNGKeyArray],
   ) -> tuple[Centroids, PRNGKeyArray]:
     current_centroids, current_key = state
-
-    centroid_indices = jnp.arange(num_clusters)
-    is_valid_centroid = centroid_indices < i
-
+    is_valid_centroid = jnp.arange(num_clusters) < i
     distances_sq_all = jnp.sum(
       (data[:, None, :] - current_centroids[None, :, :]) ** 2,
       axis=-1,
     )
-
     distances_sq_masked = jnp.where(
       is_valid_centroid[None, :],
       distances_sq_all,
       jnp.inf,
     )
-
     distances_sq = jnp.min(distances_sq_masked, axis=-1)
     probabilities = distances_sq / jnp.sum(distances_sq)
     current_key, subkey = random.split(current_key)
@@ -85,24 +76,10 @@ def _kmeans(
   num_clusters: int,
   max_iters: int = 100,
 ) -> Labels:
-  """K-Means clustering algorithm with K-Means++ initialization.
-
-  Args:
-      data: The data points with shape (n_samples, n_features).
-      num_clusters: The number of clusters.
-      key: A JAX PRNG key.
-      max_iters: The maximum number of iterations for the algorithm.
-
-  Returns:
-      The final cluster assignments (labels) for each data point.
-
-  """
+  """K-Means clustering algorithm with K-Means++ initialization."""
   initial_centroids = _kmeans_plusplus_init(key, data, num_clusters)
 
-  def kmeans_iteration(
-    _: int,
-    centroids: Centroids,
-  ) -> Centroids:
+  def kmeans_iteration(_: int, centroids: Centroids) -> Centroids:
     distances_sq = jnp.sum((data[:, None, :] - centroids[None, :, :]) ** 2, axis=-1)
     labels = jnp.argmin(distances_sq, axis=-1)
 
@@ -118,12 +95,7 @@ def _kmeans(
 
     return jax.lax.fori_loop(0, num_clusters, update_centroid, centroids)
 
-  final_centroids = jax.lax.fori_loop(
-    0,
-    max_iters,
-    kmeans_iteration,
-    initial_centroids,
-  )
+  final_centroids = jax.lax.fori_loop(0, max_iters, kmeans_iteration, initial_centroids)
   final_distances_sq = jnp.sum(
     (data[:, None, :] - final_centroids[None, :, :]) ** 2,
     axis=-1,
@@ -131,41 +103,98 @@ def _kmeans(
   return jnp.argmin(final_distances_sq, axis=-1)
 
 
-def make_fit_gmm(
+def make_fit_gmm_streaming(
   n_components: int,
-  n_features: int,
+  batch_size: int = 4096,
+  kmeans_init_samples: int = 10000,
   kmeans_max_iters: int = 100,
   gmm_max_iters: int = 100,
   reg_covar: float = 1e-6,
-) -> GMMFitFn:
-  """Create a GMM fitting function that uses K-Means++ for initialization.
+) -> GMMFitFnStreaming:
+  """Create a GMM fitting function that streams data from an HDF5 file."""
 
-  Args:
-      n_components: The number of mixture components (clusters).
-      n_features: The number of features for each data point.
-      kmeans_max_iters: Maximum iterations for the K-Means algorithm.
-      gmm_max_iters: Maximum iterations for the EM algorithm for the GMM.
-      reg_covar: A small value added to the diagonal of covariance matrices
-                 to ensure they are non-singular.
+  def _data_generator(dataset: h5py.Dataset) -> Generator[jax.Array, None, None]:
+    n_total = dataset.shape[0]
+    for i in range(0, n_total, batch_size):
+      yield jnp.array(dataset[i : i + batch_size])
 
-  Returns:
-      A function that takes data and a PRNG key and returns a fitted GMM.
+  def fit_gmm(dataset: h5py.Dataset, key: PRNGKeyArray) -> GaussianMixtureModelJax:
+    n_total_samples = dataset.shape[0]
+    logger.info("Running K-Means++ on a subset of %d samples...", kmeans_init_samples)
+    key, subkey = random.split(key)
+    sample_indices = random.choice(
+      subkey,
+      n_total_samples,
+      shape=(kmeans_init_samples,),
+      replace=False,
+    )
+    init_data = jnp.array(dataset[jnp.sort(sample_indices)])
 
-  """
-  em_fitter = EMFitter(tol=1e-3, max_iter=gmm_max_iters, reg_covar=reg_covar)
-
-  @jax.jit
-  def fit_gmm(key: PRNGKeyArray, data: EnsembleData) -> GaussianMixtureModelJax:
-    labels = _kmeans(key, data, n_components, max_iters=kmeans_max_iters)
+    key, subkey = random.split(key)
+    labels = _kmeans(subkey, init_data, n_components, max_iters=kmeans_max_iters)
     responsibilities = jax.nn.one_hot(labels, num_classes=n_components)
-    datap = jnp.expand_dims(data, axis=(1, 3))
-    responsibilities = jnp.expand_dims(responsibilities, axis=(2, 3))
-    gmm = GaussianMixtureModelJax.from_responsibilities(
-      x=datap,
-      resp=responsibilities,
+
+    logger.info("Initializing GMM from K-Means results...")
+    initial_gmm = GaussianMixtureModelJax.from_responsibilities(
+      x=jnp.expand_dims(init_data, axis=(1, 3)),
+      resp=jnp.expand_dims(responsibilities, axis=(2, 3)),
       reg_covar=reg_covar,
     )
-    fitted_gmm_result = em_fitter.fit(gmm=gmm, x=data)
-    return fitted_gmm_result.gmm
+
+    logger.info("Fitting GMM using batch-based EM with batch size %d...", batch_size)
+    data_gen = _data_generator(dataset)
+    result = fit_gmm_generator(
+      data_generator=data_gen,
+      initial_gmm=initial_gmm,
+      n_total_samples=n_total_samples,
+      max_iter=gmm_max_iters,
+      tol=1e-3,
+      reg_covar=reg_covar,
+    )
+    logger.info(
+      "GMM fitting finished in %d iterations. Converged: %s",
+      result.n_iter,
+      result.converged,
+    )
+    return result.gmm
+
+  return fit_gmm
+
+
+def make_fit_gmm_in_memory(
+  n_components: int,
+  kmeans_max_iters: int = 100,
+  gmm_max_iters: int = 100,
+  reg_covar: float = 1e-6,
+) -> GMMFitFnInMemory:
+  """Create a GMM fitting function for in-memory JAX arrays."""
+
+  def fit_gmm(data: EnsembleData, key: PRNGKeyArray) -> GaussianMixtureModelJax:
+    logger.info("Running K-Means++ on the full in-memory dataset...")
+    key, subkey = random.split(key)
+    labels = _kmeans(subkey, data, n_components, max_iters=kmeans_max_iters)
+    responsibilities = jax.nn.one_hot(labels, num_classes=n_components)
+
+    logger.info("Initializing GMM from K-Means results...")
+    initial_gmm = GaussianMixtureModelJax.from_responsibilities(
+      x=jnp.expand_dims(data, axis=(1, 3)),
+      resp=jnp.expand_dims(responsibilities, axis=(2, 3)),
+      reg_covar=reg_covar,
+    )
+
+    logger.info("Fitting GMM using in-memory EM...")
+    result = fit_gmm_in_memory(
+      x=data,
+      initial_gmm=initial_gmm,
+      max_iter=gmm_max_iters,
+      tol=1e-3,
+      reg_covar=reg_covar,
+    )
+    logger.info(
+      "GMM fitting finished in %d iterations. Converged: %s",
+      result.n_iter,
+      result.converged,
+    )
+    return result.gmm
 
   return fit_gmm

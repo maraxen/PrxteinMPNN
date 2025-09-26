@@ -219,7 +219,7 @@ def _derive_states_streaming(
           new_size = dset.shape[0] + arr.shape[0]
           dset.resize((new_size, *arr.shape[1:]))
           dset[-arr.shape[0] :] = arr
-          if key == "logits":
+          if key == spec.inference_features[0]:
             total_frames += arr.shape[0]
       logger.info("...processed %d frames...", total_frames)
       f.flush()

@@ -55,6 +55,7 @@ class ProteinTuple(NamedTuple):
   coordinates: np.ndarray
   aatype: np.ndarray
   atom_mask: np.ndarray
+  nitrogen_mask: np.ndarray
   residue_index: np.ndarray
   chain_index: np.ndarray
   full_coordinates: np.ndarray | None = None
@@ -100,6 +101,7 @@ class Protein:
   aatype: ProteinSequence
   one_hot_sequence: OneHotProteinSequence
   atom_mask: AtomMask
+  nitrogen_mask: AtomMask
   residue_index: ResidueIndex
   chain_index: ChainIndex
   dihedrals: BackboneDihedrals | None = None
@@ -124,6 +126,7 @@ class Protein:
       atom_mask=jnp.asarray(protein_tuple.atom_mask, dtype=jnp.float32),
       residue_index=jnp.asarray(protein_tuple.residue_index, dtype=jnp.int32),
       chain_index=jnp.asarray(protein_tuple.chain_index, dtype=jnp.int32),
+      nitrogen_mask=jnp.asarray(protein_tuple.nitrogen_mask, dtype=jnp.float32),
       dihedrals=(
         None
         if protein_tuple.dihedrals is None

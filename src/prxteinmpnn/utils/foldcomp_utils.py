@@ -4,6 +4,7 @@ prxteinmpnn.utils.foldcomp_utils
 """
 
 import logging
+import warnings
 from collections.abc import Sequence
 from functools import cache
 from typing import Literal
@@ -56,7 +57,7 @@ def _setup_foldcomp_database(database: FoldCompDatabase) -> None:
 
 def get_protein_structures(
   protein_ids: Sequence[str],
-  database: FoldCompDatabase = "afdb_rep_v4",
+  database: FoldCompDatabase | None = None,
 ) -> ProteinStream:
   """Retrieve protein structures from the FoldComp database and return them as a list of ensembles.
 
@@ -71,6 +72,12 @@ def get_protein_structures(
     for one of the requested protein IDs.
 
   """
+  if database is None:
+    warnings.warn(
+      "No FoldComp database specified. Defaulting to 'afdb_rep_v4'.",
+      stacklevel=2,
+    )
+    database = "afdb_rep_v4"
   _setup_foldcomp_database(database)
   with foldcomp.open(database, ids=protein_ids, decompress=False) as proteins:  # type: ignore[attr-access]
     for name, fcz in proteins:

@@ -14,7 +14,7 @@ import tempfile
 import warnings
 from collections.abc import Mapping, Sequence
 from io import StringIO
-from typing import Any, cast
+from typing import IO, Any, cast
 
 import h5py
 import mdtraj as md
@@ -797,7 +797,6 @@ def _parse_biotite(
             coordinates=coords_37,
             aatype=static_features.aatype,
             atom_mask=static_features.static_atom_mask_37,
-            nitrogen_mask=static_features.nitrogen_mask,
             residue_index=static_features.residue_indices,
             chain_index=static_features.chain_index,
             dihedrals=dihedrals,
@@ -822,7 +821,6 @@ def _parse_biotite(
           coordinates=coords_37,
           aatype=static_features.aatype,
           atom_mask=static_features.static_atom_mask_37,
-          nitrogen_mask=static_features.nitrogen_mask,
           residue_index=static_features.residue_indices,
           chain_index=static_features.chain_index,
           dihedrals=dihedrals,
@@ -839,7 +837,7 @@ def _parse_biotite(
 
 
 def parse_input(
-  source: str | StringIO | pathlib.Path,
+  source: str | IO[str] | pathlib.Path,
   *,
   model: int | None = None,
   altloc: str | None = None,
@@ -870,8 +868,8 @@ def parse_input(
   temp_path = None
   tmp_top_path = None
 
-  if isinstance(source, StringIO):
-    logger.debug("Source is StringIO. Creating temporary PDB file.")
+  if isinstance(source, IO):
+    logger.debug("Source is IO. Creating temporary PDB file.")
     with tempfile.NamedTemporaryFile(
       mode="w",
       delete=False,

@@ -9,6 +9,7 @@ more stable results.
 
 import logging
 from collections.abc import Callable, Generator
+from typing import Literal
 
 import h5py
 import jax
@@ -108,6 +109,7 @@ def _kmeans(
 
 def make_fit_gmm_streaming(
   n_components: int,
+  reshaping_mode: Literal["global", "per"] = "global",
   batch_size: int = 4096,
   kmeans_init_samples: int = 1000,
   kmeans_max_iters: int = 100,
@@ -119,7 +121,7 @@ def make_fit_gmm_streaming(
   def _data_generator(dataset: h5py.Dataset) -> Generator[jax.Array, None, None]:
     n_total = dataset.shape[0]
     for i in range(0, n_total, batch_size):
-      yield jnp.array(dataset[i : i + batch_size])
+      yield jnp.reshape(jnp.array(dataset[i : i + batch_size]), (batch_size, -1))
 
   def fit_gmm(dataset: h5py.Dataset, key: PRNGKeyArray) -> GaussianMixtureModelJax:
     n_total_samples = dataset.shape[0]
@@ -133,14 +135,22 @@ def make_fit_gmm_streaming(
       replace=False,
     )
     init_data = jnp.array(dataset[jnp.sort(sample_indices)])
+    if reshaping_mode == "per":
+      gmm_features = jnp.transpose(
+        init_data,
+        (1, 0, *tuple(range(2, init_data.ndim))),
+      )  # (L, N, F)
+      gmm_features = jnp.reshape(gmm_features, (init_data.shape[0], -1))  # (L, N*F)
+    elif reshaping_mode == "global":
+      gmm_features = jnp.reshape(init_data, (init_data.shape[0], -1))
 
     key, subkey = random.split(key)
-    labels = _kmeans(subkey, init_data, n_components, max_iters=kmeans_max_iters)
+    labels = _kmeans(subkey, gmm_features, n_components, max_iters=kmeans_max_iters)
     responsibilities = jax.nn.one_hot(labels, num_classes=n_components)
 
     logger.info("Initializing GMM from K-Means results...")
     initial_gmm = GaussianMixtureModelJax.from_responsibilities(
-      x=jnp.expand_dims(init_data, axis=(1, 3)),
+      x=jnp.expand_dims(gmm_features, axis=(1, 3)),
       resp=jnp.expand_dims(responsibilities, axis=(2, 3)),
       reg_covar=reg_covar,
     )

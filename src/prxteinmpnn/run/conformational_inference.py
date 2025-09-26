@@ -245,7 +245,7 @@ def infer_conformations(
       features_for_ci = jnp.array(all_states_h5)
       n_samples = features_for_ci.shape[0]
       gmm_fitter_fn = make_fit_gmm_streaming(n_components=spec.gmm_n_components)
-      gmm = gmm_fitter_fn(all_states_h5, key)  # type: ignore[arg-type]
+      gmm = gmm_fitter_fn(features_for_ci, key)  # type: ignore[arg-type]
 
   else:  # In-memory processing
     all_states = states_result[feature_key]

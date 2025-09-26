@@ -752,14 +752,25 @@ def _parse_biotite(
   try:
     altloc = altloc if altloc is not None else "first"
     dihedrals = None
-
-    atom_array = structure_io.load_structure(
-      source,
-      model=model,
-      altloc=altloc,
-      template=topology,
-      **kwargs,
-    )
+    topology_array = None
+    if topology is not None:
+      topology_array = structure_io.load_structure(
+        topology,
+      )
+    if pathlib.Path(source).suffix.lower() in [".xtc"]:
+      atom_array = structure_io.load_structure(
+        source,
+        template=topology_array,
+        **kwargs,
+      )
+    else:
+      atom_array = structure_io.load_structure(
+        source,
+        model=model,
+        altloc=altloc,
+        template=topology_array,
+        **kwargs,
+      )
     logger.debug("Structure loaded successfully using Biotite.")
     _validate_atom_array_type(atom_array)
 
@@ -786,6 +797,7 @@ def _parse_biotite(
             coordinates=coords_37,
             aatype=static_features.aatype,
             atom_mask=static_features.static_atom_mask_37,
+            nitrogen_mask=static_features.nitrogen_mask,
             residue_index=static_features.residue_indices,
             chain_index=static_features.chain_index,
             dihedrals=dihedrals,
@@ -810,6 +822,7 @@ def _parse_biotite(
           coordinates=coords_37,
           aatype=static_features.aatype,
           atom_mask=static_features.static_atom_mask_37,
+          nitrogen_mask=static_features.nitrogen_mask,
           residue_index=static_features.residue_indices,
           chain_index=static_features.chain_index,
           dihedrals=dihedrals,
@@ -900,16 +913,21 @@ def parse_input(
         "Topology file %s has unsupported extension for Biotite. Using MDTraj for topology loading.",
         topology,
       )
-      traj_holder = md.load_frame(source, 0, top=topology)
-      with tempfile.NamedTemporaryFile(
-        mode="w",
-        delete=False,
-        suffix=".pdb",
-      ) as tmp_top:
-        traj_holder.save_pdb(tmp_top.name)
-        tmp_top_path = pathlib.Path(tmp_top.name)
-        logger.info("Converted topology saved to temporary file: %s", tmp_top_path)
-        topology = tmp_top_path
+      try:
+        traj_holder = md.load_frame(source, 0, top=topology)
+        logger.info("Succesfully loaded mdtraj with topology. Now attempting to convert.")
+        with tempfile.NamedTemporaryFile(
+          mode="w",
+          delete=False,
+          suffix=".pdb",
+        ) as tmp_top:
+          traj_holder.save_pdb(tmp_top.name)
+          tmp_top_path = pathlib.Path(tmp_top.name)
+          logger.info("Converted topology saved to temporary file: %s", tmp_top_path)
+          topology = tmp_top_path
+      except Exception as e:
+        logger.exception("Exception encountered in topology processing...", exc_info=e)
+
     yield from _parse_biotite(
       source,
       model,

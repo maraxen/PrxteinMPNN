@@ -3,7 +3,6 @@
 import logging
 import sys
 from collections.abc import Callable, Generator
-from functools import partial
 from typing import Any, cast
 
 import h5py
@@ -72,15 +71,13 @@ def _get_logits_fn(
         model_parameters=model_parameters,
         decoding_order_fn=spec.decoding_order_fn,
       )
-      # For conditional, sequence is passed inside the vmap
       return logits_fn, True
     case "unconditional":
       logits_fn = make_unconditional_logits_fn(
         model_parameters=model_parameters,
         decoding_order_fn=spec.decoding_order_fn,
       )
-      # For unconditional, sequence is an optional static argument
-      return partial(logits_fn, sequence=spec.reference_sequence), False  # type: ignore[call-arg]
+      return logits_fn, False
     case "vmm":
       msg = "VMM inference strategy is not yet implemented."
       logger.error(msg)

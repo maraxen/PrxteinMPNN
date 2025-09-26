@@ -101,23 +101,40 @@ def _compute_states_batches(
   logger.info("Iterating through frames/proteins...")
   for batched_ensemble in protein_iterator:
     n_frames = batched_ensemble.coordinates.shape[0]
-    keys = jax.random.split(jax.random.PRNGKey(spec.random_seed), n_frames)
+    if any(
+      feature in spec.inference_features for feature in ["logits", "node_features", "edge_features"]
+    ):
+      keys = jax.random.split(jax.random.PRNGKey(spec.random_seed), n_frames)
 
-    vmap_axes = (0, 0, None, None, None, None, None)
-    if not is_conditional:
-      vmap_axes += (None,)
+      vmap_axes = (0, 0, None, None, None, None, None)
+      if not is_conditional:
+        vmap_axes += (None,)
+        inference_args = (
+          keys,
+          batched_ensemble.coordinates,
+          batched_ensemble.atom_mask[0, :, 0],
+          batched_ensemble.residue_index[0],
+          batched_ensemble.chain_index[0],
+        )
+      else:
+        inference_args = (
+          keys,
+          batched_ensemble.coordinates,
+          batched_ensemble.one_hot_sequence[0],
+          batched_ensemble.atom_mask[0, :, 0],
+          batched_ensemble.residue_index[0],
+          batched_ensemble.chain_index[0],
+          batched_ensemble.aatype[0],
+        )
 
-    batch_states = jax.vmap(get_logits, in_axes=vmap_axes)(
-      keys,
-      batched_ensemble.coordinates,
-      batched_ensemble.one_hot_sequence[0] if is_conditional else None,
-      batched_ensemble.atom_mask[:, 0] if is_conditional else batched_ensemble.atom_mask[0, :, 0],
-      batched_ensemble.residue_index[0],
-      batched_ensemble.chain_index[0],
-      *static_args,
-    )
+      batch_states = jax.vmap(get_logits, in_axes=vmap_axes)(
+        *inference_args,
+        *static_args,
+      )
 
-    logits, node_features, edge_features = batch_states
+      logits, node_features, edge_features = batch_states
+    else:
+      logits, node_features, edge_features = None, None, None
     yield (
       logits if "logits" in spec.inference_features else None,
       node_features if "node_features" in spec.inference_features else None,

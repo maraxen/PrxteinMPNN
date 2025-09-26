@@ -893,6 +893,22 @@ def parse_input(
       "Dispatching to general Biotite parser for file type: %s",
       pathlib.Path(source).suffix,
     )
+    topology = pathlib.Path(topology) if topology is not None else None
+    if topology is not None and topology.suffix.lower() not in {".pdb", ".cif"}:
+      logger.info(
+        "Topology file %s has unsupported extension for Biotite. Using MDTraj for topology loading.",
+        topology,
+      )
+      md_top = md.load(str(topology)).topology
+      with tempfile.NamedTemporaryFile(
+        mode="w",
+        delete=False,
+        suffix=".pdb",
+      ) as tmp_top:
+        md_top.save_pdb(tmp_top.name)
+        tmp_top_path = pathlib.Path(tmp_top.name)
+        logger.info("Converted topology saved to temporary file: %s", tmp_top_path)
+        topology = tmp_top_path
     yield from _parse_biotite(
       source,
       model,

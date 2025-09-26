@@ -38,6 +38,7 @@ def prep_protein_stream_and_model(spec: RunSpecification) -> tuple[IterDataset, 
     "chain_id": spec.chain_id,
     "model": spec.model,
     "altloc": spec.altloc,
+    "topology": spec.topology,
   }
   protein_iterator = loaders.create_protein_dataset(
     _loader_inputs(spec.inputs),

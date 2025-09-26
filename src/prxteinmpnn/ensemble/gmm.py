@@ -48,11 +48,22 @@ def _kmeans_plusplus_init(
     state: tuple[Centroids, PRNGKeyArray],
   ) -> tuple[Centroids, PRNGKeyArray]:
     current_centroids, current_key = state
-    valid_centroids = jax.lax.dynamic_slice_in_dim(current_centroids, 0, i)
-    distances_sq = jnp.min(
-      jnp.sum((data[:, None, :] - valid_centroids[None, :, :]) ** 2, axis=-1),
+
+    centroid_indices = jnp.arange(num_clusters)
+    is_valid_centroid = centroid_indices < i
+
+    distances_sq_all = jnp.sum(
+      (data[:, None, :] - current_centroids[None, :, :]) ** 2,
       axis=-1,
     )
+
+    distances_sq_masked = jnp.where(
+      is_valid_centroid[None, :],
+      distances_sq_all,
+      jnp.inf,
+    )
+
+    distances_sq = jnp.min(distances_sq_masked, axis=-1)
     probabilities = distances_sq / jnp.sum(distances_sq)
     current_key, subkey = random.split(current_key)
     next_idx = random.choice(subkey, n_samples, p=probabilities)
@@ -148,8 +159,9 @@ def make_fit_gmm(
     labels = _kmeans(key, data, n_components, max_iters=kmeans_max_iters)
     responsibilities = jax.nn.one_hot(labels, num_classes=n_components)
     gmm = GaussianMixtureModelJax.from_responsibilities(
-      responsibilities=responsibilities,
-      data=data,
+      x=data,
+      resp=responsibilities,
+      reg_covar=reg_covar,
     )
     fitted_gmm, _ = em_fitter.fit(gmm=gmm, data=data)
     return fitted_gmm

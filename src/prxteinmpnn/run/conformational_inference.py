@@ -124,6 +124,7 @@ def _compute_states_batches(
   get_logits, is_conditional = _get_logits_fn(spec, model_parameters)
   static_args = (None, 48, None)
 
+  logger.info("Iterating through frames/proteins...")
   for batched_ensemble in protein_iterator:
     n_frames = batched_ensemble.coordinates.shape[0]
     keys = jax.random.split(jax.random.PRNGKey(spec.random_seed), n_frames)
@@ -143,10 +144,10 @@ def _compute_states_batches(
       )(
         keys,
         batched_ensemble.coordinates,
-        batched_ensemble.one_hot_sequence,
-        batched_ensemble.atom_mask,
-        batched_ensemble.residue_index,
-        batched_ensemble.chain_index,
+        batched_ensemble.one_hot_sequence[0],
+        batched_ensemble.atom_mask[:, 0],
+        batched_ensemble.residue_index[0],
+        batched_ensemble.chain_index[0],
         *static_args,
       )
     else:
@@ -165,9 +166,9 @@ def _compute_states_batches(
       )(
         keys,
         batched_ensemble.coordinates,
-        batched_ensemble.atom_mask,
-        batched_ensemble.residue_index,
-        batched_ensemble.chain_index,
+        batched_ensemble.atom_mask[0, :, 0],
+        batched_ensemble.residue_index[0],
+        batched_ensemble.chain_index[0],
         *static_args,
       )
 
@@ -240,9 +241,8 @@ def _derive_states_streaming(
     msg = "output_h5_path must be provided for streaming."
     logger.error(msg)
     raise ValueError(msg)
-
+  logger.info("Deriving states...")
   with h5py.File(spec.output_h5_path, "w") as f:
-    # Initialize datasets later, once we know the shapes
     dsets = {}
     for batch_idx, (
       logits,
@@ -323,9 +323,9 @@ def infer_conformations(
 
   if spec.output_h5_path:
     with h5py.File(spec.output_h5_path, "r") as f:
-      all_states = f[str(spec.inference_strategy)][:]  # type: ignore[index]
+      all_states = f[str(spec.inference_features[0])][:]  # type: ignore[index]
   else:
-    all_states = states_result[spec.inference_strategy]  # (N, L, F)
+    all_states = states_result[spec.inference_features[0]]  # (N, L, F)
   if all_states is None:
     msg = "No data available for GMM fitting."
     raise ValueError(msg)

@@ -36,9 +36,11 @@ def create_protein_dataset(
     parse_kwargs = {}
 
   source = sources.MixedInputDataSource(inputs, foldcomp_database)
-  ds = grain.MapDataset.source(source)
+  ds = grain.experimental.FlatMapMapDataset.source(source)
 
-  ds = ds.map(operations.ParseStructure(parse_kwargs=parse_kwargs))
+  ds = ds.map(operations.ParseStructure(parse_kwargs=parse_kwargs))  # type: ignore
+  # --- END MODIFICATION ---
+
   ds = ds.to_iter_dataset()
   ds = ds.batch(batch_size, batch_fn=operations.pad_and_collate_proteins)
 

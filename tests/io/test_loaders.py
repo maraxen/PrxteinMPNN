@@ -16,6 +16,7 @@ def mock_protein_batch() -> ProteinBatch:
         coordinates=MagicMock(),
         aatype=MagicMock(),
         one_hot_sequence=MagicMock(),
+        nitrogen_mask=MagicMock(),
         atom_mask=MagicMock(),
         residue_index=MagicMock(),
         chain_index=MagicMock(),

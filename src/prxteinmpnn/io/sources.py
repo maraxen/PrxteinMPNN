@@ -72,6 +72,10 @@ class MixedInputDataSource(grain.RandomAccessDataSource):
       self._items.append(("pdb_id", item))
       return
 
+    if _MD_CATH_PATTERN.match(item) and not pathlib.Path(item).exists():
+      self._items.append(("md_cath_id", item))
+      return
+
     self._categorize_path_input(item)
 
   def _categorize_path_input(self, item: str) -> None:

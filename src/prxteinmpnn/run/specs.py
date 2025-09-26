@@ -187,6 +187,7 @@ class ConformationalInferenceSpecification(RunSpecification):
   eps_std_scale: float = 1.0
   min_cluster_weight: float = 0.01
   gmm_init: Literal["kmeans", "random"] = "kmeans"
+  reference_sequence: str | None = None
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""

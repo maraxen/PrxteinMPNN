@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     StructureAtomicCoordinates,
   )
 
-from typing import TypedDict
+from dataclasses import dataclass as dc
 
 
 class ProteinTuple(NamedTuple):
@@ -63,7 +63,8 @@ class ProteinTuple(NamedTuple):
   mapping: np.ndarray | None = None
 
 
-class TrajectoryStaticFeatures(TypedDict):
+@dc
+class TrajectoryStaticFeatures:
   """A container for pre-computed, frame-invariant protein features."""
 
   aatype: np.ndarray

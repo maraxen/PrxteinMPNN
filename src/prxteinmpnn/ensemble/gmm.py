@@ -158,10 +158,10 @@ def make_fit_gmm(
   def fit_gmm(key: PRNGKeyArray, data: EnsembleData) -> GaussianMixtureModelJax:
     labels = _kmeans(key, data, n_components, max_iters=kmeans_max_iters)
     responsibilities = jax.nn.one_hot(labels, num_classes=n_components)
-    data = jnp.expand_dims(data, axis=(1, 3))
+    datap = jnp.expand_dims(data, axis=(1, 3))
     responsibilities = jnp.expand_dims(responsibilities, axis=(2, 3))
     gmm = GaussianMixtureModelJax.from_responsibilities(
-      x=data,
+      x=datap,
       resp=responsibilities,
       reg_covar=reg_covar,
     )

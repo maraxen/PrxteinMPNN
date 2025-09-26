@@ -59,6 +59,7 @@ class RunSpecification:
   """
 
   inputs: Sequence[str | StringIO] | str | StringIO
+  topology: str | Path | None = None
   model_weights: ModelWeights = "original"
   model_version: ModelVersion = "v_48_020.pkl"
   batch_size: int = 32

@@ -121,7 +121,7 @@ def make_fit_gmm_streaming(
   def _data_generator(dataset: h5py.Dataset) -> Generator[jax.Array, None, None]:
     n_total = dataset.shape[0]
     for i in range(0, n_total, batch_size):
-      yield jnp.reshape(jnp.array(dataset[i : i + batch_size]), (batch_size, -1))
+      yield jnp.reshape(jnp.array(dataset[i : i + batch_size]), (min(n_total - i, batch_size), -1))
 
   def fit_gmm(dataset: h5py.Dataset, key: PRNGKeyArray) -> GaussianMixtureModelJax:
     n_total_samples = dataset.shape[0]

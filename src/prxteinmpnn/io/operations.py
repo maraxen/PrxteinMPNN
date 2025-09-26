@@ -1,107 +1,85 @@
 """Data operations for processing protein structures within a Grain pipeline.
 
-This module implements `grain.MapOperation` and `grain.IterOperation` classes
+This module implements `grain.transforms.Map` and `grain.IterOperation` classes
 for parsing, transforming, and batching protein data.
 """
 
 import pathlib
 import warnings
-from collections.abc import Iterator, Sequence
-from io import StringIO
-from typing import Any
+from collections.abc import Sequence
+from typing import cast
 
 import grain
+import h5py
 import jax
 import jax.numpy as jnp
-import requests
 
-from prxteinmpnn.io.parsing import parse_input
-from prxteinmpnn.utils.data_structures import Protein, ProteinStream, ProteinTuple
-from prxteinmpnn.utils.foldcomp_utils import get_protein_structures
+from prxteinmpnn.utils.data_structures import Protein, ProteinTuple
 
 
-def _fetch_pdb(pdb_id: str) -> str:
-  """Fetch PDB content from the RCSB data bank.
+class LoadHDF5Frame(grain.transforms.Map):
+  """Load a single protein frame from a preprocessed HDF5 file by index.
 
-  Args:
-    pdb_id (str): The PDB identifier.
-
-  Returns:
-    str: The PDB file content as a string.
-
-  Raises:
-    requests.HTTPError: If the HTTP request fails.
-    requests.RequestException: For other request-related errors.
-
-  Example:
-    >>> content = _fetch_pdb("1ABC")
-
-  """
-  url = f"https://files.rcsb.org/download/{pdb_id}.pdb"
-  response = requests.get(url, timeout=60)
-  response.raise_for_status()
-  return response.text
-
-
-def _fetch_md_cath(md_cath_id: str) -> pathlib.Path:
-  """Fetch h5 content from the MD-CATH data bank and save to disk."""
-  url = f"https://huggingface.co/datasets/compsciencelab/mdCATH/resolve/main/data/mdcath_dataset_{md_cath_id}.h5"
-  response = requests.get(url, timeout=60)
-  response.raise_for_status()
-  data_dir = pathlib.Path("mdcath_data")
-  data_dir.mkdir(exist_ok=True)
-  md_cath_file = data_dir / f"mdcath_dataset_{md_cath_id}.h5"
-  with md_cath_file.open("wb") as f:
-    f.write(response.content)
-  return md_cath_file
-
-
-class ParseStructure(grain.experimental.FlatMapTransform):
-  """Parse a protein structure from various sources.
-
-  This Grain MapOperation takes a categorized input from `MixedInputDataSource`
-  and dispatches it to the correct parsing function.
-
-  Args:
-    parse_kwargs (Optional[dict[str, Any]]): Additional keyword arguments for parsing.
-
-  Example:
-    >>> op = ParseStructure()
-    >>> result = op.map(("file_path", "example.pdb"))
-
+  This operation is designed to work with `HDF5DataSource`. It receives an
+  integer index and performs a direct slice from the HDF5 datasets to efficiently
+  load the corresponding frame data.
   """
 
-  def __init__(self, parse_kwargs: dict[str, Any] | None = None) -> None:
-    """Initialize the ParseStructure operation."""
-    super().__init__()
-    self.parse_kwargs: dict[str, Any] = parse_kwargs or {}
+  def __init__(self, hdf5_path: str | pathlib.Path):
+    """Initialize the operation with the path to the HDF5 file.
 
-  def flat_map(self, element: tuple[str, Any]) -> ProteinStream | Iterator[Any]:  # type: ignore[override]
-    """Parse a single categorized input and yields ProteinTuples.
+    Args:
+        hdf5_path: Path to the preprocessed HDF5 file.
 
-    Instead of returning a list of all frames, this method returns an
-    iterator that Grain will use to create multiple output records.
     """
-    input_type, value = element
-    try:
-      if input_type == "file_path":
-        # Return the generator directly instead of list(generator)
-        return parse_input(value, **self.parse_kwargs)
-      if input_type == "pdb_id":
-        pdb_content = _fetch_pdb(value)
-        return parse_input(StringIO(pdb_content), **self.parse_kwargs)
-      if input_type == "string_io":
-        return parse_input(value, **self.parse_kwargs)
-      if input_type == "md_cath_id":
-        md_cath_file = _fetch_md_cath(value)
-        return parse_input(md_cath_file, **self.parse_kwargs)
-      if input_type == "foldcomp_ids":
-        return get_protein_structures(value)
-    except Exception as e:
-      warnings.warn(f"Failed to parse {input_type} '{value}': {e}", stacklevel=2)
-      # Return an empty iterator on failure
-      return iter([])
-    return iter([])
+    self.hdf5_path = hdf5_path
+    self.h5_file: h5py.File | None = None
+    self._dataset_keys: list[str] | None = None
+
+  def _ensure_file_open(self) -> h5py.File:
+    """Open the HDF5 file if it's not already open.
+
+    This method is crucial for multiprocessing in Grain. Each worker process
+    will get its own file handle, avoiding concurrency issues.
+    """
+    if self.h5_file is None:
+      self.h5_file = h5py.File(self.hdf5_path, "r")
+    return self.h5_file
+
+  @property
+  def dataset_keys(self) -> list[str]:
+    """Cache the keys available in the HDF5 file."""
+    if self._dataset_keys is None:
+      f = self._ensure_file_open()
+      self._dataset_keys = list(f.keys())
+    return self._dataset_keys
+
+  def map(self, index: int) -> ProteinTuple:  # type: ignore[override]
+    """Read data for the given index from the HDF5 file and return a ProteinTuple.
+
+    Args:
+        index: The integer index of the frame to load.
+
+    Returns:
+        A ProteinTuple containing the data for the requested frame.
+
+    """
+    f = self._ensure_file_open()
+    data = {}
+    for key in self.dataset_keys:
+      data[key] = cast("ProteinTuple", f[key])[index]
+
+    # Decode byte strings back to Python strings
+    if "source" in data and isinstance(data["source"], bytes):
+      data["source"] = data["source"].decode("utf-8")
+
+    # Ensure all fields from ProteinTuple are present, even if None
+    all_fields = ProteinTuple.__annotations__.keys()
+    for field in all_fields:
+      if field not in data:
+        data[field] = None
+
+    return ProteinTuple(**data)
 
 
 _MAX_TRIES = 5

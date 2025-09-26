@@ -1,45 +1,36 @@
 """Provides a high-level API for creating Grain-based data loaders."""
 
-from collections.abc import Sequence
-from io import StringIO
-from typing import Any
+import pathlib
 
-import grain.python as grain
-
-from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase
+import grain
 
 from . import operations, sources
 
 
 def create_protein_dataset(
-  inputs: Sequence[str | StringIO],
+  hdf5_path: str | pathlib.Path,
   batch_size: int,
-  foldcomp_database: FoldCompDatabase | None = None,
-  parse_kwargs: dict[str, Any] | None = None,
   num_workers: int = 0,
 ) -> grain.IterDataset:
-  """Construct a high-performance protein data pipeline using Grain.
+  """Construct a high-performance protein data pipeline using Grain from a preprocessed HDF5 file.
+
+  This function sets up a data loading pipeline that efficiently reads protein structure
+  frames from an HDF5 file created by `prxteinmpnn.io.cache.preprocess_inputs_to_hdf5`.
 
   Args:
-      inputs: A sequence of inputs (file paths, PDB IDs, StringIO, etc.).
+      hdf5_path: The path to the preprocessed HDF5 file.
       batch_size: The number of protein structures to include in each batch.
-      foldcomp_database: An optional FoldCompDatabase for resolving FoldComp IDs.
-      parse_kwargs: Optional dictionary of keyword arguments passed to the parser.
       num_workers: The number of parallel worker processes for data loading.
                    0 means all loading is done in the main process.
 
   Returns:
-      A Grain IterDataset that yields batches of ProteinEnsemble objects.
+      A Grain IterDataset that yields batches of padded `Protein` objects.
 
   """
-  if parse_kwargs is None:
-    parse_kwargs = {}
+  source = sources.HDF5DataSource(hdf5_path)
 
-  source = sources.MixedInputDataSource(inputs, foldcomp_database)
-  ds = grain.experimental.FlatMapMapDataset.source(source)
-
-  ds = ds.map(operations.ParseStructure(parse_kwargs=parse_kwargs))  # type: ignore
-  # --- END MODIFICATION ---
+  ds = grain.MapDataset.source(source)
+  ds = ds.map(operations.LoadHDF5Frame(hdf5_path))
 
   ds = ds.to_iter_dataset()
   ds = ds.batch(batch_size, batch_fn=operations.pad_and_collate_proteins)

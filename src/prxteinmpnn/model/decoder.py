@@ -17,7 +17,6 @@ from .ste import straight_through_estimator
 if TYPE_CHECKING:
   from collections.abc import Callable
 
-  import jax
   from jaxtyping import Float, Int, PRNGKeyArray
 
   from prxteinmpnn.utils.types import (
@@ -284,7 +283,7 @@ def setup_decoder(
   return all_decoder_layer_params, decode_layer_fn
 
 
-def make_decoder(
+def make_decoder(  # noqa: C901, PLR0915
   model_parameters: ModelParameters,
   attention_mask_type: MaskedAttentionType | None,
   decoding_approach: DecodingApproach = "unconditional",

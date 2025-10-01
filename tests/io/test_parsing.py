@@ -462,7 +462,7 @@ class TestParseInput:
         assert len(protein_list) == 4
         protein = protein_list[0]
         assert protein.dihedrals is not None
-        assert protein.dihedrals.shape == (8, 3) # 10 resiudes - 2, not sure why first and last residues lack dihedrals but its something with biotite
+        assert protein.dihedrals.shape == (8, 3) # 10 residues - 2, not sure why first and last residues lack dihedrals but its something with biotite
 
     def test_parse_hdf5(self, hdf5_file):
         """Test parsing an HDF5 file."""

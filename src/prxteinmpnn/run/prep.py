@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
   from grain.python import IterDataset
 
-  from prxteinmpnn.run.specs import RunSpecification
+  from prxteinmpnn.run.specs import Specs
   from prxteinmpnn.utils.types import (
     ModelParameters,
   )
@@ -24,7 +24,7 @@ def _loader_inputs(inputs: Sequence[str | StringIO] | str | StringIO) -> Sequenc
   return (inputs,) if not isinstance(inputs, Sequence) else inputs
 
 
-def prep_protein_stream_and_model(spec: RunSpecification) -> tuple[IterDataset, ModelParameters]:
+def prep_protein_stream_and_model(spec: Specs) -> tuple[IterDataset, ModelParameters]:
   """Prepare the protein data stream and model parameters.
 
   Args:

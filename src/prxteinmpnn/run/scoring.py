@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
 
 def score(
   spec: ScoringSpecification | None = None,
-  **kwargs: Any,
+  **kwargs: Any,  # noqa: ANN401
 ) -> dict[str, Any]:
   """Score all provided sequences against all input structures.
 

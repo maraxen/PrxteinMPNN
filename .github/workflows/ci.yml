@@ -21,14 +21,13 @@ jobs:
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-      - name: Install dependencies
+      - name: Create virtual environment
+        run: uv venv
+      - name: Install dependencies and run checks
         run: |
+          source .venv/bin/activate
           uv pip install .[dev]
-      - name: Run ruff
-        run: |
           ruff check .
-      - name: Run pyright
-        run: |
           pyright
 
   unit-tests:
@@ -43,11 +42,12 @@ jobs:
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-      - name: Install dependencies
+      - name: Create virtual environment
+        run: uv venv
+      - name: Install dependencies and run tests
         run: |
+          source .venv/bin/activate
           uv pip install .[tests]
-      - name: Run Pytest
-        run: |
           python -m pytest --cov=src --cov-report=xml --cov-report=term
       - name: Upload coverage to Codecov
         if: github.ref == 'refs/heads/main'
@@ -73,11 +73,12 @@ jobs:
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-      - name: Install dependencies
+      - name: Create virtual environment
+        run: uv venv
+      - name: Install dependencies and build docs
         run: |
+          source .venv/bin/activate
           uv pip install .[docs]
-      - name: Build Sphinx HTML
-        run: |
           cd docs/
           make html
       - name: Deploy to GitHub Pages

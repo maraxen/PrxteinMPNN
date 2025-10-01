@@ -27,6 +27,11 @@ def create_protein_dataset(
   frames from an HDF5 file created by `prxteinmpnn.io.cache.preprocess_inputs_to_hdf5`.
 
   Args:
+      inputs: A single input (file, PDB ID, etc.) or a sequence of such inputs.
+      parse_kwargs: Optional dictionary of keyword arguments to pass to the parser.
+      foldcomp_database: An optional FoldCompDatabase instance for resolving FoldComp IDs.
+      preprocess_path: The path where the preprocessed HDF5 file will be stored.
+                      If the file already exists, it will be reused.
       hdf5_path: The path to the preprocessed HDF5 file.
       batch_size: The number of protein structures to include in each batch.
       num_workers: The number of parallel worker processes for data loading.

@@ -600,7 +600,7 @@ def _parse_mdtraj_hdf5(
     raise RuntimeError(msg) from e
 
 
-def _parse_mdcath_hdf5(
+def _parse_mdcath_hdf5(  # noqa: PLR0915
   source: str | StringIO | pathlib.Path,
   chain_id: Sequence[str] | str | None,
   *,
@@ -837,7 +837,7 @@ def _parse_biotite(
     raise RuntimeError(msg) from e
 
 
-def parse_input(
+def parse_input(  # noqa: C901, PLR0912, PLR0915
   source: str | IO[str] | pathlib.Path,
   *,
   model: int | None = None,
@@ -909,7 +909,7 @@ def parse_input(
     topology = pathlib.Path(topology) if topology is not None else None
     if topology is not None and topology.suffix.lower() not in {".pdb", ".cif"}:
       logger.info(
-        "Topology file %s has unsupported extension for Biotite. Using MDTraj for topology loading.",
+        "Topology file %s has unsupported extension for Biotite. Using MDTraj to load topology.",
         topology,
       )
       try:

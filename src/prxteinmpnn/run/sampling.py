@@ -23,7 +23,7 @@ logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
 
 def sample(
   spec: SamplingSpecification | None = None,
-  **kwargs: Any,
+  **kwargs: Any,  # noqa: ANN401
 ) -> dict[str, Any]:
   """Sample new sequences for the given input structures.
 

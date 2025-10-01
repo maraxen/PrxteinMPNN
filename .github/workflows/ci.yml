@@ -1,4 +1,4 @@
-name: Build Sphinx Docs & Run Pytest
+name: CI
 
 on:
   push:
@@ -9,24 +9,46 @@ on:
       - main
 
 jobs:
-  test:
+  quality-checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       - name: Install dependencies
         run: |
-          pip install .[tests]
+          uv pip install .[dev]
+      - name: Run ruff
+        run: |
+          ruff check .
+      - name: Run pyright
+        run: |
+          pyright
 
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: Install dependencies
+        run: |
+          uv pip install .[tests]
       - name: Run Pytest
         run: |
           python -m pytest --cov=src --cov-report=xml --cov-report=term
-
       - name: Upload coverage to Codecov
         if: github.ref == 'refs/heads/main'
         uses: codecov/codecov-action@v4
@@ -35,30 +57,30 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
 
-  build:
+  build-and-deploy-docs:
     runs-on: ubuntu-latest
+    needs: [quality-checks, unit-tests]
+    if: github.ref == 'refs/heads/main'
     permissions:
       contents: write
-
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       - name: Install dependencies
         run: |
-          pip install ".[docs]"
-
+          uv pip install .[docs]
       - name: Build Sphinx HTML
         run: |
           cd docs/
           make html
-
       - name: Deploy to GitHub Pages
-        if: github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

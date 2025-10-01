@@ -26,10 +26,10 @@ PrxteinMPNN provides a **functional interface for ProteinMPNN**, leveraging the 
 # Basic installation
 git clone https://github.com/maraxen/PrxteinMPNN.git
 cd PrxteinMPNN
-pip install -e .
+uv pip install -e .
 
 # Development installation
-pip install -e ".[dev]"
+uv pip install -e ".[dev]"
 ```
 
 ### Basic Usage

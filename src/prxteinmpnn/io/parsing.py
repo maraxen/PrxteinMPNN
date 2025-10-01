@@ -665,6 +665,7 @@ def _parse_mdcath_hdf5(
       )["coords"].shape
       num_full_atoms = sample_coords_shape[1]
       logger.info("Number of full atoms from sample coords: %d", num_full_atoms)
+      valid_atom_mask = np.ones(num_full_atoms, dtype=bool)
 
       # Reshape to be in 37, using the number of atoms per residue identity
 
@@ -732,7 +733,7 @@ def _validate_atom_array_type(atom_array: Any) -> None:
 
 
 def _parse_biotite(
-  source: str | StringIO | pathlib.Path,
+  source: str | pathlib.Path,
   model: int | None,
   altloc: str | None,
   chain_id: Sequence[str] | str | None,

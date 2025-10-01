@@ -47,6 +47,7 @@ tests = [
     "trio",
     "chex",
     "anyio",
+    "pyright",
 ]
 dev = [
   "ruff",

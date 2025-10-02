@@ -1,4 +1,4 @@
-"""Unit tests for the prxteinmpnn.io.parsing submodule."""
+"""Unit tests for the prxteinmpnn.io.parsers and prxteinmpnn.io.conversion submodules."""
 
 import pathlib
 import tempfile
@@ -11,16 +11,18 @@ import pytest
 from biotite.structure import Atom, AtomArray, AtomArrayStack, array as strucarray
 from chex import assert_trees_all_close
 
-from prxteinmpnn.io.parsing import (
+from prxteinmpnn.io.parsers import (
     _check_if_file_empty,
     _determine_h5_structure,
-    af_to_mpnn,
     atom_array_dihedrals,
+    parse_input,
+)
+from prxteinmpnn.io.conversion import (
+    af_to_mpnn,
     atom_names_to_index,
     compute_cb_precise,
     extend_coordinate,
     mpnn_to_af,
-    parse_input,
     protein_sequence_to_string,
     residue_names_to_aatype,
     string_key_to_index,

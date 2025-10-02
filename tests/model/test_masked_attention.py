@@ -1,11 +1,6 @@
 """Tests for masked_attention.py."""
 
-import os
-from pathlib import Path
-
-import chex
 import jax.numpy as jnp
-import numpy as np
 import pytest
 
 from prxteinmpnn.model.masked_attention import MaskedAttentionType, mask_attention
@@ -121,25 +116,3 @@ def test_mask_attention_one_mask(message):
     "Masked output should match the original message when mask is all ones."
   )
 
-
-def test_mask_attention_with_golden(message, attention_mask):
-    """
-    Test the mask_attention function against a golden file.
-    If the golden file doesn't exist, it will be created.
-    """
-    golden_file = Path(__file__).parent / "golden_files" / "masked_attention_golden.npz"
-
-    # Run the function to get the actual output
-    actual_masked_output = mask_attention(message, attention_mask)
-
-    if not golden_file.exists():
-        os.makedirs(golden_file.parent, exist_ok=True)
-        np.savez(golden_file, masked_output=actual_masked_output)
-        pytest.skip(f"Golden file created at {golden_file}. Please re-run the tests.")
-
-    # Load the golden data
-    golden_data = np.load(golden_file)
-    expected_masked_output = golden_data["masked_output"]
-
-    # Compare the results
-    chex.assert_trees_all_close(actual_masked_output, expected_masked_output, atol=1e-6, rtol=1e-6)

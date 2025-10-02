@@ -11,7 +11,7 @@ from typing import IO, Any
 import h5py
 import requests
 
-from prxteinmpnn.io.parsing import parse_input
+from prxteinmpnn.io.parsers import parse_input
 from prxteinmpnn.utils.data_structures import ProteinTuple
 from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase, get_protein_structures
 

@@ -198,3 +198,6 @@ class ConformationalInferenceSpecification(RunSpecification):
     super().__post_init__()
     if self.output_h5_path and isinstance(self.output_h5_path, str):
       object.__setattr__(self, "output_h5_path", Path(self.output_h5_path))
+
+
+Specs = RunSpecification | ScoringSpecification | SamplingSpecification | JacobianSpecification

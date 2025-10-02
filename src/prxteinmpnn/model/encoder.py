@@ -17,7 +17,7 @@ if TYPE_CHECKING:
   from jaxtyping import Int
 
   from prxteinmpnn.utils.types import (
-    AtomMask,
+    AlphaCarbonMask,
     AttentionMask,
     EdgeFeatures,
     Message,
@@ -121,7 +121,7 @@ def encoder_normalize(
   node_features: NodeFeatures,
   edge_features: EdgeFeatures,
   neighbor_indices: NeighborIndices,
-  mask: AtomMask,
+  mask: AlphaCarbonMask,
   layer_params: ModelParameters,
   scale: float = 30.0,
 ) -> tuple[NodeFeatures, EdgeFeatures]:
@@ -178,7 +178,7 @@ def make_encode_layer(
       node_features: NodeFeatures,
       edge_features: EdgeFeatures,
       neighbor_indices: NeighborIndices,
-      mask: AtomMask,
+      mask: AlphaCarbonMask,
       attention_mask: AttentionMask,
       layer_params: ModelParameters,
       scale: float = 30.0,
@@ -203,7 +203,7 @@ def make_encode_layer(
     node_features: NodeFeatures,
     edge_features: EdgeFeatures,
     neighbor_indices: NeighborIndices,
-    mask: AtomMask,
+    mask: AlphaCarbonMask,
     layer_params: ModelParameters,
     scale: float = 30.0,
   ) -> Message:
@@ -263,7 +263,7 @@ def make_encoder(
     def run_encoder(
       edge_features: EdgeFeatures,
       neighbor_indices: NeighborIndices,
-      mask: AtomMask,
+      mask: AlphaCarbonMask,
     ) -> tuple[NodeFeatures, EdgeFeatures]:
       """Run the encoder with the provided edge features and neighbor indices."""
       node_features_encoder = initialize_node_features(model_parameters, edge_features)
@@ -297,7 +297,7 @@ def make_encoder(
   def run_masked_attention_encoder(
     edge_features: EdgeFeatures,
     neighbor_indices: NeighborIndices,
-    mask: AtomMask,
+    mask: AlphaCarbonMask,
     attention_mask: AttentionMask,
   ) -> tuple[NodeFeatures, EdgeFeatures]:
     """Run the encoder with the provided edge features and neighbor indices."""

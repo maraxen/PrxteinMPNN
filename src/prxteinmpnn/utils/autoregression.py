@@ -5,11 +5,11 @@ prxteinmpnn.utils.autoregression
 
 import jax
 
-from .types import AtomMask, DecodingOrder
+from .types import AutoRegressiveMask, DecodingOrder
 
 
 @jax.jit
-def generate_ar_mask(decoding_order: DecodingOrder) -> AtomMask:
+def generate_ar_mask(decoding_order: DecodingOrder) -> AutoRegressiveMask:
   """Get the autoregressive mask for the given decoding order.
 
   Args:

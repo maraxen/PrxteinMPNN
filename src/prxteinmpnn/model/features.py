@@ -112,6 +112,7 @@ def extract_features(
   )
   backbone_atom_coordinates = compute_backbone_coordinates(noised_coordinates)
   distances = compute_backbone_distance(backbone_atom_coordinates)
+
   distances_masked = jnp.array(
     jnp.where(
       (mask[:, None] * mask[None, :]).astype(bool),

@@ -133,7 +133,7 @@ def preprocess_inputs_to_hdf5(  # noqa: C901
   output_path: str | pathlib.Path | None = None,
   parse_kwargs: dict[str, Any] | None = None,
   foldcomp_database: FoldCompDatabase | None = None,
-) -> str | pathlib.Path | None:
+) -> str | pathlib.Path:
   """Parse mixed inputs, fetch remote data, and save all frames to a single HDF5 file.
 
   Args:

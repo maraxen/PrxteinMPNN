@@ -91,4 +91,4 @@ def test_logits_are_plausible(mock_model_parameters, model_inputs, rng_key):
     chex.assert_shape(logits, (seq_len, 21))
 
     # 2. Check for NaN or Inf values
-    assert jnp.all(jnp.isfinite(logits))
+    assert bool(jnp.all(jnp.isfinite(logits)))

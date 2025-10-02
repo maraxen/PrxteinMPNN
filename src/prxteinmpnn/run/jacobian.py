@@ -194,7 +194,7 @@ def _compute_jacobian_batches(
 def _categorical_jacobian_in_memory(
   spec: JacobianSpecification,
   protein_iterator: IterDataset,
-  conditional_logits_fn: Any,
+  conditional_logits_fn: Any,  # noqa: ANN401
 ) -> dict[str, jax.Array | dict[str, JacobianSpecification] | None]:
   """Compute Jacobians and store them in memory."""
   all_jacobians, all_sequences = [], []

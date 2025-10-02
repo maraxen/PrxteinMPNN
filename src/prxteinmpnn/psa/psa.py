@@ -1,7 +1,8 @@
 """Core functionalities for Protein Strain Analysis (PSA).
 
 This module provides functions to compute the deformation gradient, Green-Lagrange strain tensor,
-and principal strains from protein structures. The calculations are implemented in JAX for high performance.
+and principal strains from protein structures. The calculations are implemented in JAX for high
+performance.
 """
 
 import jax.numpy as jnp
@@ -74,7 +75,8 @@ def run_psa(reference_structure: Protein, deformed_structure: Protein) -> dict:
       deformed_structure (ProteinStructure): The deformed protein structure.
 
   Returns:
-      dict: A dictionary containing the deformation gradient, Green-Lagrange strain, and principal strains.
+      dict: A dictionary containing the deformation gradient, Green-Lagrange strain, and principal
+      strains.
 
   """
   reference_coordinates = reference_structure.coordinates

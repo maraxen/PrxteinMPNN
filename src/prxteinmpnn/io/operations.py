@@ -25,7 +25,7 @@ class LoadHDF5Frame(grain.transforms.Map):
   load the corresponding frame data.
   """
 
-  def __init__(self, hdf5_path: str | pathlib.Path):
+  def __init__(self, hdf5_path: str | pathlib.Path) -> None:
     """Initialize the operation with the path to the HDF5 file.
 
     Args:

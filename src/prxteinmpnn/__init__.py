@@ -3,7 +3,7 @@
 import multiprocessing as mp
 
 mp.set_start_method("spawn", force=True)
-from .run import (
+from .run import (  # noqa: E402
   JacobianSpecification,
   RunSpecification,
   SamplingSpecification,

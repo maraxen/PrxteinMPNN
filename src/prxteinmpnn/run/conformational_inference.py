@@ -66,6 +66,8 @@ def _get_logits_fn(
     case "vmm":
       msg = "VMM inference strategy is not yet implemented."
       raise NotImplementedError(msg)
+  msg = f"Unknown inference strategy: {spec.inference_strategy}"
+  raise ValueError(msg)
 
 
 def _compute_states_batches(

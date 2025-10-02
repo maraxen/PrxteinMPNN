@@ -183,7 +183,7 @@ def fit_gmm_generator(
   log_likelihood = jnp.asarray(-jnp.inf)
   log_likelihood_diff = jnp.asarray(jnp.inf)
 
-  for iteration in range(max_iter):
+  for _ in range(max_iter):
     nk = jnp.zeros(gmm.n_components)
     xk = jnp.zeros((gmm.n_components, gmm.n_features))
     sk = jnp.zeros((gmm.n_components, gmm.n_features, gmm.n_features))

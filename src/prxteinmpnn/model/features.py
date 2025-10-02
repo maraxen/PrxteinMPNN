@@ -14,7 +14,6 @@ from prxteinmpnn.utils.coordinates import (
 from prxteinmpnn.utils.graph import NeighborOffsets, compute_neighbor_offsets
 from prxteinmpnn.utils.normalize import layer_normalization
 from prxteinmpnn.utils.radial_basis import compute_radial_basis
-from prxteinmpnn.utils.residue_constants import atom_order
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,
   BackboneNoise,
@@ -113,13 +112,10 @@ def extract_features(
   )
   backbone_atom_coordinates = compute_backbone_coordinates(noised_coordinates)
   distances = compute_backbone_distance(backbone_atom_coordinates)
-  if mask.ndim == 1:
-      residue_mask = mask
-  else:
-      residue_mask = mask[:, atom_order["CA"]]
+
   distances_masked = jnp.array(
     jnp.where(
-      (residue_mask[:, None] * residue_mask[None, :]).astype(bool),
+      (mask[:, None] * mask[None, :]).astype(bool),
       distances,
       jnp.inf,
     ),

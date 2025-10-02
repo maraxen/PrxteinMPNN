@@ -16,7 +16,7 @@ from prxteinmpnn.utils.normalize import layer_normalization
 from prxteinmpnn.utils.radial_basis import compute_radial_basis
 from prxteinmpnn.utils.residue_constants import atom_order
 from prxteinmpnn.utils.types import (
-  AtomMask,
+  AlphaCarbonMask,
   BackboneNoise,
   ChainIndex,
   EdgeFeatures,
@@ -80,7 +80,7 @@ def extract_features(
   prng_key: PRNGKeyArray,
   model_parameters: ModelParameters,
   structure_coordinates: StructureAtomicCoordinates,
-  mask: AtomMask,
+  mask: AlphaCarbonMask,
   residue_index: ResidueIndex,
   chain_index: ChainIndex,
   k_neighbors: int = 48,

@@ -63,8 +63,8 @@ def test_sampled_output_is_valid(mock_model_parameters, model_inputs, rng_key):
     assert len(sampled_sequence) == seq_len
 
     # 2. Check that all amino acid indices are within the valid range [0, 19]
-    assert jnp.all(sampled_sequence >= 0)
-    assert jnp.all(sampled_sequence <= 19)
+    assert bool(jnp.all(sampled_sequence >= 0))
+    assert bool(jnp.all(sampled_sequence <= 19))
 
 
 def test_logits_are_plausible(mock_model_parameters, model_inputs, rng_key):

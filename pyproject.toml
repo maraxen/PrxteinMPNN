@@ -72,6 +72,7 @@ dev = [
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -84,4 +85,10 @@ exclude = ["**/tests/**/*.py"]
 pythonpath = ["src"]
 
 [tool.setuptools.package-data]
-include = ["prxteinmpnn/model/original/*.pkl", "prxteinmpnn/model/soluble/*.pkl", "prxteinmpnn/examples/*.ipynb", "prxteinmpnn/examples/*.pdb",]
+prxteinmpnn = [
+    "model/original/*.pkl",
+    "model/soluble/*.pkl",
+    "examples/*.ipynb",
+    "examples/*.pdb",
+    "../../tests/data/*.pdb",
+]

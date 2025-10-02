@@ -259,7 +259,6 @@ def test_decoder_with_golden(
         **feature_inputs,
     )
     mask = model_inputs["mask"]
-    residue_mask = mask[:, atom_order["CA"]]
 
     # Run Encoder to get Decoder inputs
     encoder_fn = make_encoder(
@@ -268,7 +267,7 @@ def test_decoder_with_golden(
         num_encoder_layers=3,
         scale=30.0,
     )
-    node_features, edge_features = encoder_fn(edge_features, neighbor_indices, residue_mask)
+    node_features, edge_features = encoder_fn(edge_features, neighbor_indices, mask)
 
     # Run Decoder
     decoder_fn = make_decoder(
@@ -278,7 +277,7 @@ def test_decoder_with_golden(
         num_decoder_layers=3,
         scale=30.0,
     )
-    decoder_output = decoder_fn(node_features, edge_features, residue_mask)
+    decoder_output = decoder_fn(node_features, edge_features, mask)
 
     if not golden_file.exists():
         os.makedirs(golden_file.parent, exist_ok=True)

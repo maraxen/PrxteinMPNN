@@ -86,7 +86,7 @@ def parse_input(  # noqa: C901, PLR0912, PLR0915
   temp_path = None
   tmp_top_path = None
 
-  if isinstance(source, IO):
+  if not isinstance(source, (pathlib.Path, str)):
     logger.debug("Source is IO. Creating temporary PDB file.")
     with tempfile.NamedTemporaryFile(
       mode="w",

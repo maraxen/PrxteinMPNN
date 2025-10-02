@@ -15,10 +15,12 @@ if TYPE_CHECKING:
   from collections.abc import Generator
 
   from grain.python import IterDataset
+  from jaxtyping import Float
 
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
     ChainIndex,
+    Logits,
     OneHotProteinSequence,
     ResidueIndex,
     StructureAtomicCoordinates,
@@ -119,13 +121,13 @@ def _compute_jacobian_batches(
   for batched_ensemble in protein_iterator:
 
     def compute_jacobian_for_structure(
-      coords: jax.Array,
-      mask: jax.Array,
-      residue_ix: jax.Array,
-      chain_ix: jax.Array,
-      one_hot_sequence: jax.Array,
-      noise: jax.Array,
-    ) -> jax.Array:
+      coords: StructureAtomicCoordinates,
+      mask: AlphaCarbonMask,
+      residue_ix: ResidueIndex,
+      chain_ix: ChainIndex,
+      one_hot_sequence: OneHotProteinSequence,
+      noise: Float,
+    ) -> Logits:
       length = one_hot_sequence.shape[0]
       one_hot_flat = one_hot_sequence.flatten()
       input_dim = one_hot_flat.shape[0]
@@ -161,7 +163,7 @@ def _compute_jacobian_batches(
 
     def mapped_fn(
       coords: StructureAtomicCoordinates,
-      atom_mask: AlphaCarbonMask,
+      mask: AlphaCarbonMask,
       residue_ix: ResidueIndex,
       chain_ix: ChainIndex,
       one_hot_sequence: OneHotProteinSequence,
@@ -171,7 +173,7 @@ def _compute_jacobian_batches(
         partial(
           compute_jacobian_for_structure,
           coords,
-          atom_mask,
+          mask,
           residue_ix,
           chain_ix,
           one_hot_sequence,
@@ -182,7 +184,7 @@ def _compute_jacobian_batches(
 
     jacobians_batch = jax.vmap(mapped_fn)(
       batched_ensemble.coordinates,
-      batched_ensemble.atom_mask,
+      batched_ensemble.mask,
       batched_ensemble.residue_index,
       batched_ensemble.chain_index,
       batched_ensemble.one_hot_sequence,

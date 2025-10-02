@@ -62,7 +62,7 @@ def mock_protein_ensemble():
   ensemble = MagicMock()
   ensemble.coordinates = jnp.ones((5, 100, 4, 3))  # 5 frames, 100 residues
   ensemble.one_hot_sequence = jnp.ones((5, 100, 20))
-  ensemble.atom_mask = jnp.ones((5, 100, 4))
+  ensemble.mask = jnp.ones((5, 100))
   ensemble.residue_index = jnp.arange(100)
   ensemble.chain_index = jnp.zeros(100)
   ensemble.aatype=jnp.ones((5, 100))
@@ -603,7 +603,7 @@ class TestIntegration:
         # Create mock ensemble
         ensemble = MagicMock()
         ensemble.coordinates = jnp.ones((3, 10, 4, 3))
-        ensemble.atom_mask = jnp.ones((10, 4))
+        ensemble.mask = jnp.ones((10,))
         ensemble.residue_index = jnp.arange(10)
         ensemble.chain_index = jnp.zeros(10)
         ensemble.full_coordinates = jnp.ones((3, 10, 14, 3))

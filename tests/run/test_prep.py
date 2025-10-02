@@ -76,7 +76,7 @@ def testprep_protein_stream_and_model_basic(
   
   # Verify loaders.create_protein_dataset was called correctly
   mock_create_dataset.assert_called_once_with(
-    ("test_input.pdb",),
+    ["test_input.pdb",],
     batch_size=1,
     foldcomp_database=None,
     parse_kwargs={

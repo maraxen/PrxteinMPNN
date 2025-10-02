@@ -13,7 +13,7 @@ from prxteinmpnn.utils.residue_constants import (
   atom_order,
 )
 
-from .coordinates import process_coordinates
+from .coords import process_coordinates
 from .mappings import atom_names_to_index, residue_names_to_aatype
 
 logger = logging.getLogger(__name__)

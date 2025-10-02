@@ -21,7 +21,6 @@ def test_greedy_decoding_is_deterministic(mock_model_parameters, model_inputs, r
     )
 
     sample_inputs = model_inputs.copy()
-    sample_inputs["mask"] = sample_inputs["mask"][:, atom_order["CA"]]
     del sample_inputs["sequence"]
 
     # Run sampling twice with the same key
@@ -51,7 +50,6 @@ def test_sampled_output_is_valid(mock_model_parameters, model_inputs, rng_key):
 
     seq_len = model_inputs["sequence"].shape[0]
     sample_inputs = model_inputs.copy()
-    sample_inputs["mask"] = sample_inputs["mask"][:, atom_order["CA"]]
     del sample_inputs["sequence"]
 
     sampled_sequence, _, _ = sample_fn(
@@ -79,7 +77,6 @@ def test_logits_are_plausible(mock_model_parameters, model_inputs, rng_key):
 
     seq_len = model_inputs["sequence"].shape[0]
     sample_inputs = model_inputs.copy()
-    sample_inputs["mask"] = sample_inputs["mask"][:, atom_order["CA"]]
     del sample_inputs["sequence"]
 
     _, logits, _ = sample_fn(

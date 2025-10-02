@@ -291,9 +291,9 @@ class TestMakeFitGMM:
           call_args = mock_gmm_class.from_responsibilities.call_args
           responsibilities = call_args[1]['resp']
           
-          chex.assert_shape(responsibilities, (100, 1, n_components, 1))
+          chex.assert_shape(responsibilities, (100, 3, 1, 1))
           # Should be one-hot encoded
-          assert jnp.allclose(jnp.sum(responsibilities, axis=2), 1.0)
+          assert jnp.allclose(jnp.sum(responsibilities, axis=1), 1.0)
 
   @pytest.mark.parametrize("n_components", [1, 2, 3, 5])
   def test_different_dimensions(self, n_components):
@@ -399,7 +399,7 @@ class TestIntegration:
         # Check that responsibilities had correct shape
         call_args = mock_gmm_class.from_responsibilities.call_args
         responsibilities = call_args[1]['resp']
-        chex.assert_shape(responsibilities, (100, 1, 3, 1))
+        chex.assert_shape(responsibilities, (100, 3, 1, 1))
 
   def test_edge_case_single_point_per_cluster(self):
     """Test GMM fitting with minimal data."""

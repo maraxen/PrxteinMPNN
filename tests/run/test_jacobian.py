@@ -22,7 +22,7 @@ def mock_protein_batch() -> ProteinBatch:
         coordinates=jnp.ones((10, 37, 3)),
         aatype=jnp.zeros(10, dtype=jnp.int8),
         one_hot_sequence=jax.nn.one_hot(jnp.zeros(10, dtype=jnp.int8), 21),
-        atom_mask=jnp.ones((10, 37)),
+        mask=jnp.ones((10,)),
         residue_index=jnp.arange(10),
         chain_index=jnp.zeros(10),
         dihedrals=None,

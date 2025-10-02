@@ -17,9 +17,8 @@ from prxteinmpnn.model.features import extract_features, project_features
 from prxteinmpnn.model.projection import final_projection
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
-from prxteinmpnn.utils.residue_constants import atom_order
 from prxteinmpnn.utils.types import (
-  AtomMask,
+  AlphaCarbonMask,
   AutoRegressiveMask,
   BackboneNoise,
   ChainIndex,
@@ -37,7 +36,7 @@ ScoringFn = Callable[
     PRNGKeyArray,
     ProteinSequence,
     StructureAtomicCoordinates,
-    AtomMask,
+    AlphaCarbonMask,
     ResidueIndex,
     ChainIndex,
     int,
@@ -79,7 +78,7 @@ def make_score_sequence(
     prng_key: PRNGKeyArray,
     sequence: ProteinSequence | OneHotProteinSequence,
     structure_coordinates: StructureAtomicCoordinates,
-    mask: AtomMask,
+    mask: AlphaCarbonMask,
     residue_index: ResidueIndex,
     chain_index: ChainIndex,
     k_neighbors: int = 48,
@@ -93,12 +92,11 @@ def make_score_sequence(
     if sequence.ndim == 1:
       sequence = jax.nn.one_hot(sequence, num_classes=21)
 
-    residue_mask = mask[:, atom_order["CA"]]
     edge_features, neighbor_indices, prng_key = extract_features(
       prng_key,
       model_parameters,
       structure_coordinates,
-      residue_mask,
+      mask,
       residue_index,
       chain_index,
       k_neighbors=k_neighbors,
@@ -110,7 +108,7 @@ def make_score_sequence(
     )
 
     attention_mask = jnp.take_along_axis(
-      residue_mask[:, None] * residue_mask[None, :],
+      mask[:, None] * mask[None, :],
       neighbor_indices,
       axis=1,
     )
@@ -118,7 +116,7 @@ def make_score_sequence(
     node_features, edge_features = encoder(
       edge_features,
       neighbor_indices,
-      residue_mask,
+      mask,
       attention_mask,
     )
 
@@ -126,7 +124,7 @@ def make_score_sequence(
       node_features,
       edge_features,
       neighbor_indices,
-      residue_mask,
+      mask,
       autoregressive_mask,
       sequence,
     )
@@ -141,8 +139,8 @@ def make_score_sequence(
       sequence = jax.nn.one_hot(sequence, num_classes=21)
 
     score = -(sequence[..., :20] * log_probability).sum(-1)
-    masked_score_sum = (score * residue_mask).sum(-1)
-    mask_sum = residue_mask.sum() + SCORE_EPS
+    masked_score_sum = (score * mask).sum(-1)
+    mask_sum = mask.sum() + SCORE_EPS
 
     return masked_score_sum / mask_sum, logits, decoding_order
 

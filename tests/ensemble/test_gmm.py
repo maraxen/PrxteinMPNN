@@ -6,12 +6,12 @@ import chex
 import jax
 import jax.numpy as jnp
 import pytest
-from gmmx import EMFitter, GaussianMixtureModelJax
+from gmmx import GaussianMixtureModelJax
 
 from prxteinmpnn.ensemble.gmm import (
   _kmeans,
   _kmeans_plusplus_init,
-  make_fit_gmm,
+  make_fit_gmm_in_memory,
 )
 
 
@@ -223,144 +223,141 @@ class TestKMeans:
 
 
 class TestMakeFitGMM:
-  """Test the make_fit_gmm function factory."""
+  """Test the make_fit_gmm_in_memory function factory."""
 
   def test_returns_callable(self):
-    """Test that make_fit_gmm returns a callable function."""
-    fit_fn = make_fit_gmm(n_components=3, n_features=5)
+    """Test that make_fit_gmm_in_memory returns a callable function."""
+    fit_fn = make_fit_gmm_in_memory(n_components=3)
     
     assert callable(fit_fn)
 
-  @patch("prxteinmpnn.ensemble.gmm.EMFitter")
+  @patch("prxteinmpnn.ensemble.gmm.fit_gmm_in_memory")
   @patch("prxteinmpnn.ensemble.gmm._kmeans")
-  def test_fit_gmm_workflow(self, mock_kmeans, mock_em_fitter_class, sample_data):
+  def test_fit_gmm_workflow(self, mock_kmeans, mock_fit_gmm_in_memory, sample_data):
     """Test the complete GMM fitting workflow.
     
     Args:
       mock_kmeans: Mock K-Means function.
-      mock_em_fitter_class: Mock EM fitter class.
+      mock_fit_gmm_in_memory: Mock for the in-memory GMM fitting function.
       sample_data: Sample data fixture.
     """
     # Setup mocks
     mock_labels = jnp.array([0, 1, 2, 0, 1] * 20)  # 100 labels
     mock_kmeans.return_value = mock_labels
     
-    mock_em_fitter = MagicMock()
     mock_fitted_gmm = MagicMock(spec=GaussianMixtureModelJax)
-    mock_em_fitter.fit.return_value = (mock_fitted_gmm, None)
-    mock_em_fitter_class.return_value = mock_em_fitter
+    mock_fit_result = MagicMock()
+    mock_fit_result.gmm = mock_fitted_gmm
+    mock_fit_gmm_in_memory.return_value = mock_fit_result
     
     with patch("prxteinmpnn.ensemble.gmm.GaussianMixtureModelJax") as mock_gmm_class:
       mock_initial_gmm = MagicMock()
       mock_gmm_class.from_responsibilities.return_value = mock_initial_gmm
       
       # Create and test fit function
-      fit_fn = make_fit_gmm(n_components=3, n_features=5)
+      fit_fn = make_fit_gmm_in_memory(n_components=3)
       key = jax.random.PRNGKey(42)
       
-      result = fit_fn(key, sample_data)
+      result = fit_fn(sample_data, key)
       
       # Verify workflow
       mock_kmeans.assert_called_once()
       mock_gmm_class.from_responsibilities.assert_called_once()
-      mock_em_fitter.fit.assert_called_once_with(
-        gmm=mock_initial_gmm,
-        data=sample_data,
-      )
+      mock_fit_gmm_in_memory.assert_called_once()
+
       assert result == mock_fitted_gmm
 
   def test_responsibilities_creation(self, sample_data):
     """Test that one-hot responsibilities are created correctly from labels."""
     with patch("prxteinmpnn.ensemble.gmm._kmeans") as mock_kmeans:
-      with patch("prxteinmpnn.ensemble.gmm.EMFitter") as mock_em_fitter_class:
+      with patch("prxteinmpnn.ensemble.gmm.fit_gmm_in_memory") as mock_fit_gmm_in_memory:
         with patch("prxteinmpnn.ensemble.gmm.GaussianMixtureModelJax") as mock_gmm_class:
           # Setup
           n_components = 3
           mock_labels = jnp.array([0, 1, 2, 0, 1] * 20)
           mock_kmeans.return_value = mock_labels
           
-          mock_em_fitter = MagicMock()
-          mock_em_fitter.fit.return_value = (MagicMock(), None)
-          mock_em_fitter_class.return_value = mock_em_fitter
+          mock_fit_result = MagicMock()
+          mock_fit_result.gmm = MagicMock()
+          mock_fit_gmm_in_memory.return_value = mock_fit_result
           
           # Test
-          fit_fn = make_fit_gmm(n_components=n_components, n_features=5)
+          fit_fn = make_fit_gmm_in_memory(n_components=n_components)
           key = jax.random.PRNGKey(42)
           
-          fit_fn(key, sample_data)
+          fit_fn(sample_data, key)
           
           # Check that responsibilities were created correctly
           call_args = mock_gmm_class.from_responsibilities.call_args
-          responsibilities = call_args[1]['responsibilities']
+          responsibilities = call_args[1]['resp']
           
-          chex.assert_shape(responsibilities, (100, n_components))
+          chex.assert_shape(responsibilities, (100, 1, n_components, 1))
           # Should be one-hot encoded
-          assert jnp.allclose(jnp.sum(responsibilities, axis=1), 1.0)
+          assert jnp.allclose(jnp.sum(responsibilities, axis=2), 1.0)
 
   @pytest.mark.parametrize("n_components", [1, 2, 3, 5])
-  @pytest.mark.parametrize("n_features", [2, 5, 10])
-  def test_different_dimensions(self, n_components, n_features):
+  def test_different_dimensions(self, n_components):
     """Test GMM fitting with different dimensions.
     
     Args:
       n_components: Number of components to test.
-      n_features: Number of features to test.
     """
     with patch("prxteinmpnn.ensemble.gmm._kmeans") as mock_kmeans:
-      with patch("prxteinmpnn.ensemble.gmm.EMFitter") as mock_em_fitter_class:
+      with patch("prxteinmpnn.ensemble.gmm.fit_gmm_in_memory") as mock_fit_gmm_in_memory:
         with patch("prxteinmpnn.ensemble.gmm.GaussianMixtureModelJax"):
           # Setup
           mock_labels = jnp.zeros(50, dtype=jnp.int32)  # All same cluster for simplicity
           mock_kmeans.return_value = mock_labels
           
-          mock_em_fitter = MagicMock()
-          mock_em_fitter.fit.return_value = (MagicMock(), None)
-          mock_em_fitter_class.return_value = mock_em_fitter
+          mock_fit_result = MagicMock()
+          mock_fit_result.gmm = MagicMock()
+          mock_fit_gmm_in_memory.return_value = mock_fit_result
           
           # Test
-          fit_fn = make_fit_gmm(
+          fit_fn = make_fit_gmm_in_memory(
             n_components=n_components,
-            n_features=n_features,
           )
           
           assert callable(fit_fn)
 
   def test_em_fitter_configuration(self):
     """Test that EM fitter is configured correctly."""
-    with patch("prxteinmpnn.ensemble.gmm.EMFitter") as mock_em_fitter_class:
-      make_fit_gmm(
+    with patch("prxteinmpnn.ensemble.gmm.fit_gmm_in_memory") as mock_fit_gmm_in_memory:
+      fit_fn = make_fit_gmm_in_memory(
         n_components=3,
-        n_features=5,
         gmm_max_iters=200,
         reg_covar=1e-5,
       )
       
-      mock_em_fitter_class.assert_called_once_with(
-        tol=1e-3,
-        max_iter=200,
-        reg_covar=1e-5,
-      )
+      key = jax.random.PRNGKey(42)
+      data = jnp.ones((10, 2))
+      fit_fn(data, key)
+
+      mock_fit_gmm_in_memory.assert_called_once()
+      call_args = mock_fit_gmm_in_memory.call_args
+      assert call_args[1]['max_iter'] == 200
+      assert call_args[1]['reg_covar'] == 1e-5
 
   def test_jit_compilation(self, sample_data):
     """Test that the returned function is JIT-compatible."""
     with patch("prxteinmpnn.ensemble.gmm._kmeans") as mock_kmeans:
-      with patch("prxteinmpnn.ensemble.gmm.EMFitter") as mock_em_fitter_class:
+      with patch("prxteinmpnn.ensemble.gmm.fit_gmm_in_memory") as mock_fit_gmm_in_memory:
         with patch("prxteinmpnn.ensemble.gmm.GaussianMixtureModelJax"):
           # Setup mocks
           mock_labels = jnp.zeros(100, dtype=jnp.int32)
           mock_kmeans.return_value = mock_labels
           
-          mock_em_fitter = MagicMock()
           mock_fitted_gmm = MagicMock()
-          mock_em_fitter.fit.return_value = (mock_fitted_gmm, None)
-          mock_em_fitter_class.return_value = mock_em_fitter
+          mock_fit_result = MagicMock()
+          mock_fit_result.gmm = mock_fitted_gmm
+          mock_fit_gmm_in_memory.return_value = mock_fit_result
           
-          # Test that function can be JIT compiled (implicitly tested by @jax.jit decorator)
-          fit_fn = make_fit_gmm(n_components=3, n_features=5)
+          # Test that function can be JIT compiled
+          fit_fn = make_fit_gmm_in_memory(n_components=3)
           key = jax.random.PRNGKey(42)
           
           # This should not raise an error
-          result = fit_fn(key, sample_data)
+          result = fit_fn(sample_data, key)
           assert result is not None
 
 
@@ -380,60 +377,59 @@ class TestIntegration:
     
     data = jnp.vstack([cluster1, cluster2, cluster3])
     
-    with patch("prxteinmpnn.ensemble.gmm.EMFitter") as mock_em_fitter_class:
+    with patch("prxteinmpnn.ensemble.gmm.fit_gmm_in_memory") as mock_fit_gmm_in_memory:
       with patch("prxteinmpnn.ensemble.gmm.GaussianMixtureModelJax") as mock_gmm_class:
         # Setup mocks to return reasonable values
-        mock_em_fitter = MagicMock()
         mock_fitted_gmm = MagicMock(spec=GaussianMixtureModelJax)
         mock_fitted_gmm.n_components = 3
-        mock_em_fitter.fit.return_value = (mock_fitted_gmm, None)
-        mock_em_fitter_class.return_value = mock_em_fitter
+        mock_fit_result = MagicMock()
+        mock_fit_result.gmm = mock_fitted_gmm
+        mock_fit_gmm_in_memory.return_value = mock_fit_result
         
         mock_initial_gmm = MagicMock()
         mock_gmm_class.from_responsibilities.return_value = mock_initial_gmm
         
         # Test
-        fit_fn = make_fit_gmm(n_components=3, n_features=4)
-        result = fit_fn(keys[3], data)
+        fit_fn = make_fit_gmm_in_memory(n_components=3)
+        result = fit_fn(data, keys[3])
         
         # Verify the workflow completed
         assert result == mock_fitted_gmm
         
         # Check that responsibilities had correct shape
         call_args = mock_gmm_class.from_responsibilities.call_args
-        responsibilities = call_args[1]['responsibilities']
-        chex.assert_shape(responsibilities, (100, 3))
+        responsibilities = call_args[1]['resp']
+        chex.assert_shape(responsibilities, (100, 1, 3, 1))
 
   def test_edge_case_single_point_per_cluster(self):
     """Test GMM fitting with minimal data."""
     data = jnp.array([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
     
-    with patch("prxteinmpnn.ensemble.gmm.EMFitter") as mock_em_fitter_class:
+    with patch("prxteinmpnn.ensemble.gmm.fit_gmm_in_memory") as mock_fit_gmm_in_memory:
       with patch("prxteinmpnn.ensemble.gmm.GaussianMixtureModelJax") as mock_gmm_class:
         # Setup
-        mock_em_fitter = MagicMock()
         mock_fitted_gmm = MagicMock()
-        mock_em_fitter.fit.return_value = (mock_fitted_gmm, None)
-        mock_em_fitter_class.return_value = mock_em_fitter
+        mock_fit_result = MagicMock()
+        mock_fit_result.gmm = mock_fitted_gmm
+        mock_fit_gmm_in_memory.return_value = mock_fit_result
         
         mock_gmm_class.from_responsibilities.return_value = MagicMock()
         
         # Test
-        fit_fn = make_fit_gmm(n_components=3, n_features=2)
+        fit_fn = make_fit_gmm_in_memory(n_components=3)
         key = jax.random.PRNGKey(42)
         
-        result = fit_fn(key, data)
+        result = fit_fn(data, key)
         
         assert result == mock_fitted_gmm
 
   def test_parameter_validation(self):
-    """Test parameter validation for make_fit_gmm."""
+    """Test parameter validation for make_fit_gmm_in_memory."""
     # These should not raise errors
-    make_fit_gmm(n_components=1, n_features=1)
-    make_fit_gmm(n_components=10, n_features=100)
-    make_fit_gmm(
+    make_fit_gmm_in_memory(n_components=1)
+    make_fit_gmm_in_memory(n_components=10)
+    make_fit_gmm_in_memory(
       n_components=3,
-      n_features=5,
       kmeans_max_iters=50,
       gmm_max_iters=150,
       reg_covar=1e-4,

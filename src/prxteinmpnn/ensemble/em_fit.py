@@ -90,9 +90,8 @@ def _m_step_from_responsibilities(
   reg_covar: float,
 ) -> GaussianMixtureModelJax:
   """Maximization (M) step for in-memory data using responsibilities."""
-  x_expanded = jnp.expand_dims(x, axis=(Axis.components, Axis.features_covar))
   return gmm.from_responsibilities(
-    x_expanded,
+    x,
     resp,
     reg_covar=reg_covar,
     covariance_type=gmm.covariances.type,
@@ -131,12 +130,13 @@ def fit_gmm_in_memory(
   reg_covar: float = 1e-6,
 ) -> EMFitterResult:
   """Fit a GMM to in-memory data using the EM algorithm."""
+  x_reshaped = x[None, ...]
 
   @jax.jit
   def em_step_fn(state: _EMLoopState) -> _EMLoopState:
     """Run a single EM step."""
-    log_likelihood, log_resp = _e_step(x, state.gmm)
-    gmm = _m_step_from_responsibilities(x, jnp.exp(log_resp), state.gmm, reg_covar)
+    log_likelihood, log_resp = _e_step(x_reshaped, state.gmm)
+    gmm = _m_step_from_responsibilities(x_reshaped, jnp.exp(log_resp), state.gmm, reg_covar)
     return _EMLoopState(
       gmm=gmm,
       n_iter=state.n_iter + 1,

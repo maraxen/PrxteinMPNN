@@ -105,6 +105,7 @@ class TestSample:
             inputs=[cif_file],
             output_h5_path=h5_path,
             backbone_noise=[0.1],
+            cache_path=tmp_path / "cache.h5",
         )
         result = sample(spec=spec)
 

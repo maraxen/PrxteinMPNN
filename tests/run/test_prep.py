@@ -22,6 +22,8 @@ def mock_run_spec():
   spec.num_workers = 1
   spec.model_version = "v_48_020"
   spec.model_weights = None
+  spec.topology = None
+  spec.cache_path = None
   return spec
 
 
@@ -74,15 +76,17 @@ def testprep_protein_stream_and_model_basic(
   
   # Verify loaders.create_protein_dataset was called correctly
   mock_create_dataset.assert_called_once_with(
-    ["test_input.pdb",],
+    ("test_input.pdb",),
     batch_size=1,
     foldcomp_database=None,
     parse_kwargs={
       "chain_id": "A",
       "model": "ca_only",
       "altloc": "A",
+      "topology": None,
     },
     num_workers=1,
+    cache_path=None,
   )
   
   # Verify get_mpnn_model was called correctly
@@ -102,7 +106,7 @@ def testprep_protein_stream_and_model_multiple_inputs(
   mock_create_dataset, mock_get_model, mock_protein_iterator, mock_model_parameters
 ):
   """Test prep_protein_stream_and_model with multiple input files.
-  
+
   Args:
     mock_create_dataset: Mock for loaders.create_protein_dataset.
     mock_get_model: Mock for get_mpnn_model.
@@ -126,6 +130,8 @@ def testprep_protein_stream_and_model_multiple_inputs(
   spec.num_workers = 2
   spec.model_version = "v_48_030"
   spec.model_weights = "/path/to/weights.pt"
+  spec.topology = None
+  spec.cache_path = None
   
   # Setup mocks
   mock_create_dataset.return_value = mock_protein_iterator
@@ -143,8 +149,10 @@ def testprep_protein_stream_and_model_multiple_inputs(
       "chain_id": "B",
       "model": "full_atom",
       "altloc": "B",
+      "topology": None,
     },
     num_workers=2,
+    cache_path=None,
   )
   
   # Verify get_mpnn_model was called correctly
@@ -164,7 +172,7 @@ def testprep_protein_stream_and_model_stringio_input(
   mock_create_dataset, mock_get_model, mock_protein_iterator, mock_model_parameters
 ):
   """Test prep_protein_stream_and_model with StringIO input.
-  
+
   Args:
     mock_create_dataset: Mock for loaders.create_protein_dataset.
     mock_get_model: Mock for get_mpnn_model.
@@ -189,6 +197,8 @@ def testprep_protein_stream_and_model_stringio_input(
   spec.num_workers = 1
   spec.model_version = "v_48_020"
   spec.model_weights = None
+  spec.topology = None
+  spec.cache_path = None
   
   # Setup mocks
   mock_create_dataset.return_value = mock_protein_iterator
@@ -206,8 +216,10 @@ def testprep_protein_stream_and_model_stringio_input(
       "chain_id": None,
       "model": "ca_only",
       "altloc": None,
+      "topology": None,
     },
     num_workers=1,
+    cache_path=None,
   )
   
   # Verify get_mpnn_model was called correctly
@@ -227,7 +239,7 @@ def testprep_protein_stream_and_model_empty_inputs(
   mock_create_dataset, mock_get_model, mock_protein_iterator, mock_model_parameters
 ):
   """Test prep_protein_stream_and_model with empty inputs list.
-  
+
   Args:
     mock_create_dataset: Mock for loaders.create_protein_dataset.
     mock_get_model: Mock for get_mpnn_model.
@@ -251,6 +263,8 @@ def testprep_protein_stream_and_model_empty_inputs(
   spec.num_workers = 1
   spec.model_version = "v_48_020"
   spec.model_weights = None
+  spec.topology = None
+  spec.cache_path = None
   
   # Setup mocks
   mock_create_dataset.return_value = mock_protein_iterator
@@ -268,8 +282,10 @@ def testprep_protein_stream_and_model_empty_inputs(
       "chain_id": "A",
       "model": "ca_only",
       "altloc": "A",
+      "topology": None,
     },
     num_workers=1,
+    cache_path=None,
   )
   
   # Verify get_mpnn_model was called correctly

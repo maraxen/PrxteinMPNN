@@ -1,9 +1,7 @@
-
 line-length = 100
 fix = true
 indent-width = 2
-ignore = []
-exclude = [".venv", "venv", "build", "dist", "__pycache__", "tests"]
+exclude = [".venv", "venv", "build", "dist", "__pycache__", "tests", "examples"]
 
 [lint]
 select = ["ALL"]
@@ -17,5 +15,3 @@ pylint.max-args = 15
 [lint.per-file-ignores]
 "src/prxteinmpnn/run.py" = ["E402", "PLR0913", "ANN401"]
 "src/prxteinmpnn/io/parsing.py" = ["ANN401"]
-
-

@@ -49,7 +49,7 @@ def _fetch_md_cath(md_cath_id: str) -> pathlib.Path:
   return md_cath_file
 
 
-def _resolve_inputs(
+def _resolve_inputs(  # noqa: C901
   inputs: Sequence[str | IO[str] | pathlib.Path],
   foldcomp_database: FoldCompDatabase | None = None,
 ) -> Generator[str | pathlib.Path | IO[str] | ProteinTuple, None, None]:
@@ -128,7 +128,7 @@ def frame_iterator_from_inputs(
       yield from parse_input(source, **parse_kwargs)
 
 
-def preprocess_inputs_to_hdf5(
+def preprocess_inputs_to_hdf5(  # noqa: C901
   inputs: Sequence[str | pathlib.Path | IO[str]],
   output_path: str | pathlib.Path | None = None,
   parse_kwargs: dict[str, Any] | None = None,

@@ -28,7 +28,7 @@ def create_protein_dataset(
   frames.
 
   Args:
-      inputs: A sequence of input file paths or StringIO objects, or a single input.
+      inputs: A single input (file, PDB ID, etc.) or a sequence of such inputs.
       batch_size: The number of protein structures to include in each batch.
       num_workers: The number of parallel worker processes for data loading.
                    0 means all loading is done in the main process.

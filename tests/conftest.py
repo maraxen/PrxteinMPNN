@@ -1,11 +1,42 @@
 """Shared test fixtures."""
 
+from pathlib import Path
+
 import jax
 import jax.numpy as jnp
 import pytest
 from jax import random
 
+from prxteinmpnn.io.parsing import parse_input
+from prxteinmpnn.utils.data_structures import Protein
 from prxteinmpnn.utils.types import ModelParameters
+
+
+@pytest.fixture(scope="session")
+def protein_structure() -> Protein:
+    """Load a sample protein structure from a PDB file."""
+    pdb_path = Path(__file__).parent / "data" / "1ubq.pdb"
+    protein_tuple = next(parse_input(str(pdb_path)))
+    return Protein.from_tuple(protein_tuple)
+
+
+@pytest.fixture(scope="session")
+def model_inputs(protein_structure: Protein) -> dict:
+    """Create model inputs from a protein structure."""
+    return {
+        "structure_coordinates": protein_structure.coordinates,
+        "mask": protein_structure.atom_mask,
+        "residue_index": protein_structure.residue_index,
+        "chain_index": protein_structure.chain_index,
+        "sequence": protein_structure.aatype,
+    }
+
+
+@pytest.fixture
+def rng_key() -> random.PRNGKey:
+    """Create a new random key for testing."""
+    return random.PRNGKey(0)
+
 
 @pytest.fixture
 def mock_model_parameters() -> ModelParameters:

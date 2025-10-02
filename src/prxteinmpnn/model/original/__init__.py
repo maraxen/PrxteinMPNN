@@ -1,1 +1,1 @@
-
+"""Original protein model parameters."""

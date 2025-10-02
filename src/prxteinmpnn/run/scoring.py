@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
 
 def score(
   spec: ScoringSpecification | None = None,
-  **kwargs: Any,
+  **kwargs: Any,  # noqa: ANN401
 ) -> dict[str, Any]:
   """Score all provided sequences against all input structures.
 
@@ -93,7 +93,7 @@ def score(
       in_axes=(None, None, 0, 0, 0, 0, None, None, None),
       out_axes=0,
     )
-    scores, logits, decoding_orders = vmap_structures(
+    scores, logits, _decoding_orders = vmap_structures(
       jax.random.key(spec.random_seed),
       batched_sequences,
       batched_ensemble.coordinates,

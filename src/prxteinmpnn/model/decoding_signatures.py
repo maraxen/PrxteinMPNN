@@ -7,7 +7,7 @@ from collections.abc import Callable
 from jaxtyping import Float, PRNGKeyArray
 
 from prxteinmpnn.utils.types import (
-  AlphaCarbonMask,
+  AtomMask,
   AttentionMask,
   AutoRegressiveMask,
   EdgeFeatures,
@@ -31,7 +31,7 @@ DecodeMessageFn = Callable[[*DecodeMessageInputs], Message]
 DecoderNormalizeInputs = tuple[
   Message,
   NodeFeatures,
-  AlphaCarbonMask,
+  AtomMask,
   ModelParameters,
   float,
 ]
@@ -41,7 +41,7 @@ DecoderNormalizeFn = Callable[[*DecoderNormalizeInputs], NodeFeatures]
 MaskedAttentionDecoderInputs = tuple[
   NodeFeatures,
   EdgeFeatures,
-  AlphaCarbonMask,
+  AtomMask,
   AttentionMask,
   ModelParameters,
   float,
@@ -50,19 +50,19 @@ MaskedAttentionDecoderFn = Callable[[*MaskedAttentionDecoderInputs], NodeFeature
 DecoderInputs = tuple[
   NodeFeatures,
   EdgeFeatures,
-  AlphaCarbonMask,
+  AtomMask,
   ModelParameters,
   float,
 ]
 DecoderFn = Callable[[*DecoderInputs], NodeFeatures]
 
 
-RunDecoderInputs = tuple[NodeFeatures, EdgeFeatures, AlphaCarbonMask]
+RunDecoderInputs = tuple[NodeFeatures, EdgeFeatures, AtomMask]
 RunDecoderFn = Callable[[*RunDecoderInputs], NodeFeatures]
 RunMaskedAttentionDecoderInputs = tuple[
   NodeFeatures,
   EdgeFeatures,
-  AlphaCarbonMask,
+  AtomMask,
   AttentionMask,
 ]
 RunMaskedAttentionDecoderFn = Callable[[*RunMaskedAttentionDecoderInputs], NodeFeatures]
@@ -70,7 +70,7 @@ RunConditionalDecoderInputs = tuple[
   NodeFeatures,
   EdgeFeatures,
   NeighborIndices,
-  AlphaCarbonMask,
+  AtomMask,
   AutoRegressiveMask,
   ProteinSequence,
 ]
@@ -80,7 +80,7 @@ RunAutoregressiveDecoderInputs = tuple[
   NodeFeatures,
   EdgeFeatures,
   NeighborIndices,
-  AlphaCarbonMask,
+  AtomMask,
   AutoRegressiveMask,
   Float | None,
   Logits | None,

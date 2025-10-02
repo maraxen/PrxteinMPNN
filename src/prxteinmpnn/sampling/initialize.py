@@ -15,6 +15,7 @@ from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,
+  AtomMask,
   AutoRegressiveMask,
   BackboneNoise,
   ChainIndex,
@@ -30,7 +31,7 @@ SamplingModelPassInput = tuple[
   PRNGKeyArray,
   ModelParameters,
   StructureAtomicCoordinates,
-  AlphaCarbonMask,
+  AtomMask,
   ResidueIndex,
   ChainIndex,
   AutoRegressiveMask | None,
@@ -42,7 +43,7 @@ SamplingModelPassOutput = tuple[
   NodeFeatures,
   EdgeFeatures,
   NeighborIndices,
-  AlphaCarbonMask,
+  AtomMask,
   AutoRegressiveMask,
   PRNGKeyArray,
 ]

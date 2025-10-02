@@ -17,6 +17,7 @@ from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,
+  AtomMask,
   EdgeFeatures,
   Logits,
   ModelParameters,
@@ -36,7 +37,7 @@ def make_optimize_sequence_fn(
     NodeFeatures,
     EdgeFeatures,
     NeighborIndices,
-    AlphaCarbonMask,
+    AtomMask,
     Int,
     Float,
     Float,

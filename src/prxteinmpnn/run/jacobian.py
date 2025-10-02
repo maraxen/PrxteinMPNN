@@ -17,7 +17,7 @@ if TYPE_CHECKING:
   from grain.python import IterDataset
 
   from prxteinmpnn.utils.types import (
-    AlphaCarbonMask,
+    AtomMask,
     ChainIndex,
     OneHotProteinSequence,
     ResidueIndex,
@@ -120,13 +120,14 @@ def _compute_jacobian_batches(
 
     def compute_jacobian_for_structure(
       coords: jax.Array,
-      mask: jax.Array,
+      atom_mask: jax.Array,
       residue_ix: jax.Array,
       chain_ix: jax.Array,
       one_hot_sequence: jax.Array,
       noise: jax.Array,
     ) -> jax.Array:
       length = one_hot_sequence.shape[0]
+      residue_mask = atom_mask[:, 0]
       one_hot_flat = one_hot_sequence.flatten()
       input_dim = one_hot_flat.shape[0]
 
@@ -136,7 +137,7 @@ def _compute_jacobian_batches(
           jax.random.key(spec.random_seed),
           coords,
           one_hot_2d,
-          mask,
+          residue_mask,
           residue_ix,
           chain_ix,
           None,
@@ -161,7 +162,7 @@ def _compute_jacobian_batches(
 
     def mapped_fn(
       coords: StructureAtomicCoordinates,
-      atom_mask: AlphaCarbonMask,
+      atom_mask: AtomMask,
       residue_ix: ResidueIndex,
       chain_ix: ChainIndex,
       one_hot_sequence: OneHotProteinSequence,

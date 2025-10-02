@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import pytest
 from jax import random
 
-from prxteinmpnn.io.parsing import parse_input
+from prxteinmpnn.io.parsers import parse_input
 from prxteinmpnn.utils.data_structures import Protein
 from prxteinmpnn.utils.types import ModelParameters
 

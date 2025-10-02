@@ -14,4 +14,5 @@ pylint.max-args = 15
 
 [lint.per-file-ignores]
 "src/prxteinmpnn/run.py" = ["E402", "PLR0913", "ANN401"]
-"src/prxteinmpnn/io/parsing.py" = ["ANN401"]
+"src/prxteinmpnn/io/parsers.py" = ["ANN401"]
+"src/prxteinmpnn/io/conversion.py" = ["ANN401"]

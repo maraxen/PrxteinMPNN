@@ -12,7 +12,7 @@ from typing import Literal
 import foldcomp
 import numpy as np
 
-from prxteinmpnn.io.parsing import (
+from prxteinmpnn.io.conversion import (
   string_to_protein_sequence,
 )
 from prxteinmpnn.utils.data_structures import ProteinStream, ProteinTuple

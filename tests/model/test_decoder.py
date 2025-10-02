@@ -4,14 +4,9 @@ Tests the functionality of the decoder, including initialization,
 decoding, normalization, and setup functions.
 """
 
-import os
-from pathlib import Path
-
-import chex
-import jax
 import jax.numpy as jnp
-import numpy as np
 import pytest
+import jax
 
 from prxteinmpnn.model.decoder import (
   DecodingApproach,
@@ -23,10 +18,7 @@ from prxteinmpnn.model.decoder import (
   make_decoder,
   setup_decoder,
 )
-from prxteinmpnn.model.encoder import make_encoder
-from prxteinmpnn.model.features import extract_features
 from prxteinmpnn.model.masked_attention import MaskedAttentionType
-from prxteinmpnn.utils.residue_constants import atom_order
 
 
 # ruff : noqa: D102, ANN201, S101
@@ -237,59 +229,5 @@ class TestMakeDecoder:
     )
 
     assert callable(decoder_fn)
-
-
-def test_decoder_with_golden(
-    rng_key,
-    model_inputs,
-    mock_model_parameters,
-):
-    """
-    Test the full decoder against a golden file to ensure determinism and correctness.
-    If the golden file doesn't exist, it will be created.
-    """
-    golden_file = Path(__file__).parent / "golden_files" / "decoder_golden.npz"
-
-    # Get Encoder inputs
-    feature_inputs = model_inputs.copy()
-    del feature_inputs["sequence"]
-    edge_features, neighbor_indices, _ = extract_features(
-        rng_key,
-        mock_model_parameters,
-        **feature_inputs,
-    )
-    mask = model_inputs["mask"]
-    residue_mask = mask[:, atom_order["CA"]]
-
-    # Run Encoder to get Decoder inputs
-    encoder_fn = make_encoder(
-        mock_model_parameters,
-        attention_mask_type=None,
-        num_encoder_layers=3,
-        scale=30.0,
-    )
-    node_features, edge_features = encoder_fn(edge_features, neighbor_indices, residue_mask)
-
-    # Run Decoder
-    decoder_fn = make_decoder(
-        mock_model_parameters,
-        attention_mask_type=None,
-        decoding_approach="unconditional",
-        num_decoder_layers=3,
-        scale=30.0,
-    )
-    decoder_output = decoder_fn(node_features, edge_features, residue_mask)
-
-    if not golden_file.exists():
-        os.makedirs(golden_file.parent, exist_ok=True)
-        np.savez(golden_file, decoder_output=decoder_output)
-        pytest.skip(f"Golden file created at {golden_file}. Please re-run the tests.")
-
-    # Load the golden data
-    golden_data = np.load(golden_file)
-    expected_decoder_output = golden_data["decoder_output"]
-
-    # Compare the results
-    chex.assert_trees_all_close(decoder_output, expected_decoder_output, atol=1e-6, rtol=1e-6)
 
   

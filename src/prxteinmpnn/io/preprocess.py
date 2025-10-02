@@ -7,7 +7,7 @@ from io import StringIO
 
 import h5py
 
-from prxteinmpnn.io.parsing import parse_input
+from prxteinmpnn.io.parsers import parse_input
 
 # Instantiate the logger
 logger = logging.getLogger(__name__)

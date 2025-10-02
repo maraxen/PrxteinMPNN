@@ -73,11 +73,14 @@ class RunSpecification:
   altloc: Literal["first", "all"] = "first"
   decoding_order_fn: DecodingOrderFn | None = None
   conformational_states: ConformationalStates | None = None
+  cache_path: str | Path | None = None
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""
     if isinstance(self.backbone_noise, float):
       object.__setattr__(self, "backbone_noise", (self.backbone_noise,))
+    if self.cache_path and isinstance(self.cache_path, str):
+        object.__setattr__(self, "cache_path", Path(self.cache_path))
 
 
 @dataclass

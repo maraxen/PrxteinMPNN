@@ -8,7 +8,7 @@ from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.sampling.ste_optimize import make_optimize_sequence_fn
 from prxteinmpnn.utils.types import (
-  AlphaCarbonMask,
+  AtomMask,
   EdgeFeatures,
   ModelParameters,
   NeighborIndices,
@@ -42,7 +42,7 @@ def mock_conditional_decoder(
   node_features: NodeFeatures,
   edge_features: EdgeFeatures,
   neighbor_indices: NeighborIndices,
-  mask: AlphaCarbonMask,
+  mask: AtomMask,
   autoregressive_mask: jax.Array,
   sequence_one_hot: jax.Array,
 ) -> jax.Array:

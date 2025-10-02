@@ -181,9 +181,15 @@ def preprocess_inputs_to_hdf5(  # noqa: C901
           dtype=data.dtype,
         )
     if "source" in first_frame._asdict():
-      sources = [frame.source.encode("utf-8") if frame.source is not None else b"" for frame in all_frames]
+      sources = [
+          frame.source.encode("utf-8") if frame.source is not None else b""
+          for frame in all_frames
+      ]
       max_len = max(len(s) for s in sources) if sources else 0
-      datasets["source"] = f.create_dataset("source", shape=(num_frames,), dtype=f"S{max_len if max_len > 0 else 1}")
+      source_dtype = f"S{max_len if max_len > 0 else 1}"
+      datasets["source"] = f.create_dataset(
+          "source", shape=(num_frames,), dtype=source_dtype
+      )
 
     for i, frame in enumerate(all_frames):
       for field, dset in datasets.items():

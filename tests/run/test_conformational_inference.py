@@ -127,21 +127,6 @@ class TestGetLogitsFn:
         decoding_order_fn=mock_spec.decoding_order_fn,
       )
 
-  def test_coordinates_strategy(self, mock_spec, mock_model_parameters):
-    """Test coordinates inference strategy selection.
-    
-    Args:
-      mock_spec: Mock specification fixture.
-      mock_model_parameters: Mock model parameters fixture.
-    """
-    mock_spec.inference_strategy = "coordinates"
-    
-    logits_fn, is_conditional = _get_logits_fn(mock_spec, mock_model_parameters)
-    
-    assert is_conditional is False
-    result = logits_fn()
-    assert len(result) == 3
-    assert all(isinstance(arr, jax.Array) for arr in result)
 
   def test_vmm_strategy_not_implemented(self, mock_spec, mock_model_parameters):
     """Test that VMM strategy raises NotImplementedError.
@@ -155,17 +140,6 @@ class TestGetLogitsFn:
     with pytest.raises(NotImplementedError, match="VMM inference strategy is not yet implemented"):
       _get_logits_fn(mock_spec, mock_model_parameters)
 
-  def test_invalid_strategy(self, mock_spec, mock_model_parameters):
-    """Test that invalid strategy raises ValueError.
-    
-    Args:
-      mock_spec: Mock specification fixture.
-      mock_model_parameters: Mock model parameters fixture.
-    """
-    mock_spec.inference_strategy = "invalid"
-    
-    with pytest.raises(ValueError, match="Invalid inference strategy: invalid"):
-      _get_logits_fn(mock_spec, mock_model_parameters)
 
 
 class TestComputeStatesBatches:
@@ -206,7 +180,7 @@ class TestComputeStatesBatches:
     batches = list(_compute_states_batches(mock_spec, mock_protein_iterator, mock_model_parameters))
     
     assert len(batches) == 1
-    logits, node_features, edge_features, backbone_coords, full_coords = batches[0]
+    logits, node_features, edge_features = batches[0]
     chex.assert_shape(logits, (5, 100, 20))
     chex.assert_shape(node_features, (5, 100, 128))
 
@@ -372,8 +346,6 @@ class TestDeriveStatesStreaming:
     batch = (
       jnp.ones((2, 100, 20)),
       jnp.ones((2, 100, 128)),
-      None,
-      None,
       None,
     )
     mock_compute_batches.return_value = [batch]
@@ -588,8 +560,8 @@ class TestIntegration:
       # Create a minimal test specification
       spec = ConformationalInferenceSpecification(
         inputs=["tests/data/minimal_ensemble.pdb"],
-        inference_strategy="coordinates",
-        inference_features=["backbone_coordinates"],
+        inference_strategy="unconditional",
+        inference_features=["logits"],
         mode="global",
         random_seed=42,
         gmm_n_components=2,

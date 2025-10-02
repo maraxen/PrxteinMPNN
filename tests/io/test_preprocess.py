@@ -13,11 +13,12 @@ from conftest import PDB_STRING
 
 
 @pytest.fixture
-def pdb_file(tmp_path):
-    """Create a temporary PDB file in a unique temp directory."""
-    pdb_path = tmp_path / "test.pdb"
-    pdb_path.write_text(PDB_STRING)
-    yield pdb_path
+def pdb_file():
+    """Create a temporary PDB file."""
+    with open("test.pdb", "w") as f:
+        f.write(PDB_STRING)
+    yield pathlib.Path("test.pdb")
+    pathlib.Path("test.pdb").unlink()
 
 
 class TestPreprocessToHDF5:

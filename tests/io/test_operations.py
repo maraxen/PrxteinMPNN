@@ -25,7 +25,7 @@ class TestPadAndCollate:
             mapping=None,
         )
         p2_tuple = ProteinTuple(
-            coordinates=np.ones((15, 3)),
+            coordinates=np.ones((15, 37, 3)),
             aatype=np.ones(15, dtype=np.int8),
             atom_mask=np.ones((15, 37)),
             residue_index=np.arange(15),
@@ -39,9 +39,9 @@ class TestPadAndCollate:
         batch: Protein = pad_and_collate_proteins(elements)
 
         assert isinstance(batch, Protein)
-        assert batch.coordinates.shape == (2, 15, 3)
+        assert batch.coordinates.shape == (2, 15, 37, 3)
         assert batch.aatype.shape == (2, 15)
-        assert batch.mask.shape == (2, 15, 3)
+        assert batch.atom_mask.shape == (2, 15, 37)
         assert batch.residue_index.shape == (2, 15)
         assert batch.chain_index.shape == (2, 15)
 

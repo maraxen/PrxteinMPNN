@@ -14,7 +14,7 @@ from prxteinmpnn.model.projection import final_projection
 from prxteinmpnn.sampling.initialize import sampling_encode
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
-  AlphaCarbonMask,
+  AtomMask,
   BackboneNoise,
   ChainIndex,
   EdgeFeatures,
@@ -35,7 +35,7 @@ UnconditionalLogitsFn = Callable[
     PRNGKeyArray,
     StructureAtomicCoordinates,
     ProteinSequence,
-    AlphaCarbonMask,
+    AtomMask,
     ResidueIndex,
     ChainIndex,
     InputBias | None,
@@ -112,7 +112,7 @@ def make_unconditional_logits_fn(
   def unconditioned_logits(
     prng_key: PRNGKeyArray,
     structure_coordinates: StructureAtomicCoordinates,
-    mask: AlphaCarbonMask,
+    mask: AtomMask,
     residue_index: ResidueIndex,
     chain_index: ChainIndex,
     bias: InputBias | None = None,

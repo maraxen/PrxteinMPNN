@@ -20,7 +20,7 @@ if TYPE_CHECKING:
   from jaxtyping import Float, Int, PRNGKeyArray
 
   from prxteinmpnn.utils.types import (
-    AlphaCarbonMask,
+    AtomMask,
     AttentionMask,
     AutoRegressiveMask,
     EdgeFeatures,
@@ -185,7 +185,7 @@ def decode_message(
 def decoder_normalize(
   message: Message,
   node_features: NodeFeatures,
-  mask: AlphaCarbonMask,
+  mask: AtomMask,
   layer_params: ModelParameters,
   scale: float = 30.0,
 ) -> NodeFeatures:
@@ -227,7 +227,7 @@ def make_decode_layer(
     def decoder_fn(
       node_features: NodeFeatures,
       edge_features: EdgeFeatures,
-      mask: AlphaCarbonMask,
+      mask: AtomMask,
       layer_params: ModelParameters,
       scale: float = 30.0,
     ) -> Message:
@@ -247,7 +247,7 @@ def make_decode_layer(
   def masked_attn_decoder_fn(
     node_features: NodeFeatures,
     edge_features: EdgeFeatures,
-    mask: AlphaCarbonMask,
+    mask: AtomMask,
     attention_mask: AttentionMask,
     layer_params: ModelParameters,
     scale: float = 30.0,
@@ -307,7 +307,7 @@ def make_decoder(  # noqa: C901, PLR0915
       node_features: NodeFeatures,
       edge_features: EdgeFeatures,
       neighbor_indices: NeighborIndices,
-      mask: AlphaCarbonMask,
+      mask: AtomMask,
       autoregressive_mask: AutoRegressiveMask,
       temperature: Float | None = None,
       bias: Logits | None = None,
@@ -457,7 +457,7 @@ def make_decoder(  # noqa: C901, PLR0915
       node_features: NodeFeatures,
       edge_features: EdgeFeatures,
       neighbor_indices: NeighborIndices,
-      mask: AlphaCarbonMask,
+      mask: AtomMask,
       ar_mask: AutoRegressiveMask,
       one_hot_sequence: OneHotProteinSequence,
     ) -> NodeFeatures:
@@ -514,7 +514,7 @@ def make_decoder(  # noqa: C901, PLR0915
       def run_decoder(
         node_features: NodeFeatures,
         edge_features: EdgeFeatures,
-        mask: AlphaCarbonMask,
+        mask: AtomMask,
       ) -> NodeFeatures:
         """Run the decoder with the provided edge features and neighbor indices."""
         nodes_expanded = jnp.tile(
@@ -558,7 +558,7 @@ def make_decoder(  # noqa: C901, PLR0915
     def run_masked_attention_decoder(
       node_features: NodeFeatures,
       edge_features: EdgeFeatures,
-      mask: AlphaCarbonMask,
+      mask: AtomMask,
       attention_mask: AttentionMask,
     ) -> NodeFeatures:
       """Run the decoder with the provided edge features and neighbor indices."""

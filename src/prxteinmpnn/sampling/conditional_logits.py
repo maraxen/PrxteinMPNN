@@ -15,6 +15,7 @@ from prxteinmpnn.sampling.initialize import sampling_encode
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,
+  AtomMask,
   BackboneNoise,
   ChainIndex,
   EdgeFeatures,
@@ -36,7 +37,7 @@ ConditionalLogitsFn = Callable[
     PRNGKeyArray,
     StructureAtomicCoordinates,
     ProteinSequence,
-    AlphaCarbonMask,
+    AtomMask,
     ResidueIndex,
     ChainIndex,
     InputBias | None,

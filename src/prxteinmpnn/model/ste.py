@@ -20,7 +20,7 @@ import jax.numpy as jnp
 
 if TYPE_CHECKING:
   from prxteinmpnn.utils.types import (
-    AlphaCarbonMask,
+    AtomMask,
     CEELoss,
     Logits,
   )
@@ -41,7 +41,7 @@ def straight_through_estimator(logits: Logits) -> Logits:
 def ste_loss(
   logits_to_optimize: Logits,
   target_logits: Logits,
-  mask: AlphaCarbonMask,
+  mask: AtomMask,
   eps: float = DEFAULT_EPS,
 ) -> CEELoss:
   """Calculate cross-entropy between one-hot sequence (from STE) and target distribution.

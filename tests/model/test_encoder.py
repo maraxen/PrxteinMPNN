@@ -30,6 +30,7 @@ from prxteinmpnn.model.encoder import (
 )
 from prxteinmpnn.model.features import extract_features, project_features
 from prxteinmpnn.model.masked_attention import MaskedAttentionType
+from prxteinmpnn.utils.residue_constants import atom_order
 
 # --- Fixtures and helpers ---
 
@@ -237,7 +238,7 @@ def test_encoder_with_golden(
         **feature_inputs,
     )
     mask = model_inputs["mask"]
-    residue_mask = mask[:, 1]
+    residue_mask = mask[:, atom_order["CA"]]
 
     # Run the full encoder
     encoder_fn = make_encoder(

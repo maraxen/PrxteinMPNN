@@ -130,10 +130,10 @@ def frame_iterator_from_inputs(
 
 def preprocess_inputs_to_hdf5(
   inputs: Sequence[str | pathlib.Path | IO[str]],
-  output_path: str | pathlib.Path,
+  output_path: str | pathlib.Path | None = None,
   parse_kwargs: dict[str, Any] | None = None,
   foldcomp_database: FoldCompDatabase | None = None,
-) -> None:
+) -> str | pathlib.Path | None:
   """Parse mixed inputs, fetch remote data, and save all frames to a single HDF5 file.
 
   Args:
@@ -143,9 +143,13 @@ def preprocess_inputs_to_hdf5(
       foldcomp_database: An optional FoldCompDatabase for resolving FoldComp IDs.
 
   """
-  if pathlib.Path(output_path).exists():
+  if output_path and pathlib.Path(output_path).exists():
     logger.info("Cache found at %s. Skipping preprocessing.", output_path)
-    return
+    return output_path
+
+  if not output_path:
+    output_path = "preprocessed_data.hdf5"
+
   logger.info("Starting preprocessing of inputs to %s...", output_path)
   parse_kwargs = parse_kwargs or {}
 
@@ -161,7 +165,7 @@ def preprocess_inputs_to_hdf5(
     with h5py.File(output_path, "w") as f:
       f.attrs["format"] = "prxteinmpnn_preprocessed"
       f.attrs["status"] = "empty"
-    return
+    return output_path
 
   num_frames = len(all_frames)
   first_frame = all_frames[0]
@@ -177,18 +181,19 @@ def preprocess_inputs_to_hdf5(
           dtype=data.dtype,
         )
     if "source" in first_frame._asdict():
-      sources = [frame.source.encode("utf-8") for frame in all_frames]  # type: ignore[attr-defined]
+      sources = [frame.source.encode("utf-8") if frame.source is not None else b"" for frame in all_frames]
       max_len = max(len(s) for s in sources) if sources else 0
-      datasets["source"] = f.create_dataset("source", shape=(num_frames,), dtype=f"S{max_len}")
+      datasets["source"] = f.create_dataset("source", shape=(num_frames,), dtype=f"S{max_len if max_len > 0 else 1}")
 
     for i, frame in enumerate(all_frames):
       for field, dset in datasets.items():
         value = getattr(frame, field)
         if field == "source":
-          dset[i] = value.encode("utf-8")
+          dset[i] = value.encode("utf-8") if value is not None else b""
         elif value is not None and field in f:
           dset[i] = value
       if (i + 1) % 1000 == 0:
         logger.info("...wrote %d / %d frames...", i + 1, num_frames)
 
   logger.info("✅ Pre-processing complete. Saved %d frames to %s.", num_frames, output_path)
+  return output_path

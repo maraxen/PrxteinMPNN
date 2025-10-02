@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.utils.decoding_order import random_decoding_order
+from prxteinmpnn.utils.residue_constants import atom_order
 
 
 def test_greedy_decoding_is_deterministic(mock_model_parameters, model_inputs, rng_key):
@@ -20,7 +21,7 @@ def test_greedy_decoding_is_deterministic(mock_model_parameters, model_inputs, r
     )
 
     sample_inputs = model_inputs.copy()
-    sample_inputs["mask"] = sample_inputs["mask"][:, 1]
+    sample_inputs["mask"] = sample_inputs["mask"][:, atom_order["CA"]]
     del sample_inputs["sequence"]
 
     # Run sampling twice with the same key
@@ -50,7 +51,7 @@ def test_sampled_output_is_valid(mock_model_parameters, model_inputs, rng_key):
 
     seq_len = model_inputs["sequence"].shape[0]
     sample_inputs = model_inputs.copy()
-    sample_inputs["mask"] = sample_inputs["mask"][:, 1]
+    sample_inputs["mask"] = sample_inputs["mask"][:, atom_order["CA"]]
     del sample_inputs["sequence"]
 
     sampled_sequence, _, _ = sample_fn(
@@ -63,8 +64,8 @@ def test_sampled_output_is_valid(mock_model_parameters, model_inputs, rng_key):
     assert len(sampled_sequence) == seq_len
 
     # 2. Check that all amino acid indices are within the valid range [0, 19]
-    assert bool(jnp.all(sampled_sequence >= 0))
-    assert bool(jnp.all(sampled_sequence <= 19))
+    assert jnp.all(sampled_sequence >= 0)
+    assert jnp.all(sampled_sequence <= 19)
 
 
 def test_logits_are_plausible(mock_model_parameters, model_inputs, rng_key):
@@ -78,7 +79,7 @@ def test_logits_are_plausible(mock_model_parameters, model_inputs, rng_key):
 
     seq_len = model_inputs["sequence"].shape[0]
     sample_inputs = model_inputs.copy()
-    sample_inputs["mask"] = sample_inputs["mask"][:, 1]
+    sample_inputs["mask"] = sample_inputs["mask"][:, atom_order["CA"]]
     del sample_inputs["sequence"]
 
     _, logits, _ = sample_fn(
@@ -91,4 +92,4 @@ def test_logits_are_plausible(mock_model_parameters, model_inputs, rng_key):
     chex.assert_shape(logits, (seq_len, 21))
 
     # 2. Check for NaN or Inf values
-    assert bool(jnp.all(jnp.isfinite(logits)))
+    assert jnp.all(jnp.isfinite(logits))

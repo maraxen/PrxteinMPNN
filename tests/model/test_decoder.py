@@ -26,6 +26,7 @@ from prxteinmpnn.model.decoder import (
 from prxteinmpnn.model.encoder import make_encoder
 from prxteinmpnn.model.features import extract_features
 from prxteinmpnn.model.masked_attention import MaskedAttentionType
+from prxteinmpnn.utils.residue_constants import atom_order
 
 
 # ruff : noqa: D102, ANN201, S101
@@ -258,7 +259,7 @@ def test_decoder_with_golden(
         **feature_inputs,
     )
     mask = model_inputs["mask"]
-    residue_mask = mask[:, 1]
+    residue_mask = mask[:, atom_order["CA"]]
 
     # Run Encoder to get Decoder inputs
     encoder_fn = make_encoder(

@@ -80,7 +80,7 @@ class RunSpecification:
     if isinstance(self.backbone_noise, float):
       object.__setattr__(self, "backbone_noise", (self.backbone_noise,))
     if self.cache_path and isinstance(self.cache_path, str):
-        object.__setattr__(self, "cache_path", Path(self.cache_path))
+      object.__setattr__(self, "cache_path", Path(self.cache_path))
 
 
 @dataclass
@@ -180,12 +180,8 @@ class ConformationalInferenceSpecification(RunSpecification):
 
   output_h5_path: str | Path | None = None
   batch_size: int = 8
-  inference_strategy: Literal["unconditional", "conditional", "vmm", "coordinates"] = (
-    "unconditional"
-  )
-  inference_features: Sequence[
-    Literal["logits", "node_features", "edge_features", "backbone_coordinates", "full_coordinates"]
-  ] = ("logits",)
+  inference_strategy: Literal["unconditional", "conditional", "vmm"] = "unconditional"
+  inference_features: Sequence[Literal["logits", "node_features", "edge_features"]] = ("logits",)
   mode: Literal["global", "per"] = "global"
   gmm_n_components: int = 100
   eps_std_scale: float = 1.0

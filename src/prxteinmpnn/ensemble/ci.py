@@ -2,8 +2,8 @@
 
 from typing import Literal
 
+import jax
 import jax.numpy as jnp
-from gmmx import GaussianMixtureModelJax
 from jax.scipy.special import entr
 
 from prxteinmpnn.ensemble.dbscan import (
@@ -11,6 +11,7 @@ from prxteinmpnn.ensemble.dbscan import (
   compute_component_distances,
   dbscan_cluster,
 )
+from prxteinmpnn.ensemble.em_fit import GMM, Axis, log_likelihood
 from prxteinmpnn.utils.entropy import posterior_mean_std
 from prxteinmpnn.utils.types import EdgeFeatures, Logits, NodeFeatures, StructureAtomicCoordinates
 
@@ -22,8 +23,30 @@ and "edge_features" (edge features from the encoder).
 """
 
 
+@jax.jit
+def predict_probability(gmm: GMM, data: jax.Array) -> jax.Array:
+  """Predict the probability of each sample belonging to each component.
+
+  Args:
+    gmm: Fitted GMM object.
+    data: Input data, shape (num_samples, num_features).
+
+  Returns:
+  probabilities : jax.Array
+      Predicted probabilities
+
+  """
+  log_prob = log_likelihood(data, gmm.means, gmm.covariances)
+  log_prob_norm = jax.scipy.special.logsumexp(
+    log_prob,
+    axis=Axis.components,
+    keepdims=True,
+  )
+  return jnp.exp(log_prob - log_prob_norm)
+
+
 def infer_states(
-  gmm: GaussianMixtureModelJax,
+  gmm: GMM,
   features: Logits | NodeFeatures | EdgeFeatures | StructureAtomicCoordinates,
   eps_std_scale: float = 1.0,
   min_cluster_weight: float = 0.01,
@@ -31,8 +54,8 @@ def infer_states(
   """Infer residue or global states by clustering a GMM fit on input features.
 
   Args:
-    gmm: Fitted GaussianMixtureModelJax object.
-    features: Input features (logits or message), shape compatible with gmm.predict_proba.
+    gmm: Fitted GMM object.
+    features: Input features (logits or message), shape compatible with predict_probability.
     eps_std_scale: Scaling factor for DBSCAN epsilon.
     min_cluster_weight: Minimum cluster weight threshold.
 
@@ -42,7 +65,7 @@ def infer_states(
   """
   distance_matrix = compute_component_distances(gmm.means)
   component_weights = gmm.weights
-  responsibility_matrix = jnp.squeeze(gmm.predict_proba(features), axis=(2, 3))
+  responsibility_matrix = jnp.squeeze(predict_probability(gmm, features), axis=(2, 3))
   triu_indices = jnp.triu_indices_from(distance_matrix, k=1)
   eps = 1.0 - eps_std_scale * jnp.std(distance_matrix[triu_indices])
 

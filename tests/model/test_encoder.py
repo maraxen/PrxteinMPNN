@@ -237,8 +237,6 @@ def test_encoder_with_golden(
         mock_model_parameters,
         **feature_inputs,
     )
-    mask = model_inputs["mask"]
-    residue_mask = mask[:, atom_order["CA"]]
 
     # Run the full encoder
     encoder_fn = make_encoder(
@@ -247,7 +245,7 @@ def test_encoder_with_golden(
         num_encoder_layers=3,
         scale=30.0,
     )
-    node_out, edge_out = encoder_fn(edge_features, neighbor_indices, residue_mask)
+    node_out, edge_out = encoder_fn(edge_features, neighbor_indices, model_inputs["mask"])
 
     if not golden_file.exists():
         # Create the directory if it doesn't exist

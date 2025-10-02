@@ -291,7 +291,7 @@ class TestMakeFitGMM:
           call_args = mock_gmm_class.from_responsibilities.call_args
           responsibilities = call_args[1]['resp']
           
-          chex.assert_shape(responsibilities, (100, 1, n_components, 1))
+          chex.assert_shape(responsibilities, (1, 100, n_components))
           # Should be one-hot encoded
           assert jnp.allclose(jnp.sum(responsibilities, axis=2), 1.0)
 
@@ -323,20 +323,22 @@ class TestMakeFitGMM:
   def test_em_fitter_configuration(self):
     """Test that EM fitter is configured correctly."""
     with patch("prxteinmpnn.ensemble.gmm.fit_gmm_in_memory") as mock_fit_gmm_in_memory:
-      fit_fn = make_fit_gmm_in_memory(
-        n_components=3,
-        gmm_max_iters=200,
-        reg_covar=1e-5,
-      )
-      
-      key = jax.random.PRNGKey(42)
-      data = jnp.ones((10, 2))
-      fit_fn(data, key)
+      with patch("prxteinmpnn.ensemble.gmm.GaussianMixtureModelJax") as mock_gmm_class:
+        mock_gmm_class.from_responsibilities.return_value = MagicMock()
+        fit_fn = make_fit_gmm_in_memory(
+          n_components=3,
+          gmm_max_iters=200,
+          reg_covar=1e-5,
+        )
 
-      mock_fit_gmm_in_memory.assert_called_once()
-      call_args = mock_fit_gmm_in_memory.call_args
-      assert call_args[1]['max_iter'] == 200
-      assert call_args[1]['reg_covar'] == 1e-5
+        key = jax.random.PRNGKey(42)
+        data = jnp.ones((10, 2))
+        fit_fn(data, key)
+
+        mock_fit_gmm_in_memory.assert_called_once()
+        call_args = mock_fit_gmm_in_memory.call_args
+        assert call_args[1]['max_iter'] == 200
+        assert call_args[1]['reg_covar'] == 1e-5
 
   def test_jit_compilation(self, sample_data):
     """Test that the returned function is JIT-compatible."""
@@ -399,7 +401,7 @@ class TestIntegration:
         # Check that responsibilities had correct shape
         call_args = mock_gmm_class.from_responsibilities.call_args
         responsibilities = call_args[1]['resp']
-        chex.assert_shape(responsibilities, (100, 1, 3, 1))
+        chex.assert_shape(responsibilities, (1, 100, 3))
 
   def test_edge_case_single_point_per_cluster(self):
     """Test GMM fitting with minimal data."""

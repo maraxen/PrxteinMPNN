@@ -244,7 +244,7 @@ def test_different_sequence_lengths(
         # Create inputs for this sequence length
         sequence = jnp.ones((seq_len,), dtype=jnp.int32)
         structure_coordinates = jnp.ones((seq_len, 37, 3))
-        mask = jnp.ones((seq_len, 37), dtype=jnp.bool_)
+        mask = jnp.ones((seq_len,), dtype=jnp.bool_)
         residue_index = jnp.arange(seq_len)
         chain_index = jnp.zeros((seq_len,), dtype=jnp.int32)
         k_neighbors = 48

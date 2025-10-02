@@ -20,7 +20,7 @@ import numpy as np
 
 from prxteinmpnn.utils.data_structures import ProteinStream, ProteinTuple, TrajectoryStaticFeatures
 
-from .coordinates import process_coordinates
+from .coords import process_coordinates
 from .mappings import residue_names_to_aatype
 
 logger = logging.getLogger(__name__)

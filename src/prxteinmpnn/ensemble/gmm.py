@@ -191,8 +191,8 @@ def make_fit_gmm_in_memory(
 
     logger.info("Initializing GMM from K-Means results...")
     initial_gmm = GaussianMixtureModelJax.from_responsibilities(
-      x=jnp.expand_dims(data, axis=(1, 3)),
-      resp=jnp.expand_dims(responsibilities, axis=(2, 3)),
+      x=data[None, ...],
+      resp=responsibilities[None, ...],
       reg_covar=reg_covar,
     )
 

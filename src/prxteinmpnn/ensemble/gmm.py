@@ -14,17 +14,16 @@ from typing import Literal
 import h5py
 import jax
 import jax.numpy as jnp
-from gmmx.gmm import GaussianMixtureModelJax
 from jax import random
 from jaxtyping import Array, Float, Int, PRNGKeyArray
 
-from .em_fit import fit_gmm_generator, fit_gmm_in_memory
+from .em_fit import GMM, EMFitterResult, fit_gmm_generator, fit_gmm_in_memory
 
 EnsembleData = Float[Array, "num_samples num_features"]
 Centroids = Float[Array, "num_clusters num_features"]
 Labels = Int[Array, "num_samples"]
-GMMFitFnStreaming = Callable[[h5py.Dataset, PRNGKeyArray], GaussianMixtureModelJax]
-GMMFitFnInMemory = Callable[[EnsembleData, PRNGKeyArray], GaussianMixtureModelJax]
+GMMFitFnStreaming = Callable[[h5py.Dataset, PRNGKeyArray], EMFitterResult]
+GMMFitFnInMemory = Callable[[EnsembleData, PRNGKeyArray], EMFitterResult]
 logger = logging.getLogger(__name__)
 
 
@@ -107,9 +106,71 @@ def _kmeans(
   return jnp.argmin(final_distances_sq, axis=-1)
 
 
+def gmm_from_responsibilities(
+  data: jax.Array,
+  means: jax.Array,
+  responsibilities: jax.Array,
+  nk: jax.Array,
+  covariance_type: Literal["full", "diag"] = "full",
+  reg_covar: float = 1e-6,
+) -> GMM:
+  """Create a GMM from data and responsibilities.
+
+  Args:
+    data: Input data array of shape (n_samples, n_features).
+    means: Component means of shape (n_components, n_features).
+    responsibilities: Responsibility matrix of shape (n_samples, n_components).
+    nk: Sum of responsibilities for each component, shape (n_components,).
+    covariance_type: Type of covariance matrix, either "full" or "diag".
+    reg_covar: Regularization added to diagonal of covariance matrices.
+
+  Returns:
+    GMM: Gaussian Mixture Model with computed parameters.
+
+  Raises:
+    ValueError: If covariance_type is not "full" or "diag".
+
+  """
+  n_components, n_features = means.shape
+
+  diff = data[:, None, :] - means[None, :, :]
+  weighted_diff = responsibilities[:, :, None] * diff
+
+  if covariance_type == "full":
+    covariances = jnp.zeros((n_components, n_features, n_features))
+
+    def compute_full_covariance(k: int) -> jax.Array:
+      diff_k = diff[:, k, :]
+      weighted_diff_k = weighted_diff[:, k, :]
+      cov_k = jnp.dot(weighted_diff_k.T, diff_k) / nk[k]
+      return cov_k.at[jnp.diag_indices(n_features)].add(reg_covar)
+
+    covariances = jnp.stack([compute_full_covariance(k) for k in range(n_components)])
+  elif covariance_type == "diag":
+    covariances = jnp.zeros((n_components, n_features))
+
+    def compute_diag_covariance(k: int) -> jax.Array:
+      diff_k = diff[:, k, :]
+      weighted_diff_k = weighted_diff[:, k, :]
+      cov_k = jnp.sum(weighted_diff_k * diff_k, axis=0) / nk[k]
+      return cov_k + reg_covar
+
+    covariances = jnp.stack([compute_diag_covariance(k) for k in range(n_components)])
+
+  return GMM(
+    weights=nk / jnp.sum(nk),
+    means=means,
+    covariances=covariances,
+    responsibilities=responsibilities,
+    n_components=n_components,
+    n_features=n_features,
+  )
+
+
 def make_fit_gmm_streaming(
   n_components: int,
-  reshaping_mode: Literal["global", "per"] = "global",
+  mode: Literal["global", "per"] = "global",
+  covariance_type: Literal["full", "diag"] = "full",
   batch_size: int = 4096,
   kmeans_init_samples: int = 1000,
   kmeans_max_iters: int = 100,
@@ -123,7 +184,7 @@ def make_fit_gmm_streaming(
     for i in range(0, n_total, batch_size):
       yield jnp.reshape(jnp.array(dataset[i : i + batch_size]), (min(n_total - i, batch_size), -1))
 
-  def fit_gmm(dataset: h5py.Dataset, key: PRNGKeyArray) -> GaussianMixtureModelJax:
+  def fit_gmm(dataset: h5py.Dataset, key: PRNGKeyArray) -> EMFitterResult:
     n_total_samples = dataset.shape[0]
     init_samples = min(kmeans_init_samples, n_total_samples)
     logger.info("Running K-Means++ on a subset of %d samples...", init_samples)
@@ -135,13 +196,13 @@ def make_fit_gmm_streaming(
       replace=False,
     )
     init_data = jnp.array(dataset[jnp.sort(sample_indices)])
-    if reshaping_mode == "per":
+    if mode == "per":
       gmm_features = jnp.transpose(
         init_data,
         (1, 0, *tuple(range(2, init_data.ndim))),
       )  # (L, N, F)
       gmm_features = jnp.reshape(gmm_features, (init_data.shape[0], -1))  # (L, N*F)
-    elif reshaping_mode == "global":
+    elif mode == "global":
       gmm_features = jnp.reshape(init_data, (init_data.shape[0], -1))
 
     key, subkey = random.split(key)
@@ -149,9 +210,15 @@ def make_fit_gmm_streaming(
     responsibilities = jax.nn.one_hot(labels, num_classes=n_components)
 
     logger.info("Initializing GMM from K-Means results...")
-    initial_gmm = GaussianMixtureModelJax.from_responsibilities(
-      x=jnp.expand_dims(gmm_features, axis=(1, 3)),
-      resp=jnp.expand_dims(responsibilities, axis=(2, 3)),
+    initial_gmm = gmm_from_responsibilities(
+      data=jnp.expand_dims(gmm_features, axis=(1, 3)),
+      means=jnp.expand_dims(
+        jnp.array([jnp.mean(gmm_features[labels == k], axis=0) for k in range(n_components)]),
+        axis=(1, 3),
+      ),
+      responsibilities=jnp.expand_dims(responsibilities, axis=(2, 3)),
+      nk=jnp.sum(responsibilities, axis=0),
+      covariance_type=covariance_type,
       reg_covar=reg_covar,
     )
 
@@ -159,56 +226,74 @@ def make_fit_gmm_streaming(
     data_gen = _data_generator(dataset)
     result = fit_gmm_generator(
       data_generator=data_gen,
-      initial_gmm=initial_gmm,
+      gmm=initial_gmm,
       n_total_samples=n_total_samples,
       max_iter=gmm_max_iters,
       tol=1e-3,
       reg_covar=reg_covar,
+      covariance_type=covariance_type,
     )
     logger.info(
       "GMM fitting finished in %d iterations. Converged: %s",
       result.n_iter,
       result.converged,
     )
-    return result.gmm
+    return result
 
   return fit_gmm
 
 
 def make_fit_gmm_in_memory(
   n_components: int,
+  mode: Literal["global", "per"] = "global",
+  covariance_type: Literal["full", "diag"] = "full",
   kmeans_max_iters: int = 100,
   gmm_max_iters: int = 100,
   reg_covar: float = 1e-6,
 ) -> GMMFitFnInMemory:
   """Create a GMM fitting function for in-memory JAX arrays."""
 
-  def fit_gmm(data: EnsembleData, key: PRNGKeyArray) -> GaussianMixtureModelJax:
+  def fit_gmm(data: EnsembleData, key: PRNGKeyArray) -> EMFitterResult:
     logger.info("Running K-Means++ on the full in-memory dataset...")
     key, subkey = random.split(key)
     labels = _kmeans(subkey, data, n_components, max_iters=kmeans_max_iters)
     responsibilities = jax.nn.one_hot(labels, num_classes=n_components)
+    if mode == "per":
+      gmm_features = jnp.transpose(
+        data,
+        (1, 0, *tuple(range(2, data.ndim))),
+      )  # (L, N, F)
+      gmm_features = jnp.reshape(gmm_features, (data.shape[0], -1))  # (L, N*F)
+    elif mode == "global":
+      gmm_features = jnp.reshape(data, (data.shape[0], -1))
 
     logger.info("Initializing GMM from K-Means results...")
-    initial_gmm = GaussianMixtureModelJax.from_responsibilities(
-      x=data[None, ...],
-      resp=responsibilities[None, ...],
+    initial_gmm = gmm_from_responsibilities(
+      data=jnp.expand_dims(gmm_features, axis=(1, 3)),
+      means=jnp.expand_dims(
+        jnp.array([jnp.mean(gmm_features[labels == k], axis=0) for k in range(n_components)]),
+        axis=(1, 3),
+      ),
+      responsibilities=jnp.expand_dims(responsibilities, axis=(2, 3)),
+      nk=jnp.sum(responsibilities, axis=0),
+      covariance_type=covariance_type,
       reg_covar=reg_covar,
     )
 
     logger.info("Fitting GMM using in-memory EM...")
     result = fit_gmm_in_memory(
-      x=data,
-      initial_gmm=initial_gmm,
+      data=data,
+      gmm=initial_gmm,
       max_iter=gmm_max_iters,
       tol=1e-3,
       reg_covar=reg_covar,
+      covariance_type=covariance_type,
     )
     logger.info(
       "GMM fitting finished in %d iterations. Converged: %s",
       result.n_iter,
       result.converged,
     )
-    return result.gmm
+    return result
 
   return fit_gmm

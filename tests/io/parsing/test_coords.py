@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 from chex import assert_trees_all_close
-from prxteinmpnn.io.parsing.coordinates import (
+from prxteinmpnn.io.parsing.coords import (
     compute_cb_precise,
     extend_coordinate,
     process_coordinates,
@@ -28,3 +28,5 @@ def test_compute_cb_precise():
     c_coord = np.array([1.46 + 1.52 * np.cos(111 * np.pi / 180), 1.52 * np.sin(111 * np.pi / 180), 0])
     cb_coord = compute_cb_precise(n_coord, ca_coord, c_coord)
     assert cb_coord.shape == (3,)
+
+# TODO: Add more tests for process_coordinates function

@@ -25,7 +25,7 @@ def model_inputs(protein_structure: Protein) -> dict:
     """Create model inputs from a protein structure."""
     return {
         "structure_coordinates": protein_structure.coordinates,
-        "mask": protein_structure.atom_mask,
+        "mask": protein_structure.mask,
         "residue_index": protein_structure.residue_index,
         "chain_index": protein_structure.chain_index,
         "sequence": protein_structure.aatype,

@@ -85,7 +85,7 @@ def test_create_protein_dataset(
         parse_kwargs={},
     )
     mock_source_class.assert_called_once_with(dummy_h5_path)
-    mock_load_op_class.assert_called_once_with(hdf5_path=dummy_h5_path)
+    mock_load_op_class.assert_called_once_with(dummy_h5_path)
 
     # Iterate to trigger pipeline
     output_batches = list(dataset)

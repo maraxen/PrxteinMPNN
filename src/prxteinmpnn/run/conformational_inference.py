@@ -20,12 +20,10 @@ from prxteinmpnn.run.specs import ConformationalInferenceSpecification
 from prxteinmpnn.sampling.conditional_logits import make_conditional_logits_fn
 from prxteinmpnn.sampling.unconditional_logits import make_unconditional_logits_fn
 from prxteinmpnn.utils.types import (
-  BackboneAtomCoordinates,
   EdgeFeatures,
   Logits,
   ModelParameters,
   NodeFeatures,
-  StructureAtomicCoordinates,
 )
 
 logger = logging.getLogger(__name__)
@@ -68,15 +66,6 @@ def _get_logits_fn(
     case "vmm":
       msg = "VMM inference strategy is not yet implemented."
       raise NotImplementedError(msg)
-    case "coordinates":
-      return lambda *args, **kwargs: (  # type: ignore[return]  # noqa: ARG005
-        jnp.array([]),
-        jnp.array([]),
-        jnp.array([]),
-      ), False
-    case _:
-      msg = f"Invalid inference strategy: {spec.inference_strategy}"
-      raise ValueError(msg)
 
 
 def _compute_states_batches(
@@ -88,8 +77,6 @@ def _compute_states_batches(
     Logits | None,
     NodeFeatures | None,
     EdgeFeatures | None,
-    BackboneAtomCoordinates | None,
-    StructureAtomicCoordinates | None,
   ],
   None,
   None,
@@ -112,7 +99,7 @@ def _compute_states_batches(
         inference_args = (
           keys,
           batched_ensemble.coordinates,
-          batched_ensemble.atom_mask[0, :, 0],
+          batched_ensemble.full_atom_mask[0, :, 0],
           batched_ensemble.residue_index[0],
           batched_ensemble.chain_index[0],
         )
@@ -121,7 +108,7 @@ def _compute_states_batches(
           keys,
           batched_ensemble.coordinates,
           batched_ensemble.one_hot_sequence[0],
-          batched_ensemble.atom_mask[0, :, 0],
+          batched_ensemble.full_atom_mask[0, :, 0],
           batched_ensemble.residue_index[0],
           batched_ensemble.chain_index[0],
           batched_ensemble.aatype[0],
@@ -139,8 +126,6 @@ def _compute_states_batches(
       logits if "logits" in spec.inference_features else None,
       node_features if "node_features" in spec.inference_features else None,
       edge_features if "edge_features" in spec.inference_features else None,
-      batched_ensemble.coordinates if "backbone_coordinates" in spec.inference_features else None,
-      batched_ensemble.full_coordinates if "full_coordinates" in spec.inference_features else None,
     )
 
 
@@ -164,12 +149,6 @@ def _derive_states_in_memory(
     "edge_features": jnp.concatenate(all_edge_features)
     if all_edge_features[0] is not None
     else None,
-    "backbone_coordinates": jnp.concatenate(all_backbone_coords)
-    if all_backbone_coords[0] is not None
-    else None,
-    "full_coordinates": jnp.concatenate(all_full_coords)
-    if all_full_coords[0] is not None
-    else None,
     "metadata": {"spec": spec},
   }
 
@@ -191,8 +170,6 @@ def _derive_states_streaming(
       logits,
       node_features,
       edge_features,
-      backbone_coords,
-      full_coords,
     ) in enumerate(
       _compute_states_batches(spec, protein_iterator, model_parameters),
     ):
@@ -200,8 +177,6 @@ def _derive_states_streaming(
         "logits": logits,
         "node_features": node_features,
         "edge_features": edge_features,
-        "backbone_coordinates": backbone_coords,
-        "full_coordinates": full_coords,
       }
       if batch_idx == 0:
         for key, arr in states.items():
@@ -245,7 +220,10 @@ def infer_conformations(
       features_for_ci = jnp.array(all_states_h5)
       n_samples = features_for_ci.shape[0]
       gmm_fitter_fn = make_fit_gmm_streaming(n_components=spec.gmm_n_components)
-      gmm = gmm_fitter_fn(features_for_ci, key)  # type: ignore[arg-type]
+      em_result = gmm_fitter_fn(features_for_ci, key)  # type: ignore[arg-type]
+      if not em_result.converged:
+        logger.warning("GMM fitting did not converge.")
+      gmm = em_result.gmm
 
   else:  # In-memory processing
     all_states = states_result[feature_key]
@@ -273,7 +251,12 @@ def infer_conformations(
     if gmm_features is None:
       msg = "GMM features could not be determined."
       raise ValueError(msg)
-    gmm = gmm_fitter_fn(gmm_features, key)
+    em_result = gmm_fitter_fn(gmm_features, key)
+
+    if not em_result.converged:
+      logger.warning("GMM fitting did not converge.")
+
+    gmm = em_result.gmm
 
   return infer_states(
     gmm=gmm,

@@ -12,7 +12,6 @@ import jax.numpy as jnp
 
 from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.utils.decoding_order import random_decoding_order
-from prxteinmpnn.utils.residue_constants import atom_order
 
 from .prep import prep_protein_stream_and_model
 from .specs import SamplingSpecification
@@ -73,7 +72,6 @@ def sample(
   all_sequences, all_logits = [], []
 
   for batched_ensemble in protein_iterator:
-    residue_mask = batched_ensemble.atom_mask[:, :, atom_order["CA"]]
     keys = jax.random.split(jax.random.key(spec.random_seed), spec.num_samples)
 
     vmap_samples = jax.vmap(
@@ -107,7 +105,7 @@ def sample(
     sampled_sequences, logits, _ = vmap_structures(
       keys,
       batched_ensemble.coordinates,
-      residue_mask,
+      batched_ensemble.mask,
       batched_ensemble.residue_index,
       batched_ensemble.chain_index,
       48,
@@ -169,7 +167,6 @@ def _sample_streaming(
     )
 
     for batched_ensemble in protein_iterator:
-      residue_mask = batched_ensemble.atom_mask[:, :, atom_order["CA"]]
       keys = jax.random.split(jax.random.key(spec.random_seed), spec.num_samples)
 
       vmap_samples = jax.vmap(
@@ -203,7 +200,7 @@ def _sample_streaming(
       sampled_sequences, logits, _ = vmap_structures(
         keys,
         batched_ensemble.coordinates,
-        residue_mask,
+        batched_ensemble.mask,
         batched_ensemble.residue_index,
         batched_ensemble.chain_index,
         48,

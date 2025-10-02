@@ -1,18 +1,13 @@
 """Tests for Grain operations for processing protein structures."""
 
-import io
-from unittest.mock import Mock, patch
 
 import jax.numpy as jnp
 import numpy as np
 import pytest
-import requests
 
-from prxteinmpnn.io.operations import (
+from prxteinmpnn.io.operations import pad_and_collate_proteins
+from prxteinmpnn.utils.data_structures import Protein, ProteinTuple
 
-    pad_and_collate_proteins,
-)
-from prxteinmpnn.utils.data_structures import Protein, ProteinBatch, ProteinTuple
 
 class TestPadAndCollate:
     """Tests for the pad_and_collate_proteins function."""

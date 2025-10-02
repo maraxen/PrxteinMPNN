@@ -61,10 +61,11 @@ def mock_protein_ensemble():
   """
   ensemble = MagicMock()
   ensemble.coordinates = jnp.ones((5, 100, 4, 3))  # 5 frames, 100 residues
-  ensemble.one_hot_sequence = jnp.ones((100, 20))
-  ensemble.atom_mask = jnp.ones((100, 4))
+  ensemble.one_hot_sequence = jnp.ones((5, 100, 20))
+  ensemble.atom_mask = jnp.ones((5, 100, 4))
   ensemble.residue_index = jnp.arange(100)
   ensemble.chain_index = jnp.zeros(100)
+  ensemble.aatype=jnp.ones((5, 100))
   ensemble.full_coordinates = jnp.ones((5, 100, 14, 3))
   return ensemble
 
@@ -443,12 +444,12 @@ class TestInferConformations:
   """Test the main infer_conformations function."""
 
   @patch("prxteinmpnn.run.conformational_inference.derive_states")
-  @patch("prxteinmpnn.run.conformational_inference.make_fit_gmm")
+  @patch("prxteinmpnn.run.conformational_inference.make_fit_gmm_in_memory")
   @patch("prxteinmpnn.run.conformational_inference.infer_states")
   def test_successful_inference_in_memory(
     self,
     mock_infer_states,
-    mock_make_fit_gmm,
+    mock_make_fit_gmm_in_memory,
     mock_derive_states,
     mock_spec,
   ):
@@ -456,7 +457,7 @@ class TestInferConformations:
     
     Args:
       mock_infer_states: Mock infer states function.
-      mock_make_fit_gmm: Mock GMM fitting function.
+      mock_make_fit_gmm_in_memory: Mock GMM fitting function.
       mock_derive_states: Mock derive states function.
       mock_spec: Mock specification fixture.
     """
@@ -471,7 +472,7 @@ class TestInferConformations:
     
     mock_gmm = MagicMock()
     mock_gmm_fitter = MagicMock(return_value=mock_gmm)
-    mock_make_fit_gmm.return_value = mock_gmm_fitter
+    mock_make_fit_gmm_in_memory.return_value = mock_gmm_fitter
     
     mock_conformational_states = MagicMock(spec=ConformationalStates)
     mock_infer_states.return_value = mock_conformational_states
@@ -481,7 +482,7 @@ class TestInferConformations:
     
     assert result == mock_conformational_states
     mock_derive_states.assert_called_once_with(mock_spec)
-    mock_make_fit_gmm.assert_called_once()
+    mock_make_fit_gmm_in_memory.assert_called_once()
     mock_infer_states.assert_called_once()
 
   @patch("prxteinmpnn.run.conformational_inference.derive_states")
@@ -503,15 +504,16 @@ class TestInferConformations:
     mock_spec.output_h5_path = "/tmp/test.h5"
     mock_spec.inference_strategy = "logits"
     
-    mock_derive_states.return_value = {}
+    mock_derive_states.return_value = {"output_h5_path": "/tmp/test.h5"}
     
     # Mock HDF5 data
     mock_file = MagicMock()
-    mock_h5py_file.return_value.__enter__ = lambda x: mock_file
-    mock_h5py_file.return_value.__exit__ = lambda *args: None
-    mock_file.__getitem__.return_value.__getitem__.return_value = jnp.ones((10, 100, 20))
+    mock_dataset = jnp.ones((10, 100, 20))
+    mock_h5py_file.return_value.__enter__.return_value = mock_file
+    mock_h5py_file.return_value.__exit__.return_value = None
+    mock_file.__getitem__.return_value = mock_dataset
     
-    with patch("prxteinmpnn.run.conformational_inference.make_fit_gmm") as mock_make_fit_gmm:
+    with patch("prxteinmpnn.run.conformational_inference.make_fit_gmm_streaming") as mock_make_fit_gmm:
       with patch("prxteinmpnn.run.conformational_inference.infer_states") as mock_infer_states:
         mock_gmm_fitter = MagicMock()
         mock_make_fit_gmm.return_value = mock_gmm_fitter
@@ -538,12 +540,12 @@ class TestInferConformations:
       infer_conformations(mock_spec)
 
   @patch("prxteinmpnn.run.conformational_inference.derive_states")
-  @patch("prxteinmpnn.run.conformational_inference.make_fit_gmm")
+  @patch("prxteinmpnn.run.conformational_inference.make_fit_gmm_in_memory")
   @patch("prxteinmpnn.run.conformational_inference.infer_states")
   def test_per_residue_mode(
     self,
     mock_infer_states,
-    mock_make_fit_gmm,
+    mock_make_fit_gmm_in_memory,
     mock_derive_states,
     mock_spec,
   ):
@@ -551,7 +553,7 @@ class TestInferConformations:
     
     Args:
       mock_infer_states: Mock infer states function.
-      mock_make_fit_gmm: Mock GMM fitting function.
+      mock_make_fit_gmm_in_memory: Mock GMM fitting function.
       mock_derive_states: Mock derive states function.
       mock_spec: Mock specification fixture.
     """
@@ -564,16 +566,16 @@ class TestInferConformations:
     mock_derive_states.return_value = {"logits": test_states}
     
     mock_gmm_fitter = MagicMock()
-    mock_make_fit_gmm.return_value = mock_gmm_fitter
+    mock_make_fit_gmm_in_memory.return_value = mock_gmm_fitter
     mock_infer_states.return_value = MagicMock(spec=ConformationalStates)
     
     # Test
     infer_conformations(mock_spec)
     
     # Check that make_fit_gmm was called with per-residue parameters
-    mock_make_fit_gmm.assert_called_once_with(
+    mock_make_fit_gmm_in_memory.assert_called_once_with(
       n_components=mock_spec.gmm_n_components,
-      n_features=test_states.shape[-1]*test_states.shape[1],  # Features dimension for per-residue
+      gmm_max_iters=100,
     )
 
 

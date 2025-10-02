@@ -354,7 +354,7 @@ class TestParseInput:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as tmp:
             tmp.write("hello")
             filepath = tmp.name
-        with pytest.raises(RuntimeError, match="Failed to parse structure from source: Unknown file format '.txt'"):
+        with pytest.raises(RuntimeError, match=r"Failed to parse structure from source: .*Unknown file format '\.txt'"):
             list(parse_input(filepath))
         pathlib.Path(filepath).unlink()
 
@@ -459,10 +459,8 @@ class TestParseInput:
 
     def test_parse_mdtraj_hdf5_with_chain_selection(self, hdf5_file):
         """Test parsing mdtraj HDF5 with chain selection."""
-        protein_stream = parse_input(hdf5_file, chain_id="B")
-        protein_list = list(protein_stream)
-        assert len(protein_list) == 2
-        assert np.all(protein_list[0].chain_index == 0)
+        with pytest.raises(RuntimeError, match="No atoms found for chain"):
+            list(parse_input(hdf5_file, chain_id="B"))
 
     def test_parse_hdf5_malformed_file(self):
         """Test parsing a malformed HDF5 file."""

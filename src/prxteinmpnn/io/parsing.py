@@ -665,6 +665,7 @@ def _parse_mdcath_hdf5(
       )["coords"].shape
       num_full_atoms = sample_coords_shape[1]
       logger.info("Number of full atoms from sample coords: %d", num_full_atoms)
+      valid_atom_mask = np.ones(num_full_atoms, dtype=bool)
 
       # Reshape to be in 37, using the number of atoms per residue identity
 
@@ -868,8 +869,8 @@ def parse_input(
   temp_path = None
   tmp_top_path = None
 
-  if isinstance(source, IO):
-    logger.debug("Source is IO. Creating temporary PDB file.")
+  if not isinstance(source, (str, pathlib.Path)):
+    logger.debug("Source is not a path, assuming IO-like. Creating temporary PDB file.")
     with tempfile.NamedTemporaryFile(
       mode="w",
       delete=False,

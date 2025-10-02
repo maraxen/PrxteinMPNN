@@ -106,6 +106,7 @@ class TestScore:
             sequences_to_score=["TESTSEQUENCE"],
             output_h5_path=h5_path,
             backbone_noise=[0.1],
+            cache_path=tmp_path / "cache.h5",
         )
         result = score(spec=spec)
 

@@ -46,6 +46,7 @@ def prep_protein_stream_and_model(spec: RunSpecification) -> tuple[IterDataset, 
     foldcomp_database=spec.foldcomp_database,
     parse_kwargs=parse_kwargs,
     num_workers=spec.num_workers,
+    cache_path=spec.cache_path,
   )
   model_parameters = get_mpnn_model(
     model_version=spec.model_version,

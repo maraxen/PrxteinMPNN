@@ -183,7 +183,6 @@ def _m_step_from_responsibilities(
   covariance_type: Literal["full", "diag"] = "full",
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
   """Maximization (M) step for in-memory data using responsibilities."""
-  responsibilities = jnp.squeeze(responsibilities, axis=(-2, -1))
   nk = jnp.sum(responsibilities, axis=Axis.batch)
 
   safe_nk = jnp.where(nk == 0, 1.0, nk)
@@ -364,7 +363,6 @@ def fit_gmm_generator(
       batch_size = batch_data.shape[0]
       batch_ll, log_resp = _e_step(batch_data, gmm, covariance_type)
       resp = jnp.exp(log_resp)
-      resp = jnp.squeeze(resp, axis=(-2, -1))  # Squeeze to 2D
 
       log_likelihood_total += batch_ll * batch_size
       nk += jnp.sum(resp, axis=Axis.batch)

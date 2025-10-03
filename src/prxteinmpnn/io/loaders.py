@@ -41,13 +41,16 @@ def create_protein_dataset(
 
   parse_kwargs = parse_kwargs or {}
 
-  ds = dataset.FrameDataset(
+  source = dataset.ProteinDataSource(
     inputs=inputs,
     parse_kwargs=parse_kwargs,
     foldcomp_database=foldcomp_database,
   )
-
-  ds = ds.batch(batch_size, batch_fn=operations.pad_and_collate_proteins)
+  ds = (
+    grain.MapDataset.source(source)
+    .to_iter_dataset()
+    .batch(batch_size, batch_fn=operations.pad_and_collate_proteins)
+  )
 
   performance_config = prefetch_autotune.pick_performance_config(
     ds=ds,

@@ -1,6 +1,7 @@
 """Conformational-inference from ProteinMPNN logits or features."""
 
 import logging
+import pathlib
 import sys
 from collections.abc import Callable, Generator
 from typing import Any, cast
@@ -41,6 +42,13 @@ def derive_states(
   protein_iterator, model_parameters = prep_protein_stream_and_model(spec)
 
   if spec.output_h5_path:
+    if not spec.overwrite_cache and pathlib.Path(spec.output_h5_path).exists():
+      msg = (
+        f"HDF5 file {spec.output_h5_path} already exists. Use overwrite_cache=True to overwrite."
+      )
+      raise FileExistsError(msg)
+    if spec.overwrite_cache:
+      logger.info("Overwriting existing HDF5 file at %s", spec.output_h5_path)
     return _derive_states_streaming(spec, protein_iterator, model_parameters)
   return _derive_states_in_memory(spec, protein_iterator, model_parameters)
 

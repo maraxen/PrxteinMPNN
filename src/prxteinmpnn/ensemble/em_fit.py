@@ -429,13 +429,12 @@ def fit_gmm_generator(
     i: jax.Array,
     state: tuple[EMFitterResult, jax.Array],
   ) -> tuple[EMFitterResult, jax.Array]:
-    state = jax.lax.cond(
+    return jax.lax.cond(
       converged(state),
-      lambda s: body_fn(i, s),
-      lambda _: state,
+      body_fn(i, state),
+      state,
       operand=None,
     )
-    return state
 
   return jax.lax.fori_loop(
     0,

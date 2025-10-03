@@ -356,7 +356,7 @@ def fit_gmm_generator(
     logger.debug("EM iteration %d", i + 1)
     logger.debug("Processing %d batches", len(data_cache))
     logger.debug("GMM type: %s", type(gmm))
-    logger.debug("GMM state: %s", gmm)
+    logger.info("GMM state: %s", gmm)
     n_iter = i + 1
     nk = jnp.zeros(gmm.n_components)
     xk = jnp.zeros((gmm.n_components, gmm.n_features))

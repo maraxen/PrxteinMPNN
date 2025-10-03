@@ -4,7 +4,7 @@ import logging
 import pathlib
 import re
 import warnings
-from collections.abc import Generator, Sequence
+from collections.abc import Generator, Iterator, Sequence
 from io import StringIO
 from typing import IO, Any
 
@@ -102,7 +102,7 @@ def frame_iterator_from_inputs(
   inputs: Sequence[str | pathlib.Path | IO[str]],
   parse_kwargs: dict[str, Any] | None = None,
   foldcomp_database: FoldCompDatabase | None = None,
-) -> Generator[ProteinTuple, None, None]:
+) -> Iterator[ProteinTuple]:
   """Create a generator that yields ProteinTuple frames from mixed inputs.
 
   This function resolves various input types (file paths, PDB IDs, FoldComp IDs,
@@ -110,12 +110,12 @@ def frame_iterator_from_inputs(
   ProteinTuple frames.
 
   Args:
-      inputs: A sequence of mixed input types.
-      parse_kwargs: Optional dictionary of keyword arguments for the parsing function.
-      foldcomp_database: An optional FoldCompDatabase for resolving FoldComp IDs.
+    inputs: A sequence of mixed input types.
+    parse_kwargs: Optional dictionary of keyword arguments for the parsing function.
+    foldcomp_database: An optional FoldCompDatabase for resolving FoldComp IDs.
 
   Yields:
-      ProteinTuple frames parsed from the inputs.
+    ProteinTuple frames parsed from the inputs.
 
   """
   parse_kwargs = parse_kwargs or {}

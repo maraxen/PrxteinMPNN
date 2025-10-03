@@ -268,12 +268,9 @@ def make_fit_gmm_in_memory(
 
     logger.info("Initializing GMM from K-Means results...")
     initial_gmm = gmm_from_responsibilities(
-      data=jnp.expand_dims(gmm_features, axis=(1, 3)),
-      means=jnp.expand_dims(
-        jnp.array([jnp.mean(gmm_features[labels == k], axis=0) for k in range(n_components)]),
-        axis=(1, 3),
-      ),
-      responsibilities=jnp.expand_dims(responsibilities, axis=(2, 3)),
+      data=data,
+      means=jnp.array([jnp.mean(gmm_features[labels == k], axis=0) for k in range(n_components)]),
+      responsibilities=responsibilities,
       nk=jnp.sum(responsibilities, axis=0),
       covariance_type=covariance_type,
       reg_covar=reg_covar,

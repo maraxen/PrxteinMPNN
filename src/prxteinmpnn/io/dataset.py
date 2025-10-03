@@ -48,10 +48,8 @@ class FrameIterator(grain.IterDataset):
 
     This method is called by Grain to start streaming data.
     """
-    return DatasetIterator(
-      frame_iterator_from_inputs(
-        self.inputs,
-        self.parse_kwargs,
-        self.foldcomp_database,  # type: ignore[arg-type]
-      ),
+    return frame_iterator_from_inputs(
+      self.inputs,
+      self.parse_kwargs,
+      self.foldcomp_database,  # type: ignore[arg-type]
     )

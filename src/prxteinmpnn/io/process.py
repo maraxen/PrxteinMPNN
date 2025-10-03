@@ -1,6 +1,5 @@
 """Pre-process various input formats into a single HDF5 file for efficient loading."""
 
-import itertools
 import logging
 import pathlib
 import re
@@ -9,8 +8,6 @@ from collections.abc import Generator, Sequence
 from io import StringIO
 from typing import IO, Any
 
-import h5py
-import numpy as np
 import requests
 
 from prxteinmpnn.io.parsing import parse_input
@@ -128,97 +125,3 @@ def frame_iterator_from_inputs(
       yield source
     else:
       yield from parse_input(source, **parse_kwargs)
-
-
-WRITE_CHUNK_SIZE = 1000
-
-
-def preprocess_inputs_to_hdf5(  # noqa: C901
-  inputs: Sequence[str | pathlib.Path | IO[str]],
-  output_path: str | pathlib.Path | None = None,
-  parse_kwargs: dict | None = None,
-  foldcomp_database: FoldCompDatabase | None = None,
-) -> pathlib.Path | None:
-  """Parse inputs and save all frames to a single HDF5 file using efficient chunking."""
-  if output_path is None:
-    output_path = pathlib.Path("preprocessed_inputs.h5")
-
-  logger.info("Cache not found. Pre-processing inputs to %s...", output_path)
-  parse_kwargs = parse_kwargs or {}
-
-  frame_iterator = frame_iterator_from_inputs(
-    inputs,
-    parse_kwargs=parse_kwargs,
-    foldcomp_database=foldcomp_database,
-  )
-
-  try:
-    first_frame = next(frame_iterator)
-  except StopIteration:
-    logger.warning(
-      "No frames found in any input sources. Creating an empty HDF5 file.",
-    )
-    with h5py.File(output_path, "w") as f:
-      f.attrs["format"] = "prxteinmpnn_preprocessed"
-      f.attrs["status"] = "empty"
-    return None
-
-  with h5py.File(output_path, "w") as f:
-    f.attrs["format"] = "prxteinmpnn_preprocessed"
-    datasets = {}
-
-    for field, data in first_frame._asdict().items():
-      if data is None:
-        continue
-
-      if isinstance(data, np.ndarray):
-        datasets[field] = f.create_dataset(
-          field,
-          shape=(1, *data.shape),
-          maxshape=(None, *data.shape),
-          dtype=data.dtype,
-          chunks=True,
-        )
-      elif isinstance(data, (str, bytes)):
-        str_dtype = h5py.string_dtype(encoding="utf-8")
-        datasets[field] = f.create_dataset(
-          field,
-          shape=(1,),
-          maxshape=(None,),
-          dtype=str_dtype,
-          chunks=True,
-        )
-      else:
-        datasets[field] = f.create_dataset(
-          field,
-          shape=(1,),
-          maxshape=(None,),
-          dtype=type(data),
-          chunks=True,
-        )
-
-    for field, dset in datasets.items():
-      dset[0] = getattr(first_frame, field)
-
-    count = 1
-    while True:
-      chunk = list(itertools.islice(frame_iterator, WRITE_CHUNK_SIZE))
-      if not chunk:
-        break
-      num_in_chunk = len(chunk)
-      start_index = count
-
-      new_size = start_index + num_in_chunk
-      for dset in datasets.values():
-        dset.resize(new_size, axis=0)
-
-      for i, frame in enumerate(chunk):
-        current_index = start_index + i
-        for field, dset in datasets.items():
-          dset[current_index] = getattr(frame, field)
-
-      count = new_size
-      logger.info("...processed %d frames...", count)
-
-  logger.info("✅ Pre-processing complete. Saved %d frames.", count)
-  return pathlib.Path(output_path)

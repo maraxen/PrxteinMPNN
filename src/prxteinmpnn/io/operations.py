@@ -4,59 +4,13 @@ This module implements `grain.transforms.Map` and `grain.IterOperation` classes
 for parsing, transforming, and batching protein data.
 """
 
-import pathlib
 import warnings
 from collections.abc import Sequence
-from typing import Any, cast
 
-import grain
-import h5py
 import jax
 import jax.numpy as jnp
 
 from prxteinmpnn.utils.data_structures import Protein, ProteinTuple
-
-
-class LoadHDF5Frame(grain.transforms.Map):
-  """Load a single protein frame from a preprocessed HDF5 file by index.
-
-  This operation is designed to work with `HDF5DataSource`. It receives an
-  integer index and performs a direct slice from the HDF5 datasets to efficiently
-  load the corresponding frame data.
-  """
-
-  def __init__(self, hdf5_path: str | pathlib.Path) -> None:
-    """Initialize the operation with the path to the HDF5 file.
-
-    Args:
-        hdf5_path: Path to the preprocessed HDF5 file.
-
-    """
-    self.hdf5_path = hdf5_path
-
-  def map(self, index: int) -> ProteinTuple:  # type: ignore[override]
-    """Read data for the given index from the HDF5 file and return a ProteinTuple.
-
-    Args:
-        index: The integer index of the frame to load.
-
-    Returns:
-        A ProteinTuple containing the data for the requested frame.
-
-    """
-    with h5py.File(self.hdf5_path, "r") as f:
-      data: dict[str, Any] = {str(key): cast("h5py.Dataset", f[key])[index] for key in f}
-
-    if "source" in data and isinstance(data["source"], bytes):
-      data["source"] = data["source"].decode("utf-8")
-
-    all_fields = ProteinTuple.__annotations__.keys()
-    for field in all_fields:
-      if field not in data:
-        data[field] = None
-
-    return ProteinTuple(**data)
-
 
 _MAX_TRIES = 5
 

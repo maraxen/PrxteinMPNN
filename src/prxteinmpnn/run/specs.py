@@ -72,6 +72,7 @@ class RunSpecification:
   decoding_order_fn: DecodingOrderFn | None = None
   conformational_states: ConformationalStates | None = None
   cache_path: str | Path | None = None
+  overwrite_cache: bool = False
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""

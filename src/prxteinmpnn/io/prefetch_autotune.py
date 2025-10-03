@@ -37,7 +37,7 @@ def _get_element_size_bytes(element: Any) -> int:  # noqa: ANN401
 
 
 def _get_average_element_size_mb(
-  dss: list[dataset.IterDataset],
+  dss: list[dataset.IterDataset | dataset.MapDataset],
   samples_to_check: int = 5,
 ) -> float:
   """Calculate the average size of elements in the given datasets.
@@ -71,7 +71,7 @@ def _get_average_element_size_mb(
 
 
 def _get_num_workers(
-  ds: dataset.IterDataset,
+  ds: dataset.IterDataset | dataset.MapDataset,
   *,
   ram_budget_mb: int,
   max_workers: int | None,
@@ -97,7 +97,7 @@ def _get_num_workers(
 
 
 def _get_buffer_size(
-  ds: dataset.IterDataset,
+  ds: dataset.IterDataset | dataset.MapDataset,
   *,
   ram_budget_mb: int,
   max_buffer_size: int | None,
@@ -135,7 +135,7 @@ class PerformanceConfig:
 
 
 def pick_performance_config(
-  ds: dataset.IterDataset,
+  ds: dataset.IterDataset | dataset.MapDataset,
   *,
   ram_budget_mb: int | None,
   max_workers: int | None,

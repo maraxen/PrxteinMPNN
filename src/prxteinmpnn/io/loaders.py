@@ -46,11 +46,7 @@ def create_protein_dataset(
     parse_kwargs=parse_kwargs,
     foldcomp_database=foldcomp_database,
   )
-  ds = (
-    grain.MapDataset.source(source)
-    .to_iter_dataset()
-    .batch(batch_size, batch_fn=operations.pad_and_collate_proteins)
-  )
+  ds = grain.MapDataset.source(source)
 
   performance_config = prefetch_autotune.pick_performance_config(
     ds=ds,
@@ -58,4 +54,7 @@ def create_protein_dataset(
     max_workers=None,
     max_buffer_size=None,
   )
-  return ds.mp_prefetch(performance_config.multiprocessing_options)
+  return ds.to_iter_dataset(read_options=performance_config.read_options).batch(
+    batch_size,
+    batch_fn=operations.pad_and_collate_proteins,
+  )

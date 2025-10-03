@@ -11,12 +11,12 @@ from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase
 
 from . import operations, sources
 from .cache import preprocess_inputs_to_hdf5
+from .prefetch_autotune import pick_performance_config
 
 
 def create_protein_dataset(
   inputs: str | Path | Sequence[str | Path | IO[str]],
   batch_size: int,
-  num_workers: int = 0,
   parse_kwargs: dict[str, Any] | None = None,
   foldcomp_database: FoldCompDatabase | None = None,
   cache_path: str | pathlib.Path | None = None,
@@ -30,8 +30,6 @@ def create_protein_dataset(
   Args:
       inputs: A single input (file, PDB ID, etc.) or a sequence of such inputs.
       batch_size: The number of protein structures to include in each batch.
-      num_workers: The number of parallel worker processes for data loading.
-                   0 means all loading is done in the main process.
       parse_kwargs: Optional dictionary of keyword arguments for parsing.
       foldcomp_database: Optional path to a FoldComp database.
       cache_path: Optional path to cache the preprocessed HDF5 file. If None,
@@ -52,6 +50,11 @@ def create_protein_dataset(
     parse_kwargs=parse_kwargs,
     foldcomp_database=foldcomp_database,
   )
+
+  if hdf5_path is None:
+    msg = "Preprocessing did not return a valid HDF5 path."
+    raise ValueError(msg)
+
   source = sources.HDF5DataSource(hdf5_path)
 
   ds = grain.MapDataset.source(source)
@@ -60,8 +63,10 @@ def create_protein_dataset(
   ds = ds.to_iter_dataset()
   ds = ds.batch(batch_size, batch_fn=operations.pad_and_collate_proteins)
 
-  if num_workers > 0:
-    mp_options = grain.MultiprocessingOptions(num_workers=num_workers)
-    ds = ds.mp_prefetch(mp_options)
-
-  return ds
+  performance_config = pick_performance_config(
+    ds=ds,
+    ram_budget_mb=1024,
+    max_workers=None,
+    max_buffer_size=None,
+  )
+  return ds.mp_prefetch(performance_config.multiprocessing_options)

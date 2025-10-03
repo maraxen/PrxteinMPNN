@@ -182,10 +182,13 @@ class ConformationalInferenceSpecification(RunSpecification):
   inference_strategy: Literal["unconditional", "conditional", "vmm"] = "unconditional"
   inference_features: Sequence[Literal["logits", "node_features", "edge_features"]] = ("logits",)
   mode: Literal["global", "per"] = "global"
+  covariance_type: Literal["full", "diag"] = "diag"
   gmm_n_components: int = 100
   eps_std_scale: float = 1.0
   min_cluster_weight: float = 0.01
   gmm_init: Literal["kmeans", "random"] = "kmeans"
+  gmm_max_iters: int = 100
+
   reference_sequence: str | None = None
 
   def __post_init__(self) -> None:

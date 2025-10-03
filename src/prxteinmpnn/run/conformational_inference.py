@@ -143,7 +143,7 @@ def _derive_states_in_memory(
 ) -> dict[str, jax.Array | dict[str, ConformationalInferenceSpecification] | None]:
   """Compute global states and stores them in memory."""
   all_batches = list(_compute_states_batches(spec, protein_iterator, model_parameters))
-  all_logits, all_node_features, all_edge_features, all_backbone_coords, all_full_coords = zip(
+  all_logits, all_node_features, all_edge_features = zip(
     *all_batches,
     strict=False,
   )
@@ -226,7 +226,13 @@ def infer_conformations(
       # The data for clustering must be reshaped and loaded into memory.
       features_for_ci = jnp.array(all_states_h5)
       n_samples = features_for_ci.shape[0]
-      gmm_fitter_fn = make_fit_gmm_streaming(n_components=spec.gmm_n_components)
+      gmm_fitter_fn = make_fit_gmm_streaming(
+        n_components=spec.gmm_n_components,
+        covariance_type=spec.covariance_type,
+        mode=spec.mode,
+        batch_size=spec.batch_size,
+        gmm_max_iters=spec.gmm_max_iters,
+      )
       em_result = gmm_fitter_fn(features_for_ci, key)  # type: ignore[arg-type]
       if not em_result.converged:
         logger.warning("GMM fitting did not converge.")
@@ -253,7 +259,9 @@ def infer_conformations(
 
     gmm_fitter_fn = make_fit_gmm_in_memory(
       n_components=spec.gmm_n_components,
-      gmm_max_iters=100,  # Example, should be in spec
+      covariance_type=spec.covariance_type,
+      mode=spec.mode,
+      gmm_max_iters=spec.gmm_max_iters,
     )
     if gmm_features is None:
       msg = "GMM features could not be determined."

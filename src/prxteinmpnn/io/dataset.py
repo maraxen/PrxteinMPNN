@@ -2,10 +2,11 @@
 
 import logging
 import pathlib
-from collections.abc import Iterator, Sequence
+from collections.abc import Sequence
 from typing import IO, Any
 
 import grain.python as grain
+from grain import DatasetIterator
 
 from prxteinmpnn.utils.data_structures import ProteinTuple
 from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase
@@ -42,12 +43,12 @@ class FrameIterator(grain.IterDataset):
     self.parse_kwargs = parse_kwargs
     self.foldcomp_database = foldcomp_database
 
-  def __iter__(self) -> Iterator[ProteinTuple]:  # type: ignore[override]
+  def __iter__(self) -> DatasetIterator[ProteinTuple]:
     """Create and yield from the frame iterator.
 
     This method is called by Grain to start streaming data.
     """
-    yield from frame_iterator_from_inputs(
+    return frame_iterator_from_inputs(
       self.inputs,
       self.parse_kwargs,
       self.foldcomp_database,  # type: ignore[arg-type]

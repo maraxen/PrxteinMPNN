@@ -70,7 +70,6 @@ def categorical_jacobian(
         noise_batch_size: Batch size for noise levels in Jacobian computation.
         jacobian_batch_size: Inner batch size for Jacobian computation.
         combine_batch_size: Batch size for combining Jacobians.
-        num_workers: Number of parallel workers for data loading.
         combine_fn: Function or string specifying how to combine Jacobian pairs (e.g., "add",
         "subtract").
         combine_fn_kwargs: Optional dictionary of keyword arguments for the combine function.

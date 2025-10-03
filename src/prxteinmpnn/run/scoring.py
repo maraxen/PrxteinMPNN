@@ -44,7 +44,6 @@ def score(
         backbone_noise: The amount of noise to add to the backbone.
         ar_mask: An optional array of shape (L, L) to mask out certain residue pairs.
         batch_size: The number of structures to process in a single batch.
-        num_workers: Number of parallel workers for data loading.
       **kwargs: Additional keyword arguments for structure loading.
 
 

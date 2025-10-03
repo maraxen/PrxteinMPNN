@@ -58,6 +58,8 @@ def log_likelihood(data: jax.Array, means: jax.Array, covariances: jax.Array) ->
       Feature vectors
   means : jax.array
       Means of the components
+  covariances : jax.array
+      Covariances of the components
 
   Returns
   -------

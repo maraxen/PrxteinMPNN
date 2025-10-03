@@ -19,7 +19,6 @@ def mock_run_spec():
   spec.inputs = ["test_input.pdb"]
   spec.batch_size = 1
   spec.foldcomp_database = None
-  spec.num_workers = 1
   spec.model_version = "v_48_020"
   spec.model_weights = None
   spec.topology = None
@@ -85,7 +84,6 @@ def testprep_protein_stream_and_model_basic(
       "altloc": "A",
       "topology": None,
     },
-    num_workers=1,
     cache_path=None,
   )
   
@@ -127,7 +125,6 @@ def testprep_protein_stream_and_model_multiple_inputs(
   spec.inputs = ["file1.pdb", "file2.pdb", "file3.pdb"]
   spec.batch_size = 4
   spec.foldcomp_database = "/path/to/db"
-  spec.num_workers = 2
   spec.model_version = "v_48_030"
   spec.model_weights = "/path/to/weights.pt"
   spec.topology = None
@@ -151,7 +148,6 @@ def testprep_protein_stream_and_model_multiple_inputs(
       "altloc": "B",
       "topology": None,
     },
-    num_workers=2,
     cache_path=None,
   )
   
@@ -194,7 +190,6 @@ def testprep_protein_stream_and_model_stringio_input(
   spec.inputs = stringio_input
   spec.batch_size = 1
   spec.foldcomp_database = None
-  spec.num_workers = 1
   spec.model_version = "v_48_020"
   spec.model_weights = None
   spec.topology = None
@@ -218,7 +213,6 @@ def testprep_protein_stream_and_model_stringio_input(
       "altloc": None,
       "topology": None,
     },
-    num_workers=1,
     cache_path=None,
   )
   
@@ -260,7 +254,6 @@ def testprep_protein_stream_and_model_empty_inputs(
   spec.inputs = []
   spec.batch_size = 1
   spec.foldcomp_database = None
-  spec.num_workers = 1
   spec.model_version = "v_48_020"
   spec.model_weights = None
   spec.topology = None
@@ -284,8 +277,7 @@ def testprep_protein_stream_and_model_empty_inputs(
       "altloc": "A",
       "topology": None,
     },
-    num_workers=1,
-    cache_path=None,
+  cache_path=None,
   )
   
   # Verify get_mpnn_model was called correctly

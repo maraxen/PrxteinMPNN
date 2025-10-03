@@ -107,8 +107,7 @@ def test_create_protein_dataset_with_workers(mock_preprocess: MagicMock) -> None
         mock_source_instance.__len__.return_value = 1
         mock_source_class.return_value = mock_source_instance
 
-        create_protein_dataset(["test.pdb"], batch_size=4, num_workers=2)
+        create_protein_dataset(["test.pdb"], batch_size=4)
         mock_prefetch.assert_called_once_with(ANY)
         args, kwargs = mock_prefetch.call_args
         assert isinstance(args[0], grain.MultiprocessingOptions)
-        assert args[0].num_workers == 2

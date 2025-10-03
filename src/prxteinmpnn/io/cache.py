@@ -138,7 +138,7 @@ def preprocess_inputs_to_hdf5(  # noqa: C901
   output_path: str | pathlib.Path | None = None,
   parse_kwargs: dict | None = None,
   foldcomp_database: FoldCompDatabase | None = None,
-) -> None:
+) -> pathlib.Path | None:
   """Parse inputs and save all frames to a single HDF5 file using efficient chunking."""
   if output_path is None:
     output_path = pathlib.Path("preprocessed_inputs.h5")
@@ -161,7 +161,7 @@ def preprocess_inputs_to_hdf5(  # noqa: C901
     with h5py.File(output_path, "w") as f:
       f.attrs["format"] = "prxteinmpnn_preprocessed"
       f.attrs["status"] = "empty"
-    return
+    return None
 
   with h5py.File(output_path, "w") as f:
     f.attrs["format"] = "prxteinmpnn_preprocessed"
@@ -221,3 +221,4 @@ def preprocess_inputs_to_hdf5(  # noqa: C901
       logger.info("...processed %d frames...", count)
 
   logger.info("✅ Pre-processing complete. Saved %d frames.", count)
+  return pathlib.Path(output_path)

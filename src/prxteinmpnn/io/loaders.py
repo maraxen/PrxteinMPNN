@@ -41,7 +41,7 @@ def create_protein_dataset(
 
   parse_kwargs = parse_kwargs or {}
 
-  ds = dataset.FrameIterator(
+  ds = dataset.FrameDataset(
     inputs=inputs,
     parse_kwargs=parse_kwargs,
     foldcomp_database=foldcomp_database,

@@ -328,6 +328,7 @@ def fit_gmm_generator(
   covariance_type: str = "full",
 ) -> EMFitterResult:
   """Fit a GMM to data from a generator (for large, out-of-memory datasets)."""
+  n_components, n_features = gmm.means.shape
   log_likelihood_prev = -jnp.inf
   converged = False
   n_iter = 0
@@ -347,12 +348,12 @@ def fit_gmm_generator(
 
   for i in range(max_iter):
     n_iter = i + 1
-    nk = jnp.zeros(gmm.n_components)
-    xk = jnp.zeros((gmm.n_components, gmm.n_features))
+    nk = jnp.zeros(n_components)
+    xk = jnp.zeros((n_components, n_features))
     if covariance_type == "full":
-      sk = jnp.zeros((gmm.n_components, gmm.n_features, gmm.n_features))
+      sk = jnp.zeros((n_components, n_features, n_features))
     elif covariance_type == "diag":
-      sk = jnp.zeros((gmm.n_components, gmm.n_features))
+      sk = jnp.zeros((n_components, n_features))
     else:
       msg = f"Unsupported covariance type: {covariance_type}"
       raise ValueError(msg)

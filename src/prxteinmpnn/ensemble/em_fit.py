@@ -113,23 +113,41 @@ class EMFitterResult:
   converged: bool
 
 
-def _e_step(
-  data: jax.Array,
-  means: jax.Array,
-  covariances: jax.Array,
-) -> tuple[jax.Array, jax.Array]:
-  """Run Expectation (E) step of the EM algorithm.
+# --- New function for the diagonal case ---
+def _e_step_diag(data: jax.Array, gmm: "GMM") -> tuple[jax.Array, jax.Array]:
+  """E-step for diagonal covariance GMM."""
+  n_samples, n_features = data.shape
 
-  Args:
-      data: Input data of shape (N, F).
-      means: GMM means of shape (K, F).
-      covariances: GMM covariances of shape (K, F, F) or (K, F, 1) for diagonal.
+  # Reshape for broadcasting: (n_samples, 1, n_features) and (1, n_components, n_features)
+  diff = data[:, None, :] - gmm.means[None, :, :]
 
-  Returns:
-      A tuple containing the mean log-likelihood for the batch and the log responsibilities.
+  # Log probability calculation for diagonal covariance
+  # log det = sum(log(diag_values))
+  log_det_cov = jnp.sum(jnp.log(gmm.covariances), axis=1)
 
-  """
-  log_prob = log_likelihood(data, means, covariances)
+  # (x-mu).T * Sigma^-1 * (x-mu) = sum((x-mu)^2 / diag_values)
+  precision = 1.0 / gmm.covariances
+  mahalanobis_dist = jnp.sum((diff**2) * precision[None, :, :], axis=2)
+
+  # Combine terms for the log probability
+  log_prob = -0.5 * (n_features * jnp.log(2 * jnp.pi) + mahalanobis_dist + log_det_cov[None, :])
+
+  # Add the component weights
+  weighted_log_prob = log_prob + jnp.log(gmm.weights)
+
+  # Normalize to get log responsibilities and calculate log-likelihood
+  log_prob_norm = jax.scipy.special.logsumexp(weighted_log_prob, axis=1)
+  log_resp = weighted_log_prob - log_prob_norm[:, None]
+
+  mean_log_prob_norm = jnp.mean(log_prob_norm)
+
+  return mean_log_prob_norm, log_resp
+
+
+# --- Original function for the full case (previously _e_step) ---
+def _e_step_full(data: jax.Array, gmm: "GMM") -> tuple[jax.Array, jax.Array]:
+  """E-step for full covariance GMM."""
+  log_prob = log_likelihood(data, gmm.means, gmm.covariances)
   log_prob_norm = jax.scipy.special.logsumexp(
     log_prob,
     axis=Axis.components,
@@ -137,6 +155,22 @@ def _e_step(
   )
   log_resp = log_prob - log_prob_norm
   return jnp.mean(log_prob_norm), log_resp
+
+
+# --- Modified _e_step to act as a dispatcher ---
+def _e_step(
+  data: jax.Array,
+  gmm: "GMM",
+  covariance_type: str,
+) -> tuple[jax.Array, jax.Array]:
+  """Dispatcher for the E-step based on covariance type."""
+  if covariance_type == "diag":
+    return _e_step_diag(data, gmm)
+  if covariance_type == "full":
+    # Your original cholesky-based function would be called here
+    return _e_step_full(data, gmm)
+  msg = f"Unknown covariance type: {covariance_type}"
+  raise ValueError(msg)
 
 
 @partial(jax.jit, static_argnames=("reg_covar", "covariance_type"))
@@ -238,7 +272,7 @@ def fit_gmm_in_memory(
   @jax.jit
   def em_step_fn(state: _EMLoopState) -> _EMLoopState:
     """Run a single EM step."""
-    log_likelihood, log_resp = _e_step(data, state.gmm.means, state.gmm.covariances)
+    log_likelihood, log_resp = _e_step(data, state.gmm, covariance_type)
     means, covariances, weights = _m_step_from_responsibilities(
       data,
       state.gmm.means,
@@ -328,7 +362,7 @@ def fit_gmm_generator(
     # E-step: Accumulate statistics over all batches from the cache
     for batch_data in data_cache:
       batch_size = batch_data.shape[0]
-      batch_ll, log_resp = _e_step(batch_data, gmm.means, gmm.covariances)
+      batch_ll, log_resp = _e_step(batch_data, gmm, covariance_type)
       resp = jnp.exp(log_resp)
       resp = jnp.squeeze(resp, axis=(-2, -1))  # Squeeze to 2D
 

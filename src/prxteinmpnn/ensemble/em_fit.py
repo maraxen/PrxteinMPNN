@@ -5,6 +5,7 @@ with modifications to support fitting from data generators, such as
 HDF5 datasets.
 """
 
+import logging
 from collections.abc import Generator
 from enum import Enum
 from functools import partial
@@ -13,6 +14,8 @@ from typing import Literal, NamedTuple
 import jax
 from flax.struct import dataclass
 from jax import numpy as jnp
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -350,6 +353,10 @@ def fit_gmm_generator(
     )
 
   for i in range(max_iter):
+    logger.debug("EM iteration %d", i + 1)
+    logger.debug("Processing %d batches", len(data_cache))
+    logger.debug("GMM type: %s", type(gmm))
+    logger.debug("GMM state: %s", gmm)
     n_iter = i + 1
     nk = jnp.zeros(gmm.n_components)
     xk = jnp.zeros((gmm.n_components, gmm.n_features))

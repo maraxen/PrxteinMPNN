@@ -47,7 +47,6 @@ class RunSpecification:
       backbone_noise: The backbone noise levels to use (default is (0.0,)).
                       Can be a single float or a sequence of floats.
       foldcomp_database: An optional path to a FoldComp database (default is None).
-      num_workers: The number of worker processes for data loading (default is 0).
       ar_mask: An optional array-like mask for autoregressive positions (default is None).
       random_seed: The random seed to use (default is 42).
       chain_id: An optional chain ID to use (default is None).
@@ -65,7 +64,6 @@ class RunSpecification:
   batch_size: int = 32
   backbone_noise: Sequence[float] | float = (0.0,)
   foldcomp_database: FoldCompDatabase | None = None
-  num_workers: int = 0
   ar_mask: None | ArrayLike = None
   random_seed: int = 42
   chain_id: Sequence[str] | str | None = None

@@ -49,7 +49,6 @@ def sample(
         iterations: Number of optimization iterations for "straight_through" sampling.
         learning_rate: Learning rate for "straight_through" sampling.
         batch_size: The number of structures to process in a single batch.
-        num_workers: Number of parallel workers for data loading.
       **kwargs: Additional keyword arguments for structure loading.
 
   Returns:

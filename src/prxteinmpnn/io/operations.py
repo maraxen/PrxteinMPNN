@@ -7,7 +7,7 @@ for parsing, transforming, and batching protein data.
 import pathlib
 import warnings
 from collections.abc import Sequence
-from typing import cast
+from typing import Any, cast
 
 import grain
 import h5py
@@ -33,26 +33,6 @@ class LoadHDF5Frame(grain.transforms.Map):
 
     """
     self.hdf5_path = hdf5_path
-    self.h5_file: h5py.File | None = None
-    self._dataset_keys: list[str] | None = None
-
-  def _ensure_file_open(self) -> h5py.File:
-    """Open the HDF5 file if it's not already open.
-
-    This method is crucial for multiprocessing in Grain. Each worker process
-    will get its own file handle, avoiding concurrency issues.
-    """
-    if self.h5_file is None:
-      self.h5_file = h5py.File(self.hdf5_path, "r")
-    return self.h5_file
-
-  @property
-  def dataset_keys(self) -> list[str]:
-    """Cache the keys available in the HDF5 file."""
-    if self._dataset_keys is None:
-      f = self._ensure_file_open()
-      self._dataset_keys = list(f.keys())
-    return self._dataset_keys
 
   def map(self, index: int) -> ProteinTuple:  # type: ignore[override]
     """Read data for the given index from the HDF5 file and return a ProteinTuple.
@@ -64,16 +44,12 @@ class LoadHDF5Frame(grain.transforms.Map):
         A ProteinTuple containing the data for the requested frame.
 
     """
-    f = self._ensure_file_open()
-    data = {}
-    for key in self.dataset_keys:
-      data[key] = cast("ProteinTuple", f[key])[index]
+    with h5py.File(self.hdf5_path, "r") as f:
+      data: dict[str, Any] = {str(key): cast("h5py.Dataset", f[key])[index] for key in f}
 
-    # Decode byte strings back to Python strings
     if "source" in data and isinstance(data["source"], bytes):
       data["source"] = data["source"].decode("utf-8")
 
-    # Ensure all fields from ProteinTuple are present, even if None
     all_fields = ProteinTuple.__annotations__.keys()
     for field in all_fields:
       if field not in data:

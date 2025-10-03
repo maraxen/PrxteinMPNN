@@ -100,20 +100,20 @@ class EMFitterResult:
   ----------
   gmm : GMM
       The final fitted Gaussian mixture model.
-  n_iter : int
+  n_iter : jax.Array
       The total number of iterations performed.
   log_likelihood : jax.Array
       The log-likelihood of the data under the final model.
-  converged : bool
+  converged : jax.Array
       A boolean indicating if the algorithm converged within the max iterations.
 
   """
 
   gmm: GMM
-  n_iter: int
+  n_iter: jax.Array
   log_likelihood: jax.Array
   log_likelihood_diff: jax.Array
-  converged: bool
+  converged: jax.Array
 
 
 # --- New function for the diagonal case ---
@@ -220,18 +220,24 @@ def _m_step_from_responsibilities(
 
 @partial(jax.jit, static_argnames=("n_total_samples", "reg_covar", "covariance_type"))
 def _m_step_from_stats(
-  means: jax.Array,
-  covariances: jax.Array,
+  gmm: GMM,
   nk: jax.Array,
   xk: jax.Array,
   sk: jax.Array,
   n_total_samples: int,
   reg_covar: float,
   covariance_type: Literal["full", "diag"],
-) -> tuple[jax.Array, jax.Array, jax.Array]:
+) -> GMM:
   """Update GMM parameters from accumulated sufficient statistics for batch processing."""
   if n_total_samples == 0:
-    return means, covariances, jnp.zeros_like(nk)
+    return GMM(
+      means=gmm.means,
+      covariances=gmm.covariances,
+      weights=jnp.zeros_like(nk),
+      responsibilities=jnp.zeros_like(nk),
+      n_components=gmm.n_components,
+      n_features=gmm.n_features,
+    )
 
   weights = nk / n_total_samples
 
@@ -240,25 +246,32 @@ def _m_step_from_stats(
 
   updated_means = xk / safe_nk[..., None]
   means = jnp.array(
-    jnp.where(nk[..., None] > 0, updated_means, means),
+    jnp.where(nk[..., None] > 0, updated_means, gmm.means),
   )
   if covariance_type == "full":
     updated_covs = sk / safe_nk[..., None, None]
     updated_covs = updated_covs - jnp.einsum("...i,...j->...ij", means, means)
     updated_covs += reg_covar * jnp.eye(means.shape[-1])
 
-    original_covs_squeezed = jnp.squeeze(covariances)
+    original_covs_squeezed = jnp.squeeze(gmm.covariances)
     covariances_3d = jnp.where(nk[..., None, None] > 0, updated_covs, original_covs_squeezed)
     covariances_final = covariances_3d[None, ...]
   elif covariance_type == "diag":
     updated_vars = sk / safe_nk[..., None] - means**2
     updated_vars += reg_covar
 
-    original_vars_squeezed = jnp.squeeze(covariances)
+    original_vars_squeezed = jnp.squeeze(gmm.covariances)
     variances_2d = jnp.where(nk[..., None] > 0, updated_vars, original_vars_squeezed)
     covariances_final = variances_2d[None, ..., None]
 
-  return weights, means, covariances_final
+  return GMM(
+    means=means,
+    covariances=covariances_final,
+    weights=weights,
+    responsibilities=gmm.responsibilities,
+    n_components=gmm.n_components,
+    n_features=gmm.n_features,
+  )
 
 
 def fit_gmm_in_memory(
@@ -335,58 +348,62 @@ def fit_gmm_generator(
     msg = f"gmm must be an instance of GMM. Got {type(gmm)}"
     raise TypeError(msg)
 
-  log_likelihood_prev = -jnp.inf
-  converged = False
-  n_iter = 0
   log_likelihood = jnp.asarray(-jnp.inf)
-  log_likelihood_diff = jnp.asarray(jnp.inf)
 
   data_cache = list(data_generator)
 
   if not data_cache or n_total_samples == 0:
     return EMFitterResult(
       gmm=gmm,
-      n_iter=0,
+      n_iter=jnp.asarray(0),
       log_likelihood=jnp.asarray(-jnp.inf),
       log_likelihood_diff=jnp.asarray(jnp.inf),
-      converged=True,
+      converged=jnp.asarray([False]),
     )
 
-  for i in range(max_iter):
-    logger.debug("EM iteration %d", i + 1)
-    logger.debug("Processing %d batches", len(data_cache))
-    logger.debug("GMM type: %s", type(gmm))
-    logger.info("GMM state: %s", gmm)
-    n_iter = i + 1
-    nk = jnp.zeros(gmm.n_components)
-    xk = jnp.zeros((gmm.n_components, gmm.n_features))
-    if covariance_type == "full":
-      sk = jnp.zeros((gmm.n_components, gmm.n_features, gmm.n_features))
-    elif covariance_type == "diag":
-      sk = jnp.zeros((gmm.n_components, gmm.n_features))
-    else:
-      msg = f"Unsupported covariance type: {covariance_type}"
-      raise ValueError(msg)
-    log_likelihood_total = 0.0
+  nk_init = jnp.zeros(gmm.n_components)
+  xk_init = jnp.zeros((gmm.n_components, gmm.n_features))
+  if covariance_type == "full":
+    sk_init = jnp.zeros((gmm.n_components, gmm.n_features, gmm.n_features))
+  elif covariance_type == "diag":
+    sk_init = jnp.zeros((gmm.n_components, gmm.n_features))
+  else:
+    msg = f"Unsupported covariance type: {covariance_type}"
+    raise ValueError(msg)
+  log_likelihood_total_init = 0.0
 
-    # E-step: Accumulate statistics over all batches from the cache
-    for batch_data in data_cache:
-      batch_size = batch_data.shape[0]
+  def body_fn(
+    i: jax.Array,
+    val: tuple[EMFitterResult, jax.Array],
+  ) -> tuple[EMFitterResult, jax.Array]:
+    n_iter = i + 1
+
+    def accum_step(
+      i: jax.Array,
+      state: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+      nk, xk, sk, log_likelihood_total = state
+      batch_data = data_cache[i]
       batch_ll, log_resp = _e_step(batch_data, gmm, covariance_type)
       resp = jnp.exp(log_resp)
 
-      log_likelihood_total += batch_ll * batch_size
+      log_likelihood_total += batch_ll * batch_data.shape[0]
       nk += jnp.sum(resp, axis=Axis.batch)
       xk += jnp.einsum("ij,ik->jk", resp, batch_data)
       if covariance_type == "full":
         sk += jnp.einsum("ij,ik,il->jkl", resp, batch_data, batch_data)
       elif covariance_type == "diag":
         sk += jnp.einsum("ij,ik->jk", resp, batch_data**2)
+      return nk, xk, sk, log_likelihood_total
 
-    # M-step: Update GMM parameters using accumulated stats
+    nk, xk, sk, log_likelihood_total = jax.lax.fori_loop(
+      0,
+      len(data_cache),
+      accum_step,
+      (nk_init, xk_init, sk_init, log_likelihood_total_init),
+    )
     gmm = _m_step_from_stats(
-      gmm.means,
-      gmm.covariances,
+      val[0].gmm,
       nk,
       xk,
       sk,
@@ -394,19 +411,44 @@ def fit_gmm_generator(
       reg_covar,
       covariance_type,
     )
-
     log_likelihood = jnp.asarray(log_likelihood_total / n_total_samples)
-    log_likelihood_diff = jnp.abs(log_likelihood - log_likelihood_prev)
+    log_likelihood_diff = jnp.abs(log_likelihood - val[1])
 
-    if log_likelihood_diff < tol:
-      converged = True
-      break
-    log_likelihood_prev = log_likelihood
+    return EMFitterResult(
+      gmm=gmm,
+      n_iter=n_iter,
+      log_likelihood=log_likelihood,
+      log_likelihood_diff=log_likelihood_diff,
+      converged=log_likelihood_diff < tol,
+    ), log_likelihood
 
-  return EMFitterResult(
-    gmm=gmm,
-    n_iter=n_iter,
-    log_likelihood=log_likelihood,
-    log_likelihood_diff=log_likelihood_diff,
-    converged=converged,
+  def converged(state: tuple[EMFitterResult, jax.Array]) -> jax.Array:
+    return (state[0].n_iter < max_iter) & (state[0].log_likelihood_diff >= tol)
+
+  def dispatch(
+    i: jax.Array,
+    state: tuple[EMFitterResult, jax.Array],
+  ) -> tuple[EMFitterResult, jax.Array]:
+    state = jax.lax.cond(
+      converged(state),
+      lambda s: body_fn(i, s),
+      lambda _: state,
+      operand=None,
+    )
+    return state
+
+  return jax.lax.fori_loop(
+    0,
+    max_iter,
+    dispatch,
+    (
+      EMFitterResult(
+        gmm=gmm,
+        n_iter=jnp.asarray(0),
+        log_likelihood=jnp.asarray(-jnp.inf),
+        log_likelihood_diff=jnp.asarray(jnp.inf),
+        converged=jnp.asarray([False]),
+      ),
+      log_likelihood,
+    ),
   )

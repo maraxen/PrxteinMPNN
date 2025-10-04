@@ -326,7 +326,7 @@ class TestMakeFitGMM:
       fit_fn = make_fit_gmm_in_memory(
         n_components=3,
         gmm_max_iters=200,
-        reg_covar=1e-5,
+        covariance_regularization=1e-5,
       )
       
       key = jax.random.PRNGKey(42)
@@ -336,7 +336,7 @@ class TestMakeFitGMM:
       mock_fit_gmm_in_memory.assert_called_once()
       call_args = mock_fit_gmm_in_memory.call_args
       assert call_args[1]['max_iter'] == 200
-      assert call_args[1]['reg_covar'] == 1e-5
+      assert call_args[1]['covariance_regularization'] == 1e-5
 
   def test_jit_compilation(self, sample_data):
     """Test that the returned function is JIT-compatible."""
@@ -432,7 +432,7 @@ class TestIntegration:
       n_components=3,
       kmeans_max_iters=50,
       gmm_max_iters=150,
-      reg_covar=1e-4,
+      covariance_regularization=1e-4,
     )
     
     # Function should be created successfully in all cases

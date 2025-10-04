@@ -112,7 +112,7 @@ def gmm_from_responsibilities(
   responsibilities: jax.Array,
   nk: jax.Array,
   covariance_type: Literal["full", "diag"] = "full",
-  reg_covar: float = 1e-6,
+  covariance_regularization: float = 1e-6,
 ) -> GMM:
   """Create a GMM from data and responsibilities.
 
@@ -122,7 +122,7 @@ def gmm_from_responsibilities(
     responsibilities: Responsibility matrix of shape (n_samples, n_components).
     nk: Sum of responsibilities for each component, shape (n_components,).
     covariance_type: Type of covariance matrix, either "full" or "diag".
-    reg_covar: Regularization added to diagonal of covariance matrices.
+    covariance_regularization: Regularization added to diagonal of covariance matrices.
 
   Returns:
     GMM: Gaussian Mixture Model with computed parameters.
@@ -143,7 +143,7 @@ def gmm_from_responsibilities(
       diff_k = diff[:, k, :]
       weighted_diff_k = weighted_diff[:, k, :]
       cov_k = jnp.dot(weighted_diff_k.T, diff_k) / nk[k]
-      return cov_k.at[jnp.diag_indices(n_features)].add(reg_covar)
+      return cov_k.at[jnp.diag_indices(n_features)].add(covariance_regularization)
 
     covariances = jnp.stack([compute_full_covariance(k) for k in range(n_components)])
   elif covariance_type == "diag":
@@ -153,7 +153,7 @@ def gmm_from_responsibilities(
       diff_k = diff[:, k, :]
       weighted_diff_k = weighted_diff[:, k, :]
       cov_k = jnp.sum(weighted_diff_k * diff_k, axis=0) / nk[k]
-      return cov_k + reg_covar
+      return cov_k + covariance_regularization
 
     covariances = jnp.stack([compute_diag_covariance(k) for k in range(n_components)])
 
@@ -175,7 +175,7 @@ def make_fit_gmm_streaming(
   kmeans_init_samples: int = 1000,
   kmeans_max_iters: int = 100,
   gmm_max_iters: int = 100,
-  reg_covar: float = 1e-6,
+  covariance_regularization: float = 1e-6,
 ) -> GMMFitFnStreaming:
   """Create a GMM fitting function that streams data from an HDF5 file."""
 
@@ -218,7 +218,7 @@ def make_fit_gmm_streaming(
       responsibilities=responsibilities,
       nk=jnp.sum(responsibilities, axis=0),
       covariance_type=covariance_type,
-      reg_covar=reg_covar,
+      covariance_regularization=covariance_regularization,
     )
 
     logger.info("Fitting GMM using batch-based EM with batch size %d...", batch_size)
@@ -229,7 +229,7 @@ def make_fit_gmm_streaming(
       n_total_samples=n_total_samples,
       max_iter=gmm_max_iters,
       tol=1e-3,
-      reg_covar=reg_covar,
+      covariance_regularization=covariance_regularization,
       covariance_type=covariance_type,
     )
     logger.info(
@@ -248,7 +248,7 @@ def make_fit_gmm_in_memory(
   covariance_type: Literal["full", "diag"] = "full",
   kmeans_max_iters: int = 100,
   gmm_max_iters: int = 100,
-  reg_covar: float = 1e-6,
+  covariance_regularization: float = 1e-6,
 ) -> GMMFitFnInMemory:
   """Create a GMM fitting function for in-memory JAX arrays."""
 
@@ -273,7 +273,7 @@ def make_fit_gmm_in_memory(
       responsibilities=responsibilities,
       nk=jnp.sum(responsibilities, axis=0),
       covariance_type=covariance_type,
-      reg_covar=reg_covar,
+      covariance_regularization=covariance_regularization,
     )
 
     logger.info("Fitting GMM using in-memory EM...")
@@ -282,7 +282,7 @@ def make_fit_gmm_in_memory(
       gmm=initial_gmm,
       max_iter=gmm_max_iters,
       tol=1e-3,
-      reg_covar=reg_covar,
+      covariance_regularization=covariance_regularization,
       covariance_type=covariance_type,
     )
     logger.info(

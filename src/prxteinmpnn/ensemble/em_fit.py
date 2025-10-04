@@ -39,17 +39,17 @@ class Axis(int, Enum):
   features_covar = 3
 
 
-def precisions_cholesky(covariances: jax.Array) -> jax.Array:
+def precisions(covariances: jax.Array) -> jax.Array:
   """Compute precision matrices."""
-  cov_chol = jax.scipy.linalg.cholesky(covariances, lower=True)
+  cholesky_covariance = jax.scipy.linalg.cholesky(covariances, lower=True)
 
   identity = jnp.expand_dims(
     jnp.eye(covariances.shape[Axis.features]),
     axis=(Axis.batch, Axis.components),
   )
   b = jnp.repeat(identity, covariances.shape[Axis.components], axis=Axis.components)
-  precisions_chol = jax.scipy.linalg.solve_triangular(cov_chol, b, lower=True)
-  return precisions_chol.mT
+  cholesky_precisions = jax.scipy.linalg.solve_triangular(cholesky_covariance, b, lower=True)
+  return cholesky_precisions.mT
 
 
 def log_likelihood(data: jax.Array, means: jax.Array, covariances: jax.Array) -> jax.Array:
@@ -70,11 +70,11 @@ def log_likelihood(data: jax.Array, means: jax.Array, covariances: jax.Array) ->
       Log likelihood
 
   """
-  precisions = precisions_cholesky(covariances)
+  cholesky_precisions = precisions(covariances)
 
-  y = jnp.matmul(data.mT, precisions) - jnp.matmul(
+  y = jnp.matmul(data.mT, cholesky_precisions) - jnp.matmul(
     means.mT,
-    precisions,
+    cholesky_precisions,
   )
   return jnp.sum(
     jnp.square(y),
@@ -116,38 +116,21 @@ class EMFitterResult:
   converged: jax.Array
 
 
-# --- New function for the diagonal case ---
 def _e_step_diag(data: jax.Array, gmm: "GMM") -> tuple[jax.Array, jax.Array]:
   """E-step for diagonal covariance GMM."""
-  n_samples, n_features = data.shape
-
-  # Reshape for broadcasting: (n_samples, 1, n_features) and (1, n_components, n_features)
+  _, n_features = data.shape
   diff = data[:, None, :] - gmm.means[None, :, :]
-
-  # Log probability calculation for diagonal covariance
-  # log det = sum(log(diag_values))
   log_det_cov = jnp.sum(jnp.log(gmm.covariances), axis=1)
-
-  # (x-mu).T * Sigma^-1 * (x-mu) = sum((x-mu)^2 / diag_values)
   precision = 1.0 / gmm.covariances
   mahalanobis_dist = jnp.sum((diff**2) * precision[None, :, :], axis=2)
-
-  # Combine terms for the log probability
   log_prob = -0.5 * (n_features * jnp.log(2 * jnp.pi) + mahalanobis_dist + log_det_cov[None, :])
-
-  # Add the component weights
   weighted_log_prob = log_prob + jnp.log(gmm.weights)
-
-  # Normalize to get log responsibilities and calculate log-likelihood
   log_prob_norm = jax.scipy.special.logsumexp(weighted_log_prob, axis=1)
   log_resp = weighted_log_prob - log_prob_norm[:, None]
-
   mean_log_prob_norm = jnp.mean(log_prob_norm)
-
   return mean_log_prob_norm, log_resp
 
 
-# --- Original function for the full case (previously _e_step) ---
 def _e_step_full(data: jax.Array, gmm: "GMM") -> tuple[jax.Array, jax.Array]:
   """E-step for full covariance GMM."""
   log_prob = log_likelihood(data, gmm.means, gmm.covariances)
@@ -170,62 +153,70 @@ def _e_step(
   if covariance_type == "diag":
     return _e_step_diag(data, gmm)
   if covariance_type == "full":
-    # Your original cholesky-based function would be called here
     return _e_step_full(data, gmm)
   msg = f"Unknown covariance type: {covariance_type}"
   raise ValueError(msg)
 
 
-@partial(jax.jit, static_argnames=("reg_covar", "covariance_type"))
+@partial(jax.jit, static_argnames=("covariance_regularization", "covariance_type"))
 def _m_step_from_responsibilities(
   data: jax.Array,
   means: jax.Array,
   covariances: jax.Array,
   responsibilities: jax.Array,
-  reg_covar: float,
+  covariance_regularization: float,
   covariance_type: Literal["full", "diag"] = "full",
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
   """Maximization (M) step for in-memory data using responsibilities."""
-  nk = jnp.sum(responsibilities, axis=Axis.batch)
+  component_counts = jnp.sum(responsibilities, axis=Axis.batch)
 
-  safe_nk = jnp.where(nk == 0, 1.0, nk)
+  safe_component_counts = jnp.where(component_counts == 0, 1.0, component_counts)
 
-  updated_means = jnp.einsum("ij,ik->jk", responsibilities, data) / safe_nk[..., None]
-  means = jnp.asarray(jnp.where(nk[..., None] > 0, updated_means, means))
+  updated_means = jnp.einsum("ij,ik->jk", responsibilities, data) / safe_component_counts[..., None]
+  means = jnp.asarray(jnp.where(component_counts[..., None] > 0, updated_means, means))
 
   if covariance_type == "full":
-    updated_covs = (
-      jnp.einsum("ij,ik,il->jkl", responsibilities, data, data) / safe_nk[..., None, None]
+    updated_covariances = (
+      jnp.einsum("ij,ik,il->jkl", responsibilities, data, data)
+      / safe_component_counts[..., None, None]
     )
-    updated_covs = updated_covs - jnp.einsum("...i,...j->...ij", means, means)
-    updated_covs += reg_covar * jnp.eye(means.shape[-1])
+    updated_covariances = updated_covariances - jnp.einsum("...i,...j->...ij", means, means)
+    updated_covariances += covariance_regularization * jnp.eye(means.shape[-1])
 
-    original_covs_squeezed = jnp.squeeze(covariances)
-    covariances_3d = jnp.where(nk[..., None, None] > 0, updated_covs, original_covs_squeezed)
+    original_covariances_squeezed = jnp.squeeze(covariances)
+    covariances_3d = jnp.where(
+      component_counts[..., None, None] > 0,
+      updated_covariances,
+      original_covariances_squeezed,
+    )
     covariances_final = covariances_3d[None, ...]
   elif covariance_type == "diag":
     updated_vars = (
-      jnp.einsum("ij,ik->jk", responsibilities, data**2) / safe_nk[..., None] - means**2
+      jnp.einsum("ij,ik->jk", responsibilities, data**2) / safe_component_counts[..., None]
+      - means**2
     )
-    updated_vars += reg_covar
+    updated_vars += covariance_regularization
 
     original_vars_squeezed = jnp.squeeze(covariances)
-    variances_2d = jnp.where(nk[..., None] > 0, updated_vars, original_vars_squeezed)
+    variances_2d = jnp.where(component_counts[..., None] > 0, updated_vars, original_vars_squeezed)
     covariances_final = variances_2d[None, ..., None]
 
-  weights = nk / data.shape[Axis.batch]
+  weights = component_counts / data.shape[Axis.batch]
 
   return weights, means, covariances_final
 
 
-@partial(jax.jit, static_argnames=("n_total_samples", "reg_covar", "covariance_type"))
+@partial(
+  jax.jit,
+  static_argnames=("n_total_samples", "covariance_regularization", "covariance_type"),
+)
 def _m_step_from_stats(
   gmm: GMM,
-  nk: jax.Array,
-  xk: jax.Array,
-  sk: jax.Array,
+  component_counts: jax.Array,
+  weighted_data: jax.Array,
+  weighted_squared_data: jax.Array,
   n_total_samples: int,
-  reg_covar: float,
+  covariance_regularization: float,
   covariance_type: Literal["full", "diag"],
 ) -> GMM:
   """Update GMM parameters from accumulated sufficient statistics for batch processing."""
@@ -233,35 +224,39 @@ def _m_step_from_stats(
     return GMM(
       means=gmm.means,
       covariances=gmm.covariances,
-      weights=jnp.zeros_like(nk),
-      responsibilities=jnp.zeros_like(nk),
+      weights=jnp.zeros_like(component_counts),
+      responsibilities=jnp.zeros_like(component_counts),
       n_components=gmm.n_components,
       n_features=gmm.n_features,
     )
 
-  weights = nk / n_total_samples
+  weights = component_counts / n_total_samples
 
   # Add safeguard for components with no assigned data points
-  safe_nk = jnp.where(nk == 0, 1.0, nk)
+  safe_component_counts = jnp.where(component_counts == 0, 1.0, component_counts)
 
-  updated_means = xk / safe_nk[..., None]
+  updated_means = weighted_data / safe_component_counts[..., None]
   means = jnp.array(
-    jnp.where(nk[..., None] > 0, updated_means, gmm.means),
+    jnp.where(component_counts[..., None] > 0, updated_means, gmm.means),
   )
   if covariance_type == "full":
-    updated_covs = sk / safe_nk[..., None, None]
-    updated_covs = updated_covs - jnp.einsum("...i,...j->...ij", means, means)
-    updated_covs += reg_covar * jnp.eye(means.shape[-1])
+    updated_covariances = weighted_squared_data / safe_component_counts[..., None, None]
+    updated_covariances = updated_covariances - jnp.einsum("...i,...j->...ij", means, means)
+    updated_covariances += covariance_regularization * jnp.eye(means.shape[-1])
 
-    original_covs_squeezed = jnp.squeeze(gmm.covariances)
-    covariances_3d = jnp.where(nk[..., None, None] > 0, updated_covs, original_covs_squeezed)
+    original_covariances_squeezed = jnp.squeeze(gmm.covariances)
+    covariances_3d = jnp.where(
+      component_counts[..., None, None] > 0,
+      updated_covariances,
+      original_covariances_squeezed,
+    )
     covariances_final = covariances_3d[None, ...]
   elif covariance_type == "diag":
-    updated_vars = sk / safe_nk[..., None] - means**2
-    updated_vars += reg_covar
+    updated_vars = weighted_squared_data / safe_component_counts[..., None] - means**2
+    updated_vars += covariance_regularization
 
     original_vars_squeezed = jnp.squeeze(gmm.covariances)
-    variances_2d = jnp.where(nk[..., None] > 0, updated_vars, original_vars_squeezed)
+    variances_2d = jnp.where(component_counts[..., None] > 0, updated_vars, original_vars_squeezed)
     covariances_final = variances_2d[None, ..., None]
 
   return GMM(
@@ -280,7 +275,7 @@ def fit_gmm_in_memory(
   covariance_type: Literal["full", "diag"] = "full",
   max_iter: int = 100,
   tol: float = 1e-3,
-  reg_covar: float = 1e-6,
+  covariance_regularization: float = 1e-6,
 ) -> EMFitterResult:
   """Fit a GMM to in-memory data using the EM algorithm."""
 
@@ -294,7 +289,7 @@ def fit_gmm_in_memory(
       state.gmm.covariances,
       state.gmm.weights,
       jnp.exp(log_resp),
-      reg_covar,
+      covariance_regularization,
       covariance_type,
     )
     return _EMLoopState(
@@ -340,19 +335,15 @@ def fit_gmm_generator(
   n_total_samples: int,
   max_iter: int = 100,
   tol: float = 1e-3,
-  reg_covar: float = 1e-6,
+  covariance_regularization: float = 1e-6,
   covariance_type: str = "full",
 ) -> EMFitterResult:
   """Fit a GMM to data from a generator (for large, out-of-memory datasets)."""
-  if not isinstance(gmm, GMM):
-    msg = f"gmm must be an instance of GMM. Got {type(gmm)}"
-    raise TypeError(msg)
-
   log_likelihood = jnp.asarray(-jnp.inf)
 
-  data_cache = list(data_generator)
+  data = list(data_generator)
 
-  if not data_cache or n_total_samples == 0:
+  if not data or n_total_samples == 0:
     return EMFitterResult(
       gmm=gmm,
       n_iter=jnp.asarray(0),
@@ -361,16 +352,16 @@ def fit_gmm_generator(
       converged=jnp.asarray([False]),
     )
 
-  nk_init = jnp.zeros(gmm.n_components)
-  xk_init = jnp.zeros((gmm.n_components, gmm.n_features))
+  component_counts_init = jnp.zeros(gmm.n_components)
+  weighted_data_init = jnp.zeros((gmm.n_components, gmm.n_features))
   if covariance_type == "full":
-    sk_init = jnp.zeros((gmm.n_components, gmm.n_features, gmm.n_features))
+    weighted_squared_data_init = jnp.zeros((gmm.n_components, gmm.n_features, gmm.n_features))
   elif covariance_type == "diag":
-    sk_init = jnp.zeros((gmm.n_components, gmm.n_features))
+    weighted_squared_data_init = jnp.zeros((gmm.n_components, gmm.n_features))
   else:
     msg = f"Unsupported covariance type: {covariance_type}"
     raise ValueError(msg)
-  log_likelihood_total_init = 0.0
+  log_likelihood_total_init = jnp.asarray(0.0)
 
   def body_fn(
     i: jax.Array,
@@ -379,43 +370,48 @@ def fit_gmm_generator(
     n_iter = i + 1
 
     def accum_step(
-      i: jax.Array,
       state: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
-    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
-      nk, xk, sk, log_likelihood_total = state
-      batch_data = data_cache[i]
-      batch_ll, log_resp = _e_step(batch_data, gmm, covariance_type)
+      data_batch: jax.Array,
+    ) -> tuple[tuple[jax.Array, jax.Array, jax.Array, jax.Array], None]:
+      component_counts, weighted_data, weighted_squared_data, log_likelihood_total = state
+      batch_ll, log_resp = _e_step(data_batch, gmm, covariance_type)
       resp = jnp.exp(log_resp)
 
-      log_likelihood_total += batch_ll * batch_data.shape[0]
-      nk += jnp.sum(resp, axis=Axis.batch)
-      xk += jnp.einsum("ij,ik->jk", resp, batch_data)
+      log_likelihood_total += batch_ll * data_batch.shape[0]
+      component_counts += jnp.sum(resp, axis=Axis.batch)
+      weighted_data += jnp.einsum("ij,ik->jk", resp, data_batch)
       if covariance_type == "full":
-        sk += jnp.einsum("ij,ik,il->jkl", resp, batch_data, batch_data)
+        weighted_squared_data += jnp.einsum("ij,ik,il->jkl", resp, data_batch, data_batch)
       elif covariance_type == "diag":
-        sk += jnp.einsum("ij,ik->jk", resp, batch_data**2)
-      return nk, xk, sk, log_likelihood_total
+        weighted_squared_data += jnp.einsum("ij,ik->jk", resp, data_batch**2)
+      return (component_counts, weighted_data, weighted_squared_data, log_likelihood_total), None
 
-    nk, xk, sk, log_likelihood_total = jax.lax.fori_loop(
-      0,
-      len(data_cache),
-      accum_step,
-      (nk_init, xk_init, sk_init, log_likelihood_total_init),
+    (component_counts, weighted_data, weighted_squared_data, log_likelihood_total), _ = (
+      jax.lax.scan(
+        accum_step,
+        (
+          component_counts_init,
+          weighted_data_init,
+          weighted_squared_data_init,
+          log_likelihood_total_init,
+        ),
+        jnp.array(data),
+      )
     )
-    gmm = _m_step_from_stats(
-      val[0].gmm,
-      nk,
-      xk,
-      sk,
-      n_total_samples,
-      reg_covar,
-      covariance_type,
+    updated_gmm = _m_step_from_stats(
+      previous_result=val[0].gmm,
+      component_counts=component_counts,
+      weighted_data_sum=weighted_data,
+      weighted_squared_data_sum=weighted_squared_data,
+      n_total_samples=n_total_samples,
+      covariance_regularization=covariance_regularization,
+      covariance_type=covariance_type,
     )
     log_likelihood = jnp.asarray(log_likelihood_total / n_total_samples)
     log_likelihood_diff = jnp.abs(log_likelihood - val[1])
 
     return EMFitterResult(
-      gmm=gmm,
+      gmm=updated_gmm,
       n_iter=n_iter,
       log_likelihood=log_likelihood,
       log_likelihood_diff=log_likelihood_diff,

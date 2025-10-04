@@ -123,7 +123,7 @@ class TestMStepFromResponsibilities:
       sample_data,
       resp,
       initial_gmm,
-      reg_covar=1e-6,
+      covariance_regularization=1e-6,
     )
     
     assert updated_gmm.n_components == initial_gmm.n_components
@@ -149,7 +149,7 @@ class TestMStepFromResponsibilities:
       sample_data,
       resp,
       initial_gmm,
-      reg_covar=1e-6,
+      covariance_regularization=1e-6,
     )
     
     assert jnp.all(updated_gmm.weights >= 0)
@@ -177,7 +177,7 @@ class TestMStepFromStats:
       xk,
       sk,
       n_total_samples,
-      reg_covar=1e-6,
+      covariance_regularization=1e-6,
     )
     
     assert updated_gmm.n_components == initial_gmm.n_components
@@ -203,7 +203,7 @@ class TestMStepFromStats:
       xk,
       sk,
       n_total_samples,
-      reg_covar=1e-6,
+      covariance_regularization=1e-6,
     )
     
     expected_weights = nk / n_total_samples
@@ -494,8 +494,8 @@ class TestEdgeCases:
         initial_gmm: Initial GMM for testing.
         
     """
-    result_low_reg = fit_gmm_in_memory(sample_data, initial_gmm, reg_covar=1e-10, max_iter=2)
-    result_high_reg = fit_gmm_in_memory(sample_data, initial_gmm, reg_covar=1e-2, max_iter=2)
+    result_low_reg = fit_gmm_in_memory(sample_data, initial_gmm, covariance_regularization=1e-10, max_iter=2)
+    result_high_reg = fit_gmm_in_memory(sample_data, initial_gmm, covariance_regularization=1e-2, max_iter=2)
     
     # High regularization should result in larger diagonal elements in the covariance
     diag_low = jnp.trace(result_low_reg.gmm.covariances.values, axis1=1, axis2=2)

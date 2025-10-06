@@ -326,9 +326,16 @@ def fit_gmm_in_memory(
   def em_cond_fn(state: _EMLoopState) -> Converged:
     """Check if EM should continue iterating."""
     result = state
-    has_converged = result.log_likelihood_diff < tol
+    jax.debug.print(
+      "EM iteration {}/{}: log-likelihood = {}, diff = {}",
+      result.n_iter,
+      max_iter,
+      result.log_likelihood,
+      result.log_likelihood_diff,
+    )
+    has_converged = jnp.abs(result.log_likelihood_diff) < tol
     keep_going = (~has_converged) | (result.n_iter < min_iter)
-    return (result.n_iter < max_iter) & (result.log_likelihood < jnp.inf) & keep_going
+    return (result.n_iter < max_iter) & keep_going
 
   initial_state = _EMLoopState(
     gmm=gmm,
@@ -409,6 +416,7 @@ def fit_gmm_generator(
     gmm: Initial GMM parameters.
     n_total_samples: Total number of samples across all batches.
     max_iter: Maximum number of EM iterations.
+    min_iter: Minimum number of EM iterations.
     tol: Convergence tolerance for log-likelihood difference.
     covariance_regularization: Regularization term added to covariance diagonal.
     covariance_type: Type of covariance matrix ("full" or "diag").
@@ -523,9 +531,16 @@ def fit_gmm_generator(
   def em_cond_fn(state: tuple[EMFitterResult, LogLikelihood]) -> Converged:
     """Check if EM should continue iterating."""
     result, _ = state
-    has_converged = result.log_likelihood_diff < tol
+    jax.debug.print(
+      "EM iteration {}/{}: log-likelihood = {}, diff = {}",
+      result.n_iter,
+      max_iter,
+      result.log_likelihood,
+      result.log_likelihood_diff,
+    )
+    has_converged = jnp.abs(result.log_likelihood_diff) < tol
     keep_going = (~has_converged) | (result.n_iter < min_iter)
-    return (result.n_iter < max_iter) & (result.log_likelihood < jnp.inf) & keep_going
+    return (result.n_iter < max_iter) & keep_going
 
   def em_body_fn(
     state: tuple[EMFitterResult, LogLikelihood],

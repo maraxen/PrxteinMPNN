@@ -259,20 +259,16 @@ def _m_step_from_stats(
     updated_covariances = updated_covariances - jnp.einsum("...i,...j->...ij", means, means)
     updated_covariances += covariance_regularization * jnp.eye(means.shape[-1])
 
-    original_covariances_squeezed = jnp.squeeze(gmm.covariances)
-    covariances_3d = jnp.where(
+    covariances_final = jnp.where(
       component_counts[..., None, None] > 0,
       updated_covariances,
-      original_covariances_squeezed,
+      gmm.covariances,
     )
-    covariances_final = covariances_3d[None, ...]
   elif covariance_type == "diag":
     updated_vars = weighted_squared_data / safe_component_counts[..., None] - means**2
     updated_vars += covariance_regularization
 
-    original_vars_squeezed = jnp.squeeze(gmm.covariances)
-    variances_2d = jnp.where(component_counts[..., None] > 0, updated_vars, original_vars_squeezed)
-    covariances_final = variances_2d[None, ..., None]
+    covariances_final = jnp.where(component_counts[..., None] > 0, updated_vars, gmm.covariances)
 
   return GMM(
     means=means,

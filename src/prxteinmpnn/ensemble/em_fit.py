@@ -292,7 +292,7 @@ def fit_gmm_in_memory(
   max_iter: int = 100,
   min_iter: int = 10,
   tol: float = 1e-3,
-  covariance_regularization: float = 1e-4,
+  covariance_regularization: float = 1e-3,
 ) -> EMFitterResult:
   """Fit a GMM to in-memory data using the EM algorithm."""
 

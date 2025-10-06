@@ -17,6 +17,8 @@ import jax.numpy as jnp
 from jax import random
 from jaxtyping import Array, Float, Int, PRNGKeyArray
 
+from prxteinmpnn.ensemble.pca import pca_transform
+
 from .em_fit import GMM, EMFitterResult, fit_gmm_generator, fit_gmm_in_memory
 
 EnsembleData = Float[Array, "num_samples num_features"]
@@ -176,6 +178,7 @@ def make_fit_gmm_streaming(
   kmeans_max_iters: int = 100,
   gmm_max_iters: int = 100,
   covariance_regularization: float = 1e-6,
+  pca_n_components: int = 20,
 ) -> GMMFitFnStreaming:
   """Create a GMM fitting function that streams data from an HDF5 file."""
 
@@ -204,7 +207,10 @@ def make_fit_gmm_streaming(
       gmm_features = jnp.reshape(gmm_features, (init_data.shape[0], -1))  # (L, N*F)
     elif mode == "global":
       gmm_features = jnp.reshape(init_data, (init_data.shape[0], -1))
-
+    gmm_features = pca_transform(
+      gmm_features,
+      n_components=pca_n_components,
+    )
     key, subkey = random.split(key)
     labels = _kmeans(subkey, gmm_features, n_components, max_iters=kmeans_max_iters)
     responsibilities = jax.nn.one_hot(labels, num_classes=n_components)
@@ -249,6 +255,7 @@ def make_fit_gmm_in_memory(
   kmeans_max_iters: int = 100,
   gmm_max_iters: int = 100,
   covariance_regularization: float = 1e-6,
+  pca_n_components: int = 20,
 ) -> GMMFitFnInMemory:
   """Create a GMM fitting function for in-memory JAX arrays."""
 
@@ -266,6 +273,10 @@ def make_fit_gmm_in_memory(
     elif mode == "global":
       gmm_features = jnp.reshape(data, (data.shape[0], -1))
 
+    gmm_features = pca_transform(
+      gmm_features,
+      n_components=pca_n_components,
+    )
     logger.info("Initializing GMM from K-Means results...")
     initial_gmm = gmm_from_responsibilities(
       data=data,

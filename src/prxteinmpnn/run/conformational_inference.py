@@ -16,7 +16,6 @@ from prxteinmpnn.ensemble.dbscan import (
   ConformationalStates,
 )
 from prxteinmpnn.ensemble.gmm import make_fit_gmm_in_memory, make_fit_gmm_streaming
-from prxteinmpnn.ensemble.pca import pca_transform
 from prxteinmpnn.run.prep import prep_protein_stream_and_model
 from prxteinmpnn.run.specs import ConformationalInferenceSpecification
 from prxteinmpnn.sampling.conditional_logits import make_conditional_logits_fn
@@ -227,10 +226,7 @@ def infer_conformations(
       features_for_ci = jnp.array(all_states_h5)
 
       n_samples = features_for_ci.shape[0]
-      features_for_ci = pca_transform(
-        features_for_ci,
-        n_components=spec.pca_n_components,
-      )
+
       gmm_fitter_fn = make_fit_gmm_streaming(
         n_components=spec.gmm_n_components,
         covariance_type=spec.covariance_type,
@@ -261,10 +257,7 @@ def infer_conformations(
       gmm_features = jnp.reshape(gmm_features, (n_samples, -1))  # (L, N*F)
     if spec.mode == "global":
       gmm_features = jnp.reshape(features_for_ci, (n_samples, -1))  # (N, L*F)
-    features_for_ci = pca_transform(
-      features_for_ci,
-      n_components=spec.pca_n_components,
-    )
+
     gmm_fitter_fn = make_fit_gmm_in_memory(
       n_components=spec.gmm_n_components,
       covariance_type=spec.covariance_type,

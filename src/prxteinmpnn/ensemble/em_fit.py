@@ -203,23 +203,18 @@ def _m_step_from_responsibilities(
     updated_covariances = updated_covariances - jnp.einsum("...i,...j->...ij", means, means)
     updated_covariances += covariance_regularization * jnp.eye(means.shape[-1])
 
-    original_covariances_squeezed = jnp.squeeze(covariances)
-    covariances_3d = jnp.where(
+    covariances_final = jnp.where(
       component_counts[..., None, None] > 0,
       updated_covariances,
-      original_covariances_squeezed,
+      covariances,
     )
-    covariances_final = covariances_3d[None, ...]
   elif covariance_type == "diag":
     updated_vars = (
       jnp.einsum("ij,ik->jk", responsibilities, data**2) / safe_component_counts[..., None]
       - means**2
     )
     updated_vars += covariance_regularization
-
-    original_vars_squeezed = jnp.squeeze(covariances)
-    variances_2d = jnp.where(component_counts[..., None] > 0, updated_vars, original_vars_squeezed)
-    covariances_final = variances_2d[None, ..., None]
+    covariances_final = jnp.where(component_counts[..., None] > 0, updated_vars, covariances)
 
   weights = component_counts / data.shape[Axis.batch]
 
@@ -493,7 +488,6 @@ def fit_gmm_generator(
         None,
       )
 
-    # Accumulate statistics over all batches
     final_e_step_state, _ = jax.lax.scan(
       _e_step_loop,
       _EStepState(

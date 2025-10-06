@@ -14,18 +14,39 @@ from typing import Literal, NamedTuple
 import jax
 from flax.struct import dataclass
 from jax import numpy as jnp
+from jaxtyping import Array, Bool, Float, Int
 
 logger = logging.getLogger(__name__)
+
+Data = Float[Array, "n_samples n_features"] | Float[Array, "n_batches n_samples n_features"]
+DataMask = Bool[Array, "n_samples"]
+Means = Float[Array, "n_components n_features"]
+Covariances = Float[Array, "n_components n_features n_features"]
+Weights = Float[Array, "n_components"]
+Responsibilities = Float[Array, "n_samples n_components"]
+Converged = Bool[Array, ""]
+LogLikelihood = Float[Array, ""]
+ComponentCounts = Int[Array, "n_components"]
+
+
+@dataclass
+class _EStepState:
+  """State for accumulating statistics during the E-step."""
+
+  component_counts: ComponentCounts
+  weighted_data: Data
+  weighted_squared_data: Data
+  log_likelihood_total: LogLikelihood
 
 
 @dataclass
 class GMM:
   """Dataclass to hold GMM parameters."""
 
-  means: jax.Array
-  covariances: jax.Array
-  weights: jax.Array
-  responsibilities: jax.Array
+  means: Means
+  covariances: Covariances
+  weights: Weights
+  responsibilities: Responsibilities
   n_components: int
   n_features: int
 
@@ -39,7 +60,7 @@ class Axis(int, Enum):
   features_covar = 3
 
 
-def precisions(covariances: jax.Array) -> jax.Array:
+def precisions(covariances: Covariances) -> Covariances:
   """Compute precision matrices."""
   cholesky_covariance = jax.scipy.linalg.cholesky(covariances, lower=True)
 
@@ -52,7 +73,7 @@ def precisions(covariances: jax.Array) -> jax.Array:
   return cholesky_precisions.mT
 
 
-def log_likelihood(data: jax.Array, means: jax.Array, covariances: jax.Array) -> jax.Array:
+def log_likelihood(data: Data, means: Means, covariances: Covariances) -> LogLikelihood:
   """Compute log likelihood from the covariance for a given feature vector.
 
   Parameters
@@ -88,8 +109,8 @@ class _EMLoopState(NamedTuple):
 
   gmm: GMM
   n_iter: int
-  log_likelihood: jax.Array
-  log_likelihood_diff: jax.Array
+  log_likelihood: LogLikelihood
+  log_likelihood_diff: LogLikelihood
 
 
 @dataclass
@@ -110,13 +131,13 @@ class EMFitterResult:
   """
 
   gmm: GMM
-  n_iter: jax.Array
-  log_likelihood: jax.Array
-  log_likelihood_diff: jax.Array
-  converged: jax.Array
+  n_iter: Int
+  log_likelihood: LogLikelihood
+  log_likelihood_diff: LogLikelihood
+  converged: Converged
 
 
-def _e_step_diag(data: jax.Array, gmm: "GMM") -> tuple[jax.Array, jax.Array]:
+def _e_step_diag(data: Data, gmm: "GMM") -> tuple[Means, Responsibilities]:
   """E-step for diagonal covariance GMM."""
   _, n_features = data.shape
   diff = data[:, None, :] - gmm.means[None, :, :]
@@ -131,7 +152,7 @@ def _e_step_diag(data: jax.Array, gmm: "GMM") -> tuple[jax.Array, jax.Array]:
   return mean_log_prob_norm, log_resp
 
 
-def _e_step_full(data: jax.Array, gmm: "GMM") -> tuple[jax.Array, jax.Array]:
+def _e_step_full(data: Data, gmm: "GMM") -> tuple[Means, Responsibilities]:
   """E-step for full covariance GMM."""
   log_prob = log_likelihood(data, gmm.means, gmm.covariances)
   log_prob_norm = jax.scipy.special.logsumexp(
@@ -143,12 +164,11 @@ def _e_step_full(data: jax.Array, gmm: "GMM") -> tuple[jax.Array, jax.Array]:
   return jnp.mean(log_prob_norm), log_resp
 
 
-# --- Modified _e_step to act as a dispatcher ---
 def _e_step(
-  data: jax.Array,
+  data: Float,
   gmm: "GMM",
   covariance_type: str,
-) -> tuple[jax.Array, jax.Array]:
+) -> tuple[Means, Responsibilities]:
   """Dispatcher for the E-step based on covariance type."""
   if covariance_type == "diag":
     return _e_step_diag(data, gmm)
@@ -160,13 +180,13 @@ def _e_step(
 
 @partial(jax.jit, static_argnames=("covariance_regularization", "covariance_type"))
 def _m_step_from_responsibilities(
-  data: jax.Array,
-  means: jax.Array,
-  covariances: jax.Array,
-  responsibilities: jax.Array,
+  data: Data,
+  means: Means,
+  covariances: Covariances,
+  responsibilities: Responsibilities,
   covariance_regularization: float,
   covariance_type: Literal["full", "diag"] = "full",
-) -> tuple[jax.Array, jax.Array, jax.Array]:
+) -> tuple[Weights, Means, Covariances]:
   """Maximization (M) step for in-memory data using responsibilities."""
   component_counts = jnp.sum(responsibilities, axis=Axis.batch)
 
@@ -212,9 +232,9 @@ def _m_step_from_responsibilities(
 )
 def _m_step_from_stats(
   gmm: GMM,
-  component_counts: jax.Array,
-  weighted_data: jax.Array,
-  weighted_squared_data: jax.Array,
+  component_counts: ComponentCounts,
+  weighted_data: Data,
+  weighted_squared_data: Data,
   n_total_samples: int,
   covariance_regularization: float,
   covariance_type: Literal["full", "diag"],
@@ -270,7 +290,7 @@ def _m_step_from_stats(
 
 
 def fit_gmm_in_memory(
-  data: jax.Array,
+  data: Data,
   gmm: GMM,
   covariance_type: Literal["full", "diag"] = "full",
   max_iter: int = 100,
@@ -283,7 +303,7 @@ def fit_gmm_in_memory(
   def em_step_fn(state: _EMLoopState) -> _EMLoopState:
     """Run a single EM step."""
     log_likelihood, log_resp = _e_step(data, state.gmm, covariance_type)
-    means, covariances, weights = _m_step_from_responsibilities(
+    weights, means, covariances = _m_step_from_responsibilities(
       data,
       state.gmm.means,
       state.gmm.covariances,
@@ -306,7 +326,7 @@ def fit_gmm_in_memory(
       log_likelihood_diff=jnp.abs(log_likelihood - state.log_likelihood),
     )
 
-  def em_cond_fn(state: _EMLoopState) -> jax.Array:
+  def em_cond_fn(state: _EMLoopState) -> Converged:
     """Stop condition for the EM loop."""
     return (state.n_iter < max_iter) & (state.log_likelihood_diff >= tol)
 
@@ -329,8 +349,60 @@ def fit_gmm_in_memory(
   )
 
 
+def _pad_data(
+  data: list[Data],
+) -> tuple[Data, DataMask]:
+  """Pad data batches to the same size and create a mask.
+
+  Args:
+    data: List of JAX arrays with potentially different batch sizes.
+
+  Returns:
+    A tuple containing:
+      - padded_data: JAX array of shape (n_batches, max_batch_size, n_features)
+        with zero-padding for smaller batches.
+      - mask: JAX array of shape (n_batches, max_batch_size) with True for
+        valid data points and False for padded entries.
+
+  Raises:
+    ValueError: If data is empty or batches have inconsistent feature dimensions.
+
+  Example:
+    >>> data = [jnp.ones((5, 3)), jnp.ones((3, 3))]
+    >>> padded, mask = _pad_data(data)
+    >>> padded.shape
+    (2, 5, 3)
+    >>> mask.shape
+    (2, 5)
+
+  """
+  if not data:
+    msg = "Data list cannot be empty"
+    raise ValueError(msg)
+
+  n_features = data[0].shape[-1]
+  if not all(batch.shape[-1] == n_features for batch in data):
+    msg = "All data batches must have the same number of features"
+    raise ValueError(msg)
+
+  batch_sizes = jnp.array([batch.shape[0] for batch in data])
+  max_batch_size = jnp.max(batch_sizes)
+
+  def pad_batch(batch: Data, batch_size: Int) -> tuple[Data, DataMask]:
+    """Pad a single batch and create its mask."""
+    pad_width = ((0, max_batch_size - batch_size), (0, 0))
+    padded_batch = jnp.pad(batch, pad_width, mode="constant", constant_values=0)
+    mask = jnp.arange(max_batch_size) < batch_size
+    return padded_batch, mask
+
+  return jax.vmap(pad_batch)(
+    jnp.stack([jnp.pad(b, ((0, max_batch_size - b.shape[0]), (0, 0))) for b in data]),
+    batch_sizes,
+  )
+
+
 def fit_gmm_generator(
-  data_generator: Generator[jax.Array, None, None],
+  data_generator: Generator[Data, None, None],
   gmm: GMM,
   n_total_samples: int,
   max_iter: int = 100,
@@ -338,9 +410,30 @@ def fit_gmm_generator(
   covariance_regularization: float = 1e-6,
   covariance_type: str = "full",
 ) -> EMFitterResult:
-  """Fit a GMM to data from a generator (for large, out-of-memory datasets)."""
-  log_likelihood = jnp.asarray(-jnp.inf)
+  """Fit a GMM to data from a generator (for large, out-of-memory datasets).
 
+  Args:
+    data_generator: Generator yielding batches of data.
+    gmm: Initial GMM parameters.
+    n_total_samples: Total number of samples across all batches.
+    max_iter: Maximum number of EM iterations.
+    tol: Convergence tolerance for log-likelihood difference.
+    covariance_regularization: Regularization term added to covariance diagonal.
+    covariance_type: Type of covariance matrix ("full" or "diag").
+
+  Returns:
+    EMFitterResult containing the fitted GMM and convergence information.
+
+  Raises:
+    ValueError: If data is empty or covariance_type is unsupported.
+
+  Example:
+    >>> def gen():
+    ...   yield jnp.ones((10, 5))
+    >>> gmm = GMM(...)
+    >>> result = fit_gmm_generator(gen(), gmm, n_total_samples=10)
+
+  """
   data = list(data_generator)
 
   if not data or n_total_samples == 0:
@@ -349,8 +442,10 @@ def fit_gmm_generator(
       n_iter=jnp.asarray(0),
       log_likelihood=jnp.asarray(-jnp.inf),
       log_likelihood_diff=jnp.asarray(jnp.inf),
-      converged=jnp.asarray([False]),
+      converged=jnp.asarray(a=False),
     )
+
+  padded_data, mask = _pad_data(data)
 
   component_counts_init = jnp.zeros(gmm.n_components)
   weighted_data_init = jnp.zeros((gmm.n_components, gmm.n_features))
@@ -361,89 +456,115 @@ def fit_gmm_generator(
   else:
     msg = f"Unsupported covariance type: {covariance_type}"
     raise ValueError(msg)
-  log_likelihood_total_init = jnp.asarray(0.0)
 
-  def body_fn(
-    i: jax.Array,
-    val: tuple[EMFitterResult, jax.Array],
-  ) -> tuple[EMFitterResult, jax.Array]:
-    n_iter = i + 1
+  def em_step(state: tuple[GMM, LogLikelihood]) -> tuple[GMM, LogLikelihood]:
+    """Perform one complete EM iteration over all data batches."""
+    current_gmm, _ = state
 
-    def accum_step(
-      state: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
-      data_batch: jax.Array,
-    ) -> tuple[tuple[jax.Array, jax.Array, jax.Array, jax.Array], None]:
-      component_counts, weighted_data, weighted_squared_data, log_likelihood_total = state
-      batch_ll, log_resp = _e_step(data_batch, gmm, covariance_type)
+    def _e_step_loop(
+      e_step_state: _EStepState,
+      batch_with_mask: tuple[Data, DataMask],
+    ) -> tuple[_EStepState, None]:
+      """Accumulate sufficient statistics for one batch during E-step."""
+      data_batch, batch_mask = batch_with_mask
+
+      batch_ll, log_resp = _e_step(data_batch, current_gmm, covariance_type)
       resp = jnp.exp(log_resp)
 
-      log_likelihood_total += batch_ll * data_batch.shape[0]
-      component_counts += jnp.sum(resp, axis=Axis.batch)
-      weighted_data += jnp.einsum("ij,ik->jk", resp, data_batch)
-      if covariance_type == "full":
-        weighted_squared_data += jnp.einsum("ij,ik,il->jkl", resp, data_batch, data_batch)
-      elif covariance_type == "diag":
-        weighted_squared_data += jnp.einsum("ij,ik->jk", resp, data_batch**2)
-      return (component_counts, weighted_data, weighted_squared_data, log_likelihood_total), None
+      masked_resp = resp * batch_mask[:, None]
 
-    (component_counts, weighted_data, weighted_squared_data, log_likelihood_total), _ = (
-      jax.lax.scan(
-        accum_step,
-        (
-          component_counts_init,
-          weighted_data_init,
-          weighted_squared_data_init,
-          log_likelihood_total_init,
+      n_valid = jnp.sum(batch_mask)
+      log_likelihood_total = e_step_state.log_likelihood_total + batch_ll * n_valid
+      component_counts = e_step_state.component_counts + jnp.sum(masked_resp, axis=Axis.batch)
+      weighted_data = e_step_state.weighted_data + jnp.einsum("ij,ik->jk", masked_resp, data_batch)
+
+      if covariance_type == "full":
+        weighted_squared_data = e_step_state.weighted_squared_data + jnp.einsum(
+          "ij,ik,il->jkl",
+          masked_resp,
+          data_batch,
+          data_batch,
+        )
+      elif covariance_type == "diag":
+        weighted_squared_data = e_step_state.weighted_squared_data + jnp.einsum(
+          "ij,ik->jk",
+          masked_resp,
+          data_batch**2,
+        )
+
+      return (
+        _EStepState(
+          component_counts=component_counts,
+          weighted_data=weighted_data,
+          weighted_squared_data=weighted_squared_data,
+          log_likelihood_total=log_likelihood_total,
         ),
-        jnp.array(data),
+        None,
       )
+
+    # Accumulate statistics over all batches
+    final_e_step_state, _ = jax.lax.scan(
+      _e_step_loop,
+      _EStepState(
+        component_counts=component_counts_init,
+        weighted_data=weighted_data_init,
+        weighted_squared_data=weighted_squared_data_init,
+        log_likelihood_total=jnp.asarray(0.0),
+      ),
+      (padded_data, mask),
     )
+
+    # M-step: Update GMM parameters
     updated_gmm = _m_step_from_stats(
-      previous_result=val[0].gmm,
-      component_counts=component_counts,
-      weighted_data_sum=weighted_data,
-      weighted_squared_data_sum=weighted_squared_data,
+      gmm=current_gmm,
+      component_counts=final_e_step_state.component_counts,
+      weighted_data=final_e_step_state.weighted_data,
+      weighted_squared_data=final_e_step_state.weighted_squared_data,
       n_total_samples=n_total_samples,
       covariance_regularization=covariance_regularization,
       covariance_type=covariance_type,
     )
-    log_likelihood = jnp.asarray(log_likelihood_total / n_total_samples)
-    log_likelihood_diff = jnp.abs(log_likelihood - val[1])
 
-    return EMFitterResult(
-      gmm=updated_gmm,
-      n_iter=n_iter,
-      log_likelihood=log_likelihood,
-      log_likelihood_diff=log_likelihood_diff,
-      converged=log_likelihood_diff < tol,
-    ), log_likelihood
+    log_likelihood = final_e_step_state.log_likelihood_total / n_total_samples
 
-  def converged(state: tuple[EMFitterResult, jax.Array]) -> jax.Array:
-    return (state[0].n_iter < max_iter) & (state[0].log_likelihood_diff >= tol)
+    return updated_gmm, log_likelihood
 
-  def dispatch(
-    i: jax.Array,
-    state: tuple[EMFitterResult, jax.Array],
-  ) -> tuple[EMFitterResult, jax.Array]:
-    return jax.lax.cond(
-      converged(state),
-      body_fn(i, state),
-      state,
-      operand=None,
-    )
+  def em_cond_fn(state: tuple[EMFitterResult, LogLikelihood]) -> Converged:
+    """Check if EM should continue iterating."""
+    result, _ = state
+    return (result.n_iter < max_iter) & (result.log_likelihood_diff >= tol)
 
-  return jax.lax.fori_loop(
-    0,
-    max_iter,
-    dispatch,
-    (
+  def em_body_fn(
+    state: tuple[EMFitterResult, LogLikelihood],
+  ) -> tuple[EMFitterResult, LogLikelihood]:
+    """Perform one EM iteration and update convergence state."""
+    result, prev_ll = state
+
+    updated_gmm, log_likelihood = em_step((result.gmm, prev_ll))
+    log_likelihood_diff = jnp.abs(log_likelihood - prev_ll)
+
+    return (
       EMFitterResult(
-        gmm=gmm,
-        n_iter=jnp.asarray(0),
-        log_likelihood=jnp.asarray(-jnp.inf),
-        log_likelihood_diff=jnp.asarray(jnp.inf),
-        converged=jnp.asarray([False]),
+        gmm=updated_gmm,
+        n_iter=result.n_iter + 1,
+        log_likelihood=log_likelihood,
+        log_likelihood_diff=log_likelihood_diff,
+        converged=log_likelihood_diff < tol,
       ),
       log_likelihood,
+    )
+
+  initial_state = (
+    EMFitterResult(
+      gmm=gmm,
+      n_iter=jnp.asarray(0),
+      log_likelihood=jnp.asarray(-jnp.inf),
+      log_likelihood_diff=jnp.asarray(jnp.inf),
+      converged=jnp.asarray(a=False),
     ),
+    jnp.asarray(-jnp.inf),
   )
+
+  final_state, _ = jax.lax.while_loop(em_cond_fn, em_body_fn, initial_state)
+
+  return final_state

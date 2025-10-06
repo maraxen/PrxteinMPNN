@@ -10,6 +10,7 @@ import h5py
 import jax
 import jax.numpy as jnp
 from grain.python import IterDataset
+from jax.nn import standardize
 
 from prxteinmpnn.ensemble.ci import infer_states
 from prxteinmpnn.ensemble.dbscan import (
@@ -224,7 +225,8 @@ def infer_conformations(
         raise ValueError(msg)
 
       # The data for clustering must be reshaped and loaded into memory.
-      features_for_ci = jnp.array(all_states_h5)
+      features_for_ci = standardize(jnp.array(all_states_h5))
+
       n_samples = features_for_ci.shape[0]
       gmm_fitter_fn = make_fit_gmm_streaming(
         n_components=spec.gmm_n_components,
@@ -266,7 +268,7 @@ def infer_conformations(
     if gmm_features is None:
       msg = "GMM features could not be determined."
       raise ValueError(msg)
-    em_result = gmm_fitter_fn(gmm_features, key)
+    em_result = gmm_fitter_fn(standardize(gmm_features), key)
 
     if not em_result.converged:
       logger.warning("GMM fitting did not converge.")

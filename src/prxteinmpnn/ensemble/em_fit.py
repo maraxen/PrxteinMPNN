@@ -304,7 +304,6 @@ def fit_gmm_in_memory(
       data,
       state.gmm.means,
       state.gmm.covariances,
-      state.gmm.weights,
       jnp.exp(log_resp),
       covariance_regularization,
       covariance_type,

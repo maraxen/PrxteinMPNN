@@ -188,6 +188,10 @@ class ConformationalInferenceSpecification(RunSpecification):
   min_cluster_weight: float = 0.01
   gmm_init: Literal["kmeans", "random"] = "kmeans"
   gmm_max_iters: int = 100
+  pca_n_components: int = 20
+  pca_whiten: bool = True
+  k_means_n_clusters: int | None = None
+  gmm_min_iters: int = 10
 
   reference_sequence: str | None = None
 

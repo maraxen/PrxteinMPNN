@@ -387,18 +387,9 @@ def _pad_data(
 
   batch_sizes = jnp.array([batch.shape[0] for batch in data])
   max_batch_size = jnp.max(batch_sizes)
-
-  def pad_batch(batch: Data, batch_size: Int) -> tuple[Data, DataMask]:
-    """Pad a single batch and create its mask."""
-    pad_width = ((0, max_batch_size - batch_size), (0, 0))
-    padded_batch = jnp.pad(batch, pad_width, mode="constant", constant_values=0)
-    mask = jnp.arange(max_batch_size) < batch_size
-    return padded_batch, mask
-
-  return jax.vmap(pad_batch)(
-    jnp.stack([jnp.pad(b, ((0, max_batch_size - b.shape[0]), (0, 0))) for b in data]),
-    batch_sizes,
-  )
+  padded_batches = jnp.stack([jnp.pad(b, ((0, max_batch_size - b.shape[0]), (0, 0))) for b in data])
+  mask = jnp.arange(max_batch_size)[None, :] < batch_sizes[:, None]
+  return padded_batches, mask
 
 
 def fit_gmm_generator(

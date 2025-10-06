@@ -292,7 +292,7 @@ def fit_gmm_in_memory(
   max_iter: int = 100,
   min_iter: int = 10,
   tol: float = 1e-3,
-  covariance_regularization: float = 1e-6,
+  covariance_regularization: float = 1e-4,
 ) -> EMFitterResult:
   """Fit a GMM to in-memory data using the EM algorithm."""
 
@@ -406,7 +406,7 @@ def fit_gmm_generator(
   max_iter: int = 100,
   min_iter: int = 10,
   tol: float = 1e-3,
-  covariance_regularization: float = 1e-6,
+  covariance_regularization: float = 1e-4,
   covariance_type: str = "full",
 ) -> EMFitterResult:
   """Fit a GMM to data from a generator (for large, out-of-memory datasets).

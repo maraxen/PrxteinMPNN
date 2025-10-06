@@ -290,6 +290,7 @@ def fit_gmm_in_memory(
   gmm: GMM,
   covariance_type: Literal["full", "diag"] = "full",
   max_iter: int = 100,
+  min_iter: int = 10,
   tol: float = 1e-3,
   covariance_regularization: float = 1e-6,
 ) -> EMFitterResult:
@@ -323,8 +324,11 @@ def fit_gmm_in_memory(
     )
 
   def em_cond_fn(state: _EMLoopState) -> Converged:
-    """Stop condition for the EM loop."""
-    return (state.n_iter < max_iter) & (state.log_likelihood_diff >= tol)
+    """Check if EM should continue iterating."""
+    result = state
+    has_converged = result.log_likelihood_diff < tol
+    keep_going = (~has_converged) | (result.n_iter < min_iter)
+    return (result.n_iter < max_iter) & (result.log_likelihood < jnp.inf) & keep_going
 
   initial_state = _EMLoopState(
     gmm=gmm,
@@ -393,6 +397,7 @@ def fit_gmm_generator(
   gmm: GMM,
   n_total_samples: int,
   max_iter: int = 100,
+  min_iter: int = 10,
   tol: float = 1e-3,
   covariance_regularization: float = 1e-6,
   covariance_type: str = "full",
@@ -518,7 +523,9 @@ def fit_gmm_generator(
   def em_cond_fn(state: tuple[EMFitterResult, LogLikelihood]) -> Converged:
     """Check if EM should continue iterating."""
     result, _ = state
-    return (result.n_iter < max_iter) & (result.log_likelihood_diff >= tol)
+    has_converged = result.log_likelihood_diff < tol
+    keep_going = (~has_converged) | (result.n_iter < min_iter)
+    return (result.n_iter < max_iter) & (result.log_likelihood < jnp.inf) & keep_going
 
   def em_body_fn(
     state: tuple[EMFitterResult, LogLikelihood],

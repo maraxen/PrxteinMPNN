@@ -65,7 +65,7 @@ def infer_states(
   """
   distance_matrix = compute_component_distances(gmm.means)
   component_weights = gmm.weights
-  responsibility_matrix = jnp.squeeze(predict_probability(gmm, features), axis=(2, 3))
+  responsibility_matrix = predict_probability(gmm, features)
   triu_indices = jnp.triu_indices_from(distance_matrix, k=1)
   eps = 1.0 - eps_std_scale * jnp.std(distance_matrix[triu_indices])
 

@@ -172,7 +172,7 @@ def make_fit_gmm_streaming(
   mode: Literal["global", "per"] = "global",
   covariance_type: Literal["full", "diag"] = "full",
   batch_size: int = 4096,
-  kmeans_init_samples: int = 1000,
+  kmeans_init_samples: int = 2000,
   kmeans_max_iters: int = 100,
   gmm_max_iters: int = 100,
   covariance_regularization: float = 1e-6,

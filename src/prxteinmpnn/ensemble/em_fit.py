@@ -73,35 +73,40 @@ def precisions(covariances: Covariances) -> Covariances:
   return cholesky_precisions.mT
 
 
+DIAG_NDIM, FULL_NDIM = 2, 3
+
+
+def log_likelihood_diag(data: Data, means: Means, covariances: Covariances) -> LogLikelihood:
+  """Compute log likelihood for diagonal covariance GMM."""
+  _, n_features = data.shape
+  diff = data[:, None, :] - means[None, :, :]
+  log_det_cov = jnp.sum(jnp.log(covariances), axis=1)
+  precision = 1.0 / covariances
+  mahalanobis_dist = jnp.sum((diff**2) * precision[None, :, :], axis=2)
+  return -0.5 * (n_features * jnp.log(2 * jnp.pi) + mahalanobis_dist + log_det_cov[None, :])
+
+
 def log_likelihood(data: Data, means: Means, covariances: Covariances) -> LogLikelihood:
   """Compute log likelihood from the covariance for a given feature vector.
 
-  Parameters
-  ----------
-  data : jax.array
-      Feature vectors
-  means : jax.array
-      Means of the components
-  covariances : jax.array
-      Covariances of the components
-
-  Returns
-  -------
-  log_prob : jax.array
-      Log likelihood
-
+  Dispatches to the correct implementation based on covariance matrix shape.
   """
-  cholesky_precisions = precisions(covariances)
+  if covariances.ndim == DIAG_NDIM:
+    return log_likelihood_diag(data, means, covariances)
+  if covariances.ndim == FULL_NDIM:
+    cholesky_precisions = precisions(covariances)
+    y = jnp.matmul(data.mT, cholesky_precisions) - jnp.matmul(
+      means.mT,
+      cholesky_precisions,
+    )
+    return jnp.sum(
+      jnp.square(y),
+      axis=(Axis.features, Axis.features_covar),
+      keepdims=True,
+    )
 
-  y = jnp.matmul(data.mT, cholesky_precisions) - jnp.matmul(
-    means.mT,
-    cholesky_precisions,
-  )
-  return jnp.sum(
-    jnp.square(y),
-    axis=(Axis.features, Axis.features_covar),
-    keepdims=True,
-  )
+  msg = f"Unsupported covariance shape: {covariances.shape}"
+  raise ValueError(msg)
 
 
 class _EMLoopState(NamedTuple):

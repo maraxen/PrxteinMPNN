@@ -8,12 +8,13 @@ from jax.scipy.special import entr
 
 from prxteinmpnn.ensemble.dbscan import (
   ConformationalStates,
+  GMMClusteringResult,
   compute_component_distances,
   dbscan_cluster,
 )
 from prxteinmpnn.ensemble.em_fit import GMM, Axis, log_likelihood
 from prxteinmpnn.utils.entropy import posterior_mean_std
-from prxteinmpnn.utils.types import EdgeFeatures, Logits, NodeFeatures, StructureAtomicCoordinates
+from prxteinmpnn.utils.types import EdgeFeatures, Logits, NodeFeatures
 
 ConformationalInferenceStrategy = Literal["logits", "node_features", "edge_features"]
 """Determines what features to use for conformational inference.
@@ -47,10 +48,10 @@ def predict_probability(gmm: GMM, data: jax.Array) -> jax.Array:
 
 def infer_states(
   gmm: GMM,
-  features: Logits | NodeFeatures | EdgeFeatures | StructureAtomicCoordinates,
+  features: Logits | NodeFeatures | EdgeFeatures,
   eps_std_scale: float = 1.0,
   min_cluster_weight: float = 0.01,
-) -> ConformationalStates:
+) -> tuple[ConformationalStates, GMMClusteringResult, GMM]:
   """Infer residue or global states by clustering a GMM fit on input features.
 
   Args:
@@ -90,15 +91,19 @@ def infer_states(
   mle_entropy = entr(counts[counts > 0] / counts.sum()).sum()
   _, mle_entropy_se = posterior_mean_std(counts[counts > 0].astype(jnp.float32))
 
-  return ConformationalStates(
-    n_states=n_states,
-    mle_entropy=mle_entropy,
-    mle_entropy_se=mle_entropy_se,
-    state_trajectory=state_trajectory,
-    state_counts=counts,
-    cluster_entropy=cluster_result.plug_in_entropy,
-    cluster_probabilities=cluster_result.state_probabilities,
-    dbscan_eps=eps,
-    min_cluster_weight=min_cluster_weight,
-    coarse_graining_matrix=cluster_result.coarse_graining_matrix,
+  return (
+    ConformationalStates(
+      n_states=n_states,
+      mle_entropy=mle_entropy,
+      mle_entropy_se=mle_entropy_se,
+      state_trajectory=state_trajectory,
+      state_counts=counts,
+      cluster_entropy=cluster_result.plug_in_entropy,
+      cluster_probabilities=cluster_result.state_probabilities,
+      dbscan_eps=eps,
+      min_cluster_weight=min_cluster_weight,
+      coarse_graining_matrix=cluster_result.coarse_graining_matrix,
+    ),
+    cluster_result,
+    gmm,
   )

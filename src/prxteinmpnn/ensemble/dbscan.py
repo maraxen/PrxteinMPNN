@@ -12,6 +12,7 @@ matrix-based approach in github.com/justktln2/ciMIST.
 """
 
 from functools import partial
+from typing import Literal
 
 import jax
 import jax.numpy as jnp
@@ -106,7 +107,10 @@ class EntropyTrace:
   eps_values: Array
 
 
-def compute_component_distances(means: Float) -> Float:
+def compute_component_distances(
+  means: Float,
+  distance_metric: Literal["euclidean", "cosine"] = "euclidean",
+) -> Float:
   """Compute the pairwise Euclidean distance between GMM component means.
 
   This distance metric treats each GMM component's mean vector as a point in
@@ -119,11 +123,17 @@ def compute_component_distances(means: Float) -> Float:
   Args:
     means: The mean vectors of the GMM components, with shape
       (n_components, n_features).
+    distance_metric: The distance metric to use, either "euclidean" or "cosine".
 
   Returns:
     A symmetric distance matrix of shape (n_components, n_components).
 
   """
+  if distance_metric == "cosine":
+    norms = jnp.linalg.norm(means, axis=1, keepdims=True)
+    normalized_means = means / norms
+    cosine_similarity = jnp.dot(normalized_means, normalized_means.T)
+    return 1.0 - cosine_similarity
   squared_norms = jnp.sum(means**2, axis=1)
   squared_distances = squared_norms[:, None] - 2 * jnp.dot(means, means.T) + squared_norms[None, :]
   return jnp.sqrt(jnp.maximum(squared_distances, 0))
@@ -268,6 +278,7 @@ def trace_entropy_across_eps(
   eps_values: Array | None = None,
   min_cluster_weight: float = 0.01,
   vmap_chunk_size: int | None = None,
+  distance_metric: Literal["euclidean", "cosine"] = "euclidean",
 ) -> EntropyTrace:
   """Calculate entropy metrics across a range of `eps` values for analysis.
 
@@ -279,6 +290,7 @@ def trace_entropy_across_eps(
     min_cluster_weight: The minimum weight for a component to be a core point.
     vmap_chunk_size: If specified, breaks the calculation into chunks to
       manage memory usage with very large `eps_values` arrays.
+    distance_metric: The distance metric to use for computing component distances.
 
   Returns:
     An `EntropyTrace` object containing the calculated metrics for each `eps`.
@@ -287,7 +299,7 @@ def trace_entropy_across_eps(
   if eps_values is None:
     eps_values = jnp.linspace(0.01, 0.99, 99)
 
-  distance_matrix = compute_component_distances(gmm.means_)
+  distance_matrix = compute_component_distances(gmm.means_, distance_metric=distance_metric)
   component_weights = gmm.weights_
   responsibility_matrix = gmm.predict_proba(logits)
 

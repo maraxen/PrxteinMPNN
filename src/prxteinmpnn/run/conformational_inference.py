@@ -272,10 +272,10 @@ def infer_conformations(  # noqa: C901, PLR0912, PLR0915
           compression="gzip",
         )
         logger.info("Saved PCA components to HDF5.")
-      em_result = gmm_fitter_fn(gmm_features, key)
-      if not em_result.converged:
-        logger.warning("GMM fitting did not converge.")
-      result = em_result
+    em_result = gmm_fitter_fn(gmm_features, key)
+    if not em_result.converged:
+      logger.warning("GMM fitting did not converge.")
+    result = em_result
 
   else:  # In-memory processing
     all_states = states_result[feature_key]

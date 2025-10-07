@@ -172,7 +172,7 @@ def make_fit_gmm_streaming(
   n_components: int,
   covariance_type: Literal["full", "diag"] = "full",
   batch_size: int = 4096,
-  kmeans_max_iters: int = 100,
+  kmeans_max_iters: int = 200,
   gmm_max_iters: int = 100,
   covariance_regularization: float = 1e-6,
 ) -> GMMFitFnStreaming:

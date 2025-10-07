@@ -6,7 +6,6 @@ HDF5 datasets.
 """
 
 import logging
-from collections.abc import Generator
 from enum import Enum
 from functools import partial
 from typing import Literal, NamedTuple
@@ -140,6 +139,7 @@ class EMFitterResult:
   log_likelihood: LogLikelihood
   log_likelihood_diff: LogLikelihood
   converged: Converged
+  features: Data | None = None
 
 
 def _e_step_diag(data: Data, gmm: "GMM") -> tuple[Means, Responsibilities]:
@@ -285,7 +285,7 @@ def _m_step_from_stats(
   )
 
 
-def fit_gmm_in_memory(
+def fit_gmm_states(
   data: Data,
   gmm: GMM,
   covariance_type: Literal["full", "diag"] = "full",
@@ -352,54 +352,12 @@ def fit_gmm_in_memory(
     log_likelihood=final_state.log_likelihood,
     log_likelihood_diff=final_state.log_likelihood_diff,
     converged=final_state.log_likelihood_diff < tol,
+    features=data,
   )
 
 
-def _pad_data(
-  data: list[Data],
-) -> tuple[Data, DataMask]:
-  """Pad data batches to the same size and create a mask.
-
-  Args:
-    data: List of JAX arrays with potentially different batch sizes.
-
-  Returns:
-    A tuple containing:
-      - padded_data: JAX array of shape (n_batches, max_batch_size, n_features)
-        with zero-padding for smaller batches.
-      - mask: JAX array of shape (n_batches, max_batch_size) with True for
-        valid data points and False for padded entries.
-
-  Raises:
-    ValueError: If data is empty or batches have inconsistent feature dimensions.
-
-  Example:
-    >>> data = [jnp.ones((5, 3)), jnp.ones((3, 3))]
-    >>> padded, mask = _pad_data(data)
-    >>> padded.shape
-    (2, 5, 3)
-    >>> mask.shape
-    (2, 5)
-
-  """
-  if not data:
-    msg = "Data list cannot be empty"
-    raise ValueError(msg)
-
-  n_features = data[0].shape[-1]
-  if not all(batch.shape[-1] == n_features for batch in data):
-    msg = "All data batches must have the same number of features"
-    raise ValueError(msg)
-
-  batch_sizes = jnp.array([batch.shape[0] for batch in data])
-  max_batch_size = jnp.max(batch_sizes)
-  padded_batches = jnp.stack([jnp.pad(b, ((0, max_batch_size - b.shape[0]), (0, 0))) for b in data])
-  mask = jnp.arange(max_batch_size)[None, :] < batch_sizes[:, None]
-  return padded_batches, mask
-
-
-def fit_gmm_generator(
-  data_generator: Generator[Data, None, None],
+def fit_gmm_depr(
+  data: Data,
   gmm: GMM,
   n_total_samples: int,
   max_iter: int = 100,
@@ -411,7 +369,7 @@ def fit_gmm_generator(
   """Fit a GMM to data from a generator (for large, out-of-memory datasets).
 
   Args:
-    data_generator: Generator yielding batches of data.
+    data: data
     gmm: Initial GMM parameters.
     n_total_samples: Total number of samples across all batches.
     max_iter: Maximum number of EM iterations.
@@ -433,8 +391,6 @@ def fit_gmm_generator(
     >>> result = fit_gmm_generator(gen(), gmm, n_total_samples=10)
 
   """
-  data = list(data_generator)
-
   if not data or n_total_samples == 0:
     return EMFitterResult(
       gmm=gmm,
@@ -443,9 +399,6 @@ def fit_gmm_generator(
       log_likelihood_diff=jnp.asarray(jnp.inf),
       converged=jnp.asarray(a=False),
     )
-
-  padded_data, mask = _pad_data(data)
-
   component_counts_init = jnp.zeros(gmm.n_components)
   weighted_data_init = jnp.zeros((gmm.n_components, gmm.n_features))
   if covariance_type == "full":
@@ -462,32 +415,26 @@ def fit_gmm_generator(
 
     def _e_step_loop(
       e_step_state: _EStepState,
-      batch_with_mask: tuple[Data, DataMask],
+      data_batch: Data,
     ) -> tuple[_EStepState, None]:
       """Accumulate sufficient statistics for one batch during E-step."""
-      data_batch, batch_mask = batch_with_mask
-
       batch_ll, log_resp = _e_step(data_batch, current_gmm, covariance_type)
       resp = jnp.exp(log_resp)
-
-      masked_resp = resp * batch_mask[:, None]
-
-      n_valid = jnp.sum(batch_mask)
-      log_likelihood_total = e_step_state.log_likelihood_total + batch_ll * n_valid
-      component_counts = e_step_state.component_counts + jnp.sum(masked_resp, axis=Axis.batch)
-      weighted_data = e_step_state.weighted_data + jnp.einsum("ij,ik->jk", masked_resp, data_batch)
+      log_likelihood_total = e_step_state.log_likelihood_total + batch_ll
+      component_counts = e_step_state.component_counts + jnp.sum(resp, axis=Axis.batch)
+      weighted_data = e_step_state.weighted_data + jnp.einsum("ij,ik->jk", resp, data_batch)
 
       if covariance_type == "full":
         weighted_squared_data = e_step_state.weighted_squared_data + jnp.einsum(
           "ij,ik,il->jkl",
-          masked_resp,
+          resp,
           data_batch,
           data_batch,
         )
       elif covariance_type == "diag":
         weighted_squared_data = e_step_state.weighted_squared_data + jnp.einsum(
           "ij,ik->jk",
-          masked_resp,
+          resp,
           data_batch**2,
         )
 
@@ -509,10 +456,9 @@ def fit_gmm_generator(
         weighted_squared_data=weighted_squared_data_init,
         log_likelihood_total=jnp.asarray(0.0),
       ),
-      (padded_data, mask),
+      data,
     )
 
-    # M-step: Update GMM parameters
     updated_gmm = _m_step_from_stats(
       gmm=current_gmm,
       component_counts=final_e_step_state.component_counts,

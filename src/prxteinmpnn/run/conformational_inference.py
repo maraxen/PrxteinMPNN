@@ -14,8 +14,10 @@ from grain.python import IterDataset
 from prxteinmpnn.ensemble.ci import infer_states
 from prxteinmpnn.ensemble.dbscan import (
   ConformationalStates,
+  GMMClusteringResult,
 )
-from prxteinmpnn.ensemble.gmm import make_fit_gmm_in_memory, make_fit_gmm_streaming
+from prxteinmpnn.ensemble.gmm import GMM, make_fit_gmm_in_memory, make_fit_gmm_streaming
+from prxteinmpnn.ensemble.pca import pca_transform
 from prxteinmpnn.run.prep import prep_protein_stream_and_model
 from prxteinmpnn.run.specs import ConformationalInferenceSpecification
 from prxteinmpnn.sampling.conditional_logits import make_conditional_logits_fn
@@ -71,8 +73,6 @@ def _get_logits_fn(
     case "vmm":
       msg = "VMM inference strategy is not yet implemented."
       raise NotImplementedError(msg)
-  msg = f"Unknown inference strategy: {spec.inference_strategy}"
-  raise ValueError(msg)
 
 
 def _compute_states_batches(
@@ -208,36 +208,74 @@ def _derive_states_streaming(
   return {"output_h5_path": str(spec.output_h5_path), "metadata": {"spec": spec}}
 
 
-def infer_conformations(
+def infer_conformations(  # noqa: C901, PLR0912, PLR0915
   spec: ConformationalInferenceSpecification,
-) -> ConformationalStates:
+) -> tuple[ConformationalStates, GMMClusteringResult, GMM]:
   """Infer conformational states from a protein ensemble."""
   states_result = derive_states(spec)
   key = jax.random.PRNGKey(spec.random_seed)
   feature_key = str(spec.inference_features[0])
+  result = None
 
   if spec.output_h5_path:
     with h5py.File(spec.output_h5_path, "r") as f:
-      all_states_h5 = f[feature_key]
+      all_states_h5 = cast("h5py.Dataset", f[feature_key])
       if all_states_h5.shape[0] == 0:  # type: ignore[attr-defined]
         msg = "No data in HDF5 file for GMM fitting."
         raise ValueError(msg)
 
-      features_for_ci = jnp.array(all_states_h5)
-
-      n_samples = features_for_ci.shape[0]
-
       gmm_fitter_fn = make_fit_gmm_streaming(
         n_components=spec.gmm_n_components,
         covariance_type=spec.covariance_type,
-        mode=spec.mode,
         batch_size=spec.batch_size,
         gmm_max_iters=spec.gmm_max_iters,
       )
-      em_result = gmm_fitter_fn(features_for_ci, key)  # type: ignore[arg-type]
+      n_total_samples = all_states_h5.shape[0]
+      gmm_features = None
+      init_samples = min(spec.kmeans_init_samples, n_total_samples)
+      logger.info("Running K-Means++ on a subset of %d samples...", init_samples)
+      key, subkey = jax.random.split(key)
+
+      pca_found = f"pca_{spec.pca_n_components}" in f
+      if pca_found:
+        logger.info("Loading precomputed PCA components from HDF5...")
+        gmm_features = jnp.array(f[f"pca_{spec.pca_n_components}"][:])  # type: ignore[index]
+        logger.info("PCA components shape: %s", gmm_features.shape)
+      else:
+        sample_indices = jax.random.choice(
+          subkey,
+          n_total_samples,
+          shape=(init_samples,),
+          replace=False,
+        )
+        init_data = jnp.array(all_states_h5[jnp.sort(sample_indices)])
+        if spec.mode == "per":
+          gmm_features = jnp.transpose(
+            init_data,
+            (1, 0, *tuple(range(2, init_data.ndim))),
+          )  # (L, N, F)
+          gmm_features = jnp.reshape(gmm_features, (init_data.shape[0], -1))  # (L, N*F)
+        elif spec.mode == "global":
+          gmm_features = jnp.reshape(init_data, (init_data.shape[0], -1))
+        if gmm_features is None:
+          msg = "GMM features could not be determined."
+          raise ValueError(msg)
+        gmm_features = pca_transform(
+          gmm_features,
+          n_components=spec.pca_n_components,
+        )
+    if not pca_found:
+      with h5py.File(spec.output_h5_path, "a") as f:
+        f.create_dataset(
+          f"pca_{spec.pca_n_components}",
+          data=jnp.array(gmm_features),
+          compression="gzip",
+        )
+        logger.info("Saved PCA components to HDF5.")
+      em_result = gmm_fitter_fn(gmm_features, key)
       if not em_result.converged:
         logger.warning("GMM fitting did not converge.")
-      gmm = em_result.gmm
+      result = em_result
 
   else:  # In-memory processing
     all_states = states_result[feature_key]
@@ -255,9 +293,11 @@ def infer_conformations(
         (1, 0, *tuple(range(2, features_for_ci.ndim))),
       )  # (L, N, F)
       gmm_features = jnp.reshape(gmm_features, (n_samples, -1))  # (L, N*F)
-    if spec.mode == "global":
+    elif spec.mode == "global":
       gmm_features = jnp.reshape(features_for_ci, (n_samples, -1))  # (N, L*F)
-
+    else:
+      msg = f"Unknown mode: {spec.mode}"
+      raise ValueError(msg)
     gmm_fitter_fn = make_fit_gmm_in_memory(
       n_components=spec.gmm_n_components,
       covariance_type=spec.covariance_type,
@@ -272,11 +312,13 @@ def infer_conformations(
     if not em_result.converged:
       logger.warning("GMM fitting did not converge.")
 
-    gmm = em_result.gmm
-
+    result = em_result
+  if result is None:
+    msg = "GMM fitting result is None."
+    raise ValueError(msg)
   return infer_states(
-    gmm=gmm,
-    features=jnp.reshape(features_for_ci, (n_samples, -1)),
+    gmm=result.gmm,
+    features=jnp.array(result.features),
     eps_std_scale=spec.eps_std_scale,
     min_cluster_weight=spec.min_cluster_weight,
   )

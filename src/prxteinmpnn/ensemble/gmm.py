@@ -114,6 +114,7 @@ def gmm_from_responsibilities(
   nk: jax.Array,
   covariance_type: Literal["full", "diag"] = "full",
   covariance_regularization: float = 1e-6,
+  min_variance: float = 1e-3,
 ) -> GMM:
   """Create a GMM from data and responsibilities.
 
@@ -124,6 +125,7 @@ def gmm_from_responsibilities(
     nk: Sum of responsibilities for each component, shape (n_components,).
     covariance_type: Type of covariance matrix, either "full" or "diag".
     covariance_regularization: Regularization added to diagonal of covariance matrices.
+    min_variance: Minimum variance threshold to prevent numerical instability.
 
   Returns:
     GMM: Gaussian Mixture Model with computed parameters.
@@ -144,7 +146,13 @@ def gmm_from_responsibilities(
       diff_k = diff[:, k, :]
       weighted_diff_k = weighted_diff[:, k, :]
       cov_k = jnp.dot(weighted_diff_k.T, diff_k) / nk[k]
-      return cov_k.at[jnp.diag_indices(n_features)].add(covariance_regularization)
+      # Add regularization and enforce minimum variance on diagonal
+      diag_values = jnp.diag(cov_k)
+      diag_values = jnp.maximum(diag_values, min_variance)
+      cov_k = cov_k.at[jnp.diag_indices(n_features)].set(
+        diag_values + covariance_regularization,
+      )
+      return cov_k
 
     covariances = jnp.stack([compute_full_covariance(k) for k in range(n_components)])
   elif covariance_type == "diag":
@@ -154,6 +162,7 @@ def gmm_from_responsibilities(
       diff_k = diff[:, k, :]
       weighted_diff_k = weighted_diff[:, k, :]
       cov_k = jnp.sum(weighted_diff_k * diff_k, axis=0) / nk[k]
+      cov_k = jnp.maximum(cov_k, min_variance)
       return cov_k + covariance_regularization
 
     covariances = jnp.stack([compute_diag_covariance(k) for k in range(n_components)])

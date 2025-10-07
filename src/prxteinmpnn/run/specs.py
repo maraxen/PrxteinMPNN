@@ -192,6 +192,7 @@ class ConformationalInferenceSpecification(RunSpecification):
   pca_whiten: bool = True
   k_means_n_clusters: int | None = None
   gmm_min_iters: int = 10
+  kmeans_init_samples: int = 2048
 
   reference_sequence: str | None = None
 

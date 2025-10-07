@@ -8,10 +8,9 @@ more stable results.
 """
 
 import logging
-from collections.abc import Callable, Generator
+from collections.abc import Callable
 from typing import Literal
 
-import h5py
 import jax
 import jax.numpy as jnp
 from jax import random
@@ -19,12 +18,12 @@ from jaxtyping import Array, Float, Int, PRNGKeyArray
 
 from prxteinmpnn.ensemble.pca import pca_transform
 
-from .em_fit import GMM, EMFitterResult, fit_gmm_generator, fit_gmm_in_memory
+from .em_fit import GMM, EMFitterResult, fit_gmm_states
 
 EnsembleData = Float[Array, "num_samples num_features"]
 Centroids = Float[Array, "num_clusters num_features"]
 Labels = Int[Array, "num_samples"]
-GMMFitFnStreaming = Callable[[h5py.Dataset, PRNGKeyArray], EMFitterResult]
+GMMFitFnStreaming = Callable[[EnsembleData, PRNGKeyArray], EMFitterResult]
 GMMFitFnInMemory = Callable[[EnsembleData, PRNGKeyArray], EMFitterResult]
 logger = logging.getLogger(__name__)
 
@@ -171,46 +170,15 @@ def gmm_from_responsibilities(
 
 def make_fit_gmm_streaming(
   n_components: int,
-  mode: Literal["global", "per"] = "global",
   covariance_type: Literal["full", "diag"] = "full",
   batch_size: int = 4096,
-  kmeans_init_samples: int = 2000,
   kmeans_max_iters: int = 100,
   gmm_max_iters: int = 100,
   covariance_regularization: float = 1e-6,
-  pca_n_components: int = 20,
 ) -> GMMFitFnStreaming:
   """Create a GMM fitting function that streams data from an HDF5 file."""
 
-  def _data_generator(dataset: h5py.Dataset) -> Generator[jax.Array, None, None]:
-    n_total = dataset.shape[0]
-    for i in range(0, n_total, batch_size):
-      yield jnp.reshape(jnp.array(dataset[i : i + batch_size]), (min(n_total - i, batch_size), -1))
-
-  def fit_gmm(dataset: h5py.Dataset, key: PRNGKeyArray) -> EMFitterResult:
-    n_total_samples = dataset.shape[0]
-    init_samples = min(kmeans_init_samples, n_total_samples)
-    logger.info("Running K-Means++ on a subset of %d samples...", init_samples)
-    key, subkey = random.split(key)
-    sample_indices = random.choice(
-      subkey,
-      n_total_samples,
-      shape=(init_samples,),
-      replace=False,
-    )
-    init_data = jnp.array(dataset[jnp.sort(sample_indices)])
-    if mode == "per":
-      gmm_features = jnp.transpose(
-        init_data,
-        (1, 0, *tuple(range(2, init_data.ndim))),
-      )  # (L, N, F)
-      gmm_features = jnp.reshape(gmm_features, (init_data.shape[0], -1))  # (L, N*F)
-    elif mode == "global":
-      gmm_features = jnp.reshape(init_data, (init_data.shape[0], -1))
-    gmm_features = pca_transform(
-      gmm_features,
-      n_components=pca_n_components,
-    )
+  def fit_gmm(gmm_features: jax.Array, key: PRNGKeyArray) -> EMFitterResult:
     key, subkey = random.split(key)
     labels = _kmeans(subkey, gmm_features, n_components, max_iters=kmeans_max_iters)
     responsibilities = jax.nn.one_hot(labels, num_classes=n_components)
@@ -228,11 +196,9 @@ def make_fit_gmm_streaming(
     )
 
     logger.info("Fitting GMM using batch-based EM with batch size %d...", batch_size)
-    data_gen = _data_generator(dataset)
-    result = fit_gmm_generator(
-      data_generator=data_gen,
+    result = fit_gmm_states(
+      data=gmm_features,
       gmm=initial_gmm,
-      n_total_samples=n_total_samples,
       max_iter=gmm_max_iters,
       tol=1e-3,
       covariance_regularization=covariance_regularization,
@@ -288,7 +254,7 @@ def make_fit_gmm_in_memory(
     )
 
     logger.info("Fitting GMM using in-memory EM...")
-    result = fit_gmm_in_memory(
+    result = fit_gmm_states(
       data=data,
       gmm=initial_gmm,
       max_iter=gmm_max_iters,

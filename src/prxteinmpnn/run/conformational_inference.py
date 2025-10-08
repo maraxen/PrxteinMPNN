@@ -306,7 +306,9 @@ def infer_conformations(
   gmm_fitter_fn = make_fit_gmm(
     n_components=spec.gmm_n_components,
     covariance_type=spec.covariance_type,
+    kmeans_max_iters=spec.kmeans_max_iters,
     gmm_max_iters=spec.gmm_max_iters,
+    covariance_regularization=spec.covariance_regularization,
   )
 
   if spec.output_h5_path:

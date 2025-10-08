@@ -112,11 +112,11 @@ def gmm_from_responsibilities(
 
 
 def make_fit_gmm(
-  n_components: Int,
+  n_components: int,
   covariance_type: Literal["full", "diag"] = "full",
   kmeans_max_iters: int = 200,
   gmm_max_iters: int = 100,
-  covariance_regularization: float = 1e-6,
+  covariance_regularization: float = 1e-3,
 ) -> GMMFitFn:
   """Create a GMM fitting function.
 

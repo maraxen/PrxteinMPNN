@@ -68,8 +68,7 @@ def get_protein_structures(
     database: The FoldCompDatabase to use.
 
   Returns:
-    A list of ProteinEnsemble objects. Each ensemble contains the structure(s)
-    for one of the requested protein IDs.
+    A generator of Protein objects.
 
   """
   if database is None:

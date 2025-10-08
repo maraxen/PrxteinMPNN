@@ -1,5 +1,6 @@
 """Conformational-inference from ProteinMPNN logits."""
 
+from functools import partial
 from typing import Literal
 
 import jax
@@ -14,7 +15,7 @@ from prxteinmpnn.ensemble.dbscan import (
 )
 from prxteinmpnn.ensemble.em_fit import GMM, Axis, log_likelihood
 from prxteinmpnn.utils.entropy import posterior_mean_std
-from prxteinmpnn.utils.types import EdgeFeatures, Logits, NodeFeatures
+from prxteinmpnn.utils.types import EdgeFeatures, EnsembleData, Logits, NodeFeatures
 
 ConformationalInferenceStrategy = Literal["logits", "node_features", "edge_features"]
 """Determines what features to use for conformational inference.
@@ -25,7 +26,7 @@ and "edge_features" (edge features from the encoder).
 
 
 @jax.jit
-def predict_probability(gmm: GMM, data: jax.Array) -> jax.Array:
+def predict_probability(gmm: GMM, data: EnsembleData) -> jax.Array:
   """Predict the probability of each sample belonging to each component.
 
   Args:
@@ -46,6 +47,7 @@ def predict_probability(gmm: GMM, data: jax.Array) -> jax.Array:
   return jnp.exp(log_prob - log_prob_norm)
 
 
+@partial(jax.jit, static_argnames=("eps_std_scale", "min_cluster_weight"))
 def infer_states(
   gmm: GMM,
   features: Logits | NodeFeatures | EdgeFeatures,

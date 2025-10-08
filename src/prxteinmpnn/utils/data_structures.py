@@ -18,14 +18,23 @@ if TYPE_CHECKING:
   from jaxtyping import Int
 
   from prxteinmpnn.utils.types import (
+    BIC,
     AlphaCarbonMask,
     AtomMask,
     BackboneDihedrals,
     ChainIndex,
+    ComponentCounts,
+    Converged,
+    Covariances,
+    EnsembleData,
+    LogLikelihood,
+    Means,
     OneHotProteinSequence,
     ProteinSequence,
     ResidueIndex,
+    Responsibilities,
     StructureAtomicCoordinates,
+    Weights,
   )
 
 from dataclasses import dataclass as dc
@@ -165,39 +174,61 @@ ProteinStream = Generator[ProteinTuple, None]
 ProteinBatch = Sequence[Protein]
 
 
-@dataclass(frozen=True)
-class ProteinEnsemble:
-  """Protein structure or ensemble representation.
+@dataclass
+class _EStepState:
+  """State for accumulating statistics during the E-step."""
 
-  Attributes:
-    coordinates (StructureAtomicCoordinates): Atom positions in the structure, represented as a
-      3D array. Cartesian coordinates of atoms in angstroms. The atom types correspond to
-      residue_constants.atom_types, i.e. the first three are N, CA, CB. Shape is
-      (num_res, num_atom_type, 3), where num_res is the number of residues, num_atom_type is the
-      number of atom types (e.g., N, CA, CB, C, O), and 3 is the spatial dimension (x, y, z).
-    aatype (Sequence): Amino-acid type for each residue represented as an integer between 0 and 20,
-      where 20 is 'X'. Shape is [num_res].
-    atom_mask (AtomMask): Binary float mask to indicate presence of a particular atom.
-      1.0 if an atom is present and 0.0 if not. This should be used for loss masking.
-      Shape is [num_res, num_atom_type].
-    residue_index (AtomResidueIndex): Residue index as used in PDB. It is not necessarily
-      continuous or 0-indexed. Shape is [num_res].
-    chain_index (ChainIndex): Chain index for each residue. Shape is [num_res].
-    dihedrals (BackboneDihedrals | None): Dihedral angles for backbone atoms (phi, psi, omega).
-      Shape is [num_res, 3]. If not provided, defaults to None.
-    mapping (jnp.Array | None): Optional array mapping residues in the ensemble to original
-      structure indices. Shape is [num_res, num_frames]. If not provided, defaults to None.
+  component_counts: ComponentCounts
+  weighted_data: EnsembleData
+  weighted_squared_data: EnsembleData
+  log_likelihood_total: LogLikelihood
+
+
+@dataclass
+class GMM:
+  """Dataclass to hold GMM parameters."""
+
+  means: Means
+  covariances: Covariances
+  weights: Weights
+  responsibilities: Responsibilities
+  n_components: Int
+  n_features: int
+
+
+class EMLoopState(NamedTuple):
+  """State for the in-memory EM loop."""
+
+  gmm: GMM
+  n_iter: Int
+  log_likelihood: LogLikelihood
+  log_likelihood_diff: LogLikelihood
+
+
+@dataclass
+class EMFitterResult:
+  """Result of the Expectation-Maximization fitting process.
+
+  Attributes
+  ----------
+  gmm : GMM
+      The final fitted Gaussian mixture model.
+  n_iter : jax.Array
+      The total number of iterations performed.
+  log_likelihood : jax.Array
+      The log-likelihood of the data under the final model.
+  converged : jax.Array
+      A boolean indicating if the algorithm converged within the max iterations.
 
   """
 
-  coordinates: StructureAtomicCoordinates
-  aatype: ProteinSequence
-  one_hot_sequence: OneHotProteinSequence
-  atom_mask: AtomMask
-  residue_index: ResidueIndex
-  chain_index: ChainIndex
-  dihedrals: BackboneDihedrals | None = None
-  mapping: Int | None = None
+  gmm: GMM
+  n_iter: Int
+  log_likelihood: LogLikelihood
+  log_likelihood_diff: LogLikelihood
+  converged: Converged
+  features: EnsembleData | None = None
+  bic: BIC | None = None
 
 
 OligomerType = Literal["monomer", "heteromer", "homooligomer", "tied_homooligomer"]

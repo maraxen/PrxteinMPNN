@@ -25,7 +25,7 @@ def pad_and_collate_proteins(elements: Sequence[ProteinTuple]) -> Protein:
     elements (list[ProteinTuple]): List of protein tuples to collate.
 
   Returns:
-    ProteinEnsemble: Batched and padded protein ensemble.
+    Protein: Batched and padded protein ensemble.
 
   Raises:
     ValueError: If the input list is empty.

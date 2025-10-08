@@ -99,7 +99,7 @@ def prune_components(
   )
 
 
-@partial(jax.jit, static_argnames=("covariance_type", "n_components", "n_features", "n_samples"))
+@partial(jax.jit, static_argnames=("covariance_type", "covariance_regularization", "min_variance"))
 def gmm_from_responsibilities(
   data: EnsembleData,
   means: Means,

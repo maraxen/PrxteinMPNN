@@ -240,6 +240,7 @@ def fit_gmm_states(
   tol: float = 1e-3,
   covariance_regularization: float = 1e-3,
   min_variance: float = 1e-3,
+  eps: float = 1e-6,
 ) -> EMFitterResult:
   """Fit a GMM to in-memory data using the EM algorithm.
 
@@ -252,6 +253,7 @@ def fit_gmm_states(
     tol: Convergence tolerance on log-likelihood difference.
     covariance_regularization: Regularization added to diagonal of covariance matrices.
     min_variance: Minimum variance threshold to prevent numerical instability.
+    eps: Small value to avoid division by zero.
 
   Returns:
     EMFitterResult: Result containing the fitted GMM and convergence information.
@@ -269,6 +271,7 @@ def fit_gmm_states(
       covariance_regularization,
       covariance_type,
       min_variance,
+      eps,
     )
     return EMLoopState(
       gmm=GMM(

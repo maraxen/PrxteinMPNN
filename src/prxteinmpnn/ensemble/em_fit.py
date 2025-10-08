@@ -46,15 +46,19 @@ class Axis(int, Enum):
 
 @jax.jit
 def _compute_cholesky_precisions(covariances: Covariances) -> Covariances:
-  """Compute precision matrices."""
-  cholesky_covariance = jax.scipy.linalg.cholesky(covariances, lower=True)
+  """Compute precision matrices.
 
-  identity = jnp.expand_dims(
-    jnp.eye(covariances.shape[Axis.features]),
-    axis=(Axis.batch, Axis.components),
-  )
-  b = jnp.repeat(identity, covariances.shape[Axis.components], axis=Axis.components)
-  cholesky_precisions = jax.scipy.linalg.solve_triangular(cholesky_covariance, b, lower=True)
+  Args:
+    covariances: Covariance matrices of shape (n_components, n_features, n_features).
+
+  Returns:
+    Precision matrices of shape (n_components, n_features, n_features).
+
+  """
+  cholesky_covariance = jax.scipy.linalg.cholesky(covariances, lower=True)
+  n_components, n_features = covariances.shape[Axis.batch], covariances.shape[Axis.features]
+  identity = jnp.tile(jnp.eye(n_features)[None, :, :], (n_components, 1, 1))
+  cholesky_precisions = jax.scipy.linalg.solve_triangular(cholesky_covariance, identity, lower=True)
   return cholesky_precisions.mT
 
 

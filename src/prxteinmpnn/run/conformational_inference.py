@@ -329,11 +329,10 @@ def infer_conformations(
   if not em_result.converged:
     logger.warning("GMM fitting did not converge.")
   result = em_result
-  n_components = spec.gmm_n_components
   return infer_states(
     gmm=result.gmm,
     features=jnp.array(result.features),
-    n_components=n_components,
+    n_components=spec.gmm_n_components,
     eps_std_scale=spec.eps_std_scale,
     min_cluster_weight=spec.min_cluster_weight,
   )

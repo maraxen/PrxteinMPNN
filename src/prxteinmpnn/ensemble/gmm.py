@@ -7,111 +7,104 @@ Gaussian Mixture Model (GMM), leading to potentially faster convergence and
 more stable results.
 """
 
+from __future__ import annotations
+
 import logging
 from collections.abc import Callable
-from typing import Literal
+from functools import partial
+from typing import TYPE_CHECKING, Literal
 
 import jax
 import jax.numpy as jnp
 from jax import random
-from jaxtyping import Array, Float, Int, PRNGKeyArray
+from jaxtyping import Int, PRNGKeyArray
 
-from prxteinmpnn.ensemble.pca import pca_transform
+if TYPE_CHECKING:
+  from prxteinmpnn.utils.types import (
+    ComponentCounts,
+    EnsembleData,
+    Means,
+    Responsibilities,
+  )
 
+from prxteinmpnn.utils.types import EnsembleData
+
+from .bic import compute_bic
 from .em_fit import GMM, EMFitterResult, fit_gmm_states
+from .kmeans import kmeans
 
-EnsembleData = Float[Array, "num_samples num_features"]
-Centroids = Float[Array, "num_clusters num_features"]
-Labels = Int[Array, "num_samples"]
-GMMFitFnStreaming = Callable[[EnsembleData, PRNGKeyArray], EMFitterResult]
-GMMFitFnInMemory = Callable[[EnsembleData, PRNGKeyArray], EMFitterResult]
+GMMFitFn = Callable[[EnsembleData, PRNGKeyArray], EMFitterResult]
 logger = logging.getLogger(__name__)
 
 
-def _kmeans_plusplus_init(
-  key: PRNGKeyArray,
-  data: EnsembleData,
-  num_clusters: int,
-) -> Centroids:
-  """K-Means++ initialization for selecting well-separated initial centroids."""
-  logger.info("Initializing centroids with K-Means++...")
-  logger.info("Number of clusters: %d", num_clusters)
-  logger.info("Data shape: %s", data.shape)
-  n_samples, n_features = data.shape
-  centroids = jnp.zeros((num_clusters, n_features))
-  key, subkey = random.split(key)
-  first_idx = random.choice(subkey, n_samples)
-  centroids = centroids.at[0].set(data[first_idx])
+@partial(jax.jit, static_argnames=("min_weight", "max_weight"))
+def prune_components(
+  gmm: GMM,
+  min_weight: float = 1e-3,
+  max_weight: float = 0.99,
+) -> tuple[GMM, Int]:
+  """Remove mixture components with very small or very large weights.
 
-  def select_next_centroid(
-    i: int,
-    state: tuple[Centroids, PRNGKeyArray],
-  ) -> tuple[Centroids, PRNGKeyArray]:
-    current_centroids, current_key = state
-    is_valid_centroid = jnp.arange(num_clusters) < i
-    distances_sq_all = jnp.sum(
-      (data[:, None, :] - current_centroids[None, :, :]) ** 2,
-      axis=-1,
-    )
-    distances_sq_masked = jnp.where(
-      is_valid_centroid[None, :],
-      distances_sq_all,
-      jnp.inf,
-    )
-    distances_sq = jnp.min(distances_sq_masked, axis=-1)
-    probabilities = distances_sq / jnp.sum(distances_sq)
-    current_key, subkey = random.split(current_key)
-    next_idx = random.choice(subkey, n_samples, p=probabilities)
-    updated_centroids = current_centroids.at[i].set(data[next_idx])
-    return updated_centroids, current_key
+  Components with weights below `min_weight` are considered degenerate and removed.
+  Components with weights above `max_weight` dominate the mixture and may indicate
+  overfitting, so they are also removed.
 
-  final_centroids, _ = jax.lax.fori_loop(
-    1,
-    num_clusters,
-    select_next_centroid,
-    (centroids, key),
+  Args:
+    gmm: The Gaussian Mixture Model to prune.
+    min_weight: Minimum weight threshold. Components below this are removed.
+    max_weight: Maximum weight threshold. Components above this are removed.
+
+  Returns:
+    tuple: A tuple containing:
+      - GMM: Pruned model with valid components only.
+      - Array: Number of components removed.
+
+  Example:
+    >>> pruned_gmm, n_removed = prune_components(gmm, min_weight=0.01, max_weight=0.95)
+    >>> print(f"Removed {n_removed} components")
+
+  """
+  valid_mask = (gmm.weights >= min_weight) & (gmm.weights <= max_weight)
+  n_removed = jnp.asarray(gmm.n_components - jnp.sum(valid_mask), dtype=jnp.int32)
+
+  if jnp.all(valid_mask):
+    return gmm, jnp.asarray(0, dtype=jnp.int32)
+
+  valid_indices = jnp.where(valid_mask, size=gmm.n_components, fill_value=-1)[0]
+  valid_indices = valid_indices[valid_indices >= 0]
+
+  new_n_components = len(valid_indices)
+
+  new_weights = gmm.weights[valid_indices]
+  new_weights = new_weights / jnp.sum(new_weights)
+
+  new_means = gmm.means[valid_indices]
+  new_covariances = gmm.covariances[valid_indices]
+
+  if gmm.responsibilities is not None:
+    new_responsibilities = gmm.responsibilities[:, valid_indices]
+  else:
+    new_responsibilities = jnp.zeros((0, new_n_components))
+
+  return (
+    GMM(
+      weights=new_weights,
+      means=new_means,
+      covariances=new_covariances,
+      responsibilities=new_responsibilities,
+      n_components=new_n_components,
+      n_features=gmm.n_features,
+    ),
+    n_removed,
   )
-  return final_centroids
 
 
-def _kmeans(
-  key: PRNGKeyArray,
-  data: EnsembleData,
-  num_clusters: int,
-  max_iters: int = 100,
-) -> Labels:
-  """K-Means clustering algorithm with K-Means++ initialization."""
-  initial_centroids = _kmeans_plusplus_init(key, data, num_clusters)
-
-  def kmeans_iteration(_: int, centroids: Centroids) -> Centroids:
-    distances_sq = jnp.sum((data[:, None, :] - centroids[None, :, :]) ** 2, axis=-1)
-    labels = jnp.argmin(distances_sq, axis=-1)
-
-    def update_centroid(j: int, centroids_state: Centroids) -> Centroids:
-      mask = labels == j
-      count = jnp.sum(mask)
-      new_centroid = jnp.where(
-        count > 0,
-        jnp.sum(data * mask[:, None], axis=0) / count,
-        centroids_state[j],
-      )
-      return centroids_state.at[j].set(new_centroid)
-
-    return jax.lax.fori_loop(0, num_clusters, update_centroid, centroids)
-
-  final_centroids = jax.lax.fori_loop(0, max_iters, kmeans_iteration, initial_centroids)
-  final_distances_sq = jnp.sum(
-    (data[:, None, :] - final_centroids[None, :, :]) ** 2,
-    axis=-1,
-  )
-  return jnp.argmin(final_distances_sq, axis=-1)
-
-
+@partial(jax.jit, static_argnames=("covariance_type", "n_components", "n_features", "n_samples"))
 def gmm_from_responsibilities(
-  data: jax.Array,
-  means: jax.Array,
-  responsibilities: jax.Array,
-  nk: jax.Array,
+  data: EnsembleData,
+  means: Means,
+  responsibilities: Responsibilities,
+  component_counts: ComponentCounts,
   covariance_type: Literal["full", "diag"] = "full",
   covariance_regularization: float = 1e-6,
   min_variance: float = 1e-3,
@@ -122,7 +115,7 @@ def gmm_from_responsibilities(
     data: Input data array of shape (n_samples, n_features).
     means: Component means of shape (n_components, n_features).
     responsibilities: Responsibility matrix of shape (n_samples, n_components).
-    nk: Sum of responsibilities for each component, shape (n_components,).
+    component_counts: Sum of responsibilities for each component, shape (n_components,).
     covariance_type: Type of covariance matrix, either "full" or "diag".
     covariance_regularization: Regularization added to diagonal of covariance matrices.
     min_variance: Minimum variance threshold to prevent numerical instability.
@@ -140,35 +133,39 @@ def gmm_from_responsibilities(
   weighted_diff = responsibilities[:, :, None] * diff
 
   if covariance_type == "full":
-    covariances = jnp.zeros((n_components, n_features, n_features))
 
-    def compute_full_covariance(k: int) -> jax.Array:
-      diff_k = diff[:, k, :]
-      weighted_diff_k = weighted_diff[:, k, :]
-      cov_k = jnp.dot(weighted_diff_k.T, diff_k) / nk[k]
-      # Add regularization and enforce minimum variance on diagonal
-      diag_values = jnp.diag(cov_k)
+    def component_covariance_fn(component_idx: Int) -> jax.Array:
+      component_diff = diff[:, component_idx, :]
+      weighted_component_diff = weighted_diff[:, component_idx, :]
+      component_covariance = (
+        jnp.dot(weighted_component_diff.T, component_diff) / component_counts[component_idx]
+      )
+      diag_values = jnp.diag(component_covariance)
       diag_values = jnp.maximum(diag_values, min_variance)
-      cov_k = cov_k.at[jnp.diag_indices(n_features)].set(
+      diag_values = jax.nn.softplus(diag_values - min_variance) + min_variance
+      return component_covariance.at[jnp.diag_indices(n_features)].set(
         diag_values + covariance_regularization,
       )
-      return cov_k
 
-    covariances = jnp.stack([compute_full_covariance(k) for k in range(n_components)])
   elif covariance_type == "diag":
-    covariances = jnp.zeros((n_components, n_features))
 
-    def compute_diag_covariance(k: int) -> jax.Array:
-      diff_k = diff[:, k, :]
-      weighted_diff_k = weighted_diff[:, k, :]
-      cov_k = jnp.sum(weighted_diff_k * diff_k, axis=0) / nk[k]
-      cov_k = jnp.maximum(cov_k, min_variance)
-      return cov_k + covariance_regularization
+    def component_covariance_fn(component_idx: Int) -> jax.Array:
+      component_diff = diff[:, component_idx, :]
+      weighted_component_diff = weighted_diff[:, component_idx, :]
+      component_covariance = (
+        jnp.sum(weighted_component_diff * component_diff, axis=0) / component_counts[component_idx]
+      )
+      component_covariance = jnp.maximum(component_covariance, min_variance)
+      component_covariance = jax.nn.softplus(component_covariance - min_variance) + min_variance
+      return component_covariance + covariance_regularization
 
-    covariances = jnp.stack([compute_diag_covariance(k) for k in range(n_components)])
+  covariances = jax.vmap(component_covariance_fn)(jnp.arange(n_components))
+
+  weights = component_counts / jnp.sum(component_counts)
+  weights = weights / jnp.sum(weights)
 
   return GMM(
-    weights=nk / jnp.sum(nk),
+    weights=weights,
     means=means,
     covariances=covariances,
     responsibilities=responsibilities,
@@ -177,34 +174,48 @@ def gmm_from_responsibilities(
   )
 
 
-def make_fit_gmm_streaming(
-  n_components: int,
+def make_fit_gmm(
+  n_components: Int,
   covariance_type: Literal["full", "diag"] = "full",
-  batch_size: int = 4096,
   kmeans_max_iters: int = 200,
   gmm_max_iters: int = 100,
   covariance_regularization: float = 1e-6,
-) -> GMMFitFnStreaming:
-  """Create a GMM fitting function that streams data from an HDF5 file."""
+) -> GMMFitFn:
+  """Create a GMM fitting function.
+
+  Args:
+    n_components: Number of mixture components.
+    covariance_type: Type of covariance matrix, either "full" or "diag".
+    kmeans_max_iters: Maximum iterations for K-Means initialization.
+    gmm_max_iters: Maximum iterations for GMM fitting.
+    covariance_regularization: Regularization added to diagonal of covariance matrices.
+
+  Returns:
+    Callable[[EnsembleData, PRNGKeyArray], EMFitterResult]: Function to fit GMM on data.
+
+  """
 
   def fit_gmm(gmm_features: jax.Array, key: PRNGKeyArray) -> EMFitterResult:
     key, subkey = random.split(key)
-    labels = _kmeans(subkey, gmm_features, n_components, max_iters=kmeans_max_iters)
+    labels = kmeans(subkey, gmm_features, n_components, max_iters=kmeans_max_iters)
     responsibilities = jax.nn.one_hot(labels, num_classes=n_components)
 
-    logger.info("Initializing GMM from K-Means results...")
+    def cluster_means(gmm_features: jax.Array, labels: jax.Array, k: Int) -> jax.Array:
+      return jnp.mean(gmm_features, axis=0, where=(labels == k)[:, None])
+
     initial_gmm = gmm_from_responsibilities(
       data=gmm_features,
-      means=jnp.array(
-        [jnp.mean(gmm_features[labels == k], axis=0) for k in range(n_components)],
+      means=jax.vmap(cluster_means, in_axes=(None, 0, 0))(
+        gmm_features,
+        labels,
+        jnp.arange(n_components),
       ),
       responsibilities=responsibilities,
-      nk=jnp.sum(responsibilities, axis=0),
+      component_counts=jnp.sum(responsibilities, axis=0),
       covariance_type=covariance_type,
       covariance_regularization=covariance_regularization,
     )
 
-    logger.info("Fitting GMM using batch-based EM with batch size %d...", batch_size)
     result = fit_gmm_states(
       data=gmm_features,
       gmm=initial_gmm,
@@ -212,70 +223,34 @@ def make_fit_gmm_streaming(
       tol=1e-3,
       covariance_regularization=covariance_regularization,
       covariance_type=covariance_type,
-    )
-    logger.info(
-      "GMM fitting finished in %d iterations. Converged: %s",
-      result.n_iter,
-      result.converged,
-    )
-    return result
-
-  return fit_gmm
-
-
-def make_fit_gmm_in_memory(
-  n_components: int,
-  mode: Literal["global", "per"] = "global",
-  covariance_type: Literal["full", "diag"] = "full",
-  kmeans_max_iters: int = 100,
-  gmm_max_iters: int = 100,
-  covariance_regularization: float = 1e-6,
-  pca_n_components: int = 20,
-) -> GMMFitFnInMemory:
-  """Create a GMM fitting function for in-memory JAX arrays."""
-
-  def fit_gmm(data: EnsembleData, key: PRNGKeyArray) -> EMFitterResult:
-    logger.info("Running K-Means++ on the full in-memory dataset...")
-    key, subkey = random.split(key)
-    labels = _kmeans(subkey, data, n_components, max_iters=kmeans_max_iters)
-    responsibilities = jax.nn.one_hot(labels, num_classes=n_components)
-    if mode == "per":
-      gmm_features = jnp.transpose(
-        data,
-        (1, 0, *tuple(range(2, data.ndim))),
-      )  # (L, N, F)
-      gmm_features = jnp.reshape(gmm_features, (data.shape[0], -1))  # (L, N*F)
-    elif mode == "global":
-      gmm_features = jnp.reshape(data, (data.shape[0], -1))
-
-    gmm_features = pca_transform(
-      gmm_features,
-      n_components=pca_n_components,
-    )
-    logger.info("Initializing GMM from K-Means results...")
-    initial_gmm = gmm_from_responsibilities(
-      data=data,
-      means=jnp.array([jnp.mean(gmm_features[labels == k], axis=0) for k in range(n_components)]),
-      responsibilities=responsibilities,
-      nk=jnp.sum(responsibilities, axis=0),
-      covariance_type=covariance_type,
-      covariance_regularization=covariance_regularization,
+      min_variance=1e-3,
     )
 
-    logger.info("Fitting GMM using in-memory EM...")
-    result = fit_gmm_states(
-      data=data,
-      gmm=initial_gmm,
-      max_iter=gmm_max_iters,
-      tol=1e-3,
-      covariance_regularization=covariance_regularization,
+    bic = compute_bic(
+      log_likelihood=result.log_likelihood,
+      n_samples=gmm_features.shape[0],
+      n_components=result.gmm.n_components,
+      n_features=result.gmm.n_features,
       covariance_type=covariance_type,
     )
-    logger.info(
-      "GMM fitting finished in %d iterations. Converged: %s",
-      result.n_iter,
-      result.converged,
+
+    pruned_gmm, n_removed = prune_components(
+      result.gmm,
+      min_weight=1e-3,
+      max_weight=0.99,
     )
+
+    if n_removed > 0:
+      result = EMFitterResult(
+        gmm=pruned_gmm,
+        n_iter=result.n_iter,
+        log_likelihood=result.log_likelihood,
+        log_likelihood_diff=result.log_likelihood_diff,
+        converged=result.converged,
+        features=result.features,
+        bic=bic,
+      )
+
     return result
 
   return fit_gmm

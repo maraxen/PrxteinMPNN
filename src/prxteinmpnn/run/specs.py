@@ -189,10 +189,12 @@ class ConformationalInferenceSpecification(RunSpecification):
   preprocessing_mode: Literal["pca"] | None = None
   gmm_init: Literal["kmeans", "random"] = "kmeans"
   gmm_max_iters: int = 100
+  kmeans_max_iters: int = 200
   pca_n_components: int = 20
   pca_solver: Literal["full", "randomized"] = "full"
   pca_rng_seed: int = 0
   gmm_min_iters: int = 10
+  covariance_regularization: float = 1e-3
 
   reference_sequence: str | None = None
 

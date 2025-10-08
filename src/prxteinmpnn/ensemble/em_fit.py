@@ -167,49 +167,56 @@ def _e_step(
 def _m_step_from_responsibilities(
   data: EnsembleData,
   means: Means,
-  covariances: Covariances,
   responsibilities: Responsibilities,
   covariance_regularization: float,
   covariance_type: Literal["full", "diag"] = "full",
   min_variance: float = 1e-3,
+  eps: float = 1e-6,
 ) -> tuple[Weights, Means, Covariances]:
   """Maximization (M) step for in-memory data using responsibilities."""
   component_counts = jnp.sum(responsibilities, axis=Axis.batch)
 
   safe_component_counts = jnp.where(component_counts == 0, 1.0, component_counts)
+  safe_component_counts = jnp.maximum(safe_component_counts, eps)
 
   updated_means = jnp.einsum("ij,ik->jk", responsibilities, data) / safe_component_counts[..., None]
-  means = jnp.asarray(jnp.where(component_counts[..., None] > 0, updated_means, means))
+  means = jnp.asarray(jnp.where(component_counts[..., None] > eps, updated_means, means))
 
   if covariance_type == "full":
-    updated_covariances = (
-      jnp.einsum("ij,ik,il->jkl", responsibilities, data, data)
-      / safe_component_counts[..., None, None]
-    )
-    updated_covariances = updated_covariances - jnp.einsum("...i,...j->...ij", means, means)
-    diag_indices = jnp.arange(means.shape[-1])
-    diag_values = updated_covariances[:, diag_indices, diag_indices]
-    diag_values = jnp.maximum(diag_values, min_variance)
-    diag_values = jax.nn.softplus(diag_values - min_variance) + min_variance
-    updated_covariances = updated_covariances.at[:, diag_indices, diag_indices].set(
-      diag_values + covariance_regularization,
-    )
-    covariances_final = jnp.where(
-      component_counts[..., None, None] > 0,
-      updated_covariances,
-      covariances,
-    )
+    diff = data[:, None, :] - means[None, :, :]
+    weighted_diff = responsibilities[:, :, None] * diff
+
+    def component_covariance_fn(component_idx: jax.Array) -> jax.Array:
+      component_diff = diff[:, component_idx, :]
+      weighted_component_diff = weighted_diff[:, component_idx, :]
+      component_covariance = (
+        jnp.dot(weighted_component_diff.T, component_diff) / safe_component_counts[component_idx]
+      )
+      diag_values = jnp.diag(component_covariance)
+      diag_values = jnp.maximum(diag_values, min_variance)
+      diag_values = jax.nn.softplus(diag_values - min_variance) + min_variance
+      return component_covariance.at[jnp.diag_indices(component_diff.shape[1])].set(
+        diag_values + covariance_regularization,
+      )
   elif covariance_type == "diag":
-    updated_vars = (
-      jnp.einsum("ij,ik->jk", responsibilities, data**2) / safe_component_counts[..., None]
-      - means**2
-    )
-    updated_vars = jnp.maximum(updated_vars, min_variance)
-    updated_vars = jax.nn.softplus(updated_vars - min_variance) + min_variance
-    updated_vars += covariance_regularization
-    covariances_final = jnp.where(component_counts[..., None] > 0, updated_vars, covariances)
-  weights = component_counts / data.shape[Axis.batch]
-  weights = weights / jnp.sum(weights)
+    diff = data[:, None, :] - means[None, :, :]
+    weighted_diff = responsibilities[:, :, None] * diff
+
+    def component_covariance_fn(component_idx: jax.Array) -> jax.Array:
+      component_diff = diff[:, component_idx, :]
+      weighted_component_diff = weighted_diff[:, component_idx, :]
+      component_covariance = (
+        jnp.sum(weighted_component_diff * component_diff, axis=0)
+        / safe_component_counts[component_idx]
+      )
+      component_covariance = jnp.maximum(component_covariance, min_variance)
+      component_covariance = jax.nn.softplus(component_covariance - min_variance) + min_variance
+      return component_covariance + covariance_regularization
+
+  n_components = means.shape[0]
+  covariances_final = jax.vmap(component_covariance_fn)(jnp.arange(n_components))
+  weights = safe_component_counts / data.shape[Axis.batch]
+  weights = weights / jnp.maximum(jnp.sum(weights), eps)
   return weights, means, covariances_final
 
 
@@ -258,7 +265,6 @@ def fit_gmm_states(
     weights, means, covariances = _m_step_from_responsibilities(
       data,
       state.gmm.means,
-      state.gmm.covariances,
       jnp.exp(log_resp),
       covariance_regularization,
       covariance_type,

@@ -39,6 +39,7 @@ def make_fit_gmm(
   gmm_max_iters: int = 100,
   covariance_regularization: float = 1e-3,
   eps: float = 1e-6,
+  temperature: float = 1.0,
 ) -> GMMFitFn:
   """Create a GMM fitting function.
 
@@ -56,9 +57,12 @@ def make_fit_gmm(
   """
 
   def fit_gmm(gmm_features: jax.Array, key: PRNGKeyArray) -> EMFitterResult:
-    key, subkey = random.split(key)
+    key, subkey, gumbel_key = random.split(key, 3)
     labels = kmeans(subkey, gmm_features, n_components, max_iters=kmeans_max_iters)
     responsibilities = jax.nn.one_hot(labels, num_classes=n_components)
+    gumbel_noise = random.gumbel(gumbel_key, shape=responsibilities.shape)
+    noisy_responsibilities = responsibilities * 10.0 + gumbel_noise
+    responsibilities = jax.nn.softmax(noisy_responsibilities / temperature)
 
     def cluster_means(gmm_features: jax.Array, labels: jax.Array, k: Int) -> jax.Array:
       return jnp.mean(gmm_features, axis=0, where=(labels == k)[:, None])

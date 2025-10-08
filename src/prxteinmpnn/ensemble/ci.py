@@ -47,10 +47,11 @@ def predict_probability(gmm: GMM, data: EnsembleData) -> jax.Array:
   return jnp.exp(log_prob - log_prob_norm)
 
 
-@partial(jax.jit, static_argnames=("eps_std_scale", "min_cluster_weight"))
+@partial(jax.jit, static_argnames=("eps_std_scale", "min_cluster_weight", "n_components"))
 def infer_states(
   gmm: GMM,
   features: Logits | NodeFeatures | EdgeFeatures,
+  n_components: int,
   eps_std_scale: float = 1.0,
   min_cluster_weight: float = 0.01,
 ) -> tuple[ConformationalStates, GMMClusteringResult, GMM]:
@@ -60,6 +61,7 @@ def infer_states(
     gmm: Fitted GMM object.
     features: Input features (logits or message), shape compatible with predict_probability.
     eps_std_scale: Scaling factor for DBSCAN epsilon.
+    n_components: Number of GMM components.
     min_cluster_weight: Minimum cluster weight threshold.
 
   Returns:
@@ -85,7 +87,7 @@ def infer_states(
 
   states, counts = jnp.unique(
     state_trajectory,
-    size=gmm.n_components,
+    size=n_components,
     fill_value=-1,
     return_counts=True,
   )

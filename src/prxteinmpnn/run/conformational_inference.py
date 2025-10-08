@@ -333,6 +333,7 @@ def infer_conformations(
   return infer_states(
     gmm=result.gmm,
     features=jnp.array(result.features),
+    n_components=result.gmm.n_components,
     eps_std_scale=spec.eps_std_scale,
     min_cluster_weight=spec.min_cluster_weight,
   )

@@ -39,7 +39,7 @@ def make_fit_gmm(
   gmm_max_iters: int = 100,
   covariance_regularization: float = 1e-3,
   eps: float = 1e-6,
-  temperature: float = 1.0,
+  temperature: float = 0.1,
 ) -> GMMFitFn:
   """Create a GMM fitting function.
 

@@ -205,7 +205,7 @@ def make_fit_gmm(
 
     initial_gmm = gmm_from_responsibilities(
       data=gmm_features,
-      means=jax.vmap(cluster_means, in_axes=(None, 0, 0))(
+      means=jax.vmap(cluster_means, in_axes=(None, None, 0))(
         gmm_features,
         labels,
         jnp.arange(n_components),

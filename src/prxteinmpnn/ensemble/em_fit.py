@@ -162,7 +162,7 @@ def _e_step(
 
 @partial(
   jax.jit,
-  static_argnames=("covariance_regularization", "covariance_type", "min_variance"),
+  static_argnames=("covariance_type",),
 )
 def _m_step_from_responsibilities(
   data: EnsembleData,
@@ -233,14 +233,7 @@ def _m_step_from_responsibilities(
 
 @partial(
   jax.jit,
-  static_argnames=(
-    "covariance_type",
-    "max_iter",
-    "min_iter",
-    "tol",
-    "covariance_regularization",
-    "min_variance",
-  ),
+  static_argnames=("covariance_type",),
 )
 def fit_gmm_states(
   data: EnsembleData,

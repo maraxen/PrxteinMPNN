@@ -48,6 +48,7 @@ def make_fit_gmm(
     kmeans_max_iters: Maximum iterations for K-Means initialization.
     gmm_max_iters: Maximum iterations for GMM fitting.
     covariance_regularization: Regularization added to diagonal of covariance matrices.
+    eps: Small value to avoid division by zero.
 
   Returns:
     Callable[[EnsembleData, PRNGKeyArray], EMFitterResult]: Function to fit GMM on data.
@@ -70,9 +71,9 @@ def make_fit_gmm(
         jnp.arange(n_components),
       ),
       responsibilities=responsibilities,
-      component_counts=jnp.sum(responsibilities, axis=0),
       covariance_type=covariance_type,
       covariance_regularization=covariance_regularization,
+      eps=eps,
     )
     initial_gmm = GMM(
       means=means,
@@ -91,6 +92,7 @@ def make_fit_gmm(
       covariance_regularization=covariance_regularization,
       covariance_type=covariance_type,
       min_variance=1e-3,
+      eps=eps,
     )
 
   return fit_gmm

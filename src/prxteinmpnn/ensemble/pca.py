@@ -1,6 +1,5 @@
 """Principal Component Analysis (PCA) utilities."""
 
-from functools import partial
 from typing import Literal
 
 import jax
@@ -10,7 +9,6 @@ from jaxtyping import PRNGKeyArray
 from prxteinmpnn.utils.types import PCAInputData
 
 
-@partial(jax.jit, static_argnames=("n_components", "solver"))
 def pca_transform(
   data: PCAInputData,
   n_components: int,

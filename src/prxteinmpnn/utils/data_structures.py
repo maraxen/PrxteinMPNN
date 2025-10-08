@@ -192,7 +192,7 @@ class GMM:
   covariances: Covariances
   weights: Weights
   responsibilities: Responsibilities
-  n_components: Int
+  n_components: int
   n_features: int
 
 

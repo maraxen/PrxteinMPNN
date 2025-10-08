@@ -67,13 +67,10 @@ def prune_components(
   valid_mask = (gmm.weights >= min_weight) & (gmm.weights <= max_weight)
   n_removed = jnp.asarray(gmm.n_components - jnp.sum(valid_mask), dtype=jnp.int32)
 
-  if jnp.all(valid_mask):
-    return gmm, jnp.asarray(0, dtype=jnp.int32)
-
   valid_indices = jnp.where(valid_mask, size=gmm.n_components, fill_value=-1)[0]
   valid_indices = valid_indices[valid_indices >= 0]
 
-  new_n_components = len(valid_indices)
+  new_n_components = valid_indices.size
 
   new_weights = gmm.weights[valid_indices]
   new_weights = new_weights / jnp.sum(new_weights)
@@ -81,10 +78,7 @@ def prune_components(
   new_means = gmm.means[valid_indices]
   new_covariances = gmm.covariances[valid_indices]
 
-  if gmm.responsibilities is not None:
-    new_responsibilities = gmm.responsibilities[:, valid_indices]
-  else:
-    new_responsibilities = jnp.zeros((0, new_n_components))
+  new_responsibilities = gmm.responsibilities[:, valid_indices]
 
   return (
     GMM(

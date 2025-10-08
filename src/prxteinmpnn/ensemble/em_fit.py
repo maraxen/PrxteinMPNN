@@ -193,6 +193,7 @@ def _m_step_from_responsibilities(
       component_covariance = (
         jnp.dot(weighted_component_diff.T, component_diff) / safe_component_counts[component_idx]
       )
+      component_covariance = 0.5 * (component_covariance + component_covariance.T)
       diag_values = jnp.diag(component_covariance)
       diag_values = jnp.maximum(diag_values, min_variance)
       diag_values = jax.nn.softplus(diag_values - min_variance) + min_variance

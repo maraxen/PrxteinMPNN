@@ -29,68 +29,11 @@ if TYPE_CHECKING:
 
 from prxteinmpnn.utils.types import EnsembleData
 
-from .bic import compute_bic
 from .em_fit import GMM, EMFitterResult, fit_gmm_states
 from .kmeans import kmeans
 
 GMMFitFn = Callable[[EnsembleData, PRNGKeyArray], EMFitterResult]
 logger = logging.getLogger(__name__)
-
-
-@partial(jax.jit, static_argnames=("min_weight", "max_weight"))
-def prune_components(
-  gmm: GMM,
-  min_weight: float = 1e-3,
-  max_weight: float = 0.99,
-) -> tuple[GMM, Int]:
-  """Remove mixture components with very small or very large weights.
-
-  Components with weights below `min_weight` are considered degenerate and removed.
-  Components with weights above `max_weight` dominate the mixture and may indicate
-  overfitting, so they are also removed.
-
-  Args:
-    gmm: The Gaussian Mixture Model to prune.
-    min_weight: Minimum weight threshold. Components below this are removed.
-    max_weight: Maximum weight threshold. Components above this are removed.
-
-  Returns:
-    tuple: A tuple containing:
-      - GMM: Pruned model with valid components only.
-      - Array: Number of components removed.
-
-  Example:
-    >>> pruned_gmm, n_removed = prune_components(gmm, min_weight=0.01, max_weight=0.95)
-    >>> print(f"Removed {n_removed} components")
-
-  """
-  valid_mask = (gmm.weights >= min_weight) & (gmm.weights <= max_weight)
-  n_removed = jnp.asarray(gmm.n_components - jnp.sum(valid_mask), dtype=jnp.int32)
-
-  valid_indices = jnp.where(valid_mask, size=gmm.n_components, fill_value=-1)[0]
-  valid_indices = valid_indices[valid_indices >= 0]
-
-  new_n_components = valid_indices.size
-
-  new_weights = gmm.weights[valid_indices]
-  new_weights = new_weights / jnp.sum(new_weights)
-
-  new_means = gmm.means[valid_indices]
-  new_covariances = gmm.covariances[valid_indices]
-
-  new_responsibilities = gmm.responsibilities[:, valid_indices]
-
-  return (
-    GMM(
-      weights=new_weights,
-      means=new_means,
-      covariances=new_covariances,
-      responsibilities=new_responsibilities,
-      n_components=new_n_components,
-      n_features=gmm.n_features,
-    ),
-    n_removed,
-  )
 
 
 @partial(jax.jit, static_argnames=("covariance_type", "covariance_regularization", "min_variance"))
@@ -210,7 +153,7 @@ def make_fit_gmm(
       covariance_regularization=covariance_regularization,
     )
 
-    result = fit_gmm_states(
+    return fit_gmm_states(
       data=gmm_features,
       gmm=initial_gmm,
       max_iter=gmm_max_iters,
@@ -219,32 +162,5 @@ def make_fit_gmm(
       covariance_type=covariance_type,
       min_variance=1e-3,
     )
-
-    bic = compute_bic(
-      log_likelihood=result.log_likelihood,
-      n_samples=gmm_features.shape[0],
-      n_components=result.gmm.n_components,
-      n_features=result.gmm.n_features,
-      covariance_type=covariance_type,
-    )
-
-    pruned_gmm, n_removed = prune_components(
-      result.gmm,
-      min_weight=1e-3,
-      max_weight=0.99,
-    )
-
-    if n_removed > 0:
-      result = EMFitterResult(
-        gmm=pruned_gmm,
-        n_iter=result.n_iter,
-        log_likelihood=result.log_likelihood,
-        log_likelihood_diff=result.log_likelihood_diff,
-        converged=result.converged,
-        features=result.features,
-        bic=bic,
-      )
-
-    return result
 
   return fit_gmm

@@ -9,6 +9,7 @@ from typing import Any, cast
 import h5py
 import jax
 import jax.numpy as jnp
+import pcax
 from grain.python import IterDataset
 
 from prxteinmpnn.ensemble.ci import infer_states
@@ -16,12 +17,13 @@ from prxteinmpnn.ensemble.dbscan import (
   ConformationalStates,
   GMMClusteringResult,
 )
-from prxteinmpnn.ensemble.gmm import GMM, make_fit_gmm_in_memory, make_fit_gmm_streaming
+from prxteinmpnn.ensemble.gmm import make_fit_gmm
 from prxteinmpnn.ensemble.pca import pca_transform
 from prxteinmpnn.run.prep import prep_protein_stream_and_model
 from prxteinmpnn.run.specs import ConformationalInferenceSpecification
 from prxteinmpnn.sampling.conditional_logits import make_conditional_logits_fn
 from prxteinmpnn.sampling.unconditional_logits import make_unconditional_logits_fn
+from prxteinmpnn.utils.data_structures import GMM
 from prxteinmpnn.utils.types import (
   EdgeFeatures,
   Logits,
@@ -208,7 +210,41 @@ def _derive_states_streaming(
   return {"output_h5_path": str(spec.output_h5_path), "metadata": {"spec": spec}}
 
 
-def infer_conformations(  # noqa: C901, PLR0912, PLR0915
+def _derive_gmm_features(
+  spec: ConformationalInferenceSpecification,
+  all_states: jax.Array,
+) -> tuple[pcax.pca.PCAState, jax.Array]:
+  """Derive GMM features from all states based on the specified mode."""
+  n_samples = all_states.shape[0]
+  gmm_features = None
+  if spec.mode == "per":
+    gmm_features = jnp.transpose(
+      all_states,
+      (1, 0, *tuple(range(2, all_states.ndim))),
+    )  # (L, N, F)
+    gmm_features = jnp.reshape(gmm_features, (n_samples, -1))  # (L, N*F)
+  elif spec.mode == "global":
+    gmm_features = jnp.reshape(all_states, (n_samples, -1))  # (N, L*F)
+  else:
+    msg = f"Unknown mode: {spec.mode}"
+    raise ValueError(msg)
+  if gmm_features is None:
+    msg = "GMM features could not be determined."
+    raise ValueError(msg)
+  return pca_transform(
+    gmm_features,
+    n_components=spec.pca_n_components,
+  )
+
+
+def save_pca_state(h5_file: h5py.File, pca_state: pcax.pca.PCAState, n_components: int) -> None:
+  """Save PCA state to an HDF5 file."""
+  grp = h5_file.create_group(f"pca_{n_components}_state")
+  for key, value in pca_state._asdict().items():
+    grp.create_dataset(key, data=jnp.array(value), compression="gzip")
+
+
+def infer_conformations(  # noqa: PLR0915
   spec: ConformationalInferenceSpecification,
 ) -> tuple[ConformationalStates, GMMClusteringResult, GMM]:
   """Infer conformational states from a protein ensemble."""
@@ -224,24 +260,28 @@ def infer_conformations(  # noqa: C901, PLR0912, PLR0915
         msg = "No data in HDF5 file for GMM fitting."
         raise ValueError(msg)
 
-      gmm_fitter_fn = make_fit_gmm_streaming(
-        n_components=spec.gmm_n_components,
+      gmm_fitter_fn = make_fit_gmm(
+        n_components=jnp.array(spec.gmm_n_components, dtype=jnp.int32),
         covariance_type=spec.covariance_type,
-        batch_size=spec.batch_size,
         gmm_max_iters=spec.gmm_max_iters,
       )
       n_total_samples = all_states_h5.shape[0]
-      gmm_features = None
-      init_samples = min(spec.kmeans_init_samples, n_total_samples)
-      logger.info("Running K-Means++ on a subset of %d samples...", init_samples)
       key, subkey = jax.random.split(key)
 
-      pca_found = f"pca_{spec.pca_n_components}" in f
+      pca_found = f"pca_{spec.pca_n_components}_components" in f
       if pca_found:
         logger.info("Loading precomputed PCA components from HDF5...")
-        gmm_features = jnp.array(f[f"pca_{spec.pca_n_components}"][:])  # type: ignore[index]
+        pca_components = cast("h5py.Dataset", f[f"pca_{spec.pca_n_components}_components"])
+        gmm_features: jnp.ndarray = jnp.array(pca_components[:])
+        pca_state_group = cast("h5py.Group", f[f"pca_{spec.pca_n_components}_state"])
+        pca_state = pcax.pca.PCAState(
+          components=jnp.array(pca_state_group["components"][:]),  # type: ignore[index]
+          means=jnp.array(pca_state_group["means"][:]),  # type: ignore[index]
+          explained_variance=jnp.array(pca_state_group["explained_variance"][:]),  # type: ignore[index]
+        )
         logger.info("PCA components shape: %s", gmm_features.shape)
       else:
+        init_samples = min(spec.kmeans_init_samples, n_total_samples)
         sample_indices = jax.random.choice(
           subkey,
           n_total_samples,
@@ -249,28 +289,16 @@ def infer_conformations(  # noqa: C901, PLR0912, PLR0915
           replace=False,
         )
         init_data = jnp.array(all_states_h5[jnp.sort(sample_indices)])
-        if spec.mode == "per":
-          gmm_features = jnp.transpose(
-            init_data,
-            (1, 0, *tuple(range(2, init_data.ndim))),
-          )  # (L, N, F)
-          gmm_features = jnp.reshape(gmm_features, (init_data.shape[0], -1))  # (L, N*F)
-        elif spec.mode == "global":
-          gmm_features = jnp.reshape(init_data, (init_data.shape[0], -1))
-        if gmm_features is None:
-          msg = "GMM features could not be determined."
-          raise ValueError(msg)
-        gmm_features = pca_transform(
-          gmm_features,
-          n_components=spec.pca_n_components,
-        )
-    if not pca_found:
+        pca_state, gmm_features = _derive_gmm_features(spec, init_data)
+        logger.info("PCA components shape: %s", gmm_features.shape)
+    if not pca_found:  # this is separate because we want to save after closing the file
       with h5py.File(spec.output_h5_path, "a") as f:
         f.create_dataset(
-          f"pca_{spec.pca_n_components}",
+          f"pca_{spec.pca_n_components}_components",
           data=jnp.array(gmm_features),
           compression="gzip",
         )
+        save_pca_state(f, pca_state, spec.pca_n_components)
         logger.info("Saved PCA components to HDF5.")
     em_result = gmm_fitter_fn(gmm_features, key)
     if not em_result.converged:
@@ -284,29 +312,14 @@ def infer_conformations(  # noqa: C901, PLR0912, PLR0915
       raise ValueError(msg)
 
     features_for_ci = cast("jnp.ndarray", all_states)
-    n_samples = features_for_ci.shape[0]
 
-    gmm_features = None
-    if spec.mode == "per":
-      gmm_features = jnp.transpose(
-        all_states,
-        (1, 0, *tuple(range(2, features_for_ci.ndim))),
-      )  # (L, N, F)
-      gmm_features = jnp.reshape(gmm_features, (n_samples, -1))  # (L, N*F)
-    elif spec.mode == "global":
-      gmm_features = jnp.reshape(features_for_ci, (n_samples, -1))  # (N, L*F)
-    else:
-      msg = f"Unknown mode: {spec.mode}"
-      raise ValueError(msg)
-    gmm_fitter_fn = make_fit_gmm_in_memory(
+    pca_state, gmm_features = _derive_gmm_features(spec, features_for_ci)
+    logger.info("PCA components shape: %s", gmm_features.shape)
+    gmm_fitter_fn = make_fit_gmm(
       n_components=spec.gmm_n_components,
       covariance_type=spec.covariance_type,
-      mode=spec.mode,
       gmm_max_iters=spec.gmm_max_iters,
     )
-    if gmm_features is None:
-      msg = "GMM features could not be determined."
-      raise ValueError(msg)
     em_result = gmm_fitter_fn(gmm_features, key)
 
     if not em_result.converged:

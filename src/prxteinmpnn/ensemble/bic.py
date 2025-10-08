@@ -28,7 +28,7 @@ if TYPE_CHECKING:
   from prxteinmpnn.utils.types import BIC, LogLikelihood
 
 
-@partial(jax.jit, static_argnames=("covariance_type", "n_components", "n_features", "n_samples"))
+@partial(jax.jit, static_argnames=("covariance_type",))
 def compute_bic(
   log_likelihood: LogLikelihood,
   n_samples: int,

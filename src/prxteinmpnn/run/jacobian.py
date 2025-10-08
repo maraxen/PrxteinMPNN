@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import itertools
 import logging
 import sys
 from functools import partial
-from typing import TYPE_CHECKING, Any
+from hashlib import sha256
+from typing import TYPE_CHECKING, Any, cast
 
 import h5py
 import jax
@@ -29,7 +31,6 @@ if TYPE_CHECKING:
 from prxteinmpnn.sampling.conditional_logits import ConditionalLogitsFn, make_conditional_logits_fn
 from prxteinmpnn.utils.apc import apc_corrected_frobenius_norm
 from prxteinmpnn.utils.catjac import (
-  combine_jacobians_h5_stream,
   make_combine_jac,
 )
 
@@ -90,24 +91,14 @@ def categorical_jacobian(
   conditional_logits_fn = make_conditional_logits_fn(model_parameters=model_parameters)
 
   if spec.output_h5_path:
-    result = _categorical_jacobian_streaming(spec, protein_iterator, conditional_logits_fn)
-    if spec.combine:
-      if not spec.output_h5_path:
-        msg = "output_h5_path must be provided for streaming."
-        raise ValueError(msg)
-      if not spec.combine_weights is not None:
-        msg = "combine_weights must be provided for streaming."
-        raise ValueError(msg)
+    spec_hash = sha256(repr(spec).encode()).hexdigest()
+    return _categorical_jacobian_streaming(
+      spec,
+      protein_iterator,
+      conditional_logits_fn,
+      spec_hash,
+    )
 
-      combine_fn = spec.combine_fn
-      combine_jacobians_h5_stream(
-        h5_path=spec.output_h5_path,
-        combine_fn=combine_fn,  # pyright: ignore[reportArgumentType]
-        fn_kwargs=spec.combine_fn_kwargs or {},
-        batch_size=spec.combine_batch_size,
-        weights=jnp.asarray(spec.combine_weights),
-      )
-    return result
   return _categorical_jacobian_in_memory(spec, protein_iterator, conditional_logits_fn)
 
 
@@ -246,33 +237,47 @@ def _compute_and_write_jacobians_streaming(
   spec: JacobianSpecification,
   protein_iterator: IterDataset,
   conditional_logits_fn: ConditionalLogitsFn,
+  spec_hash: str,
 ) -> None:
-  """Compute Jacobians and stream them to an HDF5 file."""
-  jac_ds = f.create_dataset(
+  """Compute Jacobians and stream them to a group in an HDF5 file."""
+  group = f.require_group(spec_hash)
+  jac_ds = group.require_dataset(
     "categorical_jacobians",
-    (0, 0, 0, 0, 0, 0),
+    shape=(0, 0, 0, 0, 0, 0),
     maxshape=(None, None, None, None, None, None),
     chunks=True,
+    dtype=jnp.float32,
   )
-  seq_ds = f.create_dataset(
+  start_index = jac_ds.shape[0]
+  if start_index > 0:
+    msg = f"Resuming computation from index {start_index} in {spec.output_h5_path}."
+    logger.info(msg)
+
+  seq_ds = group.require_dataset(
     "one_hot_sequences",
-    (0, 0, 0),
+    shape=(0, 0, 0),
     maxshape=(None, None, None),
     chunks=True,
+    dtype=jnp.float32,
   )
+
   apc_ds = (
-    f.create_dataset(
+    group.require_dataset(
       "apc_corrected_jacobians",
       (0, 0, 0, 0),
       maxshape=(None, None, None, None),
       chunks=True,
+      dtype=jnp.float32,
     )
     if spec.compute_apc
     else None
   )
+
+  resumable_iterator = cast("IterDataset", itertools.islice(protein_iterator, start_index, None))
+
   for jacobians_batch, one_hot_sequence_batch in _compute_jacobian_batches(
     spec,
-    protein_iterator,
+    resumable_iterator,
     conditional_logits_fn,
   ):
     current_size = jac_ds.shape[0]
@@ -284,7 +289,7 @@ def _compute_and_write_jacobians_streaming(
     jac_ds[current_size:new_size] = jacobians_batch
     seq_ds[current_size:new_size] = one_hot_sequence_batch
 
-    if apc_ds:
+    if apc_ds is not None:
       apc_func = partial(
         apc_corrected_frobenius_norm,
         residue_batch_size=spec.apc_residue_batch_size,
@@ -305,17 +310,25 @@ def _categorical_jacobian_streaming(
   spec: JacobianSpecification,
   protein_iterator: IterDataset,
   conditional_logits_fn: ConditionalLogitsFn,
+  spec_hash: str,
 ) -> dict[str, Any]:
-  """Compute Jacobians and stream them to an HDF5 file."""
+  """Compute Jacobians and stream them to a group in an HDF5 file."""
   if not spec.output_h5_path:
     msg = "output_h5_path must be provided for streaming."
     raise ValueError(msg)
 
-  with h5py.File(spec.output_h5_path, "w") as f:
-    _compute_and_write_jacobians_streaming(f, spec, protein_iterator, conditional_logits_fn)
+  with h5py.File(spec.output_h5_path, "a") as f:
+    _compute_and_write_jacobians_streaming(
+      f,
+      spec,
+      protein_iterator,
+      conditional_logits_fn,
+      spec_hash,
+    )
 
   return {
     "output_h5_path": str(spec.output_h5_path),
+    "spec_hash": spec_hash,
     "metadata": {
       "spec": spec,
     },

@@ -107,6 +107,7 @@ class EntropyTrace:
   eps_values: Array
 
 
+@partial(jax.jit, static_argnames=("distance_metric",))
 def compute_component_distances(
   means: Float,
   distance_metric: Literal["euclidean", "cosine"] = "euclidean",
@@ -163,7 +164,7 @@ def dbscan_cluster(
   responsibility_matrix: Array,
   eps: ArrayLike,
   min_cluster_weight: ArrayLike,
-  connectivity_method: str = "expm",
+  connectivity_method: Literal["expm", "power"] = "expm",
 ) -> GMMClusteringResult:
   """Perform vectorized DBSCAN on GMM components.
 
@@ -212,9 +213,6 @@ def dbscan_cluster(
       jax.scipy.linalg.expm(core_adjacency_matrix, max_squarings=48),
       0,
     )
-  else:
-    msg = f"Unsupported connectivity method: {connectivity_method}"
-    raise ValueError(msg)
 
   is_border_component = 1 - is_core_component
   border_core_link_mask = jnp.outer(is_core_component, is_border_component)

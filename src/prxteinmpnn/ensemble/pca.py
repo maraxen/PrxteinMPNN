@@ -16,7 +16,7 @@ def pca_transform(
   n_components: int,
   solver: Literal["full", "randomized"] = "full",
   rng: PRNGKeyArray | None = None,
-) -> tuple[pcax.pca.PCAState, jax.Array]:
+) -> tuple[jax.Array, pcax.pca.PCAState]:
   """Create a PCA transformer.
 
   Args:
@@ -30,4 +30,4 @@ def pca_transform(
 
   """
   pca_state = pcax.fit(data, n_components=n_components, solver=solver, rng=rng)
-  return pca_state, pcax.transform(pca_state, data)
+  return pcax.transform(pca_state, data), pca_state

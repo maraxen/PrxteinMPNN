@@ -304,7 +304,7 @@ def infer_conformations(
   feature_key = str(spec.inference_features[0])
   result = None
   gmm_fitter_fn = make_fit_gmm(
-    n_components=jnp.array(spec.gmm_n_components, dtype=jnp.int32),
+    n_components=spec.gmm_n_components,
     covariance_type=spec.covariance_type,
     gmm_max_iters=spec.gmm_max_iters,
   )

@@ -92,8 +92,13 @@ def infer_states(
     return_counts=True,
   )
   n_states = jnp.sum(states != -1)
-  mle_entropy = entr(counts[counts > 0] / counts.sum()).sum()
-  _, mle_entropy_se = posterior_mean_std(counts[counts > 0].astype(jnp.float32))
+
+  valid_counts = jnp.where(counts > 0, counts, 1)
+  valid_mask = counts > 0
+  probs = valid_counts / counts.sum()
+  entropy_terms = entr(probs)
+  mle_entropy = jnp.sum(entropy_terms * valid_mask)
+  _, mle_entropy_se = posterior_mean_std(jnp.where(valid_mask, counts.astype(jnp.float32), 0.0))
 
   return (
     ConformationalStates(

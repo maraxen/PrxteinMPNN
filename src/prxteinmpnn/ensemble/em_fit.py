@@ -167,6 +167,7 @@ def _e_step(
 def _m_step_from_responsibilities(
   data: EnsembleData,
   means: Means,
+  covariances: Covariances,
   responsibilities: Responsibilities,
   covariance_regularization: float,
   covariance_type: Literal["full", "diag"] = "full",
@@ -198,6 +199,8 @@ def _m_step_from_responsibilities(
       return component_covariance.at[jnp.diag_indices(component_diff.shape[1])].set(
         diag_values + covariance_regularization,
       )
+
+    nk = component_counts[..., None, None]
   elif covariance_type == "diag":
     diff = data[:, None, :] - means[None, :, :]
     weighted_diff = responsibilities[:, :, None] * diff
@@ -213,8 +216,15 @@ def _m_step_from_responsibilities(
       component_covariance = jax.nn.softplus(component_covariance - min_variance) + min_variance
       return component_covariance + covariance_regularization
 
+    nk = component_counts[..., None]
+
   n_components = means.shape[0]
-  covariances_final = jax.vmap(component_covariance_fn)(jnp.arange(n_components))
+  updated_covariances = jax.vmap(component_covariance_fn)(jnp.arange(n_components))
+  covariances_final = jnp.where(
+    nk > eps,
+    updated_covariances,
+    covariances,
+  )
   weights = safe_component_counts / data.shape[Axis.batch]
   weights = weights / jnp.maximum(jnp.sum(weights), eps)
   return weights, means, covariances_final

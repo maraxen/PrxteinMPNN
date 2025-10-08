@@ -63,6 +63,10 @@ def make_fit_gmm(
     def cluster_means(gmm_features: jax.Array, labels: jax.Array, k: Int) -> jax.Array:
       return jnp.mean(gmm_features, axis=0, where=(labels == k)[:, None])
 
+    if covariance_type == "full":
+      covariances = jnp.tile(jnp.eye(gmm_features.shape[1]), (n_components, 1, 1))
+    else:
+      covariances = jnp.tile(jnp.eye(gmm_features.shape[1]), (n_components, 1))
     weights, means, covariances = _m_step_from_responsibilities(
       data=gmm_features,
       means=jax.vmap(cluster_means, in_axes=(None, None, 0))(
@@ -70,6 +74,7 @@ def make_fit_gmm(
         labels,
         jnp.arange(n_components),
       ),
+      covariances=covariances,
       responsibilities=responsibilities,
       covariance_type=covariance_type,
       covariance_regularization=covariance_regularization,

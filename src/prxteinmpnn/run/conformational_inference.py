@@ -269,12 +269,18 @@ def _derive_gmm_features(
   n_samples = all_states.shape[0]
   gmm_features = None
   if spec.mode == "per":
+    logger.info("Using 'per' mode for GMM feature derivation.")
     gmm_features = jnp.transpose(
       all_states,
       (1, 0, *tuple(range(2, all_states.ndim))),
     )  # (L, N, F)
+    logger.info("GMM features shape before reshape: %s", all_states.shape)
+    logger.info("GMM features shape after transpose: %s", gmm_features.shape)
+
     gmm_features = jnp.reshape(gmm_features, (n_samples, -1))  # (L, N*F)
+    logger.info("GMM features shape after reshape: %s", gmm_features.shape)
   elif spec.mode == "global":
+    logger.info("Using 'global' mode for GMM feature derivation.")
     gmm_features = jnp.reshape(all_states, (n_samples, -1))  # (N, L*F)
   else:
     msg = f"Unknown mode: {spec.mode}"

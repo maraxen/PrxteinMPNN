@@ -186,13 +186,13 @@ class ConformationalInferenceSpecification(RunSpecification):
   gmm_n_components: int = 100
   eps_std_scale: float = 1.0
   min_cluster_weight: float = 0.01
+  preprocessing_mode: Literal["pca"] | None = None
   gmm_init: Literal["kmeans", "random"] = "kmeans"
   gmm_max_iters: int = 100
   pca_n_components: int = 20
-  pca_whiten: bool = True
-  k_means_n_clusters: int | None = None
+  pca_solver: Literal["full", "randomized"] = "full"
+  pca_rng_seed: int = 0
   gmm_min_iters: int = 10
-  kmeans_init_samples: int = 2048
 
   reference_sequence: str | None = None
 

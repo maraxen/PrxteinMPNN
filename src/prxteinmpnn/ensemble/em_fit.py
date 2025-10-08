@@ -45,24 +45,6 @@ class Axis(int, Enum):
 
 
 @jax.jit
-def _compute_cholesky_precisions(covariances: Covariances) -> Covariances:
-  """Compute precision matrices.
-
-  Args:
-    covariances: Covariance matrices of shape (n_components, n_features, n_features).
-
-  Returns:
-    Precision matrices of shape (n_components, n_features, n_features).
-
-  """
-  cholesky_covariance = jax.scipy.linalg.cholesky(covariances, lower=True)
-  n_components, n_features = covariances.shape[Axis.batch], covariances.shape[Axis.features]
-  identity = jnp.tile(jnp.eye(n_features)[None, :, :], (n_components, 1, 1))
-  cholesky_precisions = jax.scipy.linalg.solve_triangular(cholesky_covariance, identity, lower=True)
-  return cholesky_precisions.mT
-
-
-@jax.jit
 def _mahalanobis_distance_squared(
   data: EnsembleData,
   means: Means,
@@ -98,23 +80,29 @@ def log_likelihood_full(
   means: Means,
   covariances: Covariances,
 ) -> LogLikelihood:
-  """Compute log likelihood for full covariance GMM."""
-  cholesky_precisions = _compute_cholesky_precisions(covariances)
-  cholesky_covariance = jnp.matmul(data.mT, cholesky_precisions) - jnp.matmul(
-    means.mT,
-    cholesky_precisions,
-  )
-  mahalanobis_distance = _mahalanobis_distance_squared(data, means, cholesky_precisions)
-  log_cholesky_determinant = jnp.sum(
-    jnp.log(jnp.diagonal(cholesky_covariance, axis1=-2, axis2=-1)),
-    axis=-1,
-  )
-  log_covariance_determinant = 2 * log_cholesky_determinant
+  """Compute log likelihood for full covariance GMM.
+
+  Args:
+    data: Data array of shape (n_samples, n_features).
+    means: Component means of shape (n_components, n_features).
+    covariances: Full covariance matrices of shape (n_components, n_features, n_features).
+
+  Returns:
+    Log-likelihood array of shape (n_samples, n_components).
+
+  """
   n_features = data.shape[1]
-  log_prob_const = -0.5 * (
-    n_features * jnp.log(2 * jnp.pi) + mahalanobis_distance + log_covariance_determinant[None, :]
-  )
-  return log_prob_const - 0.5 * mahalanobis_distance
+
+  cholesky_lower = jax.scipy.linalg.cholesky(covariances, lower=True)
+
+  log_det = 2.0 * jnp.sum(jnp.log(jnp.diagonal(cholesky_lower, axis1=1, axis2=2)), axis=1)
+
+  diff = data[:, None, :] - means[None, :, :]
+
+  y = jax.scipy.linalg.solve_triangular(cholesky_lower, diff.T, lower=True)
+  mahalanobis = jnp.sum(y**2, axis=1).T
+
+  return -0.5 * (n_features * jnp.log(2 * jnp.pi) + log_det[None, :] + mahalanobis)
 
 
 @jax.jit

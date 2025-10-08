@@ -92,6 +92,7 @@ def log_likelihood_full(
 
   """
   n_features = data.shape[1]
+  n_components = covariances.shape[0]
 
   cholesky_lower = jax.scipy.linalg.cholesky(covariances, lower=True)
 
@@ -99,8 +100,11 @@ def log_likelihood_full(
 
   diff = data[:, None, :] - means[None, :, :]
 
-  y = jax.scipy.linalg.solve_triangular(cholesky_lower, diff.T, lower=True)
-  mahalanobis = jnp.sum(y**2, axis=1).T
+  def mahalanobis_for_component(k: jax.Array) -> jax.Array:
+    y = jax.scipy.linalg.solve_triangular(cholesky_lower[k], diff[:, k, :].T, lower=True)
+    return jnp.sum(y**2, axis=0)
+
+  mahalanobis = jax.vmap(mahalanobis_for_component)(jnp.arange(n_components)).T
 
   return -0.5 * (n_features * jnp.log(2 * jnp.pi) + log_det[None, :] + mahalanobis)
 

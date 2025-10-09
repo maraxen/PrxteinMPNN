@@ -149,7 +149,7 @@ def make_conditional_logits_fn(
   return condition_logits
 
 
-def make_encoding_average_conditional_logits_fn(
+def make_encoding_conditional_logits_split_fn(
   model_parameters: ModelParameters,
   decoding_order_fn: DecodingOrderFn | None = None,
   num_encoder_layers: int = 3,
@@ -241,7 +241,7 @@ def make_encoding_average_conditional_logits_fn(
   def condition_logits(
     node_features: NodeFeatures,
     edge_features: EdgeFeatures,
-    neighbor_indices: jnp.ndarray,
+    neighbor_indices: NeighborIndices,
     mask: AlphaCarbonMask,
     autoregressive_mask: AutoRegressiveMask,
     sequence: ProteinSequence | OneHotProteinSequence,

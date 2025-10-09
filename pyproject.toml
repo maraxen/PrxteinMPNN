@@ -22,6 +22,7 @@ dependencies = [
     "h5py",
     "grain",
     "pcax>=0.1.0",
+    "tables>=3.10.2",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",

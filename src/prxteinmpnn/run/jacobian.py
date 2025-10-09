@@ -280,12 +280,26 @@ def _categorical_jacobian_in_memory(
 
     avg_encodings, count = _get_initial_rolling_average_state(first_batch)
     one_hot_sequence = first_sequence_batch[0]
+    # Separate the encodings that will be averaged from those that will be fixed
+    (
+      initial_node_features,
+      initial_edge_features,
+      initial_neighbor_indices,
+      initial_mask,
+      initial_ar_mask,
+    ) = first_batch
+    encodings_to_average = (initial_node_features, initial_edge_features)
+
+    avg_features, count = _get_initial_rolling_average_state(encodings_to_average)
+
+    neighbor_indices = initial_neighbor_indices[0, 0]
+    mask = initial_mask[0, 0]
+    ar_mask = initial_ar_mask[0, 0]
 
     for batch_outputs, _ in output_generator:
-      avg_encodings, count = _update_rolling_average((avg_encodings, count), batch_outputs)
+      avg_encodings, count = _update_rolling_average((avg_features, count), batch_outputs[:2])
 
-    node_features, edge_features, neighbor_indices, mask, ar_mask = avg_encodings
-    neighbor_indices = neighbor_indices.astype(jnp.int32)
+    node_features, edge_features = avg_encodings
 
     def logit_fn(one_hot_flat: jax.Array) -> jax.Array:
       one_hot_2d = one_hot_flat.reshape(one_hot_sequence.shape)

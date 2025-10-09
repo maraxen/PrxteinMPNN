@@ -15,12 +15,14 @@ from prxteinmpnn.sampling.initialize import sampling_encode
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,
+  AutoRegressiveMask,
   BackboneNoise,
   ChainIndex,
   EdgeFeatures,
   InputBias,
   Logits,
   ModelParameters,
+  NeighborIndices,
   NodeFeatures,
   OneHotProteinSequence,
   ProteinSequence,
@@ -62,41 +64,11 @@ def make_conditional_logits_fn(
   Args:
     model_parameters: A dictionary of the pre-trained ProteinMPNN model parameters.
     decoding_order_fn: A function that generates the decoding order.
-    structure_coordinates: A JAX array of shape `(L, 3)` containing the atomic coordinates
-      of the protein structure.
-    sequence: A JAX array of shape `(L,)` representing the one-hot encoded protein sequence.
-    mask: A JAX array of shape `(L,)` with a boolean mask for valid atoms.
-    residue_index: A JAX array of shape `(L,)` with the residue indices.
-    chain_index: A JAX array of shape `(L,)` with the chain indices.
-    prng_key: JAX pseudo-random number generator key for feature augmentation.
-    bias: An optional JAX array of shape `(L, 21)` to add a bias to the final logits. Defaults to
-      None.
-    k_neighbors: The number of neighbors to consider for each residue. Defaults to 48.
-    backbone_noise: The epsilon value for data augmentation. Defaults to 0.0.
     num_encoder_layers: The number of encoder layers to use. Defaults to 3.
     num_decoder_layers: The number of decoder layers to use. Defaults to 3.
 
   Returns:
-    A JAX array of shape `(L, 21)` representing the conditional logits for the input sequence.
-
-  Example:
-    >>> import jax.random as jr
-    >>> prng_key = jr.PRNGKey(0)
-    >>> # Assume `model_parameters`, `decoding_order_fn`, `structure_coordinates`, `sequence`,
-    >>> # `mask`, `residue_index`, and `chain_index` are already defined.
-    >>> # ...
-    >>> logits = get_conditional_logits(
-    >>>   model_parameters=model_parameters,
-    >>>   decoding_order_fn=decoding_order_fn,
-    >>>   structure_coordinates=structure_coordinates,
-    >>>   sequence=sequence,
-    >>>   mask=mask,
-    >>>   residue_index=residue_index,
-    >>>   chain_index=chain_index,
-    >>>   prng_key=prng_key
-    >>> )
-    >>> print(logits.shape)
-    (100, 21)
+    A function that computes conditional logits for a given sequence and structure.
 
   """
   encoder = make_encoder(
@@ -175,3 +147,124 @@ def make_conditional_logits_fn(
     return logits + bias, decoded_node_features, edge_features
 
   return condition_logits
+
+
+def make_encoding_average_conditional_logits_fn(
+  model_parameters: ModelParameters,
+  decoding_order_fn: DecodingOrderFn | None = None,
+  num_encoder_layers: int = 3,
+  num_decoder_layers: int = 3,
+) -> tuple[Callable, Callable]:
+  """Create functions for encoding and decoding, intended for averaging encodings.
+
+  This function returns two functions: `encode` and `condition_logits`.
+  `encode` runs the encoder part of the model to get structural features.
+  `condition_logits` runs the decoder part on provided features to get logits.
+  This separation allows for averaging the results of `encode` from multiple runs
+  (e.g., with different noise) before a single `condition_logits` call.
+
+  Args:
+    model_parameters: A dictionary of the pre-trained ProteinMPNN model parameters.
+    decoding_order_fn: A function that generates the decoding order.
+    num_encoder_layers: The number of encoder layers to use. Defaults to 3.
+    num_decoder_layers: The number of decoder layers to use. Defaults to 3.
+
+  Returns:
+      A tuple containing two functions: (`encode`, `condition_logits`).
+
+  """
+  encoder = make_encoder(
+    model_parameters=model_parameters,
+    attention_mask_type="cross",
+    num_encoder_layers=num_encoder_layers,
+  )
+
+  decoder = make_decoder(
+    model_parameters=model_parameters,
+    attention_mask_type="conditional",
+    decoding_approach="conditional",
+    num_decoder_layers=num_decoder_layers,
+  )
+  decoder = cast("RunConditionalDecoderFn", decoder)
+
+  sample_model_pass = sampling_encode(
+    encoder=encoder,
+    decoding_order_fn=decoding_order_fn,
+  )
+
+  @partial(jax.jit, static_argnames=("k_neighbors",))
+  def encode(
+    prng_key: PRNGKeyArray,
+    structure_coordinates: StructureAtomicCoordinates,
+    mask: AlphaCarbonMask,
+    residue_index: ResidueIndex,
+    chain_index: ChainIndex,
+    k_neighbors: int = 48,
+    backbone_noise: BackboneNoise | None = None,
+  ) -> tuple[
+    NodeFeatures,
+    EdgeFeatures,
+    NeighborIndices,
+    AlphaCarbonMask,
+    AutoRegressiveMask | None,
+  ]:
+    """Encode the structure to get node and edge features."""
+    if backbone_noise is None:
+      backbone_noise = jnp.array(0.0, dtype=jnp.float32)
+
+    autoregressive_mask = (
+      1 - jnp.eye(structure_coordinates.shape[0]) if decoding_order_fn is None else None
+    )
+
+    (
+      node_features,
+      edge_features,
+      neighbor_indices,
+      _,
+      autoregressive_mask,
+      _,  # next_rng_key (not needed for this function)
+    ) = sample_model_pass(
+      prng_key,
+      model_parameters,
+      structure_coordinates,
+      mask,
+      residue_index,
+      chain_index,
+      autoregressive_mask,
+      k_neighbors,
+      backbone_noise,
+    )
+
+    return node_features, edge_features, neighbor_indices, mask, autoregressive_mask
+
+  @jax.jit
+  def condition_logits(
+    node_features: NodeFeatures,
+    edge_features: EdgeFeatures,
+    neighbor_indices: jnp.ndarray,
+    mask: AlphaCarbonMask,
+    autoregressive_mask: AutoRegressiveMask,
+    sequence: ProteinSequence | OneHotProteinSequence,
+    bias: InputBias | None = None,
+  ) -> tuple[Logits, NodeFeatures, EdgeFeatures]:
+    """Get conditional logits given encoded features and a sequence."""
+    if bias is None:
+      bias = jnp.zeros((node_features.shape[0], 21), dtype=jnp.float32)
+
+    if sequence.ndim == 1:
+      sequence = jax.nn.one_hot(sequence, 21, dtype=jnp.float32)
+
+    decoded_node_features = decoder(
+      node_features,
+      edge_features,
+      neighbor_indices,
+      mask,
+      autoregressive_mask,
+      sequence,
+    )
+
+    logits = final_projection(model_parameters, decoded_node_features)
+
+    return logits + bias, decoded_node_features, edge_features
+
+  return encode, condition_logits

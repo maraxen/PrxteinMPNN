@@ -1,16 +1,16 @@
 """Tests for the core user interface module."""
 import pathlib
 import tempfile
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
+import h5py
 import jax
 import jax.numpy as jnp
 import pytest
-import h5py
 
-from prxteinmpnn.run import (
-    categorical_jacobian,
-    JacobianSpecification,
+from prxteinmpnn.run.jacobian import (
+  categorical_jacobian,
+  JacobianSpecification,
 )
 from prxteinmpnn.utils.data_structures import Protein, ProteinBatch
 
@@ -29,6 +29,20 @@ def mock_protein_batch() -> ProteinBatch:
         mapping=None,
     )
     return jax.tree_util.tree_map(lambda x: jnp.expand_dims(x, axis=0), protein)
+
+
+@pytest.fixture
+def mock_encoding_pytree(mock_protein_batch):
+    """Create a mock encoding PyTree tuple."""
+    L = mock_protein_batch.coordinates.shape[1]
+    # (node_features, edge_features, neighbor_indices, mask, autoregressive_mask)
+    return (
+        jnp.ones((L, 128)),
+        jnp.ones((L, 10, 128)),
+        jnp.ones((L, 10), dtype=jnp.int32),
+        jnp.ones((L,)),
+        jnp.ones((L, L)),
+    )
 
 
 @pytest.fixture
@@ -52,59 +66,110 @@ _atom_site.Cartn_y
 _atom_site.Cartn_z
 _atom_site.occupancy
 _atom_site.B_iso_or_equiv
-_atom_site.pdbx_PDB_model_num
-_atom_site.pdbx_PDB_ins_code
-ATOM 1 N N GLY A 1 -6.778 -1.424 4.200 1.00 0.00 1 ?
+ATOM 1 N N GLY A 1 -6.778 -1.424 4.200 1.00 0.00
 """
         )
         filepath = f.name
     yield filepath
     pathlib.Path(filepath).unlink()
 
+def mock_iter(dataset):
+    """Mock iterator that yields items from a list."""
+    for item in dataset:
+        yield item
 class TestCategoricalJacobian:
     """Test the categorical_jacobian function."""
 
-    def test_categorical_jacobian_basic(self, mock_protein_batch: ProteinBatch) -> None:
-        """Test basic categorical jacobian calculation."""
-        with patch(
-            "prxteinmpnn.io.loaders.create_protein_dataset"
-        ) as mock_create_dataset, patch(
-            "prxteinmpnn.run.prep.get_mpnn_model"
-        ) as mock_get_model, patch(
-            "prxteinmpnn.run.jacobian.make_conditional_logits_fn"
-        ) as mock_make_logits_fn:
-            mock_create_dataset.return_value = [mock_protein_batch]
-            mock_get_model.return_value = {"params": {}}
-            
-            # Mock the logits function to return something with the correct shape
-            mock_make_logits_fn.return_value = mock_make_logits_fn.return_value = lambda *args, **kwargs: (jnp.ones((10, 21)), None, None)
+    @patch("prxteinmpnn.run.prep.prep_protein_stream_and_model")
+    def test_in_memory_no_averaging(self, mock_prep, mock_protein_batch):
+        """Test in-memory jacobian calculation without averaging."""
+        mock_prep.return_value = (, {})
+        spec = JacobianSpecification(inputs="dummy.pdb", backbone_noise=[0.1, 0.2])
 
-            result = categorical_jacobian(
-                inputs="test.pdb",
-                backbone_noise=0.1,
-            )
-            assert "categorical_jacobians" in result
-            assert isinstance(result["categorical_jacobians"], jax.Array)
-            # Shape: (batch, noise, L, C, L, C)
-            assert result["categorical_jacobians"].shape == (1, 1, 10, 21, 10, 21)
+        result = categorical_jacobian(spec=spec)
+        
 
-    def test_categorical_jacobian_streaming(self, tmp_path, cif_file) -> None:
-        """Test that categorical_jacobian correctly creates and populates an HDF5 file."""
+        assert "categorical_jacobians" in result
+        assert isinstance(result["categorical_jacobians"], jax.Array)
+        # Shape: (batch, noise, L, C, L, C)
+        assert result["categorical_jacobians"].shape == (1, 2, 10, 21, 10, 21)
+
+    @patch("prxteinmpnn.prep_protein_stream_and_model")
+    @patch("prxteinmpnn.make_encoding_average_conditional_logits_fn")
+    def test_in_memory_with_averaging(
+        self, mock_make_fns, mock_prep, mock_protein_batch, mock_encoding_pytree
+    ):
+        """Test in-memory jacobian calculation with encoding averaging."""
+        # Setup: Two batches, each with one protein
+        mock_prep.return_value = ([mock_protein_batch, mock_protein_batch], {})
+
+        # Mock the encode and decode functions
+        mock_encode_fn = lambda *args, **kwargs: mock_encoding_pytree
+        mock_logits_fn = lambda *args, **kwargs: (jnp.ones((10, 21)), None, None)
+        mock_make_fns.return_value = (mock_encode_fn, mock_logits_fn)
+
+        spec = JacobianSpecification(
+            inputs="dummy.pdb", backbone_noise=[0.1, 0.2], average_encodings=True
+        )
+
+        result = categorical_jacobian(spec=spec)
+
+        assert "categorical_jacobians" in result
+        assert isinstance(result["categorical_jacobians"], jax.Array)
+        # Shape: (1, 1, L, C, L, C) -> averaged over batch and noise, then dims added back
+        assert result["categorical_jacobians"].shape == (1, 1, 10, 21, 10, 21)
+
+    def test_streaming_no_averaging(self, tmp_path, cif_file):
+        """Test streaming jacobian calculation without averaging."""
         h5_path = tmp_path / "test_streaming.h5"
-
-        config = JacobianSpecification(
+        spec = JacobianSpecification(
             inputs=[cif_file],
             output_h5_path=h5_path,
-            backbone_noise=[0.1],
-            cache_path=tmp_path / "cache.h5",
+            backbone_noise=[0.1, 0.2],
+            batch_size=1,
+            compute_apc=True,
         )
-        result = categorical_jacobian(spec=config)
+
+        result = categorical_jacobian(spec=spec)
 
         assert "output_h5_path" in result
         assert h5_path.exists()
 
         with h5py.File(h5_path, "r") as f:
-            assert "categorical_jacobians" in f
-            assert "one_hot_sequences" in f
-            assert "apc_corrected_jacobians" in f
-            assert f["categorical_jacobians"].shape[0] > 0
+            spec_hash = result["spec_hash"]
+            assert spec_hash in f
+            group = f[spec_hash]
+            assert "categorical_jacobians" in group
+            assert "one_hot_sequences" in group
+            assert "apc_corrected_jacobians" in group
+            # Shape: (batch, noise, L, C, L, C)
+            assert group["categorical_jacobians"].shape[0] == 1  # 1 sample
+            assert group["categorical_jacobians"].shape[1] == 2  # 2 noise levels
+
+    def test_streaming_with_averaging(self, tmp_path, cif_file):
+        """Test streaming jacobian calculation with encoding averaging."""
+        h5_path = tmp_path / "test_streaming_avg.h5"
+        spec = JacobianSpecification(
+            inputs=[cif_file],
+            output_h5_path=h5_path,
+            backbone_noise=[0.1, 0.2],
+            batch_size=1,
+            average_encodings=True,
+            compute_apc=True,
+        )
+
+        result = categorical_jacobian(spec=spec)
+
+        assert "output_h5_path" in result
+        assert h5_path.exists()
+
+        with h5py.File(h5_path, "r") as f:
+            spec_hash = result["spec_hash"]
+            assert spec_hash in f
+            group = f[spec_hash]
+            assert "categorical_jacobians" in group
+            assert "one_hot_sequences" in group
+            assert "apc_corrected_jacobians" in group
+            # Shape: (1, 1, L, C, L, C)
+            assert group["categorical_jacobians"].shape[0] == 1
+            assert group["categorical_jacobians"].shape[1] == 1

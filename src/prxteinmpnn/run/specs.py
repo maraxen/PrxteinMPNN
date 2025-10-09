@@ -149,6 +149,7 @@ class JacobianSpecification(RunSpecification):
 
   noise_batch_size: int = 1
   jacobian_batch_size: int = 16
+  average_encodings: bool = True
   combine: bool = False
   combine_batch_size: int = 8
   combine_noise_batch_size: int = 1

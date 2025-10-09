@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 from prxteinmpnn.sampling.conditional_logits import (
   ConditionalLogitsFn,
   make_conditional_logits_fn,
-  make_encoding_average_conditional_logits_fn,
+  make_encoding_conditional_logits_split_fn,
 )
 from prxteinmpnn.utils.apc import apc_corrected_frobenius_norm
 from prxteinmpnn.utils.catjac import (
@@ -102,7 +102,7 @@ def categorical_jacobian(
 
   protein_iterator, model_parameters = prep_protein_stream_and_model(spec)
   if spec.average_encodings:
-    encode_fn, conditional_logits_fn = make_encoding_average_conditional_logits_fn(
+    encode_fn, conditional_logits_fn = make_encoding_conditional_logits_split_fn(
       model_parameters=model_parameters,
     )
   else:
@@ -284,10 +284,17 @@ def _categorical_jacobian_in_memory(
     for batch_outputs, _ in output_generator:
       avg_encodings, count = _update_rolling_average((avg_encodings, count), batch_outputs)
 
+    node_features, edge_features, neighbor_indices, mask, ar_mask = avg_encodings
+    neighbor_indices = neighbor_indices.astype(jnp.int32)
+
     def logit_fn(one_hot_flat: jax.Array) -> jax.Array:
       one_hot_2d = one_hot_flat.reshape(one_hot_sequence.shape)
       logits, _, _ = conditional_logits_fn(
-        *avg_encodings,
+        node_features,
+        edge_features,
+        neighbor_indices,
+        mask,
+        ar_mask,
         sequence=one_hot_2d,
       )
       return logits.flatten()

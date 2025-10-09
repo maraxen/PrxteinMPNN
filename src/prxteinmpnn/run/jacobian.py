@@ -292,9 +292,9 @@ def _categorical_jacobian_in_memory(
 
     avg_features, count = _get_initial_rolling_average_state(encodings_to_average)
 
-    neighbor_indices = initial_neighbor_indices
-    mask = initial_mask
-    ar_mask = initial_ar_mask
+    neighbor_indices = initial_neighbor_indices[0, 0]
+    mask = initial_mask[0, 0]
+    ar_mask = initial_ar_mask[0, 0]
 
     for batch_outputs, _ in output_generator:
       avg_encodings, count = _update_rolling_average((avg_features, count), batch_outputs[:2])
@@ -404,9 +404,9 @@ def _compute_and_write_jacobians_streaming(
 
     avg_features, count = _get_initial_rolling_average_state(encodings_to_average)
 
-    neighbor_indices = initial_neighbor_indices
-    mask = initial_mask
-    ar_mask = initial_ar_mask
+    neighbor_indices = initial_neighbor_indices[0, 0]
+    mask = initial_mask[0, 0]
+    ar_mask = initial_ar_mask[0, 0]
 
     for batch_outputs, _ in output_generator:
       avg_encodings, count = _update_rolling_average((avg_features, count), batch_outputs[:2])

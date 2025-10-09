@@ -131,7 +131,7 @@ def _compute_batch_outputs(
   """Generate and yield Jacobian batches or encoding batches."""
   for batched_ensemble in protein_iterator:
     if not spec.average_encodings:
-      # --- Path 1: Compute full Jacobian for each sample/noise level ---
+
       def compute_jacobian_for_structure(
         coords: StructureAtomicCoordinates,
         mask: AlphaCarbonMask,
@@ -190,7 +190,7 @@ def _compute_batch_outputs(
         batched_ensemble.one_hot_sequence,
       )
       yield jacobians_batch, batched_ensemble.one_hot_sequence
-    elif not spec.average_encodings and encode_fn is not None:
+    if spec.average_encodings and encode_fn is not None:
 
       def compute_encodings_for_structure(
         coords: StructureAtomicCoordinates,

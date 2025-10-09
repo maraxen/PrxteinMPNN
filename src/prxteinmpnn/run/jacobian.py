@@ -17,7 +17,7 @@ if TYPE_CHECKING:
   from collections.abc import Callable, Generator
 
   from grain.python import IterDataset
-  from jaxtyping import Float, Int
+  from jaxtyping import Float, Int, PyTree
 
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
@@ -127,7 +127,7 @@ def _compute_batch_outputs(
   protein_iterator: IterDataset,
   conditional_logits_fn: ConditionalLogitsFn,
   encode_fn: Callable | None,
-) -> Generator[tuple[jax.Array, jax.Array], None, None]:
+) -> Generator[tuple[Any, jax.Array], None, None]:
   """Generate and yield Jacobian batches or encoding batches."""
   for batched_ensemble in protein_iterator:
     if not spec.average_encodings:
@@ -231,6 +231,33 @@ def _compute_batch_outputs(
       yield encodings_batch, batched_ensemble.one_hot_sequence
 
 
+def _get_initial_rolling_average_state(
+  initial_encodings: PyTree,
+) -> tuple[PyTree, int]:
+  """Get the initial state for the rolling average of encodings."""
+  initial_avg = jax.tree_util.tree_map(lambda x: jnp.mean(x, axis=(0, 1)), initial_encodings)
+  initial_count = initial_encodings[0].shape[0] * initial_encodings[0].shape[1]
+  return initial_avg, initial_count
+
+
+def _update_rolling_average(
+  state: tuple[PyTree, int],
+  new_encodings: PyTree,
+) -> tuple[PyTree, int]:
+  """Update the rolling average of encodings with a new batch."""
+  avg_so_far, count_so_far = state
+  new_avg = jax.tree_util.tree_map(lambda x: jnp.mean(x, axis=(0, 1)), new_encodings)
+  new_count = new_encodings[0].shape[0] * new_encodings[0].shape[1]
+  total_count = count_so_far + new_count
+
+  updated_avg = jax.tree_util.tree_map(
+    lambda old, new: (old * count_so_far + new * new_count) / total_count,
+    avg_so_far,
+    new_avg,
+  )
+  return updated_avg, total_count
+
+
 def _categorical_jacobian_in_memory(
   spec: JacobianSpecification,
   protein_iterator: IterDataset,
@@ -238,29 +265,24 @@ def _categorical_jacobian_in_memory(
   encode_fn: Callable | None,
 ) -> dict[str, jax.Array | dict[str, JacobianSpecification] | None]:
   """Compute Jacobians and store them in memory."""
-  all_outputs_and_sequences = list(
-    _compute_batch_outputs(spec, protein_iterator, conditional_logits_fn, encode_fn),
+  output_generator = _compute_batch_outputs(
+    spec,
+    protein_iterator,
+    conditional_logits_fn,
+    encode_fn,
   )
 
-  if not all_outputs_and_sequences:
-    return {"categorical_jacobians": None, "metadata": None}
-
-  all_outputs = [item[0] for item in all_outputs_and_sequences]
-  all_sequences = [item[1] for item in all_outputs_and_sequences]
-
   if spec.average_encodings:
-    # --- Path for Averaged Encodings ---
-    # `all_outputs` is a list of pytrees. Concatenate them along the batch axis.
-    concatenated_outputs = jax.tree_util.tree_map(
-      lambda *xs: jnp.concatenate(xs, axis=0),
-      *all_outputs,
-    )
-    # Average across the batch (axis=0) and noise (axis=1) dimensions.
-    avg_encodings = jax.tree_util.tree_map(
-      lambda x: jnp.mean(x, axis=(0, 1)),
-      concatenated_outputs,
-    )
-    one_hot_sequence = all_sequences[0][0]  # Use the first sequence
+    try:
+      first_batch, first_sequence_batch = next(output_generator)
+    except StopIteration:
+      return {"categorical_jacobians": None, "metadata": None}
+
+    avg_encodings, count = _get_initial_rolling_average_state(first_batch)
+    one_hot_sequence = first_sequence_batch[0]
+
+    for batch_outputs, _ in output_generator:
+      avg_encodings, count = _update_rolling_average((avg_encodings, count), batch_outputs)
 
     def logit_fn(one_hot_flat: jax.Array) -> jax.Array:
       one_hot_2d = one_hot_flat.reshape(one_hot_sequence.shape)
@@ -277,9 +299,16 @@ def _categorical_jacobian_in_memory(
     )
     # Add batch and noise dimensions for consistency
     jacobians = jnp.expand_dims(jnp.expand_dims(jacobians, axis=0), axis=0)
+    all_sequences = [first_sequence_batch]  # For combine_jacs_fn
 
   else:
     # --- Path for Standard Jacobian Computation ---
+    all_outputs_and_sequences = list(output_generator)
+    if not all_outputs_and_sequences:
+      return {"categorical_jacobians": None, "metadata": None}
+
+    all_outputs = [item[0] for item in all_outputs_and_sequences]
+    all_sequences = [item[1] for item in all_outputs_and_sequences]
     jacobians = jnp.concatenate(all_outputs, axis=0)
 
   apc_jacobians = (
@@ -324,32 +353,27 @@ def _compute_and_write_jacobians_streaming(
   """Compute Jacobians and stream them to a group in an HDF5 file."""
   group = f.require_group(spec_hash)
 
-  # --- Path for Averaged Encodings ---
   if spec.average_encodings:
     if "categorical_jacobians" in group:
-      # If data exists, we assume it's complete for the averaging case, as it's not resumable.
       logger.info("Found existing data for averaged encoding, skipping computation.")
       return
 
-    # Collect all encodings in memory before writing the single result.
-    all_outputs_and_sequences = list(
-      _compute_batch_outputs(spec, protein_iterator, conditional_logits_fn, encode_fn),
+    output_generator = _compute_batch_outputs(
+      spec,
+      protein_iterator,
+      conditional_logits_fn,
+      encode_fn,
     )
-    if not all_outputs_and_sequences:
+    try:
+      first_batch, first_sequence_batch = next(output_generator)
+    except StopIteration:
       return
 
-    all_outputs = [item[0] for item in all_outputs_and_sequences]
-    all_sequences = [item[1] for item in all_outputs_and_sequences]
+    avg_encodings, count = _get_initial_rolling_average_state(first_batch)
+    one_hot_sequence = first_sequence_batch[0]
 
-    concatenated_outputs = jax.tree_util.tree_map(
-      lambda *xs: jnp.concatenate(xs, axis=0),
-      *all_outputs,
-    )
-    avg_encodings = jax.tree_util.tree_map(
-      lambda x: jnp.mean(x, axis=(0, 1)),
-      concatenated_outputs,
-    )
-    one_hot_sequence = all_sequences[0][0]
+    for batch_outputs, _ in output_generator:
+      avg_encodings, count = _update_rolling_average((avg_encodings, count), batch_outputs)
 
     def logit_fn(one_hot_flat: jax.Array) -> jax.Array:
       one_hot_2d = one_hot_flat.reshape(one_hot_sequence.shape)
@@ -374,7 +398,6 @@ def _compute_and_write_jacobians_streaming(
       group.create_dataset("apc_corrected_jacobians", data=apc_jacobians)
     return
 
-  # --- Path for Standard (Non-Averaging) Streaming ---
   jac_ds = group.require_dataset(
     "categorical_jacobians",
     shape=(0, 0, 0, 0, 0, 0),

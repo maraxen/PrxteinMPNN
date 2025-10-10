@@ -83,7 +83,7 @@ class TestCategoricalJacobian:
     @patch("prxteinmpnn.run.prep.prep_protein_stream_and_model")
     def test_in_memory_no_averaging(self, mock_prep, mock_protein_batch):
         """Test in-memory jacobian calculation without averaging."""
-        mock_prep.return_value = (, {})
+        mock_prep.return_value = (None, None, None, None, None, None, None)
         spec = JacobianSpecification(inputs="dummy.pdb", backbone_noise=[0.1, 0.2])
 
         result = categorical_jacobian(spec=spec)

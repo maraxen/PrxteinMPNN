@@ -73,6 +73,7 @@ class RunSpecification:
   conformational_states: ConformationalStates | None = None
   cache_path: str | Path | None = None
   overwrite_cache: bool = False
+  output_path: str | Path | None = None
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""
@@ -206,4 +207,48 @@ class ConformationalInferenceSpecification(RunSpecification):
       object.__setattr__(self, "output_h5_path", Path(self.output_h5_path))
 
 
-Specs = RunSpecification | ScoringSpecification | SamplingSpecification | JacobianSpecification
+MIN_PAIR = 2
+
+
+@dataclass
+class InspectionSpecification(RunSpecification):
+  """Configuration for inspecting model encodings and features."""
+
+  output_h5_path: str | Path | None = None
+  inspection_features: Sequence[
+    Literal[
+      "unconditional_logits",
+      "encoded_node_features",
+      "edge_features",
+      "decoded_node_features",
+      "conditional_logits",
+    ]
+  ] = ("unconditional_logits",)
+  distance_matrix: bool = False
+  distance_matrix_method: Literal["ca", "cb", "backbone_average", "closest_atom"] = "ca"
+  cross_input_similarity: bool = False
+  similarity_metric: Literal[
+    "rmsd",
+    "tm-score",
+    "gdt_ts",
+    "gdt_ha",
+    "cosine",
+  ] = "rmsd"
+
+  def __post_init__(self) -> None:
+    """Post-initialization processing."""
+    super().__post_init__()
+    if self.output_h5_path and isinstance(self.output_h5_path, str):
+      object.__setattr__(self, "output_h5_path", Path(self.output_h5_path))
+    if self.cross_input_similarity and len(_loader_inputs(self.inputs)) < MIN_PAIR:
+      msg = f"Cross-input similarity requires at least {MIN_PAIR} input structures."
+      raise ValueError(msg)
+
+
+Specs = (
+  RunSpecification
+  | ScoringSpecification
+  | SamplingSpecification
+  | JacobianSpecification
+  | InspectionSpecification
+)

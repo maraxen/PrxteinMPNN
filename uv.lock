@@ -576,6 +576,21 @@ wheels = [
 ]
 
 [[package]]
+name = "equinox"
+version = "0.13.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "jax" },
+    { name = "jaxtyping" },
+    { name = "typing-extensions" },
+    { name = "wadler-lindig" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ae/17/96a3b61a80c63c75974bd84318cee2818a23d60628e77fb6ed00eb623a69/equinox-0.13.2.tar.gz", hash = "sha256:509ad744ff99b7c684d45230d6890f9e78eac1a556d7a06db1eff664a3cac74f", size = 139386, upload-time = "2025-10-09T10:15:39.595Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c6/ce/c3bc53bdda6edb050859939a8e91e206123f96f50906e7ba7c027c6c535f/equinox-0.13.2-py3-none-any.whl", hash = "sha256:bc1ee687e4841945d8b776664403839639a05e2f2c02c1da353ff3386e0e43b0", size = 179235, upload-time = "2025-10-09T10:15:37.991Z" },
+]
+
+[[package]]
 name = "etils"
 version = "1.13.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1764,7 +1779,9 @@ name = "prxteinmpnn"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "array-record" },
     { name = "biotite" },
+    { name = "equinox" },
     { name = "flax" },
     { name = "foldcomp" },
     { name = "gmmx" },
@@ -1828,9 +1845,11 @@ tests = [
 requires-dist = [
     { name = "anyio", marker = "extra == 'dev'" },
     { name = "anyio", marker = "extra == 'tests'" },
+    { name = "array-record", specifier = ">=0.8.1" },
     { name = "biotite" },
     { name = "chex", marker = "extra == 'dev'" },
     { name = "chex", marker = "extra == 'tests'" },
+    { name = "equinox", specifier = ">=0.13.2" },
     { name = "flax" },
     { name = "foldcomp" },
     { name = "gmmx" },

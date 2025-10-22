@@ -22,7 +22,7 @@ import mdtraj as md
 from prxteinmpnn.utils.data_structures import ProteinStream
 
 from .biotite import _parse_biotite
-from .mdcath import _parse_mdcath_hdf5
+from .mdcath import parse_mdcath_hdf5
 from .mdtraj import _parse_mdtraj_hdf5
 
 logger = logging.getLogger(__name__)
@@ -106,7 +106,7 @@ def parse_input(  # noqa: C901, PLR0912, PLR0915
 
         if h5_structure == "mdcath":
           logger.info("Dispatching to mdCATH HDF5 parser.")
-          yield from _parse_mdcath_hdf5(path, chain_id, extract_dihedrals=extract_dihedrals)
+          yield from parse_mdcath_hdf5(path, chain_id, extract_dihedrals=extract_dihedrals)
         elif h5_structure == "mdtraj":
           logger.info("Dispatching to MDTraj HDF5 parser.")
           yield from _parse_mdtraj_hdf5(

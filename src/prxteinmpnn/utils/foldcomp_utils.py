@@ -9,7 +9,13 @@ from collections.abc import Sequence
 from functools import cache
 from typing import Literal
 
-import foldcomp
+FOLDCOMP_INSTALLED = False
+try:
+    import foldcomp
+    FOLDCOMP_INSTALLED = True
+except ImportError:
+  pass
+  
 import numpy as np
 
 from prxteinmpnn.io.parsing.mappings import (
@@ -52,6 +58,11 @@ def _setup_foldcomp_database(database: FoldCompDatabase) -> None:
 
   This is designed to be called from within a synchronous worker process.
   """
+  if not FOLDCOMP_INSTALLED:
+        raise ImportError(
+            "The 'foldcomp' library is required to use the FoldComp utilities "
+            "but it is not installed. Please install it with: pip install foldcomp"
+        )
   foldcomp.setup(database)
 
 
@@ -71,6 +82,11 @@ def get_protein_structures(
     A generator of Protein objects.
 
   """
+  if not FOLDCOMP_INSTALLED:
+        raise ImportError(
+            "The 'foldcomp' library is required to use the FoldComp utilities "
+            "but it is not installed. Please install it with: pip install foldcomp"
+        )
   if database is None:
     warnings.warn(
       "No FoldComp database specified. Defaulting to 'afdb_rep_v4'.",

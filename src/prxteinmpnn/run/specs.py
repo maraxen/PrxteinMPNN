@@ -131,6 +131,8 @@ class SamplingSpecification(RunSpecification):
   iterations: int | None = None
   learning_rate: float | None = None
   output_h5_path: str | Path | None = None
+  samples_batch_size: int = 16
+  noise_batch_size: int = 4
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""

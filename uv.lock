@@ -1257,6 +1257,10 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/9c/8f/adbeabf14f27a2befd021548c5d8e696ca129924e0473863fb0e9e546f27/mdtraj-1.11.0-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:125db8d7b8f795ed2a771d5d6f419461e2f9dd21ef74d43311570b9dadbf0d46", size = 2432588, upload-time = "2025-06-25T02:04:25.409Z" },
     { url = "https://files.pythonhosted.org/packages/b5/c4/4a2e8db0f24c1deb85f4719d54a0a52c56403e17db61ddd72a95d39e07d6/mdtraj-1.11.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:46def167a429af5834f4f26a80bca372518952519847c1ceffd0163814b1164e", size = 7983336, upload-time = "2025-06-25T02:04:57.022Z" },
     { url = "https://files.pythonhosted.org/packages/ac/17/239ae1869fa0f6fe11e42388f5d1e094ac774f4d122767722f0451523989/mdtraj-1.11.0-cp313-cp313-win_amd64.whl", hash = "sha256:8ad81b0aabf090b1b0e60ee7974bd676046e48d35a7efdc9a37a8eacaf5b70e4", size = 1340489, upload-time = "2025-06-25T02:05:04.776Z" },
+    { url = "https://files.pythonhosted.org/packages/ca/56/20981603c4c06f598ec655a373ef95598dbcbf769ead833f74ed2c6b3d64/mdtraj-1.11.0-cp314-cp314-macosx_10_13_x86_64.whl", hash = "sha256:18d237661deeb49e4b56c43426ef7e4824051ae5ee21df976cb70e2baeafb8fa", size = 1341102, upload-time = "2025-10-22T20:20:52.799Z" },
+    { url = "https://files.pythonhosted.org/packages/3e/cc/8ddab5179e62c52f98d942dc51b181c8ffdddc874eab1885c351bca3850a/mdtraj-1.11.0-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:9d9e2b44e6139d40525cb78b3a1d79dbe0504256a133621bfdeec11a22f44519", size = 1313566, upload-time = "2025-10-22T20:20:54.912Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/a6/658751c60c0484e2ec7e31ae8bb811885a2d7ca847cd004cc67da5535a01/mdtraj-1.11.0-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:18433b12a7b08848589b459961e1ccfcf3152afbbbad8ca847783075ba79e9e1", size = 7754412, upload-time = "2025-10-22T20:20:58.404Z" },
+    { url = "https://files.pythonhosted.org/packages/c7/a5/82af73a397434488042fa52ad8922028e1221d06ec31535ed13fff63cb57/mdtraj-1.11.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:d4d682faf2dd2eaf1d9cbba53f8e04504e80f0710580d6cd95f05286bdbeb755", size = 7914822, upload-time = "2025-10-22T20:21:00.39Z" },
 ]
 
 [[package]]
@@ -1783,7 +1787,6 @@ dependencies = [
     { name = "biotite" },
     { name = "equinox" },
     { name = "flax" },
-    { name = "foldcomp" },
     { name = "gmmx" },
     { name = "grain" },
     { name = "h5py" },
@@ -1831,6 +1834,9 @@ docs = [
     { name = "sphinx-rtd-theme" },
     { name = "sphinxext-rediraffe" },
 ]
+foldcomp = [
+    { name = "foldcomp" },
+]
 tests = [
     { name = "anyio" },
     { name = "chex" },
@@ -1851,7 +1857,7 @@ requires-dist = [
     { name = "chex", marker = "extra == 'tests'" },
     { name = "equinox", specifier = ">=0.13.2" },
     { name = "flax" },
-    { name = "foldcomp" },
+    { name = "foldcomp", marker = "extra == 'foldcomp'" },
     { name = "gmmx" },
     { name = "grain" },
     { name = "h5py" },
@@ -1896,7 +1902,7 @@ requires-dist = [
     { name = "trio", marker = "extra == 'dev'" },
     { name = "trio", marker = "extra == 'tests'" },
 ]
-provides-extras = ["docs", "tests", "dev"]
+provides-extras = ["docs", "tests", "dev", "foldcomp"]
 
 [[package]]
 name = "psutil"

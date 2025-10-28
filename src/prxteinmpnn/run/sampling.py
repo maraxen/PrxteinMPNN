@@ -165,20 +165,8 @@ def _sample_streaming(
   )
 
   with h5py.File(spec.output_h5_path, "w") as f:
-    seq_ds = f.create_dataset(
-      "sequences",
-      (0, 0, 0),
-      maxshape=(None, None, None),
-      chunks=True,
-      dtype="i4",
-    )
-    logits_ds = f.create_dataset(
-      "logits",
-      (0, 0, 0, 0),
-      maxshape=(None, None, None, None),
-      chunks=True,
-      dtype="f4",
-    )
+    seq_ds: h5py.Dataset | None = None
+    logits_ds: h5py.Dataset | None = None
 
     for batched_ensemble in protein_iterator:
       keys = jax.random.split(jax.random.key(spec.random_seed), spec.num_samples)
@@ -268,11 +256,34 @@ def _sample_streaming(
         batched_ensemble.chain_index,
       )
 
-      seq_ds.resize(seq_ds.shape[0] + sampled_sequences.shape[0], axis=0)
-      seq_ds[-sampled_sequences.shape[0] :, :, :] = sampled_sequences
+      # Initialize datasets with the first batch
+      if seq_ds is None:
+        seq_ds = f.create_dataset(
+          "sequences",
+          data=sampled_sequences,
+          maxshape=(None, *sampled_sequences.shape[1:]),
+          chunks=True,
+          dtype="i4",
+        )
+        logits_ds = f.create_dataset(
+          "logits",
+          data=sampled_logits,
+          maxshape=(None, *sampled_logits.shape[1:]),
+          chunks=True,
+          dtype="f4",
+        )
+      else:
+        # Append to existing datasets
+        assert seq_ds is not None  # noqa: S101
+        assert logits_ds is not None  # noqa: S101
 
-      logits_ds.resize(logits_ds.shape[0] + sampled_logits.shape[0], axis=0)
-      logits_ds[-sampled_logits.shape[0] :, :, :, :] = sampled_logits
+        old_size = seq_ds.shape[0]
+        seq_ds.resize(old_size + sampled_sequences.shape[0], axis=0)
+        seq_ds[old_size:] = sampled_sequences
+
+        old_size_logits = logits_ds.shape[0]
+        logits_ds.resize(old_size_logits + sampled_logits.shape[0], axis=0)
+        logits_ds[old_size_logits:] = sampled_logits
 
       f.flush()
 

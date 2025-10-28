@@ -88,6 +88,23 @@ class TrajectoryStaticFeatures:
   num_residues: int
 
 
+def include_feature(feature_name: str, include_features: Sequence[str] | None) -> bool:
+  """Determine if a feature should be included.
+
+  Args:
+      feature_name (str): The name of the feature to check.
+      include_features (Sequence[str] | None): The list of features to include.
+          If None, no features are included.
+
+  Returns:
+      bool: True if the feature should be included, False otherwise.
+
+  """
+  if include_features is None:
+    return False
+  return feature_name in include_features or "all" in include_features
+
+
 @dataclass(frozen=True)
 class Protein:
   """Protein structure or ensemble representation.
@@ -132,11 +149,23 @@ class Protein:
   full_atom_mask: AtomMask | None = None
 
   @classmethod
-  def from_tuple(cls, protein_tuple: ProteinTuple) -> Protein:
+  def from_tuple(
+    cls,
+    protein_tuple: ProteinTuple,
+    *,
+    include_extras: Sequence[
+      Literal["dihedrals", "mapping", "full_coordinates", "full_atom_mask", "all"]
+    ]
+    | None = None,
+  ) -> Protein:
     """Create a Protein instance from a ProteinTuple.
 
     Args:
         protein_tuple (ProteinTuple): The input protein tuple.
+        include_extras:
+            Optional list of extra fields to include from the tuple.
+            If 'all' is included, all optional fields will be included.
+            If None, no optional fields will be included.
 
     Returns:
         Protein: The output protein dataclass.
@@ -151,20 +180,24 @@ class Protein:
       chain_index=jnp.asarray(protein_tuple.chain_index, dtype=jnp.int32),
       dihedrals=(
         None
-        if protein_tuple.dihedrals is None
+        if protein_tuple.dihedrals is None or not include_feature("dihedrals", include_extras)
         else jnp.asarray(protein_tuple.dihedrals, dtype=jnp.float64)
       ),
       mapping=jnp.asarray(protein_tuple.mapping, dtype=jnp.int32)
       if protein_tuple.mapping is not None
+      and include_extras is not None
+      and ("mapping" in include_extras or "all" in include_extras)
       else None,
       full_coordinates=(
         None
         if protein_tuple.full_coordinates is None
+        or not include_feature("full_coordinates", include_extras)
         else jnp.asarray(protein_tuple.full_coordinates, dtype=jnp.float32)
       ),
       full_atom_mask=(
         None
         if protein_tuple.full_coordinates is None
+        or not include_feature("full_atom_mask", include_extras)
         else jnp.asarray(protein_tuple.atom_mask, dtype=jnp.float32)
       ),
     )

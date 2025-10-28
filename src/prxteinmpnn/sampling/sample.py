@@ -11,6 +11,7 @@ from jaxtyping import Float, Int, PRNGKeyArray
 from prxteinmpnn.model.decoder import (
   make_decoder,
 )
+from prxteinmpnn.model.projection import final_projection
 
 if TYPE_CHECKING:
   from prxteinmpnn.model.decoding_signatures import (
@@ -52,6 +53,18 @@ SamplerInputs = tuple[
   Float | None,
 ]
 SamplerFn = Callable[..., tuple[ProteinSequence, Logits, DecodingOrder]]
+EncodingSamplerFn = Callable[
+  [
+    PRNGKeyArray,
+    StructureAtomicCoordinates,
+    AlphaCarbonMask,
+    ResidueIndex,
+    ChainIndex,
+    int,
+    BackboneNoise | None,
+  ],
+  tuple[ModelParameters, DecodingOrder],
+]
 
 
 def make_sample_sequences(
@@ -174,3 +187,210 @@ def make_sample_sequences(
     return output_sequence, output_logits, decoding_order
 
   return sample_or_optimize_fn  # type: ignore[return-value]
+
+
+def make_encoding_sampling_split_fn(
+  model_parameters: ModelParameters,
+  decoding_order_fn: DecodingOrderFn,
+  sampling_strategy: Literal["temperature", "straight_through"] = "temperature",
+  num_encoder_layers: int = 3,
+  num_decoder_layers: int = 3,
+) -> tuple[EncodingSamplerFn, Callable]:
+  """Create functions for encoding and sampling, intended for averaging encodings.
+
+  This function returns two functions: `encode` and `sample_from_features`.
+  `encode` runs the encoder part of the model to get structural features.
+  `sample_from_features` runs sampling on provided features.
+  This separation allows for averaging the results of `encode` from multiple runs
+  (e.g., with different noise) before a single `sample_from_features` call.
+
+  Args:
+    model_parameters: A dictionary of the pre-trained ProteinMPNN model parameters.
+    decoding_order_fn: A function that generates the decoding order.
+    sampling_strategy: The sampling strategy to use ("temperature" or "straight_through").
+    num_encoder_layers: The number of encoder layers to use. Defaults to 3.
+    num_decoder_layers: The number of decoder layers to use. Defaults to 3.
+
+  Returns:
+      A tuple containing two functions: (`encode`, `sample_from_features`).
+
+  """
+  encoder = make_encoder(
+    model_parameters=model_parameters,
+    attention_mask_type="cross",
+    num_encoder_layers=num_encoder_layers,
+  )
+
+  conditional_decoder: RunConditionalDecoderFn = cast(
+    "RunConditionalDecoderFn",
+    make_decoder(
+      model_parameters=model_parameters,
+      attention_mask_type="conditional",
+      decoding_approach="conditional",
+      num_decoder_layers=num_decoder_layers,
+    ),
+  )
+
+  sample_model_pass = sampling_encode(encoder=encoder, decoding_order_fn=decoding_order_fn)
+
+  optimize_seq_fn = make_optimize_sequence_fn(
+    decoder=conditional_decoder,
+    decoding_order_fn=decoding_order_fn,
+    model_parameters=model_parameters,
+  )
+
+  @partial(jax.jit, static_argnames=("k_neighbors",))
+  def encode(
+    prng_key: PRNGKeyArray,
+    structure_coordinates: StructureAtomicCoordinates,
+    mask: AlphaCarbonMask,
+    residue_index: ResidueIndex,
+    chain_index: ChainIndex,
+    k_neighbors: int = 48,
+    backbone_noise: BackboneNoise | None = None,
+  ) -> tuple[ModelParameters, DecodingOrder]:
+    """Encode the structure to get features for sampling.
+
+    Returns:
+        A tuple of (encoded_features, decoding_order) where encoded_features is a
+        dict-like PyTree containing node_features, edge_features, neighbor_indices, and mask.
+
+    """
+    if backbone_noise is None:
+      backbone_noise = jnp.array(0.0, dtype=jnp.float32)
+
+    (
+      node_features,
+      edge_features,
+      neighbor_indices,
+      decoding_order,
+      _,
+      _,
+    ) = sample_model_pass(
+      prng_key,
+      model_parameters,
+      structure_coordinates,
+      mask,
+      residue_index,
+      chain_index,
+      None,
+      k_neighbors,
+      backbone_noise,
+    )
+
+    # Return features as a dict-like structure
+    encoded_features = {
+      "node_features": node_features,
+      "edge_features": edge_features,
+      "neighbor_indices": neighbor_indices,
+      "mask": mask,
+    }
+
+    return encoded_features, decoding_order  # type: ignore[return-value]
+
+  @partial(jax.jit, static_argnames=("sampling_strategy",))
+  def sample_from_features(
+    prng_key: PRNGKeyArray,
+    encoded_features: ModelParameters,
+    decoding_order: DecodingOrder,
+    bias: InputBias | None = None,
+    iterations: Int | None = None,
+    learning_rate: Float | None = None,
+    temperature: Float | None = None,
+    sampling_strategy: Literal["temperature", "straight_through"] = sampling_strategy,
+  ) -> tuple[ProteinSequence, Logits]:
+    """Sample sequences given encoded features.
+
+    Args:
+        prng_key: Random key for sampling.
+        encoded_features: Dict containing node_features, edge_features,
+            neighbor_indices, and mask from the encode function.
+        decoding_order: The decoding order to use.
+        bias: Optional bias to add to logits.
+        iterations: Number of iterations for straight_through optimization.
+        learning_rate: Learning rate for straight_through optimization.
+        temperature: Temperature for sampling.
+        sampling_strategy: "temperature" or "straight_through".
+
+    Returns:
+        A tuple of (sampled_sequence, logits).
+
+    """
+    node_features = encoded_features["node_features"]
+    edge_features = encoded_features["edge_features"]
+    neighbor_indices = encoded_features["neighbor_indices"]
+    mask = encoded_features["mask"]
+
+    # Set defaults
+    bias = bias if bias is not None else jnp.zeros((node_features.shape[0], 21), dtype=jnp.float32)
+    iterations = iterations if iterations is not None else 1
+    learning_rate = learning_rate if learning_rate is not None else 1e-4
+    temperature = temperature if temperature is not None else 1.0
+
+    if sampling_strategy == "straight_through":
+      output_sequence, output_logits = optimize_seq_fn(
+        prng_key,
+        node_features,
+        edge_features,
+        neighbor_indices,
+        mask,
+        iterations,
+        learning_rate,
+        temperature,
+      )
+      output_sequence = output_sequence.argmax(axis=-1).astype(jnp.int8)
+      return output_sequence, output_logits
+
+    # Temperature sampling - use conditional decoder for averaged features
+    # Initialize with mask tokens
+    sequence_length = node_features.shape[0]
+    sampled_sequence = jnp.full((sequence_length,), 20, dtype=jnp.int8)  # 20 is mask token
+    ar_mask = jnp.ones((sequence_length, sequence_length), dtype=jnp.float32)
+
+    # Sample autoregressively following the decoding order
+    def sample_step(
+      carry: tuple[ProteinSequence, PRNGKeyArray],
+      position_idx: jax.Array,
+    ) -> tuple[tuple[ProteinSequence, PRNGKeyArray], Logits]:
+      current_sequence, current_key = carry
+      key, next_key = jax.random.split(current_key)
+
+      # Convert to one-hot
+      one_hot_seq = jax.nn.one_hot(current_sequence, 21, dtype=jnp.float32)
+
+      # Run conditional decoder
+      decoded_features = conditional_decoder(
+        node_features,
+        edge_features,
+        neighbor_indices,
+        mask,
+        ar_mask,
+        one_hot_seq,
+      )
+
+      # Get logits
+      logits = final_projection(model_parameters, decoded_features)
+      logits = logits + bias
+
+      # Sample at the current position
+      position = decoding_order[position_idx]
+      position_logits = logits[position] / temperature
+      sampled_aa = jax.random.categorical(key, position_logits).astype(jnp.int8)
+
+      # Update sequence
+      new_sequence = current_sequence.at[position].set(sampled_aa)
+
+      return (new_sequence, next_key), logits
+
+    (final_sequence, _), all_logits_steps = jax.lax.scan(
+      sample_step,
+      (sampled_sequence, prng_key),
+      jnp.arange(sequence_length, dtype=jnp.int32),
+    )
+
+    # Return final logits (last step)
+    final_logits = all_logits_steps[-1]
+
+    return final_sequence, final_logits
+
+  return encode, sample_from_features

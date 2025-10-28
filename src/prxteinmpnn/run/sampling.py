@@ -11,7 +11,10 @@ import h5py
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.sampling.sample import make_sample_sequences
+from prxteinmpnn.sampling.sample import (
+  make_encoding_sampling_split_fn,
+  make_sample_sequences,
+)
 from prxteinmpnn.utils.decoding_order import random_decoding_order
 
 from .prep import prep_protein_stream_and_model
@@ -158,6 +161,10 @@ def _sample_streaming(
     raise ValueError(msg)
 
   protein_iterator, model_parameters = prep_protein_stream_and_model(spec)
+
+  if spec.average_encodings:
+    return _sample_streaming_averaged(spec, protein_iterator, model_parameters)
+
   sampler_fn = make_sample_sequences(
     model_parameters=model_parameters,
     decoding_order_fn=random_decoding_order,
@@ -265,6 +272,115 @@ def _sample_streaming(
         grp.attrs["num_samples"] = sampled_sequences.shape[1]
         grp.attrs["num_noise_levels"] = sampled_sequences.shape[2]
         grp.attrs["sequence_length"] = sampled_sequences.shape[3]
+        structure_idx += 1
+
+      f.flush()
+
+  return {
+    "output_h5_path": str(spec.output_h5_path),
+    "metadata": {
+      "specification": spec,
+    },
+  }
+
+
+def _sample_streaming_averaged(
+  spec: SamplingSpecification,
+  protein_iterator: Any,  # noqa: ANN401
+  model_parameters: Any,  # noqa: ANN401
+) -> dict[str, str | dict[str, SamplingSpecification]]:
+  """Sample with averaged encodings across noise levels."""
+  if not spec.output_h5_path:
+    msg = "output_h5_path must be provided for streaming."
+    raise ValueError(msg)
+
+  encode_fn, sample_fn = make_encoding_sampling_split_fn(
+    model_parameters=model_parameters,
+    decoding_order_fn=random_decoding_order,
+    sampling_strategy=spec.sampling_strategy,
+  )
+
+  noise_array = (
+    jnp.asarray(spec.backbone_noise, dtype=jnp.float32)
+    if spec.backbone_noise is not None
+    else jnp.zeros(1, dtype=jnp.float32)
+  )
+
+  with h5py.File(spec.output_h5_path, "w") as f:
+    structure_idx = 0
+
+    for batched_ensemble in protein_iterator:
+      # Process each structure in the batch
+      for struct_idx in range(batched_ensemble.coordinates.shape[0]):
+        coords = batched_ensemble.coordinates[struct_idx]
+        mask = batched_ensemble.mask[struct_idx]
+        residue_ix = batched_ensemble.residue_index[struct_idx]
+        chain_ix = batched_ensemble.chain_index[struct_idx]
+
+        # Encode across all noise levels
+        encode_single_noise = partial(
+          encode_fn,
+          jax.random.key(spec.random_seed),
+          coords,
+          mask,
+          residue_ix,
+          chain_ix,
+          48,
+        )
+
+        # Get encodings for all noise levels
+        encodings_and_orders = jax.lax.map(
+          encode_single_noise,
+          noise_array,
+          batch_size=spec.noise_batch_size,
+        )
+
+        # Split encodings from decoding orders
+        all_encodings = encodings_and_orders[0]  # First element is encodings
+        decoding_order = encodings_and_orders[1][0]  # Use first decoding order
+
+        # Average the encodings across noise levels
+        avg_encodings = jax.tree_util.tree_map(
+          lambda x: jnp.mean(x, axis=0),
+          all_encodings,
+        )
+
+        # Sample multiple sequences using the averaged encoding
+        keys = jax.random.split(jax.random.key(spec.random_seed), spec.num_samples)
+
+        sample_single = partial(
+          sample_fn,
+          encoded_features=avg_encodings,
+          decoding_order=decoding_order,
+          bias=jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
+          iterations=spec.iterations,
+          learning_rate=spec.learning_rate,
+          temperature=spec.temperature,
+          sampling_strategy=spec.sampling_strategy,
+        )
+
+        # Sample in batches
+        sampled_results = jax.lax.map(
+          sample_single,
+          keys,
+          batch_size=spec.samples_batch_size,
+        )
+
+        sampled_sequences, sampled_logits = sampled_results
+
+        # Add noise dimension for consistency
+        sampled_sequences = jnp.expand_dims(sampled_sequences, axis=1)
+        sampled_logits = jnp.expand_dims(sampled_logits, axis=1)
+
+        # Store in HDF5
+        grp = f.create_group(f"structure_{structure_idx}")
+        grp.create_dataset("sequences", data=sampled_sequences, dtype="i4")
+        grp.create_dataset("logits", data=sampled_logits, dtype="f4")
+        grp.attrs["structure_index"] = structure_idx
+        grp.attrs["num_samples"] = sampled_sequences.shape[0]
+        grp.attrs["num_noise_levels"] = 1  # Averaged, so effectively 1 level
+        grp.attrs["sequence_length"] = sampled_sequences.shape[2]
+        grp.attrs["averaged_encodings"] = True
         structure_idx += 1
 
       f.flush()

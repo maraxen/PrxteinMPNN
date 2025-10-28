@@ -84,7 +84,6 @@ def testprep_protein_stream_and_model_basic(
       "altloc": "A",
       "topology": None,
     },
-    cache_path=None,
   )
   
   # Verify get_mpnn_model was called correctly
@@ -148,7 +147,6 @@ def testprep_protein_stream_and_model_multiple_inputs(
       "altloc": "B",
       "topology": None,
     },
-    cache_path=None,
   )
   
   # Verify get_mpnn_model was called correctly
@@ -213,7 +211,6 @@ def testprep_protein_stream_and_model_stringio_input(
       "altloc": None,
       "topology": None,
     },
-    cache_path=None,
   )
   
   # Verify get_mpnn_model was called correctly
@@ -277,7 +274,6 @@ def testprep_protein_stream_and_model_empty_inputs(
       "altloc": "A",
       "topology": None,
     },
-  cache_path=None,
   )
   
   # Verify get_mpnn_model was called correctly

@@ -337,7 +337,8 @@ def _sample_streaming_averaged(
 
         # Split encodings from decoding orders
         all_encodings = encodings_and_orders[0]  # First element is encodings
-        decoding_order = encodings_and_orders[1][0]  # Use first decoding order
+        # Use first decoding order and ensure it's int32 (same across noise levels)
+        decoding_order = encodings_and_orders[1][0].astype(jnp.int32)
 
         # Average the encodings across noise levels
         # Note: We average node_features and edge_features, but use the first

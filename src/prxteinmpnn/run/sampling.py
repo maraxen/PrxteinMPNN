@@ -13,7 +13,6 @@ import jax.numpy as jnp
 
 from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.utils.decoding_order import random_decoding_order
-from prxteinmpnn.utils.types import DecodingOrder, Logits, ProteinSequence
 
 from .prep import prep_protein_stream_and_model
 from .specs import SamplingSpecification
@@ -26,6 +25,9 @@ if TYPE_CHECKING:
     BackboneCoordinates,
     BackboneNoise,
     ChainIndex,
+    DecodingOrder,
+    Logits,
+    ProteinSequence,
     ResidueIndex,
   )
 
@@ -178,101 +180,101 @@ def _sample_streaming(
       dtype="f4",
     )
 
-  for batched_ensemble in protein_iterator:
-    keys = jax.random.split(jax.random.key(spec.random_seed), spec.num_samples)
+    for batched_ensemble in protein_iterator:
+      keys = jax.random.split(jax.random.key(spec.random_seed), spec.num_samples)
 
-    noise_array = (
-      jnp.asarray(spec.backbone_noise, dtype=jnp.float32)
-      if spec.backbone_noise is not None
-      else jnp.zeros(1)
-    )
-
-    def sample_single_noise(
-      key: PRNGKeyArray,
-      coords: BackboneCoordinates,
-      mask: AlphaCarbonMask,
-      residue_ix: ResidueIndex,
-      chain_ix: ChainIndex,
-      noise: BackboneNoise,
-    ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
-      """Sample one sequence for one structure at one noise level."""
-      return sampler_fn(
-        key,
-        coords,
-        mask,
-        residue_ix,
-        chain_ix,
-        48,
-        jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
-        jnp.asarray(spec.fixed_positions, dtype=jnp.int32)
-        if spec.fixed_positions is not None
-        else None,
-        noise,
-        spec.iterations,
-        spec.learning_rate,
-        spec.temperature,
+      noise_array = (
+        jnp.asarray(spec.backbone_noise, dtype=jnp.float32)
+        if spec.backbone_noise is not None
+        else jnp.zeros(1)
       )
 
-    def mapped_fn_noise(
-      key: PRNGKeyArray,
-      coords: BackboneCoordinates,
-      mask: AlphaCarbonMask,
-      residue_ix: ResidueIndex,
-      chain_ix: ChainIndex,
-      noise_array: BackboneNoise = noise_array,
-    ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
-      """Compute samples across all noise levels for a single structure/sample."""
-      return jax.lax.map(
-        partial(
-          sample_single_noise,
-          key,  # Pass key as constant for the noise map
+      def sample_single_noise(
+        key: PRNGKeyArray,
+        coords: BackboneCoordinates,
+        mask: AlphaCarbonMask,
+        residue_ix: ResidueIndex,
+        chain_ix: ChainIndex,
+        noise: BackboneNoise,
+      ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
+        """Sample one sequence for one structure at one noise level."""
+        return sampler_fn(
+          key,
           coords,
           mask,
           residue_ix,
           chain_ix,
-        ),
-        noise_array,
-        batch_size=spec.noise_batch_size,
+          48,
+          jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
+          jnp.asarray(spec.fixed_positions, dtype=jnp.int32)
+          if spec.fixed_positions is not None
+          else None,
+          noise,
+          spec.iterations,
+          spec.learning_rate,
+          spec.temperature,
+        )
+
+      def mapped_fn_noise(
+        key: PRNGKeyArray,
+        coords: BackboneCoordinates,
+        mask: AlphaCarbonMask,
+        residue_ix: ResidueIndex,
+        chain_ix: ChainIndex,
+        noise_array: BackboneNoise = noise_array,
+      ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
+        """Compute samples across all noise levels for a single structure/sample."""
+        return jax.lax.map(
+          partial(
+            sample_single_noise,
+            key,  # Pass key as constant for the noise map
+            coords,
+            mask,
+            residue_ix,
+            chain_ix,
+          ),
+          noise_array,
+          batch_size=spec.noise_batch_size,
+        )
+
+      def internal_sample(
+        coords: BackboneCoordinates,
+        mask: AlphaCarbonMask,
+        residue_ix: ResidueIndex,
+        chain_ix: ChainIndex,
+        keys: PRNGKeyArray = keys,
+      ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
+        """Sample mapping over keys and noise."""
+        noise_map_fn = partial(
+          mapped_fn_noise,
+          coords=coords,
+          mask=mask,
+          residue_ix=residue_ix,
+          chain_ix=chain_ix,
+        )
+
+        return jax.lax.map(
+          noise_map_fn,
+          keys,
+          batch_size=spec.samples_batch_size,
+        )
+
+      vmap_structures = jax.vmap(internal_sample)
+
+      sampled_sequences, sampled_logits, _ = vmap_structures(
+        batched_ensemble.coordinates,
+        batched_ensemble.mask,
+        batched_ensemble.residue_index,
+        batched_ensemble.chain_index,
       )
 
-    def internal_sample(
-      coords: BackboneCoordinates,
-      mask: AlphaCarbonMask,
-      residue_ix: ResidueIndex,
-      chain_ix: ChainIndex,
-      keys: PRNGKeyArray = keys,
-    ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
-      """Sample mapping over keys and noise."""
-      noise_map_fn = partial(
-        mapped_fn_noise,
-        coords=coords,
-        mask=mask,
-        residue_ix=residue_ix,
-        chain_ix=chain_ix,
-      )
+      seq_ds.resize(seq_ds.shape[0] + sampled_sequences.shape[0], axis=0)
+      seq_ds[-sampled_sequences.shape[0] :, :, :] = sampled_sequences
 
-      return jax.lax.map(
-        noise_map_fn,
-        keys,
-        batch_size=spec.samples_batch_size,
-      )
+      logits_ds.resize(logits_ds.shape[0] + sampled_logits.shape[0], axis=0)
+      logits_ds[-sampled_logits.shape[0] :, :, :, :] = sampled_logits
 
-    vmap_structures = jax.vmap(internal_sample)
-
-    sampled_sequences, sampled_logits, _ = vmap_structures(
-      batched_ensemble.coordinates,
-      batched_ensemble.mask,
-      batched_ensemble.residue_index,
-      batched_ensemble.chain_index,
-    )
-
-    seq_ds.resize(seq_ds.shape[0] + sampled_sequences.shape[0], axis=0)
-    seq_ds[-sampled_sequences.shape[0] :, :, :] = sampled_sequences
-
-    logits_ds.resize(logits_ds.shape[0] + sampled_logits.shape[0], axis=0)
-    logits_ds[-sampled_logits.shape[0] :, :, :, :] = sampled_logits
-
-    f.flush()
+      f.flush()
 
   return {
     "output_h5_path": str(spec.output_h5_path),

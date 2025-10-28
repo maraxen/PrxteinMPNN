@@ -79,8 +79,12 @@ def mock_model_parameters() -> ModelParameters:
   for i in range(3):
     enc_l_name = f"enc{i}"
     dec_l_name = f"dec{i}"
-    enc_prefix = f"protein_mpnn/~/enc_layer_{i}" if i > 0 else "protein_mpnn/~/enc_layer"
-    dec_prefix = f"protein_mpnn/~/dec_layer_{i}" if i > 0 else "protein_mpnn/~/dec_layer"
+    enc_prefix = f"protein_mpnn/~/enc_layer"
+    if i > 0:
+        enc_prefix += f"_{i}"
+    dec_prefix = f"protein_mpnn/~/dec_layer"
+    if i > 0:
+        dec_prefix += f"_{i}"
 
     # Encoder
     params.update(

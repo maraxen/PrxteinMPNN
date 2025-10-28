@@ -112,6 +112,7 @@ def test_example_function():
 * **Current Focus:** Finalizing the functional interface for ProteinMPNN, ensuring all components are JAX-compatible and adhere to the project's core principles.
 * **Known Issues:**
 * Lack of comprehensive tests
+* The tests in `tests/ensemble/test_em_fit.py` and `tests/ensemble/test_gmm.py` are currently backlogged due to issues with mock objects and JAX's JIT compilation.
 
 ## 4. Interaction Guidelines
 

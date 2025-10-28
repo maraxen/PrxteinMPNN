@@ -373,7 +373,7 @@ class TestDeriveStates:
       mock_spec: Mock specification fixture.
     """
     mock_spec.output_h5_path = None
-    mock_prep.return_value = (MagicMock(), {})
+    mock_prep.return_value = (MagicMock(), mock_model_parameters)
     mock_in_memory.return_value = {"logits": jnp.ones((5, 100, 20))}
     
     result = derive_states(mock_spec)
@@ -392,7 +392,7 @@ class TestDeriveStates:
       mock_spec: Mock specification fixture.
     """
     mock_spec.output_h5_path = "/tmp/test.h5"
-    mock_prep.return_value = (MagicMock(), {})
+    mock_prep.return_value = (MagicMock(), mock_model_parameters)
     mock_streaming.return_value = {"output_h5_path": "/tmp/test.h5"}
     
     result = derive_states(mock_spec)
@@ -404,7 +404,7 @@ class TestDeriveStates:
     """Test creating spec from kwargs when not provided."""
     with patch("prxteinmpnn.run.conformational_inference.prep_protein_stream_and_model") as mock_prep:
       with patch("prxteinmpnn.run.conformational_inference._derive_states_in_memory") as mock_in_memory:
-        mock_prep.return_value = (MagicMock(), {})
+        mock_prep.return_value = (MagicMock(), mock_model_parameters)
         mock_in_memory.return_value = {}
         
         derive_states(inputs=["test_input.pdb"],inference_strategy="conditional")
@@ -416,14 +416,15 @@ class TestInferConformations:
   """Test the main infer_conformations function."""
 
   @patch("prxteinmpnn.run.conformational_inference.derive_states")
-  @patch("prxteinmpnn.run.conformational_inference.make_fit_gmm_in_memory")
+  @patch("prxteinmpnn.run.conformational_inference.make_fit_gmm")
   @patch("prxteinmpnn.run.conformational_inference.infer_states")
   def test_successful_inference_in_memory(
     self,
     mock_infer_states,
-    mock_make_fit_gmm_in_memory,
+    mock_make_fit_gmm,
     mock_derive_states,
     mock_spec,
+    mock_model_parameters,
   ):
     """Test successful conformational inference with in-memory data.
     
@@ -444,7 +445,7 @@ class TestInferConformations:
     
     mock_gmm = MagicMock()
     mock_gmm_fitter = MagicMock(return_value=mock_gmm)
-    mock_make_fit_gmm_in_memory.return_value = mock_gmm_fitter
+    mock_make_fit_gmm.return_value = mock_gmm_fitter
     
     mock_conformational_states = MagicMock(spec=ConformationalStates)
     mock_infer_states.return_value = mock_conformational_states
@@ -454,7 +455,7 @@ class TestInferConformations:
     
     assert result == mock_conformational_states
     mock_derive_states.assert_called_once_with(mock_spec)
-    mock_make_fit_gmm_in_memory.assert_called_once()
+    mock_make_fit_gmm.assert_called_once()
     mock_infer_states.assert_called_once()
 
   @patch("prxteinmpnn.run.conformational_inference.derive_states")
@@ -583,7 +584,7 @@ class TestIntegration:
         iterator = MagicMock()
         iterator.__iter__ = lambda x: iter([ensemble])
         
-        mock_prep.return_value = (iterator, {})
+        mock_prep.return_value = (iterator, mock_model_parameters)
         
         # Test derive_states function
         result = derive_states(spec)

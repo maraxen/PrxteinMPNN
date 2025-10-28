@@ -113,15 +113,29 @@ class TestSample:
         assert h5_path.exists()
 
         with h5py.File(h5_path, "r") as f:
-            assert "sequences" in f
-            assert "logits" in f
-            assert f["sequences"].shape[0] > 0
-            assert f["logits"].shape[0] > 0
+            # Check that at least one structure group exists
+            structure_groups = [key for key in f if key.startswith("structure_")]
+            assert len(structure_groups) > 0, "No structure groups found in HDF5 file"
+
+            # Check the first structure group
+            first_group = f[structure_groups[0]]
+            assert "sequences" in first_group
+            assert "logits" in first_group
+
             # Ensure all dimensions are properly set (not zero)
-            assert all(dim > 0 for dim in f["sequences"].shape), (
-                f"Sequences shape has zero dimensions: {f['sequences'].shape}"
+            sequences = first_group["sequences"]
+            logits = first_group["logits"]
+
+            assert all(dim > 0 for dim in sequences.shape), (
+                f"Sequences shape has zero dimensions: {sequences.shape}"
             )
-            assert all(dim > 0 for dim in f["logits"].shape), (
-                f"Logits shape has zero dimensions: {f['logits'].shape}"
+            assert all(dim > 0 for dim in logits.shape), (
+                f"Logits shape has zero dimensions: {logits.shape}"
             )
+
+            # Verify metadata attributes
+            assert "structure_index" in first_group.attrs
+            assert "num_samples" in first_group.attrs
+            assert "num_noise_levels" in first_group.attrs
+            assert "sequence_length" in first_group.attrs
 

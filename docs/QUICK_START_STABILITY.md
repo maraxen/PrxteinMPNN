@@ -147,7 +147,7 @@ See `docs/GMM_STABILITY.md` for detailed documentation.
 All new features are tested:
 
 ```bash
-python3 -m pytest tests/ensemble/test_gmm_stability.py -v
+uv run pytest tests/ensemble/test_gmm_stability.py -v
 # 11 passed in 2.69s ✅
 ```
 

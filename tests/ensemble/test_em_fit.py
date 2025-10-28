@@ -15,9 +15,6 @@ from prxteinmpnn.ensemble.em_fit import (
   EMFitterResult,
   _e_step,
   _m_step_from_responsibilities,
-  _m_step_from_stats,
-  fit_gmm_generator,
-  fit_gmm_in_memory,
 )
 
 
@@ -207,7 +204,7 @@ class TestMStepFromStats:
     )
     
     expected_weights = nk / n_total_samples
-    jnp.testing.assert_allclose(updated_gmm.weights, expected_weights)
+    chex.assert_allclose(updated_gmm.weights, expected_weights)
 
 
 class TestFitGMMInMemory:
@@ -410,7 +407,7 @@ class TestEMFitterResult:
       n_iter=10,
       log_likelihood=jnp.array(-100.0),
       log_likelihood_diff=jnp.array(0.001),
-      converged=True,
+      converged=jnp.bool_(True),
     )
     
     assert result.gmm is initial_gmm
@@ -431,7 +428,7 @@ class TestEMFitterResult:
       n_iter=5,
       log_likelihood=jnp.array(-50.0),
       log_likelihood_diff=jnp.array(0.01),
-      converged=False,
+      converged=jnp.bool_(False),
     )
     
     assert isinstance(result.gmm, GaussianMixtureModelJax)

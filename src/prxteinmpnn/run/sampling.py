@@ -340,10 +340,21 @@ def _sample_streaming_averaged(
         decoding_order = encodings_and_orders[1][0]  # Use first decoding order
 
         # Average the encodings across noise levels
-        avg_encodings = jax.tree_util.tree_map(
-          lambda x: jnp.mean(x, axis=0),
-          all_encodings,
-        )
+        # Note: We average node_features and edge_features, but use the first
+        # noise level's neighbor_indices (following jacobian.py pattern)
+        avg_node_features = jnp.mean(all_encodings["node_features"], axis=0)
+        avg_edge_features = jnp.mean(all_encodings["edge_features"], axis=0)
+
+        # Use first noise level's neighbor_indices and mask (most robust)
+        neighbor_indices = all_encodings["neighbor_indices"][0]
+        mask = all_encodings["mask"][0]
+
+        avg_encodings = {
+          "node_features": avg_node_features,
+          "edge_features": avg_edge_features,
+          "neighbor_indices": neighbor_indices,
+          "mask": mask,
+        }
 
         # Sample multiple sequences using the averaged encoding
         keys = jax.random.split(jax.random.key(spec.random_seed), spec.num_samples)

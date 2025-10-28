@@ -31,10 +31,12 @@ For each structure group:
 - **`sequences`**: Shape `(num_samples, num_noise_levels, sequence_length)`
   - Data type: `int32`
   - Contains sampled amino acid indices (0-20)
+  - When using averaged encodings, `num_noise_levels` = 1
 
 - **`logits`**: Shape `(num_samples, num_noise_levels, sequence_length, 21)`
   - Data type: `float32`
   - Contains the model's output logits for each position and amino acid type
+  - When using averaged encodings, `num_noise_levels` = 1
 
 ### Attributes
 
@@ -42,8 +44,9 @@ Each structure group contains the following metadata attributes:
 
 - `structure_index` (int): Global index of this structure
 - `num_samples` (int): Number of samples generated
-- `num_noise_levels` (int): Number of noise levels used
+- `num_noise_levels` (int): Number of noise levels used (or 1 if averaged)
 - `sequence_length` (int): Length of the protein sequence
+- `averaged_encodings` (bool, optional): True if encodings were averaged across noise levels
 
 ## Reading the Data
 
@@ -108,6 +111,33 @@ spec = SamplingSpecification(
 result = sample(spec=spec)
 print(f"Results saved to: {result['output_h5_path']}")
 ```
+
+## Averaged Encodings
+
+When `average_encodings=True` in the `SamplingSpecification`, the model will:
+
+1. Encode the structure at each specified noise level
+2. Average the node and edge features across noise levels
+3. Sample sequences from the averaged representation
+
+This approach is useful when you want to capture information from multiple noise levels while generating samples, resulting in more robust sequence predictions.
+
+### Example with Averaged Encodings
+
+```python
+spec = SamplingSpecification(
+    inputs=["1UBQ"],
+    num_samples=100,
+    backbone_noise=[0.0, 0.1, 0.2, 0.5],  # Multiple noise levels to average
+    average_encodings=True,  # Average across noise levels
+    sampling_strategy="temperature",
+    output_h5_path=pathlib.Path("outputs/averaged_samples.h5"),
+)
+
+result = sample(spec=spec)
+```
+
+In this case, the output will have `num_noise_levels = 1` in the metadata since the encodings from all noise levels were averaged before sampling.
 
 ## Migration from Old Format
 

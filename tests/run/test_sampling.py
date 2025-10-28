@@ -3,14 +3,14 @@ import pathlib
 import tempfile
 from unittest.mock import Mock, patch
 
+import h5py
 import jax
 import jax.numpy as jnp
 import pytest
-import h5py
 
 from prxteinmpnn.run import (
-    sample,
     SamplingSpecification,
+    sample,
 )
 from prxteinmpnn.utils.data_structures import Protein, ProteinBatch
 
@@ -55,7 +55,7 @@ _atom_site.B_iso_or_equiv
 _atom_site.pdbx_PDB_model_num
 _atom_site.pdbx_PDB_ins_code
 ATOM 1 N N GLY A 1 -6.778 -1.424 4.200 1.00 0.00 1 ?
-"""
+""",
         )
         filepath = f.name
     yield filepath
@@ -68,11 +68,11 @@ class TestSample:
     def test_sample_basic(self, mock_protein_batch: ProteinBatch) -> None:
         """Test basic sampling."""
         with patch(
-            "prxteinmpnn.io.loaders.create_protein_dataset"
+            "prxteinmpnn.io.loaders.create_protein_dataset",
         ) as mock_create_dataset, patch(
-            "prxteinmpnn.run.prep.get_mpnn_model"
+            "prxteinmpnn.run.prep.get_mpnn_model",
         ) as mock_get_model, patch(
-            "prxteinmpnn.run.sampling.make_sample_sequences"
+            "prxteinmpnn.run.sampling.make_sample_sequences",
         ) as mock_make_sample:
             mock_create_dataset.return_value = [mock_protein_batch]
             mock_get_model.return_value = {"params": {}}
@@ -81,7 +81,7 @@ class TestSample:
                     jnp.ones((1, 10)),
                     jnp.ones((1, 10, 21)),
                     jnp.ones((1, 10)),
-                )
+                ),
             )
             mock_make_sample.return_value = mock_sample_fn
 
@@ -117,4 +117,11 @@ class TestSample:
             assert "logits" in f
             assert f["sequences"].shape[0] > 0
             assert f["logits"].shape[0] > 0
+            # Ensure all dimensions are properly set (not zero)
+            assert all(dim > 0 for dim in f["sequences"].shape), (
+                f"Sequences shape has zero dimensions: {f['sequences'].shape}"
+            )
+            assert all(dim > 0 for dim in f["logits"].shape), (
+                f"Logits shape has zero dimensions: {f['logits'].shape}"
+            )
 

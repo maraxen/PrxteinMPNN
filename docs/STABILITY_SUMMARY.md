@@ -175,7 +175,7 @@ The stability improvements specifically benefit the GMM→DBSCAN pipeline:
 ## Testing Results
 
 ```bash
-$ python3 -m pytest tests/ensemble/test_gmm_stability.py -v
+$ uv run pytest tests/ensemble/test_gmm_stability.py -v
 ================================================ test session starts =================================================
 collected 11 items
 

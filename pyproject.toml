@@ -14,7 +14,6 @@ dependencies = [
     "joblib",
     "flax",
     "biotite",
-    "foldcomp",
     "gmmx",
     "numpy",
     "mdtraj",
@@ -72,6 +71,9 @@ dev = [
   "trio",
   "chex",
   "anyio",
+]
+foldcomp = [
+    "foldcomp",
 ]
 
 [tool.setuptools]

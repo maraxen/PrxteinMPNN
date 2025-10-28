@@ -297,9 +297,9 @@ def _categorical_jacobian_in_memory(
     ar_mask = initial_ar_mask[0, 0]
 
     for batch_outputs, _ in output_generator:
-      avg_encodings, count = _update_rolling_average((avg_features, count), batch_outputs[:2])
+      avg_features, count = _update_rolling_average((avg_features, count), batch_outputs[:2])
 
-    node_features, edge_features = avg_encodings
+    node_features, edge_features = avg_features
 
     def logit_fn(one_hot_flat: jax.Array) -> jax.Array:
       one_hot_2d = one_hot_flat.reshape(one_hot_sequence.shape)

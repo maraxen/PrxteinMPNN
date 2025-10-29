@@ -11,6 +11,7 @@ def test_categorical_jacobian_in_memory(protein_structure, mock_model_parameters
         model_weights="soluble",
         average_encodings=False,
         backbone_noise=[0.0],
+        extract_dihedrals=True,
     )
     results = categorical_jacobian(spec=spec)
     assert "categorical_jacobians" in results
@@ -24,6 +25,7 @@ def test_categorical_jacobian_streaming(protein_structure, mock_model_parameters
             average_encodings=False,
             backbone_noise=[0.0],
             output_h5_path=tmpfile.name,
+            extract_dihedrals=True,
         )
         results = categorical_jacobian(spec=spec)
         assert "output_h5_path" in results
@@ -37,6 +39,7 @@ def test_categorical_jacobian_in_memory_avg_encodings(protein_structure, mock_mo
         model_weights="soluble",
         average_encodings=True,
         backbone_noise=[0.0],
+        extract_dihedrals=True,
     )
     results = categorical_jacobian(spec=spec)
     assert "categorical_jacobians" in results

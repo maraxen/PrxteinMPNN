@@ -225,12 +225,15 @@ def make_encode_layer(
 @jax.jit
 def initialize_node_features(
   model_parameters: ModelParameters,
-  edge_features: EdgeFeatures,
+  dihedral_features: NodeFeatures,
 ) -> NodeFeatures:
   """Initialize node features based on model parameters."""
-  return jnp.zeros(
-    (edge_features.shape[0], model_parameters["protein_mpnn/~/W_e"]["b"].shape[0]),
+  num_features = model_parameters["protein_mpnn/~/W_e"]["b"].shape[0]
+  padded_dihedrals = jnp.pad(
+        dihedral_features,
+        ((0, 0), (0, num_features - dihedral_features.shape[1]))
   )
+  return padded_dihedrals
 
 
 def setup_encoder(
@@ -264,9 +267,10 @@ def make_encoder(
       edge_features: EdgeFeatures,
       neighbor_indices: NeighborIndices,
       mask: AlphaCarbonMask,
+      dihedral_features: NodeFeatures,
     ) -> tuple[NodeFeatures, EdgeFeatures]:
       """Run the encoder with the provided edge features and neighbor indices."""
-      node_features_encoder = initialize_node_features(model_parameters, edge_features)
+      node_features_encoder = initialize_node_features(model_parameters, dihedral_features)
 
       def encoder_loop_body(
         i: Int,
@@ -299,9 +303,10 @@ def make_encoder(
     neighbor_indices: NeighborIndices,
     mask: AlphaCarbonMask,
     attention_mask: AttentionMask,
+    dihedral_features: NodeFeatures,
   ) -> tuple[NodeFeatures, EdgeFeatures]:
     """Run the encoder with the provided edge features and neighbor indices."""
-    node_features_encoder = initialize_node_features(model_parameters, edge_features)
+    node_features_encoder = initialize_node_features(model_parameters, dihedral_features)
 
     def encoder_loop_body(
       i: Int,

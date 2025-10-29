@@ -10,8 +10,13 @@ Run with:
   pytest src/prxteinmpnn/model/test_encoder.py
 """
 
+import os
+from pathlib import Path
+
+import chex
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 from prxteinmpnn.model.encoder import (
@@ -23,7 +28,9 @@ from prxteinmpnn.model.encoder import (
   make_encoder,
   setup_encoder,
 )
+from prxteinmpnn.model.features import extract_features, project_features
 from prxteinmpnn.model.masked_attention import MaskedAttentionType
+from prxteinmpnn.utils.residue_constants import atom_order
 
 # --- Fixtures and helpers ---
 
@@ -209,3 +216,49 @@ def test_make_encoder_runs(dummy_inputs, minimal_model_parameters, attention_mas
     node_out, edge_out = encoder_fn(edge_features, neighbor_indices, mask, attention_mask)
   assert node_out.shape[0] == edge_features.shape[0]
   assert edge_out.shape[0] == edge_features.shape[0]
+
+
+def test_encoder_with_golden(
+    rng_key,
+    model_inputs,
+    mock_model_parameters,
+):
+    """
+    Test the full encoder against a golden file to ensure determinism and correctness.
+    If the golden file doesn't exist, it will be created.
+    """
+    golden_file = Path(__file__).parent / "golden_files" / "encoder_golden.npz"
+
+    # Use real feature extraction
+    feature_inputs = model_inputs.copy()
+    del feature_inputs["sequence"]
+    edge_features, neighbor_indices, _ = extract_features(
+        rng_key,
+        mock_model_parameters,
+        **feature_inputs,
+    )
+
+    # Run the full encoder
+    encoder_fn = make_encoder(
+        mock_model_parameters,
+        attention_mask_type=None,
+        num_encoder_layers=3,
+        scale=30.0,
+    )
+    node_out, edge_out = encoder_fn(edge_features, neighbor_indices, model_inputs["mask"])
+
+    if not golden_file.exists():
+        # Create the directory if it doesn't exist
+        os.makedirs(golden_file.parent, exist_ok=True)
+        # Save the new golden file
+        np.savez(golden_file, node_out=node_out, edge_out=edge_out)
+        pytest.skip(f"Golden file created at {golden_file}. Please re-run the tests.")
+
+    # Load the golden data
+    golden_data = np.load(golden_file)
+    expected_node_out = golden_data["node_out"]
+    expected_edge_out = golden_data["edge_out"]
+
+    # Compare the results
+    chex.assert_trees_all_close(node_out, expected_node_out, atol=1e-6, rtol=1e-6)
+    chex.assert_trees_all_close(edge_out, expected_edge_out, atol=1e-6, rtol=1e-6)

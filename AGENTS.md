@@ -68,7 +68,8 @@ def example_function():
 * **Availability:** All new components and features *must* be accompanied by comprehensive **unit and/or integration tests**.
 * **Framework:** Use `pytest` and where relevant`chex`
 * **Test Location:** Place tests in the `tests/` directory, mirroring the structure of the source code (e.g., `tests/models/`, `tests/sampling/`, etc.).
-* **Execution:** Tests are located in the `tests/` directory. Run tests with `python -m pytest tests/`.
+* **Execution:** Tests are located in the `tests/` directory. Run tests with `uv run pytest tests/`.
+* **Python Commands:** Always use `uv run python` instead of `python` or `python3` to ensure the correct environment is used.
 * **Test Philosophy:** Tests should cover typical use cases, edge cases, and ensure correctness of JAX transformations where applicable.
 * **Test Coverage:** Aim for high test coverage, especially for critical components like SMC steps, resampling methods, and scoring functions.
 * **Test Structure:** Organize tests by functionality (e.g., `sampling/`, `scoring/`, `utils/`) and ensure they mirror the structure of the source code for clarity.
@@ -111,6 +112,7 @@ def test_example_function():
 * **Current Focus:** Finalizing the functional interface for ProteinMPNN, ensuring all components are JAX-compatible and adhere to the project's core principles.
 * **Known Issues:**
 * Lack of comprehensive tests
+* The tests in `tests/ensemble/test_em_fit.py` and `tests/ensemble/test_gmm.py` are currently backlogged due to issues with mock objects and JAX's JIT compilation.
 
 ## 4. Interaction Guidelines
 

@@ -382,7 +382,7 @@ class TestPerformDbscanClustering:
     Example:
       >>> test_perform_dbscan_clustering_invalid_method(mock_clustering_data)
     """
-    with pytest.raises(ValueError, match="Unsupported connectivity method"):
+    with pytest.raises(ValueError, match="Invalid connectivity_method: invalid"):
       dbscan_cluster(**mock_clustering_data, connectivity_method='invalid')
 
 

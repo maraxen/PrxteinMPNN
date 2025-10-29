@@ -1,18 +1,21 @@
 """Conformational-inference from ProteinMPNN logits."""
 
+from functools import partial
 from typing import Literal
 
+import jax
 import jax.numpy as jnp
-from gmmx import GaussianMixtureModelJax
 from jax.scipy.special import entr
 
 from prxteinmpnn.ensemble.dbscan import (
   ConformationalStates,
+  GMMClusteringResult,
   compute_component_distances,
   dbscan_cluster,
 )
+from prxteinmpnn.ensemble.em_fit import GMM, Axis, log_likelihood
 from prxteinmpnn.utils.entropy import posterior_mean_std
-from prxteinmpnn.utils.types import EdgeFeatures, Logits, NodeFeatures, StructureAtomicCoordinates
+from prxteinmpnn.utils.types import EdgeFeatures, EnsembleData, Logits, NodeFeatures
 
 ConformationalInferenceStrategy = Literal["logits", "node_features", "edge_features"]
 """Determines what features to use for conformational inference.
@@ -22,18 +25,43 @@ and "edge_features" (edge features from the encoder).
 """
 
 
+@jax.jit
+def predict_probability(gmm: GMM, data: EnsembleData) -> jax.Array:
+  """Predict the probability of each sample belonging to each component.
+
+  Args:
+    gmm: Fitted GMM object.
+    data: Input data, shape (num_samples, num_features).
+
+  Returns:
+  probabilities : jax.Array
+      Predicted probabilities
+
+  """
+  log_prob = log_likelihood(data, gmm.means, gmm.covariances)
+  log_prob_norm = jax.scipy.special.logsumexp(
+    log_prob,
+    axis=Axis.components,
+    keepdims=True,
+  )
+  return jnp.exp(log_prob - log_prob_norm)
+
+
+@partial(jax.jit, static_argnames=("eps_std_scale", "min_cluster_weight", "n_components"))
 def infer_states(
-  gmm: GaussianMixtureModelJax,
-  features: Logits | NodeFeatures | EdgeFeatures | StructureAtomicCoordinates,
+  gmm: GMM,
+  features: Logits | NodeFeatures | EdgeFeatures,
+  n_components: int,
   eps_std_scale: float = 1.0,
   min_cluster_weight: float = 0.01,
-) -> ConformationalStates:
+) -> tuple[ConformationalStates, GMMClusteringResult, GMM]:
   """Infer residue or global states by clustering a GMM fit on input features.
 
   Args:
-    gmm: Fitted GaussianMixtureModelJax object.
-    features: Input features (logits or message), shape compatible with gmm.predict_proba.
+    gmm: Fitted GMM object.
+    features: Input features (logits or message), shape compatible with predict_probability.
     eps_std_scale: Scaling factor for DBSCAN epsilon.
+    n_components: Number of GMM components.
     min_cluster_weight: Minimum cluster weight threshold.
 
   Returns:
@@ -42,7 +70,7 @@ def infer_states(
   """
   distance_matrix = compute_component_distances(gmm.means)
   component_weights = gmm.weights
-  responsibility_matrix = jnp.squeeze(gmm.predict_proba(features), axis=(2, 3))
+  responsibility_matrix = predict_probability(gmm, features)
   triu_indices = jnp.triu_indices_from(distance_matrix, k=1)
   eps = 1.0 - eps_std_scale * jnp.std(distance_matrix[triu_indices])
 
@@ -59,23 +87,32 @@ def infer_states(
 
   states, counts = jnp.unique(
     state_trajectory,
-    size=gmm.n_components,
+    size=n_components,
     fill_value=-1,
     return_counts=True,
   )
   n_states = jnp.sum(states != -1)
-  mle_entropy = entr(counts[counts > 0] / counts.sum()).sum()
-  _, mle_entropy_se = posterior_mean_std(counts[counts > 0].astype(jnp.float32))
 
-  return ConformationalStates(
-    n_states=n_states,
-    mle_entropy=mle_entropy,
-    mle_entropy_se=mle_entropy_se,
-    state_trajectory=state_trajectory,
-    state_counts=counts,
-    cluster_entropy=cluster_result.plug_in_entropy,
-    cluster_probabilities=cluster_result.state_probabilities,
-    dbscan_eps=eps,
-    min_cluster_weight=min_cluster_weight,
-    coarse_graining_matrix=cluster_result.coarse_graining_matrix,
+  valid_counts = jnp.where(counts > 0, counts, 1)
+  valid_mask = counts > 0
+  probs = valid_counts / counts.sum()
+  entropy_terms = entr(probs)
+  mle_entropy = jnp.sum(entropy_terms * valid_mask)
+  _, mle_entropy_se = posterior_mean_std(jnp.where(valid_mask, counts.astype(jnp.float32), 0.0))
+
+  return (
+    ConformationalStates(
+      n_states=n_states,
+      mle_entropy=mle_entropy,
+      mle_entropy_se=mle_entropy_se,
+      state_trajectory=state_trajectory,
+      state_counts=counts,
+      cluster_entropy=cluster_result.plug_in_entropy,
+      cluster_probabilities=cluster_result.state_probabilities,
+      dbscan_eps=eps,
+      min_cluster_weight=min_cluster_weight,
+      coarse_graining_matrix=cluster_result.coarse_graining_matrix,
+    ),
+    cluster_result,
+    gmm,
   )

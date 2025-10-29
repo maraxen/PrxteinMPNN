@@ -44,7 +44,6 @@ def score(
         backbone_noise: The amount of noise to add to the backbone.
         ar_mask: An optional array of shape (L, L) to mask out certain residue pairs.
         batch_size: The number of structures to process in a single batch.
-        num_workers: Number of parallel workers for data loading.
       **kwargs: Additional keyword arguments for structure loading.
 
 
@@ -97,7 +96,7 @@ def score(
       jax.random.key(spec.random_seed),
       batched_sequences,
       batched_ensemble.coordinates,
-      batched_ensemble.atom_mask,
+      batched_ensemble.mask,
       batched_ensemble.residue_index,
       batched_ensemble.chain_index,
       48,
@@ -176,7 +175,7 @@ def _score_streaming(
         jax.random.key(spec.random_seed),
         batched_sequences,
         batched_ensemble.coordinates,
-        batched_ensemble.atom_mask,
+        batched_ensemble.mask,
         batched_ensemble.residue_index,
         batched_ensemble.chain_index,
         48,

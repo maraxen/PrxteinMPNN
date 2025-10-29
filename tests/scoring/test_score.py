@@ -1,13 +1,17 @@
 """Tests for the scoring module."""
 
+import os
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import chex
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 from jaxtyping import PRNGKeyArray
 
+from prxteinmpnn.utils.decoding_order import random_decoding_order
 from prxteinmpnn.scoring.score import make_score_sequence
 
 
@@ -240,7 +244,7 @@ def test_different_sequence_lengths(
         # Create inputs for this sequence length
         sequence = jnp.ones((seq_len,), dtype=jnp.int32)
         structure_coordinates = jnp.ones((seq_len, 37, 3))
-        mask = jnp.ones((seq_len, 37), dtype=jnp.bool_)
+        mask = jnp.ones((seq_len,), dtype=jnp.bool_)
         residue_index = jnp.arange(seq_len)
         chain_index = jnp.zeros((seq_len,), dtype=jnp.int32)
         k_neighbors = 48
@@ -342,3 +346,47 @@ def test_scoring_output_calculation(
     assert jnp.all(jnp.isfinite(score))
     assert jnp.all(jnp.isfinite(logits))
     assert jnp.all(jnp.isfinite(decoding_order))
+
+
+def test_score_determinism_and_golden_value(
+    rng_key,
+    model_inputs,
+    mock_model_parameters,
+):
+    """
+    Tests that the scoring function is deterministic and matches a golden value.
+    If the golden file doesn't exist, it will be created.
+    """
+    golden_file = Path(__file__).parent / "golden_files" / "score_golden.npz"
+
+    # Create the scoring function with real components
+    scoring_fn = make_score_sequence(
+        model_parameters=mock_model_parameters,
+        decoding_order_fn=random_decoding_order,
+        num_encoder_layers=3,
+        num_decoder_layers=3,
+    )
+
+    # Run scoring twice to check for determinism
+    score1, _, _ = scoring_fn(
+        prng_key=rng_key,
+        **model_inputs,
+    )
+    score2, _, _ = scoring_fn(
+        prng_key=rng_key,
+        **model_inputs,
+    )
+
+    # Assert determinism
+    np.testing.assert_equal(np.asarray(score1), np.asarray(score2))
+
+    if not golden_file.exists():
+        os.makedirs(golden_file.parent, exist_ok=True)
+        np.savez(golden_file, score=score1)
+        pytest.skip(f"Golden file created at {golden_file}. Please re-run the tests.")
+
+    # Load golden score and assert correctness
+    golden_data = np.load(golden_file)
+    expected_score = golden_data["score"]
+
+    chex.assert_trees_all_close(score1, expected_score, atol=1e-6, rtol=1e-6)

@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import pytest
 from jax import random
 
-from prxteinmpnn.io.parsers import parse_input
+from prxteinmpnn.io.parsing import parse_input
 from prxteinmpnn.utils.data_structures import Protein
 from prxteinmpnn.utils.types import ModelParameters
 
@@ -25,7 +25,7 @@ def model_inputs(protein_structure: Protein) -> dict:
     """Create model inputs from a protein structure."""
     return {
         "structure_coordinates": protein_structure.coordinates,
-        "mask": protein_structure.atom_mask,
+        "mask": protein_structure.mask,
         "residue_index": protein_structure.residue_index,
         "chain_index": protein_structure.chain_index,
         "sequence": protein_structure.aatype,
@@ -79,8 +79,12 @@ def mock_model_parameters() -> ModelParameters:
   for i in range(3):
     enc_l_name = f"enc{i}"
     dec_l_name = f"dec{i}"
-    enc_prefix = f"protein_mpnn/~/enc_layer_{i}" if i > 0 else "protein_mpnn/~/enc_layer"
-    dec_prefix = f"protein_mpnn/~/dec_layer_{i}" if i > 0 else "protein_mpnn/~/dec_layer"
+    enc_prefix = f"protein_mpnn/~/enc_layer"
+    if i > 0:
+        enc_prefix += f"_{i}"
+    dec_prefix = f"protein_mpnn/~/dec_layer"
+    if i > 0:
+        dec_prefix += f"_{i}"
 
     # Encoder
     params.update(

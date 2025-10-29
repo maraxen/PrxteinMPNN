@@ -62,7 +62,7 @@ def mock_protein_ensemble():
   ensemble = MagicMock()
   ensemble.coordinates = jnp.ones((5, 100, 4, 3))  # 5 frames, 100 residues
   ensemble.one_hot_sequence = jnp.ones((5, 100, 20))
-  ensemble.atom_mask = jnp.ones((5, 100, 4))
+  ensemble.mask = jnp.ones((5, 100))
   ensemble.residue_index = jnp.arange(100)
   ensemble.chain_index = jnp.zeros(100)
   ensemble.aatype=jnp.ones((5, 100))
@@ -127,21 +127,6 @@ class TestGetLogitsFn:
         decoding_order_fn=mock_spec.decoding_order_fn,
       )
 
-  def test_coordinates_strategy(self, mock_spec, mock_model_parameters):
-    """Test coordinates inference strategy selection.
-    
-    Args:
-      mock_spec: Mock specification fixture.
-      mock_model_parameters: Mock model parameters fixture.
-    """
-    mock_spec.inference_strategy = "coordinates"
-    
-    logits_fn, is_conditional = _get_logits_fn(mock_spec, mock_model_parameters)
-    
-    assert is_conditional is False
-    result = logits_fn()
-    assert len(result) == 3
-    assert all(isinstance(arr, jax.Array) for arr in result)
 
   def test_vmm_strategy_not_implemented(self, mock_spec, mock_model_parameters):
     """Test that VMM strategy raises NotImplementedError.
@@ -155,17 +140,6 @@ class TestGetLogitsFn:
     with pytest.raises(NotImplementedError, match="VMM inference strategy is not yet implemented"):
       _get_logits_fn(mock_spec, mock_model_parameters)
 
-  def test_invalid_strategy(self, mock_spec, mock_model_parameters):
-    """Test that invalid strategy raises ValueError.
-    
-    Args:
-      mock_spec: Mock specification fixture.
-      mock_model_parameters: Mock model parameters fixture.
-    """
-    mock_spec.inference_strategy = "invalid"
-    
-    with pytest.raises(ValueError, match="Invalid inference strategy: invalid"):
-      _get_logits_fn(mock_spec, mock_model_parameters)
 
 
 class TestComputeStatesBatches:
@@ -206,7 +180,7 @@ class TestComputeStatesBatches:
     batches = list(_compute_states_batches(mock_spec, mock_protein_iterator, mock_model_parameters))
     
     assert len(batches) == 1
-    logits, node_features, edge_features, backbone_coords, full_coords = batches[0]
+    logits, node_features, edge_features = batches[0]
     chex.assert_shape(logits, (5, 100, 20))
     chex.assert_shape(node_features, (5, 100, 128))
 
@@ -373,8 +347,6 @@ class TestDeriveStatesStreaming:
       jnp.ones((2, 100, 20)),
       jnp.ones((2, 100, 128)),
       None,
-      None,
-      None,
     )
     mock_compute_batches.return_value = [batch]
     
@@ -401,7 +373,7 @@ class TestDeriveStates:
       mock_spec: Mock specification fixture.
     """
     mock_spec.output_h5_path = None
-    mock_prep.return_value = (MagicMock(), {})
+    mock_prep.return_value = (MagicMock(), mock_model_parameters)
     mock_in_memory.return_value = {"logits": jnp.ones((5, 100, 20))}
     
     result = derive_states(mock_spec)
@@ -420,7 +392,7 @@ class TestDeriveStates:
       mock_spec: Mock specification fixture.
     """
     mock_spec.output_h5_path = "/tmp/test.h5"
-    mock_prep.return_value = (MagicMock(), {})
+    mock_prep.return_value = (MagicMock(), mock_model_parameters)
     mock_streaming.return_value = {"output_h5_path": "/tmp/test.h5"}
     
     result = derive_states(mock_spec)
@@ -432,7 +404,7 @@ class TestDeriveStates:
     """Test creating spec from kwargs when not provided."""
     with patch("prxteinmpnn.run.conformational_inference.prep_protein_stream_and_model") as mock_prep:
       with patch("prxteinmpnn.run.conformational_inference._derive_states_in_memory") as mock_in_memory:
-        mock_prep.return_value = (MagicMock(), {})
+        mock_prep.return_value = (MagicMock(), mock_model_parameters)
         mock_in_memory.return_value = {}
         
         derive_states(inputs=["test_input.pdb"],inference_strategy="conditional")
@@ -444,14 +416,15 @@ class TestInferConformations:
   """Test the main infer_conformations function."""
 
   @patch("prxteinmpnn.run.conformational_inference.derive_states")
-  @patch("prxteinmpnn.run.conformational_inference.make_fit_gmm_in_memory")
+  @patch("prxteinmpnn.run.conformational_inference.make_fit_gmm")
   @patch("prxteinmpnn.run.conformational_inference.infer_states")
   def test_successful_inference_in_memory(
     self,
     mock_infer_states,
-    mock_make_fit_gmm_in_memory,
+    mock_make_fit_gmm,
     mock_derive_states,
     mock_spec,
+    mock_model_parameters,
   ):
     """Test successful conformational inference with in-memory data.
     
@@ -472,7 +445,7 @@ class TestInferConformations:
     
     mock_gmm = MagicMock()
     mock_gmm_fitter = MagicMock(return_value=mock_gmm)
-    mock_make_fit_gmm_in_memory.return_value = mock_gmm_fitter
+    mock_make_fit_gmm.return_value = mock_gmm_fitter
     
     mock_conformational_states = MagicMock(spec=ConformationalStates)
     mock_infer_states.return_value = mock_conformational_states
@@ -482,7 +455,7 @@ class TestInferConformations:
     
     assert result == mock_conformational_states
     mock_derive_states.assert_called_once_with(mock_spec)
-    mock_make_fit_gmm_in_memory.assert_called_once()
+    mock_make_fit_gmm.assert_called_once()
     mock_infer_states.assert_called_once()
 
   @patch("prxteinmpnn.run.conformational_inference.derive_states")
@@ -588,8 +561,8 @@ class TestIntegration:
       # Create a minimal test specification
       spec = ConformationalInferenceSpecification(
         inputs=["tests/data/minimal_ensemble.pdb"],
-        inference_strategy="coordinates",
-        inference_features=["backbone_coordinates"],
+        inference_strategy="unconditional",
+        inference_features=["logits"],
         mode="global",
         random_seed=42,
         gmm_n_components=2,
@@ -603,7 +576,7 @@ class TestIntegration:
         # Create mock ensemble
         ensemble = MagicMock()
         ensemble.coordinates = jnp.ones((3, 10, 4, 3))
-        ensemble.atom_mask = jnp.ones((10, 4))
+        ensemble.mask = jnp.ones((10,))
         ensemble.residue_index = jnp.arange(10)
         ensemble.chain_index = jnp.zeros(10)
         ensemble.full_coordinates = jnp.ones((3, 10, 14, 3))
@@ -611,7 +584,7 @@ class TestIntegration:
         iterator = MagicMock()
         iterator.__iter__ = lambda x: iter([ensemble])
         
-        mock_prep.return_value = (iterator, {})
+        mock_prep.return_value = (iterator, mock_model_parameters)
         
         # Test derive_states function
         result = derive_states(spec)

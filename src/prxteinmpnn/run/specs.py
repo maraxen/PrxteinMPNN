@@ -47,7 +47,6 @@ class RunSpecification:
       backbone_noise: The backbone noise levels to use (default is (0.0,)).
                       Can be a single float or a sequence of floats.
       foldcomp_database: An optional path to a FoldComp database (default is None).
-      num_workers: The number of worker processes for data loading (default is 0).
       ar_mask: An optional array-like mask for autoregressive positions (default is None).
       random_seed: The random seed to use (default is 42).
       chain_id: An optional chain ID to use (default is None).
@@ -65,7 +64,6 @@ class RunSpecification:
   batch_size: int = 32
   backbone_noise: Sequence[float] | float = (0.0,)
   foldcomp_database: FoldCompDatabase | None = None
-  num_workers: int = 0
   ar_mask: None | ArrayLike = None
   random_seed: int = 42
   chain_id: Sequence[str] | str | None = None
@@ -74,13 +72,15 @@ class RunSpecification:
   decoding_order_fn: DecodingOrderFn | None = None
   conformational_states: ConformationalStates | None = None
   cache_path: str | Path | None = None
+  overwrite_cache: bool = False
+  output_path: str | Path | None = None
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""
     if isinstance(self.backbone_noise, float):
       object.__setattr__(self, "backbone_noise", (self.backbone_noise,))
     if self.cache_path and isinstance(self.cache_path, str):
-        object.__setattr__(self, "cache_path", Path(self.cache_path))
+      object.__setattr__(self, "cache_path", Path(self.cache_path))
 
 
 @dataclass
@@ -131,6 +131,8 @@ class SamplingSpecification(RunSpecification):
   iterations: int | None = None
   learning_rate: float | None = None
   output_h5_path: str | Path | None = None
+  samples_batch_size: int = 16
+  noise_batch_size: int = 4
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""
@@ -150,6 +152,7 @@ class JacobianSpecification(RunSpecification):
 
   noise_batch_size: int = 1
   jacobian_batch_size: int = 16
+  average_encodings: bool = True
   combine: bool = False
   combine_batch_size: int = 8
   combine_noise_batch_size: int = 1
@@ -180,17 +183,23 @@ class ConformationalInferenceSpecification(RunSpecification):
 
   output_h5_path: str | Path | None = None
   batch_size: int = 8
-  inference_strategy: Literal["unconditional", "conditional", "vmm", "coordinates"] = (
-    "unconditional"
-  )
-  inference_features: Sequence[
-    Literal["logits", "node_features", "edge_features", "backbone_coordinates", "full_coordinates"]
-  ] = ("logits",)
+  inference_strategy: Literal["unconditional", "conditional", "vmm"] = "unconditional"
+  inference_features: Sequence[Literal["logits", "node_features", "edge_features"]] = ("logits",)
   mode: Literal["global", "per"] = "global"
+  covariance_type: Literal["full", "diag"] = "diag"
   gmm_n_components: int = 100
   eps_std_scale: float = 1.0
   min_cluster_weight: float = 0.01
+  preprocessing_mode: Literal["pca"] | None = None
   gmm_init: Literal["kmeans", "random"] = "kmeans"
+  gmm_max_iters: int = 100
+  kmeans_max_iters: int = 200
+  pca_n_components: int = 20
+  pca_solver: Literal["full", "randomized"] = "full"
+  pca_rng_seed: int = 0
+  gmm_min_iters: int = 10
+  covariance_regularization: float = 1e-3
+
   reference_sequence: str | None = None
 
   def __post_init__(self) -> None:
@@ -200,4 +209,48 @@ class ConformationalInferenceSpecification(RunSpecification):
       object.__setattr__(self, "output_h5_path", Path(self.output_h5_path))
 
 
-Specs = RunSpecification | ScoringSpecification | SamplingSpecification | JacobianSpecification
+MIN_PAIR = 2
+
+
+@dataclass
+class InspectionSpecification(RunSpecification):
+  """Configuration for inspecting model encodings and features."""
+
+  output_h5_path: str | Path | None = None
+  inspection_features: Sequence[
+    Literal[
+      "unconditional_logits",
+      "encoded_node_features",
+      "edge_features",
+      "decoded_node_features",
+      "conditional_logits",
+    ]
+  ] = ("unconditional_logits",)
+  distance_matrix: bool = False
+  distance_matrix_method: Literal["ca", "cb", "backbone_average", "closest_atom"] = "ca"
+  cross_input_similarity: bool = False
+  similarity_metric: Literal[
+    "rmsd",
+    "tm-score",
+    "gdt_ts",
+    "gdt_ha",
+    "cosine",
+  ] = "rmsd"
+
+  def __post_init__(self) -> None:
+    """Post-initialization processing."""
+    super().__post_init__()
+    if self.output_h5_path and isinstance(self.output_h5_path, str):
+      object.__setattr__(self, "output_h5_path", Path(self.output_h5_path))
+    if self.cross_input_similarity and len(_loader_inputs(self.inputs)) < MIN_PAIR:
+      msg = f"Cross-input similarity requires at least {MIN_PAIR} input structures."
+      raise ValueError(msg)
+
+
+Specs = (
+  RunSpecification
+  | ScoringSpecification
+  | SamplingSpecification
+  | JacobianSpecification
+  | InspectionSpecification
+)

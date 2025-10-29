@@ -1,6 +1,7 @@
 """Conformational-inference from ProteinMPNN logits or features."""
 
 import logging
+import pathlib
 import sys
 from collections.abc import Callable, Generator
 from typing import Any, cast
@@ -8,24 +9,26 @@ from typing import Any, cast
 import h5py
 import jax
 import jax.numpy as jnp
+import pcax
 from grain.python import IterDataset
 
 from prxteinmpnn.ensemble.ci import infer_states
 from prxteinmpnn.ensemble.dbscan import (
   ConformationalStates,
+  GMMClusteringResult,
 )
-from prxteinmpnn.ensemble.gmm import make_fit_gmm_in_memory, make_fit_gmm_streaming
+from prxteinmpnn.ensemble.gmm import make_fit_gmm
+from prxteinmpnn.ensemble.pca import pca_transform
 from prxteinmpnn.run.prep import prep_protein_stream_and_model
 from prxteinmpnn.run.specs import ConformationalInferenceSpecification
 from prxteinmpnn.sampling.conditional_logits import make_conditional_logits_fn
 from prxteinmpnn.sampling.unconditional_logits import make_unconditional_logits_fn
+from prxteinmpnn.utils.data_structures import GMM
 from prxteinmpnn.utils.types import (
-  BackboneAtomCoordinates,
   EdgeFeatures,
   Logits,
   ModelParameters,
   NodeFeatures,
-  StructureAtomicCoordinates,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,6 +46,10 @@ def derive_states(
   protein_iterator, model_parameters = prep_protein_stream_and_model(spec)
 
   if spec.output_h5_path:
+    if pathlib.Path(spec.output_h5_path).exists():
+      if not spec.overwrite_cache:
+        return {"output_h5_path": str(spec.output_h5_path), "metadata": {"spec": spec}}
+      logger.info("Overwriting existing HDF5 file at %s", spec.output_h5_path)
     return _derive_states_streaming(spec, protein_iterator, model_parameters)
   return _derive_states_in_memory(spec, protein_iterator, model_parameters)
 
@@ -68,15 +75,6 @@ def _get_logits_fn(
     case "vmm":
       msg = "VMM inference strategy is not yet implemented."
       raise NotImplementedError(msg)
-    case "coordinates":
-      return lambda *args, **kwargs: (  # type: ignore[return]  # noqa: ARG005
-        jnp.array([]),
-        jnp.array([]),
-        jnp.array([]),
-      ), False
-    case _:
-      msg = f"Invalid inference strategy: {spec.inference_strategy}"
-      raise ValueError(msg)
 
 
 def _compute_states_batches(
@@ -88,8 +86,6 @@ def _compute_states_batches(
     Logits | None,
     NodeFeatures | None,
     EdgeFeatures | None,
-    BackboneAtomCoordinates | None,
-    StructureAtomicCoordinates | None,
   ],
   None,
   None,
@@ -112,7 +108,7 @@ def _compute_states_batches(
         inference_args = (
           keys,
           batched_ensemble.coordinates,
-          batched_ensemble.atom_mask[0, :, 0],
+          batched_ensemble.full_atom_mask[0, :, 0],
           batched_ensemble.residue_index[0],
           batched_ensemble.chain_index[0],
         )
@@ -121,7 +117,7 @@ def _compute_states_batches(
           keys,
           batched_ensemble.coordinates,
           batched_ensemble.one_hot_sequence[0],
-          batched_ensemble.atom_mask[0, :, 0],
+          batched_ensemble.full_atom_mask[0, :, 0],
           batched_ensemble.residue_index[0],
           batched_ensemble.chain_index[0],
           batched_ensemble.aatype[0],
@@ -139,8 +135,6 @@ def _compute_states_batches(
       logits if "logits" in spec.inference_features else None,
       node_features if "node_features" in spec.inference_features else None,
       edge_features if "edge_features" in spec.inference_features else None,
-      batched_ensemble.coordinates if "backbone_coordinates" in spec.inference_features else None,
-      batched_ensemble.full_coordinates if "full_coordinates" in spec.inference_features else None,
     )
 
 
@@ -151,7 +145,7 @@ def _derive_states_in_memory(
 ) -> dict[str, jax.Array | dict[str, ConformationalInferenceSpecification] | None]:
   """Compute global states and stores them in memory."""
   all_batches = list(_compute_states_batches(spec, protein_iterator, model_parameters))
-  all_logits, all_node_features, all_edge_features, all_backbone_coords, all_full_coords = zip(
+  all_logits, all_node_features, all_edge_features = zip(
     *all_batches,
     strict=False,
   )
@@ -163,12 +157,6 @@ def _derive_states_in_memory(
     else None,
     "edge_features": jnp.concatenate(all_edge_features)
     if all_edge_features[0] is not None
-    else None,
-    "backbone_coordinates": jnp.concatenate(all_backbone_coords)
-    if all_backbone_coords[0] is not None
-    else None,
-    "full_coordinates": jnp.concatenate(all_full_coords)
-    if all_full_coords[0] is not None
     else None,
     "metadata": {"spec": spec},
   }
@@ -191,8 +179,6 @@ def _derive_states_streaming(
       logits,
       node_features,
       edge_features,
-      backbone_coords,
-      full_coords,
     ) in enumerate(
       _compute_states_batches(spec, protein_iterator, model_parameters),
     ):
@@ -200,8 +186,6 @@ def _derive_states_streaming(
         "logits": logits,
         "node_features": node_features,
         "edge_features": edge_features,
-        "backbone_coordinates": backbone_coords,
-        "full_coordinates": full_coords,
       }
       if batch_idx == 0:
         for key, arr in states.items():
@@ -226,58 +210,135 @@ def _derive_states_streaming(
   return {"output_h5_path": str(spec.output_h5_path), "metadata": {"spec": spec}}
 
 
+def _pca_preprocess(
+  spec: ConformationalInferenceSpecification,
+  gmm_features: jax.Array,
+) -> tuple[jax.Array, dict[str, Any]]:
+  """Preprocess GMM features based on the specified preprocessing mode."""
+  if spec.output_h5_path:
+    with h5py.File(spec.output_h5_path, "r") as f:
+      pca_found = f"pca_{spec.pca_n_components}_components" in f
+      if pca_found:
+        logger.info("Loading precomputed PCA components from HDF5...")
+        pca_components = cast("h5py.Dataset", f[f"pca_{spec.pca_n_components}_components"])
+        gmm_features = jnp.array(pca_components[:])
+        pca_state_group = cast("h5py.Group", f[f"pca_{spec.pca_n_components}_state"])
+        pca_state = pcax.pca.PCAState(
+          components=jnp.array(pca_state_group["components"][:]),  # type: ignore[index]
+          means=jnp.array(pca_state_group["means"][:]),  # type: ignore[index]
+          explained_variance=jnp.array(pca_state_group["explained_variance"][:]),  # type: ignore[index]
+        )
+        logger.info("PCA components shape: %s", gmm_features.shape)
+        return (gmm_features, {"pca_state": pca_state})
+  gmm_features, pca_state = pca_transform(
+    gmm_features,
+    n_components=spec.pca_n_components,
+    solver=spec.pca_solver,
+    rng=jax.random.PRNGKey(spec.pca_rng_seed),
+  )
+  if spec.output_h5_path:
+    with h5py.File(spec.output_h5_path, "a") as f:
+      f.create_dataset(
+        f"pca_{spec.pca_n_components}_components",
+        data=jnp.array(gmm_features),
+        compression="gzip",
+      )
+      grp = f.create_group(f"pca_{spec.pca_n_components}_state")
+      for key, value in pca_state._asdict().items():
+        grp.create_dataset(key, data=jnp.array(value), compression="gzip")
+      logger.info("Saved PCA components to HDF5.")
+  return (gmm_features, {"pca_state": pca_state})
+
+
+def preprocess(
+  spec: ConformationalInferenceSpecification,
+  gmm_features: jax.Array,
+) -> tuple[jax.Array, dict[str, Any]]:
+  """Preprocess GMM features based on the specified preprocessing mode."""
+  if spec.preprocessing_mode == "pca":
+    gmm_features, pca_state = _pca_preprocess(spec, gmm_features)
+    return (gmm_features, {"pca_state": pca_state})
+  return (gmm_features, {})
+
+
+def _derive_gmm_features(
+  spec: ConformationalInferenceSpecification,
+  all_states: jax.Array,
+) -> tuple[jax.Array, dict[str, Any]]:
+  """Derive GMM features from all states based on the specified mode."""
+  n_samples = all_states.shape[0]
+  gmm_features = None
+  if spec.mode == "per":
+    logger.info("Using 'per' mode for GMM feature derivation.")
+    gmm_features = jnp.transpose(
+      all_states,
+      (1, 0, *tuple(range(2, all_states.ndim))),
+    )  # (L, N, F)
+    logger.info("GMM features shape before reshape: %s", all_states.shape)
+    logger.info("GMM features shape after transpose: %s", gmm_features.shape)
+
+    gmm_features = jnp.reshape(gmm_features, (n_samples, -1))  # (L, N*F)
+    logger.info("GMM features shape after reshape: %s", gmm_features.shape)
+  elif spec.mode == "global":
+    logger.info("Using 'global' mode for GMM feature derivation.")
+    gmm_features = jnp.reshape(all_states, (n_samples, -1))  # (N, L*F)
+  else:
+    msg = f"Unknown mode: {spec.mode}"
+    raise ValueError(msg)
+  if gmm_features is None:
+    msg = "GMM features could not be determined."
+    raise ValueError(msg)
+  return preprocess(
+    spec,
+    gmm_features,
+  )
+
+
+def save_pca_state(h5_file: h5py.File, pca_state: pcax.pca.PCAState, n_components: int) -> None:
+  """Save PCA state to an HDF5 file."""
+  grp = h5_file.create_group(f"pca_{n_components}_state")
+  for key, value in pca_state._asdict().items():
+    grp.create_dataset(key, data=jnp.array(value), compression="gzip")
+
+
 def infer_conformations(
   spec: ConformationalInferenceSpecification,
-) -> ConformationalStates:
+) -> tuple[ConformationalStates, GMMClusteringResult, GMM]:
   """Infer conformational states from a protein ensemble."""
   states_result = derive_states(spec)
   key = jax.random.PRNGKey(spec.random_seed)
   feature_key = str(spec.inference_features[0])
+  result = None
+  gmm_fitter_fn = make_fit_gmm(
+    n_components=spec.gmm_n_components,
+    covariance_type=spec.covariance_type,
+    kmeans_max_iters=spec.kmeans_max_iters,
+    gmm_max_iters=spec.gmm_max_iters,
+    covariance_regularization=spec.covariance_regularization,
+  )
 
   if spec.output_h5_path:
     with h5py.File(spec.output_h5_path, "r") as f:
-      all_states_h5 = f[feature_key]
-      if all_states_h5.shape[0] == 0:  # type: ignore[attr-defined]
+      features_for_ci = jnp.array(cast("h5py.Dataset", f[feature_key])[:])
+      if features_for_ci.shape[0] == 0:  # type: ignore[attr-defined]
         msg = "No data in HDF5 file for GMM fitting."
         raise ValueError(msg)
 
-      # The data for clustering must be reshaped and loaded into memory.
-      features_for_ci = jnp.array(all_states_h5)
-      n_samples = features_for_ci.shape[0]
-      gmm_fitter_fn = make_fit_gmm_streaming(n_components=spec.gmm_n_components)
-      gmm = gmm_fitter_fn(features_for_ci, key)  # type: ignore[arg-type]
-
-  else:  # In-memory processing
-    all_states = states_result[feature_key]
-    if all_states is None or all_states.shape[0] == 0:
+  else:
+    features_for_ci = states_result[feature_key]
+    if features_for_ci is None or features_for_ci.shape[0] == 0:
       msg = "No data available for GMM fitting."
       raise ValueError(msg)
 
-    features_for_ci = cast("jnp.ndarray", all_states)
-    n_samples = features_for_ci.shape[0]
-
-    gmm_features = None
-    if spec.mode == "per":
-      gmm_features = jnp.transpose(
-        all_states,
-        (1, 0, *tuple(range(2, features_for_ci.ndim))),
-      )  # (L, N, F)
-      gmm_features = jnp.reshape(gmm_features, (n_samples, -1))  # (L, N*F)
-    if spec.mode == "global":
-      gmm_features = jnp.reshape(features_for_ci, (n_samples, -1))  # (N, L*F)
-
-    gmm_fitter_fn = make_fit_gmm_in_memory(
-      n_components=spec.gmm_n_components,
-      gmm_max_iters=100,  # Example, should be in spec
-    )
-    if gmm_features is None:
-      msg = "GMM features could not be determined."
-      raise ValueError(msg)
-    gmm = gmm_fitter_fn(gmm_features, key)
-
+  gmm_features, _ = _derive_gmm_features(spec, features_for_ci)
+  em_result = gmm_fitter_fn(gmm_features, key)
+  if not em_result.converged:
+    logger.warning("GMM fitting did not converge.")
+  result = em_result
   return infer_states(
-    gmm=gmm,
-    features=jnp.reshape(features_for_ci, (n_samples, -1)),
+    gmm=result.gmm,
+    features=jnp.array(result.features),
+    n_components=spec.gmm_n_components,
     eps_std_scale=spec.eps_std_scale,
     min_cluster_weight=spec.min_cluster_weight,
   )

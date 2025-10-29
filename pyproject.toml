@@ -14,13 +14,16 @@ dependencies = [
     "joblib",
     "flax",
     "biotite",
-    "foldcomp",
     "gmmx",
     "numpy",
     "mdtraj",
     "optax",
     "h5py",
     "grain",
+    "pcax>=0.1.0",
+    "tables>=3.10.2",
+    "array-record>=0.8.1",
+    "equinox>=0.13.2",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -69,10 +72,12 @@ dev = [
   "chex",
   "anyio",
 ]
+foldcomp = [
+    "foldcomp",
+]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -85,10 +90,4 @@ exclude = ["**/tests/**/*.py"]
 pythonpath = ["src"]
 
 [tool.setuptools.package-data]
-prxteinmpnn = [
-    "model/original/*.pkl",
-    "model/soluble/*.pkl",
-    "examples/*.ipynb",
-    "examples/*.pdb",
-    "../../tests/data/*.pdb",
-]
+include = ["prxteinmpnn/model/original/*.pkl", "prxteinmpnn/model/soluble/*.pkl", "prxteinmpnn/examples/*.ipynb", "prxteinmpnn/examples/*.pdb",]

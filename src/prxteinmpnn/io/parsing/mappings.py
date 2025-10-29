@@ -1,6 +1,10 @@
-"""Format-agnostic conversion utilities for protein data."""
+"""Utilities for mapping between different protein sequence and atom representations.
+
+prxteinmpnn.io.parsing.mappings
+"""
 
 import logging
+import pathlib
 from collections.abc import Mapping
 
 import numpy as np
@@ -39,43 +43,30 @@ def mpnn_to_af(sequence: np.ndarray) -> np.ndarray:
   return _MPNN_TO_AF_PERM[sequence]
 
 
-def extend_coordinate(
-  atom_a: np.ndarray,
-  atom_b: np.ndarray,
-  atom_c: np.ndarray,
-  bond_length: float,
-  bond_angle: float,
-  dihedral_angle: float,
-) -> np.ndarray:
-  """Compute fourth atom (D) position given three atoms (A, B, C) and internal coordinates."""
-  logger.debug("Computing extended coordinate (D) from A, B, C.")
+def _check_if_file_empty(file_path: str) -> bool:
+  """Check if the file is empty."""
+  logger.debug("Checking if file path %s is empty.", file_path)
+  path = pathlib.Path(file_path)
+  suffix = path.suffix.lower()
+  try:
+    with path.open() as f:
+      if suffix in {".h5", ".hdf5"}:
+        is_empty = not f.readable()
+        if is_empty:
+          logger.warning("HDF5 file path %s is not readable.", file_path)
+        return is_empty
 
-  def normalize(vec: np.ndarray) -> np.ndarray:
-    return vec / np.linalg.norm(vec)
-
-  bc = normalize(atom_b - atom_c)
-  normal = normalize(np.cross(atom_b - atom_a, bc))
-  term1 = bond_length * np.cos(bond_angle) * bc
-  term2 = bond_length * np.sin(bond_angle) * np.cos(dihedral_angle) * np.cross(normal, bc)
-  term3 = bond_length * np.sin(bond_angle) * np.sin(dihedral_angle) * -normal
-  return atom_c + term1 + term2 + term3
-
-
-def compute_cb_precise(
-  n_coord: np.ndarray,
-  ca_coord: np.ndarray,
-  c_coord: np.ndarray,
-) -> np.ndarray:
-  """Compute the C-beta atom position from backbone N, CA, and C coordinates."""
-  logger.debug("Computing C-beta coordinate from N, CA, C backbone atoms.")
-  return extend_coordinate(
-    c_coord,
-    n_coord,
-    ca_coord,
-    bond_length=1.522,
-    bond_angle=1.927,
-    dihedral_angle=-2.143,
-  )
+      # For text files
+      is_empty = f.readable() and f.read().strip() == ""
+      if is_empty:
+        logger.warning("Text file path %s is readable but content is empty.", file_path)
+      return is_empty
+  except FileNotFoundError:
+    logger.warning("File not found: %s", file_path)
+    return True
+  except Exception as e:
+    logger.exception("Error checking if file %s is empty.", file_path, exc_info=e)
+    return True
 
 
 def string_key_to_index(

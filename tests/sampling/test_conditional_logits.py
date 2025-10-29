@@ -1,11 +1,13 @@
-# type: ignore[call-arg]
 """Integration tests for the conditional logits functionality."""
 
 import chex
 import jax
 import jax.numpy as jnp
 import pytest
-from prxteinmpnn.sampling.conditional_logits import make_conditional_logits_fn
+from prxteinmpnn.sampling.conditional_logits import (
+    make_conditional_logits_fn,
+    make_encoding_conditional_logits_split_fn,
+)
 
 
 @pytest.fixture
@@ -273,3 +275,75 @@ def test_conditional_logits_deterministic(mock_model_parameters):
 
   # Check that outputs are identical
   chex.assert_trees_all_close(logits1, logits2, rtol=1e-10)
+
+
+def test_make_encoding_conditional_logits_split_fn(mock_model_parameters):
+  """Test the split encoding and conditional logits functions.
+
+  Args:
+    mock_model_parameters: Mock model parameters fixture.
+
+  Raises:
+    AssertionError: If the output does not match expected shapes or properties.
+
+  Example:
+    >>> test_make_encoding_conditional_logits_split_fn(mock_model_parameters)
+  """
+  L, K = 10, 4
+  key = jax.random.PRNGKey(42)
+
+  decoding_order_fn = lambda k, l: (jax.lax.iota(jnp.int32, l), jax.random.split(k)[1])
+
+  encode_fn, condition_logits_fn = make_encoding_conditional_logits_split_fn(
+    model_parameters=mock_model_parameters,
+    decoding_order_fn=decoding_order_fn,
+    num_encoder_layers=3,
+    num_decoder_layers=3,
+  )
+
+  # Prepare inputs
+  coords = jax.random.normal(key, (L, 4, 3))
+  mask = jnp.ones((L,))
+  residue_indices = jnp.arange(L)
+  chain_indices = jnp.zeros((L,))
+  key, sequence_key = jax.random.split(key)
+  sequence = jax.random.randint(sequence_key, (L,), 0, 21, dtype=jnp.int32)
+  key, encode_key = jax.random.split(key)
+
+  # Run encode function
+  (
+    node_features,
+    edge_features,
+    neighbor_indices,
+    mask_out,
+    autoregressive_mask,
+  ) = encode_fn(
+    prng_key=encode_key,
+    structure_coordinates=coords,
+    mask=mask,
+    residue_index=residue_indices,
+    chain_index=chain_indices,
+    k_neighbors=K,
+  )
+
+  # Check encode outputs
+  chex.assert_shape(node_features, (L, 128))
+  chex.assert_shape(edge_features, (L, K, 128))
+  chex.assert_shape(neighbor_indices, (L, K))
+  chex.assert_shape(mask_out, (L,))
+  chex.assert_shape(autoregressive_mask, (L, L))
+
+  # Run condition_logits function
+  logits, decoded_node_features, _ = condition_logits_fn(
+    node_features=node_features,
+    edge_features=edge_features,
+    neighbor_indices=neighbor_indices,
+    mask=mask_out,
+    autoregressive_mask=autoregressive_mask,
+    sequence=sequence,
+  )
+
+  # Check condition_logits outputs
+  chex.assert_shape(logits, (L, 21))
+  chex.assert_shape(decoded_node_features, (L, 128))
+  assert jnp.all(jnp.isfinite(logits)), "Logits contain non-finite values"

@@ -346,9 +346,9 @@ def _sample_streaming_averaged(
         avg_node_features = jnp.mean(all_encodings["node_features"], axis=0)
         avg_edge_features = jnp.mean(all_encodings["edge_features"], axis=0)
 
-        # Use first noise level's neighbor_indices and mask (most robust)
-        neighbor_indices = all_encodings["neighbor_indices"][0]
-        mask = all_encodings["mask"][0]
+        # use struct_idx to get neighbor_indices and mask since these are strict
+        neighbor_indices = all_encodings["neighbor_indices"][struct_idx]
+        mask = all_encodings["mask"][struct_idx]
 
         avg_encodings = {
           "node_features": avg_node_features,

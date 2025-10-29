@@ -3,6 +3,7 @@
 import logging
 import pathlib
 import re
+import time
 import warnings
 from collections.abc import Generator, Iterator, Sequence
 from io import StringIO
@@ -27,19 +28,101 @@ _PDB_PATTERN = re.compile(r"^[a-zA-Z0-9]{4}$")
 _MD_CATH_PATTERN = re.compile(r"[a-zA-Z0-9]{5}[0-9]{2}")
 
 
+def _fetch_with_retry(
+  url: str,
+  max_retries: int = 3,
+  initial_delay: float = 1.0,
+  backoff_factor: float = 2.0,
+  timeout: int = 60,
+) -> requests.Response:
+  """Fetch content from a URL with exponential backoff retry logic.
+
+  Args:
+    url: The URL to fetch.
+    max_retries: Maximum number of retry attempts (default: 3).
+    initial_delay: Initial delay in seconds before first retry (default: 1.0).
+    backoff_factor: Multiplier for delay between retries (default: 2.0).
+    timeout: Request timeout in seconds (default: 60).
+
+  Returns:
+    The response object if successful.
+
+  Raises:
+    requests.RequestException: If all retry attempts fail.
+
+  Example:
+    >>> response = _fetch_with_retry("https://example.com/data.pdb")
+    >>> content = response.text
+
+  """
+  delay = initial_delay
+  last_exception = None
+
+  for attempt in range(max_retries):
+    try:
+      response = requests.get(url, timeout=timeout)
+      response.raise_for_status()
+    except requests.RequestException as e:
+      last_exception = e
+      if attempt < max_retries - 1:
+        logger.warning(
+          "Attempt %d/%d failed for URL %s: %s. Retrying in %.1f seconds...",
+          attempt + 1,
+          max_retries,
+          url,
+          e,
+          delay,
+        )
+        time.sleep(delay)
+        delay *= backoff_factor
+      else:
+        logger.exception("All %d attempts failed for URL %s", max_retries, url)
+    else:
+      return response
+
+  msg = f"Failed to fetch {url} after {max_retries} attempts"
+  raise requests.RequestException(msg) from last_exception
+
+
 def _fetch_pdb(pdb_id: str) -> str:
-  """Fetch PDB content from the RCSB data bank."""
+  """Fetch PDB content from the RCSB data bank with retry logic.
+
+  Args:
+    pdb_id: The PDB identifier (e.g., "1abc").
+
+  Returns:
+    The PDB file content as a string.
+
+  Raises:
+    requests.RequestException: If fetching fails after all retry attempts.
+
+  Example:
+    >>> pdb_content = _fetch_pdb("1abc")
+
+  """
   url = f"https://files.rcsb.org/download/{pdb_id}.pdb"
-  response = requests.get(url, timeout=60)
-  response.raise_for_status()
+  response = _fetch_with_retry(url)
   return response.text
 
 
 def _fetch_md_cath(md_cath_id: str) -> pathlib.Path:
-  """Fetch h5 content from the MD-CATH data bank and save to disk."""
+  """Fetch h5 content from the MD-CATH data bank and save to disk with retry logic.
+
+  Args:
+    md_cath_id: The MD-CATH identifier (e.g., "1a2b00").
+
+  Returns:
+    Path to the downloaded HDF5 file.
+
+  Raises:
+    requests.RequestException: If fetching fails after all retry attempts.
+
+  Example:
+    >>> path = _fetch_md_cath("1a2b00")
+
+  """
   url = f"https://huggingface.co/datasets/compsciencelab/mdCATH/resolve/main/data/mdcath_dataset_{md_cath_id}.h5"
-  response = requests.get(url, timeout=60)
-  response.raise_for_status()
+  response = _fetch_with_retry(url)
   data_dir = pathlib.Path("mdcath_data")
   data_dir.mkdir(exist_ok=True)
   md_cath_file = data_dir / f"mdcath_dataset_{md_cath_id}.h5"

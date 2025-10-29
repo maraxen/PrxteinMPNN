@@ -22,6 +22,7 @@ from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,
+  BackboneDihedrals,
   BackboneNoise,
   ChainIndex,
   DecodingOrder,
@@ -116,6 +117,7 @@ def make_sample_sequences(
     mask: AlphaCarbonMask,
     residue_index: ResidueIndex,
     chain_index: ChainIndex,
+    dihedrals: BackboneDihedrals | None = None,
     k_neighbors: int = 48,
     bias: InputBias | None = None,
     fixed_positions: Int | None = None,
@@ -149,6 +151,7 @@ def make_sample_sequences(
       mask,
       residue_index,
       chain_index,
+      dihedrals,
       None,
       k_neighbors,
       backbone_noise,
@@ -256,6 +259,7 @@ def make_encoding_sampling_split_fn(
     mask: AlphaCarbonMask,
     residue_index: ResidueIndex,
     chain_index: ChainIndex,
+    dihedrals: BackboneDihedrals | None = None,
     k_neighbors: int = 48,
     backbone_noise: BackboneNoise | None = None,
   ) -> tuple[ModelParameters, DecodingOrder]:
@@ -283,6 +287,7 @@ def make_encoding_sampling_split_fn(
       mask,
       residue_index,
       chain_index,
+      dihedrals,
       None,
       k_neighbors,
       backbone_noise,

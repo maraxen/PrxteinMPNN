@@ -20,6 +20,7 @@ from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_or
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,
   AutoRegressiveMask,
+  BackboneDihedrals,
   BackboneNoise,
   ChainIndex,
   DecodingOrder,
@@ -81,6 +82,7 @@ def make_score_sequence(
     mask: AlphaCarbonMask,
     residue_index: ResidueIndex,
     chain_index: ChainIndex,
+    dihedrals: BackboneDihedrals | None = None,
     k_neighbors: int = 48,
     backbone_noise: BackboneNoise | None = None,
     ar_mask: AutoRegressiveMask | None = None,
@@ -92,13 +94,14 @@ def make_score_sequence(
     if sequence.ndim == 1:
       sequence = jax.nn.one_hot(sequence, num_classes=21)
 
-    edge_features, neighbor_indices, prng_key = extract_features(
+    edge_features, neighbor_indices, prng_key, dihedral_features = extract_features(
       prng_key,
       model_parameters,
       structure_coordinates,
       mask,
       residue_index,
       chain_index,
+      dihedrals=dihedrals,
       k_neighbors=k_neighbors,
       backbone_noise=backbone_noise,
     )
@@ -118,6 +121,7 @@ def make_score_sequence(
       neighbor_indices,
       mask,
       attention_mask,
+      dihedral_features,
     )
 
     node_features = decoder(

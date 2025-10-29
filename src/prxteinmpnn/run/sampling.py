@@ -26,6 +26,7 @@ if TYPE_CHECKING:
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
     BackboneCoordinates,
+  BackboneDihedrals,
     BackboneNoise,
     ChainIndex,
     DecodingOrder,
@@ -93,7 +94,7 @@ def sample(
 
     vmap_samples = jax.vmap(
       sampler_fn,
-      in_axes=(0, None, None, None, None, None, None, None, None, None, None, None),
+      in_axes=(0, None, None, None, None, None, None, None, None, None, None, None, None),
       out_axes=0,
     )
     vmap_noises = jax.vmap(
@@ -109,6 +110,7 @@ def sample(
         0,  # residue_mask
         0,  # residue_index
         0,  # chain_index
+        0,  # dihedrals
         None,  # k_neighbors
         None,  # bias
         None,  # fixed_positions
@@ -125,6 +127,7 @@ def sample(
       batched_ensemble.mask,
       batched_ensemble.residue_index,
       batched_ensemble.chain_index,
+      batched_ensemble.dihedrals,
       48,
       jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
       jnp.asarray(spec.fixed_positions, dtype=jnp.int32)
@@ -189,6 +192,7 @@ def _sample_streaming(
         mask: AlphaCarbonMask,
         residue_ix: ResidueIndex,
         chain_ix: ChainIndex,
+        dihedrals: BackboneDihedrals,
         noise: BackboneNoise,
       ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
         """Sample one sequence for one structure at one noise level."""
@@ -198,6 +202,7 @@ def _sample_streaming(
           mask,
           residue_ix,
           chain_ix,
+          dihedrals,
           48,
           jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
           jnp.asarray(spec.fixed_positions, dtype=jnp.int32)
@@ -215,6 +220,7 @@ def _sample_streaming(
         mask: AlphaCarbonMask,
         residue_ix: ResidueIndex,
         chain_ix: ChainIndex,
+        dihedrals: BackboneDihedrals,
         noise_array: BackboneNoise = noise_array,
       ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
         """Compute samples across all noise levels for a single structure/sample."""
@@ -226,6 +232,7 @@ def _sample_streaming(
             mask,
             residue_ix,
             chain_ix,
+            dihedrals,
           ),
           noise_array,
           batch_size=spec.noise_batch_size,
@@ -236,6 +243,7 @@ def _sample_streaming(
         mask: AlphaCarbonMask,
         residue_ix: ResidueIndex,
         chain_ix: ChainIndex,
+        dihedrals: BackboneDihedrals,
         keys: PRNGKeyArray = keys,
       ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
         """Sample mapping over keys and noise."""
@@ -245,6 +253,7 @@ def _sample_streaming(
           mask=mask,
           residue_ix=residue_ix,
           chain_ix=chain_ix,
+          dihedrals=dihedrals,
         )
 
         return jax.lax.map(
@@ -260,6 +269,7 @@ def _sample_streaming(
         batched_ensemble.mask,
         batched_ensemble.residue_index,
         batched_ensemble.chain_index,
+        batched_ensemble.dihedrals,
       )
 
       # Store each structure in its own group to handle variable lengths
@@ -316,6 +326,7 @@ def _sample_streaming_averaged(
         mask = batched_ensemble.mask[struct_idx]
         residue_ix = batched_ensemble.residue_index[struct_idx]
         chain_ix = batched_ensemble.chain_index[struct_idx]
+        dihedrals = batched_ensemble.dihedrals[struct_idx]
 
         # Encode across all noise levels
         encode_single_noise = partial(
@@ -325,6 +336,7 @@ def _sample_streaming_averaged(
           mask,
           residue_ix,
           chain_ix,
+          dihedrals,
           48,
         )
 

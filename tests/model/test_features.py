@@ -181,7 +181,7 @@ def test_extract_features_shapes(mock_model_parameters):
   prng_key = jax.random.PRNGKey(0)
   params = mock_model_parameters
 
-  edge_features, neighbor_indices, key_out = extract_features(
+  edge_features, neighbor_indices, key_out, dihedral_features = extract_features(
     prng_key,
     params,
     structure_coordinates,
@@ -196,6 +196,7 @@ def test_extract_features_shapes(mock_model_parameters):
   assert neighbor_indices.shape == (num_residues, 2)
   assert key_out is not None, "Key output should not be None"
   assert jnp.all(jnp.isfinite(edge_features)), "Edge features contain non-finite values."
+  assert dihedral_features.shape == (num_residues, 4)
 
 
 def test_extract_features_with_noise(mock_model_parameters):
@@ -221,7 +222,7 @@ def test_extract_features_with_noise(mock_model_parameters):
   prng_key = jax.random.PRNGKey(42)
   params = mock_model_parameters
 
-  edge_features, neighbor_indices, key_out = extract_features(
+  edge_features, neighbor_indices, key_out, dihedral_features = extract_features(
     prng_key,
     params,
     structure_coordinates,
@@ -235,3 +236,4 @@ def test_extract_features_with_noise(mock_model_parameters):
   assert neighbor_indices.shape == (num_residues, 2)
   assert key_out is not None, "Key output should not be None"
   assert jnp.all(jnp.isfinite(edge_features)), "Edge features contain non-finite values."
+  assert dihedral_features.shape == (num_residues, 4)

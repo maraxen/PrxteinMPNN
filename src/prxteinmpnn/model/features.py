@@ -16,11 +16,13 @@ from prxteinmpnn.utils.normalize import layer_normalization
 from prxteinmpnn.utils.radial_basis import compute_radial_basis
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,
+  BackboneDihedrals,
   BackboneNoise,
   ChainIndex,
   EdgeFeatures,
   ModelParameters,
   NeighborIndices,
+  NodeFeatures,
   ResidueIndex,
   StructureAtomicCoordinates,
 )
@@ -74,6 +76,18 @@ def embed_edges(
   return jnp.dot(edge_features, edge_emb_params["w"])
 
 
+@jax.jit
+def encode_dihedrals(dihedrals: BackboneDihedrals) -> NodeFeatures:
+    """Encode dihedral angles into a feature vector."""
+    return jnp.concatenate(
+        [
+            jnp.sin(dihedrals),
+            jnp.cos(dihedrals)
+        ],
+        axis=-1,
+    )
+
+
 @partial(jax.jit, static_argnames=("k_neighbors",))
 def extract_features(
   prng_key: PRNGKeyArray,
@@ -82,9 +96,10 @@ def extract_features(
   mask: AlphaCarbonMask,
   residue_index: ResidueIndex,
   chain_index: ChainIndex,
+  dihedrals: BackboneDihedrals | None = None,
   k_neighbors: int = 48,
   backbone_noise: BackboneNoise | None = None,
-) -> tuple[EdgeFeatures, NeighborIndices, PRNGKeyArray]:
+) -> tuple[EdgeFeatures, NeighborIndices, PRNGKeyArray, NodeFeatures]:
   """Extract features from protein structure coordinates.
 
   Args:
@@ -92,6 +107,7 @@ def extract_features(
     mask: Mask indicating valid atoms in the structure.
     residue_index: Residue indices for each atom.
     chain_index: Chain indices for each atom.
+    dihedrals: Dihedral angles for each residue.
     model_parameters: Model parameters for the feature extraction.
     prng_key: JAX random key for stochastic operations.
     k_neighbors: Maximum number of neighbors to consider for each atom.
@@ -104,6 +120,11 @@ def extract_features(
   """
   if backbone_noise is None:
     backbone_noise = jnp.array(0.0, dtype=jnp.float32)
+
+  if dihedrals is not None:
+    dihedral_features = encode_dihedrals(dihedrals)
+  else:
+    dihedral_features = jnp.zeros((structure_coordinates.shape[0], 4))
 
   noised_coordinates, prng_key = apply_noise_to_coordinates(
     prng_key,
@@ -138,7 +159,7 @@ def extract_features(
   edge_features = embed_edges(edges, model_parameters)
   norm_edge_params = model_parameters["protein_mpnn/~/protein_features/~/norm_edges"]
   edge_features = layer_normalization(edge_features, norm_edge_params)
-  return edge_features, neighbor_indices, prng_key
+  return edge_features, neighbor_indices, prng_key, dihedral_features
 
 
 @jax.jit

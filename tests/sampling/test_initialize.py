@@ -96,35 +96,32 @@ def mock_model_parameters():
 
 def test_sampling_encode(mock_model_parameters):
   """Test the sampling encoder pass.
-
   Raises:
       AssertionError: If output shapes or types are incorrect.
   """
   L, K = 10, 8
   C_V, C_E = 128, 128
   key = jax.random.PRNGKey(0)
-  mock_encoder = lambda edge_features, neighbor_indices, mask, attention_mask: (
-    jnp.ones((L, C_V)),
-    jnp.ones((L, K, C_E)),
-  ) 
+  def mock_encoder(edge_features, neighbor_indices, mask, attention_mask, dihedral_features):
+    return (
+        jnp.ones((L, C_V)),
+        jnp.ones((L, K, C_E)),
+  )
   mock_decoding_order_fn = lambda k, l: (jax.lax.iota(jnp.int32, l), jax.random.split(k)[1])
-
   sample_model_pass = sampling_encode(mock_encoder, mock_decoding_order_fn)
-
   coords = jnp.zeros((L, 4, 3))
   mask = jnp.ones((L,))
   res_indices = jnp.arange(L)
   chain_indices = jnp.zeros((L,))
-
   (
-    node_features,
-    edge_features,
-    neighbor_indices,
-    decoding_order,
-    ar_mask,
-    next_key,
+      node_features,
+      edge_features,
+      neighbor_indices,
+      decoding_order,
+      ar_mask,
+      next_key,
   ) = sample_model_pass(
-    key, mock_model_parameters, coords, mask, res_indices, chain_indices, k_neighbors=K # type: ignore[call-arg]
+      key, mock_model_parameters, coords, mask, res_indices, chain_indices, k_neighbors=K # type: ignore[call-arg]
   )
 
   # Assert output shapes

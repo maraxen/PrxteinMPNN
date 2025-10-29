@@ -57,6 +57,7 @@ def test_make_score_sequence_without_model_inputs(
         jnp.ones((seq_len, 10)),  # edge_features
         jnp.ones((seq_len, 48), dtype=jnp.int32),  # neighbor_indices
         rng_key,  # prng_key
+        jnp.ones((seq_len, 4)), # dihedral_features
     )
     mock_project_features.return_value = jnp.ones((seq_len, 10))
     mock_encoder.return_value = (jnp.ones((seq_len, 128)), jnp.ones((seq_len, 10)))
@@ -160,6 +161,7 @@ def test_jit_compilation(
         jnp.ones((seq_len, 10)),
         jnp.ones((seq_len, 48), dtype=jnp.int32),
         rng_key,
+        jnp.ones((seq_len, 4)),
     )
     mock_project_features.return_value = jnp.ones((seq_len, 10))
     mock_encoder.return_value = (jnp.ones((seq_len, 128)), jnp.ones((seq_len, 10)))
@@ -232,6 +234,7 @@ def test_different_sequence_lengths(
             jnp.ones((seq_len, 10)),  # edge_features
             jnp.ones((seq_len, 48), dtype=jnp.int32),  # neighbor_indices
             rng_key,  # prng_key
+            jnp.ones((seq_len, 4)),
         )
         mock_project_features.return_value = jnp.ones((seq_len, 10))
         mock_encoder.return_value = (
@@ -252,15 +255,15 @@ def test_different_sequence_lengths(
         ar_mask = None
 
         score, logits, decoding_order = scoring_fn(
-            rng_key,
-            sequence,
-            structure_coordinates,
-            mask,
-            residue_index,
-            chain_index,
-            k_neighbors,
-            backbone_noise,
-            ar_mask,
+            prng_key=rng_key,
+            sequence=sequence,
+            structure_coordinates=structure_coordinates,
+            mask=mask,
+            residue_index=residue_index,
+            chain_index=chain_index,
+            k_neighbors=k_neighbors,
+            backbone_noise=backbone_noise,
+            ar_mask=ar_mask,
         )
         chex.assert_shape(score, ())
         chex.assert_type(score, jnp.floating)
@@ -321,6 +324,7 @@ def test_scoring_output_calculation(
         jnp.ones((seq_len, 10)),
         jnp.ones((seq_len, 48), dtype=jnp.int32),
         rng_key,
+        jnp.ones((seq_len, 4)),
     )
     mock_project_features.return_value = jnp.ones((seq_len, 10))
     mock_encoder.return_value = (jnp.ones((seq_len, 128)), jnp.ones((seq_len, 10)))

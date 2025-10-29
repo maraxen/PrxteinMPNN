@@ -16,6 +16,7 @@ from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,
   AutoRegressiveMask,
+  BackboneDihedrals,
   BackboneNoise,
   ChainIndex,
   EdgeFeatures,
@@ -98,6 +99,7 @@ def make_conditional_logits_fn(
     mask: AlphaCarbonMask,
     residue_index: ResidueIndex,
     chain_index: ChainIndex,
+    dihedrals: BackboneDihedrals | None = None,
     bias: InputBias | None = None,
     k_neighbors: int = 48,
     backbone_noise: BackboneNoise | None = None,
@@ -126,9 +128,10 @@ def make_conditional_logits_fn(
       mask,
       residue_index,
       chain_index,
-      autoregressive_mask,
-      k_neighbors,
-      backbone_noise,
+      dihedrals=dihedrals,
+      autoregressive_mask=autoregressive_mask,
+      k_neighbors=k_neighbors,
+      backbone_noise=backbone_noise,
     )
     if sequence.ndim == 1:
       sequence = jax.nn.one_hot(sequence, 21, dtype=jnp.float32)
@@ -199,6 +202,7 @@ def make_encoding_conditional_logits_split_fn(
     mask: AlphaCarbonMask,
     residue_index: ResidueIndex,
     chain_index: ChainIndex,
+    dihedrals: BackboneDihedrals | None = None,
     k_neighbors: int = 48,
     backbone_noise: BackboneNoise | None = None,
   ) -> tuple[
@@ -230,9 +234,10 @@ def make_encoding_conditional_logits_split_fn(
       mask,
       residue_index,
       chain_index,
-      autoregressive_mask,
-      k_neighbors,
-      backbone_noise,
+      dihedrals=dihedrals,
+      autoregressive_mask=autoregressive_mask,
+      k_neighbors=k_neighbors,
+      backbone_noise=backbone_noise,
     )
 
     return node_features, edge_features, neighbor_indices, mask, autoregressive_mask

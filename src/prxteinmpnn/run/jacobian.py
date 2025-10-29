@@ -22,6 +22,7 @@ if TYPE_CHECKING:
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
     AutoRegressiveMask,
+  BackboneDihedrals,
     ChainIndex,
     EdgeFeatures,
     Logits,
@@ -137,6 +138,7 @@ def _compute_batch_outputs(
         mask: AlphaCarbonMask,
         residue_ix: ResidueIndex,
         chain_ix: ChainIndex,
+        dihedrals: BackboneDihedrals,
         one_hot_sequence: OneHotProteinSequence,
         noise: Float,
       ) -> Logits:
@@ -149,6 +151,7 @@ def _compute_batch_outputs(
             mask,
             residue_ix,
             chain_ix,
+            dihedrals,
             None,
             48,
             noise,
@@ -166,6 +169,7 @@ def _compute_batch_outputs(
         mask: AlphaCarbonMask,
         residue_ix: ResidueIndex,
         chain_ix: ChainIndex,
+        dihedrals: BackboneDihedrals,
         one_hot_sequence: OneHotProteinSequence,
       ) -> jax.Array:
         """Compute Jacobians for a single structure across multiple noise levels."""
@@ -176,6 +180,7 @@ def _compute_batch_outputs(
             mask,
             residue_ix,
             chain_ix,
+            dihedrals,
             one_hot_sequence,
           ),
           jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
@@ -187,6 +192,7 @@ def _compute_batch_outputs(
         batched_ensemble.mask,
         batched_ensemble.residue_index,
         batched_ensemble.chain_index,
+        batched_ensemble.dihedrals,
         batched_ensemble.one_hot_sequence,
       )
       yield jacobians_batch, batched_ensemble.one_hot_sequence
@@ -197,6 +203,7 @@ def _compute_batch_outputs(
         mask: AlphaCarbonMask,
         residue_ix: ResidueIndex,
         chain_ix: ChainIndex,
+        dihedrals: BackboneDihedrals,
         noise: Float,
       ) -> tuple[NodeFeatures, EdgeFeatures, NeighborIndices, AlphaCarbonMask, AutoRegressiveMask]:
         return encode_fn(
@@ -205,6 +212,7 @@ def _compute_batch_outputs(
           mask,
           residue_ix,
           chain_ix,
+          dihedrals,
           48,
           noise,
         )
@@ -214,10 +222,11 @@ def _compute_batch_outputs(
         mask: AlphaCarbonMask,
         residue_ix: ResidueIndex,
         chain_ix: ChainIndex,
+        dihedrals: BackboneDihedrals,
       ) -> jax.Array:
         """Compute encodings for a single structure across multiple noise levels."""
         return jax.lax.map(
-          partial(compute_encodings_for_structure, coords, mask, residue_ix, chain_ix),
+          partial(compute_encodings_for_structure, coords, mask, residue_ix, chain_ix, dihedrals),
           jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
           batch_size=spec.noise_batch_size,
         )
@@ -227,6 +236,7 @@ def _compute_batch_outputs(
         batched_ensemble.mask,
         batched_ensemble.residue_index,
         batched_ensemble.chain_index,
+        batched_ensemble.dihedrals,
       )
       yield encodings_batch, batched_ensemble.one_hot_sequence
 
@@ -278,7 +288,7 @@ def _categorical_jacobian_in_memory(
     except StopIteration:
       return {"categorical_jacobians": None, "metadata": None}
 
-    avg_encodings, count = _get_initial_rolling_average_state(first_batch)
+    _, count = _get_initial_rolling_average_state(first_batch)
     one_hot_sequence = first_sequence_batch[0]
     # Separate the encodings that will be averaged from those that will be fixed
     (

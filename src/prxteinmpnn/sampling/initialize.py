@@ -16,6 +16,7 @@ from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,
   AutoRegressiveMask,
+  BackboneDihedrals,
   BackboneNoise,
   ChainIndex,
   EdgeFeatures,
@@ -33,6 +34,7 @@ SamplingModelPassInput = tuple[
   AlphaCarbonMask,
   ResidueIndex,
   ChainIndex,
+  BackboneDihedrals | None,
   AutoRegressiveMask | None,
   int,  # k_neighbors
   BackboneNoise | None,
@@ -67,6 +69,7 @@ def sampling_encode(
     mask: AlphaCarbonMask,
     residue_index: ResidueIndex,
     chain_index: ChainIndex,
+    dihedrals: BackboneDihedrals | None = None,
     autoregressive_mask: AutoRegressiveMask | None = None,
     k_neighbors: int = 48,
     backbone_noise: BackboneNoise | None = None,
@@ -81,13 +84,14 @@ def sampling_encode(
       generate_ar_mask(decoding_order) if autoregressive_mask is None else autoregressive_mask
     )
 
-    edge_features, neighbor_indices, next_rng_key = extract_features(
+    edge_features, neighbor_indices, next_rng_key, dihedral_features = extract_features(
       next_rng_key,
       model_parameters,
       structure_coordinates,
       mask,
       residue_index,
       chain_index,
+      dihedrals=dihedrals,
       k_neighbors=k_neighbors,
       backbone_noise=backbone_noise,
     )
@@ -105,6 +109,7 @@ def sampling_encode(
       neighbor_indices,
       mask,
       attention_mask,
+      dihedral_features,
     )
     return (
       node_features,

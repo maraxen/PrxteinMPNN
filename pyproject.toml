@@ -71,9 +71,7 @@ dev = [
   "trio",
   "chex",
   "anyio",
-]
-foldcomp = [
-    "foldcomp",
+  "foldcomp",
 ]
 
 [tool.setuptools]

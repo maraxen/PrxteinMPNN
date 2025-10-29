@@ -41,7 +41,7 @@ class TestPadAndCollate:
         assert isinstance(batch, Protein)
         assert batch.coordinates.shape == (2, 15, 37, 3)
         assert batch.aatype.shape == (2, 15)
-        assert batch.atom_mask.shape == (2, 15, 37)
+        assert batch.mask.shape == (2, 15)
         assert batch.residue_index.shape == (2, 15)
         assert batch.chain_index.shape == (2, 15)
 

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import Any
+from functools import partial
+from typing import TYPE_CHECKING, Any
 
 import h5py
 import jax
@@ -12,10 +13,23 @@ import jax.numpy as jnp
 
 from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.utils.decoding_order import random_decoding_order
-from prxteinmpnn.utils.residue_constants import atom_order
 
 from .prep import prep_protein_stream_and_model
 from .specs import SamplingSpecification
+
+if TYPE_CHECKING:
+  from jaxtyping import PRNGKeyArray
+
+  from prxteinmpnn.utils.types import (
+    AlphaCarbonMask,
+    BackboneCoordinates,
+    BackboneNoise,
+    ChainIndex,
+    DecodingOrder,
+    Logits,
+    ProteinSequence,
+    ResidueIndex,
+  )
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
@@ -50,7 +64,6 @@ def sample(
         iterations: Number of optimization iterations for "straight_through" sampling.
         learning_rate: Learning rate for "straight_through" sampling.
         batch_size: The number of structures to process in a single batch.
-        num_workers: Number of parallel workers for data loading.
       **kwargs: Additional keyword arguments for structure loading.
 
   Returns:
@@ -73,7 +86,6 @@ def sample(
   all_sequences, all_logits = [], []
 
   for batched_ensemble in protein_iterator:
-    residue_mask = batched_ensemble.atom_mask[:, :, atom_order["CA"]]
     keys = jax.random.split(jax.random.key(spec.random_seed), spec.num_samples)
 
     vmap_samples = jax.vmap(
@@ -107,7 +119,7 @@ def sample(
     sampled_sequences, logits, _ = vmap_structures(
       keys,
       batched_ensemble.coordinates,
-      residue_mask,
+      batched_ensemble.mask,
       batched_ensemble.residue_index,
       batched_ensemble.chain_index,
       48,
@@ -169,61 +181,98 @@ def _sample_streaming(
     )
 
     for batched_ensemble in protein_iterator:
-      residue_mask = batched_ensemble.atom_mask[:, :, atom_order["CA"]]
       keys = jax.random.split(jax.random.key(spec.random_seed), spec.num_samples)
 
-      vmap_samples = jax.vmap(
-        sampler_fn,
-        in_axes=(0, None, None, None, None, None, None, None, None, None, None, None),
-        out_axes=0,
-      )
-      vmap_noises = jax.vmap(
-        vmap_samples,
-        in_axes=(None, None, None, None, None, None, None, None, 0, None, None, None),
-        out_axes=0,
-      )
-      vmap_structures = jax.vmap(
-        vmap_noises,
-        in_axes=(
-          None,  # keys
-          0,  # coordinates
-          0,  # residue_mask
-          0,  # residue_index
-          0,  # chain_index
-          None,  # k_neighbors
-          None,  # bias
-          None,  # fixed_positions
-          None,  # backbone_noise
-          None,  # iterations
-          None,  # learning_rate
-          None,  # temperature
-        ),
-        out_axes=0,
-      )
-      sampled_sequences, logits, _ = vmap_structures(
-        keys,
-        batched_ensemble.coordinates,
-        residue_mask,
-        batched_ensemble.residue_index,
-        batched_ensemble.chain_index,
-        48,
-        jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
-        jnp.asarray(spec.fixed_positions, dtype=jnp.int32)
-        if spec.fixed_positions is not None
-        else None,
+      noise_array = (
         jnp.asarray(spec.backbone_noise, dtype=jnp.float32)
         if spec.backbone_noise is not None
-        else None,
-        spec.iterations,
-        spec.learning_rate,
-        spec.temperature,
+        else jnp.zeros(1)
+      )
+
+      def sample_single_noise(
+        key: PRNGKeyArray,
+        coords: BackboneCoordinates,
+        mask: AlphaCarbonMask,
+        residue_ix: ResidueIndex,
+        chain_ix: ChainIndex,
+        noise: BackboneNoise,
+      ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
+        """Sample one sequence for one structure at one noise level."""
+        return sampler_fn(
+          key,
+          coords,
+          mask,
+          residue_ix,
+          chain_ix,
+          48,
+          jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
+          jnp.asarray(spec.fixed_positions, dtype=jnp.int32)
+          if spec.fixed_positions is not None
+          else None,
+          noise,
+          spec.iterations,
+          spec.learning_rate,
+          spec.temperature,
+        )
+
+      def mapped_fn_noise(
+        key: PRNGKeyArray,
+        coords: BackboneCoordinates,
+        mask: AlphaCarbonMask,
+        residue_ix: ResidueIndex,
+        chain_ix: ChainIndex,
+        noise_array: BackboneNoise = noise_array,
+      ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
+        """Compute samples across all noise levels for a single structure/sample."""
+        return jax.lax.map(
+          partial(
+            sample_single_noise,
+            key,  # Pass key as constant for the noise map
+            coords,
+            mask,
+            residue_ix,
+            chain_ix,
+          ),
+          noise_array,
+          batch_size=spec.noise_batch_size,
+        )
+
+      def internal_sample(
+        coords: BackboneCoordinates,
+        mask: AlphaCarbonMask,
+        residue_ix: ResidueIndex,
+        chain_ix: ChainIndex,
+        keys: PRNGKeyArray = keys,
+      ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
+        """Sample mapping over keys and noise."""
+        noise_map_fn = partial(
+          mapped_fn_noise,
+          coords=coords,
+          mask=mask,
+          residue_ix=residue_ix,
+          chain_ix=chain_ix,
+        )
+
+        return jax.lax.map(
+          noise_map_fn,
+          keys,
+          batch_size=spec.samples_batch_size,
+        )
+
+      vmap_structures = jax.vmap(internal_sample)
+
+      sampled_sequences, sampled_logits, _ = vmap_structures(
+        batched_ensemble.coordinates,
+        batched_ensemble.mask,
+        batched_ensemble.residue_index,
+        batched_ensemble.chain_index,
       )
 
       seq_ds.resize(seq_ds.shape[0] + sampled_sequences.shape[0], axis=0)
       seq_ds[-sampled_sequences.shape[0] :, :, :] = sampled_sequences
 
-      logits_ds.resize(logits_ds.shape[0] + logits.shape[0], axis=0)
-      logits_ds[-logits.shape[0] :, :, :, :] = logits
+      logits_ds.resize(logits_ds.shape[0] + sampled_logits.shape[0], axis=0)
+      logits_ds[-sampled_logits.shape[0] :, :, :, :] = sampled_logits
 
       f.flush()
 

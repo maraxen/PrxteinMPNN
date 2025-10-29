@@ -1,30 +1,35 @@
 """Implements sequence optimization by guiding a differentiable autoregressive decoder."""
 
-from collections.abc import Callable
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, cast
 
 import jax
 import jax.numpy as jnp
 import optax
-from jaxtyping import Float, Int, PRNGKeyArray
-from optax import Params
 
-from prxteinmpnn.model.decoding_signatures import (
-  RunConditionalDecoderFn,
-)
+if TYPE_CHECKING:
+  from collections.abc import Callable
+
+  from jaxtyping import Float, Int, PRNGKeyArray
+
+  from prxteinmpnn.model.decoding_signatures import (
+    RunConditionalDecoderFn,
+  )
+  from prxteinmpnn.utils.decoding_order import DecodingOrderFn
+  from prxteinmpnn.utils.types import (
+    AlphaCarbonMask,
+    EdgeFeatures,
+    Logits,
+    ModelParameters,
+    NeighborIndices,
+    NodeFeatures,
+    OneHotProteinSequence,
+  )
+
 from prxteinmpnn.model.projection import final_projection
 from prxteinmpnn.model.ste import straight_through_estimator
 from prxteinmpnn.utils.autoregression import generate_ar_mask
-from prxteinmpnn.utils.decoding_order import DecodingOrderFn
-from prxteinmpnn.utils.types import (
-  AlphaCarbonMask,
-  AtomMask,
-  EdgeFeatures,
-  Logits,
-  ModelParameters,
-  NeighborIndices,
-  NodeFeatures,
-  OneHotProteinSequence,
-)
 
 
 def make_optimize_sequence_fn(
@@ -37,7 +42,7 @@ def make_optimize_sequence_fn(
     NodeFeatures,
     EdgeFeatures,
     NeighborIndices,
-    AtomMask,
+    AlphaCarbonMask,
     Int,
     Float,
     Float,
@@ -96,10 +101,11 @@ def make_optimize_sequence_fn(
 
     @jax.jit
     def update_step(
-      carry: tuple[Logits, optax.OptState],
-      key: PRNGKeyArray,
-    ) -> tuple[tuple[Params, optax.OptState], jnp.ndarray]:
-      current_sequence_logits, current_opt_state = carry
+      _i: int,
+      carry: tuple[Logits, optax.OptState, PRNGKeyArray],
+    ) -> tuple[Logits, optax.OptState, PRNGKeyArray]:
+      current_sequence_logits, current_opt_state, current_key = carry
+      key, next_key = jax.random.split(current_key)
       keys_for_decoding = jax.random.split(key, batch_size)
 
       decoding_order, _ = jax.vmap(decoding_order_fn, in_axes=(0, None))(
@@ -126,16 +132,16 @@ def make_optimize_sequence_fn(
 
         return (loss * mask).sum() / (mask.sum() + 1e-8)
 
-      loss_value, grads = jax.value_and_grad(loss_fn)(current_sequence_logits)
+      _, grads = jax.value_and_grad(loss_fn)(current_sequence_logits)
       updates, next_opt_state = optimizer.update(grads, current_opt_state)
-      next_sequence_logits = optax.apply_updates(current_sequence_logits, updates)
-      return (next_sequence_logits, next_opt_state), loss_value
+      next_sequence_logits = cast("Logits", optax.apply_updates(current_sequence_logits, updates))
+      return next_sequence_logits, next_opt_state, next_key
 
-    keys = jax.random.split(prng_key, iterations)
-    (final_sequence_logits, _), _ = jax.lax.scan(
+    final_sequence_logits, _, final_key = jax.lax.fori_loop(
+      0,
+      iterations,
       update_step,
-      (sequence_logits, opt_state),
-      keys,
+      (sequence_logits, opt_state, prng_key),
     )
 
     final_one_hot = straight_through_estimator(final_sequence_logits)

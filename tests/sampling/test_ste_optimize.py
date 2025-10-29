@@ -8,7 +8,7 @@ from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.sampling.ste_optimize import make_optimize_sequence_fn
 from prxteinmpnn.utils.types import (
-  AtomMask,
+  AlphaCarbonMask,
   EdgeFeatures,
   ModelParameters,
   NeighborIndices,
@@ -42,7 +42,7 @@ def mock_conditional_decoder(
   node_features: NodeFeatures,
   edge_features: EdgeFeatures,
   neighbor_indices: NeighborIndices,
-  mask: AtomMask,
+  mask: AlphaCarbonMask,
   autoregressive_mask: jax.Array,
   sequence_one_hot: jax.Array,
 ) -> jax.Array:
@@ -115,3 +115,112 @@ def test_optimize_sequence_differentiable(mock_data):
         assert not jnp.all(jnp.isnan(param_value)), f"NaN gradients in {layer_name}/{param_name}"
   assert not jnp.all(jnp.isnan(grads['protein_mpnn/~/W_out']['w']))
   assert not jnp.all(jnp.isnan(grads['protein_mpnn/~/W_out']['b']))
+
+
+def test_optimize_sequence_with_dynamic_iterations(mock_data):
+  """Test that optimization works with dynamic (traced) iteration counts.
+
+  This test ensures the refactored fori_loop implementation works with
+  dynamically determined iteration counts, which was the main issue in JAX 0.7.
+  """
+  optimize_fn = make_optimize_sequence_fn(
+    mock_conditional_decoder,
+    mock_decoding_order_fn,
+    mock_data['model_parameters'],
+  )
+
+  @jax.jit
+  def run_with_dynamic_iters(iterations: int):
+    """Run optimization with iterations as a traced value."""
+    key = random.PRNGKey(42)
+    sequence, logits = optimize_fn(
+      key,
+      mock_data['node_features'],
+      mock_data['edge_features'],
+      mock_data['neighbor_indices'],
+      mock_data['mask'],
+      iterations,  # This can now be a traced value
+      0.001,
+      0.1,
+    )
+    return sequence, logits
+
+  # Test with different iteration counts
+  for iters in [1, 3, 5]:
+    sequence, logits = run_with_dynamic_iters(iters)
+    assert sequence.shape == (mock_data['num_residues'], 21)
+    assert logits.shape == (mock_data['num_residues'], 21)
+
+
+def test_optimize_sequence_different_iterations_produce_different_results(mock_data):
+  """Test that different iteration counts produce different optimized sequences."""
+  optimize_fn = make_optimize_sequence_fn(
+    mock_conditional_decoder,
+    mock_decoding_order_fn,
+    mock_data['model_parameters'],
+  )
+
+  key = random.PRNGKey(123)
+
+  sequence_1iter, _ = optimize_fn(
+    key,
+    mock_data['node_features'],
+    mock_data['edge_features'],
+    mock_data['neighbor_indices'],
+    mock_data['mask'],
+    1,
+    0.001,
+    0.1,
+  )
+
+  sequence_10iter, _ = optimize_fn(
+    key,
+    mock_data['node_features'],
+    mock_data['edge_features'],
+    mock_data['neighbor_indices'],
+    mock_data['mask'],
+    10,
+    0.001,
+    0.1,
+  )
+
+  # With more iterations, the sequence should converge differently
+  # (they shouldn't be exactly the same unless the optimization is trivial)
+  assert not jnp.allclose(sequence_1iter, sequence_10iter, atol=1e-5)
+
+
+def test_optimize_sequence_reproducibility_with_same_key(mock_data):
+  """Test that optimization is reproducible with the same random key."""
+  optimize_fn = make_optimize_sequence_fn(
+    mock_conditional_decoder,
+    mock_decoding_order_fn,
+    mock_data['model_parameters'],
+  )
+
+  key = random.PRNGKey(999)
+
+  sequence_1, logits_1 = optimize_fn(
+    key,
+    mock_data['node_features'],
+    mock_data['edge_features'],
+    mock_data['neighbor_indices'],
+    mock_data['mask'],
+    5,
+    0.001,
+    0.1,
+  )
+
+  sequence_2, logits_2 = optimize_fn(
+    key,
+    mock_data['node_features'],
+    mock_data['edge_features'],
+    mock_data['neighbor_indices'],
+    mock_data['mask'],
+    5,
+    0.001,
+    0.1,
+  )
+
+  # Same key should produce identical results
+  assert jnp.allclose(sequence_1, sequence_2)
+  assert jnp.allclose(logits_1, logits_2)

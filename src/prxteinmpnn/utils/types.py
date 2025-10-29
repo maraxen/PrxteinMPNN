@@ -54,3 +54,19 @@ BackboneAtomCoordinates = Float[Array, "num_residues 4 3"]  # Backbone atom coor
 Temperature = Float[Array, ""]  # Temperature for sampling
 CategoricalJacobian = Float[Array, "num_residues num_classes num_residues num_classes"]
 InterproteinMapping = Int[Array, "num_pairs max_length 2"]  # Mapping between protein pairs
+
+EnsembleData = (
+  Float[Array, "num_samples num_features"] | Float[Array, "n_batches n_samples n_features"]
+)
+Centroids = Float[Array, "num_clusters num_features"]
+Labels = Int[Array, "num_samples"]
+
+Means = Float[Array, "n_components n_features"]
+Covariances = Float[Array, "n_components n_features n_features"]
+Weights = Float[Array, "n_components"]
+Responsibilities = Float[Array, "n_samples n_components"]
+Converged = Bool[Array, ""]
+LogLikelihood = Float[Array, ""]
+ComponentCounts = Int[Array, "n_components"]
+BIC = Float[Array, ""]
+PCAInputData = Float[Array, "num_samples num_features"]

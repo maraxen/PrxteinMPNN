@@ -11,7 +11,6 @@ from jaxtyping import Float, Int, PRNGKeyArray
 from prxteinmpnn.model.decoder import (
   make_decoder,
 )
-from prxteinmpnn.model.projection import final_projection
 
 if TYPE_CHECKING:
   from prxteinmpnn.model.decoding_signatures import (
@@ -19,6 +18,7 @@ if TYPE_CHECKING:
     RunConditionalDecoderFn,
   )
 from prxteinmpnn.model.encoder import make_encoder
+from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,
@@ -231,6 +231,16 @@ def make_encoding_sampling_split_fn(
     ),
   )
 
+  autoregressive_decoder = cast(
+    "RunAutoregressiveDecoderFn",
+    make_decoder(
+      model_parameters=model_parameters,
+      attention_mask_type=None,
+      decoding_approach="autoregressive",
+      num_decoder_layers=num_decoder_layers,
+    ),
+  )
+
   sample_model_pass = sampling_encode(encoder=encoder, decoding_order_fn=decoding_order_fn)
 
   optimize_seq_fn = make_optimize_sequence_fn(
@@ -341,56 +351,29 @@ def make_encoding_sampling_split_fn(
       output_sequence = output_sequence.argmax(axis=-1).astype(jnp.int8)
       return output_sequence, output_logits
 
-    # Temperature sampling - use conditional decoder for averaged features
-    # Initialize with mask tokens
-    sequence_length = node_features.shape[0]
-    sampled_sequence = jnp.full((sequence_length,), 20, dtype=jnp.int8)  # 20 is mask token
-    ar_mask = jnp.ones((sequence_length, sequence_length), dtype=jnp.float32)
+    # Temperature sampling - use autoregressive decoder with preloaded sampling step
+    # Create a partial function that returns the pre-encoded features
+    ar_mask = generate_ar_mask(decoding_order)
 
-    # Sample autoregressively following the decoding order
-    def sample_step(
-      carry: tuple[ProteinSequence, PRNGKeyArray],
-      position_idx: jax.Array,
-    ) -> tuple[tuple[ProteinSequence, PRNGKeyArray], Logits]:
-      current_sequence, current_key = carry
-      key, next_key = jax.random.split(current_key)
-
-      # Convert to one-hot
-      one_hot_seq = jax.nn.one_hot(current_sequence, 21, dtype=jnp.float32)
-
-      # Run conditional decoder
-      decoded_features = conditional_decoder(
+    dummy_sample_model_pass_fn = partial(
+      lambda *_args, **_kwargs: (
         node_features,
         edge_features,
         neighbor_indices,
         mask,
         ar_mask,
-        one_hot_seq,
-      )
-
-      # Get logits
-      logits = final_projection(model_parameters, decoded_features)
-      logits = logits + bias
-
-      # Sample at the current position
-      position = decoding_order[position_idx]
-      position_logits = logits[position] / temperature
-      sampled_aa = jax.random.categorical(key, position_logits).astype(jnp.int8)
-
-      # Update sequence
-      new_sequence = current_sequence.at[position].set(sampled_aa)
-
-      return (new_sequence, next_key), logits
-
-    (final_sequence, _), all_logits_steps = jax.lax.scan(
-      sample_step,
-      (sampled_sequence, prng_key),
-      jnp.arange(sequence_length, dtype=jnp.int32),
+        prng_key,
+      ),
     )
 
-    # Return final logits (last step)
-    final_logits = all_logits_steps[-1]
+    sample_step = preload_sampling_step_decoder(
+      autoregressive_decoder,
+      dummy_sample_model_pass_fn,
+      sampling_strategy=sampling_strategy,
+      temperature=temperature,
+    )
 
-    return final_sequence, final_logits
+    _, output_sequence, output_logits = sample_step(prng_key=prng_key, bias=bias)
+    return output_sequence, output_logits
 
   return encode, sample_from_features

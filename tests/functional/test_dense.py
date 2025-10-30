@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.model.dense import dense_layer
+from prxteinmpnn.functional import dense_layer
 from prxteinmpnn.utils.types import ModelParameters
 
 

@@ -19,16 +19,17 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from prxteinmpnn.model.encoder import (
+from prxteinmpnn.functional import (
   encode,
   encoder_normalize,
   encoder_parameter_pytree,
+  extract_features,
   initialize_node_features,
   make_encode_layer,
   make_encoder,
+  project_features,
   setup_encoder,
 )
-from prxteinmpnn.model.features import extract_features, project_features
 from prxteinmpnn.model.masked_attention import MaskedAttentionType
 from prxteinmpnn.utils.residue_constants import atom_order
 

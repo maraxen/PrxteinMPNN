@@ -42,7 +42,6 @@ def mock_protein_tuple() -> ProteinTuple:
 
 @patch("prxteinmpnn.io.loaders.preprocess_inputs_to_hdf5")
 @patch("prxteinmpnn.io.loaders.sources.HDF5DataSource")
-@patch("prxteinmpnn.io.loaders.operations.LoadHDF5Frame")
 @patch("prxteinmpnn.io.loaders.operations.pad_and_collate_proteins")
 def test_create_protein_dataset(
     mock_pad_and_collate: MagicMock,
@@ -73,7 +72,7 @@ def test_create_protein_dataset(
     batch_size = 1
 
     # 3. Call the function
-    dataset = create_protein_dataset(inputs, batch_size, cache_path=None)
+    dataset = create_protein_dataset(inputs, batch_size)
 
     # 4. Assertions
     assert isinstance(dataset, grain.IterDataset)

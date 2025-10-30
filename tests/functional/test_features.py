@@ -14,14 +14,14 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.model.features import (
-  MAXIMUM_RELATIVE_FEATURES,
+from prxteinmpnn.functional import (
   embed_edges,
   encode_positions,
   extract_features,
   get_edge_chains_neighbors,
   project_features,
 )
+from prxteinmpnn.functional.features import MAXIMUM_RELATIVE_FEATURES
 
 
 @pytest.fixture

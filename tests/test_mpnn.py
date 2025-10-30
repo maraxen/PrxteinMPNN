@@ -46,16 +46,16 @@ def test_get_mpnn_model_defaults(mock_path: MagicMock, mock_load: MagicMock):
   mock_load.return_value = mock_checkpoint
 
   # Arrange: Set up the mock for pathlib.Path to simulate path construction
-  # The mock path object needs to handle chained calls to .parent and /
+  # The mock path object needs to handle chained calls to .parent.parent and /
   mock_base_dir = MagicMock(spec=Path)
-  mock_path.return_value.parent = mock_base_dir
+  mock_path.return_value.parent.parent = mock_base_dir
 
   # Act: Call the function with default arguments
   model_params = get_mpnn_model()
 
   # Assert: Verify the path construction
   expected_model_path = (
-    mock_base_dir / "model" / "original" / "v_48_002.pkl"
+    mock_base_dir / "model" / "original" / "v_48_020.pkl"
   )
   mock_load.assert_called_once_with(expected_model_path)
 
@@ -88,7 +88,7 @@ def test_get_mpnn_model_custom_args(mock_path: MagicMock, mock_load: MagicMock):
   # Arrange
   mock_load.return_value = {"model_state_dict": {"params": np.array([1.0])}}
   mock_base_dir = MagicMock(spec=Path)
-  mock_path.return_value.parent = mock_base_dir
+  mock_path.return_value.parent.parent = mock_base_dir
   custom_version = "v_48_030.pkl"
   custom_weights = "soluble"
 

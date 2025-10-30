@@ -6,6 +6,7 @@ functional counterparts, validating the migration path.
 tests.test_eqx_equivalence
 """
 
+import equinox
 import jax
 import jax.numpy as jnp
 import pytest
@@ -250,3 +251,252 @@ class TestLinearEquivalence:
     out = linear(x)
     expected = w.sum(axis=0) + b  # Sum over in_features + bias
     assert jnp.allclose(out, expected, atol=1e-5)
+
+
+class TestEncoderLayerCreation:
+  """Test EncoderLayer creation and structure."""
+
+  def test_create_encoder_layer_structure(self) -> None:
+    """create_encoder_layer should create a properly structured EncoderLayer."""
+    # Setup dimensions
+    node_features = 128
+    edge_features = 384  # Typically node_features * 3 after concatenation
+    hidden_features = 512
+
+    # Create mock parameter dictionary
+    key = jax.random.PRNGKey(0)
+    keys = jax.random.split(key, 20)
+
+    p_dict = {
+      "W1": {
+        "w": jax.random.normal(keys[0], (edge_features, hidden_features)),
+        "b": jax.random.normal(keys[1], (hidden_features,)),
+      },
+      "W2": {
+        "w": jax.random.normal(keys[2], (hidden_features, hidden_features)),
+        "b": jax.random.normal(keys[3], (hidden_features,)),
+      },
+      "W3": {
+        "w": jax.random.normal(keys[4], (hidden_features, node_features)),
+        "b": jax.random.normal(keys[5], (node_features,)),
+      },
+      "norm1": {
+        "scale": jnp.ones((node_features,)),
+        "offset": jnp.zeros((node_features,)),
+      },
+      "dense_W_in": {
+        "w": jax.random.normal(keys[6], (node_features, hidden_features)),
+        "b": jax.random.normal(keys[7], (hidden_features,)),
+      },
+      "dense_W_out": {
+        "w": jax.random.normal(keys[8], (hidden_features, node_features)),
+        "b": jax.random.normal(keys[9], (node_features,)),
+      },
+      "norm2": {
+        "scale": jnp.ones((node_features,)),
+        "offset": jnp.zeros((node_features,)),
+      },
+      "W11": {
+        "w": jax.random.normal(keys[10], (edge_features, hidden_features)),
+        "b": jax.random.normal(keys[11], (hidden_features,)),
+      },
+      "W12": {
+        "w": jax.random.normal(keys[12], (hidden_features, hidden_features)),
+        "b": jax.random.normal(keys[13], (hidden_features,)),
+      },
+      "W13": {
+        "w": jax.random.normal(keys[14], (hidden_features, node_features)),
+        "b": jax.random.normal(keys[15], (node_features,)),
+      },
+      "norm3": {
+        "scale": jnp.ones((node_features,)),
+        "offset": jnp.zeros((node_features,)),
+      },
+    }
+
+    # Create encoder layer
+    encoder = conversion.create_encoder_layer(p_dict, key=keys[16])
+
+    # Verify structure
+    assert isinstance(encoder, eqx.EncoderLayer)
+    assert isinstance(encoder.w1, equinox.nn.Linear)
+    assert isinstance(encoder.w2, equinox.nn.Linear)
+    assert isinstance(encoder.w3, equinox.nn.Linear)
+    assert isinstance(encoder.norm1, eqx.LayerNorm)
+    assert isinstance(encoder.dense, eqx.DenseLayer)
+    assert isinstance(encoder.norm2, eqx.LayerNorm)
+    assert isinstance(encoder.w11, equinox.nn.Linear)
+    assert isinstance(encoder.w12, equinox.nn.Linear)
+    assert isinstance(encoder.w13, equinox.nn.Linear)
+    assert isinstance(encoder.norm3, eqx.LayerNorm)
+
+  def test_encoder_layer_weight_dimensions(self) -> None:
+    """EncoderLayer should have correct weight dimensions."""
+    node_features = 64
+    edge_features = 192
+    hidden_features = 256
+
+    key = jax.random.PRNGKey(1)
+    keys = jax.random.split(key, 20)
+
+    p_dict = {
+      "W1": {
+        "w": jax.random.normal(keys[0], (edge_features, hidden_features)),
+        "b": jax.random.normal(keys[1], (hidden_features,)),
+      },
+      "W2": {
+        "w": jax.random.normal(keys[2], (hidden_features, hidden_features)),
+        "b": jax.random.normal(keys[3], (hidden_features,)),
+      },
+      "W3": {
+        "w": jax.random.normal(keys[4], (hidden_features, node_features)),
+        "b": jax.random.normal(keys[5], (node_features,)),
+      },
+      "norm1": {
+        "scale": jnp.ones((node_features,)),
+        "offset": jnp.zeros((node_features,)),
+      },
+      "dense_W_in": {
+        "w": jax.random.normal(keys[6], (node_features, hidden_features)),
+        "b": jax.random.normal(keys[7], (hidden_features,)),
+      },
+      "dense_W_out": {
+        "w": jax.random.normal(keys[8], (hidden_features, node_features)),
+        "b": jax.random.normal(keys[9], (node_features,)),
+      },
+      "norm2": {
+        "scale": jnp.ones((node_features,)),
+        "offset": jnp.zeros((node_features,)),
+      },
+      "W11": {
+        "w": jax.random.normal(keys[10], (edge_features, hidden_features)),
+        "b": jax.random.normal(keys[11], (hidden_features,)),
+      },
+      "W12": {
+        "w": jax.random.normal(keys[12], (hidden_features, hidden_features)),
+        "b": jax.random.normal(keys[13], (hidden_features,)),
+      },
+      "W13": {
+        "w": jax.random.normal(keys[14], (hidden_features, node_features)),
+        "b": jax.random.normal(keys[15], (node_features,)),
+      },
+      "norm3": {
+        "scale": jnp.ones((node_features,)),
+        "offset": jnp.zeros((node_features,)),
+      },
+    }
+
+    encoder = conversion.create_encoder_layer(p_dict, key=keys[16])
+
+    # Check weight shapes (Equinox uses transposed convention)
+    assert encoder.w1.weight.shape == (hidden_features, edge_features)
+    assert encoder.w2.weight.shape == (hidden_features, hidden_features)
+    assert encoder.w3.weight.shape == (node_features, hidden_features)
+    assert encoder.w11.weight.shape == (hidden_features, edge_features)
+    assert encoder.w12.weight.shape == (hidden_features, hidden_features)
+    assert encoder.w13.weight.shape == (node_features, hidden_features)
+
+
+class TestDecoderLayerCreation:
+  """Test DecoderLayer creation and structure."""
+
+  def test_create_decoder_layer_structure(self) -> None:
+    """create_decoder_layer should create a properly structured DecoderLayer."""
+    # Setup dimensions
+    sequence_features = 128
+    edge_features = 384
+    hidden_features = 512
+
+    # Create mock parameter dictionary
+    key = jax.random.PRNGKey(2)
+    keys = jax.random.split(key, 15)
+
+    p_dict = {
+      "W1": {
+        "w": jax.random.normal(keys[0], (edge_features, hidden_features)),
+        "b": jax.random.normal(keys[1], (hidden_features,)),
+      },
+      "W2": {
+        "w": jax.random.normal(keys[2], (hidden_features, hidden_features)),
+        "b": jax.random.normal(keys[3], (hidden_features,)),
+      },
+      "W3": {
+        "w": jax.random.normal(keys[4], (hidden_features, sequence_features)),
+        "b": jax.random.normal(keys[5], (sequence_features,)),
+      },
+      "norm1": {
+        "scale": jnp.ones((sequence_features,)),
+        "offset": jnp.zeros((sequence_features,)),
+      },
+      "dense_W_in": {
+        "w": jax.random.normal(keys[6], (sequence_features, hidden_features)),
+        "b": jax.random.normal(keys[7], (hidden_features,)),
+      },
+      "dense_W_out": {
+        "w": jax.random.normal(keys[8], (hidden_features, sequence_features)),
+        "b": jax.random.normal(keys[9], (sequence_features,)),
+      },
+      "norm2": {
+        "scale": jnp.ones((sequence_features,)),
+        "offset": jnp.zeros((sequence_features,)),
+      },
+    }
+
+    # Create decoder layer
+    decoder = conversion.create_decoder_layer(p_dict, key=keys[10])
+
+    # Verify structure
+    assert isinstance(decoder, eqx.DecoderLayer)
+    assert isinstance(decoder.w1, equinox.nn.Linear)
+    assert isinstance(decoder.w2, equinox.nn.Linear)
+    assert isinstance(decoder.w3, equinox.nn.Linear)
+    assert isinstance(decoder.norm1, eqx.LayerNorm)
+    assert isinstance(decoder.dense, eqx.DenseLayer)
+    assert isinstance(decoder.norm2, eqx.LayerNorm)
+
+  def test_decoder_layer_weight_dimensions(self) -> None:
+    """DecoderLayer should have correct weight dimensions."""
+    sequence_features = 64
+    edge_features = 192
+    hidden_features = 256
+
+    key = jax.random.PRNGKey(3)
+    keys = jax.random.split(key, 15)
+
+    p_dict = {
+      "W1": {
+        "w": jax.random.normal(keys[0], (edge_features, hidden_features)),
+        "b": jax.random.normal(keys[1], (hidden_features,)),
+      },
+      "W2": {
+        "w": jax.random.normal(keys[2], (hidden_features, hidden_features)),
+        "b": jax.random.normal(keys[3], (hidden_features,)),
+      },
+      "W3": {
+        "w": jax.random.normal(keys[4], (hidden_features, sequence_features)),
+        "b": jax.random.normal(keys[5], (sequence_features,)),
+      },
+      "norm1": {
+        "scale": jnp.ones((sequence_features,)),
+        "offset": jnp.zeros((sequence_features,)),
+      },
+      "dense_W_in": {
+        "w": jax.random.normal(keys[6], (sequence_features, hidden_features)),
+        "b": jax.random.normal(keys[7], (hidden_features,)),
+      },
+      "dense_W_out": {
+        "w": jax.random.normal(keys[8], (hidden_features, sequence_features)),
+        "b": jax.random.normal(keys[9], (sequence_features,)),
+      },
+      "norm2": {
+        "scale": jnp.ones((sequence_features,)),
+        "offset": jnp.zeros((sequence_features,)),
+      },
+    }
+
+    decoder = conversion.create_decoder_layer(p_dict, key=keys[10])
+
+    # Check weight shapes (Equinox uses transposed convention)
+    assert decoder.w1.weight.shape == (hidden_features, edge_features)
+    assert decoder.w2.weight.shape == (hidden_features, hidden_features)
+    assert decoder.w3.weight.shape == (sequence_features, hidden_features)

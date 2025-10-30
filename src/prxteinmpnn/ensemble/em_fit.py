@@ -115,13 +115,12 @@ def log_likelihood(data: EnsembleData, means: Means, covariances: Covariances) -
 
   Dispatches to the correct implementation based on covariance matrix shape.
   """
-  cov_values = jnp.squeeze(covariances.values)
-  if cov_values.ndim == DIAG_NDIM:
-    return log_likelihood_diag(data, means, cov_values)
-  if cov_values.ndim == FULL_NDIM:
-    return log_likelihood_full(data, means, cov_values)
+  if covariances.ndim == DIAG_NDIM:
+    return log_likelihood_diag(data, means, covariances)
+  if covariances.ndim == FULL_NDIM:
+    return log_likelihood_full(data, means, covariances)
 
-  msg = f"Unsupported covariance shape: {covariances.values.shape}"
+  msg = f"Unsupported covariance shape: {covariances.shape}"
   raise ValueError(msg)
 
 

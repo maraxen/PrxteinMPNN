@@ -10,7 +10,6 @@ dist/
 build/
 *.log
 
-# Model weights and macOS metadata
 *.pkl
 *.eqx
 .DS_Store

@@ -55,7 +55,7 @@ def test_get_mpnn_model_defaults(mock_path: MagicMock, mock_load: MagicMock):
 
   # Assert: Verify the path construction
   expected_model_path = (
-    mock_base_dir / "model" / "original" / "v_48_020.pkl"
+    mock_base_dir / "model" / "original" / "v_48_020"
   )
   mock_load.assert_called_once_with(expected_model_path)
 
@@ -89,7 +89,7 @@ def test_get_mpnn_model_custom_args(mock_path: MagicMock, mock_load: MagicMock):
   mock_load.return_value = {"model_state_dict": {"params": np.array([1.0])}}
   mock_base_dir = MagicMock(spec=Path)
   mock_path.return_value.parent.parent = mock_base_dir
-  custom_version = "v_48_030.pkl"
+  custom_version = "v_48_030"
   custom_weights = "soluble"
 
   # Act

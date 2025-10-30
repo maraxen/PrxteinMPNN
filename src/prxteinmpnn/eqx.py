@@ -1,6 +1,3 @@
-import equinox as eqx
-import jax
-from huggingface_hub import hf_hub_download
 """Equinox-based neural network modules for PrxteinMPNN.
 
 This module contains Equinox implementations of the core neural network
@@ -12,9 +9,11 @@ prxteinmpnn.eqx
 
 from __future__ import annotations
 
-import equinox as eqx
-import jax.numpy as jnp
 from typing import TYPE_CHECKING
+
+import equinox as eqx
+import jax
+import jax.numpy as jnp
 
 if TYPE_CHECKING:
   from jaxtyping import Array
@@ -273,7 +272,6 @@ class Encoder(eqx.Module):
     self.node_feature_dim = node_features
     self.scale = scale
 
-    # Create encoder layers (use tuple for hashability with JAX JIT)
     keys = jax.random.split(key, num_layers)
     self.layers = tuple(
       EncoderLayer(node_features, edge_features, hidden_features, key=k) for k in keys
@@ -328,9 +326,9 @@ class Encoder(eqx.Module):
 
       # Edge message computation (w1 -> w2 -> w3)
       # Use vmap to apply linear layers across the neighbor dimension
-      message = jax.vmap(jax.vmap(lambda x: GeLU(layer.w1(x))))(edge_input)
-      message = jax.vmap(jax.vmap(lambda x: GeLU(layer.w2(x))))(message)
-      message = jax.vmap(jax.vmap(layer.w3))(message)
+      message = jax.vmap(jax.vmap(lambda x, lyr=layer: GeLU(lyr.w1(x))))(edge_input)
+      message = jax.vmap(jax.vmap(lambda x, lyr=layer: GeLU(lyr.w2(x))))(message)
+      message = jax.vmap(jax.vmap(lambda x, lyr=layer: lyr.w3(x)))(message)
 
       # Update node features with aggregated messages
       node_features = node_features + (jnp.sum(message, -2) / self.scale)
@@ -353,9 +351,9 @@ class Encoder(eqx.Module):
 
       # Edge update (w11 -> w12 -> w13)
       # Use vmap to apply linear layers across the neighbor dimension
-      edge_message = jax.vmap(jax.vmap(lambda x: GeLU(layer.w11(x))))(mlp_input)
-      edge_message = jax.vmap(jax.vmap(lambda x: GeLU(layer.w12(x))))(edge_message)
-      edge_message = jax.vmap(jax.vmap(layer.w13))(edge_message)
+      edge_message = jax.vmap(jax.vmap(lambda x, lyr=layer: GeLU(lyr.w11(x))))(mlp_input)
+      edge_message = jax.vmap(jax.vmap(lambda x, lyr=layer: GeLU(lyr.w12(x))))(edge_message)
+      edge_message = jax.vmap(jax.vmap(lambda x, lyr=layer: lyr.w13(x)))(edge_message)
 
       # Apply vmap twice for edges (atoms, neighbors)
       edge_features = jax.vmap(jax.vmap(layer.norm3))(edge_features + edge_message)
@@ -406,7 +404,6 @@ class Decoder(eqx.Module):
     """
     self.scale = scale
 
-    # Create decoder layers (use tuple for hashability with JAX JIT)
     keys = jax.random.split(key, num_layers)
     self.layers = tuple(
       DecoderLayer(sequence_features, edge_features, hidden_features, key=k) for k in keys
@@ -469,9 +466,9 @@ class Decoder(eqx.Module):
 
       # Decode message computation (w1 -> w2 -> w3)
       # Use vmap to apply linear layers across the neighbor dimension
-      message = jax.vmap(jax.vmap(lambda x: GeLU(layer.w1(x))))(node_edge_features)
-      message = jax.vmap(jax.vmap(lambda x: GeLU(layer.w2(x))))(message)
-      message = jax.vmap(jax.vmap(layer.w3))(message)
+      message = jax.vmap(jax.vmap(lambda x, lyr=layer: GeLU(lyr.w1(x))))(node_edge_features)
+      message = jax.vmap(jax.vmap(lambda x, lyr=layer: GeLU(lyr.w2(x))))(message)
+      message = jax.vmap(jax.vmap(lambda x, lyr=layer: lyr.w3(x)))(message)
 
       # Update node features with aggregated messages
       node_features = node_features + (jnp.sum(message, -2) / self.scale)
@@ -537,36 +534,31 @@ class PrxteinMPNN(eqx.Module):
 
 
 def load_prxteinmpnn(
-  model_path: str | None = None,
+  model_path: str,
   num_encoder_layers: int = 3,
   num_decoder_layers: int = 3,
   scale: float = 30.0,
-  model_weights: str = "original",
-  model_version: str = "v_48_020.eqx",
 ) -> PrxteinMPNN:
-  """Load a PrxteinMPNN model from a local .eqx file or HuggingFace Hub.
+  """Load a PrxteinMPNN model from an .eqx file.
 
   Args:
-    model_path: Optional path to the .eqx file. If None, download from HuggingFace Hub.
+    model_path: Path to the .eqx file.
     num_encoder_layers: Number of encoder layers.
     num_decoder_layers: Number of decoder layers.
     scale: Scaling factor for message aggregation.
-    model_weights: Which weights to use ("original" or "soluble").
-    model_version: Model version string (e.g., "v_48_020.eqx").
 
   Returns:
     Loaded PrxteinMPNN model.
 
   Example:
-    >>> model = load_prxteinmpnn()
+    >>> model = load_prxteinmpnn("model.eqx")
+    >>> # Use model for inference
     >>> logits = model(edge_features, neighbor_indices, mask)
 
   """
+  # Create a template model to get the structure
   from prxteinmpnn.conversion import create_prxteinmpnn  # noqa: PLC0415
   from prxteinmpnn.functional import get_functional_model  # noqa: PLC0415
-  import equinox as eqx
-  import jax
-  from huggingface_hub import hf_hub_download
 
   model_params = get_functional_model()
   key = jax.random.PRNGKey(0)
@@ -578,26 +570,4 @@ def load_prxteinmpnn(
     key=key,
   )
 
-  if model_path is not None:
-    return eqx.tree_deserialise_leaves(model_path, template)
-
-  # Download from HuggingFace Hub
-  if model_weights == "original":
-    filename = f"original_{model_version}"
-  elif model_weights == "soluble":
-    filename = f"soluble_{model_version}"
-  else:
-    msg = f"Unknown model_weights: {model_weights}"
-    raise ValueError(msg)
-
-  repo_id = "maraxen/prxteinmpnn"
-  hf_filename = filename if filename.endswith(".eqx") else f"{filename}.eqx"
-  try:
-    eqx_path = hf_hub_download(repo_id=repo_id, filename=hf_filename)
-  except FileNotFoundError as err:
-    msg = (
-      f"Could not download model weights from HuggingFace Hub: {hf_filename}\n{err}"
-    )
-    raise FileNotFoundError(msg) from err
-
-  return eqx.tree_deserialise_leaves(eqx_path, template)
+  return eqx.tree_deserialise_leaves(model_path, template)

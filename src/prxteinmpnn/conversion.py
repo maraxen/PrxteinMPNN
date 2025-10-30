@@ -477,7 +477,7 @@ def create_prxteinmpnn(
   scale: float = 30.0,
   *,
   key: PRNGKeyArray,
-):
+) -> eqx.Module:
   """Create a full PrxteinMPNN model from model parameters.
 
   Args:

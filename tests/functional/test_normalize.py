@@ -4,7 +4,9 @@ import chex
 import jax
 import jax.numpy as jnp
 import pytest
-from prxteinmpnn.utils.normalize import layer_normalization, normalize
+from jax import config
+
+from prxteinmpnn.functional import layer_normalization, normalize
 
 
 @pytest.fixture

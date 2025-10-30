@@ -4,6 +4,9 @@ This module contains the original functional implementation of ProteinMPNN,
 preserved during the migration to Equinox. All functions and logic are
 maintained as-is to serve as a baseline for equivalence testing.
 
+New Equinox-based functional wrappers are available for improved performance
+and unified codebase.
+
 prxteinmpnn.functional
 """
 
@@ -27,6 +30,7 @@ from .encoder import (
   make_encoder,
   setup_encoder,
 )
+from .eqx_wrappers import make_decoder_eqx, make_encoder_eqx, make_model_eqx
 from .features import (
   embed_edges,
   encode_positions,
@@ -65,8 +69,12 @@ __all__ = [
   "layer_normalization",
   "make_decode_layer",
   "make_decoder",
+  # Equinox-based wrappers
+  "make_decoder_eqx",
   "make_encode_layer",
   "make_encoder",
+  "make_encoder_eqx",
+  "make_model_eqx",
   "normalize",
   "project_features",
   "setup_decoder",

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import equinox as eqx
 import jax
 
-from prxteinmpnn.eqx import DenseLayer, LayerNorm
+from prxteinmpnn.eqx import DecoderLayer, DenseLayer, EncoderLayer, LayerNorm
 
 if TYPE_CHECKING:
   from jaxtyping import Array, PRNGKeyArray
@@ -122,3 +122,153 @@ def create_dense(p_dict: ModelParameters, *, key: PRNGKeyArray) -> DenseLayer:
 
   dense = eqx.tree_at(lambda m: m.linear_in, dense, linear_in)
   return eqx.tree_at(lambda m: m.linear_out, dense, linear_out)
+
+
+def create_encoder_layer(p_dict: ModelParameters, *, key: PRNGKeyArray) -> EncoderLayer:
+  """Create an Equinox EncoderLayer from parameter dictionary.
+
+  Args:
+    p_dict: Parameter dictionary containing encoder layer weights.
+      Expected keys: W1, W2, W3, norm1, dense_W_in, dense_W_out, norm2, W11, W12, W13, norm3.
+    key: PRNG key for initialization (used for structure, weights replaced).
+
+  Returns:
+    An EncoderLayer module with weights from the parameter dictionary.
+
+  Example:
+    >>> import jax
+    >>> import jax.numpy as jnp
+    >>> # Assume p_dict contains all necessary weights
+    >>> key = jax.random.PRNGKey(0)
+    >>> encoder = create_encoder_layer(p_dict, key=key)
+
+  """
+  # Extract weight dimensions from the parameter dictionary
+  node_features = p_dict["W3"]["w"].shape[1]  # Output dimension of W3
+  edge_features = p_dict["W1"]["w"].shape[0]  # Input dimension of W1
+  hidden_features = p_dict["W1"]["w"].shape[1]  # Hidden dimension
+
+  # Create encoder layer with correct dimensions
+  encoder = EncoderLayer(node_features, edge_features, hidden_features, key=key)
+
+  # Replace edge message computation weights (W1, W2, W3)
+  encoder = eqx.tree_at(
+    lambda m: m.w1,
+    encoder,
+    create_linear(p_dict["W1"]["w"], p_dict["W1"]["b"]),
+  )
+  encoder = eqx.tree_at(
+    lambda m: m.w2,
+    encoder,
+    create_linear(p_dict["W2"]["w"], p_dict["W2"]["b"]),
+  )
+  encoder = eqx.tree_at(
+    lambda m: m.w3,
+    encoder,
+    create_linear(p_dict["W3"]["w"], p_dict["W3"]["b"]),
+  )
+
+  # Replace normalization layers
+  encoder = eqx.tree_at(
+    lambda m: m.norm1,
+    encoder,
+    create_layernorm(p_dict["norm1"]["scale"], p_dict["norm1"]["offset"]),
+  )
+  encoder = eqx.tree_at(
+    lambda m: m.norm2,
+    encoder,
+    create_layernorm(p_dict["norm2"]["scale"], p_dict["norm2"]["offset"]),
+  )
+  encoder = eqx.tree_at(
+    lambda m: m.norm3,
+    encoder,
+    create_layernorm(p_dict["norm3"]["scale"], p_dict["norm3"]["offset"]),
+  )
+
+  # Replace dense layer
+  dense_params = {
+    "dense_W_in": p_dict["dense_W_in"],
+    "dense_W_out": p_dict["dense_W_out"],
+  }
+  encoder = eqx.tree_at(lambda m: m.dense, encoder, create_dense(dense_params, key=key))
+
+  # Replace edge update weights (W11, W12, W13)
+  encoder = eqx.tree_at(
+    lambda m: m.w11,
+    encoder,
+    create_linear(p_dict["W11"]["w"], p_dict["W11"]["b"]),
+  )
+  encoder = eqx.tree_at(
+    lambda m: m.w12,
+    encoder,
+    create_linear(p_dict["W12"]["w"], p_dict["W12"]["b"]),
+  )
+  return eqx.tree_at(
+    lambda m: m.w13,
+    encoder,
+    create_linear(p_dict["W13"]["w"], p_dict["W13"]["b"]),
+  )
+
+
+def create_decoder_layer(p_dict: ModelParameters, *, key: PRNGKeyArray) -> DecoderLayer:
+  """Create an Equinox DecoderLayer from parameter dictionary.
+
+  Args:
+    p_dict: Parameter dictionary containing decoder layer weights.
+      Expected keys: W1, W2, W3, norm1, dense_W_in, dense_W_out, norm2.
+    key: PRNG key for initialization (used for structure, weights replaced).
+
+  Returns:
+    A DecoderLayer module with weights from the parameter dictionary.
+
+  Example:
+    >>> import jax
+    >>> import jax.numpy as jnp
+    >>> # Assume p_dict contains all necessary weights
+    >>> key = jax.random.PRNGKey(0)
+    >>> decoder = create_decoder_layer(p_dict, key=key)
+
+  """
+  # Extract weight dimensions from the parameter dictionary
+  sequence_features = p_dict["W3"]["w"].shape[1]  # Output dimension of W3
+  edge_features = p_dict["W1"]["w"].shape[0]  # Input dimension of W1
+  hidden_features = p_dict["W1"]["w"].shape[1]  # Hidden dimension
+
+  # Create decoder layer with correct dimensions
+  decoder = DecoderLayer(sequence_features, edge_features, hidden_features, key=key)
+
+  # Replace edge message computation weights (W1, W2, W3)
+  decoder = eqx.tree_at(
+    lambda m: m.w1,
+    decoder,
+    create_linear(p_dict["W1"]["w"], p_dict["W1"]["b"]),
+  )
+  decoder = eqx.tree_at(
+    lambda m: m.w2,
+    decoder,
+    create_linear(p_dict["W2"]["w"], p_dict["W2"]["b"]),
+  )
+  decoder = eqx.tree_at(
+    lambda m: m.w3,
+    decoder,
+    create_linear(p_dict["W3"]["w"], p_dict["W3"]["b"]),
+  )
+
+  # Replace normalization layers
+  decoder = eqx.tree_at(
+    lambda m: m.norm1,
+    decoder,
+    create_layernorm(p_dict["norm1"]["scale"], p_dict["norm1"]["offset"]),
+  )
+  decoder = eqx.tree_at(
+    lambda m: m.norm2,
+    decoder,
+    create_layernorm(p_dict["norm2"]["scale"], p_dict["norm2"]["offset"]),
+  )
+
+  # Replace dense layer
+  dense_params = {
+    "dense_W_in": p_dict["dense_W_in"],
+    "dense_W_out": p_dict["dense_W_out"],
+  }
+  return eqx.tree_at(lambda m: m.dense, decoder, create_dense(dense_params, key=key))

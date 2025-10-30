@@ -102,7 +102,7 @@ def test_encoder_decoder_creation(
     mock_decoding_order_fn,
 ):
     """Test that encoder and decoder are created with correct parameters."""
-    from prxteinmpnn.model.decoder import DecodingApproach
+    from prxteinmpnn.functional.decoder import DecodingApproach
     from prxteinmpnn.model.masked_attention import MaskedAttentionType
 
     make_score_sequence(

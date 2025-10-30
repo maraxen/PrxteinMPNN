@@ -69,6 +69,7 @@ class RunSpecification:
   chain_id: Sequence[str] | str | None = None
   model: int | None = None
   altloc: Literal["first", "all"] = "first"
+  extract_dihedrals: bool = False
   decoding_order_fn: DecodingOrderFn | None = None
   conformational_states: ConformationalStates | None = None
   cache_path: str | Path | None = None

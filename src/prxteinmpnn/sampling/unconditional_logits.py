@@ -136,9 +136,10 @@ def make_unconditional_logits_fn(
       mask,
       residue_index,
       chain_index,
-      None,
-      k_neighbors,
-      backbone_noise,
+      dihedrals=None,
+      autoregressive_mask=None,
+      k_neighbors=k_neighbors,
+      backbone_noise=backbone_noise,
     )
 
     decoded_node_features = decoder(

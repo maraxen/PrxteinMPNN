@@ -1805,6 +1805,7 @@ dependencies = [
 dev = [
     { name = "anyio" },
     { name = "chex" },
+    { name = "foldcomp" },
     { name = "myst-nb" },
     { name = "myst-parser" },
     { name = "pyright" },
@@ -1834,9 +1835,6 @@ docs = [
     { name = "sphinx-rtd-theme" },
     { name = "sphinxext-rediraffe" },
 ]
-foldcomp = [
-    { name = "foldcomp" },
-]
 tests = [
     { name = "anyio" },
     { name = "chex" },
@@ -1857,7 +1855,7 @@ requires-dist = [
     { name = "chex", marker = "extra == 'tests'" },
     { name = "equinox", specifier = ">=0.13.2" },
     { name = "flax" },
-    { name = "foldcomp", marker = "extra == 'foldcomp'" },
+    { name = "foldcomp", marker = "extra == 'dev'" },
     { name = "gmmx" },
     { name = "grain" },
     { name = "h5py" },
@@ -1902,7 +1900,7 @@ requires-dist = [
     { name = "trio", marker = "extra == 'dev'" },
     { name = "trio", marker = "extra == 'tests'" },
 ]
-provides-extras = ["docs", "tests", "dev", "foldcomp"]
+provides-extras = ["docs", "tests", "dev"]
 
 [[package]]
 name = "psutil"

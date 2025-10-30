@@ -9,13 +9,6 @@ from collections.abc import Sequence
 from functools import cache
 from typing import Literal
 
-FOLDCOMP_INSTALLED = False
-try:
-    import foldcomp
-    FOLDCOMP_INSTALLED = True
-except ImportError:
-  pass
-  
 import numpy as np
 
 from prxteinmpnn.io.parsing.mappings import (
@@ -23,7 +16,16 @@ from prxteinmpnn.io.parsing.mappings import (
 )
 from prxteinmpnn.utils.data_structures import ProteinStream, ProteinTuple
 
+FOLDCOMP_INSTALLED = False
+try:
+    FOLDCOMP_INSTALLED = True
+except ImportError:
+  FOLDCOMP_INSTALLED = False
+
 logger = logging.getLogger(__name__)
+
+if FOLDCOMP_INSTALLED:
+    import foldcomp
 
 FoldCompDatabase = Literal[
   "esmatlas",
@@ -59,10 +61,11 @@ def _setup_foldcomp_database(database: FoldCompDatabase) -> None:
   This is designed to be called from within a synchronous worker process.
   """
   if not FOLDCOMP_INSTALLED:
-        raise ImportError(
+        msg = (
             "The 'foldcomp' library is required to use the FoldComp utilities "
             "but it is not installed. Please install it with: pip install foldcomp"
         )
+        raise ImportError(msg)
   foldcomp.setup(database)
 
 
@@ -83,10 +86,11 @@ def get_protein_structures(
 
   """
   if not FOLDCOMP_INSTALLED:
-        raise ImportError(
+        msg = (
             "The 'foldcomp' library is required to use the FoldComp utilities "
             "but it is not installed. Please install it with: pip install foldcomp"
         )
+        raise ImportError(msg)
   if database is None:
     warnings.warn(
       "No FoldComp database specified. Defaulting to 'afdb_rep_v4'.",

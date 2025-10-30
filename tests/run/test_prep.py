@@ -23,6 +23,7 @@ def mock_run_spec():
   spec.model_weights = None
   spec.topology = None
   spec.cache_path = None
+  spec.extract_dihedrals = False
   return spec
 
 
@@ -83,6 +84,7 @@ def testprep_protein_stream_and_model_basic(
       "model": "ca_only",
       "altloc": "A",
       "topology": None,
+          "extract_dihedrals": False,
     },
   )
   
@@ -273,6 +275,7 @@ def testprep_protein_stream_and_model_empty_inputs(
       "model": "ca_only",
       "altloc": "A",
       "topology": None,
+          "extract_dihedrals": False,
     },
   )
   

@@ -41,6 +41,7 @@ def test_encoding_sampling_split_signature(mock_model_parameters: ModelParameter
     "mask",
     "residue_index",
     "chain_index",
+        "dihedrals",
     "k_neighbors",
     "backbone_noise",
   }

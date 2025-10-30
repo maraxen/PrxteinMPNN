@@ -42,6 +42,7 @@ ConditionalLogitsFn = Callable[
     AlphaCarbonMask,
     ResidueIndex,
     ChainIndex,
+    BackboneDihedrals | None,
     InputBias | None,
     int,
     BackboneNoise | None,

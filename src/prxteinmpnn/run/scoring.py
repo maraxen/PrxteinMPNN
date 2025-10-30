@@ -79,17 +79,17 @@ def score(
 
     vmap_sequences = jax.vmap(
       score_single_pair,
-      in_axes=(None, 0, None, None, None, None, None, None, None),
+      in_axes=(None, 0, None, None, None, None, None, None, None, None),
       out_axes=0,
     )
     vmap_noises = jax.vmap(
       vmap_sequences,
-      in_axes=(None, None, None, None, None, None, None, 0, None),
+      in_axes=(None, None, None, None, None, None, None, None, 0, None),
       out_axes=0,
     )
     vmap_structures = jax.vmap(
       vmap_noises,
-      in_axes=(None, None, 0, 0, 0, 0, None, None, None),
+      in_axes=(None, None, 0, 0, 0, 0, 0, None, None, None),
       out_axes=0,
     )
     scores, logits, _decoding_orders = vmap_structures(
@@ -99,6 +99,7 @@ def score(
       batched_ensemble.mask,
       batched_ensemble.residue_index,
       batched_ensemble.chain_index,
+      batched_ensemble.dihedrals,
       48,
       jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
       current_ar_mask,
@@ -158,17 +159,17 @@ def _score_streaming(
 
       vmap_sequences = jax.vmap(
         score_single_pair,
-        in_axes=(None, 0, None, None, None, None, None, None, None),
+        in_axes=(None, 0, None, None, None, None, None, None, None, None),
         out_axes=0,
       )
       vmap_noises = jax.vmap(
         vmap_sequences,
-        in_axes=(None, None, None, None, None, None, None, 0, None),
+        in_axes=(None, None, None, None, None, None, None, None, 0, None),
         out_axes=0,
       )
       vmap_structures = jax.vmap(
         vmap_noises,
-        in_axes=(None, None, 0, 0, 0, 0, None, None, None),
+        in_axes=(None, None, 0, 0, 0, 0, 0, None, None, None),
         out_axes=0,
       )
       scores, logits, _ = vmap_structures(
@@ -178,6 +179,7 @@ def _score_streaming(
         batched_ensemble.mask,
         batched_ensemble.residue_index,
         batched_ensemble.chain_index,
+        batched_ensemble.dihedrals,
         48,
         jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
         current_ar_mask,

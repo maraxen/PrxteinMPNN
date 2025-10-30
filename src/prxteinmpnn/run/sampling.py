@@ -99,7 +99,7 @@ def sample(
     )
     vmap_noises = jax.vmap(
       vmap_samples,
-      in_axes=(None, None, None, None, None, None, None, None, 0, None, None, None),
+      in_axes=(None, None, None, None, None, None, None, None, None, 0, None, None, None),
       out_axes=0,
     )
     vmap_structures = jax.vmap(
@@ -336,8 +336,8 @@ def _sample_streaming_averaged(
           mask,
           residue_ix,
           chain_ix,
-          dihedrals,
-          48,
+          dihedrals=dihedrals,
+          k_neighbors=48,
         )
 
         # Get encodings for all noise levels

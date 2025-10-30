@@ -18,12 +18,14 @@ from prxteinmpnn.utils.data_structures import ProteinStream, ProteinTuple
 
 FOLDCOMP_INSTALLED = False
 try:
-    import foldcomp
     FOLDCOMP_INSTALLED = True
 except ImportError:
-  pass
+  FOLDCOMP_INSTALLED = False
 
 logger = logging.getLogger(__name__)
+
+if FOLDCOMP_INSTALLED:
+    import foldcomp
 
 FoldCompDatabase = Literal[
   "esmatlas",

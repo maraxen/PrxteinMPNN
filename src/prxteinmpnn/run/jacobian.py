@@ -151,10 +151,10 @@ def _compute_batch_outputs(
             mask,
             residue_ix,
             chain_ix,
-            dihedrals,
-            None,
-            48,
-            noise,
+            dihedrals=dihedrals,
+            bias=None,
+            k_neighbors=48,
+            backbone_noise=noise,
           )
           return logits.flatten()
 

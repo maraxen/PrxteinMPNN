@@ -13,18 +13,18 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from prxteinmpnn.model.decoder import (
-  DecodingApproach,
+from prxteinmpnn.functional import (
   decode_message,
   decoder_normalize,
   decoder_parameter_pytree,
+  extract_features,
   initialize_conditional_decoder,
   make_decode_layer,
   make_decoder,
+  make_encoder,
   setup_decoder,
 )
-from prxteinmpnn.model.encoder import make_encoder
-from prxteinmpnn.model.features import extract_features
+from prxteinmpnn.functional.decoder import DecodingApproach
 from prxteinmpnn.model.masked_attention import MaskedAttentionType
 from prxteinmpnn.utils.residue_constants import atom_order
 

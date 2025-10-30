@@ -9,7 +9,6 @@ tests.test_eqx_equivalence
 import equinox
 import jax
 import jax.numpy as jnp
-import pytest
 
 from prxteinmpnn import conversion, eqx
 from prxteinmpnn.functional import dense_layer, layer_normalization
@@ -500,3 +499,621 @@ class TestDecoderLayerCreation:
     assert decoder.w1.weight.shape == (hidden_features, edge_features)
     assert decoder.w2.weight.shape == (hidden_features, hidden_features)
     assert decoder.w3.weight.shape == (sequence_features, hidden_features)
+
+
+class TestEncoderDecoderStacks:
+  """Test creation of encoder and decoder stacks from model parameters."""
+
+  def test_create_encoder_stack(self) -> None:
+    """create_encoder_stack should create a list of EncoderLayers."""
+    # Load actual model parameters
+    from prxteinmpnn.functional import get_functional_model
+
+    model_params = get_functional_model()
+    key = jax.random.PRNGKey(0)
+
+    # Create encoder stack
+    num_layers = 3
+    encoders = conversion.create_encoder_stack(model_params, num_layers, key=key)
+
+    # Verify structure
+    assert isinstance(encoders, tuple)
+    assert len(encoders) == num_layers
+
+    for encoder in encoders:
+      assert isinstance(encoder, eqx.EncoderLayer)
+      assert isinstance(encoder.w1, equinox.nn.Linear)
+      assert isinstance(encoder.dense, eqx.DenseLayer)
+      assert isinstance(encoder.norm1, eqx.LayerNorm)
+
+  def test_create_decoder_stack(self) -> None:
+    """create_decoder_stack should create a list of DecoderLayers."""
+    # Load actual model parameters
+    from prxteinmpnn.functional import get_functional_model
+
+    model_params = get_functional_model()
+    key = jax.random.PRNGKey(1)
+
+    # Create decoder stack
+    num_layers = 3
+    decoders = conversion.create_decoder_stack(model_params, num_layers, key=key)
+
+    # Verify structure
+    assert isinstance(decoders, tuple)
+    assert len(decoders) == num_layers
+
+    for decoder in decoders:
+      assert isinstance(decoder, eqx.DecoderLayer)
+      assert isinstance(decoder.w1, equinox.nn.Linear)
+      assert isinstance(decoder.dense, eqx.DenseLayer)
+      assert isinstance(decoder.norm1, eqx.LayerNorm)
+
+  def test_encoder_stack_different_num_layers(self) -> None:
+    """Encoder stack should support different numbers of layers."""
+    from prxteinmpnn.functional import get_functional_model
+
+    model_params = get_functional_model()
+    key = jax.random.PRNGKey(2)
+
+    # Test with 1, 2, and 3 layers
+    for num_layers in [1, 2, 3]:
+      encoders = conversion.create_encoder_stack(model_params, num_layers, key=key)
+      assert len(encoders) == num_layers
+
+  def test_decoder_stack_different_num_layers(self) -> None:
+    """Decoder stack should support different numbers of layers."""
+    from prxteinmpnn.functional import get_functional_model
+
+    model_params = get_functional_model()
+    key = jax.random.PRNGKey(3)
+
+    # Test with 1, 2, and 3 layers
+    for num_layers in [1, 2, 3]:
+      decoders = conversion.create_decoder_stack(model_params, num_layers, key=key)
+      assert len(decoders) == num_layers
+
+
+class TestFullEncoderDecoder:
+  """Test creation of full Encoder and Decoder modules."""
+
+  def test_create_encoder_module(self) -> None:
+    """create_encoder should create a full Encoder module."""
+    from prxteinmpnn.functional import get_functional_model
+
+    model_params = get_functional_model()
+    key = jax.random.PRNGKey(0)
+
+    # Create encoder
+    num_layers = 3
+    encoder = conversion.create_encoder(model_params, num_layers, key=key)
+
+    # Verify structure
+    assert isinstance(encoder, eqx.Encoder)
+    assert isinstance(encoder.layers, tuple)
+    assert len(encoder.layers) == num_layers
+    assert encoder.scale == 30.0
+    assert encoder.node_feature_dim == 128  # Standard ProteinMPNN dimension
+
+    # Verify each layer
+    for layer in encoder.layers:
+      assert isinstance(layer, eqx.EncoderLayer)
+
+  def test_create_decoder_module(self) -> None:
+    """create_decoder should create a full Decoder module."""
+    from prxteinmpnn.functional import get_functional_model
+
+    model_params = get_functional_model()
+    key = jax.random.PRNGKey(1)
+
+    # Create decoder
+    num_layers = 3
+    decoder = conversion.create_decoder(model_params, num_layers, key=key)
+
+    # Verify structure
+    assert isinstance(decoder, eqx.Decoder)
+    assert isinstance(decoder.layers, tuple)
+    assert len(decoder.layers) == num_layers
+    assert decoder.scale == 30.0
+
+    # Verify each layer
+    for layer in decoder.layers:
+      assert isinstance(layer, eqx.DecoderLayer)
+
+  def test_encoder_with_custom_scale(self) -> None:
+    """Encoder should support custom scale parameter."""
+    from prxteinmpnn.functional import get_functional_model
+
+    model_params = get_functional_model()
+    key = jax.random.PRNGKey(2)
+
+    # Create encoder with custom scale
+    custom_scale = 15.0
+    encoder = conversion.create_encoder(model_params, num_layers=2, scale=custom_scale, key=key)
+
+    assert encoder.scale == custom_scale
+    assert len(encoder.layers) == 2
+
+  def test_decoder_with_custom_scale(self) -> None:
+    """Decoder should support custom scale parameter."""
+    from prxteinmpnn.functional import get_functional_model
+
+    model_params = get_functional_model()
+    key = jax.random.PRNGKey(3)
+
+    # Create decoder with custom scale
+    custom_scale = 20.0
+    decoder = conversion.create_decoder(model_params, num_layers=2, scale=custom_scale, key=key)
+
+    assert decoder.scale == custom_scale
+    assert len(decoder.layers) == 2
+
+  def test_encoder_decoder_are_pytrees(self) -> None:
+    """Encoder and Decoder should be valid JAX PyTrees."""
+    from prxteinmpnn.functional import get_functional_model
+
+    model_params = get_functional_model()
+    key = jax.random.PRNGKey(4)
+
+    encoder = conversion.create_encoder(model_params, num_layers=2, key=key)
+    decoder = conversion.create_decoder(model_params, num_layers=2, key=key)
+
+    # Should be able to flatten/unflatten (PyTree requirement)
+    encoder_flat, encoder_treedef = jax.tree_util.tree_flatten(encoder)
+    encoder_reconstructed = jax.tree_util.tree_unflatten(encoder_treedef, encoder_flat)
+    assert isinstance(encoder_reconstructed, eqx.Encoder)
+
+    decoder_flat, decoder_treedef = jax.tree_util.tree_flatten(decoder)
+    decoder_reconstructed = jax.tree_util.tree_unflatten(decoder_treedef, decoder_flat)
+    assert isinstance(decoder_reconstructed, eqx.Decoder)
+
+
+class TestEncoderDecoderForwardPass:
+  """Test forward pass methods of Encoder and Decoder modules."""
+
+  def test_encoder_forward_pass_shape(self) -> None:
+    """Encoder forward pass should produce correct output shapes."""
+    from prxteinmpnn.functional import get_functional_model
+
+    model_params = get_functional_model()
+    key = jax.random.PRNGKey(0)
+
+    # Create encoder
+    encoder = conversion.create_encoder(model_params, num_layers=3, key=key)
+
+    # Create test inputs - raw edge features before encoder processing
+    num_atoms = 50
+    num_neighbors = 30
+    edge_dim = 128  # Raw edge dimension (before concatenation)
+    edge_features = jax.random.normal(key, (num_atoms, num_neighbors, edge_dim))
+    neighbor_indices = jnp.arange(num_atoms)[:, None].repeat(num_neighbors, axis=1)
+    mask = jnp.ones(num_atoms)
+
+    # Run forward pass
+    node_features, updated_edge_features = encoder(edge_features, neighbor_indices, mask)
+
+    # Check shapes
+    assert node_features.shape == (num_atoms, 128)  # node_feature_dim = 128
+    assert updated_edge_features.shape == edge_features.shape
+
+  def test_decoder_forward_pass_shape(self) -> None:
+    """Decoder forward pass should produce correct output shapes."""
+    from prxteinmpnn.functional import get_functional_model
+
+    model_params = get_functional_model()
+    key = jax.random.PRNGKey(1)
+
+    # Create decoder
+    decoder = conversion.create_decoder(model_params, num_layers=3, key=key)
+
+    # Create test inputs
+    # In decoder, edge_features come from encoder output or conditional setup
+    # For unconditional decoder: concatenates [nodes, zeros, edges] = 128+128+128 = 384
+    # But this gets concatenated again in decode_message with nodes: 128+384 = 512
+    num_atoms = 50
+    num_neighbors = 30
+    sequence_dim = 128
+    # Edge features dimension after encoder processing or from extract_features
+    edge_dim = 128
+    node_features = jax.random.normal(key, (num_atoms, sequence_dim))
+    edge_features = jax.random.normal(key, (num_atoms, num_neighbors, edge_dim))
+    mask = jnp.ones(num_atoms)
+
+    # But decoder's __call__ needs the pre-concatenated edge features
+    # that will become [nodes_expanded, zeros_expanded, edges] inside
+    # Let me check what the actual input should be...
+    # Actually, looking at functional decoder, it takes processed edge_features
+    # So edge_dim should be 128 (output from encoder or raw from extract_features)
+
+    # Run forward pass
+    updated_node_features = decoder(node_features, edge_features, mask)
+
+    # Check shape
+    assert updated_node_features.shape == node_features.shape
+
+  def test_encoder_forward_pass_with_mask(self) -> None:
+    """Encoder should properly apply mask to outputs."""
+    from prxteinmpnn.functional import get_functional_model
+
+    model_params = get_functional_model()
+    key = jax.random.PRNGKey(2)
+
+    encoder = conversion.create_encoder(model_params, num_layers=2, key=key)
+
+    # Create test inputs with partial mask
+    num_atoms = 20
+    num_neighbors = 15
+    edge_features = jax.random.normal(key, (num_atoms, num_neighbors, 128))
+    neighbor_indices = jnp.arange(num_atoms)[:, None].repeat(num_neighbors, axis=1)
+    mask = jnp.concatenate([jnp.ones(10), jnp.zeros(10)])  # Half masked
+
+    node_features, _ = encoder(edge_features, neighbor_indices, mask)
+
+    # Check that masked positions are zero
+    assert jnp.allclose(node_features[10:], 0.0)
+    # Check that unmasked positions are non-zero
+    assert jnp.any(node_features[:10] != 0.0)
+
+  def test_decoder_forward_pass_with_mask(self) -> None:
+    """Decoder should properly apply mask to outputs."""
+    from prxteinmpnn.functional import get_functional_model
+
+    model_params = get_functional_model()
+    key = jax.random.PRNGKey(3)
+
+    decoder = conversion.create_decoder(model_params, num_layers=2, key=key)
+
+    # Create test inputs with partial mask
+    num_atoms = 20
+    num_neighbors = 15
+    node_features = jax.random.normal(key, (num_atoms, 128))
+    edge_features = jax.random.normal(key, (num_atoms, num_neighbors, 128))
+    mask = jnp.concatenate([jnp.ones(10), jnp.zeros(10)])  # Half masked
+
+    updated_node_features = decoder(node_features, edge_features, mask)
+
+    # Check that masked positions are zero
+    assert jnp.allclose(updated_node_features[10:], 0.0)
+    # Check that unmasked positions are non-zero
+    assert jnp.any(updated_node_features[:10] != 0.0)
+
+  def test_encoder_jit_compatibility(self) -> None:
+    """Encoder forward pass should be JIT-compilable."""
+    from prxteinmpnn.functional import get_functional_model
+
+    model_params = get_functional_model()
+    key = jax.random.PRNGKey(4)
+
+    encoder = conversion.create_encoder(model_params, num_layers=2, key=key)
+
+    # JIT compile forward pass
+    @jax.jit
+    def jit_encoder(edge_features, neighbor_indices, mask):
+      return encoder(edge_features, neighbor_indices, mask)
+
+    # Create test inputs
+    edge_features = jax.random.normal(key, (20, 15, 128))
+    neighbor_indices = jnp.arange(20)[:, None].repeat(15, axis=1)
+    mask = jnp.ones(20)
+
+    # Should not raise
+    node_features, updated_edges = jit_encoder(edge_features, neighbor_indices, mask)
+    assert node_features.shape == (20, 128)
+
+  def test_decoder_jit_compatibility(self) -> None:
+    """Decoder forward pass should be JIT-compilable."""
+    from prxteinmpnn.functional import get_functional_model
+
+    model_params = get_functional_model()
+    key = jax.random.PRNGKey(5)
+
+    decoder = conversion.create_decoder(model_params, num_layers=2, key=key)
+
+    # JIT compile forward pass
+    @jax.jit
+    def jit_decoder(node_features, edge_features, mask):
+      return decoder(node_features, edge_features, mask)
+
+    # Create test inputs
+    node_features = jax.random.normal(key, (20, 128))
+    edge_features = jax.random.normal(key, (20, 15, 128))
+    mask = jnp.ones(20)
+
+    # Should not raise
+    updated_node_features = jit_decoder(node_features, edge_features, mask)
+    assert updated_node_features.shape == (20, 128)
+
+
+class TestPrxteinMPNNForwardPass:
+  """Test complete PrxteinMPNN model forward pass."""
+
+  def test_model_forward_pass_shape(self) -> None:
+    """Full model forward pass should produce correct logit shapes."""
+    from prxteinmpnn.functional import get_functional_model
+
+    model_params = get_functional_model()
+    key = jax.random.PRNGKey(42)
+
+    # Create full model
+    model = conversion.create_prxteinmpnn(
+      model_params,
+      num_encoder_layers=3,
+      num_decoder_layers=3,
+      key=key,
+    )
+
+    # Create test inputs
+    num_atoms = 50
+    num_neighbors = 30
+    edge_dim = 128  # Raw edge dimension
+    edge_features = jax.random.normal(key, (num_atoms, num_neighbors, edge_dim))
+    neighbor_indices = jnp.arange(num_atoms)[:, None].repeat(num_neighbors, axis=1)
+    mask = jnp.ones(num_atoms)
+
+    # Run forward pass
+    logits = model(edge_features, neighbor_indices, mask)
+
+    # Check shape: should be (num_atoms, 21) for amino acid predictions
+    assert logits.shape == (num_atoms, 21)
+
+  def test_model_with_mask(self) -> None:
+    """Model should correctly handle masking."""
+    from prxteinmpnn.functional import get_functional_model
+
+    model_params = get_functional_model()
+    key = jax.random.PRNGKey(43)
+
+    # Create model
+    model = conversion.create_prxteinmpnn(
+      model_params,
+      num_encoder_layers=2,
+      num_decoder_layers=2,
+      key=key,
+    )
+
+    # Create test inputs with partial mask
+    num_atoms = 20
+    num_neighbors = 15
+    edge_dim = 128
+    edge_features = jax.random.normal(key, (num_atoms, num_neighbors, edge_dim))
+    neighbor_indices = jnp.arange(num_atoms)[:, None].repeat(num_neighbors, axis=1)
+    mask = jnp.concatenate([jnp.ones(10), jnp.zeros(10)])  # Half masked
+
+    # Run forward pass
+    logits = model(edge_features, neighbor_indices, mask)
+
+    # Check shape
+    assert logits.shape == (num_atoms, 21)
+
+  def test_model_jit_compatibility(self) -> None:
+    """Model should be JIT-compilable."""
+    from prxteinmpnn.functional import get_functional_model
+
+    model_params = get_functional_model()
+    key = jax.random.PRNGKey(44)
+
+    # Create model
+    model = conversion.create_prxteinmpnn(
+      model_params,
+      num_encoder_layers=2,
+      num_decoder_layers=2,
+      key=key,
+    )
+
+    # JIT compile a function that calls the model
+    @jax.jit
+    def model_fn(edge_features, neighbor_indices, mask):
+      return model(edge_features, neighbor_indices, mask)
+
+    # Create test inputs
+    edge_features = jax.random.normal(key, (20, 15, 128))
+    neighbor_indices = jnp.arange(20)[:, None].repeat(15, axis=1)
+    mask = jnp.ones(20)
+
+    # Should not raise
+    logits = model_fn(edge_features, neighbor_indices, mask)
+    assert logits.shape == (20, 21)
+
+
+class TestNumericalEquivalence:
+  """Test numerical equivalence between Equinox and functional implementations.
+
+  These tests ensure that the full forward pass produces identical results
+  between the Equinox model and the original functional implementation.
+  """
+
+  def test_encoder_numerical_equivalence(self) -> None:
+    """Encoder should produce numerically equivalent outputs to functional encoder."""
+    from prxteinmpnn.functional import get_functional_model, make_encoder
+
+    model_params = get_functional_model()
+    key = jax.random.PRNGKey(123)
+
+    # Create test inputs
+    num_atoms = 20
+    num_neighbors = 15
+    edge_dim = 128
+    edge_features = jax.random.normal(key, (num_atoms, num_neighbors, edge_dim))
+    neighbor_indices = jnp.arange(num_atoms)[:, None].repeat(num_neighbors, axis=1)
+    mask = jnp.ones(num_atoms)
+
+    # Create Equinox encoder
+    eqx_encoder = conversion.create_encoder(model_params, num_layers=3, key=key)
+
+    # Run Equinox encoder
+    eqx_nodes, eqx_edges = eqx_encoder(edge_features, neighbor_indices, mask)
+
+    # Run functional encoder
+    func_encoder = make_encoder(model_params, num_encoder_layers=3, scale=30.0)
+    func_nodes, func_edges = func_encoder(edge_features, neighbor_indices, mask)
+
+    # Compare outputs (should be very close, within floating point tolerance)
+    # Use slightly looser tolerance for float32 operations
+    assert jnp.allclose(eqx_nodes, func_nodes, rtol=1e-5, atol=1e-5)
+    assert jnp.allclose(eqx_edges, func_edges, rtol=1e-4, atol=1e-5)
+
+  def test_full_model_numerical_equivalence(self) -> None:
+    """Full model should produce identical logits to functional implementation."""
+    from prxteinmpnn.functional import (
+      final_projection,
+      get_functional_model,
+      make_decoder,
+      make_encoder,
+    )
+
+    model_params = get_functional_model()
+    key = jax.random.PRNGKey(789)
+
+    # Create test inputs
+    num_atoms = 25
+    num_neighbors = 20
+    edge_dim = 128
+    edge_features = jax.random.normal(key, (num_atoms, num_neighbors, edge_dim))
+    neighbor_indices = jnp.arange(num_atoms)[:, None].repeat(num_neighbors, axis=1)
+    mask = jnp.ones(num_atoms)
+
+    # ===== Equinox Model =====
+    eqx_model = conversion.create_prxteinmpnn(
+      model_params,
+      num_encoder_layers=3,
+      num_decoder_layers=3,
+      key=key,
+    )
+    eqx_logits = eqx_model(edge_features, neighbor_indices, mask)
+
+    # ===== Functional Model =====
+    # Encoder
+    func_encoder = make_encoder(model_params, num_encoder_layers=3, scale=30.0)
+    func_nodes, func_edges = func_encoder(edge_features, neighbor_indices, mask)
+
+    # Decoder
+    func_decoder = make_decoder(
+      model_params,
+      attention_mask_type=None,
+      num_decoder_layers=3,
+      scale=30.0,
+    )
+    func_nodes = func_decoder(func_nodes, func_edges, mask)
+
+    # Projection
+    func_logits = final_projection(model_params, func_nodes)
+
+    # Compare final logits (use tolerance appropriate for float32 and accumulated ops)
+    assert jnp.allclose(eqx_logits, func_logits, rtol=1e-5, atol=1e-5)
+
+  def test_model_save_load_equivalence(self) -> None:
+    """Saved and loaded model should produce identical outputs."""
+    import pathlib
+    import tempfile
+
+    from prxteinmpnn.functional import get_functional_model
+
+    model_params = get_functional_model()
+    key = jax.random.PRNGKey(999)
+
+    # Create original model
+    original_model = conversion.create_prxteinmpnn(
+      model_params,
+      num_encoder_layers=3,
+      num_decoder_layers=3,
+      key=key,
+    )
+
+    # Create test inputs
+    num_atoms = 15
+    num_neighbors = 10
+    edge_features = jax.random.normal(key, (num_atoms, num_neighbors, 128))
+    neighbor_indices = jnp.arange(num_atoms)[:, None].repeat(num_neighbors, axis=1)
+    mask = jnp.ones(num_atoms)
+
+    # Get original output
+    original_logits = original_model(edge_features, neighbor_indices, mask)
+
+    # Save and load model
+    with tempfile.TemporaryDirectory() as tmpdir:
+      model_path = pathlib.Path(tmpdir) / "test_model.eqx"
+      equinox.tree_serialise_leaves(model_path, original_model)
+
+      # Load model
+      loaded_model = eqx.load_prxteinmpnn(str(model_path))
+
+      # Get loaded output
+      loaded_logits = loaded_model(edge_features, neighbor_indices, mask)
+
+    # Compare outputs
+    assert jnp.allclose(original_logits, loaded_logits, rtol=1e-7, atol=1e-8)
+
+  def test_model_with_different_batch_sizes(self) -> None:
+    """Model should handle different batch sizes correctly."""
+    from prxteinmpnn.functional import get_functional_model
+
+    model_params = get_functional_model()
+    key = jax.random.PRNGKey(111)
+
+    # Create model
+    model = conversion.create_prxteinmpnn(
+      model_params,
+      num_encoder_layers=3,
+      num_decoder_layers=3,
+      key=key,
+    )
+
+    # Test with different sizes
+    for num_atoms in [10, 20, 50]:
+      for num_neighbors in [5, 15, 30]:
+        edge_features = jax.random.normal(key, (num_atoms, num_neighbors, 128))
+        neighbor_indices = jnp.arange(num_atoms)[:, None].repeat(num_neighbors, axis=1)
+        mask = jnp.ones(num_atoms)
+
+        logits = model(edge_features, neighbor_indices, mask)
+
+        # Verify output shape
+        assert logits.shape == (num_atoms, 21)
+
+  def test_model_with_partial_masking(self) -> None:
+    """Model should handle partial masking correctly."""
+    from prxteinmpnn.functional import (
+      final_projection,
+      get_functional_model,
+      make_decoder,
+      make_encoder,
+    )
+
+    model_params = get_functional_model()
+    key = jax.random.PRNGKey(222)
+
+    # Create test inputs with partial mask
+    num_atoms = 30
+    num_neighbors = 20
+    edge_features = jax.random.normal(key, (num_atoms, num_neighbors, 128))
+    neighbor_indices = jnp.arange(num_atoms)[:, None].repeat(num_neighbors, axis=1)
+
+    # Create partial mask (first half valid, second half masked)
+    mask = jnp.concatenate([jnp.ones(15), jnp.zeros(15)])
+
+    # Equinox model
+    eqx_model = conversion.create_prxteinmpnn(
+      model_params,
+      num_encoder_layers=3,
+      num_decoder_layers=3,
+      key=key,
+    )
+    eqx_logits = eqx_model(edge_features, neighbor_indices, mask)
+
+    # Functional model
+    func_encoder = make_encoder(model_params, num_encoder_layers=3, scale=30.0)
+    func_nodes, func_edges = func_encoder(edge_features, neighbor_indices, mask)
+
+    func_decoder = make_decoder(
+      model_params,
+      attention_mask_type=None,
+      num_decoder_layers=3,
+      scale=30.0,
+    )
+    func_nodes = func_decoder(func_nodes, func_edges, mask)
+    func_logits = final_projection(model_params, func_nodes)
+
+    # Compare (use float32-appropriate tolerance)
+    assert jnp.allclose(eqx_logits, func_logits, rtol=1e-5, atol=1e-5)
+
+    # Verify masked positions are consistent between implementations
+    assert jnp.allclose(eqx_logits[15:], func_logits[15:], rtol=1e-5, atol=1e-5)

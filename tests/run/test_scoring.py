@@ -73,7 +73,7 @@ class TestScore:
         with patch(
             "prxteinmpnn.io.loaders.create_protein_dataset"
         ) as mock_create_dataset, patch(
-            "prxteinmpnn.run.prep.get_mpnn_model"
+            "prxteinmpnn.run.prep.get_functional_model",
         ) as mock_get_model, patch(
             "prxteinmpnn.run.scoring.make_score_sequence"
         ) as mock_make_score, patch(

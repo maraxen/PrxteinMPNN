@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 
 from prxteinmpnn.io import loaders
-from prxteinmpnn.mpnn import get_mpnn_model
+from prxteinmpnn.functional.model import get_functional_model
 
 
 def _loader_inputs(inputs: Sequence[str | StringIO] | str | StringIO) -> Sequence[str | StringIO]:
@@ -46,7 +46,7 @@ def prep_protein_stream_and_model(spec: Specs) -> tuple[IterDataset, ModelParame
     foldcomp_database=spec.foldcomp_database,
     parse_kwargs=parse_kwargs,
   )
-  model_parameters = get_mpnn_model(
+  model_parameters = get_functional_model(
     model_version=spec.model_version,
     model_weights=spec.model_weights,
   )

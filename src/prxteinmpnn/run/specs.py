@@ -19,7 +19,7 @@ if TYPE_CHECKING:
   from jaxtyping import ArrayLike
 
   from prxteinmpnn.ensemble.dbscan import ConformationalStates
-  from prxteinmpnn.mpnn import ModelVersion, ModelWeights
+  from prxteinmpnn.functional.model import ModelVersion, ModelWeights
   from prxteinmpnn.utils.catjac import CombineCatJacPairFn
   from prxteinmpnn.utils.decoding_order import DecodingOrderFn
   from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase
@@ -60,7 +60,7 @@ class RunSpecification:
   inputs: Sequence[str | StringIO] | str | StringIO
   topology: str | Path | None = None
   model_weights: ModelWeights = "original"
-  model_version: ModelVersion = "v_48_020.pkl"
+  model_version: ModelVersion = "v_48_020"
   batch_size: int = 32
   backbone_noise: Sequence[float] | float = (0.0,)
   foldcomp_database: FoldCompDatabase | None = None
@@ -75,12 +75,23 @@ class RunSpecification:
   overwrite_cache: bool = False
   output_path: str | Path | None = None
 
+  # Tied-position logit averaging fields
+  tied_positions: Sequence[tuple[int, int]] | Literal["auto", "direct"] | None = None
+  pass_mode: Literal["inter", "intra"] = "intra"  # noqa: S105 (not a password)
+
   def __post_init__(self) -> None:
-    """Post-initialization processing."""
+    """Post-initialization processing and validation for tied-position logit averaging."""
     if isinstance(self.backbone_noise, float):
       object.__setattr__(self, "backbone_noise", (self.backbone_noise,))
     if self.cache_path and isinstance(self.cache_path, str):
       object.__setattr__(self, "cache_path", Path(self.cache_path))
+    # Validation for tied_positions and pass_mode
+    if self.tied_positions in ("auto", "direct") and self.pass_mode != "inter":
+      msg = (
+        f"If tied_positions is '{self.tied_positions}', pass_mode must be 'inter'. "
+        f"Got pass_mode='{self.pass_mode}'."
+      )
+      raise ValueError(msg)
 
 
 @dataclass
@@ -134,6 +145,7 @@ class SamplingSpecification(RunSpecification):
   samples_batch_size: int = 16
   noise_batch_size: int = 4
   average_encodings: bool = False
+  average_logits: None | Literal["structures", "noise", "both"] = None
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""
@@ -154,6 +166,7 @@ class JacobianSpecification(RunSpecification):
   noise_batch_size: int = 1
   jacobian_batch_size: int = 16
   average_encodings: bool = True
+  average_logits: None | Literal["structures", "noise", "both"] = None
   combine: bool = False
   combine_batch_size: int = 8
   combine_noise_batch_size: int = 1

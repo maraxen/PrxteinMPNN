@@ -1,3 +1,39 @@
+import jax
+
+
+def group_sampling_step(
+  carry,
+  group_id_to_decode,
+):
+  """Sampling step for tied group logit averaging.
+
+  Args:
+    carry: tuple (key, S, model, tie_group_map, autoregressive_mask, temperature)
+    group_id_to_decode: int, group id for this step
+
+  Returns:
+    new_carry, None
+
+  """
+  key, S, model, tie_group_map, autoregressive_mask, temperature = carry
+  logits = model(S, autoregressive_mask)
+  group_mask = tie_group_map == group_id_to_decode
+  # Masked logits for group
+  masked_logits = jnp.where(group_mask[:, None], logits, -1e9)
+  max_logits = jnp.max(masked_logits, axis=0, keepdims=True)
+  shifted_logits = masked_logits - max_logits
+  exp_logits = jnp.exp(shifted_logits)
+  sum_exp_logits = jnp.sum(exp_logits, axis=0, keepdims=True)
+  num_in_group = jnp.sum(group_mask)
+  avg_exp_logits = sum_exp_logits / num_in_group
+  avg_logits = jnp.log(avg_exp_logits) + max_logits
+  sampled_logits = avg_logits / temperature
+  new_key, subkey = jax.random.split(key)
+  token = jax.random.categorical(subkey, sampled_logits, axis=-1)[0]
+  S_new = jnp.where(group_mask, token, S)
+  return (new_key, S_new, model, tie_group_map, autoregressive_mask, temperature), None
+
+
 """Defines the single-pass autoregressive sampling step."""
 
 from functools import partial

@@ -1,3 +1,22 @@
+import jax.numpy as jnp
+
+
+def get_decoding_order(tie_group_map: jnp.ndarray, key) -> jnp.ndarray:
+  """Generate a decoding order over tie groups.
+
+  Args:
+    tie_group_map: (N,) array of group ids.
+    key: PRNGKey for shuffling.
+
+  Returns:
+    group_decoding_order: (M,) array, permutation of unique group ids.
+
+  """
+  unique_group_ids = jnp.unique(tie_group_map)
+  group_decoding_order = jax.random.permutation(key, unique_group_ids)
+  return group_decoding_order
+
+
 """Utilities for decoding order generation.
 
 prxteinmpnn.utils.decoding_order

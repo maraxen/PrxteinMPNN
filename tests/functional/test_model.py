@@ -17,8 +17,8 @@ from prxteinmpnn.functional.model import ModelVersion, ModelWeights
 
 
 
-@patch("prxteinmpnn.functional.model.joblib.load")
-@patch("prxteinmpnn.functional.model.pathlib.Path")
+@patch("joblib.load")
+@patch("pathlib.Path")
 def test_get_mpnn_model_defaults(mock_path: MagicMock, mock_load: MagicMock):
   """Test get_mpnn_model with default arguments.
 

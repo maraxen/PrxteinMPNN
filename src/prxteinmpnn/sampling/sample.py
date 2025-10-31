@@ -1,4 +1,4 @@
-"""Factory for creating sequence sampling and optimization functions."""
+"""Factory for creating sequence sampling and optimization functions for PrxteinMPNN."""
 
 from collections.abc import Callable
 from functools import partial
@@ -8,15 +8,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Float, Int, PRNGKeyArray
 
-from prxteinmpnn.model.decoder import (
-  make_decoder,
-)
-
-if TYPE_CHECKING:
-  from prxteinmpnn.model.decoding_signatures import (
-    RunAutoregressiveDecoderFn,
-    RunConditionalDecoderFn,
-  )
+from prxteinmpnn.model.decoder import make_decoder
 from prxteinmpnn.model.encoder import make_encoder
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
@@ -36,6 +28,16 @@ from prxteinmpnn.utils.types import (
 from .initialize import sampling_encode
 from .sampling_step import preload_sampling_step_decoder
 from .ste_optimize import make_optimize_sequence_fn
+
+"""Factory for creating sequence sampling and optimization functions."""
+
+
+if TYPE_CHECKING:
+  from prxteinmpnn.model.decoding_signatures import (
+    RunAutoregressiveDecoderFn,
+    RunConditionalDecoderFn,
+  )
+
 
 # Simplified type hints
 SamplerInputs = tuple[
@@ -109,7 +111,17 @@ def make_sample_sequences(
     model_parameters=model_parameters,
   )
 
-  @partial(jax.jit, static_argnames=("k_neighbors"))
+  # --- Top-level imports for group-based sampling ---
+
+  # --- Top-level imports for group-based sampling ---
+  from prxteinmpnn.sampling.sampling_step import group_sampling_step
+  from prxteinmpnn.utils.autoregression import (
+    get_decoding_step_map,
+    make_autoregressive_mask,
+  )
+  from prxteinmpnn.utils.decoding_order import get_decoding_order
+
+  @partial(jax.jit, static_argnames=("k_neighbors",))
   def sample_or_optimize_fn(
     prng_key: PRNGKeyArray,
     structure_coordinates: StructureAtomicCoordinates,
@@ -123,6 +135,8 @@ def make_sample_sequences(
     iterations: Int | None = None,
     learning_rate: Float | None = None,
     temperature: Float | None = None,
+    tie_group_map: jnp.ndarray | None = None,
+    spec: object | None = None,
   ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
     """Dispatches to either the optimization or sampling function."""
     bias, fixed_positions, iterations, learning_rate, temperature = (
@@ -153,6 +167,38 @@ def make_sample_sequences(
       k_neighbors,
       backbone_noise,
     )
+
+    # If tie_group_map is provided, use group-based decoding
+    if tie_group_map is not None and spec is not None:
+      # Step 1: get group_decoding_order
+      group_decoding_order = get_decoding_order(tie_group_map, next_rng_key)
+      # Step 2: get decoding_step_map
+      decoding_step_map = get_decoding_step_map(tie_group_map, group_decoding_order)
+      # Step 3: get AR mask
+      ar_mask = make_autoregressive_mask(decoding_step_map)
+      # Step 4: scan over group_decoding_order
+      carry = (
+        next_rng_key,
+        jnp.zeros_like(residue_index),
+        autoregressive_decoder,
+        tie_group_map,
+        ar_mask,
+        temperature,
+      )
+
+      def scan_body(
+        carry: tuple,
+        group_id: jnp.ndarray,
+      ) -> tuple[tuple, None]:
+        return group_sampling_step(carry, group_id)
+
+      carry, _ = jax.lax.scan(scan_body, carry, group_decoding_order)
+      _, output_sequence, *_ = carry
+      # output_sequence may be a tuple, ensure correct type
+      if isinstance(output_sequence, tuple):
+        output_sequence = output_sequence[0]
+      output_logits = jnp.zeros((output_sequence.shape[0], 21))  # Placeholder
+      return output_sequence, output_logits, decoding_order
 
     if sampling_strategy == "straight_through":
       output_sequence, output_logits = optimize_seq_fn(
@@ -193,7 +239,6 @@ def make_encoding_sampling_split_fn(
   model_parameters: ModelParameters,
   decoding_order_fn: DecodingOrderFn,
   sampling_strategy: Literal["temperature", "straight_through"] = "temperature",
-  num_encoder_layers: int = 3,
   num_decoder_layers: int = 3,
 ) -> tuple[EncodingSamplerFn, Callable]:
   """Create functions for encoding and sampling, intended for averaging encodings.
@@ -208,20 +253,18 @@ def make_encoding_sampling_split_fn(
     model_parameters: A dictionary of the pre-trained ProteinMPNN model parameters.
     decoding_order_fn: A function that generates the decoding order.
     sampling_strategy: The sampling strategy to use ("temperature" or "straight_through").
-    num_encoder_layers: The number of encoder layers to use. Defaults to 3.
     num_decoder_layers: The number of decoder layers to use. Defaults to 3.
 
   Returns:
-      A tuple containing two functions: (`encode`, `sample_from_features`).
+    A tuple containing two functions: (`encode`, `sample_from_features`).
 
   """
   encoder = make_encoder(
     model_parameters=model_parameters,
     attention_mask_type="cross",
-    num_encoder_layers=num_encoder_layers,
+    num_encoder_layers=3,
   )
-
-  conditional_decoder: RunConditionalDecoderFn = cast(
+  conditional_decoder = cast(
     "RunConditionalDecoderFn",
     make_decoder(
       model_parameters=model_parameters,

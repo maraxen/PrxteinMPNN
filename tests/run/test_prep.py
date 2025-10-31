@@ -10,6 +10,10 @@ def mock_run_spec():
   """Create a mock RunSpecification for testing.
   
   Returns:
+import jax.numpy as jnp
+from prxteinmpnn.run.batch_prep import prepare_inter_mode_batch, ProteinMPNNInput, InterModeMap
+from prxteinmpnn.run.specs import RunSpecification
+
     Mock: A mock RunSpecification object with all required attributes.
   """
   spec = Mock()
@@ -36,6 +40,7 @@ def mock_protein_iterator():
   return Mock()
 
 
+
 @pytest.fixture
 def mock_model_parameters():
   """Create a mock model parameters object for testing.
@@ -44,6 +49,7 @@ def mock_model_parameters():
     Mock: A mock ModelParameters object.
   """
   return Mock()
+
 
 
 @patch("prxteinmpnn.run.prep.get_mpnn_model")

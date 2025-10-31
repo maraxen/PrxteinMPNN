@@ -52,6 +52,7 @@ tests = [
     "chex",
     "anyio",
     "pyright",
+    "foldcomp"
 ]
 dev = [
   "ruff",
@@ -72,6 +73,7 @@ dev = [
   "trio",
   "chex",
   "anyio",
+  "foldcomp"
 ]
 foldcomp = [
     "foldcomp",

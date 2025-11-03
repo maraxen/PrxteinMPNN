@@ -172,7 +172,51 @@ This plan implements a robust, side-by-side migration. We will first isolate the
   - [x] Created `tests/functional/` directory for functional tests
   - [x] Moved and updated all relevant tests to use `prxteinmpnn.functional` imports
   - [x] All 41 functional tests pass successfully
-- [ ] Milestone 2: Foundational eqx Layers & Conversion Helpers
-- [ ] Milestone 3: Core Model Layers & Refactored Kernels
-- [ ] Milestone 4: Full eqx Model, API, & Weight Conversion
-- [ ] Milestone 5: Final API Switch & Cleanup
+
+- [x] Milestone 2: Core Equinox Implementation ✅ **COMPLETE**
+  - [x] Created `src/prxteinmpnn/eqx_new.py` with full Equinox model
+  - [x] Implemented `LayerNorm`, `DenseLayer`, `EncoderLayer`, `DecoderLayer` modules
+  - [x] Implemented `Encoder`, `Decoder`, `PrxteinMPNN` top-level modules
+  - [x] All modules are JAX-compatible PyTree structures
+  - [x] Support for unconditional, conditional, and autoregressive decoding
+
+- [x] Milestone 3: Numerical Equivalence Testing ✅ **COMPLETE**
+  - [x] Created `tests/test_eqx_equivalence.py` with comprehensive tests
+  - [x] Test 1: Feature extraction (encoder) equivalence - PASSING
+  - [x] Test 2: Unconditional decoder equivalence - PASSING
+  - [x] Test 3: Conditional decoder equivalence - PASSING (fixed attention masking bug)
+  - [x] Test 4: Autoregressive first step equivalence - PASSING
+  - [x] All tests pass with tight tolerance (rtol=1e-5, atol=1e-5)
+  - [x] Total test runtime: 11.6 seconds
+
+- [ ] Milestone 4: Weight Conversion & Model Deployment **IN PROGRESS**
+  - [x] Conversion logic implemented in `eqx_new.py` (from_functional class method)
+  - [ ] Convert all model variants to .eqx format:
+    - [ ] original_v_48_002.eqx
+    - [ ] original_v_48_010.eqx
+    - [ ] original_v_48_020.eqx
+    - [ ] original_v_48_030.eqx
+    - [ ] soluble_v_48_002.eqx
+    - [ ] soluble_v_48_010.eqx
+    - [ ] soluble_v_48_020.eqx
+    - [ ] soluble_v_48_030.eqx
+  - [ ] Upload .eqx files to HuggingFace
+  - [ ] Update model loading to default to .eqx format
+  - [ ] Add save/load preservation tests
+  - [ ] Add variable sequence length tests
+
+- [ ] Milestone 5: API Integration & Migration
+  - [ ] Update `src/prxteinmpnn/mpnn.py` to use eqx_new.PrxteinMPNN
+  - [ ] Refactor sampling module to use eqx model
+  - [ ] Refactor scoring module to use eqx model
+  - [ ] Update all examples and notebooks
+  - [ ] Reorganize test structure (move equivalence tests to separate directory)
+  - [ ] Update documentation and quick start guides
+  - [ ] Deprecation warnings for functional API
+
+- [ ] Milestone 6: Final Cleanup & Release
+  - [ ] Full test suite passing with eqx model
+  - [ ] Performance benchmarks (compare to functional)
+  - [ ] Documentation review and updates
+  - [ ] Version bump and changelog
+  - [ ] GitHub release with migration guide

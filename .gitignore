@@ -1,3 +1,5 @@
+# Ignore legacy pickle model files
+*.pkl
 .venv
 .venv/
 __pycache__/

@@ -2,6 +2,9 @@
 """Integration tests for the sampling factory."""
 
 import chex
+from prxteinmpnn.utils.data_structures import Protein
+from prxteinmpnn.utils.autoregression import get_decoding_step_map
+from prxteinmpnn.utils.decoding_order import get_decoding_order
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -173,3 +176,47 @@ def test_straight_through_vs_temperature_sampling(mock_model_parameters, model_i
     # The two sampling strategies should generally produce different sequences
     # (they may occasionally be the same by chance, but shouldn't be identical every time)
     assert seq_ste.shape == seq_temp.shape
+
+
+def test_full_sample_direct_mode_identical_output(mock_model_parameters, model_inputs, rng_key):
+    """Test that direct mode with identical inputs produces identical sequences."""
+    sample_fn = make_sample_sequences(
+        model_parameters=mock_model_parameters,
+        decoding_order_fn=random_decoding_order,
+    )
+
+    protein = Protein(
+        coordinates=model_inputs["structure_coordinates"],
+        aatype=model_inputs["sequence"],
+        one_hot_sequence=jax.nn.one_hot(model_inputs["sequence"], 21),
+        mask=model_inputs["mask"],
+        residue_index=model_inputs["residue_index"],
+        chain_index=model_inputs["chain_index"],
+    )
+    l = protein.coordinates.shape[0]
+
+    # Run sample with tied_positions="direct"
+    tie_group_map=jnp.tile(jnp.arange(l), 2)
+    group_decoding_order = get_decoding_order(rng_key, tie_group_map)
+    decoding_step_map = get_decoding_step_map(tie_group_map, group_decoding_order)
+    tied_seq, _, _ = sample_fn(
+        prng_key=rng_key,
+        structure_coordinates=jnp.concatenate([protein.coordinates, protein.coordinates]),
+        mask=jnp.concatenate([protein.mask, protein.mask]),
+        residue_index=jnp.concatenate([protein.residue_index, protein.residue_index]),
+        chain_index=jnp.concatenate([protein.chain_index, protein.chain_index + 1]), # Different chains
+        tie_group_map=tie_group_map,
+        group_decoding_order=group_decoding_order,
+        decoding_step_map=decoding_step_map,
+    )
+
+    # Run sample on a single input
+    single_seq, _, _ = sample_fn(
+        prng_key=rng_key,
+        structure_coordinates=protein.coordinates,
+        mask=protein.mask,
+        residue_index=protein.residue_index,
+        chain_index=protein.chain_index,
+    )
+
+    assert jnp.array_equal(tied_seq[:l], tied_seq[l:])

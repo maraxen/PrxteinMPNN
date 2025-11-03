@@ -7,15 +7,25 @@ from collections.abc import Callable
 from functools import partial
 
 import jax
-from jaxtyping import Int, PRNGKeyArray
+import jax.numpy as jnp
+from jaxtyping import Array, Int, PRNGKeyArray
 
 from .types import (
   DecodingOrder,
 )
 
-DecodingOrderInputs = tuple[PRNGKeyArray, Int]
+DecodingOrderInputs = tuple[PRNGKeyArray, Int, Array]
 DecodingOrderOutputs = tuple[DecodingOrder, PRNGKeyArray]
 DecodingOrderFn = Callable[[*DecodingOrderInputs], DecodingOrderOutputs]
+
+
+def get_decoding_order(
+    key: PRNGKeyArray, tie_group_map: jnp.ndarray
+) -> DecodingOrder:
+    """Generate a decoding order over tie groups."""
+    unique_group_ids = jnp.unique(tie_group_map)
+    group_decoding_order = jax.random.permutation(key, unique_group_ids)
+    return group_decoding_order
 
 
 @partial(jax.jit, static_argnames=("num_residues",))

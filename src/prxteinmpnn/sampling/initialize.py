@@ -11,7 +11,7 @@ import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.model.features import extract_features, project_features
-from prxteinmpnn.utils.autoregression import generate_ar_mask
+from prxteinmpnn.utils.autoregression import make_autoregressive_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,
@@ -78,7 +78,9 @@ def sampling_encode(
       decoding_order, next_rng_key = jnp.arange(structure_coordinates.shape[0]), prng_key
 
     ar_mask = (
-      generate_ar_mask(decoding_order) if autoregressive_mask is None else autoregressive_mask
+      make_autoregressive_mask(decoding_order)
+      if autoregressive_mask is None
+      else autoregressive_mask
     )
 
     edge_features, neighbor_indices, next_rng_key = extract_features(

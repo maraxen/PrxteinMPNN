@@ -8,7 +8,7 @@ import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, Union
 
 mp.set_start_method("spawn", force=True)
 
@@ -74,6 +74,8 @@ class RunSpecification:
   cache_path: str | Path | None = None
   overwrite_cache: bool = False
   output_path: str | Path | None = None
+  tied_positions: Union[Sequence[tuple[int, int]], Literal["auto", "direct"], None] = None
+  pass_mode: Literal["inter", "intra"] = "intra"
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""
@@ -81,6 +83,10 @@ class RunSpecification:
       object.__setattr__(self, "backbone_noise", (self.backbone_noise,))
     if self.cache_path and isinstance(self.cache_path, str):
       object.__setattr__(self, "cache_path", Path(self.cache_path))
+    if self.tied_positions in ["auto", "direct"] and self.pass_mode == "intra":
+      raise ValueError(
+        'If tied_positions is set to "auto" or "direct", pass_mode must be "inter".'
+      )
 
 
 @dataclass

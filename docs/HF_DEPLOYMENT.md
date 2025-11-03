@@ -7,6 +7,7 @@ Successfully completed the deployment of PrxteinMPNN models to HuggingFace Hub u
 ## What Was Accomplished
 
 ### 1. Model Upload to HuggingFace ✅
+
 - Created `scripts/upload_to_huggingface.py` to automate model uploads
 - Deleted 16 old files (8 `.eqx` + 8 `.pkl` from legacy format)
 - Uploaded 8 new `.eqx` models to `maraxen/prxteinmpnn` repository:
@@ -15,6 +16,7 @@ Successfully completed the deployment of PrxteinMPNN models to HuggingFace Hub u
 - All models are ~6.66MB each and stored in the `eqx/` folder
 
 ### 2. Download Verification ✅
+
 - Created `scripts/test_hf_download.py` to verify download functionality
 - Confirmed all 8 models can be downloaded from HuggingFace
 - Verified deserialization works correctly
@@ -22,6 +24,7 @@ Successfully completed the deployment of PrxteinMPNN models to HuggingFace Hub u
 - Validated save/load roundtrip is bit-perfect
 
 ### 3. HuggingFace Model Card ✅
+
 - Created comprehensive `HUGGINGFACE_README.md` with:
   - Model description and architecture details
   - Installation instructions
@@ -32,6 +35,7 @@ Successfully completed the deployment of PrxteinMPNN models to HuggingFace Hub u
 - Successfully uploaded README to HuggingFace repository
 
 ### 4. Updated IO Module ✅
+
 - Updated `src/prxteinmpnn/io/weights.py`:
   - Added `load_model()` high-level API for easy model loading
   - Updated `load_weights()` to support `.eqx` format by default
@@ -47,6 +51,7 @@ Successfully completed the deployment of PrxteinMPNN models to HuggingFace Hub u
     - `VOCAB_SIZE = 21`
 
 ### 5. Comprehensive Test Suite ✅
+
 - Created `tests/io/test_hf_loading.py` with 16 tests:
   - `TestLoadModel`: 4 tests for high-level API
   - `TestLoadWeights`: 2 tests for low-level API
@@ -59,6 +64,7 @@ Successfully completed the deployment of PrxteinMPNN models to HuggingFace Hub u
 ## Key Features
 
 ### High-Level API
+
 ```python
 from prxteinmpnn.io.weights import load_model
 
@@ -67,17 +73,20 @@ model = load_model(model_version="v_48_020", model_weights="original")
 ```
 
 ### No More .pkl Dependency
+
 - Old workflow: Download `.pkl` → Extract functional params → Create model → Load weights
 - New workflow: Create model structure → Download `.eqx` → Load weights
 - Cleaner, more maintainable, fully Equinox-native
 
 ### Backward Compatibility
+
 - Legacy `.pkl` files still supported via `use_eqx_format=False` flag
 - Smooth migration path for existing code
 
 ## Files Created/Modified
 
-### Created:
+### Created
+
 1. `scripts/upload_to_huggingface.py` - Upload automation
 2. `scripts/test_hf_download.py` - Download verification
 3. `scripts/update_hf_readme.py` - README upload script
@@ -85,7 +94,8 @@ model = load_model(model_version="v_48_020", model_weights="original")
 5. `tests/io/test_hf_loading.py` - Comprehensive test suite
 6. `docs/HF_DEPLOYMENT.md` - This document
 
-### Modified:
+### Modified
+
 1. `src/prxteinmpnn/io/weights.py` - Added `load_model()` and updated `load_weights()`
 2. `pyproject.toml` - Added `slow` marker for pytest
 
@@ -105,9 +115,9 @@ uv run python -c "from prxteinmpnn.io.weights import load_model; model = load_mo
 
 ## Links
 
-- **HuggingFace Repository**: https://huggingface.co/maraxen/prxteinmpnn
-- **Model Card**: https://huggingface.co/maraxen/prxteinmpnn/blob/main/README.md
-- **Model Files**: https://huggingface.co/maraxen/prxteinmpnn/tree/main/eqx
+- **HuggingFace Repository**: <https://huggingface.co/maraxen/prxteinmpnn>
+- **Model Card**: <https://huggingface.co/maraxen/prxteinmpnn/blob/main/README.md>
+- **Model Files**: <https://huggingface.co/maraxen/prxteinmpnn/tree/main/eqx>
 
 ## Next Steps
 

@@ -1865,6 +1865,7 @@ dependencies = [
 dev = [
     { name = "anyio" },
     { name = "chex" },
+    { name = "foldcomp" },
     { name = "myst-nb" },
     { name = "myst-parser" },
     { name = "pyright" },
@@ -1900,6 +1901,7 @@ foldcomp = [
 tests = [
     { name = "anyio" },
     { name = "chex" },
+    { name = "foldcomp" },
     { name = "pyright" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -1917,7 +1919,9 @@ requires-dist = [
     { name = "chex", marker = "extra == 'tests'" },
     { name = "equinox", specifier = ">=0.13.2" },
     { name = "flax" },
+    { name = "foldcomp", marker = "extra == 'dev'" },
     { name = "foldcomp", marker = "extra == 'foldcomp'" },
+    { name = "foldcomp", marker = "extra == 'tests'" },
     { name = "gmmx" },
     { name = "grain" },
     { name = "h5py" },

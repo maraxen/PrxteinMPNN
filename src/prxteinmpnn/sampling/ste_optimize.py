@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
 from prxteinmpnn.model.projection import final_projection
 from prxteinmpnn.model.ste import straight_through_estimator
-from prxteinmpnn.utils.autoregression import generate_ar_mask
+from prxteinmpnn.utils.autoregression import make_autoregressive_mask
 
 
 def make_optimize_sequence_fn(
@@ -112,7 +112,7 @@ def make_optimize_sequence_fn(
         keys_for_decoding,
         num_residues,
       )
-      ar_mask = jax.vmap(generate_ar_mask)(decoding_order)
+      ar_mask = jax.vmap(make_autoregressive_mask)(decoding_order)
 
       def loss_fn(logits: Logits) -> jnp.ndarray:
         one_hot_sequence = straight_through_estimator(logits / temperature)
@@ -148,7 +148,7 @@ def make_optimize_sequence_fn(
 
     final_key, _ = jax.random.split(prng_key)
     final_decoding_order, _ = decoding_order_fn(final_key, num_residues)
-    final_ar_mask = generate_ar_mask(final_decoding_order)
+    final_ar_mask = make_autoregressive_mask(final_decoding_order)
 
     final_decoded_features = decoder(
       node_features,

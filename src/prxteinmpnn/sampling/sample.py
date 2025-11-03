@@ -18,8 +18,11 @@ if TYPE_CHECKING:
     RunConditionalDecoderFn,
   )
 from prxteinmpnn.model.encoder import make_encoder
-from prxteinmpnn.utils.autoregression import generate_ar_mask
-from prxteinmpnn.utils.decoding_order import DecodingOrderFn
+from prxteinmpnn.utils.autoregression import (
+    get_decoding_step_map,
+    make_autoregressive_mask,
+)
+from prxteinmpnn.utils.decoding_order import DecodingOrderFn, get_decoding_order
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,
   BackboneNoise,
@@ -51,6 +54,9 @@ SamplerInputs = tuple[
   Int | None,
   Float | None,
   Float | None,
+  jnp.ndarray | None,
+  jnp.ndarray | None,
+  jnp.ndarray | None,
 ]
 SamplerFn = Callable[..., tuple[ProteinSequence, Logits, DecodingOrder]]
 EncodingSamplerFn = Callable[
@@ -109,7 +115,7 @@ def make_sample_sequences(
     model_parameters=model_parameters,
   )
 
-  @partial(jax.jit, static_argnames=("k_neighbors"))
+  @partial(jax.jit, static_argnames=("k_neighbors",))
   def sample_or_optimize_fn(
     prng_key: PRNGKeyArray,
     structure_coordinates: StructureAtomicCoordinates,
@@ -123,6 +129,9 @@ def make_sample_sequences(
     iterations: Int | None = None,
     learning_rate: Float | None = None,
     temperature: Float | None = None,
+    tie_group_map: jnp.ndarray | None = None,
+    group_decoding_order: jnp.ndarray | None = None,
+    decoding_step_map: jnp.ndarray | None = None,
   ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
     """Dispatches to either the optimization or sampling function."""
     bias, fixed_positions, iterations, learning_rate, temperature = (
@@ -153,6 +162,72 @@ def make_sample_sequences(
       k_neighbors,
       backbone_noise,
     )
+
+    if group_decoding_order is not None:
+        assert tie_group_map is not None
+        assert decoding_step_map is not None
+        autoregressive_mask = make_autoregressive_mask(decoding_step_map)
+
+        def tied_sampling_step(carry, group_id_to_decode):
+            key, s = carry
+
+            # Perform the full model forward pass once
+            _, logits = autoregressive_decoder(
+                key,
+                node_features,
+                edge_features,
+                neighbor_indices,
+                mask,
+                autoregressive_mask,
+                temperature,
+                bias,
+            )
+
+            # Create a mask for all residues in the current group
+            group_mask = tie_group_map == group_id_to_decode
+
+            # Logit averaging
+            max_logits = jnp.max(
+                logits, where=group_mask[:, None], initial=-1e9, axis=0, keepdims=True
+            )
+            shifted_logits = logits - max_logits
+            exp_logits = jnp.exp(shifted_logits)
+            masked_exp_logits = jnp.where(group_mask[:, None], exp_logits, 0.0)
+            sum_exp_logits = jnp.sum(masked_exp_logits, axis=0, keepdims=True)
+            num_in_group = jnp.sum(group_mask)
+            avg_exp_logits = sum_exp_logits / num_in_group
+            avg_logits = jnp.log(avg_exp_logits) + max_logits
+
+            # Sample one token
+            key, subkey = jax.random.split(key)
+            sampled_logits = avg_logits / temperature
+            token = jax.random.categorical(subkey, sampled_logits, axis=-1)[0]
+
+            # Update the sequence state S
+            s_new = jnp.where(group_mask, token, s)
+
+            return (key, s_new), None
+
+        init_carry = (
+            next_rng_key,
+            jnp.zeros(structure_coordinates.shape[0], dtype=jnp.int32),
+        )
+        (final_key, S_final), _ = jax.lax.scan(
+            tied_sampling_step, init_carry, group_decoding_order
+        )
+
+        # Final forward pass to get logits
+        _, final_logits = autoregressive_decoder(
+            final_key,
+            node_features,
+            edge_features,
+            neighbor_indices,
+            mask,
+            autoregressive_mask,
+            temperature,
+            bias,
+        )
+        return S_final, final_logits, group_decoding_order
 
     if sampling_strategy == "straight_through":
       output_sequence, output_logits = optimize_seq_fn(

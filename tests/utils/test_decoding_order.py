@@ -4,7 +4,18 @@ import chex
 import jax
 import jax.numpy as jnp
 import pytest
-from prxteinmpnn.utils.decoding_order import random_decoding_order
+from prxteinmpnn.utils.decoding_order import get_decoding_order, random_decoding_order
+
+
+def test_tied_group_decoding_order():
+    """Test get_decoding_order with a tie_group_map."""
+    key = jax.random.PRNGKey(42)
+    tie_group_map = jnp.array([0, 2, 1, 0, 2])
+    group_decoding_order = get_decoding_order(key, tie_group_map)
+
+    unique_groups = jnp.unique(tie_group_map)
+    assert group_decoding_order.shape == (len(unique_groups),)
+    assert jnp.all(jnp.sort(group_decoding_order) == jnp.sort(unique_groups))
 
 
 def test_random_decoding_order_properties():

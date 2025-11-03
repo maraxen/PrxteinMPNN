@@ -5,19 +5,27 @@ from __future__ import annotations
 import logging
 import sys
 from functools import partial
-from typing import TYPE_CHECKING, Any
+from io import StringIO
+from typing import TYPE_CHECKING, Any, Sequence
 
 import h5py
 import jax
 import jax.numpy as jnp
 
+from prxteinmpnn.io import dataset
+from prxteinmpnn.mpnn import get_mpnn_model
 from prxteinmpnn.sampling.sample import (
   make_encoding_sampling_split_fn,
   make_sample_sequences,
 )
-from prxteinmpnn.utils.decoding_order import random_decoding_order
+from prxteinmpnn.utils.autoregression import (
+    get_decoding_step_map,
+    resolve_tie_groups,
+)
+from prxteinmpnn.utils.data_structures import Protein
+from prxteinmpnn.utils.decoding_order import get_decoding_order, random_decoding_order
 
-from .prep import prep_protein_stream_and_model
+from .prep import prep_protein_stream_and_model, prepare_inter_mode_batch
 from .specs import SamplingSpecification
 
 if TYPE_CHECKING:
@@ -36,6 +44,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
+
+
+def _loader_inputs(
+    inputs: Sequence[str | StringIO] | str | StringIO,
+) -> Sequence[str | StringIO]:
+    return (inputs,) if not isinstance(inputs, Sequence) else inputs
 
 
 def sample(
@@ -88,17 +102,40 @@ def sample(
 
   all_sequences, all_logits = [], []
 
+  if spec.pass_mode == "inter":
+      # Load all proteins into a list
+      protein_data_source = dataset.ProteinDataSource(
+          inputs=_loader_inputs(spec.inputs),
+          parse_kwargs={
+              "chain_id": spec.chain_id,
+              "model": spec.model,
+              "altloc": spec.altloc,
+          },
+          foldcomp_database=spec.foldcomp_database,
+      )
+      all_proteins = [
+          Protein.from_tuple(protein_tuple) for protein_tuple in protein_data_source
+      ]
+      batched_ensemble, _ = prepare_inter_mode_batch(all_proteins, spec)
+      protein_iterator = [batched_ensemble]
+
   for batched_ensemble in protein_iterator:
     keys = jax.random.split(jax.random.key(spec.random_seed), spec.num_samples)
 
+    tie_group_map, group_decoding_order, decoding_step_map = None, None, None
+    if spec.tied_positions:
+        tie_group_map = resolve_tie_groups(spec, batched_ensemble)
+        group_decoding_order = get_decoding_order(keys[0], tie_group_map)
+        decoding_step_map = get_decoding_step_map(tie_group_map, group_decoding_order)
+
     vmap_samples = jax.vmap(
       sampler_fn,
-      in_axes=(0, None, None, None, None, None, None, None, None, None, None, None),
+      in_axes=(0, None, None, None, None, None, None, None, None, None, None, None, None, None, None),
       out_axes=0,
     )
     vmap_noises = jax.vmap(
       vmap_samples,
-      in_axes=(None, None, None, None, None, None, None, None, 0, None, None, None),
+      in_axes=(None, None, None, None, None, None, None, None, 0, None, None, None, None, None, None),
       out_axes=0,
     )
     vmap_structures = jax.vmap(
@@ -116,6 +153,9 @@ def sample(
         None,  # iterations
         None,  # learning_rate
         None,  # temperature
+        None,  # tie_group_map
+        None,  # group_decoding_order
+        None,  # decoding_step_map
       ),
       out_axes=0,
     )
@@ -136,6 +176,9 @@ def sample(
       spec.iterations,
       spec.learning_rate,
       spec.temperature,
+      tie_group_map,
+      group_decoding_order,
+      decoding_step_map,
     )
     all_sequences.append(sampled_sequences)
     all_logits.append(logits)

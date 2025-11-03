@@ -15,7 +15,7 @@ from prxteinmpnn.model.decoder import make_decoder
 from prxteinmpnn.model.encoder import make_encoder
 from prxteinmpnn.model.features import extract_features, project_features
 from prxteinmpnn.model.projection import final_projection
-from prxteinmpnn.utils.autoregression import generate_ar_mask
+from prxteinmpnn.utils.autoregression import make_autoregressive_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,
@@ -87,7 +87,7 @@ def make_score_sequence(
   ) -> tuple[Float, Logits, DecodingOrder]:
     """Score a sequence on a structure using the ProteinMPNN model."""
     decoding_order, prng_key = decoding_order_fn(prng_key, sequence.shape[0])
-    autoregressive_mask = generate_ar_mask(decoding_order) if ar_mask is None else ar_mask
+    autoregressive_mask = make_autoregressive_mask(decoding_order) if ar_mask is None else ar_mask
 
     if sequence.ndim == 1:
       sequence = jax.nn.one_hot(sequence, num_classes=21)

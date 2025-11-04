@@ -11,6 +11,7 @@ import jax.numpy as jnp
 if TYPE_CHECKING:
   from collections.abc import Sequence
 
+  from prxteinmpnn.run.batch_prep import ProteinMPNNInput
   from prxteinmpnn.run.specs import RunSpecification
 
   from .types import AutoRegressiveMask, DecodingOrder
@@ -57,7 +58,7 @@ def make_autoregressive_mask(decoding_step_map: jnp.ndarray) -> jnp.ndarray:
 
 def resolve_tie_groups(
   spec: RunSpecification,
-  combined_input: object,  # Should be ProteinMPNNInput, but type not imported here
+  combined_input: ProteinMPNNInput,
   structure_mappings: Sequence[dict] | None = None,
 ) -> jnp.ndarray:
   """Resolve tie groups for tied_positions modes.
@@ -100,7 +101,7 @@ def resolve_tie_groups(
     return tie_group_map
 
   def _collect_group_indices(
-    groups: list,
+    groups: Sequence[tuple[int, int]],
     chain_ids: jnp.ndarray,
     residue_indices: jnp.ndarray,
   ) -> list[tuple[int, list[int]]]:

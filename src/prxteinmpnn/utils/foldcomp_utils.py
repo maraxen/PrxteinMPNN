@@ -3,25 +3,39 @@
 prxteinmpnn.utils.foldcomp_utils
 """
 
+from __future__ import annotations
+
 import logging
 import warnings
-from collections.abc import Sequence
 from functools import cache
-from typing import Literal
-
-FOLDCOMP_INSTALLED = False
-try:
-    import foldcomp
-    FOLDCOMP_INSTALLED = True
-except ImportError:
-  pass
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
-from prxteinmpnn.io.parsing.mappings import (
-  string_to_protein_sequence,
-)
+from prxteinmpnn.io.parsing.mappings import string_to_protein_sequence
 from prxteinmpnn.utils.data_structures import ProteinStream, ProteinTuple
+
+if TYPE_CHECKING:
+  from collections.abc import Sequence
+
+  import foldcomp  # type: ignore[import-untyped]
+
+  FOLDCOMP_INSTALLED = True
+else:
+  FOLDCOMP_INSTALLED = False
+  foldcomp: Any = None  # type: ignore[no-redef]
+  try:
+    import foldcomp  # type: ignore[import-untyped]
+
+    FOLDCOMP_INSTALLED = True
+  except ImportError:
+    pass
+
+# Error message constant
+FOLDCOMP_NOT_INSTALLED_MSG = (
+  "The 'foldcomp' library is required to use the FoldComp utilities "
+  "but it is not installed. Please install it with: pip install foldcomp"
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,11 +73,8 @@ def _setup_foldcomp_database(database: FoldCompDatabase) -> None:
   This is designed to be called from within a synchronous worker process.
   """
   if not FOLDCOMP_INSTALLED:
-        raise ImportError(
-            "The 'foldcomp' library is required to use the FoldComp utilities "
-            "but it is not installed. Please install it with: pip install foldcomp",
-        )
-  foldcomp.setup(database)
+    raise ImportError(FOLDCOMP_NOT_INSTALLED_MSG)
+  foldcomp.setup(database)  # type: ignore[union-attr]
 
 
 def get_protein_structures(
@@ -83,10 +94,7 @@ def get_protein_structures(
 
   """
   if not FOLDCOMP_INSTALLED:
-        raise ImportError(
-            "The 'foldcomp' library is required to use the FoldComp utilities "
-            "but it is not installed. Please install it with: pip install foldcomp",
-        )
+    raise ImportError(FOLDCOMP_NOT_INSTALLED_MSG)
   if database is None:
     warnings.warn(
       "No FoldComp database specified. Defaulting to 'afdb_rep_v4'.",

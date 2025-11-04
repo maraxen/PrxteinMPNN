@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+from prxteinmpnn.io.weights import MODEL_VERSION, MODEL_WEIGHTS
+
 mp.set_start_method("spawn", force=True)
 
 
@@ -19,10 +21,13 @@ if TYPE_CHECKING:
   from jaxtyping import ArrayLike
 
   from prxteinmpnn.ensemble.dbscan import ConformationalStates
-  from prxteinmpnn.functional.model import ModelVersion, ModelWeights
   from prxteinmpnn.utils.catjac import CombineCatJacPairFn
   from prxteinmpnn.utils.decoding_order import DecodingOrderFn
   from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase
+
+# Type aliases for convenience
+ModelWeights = MODEL_WEIGHTS
+ModelVersion = MODEL_VERSION
 
 
 AlignmentStrategy = Literal["sequence", "structure"]

@@ -8,7 +8,7 @@ from jaxtyping import Array, Bool, Float, Int, PRNGKeyArray, PyTree
 from optax import GradientTransformation
 
 if TYPE_CHECKING:
-  from prxteinmpnn.eqx_new import PrxteinMPNN
+  from prxteinmpnn.model.mpnn import PrxteinMPNN
 
 NodeFeatures = Int[Array, "num_atoms num_features"]  # Node features
 EdgeFeatures = Float[Array, "num_atoms num_neighbors num_features"]  # Edge features

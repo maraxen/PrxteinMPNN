@@ -89,16 +89,15 @@ class TestNewEqxEquivalence:
         print("\n--- Setting up Equivalence Test Class ---")
         print("  Loading raw functional weights (original/v_48_002)...")
         try:
-            cls._old_weights_dict = load_weights(
+            # Use get_functional_model to load legacy functional weights
+            from prxteinmpnn.functional.model import get_functional_model  # noqa: PLC0415
+            cls._param_dict = get_functional_model(
                 model_version="v_48_002",
                 model_weights="original",
-                skeleton=None
+                use_new_architecture=False,  # Load legacy functional PyTree
             )
         except Exception as e:
             assert False, f"Functional weight loading failed: {e}"
-        
-        assert 'model_state_dict' in cls._old_weights_dict
-        cls._param_dict = cls._old_weights_dict['model_state_dict']
 
         print(f"  Loading converted .eqx model from {cls.CONVERTED_MODEL_PATH}...")
         if not cls.CONVERTED_MODEL_PATH.exists():

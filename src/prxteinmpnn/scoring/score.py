@@ -11,10 +11,9 @@ from jaxtyping import Float, PRNGKeyArray
 if TYPE_CHECKING:
   from prxteinmpnn.model.decoding_signatures import RunConditionalDecoderFn
 
-from prxteinmpnn.model.decoder import make_decoder
-from prxteinmpnn.model.encoder import make_encoder
 from prxteinmpnn.model.features import extract_features, project_features
 from prxteinmpnn.model.projection import final_projection
+from prxteinmpnn.sampling.adapter import get_decoder_fn, get_encoder_fn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
 from prxteinmpnn.utils.types import (
@@ -24,7 +23,7 @@ from prxteinmpnn.utils.types import (
   ChainIndex,
   DecodingOrder,
   Logits,
-  ModelParameters,
+  Model,
   OneHotProteinSequence,
   ProteinSequence,
   ResidueIndex,
@@ -51,22 +50,25 @@ SCORE_EPS = 1e-8
 
 
 def make_score_sequence(
-  model_parameters: ModelParameters,
+  model: Model,
   decoding_order_fn: DecodingOrderFn = random_decoding_order,
   num_encoder_layers: int = 3,
   num_decoder_layers: int = 3,
 ) -> ScoringFn:
   """Create a function to score a sequence on a structure."""
-  encoder = make_encoder(
-    model_parameters=model_parameters,
+  # Extract model parameters for functions that haven't been migrated yet
+  model_params = model  # type: ignore[assignment]
+
+  encoder = get_encoder_fn(
+    model,
     attention_mask_type="cross",
     num_encoder_layers=num_encoder_layers,
   )
 
   decoder: RunConditionalDecoderFn = cast(
     "RunConditionalDecoderFn",
-    make_decoder(
-      model_parameters=model_parameters,
+    get_decoder_fn(
+      model,
       attention_mask_type=None,
       decoding_approach="conditional",
       num_decoder_layers=num_decoder_layers,
@@ -94,7 +96,7 @@ def make_score_sequence(
 
     edge_features, neighbor_indices, prng_key = extract_features(
       prng_key,
-      model_parameters,
+      model_params,  # type: ignore[arg-type]
       structure_coordinates,
       mask,
       residue_index,
@@ -103,7 +105,7 @@ def make_score_sequence(
       backbone_noise=backbone_noise,
     )
     edge_features = project_features(
-      model_parameters,
+      model_params,  # type: ignore[arg-type]
       edge_features,
     )
 
@@ -129,7 +131,7 @@ def make_score_sequence(
       sequence,
     )
     logits = final_projection(
-      model_parameters,
+      model_params,  # type: ignore[arg-type]
       node_features,
     )
 

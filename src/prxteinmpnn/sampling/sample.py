@@ -8,8 +8,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Float, Int, PRNGKeyArray
 
-from prxteinmpnn.model.decoder import make_decoder
-from prxteinmpnn.model.encoder import make_encoder
+from prxteinmpnn.sampling.adapter import get_decoder_fn, get_encoder_fn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (
@@ -19,6 +18,7 @@ from prxteinmpnn.utils.types import (
   DecodingOrder,
   InputBias,
   Logits,
+  Model,
   ModelParameters,
   ProteinSequence,
   ResidueIndex,
@@ -70,23 +70,23 @@ EncodingSamplerFn = Callable[
 
 
 def make_sample_sequences(
-  model_parameters: ModelParameters,
+  model: Model,
   decoding_order_fn: DecodingOrderFn,
   sampling_strategy: Literal["temperature", "straight_through"] = "temperature",
   num_encoder_layers: int = 3,
   num_decoder_layers: int = 3,
 ) -> SamplerFn:
   """Create a function to sample or optimize sequences from a structure."""
-  encoder = make_encoder(
-    model_parameters=model_parameters,
+  encoder = get_encoder_fn(
+    model,
     attention_mask_type="cross",
     num_encoder_layers=num_encoder_layers,
   )
 
   conditional_decoder: RunConditionalDecoderFn = cast(
     "RunConditionalDecoderFn",
-    make_decoder(
-      model_parameters=model_parameters,
+    get_decoder_fn(
+      model,
       attention_mask_type="conditional",
       decoding_approach="conditional",
       num_decoder_layers=num_decoder_layers,
@@ -95,20 +95,28 @@ def make_sample_sequences(
 
   autoregressive_decoder = cast(
     "RunAutoregressiveDecoderFn",
-    make_decoder(
-      model_parameters=model_parameters,
+    get_decoder_fn(
+      model,
       attention_mask_type=None,
       decoding_approach="autoregressive",
       num_decoder_layers=num_decoder_layers,
     ),
   )
 
+  # For now, internal functions still use ModelParameters PyTree
+  # In future refactoring, these will also be updated to use Model union type
+
+  # Extract model parameters for functions that haven't been migrated yet
+  # For Equinox models, we'll need to handle this differently in the future
+  # For now, we assume PyTree models for these internal functions
+  model_params = model  # type: ignore[assignment]
+
   sample_model_pass = sampling_encode(encoder=encoder, decoding_order_fn=decoding_order_fn)
 
   optimize_seq_fn = make_optimize_sequence_fn(
     decoder=conditional_decoder,
     decoding_order_fn=decoding_order_fn,
-    model_parameters=model_parameters,
+    model_parameters=model_params,  # type: ignore[arg-type]
   )
 
   # --- Top-level imports for group-based sampling ---
@@ -158,7 +166,7 @@ def make_sample_sequences(
       next_rng_key,
     ) = sample_model_pass(
       prng_key,
-      model_parameters,
+      model_params,  # type: ignore[arg-type]
       structure_coordinates,
       mask,
       residue_index,
@@ -215,7 +223,7 @@ def make_sample_sequences(
       return output_sequence, output_logits, decoding_order
     sample_model_pass_fn = partial(
       sample_model_pass,
-      model_parameters=model_parameters,  # type: ignore[arg-type]
+      model_parameters=model_params,  # type: ignore[arg-type]
       structure_coordinates=structure_coordinates,  # type: ignore[arg-type]
       mask=mask,  # type: ignore[arg-type]
       residue_index=residue_index,  # type: ignore[arg-type]
@@ -236,7 +244,7 @@ def make_sample_sequences(
 
 
 def make_encoding_sampling_split_fn(
-  model_parameters: ModelParameters,
+  model: Model,
   decoding_order_fn: DecodingOrderFn,
   sampling_strategy: Literal["temperature", "straight_through"] = "temperature",
   num_decoder_layers: int = 3,
@@ -250,7 +258,7 @@ def make_encoding_sampling_split_fn(
   (e.g., with different noise) before a single `sample_from_features` call.
 
   Args:
-    model_parameters: A dictionary of the pre-trained ProteinMPNN model parameters.
+    model: A Model (either PyTree parameters or PrxteinMPNN Equinox module).
     decoding_order_fn: A function that generates the decoding order.
     sampling_strategy: The sampling strategy to use ("temperature" or "straight_through").
     num_decoder_layers: The number of decoder layers to use. Defaults to 3.
@@ -259,15 +267,18 @@ def make_encoding_sampling_split_fn(
     A tuple containing two functions: (`encode`, `sample_from_features`).
 
   """
-  encoder = make_encoder(
-    model_parameters=model_parameters,
+  # Extract model parameters for functions that haven't been migrated yet
+  model_params = model  # type: ignore[assignment]
+
+  encoder = get_encoder_fn(
+    model,
     attention_mask_type="cross",
     num_encoder_layers=3,
   )
   conditional_decoder = cast(
     "RunConditionalDecoderFn",
-    make_decoder(
-      model_parameters=model_parameters,
+    get_decoder_fn(
+      model,
       attention_mask_type="conditional",
       decoding_approach="conditional",
       num_decoder_layers=num_decoder_layers,
@@ -276,8 +287,8 @@ def make_encoding_sampling_split_fn(
 
   autoregressive_decoder = cast(
     "RunAutoregressiveDecoderFn",
-    make_decoder(
-      model_parameters=model_parameters,
+    get_decoder_fn(
+      model,
       attention_mask_type=None,
       decoding_approach="autoregressive",
       num_decoder_layers=num_decoder_layers,
@@ -289,7 +300,7 @@ def make_encoding_sampling_split_fn(
   optimize_seq_fn = make_optimize_sequence_fn(
     decoder=conditional_decoder,
     decoding_order_fn=decoding_order_fn,
-    model_parameters=model_parameters,
+    model_parameters=model_params,  # type: ignore[arg-type]
   )
 
   @partial(jax.jit, static_argnames=("k_neighbors",))
@@ -321,7 +332,7 @@ def make_encoding_sampling_split_fn(
       _,
     ) = sample_model_pass(
       prng_key,
-      model_parameters,
+      model_params,  # type: ignore[arg-type]
       structure_coordinates,
       mask,
       residue_index,

@@ -12,7 +12,7 @@ from huggingface_hub import hf_hub_download
 if TYPE_CHECKING:
   from jaxtyping import PyTree
 
-  from prxteinmpnn.eqx_new import PrxteinMPNN
+  from prxteinmpnn.model import PrxteinMPNN
 
 MODEL_WEIGHTS = Literal["original", "soluble"]
 MODEL_VERSION = Literal["v_48_002", "v_48_010", "v_48_020", "v_48_030"]
@@ -118,12 +118,12 @@ def load_model(
       >>> from prxteinmpnn.io.weights import load_model
       >>> model = load_model(model_version="v_48_020", model_weights="original")
       >>> # Model is ready for inference
-      >>> logits = model(X, E, mask)
+      >>> seq, logits = model(coords, mask, res_idx, chain_idx, "unconditional")
 
   """
   # Import here to avoid circular dependency
   # This is intentional to break import cycles
-  from prxteinmpnn.eqx_new import PrxteinMPNN  # noqa: PLC0415
+  from prxteinmpnn.model import PrxteinMPNN  # noqa: PLC0415
 
   if key is None:
     key = jax.random.PRNGKey(0)

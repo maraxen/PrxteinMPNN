@@ -2,18 +2,11 @@
 
 from collections.abc import Callable
 from functools import partial
-from typing import TYPE_CHECKING, cast
 
 import jax
-import jax.numpy as jnp
 from jaxtyping import Float, PRNGKeyArray
 
-if TYPE_CHECKING:
-  from prxteinmpnn.types import RunConditionalDecoderFn
-
-from prxteinmpnn.model.features import extract_features, project_features
-from prxteinmpnn.model.projection import final_projection
-from prxteinmpnn.sampling.adapter import get_decoder_fn, get_encoder_fn
+from prxteinmpnn.model import PrxteinMPNN
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
 from prxteinmpnn.utils.types import (
@@ -23,7 +16,6 @@ from prxteinmpnn.utils.types import (
   ChainIndex,
   DecodingOrder,
   Logits,
-  Model,
   OneHotProteinSequence,
   ProteinSequence,
   ResidueIndex,
@@ -50,30 +42,29 @@ SCORE_EPS = 1e-8
 
 
 def make_score_sequence(
-  model: Model,
+  model: PrxteinMPNN,
   decoding_order_fn: DecodingOrderFn = random_decoding_order,
-  num_encoder_layers: int = 3,
-  num_decoder_layers: int = 3,
+  _num_encoder_layers: int = 3,
+  _num_decoder_layers: int = 3,
 ) -> ScoringFn:
-  """Create a function to score a sequence on a structure."""
-  # Extract model parameters for functions that haven't been migrated yet
-  model_params = model  # type: ignore[assignment]
+  """Create a function to score a sequence on a structure using PrxteinMPNN.
 
-  encoder = get_encoder_fn(
-    model,
-    attention_mask_type="cross",
-    num_encoder_layers=num_encoder_layers,
-  )
+  Args:
+    model: A PrxteinMPNN Equinox model instance.
+    decoding_order_fn: Function to generate decoding order (default: random).
+    _num_encoder_layers: Deprecated, ignored (kept for API compatibility).
+    _num_decoder_layers: Deprecated, ignored (kept for API compatibility).
 
-  decoder: RunConditionalDecoderFn = cast(
-    "RunConditionalDecoderFn",
-    get_decoder_fn(
-      model,
-      attention_mask_type=None,
-      decoding_approach="conditional",
-      num_decoder_layers=num_decoder_layers,
-    ),
-  )
+  Returns:
+    A function that scores sequences on structures.
+
+  Example:
+    >>> from prxteinmpnn.io.weights import load_model
+    >>> model = load_model()
+    >>> score_fn = make_score_sequence(model)
+    >>> score, logits, order = score_fn(key, seq, coords, mask, res_idx, chain_idx)
+
+  """
 
   @partial(jax.jit, static_argnames=("k_neighbors",))
   def score_sequence(
@@ -83,63 +74,54 @@ def make_score_sequence(
     mask: AlphaCarbonMask,
     residue_index: ResidueIndex,
     chain_index: ChainIndex,
-    k_neighbors: int = 48,
+    _k_neighbors: int = 48,
     backbone_noise: BackboneNoise | None = None,
     ar_mask: AutoRegressiveMask | None = None,
   ) -> tuple[Float, Logits, DecodingOrder]:
-    """Score a sequence on a structure using the ProteinMPNN model."""
+    """Score a sequence on a structure using the ProteinMPNN model.
+
+    Args:
+      prng_key: JAX random key.
+      sequence: Protein sequence (integer indices or one-hot).
+      structure_coordinates: Atomic coordinates (N, 4, 3).
+      mask: Alpha carbon mask indicating valid residues.
+      residue_index: Residue indices.
+      chain_index: Chain indices.
+      _k_neighbors: Deprecated, model handles internally (kept for API compatibility).
+      backbone_noise: Optional noise for backbone coordinates.
+      ar_mask: Optional custom autoregressive mask.
+
+    Returns:
+      Tuple of (average score, logits, decoding order).
+
+    Example:
+      >>> score, logits, order = score_sequence(
+      ...     key, seq, coords, mask, res_idx, chain_idx
+      ... )
+
+    """
     decoding_order, prng_key = decoding_order_fn(prng_key, sequence.shape[0])
     autoregressive_mask = generate_ar_mask(decoding_order) if ar_mask is None else ar_mask
 
+    # Ensure sequence is one-hot encoded
     if sequence.ndim == 1:
       sequence = jax.nn.one_hot(sequence, num_classes=21)
 
-    edge_features, neighbor_indices, prng_key = extract_features(
-      prng_key,
-      model_params,  # type: ignore[arg-type]
+    # Run model in conditional mode (scoring a given sequence)
+    _, logits = model(
       structure_coordinates,
       mask,
       residue_index,
       chain_index,
-      k_neighbors=k_neighbors,
+      decoding_approach="conditional",
+      prng_key=prng_key,
+      ar_mask=autoregressive_mask,
+      one_hot_sequence=sequence,
       backbone_noise=backbone_noise,
     )
-    edge_features = project_features(
-      model_params,  # type: ignore[arg-type]
-      edge_features,
-    )
 
-    attention_mask = jnp.take_along_axis(
-      mask[:, None] * mask[None, :],
-      neighbor_indices,
-      axis=1,
-    )
-
-    node_features, edge_features = encoder(
-      edge_features,
-      neighbor_indices,
-      mask,
-      attention_mask,
-    )
-
-    node_features = decoder(
-      node_features,
-      edge_features,
-      neighbor_indices,
-      mask,
-      autoregressive_mask,
-      sequence,
-    )
-    logits = final_projection(
-      model_params,  # type: ignore[arg-type]
-      node_features,
-    )
-
+    # Compute score from logits
     log_probability = jax.nn.log_softmax(logits, axis=-1)[..., :20]
-
-    if sequence.ndim == 1:
-      sequence = jax.nn.one_hot(sequence, num_classes=21)
-
     score = -(sequence[..., :20] * log_probability).sum(-1)
     masked_score_sum = (score * mask).sum(-1)
     mask_sum = mask.sum() + SCORE_EPS

@@ -136,6 +136,7 @@ class PrxteinMPNN(eqx.Module):
     _one_hot_sequence: OneHotProteinSequence,
     _prng_key: PRNGKeyArray,
     _temperature: Float,
+    _bias: Logits,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the unconditional (scoring) path.
 
@@ -147,6 +148,7 @@ class PrxteinMPNN(eqx.Module):
       _one_hot_sequence: Unused, required for jax.lax.switch signature.
       _prng_key: Unused, required for jax.lax.switch signature.
       _temperature: Unused, required for jax.lax.switch signature.
+      _bias: Unused, required for jax.lax.switch signature.
 
     Returns:
       Tuple of (dummy sequence, logits).
@@ -191,6 +193,7 @@ class PrxteinMPNN(eqx.Module):
     one_hot_sequence: OneHotProteinSequence,
     _prng_key: PRNGKeyArray,
     _temperature: Float,
+    _bias: Logits,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the conditional (scoring) path.
 
@@ -202,6 +205,7 @@ class PrxteinMPNN(eqx.Module):
       one_hot_sequence: One-hot encoded protein sequence.
       _prng_key: Unused, required for jax.lax.switch signature.
       _temperature: Unused, required for jax.lax.switch signature.
+      _bias: Unused, required for jax.lax.switch signature.
 
     Returns:
       Tuple of (input sequence, logits).
@@ -250,6 +254,7 @@ class PrxteinMPNN(eqx.Module):
     _one_hot_sequence: OneHotProteinSequence,
     prng_key: PRNGKeyArray,
     temperature: Float,
+    bias: Logits,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the autoregressive (sampling) path.
 
@@ -261,6 +266,7 @@ class PrxteinMPNN(eqx.Module):
       _one_hot_sequence: Unused, required for jax.lax.switch signature.
       prng_key: PRNG key for sampling.
       temperature: Temperature for Gumbel-max sampling.
+      bias: Bias to add to logits before sampling (N, 21).
 
     Returns:
       Tuple of (sampled sequence, logits).
@@ -295,6 +301,7 @@ class PrxteinMPNN(eqx.Module):
       mask,
       ar_mask,
       temperature,
+      bias,
     )
     return seq, logits
 
@@ -307,6 +314,7 @@ class PrxteinMPNN(eqx.Module):
     mask: AlphaCarbonMask,
     autoregressive_mask: AutoRegressiveMask,
     temperature: Float,
+    bias: Logits,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run JAX scan loop for autoregressive sampling.
 
@@ -318,6 +326,7 @@ class PrxteinMPNN(eqx.Module):
       mask: Alpha carbon mask.
       autoregressive_mask: Mask defining decoding order.
       temperature: Temperature for Gumbel-max sampling.
+      bias: Bias to add to logits before sampling (N, 21).
 
     Returns:
       Tuple of (sampled sequence, final logits).
@@ -431,10 +440,14 @@ class PrxteinMPNN(eqx.Module):
 
       next_all_logits = all_logits.at[position, :].set(jnp.squeeze(logits_pos))
 
+      # Apply bias before sampling
+      bias_pos = bias[position:position+1, :]  # [1, 21]
+      logits_with_bias = logits_pos + bias_pos
+
       # Gumbel-max trick
-      sampled_logits = (logits_pos / temperature) + jax.random.gumbel(
+      sampled_logits = (logits_with_bias / temperature) + jax.random.gumbel(
         key,
-        logits_pos.shape,
+        logits_with_bias.shape,
       )
       sampled_logits_no_pad = sampled_logits[..., :20]  # Exclude padding
 
@@ -497,6 +510,7 @@ class PrxteinMPNN(eqx.Module):
     ar_mask: AutoRegressiveMask | None = None,
     one_hot_sequence: OneHotProteinSequence | None = None,
     temperature: Float | None = None,
+    bias: Logits | None = None,
     backbone_noise: BackboneNoise | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Forward pass for the complete model.
@@ -516,6 +530,7 @@ class PrxteinMPNN(eqx.Module):
       ar_mask: Autoregressive mask for decoding order (optional).
       one_hot_sequence: One-hot encoded sequence for conditional mode (optional).
       temperature: Temperature for autoregressive sampling (optional).
+      bias: Optional bias to add to logits before sampling (N, 21) (optional).
       backbone_noise: Noise level for backbone coordinates (optional).
 
     Returns:
@@ -579,6 +594,9 @@ class PrxteinMPNN(eqx.Module):
     if temperature is None:
       temperature = jnp.array(1.0)
 
+    if bias is None:
+      bias = jnp.zeros((mask.shape[0], 21), dtype=jnp.float32)
+
     # 4. Define the branches for jax.lax.switch
     branches = [
       self._call_unconditional,
@@ -595,6 +613,7 @@ class PrxteinMPNN(eqx.Module):
       one_hot_sequence,
       prng_key,
       temperature,
+      bias,
     )
 
     # 6. Run the switch

@@ -11,27 +11,30 @@ if TYPE_CHECKING:
   from grain.python import IterDataset
 
   from prxteinmpnn.run.specs import Specs
-  from prxteinmpnn.utils.types import (
-    ModelParameters,
-  )
+  from prxteinmpnn.utils.types import Model
 
-
-from prxteinmpnn.io import loaders
 from prxteinmpnn.functional.model import get_functional_model
+from prxteinmpnn.io import loaders
 
 
 def _loader_inputs(inputs: Sequence[str | StringIO] | str | StringIO) -> Sequence[str | StringIO]:
   return (inputs,) if not isinstance(inputs, Sequence) else inputs
 
 
-def prep_protein_stream_and_model(spec: Specs) -> tuple[IterDataset, ModelParameters]:
+def prep_protein_stream_and_model(
+  spec: Specs,
+  *,
+  use_new_architecture: bool = True,
+) -> tuple[IterDataset, Model]:
   """Prepare the protein data stream and model parameters.
 
   Args:
       spec: A RunSpecification object containing configuration options.
+      use_new_architecture: If True (default), return a PrxteinMPNN Equinox module.
+                            If False, return legacy PyTree parameters.
 
   Returns:
-      A tuple containing the protein data iterator and model parameters.
+      A tuple containing the protein data iterator and model (PyTree or PrxteinMPNN).
 
   """
   parse_kwargs = {
@@ -46,8 +49,9 @@ def prep_protein_stream_and_model(spec: Specs) -> tuple[IterDataset, ModelParame
     foldcomp_database=spec.foldcomp_database,
     parse_kwargs=parse_kwargs,
   )
-  model_parameters = get_functional_model(
+  model = get_functional_model(
     model_version=spec.model_version,
     model_weights=spec.model_weights,
+    use_new_architecture=use_new_architecture,
   )
-  return protein_iterator, model_parameters
+  return protein_iterator, model

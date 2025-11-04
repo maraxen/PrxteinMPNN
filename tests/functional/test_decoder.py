@@ -25,7 +25,7 @@ from prxteinmpnn.functional import (
   setup_decoder,
 )
 from prxteinmpnn.functional.decoder import DecodingApproach
-from prxteinmpnn.model.masked_attention import MaskedAttentionType
+from prxteinmpnn.types import MaskedAttentionType
 from prxteinmpnn.utils.residue_constants import atom_order
 
 

@@ -100,14 +100,14 @@ def categorical_jacobian(
   if spec is None:
     spec = JacobianSpecification(**kwargs)
 
-  protein_iterator, model_parameters = prep_protein_stream_and_model(spec)
+  protein_iterator, model = prep_protein_stream_and_model(spec)
   if spec.average_encodings:
     encode_fn, conditional_logits_fn = make_encoding_conditional_logits_split_fn(
-      model_parameters=model_parameters,
+      model=model,
     )
   else:
     encode_fn = None
-    conditional_logits_fn = make_conditional_logits_fn(model_parameters=model_parameters)
+    conditional_logits_fn = make_conditional_logits_fn(model=model)
 
   if spec.output_h5_path:
     spec_hash = sha256(repr(spec).encode()).hexdigest()
@@ -142,16 +142,15 @@ def _compute_batch_outputs(
       ) -> Logits:
         def logit_fn(one_hot_flat: jax.Array) -> jax.Array:
           one_hot_2d = one_hot_flat.reshape(one_hot_sequence.shape)
-          logits, _, _ = conditional_logits_fn(
+          logits = conditional_logits_fn(
             jax.random.key(spec.random_seed),
             coords,
-            one_hot_2d,
             mask,
             residue_ix,
             chain_ix,
-            None,
-            48,
-            noise,
+            one_hot_2d,
+            None,  # ar_mask
+            noise,  # backbone_noise
           )
           return logits.flatten()
 
@@ -200,13 +199,11 @@ def _compute_batch_outputs(
         noise: Float,
       ) -> tuple[NodeFeatures, EdgeFeatures, NeighborIndices, AlphaCarbonMask, AutoRegressiveMask]:
         return encode_fn(
-          jax.random.key(spec.random_seed),
           coords,
           mask,
           residue_ix,
           chain_ix,
-          48,
-          noise,
+          backbone_noise=noise,
         )
 
       def mapped_fn(
@@ -273,64 +270,19 @@ def _categorical_jacobian_in_memory(
   )
 
   if spec.average_encodings:
-    try:
-      first_batch, first_sequence_batch = next(output_generator)
-    except StopIteration:
-      return {"categorical_jacobians": None, "metadata": None}
+    # TODO(mar): Implement average encodings path  # noqa: FIX002, TD003
+    # Requires encoder/decoder split in model - see FULL_FUNCTIONALITY_TODO.md
+    msg = "average_encodings not yet implemented with new Equinox model"
+    raise NotImplementedError(msg)
 
-    avg_encodings, count = _get_initial_rolling_average_state(first_batch)
-    one_hot_sequence = first_sequence_batch[0]
-    # Separate the encodings that will be averaged from those that will be fixed
-    (
-      initial_node_features,
-      initial_edge_features,
-      initial_neighbor_indices,
-      initial_mask,
-      initial_ar_mask,
-    ) = first_batch
-    encodings_to_average = (initial_node_features, initial_edge_features)
+  # --- Path for Standard Jacobian Computation ---
+  all_outputs_and_sequences = list(output_generator)
+  if not all_outputs_and_sequences:
+    return {"categorical_jacobians": None, "metadata": None}
 
-    avg_features, count = _get_initial_rolling_average_state(encodings_to_average)
-
-    neighbor_indices = initial_neighbor_indices[0, 0]
-    mask = initial_mask[0, 0]
-    ar_mask = initial_ar_mask[0, 0]
-
-    for batch_outputs, _ in output_generator:
-      avg_features, count = _update_rolling_average((avg_features, count), batch_outputs[:2])
-
-    node_features, edge_features = avg_features
-
-    def logit_fn(one_hot_flat: jax.Array) -> jax.Array:
-      one_hot_2d = one_hot_flat.reshape(one_hot_sequence.shape)
-      logits, _, _ = conditional_logits_fn(
-        node_features,
-        edge_features,
-        neighbor_indices,
-        mask,
-        ar_mask,
-        sequence=one_hot_2d,
-      )
-      return logits.flatten()
-
-    jacobians = _compute_jacobian_from_logit_fn(
-      logit_fn,
-      one_hot_sequence,
-      spec.jacobian_batch_size,
-    )
-    # Add batch and noise dimensions for consistency
-    jacobians = jnp.expand_dims(jnp.expand_dims(jacobians, axis=0), axis=0)
-    all_sequences = [first_sequence_batch]  # For combine_jacs_fn
-
-  else:
-    # --- Path for Standard Jacobian Computation ---
-    all_outputs_and_sequences = list(output_generator)
-    if not all_outputs_and_sequences:
-      return {"categorical_jacobians": None, "metadata": None}
-
-    all_outputs = [item[0] for item in all_outputs_and_sequences]
-    all_sequences = [item[1] for item in all_outputs_and_sequences]
-    jacobians = jnp.concatenate(all_outputs, axis=0)
+  all_outputs = [item[0] for item in all_outputs_and_sequences]
+  all_sequences = [item[1] for item in all_outputs_and_sequences]
+  jacobians = jnp.concatenate(all_outputs, axis=0)
 
   apc_jacobians = (
     jax.vmap(jax.vmap(apc_corrected_frobenius_norm))(jacobians) if spec.compute_apc else None
@@ -375,78 +327,10 @@ def _compute_and_write_jacobians_streaming(
   group = f.require_group(spec_hash)
 
   if spec.average_encodings:
-    if "categorical_jacobians" in group:
-      logger.info("Found existing data for averaged encoding, skipping computation.")
-      return
-
-    output_generator = _compute_batch_outputs(
-      spec,
-      protein_iterator,
-      conditional_logits_fn,
-      encode_fn,
-    )
-    try:
-      first_batch, first_sequence_batch = next(output_generator)
-    except StopIteration:
-      return
-
-    avg_encodings, count = _get_initial_rolling_average_state(first_batch)
-    one_hot_sequence = first_sequence_batch[0]
-    # Separate the encodings that will be averaged from those that will be fixed
-    (
-      initial_node_features,
-      initial_edge_features,
-      initial_neighbor_indices,
-      initial_mask,
-      initial_ar_mask,
-    ) = first_batch
-    encodings_to_average = (initial_node_features, initial_edge_features)
-
-    avg_features, count = _get_initial_rolling_average_state(encodings_to_average)
-
-    neighbor_indices = initial_neighbor_indices[0, 0]
-    mask = initial_mask[0, 0]
-    ar_mask = initial_ar_mask[0, 0]
-
-    for batch_outputs, _ in output_generator:
-      avg_encodings, count = _update_rolling_average((avg_features, count), batch_outputs[:2])
-
-    node_features, edge_features = avg_encodings
-
-    def logit_fn(one_hot_flat: jax.Array) -> jax.Array:
-      one_hot_2d = one_hot_flat.reshape(one_hot_sequence.shape)
-      logits, _, _ = conditional_logits_fn(
-        node_features,
-        edge_features,
-        neighbor_indices,
-        mask,
-        ar_mask,
-        sequence=one_hot_2d,  # pyright: ignore[reportCallIssue]
-      )
-      return logits.flatten()
-
-    jacobians = _compute_jacobian_from_logit_fn(
-      logit_fn,
-      one_hot_sequence,
-      spec.jacobian_batch_size,
-    )
-    jacobians = _compute_jacobian_from_logit_fn(
-      logit_fn,
-      one_hot_sequence,
-      spec.jacobian_batch_size,
-    )
-    jacobians = jnp.expand_dims(jnp.expand_dims(jacobians, axis=0), axis=0)
-
-    group.create_dataset("categorical_jacobians", data=jacobians)
-    group.create_dataset(
-      "one_hot_sequences",
-      data=jnp.expand_dims(one_hot_sequence, axis=0),
-    )
-
-    if spec.compute_apc:
-      apc_jacobians = jax.vmap(jax.vmap(apc_corrected_frobenius_norm))(jacobians)
-      group.create_dataset("apc_corrected_jacobians", data=apc_jacobians)
-    return
+    # TODO(mar): Implement average encodings path  # noqa: FIX002, TD003
+    # Requires encoder/decoder split in model - see FULL_FUNCTIONALITY_TODO.md
+    msg = "average_encodings not yet implemented with new Equinox model"
+    raise NotImplementedError(msg)
 
   jac_ds = group.require_dataset(
     "categorical_jacobians",

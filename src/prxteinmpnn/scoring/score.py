@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from jaxtyping import Float, PRNGKeyArray
 
 if TYPE_CHECKING:
-  from prxteinmpnn.model.decoding_signatures import RunConditionalDecoderFn
+  from prxteinmpnn.types import RunConditionalDecoderFn
 
 from prxteinmpnn.model.features import extract_features, project_features
 from prxteinmpnn.model.projection import final_projection

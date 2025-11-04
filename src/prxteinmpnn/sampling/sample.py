@@ -33,12 +33,10 @@ from .ste_optimize import make_optimize_sequence_fn
 
 
 if TYPE_CHECKING:
-  from prxteinmpnn.model.decoding_signatures import (
+  from prxteinmpnn.types import (
     RunAutoregressiveDecoderFn,
     RunConditionalDecoderFn,
   )
-
-
 # Simplified type hints
 SamplerInputs = tuple[
   PRNGKeyArray,

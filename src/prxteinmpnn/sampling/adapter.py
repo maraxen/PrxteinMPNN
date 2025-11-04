@@ -12,8 +12,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
   from collections.abc import Callable
 
-  from prxteinmpnn.model.decoder import DecodingApproach
-  from prxteinmpnn.model.masked_attention import MaskedAttentionType
+  from prxteinmpnn.types import DecodingApproach, MaskedAttentionType
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
     EdgeFeatures,

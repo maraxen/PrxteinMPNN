@@ -42,7 +42,7 @@ from typing import Literal
 import jax.numpy as jnp
 from jaxtyping import Float, PRNGKeyArray
 
-from prxteinmpnn.model.decoding_signatures import RunAutoregressiveDecoderFn
+from prxteinmpnn.types import RunAutoregressiveDecoderFn
 from prxteinmpnn.utils.types import Logits, ProteinSequence
 
 from .initialize import SamplingModelPassOutput

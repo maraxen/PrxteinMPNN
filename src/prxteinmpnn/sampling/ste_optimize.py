@@ -28,8 +28,8 @@ if TYPE_CHECKING:
   )
 
 from prxteinmpnn.model.projection import final_projection
-from prxteinmpnn.model.ste import straight_through_estimator
 from prxteinmpnn.utils.autoregression import generate_ar_mask
+from prxteinmpnn.utils.ste import straight_through_estimator
 
 
 def make_optimize_sequence_fn(

@@ -18,7 +18,6 @@ import jax.numpy as jnp
 from jaxtyping import Array, Float, Int
 
 # Import necessary utilities from your project
-from prxteinmpnn.model.ste import straight_through_estimator
 from prxteinmpnn.utils.concatenate import concatenate_neighbor_nodes
 from prxteinmpnn.utils.coordinates import (
   apply_noise_to_coordinates,
@@ -27,6 +26,7 @@ from prxteinmpnn.utils.coordinates import (
 )
 from prxteinmpnn.utils.graph import compute_neighbor_offsets
 from prxteinmpnn.utils.radial_basis import compute_radial_basis
+from prxteinmpnn.utils.ste import straight_through_estimator
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,
   AutoRegressiveMask,

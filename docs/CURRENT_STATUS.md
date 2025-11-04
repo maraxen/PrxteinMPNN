@@ -1,264 +1,186 @@
-# Current Status Summary - Equinox Migration
+# Equinox Migration: Clean Replacement Strategy
 
-**Date**: November 3, 2025  
-**Branch**: `eqx_migration`
+**Date**: November 4, 2025  
+**Branch**: `eqx_migration`  
+**Status**: 🚀 Ready for clean replacement
 
-## 🎉 Major Achievement: Core Equivalence Complete!
+## TL;DR
 
-All 4 core equivalence tests are **PASSING** ✅
+We have a **complete, tested Equinox implementation** in `eqx_new.py`. Instead of gradual migration, we're doing a **clean replacement**: delete legacy code, reorganize Equinox model into proper modules, update all interfaces.
 
-```bash
-pytest tests/test_eqx_equivalence.py -v
-# ============================== 4 passed in 11.62s ===============================
+## Current State
+
+### ✅ What's Working
+- `src/prxteinmpnn/eqx_new.py` - Complete Equinox implementation
+  - ProteinFeatures, Encoder, Decoder, PrxteinMPNN classes
+  - All 3 decoding modes (unconditional, conditional, autoregressive)
+  - Numerically equivalent to legacy model
+  - All equivalence tests passing
+- `src/prxteinmpnn/utils/ste.py` - Straight-through estimator (moved from model/)
+- `src/prxteinmpnn/utils/types.py` - Type definitions (DecodingApproach, MaskedAttentionType, decoder signatures)
+
+### ⚠️ Legacy Code (TO BE DELETED)
+- `src/prxteinmpnn/model/` - Old PyTree-based model
+- `src/prxteinmpnn/functional/` - Old functional operations
+- Various imports in `sampling/`, `scoring/`, `run/` modules
+
+## Goal: Clean Replacement
+
+**What we're doing:**
+
+### 1. New `prxteinmpnn.model` submodule with Equinox components
+
+Split `eqx_new.py` into modular structure:
+```
+src/prxteinmpnn/model/
+  ├── __init__.py        # Re-exports: PrxteinMPNN, Encoder, Decoder, etc.
+  ├── features.py        # ProteinFeatures class
+  ├── encoder.py         # EncoderLayer, Encoder classes  
+  ├── decoder.py         # DecoderLayer, Decoder classes
+  └── mpnn.py            # PrxteinMPNN top-level class
 ```
 
-## Test Results
+All using Equinox modules, **NO** PyTree ModelParameters pattern.
 
-| Test | Status | Max Diff | Description |
-|------|--------|----------|-------------|
-| 01: Feature Extraction | ✅ PASS | ~1e-06 | Encoder produces equivalent features |
-| 02: Unconditional Decoder | ✅ PASS | ~1e-05 | Decoder without sequence info |
-| 03: Conditional Decoder | ✅ PASS | 1.26e-05 | Decoder with attention masking |
-| 04: Autoregressive First Step | ✅ PASS | ~1e-05 | AR initialization (zero sequence) |
+### 2. Update ALL interfaces to use Equinox exclusively
 
-**Total Runtime**: 11.6 seconds (optimized from 3+ minutes!)
+- **`sampling/*`** - Update to work with Equinox modules
+  - Remove adapter logic for PyTree models (clean break)
+  - Update initialize, sample, conditional_logits, unconditional_logits, etc.
+- **`scoring/*`** - Update to use Equinox
+- **`run/*`** - Update to use Equinox
+- **Remove files** that only work with legacy architecture
 
-## Critical Bugs Fixed
+### 3. All tests passing
 
-### 1. Conditional Decoder Attention Masking 🐛
+- Update test imports to new model structure
+- Remove tests for deleted modules
+- Ensure `tests/test_eqx_equivalence.py` still passes
+- Full test suite: `pytest tests/`
 
-**Problem**: Conditional decoder was missing attention mask application to messages.
+### 4. Clean documentation
 
-**Impact**: 
-- Before fix: `max_diff = 5.9` (relative diff = 878x)
-- After fix: `max_diff = 1.26e-05` (relative diff = 1.52e-04)
-- **400,000x improvement!**
+- ✅ Old migration docs deleted
+- Update README with new architecture
+- Update AGENTS.md and .github/copilot-instructions.md
+- This file serves as the "Migration Complete" summary
 
-**Fix Applied**: Added optional `attention_mask` parameter to `DecoderLayer.__call__`:
+## Implementation Plan
 
+### Phase 1: Reorganize Equinox Model ⏳
+1. **Delete** `src/prxteinmpnn/model/` directory entirely
+2. **Create** new modular structure from `eqx_new.py`:
+   ```bash
+   # Split eqx_new.py into:
+   model/features.py   # ProteinFeatures
+   model/encoder.py    # EncoderLayer, Encoder
+   model/decoder.py    # DecoderLayer, Decoder  
+   model/mpnn.py       # PrxteinMPNN
+   model/__init__.py   # Re-exports
+   ```
+3. **Delete** `eqx_new.py` (contents moved)
+4. **Test**: `from prxteinmpnn.model import PrxteinMPNN` works
+
+### Phase 2: Delete Legacy Functional ⏳
+1. **Delete** `src/prxteinmpnn/functional/` directory entirely
+2. **Remove** any imports/references to `functional` in codebase
+
+### Phase 3: Update High-Level APIs ⏳
+1. **`sampling/`** module:
+   - Update `adapter.py` - remove PyTree logic, use Equinox only
+   - Update `initialize.py` - use model.features directly
+   - Update `conditional_logits.py`, `unconditional_logits.py`
+   - Update `sample.py`, `sampling_step.py`, `ste_optimize.py`
+2. **`scoring/`** module:
+   - Update `score.py` to use Equinox model
+3. **`run/`** module:
+   - Update any files importing from old model/
+
+### Phase 4: Fix Tests ⏳
+1. Update test imports to `prxteinmpnn.model.*`
+2. Remove `tests/functional/` (testing deleted code)
+3. Ensure `tests/test_eqx_equivalence.py` passes
+4. Fix any broken tests in `tests/sampling/`, `tests/scoring/`
+5. Run full suite: `uv run pytest tests/`
+
+### Phase 5: Clean Docs ⏳
+1. ✅ Remove old PHASE_*.md migration docs (DONE)
+2. Update `README.md` with new architecture
+3. Update `AGENTS.md` with new structure
+4. Update `.github/copilot-instructions.md`
+
+## Key Technical Details
+
+### Type Imports
+**All types are in `prxteinmpnn.utils.types`**, including:
+- `DecodingApproach` - Literal["conditional", "autoregressive", "unconditional"]
+- `MaskedAttentionType` - Literal["none", "cross", "conditional"]
+- Decoder function signatures (RunDecoderFn, RunConditionalDecoderFn, etc.)
+
+**Example:**
 ```python
-def __call__(self, node_features, layer_edge_features, mask, scale=30.0, 
-             attention_mask: Array | None = None):
-    # ... compute message ...
-    message = jax.vmap(jax.vmap(self.message_mlp))(mlp_input)
-    
-    # Apply attention mask if provided (for conditional decoding)
-    if attention_mask is not None:
-        message = jnp.expand_dims(attention_mask, -1) * message
-    
-    # ... aggregate and normalize ...
+from prxteinmpnn.utils.types import DecodingApproach, MaskedAttentionType
 ```
 
-### 2. Test 4 Optimization ⚡
+### Equinox Model Structure
+The classes in `eqx_new.py`:
+- **ProteinFeatures** - Extracts and projects node/edge features
+- **EncoderLayer** - Single encoder layer with attention + feedforward
+- **Encoder** - Stack of encoder layers
+- **DecoderLayer** - Single decoder layer with attention + feedforward
+- **Decoder** - Stack of decoder layers
+- **PrxteinMPNN** - Top-level model with encoder + decoder + 3 decoding methods
 
-**Problem**: Test 4 was running full autoregressive sampling (3+ minutes).
+### No Adapter Pattern
+We're **NOT** maintaining compatibility with PyTree models. This is a clean break:
+- ❌ No `make_encoder()`, `make_decoder()` factory functions
+- ❌ No `ModelParameters` PyTree pattern
+- ❌ No adapter logic to detect model type
+- ✅ Direct use of Equinox modules everywhere
 
-**Solution**: Changed to test only first AR step with zero sequence.
+## What NOT to Do
 
-**Impact**:
-- Old: 3+ minutes for full sampling loop
-- New: 11.6 seconds for all 4 tests
-- Tests core AR logic without sampling complexity
+- ❌ Don't create compatibility layers for old PyTree models
+- ❌ Don't gradually update imports file-by-file (delete and replace)
+- ❌ Don't support both architectures
+- ❌ Don't create "_pure" versions or legacy wrappers
 
-## Documentation Updates
+## Success Criteria
 
-Updated 3 key documents:
+- [ ] No `prxteinmpnn.model.encoder`, `.model.decoder` legacy imports
+- [ ] No `prxteinmpnn.functional.*` imports
+- [ ] New `prxteinmpnn.model` uses only Equinox modules
+- [ ] All tests passing: `uv run pytest tests/`
+- [ ] Type checking passes: `uv run pyright`
+- [ ] Linting passes: `uv run ruff check src/`
+- [ ] Documentation updated
 
-1. **`docs/EQUINOX_FUNCTIONAL_EQUIVALENCE.md`**
-   - Current test status and results
-   - Bug fix documentation
-   - List of additional tests needed
+## Key Files Reference
 
-2. **`EQUINOX_MIGRATION.md`**
-   - Updated progress tracking
-   - Marked Milestones 1-3 as complete
-   - Detailed Milestone 4-6 tasks
+- `src/prxteinmpnn/eqx_new.py` - Complete working Equinox implementation (to be split)
+- `src/prxteinmpnn/utils/ste.py` - Straight-through estimator utility
+- `src/prxteinmpnn/utils/types.py` - All type definitions
+- `tests/test_eqx_equivalence.py` - Must keep passing (validates numerical equivalence)
 
-3. **`docs/QUICK_START_EQUIVALENCE.md`**
-   - Updated with eqx_new.py examples
-   - All 3 decoding modes documented
-   - Current test status
+## Time Estimate
 
-4. **`docs/NEXT_STEPS.md`** (NEW!)
-   - Comprehensive roadmap for next phases
-   - Detailed task breakdowns
-   - Time estimates and priorities
-   - Risk assessment
+**4-6 hours** for complete clean replacement (vs. weeks for gradual migration)
 
-## What's Working ✅
+## Next Action
 
-- ✅ Full encoder/decoder architecture implemented
-- ✅ Unconditional, conditional, and autoregressive decoding modes
-- ✅ Numerical equivalence verified (rtol=1e-5, atol=1e-5)
-- ✅ JAX-compatible PyTree structures
-- ✅ All core operations match functional implementation
-- ✅ Fast test execution (11.6 seconds)
+**START Phase 1**: Delete old `model/` directory and reorganize `eqx_new.py` into new modular structure.
 
-## What's Next 🚀
-
-### Immediate Next Steps (Milestone 4)
-
-#### 1. Weight Conversion Script (Priority: HIGH)
-- Convert all 8 model variants to .eqx format
-- Script already structured in NEXT_STEPS.md
-- Estimated time: 2-3 hours
-
-#### 2. HuggingFace Upload (Priority: HIGH)
-- Upload .eqx files to `maraxen/prxteinmpnn`
-- Update model card and README
-- Estimated time: 1-2 hours
-
-#### 3. Additional Tests (Priority: HIGH)
-- Save/load preservation test
-- Variable sequence length test (10, 25, 50, 100, 200)
-- Edge case tests
-- Estimated time: 3-4 hours
-
-### Medium-Term (Milestone 5)
-
-#### 4. API Integration (Priority: HIGH)
-- Update `get_mpnn_model()` to support .eqx loading
-- Refactor sampling module
-- Refactor scoring module
-- Reorganize test structure
-- Estimated time: 12-16 hours
-
-### Long-Term (Milestone 6)
-
-#### 5. Final Release (Priority: HIGH)
-- Complete documentation
-- Performance benchmarking
-- Version 0.2.0 release
-- Estimated time: 10-14 hours
-
-**Total Estimated Time**: 27-38 hours (conservative)
-
-## Additional Tests Needed
-
-Before production deployment, implement these tests:
-
-### Priority P0 (Must-Have)
-1. ✅ Core equivalence tests (DONE)
-2. ⏳ Save/load preservation tests
-3. ⏳ Variable sequence length tests
-4. ⏳ Integration tests for sampling/scoring
-5. ⏳ Full test suite passing
-
-### Priority P1 (Should-Have)
-6. ⏳ Batch processing tests
-7. ⏳ Edge case tests (empty masks, single residue, etc.)
-8. ⏳ Performance benchmarks
-9. ⏳ Gradient equivalence tests
-10. ⏳ Cross-platform tests
-
-### Priority P2 (Nice-to-Have)
-11. ⏳ Full autoregressive sampling equivalence
-12. ⏳ Memory profiling
-13. ⏳ Stress tests (very long sequences)
-14. ⏳ Fuzzing tests
-15. ⏳ Property-based tests
-
-## Files Modified Today
-
-### Core Implementation
-- `src/prxteinmpnn/eqx_new.py` - Added attention mask support to DecoderLayer
-
-### Tests
-- `tests/test_eqx_equivalence.py` - Optimized test 4, cleaned up debug output
-
-### Documentation
-- `docs/EQUINOX_FUNCTIONAL_EQUIVALENCE.md` - Updated with current status
-- `EQUINOX_MIGRATION.md` - Updated progress tracking
-- `docs/QUICK_START_EQUIVALENCE.md` - Updated examples
-- `docs/NEXT_STEPS.md` - NEW comprehensive roadmap
-
-## Commands to Run
-
-### Test Current Status
 ```bash
-# Run all equivalence tests
-pytest tests/test_eqx_equivalence.py -v
+# Step 1: Delete old model
+rm -rf src/prxteinmpnn/model/
 
-# Run specific test
-pytest tests/test_eqx_equivalence.py::TestNewEqxEquivalence::test_03_core_model_CONDITIONAL_equivalence -v
+# Step 2: Create new structure (split eqx_new.py)
+mkdir -p src/prxteinmpnn/model/
+# ... split files ...
 
-# Run with output
-pytest tests/test_eqx_equivalence.py -v -s
+# Step 3: Delete eqx_new.py
+rm src/prxteinmpnn/eqx_new.py
+
+# Step 4: Test imports
+uv run python -c "from prxteinmpnn.model import PrxteinMPNN; print('✅ Success')"
 ```
-
-### Next Steps
-```bash
-# After creating conversion script:
-python scripts/convert_all_models.py
-
-# Run new tests:
-pytest tests/test_eqx_equivalence.py::TestNewEqxEquivalence::test_05_save_load_preservation -v
-pytest tests/test_eqx_equivalence.py::TestNewEqxEquivalence::test_06_variable_sequence_lengths -v
-```
-
-## Key Decisions Made
-
-1. **Test 4 Strategy**: Test only first AR step instead of full sampling
-   - Rationale: Tests core logic without randomness/complexity
-   - Trade-off: Doesn't test full sampling equivalence (can add as P2 test)
-
-2. **Attention Masking Fix**: Applied to messages, not inputs
-   - Rationale: Matches functional implementation exactly
-   - Impact: Critical for conditional decoding correctness
-
-3. **Documentation Focus**: Comprehensive roadmap over incremental docs
-   - Rationale: Clear path forward for next phases
-   - Benefit: Easy to track progress and make decisions
-
-## Open Questions
-
-1. **Model Format**: Keep both .pkl and .eqx or migrate fully?
-   - **Recommendation**: Keep both for 1-2 versions with deprecation warnings
-
-2. **API Breaking Changes**: How aggressive to be?
-   - **Recommendation**: Full backward compatibility for 2 versions
-
-3. **Testing Coverage**: What's the minimum for release?
-   - **Recommendation**: >90% for core modules, all P0 tests passing
-
-4. **Performance Target**: What's acceptable?
-   - **Recommendation**: Within 10% of functional, ideally equal or faster
-
-## Success Metrics
-
-### Technical ✅
-- ✅ All core equivalence tests passing (4/4)
-- ✅ Tight tolerance achieved (rtol=1e-5, atol=1e-5)
-- ✅ Fast test execution (<15 seconds)
-- 🔄 Additional tests needed (P0 items)
-- 🔄 Full integration pending
-
-### Code Quality ✅
-- ✅ Ruff linting passing
-- ✅ Pyright type checking in strict mode
-- ✅ Well-documented code
-- ✅ Modular architecture
-
-### Documentation ✅
-- ✅ Comprehensive equivalence docs
-- ✅ Migration plan updated
-- ✅ Quick start guide updated
-- ✅ Next steps roadmap complete
-
-## Timeline
-
-**Conservative Estimate**: 2-3 weeks part-time  
-**Aggressive Estimate**: 1 week full-time
-
-**Current Phase**: End of Milestone 3  
-**Next Phase**: Milestone 4 (Weight Conversion & Deployment)
-
-## Conclusion
-
-The core Equinox implementation is **production-ready** from a numerical equivalence standpoint. All decoder modes work correctly and match the functional implementation within tight tolerances.
-
-**Next immediate action**: Create and run the weight conversion script to generate .eqx files for all 8 model variants, then upload to HuggingFace.
-
----
-
-**Status**: ✅ **Ready for Milestone 4**

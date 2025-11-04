@@ -13,9 +13,7 @@ if TYPE_CHECKING:
 
   from jaxtyping import Float, Int, PRNGKeyArray
 
-  from prxteinmpnn.model.decoding_signatures import (
-    RunConditionalDecoderFn,
-  )
+  from prxteinmpnn.types import RunConditionalDecoderFn
   from prxteinmpnn.utils.decoding_order import DecodingOrderFn
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,

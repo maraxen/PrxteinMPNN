@@ -2,13 +2,9 @@
 
 from prxteinmpnn.utils import ste
 
-from . import initialize, sample, sampling_step
-from .sample import make_sample_sequences
+# Sampling modules temporarily disabled during Equinox migration
+# These will be refactored to use PrxteinMPNN's native autoregressive mode
 
 __all__ = [
-  "initialize",
-  "make_sample_sequences",
-  "sample",
-  "sampling_step",
   "ste",
 ]

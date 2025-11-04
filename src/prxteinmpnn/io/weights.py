@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Literal
 
 import equinox as eqx
 import jax
-import joblib
 from huggingface_hub import hf_hub_download
 
 if TYPE_CHECKING:
@@ -66,33 +65,14 @@ def load_weights(
   """
   if local_path:
     weights_file_path = local_path
-  elif use_eqx_format:
-    # New .eqx format (recommended)
+  else:
     filename = f"{model_weights}_{model_version}.eqx"
     weights_file_path = hf_hub_download(
       repo_id=HF_REPO_ID,
       filename=f"eqx/{filename}",
       repo_type="model",
     )
-  else:
-    # Legacy .pkl format
-    filename = f"{model_version.replace('.pkl', '')}.pkl"
-    weights_file_path = hf_hub_download(
-      repo_id=HF_REPO_ID,
-      filename=f"{model_weights}_{filename}",
-    )
-
-  # Load based on format
-  if use_eqx_format or (local_path and local_path.endswith(".eqx")):
-    if skeleton is None:
-      msg = "skeleton must be provided when loading .eqx format"
-      raise ValueError(msg)
-    return eqx.tree_deserialise_leaves(weights_file_path, skeleton)
-
-  # Legacy .pkl format
-  if skeleton is None:
-    skeleton = eqx.Module()
-  return joblib.load(weights_file_path)
+  return eqx.tree_deserialise_leaves(weights_file_path, skeleton)
 
 
 def load_model(
@@ -106,8 +86,11 @@ def load_model(
   This is the recommended high-level API for loading models.
 
   Args:
-      model_version: The model version (e.g., "v_48_020").
+      model_version: The model version (e.g., "v_48_020") or full name
+                     (e.g., "original_v_48_020"). If full name is provided,
+                     it will be parsed to extract weights and version.
       model_weights: The weight type ("original" or "soluble").
+                     Ignored if model_version contains the full name.
       local_path: Optional. If provided, loads from this local .eqx file.
       key: Optional JAX random key. If None, uses default PRNGKey(0).
 
@@ -116,7 +99,10 @@ def load_model(
 
   Example:
       >>> from prxteinmpnn.io.weights import load_model
+      >>> # Either specify separately:
       >>> model = load_model(model_version="v_48_020", model_weights="original")
+      >>> # Or use combined name:
+      >>> model = load_model("original_v_48_020")
       >>> # Model is ready for inference
       >>> seq, logits = model(coords, mask, res_idx, chain_idx, "unconditional")
 
@@ -128,6 +114,12 @@ def load_model(
   if key is None:
     key = jax.random.PRNGKey(0)
 
+  # Parse model_version if it contains the full name (e.g., "original_v_48_020")
+  if "_v_" in model_version:
+    # Extract weights type and version from full name
+    parts = model_version.split("_v_", 1)
+    model_weights = parts[0]  # type: ignore[assignment]
+    model_version = f"v_{parts[1]}"  # type: ignore[assignment]
   # Create skeleton with correct hyperparameters
   skeleton = PrxteinMPNN(
     node_features=NODE_FEATURES,

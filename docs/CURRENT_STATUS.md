@@ -67,19 +67,19 @@ All using Equinox modules, **NO** PyTree ModelParameters pattern.
 
 ## Implementation Plan
 
-### Phase 1: Reorganize Equinox Model ⏳
-1. **Delete** `src/prxteinmpnn/model/` directory entirely
-2. **Create** new modular structure from `eqx_new.py`:
-   ```bash
-   # Split eqx_new.py into:
-   model/features.py   # ProteinFeatures
-   model/encoder.py    # EncoderLayer, Encoder
-   model/decoder.py    # DecoderLayer, Decoder  
-   model/mpnn.py       # PrxteinMPNN
-   model/__init__.py   # Re-exports
-   ```
-3. **Delete** `eqx_new.py` (contents moved)
-4. **Test**: `from prxteinmpnn.model import PrxteinMPNN` works
+### Phase 1: Reorganize Equinox Model ⏳ IN PROGRESS
+1. ✅ **Delete** `src/prxteinmpnn/model/` directory entirely (DONE)
+2. ⏳ **Create** new modular structure from `eqx_new.py`:
+   - ✅ `model/features.py` - ProteinFeatures (DONE)
+   - ✅ `model/encoder.py` - EncoderLayer, Encoder (DONE)
+   - ⏳ `model/decoder.py` - DecoderLayer, Decoder (TODO)
+   - ⏳ `model/mpnn.py` - PrxteinMPNN (TODO)
+   - ⏳ `model/__init__.py` - Re-exports (TODO)
+3. ⏳ **Delete** `eqx_new.py` (contents moved)
+4. ⏳ **Test**: `from prxteinmpnn.model import PrxteinMPNN` works
+
+**Current Blocker**: Need to complete decoder.py and mpnn.py before we can update imports.
+The imports are currently failing because old code references deleted modules.
 
 ### Phase 2: Delete Legacy Functional ⏳
 1. **Delete** `src/prxteinmpnn/functional/` directory entirely

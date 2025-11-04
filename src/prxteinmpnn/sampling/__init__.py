@@ -1,6 +1,6 @@
 """Sampling utilities for PrXteinMPNN."""
 
-from prxteinmpnn.model import ste
+from prxteinmpnn.utils import ste
 
 from . import initialize, sample, sampling_step
 from .sample import make_sample_sequences

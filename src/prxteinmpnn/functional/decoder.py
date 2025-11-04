@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING, Literal
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.model.ste import straight_through_estimator
 from prxteinmpnn.utils.gelu import GeLU
+from prxteinmpnn.utils.ste import straight_through_estimator
 
 from .normalize import layer_normalization
 from .projection import final_projection

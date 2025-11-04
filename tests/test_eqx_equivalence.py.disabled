@@ -9,7 +9,7 @@ from jax.nn import gelu as Gelu
 import equinox as eqx
 # --- Imports for the NEW Equinox model ---
 # This is the model structure we are testing
-from prxteinmpnn.eqx_new import PrxteinMPNN
+from prxteinmpnn.model import PrxteinMPNN
 from functools import partial
 gelu = partial(Gelu, approximate=False)  # For easier use later
 # --- Imports for the conversion script ---

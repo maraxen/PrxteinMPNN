@@ -51,7 +51,7 @@ def make_sample_sequences(
     >>> model = load_model()
     >>> sample_fn = make_sample_sequences(model, sampling_strategy="temperature")
     >>> seq, logits, order = sample_fn(key, coords, mask, res_idx, chain_idx)
-    >>> 
+    >>>
     >>> # For optimization
     >>> optimize_fn = make_sample_sequences(model, sampling_strategy="straight_through")
     >>> seq, logits, order = optimize_fn(

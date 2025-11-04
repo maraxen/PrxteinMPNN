@@ -441,7 +441,7 @@ class PrxteinMPNN(eqx.Module):
       next_all_logits = all_logits.at[position, :].set(jnp.squeeze(logits_pos))
 
       # Apply bias before sampling
-      bias_pos = bias[position:position+1, :]  # [1, 21]
+      bias_pos = bias[position : position + 1, :]  # [1, 21]
       logits_with_bias = logits_pos + bias_pos
 
       # Gumbel-max trick

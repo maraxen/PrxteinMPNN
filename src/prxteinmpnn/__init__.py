@@ -2,23 +2,27 @@
 
 import multiprocessing as mp
 
-mp.set_start_method("spawn", force=True)
+from .run import (
+  JacobianSpecification,
+  RunSpecification,
+  SamplingSpecification,
+  ScoringSpecification,
+  sample,
+  score,
+)
 
-# High-level API imports disabled during Equinox migration
-# Will be re-enabled in Phase 3 after updating sampling/scoring modules
-# from .run import (
-#   JacobianSpecification,
-#   RunSpecification,
-#   SamplingSpecification,
-#   ScoringSpecification,
-#   categorical_jacobian,
-#   sample,
-#   score,
-# )
+mp.set_start_method("spawn", force=True)
 
 __version__ = "0.1.0"
 __author__ = "Marielle Russo"
 __description__ = "PrxteinMPNN: A functional interface for ProteinMPNN"
 __license__ = "MIT"
 __url__ = "https://github.com/maraxen/prxteinmpnn"
-__all__: list[str] = []  # Temporarily empty during migration
+__all__ = [
+  "JacobianSpecification",
+  "RunSpecification",
+  "SamplingSpecification",
+  "ScoringSpecification",
+  "sample",
+  "score",
+]

@@ -13,8 +13,8 @@ if TYPE_CHECKING:
   from prxteinmpnn.run.specs import Specs
   from prxteinmpnn.utils.types import Model
 
-from prxteinmpnn.functional.model import get_functional_model
 from prxteinmpnn.io import loaders
+from prxteinmpnn.io.weights import load_model
 
 
 def _loader_inputs(inputs: Sequence[str | StringIO] | str | StringIO) -> Sequence[str | StringIO]:
@@ -49,9 +49,10 @@ def prep_protein_stream_and_model(
     foldcomp_database=spec.foldcomp_database,
     parse_kwargs=parse_kwargs,
   )
-  model = get_functional_model(
+  # use_new_architecture parameter is deprecated; always use Equinox model now
+  del use_new_architecture
+  model = load_model(
     model_version=spec.model_version,
     model_weights=spec.model_weights,
-    use_new_architecture=use_new_architecture,
   )
   return protein_iterator, model

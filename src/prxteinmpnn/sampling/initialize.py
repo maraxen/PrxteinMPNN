@@ -10,7 +10,9 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
-from prxteinmpnn.model.features import extract_features, project_features
+# TODO: Update after Equinox migration - extract_features and project_features
+# are now methods of ProteinFeatures class, not standalone functions
+# from prxteinmpnn.model.features import extract_features, project_features
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn
 from prxteinmpnn.utils.types import (

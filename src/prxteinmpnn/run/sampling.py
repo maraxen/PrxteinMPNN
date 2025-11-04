@@ -78,18 +78,10 @@ def sample(
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
 
-  # Note: Only "temperature" sampling is currently supported in the Equinox model
-  if spec.sampling_strategy != "temperature":
-    msg = (
-      f"Sampling strategy '{spec.sampling_strategy}' not yet supported. "
-      "Only 'temperature' is available."
-    )
-    raise NotImplementedError(msg)
-
   sampler_fn = make_sample_sequences(
     model=model,
     decoding_order_fn=random_decoding_order,
-    sampling_strategy="temperature",
+    sampling_strategy=spec.sampling_strategy,
   )
 
   all_sequences, all_logits = [], []
@@ -170,14 +162,6 @@ def _sample_streaming(
 
   if spec.average_encodings:
     msg = "average_encodings feature is temporarily disabled during Equinox migration"
-    raise NotImplementedError(msg)
-
-  # Note: Only "temperature" sampling is currently supported in the Equinox model
-  if spec.sampling_strategy != "temperature":
-    msg = (
-      f"Sampling strategy '{spec.sampling_strategy}' not yet supported. "
-      "Only 'temperature' is available."
-    )
     raise NotImplementedError(msg)
 
   sampler_fn = make_sample_sequences(

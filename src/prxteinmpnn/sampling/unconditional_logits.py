@@ -115,4 +115,3 @@ def make_unconditional_logits_fn(
     return logits
 
   return unconditional_logits
-

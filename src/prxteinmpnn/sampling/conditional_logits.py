@@ -167,10 +167,10 @@ def make_encoding_conditional_logits_split_fn(
     backbone_noise: BackboneNoise | None = None,
   ) -> tuple:
     """Encode structure to intermediate representation (placeholder).
-    
+
     Returns:
       Tuple of inputs needed for decoding.
-      
+
     """
     # For now, just return the inputs that will be needed
     return (structure_coordinates, mask, residue_index, chain_index, backbone_noise)
@@ -181,10 +181,10 @@ def make_encoding_conditional_logits_split_fn(
     ar_mask: AutoRegressiveMask | None = None,
   ) -> Logits:
     """Decode intermediate representation to logits (placeholder).
-    
+
     Returns:
       Logits for the given sequence.
-      
+
     """
     structure_coordinates, mask, residue_index, chain_index, backbone_noise = encoding
     return conditional_fn(
@@ -199,4 +199,3 @@ def make_encoding_conditional_logits_split_fn(
     )
 
   return encode_fn, decode_fn
-

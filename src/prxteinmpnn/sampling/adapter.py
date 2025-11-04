@@ -40,7 +40,7 @@ def is_equinox_model(model: Model) -> bool:
 
   """
   # Import here to avoid circular dependency
-  from prxteinmpnn.eqx_new import PrxteinMPNN  # noqa: PLC0415
+  from prxteinmpnn.model import PrxteinMPNN  # noqa: PLC0415
 
   return isinstance(model, PrxteinMPNN)
 
@@ -48,98 +48,85 @@ def is_equinox_model(model: Model) -> bool:
 def get_encoder_fn(
   model: Model,
   *,
-  attention_mask_type: MaskedAttentionType | None = None,
-  num_encoder_layers: int = 3,
-  scale: float = 30.0,
+  _attention_mask_type: MaskedAttentionType | None = None,
+  _num_encoder_layers: int = 3,
+  _scale: float = 30.0,
 ) -> Callable[..., tuple[NodeFeatures, EdgeFeatures]]:
-  """Get an encoder function that works with either model architecture.
+  """Get an encoder function from PrxteinMPNN Equinox model.
 
   Args:
-      model: Either a PyTree (ModelParameters) or PrxteinMPNN instance.
-      attention_mask_type: Type of attention masking to use.
-      num_encoder_layers: Number of encoder layers.
-      scale: Scaling factor for edge features.
+      model: PrxteinMPNN Equinox instance.
+      _attention_mask_type: Deprecated, ignored (kept for compatibility).
+      _num_encoder_layers: Deprecated, ignored (kept for compatibility).
+      _scale: Deprecated, ignored (kept for compatibility).
 
   Returns:
       A function that runs the encoder and returns (node_features, edge_features).
+
+  Raises:
+      TypeError: If model is not a PrxteinMPNN instance.
 
   Example:
       >>> encoder_fn = get_encoder_fn(model)
       >>> node_feats, edge_feats = encoder_fn(edge_features, neighbor_indices, mask)
 
   """
-  if is_equinox_model(model):
-    # New Equinox architecture - model is already PrxteinMPNN
-    model_eqx = model  # type: ignore[assignment]
+  if not is_equinox_model(model):
+    msg = "Only Equinox PrxteinMPNN models are supported. Legacy PyTree models have been removed."
+    raise TypeError(msg)
 
-    def equinox_encoder(
-      edge_features: EdgeFeatures,
-      neighbor_indices: NeighborIndices,
-      mask: AlphaCarbonMask,
-    ) -> tuple[NodeFeatures, EdgeFeatures]:
-      """Wrap Equinox encoder for consistent interface."""
-      return model_eqx.encoder(edge_features, neighbor_indices, mask)
+  model_eqx = model  # type: ignore[assignment]
 
-    return equinox_encoder
+  def equinox_encoder(
+    edge_features: EdgeFeatures,
+    neighbor_indices: NeighborIndices,
+    mask: AlphaCarbonMask,
+  ) -> tuple[NodeFeatures, EdgeFeatures]:
+    """Wrap Equinox encoder for consistent interface."""
+    return model_eqx.encoder(edge_features, neighbor_indices, mask)
 
-  # Legacy functional architecture
-  from prxteinmpnn.model.encoder import make_encoder  # noqa: PLC0415
-
-  model_params: ModelParameters = model  # type: ignore[assignment]
-  return make_encoder(
-    model_parameters=model_params,
-    attention_mask_type=attention_mask_type,
-    num_encoder_layers=num_encoder_layers,
-    scale=scale,
-  )
+  return equinox_encoder
 
 
 def get_decoder_fn(
   model: Model,
   *,
-  attention_mask_type: MaskedAttentionType | None = None,
+  _attention_mask_type: MaskedAttentionType | None = None,
   decoding_approach: DecodingApproach = "conditional",
-  num_decoder_layers: int = 3,
+  _num_decoder_layers: int = 3,
 ) -> Callable[..., Any]:
-  """Get a decoder function that works with either model architecture.
+  """Get a decoder function from PrxteinMPNN Equinox model.
 
   Args:
-      model: Either a PyTree (ModelParameters) or PrxteinMPNN instance.
-      attention_mask_type: Type of attention masking to use.
-      decoding_approach: Either "conditional" or "autoregressive".
-      num_decoder_layers: Number of decoder layers.
+      model: PrxteinMPNN Equinox instance.
+      _attention_mask_type: Deprecated, ignored (kept for compatibility).
+      decoding_approach: Either "conditional" or "unconditional" (autoregressive not supported yet).
+      _num_decoder_layers: Deprecated, ignored (kept for compatibility).
 
   Returns:
       A function that runs the decoder.
+
+  Raises:
+      TypeError: If model is not a PrxteinMPNN instance.
+      ValueError: If decoding_approach is not supported.
 
   Example:
       >>> decoder_fn = get_decoder_fn(model, decoding_approach="conditional")
       >>> output = decoder_fn(...)
 
   """
-  if is_equinox_model(model):
-    # New Equinox architecture - model is already PrxteinMPNN
-    model_eqx = model  # type: ignore[assignment]
+  if not is_equinox_model(model):
+    msg = "Only Equinox PrxteinMPNN models are supported. Legacy PyTree models have been removed."
+    raise TypeError(msg)
 
-    if decoding_approach == "conditional":
-      return model_eqx.decoder
-    if decoding_approach == "autoregressive":
-      # For autoregressive, we'd need to adapt the decoder
-      # For now, use the conditional decoder as it's the most common
-      return model_eqx.decoder
-    msg = f"Unknown decoding approach: {decoding_approach}"
-    raise ValueError(msg)
+  model_eqx = model  # type: ignore[assignment]
 
-  # Legacy functional architecture
-  from prxteinmpnn.model.decoder import make_decoder  # noqa: PLC0415
-
-  model_params: ModelParameters = model  # type: ignore[assignment]
-  return make_decoder(
-    model_parameters=model_params,
-    attention_mask_type=attention_mask_type,
-    decoding_approach=decoding_approach,
-    num_decoder_layers=num_decoder_layers,
-  )
+  if decoding_approach == "conditional":
+    return model_eqx.decoder.call_conditional
+  if decoding_approach == "unconditional":
+    return model_eqx.decoder
+  msg = f"Decoding approach '{decoding_approach}' not supported by adapter"
+  raise ValueError(msg)
 
 
 def get_model_parameters(model: Model) -> ModelParameters:

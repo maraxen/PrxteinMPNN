@@ -1,7 +1,14 @@
 """Type definitions for the PrxteinMPNN project."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Union
+
 from jaxtyping import Array, Bool, Float, Int, PRNGKeyArray, PyTree
 from optax import GradientTransformation
+
+if TYPE_CHECKING:
+  from prxteinmpnn.eqx_new import PrxteinMPNN
 
 NodeFeatures = Int[Array, "num_atoms num_features"]  # Node features
 EdgeFeatures = Float[Array, "num_atoms num_neighbors num_features"]  # Edge features
@@ -18,6 +25,9 @@ AtomResidueIndex = Int[Array, "num_residues num_atoms"]  # Residue indices for a
 AtomChainIndex = Int[Array, "num_residues num_atoms"]  # Chain indices for atoms
 Parameters = Float[Array, "num_parameters"]  # Model parameters
 ModelParameters = PyTree[str, "P"]
+# Type union for migration: supports both legacy PyTree and new Equinox model
+# Using Union with string annotation to avoid runtime import
+Model = Union["PrxteinMPNN", ModelParameters]
 AlphaCarbonDistance = Float[Array, "num_atoms num_atoms"]  # Distances between alpha carbon atoms
 Distances = Float[Array, "num_atoms num_neighbors"]  # Distances between nodes
 AtomIndexPair = Int[Array, "2"]  # Pairs of atom indices for edges

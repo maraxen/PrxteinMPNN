@@ -3,13 +3,19 @@
 prxteinmpnn.functional.model
 """
 
-from typing import Literal
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Literal
 
 import jax
 import jax.numpy as jnp
 import joblib
 from huggingface_hub import hf_hub_download
-from jaxtyping import PyTree
+
+if TYPE_CHECKING:
+  from jaxtyping import PyTree
+
+  from prxteinmpnn.eqx_new import PrxteinMPNN
 
 ModelVersion = Literal[
   "v_48_002",
@@ -25,26 +31,48 @@ def get_functional_model(
   model_version: ModelVersion = "v_48_020",
   model_weights: ModelWeights = "original",
   model_path: str | None = None,
-) -> PyTree:
+  *,
+  use_new_architecture: bool = True,
+) -> PyTree | PrxteinMPNN:
   """Create a ProteinMPNN model with specified configuration and weights.
 
-  This is the legacy functional API for loading model parameters.
+  This function serves as an adapter between the legacy functional API and the new
+  Equinox architecture. It allows gradual migration by supporting both implementations.
 
   Args:
     model_version: The model configuration to use.
     model_weights: The weights to load for the model.
     model_path: Optional path to a local model file. If None, download from HuggingFace Hub.
+    use_new_architecture: If True (default), return a PrxteinMPNN Equinox module.
+                          If False, return legacy PyTree parameters.
 
   Returns:
-    A PyTree containing the model parameters.
+    A PyTree containing the model parameters (legacy) or a PrxteinMPNN module (new).
 
   Raises:
     FileNotFoundError: If the model file does not exist.
 
   Example:
-    >>> params = get_functional_model()
+    >>> # New Equinox API (default)
+    >>> model = get_functional_model()
+    >>>
+    >>> # Legacy functional API (if needed)
+    >>> params = get_functional_model(use_new_architecture=False)
 
   """
+  # NEW ARCHITECTURE: Use Equinox PrxteinMPNN
+  if use_new_architecture:
+    # Import here to avoid circular dependency
+    from prxteinmpnn.io.weights import load_model  # noqa: PLC0415
+
+    # Note: model_path is ignored in new architecture (use load_model's local_path instead)
+    return load_model(
+      model_version=model_version,
+      model_weights=model_weights,
+      local_path=model_path,
+    )
+
+  # LEGACY ARCHITECTURE: Use functional PyTree parameters
   if model_path is not None:
     # Load from local path
     checkpoint_state = joblib.load(model_path)

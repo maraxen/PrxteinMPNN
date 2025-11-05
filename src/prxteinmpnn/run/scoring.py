@@ -64,7 +64,7 @@ def score(
     raise ValueError(msg)
 
   integer_sequences = [string_to_protein_sequence(s) for s in spec.sequences_to_score]
-  batched_sequences = jnp.concatenate(integer_sequences)
+  batched_sequences = jnp.array(integer_sequences)
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
   score_single_pair = make_score_sequence(model=model)
@@ -107,7 +107,7 @@ def score(
     all_logits.append(logits)
 
   if not all_scores:
-    return {"scores": None, "logits": None, "metadata": None}
+    return {}
 
   return {
     "scores": jnp.concatenate(all_scores, axis=0),
@@ -127,7 +127,7 @@ def _score_streaming(
     raise ValueError(msg)
 
   integer_sequences = [string_to_protein_sequence(s) for s in spec.sequences_to_score]
-  batched_sequences = jnp.concatenate(integer_sequences)
+  batched_sequences = jnp.array(integer_sequences)
   if batched_sequences.ndim == 1:
     batched_sequences = jnp.expand_dims(batched_sequences, 0)
 
@@ -151,36 +151,37 @@ def _score_streaming(
     )
 
     for batched_ensemble in protein_iterator:
-      max_len = batched_ensemble.coordinates.shape[1]
+      max_len = batched_ensemble.coordinates.shape[0]
       current_ar_mask = (
-        1 - jnp.eye(max_len, dtype=jnp.bool_) if spec.ar_mask is None else jnp.asarray(spec.ar_mask)
+          1 - jnp.eye(max_len, dtype=jnp.bool_) if spec.ar_mask is None else jnp.asarray(spec.ar_mask)
       )
 
       vmap_sequences = jax.vmap(
-        score_single_pair,
-        in_axes=(None, 0, None, None, None, None, None, None, None),
-        out_axes=0,
+          score_single_pair,
+          in_axes=(None, 0, None, None, None, None, None, None, None),
+          out_axes=0,
       )
       vmap_noises = jax.vmap(
-        vmap_sequences,
-        in_axes=(None, None, None, None, None, None, None, 0, None),
-        out_axes=0,
+          vmap_sequences,
+          in_axes=(None, None, None, None, None, None, None, 0, None),
+          out_axes=0,
       )
       vmap_structures = jax.vmap(
-        vmap_noises,
-        in_axes=(None, None, 0, 0, 0, 0, None, None, None),
-        out_axes=0,
+          vmap_noises,
+          in_axes=(None, None, 0, 0, 0, 0, None, None, None),
+          out_axes=0,
       )
+
       scores, logits, _ = vmap_structures(
-        jax.random.key(spec.random_seed),
-        batched_sequences,
-        batched_ensemble.coordinates,
-        batched_ensemble.mask,
-        batched_ensemble.residue_index,
-        batched_ensemble.chain_index,
-        48,
-        jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
-        current_ar_mask,
+          jax.random.key(spec.random_seed),
+          batched_sequences,
+          batched_ensemble.coordinates,
+          batched_ensemble.mask,
+          batched_ensemble.residue_index,
+          batched_ensemble.chain_index,
+          48,
+          jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
+          current_ar_mask,
       )
 
       scores_ds.resize(scores_ds.shape[0] + scores.size, axis=0)

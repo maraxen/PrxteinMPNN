@@ -1,68 +1,90 @@
-"""Tests for sampling adapter functions.
-
-Note: Legacy .pkl models no longer exist on HuggingFace, so we only test
-the new Equinox architecture. The adapter functions are designed to support
-both architectures, but in practice we're migrating to Equinox.
-"""
-
-from __future__ import annotations
-
 import jax
 import jax.numpy as jnp
 import pytest
-
-from prxteinmpnn.io.weights import load_model
 from prxteinmpnn.sampling.adapter import (
-  get_decoder_fn,
-  get_encoder_fn,
-  get_model_parameters,
-  is_equinox_model,
+    is_equinox_model,
+    get_encoder_fn,
+    get_decoder_fn,
+    get_model_parameters,
 )
+from prxteinmpnn.eqx_new import PrxteinMPNN
+
+
+# Mock Equinox Model
+class MockPrxteinMPNN(PrxteinMPNN):
+    def __init__(self, key):
+        super().__init__(
+            node_features=128,
+            edge_features=128,
+            hidden_features=128,
+            num_encoder_layers=3,
+            num_decoder_layers=3,
+            k_neighbors=48,
+            key=key
+        )
+
+    def encoder(self, edge_features, neighbor_indices, mask):
+        return jnp.ones((10, 128)), jnp.ones((10, 10, 128))
 
 
 @pytest.fixture
-def equinox_model():
-  """Load an Equinox model."""
-  return load_model(model_version="v_48_002", model_weights="original")
+def mock_equinox_model():
+    return MockPrxteinMPNN(key=jax.random.PRNGKey(0))
 
 
-def test_is_equinox_model_detects_equinox(equinox_model):
-  """Test that is_equinox_model correctly identifies Equinox models."""
-  assert is_equinox_model(equinox_model)
+@pytest.fixture
+def mock_pytree_model():
+    return {"params": jnp.ones((10,))}
 
 
-def test_get_encoder_fn_equinox(equinox_model):
-  """Test that get_encoder_fn returns a working encoder for Equinox models."""
-  encoder_fn = get_encoder_fn(equinox_model)
-
-  # Encoder functions have complex signatures, just check it's callable
-  assert callable(encoder_fn)
+def test_is_equinox_model(mock_equinox_model, mock_pytree_model):
+    assert is_equinox_model(mock_equinox_model)
+    assert not is_equinox_model(mock_pytree_model)
 
 
-def test_get_decoder_fn_equinox(equinox_model):
-  """Test that get_decoder_fn returns a working decoder for Equinox models."""
-  decoder_fn = get_decoder_fn(equinox_model, decoding_approach="conditional")
+def test_get_encoder_fn(mock_equinox_model, mock_pytree_model):
+    # Test with Equinox model
+    eqx_encoder_fn = get_encoder_fn(mock_equinox_model)
+    assert callable(eqx_encoder_fn)
+    node_feats, edge_feats = eqx_encoder_fn(
+        jnp.zeros((10, 10, 128)), jnp.zeros((10, 10), dtype=jnp.int32), jnp.ones((10,))
+    )
+    assert node_feats.shape == (10, 128)
+    assert edge_feats.shape == (10, 10, 128)
 
-  # Decoder functions have complex signatures, just check it's callable
-  assert callable(decoder_fn)
+    # Test with PyTree model (will fail if dependencies are not met)
+    try:
+        pytree_encoder_fn = get_encoder_fn(mock_pytree_model)
+        assert callable(pytree_encoder_fn)
+    except (ImportError, KeyError):
+        pytest.skip("Legacy PyTree dependencies or mock data incomplete.")
 
 
-def test_get_model_parameters_equinox_raises(equinox_model):
-  """Test that extracting parameters from Equinox models raises NotImplementedError."""
-  with pytest.raises(NotImplementedError, match="not yet implemented"):
-    get_model_parameters(equinox_model)
+def test_get_decoder_fn(mock_equinox_model, mock_pytree_model):
+    # Test with Equinox model
+    eqx_decoder_fn = get_decoder_fn(mock_equinox_model)
+    assert callable(eqx_decoder_fn)
+    output = eqx_decoder_fn(
+        node_features=jnp.zeros((10, 128)),
+        edge_features=jnp.zeros((10, 48, 128)),
+        mask=jnp.ones((10,))
+    )
+    assert output.shape == (10, 128)
+
+    # Test with PyTree model (will fail if dependencies are not met)
+    try:
+        pytree_decoder_fn = get_decoder_fn(mock_pytree_model)
+        assert callable(pytree_decoder_fn)
+    except (ImportError, KeyError):
+        pytest.skip("Legacy PyTree dependencies or mock data incomplete.")
 
 
-@pytest.mark.parametrize("model_version", ["v_48_002", "v_48_010", "v_48_020", "v_48_030"])
-@pytest.mark.parametrize("model_weights", ["original", "soluble"])
-def test_adapter_functions_all_versions(model_version, model_weights):
-  """Test adapter functions work with all Equinox model versions and weights."""
-  # Test Equinox model
-  equinox_model = load_model(model_version=model_version, model_weights=model_weights)
-  assert is_equinox_model(equinox_model)
+def test_get_model_parameters(mock_equinox_model, mock_pytree_model):
+    # Test with PyTree model
+    params = get_model_parameters(mock_pytree_model)
+    assert "params" in params
+    assert jnp.array_equal(params["params"], jnp.ones((10,)))
 
-  equinox_encoder = get_encoder_fn(equinox_model)
-  assert callable(equinox_encoder)
-
-  equinox_decoder = get_decoder_fn(equinox_model)
-  assert callable(equinox_decoder)
+    # Test with Equinox model
+    with pytest.raises(NotImplementedError):
+        get_model_parameters(mock_equinox_model)

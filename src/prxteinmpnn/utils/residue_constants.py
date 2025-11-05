@@ -418,7 +418,10 @@ def process_lines_iter_chemical_props(
   for line in lines_iter:
     if line.strip() == "-":
       break
-    bond, resname, length, stddev = line.split()
+    parts = line.split()
+    if len(parts) != 4:
+      continue
+    bond, resname, length, stddev = parts
     atom1, atom2 = bond.split("-")
     if resname not in residue_bonds:
       residue_bonds[resname] = []
@@ -429,7 +432,10 @@ def process_lines_iter_chemical_props(
   for line in lines_iter:
     if line.strip() == "-":
       break
-    bond, resname, angle_degree, stddev_degree = line.split()
+    parts = line.split()
+    if len(parts) != 4:
+      continue
+    bond, resname, angle_degree, stddev_degree = parts
     atom1, atom2, atom3 = bond.split("-")
     if resname not in residue_bond_angles:
       residue_bond_angles[resname] = []

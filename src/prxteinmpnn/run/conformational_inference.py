@@ -19,6 +19,7 @@ from prxteinmpnn.ensemble.dbscan import (
 )
 from prxteinmpnn.ensemble.gmm import make_fit_gmm
 from prxteinmpnn.ensemble.pca import pca_transform
+from prxteinmpnn.model import PrxteinMPNN
 from prxteinmpnn.run.prep import prep_protein_stream_and_model
 from prxteinmpnn.run.specs import ConformationalInferenceSpecification
 from prxteinmpnn.sampling.conditional_logits import make_conditional_logits_fn
@@ -27,7 +28,6 @@ from prxteinmpnn.utils.data_structures import GMM
 from prxteinmpnn.utils.types import (
   EdgeFeatures,
   Logits,
-  ModelParameters,
   NodeFeatures,
 )
 
@@ -43,33 +43,31 @@ def derive_states(
   if spec is None:
     spec = ConformationalInferenceSpecification(**kwargs)
 
-  protein_iterator, model_parameters = prep_protein_stream_and_model(spec)
+  protein_iterator, model = prep_protein_stream_and_model(spec)
 
   if spec.output_h5_path:
     if pathlib.Path(spec.output_h5_path).exists():
       if not spec.overwrite_cache:
         return {"output_h5_path": str(spec.output_h5_path), "metadata": {"spec": spec}}
       logger.info("Overwriting existing HDF5 file at %s", spec.output_h5_path)
-    return _derive_states_streaming(spec, protein_iterator, model_parameters)
-  return _derive_states_in_memory(spec, protein_iterator, model_parameters)
+    return _derive_states_streaming(spec, protein_iterator, model)
+  return _derive_states_in_memory(spec, protein_iterator, model)
 
 
 def _get_logits_fn(
   spec: ConformationalInferenceSpecification,
-  model_parameters: ModelParameters,
+  model: PrxteinMPNN,
 ) -> tuple[Callable, bool]:
   """Select and partially configure the appropriate logits function."""
   match spec.inference_strategy:
     case "conditional":
       logits_fn = make_conditional_logits_fn(
-        model_parameters=model_parameters,
-        decoding_order_fn=spec.decoding_order_fn,
+        model=model,
       )
       return logits_fn, True
     case "unconditional":
       logits_fn = make_unconditional_logits_fn(
-        model_parameters=model_parameters,
-        decoding_order_fn=spec.decoding_order_fn,
+        model=model,
       )
       return logits_fn, False
     case "vmm":
@@ -80,7 +78,7 @@ def _get_logits_fn(
 def _compute_states_batches(
   spec: ConformationalInferenceSpecification,
   protein_iterator: IterDataset,
-  model_parameters: ModelParameters,
+  model: PrxteinMPNN,
 ) -> Generator[
   tuple[
     Logits | None,
@@ -91,7 +89,7 @@ def _compute_states_batches(
   None,
 ]:
   """Generate and yield batches of computed residue states using in_axes for vmap."""
-  get_logits, is_conditional = _get_logits_fn(spec, model_parameters)
+  get_logits, is_conditional = _get_logits_fn(spec, model)
   static_args = (None, 48, None)
 
   logger.info("Iterating through frames/proteins...")
@@ -141,10 +139,10 @@ def _compute_states_batches(
 def _derive_states_in_memory(
   spec: ConformationalInferenceSpecification,
   protein_iterator: IterDataset,
-  model_parameters: ModelParameters,
+  model: PrxteinMPNN,
 ) -> dict[str, jax.Array | dict[str, ConformationalInferenceSpecification] | None]:
   """Compute global states and stores them in memory."""
-  all_batches = list(_compute_states_batches(spec, protein_iterator, model_parameters))
+  all_batches = list(_compute_states_batches(spec, protein_iterator, model))
   all_logits, all_node_features, all_edge_features = zip(
     *all_batches,
     strict=False,
@@ -165,7 +163,7 @@ def _derive_states_in_memory(
 def _derive_states_streaming(
   spec: ConformationalInferenceSpecification,
   protein_iterator: IterDataset,
-  model_parameters: ModelParameters,
+  model: PrxteinMPNN,
 ) -> dict[str, Any]:
   """Compute global states and streams them to an HDF5 file."""
   if not spec.output_h5_path:
@@ -180,7 +178,7 @@ def _derive_states_streaming(
       node_features,
       edge_features,
     ) in enumerate(
-      _compute_states_batches(spec, protein_iterator, model_parameters),
+      _compute_states_batches(spec, protein_iterator, model),
     ):
       states = {
         "logits": logits,

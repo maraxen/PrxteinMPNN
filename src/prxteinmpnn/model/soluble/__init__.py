@@ -1,1 +1,0 @@
-"""Soluble protein model parameters."""

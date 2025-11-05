@@ -66,7 +66,7 @@ def make_score_sequence(
 
   """
 
-  @partial(jax.jit, static_argnames=("k_neighbors",))
+  @partial(jax.jit, static_argnames=("_k_neighbors",))
   def score_sequence(
     prng_key: PRNGKeyArray,
     sequence: ProteinSequence | OneHotProteinSequence,

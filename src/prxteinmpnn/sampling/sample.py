@@ -114,7 +114,7 @@ def make_sample_sequences(
       decoding_order, prng_key = decoding_order_fn(prng_key, structure_coordinates.shape[0])
 
       # Run optimization
-      optimized_sequence, final_logits = optimize_fn(
+      optimized_sequence, final_logits, _ = optimize_fn(
         prng_key,
         structure_coordinates,
         mask,

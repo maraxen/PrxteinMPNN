@@ -1,8 +1,13 @@
-"""Implements sequence optimization by guiding a differentiable autoregressive decoder."""
+"""Straight-through estimator optimization for sequence design.
+
+This module implements iterative sequence optimization using the straight-through
+estimator (STE) to allow gradients through discrete sampling operations.
+"""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from functools import partial
+from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
@@ -13,153 +18,231 @@ if TYPE_CHECKING:
 
   from jaxtyping import Float, Int, PRNGKeyArray
 
-  from prxteinmpnn.model.decoding_signatures import (
-    RunConditionalDecoderFn,
-  )
-  from prxteinmpnn.utils.decoding_order import DecodingOrderFn
+  from prxteinmpnn.model import PrxteinMPNN
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
-    EdgeFeatures,
+    AutoRegressiveMask,
+    BackboneNoise,
+    ChainIndex,
     Logits,
-    ModelParameters,
-    NeighborIndices,
-    NodeFeatures,
-    OneHotProteinSequence,
+    ProteinSequence,
+    ResidueIndex,
+    StructureAtomicCoordinates,
   )
 
-from prxteinmpnn.model.projection import final_projection
-from prxteinmpnn.model.ste import straight_through_estimator
 from prxteinmpnn.utils.autoregression import generate_ar_mask
+from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
+from prxteinmpnn.utils.ste import straight_through_estimator
 
 
 def make_optimize_sequence_fn(
-  decoder: RunConditionalDecoderFn,
-  decoding_order_fn: DecodingOrderFn,
-  model_parameters: ModelParameters,
+  model: PrxteinMPNN,
+  decoding_order_fn: DecodingOrderFn = random_decoding_order,
+  batch_size: int = 4,
 ) -> Callable[
   [
     PRNGKeyArray,
-    NodeFeatures,
-    EdgeFeatures,
-    NeighborIndices,
+    StructureAtomicCoordinates,
     AlphaCarbonMask,
+    ResidueIndex,
+    ChainIndex,
     Int,
     Float,
     Float,
+    BackboneNoise | None,
   ],
-  tuple[OneHotProteinSequence, Logits],
+  tuple[ProteinSequence, Logits],
 ]:
-  """Create a function to optimize a sequence using the STE decoder.
+  """Create a function to optimize sequences using straight-through estimation.
+
+  This matches the original implementation which:
+  1. Initializes learnable logits to optimize
+  2. For each iteration:
+     - Apply STE to get discrete sequence from logits
+     - Run autoregressive decoder with that sequence
+     - Compute loss between decoder output and current logits
+     - Update logits via gradient descent
+  3. Return final optimized sequence
+
+  The key insight: we're finding a sequence that is self-consistent with
+  the autoregressive decoder's predictions under multiple decoding orders.
 
   Args:
-    decoder: The conditional decoder.
-    decoding_order_fn: Function to generate decoding orders.
-    model_parameters: Model parameters for the decoder.
+    model: A PrxteinMPNN Equinox model instance.
+    decoding_order_fn: Function to generate decoding orders (default: random).
+    batch_size: Number of decoding orders to use per optimization step.
 
   Returns:
-    A function that takes a PRNG key, node features, edge features, neighbor indices,
-    atom mask, number of optimization steps, and learning rate, and returns the optimized sequence
-    and its logits.
+    A function that optimizes sequences for a given structure.
+
+  Example:
+    >>> from prxteinmpnn.io.weights import load_model
+    >>> model = load_model()
+    >>> optimize_fn = make_optimize_sequence_fn(model)
+    >>> seq, logits = optimize_fn(
+    ...     key, coords, mask, res_idx, chain_idx,
+    ...     iterations=100, learning_rate=0.01, temperature=1.0
+    ... )
 
   """
 
+  @partial(jax.jit)
   def optimize_sequence(
     prng_key: PRNGKeyArray,
-    node_features: NodeFeatures,
-    edge_features: EdgeFeatures,
-    neighbor_indices: NeighborIndices,
+    structure_coordinates: StructureAtomicCoordinates,
     mask: AlphaCarbonMask,
+    residue_index: ResidueIndex,
+    chain_index: ChainIndex,
     iterations: Int,
     learning_rate: Float,
     temperature: Float,
-    batch_size: int = 4,
-  ) -> tuple[OneHotProteinSequence, Logits]:
-    """Optimize a sequence by finding a self-consistent sequence for the conditional decoder.
+    backbone_noise: BackboneNoise | None = None,
+  ) -> tuple[ProteinSequence, Logits]:
+    """Optimize a sequence by finding self-consistent logits via autoregressive decoder.
+
+    This matches the original implementation where we optimize logits such that
+    when discretized via STE and fed through the autoregressive decoder,
+    the decoder's output matches our logits. This creates a self-consistent sequence.
 
     Args:
       prng_key: JAX PRNG key for random operations.
-      node_features: Node features for the structure.
-      edge_features: Edge features for the structure.
-      neighbor_indices: Indices of neighboring nodes.
-      mask: Atom mask indicating valid positions.
+      structure_coordinates: Atomic coordinates (N, 4, 3).
+      mask: Alpha carbon mask indicating valid residues.
+      residue_index: Residue indices.
+      chain_index: Chain indices.
       iterations: Number of optimization steps to perform.
       learning_rate: Learning rate for the optimizer.
-      temperature: Temperature for the softmax distribution.
-      batch_size: The batch size for decoding.
+      temperature: Temperature for the STE softmax distribution.
+      backbone_noise: Optional noise for backbone coordinates.
 
     Returns:
-      A tuple containing the optimized sequence as a one-hot encoded array and the logits.
+      Tuple of (optimized sequence, final logits).
+
+    Example:
+      >>> seq, logits = optimize_sequence(
+      ...     key, coords, mask, res_idx, chain_idx,
+      ...     iterations=100, learning_rate=0.01, temperature=1.0
+      ... )
 
     """
-    num_residues, _ = node_features.shape
+    num_residues = structure_coordinates.shape[0]
     num_classes = 21
 
-    sequence_logits = jnp.zeros((num_residues, num_classes))
+    # Initialize sequence logits to optimize (start from zeros)
+    sequence_logits = jnp.zeros((num_residues, num_classes), dtype=jnp.float32)
 
+    # Set up Adam optimizer
     optimizer = optax.adam(learning_rate)
     opt_state = optimizer.init(sequence_logits)
 
-    @jax.jit
     def update_step(
-      _i: int,
+      _iteration: int,
       carry: tuple[Logits, optax.OptState, PRNGKeyArray],
     ) -> tuple[Logits, optax.OptState, PRNGKeyArray]:
-      current_sequence_logits, current_opt_state, current_key = carry
+      """Single optimization step matching original implementation.
+
+      Args:
+        _iteration: Current iteration (unused, required by fori_loop).
+        carry: Tuple of (current_logits, optimizer_state, prng_key).
+
+      Returns:
+        Updated tuple of (logits, optimizer_state, prng_key).
+
+      """
+      current_logits, current_opt_state, current_key = carry
       key, next_key = jax.random.split(current_key)
+
+      # Generate multiple decoding orders for robust optimization
       keys_for_decoding = jax.random.split(key, batch_size)
 
-      decoding_order, _ = jax.vmap(decoding_order_fn, in_axes=(0, None))(
+      # Generate decoding orders and autoregressive masks
+      decoding_orders, _ = jax.vmap(decoding_order_fn, in_axes=(0, None))(
         keys_for_decoding,
         num_residues,
       )
-      ar_mask = jax.vmap(generate_ar_mask)(decoding_order)
+      ar_masks = jax.vmap(generate_ar_mask)(decoding_orders)
 
-      def loss_fn(logits: Logits) -> jnp.ndarray:
+      def loss_fn(logits: Logits) -> Float:
+        """Compute self-consistency loss.
+
+        The loss measures how well the autoregressive decoder's predictions
+        match our current logits when we feed in the STE-discretized sequence.
+
+        Args:
+          logits: Current logits to optimize.
+
+        Returns:
+          Scalar loss value.
+
+        """
+        # Apply straight-through estimator with temperature to get discrete sequence
         one_hot_sequence = straight_through_estimator(logits / temperature)
 
-        decoded_features = jax.vmap(decoder, in_axes=(None, None, None, None, 0, None))(
-          node_features,
-          edge_features,
-          neighbor_indices,
-          mask,
-          ar_mask,
-          one_hot_sequence,
+        # Run autoregressive decoder with this sequence under different AR masks
+        def eval_with_mask(ar_mask: AutoRegressiveMask) -> Logits:
+          # Use conditional mode to get decoder output for the STE-discretized sequence
+          _, output_logits = model(
+            structure_coordinates,
+            mask,
+            residue_index,
+            chain_index,
+            decoding_approach="conditional",
+            one_hot_sequence=one_hot_sequence,
+            ar_mask=ar_mask,
+            backbone_noise=backbone_noise,
+          )
+          return output_logits
+
+        # Evaluate with multiple AR masks and average predictions
+        pred_logits_batch = jax.vmap(eval_with_mask)(ar_masks)
+        output_logits = jnp.mean(pred_logits_batch, axis=0)
+
+        # Loss: cross-entropy between decoder output and our current logits
+        # We want the decoder to predict our sequence
+        loss = optax.softmax_cross_entropy(
+          logits=output_logits,
+          labels=straight_through_estimator(logits),  # Use STE again for labels
         )
 
-        output_logits = final_projection(model_parameters, decoded_features)
-
-        loss = optax.softmax_cross_entropy(logits=output_logits, labels=one_hot_sequence)
-
+        # Mask invalid positions and return mean loss
         return (loss * mask).sum() / (mask.sum() + 1e-8)
 
-      _, grads = jax.value_and_grad(loss_fn)(current_sequence_logits)
-      updates, next_opt_state = optimizer.update(grads, current_opt_state)
-      next_sequence_logits = cast("Logits", optax.apply_updates(current_sequence_logits, updates))
-      return next_sequence_logits, next_opt_state, next_key
+      # Compute loss and gradients
+      _, grads = jax.value_and_grad(loss_fn)(current_logits)
 
-    final_sequence_logits, _, final_key = jax.lax.fori_loop(
+      # Update logits with Adam
+      updates, next_opt_state = optimizer.update(grads, current_opt_state)
+      next_logits: Logits = optax.apply_updates(current_logits, updates)  # type: ignore[assignment]
+
+      return next_logits, next_opt_state, next_key
+
+    # Run optimization loop
+    final_logits, _, final_key = jax.lax.fori_loop(
       0,
       iterations,
       update_step,
       (sequence_logits, opt_state, prng_key),
     )
 
-    final_one_hot = straight_through_estimator(final_sequence_logits)
+    # Get final sequence from optimized logits
+    final_one_hot = straight_through_estimator(final_logits / temperature)
+    final_sequence = final_one_hot.argmax(axis=-1).astype(jnp.int8)
 
-    final_key, _ = jax.random.split(prng_key)
+    # Get final output logits by running through decoder one more time
     final_decoding_order, _ = decoding_order_fn(final_key, num_residues)
     final_ar_mask = generate_ar_mask(final_decoding_order)
 
-    final_decoded_features = decoder(
-      node_features,
-      edge_features,
-      neighbor_indices,
+    _, final_output_logits = model(
+      structure_coordinates,
       mask,
-      final_ar_mask,
-      final_one_hot,
+      residue_index,
+      chain_index,
+      decoding_approach="conditional",
+      one_hot_sequence=final_one_hot,
+      ar_mask=final_ar_mask,
+      backbone_noise=backbone_noise,
     )
-    final_logits = final_projection(model_parameters, final_decoded_features)
 
-    return final_one_hot, final_logits
+    return final_sequence, final_output_logits
 
   return optimize_sequence

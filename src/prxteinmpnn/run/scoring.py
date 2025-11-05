@@ -66,8 +66,8 @@ def score(
   integer_sequences = [string_to_protein_sequence(s) for s in spec.sequences_to_score]
   batched_sequences = jnp.concatenate(integer_sequences)
 
-  protein_iterator, model_parameters = prep_protein_stream_and_model(spec)
-  score_single_pair = make_score_sequence(model_parameters=model_parameters)
+  protein_iterator, model = prep_protein_stream_and_model(spec)
+  score_single_pair = make_score_sequence(model=model)
 
   all_scores, all_logits = [], []
 
@@ -131,8 +131,8 @@ def _score_streaming(
   if batched_sequences.ndim == 1:
     batched_sequences = jnp.expand_dims(batched_sequences, 0)
 
-  protein_iterator, model_parameters = prep_protein_stream_and_model(spec)
-  score_single_pair = make_score_sequence(model_parameters=model_parameters)
+  protein_iterator, model = prep_protein_stream_and_model(spec)
+  score_single_pair = make_score_sequence(model=model)
 
   with h5py.File(spec.output_h5_path, "w") as f:
     scores_ds = f.create_dataset(

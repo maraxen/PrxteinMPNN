@@ -1,591 +1,357 @@
-"""Decoder module for the PrxteinMPNN model."""
+"""Decoder module for PrxteinMPNN.
+
+This module contains the Equinox-based decoder implementation for ProteinMPNN.
+"""
 
 from __future__ import annotations
 
 from functools import partial
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.utils.gelu import GeLU
-from prxteinmpnn.utils.normalize import layer_normalization
-
-from .projection import final_projection
-from .ste import straight_through_estimator
-
-if TYPE_CHECKING:
-  from collections.abc import Callable
-
-  from jaxtyping import Float, Int, PRNGKeyArray
-
-  from prxteinmpnn.utils.types import (
-    AlphaCarbonMask,
-    AttentionMask,
-    AutoRegressiveMask,
-    EdgeFeatures,
-    Logits,
-    Message,
-    ModelParameters,
-    NeighborIndices,
-    NodeEdgeFeatures,
-    NodeFeatures,
-    OneHotProteinSequence,
-    SequenceEdgeFeatures,
-  )
-
-  from .decoding_signatures import (
-    DecoderFn,
-    MaskedAttentionDecoderFn,
-    RunAutoregressiveDecoderFn,
-    RunConditionalDecoderFn,
-    RunDecoderFn,
-    RunMaskedAttentionDecoderFn,
-  )
-
-
 from prxteinmpnn.utils.concatenate import concatenate_neighbor_nodes
 
-from .dense import dense_layer
-from .masked_attention import MaskedAttentionType, mask_attention
-
-DecodingApproach = Literal["conditional", "autoregressive", "unconditional"]
-
-
-def decoder_parameter_pytree(
-  model_parameters: ModelParameters,
-  num_decoder_layers: int = 3,
-) -> ModelParameters:
-  """Make the model weights accessible as a PyTree.
-
-  Args:
-    model_parameters: Model parameters for the decoder.
-    num_decoder_layers: Number of decoder layers to set up.
-
-
-  Returns:
-    Decoder parameters as a PyTree.
-
-
-  """
-  all_decoder_layer_params_list = []
-  for i in range(num_decoder_layers):
-    prefix = "protein_mpnn/~/dec_layer"
-    if i > 0:
-      prefix += f"_{i}"
-    layer_name_suffix = f"dec{i}"
-    layer_params_dict = {
-      "W1": model_parameters[f"{prefix}/~/{layer_name_suffix}_W1"],
-      "W2": model_parameters[f"{prefix}/~/{layer_name_suffix}_W2"],
-      "W3": model_parameters[f"{prefix}/~/{layer_name_suffix}_W3"],
-      "norm1": model_parameters[f"{prefix}/~/{layer_name_suffix}_norm1"],
-      "dense_W_in": model_parameters[
-        f"{prefix}/~/position_wise_feed_forward/~/{layer_name_suffix}_dense_W_in"
-      ],
-      "dense_W_out": model_parameters[
-        f"{prefix}/~/position_wise_feed_forward/~/{layer_name_suffix}_dense_W_out"
-      ],
-      "norm2": model_parameters[f"{prefix}/~/{layer_name_suffix}_norm2"],
-    }
-    all_decoder_layer_params_list.append(layer_params_dict)
-  return jax.tree_util.tree_map(lambda *args: jnp.stack(args), *all_decoder_layer_params_list)
-
-
-def embed_sequence(
-  model_parameters: ModelParameters,
-  one_hot_sequence: OneHotProteinSequence,
-) -> NodeFeatures:
-  """Embed a one-hot encoded sequence."""
-  w_s = model_parameters["protein_mpnn/~/embed_token"]["W_s"]
-  return one_hot_sequence @ w_s
-
-
-@jax.jit
-def initialize_conditional_decoder(
-  one_hot_sequence: OneHotProteinSequence,
-  node_features: NodeFeatures,
-  edge_features: EdgeFeatures,
-  neighbor_indices: NeighborIndices,
-  layer_params: ModelParameters,
-) -> tuple[NodeEdgeFeatures, SequenceEdgeFeatures]:
-  """Initialize the decoder with node and edge features.
-
-  Args:
-    one_hot_sequence: One-hot encoded sequence of shape (num_residues, num_classes).
-    node_features: Node features of shape (num_atoms, num_features).
-    edge_features: EdgeFeatures of shape (num_atoms, num_neighbors, num_features).
-    neighbor_indices: Indices of neighboring nodes of shape (num_atoms, num_neighbors).
-    layer_params: ModelParameters for the embedding layer.
-
-
-  Returns:
-    A tuple of node-edge features and sequence-edge features.
-
-
-  """
-  embedded_sequence = embed_sequence(layer_params, one_hot_sequence)
-
-  node_edge_features = concatenate_neighbor_nodes(
-    jnp.zeros_like(node_features),
-    edge_features,
-    neighbor_indices,
-  )
-  node_edge_features = concatenate_neighbor_nodes(
-    node_features,
-    node_edge_features,
-    neighbor_indices,
-  )
-  sequence_edge_features = concatenate_neighbor_nodes(
-    embedded_sequence,
-    edge_features,
-    neighbor_indices,
-  )
-  return node_edge_features, sequence_edge_features
-
-
-@jax.jit
-def decode_message(
-  node_features: NodeFeatures,
-  edge_features: EdgeFeatures,
-  layer_params: ModelParameters,
-) -> Message:
-  """Decode node and edge features into messages.
-
-  Args:
-    node_features: Node features of shape (num_atoms, num_features).
-    edge_features: Edge features of shape (num_atoms, num_neighbors, num_features).
-    layer_params: Model parameters for the encoding layer.
-
-
-  Returns:
-    Message: decoded messages of shape (num_atoms, num_neighbors, num_features).
-
-
-  """
-  node_features_expand = jnp.tile(
-    jnp.expand_dims(node_features, -2),
-    [1, edge_features.shape[-2], 1],
+if TYPE_CHECKING:
+  from prxteinmpnn.utils.types import (
+    AlphaCarbonMask,
+    Array,
+    AutoRegressiveMask,
+    EdgeFeatures,
+    NeighborIndices,
+    NodeFeatures,
+    OneHotProteinSequence,
+    PRNGKeyArray,
   )
 
-  node_edge_features = jnp.concatenate([node_features_expand, edge_features], -1)
-
-  w1, b1, w2, b2, w3, b3 = (
-    layer_params["W1"]["w"],
-    layer_params["W1"]["b"],
-    layer_params["W2"]["w"],
-    layer_params["W2"]["b"],
-    layer_params["W3"]["w"],
-    layer_params["W3"]["b"],
-  )
-  message = GeLU(jnp.dot(GeLU(jnp.dot(node_edge_features, w1) + b1), w2) + b2)
-  return jnp.dot(message, w3) + b3
+# Layer normalization with a standard epsilon
+LayerNorm = eqx.nn.LayerNorm
+_gelu = partial(jax.nn.gelu, approximate=False)
 
 
-@partial(jax.jit, static_argnames=("scale",))
-def decoder_normalize(
-  message: Message,
-  node_features: NodeFeatures,
-  mask: AlphaCarbonMask,
-  layer_params: ModelParameters,
-  scale: float = 30.0,
-) -> NodeFeatures:
-  """Normalize the decoded messages and update node features.
+class DecoderLayer(eqx.Module):
+  """A single decoder layer for the ProteinMPNN model."""
 
-  Args:
-    message: decoded messages of shape (num_atoms, num_neighbors, num_features).
-    node_features: Node features of shape (num_atoms, num_features).
-    mask: Atom mask indicating valid atoms.
-    layer_params: Model parameters for the normalization layer.
-    scale: Scaling factor for normalization.
+  message_mlp: eqx.nn.MLP
+  norm1: LayerNorm
+  dense: eqx.nn.MLP  # Use eqx.nn.MLP directly
+  norm2: LayerNorm
 
+  def __init__(
+    self,
+    node_features: int,
+    edge_context_features: int,  # This will be 384
+    hidden_features: int,
+    *,
+    key: PRNGKeyArray,
+  ) -> None:
+    """Initialize the decoder layer.
 
-  Returns:
-    Updated node features after normalization.
+    Args:
+      node_features: Dimension of node features (e.g., 128).
+      edge_context_features: Dimension of edge context (e.g., 384).
+      hidden_features: Dimension of hidden layer in dense MLP.
+      key: PRNG key for initialization.
 
+    Returns:
+      None
 
-  """
-  aggregated_message = jnp.sum(message, -2) / scale
-  node_features = node_features + aggregated_message
-  norm1_params = layer_params["norm1"]
-  node_features_norm1 = layer_normalization(node_features, norm1_params)
-  dense_output = dense_layer(layer_params, node_features_norm1)
-  node_features = node_features_norm1 + dense_output
-  norm2_params = layer_params["norm2"]
-  node_features_norm2 = layer_normalization(node_features, norm2_params)
-  if jnp.ndim(mask) == 0:
-    return mask * node_features_norm2
-  return mask[:, None] * node_features_norm2
+    Raises:
+      None
 
+    Example:
+      >>> key = jax.random.PRNGKey(0)
+      >>> layer = DecoderLayer(128, 384, 128, key=key)
 
-def make_decode_layer(
-  attention_mask_type: MaskedAttentionType | None,
-) -> MaskedAttentionDecoderFn | DecoderFn:
-  """Create a function to run the decoder with given model parameters."""
-  if attention_mask_type is None or attention_mask_type == "cross":
+    """
+    keys = jax.random.split(key, 2)
 
-    @partial(jax.jit, static_argnames=("scale",))
-    def decoder_fn(
-      node_features: NodeFeatures,
-      edge_features: EdgeFeatures,
-      mask: AlphaCarbonMask,
-      layer_params: ModelParameters,
-      scale: float = 30.0,
-    ) -> Message:
-      """Run the decoder with the provided edge features and neighbor indices."""
-      message = decode_message(node_features, edge_features, layer_params)
-      return decoder_normalize(
-        message,
-        node_features,
-        mask,
-        layer_params,
-        scale,
-      )
+    # Input dim is [h_i (128), e_context (384)] = 512
+    mlp_input_dim = node_features + edge_context_features
 
-    return decoder_fn
+    # Message MLP: 512 -> 128 -> 128 -> 128 (width=node_features, not hidden_features)
+    self.message_mlp = eqx.nn.MLP(
+      in_size=mlp_input_dim,
+      out_size=node_features,
+      width_size=node_features,  # 128, matches functional W1/W2/W3
+      depth=2,
+      activation=_gelu,
+      key=keys[0],
+    )
+    self.norm1 = LayerNorm(node_features)
+    # Use eqx.nn.MLP for the dense layer
+    self.dense = eqx.nn.MLP(
+      in_size=node_features,
+      out_size=node_features,
+      width_size=hidden_features,
+      depth=1,
+      activation=_gelu,
+      key=keys[1],
+    )
+    self.norm2 = LayerNorm(node_features)
 
-  @partial(jax.jit, static_argnames=("scale",))
-  def masked_attn_decoder_fn(
+  def __call__(
+    self,
     node_features: NodeFeatures,
-    edge_features: EdgeFeatures,
+    layer_edge_features: EdgeFeatures,  # This is the (N, K, 384) context
     mask: AlphaCarbonMask,
-    attention_mask: AttentionMask,
-    layer_params: ModelParameters,
     scale: float = 30.0,
-  ) -> Message:
-    """Run the decoder with the provided edge features and neighbor indices."""
-    message = decode_message(node_features, edge_features, layer_params)
-    message = mask_attention(message, attention_mask)
-    return decoder_normalize(
-      message,
-      node_features,
-      mask,
-      layer_params,
-      scale,
+    attention_mask: Array | None = None,  # Optional attention mask for conditional decoding
+  ) -> NodeFeatures:
+    """Forward pass for the decoder layer.
+
+    Works for both N-batch (N, C) and single-node (1, C) inputs.
+
+    Args:
+      node_features: Node features tensor of shape (N, C).
+      layer_edge_features: Edge context features of shape (N, K, 384).
+      mask: Alpha carbon mask of shape (N,).
+      scale: Scaling factor for message aggregation (default: 30.0).
+      attention_mask: Optional attention mask for conditional decoding.
+
+    Returns:
+      Updated node features of shape (N, C).
+
+    Raises:
+      None
+
+    Example:
+      >>> key = jax.random.PRNGKey(0)
+      >>> layer = DecoderLayer(128, 384, 128, key=key)
+      >>> node_feats = jnp.ones((10, 128))
+      >>> edge_feats = jnp.ones((10, 30, 384))
+      >>> mask = jnp.ones((10,))
+      >>> output = layer(node_feats, edge_feats, mask)
+
+    """
+    # Tile central node features [h_i (N, 1, C)]
+    node_features_expand = jnp.tile(
+      jnp.expand_dims(node_features, -2),
+      [1, layer_edge_features.shape[1], 1],
     )
 
-  return masked_attn_decoder_fn
+    # Concat with context [h_i (N, K, C), e_context (N, K, 384)]
+    mlp_input = jnp.concatenate([node_features_expand, layer_edge_features], -1)
+
+    # Apply MLP to each (atom, neighbor) pair: vmap over atoms, then over neighbors
+    message = jax.vmap(jax.vmap(self.message_mlp))(mlp_input)
+
+    # Apply attention mask if provided (for conditional decoding)
+    if attention_mask is not None:
+      message = jnp.expand_dims(attention_mask, -1) * message
+
+    # Aggregate messages
+    aggregated_message = jnp.sum(message, -2) / scale
+    node_features = node_features + aggregated_message
+
+    # vmap over N
+    node_features_norm1 = jax.vmap(self.norm1)(node_features)
+    dense_output = jax.vmap(self.dense)(node_features_norm1)  # This works
+    node_features = node_features_norm1 + dense_output
+    node_features_norm2 = jax.vmap(self.norm2)(node_features)
+
+    # Handle both batched (N,) mask and scalar mask
+    if jnp.ndim(mask) == 0:
+      return mask * node_features_norm2
+    return mask[:, None] * node_features_norm2
 
 
-def setup_decoder(
-  model_parameters: ModelParameters,
-  attention_mask_type: MaskedAttentionType | None,
-  decoding_approach: DecodingApproach,
-  num_decoder_layers: int = 3,
-) -> tuple[ModelParameters, Callable[..., Message]]:
-  """Set up the decoder parameters and initial node features."""
-  all_decoder_layer_params = decoder_parameter_pytree(model_parameters, num_decoder_layers)
-  if decoding_approach == "conditional":
-    decode_layer_fn = make_decode_layer(attention_mask_type="conditional")
-  elif decoding_approach in {"autoregressive", "ste_autoregressive"}:
-    decode_layer_fn = make_decode_layer(attention_mask_type=None)
-  else:
-    decode_layer_fn = make_decode_layer(attention_mask_type=attention_mask_type)
-  return all_decoder_layer_params, decode_layer_fn
+class Decoder(eqx.Module):
+  """The complete decoder module for ProteinMPNN."""
 
+  layers: tuple[DecoderLayer, ...]
+  node_features_dim: int = eqx.field(static=True)
+  edge_features_dim: int = eqx.field(static=True)
 
-def make_decoder(  # noqa: C901, PLR0915
-  model_parameters: ModelParameters,
-  attention_mask_type: MaskedAttentionType | None,
-  decoding_approach: DecodingApproach = "unconditional",
-  num_decoder_layers: int = 3,
-  scale: float = 30.0,
-) -> (
-  RunDecoderFn | RunMaskedAttentionDecoderFn | RunAutoregressiveDecoderFn | RunConditionalDecoderFn
-):
-  """Create a function to run the decoder with given model parameters."""
-  all_decoder_layer_params, decode_layer_fn = setup_decoder(
-    model_parameters,
-    attention_mask_type,
-    decoding_approach,
-    num_decoder_layers,
-  )
-  if decoding_approach == "autoregressive":
+  def __init__(
+    self,
+    node_features: int,
+    edge_features: int,  # This is the raw edge_features dim (128)
+    hidden_features: int,
+    num_layers: int = 3,
+    *,
+    key: PRNGKeyArray,
+  ) -> None:
+    """Initialize the decoder.
 
-    @jax.jit
-    def run_autoregressive_decoder(
-      prng_key: PRNGKeyArray,
-      node_features: NodeFeatures,
-      edge_features: EdgeFeatures,
-      neighbor_indices: NeighborIndices,
-      mask: AlphaCarbonMask,
-      autoregressive_mask: AutoRegressiveMask,
-      temperature: Float | None = None,
-      bias: Logits | None = None,
-    ) -> tuple[OneHotProteinSequence, Logits]:
-      """Run a full, efficient, local-update autoregressive sampling process."""
-      if bias is None:
-        bias = jnp.zeros((node_features.shape[0], 21), dtype=jnp.float32)
+    Args:
+      node_features: Dimension of node features (e.g., 128).
+      edge_features: Dimension of edge features (e.g., 128).
+      hidden_features: Dimension of hidden layer in decoder layers.
+      num_layers: Number of decoder layers (default: 3).
+      key: PRNG key for initialization.
 
-      if temperature is None:
-        temperature = jnp.array(1.0, dtype=jnp.float32)
+    Returns:
+      None
 
-      attention_mask = jnp.take_along_axis(autoregressive_mask, neighbor_indices, axis=1)
-      mask_1d = mask[:, None]
-      mask_bw = mask_1d * attention_mask
-      mask_fw = mask_1d * (1 - attention_mask)
-      decoding_order = jnp.argsort(jnp.sum(autoregressive_mask, axis=1))
+    Raises:
+      None
 
-      encoder_edge_neighbors = concatenate_neighbor_nodes(
-        jnp.zeros_like(node_features),
-        edge_features,
+    Example:
+      >>> key = jax.random.PRNGKey(0)
+      >>> decoder = Decoder(128, 128, 128, num_layers=3, key=key)
+
+    """
+    self.node_features_dim = node_features
+    self.edge_features_dim = edge_features
+
+    keys = jax.random.split(key, num_layers)
+
+    # The context dim is 384 ([h_i/s_i, e_ij, h_j/s_j])
+    edge_context_features = 384
+
+    self.layers = tuple(
+      DecoderLayer(node_features, edge_context_features, hidden_features, key=k) for k in keys
+    )
+
+  def __call__(
+    self,
+    node_features: NodeFeatures,
+    edge_features: EdgeFeatures,  # Raw 128-dim edges
+    mask: AlphaCarbonMask,
+  ) -> NodeFeatures:
+    """Forward pass for UNCONDITIONAL decoding.
+
+    Args:
+      node_features: Node features from encoder of shape (N, 128).
+      edge_features: Edge features from encoder of shape (N, K, 128).
+      mask: Alpha carbon mask of shape (N,).
+
+    Returns:
+      Decoded node features of shape (N, 128).
+
+    Raises:
+      None
+
+    Example:
+      >>> key = jax.random.PRNGKey(0)
+      >>> decoder = Decoder(128, 128, 128, num_layers=3, key=key)
+      >>> node_feats = jnp.ones((10, 128))
+      >>> edge_feats = jnp.ones((10, 30, 128))
+      >>> mask = jnp.ones((10,))
+      >>> output = decoder(node_feats, edge_feats, mask)
+
+    """
+    # Prepare 384-dim context tensor *once*
+    nodes_expanded = jnp.tile(
+      jnp.expand_dims(node_features, -2),
+      [1, edge_features.shape[1], 1],
+    )
+    zeros_expanded = jnp.tile(
+      jnp.expand_dims(jnp.zeros_like(node_features), -2),
+      [1, edge_features.shape[1], 1],
+    )
+    layer_edge_features = jnp.concatenate(
+      [nodes_expanded, zeros_expanded, edge_features],
+      -1,
+    )
+
+    loop_node_features = node_features
+    for layer in self.layers:
+      loop_node_features = layer(
+        loop_node_features,
+        layer_edge_features,
+        mask,
+      )
+    return loop_node_features
+
+  def call_conditional(
+    self,
+    node_features: NodeFeatures,  # h_i from encoder
+    edge_features: EdgeFeatures,  # e_ij from encoder
+    neighbor_indices: NeighborIndices,
+    mask: AlphaCarbonMask,
+    ar_mask: AutoRegressiveMask,
+    one_hot_sequence: OneHotProteinSequence,
+    w_s_weight: Array,  # Sequence embedding weight
+  ) -> NodeFeatures:
+    """Forward pass for CONDITIONAL decoding (scoring).
+
+    Args:
+      node_features: Node features from encoder of shape (N, 128).
+      edge_features: Edge features from encoder of shape (N, K, 128).
+      neighbor_indices: Indices of neighbors for each node.
+      mask: Alpha carbon mask of shape (N,).
+      ar_mask: Autoregressive mask for conditional decoding.
+      one_hot_sequence: One-hot encoded protein sequence.
+      w_s_weight: Sequence embedding weight matrix.
+
+    Returns:
+      Decoded node features of shape (N, 128).
+
+    Raises:
+      None
+
+    Example:
+      >>> key = jax.random.PRNGKey(0)
+      >>> decoder = Decoder(128, 128, 128, num_layers=3, key=key)
+      >>> node_feats = jnp.ones((10, 128))
+      >>> edge_feats = jnp.ones((10, 30, 128))
+      >>> neighbor_indices = jnp.arange(300).reshape(10, 30)
+      >>> mask = jnp.ones((10,))
+      >>> ar_mask = jnp.ones((10, 10))
+      >>> seq = jax.nn.one_hot(jnp.arange(10), 21)
+      >>> w_s = jnp.ones((21, 128))
+      >>> output = decoder.call_conditional(
+      ...     node_feats, edge_feats, neighbor_indices, mask, ar_mask, seq, w_s
+      ... )
+
+    """
+    # 1. Embed the sequence
+    embedded_sequence = one_hot_sequence @ w_s_weight  # s_i
+
+    # 2. Initialize context features
+    # Following functional implementation (decoder.py lines 127-141)
+
+    # First: [0, e_ij, h_j] -> (N, K, 256)
+    temp_node_edge = concatenate_neighbor_nodes(
+      jnp.zeros_like(node_features),
+      edge_features,
+      neighbor_indices,
+    )
+    # Second: [h_i, [0, e_ij, h_j]] -> (N, K, 384)
+    node_edge_features = concatenate_neighbor_nodes(
+      node_features,
+      temp_node_edge,
+      neighbor_indices,
+    )
+
+    # [e_ij, s_j] -> (N, K, 256)
+    # Note: concatenate_neighbor_nodes returns [edge_features, neighbor_features]
+    sequence_edge_features = concatenate_neighbor_nodes(
+      embedded_sequence,
+      edge_features,
+      neighbor_indices,
+    )
+
+    # 3. Prepare masks
+    attention_mask = jnp.take_along_axis(ar_mask, neighbor_indices, axis=1)
+    mask_bw = mask[:, None] * attention_mask
+    mask_fw = mask[:, None] * (1 - attention_mask)
+    masked_node_edge_features = mask_fw[..., None] * node_edge_features
+
+    # 4. Run the decoder loop
+    # Following functional implementation (decoder.py lines 480-497)
+    loop_node_features = node_features
+    for layer in self.layers:
+      # Construct the decoder context for this layer by gathering neighbor features
+      # and concatenating with sequence edge features
+      current_features = concatenate_neighbor_nodes(
+        loop_node_features,  # (N, 128) -> gather neighbors -> (N, K, 128) = h_j
+        sequence_edge_features,  # (N, K, 256) = [e_ij, s_j]
         neighbor_indices,
-      )
-      encoder_context = concatenate_neighbor_nodes(
-        node_features,
-        encoder_edge_neighbors,
-        neighbor_indices,
-      )
-      encoder_context = encoder_context * mask_fw[..., None]
+      )  # Result: (N, K, 384) = [e_ij, s_j, h_j]
 
-      def autoregressive_step(
-        carry: tuple[NodeFeatures, SequenceEdgeFeatures, Logits, OneHotProteinSequence],
-        scan_inputs: tuple[Int, PRNGKeyArray],
-      ) -> tuple[tuple[NodeFeatures, SequenceEdgeFeatures, Logits, OneHotProteinSequence], None]:
-        all_layers_node_features, embedded_sequence_state, all_logits, sequence = carry
-        position, key = scan_inputs
+      layer_edge_features = (mask_bw[..., None] * current_features) + masked_node_edge_features
 
-        encoder_context_position = encoder_context[position]
-        position_neighborhood_indices = neighbor_indices[position]
-        mask_position = mask[position]
-        mask_bw_position = mask_bw[position]
-        edge_sequence_features = concatenate_neighbor_nodes(
-          embedded_sequence_state,
-          edge_features[position],
-          position_neighborhood_indices,
-        )
-
-        def decoder_layer_loop(layer_num: int, current_state_tensor: NodeFeatures) -> NodeFeatures:
-          node_features_in = current_state_tensor[layer_num]
-          current_layer_params = jax.tree_util.tree_map(
-            lambda x: x[layer_num],
-            all_decoder_layer_params,
-          )
-          decoder_context_position = concatenate_neighbor_nodes(
-            node_features_in,
-            edge_sequence_features,
-            position_neighborhood_indices,
-          )
-          decoding_context = (
-            mask_bw_position[..., None] * decoder_context_position + encoder_context_position
-          )
-          updated_node_features_position = decode_layer_fn(
-            node_features_in[position],
-            jnp.expand_dims(decoding_context, axis=0),
-            mask=mask_position,
-            layer_params=current_layer_params,
-            scale=scale,
-          )
-
-          return current_state_tensor.at[layer_num + 1, position].set(
-            jnp.squeeze(updated_node_features_position),
-          )
-
-        updated_state_for_position = jax.lax.fori_loop(
-          0,
-          num_decoder_layers,
-          decoder_layer_loop,
-          all_layers_node_features,
-        )
-
-        final_node_features_position = updated_state_for_position[-1, position]
-
-        logits_position = jnp.squeeze(
-          final_projection(model_parameters, final_node_features_position),
-        )
-
-        next_all_logits = all_logits.at[position].set(logits_position)
-        sampled_logits = logits_position / temperature + jax.random.gumbel(
-          key,
-          logits_position.shape,
-        )
-        sampled_logits = sampled_logits[..., :20]
-
-        one_hot_for_sampling = straight_through_estimator(sampled_logits)
-        padding = jnp.zeros(
-          (*one_hot_for_sampling.shape[:-1], 1),
-          dtype=one_hot_for_sampling.dtype,
-        )
-        one_hot_sequence_position = jnp.concatenate([one_hot_for_sampling, padding], axis=-1)
-
-        embedded_sequence_position = embed_sequence(model_parameters, one_hot_sequence_position)
-        next_embedded_sequence_state = embedded_sequence_state.at[position].set(
-          jnp.squeeze(embedded_sequence_position),
-        )
-        updated_sequence = sequence.at[position].set(one_hot_sequence_position)
-
-        return (
-          updated_state_for_position,
-          next_embedded_sequence_state,
-          next_all_logits,
-          updated_sequence,
-        ), None
-
-      num_residues = node_features.shape[0]
-      initial_all_layers_node_features = jnp.array(
-        [node_features] + [jnp.zeros_like(node_features)] * num_decoder_layers,
-      )
-      initial_embedded_sequence_state = jnp.zeros_like(
-        node_features,
-      )
-      all_logits = jnp.zeros((num_residues, 21), dtype=jnp.float32)
-      initial_sequence = jnp.zeros((num_residues, 21), dtype=jnp.float32)
-      initial_carry = (
-        initial_all_layers_node_features,
-        initial_embedded_sequence_state,
-        all_logits,
-        initial_sequence,
+      # Run the layer with attention masking for conditional decoding
+      loop_node_features = layer(
+        loop_node_features,
+        layer_edge_features,
+        mask,
+        attention_mask=attention_mask,  # Pass attention mask for conditional decoding
       )
 
-      scan_inputs = (decoding_order, jax.random.split(prng_key, num_residues))
-
-      final_carry, _ = jax.lax.scan(
-        autoregressive_step,
-        initial_carry,
-        scan_inputs,
-      )
-
-      final_all_logits = final_carry[2]
-      final_sequence = final_carry[3]
-      return final_sequence, final_all_logits
-
-    return run_autoregressive_decoder
-
-  if decoding_approach == "conditional":
-
-    @jax.jit
-    def run_conditional_decoder(
-      node_features: NodeFeatures,
-      edge_features: EdgeFeatures,
-      neighbor_indices: NeighborIndices,
-      mask: AlphaCarbonMask,
-      ar_mask: AutoRegressiveMask,
-      one_hot_sequence: OneHotProteinSequence,
-    ) -> NodeFeatures:
-      """Run the decoder with the provided edge features and neighbor indices."""
-      node_edge_features, sequence_edge_features = initialize_conditional_decoder(
-        one_hot_sequence,
-        node_features,
-        edge_features,
-        neighbor_indices,
-        model_parameters,
-      )
-      attention_mask = jnp.take_along_axis(
-        ar_mask,
-        neighbor_indices,
-        axis=1,
-      )
-      mask_bw = mask[:, None] * attention_mask
-      mask_fw = mask[:, None] * (1 - attention_mask)
-      masked_node_edge_features = mask_fw[..., None] * node_edge_features
-
-      def decoder_loop_body(
-        i: Int,
-        carry: NodeFeatures,
-      ) -> NodeFeatures:
-        loop_node_features = carry
-        current_layer_params = jax.tree_util.tree_map(lambda x: x[i], all_decoder_layer_params)
-        current_features = concatenate_neighbor_nodes(
-          loop_node_features,
-          sequence_edge_features,
-          neighbor_indices,
-        )
-        loop_edge_features = (mask_bw[..., None] * current_features) + masked_node_edge_features
-        return decode_layer_fn(
-          loop_node_features,
-          loop_edge_features,
-          mask,
-          attention_mask,
-          current_layer_params,
-          scale,
-        )
-
-      return jax.lax.fori_loop(
-        0,
-        num_decoder_layers,
-        decoder_loop_body,
-        node_features,
-      )
-
-    return run_conditional_decoder
-  if decoding_approach == "unconditional":
-    if attention_mask_type is None:
-
-      @jax.jit
-      def run_decoder(
-        node_features: NodeFeatures,
-        edge_features: EdgeFeatures,
-        mask: AlphaCarbonMask,
-      ) -> NodeFeatures:
-        """Run the decoder with the provided edge features and neighbor indices."""
-        nodes_expanded = jnp.tile(
-          jnp.expand_dims(node_features, -2),
-          [1, edge_features.shape[1], 1],
-        )
-        zeros_expanded = jnp.tile(
-          jnp.expand_dims(jnp.zeros_like(node_features), -2),
-          [1, edge_features.shape[1], 1],
-        )
-
-        decoder_input_features = jnp.concatenate(
-          [nodes_expanded, zeros_expanded, edge_features],
-          -1,
-        )
-
-        def decoder_loop_body(
-          i: Int,
-          carry: NodeFeatures,
-        ) -> NodeFeatures:
-          loop_node_features = carry
-          current_layer_params = jax.tree_util.tree_map(lambda x: x[i], all_decoder_layer_params)
-          return decode_layer_fn(
-            loop_node_features,
-            decoder_input_features,
-            mask,
-            current_layer_params,
-            scale,
-          )
-
-        return jax.lax.fori_loop(
-          0,
-          num_decoder_layers,
-          decoder_loop_body,
-          node_features,
-        )
-
-      return run_decoder
-
-    @jax.jit
-    def run_masked_attention_decoder(
-      node_features: NodeFeatures,
-      edge_features: EdgeFeatures,
-      mask: AlphaCarbonMask,
-      attention_mask: AttentionMask,
-    ) -> NodeFeatures:
-      """Run the decoder with the provided edge features and neighbor indices."""
-
-      def decoder_loop_body(
-        i: Int,
-        carry: NodeFeatures,
-      ) -> NodeFeatures:
-        loop_node_features = carry
-        current_layer_params = jax.tree_util.tree_map(lambda x: x[i], all_decoder_layer_params)
-        return decode_layer_fn(
-          loop_node_features,
-          edge_features,
-          mask,
-          attention_mask,
-          current_layer_params,
-          scale,
-        )
-
-      return jax.lax.fori_loop(
-        0,
-        num_decoder_layers,
-        decoder_loop_body,
-        node_features,
-      )
-
-    return run_masked_attention_decoder
-
-  msg = f"Unknown decoding enum: {decoding_approach}"
-  raise ValueError(msg)
+    return loop_node_features

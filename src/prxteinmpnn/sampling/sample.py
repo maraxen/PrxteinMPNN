@@ -1,25 +1,18 @@
-"""Factory for creating sequence sampling and optimization functions."""
+"""Factory for creating sequence sampling functions for PrxteinMPNN."""
 
 from collections.abc import Callable
 from functools import partial
-from typing import TYPE_CHECKING, Literal, cast
+from typing import Literal
 
 import jax
 import jax.numpy as jnp
 from jaxtyping import Float, Int, PRNGKeyArray
 
-from prxteinmpnn.model.decoder import (
-  make_decoder,
-)
-
-if TYPE_CHECKING:
-  from prxteinmpnn.model.decoding_signatures import (
-    RunAutoregressiveDecoderFn,
-    RunConditionalDecoderFn,
-  )
-from prxteinmpnn.model.encoder import make_encoder
+from prxteinmpnn.model import PrxteinMPNN
+from prxteinmpnn.sampling.conditional_logits import make_encoding_conditional_logits_split_fn
+from prxteinmpnn.sampling.ste_optimize import make_optimize_sequence_fn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
-from prxteinmpnn.utils.decoding_order import DecodingOrderFn
+from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,
   BackboneNoise,
@@ -27,230 +20,238 @@ from prxteinmpnn.utils.types import (
   DecodingOrder,
   InputBias,
   Logits,
-  ModelParameters,
   ProteinSequence,
   ResidueIndex,
   StructureAtomicCoordinates,
 )
 
-from .initialize import sampling_encode
-from .sampling_step import preload_sampling_step_decoder
-from .ste_optimize import make_optimize_sequence_fn
-
-# Simplified type hints
-SamplerInputs = tuple[
-  PRNGKeyArray,
-  StructureAtomicCoordinates,
-  AlphaCarbonMask,
-  ResidueIndex,
-  ChainIndex,
-  int,
-  InputBias | None,
-  Int | None,
-  BackboneNoise | None,
-  Int | None,
-  Float | None,
-  Float | None,
-]
 SamplerFn = Callable[..., tuple[ProteinSequence, Logits, DecodingOrder]]
-EncodingSamplerFn = Callable[
-  [
-    PRNGKeyArray,
-    StructureAtomicCoordinates,
-    AlphaCarbonMask,
-    ResidueIndex,
-    ChainIndex,
-    int,
-    BackboneNoise | None,
-  ],
-  tuple[ModelParameters, DecodingOrder],
-]
 
 
 def make_sample_sequences(
-  model_parameters: ModelParameters,
-  decoding_order_fn: DecodingOrderFn,
+  model: PrxteinMPNN,
+  decoding_order_fn: DecodingOrderFn = random_decoding_order,
   sampling_strategy: Literal["temperature", "straight_through"] = "temperature",
-  num_encoder_layers: int = 3,
-  num_decoder_layers: int = 3,
+  _num_encoder_layers: int = 3,
+  _num_decoder_layers: int = 3,
 ) -> SamplerFn:
-  """Create a function to sample or optimize sequences from a structure."""
-  encoder = make_encoder(
-    model_parameters=model_parameters,
-    attention_mask_type="cross",
-    num_encoder_layers=num_encoder_layers,
-  )
+  """Create a function to sample sequences from a structure using PrxteinMPNN.
 
-  conditional_decoder: RunConditionalDecoderFn = cast(
-    "RunConditionalDecoderFn",
-    make_decoder(
-      model_parameters=model_parameters,
-      attention_mask_type="conditional",
-      decoding_approach="conditional",
-      num_decoder_layers=num_decoder_layers,
-    ),
-  )
+  Args:
+    model: A PrxteinMPNN Equinox model instance.
+    decoding_order_fn: Function to generate decoding order (default: random).
+    sampling_strategy: Sampling strategy - "temperature" or "straight_through".
+    _num_encoder_layers: Deprecated, ignored (kept for API compatibility).
+    _num_decoder_layers: Deprecated, ignored (kept for API compatibility).
 
-  autoregressive_decoder = cast(
-    "RunAutoregressiveDecoderFn",
-    make_decoder(
-      model_parameters=model_parameters,
-      attention_mask_type=None,
-      decoding_approach="autoregressive",
-      num_decoder_layers=num_decoder_layers,
-    ),
-  )
+  Returns:
+    A function that samples sequences from structures.
 
-  sample_model_pass = sampling_encode(encoder=encoder, decoding_order_fn=decoding_order_fn)
+  Example:
+    >>> from prxteinmpnn.io.weights import load_model
+    >>> model = load_model()
+    >>> sample_fn = make_sample_sequences(model, sampling_strategy="temperature")
+    >>> seq, logits, order = sample_fn(key, coords, mask, res_idx, chain_idx)
+    >>>
+    >>> # For optimization
+    >>> optimize_fn = make_sample_sequences(model, sampling_strategy="straight_through")
+    >>> seq, logits, order = optimize_fn(
+    ...     key, coords, mask, res_idx, chain_idx,
+    ...     iterations=100, learning_rate=0.01
+    ... )
 
-  optimize_seq_fn = make_optimize_sequence_fn(
-    decoder=conditional_decoder,
-    decoding_order_fn=decoding_order_fn,
-    model_parameters=model_parameters,
-  )
+  """
+  # Create optimization function if needed
+  if sampling_strategy == "straight_through":
+    optimize_fn = make_optimize_sequence_fn(model, decoding_order_fn)
 
-  @partial(jax.jit, static_argnames=("k_neighbors"))
-  def sample_or_optimize_fn(
-    prng_key: PRNGKeyArray,
-    structure_coordinates: StructureAtomicCoordinates,
-    mask: AlphaCarbonMask,
-    residue_index: ResidueIndex,
-    chain_index: ChainIndex,
-    k_neighbors: int = 48,
-    bias: InputBias | None = None,
-    fixed_positions: Int | None = None,
-    backbone_noise: BackboneNoise | None = None,
-    iterations: Int | None = None,
-    learning_rate: Float | None = None,
-    temperature: Float | None = None,
-  ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
-    """Dispatches to either the optimization or sampling function."""
-    bias, fixed_positions, iterations, learning_rate, temperature = (
-      bias
-      if bias is not None
-      else jnp.zeros((structure_coordinates.shape[0], 21), dtype=jnp.float32),
-      fixed_positions if fixed_positions is not None else jnp.array([], dtype=jnp.int32),
-      iterations if iterations is not None else 1,
-      learning_rate if learning_rate is not None else 1e-4,
-      temperature if temperature is not None else 1.0,
-    )
+    @partial(jax.jit, static_argnames=("k_neighbors",))
+    def sample_sequences(
+      prng_key: PRNGKeyArray,
+      structure_coordinates: StructureAtomicCoordinates,
+      mask: AlphaCarbonMask,
+      residue_index: ResidueIndex,
+      chain_index: ChainIndex,
+      _k_neighbors: int = 48,
+      bias: InputBias | None = None,
+      fixed_positions: jnp.ndarray | None = None,
+      backbone_noise: BackboneNoise | None = None,
+      iterations: Int | None = None,
+      learning_rate: Float | None = None,
+      temperature: Float | None = None,
+    ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
+      """Optimize a sequence using straight-through estimation.
 
-    (
-      node_features,
-      edge_features,
-      neighbor_indices,
-      decoding_order,
-      _,
-      next_rng_key,
-    ) = sample_model_pass(
-      prng_key,
-      model_parameters,
-      structure_coordinates,
-      mask,
-      residue_index,
-      chain_index,
-      None,
-      k_neighbors,
-      backbone_noise,
-    )
+      Args:
+        prng_key: JAX random key.
+        structure_coordinates: Atomic coordinates (N, 4, 3).
+        mask: Alpha carbon mask indicating valid residues.
+        residue_index: Residue indices.
+        chain_index: Chain indices.
+        _k_neighbors: Deprecated (kept for API compatibility).
+        bias: Not used in straight_through mode.
+        fixed_positions: Not implemented yet.
+        backbone_noise: Optional noise for backbone coordinates.
+        iterations: Number of optimization steps (default: 100).
+        learning_rate: Learning rate for optimization (default: 0.01).
+        temperature: Temperature for STE sampling (default: 1.0).
 
-    if sampling_strategy == "straight_through":
-      output_sequence, output_logits = optimize_seq_fn(
-        next_rng_key,
-        node_features,
-        edge_features,
-        neighbor_indices,
+      Returns:
+        Tuple of (optimized sequence, final logits, decoding order).
+
+      """
+      del bias, fixed_positions, _k_neighbors  # Not used in optimization
+
+      # Set defaults
+      if iterations is None:
+        iterations = jnp.array(100, dtype=jnp.int32)
+      if learning_rate is None:
+        learning_rate = jnp.array(0.01, dtype=jnp.float32)
+      if temperature is None:
+        temperature = jnp.array(1.0, dtype=jnp.float32)
+
+      # Generate decoding order for return value
+      decoding_order, prng_key = decoding_order_fn(prng_key, structure_coordinates.shape[0])
+
+      # Run optimization
+      optimized_sequence, final_logits = optimize_fn(
+        prng_key,
+        structure_coordinates,
         mask,
+        residue_index,
+        chain_index,
         iterations,
         learning_rate,
         temperature,
+        backbone_noise,
       )
-      output_sequence = output_sequence.argmax(axis=-1).astype(jnp.int8)
-      return output_sequence, output_logits, decoding_order
-    sample_model_pass_fn = partial(
-      sample_model_pass,
-      model_parameters=model_parameters,  # type: ignore[arg-type]
-      structure_coordinates=structure_coordinates,  # type: ignore[arg-type]
-      mask=mask,  # type: ignore[arg-type]
-      residue_index=residue_index,  # type: ignore[arg-type]
-      chain_index=chain_index,  # type: ignore[arg-type]
-      k_neighbors=k_neighbors,  # type: ignore[arg-type]
-      backbone_noise=backbone_noise,  # type: ignore[arg-type]
-    )
-    sample_step = preload_sampling_step_decoder(
-      autoregressive_decoder,
-      sample_model_pass_fn,
-      sampling_strategy=sampling_strategy,
-      temperature=temperature,
-    )
-    _, output_sequence, output_logits = sample_step(prng_key=next_rng_key, bias=bias)
-    return output_sequence, output_logits, decoding_order
 
-  return sample_or_optimize_fn  # type: ignore[return-value]
+      return optimized_sequence, final_logits, decoding_order
+
+    return sample_sequences
+
+  # Temperature sampling (default)
+  @partial(jax.jit, static_argnames=("k_neighbors",))
+  def sample_sequences(
+    prng_key: PRNGKeyArray,
+    structure_coordinates: StructureAtomicCoordinates,
+    mask: AlphaCarbonMask,
+    residue_index: ResidueIndex,
+    chain_index: ChainIndex,
+    _k_neighbors: int = 48,
+    bias: InputBias | None = None,
+    fixed_positions: jnp.ndarray | None = None,
+    backbone_noise: BackboneNoise | None = None,
+    temperature: Float | None = None,
+  ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
+    """Sample a sequence from a structure using the ProteinMPNN model.
+
+    Args:
+      prng_key: JAX random key.
+      structure_coordinates: Atomic coordinates (N, 4, 3).
+      mask: Alpha carbon mask indicating valid residues.
+      residue_index: Residue indices.
+      chain_index: Chain indices.
+      _k_neighbors: Deprecated, model handles internally (kept for API compatibility).
+      bias: Optional bias to add to logits (N, 21).
+      fixed_positions: Optional mask for positions to keep fixed (not implemented yet).
+      backbone_noise: Optional noise for backbone coordinates.
+      temperature: Temperature for sampling (default: 1.0).
+
+    Returns:
+      Tuple of (sampled sequence, logits, decoding order).
+
+    Example:
+      >>> seq, logits, order = sample_sequences(
+      ...     key, coords, mask, res_idx, chain_idx, temperature=0.1
+      ... )
+
+    """
+    del fixed_positions  # Not yet implemented
+
+    # Set default temperature
+    if temperature is None:
+      temperature = jnp.array(1.0, dtype=jnp.float32)
+
+    # Generate decoding order
+    decoding_order, prng_key = decoding_order_fn(prng_key, structure_coordinates.shape[0])
+    autoregressive_mask = generate_ar_mask(decoding_order)
+
+    # Run model in autoregressive mode (sampling)
+    sampled_sequence, logits = model(
+      structure_coordinates,
+      mask,
+      residue_index,
+      chain_index,
+      decoding_approach="autoregressive",
+      prng_key=prng_key,
+      ar_mask=autoregressive_mask,
+      temperature=temperature,
+      bias=bias,
+      backbone_noise=backbone_noise,
+    )
+
+    # Convert one-hot to integer sequence if needed
+    one_hot_ndim = 2
+    if sampled_sequence.ndim == one_hot_ndim:
+      sampled_sequence = sampled_sequence.argmax(axis=-1).astype(jnp.int8)
+
+    return sampled_sequence, logits, decoding_order
+
+  return sample_sequences
 
 
 def make_encoding_sampling_split_fn(
-  model_parameters: ModelParameters,
-  decoding_order_fn: DecodingOrderFn,
+  model_parameters: PrxteinMPNN,
+  decoding_order_fn: DecodingOrderFn | None = None,
   sampling_strategy: Literal["temperature", "straight_through"] = "temperature",
-  num_encoder_layers: int = 3,
-  num_decoder_layers: int = 3,
-) -> tuple[EncodingSamplerFn, Callable]:
-  """Create functions for encoding and sampling, intended for averaging encodings.
+) -> tuple[Callable, Callable]:
+  """Create separate encoding and sampling functions for averaged encodings.
 
-  This function returns two functions: `encode` and `sample_from_features`.
-  `encode` runs the encoder part of the model to get structural features.
-  `sample_from_features` runs sampling on provided features.
-  This separation allows for averaging the results of `encode` from multiple runs
-  (e.g., with different noise) before a single `sample_from_features` call.
+  This splits the sampling process into two parts:
+  1. Encoding: Structure -> Encoder features (can be averaged across noise levels)
+  2. Sampling: (Encoder features, PRNGKey) -> Sequences
+
+  This separation allows:
+  - Averaging encoder features across multiple noise levels
+  - Efficient reuse of encoder output for multiple samples
+  - Lower memory usage when sampling many sequences
 
   Args:
-    model_parameters: A dictionary of the pre-trained ProteinMPNN model parameters.
-    decoding_order_fn: A function that generates the decoding order.
-    sampling_strategy: The sampling strategy to use ("temperature" or "straight_through").
-    num_encoder_layers: The number of encoder layers to use. Defaults to 3.
-    num_decoder_layers: The number of decoder layers to use. Defaults to 3.
+    model_parameters: A PrxteinMPNN Equinox model instance.
+    decoding_order_fn: Function to generate decoding order (default: random).
+    sampling_strategy: Sampling strategy - "temperature" or "straight_through".
 
   Returns:
-      A tuple containing two functions: (`encode`, `sample_from_features`).
+    Tuple of (encode_fn, sample_fn) where:
+      - encode_fn: Computes encoder features from structure
+      - sample_fn: Samples sequences from cached encoder features
+
+  Example:
+    >>> from prxteinmpnn.io.weights import load_model
+    >>> model = load_model()
+    >>> encode_fn, sample_fn = make_encoding_sampling_split_fn(
+    ...     model, sampling_strategy="temperature"
+    ... )
+    >>> # Encode once
+    >>> encoding = encode_fn(
+    ...     key, coords, mask, res_idx, chain_idx,
+    ...     k_neighbors=48, backbone_noise=0.1
+    ... )
+    >>> # Sample multiple sequences using same encoding
+    >>> seq1 = sample_fn(key1, encoding, order1, temperature=0.1)
+    >>> seq2 = sample_fn(key2, encoding, order2, temperature=0.5)
 
   """
-  encoder = make_encoder(
-    model_parameters=model_parameters,
-    attention_mask_type="cross",
-    num_encoder_layers=num_encoder_layers,
-  )
+  del sampling_strategy, decoding_order_fn  # Currently only temperature sampling supported
 
-  conditional_decoder: RunConditionalDecoderFn = cast(
-    "RunConditionalDecoderFn",
-    make_decoder(
-      model_parameters=model_parameters,
-      attention_mask_type="conditional",
-      decoding_approach="conditional",
-      num_decoder_layers=num_decoder_layers,
-    ),
-  )
-
-  autoregressive_decoder = cast(
-    "RunAutoregressiveDecoderFn",
-    make_decoder(
-      model_parameters=model_parameters,
-      attention_mask_type=None,
-      decoding_approach="autoregressive",
-      num_decoder_layers=num_decoder_layers,
-    ),
-  )
-
-  sample_model_pass = sampling_encode(encoder=encoder, decoding_order_fn=decoding_order_fn)
-
-  optimize_seq_fn = make_optimize_sequence_fn(
-    decoder=conditional_decoder,
-    decoding_order_fn=decoding_order_fn,
-    model_parameters=model_parameters,
+  # Get the encoder/decoder split functions
+  encode_logits_fn, decode_logits_fn = make_encoding_conditional_logits_split_fn(
+    model_parameters,
   )
 
   @partial(jax.jit, static_argnames=("k_neighbors",))
-  def encode(
+  def encode_fn(
     prng_key: PRNGKeyArray,
     structure_coordinates: StructureAtomicCoordinates,
     mask: AlphaCarbonMask,
@@ -258,122 +259,117 @@ def make_encoding_sampling_split_fn(
     chain_index: ChainIndex,
     k_neighbors: int = 48,
     backbone_noise: BackboneNoise | None = None,
-  ) -> tuple[ModelParameters, DecodingOrder]:
-    """Encode the structure to get features for sampling.
+  ) -> tuple:
+    """Encode structure to get encoder features.
+
+    Args:
+      prng_key: JAX random key for feature extraction.
+      structure_coordinates: Atomic coordinates (N, 4, 3).
+      mask: Alpha carbon mask indicating valid residues.
+      residue_index: Residue indices.
+      chain_index: Chain indices.
+      k_neighbors: Number of nearest neighbors (currently not used, for API compat).
+      backbone_noise: Optional noise for backbone coordinates.
 
     Returns:
-        A tuple of (encoded_features, decoding_order) where encoded_features is a
-        dict-like PyTree containing node_features, edge_features, neighbor_indices, and mask.
+      Encoder features tuple that can be passed to sample_fn.
 
     """
-    if backbone_noise is None:
-      backbone_noise = jnp.array(0.0, dtype=jnp.float32)
+    del k_neighbors  # Not used in current implementation
 
-    (
-      node_features,
-      edge_features,
-      neighbor_indices,
-      decoding_order,
-      _,
-      _,
-    ) = sample_model_pass(
-      prng_key,
-      model_parameters,
+    # Run encoder (encode_fn expects structure,mask,res_idx,chain_idx,...)
+    return encode_logits_fn(
       structure_coordinates,
       mask,
       residue_index,
       chain_index,
-      None,
-      k_neighbors,
-      backbone_noise,
+      backbone_noise=backbone_noise,
+      prng_key=prng_key,
     )
 
-    # Return features as a dict-like structure
-    encoded_features = {
-      "node_features": node_features,
-      "edge_features": edge_features,
-      "neighbor_indices": neighbor_indices,
-      "mask": mask,
-    }
-
-    return encoded_features, decoding_order  # type: ignore[return-value]
-
-  @partial(jax.jit, static_argnames=("sampling_strategy",))
-  def sample_from_features(
+  @partial(jax.jit)
+  def sample_fn(
     prng_key: PRNGKeyArray,
-    encoded_features: ModelParameters,
+    encoded_features: tuple,
     decoding_order: DecodingOrder,
     bias: InputBias | None = None,
     iterations: Int | None = None,
     learning_rate: Float | None = None,
     temperature: Float | None = None,
-    sampling_strategy: Literal["temperature", "straight_through"] = sampling_strategy,
-  ) -> tuple[ProteinSequence, Logits]:
-    """Sample sequences given encoded features.
+    sampling_strategy: Literal["temperature", "straight_through"] = "temperature",
+  ) -> ProteinSequence:
+    """Sample a sequence from cached encoder features.
 
     Args:
-        prng_key: Random key for sampling.
-        encoded_features: Dict containing node_features, edge_features,
-            neighbor_indices, and mask from the encode function.
-        decoding_order: The decoding order to use.
-        bias: Optional bias to add to logits.
-        iterations: Number of iterations for straight_through optimization.
-        learning_rate: Learning rate for straight_through optimization.
-        temperature: Temperature for sampling.
-        sampling_strategy: "temperature" or "straight_through".
+      prng_key: JAX random key for sampling.
+      encoded_features: Encoder features from encode_fn.
+      decoding_order: Decoding order for autoregressive sampling.
+      bias: Optional bias to add to logits (N, 21).
+      iterations: For STE optimization (not used in temperature sampling).
+      learning_rate: For STE optimization (not used in temperature sampling).
+      temperature: Temperature for sampling (default: 1.0).
+      sampling_strategy: "temperature" or "straight_through" (currently only temperature).
 
     Returns:
-        A tuple of (sampled_sequence, logits).
+      Sampled sequence as integer array (N,).
 
     """
-    node_features = encoded_features["node_features"]
-    edge_features = encoded_features["edge_features"]
-    neighbor_indices = encoded_features["neighbor_indices"]
-    mask = encoded_features["mask"]
+    del iterations, learning_rate, sampling_strategy  # Not used in current implementation
 
-    # Set defaults
-    bias = bias if bias is not None else jnp.zeros((node_features.shape[0], 21), dtype=jnp.float32)
-    iterations = iterations if iterations is not None else 1
-    learning_rate = learning_rate if learning_rate is not None else 1e-4
-    temperature = temperature if temperature is not None else 1.0
+    # Set default temperature
+    if temperature is None:
+      temperature = jnp.array(1.0, dtype=jnp.float32)
 
-    if sampling_strategy == "straight_through":
-      output_sequence, output_logits = optimize_seq_fn(
-        prng_key,
-        node_features,
-        edge_features,
-        neighbor_indices,
-        mask,
-        iterations,
-        learning_rate,
-        temperature,
-      )
-      output_sequence = output_sequence.argmax(axis=-1).astype(jnp.int8)
-      return output_sequence, output_logits
+    # Generate autoregressive mask from decoding order
+    autoregressive_mask = generate_ar_mask(decoding_order)
 
-    # Temperature sampling - use autoregressive decoder with preloaded sampling step
-    # Create a partial function that returns the pre-encoded features
-    ar_mask = generate_ar_mask(decoding_order)
-
-    dummy_sample_model_pass_fn = partial(
-      lambda *_args, **_kwargs: (
-        node_features,
-        edge_features,
-        neighbor_indices,
-        mask,
-        ar_mask,
-        prng_key,
-      ),
+    # Initialize sequence with random amino acids (for one-hot encoding)
+    seq_length = autoregressive_mask.shape[0]
+    _, prng_key = jax.random.split(prng_key)
+    initial_seq = jax.random.randint(
+      prng_key,
+      shape=(seq_length,),
+      minval=0,
+      maxval=21,
+      dtype=jnp.int32,
     )
 
-    sample_step = preload_sampling_step_decoder(
-      autoregressive_decoder,
-      dummy_sample_model_pass_fn,
-      sampling_strategy=sampling_strategy,
-      temperature=temperature,
+    # Autoregressive sampling loop
+    def sample_step(
+      i: int,
+      state: tuple[ProteinSequence, PRNGKeyArray],
+    ) -> tuple[ProteinSequence, PRNGKeyArray]:
+      """Sample one position in the decoding order."""
+      sequence, key = state
+
+      # Decode current sequence to get logits
+      logits = decode_logits_fn(encoded_features, sequence, autoregressive_mask)
+
+      # Get position to sample
+      pos = decoding_order[i]
+
+      # Apply bias if provided
+      if bias is not None:
+        logits = logits.at[pos].add(bias[pos])
+
+      # Apply temperature and sample
+      scaled_logits = logits[pos] / temperature
+      key, subkey = jax.random.split(key)
+      sampled_aa = jax.random.categorical(subkey, scaled_logits).astype(jnp.int8)
+
+      # Update sequence
+      updated_seq = sequence.at[pos].set(sampled_aa)
+
+      return updated_seq, key
+
+    # Run autoregressive sampling
+    final_seq, _ = jax.lax.fori_loop(
+      0,
+      seq_length,
+      sample_step,
+      (initial_seq, prng_key),
     )
 
-    _, output_sequence, output_logits = sample_step(prng_key=prng_key, bias=bias)
-    return output_sequence, output_logits
+    return final_seq
 
-  return encode, sample_from_features
+  return encode_fn, sample_fn

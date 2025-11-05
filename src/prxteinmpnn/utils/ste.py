@@ -1,6 +1,6 @@
 """Straight-Through Estimator (STE) for JAX.
 
-prxteinmpnn.sampling.ste
+prxteinmpnn.utils.ste
 
 Note: Only use this for discrete optimization problems where you want to allow gradients
 to pass through the argmax operation. Useful for tasks like protein sequence

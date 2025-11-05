@@ -8,7 +8,7 @@ import pytest
 
 def test_categorical_jacobian_in_memory(protein_structure, mock_model_parameters):
     spec = JacobianSpecification(
-        inputs="tests/data/1ubq.pdb",
+        inputs="tests/data/5awl.pdb",
         model_weights="soluble",
         average_encodings=False,
         backbone_noise=[0.0],
@@ -21,7 +21,7 @@ def test_categorical_jacobian_in_memory(protein_structure, mock_model_parameters
 def test_categorical_jacobian_streaming(protein_structure, mock_model_parameters):
   with tempfile.NamedTemporaryFile(suffix=".h5") as tmpfile:
     spec = JacobianSpecification(
-      inputs="tests/data/1ubq.pdb",
+      inputs="tests/data/5awl.pdb",
       model_weights="soluble",
       average_encodings=False,
       backbone_noise=[0.0],
@@ -35,7 +35,7 @@ def test_categorical_jacobian_streaming(protein_structure, mock_model_parameters
 
 def test_categorical_jacobian_in_memory_avg_encodings(protein_structure, mock_model_parameters):
     spec = JacobianSpecification(
-        inputs="tests/data/1ubq.pdb",
+        inputs="tests/data/5awl.pdb",
         model_weights="soluble",
         average_encodings=True,
         backbone_noise=[0.0],

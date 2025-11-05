@@ -51,7 +51,7 @@ def make_optimize_sequence_fn(
     Float,
     BackboneNoise | None,
   ],
-  tuple[ProteinSequence, Logits],
+  tuple[ProteinSequence, Logits, Logits],
 ]:
   """Create a function to optimize sequences using straight-through estimation.
 
@@ -97,7 +97,7 @@ def make_optimize_sequence_fn(
     learning_rate: Float,
     temperature: Float,
     backbone_noise: BackboneNoise | None = None,
-  ) -> tuple[ProteinSequence, Logits]:
+  ) -> tuple[ProteinSequence, Logits, Logits]:
     """Optimize a sequence by finding self-consistent logits via autoregressive decoder.
 
     This matches the original implementation where we optimize logits such that
@@ -243,6 +243,6 @@ def make_optimize_sequence_fn(
       backbone_noise=backbone_noise,
     )
 
-    return final_sequence, final_output_logits
+    return final_sequence, final_output_logits, final_logits
 
   return optimize_sequence

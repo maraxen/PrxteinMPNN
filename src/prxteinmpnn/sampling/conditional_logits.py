@@ -14,8 +14,23 @@ from __future__ import annotations
 from functools import partial
 from typing import TYPE_CHECKING
 
+import equinox as eqx
 import jax
 
+
+# Avoid Equinox attempting to hash module fields containing JAX arrays
+# during JAX tracing (which can raise TypeError: unhashable type).
+# Use object id-based hash to make Module hashable in tracing/cache contexts.
+def _eqx_module_hash(self: object) -> int:  # pragma: no cover - safe shim
+  return id(self)
+
+
+eqx.Module.__hash__ = _eqx_module_hash
+
+# Provide a runtime-friendly fallback for the ConditionalLogitsFn symbol so that
+# modules (and tests) can import the name at runtime. The precise, detailed
+# type alias is created only under TYPE_CHECKING to avoid importing heavy or
+# optional typing modules at runtime.
 if TYPE_CHECKING:
   from collections.abc import Callable
 
@@ -46,6 +61,13 @@ if TYPE_CHECKING:
     ],
     Logits,
   ]
+else:
+  # Runtime fallback: a generic callable returning Any. This keeps imports safe
+  # at runtime while allowing test modules to import the symbol.
+  from collections.abc import Callable
+  from typing import Any
+
+  ConditionalLogitsFn = Callable[..., Any]
 
 
 def make_conditional_logits_fn(
@@ -102,18 +124,34 @@ def make_conditional_logits_fn(
       ... )
 
     """
-    del prng_key  # Not used in conditional mode
+    # Keep prng_key available for feature extraction below.
 
-    # Run model in conditional mode
-    _, logits = model(
+    # Manually run feature extraction and the model's conditional path
+    # to avoid dispatch through jax.lax.switch (which can trigger other
+    # branches under tracing). This keeps the conditional logits path
+    # explicit and avoids dynamic indexing issues in other branches.
+    edge_features, neighbor_indices, _ = model.features(
+      prng_key,
       structure_coordinates,
       mask,
       residue_index,
       chain_index,
-      decoding_approach="conditional",
-      one_hot_sequence=sequence,
-      ar_mask=ar_mask,
-      backbone_noise=backbone_noise,
+      backbone_noise,
+    )
+
+    if ar_mask is None:
+      ar_mask = jax.numpy.zeros((mask.shape[0], mask.shape[0]), dtype=jax.numpy.int32)
+
+    # Call the model's conditional path directly
+    _, logits = model._call_conditional(
+      edge_features,
+      neighbor_indices,
+      mask,
+      ar_mask,
+      sequence,
+      prng_key,
+      0.0,  # temperature unused in conditional path
+      jax.numpy.zeros((mask.shape[0], 21), dtype=jax.numpy.float32),
     )
 
     return logits
@@ -124,14 +162,16 @@ def make_conditional_logits_fn(
 def make_encoding_conditional_logits_split_fn(
   model: PrxteinMPNN,
 ) -> tuple[Callable, Callable]:
-  """Create separate encoding and decoding functions for jacobian computation.
+  """Create separate encoding and decoding functions for averaged encodings.
 
   This splits the model into two parts:
-  1. Encoding: Structure -> Encoder features
+  1. Encoding: Structure -> Encoder features (node_features, edge_features, neighbor_indices)
   2. Decoding: (Encoder features, Sequence) -> Logits
 
-  This separation allows efficient jacobian computation by caching
-  the encoder output and only computing gradients through the decoder.
+  This separation allows:
+  - Averaging encoder features across multiple noise levels
+  - Efficient jacobian computation by caching encoder output
+  - Reusing encoder output for multiple sequence evaluations
 
   Args:
     model: A PrxteinMPNN Equinox model instance.
@@ -139,25 +179,18 @@ def make_encoding_conditional_logits_split_fn(
   Returns:
     Tuple of (encode_fn, decode_fn) where:
       - encode_fn: Computes encoder features from structure
-      - decode_fn: Computes logits from features and sequence
+      - decode_fn: Computes logits from cached features and sequence
 
   Example:
     >>> encode_fn, decode_fn = make_encoding_conditional_logits_split_fn(model)
-    >>> features = encode_fn(coords, mask, res_idx, chain_idx)
-    >>> logits = decode_fn(features, sequence)
-
-  Note:
-    This requires accessing internal model components (encoder/decoder).
-    The current Equinox model structure may need modifications to cleanly
-    expose these intermediate representations.
+    >>> # Encode once
+    >>> key = jax.random.key(0)
+    >>> encoding = encode_fn(key, coords, mask, res_idx, chain_idx, noise=0.1)
+    >>> # Decode multiple sequences using same encoding
+    >>> logits1 = decode_fn(encoding, sequence1)
+    >>> logits2 = decode_fn(encoding, sequence2)
 
   """
-  # NOTE: Split encoding/decoding not yet implemented
-  # This requires modifications to the PrxteinMPNN model to expose
-  # intermediate encoder outputs. For now, return conditional logits
-  # function twice as a placeholder.
-
-  conditional_fn = make_conditional_logits_fn(model)
 
   def encode_fn(
     structure_coordinates: StructureAtomicCoordinates,
@@ -165,37 +198,95 @@ def make_encoding_conditional_logits_split_fn(
     residue_index: ResidueIndex,
     chain_index: ChainIndex,
     backbone_noise: BackboneNoise | None = None,
+    prng_key: PRNGKeyArray | None = None,
   ) -> tuple:
-    """Encode structure to intermediate representation (placeholder).
+    """Encode structure to get encoder features.
+
+    Args:
+      prng_key: JAX random key for feature extraction.
+      structure_coordinates: Atomic coordinates (N, 4, 3).
+      mask: Alpha carbon mask indicating valid residues.
+      residue_index: Residue indices.
+      chain_index: Chain indices.
+      backbone_noise: Optional noise for backbone coordinates.
 
     Returns:
-      Tuple of inputs needed for decoding.
+      Tuple of (node_features, edge_features, neighbor_indices, mask, ar_mask_placeholder)
+      where ar_mask_placeholder is zeros to maintain consistent shape.
 
     """
-    # For now, just return the inputs that will be needed
-    return (structure_coordinates, mask, residue_index, chain_index, backbone_noise)
+    if backbone_noise is None:
+      backbone_noise = jax.numpy.array(0.0, dtype=jax.numpy.float32)
+
+    if prng_key is None:
+      # Use a fixed deterministic key when none is provided to keep behavior
+      # deterministic in contexts that don't supply a PRNGKey.
+      prng_key = jax.random.PRNGKey(0)
+
+    # Run feature extraction
+    edge_features, neighbor_indices, _ = model.features(
+      prng_key,
+      structure_coordinates,
+      mask,
+      residue_index,
+      chain_index,
+      backbone_noise,
+    )
+
+    # Run encoder
+    node_features, processed_edge_features = model.encoder(
+      edge_features,
+      neighbor_indices,
+      mask,
+    )
+
+    # Return encoder outputs + metadata needed for decoding
+    # Include ar_mask placeholder (zeros) for shape consistency
+    ar_mask_placeholder = jax.numpy.zeros((mask.shape[0], mask.shape[0]), dtype=jax.numpy.int32)
+
+    return (node_features, processed_edge_features, neighbor_indices, mask, ar_mask_placeholder)
 
   def decode_fn(
     encoding: tuple,
     sequence: ProteinSequence,
     ar_mask: AutoRegressiveMask | None = None,
   ) -> Logits:
-    """Decode intermediate representation to logits (placeholder).
+    """Decode encoder features to logits for a given sequence.
+
+    Args:
+      encoding: Tuple of (node_features, edge_features, neighbor_indices, mask, _)
+                from encode_fn.
+      sequence: Protein sequence as integer array (N,) or one-hot (N, 21).
+      ar_mask: Optional autoregressive mask (N, N). If None, uses zeros.
 
     Returns:
-      Logits for the given sequence.
+      Logits of shape (N, 21) for each residue position.
 
     """
-    structure_coordinates, mask, residue_index, chain_index, backbone_noise = encoding
-    return conditional_fn(
-      None,  # type: ignore[arg-type]
-      structure_coordinates,
+    node_features, processed_edge_features, neighbor_indices, mask, _ = encoding
+
+    if ar_mask is None:
+      ar_mask = jax.numpy.zeros((mask.shape[0], mask.shape[0]), dtype=jax.numpy.int32)
+
+    # Ensure sequence is one-hot encoded
+    if sequence.ndim == 1:
+      # Convert from integer to one-hot
+      one_hot_sequence = jax.nn.one_hot(sequence, model.w_s_embed.num_embeddings)
+    else:
+      one_hot_sequence = sequence
+
+    # Run decoder in conditional mode
+    decoded_node_features = model.decoder.call_conditional(
+      node_features,
+      processed_edge_features,
+      neighbor_indices,
       mask,
-      residue_index,
-      chain_index,
-      sequence,
       ar_mask,
-      backbone_noise,
+      one_hot_sequence,
+      model.w_s_embed.weight,
     )
+
+    # Project to logits
+    return jax.vmap(model.w_out)(decoded_node_features)
 
   return encode_fn, decode_fn

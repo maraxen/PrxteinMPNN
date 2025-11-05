@@ -65,7 +65,7 @@ def make_sample_sequences(
   if sampling_strategy == "straight_through":
     optimize_fn = make_optimize_sequence_fn(model, decoding_order_fn)
 
-    @partial(jax.jit, static_argnames=("k_neighbors",))
+    @partial(jax.jit, static_argnames=("_k_neighbors",))
     def sample_sequences(
       prng_key: PRNGKeyArray,
       structure_coordinates: StructureAtomicCoordinates,
@@ -130,75 +130,77 @@ def make_sample_sequences(
 
     return sample_sequences
 
-  # Temperature sampling (default)
-  @partial(jax.jit, static_argnames=("k_neighbors",))
-  def sample_sequences(
-    prng_key: PRNGKeyArray,
-    structure_coordinates: StructureAtomicCoordinates,
-    mask: AlphaCarbonMask,
-    residue_index: ResidueIndex,
-    chain_index: ChainIndex,
-    _k_neighbors: int = 48,
-    bias: InputBias | None = None,
-    fixed_positions: jnp.ndarray | None = None,
-    backbone_noise: BackboneNoise | None = None,
-    temperature: Float | None = None,
-  ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
-    """Sample a sequence from a structure using the ProteinMPNN model.
+  elif sampling_strategy == "temperature":
+    # Temperature sampling (default)
+    @partial(jax.jit, static_argnames=("_k_neighbors",))
+    def sample_sequences(
+      prng_key: PRNGKeyArray,
+      structure_coordinates: StructureAtomicCoordinates,
+      mask: AlphaCarbonMask,
+      residue_index: ResidueIndex,
+      chain_index: ChainIndex,
+      _k_neighbors: int = 48,
+      bias: InputBias | None = None,
+      fixed_positions: jnp.ndarray | None = None,
+      backbone_noise: BackboneNoise | None = None,
+      temperature: Float | None = None,
+    ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
+      """Sample a sequence from a structure using the ProteinMPNN model.
 
-    Args:
-      prng_key: JAX random key.
-      structure_coordinates: Atomic coordinates (N, 4, 3).
-      mask: Alpha carbon mask indicating valid residues.
-      residue_index: Residue indices.
-      chain_index: Chain indices.
-      _k_neighbors: Deprecated, model handles internally (kept for API compatibility).
-      bias: Optional bias to add to logits (N, 21).
-      fixed_positions: Optional mask for positions to keep fixed (not implemented yet).
-      backbone_noise: Optional noise for backbone coordinates.
-      temperature: Temperature for sampling (default: 1.0).
+      Args:
+        prng_key: JAX random key.
+        structure_coordinates: Atomic coordinates (N, 4, 3).
+        mask: Alpha carbon mask indicating valid residues.
+        residue_index: Residue indices.
+        chain_index: Chain indices.
+        _k_neighbors: Deprecated, model handles internally (kept for API compatibility).
+        bias: Optional bias to add to logits (N, 21).
+        fixed_positions: Optional mask for positions to keep fixed (not implemented yet).
+        backbone_noise: Optional noise for backbone coordinates.
+        temperature: Temperature for sampling (default: 1.0).
 
-    Returns:
-      Tuple of (sampled sequence, logits, decoding order).
+      Returns:
+        Tuple of (sampled sequence, logits, decoding order).
 
-    Example:
-      >>> seq, logits, order = sample_sequences(
-      ...     key, coords, mask, res_idx, chain_idx, temperature=0.1
-      ... )
+      Example:
+        >>> seq, logits, order = sample_sequences(
+        ...     key, coords, mask, res_idx, chain_idx, temperature=0.1
+        ... )
 
-    """
-    del fixed_positions  # Not yet implemented
+      """
+      del fixed_positions  # Not yet implemented
 
-    # Set default temperature
-    if temperature is None:
-      temperature = jnp.array(1.0, dtype=jnp.float32)
+      # Set default temperature
+      if temperature is None:
+        temperature = jnp.array(1.0, dtype=jnp.float32)
 
-    # Generate decoding order
-    decoding_order, prng_key = decoding_order_fn(prng_key, structure_coordinates.shape[0])
-    autoregressive_mask = generate_ar_mask(decoding_order)
+      # Generate decoding order
+      decoding_order, prng_key = decoding_order_fn(prng_key, structure_coordinates.shape[0])
+      autoregressive_mask = generate_ar_mask(decoding_order)
 
-    # Run model in autoregressive mode (sampling)
-    sampled_sequence, logits = model(
-      structure_coordinates,
-      mask,
-      residue_index,
-      chain_index,
-      decoding_approach="autoregressive",
-      prng_key=prng_key,
-      ar_mask=autoregressive_mask,
-      temperature=temperature,
-      bias=bias,
-      backbone_noise=backbone_noise,
-    )
+      # Run model in autoregressive mode (sampling)
+      sampled_sequence, logits = model(
+        structure_coordinates,
+        mask,
+        residue_index,
+        chain_index,
+        decoding_approach="autoregressive",
+        prng_key=prng_key,
+        ar_mask=autoregressive_mask,
+        temperature=temperature,
+        bias=bias,
+        backbone_noise=backbone_noise,
+      )
 
-    # Convert one-hot to integer sequence if needed
-    one_hot_ndim = 2
-    if sampled_sequence.ndim == one_hot_ndim:
-      sampled_sequence = sampled_sequence.argmax(axis=-1).astype(jnp.int8)
+      # Convert one-hot to integer sequence if needed
+      one_hot_ndim = 2
+      if sampled_sequence.ndim == one_hot_ndim:
+        sampled_sequence = sampled_sequence.argmax(axis=-1).astype(jnp.int8)
 
-    return sampled_sequence, logits, decoding_order
-
-  return sample_sequences
+      return sampled_sequence, logits, decoding_order
+    return sample_sequences
+  else:
+    raise ValueError(f"Unknown sampling strategy: {sampling_strategy}")
 
 
 def make_encoding_sampling_split_fn(
@@ -331,7 +333,7 @@ def make_encoding_sampling_split_fn(
       shape=(seq_length,),
       minval=0,
       maxval=21,
-      dtype=jnp.int32,
+      dtype=jnp.int8,
     )
 
     # Autoregressive sampling loop

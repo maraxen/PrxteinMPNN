@@ -102,11 +102,13 @@ def categorical_jacobian(
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
   if spec.average_encodings:
-    encode_fn, conditional_logits_fn = make_encoding_conditional_logits_split_fn(
+    encode_fn, decode_fn = make_encoding_conditional_logits_split_fn(
       model=model,
     )
+    conditional_logits_fn = None  # Not used in average_encodings path
   else:
     encode_fn = None
+    decode_fn = None
     conditional_logits_fn = make_conditional_logits_fn(model=model)
 
   if spec.output_h5_path:
@@ -116,21 +118,31 @@ def categorical_jacobian(
       protein_iterator,
       conditional_logits_fn,
       encode_fn,
+      decode_fn,
       spec_hash,
     )
 
-  return _categorical_jacobian_in_memory(spec, protein_iterator, conditional_logits_fn, encode_fn)
+  return _categorical_jacobian_in_memory(
+    spec,
+    protein_iterator,
+    conditional_logits_fn,
+    encode_fn,
+    decode_fn,
+  )
 
 
 def _compute_batch_outputs(
   spec: JacobianSpecification,
   protein_iterator: IterDataset,
-  conditional_logits_fn: ConditionalLogitsFn,
+  conditional_logits_fn: ConditionalLogitsFn | None,
   encode_fn: Callable | None,
 ) -> Generator[tuple[Any, jax.Array], None, None]:
   """Generate and yield Jacobian batches or encoding batches."""
   for batched_ensemble in protein_iterator:
     if not spec.average_encodings:
+      if conditional_logits_fn is None:
+        msg = "conditional_logits_fn must be provided when not using average_encodings"
+        raise ValueError(msg)
 
       def compute_jacobian_for_structure(
         coords: StructureAtomicCoordinates,
@@ -232,8 +244,20 @@ def _get_initial_rolling_average_state(
   initial_encodings: PyTree,
 ) -> tuple[PyTree, int]:
   """Get the initial state for the rolling average of encodings."""
-  initial_avg = jax.tree_util.tree_map(lambda x: jnp.mean(x, axis=(0, 1)), initial_encodings)
-  initial_count = initial_encodings[0].shape[0] * initial_encodings[0].shape[1]
+
+  def _reduce_mean(x: jax.Array) -> jax.Array:
+    # For integer index arrays (neighbor indices) preserve integer semantics
+    # by rounding the mean back to integer. For other arrays, compute the mean.
+    if hasattr(x, "dtype") and jnp.issubdtype(x.dtype, jnp.integer):
+      return jnp.rint(jnp.mean(x.astype(jnp.float32), axis=(0, 1))).astype(jnp.int32)
+    return jnp.mean(x, axis=(0, 1))
+
+  initial_avg = jax.tree_util.tree_map(_reduce_mean, initial_encodings)
+  leaves = jax.tree_util.tree_leaves(initial_encodings)
+  if not leaves:
+    msg = "initial_encodings contains no leaves"
+    raise ValueError(msg)
+  initial_count = int(leaves[0].shape[0]) * int(leaves[0].shape[1])
   return initial_avg, initial_count
 
 
@@ -243,8 +267,18 @@ def _update_rolling_average(
 ) -> tuple[PyTree, int]:
   """Update the rolling average of encodings with a new batch."""
   avg_so_far, count_so_far = state
-  new_avg = jax.tree_util.tree_map(lambda x: jnp.mean(x, axis=(0, 1)), new_encodings)
-  new_count = new_encodings[0].shape[0] * new_encodings[0].shape[1]
+
+  def _reduce_mean(x: jax.Array) -> jax.Array:
+    if hasattr(x, "dtype") and jnp.issubdtype(x.dtype, jnp.integer):
+      return jnp.rint(jnp.mean(x.astype(jnp.float32), axis=(0, 1))).astype(jnp.int32)
+    return jnp.mean(x, axis=(0, 1))
+
+  new_avg = jax.tree_util.tree_map(_reduce_mean, new_encodings)
+  leaves_new = jax.tree_util.tree_leaves(new_encodings)
+  if not leaves_new:
+    msg = "new_encodings contains no leaves"
+    raise ValueError(msg)
+  new_count = int(leaves_new[0].shape[0]) * int(leaves_new[0].shape[1])
   total_count = count_so_far + new_count
 
   updated_avg = jax.tree_util.tree_map(
@@ -260,6 +294,7 @@ def _categorical_jacobian_in_memory(
   protein_iterator: IterDataset,
   conditional_logits_fn: Any,  # noqa: ANN401
   encode_fn: Callable | None,
+  decode_fn: Callable | None,
 ) -> dict[str, jax.Array | dict[str, JacobianSpecification] | None]:
   """Compute Jacobians and store them in memory."""
   output_generator = _compute_batch_outputs(
@@ -270,12 +305,87 @@ def _categorical_jacobian_in_memory(
   )
 
   if spec.average_encodings:
-    # TODO(mar): Implement average encodings path  # noqa: FIX002, TD003
-    # Requires encoder/decoder split in model - see FULL_FUNCTIONALITY_TODO.md
-    msg = "average_encodings not yet implemented with new Equinox model"
-    raise NotImplementedError(msg)
+    # Average encodings path: collect all encodings, average them, then compute jacobians
+    if encode_fn is None or decode_fn is None:
+      msg = "encode_fn and decode_fn must be provided for average_encodings mode"
+      raise ValueError(msg)
 
-  # --- Path for Standard Jacobian Computation ---
+    all_encodings_and_sequences = list(output_generator)
+    if not all_encodings_and_sequences:
+      return {"categorical_jacobians": None, "metadata": None}
+
+    all_encodings = [item[0] for item in all_encodings_and_sequences]
+    all_sequences = [item[1] for item in all_encodings_and_sequences]
+
+    # Initialize rolling average with first batch
+    averaged_encodings, count = _get_initial_rolling_average_state(all_encodings[0])
+
+    # Update with remaining batches
+    for encodings_batch in all_encodings[1:]:
+      averaged_encodings, count = _update_rolling_average(
+        (averaged_encodings, count),
+        encodings_batch,
+      )
+
+    # Now compute jacobians using the averaged encodings and decode_fn
+    # averaged_encodings is a PyTree with shapes like (seq_len, features)
+    # Concatenate all sequences
+    all_sequences_concat = jnp.concatenate(all_sequences, axis=0)
+
+    def compute_jacobian_for_sequence(
+      one_hot_sequence: OneHotProteinSequence,
+    ) -> jax.Array:
+      """Compute jacobian for a single sequence using averaged encodings."""
+
+      def logit_fn(one_hot_flat: jax.Array) -> jax.Array:
+        one_hot_2d = one_hot_flat.reshape(one_hot_sequence.shape)
+        # Use averaged encodings with decode_fn
+        logits = decode_fn(averaged_encodings, one_hot_2d, None)  # ar_mask=None
+        return logits.flatten()
+
+      return _compute_jacobian_from_logit_fn(
+        logit_fn,
+        one_hot_sequence,
+        spec.jacobian_batch_size,
+      )
+
+    # Compute jacobians for all sequences
+    jacobians = jax.vmap(compute_jacobian_for_sequence)(all_sequences_concat)
+    # Add noise dimension to match expected shape (batch, noise_levels, seq_len, 21, seq_len, 21)
+    # Since we averaged over noise, we have a single "effective" noise level
+    jacobians = jacobians[:, None, :, :, :, :]  # Add noise dimension
+    # Post-process and return results (APC, combine) for averaged-encodings path
+    apc_jacobians = (
+      jax.vmap(jax.vmap(apc_corrected_frobenius_norm))(jacobians) if spec.compute_apc else None
+    )
+
+    combine_jacs_fn = make_combine_jac(
+      combine_fn=spec.combine_fn,
+      fn_kwargs=spec.combine_fn_kwargs,
+      batch_size=spec.combine_batch_size,
+    )
+
+    combined_jacs, mapping = (
+      combine_jacs_fn(
+        jacobians,
+        all_sequences_concat,
+        jnp.asarray(spec.combine_weights, dtype=jnp.float32),
+      )
+      if spec.combine
+      else (None, None)
+    )
+
+    return {
+      "categorical_jacobians": jacobians,
+      "apc_corrected_jacobians": apc_jacobians,
+      "combined": combined_jacs,
+      "mapping": mapping,
+      "metadata": {
+        "spec": spec,
+      },
+    }
+
+  # --- Path for Standard Jacobian Computation (non-averaged encodings) ---
   all_outputs_and_sequences = list(output_generator)
   if not all_outputs_and_sequences:
     return {"categorical_jacobians": None, "metadata": None}
@@ -319,18 +429,17 @@ def _compute_and_write_jacobians_streaming(
   f: h5py.File,
   spec: JacobianSpecification,
   protein_iterator: IterDataset,
-  conditional_logits_fn: ConditionalLogitsFn,
+  conditional_logits_fn: ConditionalLogitsFn | None,
   encode_fn: Callable | None,
+  decode_fn: Callable | None,
   spec_hash: str,
 ) -> None:
   """Compute Jacobians and stream them to a group in an HDF5 file."""
   group = f.require_group(spec_hash)
 
-  if spec.average_encodings:
-    # TODO(mar): Implement average encodings path  # noqa: FIX002, TD003
-    # Requires encoder/decoder split in model - see FULL_FUNCTIONALITY_TODO.md
-    msg = "average_encodings not yet implemented with new Equinox model"
-    raise NotImplementedError(msg)
+  if spec.average_encodings and (encode_fn is None or decode_fn is None):
+    msg = "encode_fn and decode_fn must be provided for average_encodings mode"
+    raise ValueError(msg)
 
   jac_ds = group.require_dataset(
     "categorical_jacobians",
@@ -404,8 +513,9 @@ def _compute_and_write_jacobians_streaming(
 def _categorical_jacobian_streaming(
   spec: JacobianSpecification,
   protein_iterator: IterDataset,
-  conditional_logits_fn: ConditionalLogitsFn,
+  conditional_logits_fn: ConditionalLogitsFn | None,
   encode_fn: Callable | None,
+  decode_fn: Callable | None,
   spec_hash: str,
 ) -> dict[str, Any]:
   """Compute Jacobians and stream them to a group in an HDF5 file."""
@@ -420,6 +530,7 @@ def _categorical_jacobian_streaming(
       protein_iterator,
       conditional_logits_fn,
       encode_fn,
+      decode_fn,
       spec_hash,
     )
 

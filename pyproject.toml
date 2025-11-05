@@ -24,6 +24,7 @@ dependencies = [
     "tables>=3.10.2",
     "array-record>=0.8.1",
     "equinox>=0.13.2",
+    "huggingface-hub>=1.0.1",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -51,6 +52,7 @@ tests = [
     "chex",
     "anyio",
     "pyright",
+    "foldcomp"
 ]
 dev = [
   "ruff",
@@ -71,6 +73,7 @@ dev = [
   "trio",
   "chex",
   "anyio",
+  "foldcomp"
 ]
 foldcomp = [
     "foldcomp",
@@ -88,6 +91,9 @@ exclude = ["**/tests/**/*.py"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
 
 [tool.setuptools.package-data]
 include = ["prxteinmpnn/model/original/*.pkl", "prxteinmpnn/model/soluble/*.pkl", "prxteinmpnn/examples/*.ipynb", "prxteinmpnn/examples/*.pdb",]

@@ -1,6 +1,7 @@
 """Run model pipelines."""
 
-from .jacobian import categorical_jacobian
+# Jacobian functionality temporarily disabled during Equinox migration
+# Will be re-enabled after refactoring conditional_logits module
 from .sampling import sample
 from .scoring import score
 from .specs import (
@@ -15,7 +16,6 @@ __all__ = [
   "RunSpecification",
   "SamplingSpecification",
   "ScoringSpecification",
-  "categorical_jacobian",
   "sample",
   "score",
 ]

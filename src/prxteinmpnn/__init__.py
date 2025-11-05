@@ -2,16 +2,16 @@
 
 import multiprocessing as mp
 
-mp.set_start_method("spawn", force=True)
-from .run import (  # noqa: E402
+from .run import (
   JacobianSpecification,
   RunSpecification,
   SamplingSpecification,
   ScoringSpecification,
-  categorical_jacobian,
   sample,
   score,
 )
+
+mp.set_start_method("spawn", force=True)
 
 __version__ = "0.1.0"
 __author__ = "Marielle Russo"
@@ -23,7 +23,6 @@ __all__ = [
   "RunSpecification",
   "SamplingSpecification",
   "ScoringSpecification",
-  "categorical_jacobian",
   "sample",
   "score",
 ]

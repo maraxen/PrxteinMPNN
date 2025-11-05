@@ -1,154 +1,168 @@
-"""Feature extraction for protein structures in the PrxteinMPNN model."""
+"""Feature extraction module for PrxteinMPNN.
 
-from functools import partial
+This module contains the ProteinFeatures class that extracts and projects
+features from raw protein coordinates.
+"""
 
+from __future__ import annotations
+
+import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Int, PRNGKeyArray
 
 from prxteinmpnn.utils.coordinates import (
   apply_noise_to_coordinates,
   compute_backbone_coordinates,
   compute_backbone_distance,
 )
-from prxteinmpnn.utils.graph import NeighborOffsets, compute_neighbor_offsets
-from prxteinmpnn.utils.normalize import layer_normalization
+from prxteinmpnn.utils.graph import compute_neighbor_offsets
 from prxteinmpnn.utils.radial_basis import compute_radial_basis
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,
   BackboneNoise,
   ChainIndex,
   EdgeFeatures,
-  ModelParameters,
   NeighborIndices,
   ResidueIndex,
   StructureAtomicCoordinates,
 )
 
-EdgeChainNeighbors = Int[Array, "num_atoms num_neighbors"]
-EncodedPositions = Int[Array, "num_atoms num_neighbors (2 * MAXIMUM_RELATIVE_FEATURES + 2)"]
+# Type alias for PRNG keys
+PRNGKeyArray = jax.Array
 
+# Layer normalization
+LayerNorm = eqx.nn.LayerNorm
+
+# Feature extraction constants
 MAXIMUM_RELATIVE_FEATURES = 32
-
+POS_EMBED_DIM = 16
 top_k = jax.jit(jax.lax.top_k, static_argnames=("k",))
 
 
-@jax.jit
-def get_edge_chains_neighbors(
-  chain_index: ChainIndex,
-  neighbor_indices: NeighborIndices,
-) -> EdgeChainNeighbors:
-  """Compute edge chains for neighbors."""
-  edge_chains = (chain_index[:, None] == chain_index[None, :]).astype(int)
-  return jnp.take_along_axis(edge_chains, neighbor_indices, axis=1)
+class ProteinFeatures(eqx.Module):
+  """Extracts and projects features from raw protein coordinates.
 
-
-@jax.jit
-def encode_positions(
-  neighbor_offsets: NeighborOffsets,
-  edge_chains_neighbors: EdgeChainNeighbors,
-  model_parameters: ModelParameters,
-) -> EncodedPositions:
-  """Encode positions based on neighbor offsets and edge chains."""
-  neighbor_offset_factor = jnp.clip(
-    neighbor_offsets + MAXIMUM_RELATIVE_FEATURES,
-    0,
-    2 * MAXIMUM_RELATIVE_FEATURES,
-  )
-  edge_chain_factor = (1 - edge_chains_neighbors) * (2 * MAXIMUM_RELATIVE_FEATURES + 1)
-  encoded_offset = neighbor_offset_factor * edge_chains_neighbors + edge_chain_factor
-  encoded_offset_one_hot = jax.nn.one_hot(encoded_offset, 2 * MAXIMUM_RELATIVE_FEATURES + 2)
-  pos_enc_params = model_parameters[
-    "protein_mpnn/~/protein_features/~/positional_encodings/~/embedding_linear"
-  ]
-  return jnp.dot(encoded_offset_one_hot, pos_enc_params["w"]) + pos_enc_params["b"]
-
-
-@jax.jit
-def embed_edges(
-  edge_features: EncodedPositions,
-  model_parameters: ModelParameters,
-) -> EdgeFeatures:
-  """Embed edge features using model parameters."""
-  edge_emb_params = model_parameters["protein_mpnn/~/protein_features/~/edge_embedding"]
-  return jnp.dot(edge_features, edge_emb_params["w"])
-
-
-@partial(jax.jit, static_argnames=("k_neighbors",))
-def extract_features(
-  prng_key: PRNGKeyArray,
-  model_parameters: ModelParameters,
-  structure_coordinates: StructureAtomicCoordinates,
-  mask: AlphaCarbonMask,
-  residue_index: ResidueIndex,
-  chain_index: ChainIndex,
-  k_neighbors: int = 48,
-  backbone_noise: BackboneNoise | None = None,
-) -> tuple[EdgeFeatures, NeighborIndices, PRNGKeyArray]:
-  """Extract features from protein structure coordinates.
-
-  Args:
-    structure_coordinates: Atomic coordinates of the protein structure.
-    mask: Mask indicating valid atoms in the structure.
-    residue_index: Residue indices for each atom.
-    chain_index: Chain indices for each atom.
-    model_parameters: Model parameters for the feature extraction.
-    prng_key: JAX random key for stochastic operations.
-    k_neighbors: Maximum number of neighbors to consider for each atom.
-    backbone_noise: Standard deviation for Gaussian noise augmentation.
-
-  Returns:
-    edge_features: Edge features after concatenation and normalization.
-    edge_indices: Indices of neighboring atoms.
-
+  This module encapsulates k-NN, RBF, positional encodings, and edge projections.
   """
-  if backbone_noise is None:
-    backbone_noise = jnp.array(0.0, dtype=jnp.float32)
 
-  noised_coordinates, prng_key = apply_noise_to_coordinates(
-    prng_key,
-    structure_coordinates,
-    backbone_noise=backbone_noise,
-  )
-  backbone_atom_coordinates = compute_backbone_coordinates(noised_coordinates)
-  distances = compute_backbone_distance(backbone_atom_coordinates)
+  w_pos: eqx.nn.Linear
+  w_e: eqx.nn.Linear
+  norm_edges: LayerNorm
+  w_e_proj: eqx.nn.Linear
+  k_neighbors: int = eqx.field(static=True)
+  rbf_dim: int = eqx.field(static=True)
+  pos_embed_dim: int = eqx.field(static=True)
 
-  distances_masked = jnp.array(
-    jnp.where(
-      (mask[:, None] * mask[None, :]).astype(bool),
-      distances,
-      jnp.inf,
-    ),
-  )
-  k = min(k_neighbors, structure_coordinates.shape[0])
-  _, neighbor_indices = top_k(-distances_masked, k)
-  neighbor_indices = jnp.array(neighbor_indices, dtype=jnp.int32)
-  rbf = compute_radial_basis(backbone_atom_coordinates, neighbor_indices)
-  neighbor_offsets = compute_neighbor_offsets(residue_index, neighbor_indices)
-  edge_chains_neighbors = get_edge_chains_neighbors(
-    chain_index,
-    neighbor_indices,
-  )
-  encoded_positions = encode_positions(
-    neighbor_offsets,
-    edge_chains_neighbors,
-    model_parameters,
-  )
-  edges = jnp.concatenate([encoded_positions, rbf], axis=-1)
-  edge_features = embed_edges(edges, model_parameters)
-  norm_edge_params = model_parameters["protein_mpnn/~/protein_features/~/norm_edges"]
-  edge_features = layer_normalization(edge_features, norm_edge_params)
-  return edge_features, neighbor_indices, prng_key
+  def __init__(
+    self,
+    node_features: int,
+    edge_features: int,
+    k_neighbors: int,
+    *,
+    key: PRNGKeyArray,
+  ) -> None:
+    """Initialize feature extraction layers.
 
+    Args:
+      node_features: Dimension of node features (not directly used, kept for API compat).
+      edge_features: Dimension of edge features.
+      k_neighbors: Number of nearest neighbors to consider.
+      key: PRNG key for initialization.
 
-@jax.jit
-def project_features(
-  model_parameters: ModelParameters,
-  edge_features: EdgeFeatures,
-) -> EdgeFeatures:
-  """Project edge features using model parameters."""
-  w_e, b_e = (
-    model_parameters["protein_mpnn/~/W_e"]["w"],
-    model_parameters["protein_mpnn/~/W_e"]["b"],
-  )
-  return jnp.dot(edge_features, w_e) + b_e
+    """
+    keys = jax.random.split(key, 3)
+
+    self.k_neighbors = k_neighbors
+    self.rbf_dim = 16
+    self.pos_embed_dim = POS_EMBED_DIM
+
+    pos_one_hot_dim = 2 * MAXIMUM_RELATIVE_FEATURES + 2  # 66
+    edge_embed_in_dim = 416  # Match original model's edge embedding input size
+
+    self.w_pos = eqx.nn.Linear(pos_one_hot_dim, POS_EMBED_DIM, key=keys[0])
+    self.w_e = eqx.nn.Linear(edge_embed_in_dim, edge_features, use_bias=False, key=keys[1])
+    self.norm_edges = LayerNorm(edge_features)
+    self.w_e_proj = eqx.nn.Linear(edge_features, edge_features, key=keys[2])
+
+  def __call__(
+    self,
+    prng_key: PRNGKeyArray,
+    structure_coordinates: StructureAtomicCoordinates,
+    mask: AlphaCarbonMask,
+    residue_index: ResidueIndex,
+    chain_index: ChainIndex,
+    backbone_noise: BackboneNoise | None,
+  ) -> tuple[EdgeFeatures, NeighborIndices, PRNGKeyArray]:
+    """Extract and project features from protein structure.
+
+    Args:
+      prng_key: PRNG key for coordinate noise.
+      structure_coordinates: Atomic coordinates (N, CA, C, O).
+      mask: Alpha carbon mask.
+      residue_index: Residue indices.
+      chain_index: Chain indices.
+      backbone_noise: Noise to add to backbone coordinates.
+
+    Returns:
+      Tuple of (edge_features, neighbor_indices, updated_prng_key).
+
+    """
+    if backbone_noise is None:
+      backbone_noise = jnp.array(0.0, dtype=jnp.float32)
+
+    noised_coordinates, prng_key = apply_noise_to_coordinates(
+      prng_key,
+      structure_coordinates,
+      backbone_noise=backbone_noise,
+    )
+    backbone_atom_coordinates = compute_backbone_coordinates(noised_coordinates)
+    distances = compute_backbone_distance(backbone_atom_coordinates)
+
+    distances_masked = jnp.array(
+      jnp.where(
+        (mask[:, None] * mask[None, :]).astype(bool),
+        distances,
+        jnp.inf,
+      ),
+    )
+
+    k = min(self.k_neighbors, structure_coordinates.shape[0])
+    _, neighbor_indices = top_k(-distances_masked, k)
+    neighbor_indices = jnp.array(neighbor_indices, dtype=jnp.int32)
+
+    rbf = compute_radial_basis(backbone_atom_coordinates, neighbor_indices)
+    neighbor_offsets = compute_neighbor_offsets(residue_index, neighbor_indices)
+
+    # Get edge chains neighbors
+    edge_chains = (chain_index[:, None] == chain_index[None, :]).astype(int)
+    edge_chains_neighbors = jnp.take_along_axis(
+      edge_chains,
+      neighbor_indices,
+      axis=1,
+    )
+
+    # Encode positions
+    neighbor_offset_factor = jnp.clip(
+      neighbor_offsets + MAXIMUM_RELATIVE_FEATURES,
+      0,
+      2 * MAXIMUM_RELATIVE_FEATURES,
+    )
+    edge_chain_factor = (1 - edge_chains_neighbors) * (2 * MAXIMUM_RELATIVE_FEATURES + 1)
+    encoded_offset = neighbor_offset_factor * edge_chains_neighbors + edge_chain_factor
+    encoded_offset_one_hot = jax.nn.one_hot(
+      encoded_offset,
+      2 * MAXIMUM_RELATIVE_FEATURES + 2,
+    )
+
+    # vmap over (N, K)
+    encoded_positions = jax.vmap(jax.vmap(self.w_pos))(encoded_offset_one_hot)
+
+    # Embed edges
+    edges = jnp.concatenate([encoded_positions, rbf], axis=-1)
+    edge_features = jax.vmap(jax.vmap(self.w_e))(edges)
+    edge_features = jax.vmap(jax.vmap(self.norm_edges))(edge_features)
+
+    # Project features
+    edge_features = jax.vmap(jax.vmap(self.w_e_proj))(edge_features)
+
+    return edge_features, neighbor_indices, prng_key

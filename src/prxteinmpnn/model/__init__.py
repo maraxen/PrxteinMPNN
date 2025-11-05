@@ -1,24 +1,20 @@
-"""ProteinMPNN implemented in a functional JAX interface."""
+"""Model module for PrxteinMPNN.
 
-from . import decoder, dense, encoder, features, masked_attention, projection
-from .decoder import make_decoder
-from .dense import dense_layer
-from .encoder import make_encoder
-from .features import extract_features
-from .masked_attention import MaskedAttentionType
-from .projection import final_projection
+This module contains the core Equinox-based neural network components for ProteinMPNN.
+"""
+
+from __future__ import annotations
+
+from .decoder import Decoder, DecoderLayer
+from .encoder import Encoder, EncoderLayer
+from .features import ProteinFeatures
+from .mpnn import PrxteinMPNN
 
 __all__ = [
-  "MaskedAttentionType",
-  "decoder",
-  "dense",
-  "dense_layer",
-  "encoder",
-  "extract_features",
-  "features",
-  "final_projection",
-  "make_decoder",
-  "make_encoder",
-  "masked_attention",
-  "projection",
+  "Decoder",
+  "DecoderLayer",
+  "Encoder",
+  "EncoderLayer",
+  "ProteinFeatures",
+  "PrxteinMPNN",
 ]

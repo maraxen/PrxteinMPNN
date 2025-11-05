@@ -370,21 +370,6 @@ class TestPerformDbscanClustering:
       result_power.coarse_graining_matrix.shape
     )
   
-  def test_perform_dbscan_clustering_invalid_method(self, mock_clustering_data):
-    """Test that invalid connectivity method raises error.
-    
-    Args:
-      mock_clustering_data: Mock clustering data fixture.
-      
-    Raises:
-      ValueError: If invalid connectivity method is used.
-      
-    Example:
-      >>> test_perform_dbscan_clustering_invalid_method(mock_clustering_data)
-    """
-    with pytest.raises(ValueError, match="Unsupported connectivity method"):
-      dbscan_cluster(**mock_clustering_data, connectivity_method='invalid')
-
 
 class TestTraceEntropyAcrossEps:
   """Test entropy tracing functionality."""

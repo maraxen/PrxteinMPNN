@@ -442,9 +442,7 @@ class PrxteinMPNN(eqx.Module):
 
       # Apply bias before sampling
       bias_pos = jax.lax.dynamic_slice(
-        bias,
-        (position, 0),
-        (1, bias.shape[1]),
+        bias, (position, 0), (1, bias.shape[-1])
       )
       logits_with_bias = logits_pos + bias_pos
 

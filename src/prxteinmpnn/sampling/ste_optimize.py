@@ -50,6 +50,8 @@ def make_optimize_sequence_fn(
     Float,
     Float,
     BackboneNoise | None,
+    jnp.ndarray | None,
+    int | None,
   ],
   tuple[ProteinSequence, Logits, Logits],
 ]:
@@ -66,6 +68,10 @@ def make_optimize_sequence_fn(
 
   The key insight: we're finding a sequence that is self-consistent with
   the autoregressive decoder's predictions under multiple decoding orders.
+
+  When tied positions are provided, positions in the same group are constrained
+  to have identical logits throughout optimization, ensuring they converge to
+  the same amino acid.
 
   Args:
     model: A PrxteinMPNN Equinox model instance.
@@ -86,7 +92,7 @@ def make_optimize_sequence_fn(
 
   """
 
-  @partial(jax.jit)
+  @partial(jax.jit, static_argnames=("num_groups",))
   def optimize_sequence(
     prng_key: PRNGKeyArray,
     structure_coordinates: StructureAtomicCoordinates,
@@ -97,12 +103,17 @@ def make_optimize_sequence_fn(
     learning_rate: Float,
     temperature: Float,
     backbone_noise: BackboneNoise | None = None,
+    tie_group_map: jnp.ndarray | None = None,
+    num_groups: int | None = None,
   ) -> tuple[ProteinSequence, Logits, Logits]:
     """Optimize a sequence by finding self-consistent logits via autoregressive decoder.
 
     This matches the original implementation where we optimize logits such that
     when discretized via STE and fed through the autoregressive decoder,
     the decoder's output matches our logits. This creates a self-consistent sequence.
+
+    When tied positions are provided, the optimization ensures that positions in
+    the same group maintain identical logits throughout the optimization process.
 
     Args:
       prng_key: JAX PRNG key for random operations.
@@ -114,12 +125,16 @@ def make_optimize_sequence_fn(
       learning_rate: Learning rate for the optimizer.
       temperature: Temperature for the STE softmax distribution.
       backbone_noise: Optional noise for backbone coordinates.
+      tie_group_map: Optional (N,) array mapping each position to a group ID.
+          When provided, positions in the same group are constrained to have
+          identical logits during optimization.
+      num_groups: Number of unique groups when using tied positions.
 
     Returns:
-      Tuple of (optimized sequence, final logits).
+      Tuple of (optimized sequence, final output logits, optimized logits).
 
     Example:
-      >>> seq, logits = optimize_sequence(
+      >>> seq, output_logits, opt_logits = optimize_sequence(
       ...     key, coords, mask, res_idx, chain_idx,
       ...     iterations=100, learning_rate=0.01, temperature=1.0
       ... )
@@ -150,17 +165,19 @@ def make_optimize_sequence_fn(
 
       """
       current_logits, current_opt_state, current_key = carry
-      key, next_key = jax.random.split(current_key)
+      key_decoding_orders, next_key = jax.random.split(current_key)
 
-      # Generate multiple decoding orders for robust optimization
-      keys_for_decoding = jax.random.split(key, batch_size)
-
-      # Generate decoding orders and autoregressive masks
-      decoding_orders, _ = jax.vmap(decoding_order_fn, in_axes=(0, None))(
+      # Generate multiple random decoding orders for augmentation
+      keys_for_decoding = jax.random.split(key_decoding_orders, batch_size)
+      decoding_orders, _ = jax.vmap(decoding_order_fn, in_axes=(0, None, None, None))(
         keys_for_decoding,
         num_residues,
+        tie_group_map,
+        num_groups,
       )
-      ar_masks = jax.vmap(generate_ar_mask)(decoding_orders)
+
+      # Vmap over decoding orders: (D, N) -> (D, N, N)
+      ar_masks = jax.vmap(generate_ar_mask, in_axes=(0, None))(decoding_orders, tie_group_map)
 
       def loss_fn(logits: Logits) -> Float:
         """Compute self-consistency loss.
@@ -214,6 +231,28 @@ def make_optimize_sequence_fn(
       updates, next_opt_state = optimizer.update(grads, current_opt_state)
       next_logits: Logits = optax.apply_updates(current_logits, updates)  # type: ignore[assignment]
 
+      # Enforce tied positions: average logits within each group
+      if tie_group_map is not None and num_groups is not None:
+        # For each group, compute average logits and broadcast to all positions in that group
+        # Create one-hot encoding of group memberships: (N, num_groups)
+        group_one_hot = jax.nn.one_hot(
+          tie_group_map,
+          num_groups,
+          dtype=jnp.float32,
+        )  # (N, num_groups)
+
+        # Compute sum of logits for each group: (num_groups, 21)
+        group_logit_sums = jnp.einsum("ng,na->ga", group_one_hot, next_logits)
+
+        # Count positions in each group: (num_groups,)
+        group_counts = group_one_hot.sum(axis=0)  # (num_groups,)
+
+        # Average logits per group: (num_groups, 21)
+        group_avg_logits = group_logit_sums / (group_counts[:, None] + 1e-8)
+
+        # Broadcast averaged logits back to all positions via group membership: (N, 21)
+        next_logits = jnp.einsum("ng,ga->na", group_one_hot, group_avg_logits)
+
       return next_logits, next_opt_state, next_key
 
     # Run optimization loop
@@ -229,8 +268,8 @@ def make_optimize_sequence_fn(
     final_sequence = final_one_hot.argmax(axis=-1).astype(jnp.int8)
 
     # Get final output logits by running through decoder one more time
-    final_decoding_order, _ = decoding_order_fn(final_key, num_residues)
-    final_ar_mask = generate_ar_mask(final_decoding_order)
+    final_decoding_order, _ = decoding_order_fn(final_key, num_residues, tie_group_map, num_groups)
+    final_ar_mask = generate_ar_mask(final_decoding_order, tie_group_map)
 
     _, final_output_logits = model(
       structure_coordinates,

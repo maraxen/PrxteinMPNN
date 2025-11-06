@@ -40,6 +40,7 @@ def make_sample_sequences(
   Args:
     model: A PrxteinMPNN Equinox model instance.
     decoding_order_fn: Function to generate decoding order (default: random).
+        Should accept (key, num_residues, tie_group_map, num_groups).
     sampling_strategy: Sampling strategy - "temperature" or "straight_through".
     _num_encoder_layers: Deprecated, ignored (kept for API compatibility).
     _num_decoder_layers: Deprecated, ignored (kept for API compatibility).
@@ -53,6 +54,13 @@ def make_sample_sequences(
     >>> sample_fn = make_sample_sequences(model, sampling_strategy="temperature")
     >>> seq, logits, order = sample_fn(key, coords, mask, res_idx, chain_idx)
     >>>
+    >>> # With tied positions
+    >>> tie_map = jnp.array([0, 0, 1, 1, 2])  # Positions 0-1 tied, 2-3 tied
+    >>> seq, logits, order = sample_fn(
+    ...     key, coords, mask, res_idx, chain_idx,
+    ...     tie_group_map=tie_map, num_groups=3
+    ... )
+    >>>
     >>> # For optimization
     >>> optimize_fn = make_sample_sequences(model, sampling_strategy="straight_through")
     >>> seq, logits, order = optimize_fn(
@@ -65,7 +73,7 @@ def make_sample_sequences(
   if sampling_strategy == "straight_through":
     optimize_fn = make_optimize_sequence_fn(model, decoding_order_fn)
 
-    @partial(jax.jit, static_argnames=("_k_neighbors",))
+    @partial(jax.jit, static_argnames=("_k_neighbors", "num_groups"))
     def sample_sequences(
       prng_key: PRNGKeyArray,
       structure_coordinates: StructureAtomicCoordinates,
@@ -79,6 +87,8 @@ def make_sample_sequences(
       iterations: Int | None = None,
       learning_rate: Float | None = None,
       temperature: Float | None = None,
+      tie_group_map: jnp.ndarray | None = None,
+      num_groups: int | None = None,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """Optimize a sequence using straight-through estimation.
 
@@ -95,6 +105,8 @@ def make_sample_sequences(
         iterations: Number of optimization steps (default: 100).
         learning_rate: Learning rate for optimization (default: 0.01).
         temperature: Temperature for STE sampling (default: 1.0).
+        tie_group_map: Optional (N,) array mapping positions to group IDs for tied sampling.
+        num_groups: Number of unique groups when using tied positions.
 
       Returns:
         Tuple of (optimized sequence, final logits, decoding order).
@@ -111,7 +123,12 @@ def make_sample_sequences(
         temperature = jnp.array(1.0, dtype=jnp.float32)
 
       # Generate decoding order for return value
-      decoding_order, prng_key = decoding_order_fn(prng_key, structure_coordinates.shape[0])
+      decoding_order, prng_key = decoding_order_fn(
+        prng_key,
+        structure_coordinates.shape[0],
+        tie_group_map,
+        num_groups,
+      )
 
       # Run optimization
       optimized_sequence, final_logits, _ = optimize_fn(
@@ -124,15 +141,17 @@ def make_sample_sequences(
         learning_rate,
         temperature,
         backbone_noise,
+        tie_group_map,
+        num_groups,
       )
 
       return optimized_sequence, final_logits, decoding_order
 
     return sample_sequences
 
-  elif sampling_strategy == "temperature":
+  if sampling_strategy == "temperature":
     # Temperature sampling (default)
-    @partial(jax.jit, static_argnames=("_k_neighbors",))
+    @partial(jax.jit, static_argnames=("_k_neighbors", "num_groups"))
     def sample_sequences(
       prng_key: PRNGKeyArray,
       structure_coordinates: StructureAtomicCoordinates,
@@ -144,6 +163,8 @@ def make_sample_sequences(
       fixed_positions: jnp.ndarray | None = None,
       backbone_noise: BackboneNoise | None = None,
       temperature: Float | None = None,
+      tie_group_map: jnp.ndarray | None = None,
+      num_groups: int | None = None,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """Sample a sequence from a structure using the ProteinMPNN model.
 
@@ -158,6 +179,8 @@ def make_sample_sequences(
         fixed_positions: Optional mask for positions to keep fixed (not implemented yet).
         backbone_noise: Optional noise for backbone coordinates.
         temperature: Temperature for sampling (default: 1.0).
+        tie_group_map: Optional (N,) array mapping positions to group IDs for tied sampling.
+        num_groups: Number of unique groups when using tied positions.
 
       Returns:
         Tuple of (sampled sequence, logits, decoding order).
@@ -175,8 +198,13 @@ def make_sample_sequences(
         temperature = jnp.array(1.0, dtype=jnp.float32)
 
       # Generate decoding order
-      decoding_order, prng_key = decoding_order_fn(prng_key, structure_coordinates.shape[0])
-      autoregressive_mask = generate_ar_mask(decoding_order)
+      decoding_order, prng_key = decoding_order_fn(
+        prng_key,
+        structure_coordinates.shape[0],
+        tie_group_map,
+        num_groups,
+      )
+      autoregressive_mask = generate_ar_mask(decoding_order, None, tie_group_map, num_groups)
 
       # Run model in autoregressive mode (sampling)
       sampled_sequence, logits = model(
@@ -190,6 +218,7 @@ def make_sample_sequences(
         temperature=temperature,
         bias=bias,
         backbone_noise=backbone_noise,
+        tie_group_map=tie_group_map,
       )
 
       # Convert one-hot to integer sequence if needed
@@ -198,9 +227,11 @@ def make_sample_sequences(
         sampled_sequence = sampled_sequence.argmax(axis=-1).astype(jnp.int8)
 
       return sampled_sequence, logits, decoding_order
+
     return sample_sequences
-  else:
-    raise ValueError(f"Unknown sampling strategy: {sampling_strategy}")
+
+  msg = f"Unknown sampling strategy: {sampling_strategy}"
+  raise ValueError(msg)
 
 
 def make_encoding_sampling_split_fn(
@@ -218,6 +249,9 @@ def make_encoding_sampling_split_fn(
   - Averaging encoder features across multiple noise levels
   - Efficient reuse of encoder output for multiple samples
   - Lower memory usage when sampling many sequences
+
+  Supports tied positions: when tie_group_map is provided, positions in the same
+  group will be sampled together and receive identical amino acids.
 
   Args:
     model_parameters: A PrxteinMPNN Equinox model instance.
@@ -289,7 +323,7 @@ def make_encoding_sampling_split_fn(
       prng_key=prng_key,
     )
 
-  @partial(jax.jit)
+  @partial(jax.jit, static_argnames=("num_groups",))
   def sample_fn(
     prng_key: PRNGKeyArray,
     encoded_features: tuple,
@@ -299,6 +333,8 @@ def make_encoding_sampling_split_fn(
     learning_rate: Float | None = None,
     temperature: Float | None = None,
     sampling_strategy: Literal["temperature", "straight_through"] = "temperature",
+    tie_group_map: jnp.ndarray | None = None,
+    num_groups: int | None = None,
   ) -> ProteinSequence:
     """Sample a sequence from cached encoder features.
 
@@ -311,6 +347,8 @@ def make_encoding_sampling_split_fn(
       learning_rate: For STE optimization (not used in temperature sampling).
       temperature: Temperature for sampling (default: 1.0).
       sampling_strategy: "temperature" or "straight_through" (currently only temperature).
+      tie_group_map: Optional (N,) array mapping positions to group IDs for tied sampling.
+      num_groups: Number of unique groups when using tied positions.
 
     Returns:
       Sampled sequence as integer array (N,).
@@ -322,8 +360,8 @@ def make_encoding_sampling_split_fn(
     if temperature is None:
       temperature = jnp.array(1.0, dtype=jnp.float32)
 
-    # Generate autoregressive mask from decoding order
-    autoregressive_mask = generate_ar_mask(decoding_order)
+    # Generate autoregressive mask from decoding order (with tie groups if provided)
+    autoregressive_mask = generate_ar_mask(decoding_order, tie_group_map)
 
     # Initialize sequence with random amino acids (for one-hot encoding)
     seq_length = autoregressive_mask.shape[0]
@@ -337,40 +375,88 @@ def make_encoding_sampling_split_fn(
     )
 
     # Autoregressive sampling loop
-    def sample_step(
-      i: int,
-      state: tuple[ProteinSequence, PRNGKeyArray],
-    ) -> tuple[ProteinSequence, PRNGKeyArray]:
-      """Sample one position in the decoding order."""
-      sequence, key = state
+    # Branch on whether we have tied positions
+    if tie_group_map is not None and num_groups is not None:
+      # Group-based sampling for tied positions
+      def sample_group_step(
+        group_idx: int,
+        state: tuple[ProteinSequence, PRNGKeyArray],
+      ) -> tuple[ProteinSequence, PRNGKeyArray]:
+        """Sample one group of tied positions together."""
+        sequence, key = state
 
-      # Decode current sequence to get logits
-      logits = decode_logits_fn(encoded_features, sequence, autoregressive_mask)
+        # Decode current sequence to get logits for all positions
+        logits = decode_logits_fn(encoded_features, sequence, autoregressive_mask)
 
-      # Get position to sample
-      pos = decoding_order[i]
+        # Create mask for positions in this group
+        group_mask = (tie_group_map == group_idx).astype(jnp.float32)[:, None]  # (N, 1)
+        group_count = group_mask.sum(axis=0, keepdims=True)  # (1, 1)
 
-      # Apply bias if provided
-      if bias is not None:
-        logits = logits.at[pos].add(bias[pos])
+        # Average logits across the group using masked sum (simpler than log-sum-exp)
+        # Sum logits for group members and divide by count
+        group_logit_sum = (logits * group_mask).sum(axis=0)  # (21,)
+        avg_logits = group_logit_sum / (group_count.squeeze() + 1e-8)  # (21,)
 
-      # Apply temperature and sample
-      scaled_logits = logits[pos] / temperature
-      key, subkey = jax.random.split(key)
-      sampled_aa = jax.random.categorical(subkey, scaled_logits).astype(jnp.int8)
+        # Apply bias if provided (average bias across group members)
+        if bias is not None:
+          group_bias = (bias * group_mask).sum(axis=0) / (group_count.squeeze() + 1e-8)
+          avg_logits = avg_logits + group_bias
 
-      # Update sequence
-      updated_seq = sequence.at[pos].set(sampled_aa)
+        # Apply temperature and sample once for the entire group
+        scaled_logits = avg_logits / temperature
+        key, subkey = jax.random.split(key)
+        sampled_aa = jax.random.categorical(subkey, scaled_logits).astype(jnp.int8)
 
-      return updated_seq, key
+        # Broadcast the sampled AA to all positions in this group using where
+        group_member_mask = tie_group_map == group_idx  # (N,) boolean
+        updated_seq = jnp.where(group_member_mask, sampled_aa, sequence)
 
-    # Run autoregressive sampling
-    final_seq, _ = jax.lax.fori_loop(
-      0,
-      seq_length,
-      sample_step,
-      (initial_seq, prng_key),
-    )
+        return updated_seq, key
+
+      # Run group-based sampling
+      final_seq, _ = jax.lax.fori_loop(
+        0,
+        num_groups,
+        sample_group_step,
+        (initial_seq, prng_key),
+      )
+
+    else:
+      # Standard position-by-position sampling (no tied positions)
+      def sample_step(
+        i: int,
+        state: tuple[ProteinSequence, PRNGKeyArray],
+      ) -> tuple[ProteinSequence, PRNGKeyArray]:
+        """Sample one position in the decoding order."""
+        sequence, key = state
+
+        # Decode current sequence to get logits
+        logits = decode_logits_fn(encoded_features, sequence, autoregressive_mask)
+
+        # Get position to sample
+        pos = decoding_order[i]
+
+        # Apply bias if provided
+        if bias is not None:
+          logits = logits.at[pos].add(bias[pos])
+
+        # Apply temperature and sample
+        scaled_logits = logits[pos] / temperature
+        key, subkey = jax.random.split(key)
+        sampled_aa = jax.random.categorical(subkey, scaled_logits).astype(jnp.int8)
+
+        # Update sequence
+        updated_seq = sequence.at[pos].set(sampled_aa)
+
+        return updated_seq, key
+
+      # Run position-by-position sampling
+      final_seq, _ = jax.lax.fori_loop(
+        0,
+        seq_length,
+        sample_step,
+        (initial_seq, prng_key),
+      )
 
     return final_seq
 

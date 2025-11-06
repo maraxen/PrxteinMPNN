@@ -137,6 +137,7 @@ class PrxteinMPNN(eqx.Module):
     _prng_key: PRNGKeyArray,
     _temperature: Float,
     _bias: Logits,
+    _tie_group_map: jnp.ndarray | None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the unconditional (scoring) path.
 
@@ -149,6 +150,7 @@ class PrxteinMPNN(eqx.Module):
       _prng_key: Unused, required for jax.lax.switch signature.
       _temperature: Unused, required for jax.lax.switch signature.
       _bias: Unused, required for jax.lax.switch signature.
+      _tie_group_map: Unused, required for jax.lax.switch signature.
 
     Returns:
       Tuple of (dummy sequence, logits).
@@ -194,6 +196,7 @@ class PrxteinMPNN(eqx.Module):
     _prng_key: PRNGKeyArray,
     _temperature: Float,
     _bias: Logits,
+    _tie_group_map: jnp.ndarray | None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the conditional (scoring) path.
 
@@ -206,6 +209,7 @@ class PrxteinMPNN(eqx.Module):
       _prng_key: Unused, required for jax.lax.switch signature.
       _temperature: Unused, required for jax.lax.switch signature.
       _bias: Unused, required for jax.lax.switch signature.
+      _tie_group_map: Unused, required for jax.lax.switch signature.
 
     Returns:
       Tuple of (input sequence, logits).
@@ -255,6 +259,7 @@ class PrxteinMPNN(eqx.Module):
     prng_key: PRNGKeyArray,
     temperature: Float,
     bias: Logits,
+    tie_group_map: jnp.ndarray | None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the autoregressive (sampling) path.
 
@@ -267,6 +272,8 @@ class PrxteinMPNN(eqx.Module):
       prng_key: PRNG key for sampling.
       temperature: Temperature for Gumbel-max sampling.
       bias: Bias to add to logits before sampling (N, 21).
+      tie_group_map: Optional (N,) array mapping each position to a group ID.
+          When provided, positions in the same group sample identical amino acids.
 
     Returns:
       Tuple of (sampled sequence, logits).
@@ -282,8 +289,9 @@ class PrxteinMPNN(eqx.Module):
       >>> mask = jnp.ones((10,))
       >>> ar_mask = jnp.ones((10, 10))
       >>> temp = jnp.array(1.0)
+      >>> bias = jnp.zeros((10, 21))
       >>> seq, logits = model._call_autoregressive(
-      ...     edge_feats, neighbor_idx, mask, ar_mask, key, temp
+      ...     edge_feats, neighbor_idx, mask, ar_mask, None, key, temp, bias, None
       ... )
 
     """
@@ -302,8 +310,329 @@ class PrxteinMPNN(eqx.Module):
       ar_mask,
       temperature,
       bias,
+      tie_group_map,
     )
     return seq, logits
+
+  @staticmethod
+  def _average_logits_over_group(
+    logits: Logits,
+    group_mask: jnp.ndarray,
+  ) -> jnp.ndarray:
+    """Average logits across positions in a tie group using log-sum-exp.
+
+    This implements numerically stable logit averaging for tied positions.
+    Given logits of shape (N, 21) and a boolean mask indicating which
+    positions belong to the current group, returns averaged logits of shape (1, 21).
+
+    Args:
+      logits: Logits array of shape (N, 21).
+      group_mask: Boolean mask of shape (N,) indicating group membership.
+
+    Returns:
+      Averaged logits of shape (1, 21).
+
+    Raises:
+      None
+
+    Example:
+      >>> logits = jnp.array([[0.1, 0.9], [0.3, 0.7]])
+      >>> group_mask = jnp.array([True, True])
+      >>> avg_logits = PrxteinMPNN._average_logits_over_group(logits, group_mask)
+
+    """
+    # Find max logits within the group for numerical stability
+    max_logits = jnp.max(
+      logits,
+      where=group_mask[:, None],
+      initial=-1e9,
+      axis=0,
+      keepdims=True,
+    )  # (1, 21)
+
+    # Shift logits and compute exp
+    shifted_logits = logits - max_logits  # (N, 21)
+    exp_logits = jnp.exp(shifted_logits)  # (N, 21)
+
+    # Mask out non-group positions and sum
+    masked_exp_logits = jnp.where(group_mask[:, None], exp_logits, 0.0)  # (N, 21)
+    sum_exp_logits = jnp.sum(masked_exp_logits, axis=0, keepdims=True)  # (1, 21)
+
+    # Compute average and convert back to log space
+    num_in_group = jnp.sum(group_mask)
+    avg_exp_logits = sum_exp_logits / num_in_group  # (1, 21)
+    return jnp.log(avg_exp_logits) + max_logits  # (1, 21)
+
+  def _process_group_positions(
+    self,
+    group_mask: jnp.ndarray,
+    all_layers_h: NodeFeatures,
+    s_embed: NodeFeatures,
+    encoder_context: jnp.ndarray,
+    edge_features: EdgeFeatures,
+    neighbor_indices: NeighborIndices,
+    mask: AlphaCarbonMask,
+    mask_bw: jnp.ndarray,
+  ) -> tuple[NodeFeatures, jnp.ndarray]:
+    """Process all positions in a group through decoder and collect logits.
+
+    Args:
+      group_mask: Boolean mask (N,) for positions in current group.
+      all_layers_h: Hidden states (num_layers+1, N, C).
+      s_embed: Sequence embeddings (N, C).
+      encoder_context: Precomputed encoder context (N, K, features).
+      edge_features: Edge features (N, K, C).
+      neighbor_indices: Neighbor indices (N, K).
+      mask: Alpha carbon mask (N,).
+      mask_bw: Backward mask (N, K).
+
+    Returns:
+      Tuple of (updated all_layers_h, computed logits (N, 21)).
+
+    """
+    num_residues = all_layers_h.shape[1]
+    computed_logits = jnp.zeros((num_residues, 21))
+
+    def process_one_position(idx: Int, state: tuple) -> tuple:
+      """Process one position through decoder layers."""
+      position_all_layers_h, position_logits = state
+      is_in_group = group_mask[idx]
+
+      encoder_context_pos = encoder_context[idx]
+      neighbor_indices_pos = neighbor_indices[idx]
+      mask_pos = mask[idx]
+      mask_bw_pos = mask_bw[idx]
+
+      edge_sequence_features = concatenate_neighbor_nodes(
+        s_embed,
+        edge_features[idx],
+        neighbor_indices_pos,
+      )
+
+      for layer_idx, layer in enumerate(self.decoder.layers):
+        h_in_pos = position_all_layers_h[layer_idx, idx]
+
+        decoder_context_pos = concatenate_neighbor_nodes(
+          position_all_layers_h[layer_idx],
+          edge_sequence_features,
+          neighbor_indices_pos,
+        )
+
+        decoding_context = mask_bw_pos[..., None] * decoder_context_pos + encoder_context_pos
+
+        h_in_expanded = jnp.expand_dims(h_in_pos, axis=0)
+        decoding_context_expanded = jnp.expand_dims(decoding_context, axis=0)
+
+        h_out_pos = layer(h_in_expanded, decoding_context_expanded, mask=mask_pos)
+
+        position_all_layers_h = position_all_layers_h.at[layer_idx + 1, idx].set(
+          jnp.squeeze(h_out_pos),
+        )
+
+      final_h_pos = position_all_layers_h[-1, idx]
+      logits_pos = self.w_out(final_h_pos)
+
+      position_logits = jnp.where(
+        is_in_group,
+        position_logits.at[idx].set(logits_pos),
+        position_logits,
+      )
+
+      return position_all_layers_h, position_logits
+
+    return jax.lax.fori_loop(
+      0,
+      num_residues,
+      process_one_position,
+      (all_layers_h, computed_logits),
+    )
+
+  def _run_tied_position_scan(
+    self,
+    prng_key: PRNGKeyArray,
+    node_features: NodeFeatures,
+    edge_features: EdgeFeatures,
+    neighbor_indices: NeighborIndices,
+    mask: AlphaCarbonMask,
+    encoder_context: jnp.ndarray,
+    mask_bw: jnp.ndarray,
+    temperature: Float,
+    bias: Logits,
+    tie_group_map: jnp.ndarray,
+    decoding_order: jnp.ndarray,
+  ) -> tuple[OneHotProteinSequence, Logits]:
+    """Run group-based autoregressive scan with logit averaging.
+
+    Args:
+      prng_key: PRNG key.
+      node_features: Node features (N, C).
+      edge_features: Edge features (N, K, C).
+      neighbor_indices: Neighbor indices (N, K).
+      mask: Alpha carbon mask (N,).
+      encoder_context: Precomputed encoder context (N, K, features).
+      mask_bw: Backward mask (N, K).
+      temperature: Sampling temperature.
+      bias: Logits array (N, 21).
+      tie_group_map: Group mapping (N,).
+      decoding_order: Position decoding order (N,).
+
+    Returns:
+      Tuple of (final sequence, final logits).
+
+    """
+    num_residues = node_features.shape[0]
+
+    # Find group decoding order based on first appearance in decoding_order
+    # Get the group ID at each position in decoding_order
+    groups_in_order = tie_group_map[decoding_order]
+
+    # Find unique groups preserving order of first appearance using cumulative comparison
+    # For each position, check if this group appeared earlier in the sequence
+    # Create a lower triangular mask to check all previous positions
+    position_indices = jnp.arange(num_residues)
+    # Create mask: mask[i,j] = True if i > j (i.e., j is before i)
+    is_before_mask = position_indices[:, None] > position_indices[None, :]
+    # Check if current group (at each position) matches any previous group
+    # groups_in_order[:, None] has shape (N, 1), groups_in_order[None, :] has shape (1, N)
+    group_matches = groups_in_order[:, None] == groups_in_order[None, :]
+    # For each position i, check if its group appears in any position j < i
+    appeared_before = jnp.any(group_matches & is_before_mask, axis=1)
+    # Mark first occurrences (positions where group hasn't appeared before)
+    is_first_occurrence = ~appeared_before
+
+    # Extract the group IDs at their first occurrences
+    # Use compress with static size to avoid boolean indexing issues
+    # Maximum possible size is num_residues (all positions in different groups)
+    group_decoding_order = jnp.compress(
+      is_first_occurrence,
+      groups_in_order,
+      size=num_residues,
+      fill_value=-1,
+    )
+    # Note: group_decoding_order now contains the group IDs followed by -1 padding
+    # The scan will iterate over this, and steps with group_id=-1 will be no-ops
+
+    def group_autoregressive_step(
+      carry: tuple[NodeFeatures, NodeFeatures, Logits, OneHotProteinSequence],
+      scan_inputs: tuple[Int, PRNGKeyArray],
+    ) -> tuple[
+      tuple[NodeFeatures, NodeFeatures, Logits, OneHotProteinSequence],
+      None,
+    ]:
+      """Process one group at a time with logit averaging."""
+      all_layers_h, s_embed, all_logits, sequence = carry
+      group_id, key = scan_inputs
+
+      group_mask = tie_group_map == group_id
+
+      # Process positions and collect logits
+      all_layers_h, computed_logits = self._process_group_positions(
+        group_mask,
+        all_layers_h,
+        s_embed,
+        encoder_context,
+        edge_features,
+        neighbor_indices,
+        mask,
+        mask_bw,
+      )
+
+      # Average logits and sample
+      avg_logits = self._average_logits_over_group(computed_logits, group_mask)
+      all_logits, s_embed, sequence = self._sample_and_broadcast_to_group(
+        avg_logits,
+        group_mask,
+        bias,
+        temperature,
+        key,
+        all_logits,
+        s_embed,
+        sequence,
+      )
+
+      return (all_layers_h, s_embed, all_logits, sequence), None
+
+    # Initialize scan
+    initial_all_layers_h = jnp.zeros(
+      (self.num_decoder_layers + 1, num_residues, self.node_features_dim),
+    )
+    initial_all_layers_h = initial_all_layers_h.at[0].set(node_features)
+
+    initial_s_embed = jnp.zeros_like(node_features)
+    initial_all_logits = jnp.zeros((num_residues, self.w_out.out_features))
+    initial_sequence = jnp.zeros((num_residues, self.w_s_embed.num_embeddings))
+
+    initial_carry = (
+      initial_all_layers_h,
+      initial_s_embed,
+      initial_all_logits,
+      initial_sequence,
+    )
+
+    # Use the length of group_decoding_order to determine how many groups we have
+    actual_num_groups = group_decoding_order.shape[0]
+    scan_inputs = (group_decoding_order, jax.random.split(prng_key, actual_num_groups))
+
+    final_carry, _ = jax.lax.scan(
+      group_autoregressive_step,
+      initial_carry,
+      scan_inputs,
+    )
+
+    return final_carry[3], final_carry[2]
+
+  def _sample_and_broadcast_to_group(
+    self,
+    avg_logits: jnp.ndarray,
+    group_mask: jnp.ndarray,
+    bias: Logits,
+    temperature: Float,
+    key: PRNGKeyArray,
+    all_logits: Logits,
+    s_embed: NodeFeatures,
+    sequence: OneHotProteinSequence,
+  ) -> tuple[Logits, NodeFeatures, OneHotProteinSequence]:
+    """Sample once and broadcast token to all positions in a group.
+
+    Args:
+      avg_logits: Averaged logits (1, 21).
+      group_mask: Boolean mask (N,) for group positions.
+      bias: Bias array (N, 21).
+      temperature: Sampling temperature.
+      key: PRNG key.
+      all_logits: Current logits array (N, 21).
+      s_embed: Current sequence embeddings (N, C).
+      sequence: Current sequence (N, 21).
+
+    Returns:
+      Tuple of (updated all_logits, updated s_embed, updated sequence).
+
+    """
+    # Average bias across group
+    group_bias = jnp.sum(
+      jnp.where(group_mask[:, None], bias, 0.0),
+      axis=0,
+      keepdims=True,
+    ) / jnp.sum(group_mask)
+    logits_with_bias = avg_logits + group_bias
+
+    # Sample once for the entire group
+    sampled_logits = (logits_with_bias / temperature) + jax.random.gumbel(
+      key,
+      logits_with_bias.shape,
+    )
+    sampled_logits_no_pad = sampled_logits[..., :20]
+    one_hot_sample = straight_through_estimator(sampled_logits_no_pad)
+    padding = jnp.zeros_like(one_hot_sample[..., :1])
+    one_hot_seq = jnp.concatenate([one_hot_sample, padding], axis=-1)
+
+    # Broadcast to all group positions
+    s_embed_new = one_hot_seq @ self.w_s_embed.weight
+    all_logits = jnp.where(group_mask[:, None], jnp.squeeze(avg_logits), all_logits)
+    s_embed = jnp.where(group_mask[:, None], jnp.squeeze(s_embed_new), s_embed)
+    sequence = jnp.where(group_mask[:, None], jnp.squeeze(one_hot_seq), sequence)
+
+    return all_logits, s_embed, sequence
 
   def _run_autoregressive_scan(
     self,
@@ -315,8 +644,17 @@ class PrxteinMPNN(eqx.Module):
     autoregressive_mask: AutoRegressiveMask,
     temperature: Float,
     bias: Logits,
+    tie_group_map: jnp.ndarray | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
-    """Run JAX scan loop for autoregressive sampling.
+    """Run JAX scan loop for autoregressive sampling with optional tied positions.
+
+    When tie_group_map is provided, the scan iterates over groups instead of
+    individual positions. For each group:
+    1. Decoder processes all positions in the group
+    2. Logits are computed for all group members
+    3. Logits are averaged across the group (log-sum-exp)
+    4. A single token is sampled from the averaged logits
+    5. The token is broadcast to all positions in the group
 
     Args:
       prng_key: PRNG key for sampling.
@@ -327,6 +665,9 @@ class PrxteinMPNN(eqx.Module):
       autoregressive_mask: Mask defining decoding order.
       temperature: Temperature for Gumbel-max sampling.
       bias: Bias to add to logits before sampling (N, 21).
+      tie_group_map: Optional (N,) array mapping each position to a group ID.
+          When provided, positions in the same group are sampled together
+          using averaged logits.
 
     Returns:
       Tuple of (sampled sequence, final logits).
@@ -343,8 +684,9 @@ class PrxteinMPNN(eqx.Module):
       >>> mask = jnp.ones((10,))
       >>> ar_mask = jnp.ones((10, 10))
       >>> temp = jnp.array(1.0)
+      >>> bias = jnp.zeros((10, 21))
       >>> seq, logits = model._run_autoregressive_scan(
-      ...     key, node_feats, edge_feats, neighbor_idx, mask, ar_mask, temp
+      ...     key, node_feats, edge_feats, neighbor_idx, mask, ar_mask, temp, bias
       ... )
 
     """
@@ -442,7 +784,9 @@ class PrxteinMPNN(eqx.Module):
 
       # Apply bias before sampling
       bias_pos = jax.lax.dynamic_slice(
-        bias, (position, 0), (1, bias.shape[-1])
+        bias,
+        (position, 0),
+        (1, bias.shape[-1]),
       )
       logits_with_bias = logits_pos + bias_pos
 
@@ -470,35 +814,53 @@ class PrxteinMPNN(eqx.Module):
         next_sequence,
       ), None
 
-    # Initialize Scan
-    initial_all_layers_h = jnp.zeros(
-      (self.num_decoder_layers + 1, num_residues, self.node_features_dim),
+    # Branch based on whether we have tied positions
+    if tie_group_map is None:
+      # Standard position-by-position sampling
+      # Initialize Scan
+      initial_all_layers_h = jnp.zeros(
+        (self.num_decoder_layers + 1, num_residues, self.node_features_dim),
+      )
+      initial_all_layers_h = initial_all_layers_h.at[0].set(node_features)
+
+      initial_s_embed = jnp.zeros_like(node_features)
+      initial_all_logits = jnp.zeros((num_residues, self.w_out.out_features))
+      initial_sequence = jnp.zeros((num_residues, self.w_s_embed.num_embeddings))
+
+      initial_carry = (
+        initial_all_layers_h,
+        initial_s_embed,
+        initial_all_logits,
+        initial_sequence,
+      )
+
+      scan_inputs = (decoding_order, jax.random.split(prng_key, num_residues))
+
+      final_carry, _ = jax.lax.scan(
+        autoregressive_step,
+        initial_carry,
+        scan_inputs,
+      )
+
+      final_sequence = final_carry[3]
+      final_all_logits = final_carry[2]
+
+      return final_sequence, final_all_logits
+
+    # Group-based sampling with logit averaging
+    return self._run_tied_position_scan(
+      prng_key,
+      node_features,
+      edge_features,
+      neighbor_indices,
+      mask,
+      encoder_context,
+      mask_bw,
+      temperature,
+      bias,
+      tie_group_map,
+      decoding_order,
     )
-    initial_all_layers_h = initial_all_layers_h.at[0].set(node_features)
-
-    initial_s_embed = jnp.zeros_like(node_features)
-    initial_all_logits = jnp.zeros((num_residues, self.w_out.out_features))
-    initial_sequence = jnp.zeros((num_residues, self.w_s_embed.num_embeddings))
-
-    initial_carry = (
-      initial_all_layers_h,
-      initial_s_embed,
-      initial_all_logits,
-      initial_sequence,
-    )
-
-    scan_inputs = (decoding_order, jax.random.split(prng_key, num_residues))
-
-    final_carry, _ = jax.lax.scan(
-      autoregressive_step,
-      initial_carry,
-      scan_inputs,
-    )
-
-    final_sequence = final_carry[3]
-    final_all_logits = final_carry[2]
-
-    return final_sequence, final_all_logits
 
   def __call__(
     self,
@@ -514,6 +876,7 @@ class PrxteinMPNN(eqx.Module):
     temperature: Float | None = None,
     bias: Logits | None = None,
     backbone_noise: BackboneNoise | None = None,
+    tie_group_map: jnp.ndarray | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Forward pass for the complete model.
 
@@ -534,6 +897,9 @@ class PrxteinMPNN(eqx.Module):
       temperature: Temperature for autoregressive sampling (optional).
       bias: Optional bias to add to logits before sampling (N, 21) (optional).
       backbone_noise: Noise level for backbone coordinates (optional).
+      tie_group_map: Optional (N,) array mapping each position to a group ID.
+          When provided, positions in the same group sample identical amino acids
+          using logit averaging. Only used in "autoregressive" mode (optional).
 
     Returns:
       A tuple of (OneHotProteinSequence, Logits).
@@ -599,6 +965,9 @@ class PrxteinMPNN(eqx.Module):
     if bias is None:
       bias = jnp.zeros((mask.shape[0], 21), dtype=jnp.float32)
 
+    # Note: tie_group_map is only used in autoregressive mode, but all branches
+    # must accept the same arguments for jax.lax.switch compatibility
+
     # 4. Define the branches for jax.lax.switch
     branches = [
       self._call_unconditional,
@@ -616,6 +985,7 @@ class PrxteinMPNN(eqx.Module):
       prng_key,
       temperature,
       bias,
+      tie_group_map,
     )
 
     # 6. Run the switch

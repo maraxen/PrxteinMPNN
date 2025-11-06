@@ -64,10 +64,11 @@ def make_autoregressive_mask(decoding_step_map: jnp.ndarray) -> jnp.ndarray:
   return steps_i >= steps_j
 
 
-def resolve_tie_groups(  # noqa: C901
+def resolve_tie_groups(  # noqa: C901, PLR0912
   spec: RunSpecification,
   combined_protein: Protein,
   structure_mappings: Sequence[dict] | None = None,
+  num_structures: int | None = None,
 ) -> jnp.ndarray:
   """Resolve tie groups for tied_positions modes.
 
@@ -75,12 +76,12 @@ def resolve_tie_groups(  # noqa: C901
       spec: RunSpecification with tied_positions.
       combined_protein: Protein dataclass with batch_dim=1 (1, seq_len, ...).
       structure_mappings: Optional, for 'auto' mode.
+      num_structures: Optional, number of structures concatenated (for 'direct' mode).
 
   Returns:
       tie_group_map: jnp.ndarray of shape (n,) with group ids.
 
   """
-  # Remove batch dimension for processing
   chain_ids = combined_protein.chain_index[0]
   residue_indices = combined_protein.residue_index[0]
   n = chain_ids.shape[0]
@@ -92,12 +93,26 @@ def resolve_tie_groups(  # noqa: C901
     return tie_group_map
 
   if tied_positions == "direct":
-    # For direct mode, calculate num_inputs from the sequential chain IDs
-    # Chain IDs are [0,0,0..., 1,1,1..., 2,2,2...] after concatenation
-    num_inputs = int(jnp.max(chain_ids)) + 1
+    if num_structures is None:
+      if combined_protein.mapping is not None:
+        structure_indices = combined_protein.mapping[0]  # Remove batch dim
+        num_inputs = int(jnp.max(structure_indices)) + 1
+      else:
+        msg = (
+          "Cannot determine number of structures for 'direct' mode. "
+          "The concatenated protein should have a 'mapping' field with structure indices, "
+          "or pass num_structures explicitly."
+        )
+        raise ValueError(msg)
+    else:
+      num_inputs = num_structures
+
     ll = n // num_inputs
     if n % ll != 0:
-      msg = "Inputs must be same length for 'direct' mode."
+      msg = (
+        f"Inputs must be same length for 'direct' mode. "
+        f"Total length {n} is not divisible by {num_inputs} structures."
+      )
       raise ValueError(msg)
     k = n // ll
     return jnp.tile(jnp.arange(ll, dtype=jnp.int32), k)
@@ -189,7 +204,6 @@ def generate_ar_mask(
 
   """
   if tie_group_map is None:
-    # Original implementation: standard autoregressive mask
     row_indices = decoding_order[:, None]
     col_indices = decoding_order[None, :]
     ar_mask = (row_indices >= col_indices).astype(int)
@@ -198,19 +212,13 @@ def generate_ar_mask(
       msg = "num_groups must be provided when tie_group_map is not None"
       raise ValueError(msg)
 
-    # Tied positions: use vectorized operations to find group decoding order
-    # Create mask: (num_groups, N) where mask[g, i] = True if position i is in group g
     group_mask = tie_group_map[decoding_order][None, :] == jnp.arange(num_groups)[:, None]
-    # Find first occurrence of each group in decoding order
     group_first_occurrence = jnp.argmax(group_mask, axis=1)
-    # Sort groups by their first appearance to get group decoding order
     group_decoding_order = jnp.argsort(group_first_occurrence)
 
-    # Generate step map and AR mask
     decoding_step_map = get_decoding_step_map(tie_group_map, group_decoding_order, num_groups)
     ar_mask = make_autoregressive_mask(decoding_step_map).astype(int)
 
-  # If chain indices are provided, mask out cross-chain attention
   if chain_idx is not None:
     same_chain = (chain_idx[:, None] == chain_idx[None, :]).astype(int)
     ar_mask = ar_mask * same_chain

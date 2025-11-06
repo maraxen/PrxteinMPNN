@@ -19,20 +19,29 @@ def concatenate_proteins_for_inter_mode(elements: Sequence[ProteinTuple]) -> Pro
   """Concatenate proteins for inter-chain mode (pass_mode='inter').
 
   Instead of padding and stacking, concatenate all structures along the residue dimension
-  and assign sequential chain IDs based on structure boundaries.
+  and remap chain IDs to ensure global uniqueness across all structures.
+
+  Each structure's chain IDs are offset by the maximum chain ID from all previous structures,
+  preserving the original chain relationships within each structure while ensuring no
+  collisions across structures.
+
+  The structure boundaries are stored in the `mapping` field as [0,0,0..., 1,1,1..., 2,2,2...]
+  to enable "direct" tied_positions mode.
 
   Args:
     elements: List of protein tuples to concatenate.
 
   Returns:
-    Protein: Single concatenated protein with remapped chain IDs.
+    Protein: Single concatenated protein with globally unique chain IDs and structure mapping.
 
   Raises:
     ValueError: If the input list is empty.
 
   Example:
+    >>> # Structure 1: chains [0,0,1,1], Structure 2: chains [0,0,2,2]
     >>> combined = concatenate_proteins_for_inter_mode([protein1, protein2])
-    >>> # Chain IDs will be [0,0,0..., 1,1,1..., 2,2,2...] for each structure
+    >>> # Result chains: [0,0,1,1,2,2,4,4] - each structure's chains are offset
+    >>> # Result mapping: [0,0,0,0,1,1,1,1] - tracks which structure each residue came from
 
   """
   if not elements:
@@ -52,21 +61,24 @@ def concatenate_proteins_for_inter_mode(elements: Sequence[ProteinTuple]) -> Pro
 
   proteins = [Protein.from_tuple(p) for p in elements]
 
-  # Get lengths of each structure
-  lengths = [p.coordinates.shape[0] for p in proteins]
+  structure_indices = []
+  for i, protein in enumerate(proteins):
+    length = protein.coordinates.shape[0]
+    structure_indices.append(jnp.full(length, i, dtype=jnp.int32))
 
-  # Generate sequential chain IDs: [0,0,0..., 1,1,1..., 2,2,2...]
-  chain_ids = jnp.concatenate(
-    [jnp.full(length, i, dtype=jnp.int32) for i, length in enumerate(lengths)],
-  )
+  structure_mapping = jnp.concatenate(structure_indices, axis=0)
+  remapped_chain_ids = []
+  chain_offset = 0
 
-  # Concatenate all fields along residue dimension
+  for protein in proteins:
+    original_chains = protein.chain_index
+    remapped_chains = original_chains + chain_offset
+    remapped_chain_ids.append(remapped_chains)
+    chain_offset = int(jnp.max(remapped_chains)) + 1
+
+  chain_ids = jnp.concatenate(remapped_chain_ids, axis=0)
   concatenated = jax.tree_util.tree_map(lambda *x: jnp.concatenate(x, axis=0), *proteins)
-
-  # Override chain_index with our sequential IDs
-  concatenated = concatenated.replace(chain_index=chain_ids)
-
-  # Add batch dimension of 1 to match expected shape (batch_size=1, seq_length, ...)
+  concatenated = concatenated.replace(chain_index=chain_ids, mapping=structure_mapping)
   return jax.tree_util.tree_map(lambda x: x[None, ...], concatenated)
 
 

@@ -33,8 +33,11 @@ def test_resolve_tie_groups_none():
 def test_resolve_tie_groups_direct():
   """Test resolve_tie_groups with tied_positions='direct'."""
   # N=6, L=3, K=2
-  # Chain IDs [0,0,0, 1,1,1] indicate 2 structures concatenated
+  # Chain IDs [0,0,0, 1,1,1] indicate 2 chains
+  # Mapping [0,0,0, 1,1,1] indicates 2 structures
   inp = make_input([0, 0, 0, 1, 1, 1], [0, 1, 2, 0, 1, 2])
+  # Add structure mapping: [0,0,0, 1,1,1] for 2 structures
+  inp = inp.replace(mapping=jnp.array([[0, 0, 0, 1, 1, 1]], dtype=jnp.int32))
   spec = RunSpecification(inputs=["dummy"], tied_positions="direct", pass_mode="inter")
   out = resolve_tie_groups(spec, inp)
   assert (out == jnp.array([0, 1, 2, 0, 1, 2])).all()

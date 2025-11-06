@@ -17,6 +17,7 @@ def create_protein_dataset(
   batch_size: int,
   parse_kwargs: dict[str, Any] | None = None,
   foldcomp_database: FoldCompDatabase | None = None,
+  pass_mode: str = "intra",  # noqa: S107
 ) -> grain.IterDataset:
   """Construct a high-performance protein data pipeline using Grain.
 
@@ -29,6 +30,7 @@ def create_protein_dataset(
       batch_size: The number of protein structures to include in each batch.
       parse_kwargs: Optional dictionary of keyword arguments for parsing.
       foldcomp_database: Optional path to a FoldComp database.
+      pass_mode: "intra" (default) for normal batching, "inter" for concatenation.
       cache_path: Optional path to cache the preprocessed HDF5 file. If None,
                   a default path is used.
 
@@ -54,7 +56,15 @@ def create_protein_dataset(
     max_workers=None,
     max_buffer_size=None,
   )
+
+  # Choose batch function based on pass_mode
+  batch_fn = (
+    operations.concatenate_proteins_for_inter_mode
+    if pass_mode == "inter"  # noqa: S105
+    else operations.pad_and_collate_proteins
+  )
+
   return ds.to_iter_dataset(read_options=performance_config.read_options).batch(
     batch_size,
-    batch_fn=operations.pad_and_collate_proteins,
+    batch_fn=batch_fn,
   )

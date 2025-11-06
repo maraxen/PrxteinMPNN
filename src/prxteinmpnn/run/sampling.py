@@ -12,6 +12,7 @@ import jax
 import jax.numpy as jnp
 
 from prxteinmpnn.sampling.sample import make_sample_sequences
+from prxteinmpnn.utils.autoregression import resolve_tie_groups
 from prxteinmpnn.utils.decoding_order import random_decoding_order
 
 from .prep import prep_protein_stream_and_model
@@ -89,14 +90,25 @@ def sample(
   for batched_ensemble in protein_iterator:
     keys = jax.random.split(jax.random.key(spec.random_seed), spec.num_samples)
 
+    # Compute tie groups if needed
+    tie_group_map = None
+    num_groups = None
+
+    # Handle inter-chain mode with tied positions
+    if spec.pass_mode == "inter" and spec.tied_positions is not None:  # noqa: S105
+      # For inter mode, loader has already concatenated structures with sequential chain IDs
+      # Just resolve the tie groups on the concatenated protein
+      tie_group_map = resolve_tie_groups(spec, batched_ensemble)
+      num_groups = int(jnp.max(tie_group_map)) + 1
+
     vmap_samples = jax.vmap(
       sampler_fn,
-      in_axes=(0, None, None, None, None, None, None, None, None, None, None, None),
+      in_axes=(0, None, None, None, None, None, None, None, None, None, None, None, None, None),
       out_axes=0,
     )
     vmap_noises = jax.vmap(
       vmap_samples,
-      in_axes=(None, None, None, None, None, None, None, None, 0, None, None, None),
+      in_axes=(None, None, None, None, None, None, None, None, 0, None, None, None, None, None),
       out_axes=0,
     )
     vmap_structures = jax.vmap(
@@ -114,6 +126,8 @@ def sample(
         None,  # iterations
         None,  # learning_rate
         None,  # temperature
+        None,  # tie_group_map
+        None,  # num_groups
       ),
       out_axes=0,
     )
@@ -134,6 +148,8 @@ def sample(
       spec.iterations,
       spec.learning_rate,
       spec.temperature,
+      tie_group_map,
+      num_groups,
     )
     all_sequences.append(sampled_sequences)
     all_logits.append(logits)
@@ -176,6 +192,17 @@ def _sample_streaming(
     for batched_ensemble in protein_iterator:
       keys = jax.random.split(jax.random.key(spec.random_seed), spec.num_samples)
 
+      # Compute tie groups if needed
+      tie_group_map = None
+      num_groups = None
+
+      # Handle inter-chain mode with tied positions
+      if spec.pass_mode == "inter" and spec.tied_positions is not None:  # noqa: S105
+        # For inter mode, loader has already concatenated structures with sequential chain IDs
+        # Just resolve the tie groups on the concatenated protein
+        tie_group_map = resolve_tie_groups(spec, batched_ensemble)
+        num_groups = int(jnp.max(tie_group_map)) + 1
+
       noise_array = (
         jnp.asarray(spec.backbone_noise, dtype=jnp.float32)
         if spec.backbone_noise is not None
@@ -189,6 +216,8 @@ def _sample_streaming(
         residue_ix: ResidueIndex,
         chain_ix: ChainIndex,
         noise: BackboneNoise,
+        tie_group_map: jnp.ndarray | None = tie_group_map,
+        num_groups: int | None = num_groups,
       ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
         """Sample one sequence for one structure at one noise level."""
         return sampler_fn(
@@ -206,6 +235,8 @@ def _sample_streaming(
           spec.iterations,
           spec.learning_rate,
           spec.temperature,
+          tie_group_map,
+          num_groups,
         )
 
       def mapped_fn_noise(

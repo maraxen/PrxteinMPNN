@@ -209,6 +209,23 @@ def _sample_streaming(
         else jnp.zeros(1)
       )
 
+      # Create the sample function with bound parameters to avoid closure issues
+      sample_fn_with_params = partial(
+        sampler_fn,
+        _k_neighbors=48,
+        bias=jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
+        fixed_positions=(
+          jnp.asarray(spec.fixed_positions, dtype=jnp.int32)
+          if spec.fixed_positions is not None
+          else None
+        ),
+        _iterations=spec.iterations,
+        _learning_rate=spec.learning_rate,
+        temperature=spec.temperature,
+        tie_group_map=tie_group_map,
+        num_groups=num_groups,
+      )
+
       def sample_single_noise(
         key: PRNGKeyArray,
         coords: BackboneCoordinates,
@@ -216,27 +233,16 @@ def _sample_streaming(
         residue_ix: ResidueIndex,
         chain_ix: ChainIndex,
         noise: BackboneNoise,
-        tie_group_map: jnp.ndarray | None = tie_group_map,
-        num_groups: int | None = num_groups,
+        _sampler: partial = sample_fn_with_params,  # Bind to avoid closure issues
       ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
         """Sample one sequence for one structure at one noise level."""
-        return sampler_fn(
+        return _sampler(
           key,
           coords,
           mask,
           residue_ix,
           chain_ix,
-          48,
-          jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
-          jnp.asarray(spec.fixed_positions, dtype=jnp.int32)
-          if spec.fixed_positions is not None
-          else None,
-          noise,
-          spec.iterations,
-          spec.learning_rate,
-          spec.temperature,
-          tie_group_map,
-          num_groups,
+          backbone_noise=noise,
         )
 
       def mapped_fn_noise(
@@ -245,19 +251,19 @@ def _sample_streaming(
         mask: AlphaCarbonMask,
         residue_ix: ResidueIndex,
         chain_ix: ChainIndex,
-        noise_array: BackboneNoise = noise_array,
+        noise_arr: BackboneNoise,
       ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
         """Compute samples across all noise levels for a single structure/sample."""
         return jax.lax.map(
           partial(
             sample_single_noise,
-            key,  # Pass key as constant for the noise map
+            key,
             coords,
             mask,
             residue_ix,
             chain_ix,
           ),
-          noise_array,
+          noise_arr,
           batch_size=spec.noise_batch_size,
         )
 
@@ -266,7 +272,8 @@ def _sample_streaming(
         mask: AlphaCarbonMask,
         residue_ix: ResidueIndex,
         chain_ix: ChainIndex,
-        keys: PRNGKeyArray = keys,
+        keys_arr: PRNGKeyArray,
+        noise_arr: BackboneNoise,
       ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
         """Sample mapping over keys and noise."""
         noise_map_fn = partial(
@@ -275,21 +282,24 @@ def _sample_streaming(
           mask=mask,
           residue_ix=residue_ix,
           chain_ix=chain_ix,
+          noise_arr=noise_arr,
         )
 
         return jax.lax.map(
           noise_map_fn,
-          keys,
+          keys_arr,
           batch_size=spec.samples_batch_size,
         )
 
-      vmap_structures = jax.vmap(internal_sample)
+      vmap_structures = jax.vmap(internal_sample, in_axes=(0, 0, 0, 0, None, None))
 
       sampled_sequences, sampled_logits, _ = vmap_structures(
         batched_ensemble.coordinates,
         batched_ensemble.mask,
         batched_ensemble.residue_index,
         batched_ensemble.chain_index,
+        keys,
+        noise_array,
       )
 
       # Store each structure in its own group to handle variable lengths

@@ -12,8 +12,8 @@ import jax.numpy as jnp
 if TYPE_CHECKING:
   from collections.abc import Sequence
 
-  from prxteinmpnn.run.batch_prep import ProteinMPNNInput
   from prxteinmpnn.run.specs import RunSpecification
+  from prxteinmpnn.utils.data_structures import Protein
 
   from .types import AutoRegressiveMask, DecodingOrder
 
@@ -64,23 +64,27 @@ def make_autoregressive_mask(decoding_step_map: jnp.ndarray) -> jnp.ndarray:
   return steps_i >= steps_j
 
 
-def resolve_tie_groups(
+def resolve_tie_groups(  # noqa: C901
   spec: RunSpecification,
-  combined_input: ProteinMPNNInput,
+  combined_protein: Protein,
   structure_mappings: Sequence[dict] | None = None,
 ) -> jnp.ndarray:
   """Resolve tie groups for tied_positions modes.
 
   Args:
       spec: RunSpecification with tied_positions.
-      combined_input: ProteinMPNNInput (must have chain_id, residue_index, etc.).
+      combined_protein: Protein dataclass with batch_dim=1 (1, seq_len, ...).
       structure_mappings: Optional, for 'auto' mode.
 
   Returns:
       tie_group_map: jnp.ndarray of shape (n,) with group ids.
 
   """
-  n = combined_input.chain_id.shape[0]
+  # Remove batch dimension for processing
+  chain_ids = combined_protein.chain_index[0]
+  residue_indices = combined_protein.residue_index[0]
+  n = chain_ids.shape[0]
+
   tie_group_map = jnp.arange(n, dtype=jnp.int32)
   tied_positions = spec.tied_positions
 
@@ -88,8 +92,9 @@ def resolve_tie_groups(
     return tie_group_map
 
   if tied_positions == "direct":
-    # All inputs must be same length
-    num_inputs = getattr(combined_input, "num_inputs", 1)
+    # For direct mode, calculate num_inputs from the sequential chain IDs
+    # Chain IDs are [0,0,0..., 1,1,1..., 2,2,2...] after concatenation
+    num_inputs = int(jnp.max(chain_ids)) + 1
     ll = n // num_inputs
     if n % ll != 0:
       msg = "Inputs must be same length for 'direct' mode."
@@ -110,8 +115,8 @@ def resolve_tie_groups(
 
   def _collect_group_indices(
     groups: Sequence[tuple[int, int]],
-    chain_ids: jnp.ndarray,
-    residue_indices: jnp.ndarray,
+    chain_id_arr: jnp.ndarray,
+    residue_idx_arr: jnp.ndarray,
   ) -> list[tuple[int, list[int]]]:
     group_map = defaultdict(list)
     for group_idx, group in enumerate(groups):
@@ -124,7 +129,7 @@ def resolve_tie_groups(
     for group_idx, tuples in group_map.items():
       indices = []
       for chain_idx, res_idx in tuples:
-        mask = (chain_ids == chain_idx) & (residue_indices == res_idx)
+        mask = (chain_id_arr == chain_idx) & (residue_idx_arr == res_idx)
         idx = jnp.where(mask)[0]
         if idx.size > 0:
           indices.append(idx[0])
@@ -133,8 +138,8 @@ def resolve_tie_groups(
 
   group_indices = _collect_group_indices(
     tied_positions,
-    combined_input.chain_id,
-    combined_input.residue_index,
+    chain_ids,
+    residue_indices,
   )
   for group_idx, indices in group_indices:
     if indices:

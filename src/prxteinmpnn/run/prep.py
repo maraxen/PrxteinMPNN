@@ -48,6 +48,7 @@ def prep_protein_stream_and_model(
     batch_size=spec.batch_size,
     foldcomp_database=spec.foldcomp_database,
     parse_kwargs=parse_kwargs,
+    pass_mode=spec.pass_mode,
   )
   # use_new_architecture parameter is deprecated; always use Equinox model now
   del use_new_architecture

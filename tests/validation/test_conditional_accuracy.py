@@ -27,8 +27,11 @@ def test_conditional_scoring():
     it should recover the native sequence with very high accuracy (>90%).
     This validates the conditional decoder implementation.
     """
+    # Use local weights file
+    weights_path = Path(__file__).parent.parent.parent / "src/prxteinmpnn/io/weights/original_v_48_020.eqx"
+
     try:
-        model = load_model()
+        model = load_model(local_path=str(weights_path))
     except Exception as e:
         pytest.skip(f"Could not load model: {e}")
 
@@ -110,8 +113,11 @@ def test_conditional_vs_unconditional():
     The conditional decoder should perform better than unconditional
     when given the correct sequence context.
     """
+    # Use local weights file
+    weights_path = Path(__file__).parent.parent.parent / "src/prxteinmpnn/io/weights/original_v_48_020.eqx"
+
     try:
-        model = load_model()
+        model = load_model(local_path=str(weights_path))
     except Exception as e:
         pytest.skip(f"Could not load model: {e}")
 

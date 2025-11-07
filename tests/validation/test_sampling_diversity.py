@@ -24,8 +24,11 @@ def test_diversity():
     that are quite different from each other, validating that the
     sampling process is working correctly and exploring sequence space.
     """
+    # Use local weights file
+    weights_path = Path(__file__).parent.parent.parent / "src/prxteinmpnn/io/weights/original_v_48_020.eqx"
+
     try:
-        model = load_model()
+        model = load_model(local_path=str(weights_path))
     except Exception as e:
         pytest.skip(f"Could not load model: {e}")
 
@@ -85,8 +88,11 @@ def test_temperature_effect():
     Low temperature should produce more similar sequences (higher similarity),
     while high temperature should produce more diverse sequences (lower similarity).
     """
+    # Use local weights file
+    weights_path = Path(__file__).parent.parent.parent / "src/prxteinmpnn/io/weights/original_v_48_020.eqx"
+
     try:
-        model = load_model()
+        model = load_model(local_path=str(weights_path))
     except Exception as e:
         pytest.skip(f"Could not load model: {e}")
 
@@ -153,8 +159,11 @@ def test_low_temperature_consistency():
     nearly identical sequences, showing that sampling converges
     to the mode of the distribution.
     """
+    # Use local weights file
+    weights_path = Path(__file__).parent.parent.parent / "src/prxteinmpnn/io/weights/original_v_48_020.eqx"
+
     try:
-        model = load_model()
+        model = load_model(local_path=str(weights_path))
     except Exception as e:
         pytest.skip(f"Could not load model: {e}")
 

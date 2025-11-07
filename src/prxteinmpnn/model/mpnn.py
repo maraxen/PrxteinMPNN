@@ -773,22 +773,22 @@ class PrxteinMPNN(eqx.Module):
     mask_fw = mask_1d * (1 - attention_mask)
     decoding_order = jnp.argsort(jnp.sum(autoregressive_mask, axis=1))
 
-    # Precompute encoder context
+    # Precompute encoder context: [e_ij, 0, h_j]
+    # BUG FIX: Must use neighbor encoder features (h_j), not central node (h_i)!
+    # This is the same bug that was fixed in the unconditional decoder.
     encoder_edge_neighbors = concatenate_neighbor_nodes(
       jnp.zeros_like(node_features),
       edge_features,
       neighbor_indices,
-    )
-    encoder_context = jnp.concatenate(
-      [
-        jnp.tile(
-          jnp.expand_dims(node_features, -2),
-          [1, edge_features.shape[1], 1],
-        ),
-        encoder_edge_neighbors,
-      ],
-      -1,
-    )
+    )  # Returns [e_ij, 0]
+
+    # Gather neighbor encoder features h_j (not central node h_i!)
+    encoder_context = concatenate_neighbor_nodes(
+      node_features,  # This will be gathered as h_j = node_features[neighbors]
+      encoder_edge_neighbors,  # [e_ij, 0]
+      neighbor_indices,
+    )  # Returns [[e_ij, 0], h_j] = [e_ij, 0, h_j]
+
     encoder_context = encoder_context * mask_fw[..., None]
 
     def autoregressive_step(

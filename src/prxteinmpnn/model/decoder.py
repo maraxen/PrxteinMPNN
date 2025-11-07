@@ -380,16 +380,12 @@ class Decoder(eqx.Module):
 
       layer_edge_features = (mask_bw[..., None] * current_features) + masked_node_edge_features
 
-      # BUG FIX: Do NOT pass attention_mask to the layer!
-      # The masking is already handled by the mask_bw multiplication above.
-      # Passing attention_mask would zero out messages from all neighbors,
-      # including those providing encoder context (masked_node_edge_features).
-      # This was causing critically low sequence recovery (~5-30% instead of 40-60%).
+      # Run the layer with attention masking for conditional decoding
       loop_node_features = layer(
         loop_node_features,
         layer_edge_features,
         mask,
-        # attention_mask NOT passed - masking already handled above
+        attention_mask=attention_mask,  # Pass attention mask for conditional decoding
       )
 
     return loop_node_features

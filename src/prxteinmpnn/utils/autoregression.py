@@ -204,13 +204,9 @@ def generate_ar_mask(
 
   """
   if tie_group_map is None:
-    # BUG FIX: Use strict inequality (>) not >= to match ColabDesign
-    # Position i should only attend to positions j where order[j] < order[i]
-    # This prevents a position from attending to its own sequence embedding
-    # during autoregressive decoding (matching ColabDesign's tri(L, k=-1))
     row_indices = decoding_order[:, None]
     col_indices = decoding_order[None, :]
-    ar_mask = (row_indices > col_indices).astype(int)
+    ar_mask = (row_indices >= col_indices).astype(int)
   else:
     if num_groups is None:
       msg = "num_groups must be provided when tie_group_map is not None"

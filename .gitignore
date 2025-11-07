@@ -16,3 +16,4 @@ build/
 *.eqx
 .DS_Store
 .coverage
+colabdesign_repo/

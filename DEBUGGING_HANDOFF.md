@@ -365,10 +365,150 @@ AF_ALPHABET   = "ARNDCQEGHILKMFPSTWYVX"
 
 ---
 
+## 🚀 Environment Setup
+
+Before starting debugging, you need to set up the development environment properly.
+
+### Clone ColabDesign Reference Implementation
+
+```bash
+# Clone ColabDesign to compare implementation details
+cd /tmp
+git clone https://github.com/sokrypton/ColabDesign.git
+
+# Install ColabDesign (optional, for running comparison tests)
+cd ColabDesign
+pip install -e .
+```
+
+### Checkout and Update PrxteinMPNN Branch
+
+```bash
+# Navigate to PrxteinMPNN repository
+cd /home/user/PrxteinMPNN
+
+# Ensure you're on the validation branch
+git checkout claude/prxteinmpnn-validation-cleanup-011CUuBUPG2G7Z9ArK9tw5Cv
+
+# Pull latest changes (includes validation framework and this document)
+git pull origin claude/prxteinmpnn-validation-cleanup-011CUuBUPG2G7Z9ArK9tw5Cv
+
+# Install PrxteinMPNN in editable mode
+uv sync
+
+# Verify installation
+python -c "import prxteinmpnn; print('PrxteinMPNN installed successfully')"
+```
+
+### Optional: Set Up Debug Branch
+
+If you want to work on a separate debug branch (recommended for experimental changes):
+
+```bash
+# Create a new debug branch from the validation branch
+git checkout -b debug/sequence-parsing-fix
+
+# After making changes, commit and push
+git add .
+git commit -m "fix: correct sequence parsing alphabet conversion"
+git push -u origin debug/sequence-parsing-fix
+```
+
+### Verify Environment
+
+```bash
+# Run a quick test to verify everything is working
+cd /home/user/PrxteinMPNN
+python -m pytest tests/validation/test_colabdesign_comparison.py -v
+
+# Check that model weights are available
+ls -lh src/prxteinmpnn/io/weights/
+# Should see: original_v_48_020.eqx
+```
+
+### Quick Start Debugging Script
+
+Create a minimal debugging script to start investigating:
+
+```python
+# debug_sequence_parsing.py
+import jax
+import jax.numpy as jnp
+import numpy as np
+from prxteinmpnn.io.parsing import parse_input
+from prxteinmpnn.utils.data_structures import Protein
+from colabdesign.mpnn.model import mk_mpnn_model
+
+# Download test PDB
+import os
+if not os.path.exists("1ubq.pdb"):
+    os.system("wget -q https://files.rcsb.org/download/1UBQ.pdb -O 1ubq.pdb")
+
+print("="*80)
+print("STEP 1: Parse with PrxteinMPNN")
+print("="*80)
+protein_tuple = next(parse_input("1ubq.pdb"))
+protein = Protein.from_tuple(protein_tuple)
+print(f"Sequence length: {protein.mask.sum():.0f}")
+print(f"First 20 residues: {protein.aatype[:20]}")
+print(f"aatype dtype: {protein.aatype.dtype}")
+print(f"aatype shape: {protein.aatype.shape}")
+
+print("\n" + "="*80)
+print("STEP 2: Parse with ColabDesign")
+print("="*80)
+colab_model = mk_mpnn_model(model_name="v_48_020", weights="original")
+colab_model.prep_inputs(pdb_filename="1ubq.pdb")
+print(f"Sequence length: {colab_model._inputs['mask'].sum():.0f}")
+print(f"First 20 residues: {colab_model._inputs['S'][:20]}")
+print(f"S dtype: {colab_model._inputs['S'].dtype}")
+print(f"S shape: {colab_model._inputs['S'].shape}")
+
+print("\n" + "="*80)
+print("STEP 3: Compare Sequences")
+print("="*80)
+if np.array_equal(protein.aatype, colab_model._inputs['S']):
+    print("✅ Sequences match!")
+else:
+    print("❌ Sequences differ!")
+
+    # Find differences
+    diffs = np.where(protein.aatype != colab_model._inputs['S'])[0]
+    print(f"Number of differences: {len(diffs)}")
+    print(f"First 10 differences:")
+    for i in diffs[:10]:
+        print(f"  Position {i}: PrxteinMPNN={protein.aatype[i]}, ColabDesign={colab_model._inputs['S'][i]}")
+
+print("\n" + "="*80)
+print("STEP 4: Check Alphabet Conversion")
+print("="*80)
+from prxteinmpnn.io.parsing.mappings import MPNN_ALPHABET, AF_ALPHABET
+print(f"MPNN alphabet: {MPNN_ALPHABET}")
+print(f"AF alphabet:   {AF_ALPHABET}")
+print("\nExample conversions:")
+print(f"'A' in MPNN: index {MPNN_ALPHABET.index('A')}")
+print(f"'A' in AF:   index {AF_ALPHABET.index('A')}")
+print(f"'R' in MPNN: index {MPNN_ALPHABET.index('R')}")
+print(f"'R' in AF:   index {AF_ALPHABET.index('R')}")
+```
+
+Run this script with:
+```bash
+cd /home/user/PrxteinMPNN
+python debug_sequence_parsing.py
+```
+
+---
+
 ## ✅ Next Agent Instructions
 
 ### Context:
 You are continuing validation work on the PrxteinMPNN implementation. Previous work revealed critical issues preventing the implementation from matching the ColabDesign reference. Your task is to debug these issues systematically.
+
+### Prerequisites:
+- Complete the "Environment Setup" section above
+- Ensure both PrxteinMPNN and ColabDesign are installed
+- Have model weights available in `src/prxteinmpnn/io/weights/`
 
 ### Immediate Tasks:
 
@@ -424,3 +564,46 @@ If you discover:
 - **Fundamental algorithm differences**: May need to consult ProteinMPNN paper
 
 Remember: The goal is **exact reproduction** of ColabDesign behavior, which itself should match the original ProteinMPNN paper's reported performance.
+
+---
+
+## 🎯 Prompt for Next Agent
+
+Use this prompt to start the next debugging session:
+
+```
+I need you to debug critical issues in the PrxteinMPNN implementation that are preventing it from matching the ColabDesign reference implementation.
+
+CONTEXT:
+- Previous validation revealed that PrxteinMPNN produces very different logits and poor sequence recovery (5.7% vs expected 35-65%)
+- The main issues appear to be:
+  1. Sequence parsing produces different integer arrays from the same PDB file
+  2. Unconditional logits are low-confidence (narrow range) instead of high-confidence (full range)
+  3. Overall performance is far below expected benchmarks
+
+SETUP:
+1. Read DEBUGGING_HANDOFF.md for complete context and analysis
+2. Follow the "Environment Setup" section to clone ColabDesign and set up the branch
+3. Run the "Quick Start Debugging Script" to verify the sequence parsing issue
+
+TASK:
+Start with Priority 1 (highest impact): Fix the sequence parsing mismatch
+- Both implementations should parse 1UBQ.pdb to identical integer sequences (in MPNN alphabet)
+- Use the debug script in DEBUGGING_HANDOFF.md as a starting point
+- Add logging to trace the conversion at each step
+- Compare with ColabDesign's parsing to identify where they diverge
+
+Once sequence parsing is verified, move to Priority 2: Verify unconditional decoding path
+- Compare encoder outputs between implementations
+- Check decoder context construction
+- Trace logits computation
+
+SUCCESS CRITERIA:
+- PrxteinMPNN and ColabDesign produce identical sequences from same PDB
+- Logits show high correlation (Pearson > 0.9, Cosine similarity > 0.9)
+- Sequence recovery reaches 35-65% range
+
+Read DEBUGGING_HANDOFF.md first for the complete debugging strategy, code examples, and file references.
+```
+
+Copy and paste this prompt when starting the next session.

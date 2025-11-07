@@ -210,6 +210,7 @@ class Decoder(eqx.Module):
     self,
     node_features: NodeFeatures,
     edge_features: EdgeFeatures,  # Raw 128-dim edges
+    neighbor_indices: NeighborIndices,
     mask: AlphaCarbonMask,
   ) -> NodeFeatures:
     """Forward pass for UNCONDITIONAL decoding.
@@ -217,6 +218,7 @@ class Decoder(eqx.Module):
     Args:
       node_features: Node features from encoder of shape (N, 128).
       edge_features: Edge features from encoder of shape (N, K, 128).
+      neighbor_indices: Indices of neighbors for each node of shape (N, K).
       mask: Alpha carbon mask of shape (N,).
 
     Returns:
@@ -230,26 +232,46 @@ class Decoder(eqx.Module):
       >>> decoder = Decoder(128, 128, 128, num_layers=3, key=key)
       >>> node_feats = jnp.ones((10, 128))
       >>> edge_feats = jnp.ones((10, 30, 128))
+      >>> neighbor_idx = jnp.arange(300).reshape(10, 30)
       >>> mask = jnp.ones((10,))
-      >>> output = decoder(node_feats, edge_feats, mask)
+      >>> output = decoder(node_feats, edge_feats, neighbor_idx, mask)
 
     """
-    # Prepare 384-dim context tensor *once*
-    nodes_expanded = jnp.tile(
-      jnp.expand_dims(node_features, -2),
-      [1, edge_features.shape[1], 1],
-    )
-    zeros_expanded = jnp.tile(
-      jnp.expand_dims(jnp.zeros_like(node_features), -2),
-      [1, edge_features.shape[1], 1],
-    )
-    layer_edge_features = jnp.concatenate(
-      [nodes_expanded, zeros_expanded, edge_features],
-      -1,
-    )
+    # BUG FIX: The unconditional decoder was incorrectly using central node features (h_i)
+    # instead of neighbor node features (h_j). The decoder context should be [e_ij, s_j, h_j]
+    # where h_j are the neighbor node features gathered using neighbor_indices.
+    # In unconditional mode, s_j (sequence embeddings) are zeros.
 
+    # Prepare zeros for sequence embeddings (s_j = 0 in unconditional mode)
+    zeros = jnp.zeros_like(node_features)
+
+    # Construct context per layer by gathering neighbor features
     loop_node_features = node_features
+
     for layer in self.layers:
+      # Gather neighbor node features h_j using concatenate_neighbor_nodes
+      # This produces [e_ij, h_j] of shape (N, K, 256)
+      edge_and_neighbors = concatenate_neighbor_nodes(
+        loop_node_features,
+        edge_features,
+        neighbor_indices,
+      )
+
+      # Insert zeros for sequence embeddings s_j to get [e_ij, s_j, h_j]
+      # Split edge_and_neighbors: [e_ij (128), h_j (128)]
+      # Then concatenate: [e_ij (128), zeros (128), h_j (128)] = 384
+      layer_edge_features = jnp.concatenate(
+        [
+          edge_and_neighbors[..., :128],  # e_ij
+          jnp.tile(
+            jnp.expand_dims(zeros, -2),
+            [1, edge_features.shape[1], 1],
+          ),  # s_j (zeros)
+          edge_and_neighbors[..., 128:],  # h_j
+        ],
+        axis=-1,
+      )
+
       loop_node_features = layer(
         loop_node_features,
         layer_edge_features,
@@ -318,14 +340,6 @@ class Decoder(eqx.Module):
       neighbor_indices,
     )
 
-    # [e_ij, s_j] -> (N, K, 256)
-    # Note: concatenate_neighbor_nodes returns [edge_features, neighbor_features]
-    sequence_edge_features = concatenate_neighbor_nodes(
-      embedded_sequence,
-      edge_features,
-      neighbor_indices,
-    )
-
     # 3. Prepare masks
     attention_mask = jnp.take_along_axis(ar_mask, neighbor_indices, axis=1)
     mask_bw = mask[:, None] * attention_mask
@@ -336,13 +350,33 @@ class Decoder(eqx.Module):
     # Following functional implementation (decoder.py lines 480-497)
     loop_node_features = node_features
     for layer in self.layers:
+      # **CRITICAL FIX**: Apply autoregressive mask to sequence embeddings
+      # Each position should only see embeddings from neighbors that have been decoded
+      # (i.e., neighbors where attention_mask[i, k] == 1)
+
+      # Gather sequence embeddings for all neighbors: (N, K, 128)
+      neighbor_seq_embeddings = embedded_sequence[neighbor_indices]
+
+      # Mask them based on autoregressive attention: only keep embeddings where
+      # the neighbor has been decoded according to the autoregressive order
+      masked_seq_embeddings = attention_mask[..., None] * neighbor_seq_embeddings
+
+      # Concatenate with edge features: [e_ij, s_j_masked] -> (N, K, 256)
+      sequence_edge_features = jnp.concatenate(
+        [
+          edge_features,  # (N, K, 128)
+          masked_seq_embeddings,  # (N, K, 128)
+        ],
+        axis=-1,
+      )
+
       # Construct the decoder context for this layer by gathering neighbor features
-      # and concatenating with sequence edge features
+      # and concatenating with masked sequence edge features
       current_features = concatenate_neighbor_nodes(
         loop_node_features,  # (N, 128) -> gather neighbors -> (N, K, 128) = h_j
-        sequence_edge_features,  # (N, K, 256) = [e_ij, s_j]
+        sequence_edge_features,  # (N, K, 256) = [e_ij, s_j_masked]
         neighbor_indices,
-      )  # Result: (N, K, 384) = [e_ij, s_j, h_j]
+      )  # Result: (N, K, 384) = [e_ij, s_j_masked, h_j]
 
       layer_edge_features = (mask_bw[..., None] * current_features) + masked_node_edge_features
 

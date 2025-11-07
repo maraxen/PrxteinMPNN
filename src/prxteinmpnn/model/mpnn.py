@@ -138,6 +138,7 @@ class PrxteinMPNN(eqx.Module):
     _temperature: Float,
     _bias: Logits,
     _tie_group_map: jnp.ndarray | None,
+    debug: bool,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the unconditional (scoring) path.
 
@@ -151,6 +152,7 @@ class PrxteinMPNN(eqx.Module):
       _temperature: Unused, required for jax.lax.switch signature.
       _bias: Unused, required for jax.lax.switch signature.
       _tie_group_map: Unused, required for jax.lax.switch signature.
+      debug: If True, print debug information.
 
     Returns:
       Tuple of (dummy sequence, logits).
@@ -167,17 +169,54 @@ class PrxteinMPNN(eqx.Module):
       >>> seq, logits = model._call_unconditional(edge_feats, neighbor_idx, mask)
 
     """
+
+    # Use jax.debug.callback for conditional printing (works with traced values)
+    def print_unconditional_debug() -> None:
+      jax.debug.print("🔍 UNCONDITIONAL MODE")
+      jax.debug.print("  edge_features shape: {shape}", shape=edge_features.shape)
+      jax.debug.print("  mask shape: {shape}", shape=mask.shape)
+
+    jax.lax.cond(debug, print_unconditional_debug, lambda: None)
+
     node_features, processed_edge_features = self.encoder(
       edge_features,
       neighbor_indices,
       mask,
     )
+
+    def print_encoder_output() -> None:
+      jax.debug.print("  node_features shape: {shape}", shape=node_features.shape)
+      jax.debug.print("  node_features[0, :5]: {data}", data=node_features[0, :5])
+      jax.debug.print("  processed_edge_features shape: {s}", s=processed_edge_features.shape)
+
+    jax.lax.cond(debug, print_encoder_output, lambda: None)
+
     decoded_node_features = self.decoder(
       node_features,
       processed_edge_features,
+      neighbor_indices,
       mask,
     )
+
+    def print_decoder_output() -> None:
+      jax.debug.print("  decoded_node_features shape: {s}", s=decoded_node_features.shape)
+      jax.debug.print("  decoded_node_features[0, :5]: {d}", d=decoded_node_features[0, :5])
+
+    jax.lax.cond(debug, print_decoder_output, lambda: None)
+
     logits = jax.vmap(self.w_out)(decoded_node_features)
+
+    def print_logits_debug() -> None:
+      jax.debug.print("  logits shape: {shape}", shape=logits.shape)
+      jax.debug.print("  logits[0]: {data}", data=logits[0])
+      jax.debug.print("  w_out.bias: {bias}", bias=self.w_out.bias)
+      # Check if logits have bias applied
+      logits_no_bias = decoded_node_features @ self.w_out.weight.T
+      jax.debug.print("  logits[0] (W*h, no bias): {data}", data=logits_no_bias[0])
+      bias_check = jnp.allclose(logits[0], logits_no_bias[0] + self.w_out.bias)
+      jax.debug.print("  Bias applied? {check}", check=bias_check)
+
+    jax.lax.cond(debug, print_logits_debug, lambda: None)
 
     # Return dummy sequence to match PyTree shape
     dummy_seq = jnp.zeros(
@@ -197,6 +236,7 @@ class PrxteinMPNN(eqx.Module):
     _temperature: Float,
     _bias: Logits,
     _tie_group_map: jnp.ndarray | None,
+    _debug: bool,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the conditional (scoring) path.
 
@@ -260,6 +300,7 @@ class PrxteinMPNN(eqx.Module):
     temperature: Float,
     bias: Logits,
     tie_group_map: jnp.ndarray | None,
+    _debug: bool,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the autoregressive (sampling) path.
 
@@ -394,17 +435,47 @@ class PrxteinMPNN(eqx.Module):
     computed_logits = jnp.zeros((num_residues, 21))
 
     def process_one_position(idx: Int, state: tuple) -> tuple:
-      """Process one position through decoder layers."""
+      """Process one position through decoder layers.
+
+      CRITICAL: This function is called in sequence order (idx=0,1,2,...,N-1),
+      which may NOT be the decoding order. We must use mask_bw to determine
+      which positions have actually been decoded.
+      """
       position_all_layers_h, position_logits = state
       is_in_group = group_mask[idx]
 
       encoder_context_pos = encoder_context[idx]
       neighbor_indices_pos = neighbor_indices[idx]
       mask_pos = mask[idx]
-      mask_bw_pos = mask_bw[idx]
+      mask_bw_pos = mask_bw[idx]  # Shape: (K,) - mask for neighbors of position idx
 
+      # **CRITICAL FIX**: Apply autoregressive mask to sequence embeddings
+      #
+      # The mask_bw tensor tells us which neighbors of position idx have been
+      # decoded already. We need to mask s_embed so that position idx can only
+      # see sequence embeddings from neighbors that have been decoded.
+      #
+      # However, there's a subtle issue: mask_bw_pos is (K,) shaped - it's the
+      # mask for the K neighbors of position idx. But we need to mask the full
+      # s_embed array which is (N, C).
+      #
+      # Solution: Use neighbor_indices to map the neighbor mask to the full array
+      neighbor_has_been_decoded = mask_bw_pos  # (K,)
+
+      # For positions NOT in the neighbor list, we assume they haven't been decoded
+      # or shouldn't be visible. So we create a full (N,) mask that's zero everywhere
+      # except at the positions that are neighbors AND have been decoded.
+      full_decoded_mask = jnp.zeros(num_residues)  # (N,)
+      full_decoded_mask = full_decoded_mask.at[neighbor_indices_pos].set(
+        neighbor_has_been_decoded,
+      )
+
+      # Now mask the sequence embeddings
+      masked_s_embed = s_embed * full_decoded_mask[:, None]  # (N, C)
+
+      # Compute edge sequence features with MASKED embeddings
       edge_sequence_features = concatenate_neighbor_nodes(
-        s_embed,
+        masked_s_embed,  # <-- FIXED: Use masked embeddings
         edge_features[idx],
         neighbor_indices_pos,
       )
@@ -743,6 +814,12 @@ class PrxteinMPNN(eqx.Module):
         neighbor_indices_pos,
       )  # (K, 256)
 
+      jax.debug.print("  edge_sequence_features shape: {shape}", shape=edge_sequence_features.shape)
+      jax.debug.print(
+        "  edge_sequence_features [0, :5]: {data}",
+        data=edge_sequence_features[0, :5],
+      )
+
       # Decoder Layer Loop
       for layer_idx, layer in enumerate(self.decoder.layers):
         # Get node features for this layer at current position
@@ -777,7 +854,16 @@ class PrxteinMPNN(eqx.Module):
       # Sampling Step
       # Get final layer output for this position
       final_h_pos = all_layers_h[-1, position]  # [C]
-      logits_pos_vec = self.w_out(final_h_pos)  # [21]
+      jax.debug.print("  final_h_pos[:5]: {data}", data=final_h_pos[:5])
+
+      # Manually compute logits to check bias application
+      logits_no_bias = final_h_pos @ self.w_out.weight.T
+      jax.debug.print("  logits (W*h, no bias): {data}", data=logits_no_bias)
+      jax.debug.print("  w_out.bias: {data}", data=self.w_out.bias)
+
+      logits_pos_vec = self.w_out(final_h_pos)  # [21] = W*h + b
+      jax.debug.print("  logits_pos_vec (W*h + b): {data}", data=logits_pos_vec)
+
       logits_pos = jnp.expand_dims(logits_pos_vec, axis=0)  # [1, 21]
 
       next_all_logits = all_logits.at[position, :].set(jnp.squeeze(logits_pos))
@@ -788,24 +874,36 @@ class PrxteinMPNN(eqx.Module):
         (position, 0),
         (1, bias.shape[-1]),
       )
+      jax.debug.print("  bias_pos: {data}", data=bias_pos)
+
       logits_with_bias = logits_pos + bias_pos
+      jax.debug.print("  logits_with_bias: {data}", data=logits_with_bias)
 
       # Gumbel-max trick
       sampled_logits = (logits_with_bias / temperature) + jax.random.gumbel(
         key,
         logits_with_bias.shape,
       )
+      jax.debug.print("  temperature: {temp}", temp=temperature)
+      jax.debug.print("  sampled_logits (with Gumbel): {data}", data=sampled_logits)
+
       sampled_logits_no_pad = sampled_logits[..., :20]  # Exclude padding
+      jax.debug.print("  sampled_logits_no_pad: {data}", data=sampled_logits_no_pad)
 
       one_hot_sample = straight_through_estimator(sampled_logits_no_pad)
+      jax.debug.print("  one_hot_sample: {data}", data=one_hot_sample)
+      jax.debug.print("  argmax(one_hot_sample): {am}", am=jnp.argmax(one_hot_sample))
+
       padding = jnp.zeros_like(one_hot_sample[..., :1])
 
       one_hot_seq_pos = jnp.concatenate([one_hot_sample, padding], axis=-1)
 
       s_embed_pos = one_hot_seq_pos @ self.w_s_embed.weight  # [1, C]
+      jax.debug.print("  s_embed_pos[:5]: {data}", data=s_embed_pos[..., :5])
 
       next_s_embed = s_embed.at[position, :].set(jnp.squeeze(s_embed_pos))
       next_sequence = sequence.at[position, :].set(jnp.squeeze(one_hot_seq_pos))
+      jax.debug.print("")  # blank line for readability
 
       return (
         all_layers_h,
@@ -877,6 +975,7 @@ class PrxteinMPNN(eqx.Module):
     bias: Logits | None = None,
     backbone_noise: BackboneNoise | None = None,
     tie_group_map: jnp.ndarray | None = None,
+    debug: bool = False,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Forward pass for the complete model.
 
@@ -900,6 +999,7 @@ class PrxteinMPNN(eqx.Module):
       tie_group_map: Optional (N,) array mapping each position to a group ID.
           When provided, positions in the same group sample identical amino acids
           using logit averaging. Only used in "autoregressive" mode (optional).
+      debug: If True, print debug information during forward pass (optional).
 
     Returns:
       A tuple of (OneHotProteinSequence, Logits).
@@ -932,6 +1032,17 @@ class PrxteinMPNN(eqx.Module):
       backbone_noise = jnp.array(0.0, dtype=jnp.float32)
 
     # 2. Run Feature Extraction
+    def print_input_debug() -> None:
+      jax.debug.print("🔍 INPUT TO MODEL")
+      jax.debug.print("  structure_coordinates shape: {s}", s=structure_coordinates.shape)
+      jax.debug.print("  mask shape: {s}", s=mask.shape)
+      jax.debug.print("  mask sum (num residues): {n}", n=jnp.sum(mask))
+      jax.debug.print("  residue_index[:10]: {r}", r=residue_index[:10])
+      jax.debug.print("  chain_index[:10]: {c}", c=chain_index[:10])
+      jax.debug.print("  backbone_noise: {bn}", bn=backbone_noise)
+
+    jax.lax.cond(debug, print_input_debug, lambda: None)
+
     edge_features, neighbor_indices, _ = self.features(
       feat_key,
       structure_coordinates,
@@ -940,6 +1051,20 @@ class PrxteinMPNN(eqx.Module):
       chain_index,
       backbone_noise,
     )
+
+    def print_features_debug() -> None:
+      jax.debug.print("🔍 AFTER FEATURE EXTRACTION")
+      jax.debug.print("  edge_features shape: {s}", s=edge_features.shape)
+      jax.debug.print("  edge_features[0, 0, :5]: {e}", e=edge_features[0, 0, :5])
+      jax.debug.print("  neighbor_indices shape: {s}", s=neighbor_indices.shape)
+      jax.debug.print("  neighbor_indices[0, :10]: {n}", n=neighbor_indices[0, :10])
+      # Check for NaN or Inf
+      has_nan = jnp.any(jnp.isnan(edge_features))
+      has_inf = jnp.any(jnp.isinf(edge_features))
+      jax.debug.print("  edge_features has NaN: {n}", n=has_nan)
+      jax.debug.print("  edge_features has Inf: {i}", i=has_inf)
+
+    jax.lax.cond(debug, print_features_debug, lambda: None)
 
     # 3. Prepare inputs for jax.lax.switch
     branch_indices = {
@@ -952,7 +1077,12 @@ class PrxteinMPNN(eqx.Module):
     # All branches must accept the same (super-set) of arguments.
     # We fill in defaults for modes that don't use them.
     if ar_mask is None:
-      ar_mask = jnp.zeros((mask.shape[0], mask.shape[0]), dtype=jnp.int32)
+      # For conditional scoring: each position sees all OTHER positions (not itself)
+      # For other modes: default to zeros (unused in unconditional, required in autoregressive)
+      if decoding_approach == "conditional":
+        ar_mask = 1 - jnp.eye(mask.shape[0], dtype=jnp.int32)
+      else:
+        ar_mask = jnp.zeros((mask.shape[0], mask.shape[0]), dtype=jnp.int32)
 
     if one_hot_sequence is None:
       one_hot_sequence = jnp.zeros(
@@ -986,6 +1116,7 @@ class PrxteinMPNN(eqx.Module):
       temperature,
       bias,
       tie_group_map,
+      debug,
     )
 
     # 6. Run the switch

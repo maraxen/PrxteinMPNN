@@ -354,7 +354,7 @@ def make_encoding_sampling_split_fn(
     if temperature is None:
       temperature = jnp.array(1.0, dtype=jnp.float32)
 
-    autoregressive_mask = generate_ar_mask(decoding_order, tie_group_map)
+    autoregressive_mask = generate_ar_mask(decoding_order, None, tie_group_map, num_groups)
 
     seq_length = autoregressive_mask.shape[0]
     _, prng_key = jax.random.split(prng_key)

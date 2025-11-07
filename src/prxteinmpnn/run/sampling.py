@@ -198,8 +198,6 @@ def _sample_streaming(
 
       # Handle inter-chain mode with tied positions
       if spec.pass_mode == "inter" and spec.tied_positions is not None:  # noqa: S105
-        # For inter mode, loader has already concatenated structures with sequential chain IDs
-        # Just resolve the tie groups on the concatenated protein
         tie_group_map = resolve_tie_groups(spec, batched_ensemble)
         num_groups = int(jnp.max(tie_group_map)) + 1
 
@@ -302,7 +300,6 @@ def _sample_streaming(
         noise_array,
       )
 
-      # Store each structure in its own group to handle variable lengths
       for i in range(sampled_sequences.shape[0]):
         grp = f.create_group(f"structure_{structure_idx}")
         grp.create_dataset("sequences", data=sampled_sequences[i], dtype="i4")

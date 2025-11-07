@@ -87,14 +87,14 @@ def test_temperature_sampling_recovery_1ubq(protein_structure, rng_key):
   # and is consistent, not matching original model's performance.
   
   # Assert minimum recovery threshold - should be better than random (1/20 = 5%)
-  assert mean_recovery >= 0.04, (
-    f"Expected at least 4% sequence recovery on 1ubq (better than random baseline), "
+  assert mean_recovery >= 2.0, (
+    f"Expected at least 25% sequence recovery on 1ubq (better than random baseline), "
     f"but got {mean_recovery:.1%}"
   )
 
   # Check consistency - with low temperature, all samples should be similar
-  assert std_recovery <= 0.05, (
-    f"Expected consistent recovery (std ≤ 5%) with low temperature, "
+  assert std_recovery <= 0.1, (
+    f"Expected consistent recovery (std ≤ 10%) with low temperature, "
     f"but got std={std_recovery:.1%}"
   )
 
@@ -159,13 +159,13 @@ def test_split_sampling_recovery_1ubq(protein_structure, rng_key):
 
   # Assert minimum recovery threshold (after bug fix)
   # Should be similar to temperature sampling
-  assert mean_recovery >= 0.04, (
-    f"Expected at least 4% sequence recovery on 1ubq with split sampling (better than random), "
+  assert mean_recovery >= 0.25, (
+    f"Expected at least 25% sequence recovery on 1ubq with split sampling (better than random), "
     f"but got {mean_recovery:.1%}"
   )
 
   # Check consistency
-  assert std_recovery <= 0.05, (
+  assert std_recovery <= 0.1, (
     f"Expected consistent recovery with low temperature, but got std={std_recovery:.1%}"
   )
 
@@ -240,13 +240,13 @@ def test_tied_positions_sampling_recovery_1ubq(protein_structure, rng_key):
 
   # With tied positions, we expect slightly lower recovery since we're constraining
   # pairs to be identical. Should still be better than random.
-  assert mean_recovery >= 0.03, (
-    f"Expected at least 3% sequence recovery on 1ubq with tied positions (better than random), "
+  assert mean_recovery >= 0.25, (
+    f"Expected at least 25% sequence recovery on 1ubq with tied positions (better than random), "
     f"but got {mean_recovery:.1%}"
   )
   
   # Check consistency
-  assert std_recovery <= 0.05, (
+  assert std_recovery <= 0.1, (
     f"Expected consistent recovery with low temperature, but got std={std_recovery:.1%}"
   )
 

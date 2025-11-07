@@ -97,4 +97,8 @@ markers = [
 ]
 
 [tool.setuptools.package-data]
-include = ["prxteinmpnn/model/original/*.pkl", "prxteinmpnn/model/soluble/*.pkl", "prxteinmpnn/examples/*.ipynb", "prxteinmpnn/examples/*.pdb",]
+include = [
+    "prxteinmpnn/examples/*.ipynb",
+    "prxteinmpnn/examples/*.pdb",
+    "../weights/*.eqx",
+]

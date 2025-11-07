@@ -30,8 +30,11 @@ def test_recovery_across_structures():
     This test validates that the model achieves reasonable sequence
     recovery performance, indicating correct implementation.
     """
+    # Use local weights file
+    weights_path = Path(__file__).parent.parent.parent / "src/prxteinmpnn/io/weights/original_v_48_020.eqx"
+
     try:
-        model = load_model()
+        model = load_model(local_path=str(weights_path))
     except Exception as e:
         pytest.skip(f"Could not load model: {e}")
 
@@ -111,8 +114,11 @@ def test_recovery_single_structure():
 
     This is a lighter-weight version of the full recovery test.
     """
+    # Use local weights file
+    weights_path = Path(__file__).parent.parent.parent / "src/prxteinmpnn/io/weights/original_v_48_020.eqx"
+
     try:
-        model = load_model()
+        model = load_model(local_path=str(weights_path))
     except Exception as e:
         pytest.skip(f"Could not load model: {e}")
 

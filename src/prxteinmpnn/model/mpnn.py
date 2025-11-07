@@ -175,6 +175,7 @@ class PrxteinMPNN(eqx.Module):
     decoded_node_features = self.decoder(
       node_features,
       processed_edge_features,
+      neighbor_indices,
       mask,
     )
     logits = jax.vmap(self.w_out)(decoded_node_features)
@@ -403,8 +404,16 @@ class PrxteinMPNN(eqx.Module):
       mask_pos = mask[idx]
       mask_bw_pos = mask_bw[idx]
 
+      # BUG FIX: Mask s_embed before gathering neighbors to ensure only decoded
+      # positions' embeddings are visible. mask_bw_pos tells us which neighbors
+      # have been decoded (1) vs not yet decoded (0).
+      # Create full mask for all residues based on which neighbors are visible
+      full_decoded_mask = jnp.zeros(num_residues)
+      full_decoded_mask = full_decoded_mask.at[neighbor_indices_pos].set(mask_bw_pos)
+      masked_s_embed = s_embed * full_decoded_mask[:, None]
+
       edge_sequence_features = concatenate_neighbor_nodes(
-        s_embed,
+        masked_s_embed,  # Use MASKED sequence embeddings
         edge_features[idx],
         neighbor_indices_pos,
       )

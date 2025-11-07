@@ -210,6 +210,7 @@ class Decoder(eqx.Module):
     self,
     node_features: NodeFeatures,
     edge_features: EdgeFeatures,  # Raw 128-dim edges
+    neighbor_indices: NeighborIndices,
     mask: AlphaCarbonMask,
   ) -> NodeFeatures:
     """Forward pass for UNCONDITIONAL decoding.
@@ -217,6 +218,7 @@ class Decoder(eqx.Module):
     Args:
       node_features: Node features from encoder of shape (N, 128).
       edge_features: Edge features from encoder of shape (N, K, 128).
+      neighbor_indices: Indices of neighbors for each node of shape (N, K).
       mask: Alpha carbon mask of shape (N,).
 
     Returns:
@@ -230,22 +232,24 @@ class Decoder(eqx.Module):
       >>> decoder = Decoder(128, 128, 128, num_layers=3, key=key)
       >>> node_feats = jnp.ones((10, 128))
       >>> edge_feats = jnp.ones((10, 30, 128))
+      >>> neighbor_idx = jnp.arange(300).reshape(10, 30)
       >>> mask = jnp.ones((10,))
-      >>> output = decoder(node_feats, edge_feats, mask)
+      >>> output = decoder(node_feats, edge_feats, neighbor_idx, mask)
 
     """
-    # Prepare 384-dim context tensor *once*
-    nodes_expanded = jnp.tile(
-      jnp.expand_dims(node_features, -2),
-      [1, edge_features.shape[1], 1],
+    # BUG FIX: Use neighbor features (h_j) instead of tiling central features (h_i)
+    # Correct structure: [e_ij, 0, h_j]
+    # Step 1: [0, e_ij, h_j]
+    temp_context = concatenate_neighbor_nodes(
+      jnp.zeros_like(node_features),
+      edge_features,
+      neighbor_indices,
     )
-    zeros_expanded = jnp.tile(
-      jnp.expand_dims(jnp.zeros_like(node_features), -2),
-      [1, edge_features.shape[1], 1],
-    )
-    layer_edge_features = jnp.concatenate(
-      [nodes_expanded, zeros_expanded, edge_features],
-      -1,
+    # Step 2: [node_features, [0, e_ij, h_j]] -> [e_ij, h_j, node_features_neighbors]
+    layer_edge_features = concatenate_neighbor_nodes(
+      node_features,
+      temp_context,
+      neighbor_indices,
     )
 
     loop_node_features = node_features

@@ -1,3 +1,6 @@
+# Weights (do not ignore src/weights/)
+!src/weights/
+!src/weights/*.eqx
 # Ignore legacy pickle model files
 *.pkl
 .venv

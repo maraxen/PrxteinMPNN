@@ -175,6 +175,7 @@ class PrxteinMPNN(eqx.Module):
     decoded_node_features = self.decoder(
       node_features,
       processed_edge_features,
+      neighbor_indices,  # Pass neighbor indices for correct context
       mask,
     )
     logits = jax.vmap(self.w_out)(decoded_node_features)

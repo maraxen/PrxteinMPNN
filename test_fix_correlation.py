@@ -8,6 +8,15 @@ from prxteinmpnn.io.parsing import parse_input
 from prxteinmpnn.utils.data_structures import Protein
 from load_weights_comprehensive import load_prxteinmpnn_with_colabdesign_weights
 
+# Alphabet conversion
+MPNN_ALPHABET = "ACDEFGHIKLMNPQRSTVWYX"
+AF_ALPHABET = "ARNDCQEGHILKMFPSTWYVX"
+
+def af_logits_to_mpnn(logits_af):
+    """Convert logits from AF alphabet order to MPNN alphabet order."""
+    perm = np.array([AF_ALPHABET.index(aa) for aa in MPNN_ALPHABET])
+    return logits_af[..., perm]
+
 def compare(name, a, b):
     """Compare two arrays and return correlation."""
     a_flat = np.array(a).flatten()
@@ -29,18 +38,19 @@ pdb_path = "tests/data/1ubq.pdb"
 
 # 1. Real ColabDesign
 print("\n1. Running REAL ColabDesign...")
+key = jax.random.PRNGKey(42)
 mpnn_model = mk_mpnn_model()
 mpnn_model.prep_inputs(pdb_filename=pdb_path)
-colab_logits = mpnn_model.get_unconditional_logits()
+colab_logits_af = mpnn_model.get_unconditional_logits(key=key)
+colab_logits = af_logits_to_mpnn(np.array(colab_logits_af))
 print(f"   Shape: {colab_logits.shape}")
-print(f"   Sample [0,:5]: {colab_logits[0,:5]}")
+print(f"   Sample (MPNN alphabet) [0,:5]: {colab_logits[0,:5]}")
 
 # 2. PrxteinMPNN
 print("\n2. Running PrxteinMPNN...")
 protein_tuple = next(parse_input(pdb_path))
 protein = Protein.from_tuple(protein_tuple)
 
-key = jax.random.PRNGKey(42)
 colab_weights_path = "/tmp/ColabDesign/colabdesign/mpnn/weights/v_48_020.pkl"
 prx_model = load_prxteinmpnn_with_colabdesign_weights(colab_weights_path, key=key)
 

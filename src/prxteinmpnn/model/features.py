@@ -49,6 +49,7 @@ class ProteinFeatures(eqx.Module):
   w_pos: eqx.nn.Linear
   w_e: eqx.nn.Linear
   norm_edges: LayerNorm
+  w_e_proj: eqx.nn.Linear  # Final edge projection
   k_neighbors: int = eqx.field(static=True)
   rbf_dim: int = eqx.field(static=True)
   pos_embed_dim: int = eqx.field(static=True)
@@ -70,7 +71,7 @@ class ProteinFeatures(eqx.Module):
       key: PRNG key for initialization.
 
     """
-    keys = jax.random.split(key, 2)
+    keys = jax.random.split(key, 3)
 
     self.k_neighbors = k_neighbors
     self.rbf_dim = 16
@@ -82,7 +83,7 @@ class ProteinFeatures(eqx.Module):
     self.w_pos = eqx.nn.Linear(pos_one_hot_dim, POS_EMBED_DIM, key=keys[0])
     self.w_e = eqx.nn.Linear(edge_embed_in_dim, edge_features, use_bias=False, key=keys[1])
     self.norm_edges = LayerNorm(edge_features)
-    # NOTE: w_e_proj removed - W_e projection is in main model (matches ColabDesign)
+    self.w_e_proj = eqx.nn.Linear(edge_features, edge_features, key=keys[2])
 
   def __call__(
     self,
@@ -162,17 +163,19 @@ class ProteinFeatures(eqx.Module):
     jax.debug.print("🔍 PrxteinMPNN ProteinFeatures.__call__")
     jax.debug.print("  edges.shape: {}", edges.shape)
     jax.debug.print("  edges[0,0,:5]: {}", edges[0,0,:5])
+    jax.debug.print("  edges[0,0] FULL VECTOR: {}", edges[0,0])
 
     edge_features = jax.vmap(jax.vmap(self.w_e))(edges)
     jax.debug.print("  After w_e (edge_embedding), edge_features.shape: {}", edge_features.shape)
     jax.debug.print("  After w_e, edge_features[0,0,:5]: {}", edge_features[0,0,:5])
 
     edge_features = jax.vmap(jax.vmap(self.norm_edges))(edge_features)
-    jax.debug.print("  After norm_edges (FINAL), edge_features.shape: {}", edge_features.shape)
-    jax.debug.print("  After norm_edges (FINAL), edge_features[0,0,:5]: {}", edge_features[0,0,:5])
+    jax.debug.print("  After norm_edges, edge_features.shape: {}", edge_features.shape)
+    jax.debug.print("  After norm_edges, edge_features[0,0,:5]: {}", edge_features[0,0,:5])
 
-    # NOTE: W_e projection is applied in the main model, not here!
-    # This matches ColabDesign architecture where ProteinFeatures returns
-    # edge_embedding + norm output, and W_e is applied in score() method.
+    # Final edge projection (W_e in ColabDesign)
+    edge_features = jax.vmap(jax.vmap(self.w_e_proj))(edge_features)
+    jax.debug.print("  After w_e_proj (FINAL), edge_features.shape: {}", edge_features.shape)
+    jax.debug.print("  After w_e_proj (FINAL), edge_features[0,0,:5]: {}", edge_features[0,0,:5])
 
     return edge_features, neighbor_indices, prng_key

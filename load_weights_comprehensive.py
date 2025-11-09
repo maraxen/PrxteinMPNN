@@ -99,14 +99,13 @@ def load_prxteinmpnn_with_colabdesign_weights(weights_path, key=None):
         update_layer_norm(model.features.norm_edges, scale, offset)
     )
 
-    # W_e (edge projection) - applied in main model, not in features!
-    # This matches ColabDesign architecture where W_e is applied after features extraction
+    # W_e (edge projection) - applied in features module
     w = params['protein_mpnn/~/W_e']['w'].T  # (128, 128)
     b = params['protein_mpnn/~/W_e']['b']
     model = eqx.tree_at(
-        lambda m: m.w_e,  # Load into main model's w_e, not features.w_e_proj
+        lambda m: m.features.w_e_proj,
         model,
-        update_linear_layer(model.w_e, w, b)
+        update_linear_layer(model.features.w_e_proj, w, b)
     )
 
     # 4. Encoder layers

@@ -47,7 +47,6 @@ class PrxteinMPNN(eqx.Module):
   decoder: Decoder
 
   # Feature embedding layers
-  w_e: eqx.nn.Linear  # Edge feature projection (applied after features extraction)
   w_s_embed: eqx.nn.Embedding  # For sequence
 
   # Final projection
@@ -99,7 +98,7 @@ class PrxteinMPNN(eqx.Module):
     self.edge_features_dim = edge_features
     self.num_decoder_layers = num_decoder_layers
 
-    keys = jax.random.split(key, 6)  # 1 for features, 5 for main model
+    keys = jax.random.split(key, 5)  # 1 for features, 4 for main model
 
     self.features = ProteinFeatures(
       node_features,
@@ -107,31 +106,26 @@ class PrxteinMPNN(eqx.Module):
       k_neighbors,
       key=keys[0],
     )
-    self.w_e = eqx.nn.Linear(
-      edge_features,  # Input: edge features from ProteinFeatures (128)
-      edge_features,  # Output: same dimension (128)
-      key=keys[1],
-    )
     self.encoder = Encoder(
       node_features,
       edge_features,
       hidden_features,
       num_encoder_layers,
-      key=keys[2],
+      key=keys[1],
     )
     self.decoder = Decoder(
       node_features,
-      edge_features,  # Pass raw edge dim (128)
+      edge_features,
       hidden_features,
       num_decoder_layers,
-      key=keys[3],
+      key=keys[2],
     )
     self.w_s_embed = eqx.nn.Embedding(
       num_embeddings=vocab_size,
       embedding_size=node_features,
-      key=keys[4],
+      key=keys[3],
     )
-    self.w_out = eqx.nn.Linear(node_features, num_amino_acids, key=keys[5])
+    self.w_out = eqx.nn.Linear(node_features, num_amino_acids, key=keys[4])
 
   def _call_unconditional(
     self,
@@ -173,17 +167,12 @@ class PrxteinMPNN(eqx.Module):
       >>> seq, logits = model._call_unconditional(edge_feats, neighbor_idx, mask)
 
     """
-    # Apply W_e projection to edge features (matches ColabDesign architecture)
-    jax.debug.print("🔍 PrxteinMPNN _call_unconditional - before W_e")
+    jax.debug.print("🔍 PrxteinMPNN _call_unconditional")
     jax.debug.print("  edge_features.shape: {}", edge_features.shape)
     jax.debug.print("  edge_features[0,0,:5]: {}", edge_features[0,0,:5])
 
-    h_E = jax.vmap(jax.vmap(self.w_e))(edge_features)
-    jax.debug.print("  After W_e, h_E.shape: {}", h_E.shape)
-    jax.debug.print("  After W_e, h_E[0,0,:5]: {}", h_E[0,0,:5])
-
     node_features, processed_edge_features = self.encoder(
-      h_E,  # Use projected edge features
+      edge_features,
       neighbor_indices,
       mask,
     )
@@ -246,11 +235,8 @@ class PrxteinMPNN(eqx.Module):
       ... )
 
     """
-    # Apply W_e projection to edge features (matches ColabDesign architecture)
-    h_E = jax.vmap(jax.vmap(self.w_e))(edge_features)
-
     node_features, processed_edge_features = self.encoder(
-      h_E,  # Use projected edge features
+      edge_features,
       neighbor_indices,
       mask,
     )
@@ -314,11 +300,8 @@ class PrxteinMPNN(eqx.Module):
       ... )
 
     """
-    # Apply W_e projection to edge features (matches ColabDesign architecture)
-    h_E = jax.vmap(jax.vmap(self.w_e))(edge_features)
-
     node_features, processed_edge_features = self.encoder(
-      h_E,  # Use projected edge features
+      edge_features,
       neighbor_indices,
       mask,
     )

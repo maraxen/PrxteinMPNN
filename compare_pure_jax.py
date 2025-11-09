@@ -12,6 +12,7 @@ import os
 
 from prxteinmpnn.io.parsing import parse_input
 from prxteinmpnn.utils.data_structures import Protein
+from prxteinmpnn.utils.concatenate import concatenate_neighbor_nodes
 from load_weights_comprehensive import load_prxteinmpnn_with_colabdesign_weights
 
 
@@ -306,23 +307,30 @@ def colabdesign_decoder_layer(h_V, h_E, mask, params, layer_idx, scale=30.0):
     return h_V
 
 
-def colabdesign_forward(X, mask, residue_idx, chain_idx, params, k_neighbors=48):
+def colabdesign_forward(X, mask, residue_idx, chain_idx, params, k_neighbors=48, return_intermediates=False):
     """Complete forward pass following ColabDesign EXACTLY."""
+    intermediates = {}
+
     # Features
     E, E_idx = colabdesign_features(X, mask, residue_idx, chain_idx, params, k_neighbors)
+    intermediates['features_E'] = E
 
     # W_e projection
     w = params['protein_mpnn/~/W_e']['w']
     b = params['protein_mpnn/~/W_e']['b']
     h_E = E @ w + b
+    intermediates['h_E_init'] = h_E
 
     h_V = jnp.zeros((E.shape[0], E.shape[-1]))
+    intermediates['h_V_init'] = h_V
 
     # Encoder
     mask_attend = jnp.take_along_axis(mask[:,None] * mask[None,:], E_idx, 1)
 
     for i in range(3):
         h_V, h_E = colabdesign_encoder_layer(h_V, h_E, E_idx, mask, mask_attend, params, i)
+        intermediates[f'encoder_{i}_h_V'] = h_V
+        intermediates[f'encoder_{i}_h_E'] = h_E
 
     # Build decoder context
     def cat_neighbors_nodes(h_nodes, h_neighbors, E_idx):
@@ -331,16 +339,21 @@ def colabdesign_forward(X, mask, residue_idx, chain_idx, params, k_neighbors=48)
 
     h_EX_encoder = cat_neighbors_nodes(jnp.zeros_like(h_V), h_E, E_idx)
     h_EXV_encoder = cat_neighbors_nodes(h_V, h_EX_encoder, E_idx)
+    intermediates['decoder_context'] = h_EXV_encoder
 
     # Decoder
     for i in range(3):
         h_V = colabdesign_decoder_layer(h_V, h_EXV_encoder, mask, params, i)
+        intermediates[f'decoder_{i}_h_V'] = h_V
 
     # Output
     w = params['protein_mpnn/~/W_out']['w']
     b = params['protein_mpnn/~/W_out']['b']
     logits = h_V @ w + b
+    intermediates['logits'] = logits
 
+    if return_intermediates:
+        return logits, E, E_idx, h_EXV_encoder, intermediates
     return logits, E, E_idx, h_EXV_encoder
 
 
@@ -371,48 +384,152 @@ def main():
     backbone_indices = [atom_order["N"], atom_order["CA"], atom_order["C"], atom_order["O"]]  # [0, 1, 2, 4]
     X_backbone = protein.coordinates[:, backbone_indices, :]  # (L, 4, 3)
 
-    print("\n1. Running ColabDesign (pure JAX)...")
+    print("\n1. Running ColabDesign (pure JAX) with intermediates...")
     print(f"   Using backbone atoms only: {X_backbone.shape}")
-    colab_logits, colab_E, colab_E_idx, colab_context = colabdesign_forward(
+    colab_logits, colab_E, colab_E_idx, colab_context, colab_inter = colabdesign_forward(
         X_backbone,
         protein.mask,
         protein.residue_index,
         protein.chain_index,
         params,
         k_neighbors=48,
+        return_intermediates=True,
     )
 
-    print("\n2. Running PrxteinMPNN...")
-    _, prx_logits = prx_model(
-        protein.coordinates,
-        protein.mask,
-        protein.residue_index,
-        protein.chain_index,
-        "unconditional",
-        prng_key=key,
-    )
+    print("\n2. Running PrxteinMPNN with intermediates...")
 
-    # Extract PrxteinMPNN intermediates
+    # Extract PrxteinMPNN intermediates by manually running layers
     prx_edge_features, prx_neighbor_indices, _ = prx_model.features(
         key, protein.coordinates, protein.mask,
         protein.residue_index, protein.chain_index, None,
     )
 
+    # Run encoder manually to extract intermediates
+    prx_node_features = jnp.zeros((prx_edge_features.shape[0], prx_model.encoder.node_feature_dim))
+    mask_2d = protein.mask[:, None] * protein.mask[None, :]
+    prx_mask_attend = jnp.take_along_axis(mask_2d, prx_neighbor_indices, axis=1)
+
+    prx_inter = {}
+    prx_inter['h_V_init'] = prx_node_features
+    prx_inter['h_E_init'] = prx_edge_features
+
+    for i, layer in enumerate(prx_model.encoder.layers):
+        prx_node_features, prx_edge_features = layer(
+            prx_node_features, prx_edge_features, prx_neighbor_indices,
+            protein.mask, prx_mask_attend
+        )
+        prx_inter[f'encoder_{i}_h_V'] = prx_node_features
+        prx_inter[f'encoder_{i}_h_E'] = prx_edge_features
+
+    # Build decoder context (same as Decoder.__call__)
+    zeros_with_edges = concatenate_neighbor_nodes(
+        jnp.zeros_like(prx_node_features),
+        prx_edge_features,
+        prx_neighbor_indices,
+    )
+    prx_context = concatenate_neighbor_nodes(
+        prx_node_features,
+        zeros_with_edges,
+        prx_neighbor_indices,
+    )
+    prx_inter['decoder_context'] = prx_context
+
+    # Run decoder manually
+    prx_node_features_dec = prx_node_features
+    for i, layer in enumerate(prx_model.decoder.layers):
+        prx_node_features_dec = layer(prx_node_features_dec, prx_context, protein.mask)
+        prx_inter[f'decoder_{i}_h_V'] = prx_node_features_dec
+
+    # Get final logits
+    prx_logits = jax.vmap(prx_model.w_out)(prx_node_features_dec)
+    prx_inter['logits'] = prx_logits
+
     print("\n" + "="*80)
-    print("3. COMPARISONS")
+    print("3. LAYER-BY-LAYER COMPARISONS")
     print("="*80)
 
     print("\n📊 NEIGHBOR INDICES:")
     compare("Neighbor indices", colab_E_idx, prx_neighbor_indices)
 
-    print("\n📊 EDGE FEATURES:")
-    # ColabDesign: E after features module (before W_e)
-    # PrxteinMPNN: edge_features after w_e_proj
-    # These should match after applying W_e to colab_E
+    print("\n📊 INITIAL EDGE FEATURES (after W_e/w_e_proj):")
+    compare("Initial h_E", colab_inter['h_E_init'], prx_inter['h_E_init'])
+
+    # Debug: Check edge features before LayerNorm
+    print("\n  🔍 Debugging initial edge features:")
+    # Get features before norm from ColabDesign
+    colab_E_before_norm, _ = colabdesign_features(X_backbone, protein.mask,
+                                                   protein.residue_index, protein.chain_index,
+                                                   params, k_neighbors=48)
     w_e = params['protein_mpnn/~/W_e']['w']
     b_e = params['protein_mpnn/~/W_e']['b']
-    colab_E_proj = colab_E @ w_e + b_e
-    compare("Edge features (after W_e/w_e_proj)", colab_E_proj, prx_edge_features)
+    colab_E_after_we = colab_E_before_norm @ w_e + b_e
+
+    # Get PrxteinMPNN features before the final norm
+    from prxteinmpnn.utils.coordinates import compute_backbone_coordinates
+    from prxteinmpnn.utils.radial_basis import compute_radial_basis
+    from prxteinmpnn.utils.graph import compute_neighbor_offsets
+
+    noised_coords = protein.coordinates  # No noise for this test
+    backbone_prx = compute_backbone_coordinates(noised_coords)
+    rbf_prx = compute_radial_basis(backbone_prx, prx_neighbor_indices)
+    neighbor_offsets = compute_neighbor_offsets(protein.residue_index, prx_neighbor_indices)
+
+    edge_chains = (protein.chain_index[:, None] == protein.chain_index[None, :]).astype(int)
+    edge_chains_neighbors = jnp.take_along_axis(edge_chains, prx_neighbor_indices, axis=1)
+    neighbor_offset_factor = jnp.clip(neighbor_offsets + 32, 0, 2*32)
+    edge_chain_factor = (1 - edge_chains_neighbors) * (2*32 + 1)
+    encoded_offset = neighbor_offset_factor * edge_chains_neighbors + edge_chain_factor
+    encoded_offset_one_hot = jax.nn.one_hot(encoded_offset, 2*32 + 2)
+
+    # Get w_pos from features module
+    w_pos = params['protein_mpnn/~/protein_features/~/positional_encodings/~/embedding_linear']['w']
+    b_pos = params['protein_mpnn/~/protein_features/~/positional_encodings/~/embedding_linear']['b']
+    encoded_positions = jax.vmap(jax.vmap(lambda x: x @ w_pos + b_pos))(encoded_offset_one_hot)
+
+    edges_prx = jnp.concatenate([encoded_positions, rbf_prx], axis=-1)
+
+    # Get w_e from features
+    w_e_feat = params['protein_mpnn/~/protein_features/~/edge_embedding']['w']
+    edge_features_prx = jax.vmap(jax.vmap(lambda x: x @ w_e_feat))(edges_prx)
+
+    compare("  Before LayerNorm (after edge embedding)", colab_E_after_we, edge_features_prx)
+
+    # Check LayerNorm computation
+    scale_norm = params['protein_mpnn/~/protein_features/~/norm_edges']['scale']
+    offset_norm = params['protein_mpnn/~/protein_features/~/norm_edges']['offset']
+
+    # ColabDesign LayerNorm (axis=-1)
+    mean_colab = colab_E_after_we.mean(axis=-1, keepdims=True)
+    var_colab = colab_E_after_we.var(axis=-1, keepdims=True)
+    colab_normed = (colab_E_after_we - mean_colab) / jnp.sqrt(var_colab + 1e-5)
+    colab_normed = colab_normed * scale_norm + offset_norm
+
+    # PrxteinMPNN LayerNorm (with vmap)
+    def norm_fn(x):
+        mean = x.mean()
+        var = x.var()
+        return ((x - mean) / jnp.sqrt(var + 1e-5)) * scale_norm + offset_norm
+    prx_normed = jax.vmap(jax.vmap(norm_fn))(edge_features_prx)
+
+    compare("  After LayerNorm (ColabDesign style)", colab_normed, colab_inter['h_E_init'])
+    compare("  After LayerNorm (PrxteinMPNN style)", prx_normed, prx_inter['h_E_init'])
+
+    print("\n📊 INITIAL NODE FEATURES:")
+    compare("Initial h_V", colab_inter['h_V_init'], prx_inter['h_V_init'])
+
+    print("\n📊 ENCODER LAYERS:")
+    for i in range(3):
+        print(f"\n  Layer {i}:")
+        compare(f"  Encoder {i} h_V", colab_inter[f'encoder_{i}_h_V'], prx_inter[f'encoder_{i}_h_V'])
+        compare(f"  Encoder {i} h_E", colab_inter[f'encoder_{i}_h_E'], prx_inter[f'encoder_{i}_h_E'])
+
+    print("\n📊 DECODER CONTEXT:")
+    compare("Decoder context", colab_inter['decoder_context'], prx_inter['decoder_context'])
+
+    print("\n📊 DECODER LAYERS:")
+    for i in range(3):
+        print(f"\n  Layer {i}:")
+        compare(f"  Decoder {i} h_V", colab_inter[f'decoder_{i}_h_V'], prx_inter[f'decoder_{i}_h_V'])
 
     print("\n📊 FINAL LOGITS:")
     final_corr = compare("Final logits", colab_logits, prx_logits)

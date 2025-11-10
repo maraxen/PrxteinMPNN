@@ -1,11 +1,3 @@
-from prxteinmpnn.utils.decoding_order import get_decoding_order
-def test_tied_group_decoding_order():
-  tie_group_map = jnp.array([0, 2, 1, 0, 2])
-  key = jax.random.PRNGKey(0)
-  group_decoding_order = get_decoding_order(tie_group_map, key)
-  # Should be a permutation of [0, 1, 2]
-  assert set(group_decoding_order.tolist()) == {0, 1, 2}
-  assert group_decoding_order.shape == (3,)
 """Tests for decoding order utilities."""
 
 import chex

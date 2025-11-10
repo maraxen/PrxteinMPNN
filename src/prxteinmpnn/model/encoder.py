@@ -6,18 +6,21 @@ This module contains the EncoderLayer and Encoder classes.
 from __future__ import annotations
 
 from functools import partial
+from typing import TYPE_CHECKING
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 
 from prxteinmpnn.utils.concatenate import concatenate_neighbor_nodes
-from prxteinmpnn.utils.types import (
-  AlphaCarbonMask,
-  EdgeFeatures,
-  NeighborIndices,
-  NodeFeatures,
-)
+
+if TYPE_CHECKING:
+  from prxteinmpnn.utils.types import (
+    AlphaCarbonMask,
+    EdgeFeatures,
+    NeighborIndices,
+    NodeFeatures,
+  )
 
 # Type alias for PRNG keys
 PRNGKeyArray = jax.Array

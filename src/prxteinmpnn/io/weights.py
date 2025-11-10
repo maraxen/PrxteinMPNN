@@ -39,7 +39,6 @@ def load_weights(
   model_weights: MODEL_WEIGHTS = "original",
   local_path: str | None = None,
   skeleton: eqx.Module | None = None,
-  use_eqx_format: bool = True,
 ) -> PyTree | eqx.Module:
   """Load PrxteinMPNN weights from Hugging Face Hub or a local path.
 
@@ -49,8 +48,6 @@ def load_weights(
       local_path: Optional. If provided, loads from this local file.
       skeleton: Optional. If provided, loads weights *into* this
                 eqx.Module skeleton. Required for .eqx format.
-      use_eqx_format: If True, loads from .eqx files (default).
-                      If False, loads legacy .pkl files.
 
   Returns:
       The loaded model (as a raw PyTree or populated eqx.Module).
@@ -58,9 +55,6 @@ def load_weights(
   Example:
       >>> # Load from HuggingFace (.eqx format, recommended)
       >>> model = load_model(model_version="v_48_020", model_weights="original")
-      >>>
-      >>> # Load legacy .pkl format
-      >>> weights = load_weights(use_eqx_format=False, skeleton=None)
 
   """
   if local_path:
@@ -138,7 +132,6 @@ def load_model(
     model_weights=model_weights,
     local_path=local_path,
     skeleton=skeleton,
-    use_eqx_format=True,
   )
 
   # Type check for safety

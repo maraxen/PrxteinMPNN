@@ -419,7 +419,7 @@ def process_lines_iter_chemical_props(
     if line.strip() == "-":
       break
     parts = line.split()
-    if len(parts) != 4:
+    if len(parts) != 4:  # noqa: PLR2004
       continue
     bond, resname, length, stddev = parts
     atom1, atom2 = bond.split("-")
@@ -433,7 +433,7 @@ def process_lines_iter_chemical_props(
     if line.strip() == "-":
       break
     parts = line.split()
-    if len(parts) != 4:
+    if len(parts) != 4:  # noqa: PLR2004
       continue
     bond, resname, angle_degree, stddev_degree = parts
     atom1, atom2, atom3 = bond.split("-")

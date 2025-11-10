@@ -6,6 +6,8 @@ features from raw protein coordinates.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -17,15 +19,17 @@ from prxteinmpnn.utils.coordinates import (
 )
 from prxteinmpnn.utils.graph import compute_neighbor_offsets
 from prxteinmpnn.utils.radial_basis import compute_radial_basis
-from prxteinmpnn.utils.types import (
-  AlphaCarbonMask,
-  BackboneNoise,
-  ChainIndex,
-  EdgeFeatures,
-  NeighborIndices,
-  ResidueIndex,
-  StructureAtomicCoordinates,
-)
+
+if TYPE_CHECKING:
+  from prxteinmpnn.utils.types import (
+    AlphaCarbonMask,
+    BackboneNoise,
+    ChainIndex,
+    EdgeFeatures,
+    NeighborIndices,
+    ResidueIndex,
+    StructureAtomicCoordinates,
+  )
 
 # Type alias for PRNG keys
 PRNGKeyArray = jax.Array
@@ -56,7 +60,7 @@ class ProteinFeatures(eqx.Module):
 
   def __init__(
     self,
-    node_features: int,
+    node_features: int,  # noqa: ARG002
     edge_features: int,
     k_neighbors: int,
     *,

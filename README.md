@@ -18,6 +18,30 @@ PrxteinMPNN provides a **functional interface for ProteinMPNN**, leveraging the 
 
 **[Complete Documentation →](http://maraxen.github.io/PrxteinMPNN)**
 
+## ✅ Validation
+
+PrxteinMPNN has been **rigorously validated** against the original [ColabDesign ProteinMPNN](https://github.com/sokrypton/ColabDesign) implementation:
+
+| Decoding Path | Correlation | Status |
+|---------------|-------------|---------|
+| **Unconditional** | 0.984 | ✅ **Validated** |
+| **Conditional** | 0.958-0.984 | ✅ **Validated** |
+| **Autoregressive** | 0.953-0.970 | ✅ **Validated** |
+
+All three decoding paths achieve **>0.95 Pearson correlation** with ColabDesign outputs, ensuring faithful reproduction of the original model's behavior.
+
+**[View Full Validation Report →](FINAL_VALIDATION_RESULTS.md)**
+
+### Running Equivalence Tests
+
+```bash
+# Install ColabDesign for validation tests
+pip install git+https://github.com/sokrypton/ColabDesign.git@e31a56f
+
+# Run equivalence tests
+uv run pytest tests/model/test_colabdesign_equivalence.py -v
+```
+
 ## 🚀 Quick Start
 
 ### Installation

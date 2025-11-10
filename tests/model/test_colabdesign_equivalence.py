@@ -21,7 +21,6 @@ except ImportError:
 from prxteinmpnn.io.parsing import parse_input
 from prxteinmpnn.utils.data_structures import Protein
 
-
 # Alphabet conversion between AlphaFold and MPNN orderings
 MPNN_ALPHABET = "ACDEFGHIKLMNPQRSTVWYX"
 AF_ALPHABET = "ARNDCQEGHILKMFPSTWYVX"
@@ -109,7 +108,7 @@ class TestColabDesignEquivalence:
         # Calculate correlation
         correlation = np.corrcoef(
             colab_logits_mpnn.flatten(),
-            prx_logits.flatten()
+            prx_logits.flatten(),
         )[0, 1]
 
         # Assert high correlation
@@ -127,10 +126,10 @@ class TestColabDesignEquivalence:
         Target: correlation > 0.95
         """
         key = jax.random.PRNGKey(42)
-        L = len(colabdesign_model._inputs['S'])
+        L = len(colabdesign_model._inputs["S"])
 
         # Use native sequence from structure
-        native_seq_af_list = [int(x) for x in colabdesign_model._inputs['S']]
+        native_seq_af_list = [int(x) for x in colabdesign_model._inputs["S"]]
         native_seq_mpnn = jnp.array([
             MPNN_ALPHABET.index(AF_ALPHABET[idx]) for idx in native_seq_af_list
         ])
@@ -143,7 +142,7 @@ class TestColabDesignEquivalence:
             ar_mask=ar_mask_zero,
             key=key,
         )
-        colab_logits_mpnn = af_logits_to_mpnn(colab_result['logits'])
+        colab_logits_mpnn = af_logits_to_mpnn(colab_result["logits"])
 
         # Get PrxteinMPNN conditional logits
         one_hot_seq = jax.nn.one_hot(native_seq_mpnn, 21)
@@ -161,7 +160,7 @@ class TestColabDesignEquivalence:
         # Calculate correlation
         correlation = np.corrcoef(
             colab_logits_mpnn.flatten(),
-            prx_logits.flatten()
+            prx_logits.flatten(),
         )[0, 1]
 
         # Assert high correlation
@@ -179,7 +178,7 @@ class TestColabDesignEquivalence:
         Target: correlation > 0.95
         """
         key = jax.random.PRNGKey(42)
-        L = len(colabdesign_model._inputs['S'])
+        L = len(colabdesign_model._inputs["S"])
 
         # Use fixed decoding order for reproducibility
         fixed_order = np.arange(L)
@@ -198,7 +197,7 @@ class TestColabDesignEquivalence:
             decoding_order=fixed_order,
             key=key,
         )
-        colab_logits_mpnn = af_logits_to_mpnn(colab_sample['logits'][0])
+        colab_logits_mpnn = af_logits_to_mpnn(colab_sample["logits"][0])
 
         # Get PrxteinMPNN autoregressive logits
         _, prx_logits = prxteinmpnn_model(
@@ -215,7 +214,7 @@ class TestColabDesignEquivalence:
         # Calculate correlation
         correlation = np.corrcoef(
             colab_logits_mpnn.flatten(),
-            prx_logits.flatten()
+            prx_logits.flatten(),
         )[0, 1]
 
         # Assert high correlation
@@ -271,7 +270,7 @@ class TestColabDesignEquivalence:
         )
 
     def test_conditional_with_zero_mask_matches_unconditional(
-        self, prxteinmpnn_model, protein_data
+        self, prxteinmpnn_model, protein_data,
     ):
         """Test that conditional with ar_mask=0 matches unconditional.
 
@@ -310,7 +309,7 @@ class TestColabDesignEquivalence:
         # Should be nearly identical
         correlation = np.corrcoef(
             unconditional_logits.flatten(),
-            conditional_logits.flatten()
+            conditional_logits.flatten(),
         )[0, 1]
 
         assert correlation > 0.999, (

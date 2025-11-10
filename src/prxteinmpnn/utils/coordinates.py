@@ -7,6 +7,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
+from prxteinmpnn.utils.atom_ordering import PDB_ORDER_INDICES
 from prxteinmpnn.utils.residue_constants import atom_order
 from prxteinmpnn.utils.types import (
   AlphaCarbonDistance,
@@ -78,11 +79,11 @@ def compute_backbone_coordinates(
 
   """
   # Parser outputs PDB file order where O is at index 3 and CB at index 4
-  # Do NOT use atom_order which assumes atom37 order (CB at 3, O at 4)
-  nitrogen = coordinates[:, 0, :]  # N always at index 0
-  alpha_carbon = coordinates[:, 1, :]  # CA always at index 1
-  carbon = coordinates[:, 2, :]  # C always at index 2
-  oxygen = coordinates[:, 3, :]  # O at index 3 in PDB order (not 4!)
+  # Use PDB_ORDER_INDICES instead of atom_order (which assumes atom37 order)
+  nitrogen = coordinates[:, PDB_ORDER_INDICES["N"], :]
+  alpha_carbon = coordinates[:, PDB_ORDER_INDICES["CA"], :]
+  carbon = coordinates[:, PDB_ORDER_INDICES["C"], :]
+  oxygen = coordinates[:, PDB_ORDER_INDICES["O"], :]  # Index 3 in PDB order, not 4!
 
   alpha_to_nitrogen = alpha_carbon - nitrogen
   carbon_to_alpha = carbon - alpha_carbon

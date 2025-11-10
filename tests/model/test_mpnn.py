@@ -57,6 +57,9 @@ def test_call_unconditional(model):
     dummy_temperature = jnp.array(1.0)
     dummy_bias = jnp.zeros((10, 21))
 
+    dummy_multi_state_strategy_idx = jnp.array(0, dtype=jnp.int32)
+    dummy_multi_state_alpha = 0.5
+
     seq, logits = model._call_unconditional(
         edge_features,
         neighbor_indices,
@@ -67,6 +70,8 @@ def test_call_unconditional(model):
         dummy_temperature,
         dummy_bias,
         None,  # tie_group_map
+        dummy_multi_state_strategy_idx,
+        dummy_multi_state_alpha,
     )
 
     chex.assert_shape(seq, (10, 21))
@@ -86,6 +91,9 @@ def test_call_conditional(model):
     dummy_temperature = jnp.array(1.0)
     dummy_bias = jnp.zeros((10, 21))
 
+    dummy_multi_state_strategy_idx = jnp.array(0, dtype=jnp.int32)
+    dummy_multi_state_alpha = 0.5
+
     out_seq, logits = model._call_conditional(
         edge_features,
         neighbor_indices,
@@ -96,6 +104,8 @@ def test_call_conditional(model):
         dummy_temperature,
         dummy_bias,
         None,  # tie_group_map
+        dummy_multi_state_strategy_idx,
+        dummy_multi_state_alpha,
     )
 
     chex.assert_trees_all_equal(out_seq, one_hot_sequence)
@@ -115,6 +125,9 @@ def test_call_autoregressive(model):
     dummy_one_hot_sequence = jnp.zeros((10, 21))
     dummy_bias = jnp.zeros((10, 21))
 
+    dummy_multi_state_strategy_idx = jnp.array(0, dtype=jnp.int32)
+    dummy_multi_state_alpha = 0.5
+
     seq, logits = model._call_autoregressive(
         edge_features,
         neighbor_indices,
@@ -125,6 +138,8 @@ def test_call_autoregressive(model):
         temperature,
         dummy_bias,
         None,  # tie_group_map
+        dummy_multi_state_strategy_idx,
+        dummy_multi_state_alpha,
     )
 
     chex.assert_shape(seq, (10, 21))

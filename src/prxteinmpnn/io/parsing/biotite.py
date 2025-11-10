@@ -3,6 +3,7 @@
 import logging
 import pathlib
 from collections.abc import Sequence
+from dataclasses import asdict
 from typing import Any, cast
 
 import numpy as np
@@ -10,7 +11,12 @@ from biotite import structure
 from biotite.structure import AtomArray, AtomArrayStack
 from biotite.structure import io as structure_io
 
-from prxteinmpnn.utils.data_structures import ProteinStream, ProteinTuple, TrajectoryStaticFeatures
+from prxteinmpnn.utils.data_structures import (
+  EstatInfo,
+  ProteinStream,
+  ProteinTuple,
+  TrajectoryStaticFeatures,
+)
 from prxteinmpnn.utils.residue_constants import (
   atom_order,
 )
@@ -205,6 +211,7 @@ def _parse_biotite(
   altloc: str | None,
   chain_id: Sequence[str] | str | None,
   topology: str | pathlib.Path | None = None,
+  estat_info: EstatInfo | None = None,
   *,
   extract_dihedrals: bool = False,
   **kwargs: Any,  # noqa: ANN401
@@ -270,6 +277,7 @@ def _parse_biotite(
             dihedrals=dihedrals,
             source=str(source),
             full_coordinates=coords,
+            **asdict(estat_info) if estat_info is not None else {},
           )
 
       elif isinstance(atom_array, AtomArray):
@@ -294,6 +302,7 @@ def _parse_biotite(
           dihedrals=dihedrals,
           source=str(source),
           full_coordinates=coords,
+          **asdict(estat_info) if estat_info is not None else {},
         )
 
     logger.info("Finished Biotite parsing. Yielded %d frames.", frame_count)

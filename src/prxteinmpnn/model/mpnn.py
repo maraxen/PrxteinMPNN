@@ -167,10 +167,6 @@ class PrxteinMPNN(eqx.Module):
       >>> seq, logits = model._call_unconditional(edge_feats, neighbor_idx, mask)
 
     """
-    jax.debug.print("🔍 PrxteinMPNN _call_unconditional")
-    jax.debug.print("  edge_features.shape: {}", edge_features.shape)
-    jax.debug.print("  edge_features[0,0,:5]: {}", edge_features[0,0,:5])
-
     node_features, processed_edge_features = self.encoder(
       edge_features,
       neighbor_indices,

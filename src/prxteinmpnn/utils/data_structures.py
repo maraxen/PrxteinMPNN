@@ -73,6 +73,11 @@ class ProteinTuple(NamedTuple):
   dihedrals: np.ndarray | None = None
   source: str | None = None
   mapping: np.ndarray | None = None
+  charges: np.ndarray | None = None
+  radii: np.ndarray | None = None
+  estat_backbone_mask: np.ndarray | None = None
+  estat_resid: np.ndarray | None = None
+  estat_chain_index: np.ndarray | None = None
 
 
 @dc
@@ -103,6 +108,26 @@ def include_feature(feature_name: str, include_features: Sequence[str] | None) -
   if include_features is None:
     return False
   return feature_name in include_features or "all" in include_features
+
+
+@dataclass
+class EstatInfo:
+  """Electrostatics information extracted from a PQR file.
+
+  Attributes:
+    charges: Numpy array of atomic charges.
+    radii: Numpy array of atomic radii.
+    estat_backbone_mask: Boolean numpy array indicating backbone atoms.
+    estat_resid: Integer numpy array of residue numbers.
+    estat_chain_index: Integer numpy array of chain indices (ord value).
+
+  """
+
+  charges: np.ndarray
+  radii: np.ndarray
+  estat_backbone_mask: np.ndarray
+  estat_resid: np.ndarray
+  estat_chain_index: np.ndarray
 
 
 @dataclass(frozen=True)
@@ -147,6 +172,11 @@ class Protein:
   mapping: Int | None = None
   full_coordinates: StructureAtomicCoordinates | None = None
   full_atom_mask: AtomMask | None = None
+  charges: np.ndarray | None = None
+  radii: np.ndarray | None = None
+  estat_backbone_mask: np.ndarray | None = None
+  estat_resid: np.ndarray | None = None
+  estat_chain_index: np.ndarray | None = None
 
   @classmethod
   def from_tuple(
@@ -171,10 +201,6 @@ class Protein:
         Protein: The output protein dataclass.
 
     """
-    # NOTE: Keep atom ordering as-is from parser (matches 0.871 correlation baseline)
-    # The parser places atoms in PDB file order where O and CB are swapped vs atom37 standard,
-    # but this is how the model achieves 0.871 correlation, so we preserve it.
-
     return cls(
       coordinates=jnp.asarray(protein_tuple.coordinates, dtype=jnp.float32),
       aatype=jnp.asarray(protein_tuple.aatype, dtype=jnp.int8),
@@ -204,6 +230,11 @@ class Protein:
         or not include_feature("full_atom_mask", include_extras)
         else jnp.asarray(protein_tuple.atom_mask, dtype=jnp.float32)
       ),
+      charges=protein_tuple.charges,
+      radii=protein_tuple.radii,
+      estat_backbone_mask=protein_tuple.estat_backbone_mask,
+      estat_resid=protein_tuple.estat_resid,
+      estat_chain_index=protein_tuple.estat_chain_index,
     )
 
 

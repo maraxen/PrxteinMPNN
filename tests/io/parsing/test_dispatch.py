@@ -55,6 +55,28 @@ def test_determine_h5_structure_unknown():
 
 
 class TestParseInput:
+    def test_parse_pqr_file(self):
+        """Test parsing a PQR file using parse_input (integration)."""
+        import pathlib
+        test_pqr_path = pathlib.Path(__file__).parent.parent.parent / "data" / "1a00.pqr"
+        protein_stream = parse_input(test_pqr_path)
+        protein_list = list(protein_stream)
+        assert len(protein_list) == 1
+        protein = protein_list[0]
+        assert hasattr(protein, "charges")
+        assert hasattr(protein, "radii")
+        assert hasattr(protein, "estat_backbone_mask")
+        assert hasattr(protein, "estat_resid")
+        assert hasattr(protein, "estat_chain_index")
+        # Check that charges and radii are numpy arrays and have the same length
+        assert protein.charges is not None
+        assert protein.radii is not None
+        assert protein.charges.shape == protein.radii.shape
+        assert protein.charges.dtype == np.float32
+        assert protein.radii.dtype == np.float32
+        assert protein.estat_backbone_mask.dtype == bool
+        assert protein.estat_resid.dtype == np.int32
+        assert protein.estat_chain_index.dtype == np.int32
     """Tests for the main `parse_input` function."""
 
     def test_parse_pdb_string(self):

@@ -24,6 +24,7 @@ from prxteinmpnn.utils.data_structures import ProteinStream
 from .biotite import _parse_biotite
 from .mdcath import parse_mdcath_hdf5
 from .mdtraj import _parse_mdtraj_hdf5
+from .pqr import _parse_pqr
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +102,19 @@ def parse_input(  # noqa: C901, PLR0912, PLR0915
   try:
     if isinstance(source, (str, pathlib.Path)):
       path = pathlib.Path(source)
+      if path.suffix.lower() == ".pqr":
+        logger.info("Dispatching to PQR parser.")
+        temp_path, estat_info = _parse_pqr(path, chain_id)
+        yield from _parse_biotite(
+          temp_path,
+          model,
+          altloc=altloc,
+          chain_id=chain_id,
+          extract_dihedrals=extract_dihedrals,
+          estat_info=estat_info,
+          **kwargs,
+        )
+        return
       if path.suffix.lower() in {".h5", ".hdf5"}:
         h5_structure = _determine_h5_structure(path)
 

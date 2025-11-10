@@ -161,7 +161,10 @@ class ProteinFeaturesDirect(eqx.Module):
     # Direct matrix multiply instead of vmap (shape: N, K, 66 @ 66, 16 = N, K, 16)
     w_pos_weight = self.w_pos.weight  # (16, 66)
     w_pos_bias = self.w_pos.bias      # (16,)
-    encoded_positions = encoded_offset_one_hot @ w_pos_weight.T + w_pos_bias
+    if w_pos_bias is None:
+      encoded_positions = encoded_offset_one_hot @ w_pos_weight.T
+    else:
+      encoded_positions = encoded_offset_one_hot @ w_pos_weight.T + w_pos_bias
 
     # Embed edges (shape: N, K, 416 @ 416, 128 = N, K, 128)
     edges = jnp.concatenate([encoded_positions, rbf], axis=-1)
@@ -176,11 +179,11 @@ class ProteinFeaturesDirect(eqx.Module):
 
     # Apply scale and offset from LayerNorm
     # Note: eqx.nn.LayerNorm stores scale as 'weight' and offset as 'bias'
-    if hasattr(self.norm_edges, "weight"):
+    if hasattr(self.norm_edges, "weight") and self.norm_edges.weight is not None:
       scale = self.norm_edges.weight
     else:
       scale = jnp.ones(edge_features.shape[-1])
-    if hasattr(self.norm_edges, "bias"):
+    if hasattr(self.norm_edges, "bias") and self.norm_edges.bias is not None:
       offset = self.norm_edges.bias
     else:
       offset = jnp.zeros(edge_features.shape[-1])
@@ -189,6 +192,9 @@ class ProteinFeaturesDirect(eqx.Module):
     # Project features (shape: N, K, 128 @ 128, 128 = N, K, 128)
     w_e_proj_weight = self.w_e_proj.weight  # (128, 128)
     w_e_proj_bias = self.w_e_proj.bias      # (128,)
-    edge_features = edge_features @ w_e_proj_weight.T + w_e_proj_bias
+    if w_e_proj_bias is None:
+      edge_features = edge_features @ w_e_proj_weight.T
+    else:
+      edge_features = edge_features @ w_e_proj_weight.T + w_e_proj_bias
 
     return edge_features, neighbor_indices, prng_key

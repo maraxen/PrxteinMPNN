@@ -59,7 +59,8 @@ def _select_chain_mdtraj(
       chain_id = [chain_id]
 
     logger.info("Selecting chain(s) %s in MDTraj topology.", chain_id)
-    selection = " or ".join(f"chainid {cid}" for cid in chain_id)
+    chain_indices = [c.index for c in traj.top.chains if c.chain_id in chain_id]
+    selection = " or ".join(f"chainid {idx}" for idx in chain_indices)
     atom_indices = traj.top.select(selection)
 
     if atom_indices.size == 0:
@@ -97,7 +98,7 @@ def _extract_mdtraj_static_features(
 
   # Pre-compute all static topology-derived information
   atom_names = np.array([a.name for a in topology.atoms])
-  atom37_indices = atom_names_to_index(atom_names.astype("U5"))
+  atom37_indices = atom_names_to_index(atom_names)
   residue_inv_indices = np.array([a.residue.index for a in topology.atoms])
   valid_atom_mask = atom37_indices != -1
   res_indices_flat = residue_inv_indices[valid_atom_mask]

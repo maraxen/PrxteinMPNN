@@ -64,11 +64,11 @@ def compute_backbone_coordinates(
 
   Args:
     coordinates: Atomic coordinates of the protein structure, shape (N, 37, 3).
+        Expected in PDB file order where O and CB are swapped compared to atom37.
 
   Returns:
     Backbone coordinates with C-beta atoms computed where necessary, shape (N, 5, 3).
-    NOTE: This deviates from the default atom37 (Nitrogen, C alpha, C, C beta, Oxygen...)
-      atom ordering.
+    Returned in PDB file order: (N, CA, C, O, CB).
 
   Example:
     >>> coords = jnp.zeros((10, 37, 3))  # Example coordinates
@@ -77,10 +77,12 @@ def compute_backbone_coordinates(
     (10, 5, 3)
 
   """
-  nitrogen = coordinates[:, atom_order["N"], :]
-  alpha_carbon = coordinates[:, atom_order["CA"], :]
-  carbon = coordinates[:, atom_order["C"], :]
-  oxygen = coordinates[:, atom_order["O"], :]
+  # Parser outputs PDB file order where O is at index 3 and CB at index 4
+  # Do NOT use atom_order which assumes atom37 order (CB at 3, O at 4)
+  nitrogen = coordinates[:, 0, :]  # N always at index 0
+  alpha_carbon = coordinates[:, 1, :]  # CA always at index 1
+  carbon = coordinates[:, 2, :]  # C always at index 2
+  oxygen = coordinates[:, 3, :]  # O at index 3 in PDB order (not 4!)
 
   alpha_to_nitrogen = alpha_carbon - nitrogen
   carbon_to_alpha = carbon - alpha_carbon

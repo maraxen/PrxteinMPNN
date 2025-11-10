@@ -100,7 +100,7 @@ def make_score_sequence(
       ... )
 
     """
-    decoding_order, prng_key = decoding_order_fn(prng_key, sequence.shape[0])
+    decoding_order, prng_key = decoding_order_fn(prng_key, sequence.shape[0], None, None)
     autoregressive_mask = generate_ar_mask(decoding_order) if ar_mask is None else ar_mask
 
     # Ensure sequence is one-hot encoded

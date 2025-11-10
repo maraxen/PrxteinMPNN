@@ -366,6 +366,11 @@ document.write(`
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.decoder</span><span class="w"> </span><span class="kn">import</span> <span class="n">Decoder</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.encoder</span><span class="w"> </span><span class="kn">import</span> <span class="n">Encoder</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.features</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProteinFeatures</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.multi_state_sampling</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+  <span class="n">max_min_over_group_logits</span><span class="p">,</span>
+  <span class="n">min_over_group_logits</span><span class="p">,</span>
+  <span class="n">product_of_probabilities_logits</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.concatenate</span><span class="w"> </span><span class="kn">import</span> <span class="n">concatenate_neighbor_nodes</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.ste</span><span class="w"> </span><span class="kn">import</span> <span class="n">straight_through_estimator</span>
 
@@ -494,6 +499,8 @@ document.write(`
     <span class="n">_temperature</span><span class="p">:</span> <span class="n">Float</span><span class="p">,</span>
     <span class="n">_bias</span><span class="p">:</span> <span class="n">Logits</span><span class="p">,</span>
     <span class="n">_tie_group_map</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">_multi_state_strategy_idx</span><span class="p">:</span> <span class="n">Int</span><span class="p">,</span>
+    <span class="n">_multi_state_alpha</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
   <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">OneHotProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Run the unconditional (scoring) path.</span>
 
@@ -503,10 +510,12 @@ document.write(`
 <span class="sd">      mask: Alpha carbon mask.</span>
 <span class="sd">      _ar_mask: Unused, required for jax.lax.switch signature.</span>
 <span class="sd">      _one_hot_sequence: Unused, required for jax.lax.switch signature.</span>
-<span class="sd">      _prng_key: Unused, required for jax.lax.switch signature.</span>
+<span class="sd">      prng_key: Unused, required for jax.lax.switch signature.</span>
 <span class="sd">      _temperature: Unused, required for jax.lax.switch signature.</span>
 <span class="sd">      _bias: Unused, required for jax.lax.switch signature.</span>
 <span class="sd">      _tie_group_map: Unused, required for jax.lax.switch signature.</span>
+<span class="sd">      _multi_state_strategy_idx: Unused, required for jax.lax.switch signature.</span>
+<span class="sd">      _multi_state_alpha: Unused, required for jax.lax.switch signature.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">      Tuple of (dummy sequence, logits).</span>
@@ -553,12 +562,14 @@ document.write(`
     <span class="n">edge_features</span><span class="p">:</span> <span class="n">EdgeFeatures</span><span class="p">,</span>
     <span class="n">neighbor_indices</span><span class="p">:</span> <span class="n">NeighborIndices</span><span class="p">,</span>
     <span class="n">mask</span><span class="p">:</span> <span class="n">AlphaCarbonMask</span><span class="p">,</span>
-    <span class="n">ar_mask</span><span class="p">:</span> <span class="n">AutoRegressiveMask</span><span class="p">,</span>
+    <span class="n">_ar_mask</span><span class="p">:</span> <span class="n">AutoRegressiveMask</span><span class="p">,</span>
     <span class="n">one_hot_sequence</span><span class="p">:</span> <span class="n">OneHotProteinSequence</span><span class="p">,</span>
     <span class="n">_prng_key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
     <span class="n">_temperature</span><span class="p">:</span> <span class="n">Float</span><span class="p">,</span>
     <span class="n">_bias</span><span class="p">:</span> <span class="n">Logits</span><span class="p">,</span>
     <span class="n">_tie_group_map</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">_multi_state_strategy_idx</span><span class="p">:</span> <span class="n">Int</span><span class="p">,</span>
+    <span class="n">_multi_state_alpha</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
   <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">OneHotProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Run the conditional (scoring) path.</span>
 
@@ -566,12 +577,14 @@ document.write(`
 <span class="sd">      edge_features: Edge features from feature extraction.</span>
 <span class="sd">      neighbor_indices: Indices of neighbors for each node.</span>
 <span class="sd">      mask: Alpha carbon mask.</span>
-<span class="sd">      ar_mask: Autoregressive mask for conditional decoding.</span>
+<span class="sd">      _ar_mask: Autoregressive mask for conditional decoding.</span>
 <span class="sd">      one_hot_sequence: One-hot encoded protein sequence.</span>
-<span class="sd">      _prng_key: Unused, required for jax.lax.switch signature.</span>
+<span class="sd">      prng_key: Unused, required for jax.lax.switch signature.</span>
 <span class="sd">      _temperature: Unused, required for jax.lax.switch signature.</span>
 <span class="sd">      _bias: Unused, required for jax.lax.switch signature.</span>
 <span class="sd">      _tie_group_map: Unused, required for jax.lax.switch signature.</span>
+<span class="sd">      _multi_state_strategy_idx: Unused, required for jax.lax.switch signature.</span>
+<span class="sd">      _multi_state_alpha: Unused, required for jax.lax.switch signature.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">      Tuple of (input sequence, logits).</span>
@@ -602,7 +615,7 @@ document.write(`
       <span class="n">processed_edge_features</span><span class="p">,</span>
       <span class="n">neighbor_indices</span><span class="p">,</span>
       <span class="n">mask</span><span class="p">,</span>
-      <span class="n">ar_mask</span><span class="p">,</span>
+      <span class="n">_ar_mask</span><span class="p">,</span>
       <span class="n">one_hot_sequence</span><span class="p">,</span>
       <span class="bp">self</span><span class="o">.</span><span class="n">w_s_embed</span><span class="o">.</span><span class="n">weight</span><span class="p">,</span>
     <span class="p">)</span>
@@ -625,6 +638,8 @@ document.write(`
     <span class="n">temperature</span><span class="p">:</span> <span class="n">Float</span><span class="p">,</span>
     <span class="n">bias</span><span class="p">:</span> <span class="n">Logits</span><span class="p">,</span>
     <span class="n">tie_group_map</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">multi_state_strategy_idx</span><span class="p">:</span> <span class="n">Int</span><span class="p">,</span>
+    <span class="n">multi_state_alpha</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
   <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">OneHotProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Run the autoregressive (sampling) path.</span>
 
@@ -639,6 +654,8 @@ document.write(`
 <span class="sd">      bias: Bias to add to logits before sampling (N, 21).</span>
 <span class="sd">      tie_group_map: Optional (N,) array mapping each position to a group ID.</span>
 <span class="sd">          When provided, positions in the same group sample identical amino acids.</span>
+<span class="sd">      multi_state_strategy_idx: Integer index for strategy (0=mean, 1=min, 2=product, 3=max_min).</span>
+<span class="sd">      multi_state_alpha: Weight for min component when strategy=&quot;max_min&quot;.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">      Tuple of (sampled sequence, logits).</span>
@@ -660,6 +677,7 @@ document.write(`
 <span class="sd">      ... )</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Convert strategy index back to string</span>
     <span class="n">node_features</span><span class="p">,</span> <span class="n">processed_edge_features</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span><span class="p">(</span>
       <span class="n">edge_features</span><span class="p">,</span>
       <span class="n">neighbor_indices</span><span class="p">,</span>
@@ -676,6 +694,8 @@ document.write(`
       <span class="n">temperature</span><span class="p">,</span>
       <span class="n">bias</span><span class="p">,</span>
       <span class="n">tie_group_map</span><span class="p">,</span>
+      <span class="n">multi_state_strategy_idx</span><span class="p">,</span>
+      <span class="n">multi_state_alpha</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="k">return</span> <span class="n">seq</span><span class="p">,</span> <span class="n">logits</span></div>
 
@@ -730,6 +750,93 @@ document.write(`
     <span class="n">num_in_group</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">group_mask</span><span class="p">)</span>
     <span class="n">avg_exp_logits</span> <span class="o">=</span> <span class="n">sum_exp_logits</span> <span class="o">/</span> <span class="n">num_in_group</span>  <span class="c1"># (1, 21)</span>
     <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">avg_exp_logits</span><span class="p">)</span> <span class="o">+</span> <span class="n">max_logits</span>  <span class="c1"># (1, 21)</span></div>
+
+
+<div class="viewcode-block" id="PrxteinMPNN._combine_logits_multistate">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.model.html#prxteinmpnn.model.PrxteinMPNN._combine_logits_multistate">[docs]</a>
+  <span class="nd">@staticmethod</span>
+  <span class="k">def</span><span class="w"> </span><span class="nf">_combine_logits_multistate</span><span class="p">(</span>
+    <span class="n">logits</span><span class="p">:</span> <span class="n">Logits</span><span class="p">,</span>
+    <span class="n">group_mask</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+    <span class="n">strategy</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;mean&quot;</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">,</span> <span class="s2">&quot;product&quot;</span><span class="p">,</span> <span class="s2">&quot;max_min&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;mean&quot;</span><span class="p">,</span>
+    <span class="n">alpha</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
+  <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Combine logits across tied positions using different multi-state strategies.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">      logits: Logits array of shape (N, 21).</span>
+<span class="sd">      group_mask: Boolean mask of shape (N,) indicating group membership.</span>
+<span class="sd">      strategy: Strategy for combining logits:</span>
+<span class="sd">        - &quot;mean&quot;: Average logits (consensus prediction, default)</span>
+<span class="sd">        - &quot;min&quot;: Minimum logits (worst-case robust design)</span>
+<span class="sd">        - &quot;product&quot;: Sum of logits (multiply probabilities)</span>
+<span class="sd">        - &quot;max_min&quot;: Weighted combination of min and mean (alpha controls weight)</span>
+<span class="sd">      alpha: Weight for min component when strategy=&quot;max_min&quot; (0=pure mean, 1=pure min).</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">      Combined logits of shape (1, 21).</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">      &gt;&gt;&gt; logits = jnp.array([[10.0, -5.0], [8.0, -3.0]])</span>
+<span class="sd">      &gt;&gt;&gt; group_mask = jnp.array([True, True])</span>
+<span class="sd">      &gt;&gt;&gt; # Average strategy (compromise)</span>
+<span class="sd">      &gt;&gt;&gt; avg = PrxteinMPNN._combine_logits_multistate(logits, group_mask, &quot;mean&quot;)</span>
+<span class="sd">      &gt;&gt;&gt; # Min strategy (robust to worst case)</span>
+<span class="sd">      &gt;&gt;&gt; robust = PrxteinMPNN._combine_logits_multistate(logits, group_mask, &quot;min&quot;)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s2">&quot;mean&quot;</span><span class="p">:</span>
+      <span class="k">return</span> <span class="n">PrxteinMPNN</span><span class="o">.</span><span class="n">_average_logits_over_group</span><span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">group_mask</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s2">&quot;min&quot;</span><span class="p">:</span>
+      <span class="k">return</span> <span class="n">min_over_group_logits</span><span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">group_mask</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s2">&quot;product&quot;</span><span class="p">:</span>
+      <span class="k">return</span> <span class="n">product_of_probabilities_logits</span><span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">group_mask</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s2">&quot;max_min&quot;</span><span class="p">:</span>
+      <span class="k">return</span> <span class="n">max_min_over_group_logits</span><span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">group_mask</span><span class="p">,</span> <span class="n">alpha</span><span class="p">)</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Unknown multi-state strategy: </span><span class="si">{</span><span class="n">strategy</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="PrxteinMPNN._combine_logits_multistate_idx">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.model.html#prxteinmpnn.model.PrxteinMPNN._combine_logits_multistate_idx">[docs]</a>
+  <span class="nd">@staticmethod</span>
+  <span class="k">def</span><span class="w"> </span><span class="nf">_combine_logits_multistate_idx</span><span class="p">(</span>
+    <span class="n">logits</span><span class="p">:</span> <span class="n">Logits</span><span class="p">,</span>
+    <span class="n">group_mask</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+    <span class="n">strategy_idx</span><span class="p">:</span> <span class="n">Int</span><span class="p">,</span>
+    <span class="n">alpha</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
+  <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Combine logits using strategy index (JAX-traceable version).</span>
+
+<span class="sd">    This is a JAX-traceable wrapper around _combine_logits_multistate that</span>
+<span class="sd">    accepts an integer strategy index instead of a string. Used internally</span>
+<span class="sd">    when the function needs to be JIT-compiled.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">      logits: Logits array of shape (N, 21).</span>
+<span class="sd">      group_mask: Boolean mask of shape (N,) indicating group membership.</span>
+<span class="sd">      strategy_idx: Integer strategy index (0=mean, 1=min, 2=product, 3=max_min).</span>
+<span class="sd">      alpha: Weight for min component when strategy_idx=3 (0=pure mean, 1=pure min).</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">      Combined logits of shape (1, 21).</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">mean_fn</span><span class="p">(</span><span class="n">_</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+      <span class="k">return</span> <span class="n">PrxteinMPNN</span><span class="o">.</span><span class="n">_average_logits_over_group</span><span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">group_mask</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">min_fn</span><span class="p">(</span><span class="n">_</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+      <span class="k">return</span> <span class="n">min_over_group_logits</span><span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">group_mask</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">product_fn</span><span class="p">(</span><span class="n">_</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+      <span class="k">return</span> <span class="n">product_of_probabilities_logits</span><span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">group_mask</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">max_min_fn</span><span class="p">(</span><span class="n">_</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+      <span class="k">return</span> <span class="n">max_min_over_group_logits</span><span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">group_mask</span><span class="p">,</span> <span class="n">alpha</span><span class="p">)</span>
+
+    <span class="n">branches</span> <span class="o">=</span> <span class="p">[</span><span class="n">mean_fn</span><span class="p">,</span> <span class="n">min_fn</span><span class="p">,</span> <span class="n">product_fn</span><span class="p">,</span> <span class="n">max_min_fn</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">switch</span><span class="p">(</span><span class="n">strategy_idx</span><span class="p">,</span> <span class="n">branches</span><span class="p">,</span> <span class="p">())</span></div>
 
 
 <div class="viewcode-block" id="PrxteinMPNN._process_group_positions">
@@ -834,8 +941,10 @@ document.write(`
     <span class="n">bias</span><span class="p">:</span> <span class="n">Logits</span><span class="p">,</span>
     <span class="n">tie_group_map</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
     <span class="n">decoding_order</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+    <span class="n">multi_state_strategy_idx</span><span class="p">:</span> <span class="n">Int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="n">multi_state_alpha</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
   <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">OneHotProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Run group-based autoregressive scan with logit averaging.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Run group-based autoregressive scan with logit combining.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">      prng_key: PRNG key.</span>
@@ -849,6 +958,8 @@ document.write(`
 <span class="sd">      bias: Logits array (N, 21).</span>
 <span class="sd">      tie_group_map: Group mapping (N,).</span>
 <span class="sd">      decoding_order: Position decoding order (N,).</span>
+<span class="sd">      multi_state_strategy_idx: Integer strategy index (0=mean, 1=min, 2=product, 3=max_min).</span>
+<span class="sd">      multi_state_alpha: Weight for min component when strategy_idx=3.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">      Tuple of (final sequence, final logits).</span>
@@ -911,10 +1022,15 @@ document.write(`
         <span class="n">mask_bw</span><span class="p">,</span>
       <span class="p">)</span>
 
-      <span class="c1"># Average logits and sample</span>
-      <span class="n">avg_logits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_average_logits_over_group</span><span class="p">(</span><span class="n">computed_logits</span><span class="p">,</span> <span class="n">group_mask</span><span class="p">)</span>
+      <span class="c1"># Combine logits using multi-state strategy and sample</span>
+      <span class="n">combined_logits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_combine_logits_multistate_idx</span><span class="p">(</span>
+        <span class="n">computed_logits</span><span class="p">,</span>
+        <span class="n">group_mask</span><span class="p">,</span>
+        <span class="n">multi_state_strategy_idx</span><span class="p">,</span>
+        <span class="n">multi_state_alpha</span><span class="p">,</span>
+      <span class="p">)</span>
       <span class="n">all_logits</span><span class="p">,</span> <span class="n">s_embed</span><span class="p">,</span> <span class="n">sequence</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sample_and_broadcast_to_group</span><span class="p">(</span>
-        <span class="n">avg_logits</span><span class="p">,</span>
+        <span class="n">combined_logits</span><span class="p">,</span>
         <span class="n">group_mask</span><span class="p">,</span>
         <span class="n">bias</span><span class="p">,</span>
         <span class="n">temperature</span><span class="p">,</span>
@@ -1025,6 +1141,8 @@ document.write(`
     <span class="n">temperature</span><span class="p">:</span> <span class="n">Float</span><span class="p">,</span>
     <span class="n">bias</span><span class="p">:</span> <span class="n">Logits</span><span class="p">,</span>
     <span class="n">tie_group_map</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">multi_state_strategy_idx</span><span class="p">:</span> <span class="n">Int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="n">multi_state_alpha</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
   <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">OneHotProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Run JAX scan loop for autoregressive sampling with optional tied positions.</span>
 
@@ -1047,7 +1165,9 @@ document.write(`
 <span class="sd">      bias: Bias to add to logits before sampling (N, 21).</span>
 <span class="sd">      tie_group_map: Optional (N,) array mapping each position to a group ID.</span>
 <span class="sd">          When provided, positions in the same group are sampled together</span>
-<span class="sd">          using averaged logits.</span>
+<span class="sd">          using combined logits.</span>
+<span class="sd">      multi_state_strategy_idx: Integer strategy index (0=mean, 1=min, 2=product, 3=max_min).</span>
+<span class="sd">      multi_state_alpha: Weight for min component when strategy_idx=3.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">      Tuple of (sampled sequence, final logits).</span>
@@ -1223,7 +1343,7 @@ document.write(`
 
       <span class="k">return</span> <span class="n">final_sequence</span><span class="p">,</span> <span class="n">final_all_logits</span>
 
-    <span class="c1"># Group-based sampling with logit averaging</span>
+    <span class="c1"># Group-based sampling with logit combining</span>
     <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_run_tied_position_scan</span><span class="p">(</span>
       <span class="n">prng_key</span><span class="p">,</span>
       <span class="n">node_features</span><span class="p">,</span>
@@ -1236,6 +1356,8 @@ document.write(`
       <span class="n">bias</span><span class="p">,</span>
       <span class="n">tie_group_map</span><span class="p">,</span>
       <span class="n">decoding_order</span><span class="p">,</span>
+      <span class="n">multi_state_strategy_idx</span><span class="p">,</span>
+      <span class="n">multi_state_alpha</span><span class="p">,</span>
     <span class="p">)</span></div>
 
 
@@ -1254,6 +1376,8 @@ document.write(`
     <span class="n">bias</span><span class="p">:</span> <span class="n">Logits</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">backbone_noise</span><span class="p">:</span> <span class="n">BackboneNoise</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">tie_group_map</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">multi_state_strategy</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;mean&quot;</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">,</span> <span class="s2">&quot;product&quot;</span><span class="p">,</span> <span class="s2">&quot;max_min&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;mean&quot;</span><span class="p">,</span>
+    <span class="n">multi_state_alpha</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
   <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">OneHotProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Forward pass for the complete model.</span>
 
@@ -1276,7 +1400,13 @@ document.write(`
 <span class="sd">      backbone_noise: Noise level for backbone coordinates (optional).</span>
 <span class="sd">      tie_group_map: Optional (N,) array mapping each position to a group ID.</span>
 <span class="sd">          When provided, positions in the same group sample identical amino acids</span>
-<span class="sd">          using logit averaging. Only used in &quot;autoregressive&quot; mode (optional).</span>
+<span class="sd">          using logit combining. Only used in &quot;autoregressive&quot; mode (optional).</span>
+<span class="sd">      multi_state_strategy: Strategy for combining logits across tied positions.</span>
+<span class="sd">          Options: &quot;mean&quot; (default, average), &quot;min&quot; (worst-case robust),</span>
+<span class="sd">          &quot;product&quot; (multiply probabilities), &quot;max_min&quot; (weighted combination).</span>
+<span class="sd">          Only used in &quot;autoregressive&quot; mode with tied positions (optional).</span>
+<span class="sd">      multi_state_alpha: Weight for min component when multi_state_strategy=&quot;max_min&quot;.</span>
+<span class="sd">          Range [0, 1] where 0=pure mean, 1=pure min (optional).</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">      A tuple of (OneHotProteinSequence, Logits).</span>
@@ -1345,6 +1475,13 @@ document.write(`
     <span class="c1"># Note: tie_group_map is only used in autoregressive mode, but all branches</span>
     <span class="c1"># must accept the same arguments for jax.lax.switch compatibility</span>
 
+    <span class="c1"># Convert multi_state_strategy string to integer for JAX tracing</span>
+    <span class="n">strategy_map</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;mean&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;product&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;max_min&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">}</span>
+    <span class="n">multi_state_strategy_idx</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+      <span class="n">strategy_map</span><span class="p">[</span><span class="n">multi_state_strategy</span><span class="p">],</span>
+      <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span>
+    <span class="p">)</span>
+
     <span class="c1"># 4. Define the branches for jax.lax.switch</span>
     <span class="n">branches</span> <span class="o">=</span> <span class="p">[</span>
       <span class="bp">self</span><span class="o">.</span><span class="n">_call_unconditional</span><span class="p">,</span>
@@ -1363,6 +1500,8 @@ document.write(`
       <span class="n">temperature</span><span class="p">,</span>
       <span class="n">bias</span><span class="p">,</span>
       <span class="n">tie_group_map</span><span class="p">,</span>
+      <span class="n">multi_state_strategy_idx</span><span class="p">,</span>
+      <span class="n">multi_state_alpha</span><span class="p">,</span>
     <span class="p">)</span>
 
     <span class="c1"># 6. Run the switch</span>

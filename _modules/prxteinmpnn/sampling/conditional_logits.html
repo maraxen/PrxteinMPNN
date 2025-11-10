@@ -496,8 +496,15 @@ document.write(`
       <span class="n">backbone_noise</span><span class="p">,</span>
     <span class="p">)</span>
 
-    <span class="k">if</span> <span class="n">ar_mask</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-      <span class="n">ar_mask</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">mask</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">mask</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jax</span><span class="o">.</span><span class="n">numpy</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+    <span class="n">ar_mask</span> <span class="o">=</span> <span class="p">(</span>
+      <span class="n">jax</span><span class="o">.</span><span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">mask</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">mask</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jax</span><span class="o">.</span><span class="n">numpy</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+      <span class="k">if</span> <span class="n">ar_mask</span> <span class="ow">is</span> <span class="kc">None</span>
+      <span class="k">else</span> <span class="n">ar_mask</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Default multi-state parameters for conditional logit computation</span>
+    <span class="n">_multi_state_strategy_idx</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jax</span><span class="o">.</span><span class="n">numpy</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>  <span class="c1"># 0 = &quot;mean&quot;</span>
+    <span class="n">_multi_state_alpha</span> <span class="o">=</span> <span class="mf">0.5</span>
 
     <span class="c1"># Call the model&#39;s conditional path directly</span>
     <span class="n">_</span><span class="p">,</span> <span class="n">logits</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">_call_conditional</span><span class="p">(</span>  <span class="c1"># noqa: SLF001</span>
@@ -510,6 +517,8 @@ document.write(`
       <span class="mf">0.0</span><span class="p">,</span>  <span class="c1"># temperature unused in conditional path</span>
       <span class="n">jax</span><span class="o">.</span><span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">mask</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">21</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jax</span><span class="o">.</span><span class="n">numpy</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span>
       <span class="kc">None</span><span class="p">,</span>  <span class="c1"># tie_group_map not used in jacobian computation</span>
+      <span class="n">_multi_state_strategy_idx</span><span class="p">,</span>
+      <span class="n">_multi_state_alpha</span><span class="p">,</span>
     <span class="p">)</span>
 
     <span class="k">return</span> <span class="n">logits</span>

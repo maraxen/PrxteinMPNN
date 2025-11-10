@@ -351,12 +351,11 @@ class Decoder(eqx.Module):
 
       layer_edge_features = (mask_bw[..., None] * current_features) + masked_node_edge_features
 
-      # Run the layer with attention masking for conditional decoding
+      # Run the layer (masking already applied to layer_edge_features)
       loop_node_features = layer(
         loop_node_features,
         layer_edge_features,
         mask,
-        attention_mask=attention_mask,  # Pass attention mask for conditional decoding
       )
 
     return loop_node_features

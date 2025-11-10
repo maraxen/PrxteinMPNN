@@ -24,7 +24,7 @@ from prxteinmpnn.io.parsing.mappings import (
 )
 from prxteinmpnn.utils.data_structures import ProteinTuple
 from prxteinmpnn.utils.residue_constants import resname_to_idx, restype_order, unk_restype_index
-from conftest import PDB_STRING
+from conftest import PDB_1UBQ_STRING
 
 def test_af_to_mpnn():
     """Test conversion from AlphaFold to ProteinMPNN alphabet."""

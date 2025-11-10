@@ -139,8 +139,15 @@ def make_conditional_logits_fn(
       backbone_noise,
     )
 
-    if ar_mask is None:
-      ar_mask = jax.numpy.zeros((mask.shape[0], mask.shape[0]), dtype=jax.numpy.int32)
+    ar_mask = (
+      jax.numpy.zeros((mask.shape[0], mask.shape[0]), dtype=jax.numpy.int32)
+      if ar_mask is None
+      else ar_mask
+    )
+
+    # Default multi-state parameters for conditional logit computation
+    _multi_state_strategy_idx = jax.numpy.array(0, dtype=jax.numpy.int32)  # 0 = "mean"
+    _multi_state_alpha = 0.5
 
     # Call the model's conditional path directly
     _, logits = model._call_conditional(  # noqa: SLF001
@@ -153,6 +160,8 @@ def make_conditional_logits_fn(
       0.0,  # temperature unused in conditional path
       jax.numpy.zeros((mask.shape[0], 21), dtype=jax.numpy.float32),
       None,  # tie_group_map not used in jacobian computation
+      _multi_state_strategy_idx,
+      _multi_state_alpha,
     )
 
     return logits

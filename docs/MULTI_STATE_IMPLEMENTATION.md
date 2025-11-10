@@ -6,6 +6,22 @@ This document describes the complete implementation of multi-state sampling for 
 
 Multi-state sampling allows ProteinMPNN to design protein sequences that work well across **multiple structural states** of the same protein (e.g., different binding states, functional conformations). Instead of averaging logits (which creates compromise predictions), we provide four strategies for combining logits across states.
 
+## Important Implementation Detail: JAX Tracing
+
+**Critical Fix**: The `multi_state_strategy` parameter is a Python string, but JAX's JIT compilation cannot trace string values through transformations. The solution is to convert the strategy string to an integer index at the model's `__call__` entry point, pass the integer through JAX transformations, then convert back to a string literal in `_call_autoregressive`.
+
+```python
+# In model.__call__()
+strategy_map = {"mean": 0, "min": 1, "product": 2, "max_min": 3}
+multi_state_strategy_idx = jnp.array(strategy_map[multi_state_strategy], dtype=jnp.int32)
+
+# In _call_autoregressive()
+strategy_names = ("mean", "min", "product", "max_min")
+multi_state_strategy = strategy_names[int(multi_state_strategy_idx)]
+```
+
+This ensures the strategy can be traced through JAX's computational graph.
+
 ## Implementation Flow
 
 ### 1. User Specification (`specs.py`)

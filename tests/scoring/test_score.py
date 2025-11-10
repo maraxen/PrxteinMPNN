@@ -26,6 +26,8 @@ def mock_model() -> PrxteinMPNN:
         prng_key,
         ar_mask,
         one_hot_sequence,
+        temperature=None,
+        bias=None,
         backbone_noise=None,
     ):
         n_residues, _, _ = structure_coordinates.shape

@@ -55,6 +55,40 @@ PDB_ORDER_BACKBONE: Final[tuple[str, ...]] = ("N", "CA", "C", "O", "CB")
 # Backbone atom names in atom37 order
 ATOM37_ORDER_BACKBONE: Final[tuple[str, ...]] = ("N", "CA", "C", "CB", "O")
 
+# Constants for validation
+N_INDEX = 0
+CA_INDEX = 1
+C_INDEX = 2
+O_PDB_INDEX = 3
+CB_PDB_INDEX = 4
+CB_ATOM37_INDEX = 3
+O_ATOM37_INDEX = 4
+BACKBONE_LENGTH = 5
+
+
+def _validate_index(
+  indices_dict: dict[str, int],
+  dict_name: str,
+  atom_key: str,
+  expected_index: int,
+) -> None:
+  """Validate that an atom has the expected index in an ordering dict.
+
+  Args:
+    indices_dict: The dictionary mapping atom names to indices.
+    dict_name: Name of the dictionary for error messages.
+    atom_key: The atom name to check.
+    expected_index: The expected index value.
+
+  Raises:
+    ValueError: If the atom index doesn't match the expected value.
+
+  """
+  actual_index = indices_dict.get(atom_key)
+  if actual_index != expected_index:
+    msg = f"{atom_key} index mismatch in {dict_name}: got={actual_index}, expected={expected_index}"
+    raise ValueError(msg)
+
 
 def validate_ordering() -> None:
     """Validate that our ordering constants are correct.
@@ -63,23 +97,36 @@ def validate_ordering() -> None:
     ordering is the swap of O and CB at indices 3 and 4.
 
     Raises:
-        AssertionError: If the ordering is incorrect.
+        ValueError: If the ordering is incorrect.
 
     """
-    # Check N, CA, C are the same
-    assert PDB_ORDER_INDICES["N"] == ATOM37_ORDER_INDICES["N"] == 0
-    assert PDB_ORDER_INDICES["CA"] == ATOM37_ORDER_INDICES["CA"] == 1
-    assert PDB_ORDER_INDICES["C"] == ATOM37_ORDER_INDICES["C"] == 2
+    # Check N, CA, C are the same in both orderings
+    _validate_index(PDB_ORDER_INDICES, "PDB_ORDER_INDICES", "N", N_INDEX)
+    _validate_index(ATOM37_ORDER_INDICES, "ATOM37_ORDER_INDICES", "N", N_INDEX)
+    _validate_index(PDB_ORDER_INDICES, "PDB_ORDER_INDICES", "CA", CA_INDEX)
+    _validate_index(ATOM37_ORDER_INDICES, "ATOM37_ORDER_INDICES", "CA", CA_INDEX)
+    _validate_index(PDB_ORDER_INDICES, "PDB_ORDER_INDICES", "C", C_INDEX)
+    _validate_index(ATOM37_ORDER_INDICES, "ATOM37_ORDER_INDICES", "C", C_INDEX)
 
-    # Check O and CB are swapped
-    assert PDB_ORDER_INDICES["O"] == 3
-    assert PDB_ORDER_INDICES["CB"] == 4
-    assert ATOM37_ORDER_INDICES["CB"] == 3
-    assert ATOM37_ORDER_INDICES["O"] == 4
+    # Check O and CB are swapped between orderings
+    _validate_index(PDB_ORDER_INDICES, "PDB_ORDER_INDICES", "O", O_PDB_INDEX)
+    _validate_index(PDB_ORDER_INDICES, "PDB_ORDER_INDICES", "CB", CB_PDB_INDEX)
+    _validate_index(ATOM37_ORDER_INDICES, "ATOM37_ORDER_INDICES", "CB", CB_ATOM37_INDEX)
+    _validate_index(ATOM37_ORDER_INDICES, "ATOM37_ORDER_INDICES", "O", O_ATOM37_INDEX)
 
     # Check tuple lengths
-    assert len(PDB_ORDER_BACKBONE) == 5
-    assert len(ATOM37_ORDER_BACKBONE) == 5
+    if len(PDB_ORDER_BACKBONE) != BACKBONE_LENGTH:
+      msg = (
+        f"PDB_ORDER_BACKBONE length mismatch: "
+        f"got={len(PDB_ORDER_BACKBONE)}, expected={BACKBONE_LENGTH}"
+      )
+      raise ValueError(msg)
+    if len(ATOM37_ORDER_BACKBONE) != BACKBONE_LENGTH:
+      msg = (
+        f"ATOM37_ORDER_BACKBONE length mismatch: "
+        f"got={len(ATOM37_ORDER_BACKBONE)}, expected={BACKBONE_LENGTH}"
+      )
+      raise ValueError(msg)
 
 
 # Run validation on import

@@ -50,6 +50,7 @@ def make_fit_gmm(
     gmm_max_iters: Maximum iterations for GMM fitting.
     covariance_regularization: Regularization added to diagonal of covariance matrices.
     eps: Small value to avoid division by zero.
+    temperature: Temperature for Gumbel-Softmax sampling during initialization.
 
   Returns:
     Callable[[EnsembleData, PRNGKeyArray], EMFitterResult]: Function to fit GMM on data.

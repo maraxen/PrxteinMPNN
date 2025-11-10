@@ -30,7 +30,7 @@ PrxteinMPNN has been **rigorously validated** against the original [ColabDesign 
 
 All three decoding paths achieve **>0.95 Pearson correlation** with ColabDesign outputs, ensuring faithful reproduction of the original model's behavior.
 
-**[View Full Validation Report →](FINAL_VALIDATION_RESULTS.md)**
+**[View Full Validation Report →](docs/FINAL_VALIDATION_RESULTS.md)**
 
 ### Running Equivalence Tests
 

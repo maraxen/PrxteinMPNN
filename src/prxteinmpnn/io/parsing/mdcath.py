@@ -27,7 +27,7 @@ from .mappings import residue_names_to_aatype
 logger = logging.getLogger(__name__)
 
 
-def parse_mdcath_hdf5(  # noqa: PLR0915
+def parse_mdcath_hdf5(  # noqa: PLR0915, C901
   source: str | StringIO | pathlib.Path,
   chain_id: Sequence[str] | str | None,
   *,

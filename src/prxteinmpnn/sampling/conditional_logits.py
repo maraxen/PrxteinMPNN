@@ -143,7 +143,7 @@ def make_conditional_logits_fn(
       ar_mask = jax.numpy.zeros((mask.shape[0], mask.shape[0]), dtype=jax.numpy.int32)
 
     # Call the model's conditional path directly
-    _, logits = model._call_conditional(
+    _, logits = model._call_conditional(  # noqa: SLF001
       edge_features,
       neighbor_indices,
       mask,

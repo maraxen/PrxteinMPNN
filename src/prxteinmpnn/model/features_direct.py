@@ -5,6 +5,8 @@ This version aims to match ColabDesign's numerical behavior more closely.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -16,15 +18,17 @@ from prxteinmpnn.utils.coordinates import (
 )
 from prxteinmpnn.utils.graph import compute_neighbor_offsets
 from prxteinmpnn.utils.radial_basis import compute_radial_basis
-from prxteinmpnn.utils.types import (
-  AlphaCarbonMask,
-  BackboneNoise,
-  ChainIndex,
-  EdgeFeatures,
-  NeighborIndices,
-  ResidueIndex,
-  StructureAtomicCoordinates,
-)
+
+if TYPE_CHECKING:
+  from prxteinmpnn.utils.types import (
+    AlphaCarbonMask,
+    BackboneNoise,
+    ChainIndex,
+    EdgeFeatures,
+    NeighborIndices,
+    ResidueIndex,
+    StructureAtomicCoordinates,
+  )
 
 # Type alias for PRNG keys
 PRNGKeyArray = jax.Array
@@ -55,7 +59,7 @@ class ProteinFeaturesDirect(eqx.Module):
 
   def __init__(
     self,
-    node_features: int,
+    node_features: int,  # noqa: ARG002
     edge_features: int,
     k_neighbors: int,
     *,
@@ -172,8 +176,14 @@ class ProteinFeaturesDirect(eqx.Module):
 
     # Apply scale and offset from LayerNorm
     # Note: eqx.nn.LayerNorm stores scale as 'weight' and offset as 'bias'
-    scale = self.norm_edges.weight if hasattr(self.norm_edges, "weight") else jnp.ones(edge_features.shape[-1])
-    offset = self.norm_edges.bias if hasattr(self.norm_edges, "bias") else jnp.zeros(edge_features.shape[-1])
+    if hasattr(self.norm_edges, "weight"):
+      scale = self.norm_edges.weight
+    else:
+      scale = jnp.ones(edge_features.shape[-1])
+    if hasattr(self.norm_edges, "bias"):
+      offset = self.norm_edges.bias
+    else:
+      offset = jnp.zeros(edge_features.shape[-1])
     edge_features = edge_features_normalized * scale + offset
 
     # Project features (shape: N, K, 128 @ 128, 128 = N, K, 128)

@@ -24,6 +24,33 @@ Key Features
 * **JAX Compatibility:** Efficient computation with JAX's functional programming paradigm
 * **Modular Design:** Easy updates and extensions
 * **Performance Optimization:** Utilizes JAX's JIT compilation and vectorization
+* **Validated Implementation:** >0.95 correlation with ColabDesign across all decoding paths
+
+Validation
+----------
+
+PrxteinMPNN has been rigorously validated against the original `ColabDesign ProteinMPNN <https://github.com/sokrypton/ColabDesign>`_ implementation:
+
+.. list-table:: Equivalence Test Results
+   :widths: 40 30 30
+   :header-rows: 1
+
+   * - Decoding Path
+     - Correlation
+     - Status
+   * - Unconditional
+     - 0.984
+     - ✅ Validated
+   * - Conditional
+     - 0.958-0.984
+     - ✅ Validated
+   * - Autoregressive
+     - 0.953-0.970
+     - ✅ Validated
+
+All three decoding paths achieve **>0.95 Pearson correlation** with ColabDesign outputs, ensuring faithful reproduction of the original model's behavior.
+
+For detailed validation results and testing procedures, see `FINAL_VALIDATION_RESULTS.md <https://github.com/maraxen/PrxteinMPNN/blob/main/FINAL_VALIDATION_RESULTS.md>`_.
 
 Installation
 ------------

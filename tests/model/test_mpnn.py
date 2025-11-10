@@ -66,6 +66,7 @@ def test_call_unconditional(model):
         dummy_prng_key,
         dummy_temperature,
         dummy_bias,
+        None,  # tie_group_map
     )
 
     chex.assert_shape(seq, (10, 21))
@@ -94,6 +95,7 @@ def test_call_conditional(model):
         dummy_prng_key,
         dummy_temperature,
         dummy_bias,
+        None,  # tie_group_map
     )
 
     chex.assert_trees_all_equal(out_seq, one_hot_sequence)
@@ -122,6 +124,7 @@ def test_call_autoregressive(model):
         prng_key,
         temperature,
         dummy_bias,
+        None,  # tie_group_map
     )
 
     chex.assert_shape(seq, (10, 21))

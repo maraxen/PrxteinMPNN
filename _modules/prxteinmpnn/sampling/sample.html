@@ -163,7 +163,6 @@
 
 
 
-
 <li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -261,6 +260,9 @@
     
     <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
     
+    
+    <li class="breadcrumb-item"><a href="../sampling.html" class="nav-link">prxteinmpnn.sampling</a></li>
+    
     <li class="breadcrumb-item active" aria-current="page">prxteinmpnn....</li>
   </ul>
 </nav>
@@ -351,27 +353,21 @@ document.write(`
                 <article class="bd-article">
                   
   <h1>Source code for prxteinmpnn.sampling.sample</h1><div class="highlight"><pre>
-<span></span><span class="sd">&quot;&quot;&quot;Factory for creating sequence sampling and optimization functions.&quot;&quot;&quot;</span>
+<span></span><span class="sd">&quot;&quot;&quot;Factory for creating sequence sampling functions for PrxteinMPNN.&quot;&quot;&quot;</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">cast</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">Float</span><span class="p">,</span> <span class="n">Int</span><span class="p">,</span> <span class="n">PRNGKeyArray</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.decoder</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-  <span class="n">make_decoder</span><span class="p">,</span>
-<span class="p">)</span>
-
-<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
-  <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.decoding_signatures</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-    <span class="n">RunAutoregressiveDecoderFn</span><span class="p">,</span>
-    <span class="n">RunConditionalDecoderFn</span><span class="p">,</span>
-  <span class="p">)</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.encoder</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_encoder</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.decoding_order</span><span class="w"> </span><span class="kn">import</span> <span class="n">DecodingOrderFn</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model</span><span class="w"> </span><span class="kn">import</span> <span class="n">PrxteinMPNN</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.sampling.conditional_logits</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_encoding_conditional_logits_split_fn</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.sampling.ste_optimize</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_optimize_sequence_fn</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.autoregression</span><span class="w"> </span><span class="kn">import</span> <span class="n">generate_ar_mask</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.decoding_order</span><span class="w"> </span><span class="kn">import</span> <span class="n">DecodingOrderFn</span><span class="p">,</span> <span class="n">random_decoding_order</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
   <span class="n">AlphaCarbonMask</span><span class="p">,</span>
   <span class="n">BackboneNoise</span><span class="p">,</span>
@@ -379,156 +375,416 @@ document.write(`
   <span class="n">DecodingOrder</span><span class="p">,</span>
   <span class="n">InputBias</span><span class="p">,</span>
   <span class="n">Logits</span><span class="p">,</span>
-  <span class="n">ModelParameters</span><span class="p">,</span>
   <span class="n">ProteinSequence</span><span class="p">,</span>
   <span class="n">ResidueIndex</span><span class="p">,</span>
   <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
 <span class="p">)</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.initialize</span><span class="w"> </span><span class="kn">import</span> <span class="n">sampling_encode</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.sampling_step</span><span class="w"> </span><span class="kn">import</span> <span class="n">preload_sampling_step_decoder</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.ste_optimize</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_optimize_sequence_fn</span>
-
-<span class="c1"># Simplified type hints</span>
-<span class="n">SamplerInputs</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">[</span>
-  <span class="n">PRNGKeyArray</span><span class="p">,</span>
-  <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
-  <span class="n">AlphaCarbonMask</span><span class="p">,</span>
-  <span class="n">ResidueIndex</span><span class="p">,</span>
-  <span class="n">ChainIndex</span><span class="p">,</span>
-  <span class="nb">int</span><span class="p">,</span>
-  <span class="n">InputBias</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-  <span class="n">Int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-  <span class="n">BackboneNoise</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-  <span class="n">Int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-  <span class="n">Float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-  <span class="n">Float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">]</span>
 <span class="n">SamplerFn</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">,</span> <span class="n">DecodingOrder</span><span class="p">]]</span>
 
 
 <div class="viewcode-block" id="make_sample_sequences">
 <a class="viewcode-back" href="../../../api/prxteinmpnn.sampling.sample.html#prxteinmpnn.sampling.make_sample_sequences">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">make_sample_sequences</span><span class="p">(</span>
-  <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
-  <span class="n">decoding_order_fn</span><span class="p">:</span> <span class="n">DecodingOrderFn</span><span class="p">,</span>
+  <span class="n">model</span><span class="p">:</span> <span class="n">PrxteinMPNN</span><span class="p">,</span>
+  <span class="n">decoding_order_fn</span><span class="p">:</span> <span class="n">DecodingOrderFn</span> <span class="o">=</span> <span class="n">random_decoding_order</span><span class="p">,</span>
   <span class="n">sampling_strategy</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;temperature&quot;</span><span class="p">,</span> <span class="s2">&quot;straight_through&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;temperature&quot;</span><span class="p">,</span>
-  <span class="n">num_encoder_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
-  <span class="n">num_decoder_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
+  <span class="n">_num_encoder_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
+  <span class="n">_num_decoder_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SamplerFn</span><span class="p">:</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Create a function to sample or optimize sequences from a structure.&quot;&quot;&quot;</span>
-  <span class="n">encoder</span> <span class="o">=</span> <span class="n">make_encoder</span><span class="p">(</span>
-    <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>
-    <span class="n">attention_mask_type</span><span class="o">=</span><span class="s2">&quot;cross&quot;</span><span class="p">,</span>
-    <span class="n">num_encoder_layers</span><span class="o">=</span><span class="n">num_encoder_layers</span><span class="p">,</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Create a function to sample sequences from a structure using PrxteinMPNN.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    model: A PrxteinMPNN Equinox model instance.</span>
+<span class="sd">    decoding_order_fn: Function to generate decoding order (default: random).</span>
+<span class="sd">        Should accept (key, num_residues, tie_group_map, num_groups).</span>
+<span class="sd">    sampling_strategy: Sampling strategy - &quot;temperature&quot; or &quot;straight_through&quot;.</span>
+<span class="sd">    _num_encoder_layers: Deprecated, ignored (kept for API compatibility).</span>
+<span class="sd">    _num_decoder_layers: Deprecated, ignored (kept for API compatibility).</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    A function that samples sequences from structures.</span>
+
+<span class="sd">  Example:</span>
+<span class="sd">    &gt;&gt;&gt; from prxteinmpnn.io.weights import load_model</span>
+<span class="sd">    &gt;&gt;&gt; model = load_model()</span>
+<span class="sd">    &gt;&gt;&gt; sample_fn = make_sample_sequences(model, sampling_strategy=&quot;temperature&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; seq, logits, order = sample_fn(key, coords, mask, res_idx, chain_idx)</span>
+<span class="sd">    &gt;&gt;&gt;</span>
+<span class="sd">    &gt;&gt;&gt; # With tied positions</span>
+<span class="sd">    &gt;&gt;&gt; tie_map = jnp.array([0, 0, 1, 1, 2])  # Positions 0-1 tied, 2-3 tied</span>
+<span class="sd">    &gt;&gt;&gt; seq, logits, order = sample_fn(</span>
+<span class="sd">    ...     key, coords, mask, res_idx, chain_idx,</span>
+<span class="sd">    ...     tie_group_map=tie_map, num_groups=3</span>
+<span class="sd">    ... )</span>
+<span class="sd">    &gt;&gt;&gt;</span>
+<span class="sd">    &gt;&gt;&gt; # For optimization</span>
+<span class="sd">    &gt;&gt;&gt; optimize_fn = make_sample_sequences(model, sampling_strategy=&quot;straight_through&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; seq, logits, order = optimize_fn(</span>
+<span class="sd">    ...     key, coords, mask, res_idx, chain_idx,</span>
+<span class="sd">    ...     iterations=100, learning_rate=0.01</span>
+<span class="sd">    ... )</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="n">sampling_strategy</span> <span class="o">==</span> <span class="s2">&quot;straight_through&quot;</span><span class="p">:</span>
+    <span class="n">optimize_fn</span> <span class="o">=</span> <span class="n">make_optimize_sequence_fn</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">decoding_order_fn</span><span class="p">)</span>
+
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;_k_neighbors&quot;</span><span class="p">,</span> <span class="s2">&quot;num_groups&quot;</span><span class="p">))</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">sample_sequences</span><span class="p">(</span>
+      <span class="n">prng_key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
+      <span class="n">structure_coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
+      <span class="n">mask</span><span class="p">:</span> <span class="n">AlphaCarbonMask</span><span class="p">,</span>
+      <span class="n">residue_index</span><span class="p">:</span> <span class="n">ResidueIndex</span><span class="p">,</span>
+      <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span><span class="p">,</span>
+      <span class="n">_k_neighbors</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">48</span><span class="p">,</span>
+      <span class="n">bias</span><span class="p">:</span> <span class="n">InputBias</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+      <span class="n">fixed_positions</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+      <span class="n">backbone_noise</span><span class="p">:</span> <span class="n">BackboneNoise</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+      <span class="n">iterations</span><span class="p">:</span> <span class="n">Int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+      <span class="n">learning_rate</span><span class="p">:</span> <span class="n">Float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+      <span class="n">temperature</span><span class="p">:</span> <span class="n">Float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+      <span class="n">tie_group_map</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+      <span class="n">num_groups</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">,</span> <span class="n">DecodingOrder</span><span class="p">]:</span>
+<span class="w">      </span><span class="sd">&quot;&quot;&quot;Optimize a sequence using straight-through estimation.</span>
+
+<span class="sd">      Args:</span>
+<span class="sd">        prng_key: JAX random key.</span>
+<span class="sd">        structure_coordinates: Atomic coordinates (N, 4, 3).</span>
+<span class="sd">        mask: Alpha carbon mask indicating valid residues.</span>
+<span class="sd">        residue_index: Residue indices.</span>
+<span class="sd">        chain_index: Chain indices.</span>
+<span class="sd">        _k_neighbors: Deprecated (kept for API compatibility).</span>
+<span class="sd">        bias: Not used in straight_through mode.</span>
+<span class="sd">        fixed_positions: Not implemented yet.</span>
+<span class="sd">        backbone_noise: Optional noise for backbone coordinates.</span>
+<span class="sd">        iterations: Number of optimization steps (default: 100).</span>
+<span class="sd">        learning_rate: Learning rate for optimization (default: 0.01).</span>
+<span class="sd">        temperature: Temperature for STE sampling (default: 1.0).</span>
+<span class="sd">        tie_group_map: Optional (N,) array mapping positions to group IDs for tied sampling.</span>
+<span class="sd">        num_groups: Number of unique groups when using tied positions.</span>
+
+<span class="sd">      Returns:</span>
+<span class="sd">        Tuple of (optimized sequence, final logits, decoding order).</span>
+
+<span class="sd">      &quot;&quot;&quot;</span>
+      <span class="k">del</span> <span class="n">bias</span><span class="p">,</span> <span class="n">fixed_positions</span><span class="p">,</span> <span class="n">_k_neighbors</span>  <span class="c1"># Not used in optimization</span>
+
+      <span class="k">if</span> <span class="n">iterations</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">iterations</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+      <span class="k">if</span> <span class="n">learning_rate</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">learning_rate</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+      <span class="k">if</span> <span class="n">temperature</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">temperature</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+      <span class="n">decoding_order</span><span class="p">,</span> <span class="n">prng_key</span> <span class="o">=</span> <span class="n">decoding_order_fn</span><span class="p">(</span>
+        <span class="n">prng_key</span><span class="p">,</span>
+        <span class="n">structure_coordinates</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+        <span class="n">tie_group_map</span><span class="p">,</span>
+        <span class="n">num_groups</span><span class="p">,</span>
+      <span class="p">)</span>
+
+      <span class="n">optimized_sequence</span><span class="p">,</span> <span class="n">final_logits</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">optimize_fn</span><span class="p">(</span>
+        <span class="n">prng_key</span><span class="p">,</span>
+        <span class="n">structure_coordinates</span><span class="p">,</span>
+        <span class="n">mask</span><span class="p">,</span>
+        <span class="n">residue_index</span><span class="p">,</span>
+        <span class="n">chain_index</span><span class="p">,</span>
+        <span class="n">iterations</span><span class="p">,</span>
+        <span class="n">learning_rate</span><span class="p">,</span>
+        <span class="n">temperature</span><span class="p">,</span>
+        <span class="n">backbone_noise</span><span class="p">,</span>
+        <span class="n">tie_group_map</span><span class="p">,</span>
+        <span class="n">num_groups</span><span class="p">,</span>
+      <span class="p">)</span>
+
+      <span class="k">return</span> <span class="n">optimized_sequence</span><span class="p">,</span> <span class="n">final_logits</span><span class="p">,</span> <span class="n">decoding_order</span>
+
+    <span class="k">return</span> <span class="n">sample_sequences</span>
+
+  <span class="k">if</span> <span class="n">sampling_strategy</span> <span class="o">==</span> <span class="s2">&quot;temperature&quot;</span><span class="p">:</span>
+
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;_k_neighbors&quot;</span><span class="p">,</span> <span class="s2">&quot;num_groups&quot;</span><span class="p">))</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">sample_sequences</span><span class="p">(</span>
+      <span class="n">prng_key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
+      <span class="n">structure_coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
+      <span class="n">mask</span><span class="p">:</span> <span class="n">AlphaCarbonMask</span><span class="p">,</span>
+      <span class="n">residue_index</span><span class="p">:</span> <span class="n">ResidueIndex</span><span class="p">,</span>
+      <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span><span class="p">,</span>
+      <span class="n">_k_neighbors</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">48</span><span class="p">,</span>
+      <span class="n">bias</span><span class="p">:</span> <span class="n">InputBias</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+      <span class="n">fixed_positions</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+      <span class="n">backbone_noise</span><span class="p">:</span> <span class="n">BackboneNoise</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+      <span class="n">_iterations</span><span class="p">:</span> <span class="n">Int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+      <span class="n">_learning_rate</span><span class="p">:</span> <span class="n">Float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+      <span class="n">temperature</span><span class="p">:</span> <span class="n">Float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+      <span class="n">tie_group_map</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+      <span class="n">num_groups</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">,</span> <span class="n">DecodingOrder</span><span class="p">]:</span>
+<span class="w">      </span><span class="sd">&quot;&quot;&quot;Sample a sequence from a structure using the ProteinMPNN model.</span>
+
+<span class="sd">      Args:</span>
+<span class="sd">        prng_key: JAX random key.</span>
+<span class="sd">        structure_coordinates: Atomic coordinates (N, 4, 3).</span>
+<span class="sd">        mask: Alpha carbon mask indicating valid residues.</span>
+<span class="sd">        residue_index: Residue indices.</span>
+<span class="sd">        chain_index: Chain indices.</span>
+<span class="sd">        _k_neighbors: Deprecated, model handles internally (kept for API compatibility).</span>
+<span class="sd">        bias: Optional bias to add to logits (N, 21).</span>
+<span class="sd">        fixed_positions: Optional mask for positions to keep fixed (not implemented yet).</span>
+<span class="sd">        backbone_noise: Optional noise for backbone coordinates.</span>
+<span class="sd">        _iterations: Unused in temperature mode (for API compatibility).</span>
+<span class="sd">        _learning_rate: Unused in temperature mode (for API compatibility).</span>
+<span class="sd">        temperature: Temperature for sampling (default: 1.0).</span>
+<span class="sd">        tie_group_map: Optional (N,) array mapping positions to group IDs for tied sampling.</span>
+<span class="sd">        num_groups: Number of unique groups when using tied positions.</span>
+
+<span class="sd">      Returns:</span>
+<span class="sd">        Tuple of (sampled sequence, logits, decoding order).</span>
+
+<span class="sd">      Example:</span>
+<span class="sd">        &gt;&gt;&gt; seq, logits, order = sample_sequences(</span>
+<span class="sd">        ...     key, coords, mask, res_idx, chain_idx, temperature=0.1</span>
+<span class="sd">        ... )</span>
+
+<span class="sd">      &quot;&quot;&quot;</span>
+      <span class="k">del</span> <span class="n">fixed_positions</span>  <span class="c1"># Not yet implemented</span>
+
+      <span class="k">if</span> <span class="n">temperature</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">temperature</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+      <span class="n">decoding_order</span><span class="p">,</span> <span class="n">prng_key</span> <span class="o">=</span> <span class="n">decoding_order_fn</span><span class="p">(</span>
+        <span class="n">prng_key</span><span class="p">,</span>
+        <span class="n">structure_coordinates</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+        <span class="n">tie_group_map</span><span class="p">,</span>
+        <span class="n">num_groups</span><span class="p">,</span>
+      <span class="p">)</span>
+      <span class="n">autoregressive_mask</span> <span class="o">=</span> <span class="n">generate_ar_mask</span><span class="p">(</span><span class="n">decoding_order</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">tie_group_map</span><span class="p">,</span> <span class="n">num_groups</span><span class="p">)</span>
+
+      <span class="n">sampled_sequence</span><span class="p">,</span> <span class="n">logits</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span>
+        <span class="n">structure_coordinates</span><span class="p">,</span>
+        <span class="n">mask</span><span class="p">,</span>
+        <span class="n">residue_index</span><span class="p">,</span>
+        <span class="n">chain_index</span><span class="p">,</span>
+        <span class="n">decoding_approach</span><span class="o">=</span><span class="s2">&quot;autoregressive&quot;</span><span class="p">,</span>
+        <span class="n">prng_key</span><span class="o">=</span><span class="n">prng_key</span><span class="p">,</span>
+        <span class="n">ar_mask</span><span class="o">=</span><span class="n">autoregressive_mask</span><span class="p">,</span>
+        <span class="n">temperature</span><span class="o">=</span><span class="n">temperature</span><span class="p">,</span>
+        <span class="n">bias</span><span class="o">=</span><span class="n">bias</span><span class="p">,</span>
+        <span class="n">backbone_noise</span><span class="o">=</span><span class="n">backbone_noise</span><span class="p">,</span>
+        <span class="n">tie_group_map</span><span class="o">=</span><span class="n">tie_group_map</span><span class="p">,</span>
+      <span class="p">)</span>
+
+      <span class="n">one_hot_ndim</span> <span class="o">=</span> <span class="mi">2</span>
+      <span class="k">if</span> <span class="n">sampled_sequence</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="n">one_hot_ndim</span><span class="p">:</span>
+        <span class="n">sampled_sequence</span> <span class="o">=</span> <span class="n">sampled_sequence</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>
+
+      <span class="k">return</span> <span class="n">sampled_sequence</span><span class="p">,</span> <span class="n">logits</span><span class="p">,</span> <span class="n">decoding_order</span>
+
+    <span class="k">return</span> <span class="n">sample_sequences</span>
+
+  <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Unknown sampling strategy: </span><span class="si">{</span><span class="n">sampling_strategy</span><span class="si">}</span><span class="s2">&quot;</span>
+  <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="make_encoding_sampling_split_fn">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.sampling.sample.html#prxteinmpnn.sampling.make_encoding_sampling_split_fn">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">make_encoding_sampling_split_fn</span><span class="p">(</span>
+  <span class="n">model_parameters</span><span class="p">:</span> <span class="n">PrxteinMPNN</span><span class="p">,</span>
+  <span class="n">decoding_order_fn</span><span class="p">:</span> <span class="n">DecodingOrderFn</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="n">sampling_strategy</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;temperature&quot;</span><span class="p">,</span> <span class="s2">&quot;straight_through&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;temperature&quot;</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Callable</span><span class="p">,</span> <span class="n">Callable</span><span class="p">]:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Create separate encoding and sampling functions for averaged encodings.</span>
+
+<span class="sd">  This splits the sampling process into two parts:</span>
+<span class="sd">  1. Encoding: Structure -&gt; Encoder features (can be averaged across noise levels)</span>
+<span class="sd">  2. Sampling: (Encoder features, PRNGKey) -&gt; Sequences</span>
+
+<span class="sd">  This separation allows:</span>
+<span class="sd">  - Averaging encoder features across multiple noise levels</span>
+<span class="sd">  - Efficient reuse of encoder output for multiple samples</span>
+<span class="sd">  - Lower memory usage when sampling many sequences</span>
+
+<span class="sd">  Supports tied positions: when tie_group_map is provided, positions in the same</span>
+<span class="sd">  group will be sampled together and receive identical amino acids.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    model_parameters: A PrxteinMPNN Equinox model instance.</span>
+<span class="sd">    decoding_order_fn: Function to generate decoding order (default: random).</span>
+<span class="sd">    sampling_strategy: Sampling strategy - &quot;temperature&quot; or &quot;straight_through&quot;.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    Tuple of (encode_fn, sample_fn) where:</span>
+<span class="sd">      - encode_fn: Computes encoder features from structure</span>
+<span class="sd">      - sample_fn: Samples sequences from cached encoder features</span>
+
+<span class="sd">  Example:</span>
+<span class="sd">    &gt;&gt;&gt; from prxteinmpnn.io.weights import load_model</span>
+<span class="sd">    &gt;&gt;&gt; model = load_model()</span>
+<span class="sd">    &gt;&gt;&gt; encode_fn, sample_fn = make_encoding_sampling_split_fn(</span>
+<span class="sd">    ...     model, sampling_strategy=&quot;temperature&quot;</span>
+<span class="sd">    ... )</span>
+<span class="sd">    &gt;&gt;&gt; # Encode once</span>
+<span class="sd">    &gt;&gt;&gt; encoding = encode_fn(</span>
+<span class="sd">    ...     key, coords, mask, res_idx, chain_idx,</span>
+<span class="sd">    ...     k_neighbors=48, backbone_noise=0.1</span>
+<span class="sd">    ... )</span>
+<span class="sd">    &gt;&gt;&gt; # Sample multiple sequences using same encoding</span>
+<span class="sd">    &gt;&gt;&gt; seq1 = sample_fn(key1, encoding, order1, temperature=0.1)</span>
+<span class="sd">    &gt;&gt;&gt; seq2 = sample_fn(key2, encoding, order2, temperature=0.5)</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">del</span> <span class="n">sampling_strategy</span><span class="p">,</span> <span class="n">decoding_order_fn</span>  <span class="c1"># Currently only temperature sampling supported</span>
+
+  <span class="c1"># Get the encoder/decoder split functions</span>
+  <span class="n">encode_logits_fn</span><span class="p">,</span> <span class="n">decode_logits_fn</span> <span class="o">=</span> <span class="n">make_encoding_conditional_logits_split_fn</span><span class="p">(</span>
+    <span class="n">model_parameters</span><span class="p">,</span>
   <span class="p">)</span>
 
-  <span class="n">conditional_decoder</span><span class="p">:</span> <span class="n">RunConditionalDecoderFn</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span>
-    <span class="s2">&quot;RunConditionalDecoderFn&quot;</span><span class="p">,</span>
-    <span class="n">make_decoder</span><span class="p">(</span>
-      <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>
-      <span class="n">attention_mask_type</span><span class="o">=</span><span class="s2">&quot;conditional&quot;</span><span class="p">,</span>
-      <span class="n">decoding_approach</span><span class="o">=</span><span class="s2">&quot;conditional&quot;</span><span class="p">,</span>
-      <span class="n">num_decoder_layers</span><span class="o">=</span><span class="n">num_decoder_layers</span><span class="p">,</span>
-    <span class="p">),</span>
-  <span class="p">)</span>
-
-  <span class="n">autoregressive_decoder</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span>
-    <span class="s2">&quot;RunAutoregressiveDecoderFn&quot;</span><span class="p">,</span>
-    <span class="n">make_decoder</span><span class="p">(</span>
-      <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>
-      <span class="n">attention_mask_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-      <span class="n">decoding_approach</span><span class="o">=</span><span class="s2">&quot;autoregressive&quot;</span><span class="p">,</span>
-      <span class="n">num_decoder_layers</span><span class="o">=</span><span class="n">num_decoder_layers</span><span class="p">,</span>
-    <span class="p">),</span>
-  <span class="p">)</span>
-
-  <span class="n">sample_model_pass</span> <span class="o">=</span> <span class="n">sampling_encode</span><span class="p">(</span><span class="n">encoder</span><span class="o">=</span><span class="n">encoder</span><span class="p">,</span> <span class="n">decoding_order_fn</span><span class="o">=</span><span class="n">decoding_order_fn</span><span class="p">)</span>
-
-  <span class="n">optimize_seq_fn</span> <span class="o">=</span> <span class="n">make_optimize_sequence_fn</span><span class="p">(</span>
-    <span class="n">decoder</span><span class="o">=</span><span class="n">conditional_decoder</span><span class="p">,</span>
-    <span class="n">decoding_order_fn</span><span class="o">=</span><span class="n">decoding_order_fn</span><span class="p">,</span>
-    <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>
-  <span class="p">)</span>
-
-  <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;k_neighbors&quot;</span><span class="p">))</span>
-  <span class="k">def</span><span class="w"> </span><span class="nf">sample_or_optimize_fn</span><span class="p">(</span>
+  <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;k_neighbors&quot;</span><span class="p">,))</span>
+  <span class="k">def</span><span class="w"> </span><span class="nf">encode_fn</span><span class="p">(</span>
     <span class="n">prng_key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
     <span class="n">structure_coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
     <span class="n">mask</span><span class="p">:</span> <span class="n">AlphaCarbonMask</span><span class="p">,</span>
     <span class="n">residue_index</span><span class="p">:</span> <span class="n">ResidueIndex</span><span class="p">,</span>
     <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span><span class="p">,</span>
     <span class="n">k_neighbors</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">48</span><span class="p">,</span>
-    <span class="n">bias</span><span class="p">:</span> <span class="n">InputBias</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">fixed_positions</span><span class="p">:</span> <span class="n">Int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">backbone_noise</span><span class="p">:</span> <span class="n">BackboneNoise</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">iterations</span><span class="p">:</span> <span class="n">Int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">learning_rate</span><span class="p">:</span> <span class="n">Float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">temperature</span><span class="p">:</span> <span class="n">Float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-  <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">,</span> <span class="n">DecodingOrder</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Dispatches to either the optimization or sampling function.&quot;&quot;&quot;</span>
-    <span class="n">bias</span><span class="p">,</span> <span class="n">fixed_positions</span><span class="p">,</span> <span class="n">iterations</span><span class="p">,</span> <span class="n">learning_rate</span><span class="p">,</span> <span class="n">temperature</span> <span class="o">=</span> <span class="p">(</span>
-      <span class="n">bias</span>
-      <span class="k">if</span> <span class="n">bias</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-      <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">structure_coordinates</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">21</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span>
-      <span class="n">fixed_positions</span> <span class="k">if</span> <span class="n">fixed_positions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span>
-      <span class="n">iterations</span> <span class="k">if</span> <span class="n">iterations</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="mi">1</span><span class="p">,</span>
-      <span class="n">learning_rate</span> <span class="k">if</span> <span class="n">learning_rate</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="mf">1e-4</span><span class="p">,</span>
-      <span class="n">temperature</span> <span class="k">if</span> <span class="n">temperature</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="mf">1.0</span><span class="p">,</span>
-    <span class="p">)</span>
+  <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Encode structure to get encoder features.</span>
 
-    <span class="p">(</span>
-      <span class="n">node_features</span><span class="p">,</span>
-      <span class="n">edge_features</span><span class="p">,</span>
-      <span class="n">neighbor_indices</span><span class="p">,</span>
-      <span class="n">decoding_order</span><span class="p">,</span>
-      <span class="n">_</span><span class="p">,</span>
-      <span class="n">next_rng_key</span><span class="p">,</span>
-    <span class="p">)</span> <span class="o">=</span> <span class="n">sample_model_pass</span><span class="p">(</span>
-      <span class="n">prng_key</span><span class="p">,</span>
-      <span class="n">model_parameters</span><span class="p">,</span>
+<span class="sd">    Args:</span>
+<span class="sd">      prng_key: JAX random key for feature extraction.</span>
+<span class="sd">      structure_coordinates: Atomic coordinates (N, 4, 3).</span>
+<span class="sd">      mask: Alpha carbon mask indicating valid residues.</span>
+<span class="sd">      residue_index: Residue indices.</span>
+<span class="sd">      chain_index: Chain indices.</span>
+<span class="sd">      k_neighbors: Number of nearest neighbors (currently not used, for API compat).</span>
+<span class="sd">      backbone_noise: Optional noise for backbone coordinates.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">      Encoder features tuple that can be passed to sample_fn.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">del</span> <span class="n">k_neighbors</span>
+
+    <span class="k">return</span> <span class="n">encode_logits_fn</span><span class="p">(</span>
       <span class="n">structure_coordinates</span><span class="p">,</span>
       <span class="n">mask</span><span class="p">,</span>
       <span class="n">residue_index</span><span class="p">,</span>
       <span class="n">chain_index</span><span class="p">,</span>
-      <span class="kc">None</span><span class="p">,</span>
-      <span class="n">k_neighbors</span><span class="p">,</span>
-      <span class="n">backbone_noise</span><span class="p">,</span>
+      <span class="n">backbone_noise</span><span class="o">=</span><span class="n">backbone_noise</span><span class="p">,</span>
+      <span class="n">prng_key</span><span class="o">=</span><span class="n">prng_key</span><span class="p">,</span>
     <span class="p">)</span>
 
-    <span class="k">if</span> <span class="n">sampling_strategy</span> <span class="o">==</span> <span class="s2">&quot;straight_through&quot;</span><span class="p">:</span>
-      <span class="n">output_sequence</span><span class="p">,</span> <span class="n">output_logits</span> <span class="o">=</span> <span class="n">optimize_seq_fn</span><span class="p">(</span>
-        <span class="n">next_rng_key</span><span class="p">,</span>
-        <span class="n">node_features</span><span class="p">,</span>
-        <span class="n">edge_features</span><span class="p">,</span>
-        <span class="n">neighbor_indices</span><span class="p">,</span>
-        <span class="n">mask</span><span class="p">,</span>
-        <span class="n">iterations</span><span class="p">,</span>
-        <span class="n">learning_rate</span><span class="p">,</span>
-        <span class="n">temperature</span><span class="p">,</span>
+  <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;num_groups&quot;</span><span class="p">,))</span>
+  <span class="k">def</span><span class="w"> </span><span class="nf">sample_fn</span><span class="p">(</span>
+    <span class="n">prng_key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
+    <span class="n">encoded_features</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">,</span>
+    <span class="n">decoding_order</span><span class="p">:</span> <span class="n">DecodingOrder</span><span class="p">,</span>
+    <span class="n">bias</span><span class="p">:</span> <span class="n">InputBias</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">iterations</span><span class="p">:</span> <span class="n">Int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">learning_rate</span><span class="p">:</span> <span class="n">Float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">temperature</span><span class="p">:</span> <span class="n">Float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">sampling_strategy</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;temperature&quot;</span><span class="p">,</span> <span class="s2">&quot;straight_through&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;temperature&quot;</span><span class="p">,</span>
+    <span class="n">tie_group_map</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">num_groups</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ProteinSequence</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Sample a sequence from cached encoder features.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">      prng_key: JAX random key for sampling.</span>
+<span class="sd">      encoded_features: Encoder features from encode_fn.</span>
+<span class="sd">      decoding_order: Decoding order for autoregressive sampling.</span>
+<span class="sd">      bias: Optional bias to add to logits (N, 21).</span>
+<span class="sd">      iterations: For STE optimization (not used in temperature sampling).</span>
+<span class="sd">      learning_rate: For STE optimization (not used in temperature sampling).</span>
+<span class="sd">      temperature: Temperature for sampling (default: 1.0).</span>
+<span class="sd">      sampling_strategy: &quot;temperature&quot; or &quot;straight_through&quot; (currently only temperature).</span>
+<span class="sd">      tie_group_map: Optional (N,) array mapping positions to group IDs for tied sampling.</span>
+<span class="sd">      num_groups: Number of unique groups when using tied positions.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">      Sampled sequence as integer array (N,).</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">del</span> <span class="n">iterations</span><span class="p">,</span> <span class="n">learning_rate</span><span class="p">,</span> <span class="n">sampling_strategy</span>  <span class="c1"># Not used in current implementation</span>
+
+    <span class="k">if</span> <span class="n">temperature</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+      <span class="n">temperature</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+    <span class="n">autoregressive_mask</span> <span class="o">=</span> <span class="n">generate_ar_mask</span><span class="p">(</span><span class="n">decoding_order</span><span class="p">,</span> <span class="n">tie_group_map</span><span class="p">)</span>
+
+    <span class="n">seq_length</span> <span class="o">=</span> <span class="n">autoregressive_mask</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">prng_key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">prng_key</span><span class="p">)</span>
+    <span class="n">initial_seq</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span>
+      <span class="n">prng_key</span><span class="p">,</span>
+      <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">seq_length</span><span class="p">,),</span>
+      <span class="n">minval</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+      <span class="n">maxval</span><span class="o">=</span><span class="mi">21</span><span class="p">,</span>
+      <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">tie_group_map</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">num_groups</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+
+      <span class="k">def</span><span class="w"> </span><span class="nf">sample_group_step</span><span class="p">(</span>
+        <span class="n">group_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">state</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ProteinSequence</span><span class="p">,</span> <span class="n">PRNGKeyArray</span><span class="p">],</span>
+      <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ProteinSequence</span><span class="p">,</span> <span class="n">PRNGKeyArray</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Sample one group of tied positions together.&quot;&quot;&quot;</span>
+        <span class="n">sequence</span><span class="p">,</span> <span class="n">key</span> <span class="o">=</span> <span class="n">state</span>
+
+        <span class="n">logits</span> <span class="o">=</span> <span class="n">decode_logits_fn</span><span class="p">(</span><span class="n">encoded_features</span><span class="p">,</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">autoregressive_mask</span><span class="p">)</span>
+        <span class="n">group_mask</span> <span class="o">=</span> <span class="p">(</span><span class="n">tie_group_map</span> <span class="o">==</span> <span class="n">group_idx</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">]</span>  <span class="c1"># (N, 1)</span>
+        <span class="n">group_count</span> <span class="o">=</span> <span class="n">group_mask</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># (1, 1)</span>
+        <span class="n">group_logit_sum</span> <span class="o">=</span> <span class="p">(</span><span class="n">logits</span> <span class="o">*</span> <span class="n">group_mask</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>  <span class="c1"># (21,)</span>
+        <span class="n">avg_logits</span> <span class="o">=</span> <span class="n">group_logit_sum</span> <span class="o">/</span> <span class="p">(</span><span class="n">group_count</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span> <span class="o">+</span> <span class="mf">1e-8</span><span class="p">)</span>  <span class="c1"># (21,)</span>
+        <span class="k">if</span> <span class="n">bias</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+          <span class="n">group_bias</span> <span class="o">=</span> <span class="p">(</span><span class="n">bias</span> <span class="o">*</span> <span class="n">group_mask</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">group_count</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span> <span class="o">+</span> <span class="mf">1e-8</span><span class="p">)</span>
+          <span class="n">avg_logits</span> <span class="o">=</span> <span class="n">avg_logits</span> <span class="o">+</span> <span class="n">group_bias</span>
+        <span class="n">scaled_logits</span> <span class="o">=</span> <span class="n">avg_logits</span> <span class="o">/</span> <span class="n">temperature</span>
+        <span class="n">key</span><span class="p">,</span> <span class="n">subkey</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="n">sampled_aa</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">categorical</span><span class="p">(</span><span class="n">subkey</span><span class="p">,</span> <span class="n">scaled_logits</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>
+        <span class="n">group_member_mask</span> <span class="o">=</span> <span class="n">tie_group_map</span> <span class="o">==</span> <span class="n">group_idx</span>  <span class="c1"># (N,) boolean</span>
+        <span class="n">updated_seq</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">group_member_mask</span><span class="p">,</span> <span class="n">sampled_aa</span><span class="p">,</span> <span class="n">sequence</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">updated_seq</span><span class="p">,</span> <span class="n">key</span>
+
+      <span class="n">final_seq</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">fori_loop</span><span class="p">(</span>
+        <span class="mi">0</span><span class="p">,</span>
+        <span class="n">num_groups</span><span class="p">,</span>
+        <span class="n">sample_group_step</span><span class="p">,</span>
+        <span class="p">(</span><span class="n">initial_seq</span><span class="p">,</span> <span class="n">prng_key</span><span class="p">),</span>
       <span class="p">)</span>
-      <span class="n">output_sequence</span> <span class="o">=</span> <span class="n">output_sequence</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>
-      <span class="k">return</span> <span class="n">output_sequence</span><span class="p">,</span> <span class="n">output_logits</span><span class="p">,</span> <span class="n">decoding_order</span>
-    <span class="n">sample_model_pass_fn</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span>
-      <span class="n">sample_model_pass</span><span class="p">,</span>
-      <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
-      <span class="n">structure_coordinates</span><span class="o">=</span><span class="n">structure_coordinates</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
-      <span class="n">mask</span><span class="o">=</span><span class="n">mask</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
-      <span class="n">residue_index</span><span class="o">=</span><span class="n">residue_index</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
-      <span class="n">chain_index</span><span class="o">=</span><span class="n">chain_index</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
-      <span class="n">k_neighbors</span><span class="o">=</span><span class="n">k_neighbors</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
-      <span class="n">backbone_noise</span><span class="o">=</span><span class="n">backbone_noise</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
-    <span class="p">)</span>
-    <span class="n">sample_step</span> <span class="o">=</span> <span class="n">preload_sampling_step_decoder</span><span class="p">(</span>
-      <span class="n">autoregressive_decoder</span><span class="p">,</span>
-      <span class="n">sample_model_pass_fn</span><span class="p">,</span>
-      <span class="n">sampling_strategy</span><span class="o">=</span><span class="n">sampling_strategy</span><span class="p">,</span>
-      <span class="n">temperature</span><span class="o">=</span><span class="n">temperature</span><span class="p">,</span>
-    <span class="p">)</span>
-    <span class="n">_</span><span class="p">,</span> <span class="n">output_sequence</span><span class="p">,</span> <span class="n">output_logits</span> <span class="o">=</span> <span class="n">sample_step</span><span class="p">(</span><span class="n">prng_key</span><span class="o">=</span><span class="n">next_rng_key</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="n">bias</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">output_sequence</span><span class="p">,</span> <span class="n">output_logits</span><span class="p">,</span> <span class="n">decoding_order</span>
 
-  <span class="k">return</span> <span class="n">sample_or_optimize_fn</span>  <span class="c1"># type: ignore[return-value]</span></div>
+    <span class="k">else</span><span class="p">:</span>
+
+      <span class="k">def</span><span class="w"> </span><span class="nf">sample_step</span><span class="p">(</span>
+        <span class="n">i</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">state</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ProteinSequence</span><span class="p">,</span> <span class="n">PRNGKeyArray</span><span class="p">],</span>
+      <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ProteinSequence</span><span class="p">,</span> <span class="n">PRNGKeyArray</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Sample one position in the decoding order.&quot;&quot;&quot;</span>
+        <span class="n">sequence</span><span class="p">,</span> <span class="n">key</span> <span class="o">=</span> <span class="n">state</span>
+        <span class="n">logits</span> <span class="o">=</span> <span class="n">decode_logits_fn</span><span class="p">(</span><span class="n">encoded_features</span><span class="p">,</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">autoregressive_mask</span><span class="p">)</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="n">decoding_order</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">bias</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+          <span class="n">logits</span> <span class="o">=</span> <span class="n">logits</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">pos</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">bias</span><span class="p">[</span><span class="n">pos</span><span class="p">])</span>
+        <span class="n">scaled_logits</span> <span class="o">=</span> <span class="n">logits</span><span class="p">[</span><span class="n">pos</span><span class="p">]</span> <span class="o">/</span> <span class="n">temperature</span>
+        <span class="n">key</span><span class="p">,</span> <span class="n">subkey</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="n">sampled_aa</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">categorical</span><span class="p">(</span><span class="n">subkey</span><span class="p">,</span> <span class="n">scaled_logits</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">)</span>
+        <span class="n">updated_seq</span> <span class="o">=</span> <span class="n">sequence</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">pos</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">sampled_aa</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">updated_seq</span><span class="p">,</span> <span class="n">key</span>
+
+      <span class="n">final_seq</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">fori_loop</span><span class="p">(</span>
+        <span class="mi">0</span><span class="p">,</span>
+        <span class="n">seq_length</span><span class="p">,</span>
+        <span class="n">sample_step</span><span class="p">,</span>
+        <span class="p">(</span><span class="n">initial_seq</span><span class="p">,</span> <span class="n">prng_key</span><span class="p">),</span>
+      <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">final_seq</span>
+
+  <span class="k">return</span> <span class="n">encode_fn</span><span class="p">,</span> <span class="n">sample_fn</span></div>
 
 </pre></div>
 

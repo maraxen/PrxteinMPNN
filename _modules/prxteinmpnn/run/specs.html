@@ -163,7 +163,6 @@
 
 
 
-
 <li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -363,6 +362,8 @@ document.write(`
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Literal</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.io.weights</span><span class="w"> </span><span class="kn">import</span> <span class="n">MODEL_VERSION</span><span class="p">,</span> <span class="n">MODEL_WEIGHTS</span>
+
 <span class="n">mp</span><span class="o">.</span><span class="n">set_start_method</span><span class="p">(</span><span class="s2">&quot;spawn&quot;</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
 
@@ -372,10 +373,13 @@ document.write(`
   <span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArrayLike</span>
 
   <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.ensemble.dbscan</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConformationalStates</span>
-  <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.mpnn</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelVersion</span><span class="p">,</span> <span class="n">ModelWeights</span>
   <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.catjac</span><span class="w"> </span><span class="kn">import</span> <span class="n">CombineCatJacPairFn</span>
   <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.decoding_order</span><span class="w"> </span><span class="kn">import</span> <span class="n">DecodingOrderFn</span>
   <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.foldcomp_utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">FoldCompDatabase</span>
+
+<span class="c1"># Type aliases for convenience</span>
+<span class="n">ModelWeights</span> <span class="o">=</span> <span class="n">MODEL_WEIGHTS</span>
+<span class="n">ModelVersion</span> <span class="o">=</span> <span class="n">MODEL_VERSION</span>
 
 
 <span class="n">AlignmentStrategy</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;sequence&quot;</span><span class="p">,</span> <span class="s2">&quot;structure&quot;</span><span class="p">]</span>
@@ -402,7 +406,6 @@ document.write(`
 <span class="sd">      backbone_noise: The backbone noise levels to use (default is (0.0,)).</span>
 <span class="sd">                      Can be a single float or a sequence of floats.</span>
 <span class="sd">      foldcomp_database: An optional path to a FoldComp database (default is None).</span>
-<span class="sd">      num_workers: The number of worker processes for data loading (default is 0).</span>
 <span class="sd">      ar_mask: An optional array-like mask for autoregressive positions (default is None).</span>
 <span class="sd">      random_seed: The random seed to use (default is 42).</span>
 <span class="sd">      chain_id: An optional chain ID to use (default is None).</span>
@@ -416,11 +419,10 @@ document.write(`
   <span class="n">inputs</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="n">StringIO</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">StringIO</span>
   <span class="n">topology</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
   <span class="n">model_weights</span><span class="p">:</span> <span class="n">ModelWeights</span> <span class="o">=</span> <span class="s2">&quot;original&quot;</span>
-  <span class="n">model_version</span><span class="p">:</span> <span class="n">ModelVersion</span> <span class="o">=</span> <span class="s2">&quot;v_48_020.pkl&quot;</span>
+  <span class="n">model_version</span><span class="p">:</span> <span class="n">ModelVersion</span> <span class="o">=</span> <span class="s2">&quot;v_48_020&quot;</span>
   <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">32</span>
   <span class="n">backbone_noise</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,)</span>
   <span class="n">foldcomp_database</span><span class="p">:</span> <span class="n">FoldCompDatabase</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-  <span class="n">num_workers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
   <span class="n">ar_mask</span><span class="p">:</span> <span class="kc">None</span> <span class="o">|</span> <span class="n">ArrayLike</span> <span class="o">=</span> <span class="kc">None</span>
   <span class="n">random_seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">42</span>
   <span class="n">chain_id</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
@@ -428,11 +430,27 @@ document.write(`
   <span class="n">altloc</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;first&quot;</span><span class="p">,</span> <span class="s2">&quot;all&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;first&quot;</span>
   <span class="n">decoding_order_fn</span><span class="p">:</span> <span class="n">DecodingOrderFn</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
   <span class="n">conformational_states</span><span class="p">:</span> <span class="n">ConformationalStates</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">cache_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">overwrite_cache</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">output_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+  <span class="c1"># Tied-position logit averaging fields</span>
+  <span class="n">tied_positions</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">|</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;auto&quot;</span><span class="p">,</span> <span class="s2">&quot;direct&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">pass_mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;inter&quot;</span><span class="p">,</span> <span class="s2">&quot;intra&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;intra&quot;</span>  <span class="c1"># noqa: S105 (not a password)</span>
 
   <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Post-initialization processing.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Post-initialization processing and validation for tied-position logit averaging.&quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">backbone_noise</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
-      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;backbone_noise&quot;</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">backbone_noise</span><span class="p">,))</span></div>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;backbone_noise&quot;</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">backbone_noise</span><span class="p">,))</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache_path</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cache_path</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;cache_path&quot;</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cache_path</span><span class="p">))</span>
+    <span class="c1"># Validation for tied_positions and pass_mode</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">tied_positions</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;auto&quot;</span><span class="p">,</span> <span class="s2">&quot;direct&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">pass_mode</span> <span class="o">!=</span> <span class="s2">&quot;inter&quot;</span><span class="p">:</span>  <span class="c1"># noqa: S105</span>
+      <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;If tied_positions is &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">tied_positions</span><span class="si">}</span><span class="s2">&#39;, pass_mode must be &#39;inter&#39;. &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;Got pass_mode=&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">pass_mode</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
+      <span class="p">)</span>
+      <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span></div>
 
 
 
@@ -489,6 +507,10 @@ document.write(`
   <span class="n">iterations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
   <span class="n">learning_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
   <span class="n">output_h5_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">samples_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">16</span>
+  <span class="n">noise_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span>
+  <span class="n">average_encodings</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">average_logits</span><span class="p">:</span> <span class="kc">None</span> <span class="o">|</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;structures&quot;</span><span class="p">,</span> <span class="s2">&quot;noise&quot;</span><span class="p">,</span> <span class="s2">&quot;both&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 
   <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Post-initialization processing.&quot;&quot;&quot;</span>
@@ -511,6 +533,8 @@ document.write(`
 
   <span class="n">noise_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
   <span class="n">jacobian_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">16</span>
+  <span class="n">average_encodings</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+  <span class="n">average_logits</span><span class="p">:</span> <span class="kc">None</span> <span class="o">|</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;structures&quot;</span><span class="p">,</span> <span class="s2">&quot;noise&quot;</span><span class="p">,</span> <span class="s2">&quot;both&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
   <span class="n">combine</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
   <span class="n">combine_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span>
   <span class="n">combine_noise_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
@@ -542,17 +566,23 @@ document.write(`
 
   <span class="n">output_h5_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
   <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span>
-  <span class="n">inference_strategy</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;unconditional&quot;</span><span class="p">,</span> <span class="s2">&quot;conditional&quot;</span><span class="p">,</span> <span class="s2">&quot;vmm&quot;</span><span class="p">,</span> <span class="s2">&quot;coordinates&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
-    <span class="s2">&quot;unconditional&quot;</span>
-  <span class="p">)</span>
-  <span class="n">inference_features</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span>
-    <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;logits&quot;</span><span class="p">,</span> <span class="s2">&quot;node_features&quot;</span><span class="p">,</span> <span class="s2">&quot;edge_features&quot;</span><span class="p">,</span> <span class="s2">&quot;backbone_coordinates&quot;</span><span class="p">,</span> <span class="s2">&quot;full_coordinates&quot;</span><span class="p">]</span>
-  <span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;logits&quot;</span><span class="p">,)</span>
+  <span class="n">inference_strategy</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;unconditional&quot;</span><span class="p">,</span> <span class="s2">&quot;conditional&quot;</span><span class="p">,</span> <span class="s2">&quot;vmm&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;unconditional&quot;</span>
+  <span class="n">inference_features</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;logits&quot;</span><span class="p">,</span> <span class="s2">&quot;node_features&quot;</span><span class="p">,</span> <span class="s2">&quot;edge_features&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;logits&quot;</span><span class="p">,)</span>
   <span class="n">mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;global&quot;</span><span class="p">,</span> <span class="s2">&quot;per&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;global&quot;</span>
+  <span class="n">covariance_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;full&quot;</span><span class="p">,</span> <span class="s2">&quot;diag&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;diag&quot;</span>
   <span class="n">gmm_n_components</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span>
   <span class="n">eps_std_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
   <span class="n">min_cluster_weight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span>
+  <span class="n">preprocessing_mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;pca&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
   <span class="n">gmm_init</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;kmeans&quot;</span><span class="p">,</span> <span class="s2">&quot;random&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;kmeans&quot;</span>
+  <span class="n">gmm_max_iters</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span>
+  <span class="n">kmeans_max_iters</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">200</span>
+  <span class="n">pca_n_components</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">20</span>
+  <span class="n">pca_solver</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;full&quot;</span><span class="p">,</span> <span class="s2">&quot;randomized&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;full&quot;</span>
+  <span class="n">pca_rng_seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+  <span class="n">gmm_min_iters</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span>
+  <span class="n">covariance_regularization</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-3</span>
+
   <span class="n">reference_sequence</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
   <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -560,6 +590,53 @@ document.write(`
     <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__post_init__</span><span class="p">()</span>
     <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
       <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;output_h5_path&quot;</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">))</span>
+
+
+<span class="n">MIN_PAIR</span> <span class="o">=</span> <span class="mi">2</span>
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">InspectionSpecification</span><span class="p">(</span><span class="n">RunSpecification</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Configuration for inspecting model encodings and features.&quot;&quot;&quot;</span>
+
+  <span class="n">output_h5_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">inspection_features</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span>
+    <span class="n">Literal</span><span class="p">[</span>
+      <span class="s2">&quot;unconditional_logits&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;encoded_node_features&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;edge_features&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;decoded_node_features&quot;</span><span class="p">,</span>
+      <span class="s2">&quot;conditional_logits&quot;</span><span class="p">,</span>
+    <span class="p">]</span>
+  <span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;unconditional_logits&quot;</span><span class="p">,)</span>
+  <span class="n">distance_matrix</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">distance_matrix_method</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;ca&quot;</span><span class="p">,</span> <span class="s2">&quot;cb&quot;</span><span class="p">,</span> <span class="s2">&quot;backbone_average&quot;</span><span class="p">,</span> <span class="s2">&quot;closest_atom&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;ca&quot;</span>
+  <span class="n">cross_input_similarity</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">similarity_metric</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span>
+    <span class="s2">&quot;rmsd&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;tm-score&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;gdt_ts&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;gdt_ha&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;cosine&quot;</span><span class="p">,</span>
+  <span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;rmsd&quot;</span>
+
+  <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Post-initialization processing.&quot;&quot;&quot;</span>
+    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__post_init__</span><span class="p">()</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+      <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;output_h5_path&quot;</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">))</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cross_input_similarity</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">_loader_inputs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="p">))</span> <span class="o">&lt;</span> <span class="n">MIN_PAIR</span><span class="p">:</span>
+      <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Cross-input similarity requires at least </span><span class="si">{</span><span class="n">MIN_PAIR</span><span class="si">}</span><span class="s2"> input structures.&quot;</span>
+      <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+
+<span class="n">Specs</span> <span class="o">=</span> <span class="p">(</span>
+  <span class="n">RunSpecification</span>
+  <span class="o">|</span> <span class="n">ScoringSpecification</span>
+  <span class="o">|</span> <span class="n">SamplingSpecification</span>
+  <span class="o">|</span> <span class="n">JacobianSpecification</span>
+  <span class="o">|</span> <span class="n">InspectionSpecification</span>
+<span class="p">)</span>
 </pre></div>
 
                 </article>

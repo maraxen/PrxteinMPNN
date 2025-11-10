@@ -163,7 +163,6 @@
 
 
 
-
 <li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -351,32 +350,243 @@ document.write(`
                 <article class="bd-article">
                   
   <h1>Source code for prxteinmpnn.utils.autoregression</h1><div class="highlight"><pre>
-<span></span><span class="sd">&quot;&quot;&quot;Utilities for autoregression.</span>
+<span></span><span class="sd">&quot;&quot;&quot;Autoregression utilities.&quot;&quot;&quot;</span>
 
-<span class="sd">prxteinmpnn.utils.autoregression</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">defaultdict</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">AtomMask</span><span class="p">,</span> <span class="n">DecodingOrder</span>
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+  <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
+
+  <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.run.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">RunSpecification</span>
+  <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.data_structures</span><span class="w"> </span><span class="kn">import</span> <span class="n">Protein</span>
+
+  <span class="kn">from</span><span class="w"> </span><span class="nn">.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">AutoRegressiveMask</span><span class="p">,</span> <span class="n">DecodingOrder</span>
+
+
+<div class="viewcode-block" id="get_decoding_step_map">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.autoregression.html#prxteinmpnn.utils.autoregression.get_decoding_step_map">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_decoding_step_map</span><span class="p">(</span>
+  <span class="n">tie_group_map</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+  <span class="n">group_decoding_order</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+  <span class="n">num_groups</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Map each residue to its decoding step index based on group order.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    tie_group_map: (N,) array of group ids in range [0, num_groups-1].</span>
+<span class="sd">    group_decoding_order: (M,) array, permutation of group ids [0, ..., M-1].</span>
+<span class="sd">    num_groups: Number of unique groups. If not provided, inferred from</span>
+<span class="sd">        group_decoding_order length.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    decoding_step_map: (N,) array, decoding step for each residue.</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="n">num_groups</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">num_groups</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">group_decoding_order</span><span class="p">)</span>
+  <span class="n">group_to_step</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">num_groups</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">group_decoding_order</span><span class="p">]</span>
+    <span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">group_decoding_order</span><span class="p">)))</span>
+  <span class="p">)</span>
+  <span class="k">return</span> <span class="n">group_to_step</span><span class="p">[</span><span class="n">tie_group_map</span><span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="make_autoregressive_mask">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.autoregression.html#prxteinmpnn.utils.autoregression.make_autoregressive_mask">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">make_autoregressive_mask</span><span class="p">(</span><span class="n">decoding_step_map</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Create an (N, N) AR mask for group-based decoding.</span>
+
+<span class="sd">  Positions at step i can attend to all positions at steps &lt;= i.</span>
+<span class="sd">  This allows positions in the same group (same step) to attend to each other.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    decoding_step_map: (N,) array, decoding step for each residue.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    mask: (N, N) boolean array where mask[i,j]=True means position i</span>
+<span class="sd">          can attend to position j.</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="n">steps_i</span> <span class="o">=</span> <span class="n">decoding_step_map</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+  <span class="n">steps_j</span> <span class="o">=</span> <span class="n">decoding_step_map</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+  <span class="k">return</span> <span class="n">steps_i</span> <span class="o">&gt;=</span> <span class="n">steps_j</span></div>
+
+
+
+<div class="viewcode-block" id="resolve_tie_groups">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.autoregression.html#prxteinmpnn.utils.autoregression.resolve_tie_groups">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">resolve_tie_groups</span><span class="p">(</span>  <span class="c1"># noqa: C901, PLR0912</span>
+  <span class="n">spec</span><span class="p">:</span> <span class="n">RunSpecification</span><span class="p">,</span>
+  <span class="n">combined_protein</span><span class="p">:</span> <span class="n">Protein</span><span class="p">,</span>
+  <span class="n">structure_mappings</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="n">num_structures</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Resolve tie groups for tied_positions modes.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">      spec: RunSpecification with tied_positions.</span>
+<span class="sd">      combined_protein: Protein dataclass with batch_dim=1 (1, seq_len, ...).</span>
+<span class="sd">      structure_mappings: Optional, for &#39;auto&#39; mode.</span>
+<span class="sd">      num_structures: Optional, number of structures concatenated (for &#39;direct&#39; mode).</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">      tie_group_map: jnp.ndarray of shape (n,) with group ids.</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="n">chain_ids</span> <span class="o">=</span> <span class="n">combined_protein</span><span class="o">.</span><span class="n">chain_index</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+  <span class="n">residue_indices</span> <span class="o">=</span> <span class="n">combined_protein</span><span class="o">.</span><span class="n">residue_index</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+  <span class="n">n</span> <span class="o">=</span> <span class="n">chain_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+  <span class="n">tie_group_map</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+  <span class="n">tied_positions</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">tied_positions</span>
+
+  <span class="k">if</span> <span class="n">tied_positions</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">tie_group_map</span>
+
+  <span class="k">if</span> <span class="n">tied_positions</span> <span class="o">==</span> <span class="s2">&quot;direct&quot;</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">num_structures</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+      <span class="k">if</span> <span class="n">combined_protein</span><span class="o">.</span><span class="n">mapping</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">structure_indices</span> <span class="o">=</span> <span class="n">combined_protein</span><span class="o">.</span><span class="n">mapping</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>  <span class="c1"># Remove batch dim</span>
+        <span class="n">num_inputs</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">structure_indices</span><span class="p">))</span> <span class="o">+</span> <span class="mi">1</span>
+      <span class="k">else</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+          <span class="s2">&quot;Cannot determine number of structures for &#39;direct&#39; mode. &quot;</span>
+          <span class="s2">&quot;The concatenated protein should have a &#39;mapping&#39; field with structure indices, &quot;</span>
+          <span class="s2">&quot;or pass num_structures explicitly.&quot;</span>
+        <span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+      <span class="n">num_inputs</span> <span class="o">=</span> <span class="n">num_structures</span>
+
+    <span class="n">ll</span> <span class="o">=</span> <span class="n">n</span> <span class="o">//</span> <span class="n">num_inputs</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">%</span> <span class="n">ll</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+      <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;Inputs must be same length for &#39;direct&#39; mode. &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;Total length </span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s2"> is not divisible by </span><span class="si">{</span><span class="n">num_inputs</span><span class="si">}</span><span class="s2"> structures.&quot;</span>
+      <span class="p">)</span>
+      <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="n">n</span> <span class="o">//</span> <span class="n">ll</span>
+    <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">ll</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span> <span class="n">k</span><span class="p">)</span>
+
+  <span class="k">if</span> <span class="n">tied_positions</span> <span class="o">==</span> <span class="s2">&quot;auto&quot;</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">structure_mappings</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+      <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;structure_mappings required for &#39;auto&#39; mode.&quot;</span>
+      <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">seq_pos</span><span class="p">,</span> <span class="n">struct_pos_list</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">structure_mappings</span><span class="p">):</span>
+      <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">struct_pos_list</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">group_id</span> <span class="o">=</span> <span class="n">n</span> <span class="o">+</span> <span class="n">seq_pos</span>
+        <span class="n">tie_group_map</span> <span class="o">=</span> <span class="n">tie_group_map</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">struct_pos_list</span><span class="p">)]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">group_id</span><span class="p">)</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">tie_group_map</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">tie_group_map</span><span class="p">,</span> <span class="n">return_inverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">tie_group_map</span>
+
+  <span class="k">def</span><span class="w"> </span><span class="nf">_collect_group_indices</span><span class="p">(</span>
+    <span class="n">groups</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]],</span>
+    <span class="n">chain_id_arr</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+    <span class="n">residue_idx_arr</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+  <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]]]:</span>
+    <span class="n">group_map</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">group_idx</span><span class="p">,</span> <span class="n">group</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">groups</span><span class="p">):</span>
+      <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">group</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
+        <span class="k">for</span> <span class="n">tup</span> <span class="ow">in</span> <span class="n">group</span><span class="p">:</span>
+          <span class="n">group_map</span><span class="p">[</span><span class="n">group_idx</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tup</span><span class="p">)</span>
+      <span class="k">else</span><span class="p">:</span>
+        <span class="n">group_map</span><span class="p">[</span><span class="n">group_idx</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">group</span><span class="p">)</span>
+    <span class="n">group_indices</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">group_idx</span><span class="p">,</span> <span class="n">tuples</span> <span class="ow">in</span> <span class="n">group_map</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+      <span class="n">indices</span> <span class="o">=</span> <span class="p">[]</span>
+      <span class="k">for</span> <span class="n">chain_idx</span><span class="p">,</span> <span class="n">res_idx</span> <span class="ow">in</span> <span class="n">tuples</span><span class="p">:</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="p">(</span><span class="n">chain_id_arr</span> <span class="o">==</span> <span class="n">chain_idx</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">residue_idx_arr</span> <span class="o">==</span> <span class="n">res_idx</span><span class="p">)</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">mask</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">idx</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+          <span class="n">indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">idx</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+      <span class="n">group_indices</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">group_idx</span><span class="p">,</span> <span class="n">indices</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">group_indices</span>
+
+  <span class="n">group_indices</span> <span class="o">=</span> <span class="n">_collect_group_indices</span><span class="p">(</span>
+    <span class="n">tied_positions</span><span class="p">,</span>
+    <span class="n">chain_ids</span><span class="p">,</span>
+    <span class="n">residue_indices</span><span class="p">,</span>
+  <span class="p">)</span>
+  <span class="k">for</span> <span class="n">group_idx</span><span class="p">,</span> <span class="n">indices</span> <span class="ow">in</span> <span class="n">group_indices</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">indices</span><span class="p">:</span>
+      <span class="n">group_id</span> <span class="o">=</span> <span class="n">n</span> <span class="o">+</span> <span class="n">group_idx</span>
+      <span class="n">tie_group_map</span> <span class="o">=</span> <span class="n">tie_group_map</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">indices</span><span class="p">)]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">group_id</span><span class="p">)</span>
+  <span class="n">_</span><span class="p">,</span> <span class="n">tie_group_map</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">tie_group_map</span><span class="p">,</span> <span class="n">return_inverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="k">return</span> <span class="n">tie_group_map</span></div>
+
 
 
 <div class="viewcode-block" id="generate_ar_mask">
 <a class="viewcode-back" href="../../../api/prxteinmpnn.utils.autoregression.html#prxteinmpnn.utils.autoregression.generate_ar_mask">[docs]</a>
-<span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">generate_ar_mask</span><span class="p">(</span><span class="n">decoding_order</span><span class="p">:</span> <span class="n">DecodingOrder</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AtomMask</span><span class="p">:</span>
+<span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;num_groups&quot;</span><span class="p">,))</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">generate_ar_mask</span><span class="p">(</span>
+  <span class="n">decoding_order</span><span class="p">:</span> <span class="n">DecodingOrder</span><span class="p">,</span>
+  <span class="n">chain_idx</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="n">tie_group_map</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="n">num_groups</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AutoRegressiveMask</span><span class="p">:</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Get the autoregressive mask for the given decoding order.</span>
 
+<span class="sd">  When tie_group_map is provided, positions in the same group can attend to each</span>
+<span class="sd">  other (within the same decoding step), enabling tied sampling.</span>
+
 <span class="sd">  Args:</span>
-<span class="sd">    decoding_order: The order in which atoms are decoded.</span>
+<span class="sd">      decoding_order: The order in which atoms are decoded.</span>
+<span class="sd">      chain_idx: Optional chain indices. If provided, atoms can only attend to</span>
+<span class="sd">          atoms in the same chain that come before them in the decoding order.</span>
+<span class="sd">      tie_group_map: Optional (N,) array mapping each position to a group ID.</span>
+<span class="sd">          When provided, positions in the same group are decoded simultaneously</span>
+<span class="sd">          and can attend to each other.</span>
+<span class="sd">      num_groups: Number of unique groups in tie_group_map. Required if</span>
+<span class="sd">          tie_group_map is provided. Should equal tie_group_map.max() + 1</span>
+<span class="sd">          when groups are normalized to [0, 1, ..., num_groups-1].</span>
 
 <span class="sd">  Returns:</span>
-<span class="sd">    An atom mask where each atom can only attend to itself and previous atoms.</span>
+<span class="sd">      An autoregressive mask (N, N) where mask[i,j]=1 means position i can</span>
+<span class="sd">      attend to position j during decoding.</span>
+
+<span class="sd">  Example:</span>
+<span class="sd">      &gt;&gt;&gt; # Standard AR mask</span>
+<span class="sd">      &gt;&gt;&gt; order = jnp.array([0, 1, 2])</span>
+<span class="sd">      &gt;&gt;&gt; mask = generate_ar_mask(order)</span>
+<span class="sd">      &gt;&gt;&gt; # mask = [[1, 0, 0], [1, 1, 0], [1, 1, 1]]</span>
+<span class="sd">      &gt;&gt;&gt;</span>
+<span class="sd">      &gt;&gt;&gt; # With tied positions</span>
+<span class="sd">      &gt;&gt;&gt; tie_map = jnp.array([0, 1, 0])  # Positions 0 and 2 are tied</span>
+<span class="sd">      &gt;&gt;&gt; mask = generate_ar_mask(order, tie_group_map=tie_map, num_groups=2)</span>
+<span class="sd">      &gt;&gt;&gt; # Positions 0 and 2 can attend to each other</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
-  <span class="n">row_indices</span> <span class="o">=</span> <span class="n">decoding_order</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
-  <span class="n">col_indices</span> <span class="o">=</span> <span class="n">decoding_order</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
-  <span class="k">return</span> <span class="p">(</span><span class="n">row_indices</span> <span class="o">&gt;=</span> <span class="n">col_indices</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span></div>
+  <span class="k">if</span> <span class="n">tie_group_map</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">row_indices</span> <span class="o">=</span> <span class="n">decoding_order</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="n">col_indices</span> <span class="o">=</span> <span class="n">decoding_order</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+    <span class="n">ar_mask</span> <span class="o">=</span> <span class="p">(</span><span class="n">row_indices</span> <span class="o">&gt;=</span> <span class="n">col_indices</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+  <span class="k">else</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">num_groups</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+      <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;num_groups must be provided when tie_group_map is not None&quot;</span>
+      <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="n">group_mask</span> <span class="o">=</span> <span class="n">tie_group_map</span><span class="p">[</span><span class="n">decoding_order</span><span class="p">][</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span> <span class="o">==</span> <span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_groups</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="n">group_first_occurrence</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">group_mask</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">group_decoding_order</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">group_first_occurrence</span><span class="p">)</span>
+
+    <span class="n">decoding_step_map</span> <span class="o">=</span> <span class="n">get_decoding_step_map</span><span class="p">(</span><span class="n">tie_group_map</span><span class="p">,</span> <span class="n">group_decoding_order</span><span class="p">,</span> <span class="n">num_groups</span><span class="p">)</span>
+    <span class="n">ar_mask</span> <span class="o">=</span> <span class="n">make_autoregressive_mask</span><span class="p">(</span><span class="n">decoding_step_map</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+
+  <span class="k">if</span> <span class="n">chain_idx</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">same_chain</span> <span class="o">=</span> <span class="p">(</span><span class="n">chain_idx</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">==</span> <span class="n">chain_idx</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:])</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+    <span class="n">ar_mask</span> <span class="o">=</span> <span class="n">ar_mask</span> <span class="o">*</span> <span class="n">same_chain</span>
+
+  <span class="k">return</span> <span class="n">ar_mask</span></div>
 
 </pre></div>
 

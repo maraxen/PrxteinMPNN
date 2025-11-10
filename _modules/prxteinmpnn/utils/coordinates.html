@@ -163,7 +163,6 @@
 
 
 
-
 <li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -360,6 +359,7 @@ document.write(`
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">PRNGKeyArray</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.atom_ordering</span><span class="w"> </span><span class="kn">import</span> <span class="n">PDB_ORDER_INDICES</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.residue_constants</span><span class="w"> </span><span class="kn">import</span> <span class="n">atom_order</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
   <span class="n">AlphaCarbonDistance</span><span class="p">,</span>
@@ -422,11 +422,11 @@ document.write(`
 
 <span class="sd">  Args:</span>
 <span class="sd">    coordinates: Atomic coordinates of the protein structure, shape (N, 37, 3).</span>
+<span class="sd">        Expected in PDB file order where O and CB are swapped compared to atom37.</span>
 
 <span class="sd">  Returns:</span>
 <span class="sd">    Backbone coordinates with C-beta atoms computed where necessary, shape (N, 5, 3).</span>
-<span class="sd">    NOTE: This deviates from the default atom37 (Nitrogen, C alpha, C, C beta, Oxygen...)</span>
-<span class="sd">      atom ordering.</span>
+<span class="sd">    Returned in PDB file order: (N, CA, C, O, CB).</span>
 
 <span class="sd">  Example:</span>
 <span class="sd">    &gt;&gt;&gt; coords = jnp.zeros((10, 37, 3))  # Example coordinates</span>
@@ -435,10 +435,12 @@ document.write(`
 <span class="sd">    (10, 5, 3)</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
-  <span class="n">nitrogen</span> <span class="o">=</span> <span class="n">coordinates</span><span class="p">[:,</span> <span class="n">atom_order</span><span class="p">[</span><span class="s2">&quot;N&quot;</span><span class="p">],</span> <span class="p">:]</span>
-  <span class="n">alpha_carbon</span> <span class="o">=</span> <span class="n">coordinates</span><span class="p">[:,</span> <span class="n">atom_order</span><span class="p">[</span><span class="s2">&quot;CA&quot;</span><span class="p">],</span> <span class="p">:]</span>
-  <span class="n">carbon</span> <span class="o">=</span> <span class="n">coordinates</span><span class="p">[:,</span> <span class="n">atom_order</span><span class="p">[</span><span class="s2">&quot;C&quot;</span><span class="p">],</span> <span class="p">:]</span>
-  <span class="n">oxygen</span> <span class="o">=</span> <span class="n">coordinates</span><span class="p">[:,</span> <span class="n">atom_order</span><span class="p">[</span><span class="s2">&quot;O&quot;</span><span class="p">],</span> <span class="p">:]</span>
+  <span class="c1"># Parser outputs PDB file order where O is at index 3 and CB at index 4</span>
+  <span class="c1"># Use PDB_ORDER_INDICES instead of atom_order (which assumes atom37 order)</span>
+  <span class="n">nitrogen</span> <span class="o">=</span> <span class="n">coordinates</span><span class="p">[:,</span> <span class="n">PDB_ORDER_INDICES</span><span class="p">[</span><span class="s2">&quot;N&quot;</span><span class="p">],</span> <span class="p">:]</span>
+  <span class="n">alpha_carbon</span> <span class="o">=</span> <span class="n">coordinates</span><span class="p">[:,</span> <span class="n">PDB_ORDER_INDICES</span><span class="p">[</span><span class="s2">&quot;CA&quot;</span><span class="p">],</span> <span class="p">:]</span>
+  <span class="n">carbon</span> <span class="o">=</span> <span class="n">coordinates</span><span class="p">[:,</span> <span class="n">PDB_ORDER_INDICES</span><span class="p">[</span><span class="s2">&quot;C&quot;</span><span class="p">],</span> <span class="p">:]</span>
+  <span class="n">oxygen</span> <span class="o">=</span> <span class="n">coordinates</span><span class="p">[:,</span> <span class="n">PDB_ORDER_INDICES</span><span class="p">[</span><span class="s2">&quot;O&quot;</span><span class="p">],</span> <span class="p">:]</span>  <span class="c1"># Index 3 in PDB order, not 4!</span>
 
   <span class="n">alpha_to_nitrogen</span> <span class="o">=</span> <span class="n">alpha_carbon</span> <span class="o">-</span> <span class="n">nitrogen</span>
   <span class="n">carbon_to_alpha</span> <span class="o">=</span> <span class="n">carbon</span> <span class="o">-</span> <span class="n">alpha_carbon</span>

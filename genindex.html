@@ -163,7 +163,6 @@
 
 
 
-
 <li class="toctree-l2"><a class="reference internal" href="api/prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="api/prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -344,6 +343,7 @@ document.write(`
  | <a href="#G"><strong>G</strong></a>
  | <a href="#I"><strong>I</strong></a>
  | <a href="#J"><strong>J</strong></a>
+ | <a href="#K"><strong>K</strong></a>
  | <a href="#L"><strong>L</strong></a>
  | <a href="#M"><strong>M</strong></a>
  | <a href="#N"><strong>N</strong></a>
@@ -353,18 +353,43 @@ document.write(`
  | <a href="#S"><strong>S</strong></a>
  | <a href="#T"><strong>T</strong></a>
  | <a href="#V"><strong>V</strong></a>
+ | <a href="#W"><strong>W</strong></a>
  
 </div>
 <h2 id="_">_</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.PrxteinMPNN._average_logits_over_group">_average_logits_over_group() (prxteinmpnn.model.PrxteinMPNN static method)</a>
+</li>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.PrxteinMPNN._call_autoregressive">_call_autoregressive() (prxteinmpnn.model.PrxteinMPNN method)</a>
+</li>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.PrxteinMPNN._call_conditional">_call_conditional() (prxteinmpnn.model.PrxteinMPNN method)</a>
+</li>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.PrxteinMPNN._call_unconditional">_call_unconditional() (prxteinmpnn.model.PrxteinMPNN method)</a>
+</li>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures._EStepState">_EStepState (class in prxteinmpnn.utils.data_structures)</a>
+</li>
+      <li><a href="api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.EncoderLayer._get_mlp_input">_get_mlp_input() (prxteinmpnn.model.encoder.EncoderLayer method)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.EncoderLayer._get_mlp_input">(prxteinmpnn.model.EncoderLayer method)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants._make_rigid_group_constants">_make_rigid_group_constants() (in module prxteinmpnn.utils.residue_constants)</a>
 </li>
       <li><a href="api/prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants._make_rigid_transformation_4x4">_make_rigid_transformation_4x4() (in module prxteinmpnn.utils.residue_constants)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants._make_standard_atom_mask">_make_standard_atom_mask() (in module prxteinmpnn.utils.residue_constants)</a>
+</li>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.PrxteinMPNN._process_group_positions">_process_group_positions() (prxteinmpnn.model.PrxteinMPNN method)</a>
+</li>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.PrxteinMPNN._run_autoregressive_scan">_run_autoregressive_scan() (prxteinmpnn.model.PrxteinMPNN method)</a>
+</li>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.PrxteinMPNN._run_tied_position_scan">_run_tied_position_scan() (prxteinmpnn.model.PrxteinMPNN method)</a>
+</li>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.PrxteinMPNN._sample_and_broadcast_to_group">_sample_and_broadcast_to_group() (prxteinmpnn.model.PrxteinMPNN method)</a>
 </li>
       <li><a href="api/prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils._setup_foldcomp_database">_setup_foldcomp_database() (in module prxteinmpnn.utils.foldcomp_utils)</a>
 </li>
@@ -377,8 +402,6 @@ document.write(`
       <li><a href="api/prxteinmpnn.utils.data_structures.html#id7">aatype (prxteinmpnn.utils.data_structures.Protein attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.aatype">[1]</a>
 
       <ul>
-        <li><a href="api/prxteinmpnn.utils.data_structures.html#id11">(prxteinmpnn.utils.data_structures.ProteinEnsemble attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinEnsemble.aatype">[1]</a>
-</li>
         <li><a href="api/prxteinmpnn.utils.data_structures.html#id1">(prxteinmpnn.utils.data_structures.ProteinTuple attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinTuple.aatype">[1]</a>
 </li>
         <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.aatype">(prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures attribute)</a>
@@ -394,12 +417,12 @@ document.write(`
 </li>
       <li><a href="api/prxteinmpnn.html#prxteinmpnn.JacobianSpecification.apc_residue_batch_size">apc_residue_batch_size (prxteinmpnn.JacobianSpecification attribute)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/prxteinmpnn.utils.coordinates.html#prxteinmpnn.utils.coordinates.apply_noise_to_coordinates">apply_noise_to_coordinates() (in module prxteinmpnn.utils.coordinates)</a>
 </li>
       <li><a href="api/prxteinmpnn.html#id1">ar_mask (prxteinmpnn.RunSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.RunSpecification.ar_mask">[1]</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.Bond.atom1_name">atom1_name (prxteinmpnn.utils.residue_constants.Bond attribute)</a>
 
       <ul>
@@ -414,12 +437,18 @@ document.write(`
       </ul></li>
       <li><a href="api/prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.BondAngle.atom3name">atom3name (prxteinmpnn.utils.residue_constants.BondAngle attribute)</a>
 </li>
-      <li><a href="api/prxteinmpnn.utils.data_structures.html#id8">atom_mask (prxteinmpnn.utils.data_structures.Protein attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.atom_mask">[1]</a>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#id2">atom_mask (prxteinmpnn.utils.data_structures.ProteinTuple attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinTuple.atom_mask">[1]</a>
+</li>
+      <li><a href="api/prxteinmpnn.html#prxteinmpnn.JacobianSpecification.average_encodings">average_encodings (prxteinmpnn.JacobianSpecification attribute)</a>
 
       <ul>
-        <li><a href="api/prxteinmpnn.utils.data_structures.html#id12">(prxteinmpnn.utils.data_structures.ProteinEnsemble attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinEnsemble.atom_mask">[1]</a>
+        <li><a href="api/prxteinmpnn.html#prxteinmpnn.SamplingSpecification.average_encodings">(prxteinmpnn.SamplingSpecification attribute)</a>
 </li>
-        <li><a href="api/prxteinmpnn.utils.data_structures.html#id2">(prxteinmpnn.utils.data_structures.ProteinTuple attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinTuple.atom_mask">[1]</a>
+      </ul></li>
+      <li><a href="api/prxteinmpnn.html#prxteinmpnn.JacobianSpecification.average_logits">average_logits (prxteinmpnn.JacobianSpecification attribute)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.html#prxteinmpnn.SamplingSpecification.average_logits">(prxteinmpnn.SamplingSpecification attribute)</a>
 </li>
       </ul></li>
   </ul></td>
@@ -432,9 +461,11 @@ document.write(`
 </li>
       <li><a href="api/prxteinmpnn.html#id3">batch_size (prxteinmpnn.RunSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.RunSpecification.batch_size">[1]</a>
 </li>
+      <li><a href="api/prxteinmpnn.html#prxteinmpnn.SamplingSpecification.bias">bias (prxteinmpnn.SamplingSpecification attribute)</a>
+</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/prxteinmpnn.html#prxteinmpnn.SamplingSpecification.bias">bias (prxteinmpnn.SamplingSpecification attribute)</a>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMFitterResult.bic">bic (prxteinmpnn.utils.data_structures.EMFitterResult attribute)</a>
 </li>
       <li><a href="api/prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.Bond">Bond (class in prxteinmpnn.utils.residue_constants)</a>
 </li>
@@ -446,15 +477,19 @@ document.write(`
 <h2 id="C">C</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/prxteinmpnn.html#prxteinmpnn.categorical_jacobian">categorical_jacobian() (in module prxteinmpnn)</a>
+      <li><a href="api/prxteinmpnn.html#prxteinmpnn.RunSpecification.cache_path">cache_path (prxteinmpnn.RunSpecification attribute)</a>
 </li>
-      <li><a href="api/prxteinmpnn.html#id4">chain_id (prxteinmpnn.RunSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.RunSpecification.chain_id">[1]</a>
-</li>
-      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.chain_index">chain_index (prxteinmpnn.utils.data_structures.Protein attribute)</a>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.Decoder.call_conditional">call_conditional() (prxteinmpnn.model.Decoder method)</a>
 
       <ul>
-        <li><a href="api/prxteinmpnn.utils.data_structures.html#id14">(prxteinmpnn.utils.data_structures.ProteinEnsemble attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinEnsemble.chain_index">[1]</a>
+        <li><a href="api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.Decoder.call_conditional">(prxteinmpnn.model.decoder.Decoder method)</a>
 </li>
+      </ul></li>
+      <li><a href="api/prxteinmpnn.html#id4">chain_id (prxteinmpnn.RunSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.RunSpecification.chain_id">[1]</a>
+</li>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#id10">chain_index (prxteinmpnn.utils.data_structures.Protein attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.chain_index">[1]</a>
+
+      <ul>
         <li><a href="api/prxteinmpnn.utils.data_structures.html#id4">(prxteinmpnn.utils.data_structures.ProteinTuple attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinTuple.chain_index">[1]</a>
 </li>
         <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.chain_index">(prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures attribute)</a>
@@ -472,9 +507,11 @@ document.write(`
 </li>
       <li><a href="api/prxteinmpnn.html#prxteinmpnn.JacobianSpecification.combine_noise_batch_size">combine_noise_batch_size (prxteinmpnn.JacobianSpecification attribute)</a>
 </li>
+      <li><a href="api/prxteinmpnn.html#prxteinmpnn.JacobianSpecification.combine_weights">combine_weights (prxteinmpnn.JacobianSpecification attribute)</a>
+</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/prxteinmpnn.html#prxteinmpnn.JacobianSpecification.combine_weights">combine_weights (prxteinmpnn.JacobianSpecification attribute)</a>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures._EStepState.component_counts">component_counts (prxteinmpnn.utils.data_structures._EStepState attribute)</a>
 </li>
       <li><a href="api/prxteinmpnn.html#prxteinmpnn.JacobianSpecification.compute_apc">compute_apc (prxteinmpnn.JacobianSpecification attribute)</a>
 </li>
@@ -494,41 +531,53 @@ document.write(`
 </li>
       <li><a href="api/prxteinmpnn.html#id5">conformational_states (prxteinmpnn.RunSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.RunSpecification.conformational_states">[1]</a>
 </li>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMFitterResult.converged">converged (prxteinmpnn.utils.data_structures.EMFitterResult attribute)</a>
+</li>
       <li><a href="api/prxteinmpnn.utils.data_structures.html#id6">coordinates (prxteinmpnn.utils.data_structures.Protein attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.coordinates">[1]</a>
 
       <ul>
-        <li><a href="api/prxteinmpnn.utils.data_structures.html#id10">(prxteinmpnn.utils.data_structures.ProteinEnsemble attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinEnsemble.coordinates">[1]</a>
-</li>
         <li><a href="api/prxteinmpnn.utils.data_structures.html#id0">(prxteinmpnn.utils.data_structures.ProteinTuple attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinTuple.coordinates">[1]</a>
 </li>
       </ul></li>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.GMM.covariances">covariances (prxteinmpnn.utils.data_structures.GMM attribute)</a>
+</li>
   </ul></td>
 </tr></table>
 
 <h2 id="D">D</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.decode_message">decode_message() (in module prxteinmpnn.model.decoder)</a>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.Decoder">Decoder (class in prxteinmpnn.model)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.Decoder">(class in prxteinmpnn.model.decoder)</a>
 </li>
-      <li><a href="api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.decoder_normalize">decoder_normalize() (in module prxteinmpnn.model.decoder)</a>
+      </ul></li>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.PrxteinMPNN.decoder">decoder (prxteinmpnn.model.PrxteinMPNN attribute)</a>
 </li>
-      <li><a href="api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.decoder_parameter_pytree">decoder_parameter_pytree() (in module prxteinmpnn.model.decoder)</a>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.DecoderLayer">DecoderLayer (class in prxteinmpnn.model)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.DecoderLayer">(class in prxteinmpnn.model.decoder)</a>
 </li>
+      </ul></li>
       <li><a href="api/prxteinmpnn.html#id6">decoding_order_fn (prxteinmpnn.RunSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.RunSpecification.decoding_order_fn">[1]</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.dense_layer">dense_layer() (in module prxteinmpnn.model)</a>
+      <li><a href="api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.DecoderLayer.dense">dense (prxteinmpnn.model.decoder.DecoderLayer attribute)</a>
 
       <ul>
-        <li><a href="api/prxteinmpn.model.dense.html#prxteinmpnn.model.dense.dense_layer">(in module prxteinmpnn.model.dense)</a>
+        <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.DecoderLayer.dense">(prxteinmpnn.model.DecoderLayer attribute)</a>
+</li>
+        <li><a href="api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.EncoderLayer.dense">(prxteinmpnn.model.encoder.EncoderLayer attribute)</a>
+</li>
+        <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.EncoderLayer.dense">(prxteinmpnn.model.EncoderLayer attribute)</a>
 </li>
       </ul></li>
-      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.dihedrals">dihedrals (prxteinmpnn.utils.data_structures.Protein attribute)</a>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#id11">dihedrals (prxteinmpnn.utils.data_structures.Protein attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.dihedrals">[1]</a>
 
       <ul>
-        <li><a href="api/prxteinmpnn.utils.data_structures.html#id15">(prxteinmpnn.utils.data_structures.ProteinEnsemble attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinEnsemble.dihedrals">[1]</a>
-</li>
         <li><a href="api/prxteinmpnn.utils.data_structures.html#id5">(prxteinmpnn.utils.data_structures.ProteinTuple attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinTuple.dihedrals">[1]</a>
 </li>
       </ul></li>
@@ -538,49 +587,75 @@ document.write(`
 <h2 id="E">E</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/prxteinmpnn.model.features.html#prxteinmpnn.model.features.embed_edges">embed_edges() (in module prxteinmpnn.model.features)</a>
-</li>
-      <li><a href="api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.embed_sequence">embed_sequence() (in module prxteinmpnn.model.decoder)</a>
-</li>
-      <li><a href="api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.encode">encode() (in module prxteinmpnn.model.encoder)</a>
-</li>
-      <li><a href="api/prxteinmpnn.model.features.html#prxteinmpnn.model.features.encode_positions">encode_positions() (in module prxteinmpnn.model.features)</a>
-</li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.encoder_normalize">encoder_normalize() (in module prxteinmpnn.model.encoder)</a>
-</li>
-      <li><a href="api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.encoder_parameter_pytree">encoder_parameter_pytree() (in module prxteinmpnn.model.encoder)</a>
-</li>
-      <li><a href="api/prxteinmpnn.utils.coordinates.html#prxteinmpnn.utils.coordinates.extend_coordinate">extend_coordinate() (in module prxteinmpnn.utils.coordinates)</a>
-</li>
-      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.extract_features">extract_features() (in module prxteinmpnn.model)</a>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.Decoder.edge_features_dim">edge_features_dim (prxteinmpnn.model.Decoder attribute)</a>
 
       <ul>
-        <li><a href="api/prxteinmpnn.model.features.html#prxteinmpnn.model.features.extract_features">(in module prxteinmpnn.model.features)</a>
+        <li><a href="api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.Decoder.edge_features_dim">(prxteinmpnn.model.decoder.Decoder attribute)</a>
+</li>
+        <li><a href="api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.EncoderLayer.edge_features_dim">(prxteinmpnn.model.encoder.EncoderLayer attribute)</a>
+</li>
+        <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.EncoderLayer.edge_features_dim">(prxteinmpnn.model.EncoderLayer attribute)</a>
+</li>
+        <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.PrxteinMPNN.edge_features_dim">(prxteinmpnn.model.PrxteinMPNN attribute)</a>
 </li>
       </ul></li>
+      <li><a href="api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.EncoderLayer.edge_message_mlp">edge_message_mlp (prxteinmpnn.model.encoder.EncoderLayer attribute)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.EncoderLayer.edge_message_mlp">(prxteinmpnn.model.EncoderLayer attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.EncoderLayer.edge_update_mlp">edge_update_mlp (prxteinmpnn.model.encoder.EncoderLayer attribute)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.EncoderLayer.edge_update_mlp">(prxteinmpnn.model.EncoderLayer attribute)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMFitterResult">EMFitterResult (class in prxteinmpnn.utils.data_structures)</a>
+</li>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMLoopState">EMLoopState (class in prxteinmpnn.utils.data_structures)</a>
+</li>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.Encoder">Encoder (class in prxteinmpnn.model)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.Encoder">(class in prxteinmpnn.model.encoder)</a>
+</li>
+      </ul></li>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.PrxteinMPNN.encoder">encoder (prxteinmpnn.model.PrxteinMPNN attribute)</a>
+</li>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.EncoderLayer">EncoderLayer (class in prxteinmpnn.model)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.EncoderLayer">(class in prxteinmpnn.model.encoder)</a>
+</li>
+      </ul></li>
+      <li><a href="api/prxteinmpnn.utils.coordinates.html#prxteinmpnn.utils.coordinates.extend_coordinate">extend_coordinate() (in module prxteinmpnn.utils.coordinates)</a>
+</li>
   </ul></td>
 </tr></table>
 
 <h2 id="F">F</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.final_projection">final_projection() (in module prxteinmpnn.model)</a>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.PrxteinMPNN.features">features (prxteinmpnn.model.PrxteinMPNN attribute)</a>
 
       <ul>
-        <li><a href="api/prxteinmpnn.model.projection.html#prxteinmpnn.model.projection.final_projection">(in module prxteinmpnn.model.projection)</a>
+        <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMFitterResult.features">(prxteinmpnn.utils.data_structures.EMFitterResult attribute)</a>
 </li>
       </ul></li>
       <li><a href="api/prxteinmpnn.html#prxteinmpnn.SamplingSpecification.fixed_positions">fixed_positions (prxteinmpnn.SamplingSpecification attribute)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/prxteinmpnn.html#id7">foldcomp_database (prxteinmpnn.RunSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.RunSpecification.foldcomp_database">[1]</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.from_tuple">from_tuple() (prxteinmpnn.utils.data_structures.Protein class method)</a>
 </li>
-      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.full_coordinates">full_coordinates (prxteinmpnn.utils.data_structures.Protein attribute)</a>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#id14">full_atom_mask (prxteinmpnn.utils.data_structures.Protein attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.full_atom_mask">[1]</a>
+</li>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#id13">full_coordinates (prxteinmpnn.utils.data_structures.Protein attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.full_coordinates">[1]</a>
 
       <ul>
         <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinTuple.full_coordinates">(prxteinmpnn.utils.data_structures.ProteinTuple attribute)</a>
@@ -594,27 +669,31 @@ document.write(`
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/prxteinmpnn.utils.autoregression.html#prxteinmpnn.utils.autoregression.generate_ar_mask">generate_ar_mask() (in module prxteinmpnn.utils.autoregression)</a>
 </li>
-      <li><a href="api/prxteinmpnn.model.features.html#prxteinmpnn.model.features.get_edge_chains_neighbors">get_edge_chains_neighbors() (in module prxteinmpnn.model.features)</a>
-</li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/prxteinmpnn.mpnn.html#prxteinmpnn.mpnn.get_mpnn_model">get_mpnn_model() (in module prxteinmpnn.mpnn)</a>
+      <li><a href="api/prxteinmpnn.utils.autoregression.html#prxteinmpnn.utils.autoregression.get_decoding_step_map">get_decoding_step_map() (in module prxteinmpnn.utils.autoregression)</a>
 </li>
       <li><a href="api/prxteinmpnn.utils.foldcomp_utils.html#prxteinmpnn.utils.foldcomp_utils.get_protein_structures">get_protein_structures() (in module prxteinmpnn.utils.foldcomp_utils)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.GMM">GMM (class in prxteinmpnn.utils.data_structures)</a>
+</li>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMFitterResult.gmm">gmm (prxteinmpnn.utils.data_structures.EMFitterResult attribute)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMLoopState.gmm">(prxteinmpnn.utils.data_structures.EMLoopState attribute)</a>
+</li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
 <h2 id="I">I</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.initialize_conditional_decoder">initialize_conditional_decoder() (in module prxteinmpnn.model.decoder)</a>
-</li>
-      <li><a href="api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.initialize_node_features">initialize_node_features() (in module prxteinmpnn.model.encoder)</a>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.include_feature">include_feature() (in module prxteinmpnn.utils.data_structures)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/prxteinmpnn.html#id13">inputs (prxteinmpnn.RunSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.RunSpecification.inputs">[1]</a>
+      <li><a href="api/prxteinmpnn.html#id12">inputs (prxteinmpnn.RunSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.RunSpecification.inputs">[1]</a>
 </li>
       <li><a href="api/prxteinmpnn.html#prxteinmpnn.SamplingSpecification.iterations">iterations (prxteinmpnn.SamplingSpecification attribute)</a>
 </li>
@@ -633,11 +712,33 @@ document.write(`
   </ul></td>
 </tr></table>
 
+<h2 id="K">K</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/prxteinmpnn.model.features.html#prxteinmpnn.model.features.ProteinFeatures.k_neighbors">k_neighbors (prxteinmpnn.model.features.ProteinFeatures attribute)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.ProteinFeatures.k_neighbors">(prxteinmpnn.model.ProteinFeatures attribute)</a>
+</li>
+      </ul></li>
+  </ul></td>
+</tr></table>
+
 <h2 id="L">L</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/prxteinmpnn.utils.normalize.html#prxteinmpnn.utils.normalize.layer_normalization">layer_normalization() (in module prxteinmpnn.utils.normalize)</a>
 </li>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.Decoder.layers">layers (prxteinmpnn.model.Decoder attribute)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.Decoder.layers">(prxteinmpnn.model.decoder.Decoder attribute)</a>
+</li>
+        <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.Encoder.layers">(prxteinmpnn.model.Encoder attribute)</a>
+</li>
+        <li><a href="api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.Encoder.layers">(prxteinmpnn.model.encoder.Encoder attribute)</a>
+</li>
+      </ul></li>
       <li><a href="api/prxteinmpnn.html#prxteinmpnn.SamplingSpecification.learning_rate">learning_rate (prxteinmpnn.SamplingSpecification attribute)</a>
 </li>
   </ul></td>
@@ -645,6 +746,20 @@ document.write(`
       <li><a href="api/prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.Bond.length">length (prxteinmpnn.utils.residue_constants.Bond attribute)</a>
 </li>
       <li><a href="api/prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.load_stereo_chemical_props">load_stereo_chemical_props() (in module prxteinmpnn.utils.residue_constants)</a>
+</li>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMFitterResult.log_likelihood">log_likelihood (prxteinmpnn.utils.data_structures.EMFitterResult attribute)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMLoopState.log_likelihood">(prxteinmpnn.utils.data_structures.EMLoopState attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMFitterResult.log_likelihood_diff">log_likelihood_diff (prxteinmpnn.utils.data_structures.EMFitterResult attribute)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMLoopState.log_likelihood_diff">(prxteinmpnn.utils.data_structures.EMLoopState attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures._EStepState.log_likelihood_total">log_likelihood_total (prxteinmpnn.utils.data_structures._EStepState attribute)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -654,20 +769,16 @@ document.write(`
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.make_atom14_dists_bounds">make_atom14_dists_bounds() (in module prxteinmpnn.utils.residue_constants)</a>
 </li>
-      <li><a href="api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.make_decode_layer">make_decode_layer() (in module prxteinmpnn.model.decoder)</a>
+      <li><a href="api/prxteinmpnn.utils.autoregression.html#prxteinmpnn.utils.autoregression.make_autoregressive_mask">make_autoregressive_mask() (in module prxteinmpnn.utils.autoregression)</a>
 </li>
-      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.make_decoder">make_decoder() (in module prxteinmpnn.model)</a>
+      <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.make_conditional_logits_fn">make_conditional_logits_fn() (in module prxteinmpnn.sampling)</a>
+</li>
+      <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.make_encoding_conditional_logits_split_fn">make_encoding_conditional_logits_split_fn() (in module prxteinmpnn.sampling)</a>
+</li>
+      <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.make_encoding_sampling_split_fn">make_encoding_sampling_split_fn() (in module prxteinmpnn.sampling)</a>
 
       <ul>
-        <li><a href="api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.make_decoder">(in module prxteinmpnn.model.decoder)</a>
-</li>
-      </ul></li>
-      <li><a href="api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.make_encode_layer">make_encode_layer() (in module prxteinmpnn.model.encoder)</a>
-</li>
-      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.make_encoder">make_encoder() (in module prxteinmpnn.model)</a>
-
-      <ul>
-        <li><a href="api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.make_encoder">(in module prxteinmpnn.model.encoder)</a>
+        <li><a href="api/prxteinmpnn.sampling.sample.html#prxteinmpnn.sampling.sample.make_encoding_sampling_split_fn">(in module prxteinmpnn.sampling.sample)</a>
 </li>
       </ul></li>
       <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.make_sample_sequences">make_sample_sequences() (in module prxteinmpnn.sampling)</a>
@@ -678,16 +789,24 @@ document.write(`
       </ul></li>
       <li><a href="api/prxteinmpnn.scoring.score.html#prxteinmpnn.scoring.score.make_score_sequence">make_score_sequence() (in module prxteinmpnn.scoring.score)</a>
 </li>
-      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.mapping">mapping (prxteinmpnn.utils.data_structures.Protein attribute)</a>
+      <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.make_unconditional_logits_fn">make_unconditional_logits_fn() (in module prxteinmpnn.sampling)</a>
+</li>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#id12">mapping (prxteinmpnn.utils.data_structures.Protein attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.mapping">[1]</a>
 
       <ul>
-        <li><a href="api/prxteinmpnn.utils.data_structures.html#id16">(prxteinmpnn.utils.data_structures.ProteinEnsemble attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinEnsemble.mapping">[1]</a>
-</li>
         <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinTuple.mapping">(prxteinmpnn.utils.data_structures.ProteinTuple attribute)</a>
 </li>
       </ul></li>
-      <li><a href="api/prxteinmpnn.model.masked_attention.html#prxteinmpnn.model.masked_attention.mask_attention">mask_attention() (in module prxteinmpnn.model.masked_attention)</a>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#id8">mask (prxteinmpnn.utils.data_structures.Protein attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.mask">[1]</a>
 </li>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.GMM.means">means (prxteinmpnn.utils.data_structures.GMM attribute)</a>
+</li>
+      <li><a href="api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.DecoderLayer.message_mlp">message_mlp (prxteinmpnn.model.decoder.DecoderLayer attribute)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.DecoderLayer.message_mlp">(prxteinmpnn.model.DecoderLayer attribute)</a>
+</li>
+      </ul></li>
       <li><a href="api/prxteinmpnn.html#id8">model (prxteinmpnn.RunSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.RunSpecification.model">[1]</a>
 </li>
       <li><a href="api/prxteinmpnn.html#id9">model_version (prxteinmpnn.RunSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.RunSpecification.model_version">[1]</a>
@@ -706,25 +825,13 @@ document.write(`
 </li>
         <li><a href="api/prxteinmpnn.model.decoder.html#module-prxteinmpnn.model.decoder">prxteinmpnn.model.decoder</a>
 </li>
-        <li><a href="api/prxteinmpn.model.dense.html#module-prxteinmpnn.model.dense">prxteinmpnn.model.dense</a>
-</li>
         <li><a href="api/prxteinmpnn.model.encoder.html#module-prxteinmpnn.model.encoder">prxteinmpnn.model.encoder</a>
 </li>
         <li><a href="api/prxteinmpnn.model.features.html#module-prxteinmpnn.model.features">prxteinmpnn.model.features</a>
 </li>
-        <li><a href="api/prxteinmpnn.model.masked_attention.html#module-prxteinmpnn.model.masked_attention">prxteinmpnn.model.masked_attention</a>
-</li>
-        <li><a href="api/prxteinmpnn.model.projection.html#module-prxteinmpnn.model.projection">prxteinmpnn.model.projection</a>
-</li>
-        <li><a href="api/prxteinmpnn.mpnn.html#module-prxteinmpnn.mpnn">prxteinmpnn.mpnn</a>
-</li>
         <li><a href="api/prxteinmpnn.sampling.html#module-prxteinmpnn.sampling">prxteinmpnn.sampling</a>
 </li>
-        <li><a href="api/prxteinmpnn.sampling.initialize.html#module-prxteinmpnn.sampling.initialize">prxteinmpnn.sampling.initialize</a>
-</li>
         <li><a href="api/prxteinmpnn.sampling.sample.html#module-prxteinmpnn.sampling.sample">prxteinmpnn.sampling.sample</a>
-</li>
-        <li><a href="api/prxteinmpnn.sampling.sampling_step.html#module-prxteinmpnn.sampling.sampling_step">prxteinmpnn.sampling.sampling_step</a>
 </li>
         <li><a href="api/prxteinmpnn.sampling.ste.html#module-prxteinmpnn.sampling.ste">prxteinmpnn.sampling.ste</a>
 </li>
@@ -771,19 +878,83 @@ document.write(`
 <h2 id="N">N</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.GMM.n_components">n_components (prxteinmpnn.utils.data_structures.GMM attribute)</a>
+</li>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.GMM.n_features">n_features (prxteinmpnn.utils.data_structures.GMM attribute)</a>
+</li>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMFitterResult.n_iter">n_iter (prxteinmpnn.utils.data_structures.EMFitterResult attribute)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMLoopState.n_iter">(prxteinmpnn.utils.data_structures.EMLoopState attribute)</a>
+</li>
+      </ul></li>
       <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.nitrogen_mask">nitrogen_mask (prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures attribute)</a>
 </li>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.Encoder.node_feature_dim">node_feature_dim (prxteinmpnn.model.Encoder attribute)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.Encoder.node_feature_dim">(prxteinmpnn.model.encoder.Encoder attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.Decoder.node_features_dim">node_features_dim (prxteinmpnn.model.Decoder attribute)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.Decoder.node_features_dim">(prxteinmpnn.model.decoder.Decoder attribute)</a>
+</li>
+        <li><a href="api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.EncoderLayer.node_features_dim">(prxteinmpnn.model.encoder.EncoderLayer attribute)</a>
+</li>
+        <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.EncoderLayer.node_features_dim">(prxteinmpnn.model.EncoderLayer attribute)</a>
+</li>
+        <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.PrxteinMPNN.node_features_dim">(prxteinmpnn.model.PrxteinMPNN attribute)</a>
+</li>
+      </ul></li>
       <li><a href="api/prxteinmpnn.html#prxteinmpnn.JacobianSpecification.noise_batch_size">noise_batch_size (prxteinmpnn.JacobianSpecification attribute)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.html#prxteinmpnn.SamplingSpecification.noise_batch_size">(prxteinmpnn.SamplingSpecification attribute)</a>
 </li>
-      <li><a href="api/prxteinmpnn.utils.normalize.html#prxteinmpnn.utils.normalize.normalize">normalize() (in module prxteinmpnn.utils.normalize)</a>
+      </ul></li>
+      <li><a href="api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.DecoderLayer.norm1">norm1 (prxteinmpnn.model.decoder.DecoderLayer attribute)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.DecoderLayer.norm1">(prxteinmpnn.model.DecoderLayer attribute)</a>
 </li>
+        <li><a href="api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.EncoderLayer.norm1">(prxteinmpnn.model.encoder.EncoderLayer attribute)</a>
+</li>
+        <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.EncoderLayer.norm1">(prxteinmpnn.model.EncoderLayer attribute)</a>
+</li>
+      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.DecoderLayer.norm2">norm2 (prxteinmpnn.model.decoder.DecoderLayer attribute)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.DecoderLayer.norm2">(prxteinmpnn.model.DecoderLayer attribute)</a>
+</li>
+        <li><a href="api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.EncoderLayer.norm2">(prxteinmpnn.model.encoder.EncoderLayer attribute)</a>
+</li>
+        <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.EncoderLayer.norm2">(prxteinmpnn.model.EncoderLayer attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.EncoderLayer.norm3">norm3 (prxteinmpnn.model.encoder.EncoderLayer attribute)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.EncoderLayer.norm3">(prxteinmpnn.model.EncoderLayer attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/prxteinmpnn.model.features.html#prxteinmpnn.model.features.ProteinFeatures.norm_edges">norm_edges (prxteinmpnn.model.features.ProteinFeatures attribute)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.ProteinFeatures.norm_edges">(prxteinmpnn.model.ProteinFeatures attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/prxteinmpnn.utils.normalize.html#prxteinmpnn.utils.normalize.normalize">normalize() (in module prxteinmpnn.utils.normalize)</a>
+</li>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.PrxteinMPNN.num_decoder_layers">num_decoder_layers (prxteinmpnn.model.PrxteinMPNN attribute)</a>
+</li>
       <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.num_residues">num_residues (prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures attribute)</a>
 </li>
       <li><a href="api/prxteinmpnn.html#prxteinmpnn.SamplingSpecification.num_samples">num_samples (prxteinmpnn.SamplingSpecification attribute)</a>
-</li>
-      <li><a href="api/prxteinmpnn.html#id11">num_workers (prxteinmpnn.RunSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.RunSpecification.num_workers">[1]</a>
 </li>
   </ul></td>
 </tr></table>
@@ -792,39 +963,47 @@ document.write(`
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.one_hot_sequence">one_hot_sequence (prxteinmpnn.utils.data_structures.Protein attribute)</a>
-
-      <ul>
-        <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinEnsemble.one_hot_sequence">(prxteinmpnn.utils.data_structures.ProteinEnsemble attribute)</a>
 </li>
-      </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/prxteinmpnn.html#prxteinmpnn.JacobianSpecification.output_h5_path">output_h5_path (prxteinmpnn.JacobianSpecification attribute)</a>
 
       <ul>
         <li><a href="api/prxteinmpnn.html#prxteinmpnn.SamplingSpecification.output_h5_path">(prxteinmpnn.SamplingSpecification attribute)</a>
 </li>
-        <li><a href="api/prxteinmpnn.html#id14">(prxteinmpnn.ScoringSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.ScoringSpecification.output_h5_path">[1]</a>
+        <li><a href="api/prxteinmpnn.html#id13">(prxteinmpnn.ScoringSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.ScoringSpecification.output_h5_path">[1]</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/prxteinmpnn.html#prxteinmpnn.RunSpecification.output_path">output_path (prxteinmpnn.RunSpecification attribute)</a>
+</li>
+      <li><a href="api/prxteinmpnn.html#prxteinmpnn.RunSpecification.overwrite_cache">overwrite_cache (prxteinmpnn.RunSpecification attribute)</a>
+</li>
   </ul></td>
 </tr></table>
 
 <h2 id="P">P</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.sampling_step.preload_sampling_step_decoder">preload_sampling_step_decoder() (in module prxteinmpnn.sampling.sampling_step)</a>
+      <li><a href="api/prxteinmpnn.html#prxteinmpnn.RunSpecification.pass_mode">pass_mode (prxteinmpnn.RunSpecification attribute)</a>
 </li>
+      <li><a href="api/prxteinmpnn.model.features.html#prxteinmpnn.model.features.ProteinFeatures.pos_embed_dim">pos_embed_dim (prxteinmpnn.model.features.ProteinFeatures attribute)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.ProteinFeatures.pos_embed_dim">(prxteinmpnn.model.ProteinFeatures attribute)</a>
+</li>
+      </ul></li>
       <li><a href="api/prxteinmpnn.utils.residue_constants.html#prxteinmpnn.utils.residue_constants.process_lines_iter_chemical_props">process_lines_iter_chemical_props() (in module prxteinmpnn.utils.residue_constants)</a>
-</li>
-      <li><a href="api/prxteinmpnn.model.features.html#prxteinmpnn.model.features.project_features">project_features() (in module prxteinmpnn.model.features)</a>
 </li>
       <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein">Protein (class in prxteinmpnn.utils.data_structures)</a>
 </li>
       <li><a href="api/prxteinmpnn.utils.aa_convert.html#prxteinmpnn.utils.aa_convert.protein_sequence_to_string">protein_sequence_to_string() (in module prxteinmpnn.utils.aa_convert)</a>
 </li>
-      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinEnsemble">ProteinEnsemble (class in prxteinmpnn.utils.data_structures)</a>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.ProteinFeatures">ProteinFeatures (class in prxteinmpnn.model)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.model.features.html#prxteinmpnn.model.features.ProteinFeatures">(class in prxteinmpnn.model.features)</a>
 </li>
+      </ul></li>
       <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinTuple">ProteinTuple (class in prxteinmpnn.utils.data_structures)</a>
 </li>
       <li>
@@ -834,6 +1013,8 @@ document.write(`
         <li><a href="api/prxteinmpnn.html#module-prxteinmpnn">module</a>
 </li>
       </ul></li>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.PrxteinMPNN">PrxteinMPNN (class in prxteinmpnn.model)</a>
+</li>
       <li>
     prxteinmpnn.io
 
@@ -856,13 +1037,6 @@ document.write(`
 </li>
       </ul></li>
       <li>
-    prxteinmpnn.model.dense
-
-      <ul>
-        <li><a href="api/prxteinmpn.model.dense.html#module-prxteinmpnn.model.dense">module</a>
-</li>
-      </ul></li>
-      <li>
     prxteinmpnn.model.encoder
 
       <ul>
@@ -877,38 +1051,10 @@ document.write(`
 </li>
       </ul></li>
       <li>
-    prxteinmpnn.model.masked_attention
-
-      <ul>
-        <li><a href="api/prxteinmpnn.model.masked_attention.html#module-prxteinmpnn.model.masked_attention">module</a>
-</li>
-      </ul></li>
-      <li>
-    prxteinmpnn.model.projection
-
-      <ul>
-        <li><a href="api/prxteinmpnn.model.projection.html#module-prxteinmpnn.model.projection">module</a>
-</li>
-      </ul></li>
-      <li>
-    prxteinmpnn.mpnn
-
-      <ul>
-        <li><a href="api/prxteinmpnn.mpnn.html#module-prxteinmpnn.mpnn">module</a>
-</li>
-      </ul></li>
-      <li>
     prxteinmpnn.sampling
 
       <ul>
         <li><a href="api/prxteinmpnn.sampling.html#module-prxteinmpnn.sampling">module</a>
-</li>
-      </ul></li>
-      <li>
-    prxteinmpnn.sampling.initialize
-
-      <ul>
-        <li><a href="api/prxteinmpnn.sampling.initialize.html#module-prxteinmpnn.sampling.initialize">module</a>
 </li>
       </ul></li>
       <li>
@@ -918,15 +1064,6 @@ document.write(`
         <li><a href="api/prxteinmpnn.sampling.sample.html#module-prxteinmpnn.sampling.sample">module</a>
 </li>
       </ul></li>
-      <li>
-    prxteinmpnn.sampling.sampling_step
-
-      <ul>
-        <li><a href="api/prxteinmpnn.sampling.sampling_step.html#module-prxteinmpnn.sampling.sampling_step">module</a>
-</li>
-      </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     prxteinmpnn.sampling.ste
 
@@ -941,6 +1078,8 @@ document.write(`
         <li><a href="api/prxteinmpnn.scoring.html#module-prxteinmpnn.scoring">module</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     prxteinmpnn.scoring.score
 
@@ -1054,31 +1193,43 @@ document.write(`
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/prxteinmpnn.utils.decoding_order.html#prxteinmpnn.utils.decoding_order.random_decoding_order">random_decoding_order() (in module prxteinmpnn.utils.decoding_order)</a>
 </li>
-      <li><a href="api/prxteinmpnn.html#id12">random_seed (prxteinmpnn.RunSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.RunSpecification.random_seed">[1]</a>
+      <li><a href="api/prxteinmpnn.html#id11">random_seed (prxteinmpnn.RunSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.RunSpecification.random_seed">[1]</a>
 </li>
-      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.replace">replace() (prxteinmpnn.utils.data_structures.Protein method)</a>
+      <li><a href="api/prxteinmpnn.model.features.html#prxteinmpnn.model.features.ProteinFeatures.rbf_dim">rbf_dim (prxteinmpnn.model.features.ProteinFeatures attribute)</a>
 
       <ul>
-        <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinEnsemble.replace">(prxteinmpnn.utils.data_structures.ProteinEnsemble method)</a>
+        <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.ProteinFeatures.rbf_dim">(prxteinmpnn.model.ProteinFeatures attribute)</a>
 </li>
       </ul></li>
-      <li><a href="api/prxteinmpnn.utils.data_structures.html#id9">residue_index (prxteinmpnn.utils.data_structures.Protein attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.residue_index">[1]</a>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures._EStepState.replace">replace() (prxteinmpnn.utils.data_structures._EStepState method)</a>
 
       <ul>
-        <li><a href="api/prxteinmpnn.utils.data_structures.html#id13">(prxteinmpnn.utils.data_structures.ProteinEnsemble attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinEnsemble.residue_index">[1]</a>
+        <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMFitterResult.replace">(prxteinmpnn.utils.data_structures.EMFitterResult method)</a>
 </li>
-        <li><a href="api/prxteinmpnn.utils.data_structures.html#id3">(prxteinmpnn.utils.data_structures.ProteinTuple attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinTuple.residue_index">[1]</a>
+        <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.GMM.replace">(prxteinmpnn.utils.data_structures.GMM method)</a>
+</li>
+        <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.replace">(prxteinmpnn.utils.data_structures.Protein method)</a>
 </li>
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#id9">residue_index (prxteinmpnn.utils.data_structures.Protein attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.residue_index">[1]</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.utils.data_structures.html#id3">(prxteinmpnn.utils.data_structures.ProteinTuple attribute)</a>, <a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinTuple.residue_index">[1]</a>
+</li>
+      </ul></li>
       <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.residue_indices">residue_indices (prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures attribute)</a>
 </li>
-      <li><a href="api/prxteinmpnn.html#id15">return_all_scores (prxteinmpnn.ScoringSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.ScoringSpecification.return_all_scores">[1]</a>
+      <li><a href="api/prxteinmpnn.utils.autoregression.html#prxteinmpnn.utils.autoregression.resolve_tie_groups">resolve_tie_groups() (in module prxteinmpnn.utils.autoregression)</a>
 </li>
-      <li><a href="api/prxteinmpnn.html#id16">return_decoding_orders (prxteinmpnn.ScoringSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.ScoringSpecification.return_decoding_orders">[1]</a>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.GMM.responsibilities">responsibilities (prxteinmpnn.utils.data_structures.GMM attribute)</a>
 </li>
-      <li><a href="api/prxteinmpnn.html#id17">return_logits (prxteinmpnn.ScoringSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.ScoringSpecification.return_logits">[1]</a>
+      <li><a href="api/prxteinmpnn.html#id14">return_all_scores (prxteinmpnn.ScoringSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.ScoringSpecification.return_all_scores">[1]</a>
+</li>
+      <li><a href="api/prxteinmpnn.html#id15">return_decoding_orders (prxteinmpnn.ScoringSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.ScoringSpecification.return_decoding_orders">[1]</a>
+</li>
+      <li><a href="api/prxteinmpnn.html#id16">return_logits (prxteinmpnn.ScoringSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.ScoringSpecification.return_logits">[1]</a>
 </li>
       <li><a href="api/prxteinmpnn.html#prxteinmpnn.RunSpecification">RunSpecification (class in prxteinmpnn)</a>
 </li>
@@ -1089,8 +1240,12 @@ document.write(`
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/prxteinmpnn.html#prxteinmpnn.sample">sample() (in module prxteinmpnn)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.sample">(in module prxteinmpnn.sampling)</a>
 </li>
-      <li><a href="api/prxteinmpnn.sampling.initialize.html#prxteinmpnn.sampling.initialize.sampling_encode">sampling_encode() (in module prxteinmpnn.sampling.initialize)</a>
+      </ul></li>
+      <li><a href="api/prxteinmpnn.html#prxteinmpnn.SamplingSpecification.samples_batch_size">samples_batch_size (prxteinmpnn.SamplingSpecification attribute)</a>
 </li>
       <li><a href="api/prxteinmpnn.html#prxteinmpnn.SamplingSpecification.sampling_strategy">sampling_strategy (prxteinmpnn.SamplingSpecification attribute)</a>
 </li>
@@ -1098,17 +1253,13 @@ document.write(`
 </li>
       <li><a href="api/prxteinmpnn.html#prxteinmpnn.score">score() (in module prxteinmpnn)</a>
 </li>
-      <li><a href="api/prxteinmpnn.html#id18">score_batch_size (prxteinmpnn.ScoringSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.ScoringSpecification.score_batch_size">[1]</a>
+      <li><a href="api/prxteinmpnn.html#id17">score_batch_size (prxteinmpnn.ScoringSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.ScoringSpecification.score_batch_size">[1]</a>
 </li>
       <li><a href="api/prxteinmpnn.html#prxteinmpnn.ScoringSpecification">ScoringSpecification (class in prxteinmpnn)</a>
 </li>
-      <li><a href="api/prxteinmpnn.html#id19">sequences_to_score (prxteinmpnn.ScoringSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.ScoringSpecification.sequences_to_score">[1]</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/prxteinmpnn.model.decoder.html#prxteinmpnn.model.decoder.setup_decoder">setup_decoder() (in module prxteinmpnn.model.decoder)</a>
-</li>
-      <li><a href="api/prxteinmpnn.model.encoder.html#prxteinmpnn.model.encoder.setup_encoder">setup_encoder() (in module prxteinmpnn.model.encoder)</a>
+      <li><a href="api/prxteinmpnn.html#id18">sequences_to_score (prxteinmpnn.ScoringSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.ScoringSpecification.sequences_to_score">[1]</a>
 </li>
       <li><a href="api/prxteinmpnn.utils.decoding_order.html#prxteinmpnn.utils.decoding_order.single_decoding_order">single_decoding_order() (in module prxteinmpnn.utils.decoding_order)</a>
 </li>
@@ -1135,12 +1286,12 @@ document.write(`
       <li><a href="api/prxteinmpnn.html#prxteinmpnn.SamplingSpecification.temperature">temperature (prxteinmpnn.SamplingSpecification attribute)</a>
 
       <ul>
-        <li><a href="api/prxteinmpnn.html#id20">(prxteinmpnn.ScoringSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.ScoringSpecification.temperature">[1]</a>
+        <li><a href="api/prxteinmpnn.html#id19">(prxteinmpnn.ScoringSpecification attribute)</a>, <a href="api/prxteinmpnn.html#prxteinmpnn.ScoringSpecification.temperature">[1]</a>
 </li>
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/prxteinmpnn.sampling.sampling_step.html#prxteinmpnn.sampling.sampling_step.temperature_sample">temperature_sample() (in module prxteinmpnn.sampling.sampling_step)</a>
+      <li><a href="api/prxteinmpnn.html#prxteinmpnn.RunSpecification.tied_positions">tied_positions (prxteinmpnn.RunSpecification attribute)</a>
 </li>
       <li><a href="api/prxteinmpnn.html#prxteinmpnn.RunSpecification.topology">topology (prxteinmpnn.RunSpecification attribute)</a>
 </li>
@@ -1153,6 +1304,42 @@ document.write(`
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.valid_atom_mask">valid_atom_mask (prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures attribute)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="W">W</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/prxteinmpnn.model.features.html#prxteinmpnn.model.features.ProteinFeatures.w_e">w_e (prxteinmpnn.model.features.ProteinFeatures attribute)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.ProteinFeatures.w_e">(prxteinmpnn.model.ProteinFeatures attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/prxteinmpnn.model.features.html#prxteinmpnn.model.features.ProteinFeatures.w_e_proj">w_e_proj (prxteinmpnn.model.features.ProteinFeatures attribute)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.ProteinFeatures.w_e_proj">(prxteinmpnn.model.ProteinFeatures attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.PrxteinMPNN.w_out">w_out (prxteinmpnn.model.PrxteinMPNN attribute)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/prxteinmpnn.model.features.html#prxteinmpnn.model.features.ProteinFeatures.w_pos">w_pos (prxteinmpnn.model.features.ProteinFeatures attribute)</a>
+
+      <ul>
+        <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.ProteinFeatures.w_pos">(prxteinmpnn.model.ProteinFeatures attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="api/prxteinmpnn.model.html#prxteinmpnn.model.PrxteinMPNN.w_s_embed">w_s_embed (prxteinmpnn.model.PrxteinMPNN attribute)</a>
+</li>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures._EStepState.weighted_data">weighted_data (prxteinmpnn.utils.data_structures._EStepState attribute)</a>
+</li>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures._EStepState.weighted_squared_data">weighted_squared_data (prxteinmpnn.utils.data_structures._EStepState attribute)</a>
+</li>
+      <li><a href="api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.GMM.weights">weights (prxteinmpnn.utils.data_structures.GMM attribute)</a>
 </li>
   </ul></td>
 </tr></table>

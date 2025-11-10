@@ -164,7 +164,6 @@
 
 
 
-
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -416,6 +415,9 @@ document.write(`
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.utils.autoregression.html">autoregression</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.autoregression.html#prxteinmpnn.utils.autoregression.get_decoding_step_map"><code class="docutils literal notranslate"><span class="pre">get_decoding_step_map()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.autoregression.html#prxteinmpnn.utils.autoregression.make_autoregressive_mask"><code class="docutils literal notranslate"><span class="pre">make_autoregressive_mask()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.autoregression.html#prxteinmpnn.utils.autoregression.resolve_tie_groups"><code class="docutils literal notranslate"><span class="pre">resolve_tie_groups()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.autoregression.html#prxteinmpnn.utils.autoregression.generate_ar_mask"><code class="docutils literal notranslate"><span class="pre">generate_ar_mask()</span></code></a></li>
 </ul>
 </li>
@@ -461,41 +463,65 @@ document.write(`
 <li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.TrajectoryStaticFeatures.num_residues"><code class="docutils literal notranslate"><span class="pre">TrajectoryStaticFeatures.num_residues</span></code></a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.include_feature"><code class="docutils literal notranslate"><span class="pre">include_feature()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein"><code class="docutils literal notranslate"><span class="pre">Protein</span></code></a><ul>
 <li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.coordinates"><code class="docutils literal notranslate"><span class="pre">Protein.coordinates</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.aatype"><code class="docutils literal notranslate"><span class="pre">Protein.aatype</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.atom_mask"><code class="docutils literal notranslate"><span class="pre">Protein.atom_mask</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.mask"><code class="docutils literal notranslate"><span class="pre">Protein.mask</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.residue_index"><code class="docutils literal notranslate"><span class="pre">Protein.residue_index</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id6"><code class="docutils literal notranslate"><span class="pre">Protein.coordinates</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id7"><code class="docutils literal notranslate"><span class="pre">Protein.aatype</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.one_hot_sequence"><code class="docutils literal notranslate"><span class="pre">Protein.one_hot_sequence</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id8"><code class="docutils literal notranslate"><span class="pre">Protein.atom_mask</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id9"><code class="docutils literal notranslate"><span class="pre">Protein.residue_index</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.chain_index"><code class="docutils literal notranslate"><span class="pre">Protein.chain_index</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.dihedrals"><code class="docutils literal notranslate"><span class="pre">Protein.dihedrals</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.mapping"><code class="docutils literal notranslate"><span class="pre">Protein.mapping</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.full_coordinates"><code class="docutils literal notranslate"><span class="pre">Protein.full_coordinates</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.full_atom_mask"><code class="docutils literal notranslate"><span class="pre">Protein.full_atom_mask</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id6"><code class="docutils literal notranslate"><span class="pre">Protein.coordinates</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id7"><code class="docutils literal notranslate"><span class="pre">Protein.aatype</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.one_hot_sequence"><code class="docutils literal notranslate"><span class="pre">Protein.one_hot_sequence</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id8"><code class="docutils literal notranslate"><span class="pre">Protein.mask</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id9"><code class="docutils literal notranslate"><span class="pre">Protein.residue_index</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id10"><code class="docutils literal notranslate"><span class="pre">Protein.chain_index</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id11"><code class="docutils literal notranslate"><span class="pre">Protein.dihedrals</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id12"><code class="docutils literal notranslate"><span class="pre">Protein.mapping</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id13"><code class="docutils literal notranslate"><span class="pre">Protein.full_coordinates</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id14"><code class="docutils literal notranslate"><span class="pre">Protein.full_atom_mask</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.from_tuple"><code class="docutils literal notranslate"><span class="pre">Protein.from_tuple()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.replace"><code class="docutils literal notranslate"><span class="pre">Protein.replace()</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinEnsemble"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble</span></code></a><ul>
-<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinEnsemble.coordinates"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.coordinates</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinEnsemble.aatype"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.aatype</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinEnsemble.atom_mask"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.atom_mask</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinEnsemble.residue_index"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.residue_index</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinEnsemble.chain_index"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.chain_index</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinEnsemble.dihedrals"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.dihedrals</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinEnsemble.mapping"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.mapping</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id10"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.coordinates</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id11"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.aatype</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinEnsemble.one_hot_sequence"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.one_hot_sequence</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id12"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.atom_mask</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id13"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.residue_index</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id14"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.chain_index</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id15"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.dihedrals</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#id16"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.mapping</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinEnsemble.replace"><code class="docutils literal notranslate"><span class="pre">ProteinEnsemble.replace()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures._EStepState"><code class="docutils literal notranslate"><span class="pre">_EStepState</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures._EStepState.component_counts"><code class="docutils literal notranslate"><span class="pre">_EStepState.component_counts</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures._EStepState.weighted_data"><code class="docutils literal notranslate"><span class="pre">_EStepState.weighted_data</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures._EStepState.weighted_squared_data"><code class="docutils literal notranslate"><span class="pre">_EStepState.weighted_squared_data</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures._EStepState.log_likelihood_total"><code class="docutils literal notranslate"><span class="pre">_EStepState.log_likelihood_total</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures._EStepState.replace"><code class="docutils literal notranslate"><span class="pre">_EStepState.replace()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.GMM"><code class="docutils literal notranslate"><span class="pre">GMM</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.GMM.means"><code class="docutils literal notranslate"><span class="pre">GMM.means</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.GMM.covariances"><code class="docutils literal notranslate"><span class="pre">GMM.covariances</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.GMM.weights"><code class="docutils literal notranslate"><span class="pre">GMM.weights</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.GMM.responsibilities"><code class="docutils literal notranslate"><span class="pre">GMM.responsibilities</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.GMM.n_components"><code class="docutils literal notranslate"><span class="pre">GMM.n_components</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.GMM.n_features"><code class="docutils literal notranslate"><span class="pre">GMM.n_features</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.GMM.replace"><code class="docutils literal notranslate"><span class="pre">GMM.replace()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMLoopState"><code class="docutils literal notranslate"><span class="pre">EMLoopState</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMLoopState.gmm"><code class="docutils literal notranslate"><span class="pre">EMLoopState.gmm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMLoopState.n_iter"><code class="docutils literal notranslate"><span class="pre">EMLoopState.n_iter</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMLoopState.log_likelihood"><code class="docutils literal notranslate"><span class="pre">EMLoopState.log_likelihood</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMLoopState.log_likelihood_diff"><code class="docutils literal notranslate"><span class="pre">EMLoopState.log_likelihood_diff</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMFitterResult"><code class="docutils literal notranslate"><span class="pre">EMFitterResult</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMFitterResult.gmm"><code class="docutils literal notranslate"><span class="pre">EMFitterResult.gmm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMFitterResult.n_iter"><code class="docutils literal notranslate"><span class="pre">EMFitterResult.n_iter</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMFitterResult.log_likelihood"><code class="docutils literal notranslate"><span class="pre">EMFitterResult.log_likelihood</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMFitterResult.log_likelihood_diff"><code class="docutils literal notranslate"><span class="pre">EMFitterResult.log_likelihood_diff</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMFitterResult.converged"><code class="docutils literal notranslate"><span class="pre">EMFitterResult.converged</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMFitterResult.features"><code class="docutils literal notranslate"><span class="pre">EMFitterResult.features</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMFitterResult.bic"><code class="docutils literal notranslate"><span class="pre">EMFitterResult.bic</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMFitterResult.replace"><code class="docutils literal notranslate"><span class="pre">EMFitterResult.replace()</span></code></a></li>
 </ul>
 </li>
 </ul>

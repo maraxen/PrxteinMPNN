@@ -164,7 +164,6 @@
 
 
 
-
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
 <li class="toctree-l2 current active has-children"><a class="reference internal" href="prxteinmpnn.model.html">model: MPNN model architecture</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
@@ -382,9 +381,7 @@ document.write(`
   </button>
 `);
 </script>
-<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
-    <span class="fa-solid fa-list"></span>
-</button>
+
 </div></div>
       
     </div>
@@ -400,14 +397,6 @@ document.write(`
     <div id="print-main-content">
         <div id="jb-print-toc">
             
-            <div>
-                <h2> Contents </h2>
-            </div>
-            <nav aria-label="Page">
-                <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.masked_attention.mask_attention"><code class="docutils literal notranslate"><span class="pre">mask_attention()</span></code></a></li>
-</ul>
-            </nav>
         </div>
     </div>
 </div>
@@ -417,29 +406,8 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="module-prxteinmpnn.model.masked_attention">
-<span id="masked-attention"></span><h1>masked_attention<a class="headerlink" href="#module-prxteinmpnn.model.masked_attention" title="Link to this heading">#</a></h1>
-<p>Masked attention functions.</p>
-<dl class="py function">
-<dt class="sig sig-object py" id="prxteinmpnn.model.masked_attention.mask_attention">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.model.masked_attention.</span></span><span class="sig-name descname"><span class="pre">mask_attention</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">message</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attention_mask</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/model/masked_attention.html#mask_attention"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.model.masked_attention.mask_attention" title="Link to this definition">#</a></dt>
-<dd><p>Apply attention mask to the message.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>message</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code></span>) – The message to be masked.</p></li>
-<li><p><strong>attention_mask</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Bool[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_atoms']</span></code></span>) – The attention mask to apply.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Float[Array,</span> <span class="pre">'num_atoms</span> <span class="pre">num_neighbors</span> <span class="pre">num_features']</span></code></span></p>
-</dd>
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>The masked message.</p>
-</dd>
-</dl>
-</dd></dl>
-
+  <section id="masked-attention">
+<h1>masked_attention<a class="headerlink" href="#masked-attention" title="Link to this heading">#</a></h1>
 </section>
 
 
@@ -477,21 +445,6 @@ document.write(`
             </div>
             
             
-              
-                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
-
-
-  <div class="sidebar-secondary-item">
-  <div class="page-toc tocsection onthispage">
-    <i class="fa-solid fa-list"></i> Contents
-  </div>
-  <nav class="bd-toc-nav page-toc">
-    <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.model.masked_attention.mask_attention"><code class="docutils literal notranslate"><span class="pre">mask_attention()</span></code></a></li>
-</ul>
-  </nav></div>
-
-</div></div>
               
             
           </div>

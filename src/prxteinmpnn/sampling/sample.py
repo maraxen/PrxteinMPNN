@@ -147,7 +147,7 @@ def make_sample_sequences(
 
   if sampling_strategy == "temperature":
 
-    @partial(jax.jit, static_argnames=("_k_neighbors", "num_groups"))
+    @partial(jax.jit, static_argnames=("_k_neighbors", "num_groups", "multi_state_strategy"))
     def sample_sequences(
       prng_key: PRNGKeyArray,
       structure_coordinates: StructureAtomicCoordinates,
@@ -163,6 +163,8 @@ def make_sample_sequences(
       temperature: Float | None = None,
       tie_group_map: jnp.ndarray | None = None,
       num_groups: int | None = None,
+      multi_state_strategy: Literal["mean", "min", "product", "max_min"] = "mean",
+      multi_state_alpha: float = 0.5,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """Sample a sequence from a structure using the ProteinMPNN model.
 
@@ -181,6 +183,9 @@ def make_sample_sequences(
         temperature: Temperature for sampling (default: 1.0).
         tie_group_map: Optional (N,) array mapping positions to group IDs for tied sampling.
         num_groups: Number of unique groups when using tied positions.
+        multi_state_strategy: Strategy for combining logits across tied positions
+          ("mean", "min", "product", "max_min").
+        multi_state_alpha: Weight for min component when strategy="max_min" (0-1).
 
       Returns:
         Tuple of (sampled sequence, logits, decoding order).
@@ -216,6 +221,8 @@ def make_sample_sequences(
         bias=bias,
         backbone_noise=backbone_noise,
         tie_group_map=tie_group_map,
+        multi_state_strategy=multi_state_strategy,
+        multi_state_alpha=multi_state_alpha,
       )
 
       one_hot_ndim = 2

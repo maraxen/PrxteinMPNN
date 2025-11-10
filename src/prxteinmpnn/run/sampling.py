@@ -103,12 +103,46 @@ def sample(
 
     vmap_samples = jax.vmap(
       sampler_fn,
-      in_axes=(0, None, None, None, None, None, None, None, None, None, None, None, None, None),
+      in_axes=(
+        0,  # keys
+        None,  # coordinates
+        None,  # mask
+        None,  # residue_index
+        None,  # chain_index
+        None,  # k_neighbors
+        None,  # bias
+        None,  # fixed_positions
+        None,  # backbone_noise
+        None,  # iterations
+        None,  # learning_rate
+        None,  # temperature
+        None,  # tie_group_map
+        None,  # num_groups
+        None,  # multi_state_strategy
+        None,  # multi_state_alpha
+      ),
       out_axes=0,
     )
     vmap_noises = jax.vmap(
       vmap_samples,
-      in_axes=(None, None, None, None, None, None, None, None, 0, None, None, None, None, None),
+      in_axes=(
+        None,  # keys
+        None,  # coordinates
+        None,  # mask
+        None,  # residue_index
+        None,  # chain_index
+        None,  # k_neighbors
+        None,  # bias
+        None,  # fixed_positions
+        0,  # backbone_noise
+        None,  # iterations
+        None,  # learning_rate
+        None,  # temperature
+        None,  # tie_group_map
+        None,  # num_groups
+        None,  # multi_state_strategy
+        None,  # multi_state_alpha
+      ),
       out_axes=0,
     )
     vmap_structures = jax.vmap(
@@ -128,6 +162,8 @@ def sample(
         None,  # temperature
         None,  # tie_group_map
         None,  # num_groups
+        None,  # multi_state_strategy
+        None,  # multi_state_alpha
       ),
       out_axes=0,
     )
@@ -150,6 +186,8 @@ def sample(
       spec.temperature,
       tie_group_map,
       num_groups,
+      spec.multi_state_strategy,
+      spec.multi_state_alpha,
     )
     all_sequences.append(sampled_sequences)
     all_logits.append(logits)
@@ -224,6 +262,8 @@ def _sample_streaming(
         temperature=spec.temperature,
         tie_group_map=tie_group_map,
         num_groups=num_groups,
+        multi_state_strategy=spec.multi_state_strategy,
+        multi_state_alpha=spec.multi_state_alpha,
       )
 
       def sample_single_noise(

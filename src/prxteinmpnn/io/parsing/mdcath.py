@@ -18,6 +18,7 @@ from typing import cast
 import h5py
 import numpy as np
 
+from prxteinmpnn.utils import residue_constants as rc
 from prxteinmpnn.utils.data_structures import ProteinStream, ProteinTuple, TrajectoryStaticFeatures
 
 from .coords import process_coordinates
@@ -83,7 +84,15 @@ def parse_mdcath_hdf5(  # noqa: PLR0915
       chain_index = np.zeros(num_residues, dtype=np.int32)
 
       atom_mask_37 = np.zeros((num_residues, 37), dtype=bool)
-      atom_mask_37[:, 0:5] = True  # Set CA, CB, N, C, O atoms to be present
+      resnames = cast("h5py.Dataset", domain_group["resname"])[:].astype("U3")
+      three_to_one = {
+          name: name for name in np.unique(resnames)
+      }
+      for i, resname in enumerate(resnames):
+          if resname in three_to_one:
+              for atom_name in rc.restype_name_to_atom14_names[three_to_one[resname]]:
+                  if atom_name in rc.atom_order:
+                      atom_mask_37[i, rc.atom_order[atom_name]] = True
 
       sample_coords_shape = cast(
         "h5py.Dataset",

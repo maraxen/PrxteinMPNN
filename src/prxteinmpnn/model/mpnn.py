@@ -167,18 +167,31 @@ class PrxteinMPNN(eqx.Module):
       >>> seq, logits = model._call_unconditional(edge_feats, neighbor_idx, mask)
 
     """
+    jax.debug.print("🔹 PrxteinMPNN _call_unconditional")
+    jax.debug.print("  Input edge_features shape: {}", edge_features.shape)
+    jax.debug.print("  Input edge_features[0,0,:5]: {}", edge_features[0,0,:5])
+
     node_features, processed_edge_features = self.encoder(
       edge_features,
       neighbor_indices,
       mask,
     )
+    jax.debug.print("  After encoder - node_features shape: {}", node_features.shape)
+    jax.debug.print("  After encoder - node_features[0,:5]: {}", node_features[0,:5])
+    jax.debug.print("  After encoder - edge_features[0,0,:5]: {}", processed_edge_features[0,0,:5])
+
     decoded_node_features = self.decoder(
       node_features,
       processed_edge_features,
       neighbor_indices,  # Pass neighbor indices for correct context
       mask,
     )
+    jax.debug.print("  After decoder - node_features shape: {}", decoded_node_features.shape)
+    jax.debug.print("  After decoder - node_features[0,:5]: {}", decoded_node_features[0,:5])
+
     logits = jax.vmap(self.w_out)(decoded_node_features)
+    jax.debug.print("  Final logits shape: {}", logits.shape)
+    jax.debug.print("  Final logits[0,:5]: {}", logits[0,:5])
 
     # Return dummy sequence to match PyTree shape
     dummy_seq = jnp.zeros(

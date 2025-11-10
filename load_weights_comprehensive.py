@@ -84,11 +84,14 @@ def load_prxteinmpnn_with_colabdesign_weights(weights_path, key=None):
 
     # w_e (edge embedding)
     w = params['protein_mpnn/~/protein_features/~/edge_embedding']['w'].T
+    print(f"    w_e weight shape: {w.shape} (should be (128, 416))")
+    print(f"    w_e weight[0,:5]: {w[0,:5]}")
     model = eqx.tree_at(
         lambda m: m.features.w_e.weight,
         model,
         jnp.array(w)
     )
+    print(f"    Loaded w_e weight[0,:5]: {model.features.w_e.weight[0,:5]}")
 
     # norm_edges
     scale = params['protein_mpnn/~/protein_features/~/norm_edges']['scale']

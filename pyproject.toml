@@ -76,7 +76,8 @@ dev = [
   "trio",
   "chex",
   "anyio",
-  "foldcomp"
+  "foldcomp",
+  "colabdesign @ git+https://github.com/sokrypton/ColabDesign.git@e31a56f"
 ]
 foldcomp = [
     "foldcomp",

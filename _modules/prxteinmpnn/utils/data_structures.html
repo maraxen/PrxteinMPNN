@@ -426,7 +426,12 @@ document.write(`
   <span class="n">full_coordinates</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
   <span class="n">dihedrals</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
   <span class="n">source</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-  <span class="n">mapping</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
+  <span class="n">mapping</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">charges</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">radii</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">estat_backbone_mask</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">estat_resid</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">estat_chain_index</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
 
 
 
@@ -463,6 +468,29 @@ document.write(`
   <span class="k">if</span> <span class="n">include_features</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
     <span class="k">return</span> <span class="kc">False</span>
   <span class="k">return</span> <span class="n">feature_name</span> <span class="ow">in</span> <span class="n">include_features</span> <span class="ow">or</span> <span class="s2">&quot;all&quot;</span> <span class="ow">in</span> <span class="n">include_features</span></div>
+
+
+
+<div class="viewcode-block" id="EstatInfo">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EstatInfo">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">EstatInfo</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Electrostatics information extracted from a PQR file.</span>
+
+<span class="sd">  Attributes:</span>
+<span class="sd">    charges: Numpy array of atomic charges.</span>
+<span class="sd">    radii: Numpy array of atomic radii.</span>
+<span class="sd">    estat_backbone_mask: Boolean numpy array indicating backbone atoms.</span>
+<span class="sd">    estat_resid: Integer numpy array of residue numbers.</span>
+<span class="sd">    estat_chain_index: Integer numpy array of chain indices (ord value).</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+
+  <span class="n">charges</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+  <span class="n">radii</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+  <span class="n">estat_backbone_mask</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+  <span class="n">estat_resid</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+  <span class="n">estat_chain_index</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span></div>
 
 
 
@@ -510,6 +538,11 @@ document.write(`
   <span class="n">mapping</span><span class="p">:</span> <span class="n">Int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
   <span class="n">full_coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
   <span class="n">full_atom_mask</span><span class="p">:</span> <span class="n">AtomMask</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">charges</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">radii</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">estat_backbone_mask</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">estat_resid</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">estat_chain_index</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
 <div class="viewcode-block" id="Protein.from_tuple">
 <a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.from_tuple">[docs]</a>
@@ -536,10 +569,6 @@ document.write(`
 <span class="sd">        Protein: The output protein dataclass.</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># NOTE: Keep atom ordering as-is from parser (matches 0.871 correlation baseline)</span>
-    <span class="c1"># The parser places atoms in PDB file order where O and CB are swapped vs atom37 standard,</span>
-    <span class="c1"># but this is how the model achieves 0.871 correlation, so we preserve it.</span>
-
     <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
       <span class="n">coordinates</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">coordinates</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span>
       <span class="n">aatype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">aatype</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">),</span>
@@ -569,6 +598,11 @@ document.write(`
         <span class="ow">or</span> <span class="ow">not</span> <span class="n">include_feature</span><span class="p">(</span><span class="s2">&quot;full_atom_mask&quot;</span><span class="p">,</span> <span class="n">include_extras</span><span class="p">)</span>
         <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">atom_mask</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
       <span class="p">),</span>
+      <span class="n">charges</span><span class="o">=</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">charges</span><span class="p">,</span>
+      <span class="n">radii</span><span class="o">=</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">radii</span><span class="p">,</span>
+      <span class="n">estat_backbone_mask</span><span class="o">=</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">estat_backbone_mask</span><span class="p">,</span>
+      <span class="n">estat_resid</span><span class="o">=</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">estat_resid</span><span class="p">,</span>
+      <span class="n">estat_chain_index</span><span class="o">=</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">estat_chain_index</span><span class="p">,</span>
     <span class="p">)</span></div>
 </div>
 

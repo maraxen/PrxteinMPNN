@@ -23,7 +23,6 @@ angles header
 """
 
 
-@pytest.mark.skip(reason="Failing test, backlogged to be fixed later.")
 def test_process_lines_iter_chemical_props():
     """Test processing of stereo chemical properties from an iterator."""
     lines_iter = iter(MOCK_STEREO_CHEMICAL_PROPS.splitlines())
@@ -61,7 +60,6 @@ def test_process_lines_iter_chemical_props_empty():
     assert not residue_bond_angles["UNK"]
 
 
-@pytest.mark.skip(reason="Failing test, backlogged to be fixed later.")
 @patch("pathlib.Path.open", new_callable=mock_open, read_data=MOCK_STEREO_CHEMICAL_PROPS)
 def test_load_stereo_chemical_props(mock_file):
     """Test loading and processing of stereo chemical properties."""

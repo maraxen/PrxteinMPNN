@@ -11,14 +11,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-
-try:
-    from colabdesign.mpnn import mk_mpnn_model
-    COLABDESIGN_AVAILABLE = True
-except ImportError:
-    COLABDESIGN_AVAILABLE = False
+from colabdesign.mpnn import mk_mpnn_model
 
 from prxteinmpnn.io.parsing import parse_input
+from prxteinmpnn.io.weights import load_model
 from prxteinmpnn.utils.data_structures import Protein
 
 # Alphabet conversion between AlphaFold and MPNN orderings
@@ -39,35 +35,18 @@ def test_structure_path():
 
 
 @pytest.fixture
-def colabdesign_weights_path():
-    """Path to ColabDesign weights."""
-    return "/tmp/ColabDesign/colabdesign/mpnn/weights/v_48_020.pkl"
-
-
-@pytest.fixture
 def colabdesign_model(test_structure_path):
     """Initialize ColabDesign MPNN model."""
-    if not COLABDESIGN_AVAILABLE:
-        pytest.skip("ColabDesign not available")
-
     model = mk_mpnn_model()
     model.prep_inputs(pdb_filename=test_structure_path)
     return model
 
 
 @pytest.fixture
-def prxteinmpnn_model(colabdesign_weights_path):
+def prxteinmpnn_model():
     """Initialize PrxteinMPNN with ColabDesign weights."""
-    if not COLABDESIGN_AVAILABLE:
-        pytest.skip("ColabDesign not available")
-
-    # Import here to avoid circular dependency issues
-    import sys
-    sys.path.insert(0, "/home/user/PrxteinMPNN")
-    from load_weights_comprehensive import load_prxteinmpnn_with_colabdesign_weights
-
-    key = jax.random.PRNGKey(42)
-    return load_prxteinmpnn_with_colabdesign_weights(colabdesign_weights_path, key=key)
+    key = jax.random.key(42)
+    return load_model("v_48_020", key=key)
 
 
 @pytest.fixture
@@ -77,7 +56,6 @@ def protein_data(test_structure_path):
     return Protein.from_tuple(protein_tuple)
 
 
-@pytest.mark.skipif(not COLABDESIGN_AVAILABLE, reason="ColabDesign not installed")
 class TestColabDesignEquivalence:
     """Test suite for ColabDesign equivalence."""
 
@@ -89,7 +67,7 @@ class TestColabDesignEquivalence:
 
         Target: correlation > 0.95
         """
-        key = jax.random.PRNGKey(42)
+        key = jax.random.key(42)
 
         # Get ColabDesign unconditional logits
         colab_logits = colabdesign_model.get_unconditional_logits(key=key)
@@ -125,7 +103,7 @@ class TestColabDesignEquivalence:
 
         Target: correlation > 0.95
         """
-        key = jax.random.PRNGKey(42)
+        key = jax.random.key(42)
         L = len(colabdesign_model._inputs["S"])
 
         # Use native sequence from structure
@@ -177,7 +155,7 @@ class TestColabDesignEquivalence:
 
         Target: correlation > 0.95
         """
-        key = jax.random.PRNGKey(42)
+        key = jax.random.key(42)
         L = len(colabdesign_model._inputs["S"])
 
         # Use fixed decoding order for reproducibility
@@ -231,7 +209,7 @@ class TestColabDesignEquivalence:
         unconditional path. This is a sanity check for the autoregressive
         implementation.
         """
-        key = jax.random.PRNGKey(42)
+        key = jax.random.key(42)
         L = protein_data.coordinates.shape[0]
 
         # Get unconditional logits
@@ -278,7 +256,7 @@ class TestColabDesignEquivalence:
         decoder should produce the same results as unconditional, since no
         sequence information is being used.
         """
-        key = jax.random.PRNGKey(42)
+        key = jax.random.key(42)
         L = protein_data.coordinates.shape[0]
 
         # Get unconditional logits

@@ -152,9 +152,10 @@ def _score_streaming(
 
     for batched_ensemble in protein_iterator:
       max_len = batched_ensemble.coordinates.shape[0]
-      current_ar_mask = (
-          1 - jnp.eye(max_len, dtype=jnp.bool_) if spec.ar_mask is None else jnp.asarray(spec.ar_mask)
-      )
+      if spec.ar_mask is None:
+        current_ar_mask = 1 - jnp.eye(max_len, dtype=jnp.bool_)
+      else:
+        current_ar_mask = jnp.asarray(spec.ar_mask)
 
       vmap_sequences = jax.vmap(
           score_single_pair,

@@ -117,6 +117,8 @@ def make_score_sequence(
       prng_key=prng_key,
       ar_mask=autoregressive_mask,
       one_hot_sequence=sequence,
+      temperature=0.0,  # Not used in conditional mode
+      bias=None,  # No bias in scoring
       backbone_noise=backbone_noise,
     )
 

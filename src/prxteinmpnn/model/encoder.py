@@ -105,11 +105,17 @@ class EncoderLayer(eqx.Module):
     edge_features: EdgeFeatures,
     neighbor_indices: NeighborIndices,
     mask: AlphaCarbonMask,
+    mask_attend: jnp.ndarray | None = None,
     scale: float = 30.0,
   ) -> tuple[NodeFeatures, EdgeFeatures]:
     """Forward pass for the encoder layer."""
     mlp_input = self._get_mlp_input(node_features, edge_features, neighbor_indices)
     message = jax.vmap(jax.vmap(self.edge_message_mlp))(mlp_input)
+
+    # Apply attention mask to zero out messages from invalid neighbors
+    if mask_attend is not None:
+      message = jnp.expand_dims(mask_attend, -1) * message
+
     aggregated_message = jnp.sum(message, -2) / scale
     node_features = node_features + aggregated_message
     node_features = jax.vmap(self.norm1)(node_features)
@@ -170,11 +176,17 @@ class Encoder(eqx.Module):
     """Forward pass for the encoder."""
     node_features = jnp.zeros((edge_features.shape[0], self.node_feature_dim))
 
+    # Compute attention mask: mask[i] * mask[j] for all pairs, then gather along neighbors
+    # Shape: (N, N) -> (N, K) where K is number of neighbors
+    mask_2d = mask[:, None] * mask[None, :]  # (N, N)
+    mask_attend = jnp.take_along_axis(mask_2d, neighbor_indices, axis=1)  # (N, K)
+
     for layer in self.layers:
       node_features, edge_features = layer(
         node_features,
         edge_features,
         neighbor_indices,
         mask,
+        mask_attend,
       )
     return node_features, edge_features

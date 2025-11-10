@@ -210,6 +210,7 @@ class Decoder(eqx.Module):
     self,
     node_features: NodeFeatures,
     edge_features: EdgeFeatures,  # Raw 128-dim edges
+    neighbor_indices: NeighborIndices,
     mask: AlphaCarbonMask,
   ) -> NodeFeatures:
     """Forward pass for UNCONDITIONAL decoding.
@@ -217,6 +218,7 @@ class Decoder(eqx.Module):
     Args:
       node_features: Node features from encoder of shape (N, 128).
       edge_features: Edge features from encoder of shape (N, K, 128).
+      neighbor_indices: Indices of neighbors for each node.
       mask: Alpha carbon mask of shape (N,).
 
     Returns:
@@ -230,23 +232,26 @@ class Decoder(eqx.Module):
       >>> decoder = Decoder(128, 128, 128, num_layers=3, key=key)
       >>> node_feats = jnp.ones((10, 128))
       >>> edge_feats = jnp.ones((10, 30, 128))
+      >>> neighbor_idx = jnp.arange(300).reshape(10, 30)
       >>> mask = jnp.ones((10,))
-      >>> output = decoder(node_feats, edge_feats, mask)
+      >>> output = decoder(node_feats, edge_feats, neighbor_idx, mask)
 
     """
     # Prepare 384-dim context tensor *once*
-    nodes_expanded = jnp.tile(
-      jnp.expand_dims(node_features, -2),
-      [1, edge_features.shape[1], 1],
-    )
-    zeros_expanded = jnp.tile(
-      jnp.expand_dims(jnp.zeros_like(node_features), -2),
-      [1, edge_features.shape[1], 1],
-    )
-    layer_edge_features = jnp.concatenate(
-      [nodes_expanded, zeros_expanded, edge_features],
-      -1,
-    )
+    # For unconditional: [0, h_E_ij, h_V_j] where j is the neighbor
+    # First concatenate zeros with edge features
+    zeros_with_edges = concatenate_neighbor_nodes(
+      jnp.zeros_like(node_features),
+      edge_features,
+      neighbor_indices,
+    )  # Shape: (N, K, 128 + 128) = (N, K, 256)
+
+    # Then concatenate node features with the above
+    layer_edge_features = concatenate_neighbor_nodes(
+      node_features,
+      zeros_with_edges,
+      neighbor_indices,
+    )  # Shape: (N, K, 256 + 128) = (N, K, 384)
 
     loop_node_features = node_features
     for layer in self.layers:
@@ -346,12 +351,11 @@ class Decoder(eqx.Module):
 
       layer_edge_features = (mask_bw[..., None] * current_features) + masked_node_edge_features
 
-      # Run the layer with attention masking for conditional decoding
+      # Run the layer (masking already applied to layer_edge_features)
       loop_node_features = layer(
         loop_node_features,
         layer_edge_features,
         mask,
-        attention_mask=attention_mask,  # Pass attention mask for conditional decoding
       )
 
     return loop_node_features

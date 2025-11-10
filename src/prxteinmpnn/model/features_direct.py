@@ -1,7 +1,6 @@
-"""Feature extraction module for PrxteinMPNN.
+"""Modified feature extraction module using direct matrix operations instead of vmap.
 
-This module contains the ProteinFeatures class that extracts and projects
-features from raw protein coordinates.
+This version aims to match ColabDesign's numerical behavior more closely.
 """
 
 from __future__ import annotations
@@ -39,17 +38,17 @@ POS_EMBED_DIM = 16
 top_k = jax.jit(jax.lax.top_k, static_argnames=("k",))
 
 
-class ProteinFeatures(eqx.Module):
-  """Extracts and projects features from raw protein coordinates.
+class ProteinFeaturesDirect(eqx.Module):
+  """Extracts and projects features using direct matrix operations.
 
-  This module encapsulates k-NN, RBF, positional encodings, and edge projections.
-  Note: W_e projection is NOT here - it's in the main model (matches ColabDesign).
+  This version replaces vmap operations with direct matrix multiplications
+  to match ColabDesign's numerical behavior more closely.
   """
 
   w_pos: eqx.nn.Linear
   w_e: eqx.nn.Linear
   norm_edges: LayerNorm
-  w_e_proj: eqx.nn.Linear  # Final edge projection
+  w_e_proj: eqx.nn.Linear
   k_neighbors: int = eqx.field(static=True)
   rbf_dim: int = eqx.field(static=True)
   pos_embed_dim: int = eqx.field(static=True)
@@ -155,17 +154,31 @@ class ProteinFeatures(eqx.Module):
       2 * MAXIMUM_RELATIVE_FEATURES + 2,
     )
 
-    # vmap over (N, K)
-    encoded_positions = jax.vmap(jax.vmap(self.w_pos))(encoded_offset_one_hot)
+    # Direct matrix multiply instead of vmap (shape: N, K, 66 @ 66, 16 = N, K, 16)
+    w_pos_weight = self.w_pos.weight  # (16, 66)
+    w_pos_bias = self.w_pos.bias      # (16,)
+    encoded_positions = encoded_offset_one_hot @ w_pos_weight.T + w_pos_bias
 
-    # Embed edges
+    # Embed edges (shape: N, K, 416 @ 416, 128 = N, K, 128)
     edges = jnp.concatenate([encoded_positions, rbf], axis=-1)
+    w_e_weight = self.w_e.weight  # (128, 416)
+    edge_features = edges @ w_e_weight.T  # No bias for w_e
 
-    edge_features = jax.vmap(jax.vmap(self.w_e))(edges)
+    # LayerNorm: normalize across the feature dimension (axis=-1)
+    # This matches ColabDesign's approach
+    mean = edge_features.mean(axis=-1, keepdims=True)
+    var = edge_features.var(axis=-1, keepdims=True)
+    edge_features_normalized = (edge_features - mean) / jnp.sqrt(var + 1e-5)
 
-    edge_features = jax.vmap(jax.vmap(self.norm_edges))(edge_features)
+    # Apply scale and offset from LayerNorm
+    # Note: eqx.nn.LayerNorm stores scale as 'weight' and offset as 'bias'
+    scale = self.norm_edges.weight if hasattr(self.norm_edges, "weight") else jnp.ones(edge_features.shape[-1])
+    offset = self.norm_edges.bias if hasattr(self.norm_edges, "bias") else jnp.zeros(edge_features.shape[-1])
+    edge_features = edge_features_normalized * scale + offset
 
-    # Final edge projection (W_e in ColabDesign)
-    edge_features = jax.vmap(jax.vmap(self.w_e_proj))(edge_features)
+    # Project features (shape: N, K, 128 @ 128, 128 = N, K, 128)
+    w_e_proj_weight = self.w_e_proj.weight  # (128, 128)
+    w_e_proj_bias = self.w_e_proj.bias      # (128,)
+    edge_features = edge_features @ w_e_proj_weight.T + w_e_proj_bias
 
     return edge_features, neighbor_indices, prng_key

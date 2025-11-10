@@ -457,12 +457,46 @@ document.write(`
 
     <span class="n">vmap_samples</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span>
       <span class="n">sampler_fn</span><span class="p">,</span>
-      <span class="n">in_axes</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+      <span class="n">in_axes</span><span class="o">=</span><span class="p">(</span>
+        <span class="mi">0</span><span class="p">,</span>  <span class="c1"># keys</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># coordinates</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># mask</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># residue_index</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># chain_index</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># k_neighbors</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># bias</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># fixed_positions</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># backbone_noise</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># iterations</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># learning_rate</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># temperature</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># tie_group_map</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># num_groups</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># multi_state_strategy</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># multi_state_alpha</span>
+      <span class="p">),</span>
       <span class="n">out_axes</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">vmap_noises</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span>
       <span class="n">vmap_samples</span><span class="p">,</span>
-      <span class="n">in_axes</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+      <span class="n">in_axes</span><span class="o">=</span><span class="p">(</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># keys</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># coordinates</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># mask</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># residue_index</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># chain_index</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># k_neighbors</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># bias</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># fixed_positions</span>
+        <span class="mi">0</span><span class="p">,</span>  <span class="c1"># backbone_noise</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># iterations</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># learning_rate</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># temperature</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># tie_group_map</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># num_groups</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># multi_state_strategy</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># multi_state_alpha</span>
+      <span class="p">),</span>
       <span class="n">out_axes</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">vmap_structures</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span>
@@ -482,6 +516,8 @@ document.write(`
         <span class="kc">None</span><span class="p">,</span>  <span class="c1"># temperature</span>
         <span class="kc">None</span><span class="p">,</span>  <span class="c1"># tie_group_map</span>
         <span class="kc">None</span><span class="p">,</span>  <span class="c1"># num_groups</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># multi_state_strategy</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># multi_state_alpha</span>
       <span class="p">),</span>
       <span class="n">out_axes</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
     <span class="p">)</span>
@@ -504,6 +540,8 @@ document.write(`
       <span class="n">spec</span><span class="o">.</span><span class="n">temperature</span><span class="p">,</span>
       <span class="n">tie_group_map</span><span class="p">,</span>
       <span class="n">num_groups</span><span class="p">,</span>
+      <span class="n">spec</span><span class="o">.</span><span class="n">multi_state_strategy</span><span class="p">,</span>
+      <span class="n">spec</span><span class="o">.</span><span class="n">multi_state_alpha</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">all_sequences</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sampled_sequences</span><span class="p">)</span>
     <span class="n">all_logits</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">logits</span><span class="p">)</span>
@@ -579,6 +617,8 @@ document.write(`
         <span class="n">temperature</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">temperature</span><span class="p">,</span>
         <span class="n">tie_group_map</span><span class="o">=</span><span class="n">tie_group_map</span><span class="p">,</span>
         <span class="n">num_groups</span><span class="o">=</span><span class="n">num_groups</span><span class="p">,</span>
+        <span class="n">multi_state_strategy</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">multi_state_strategy</span><span class="p">,</span>
+        <span class="n">multi_state_alpha</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">multi_state_alpha</span><span class="p">,</span>
       <span class="p">)</span>
 
       <span class="k">def</span><span class="w"> </span><span class="nf">sample_single_noise</span><span class="p">(</span>

@@ -504,7 +504,7 @@ document.write(`
 
   <span class="k">if</span> <span class="n">sampling_strategy</span> <span class="o">==</span> <span class="s2">&quot;temperature&quot;</span><span class="p">:</span>
 
-    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;_k_neighbors&quot;</span><span class="p">,</span> <span class="s2">&quot;num_groups&quot;</span><span class="p">))</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;_k_neighbors&quot;</span><span class="p">,</span> <span class="s2">&quot;num_groups&quot;</span><span class="p">,</span> <span class="s2">&quot;multi_state_strategy&quot;</span><span class="p">))</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">sample_sequences</span><span class="p">(</span>
       <span class="n">prng_key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
       <span class="n">structure_coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
@@ -520,6 +520,8 @@ document.write(`
       <span class="n">temperature</span><span class="p">:</span> <span class="n">Float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
       <span class="n">tie_group_map</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
       <span class="n">num_groups</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+      <span class="n">multi_state_strategy</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;mean&quot;</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">,</span> <span class="s2">&quot;product&quot;</span><span class="p">,</span> <span class="s2">&quot;max_min&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;mean&quot;</span><span class="p">,</span>
+      <span class="n">multi_state_alpha</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">,</span> <span class="n">DecodingOrder</span><span class="p">]:</span>
 <span class="w">      </span><span class="sd">&quot;&quot;&quot;Sample a sequence from a structure using the ProteinMPNN model.</span>
 
@@ -538,6 +540,9 @@ document.write(`
 <span class="sd">        temperature: Temperature for sampling (default: 1.0).</span>
 <span class="sd">        tie_group_map: Optional (N,) array mapping positions to group IDs for tied sampling.</span>
 <span class="sd">        num_groups: Number of unique groups when using tied positions.</span>
+<span class="sd">        multi_state_strategy: Strategy for combining logits across tied positions</span>
+<span class="sd">          (&quot;mean&quot;, &quot;min&quot;, &quot;product&quot;, &quot;max_min&quot;).</span>
+<span class="sd">        multi_state_alpha: Weight for min component when strategy=&quot;max_min&quot; (0-1).</span>
 
 <span class="sd">      Returns:</span>
 <span class="sd">        Tuple of (sampled sequence, logits, decoding order).</span>
@@ -573,6 +578,8 @@ document.write(`
         <span class="n">bias</span><span class="o">=</span><span class="n">bias</span><span class="p">,</span>
         <span class="n">backbone_noise</span><span class="o">=</span><span class="n">backbone_noise</span><span class="p">,</span>
         <span class="n">tie_group_map</span><span class="o">=</span><span class="n">tie_group_map</span><span class="p">,</span>
+        <span class="n">multi_state_strategy</span><span class="o">=</span><span class="n">multi_state_strategy</span><span class="p">,</span>
+        <span class="n">multi_state_alpha</span><span class="o">=</span><span class="n">multi_state_alpha</span><span class="p">,</span>
       <span class="p">)</span>
 
       <span class="n">one_hot_ndim</span> <span class="o">=</span> <span class="mi">2</span>

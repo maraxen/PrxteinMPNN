@@ -152,6 +152,7 @@ def make_conditional_logits_fn(
       prng_key,
       0.0,  # temperature unused in conditional path
       jax.numpy.zeros((mask.shape[0], 21), dtype=jax.numpy.float32),
+      None,  # tie_group_map not used in jacobian computation
     )
 
     return logits

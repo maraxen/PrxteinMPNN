@@ -164,7 +164,6 @@
 
 
 
-
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -405,6 +404,9 @@ document.write(`
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.autoregression.get_decoding_step_map"><code class="docutils literal notranslate"><span class="pre">get_decoding_step_map()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.autoregression.make_autoregressive_mask"><code class="docutils literal notranslate"><span class="pre">make_autoregressive_mask()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.autoregression.resolve_tie_groups"><code class="docutils literal notranslate"><span class="pre">resolve_tie_groups()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.autoregression.generate_ar_mask"><code class="docutils literal notranslate"><span class="pre">generate_ar_mask()</span></code></a></li>
 </ul>
             </nav>
@@ -419,23 +421,114 @@ document.write(`
                   
   <section id="module-prxteinmpnn.utils.autoregression">
 <span id="autoregression"></span><h1>autoregression<a class="headerlink" href="#module-prxteinmpnn.utils.autoregression" title="Link to this heading">#</a></h1>
-<p>Utilities for autoregression.</p>
-<p>prxteinmpnn.utils.autoregression</p>
+<p>Autoregression utilities.</p>
 <dl class="py function">
-<dt class="sig sig-object py" id="prxteinmpnn.utils.autoregression.generate_ar_mask">
-<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.autoregression.</span></span><span class="sig-name descname"><span class="pre">generate_ar_mask</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">decoding_order</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/autoregression.html#generate_ar_mask"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.autoregression.generate_ar_mask" title="Link to this definition">#</a></dt>
-<dd><p>Get the autoregressive mask for the given decoding order.</p>
+<dt class="sig sig-object py" id="prxteinmpnn.utils.autoregression.get_decoding_step_map">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.autoregression.</span></span><span class="sig-name descname"><span class="pre">get_decoding_step_map</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tie_group_map</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">group_decoding_order</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_groups</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/autoregression.html#get_decoding_step_map"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.autoregression.get_decoding_step_map" title="Link to this definition">#</a></dt>
+<dd><p>Map each residue to its decoding step index based on group order.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>decoding_order</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code></span>) – The order in which atoms are decoded.</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>tie_group_map</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.jax.dev/en/latest/_autosummary/jax.Array.html#jax.Array" title="(in JAX)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Array</span></code></a></span>) – (N,) array of group ids in range [0, num_groups-1].</p></li>
+<li><p><strong>group_decoding_order</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.jax.dev/en/latest/_autosummary/jax.Array.html#jax.Array" title="(in JAX)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Array</span></code></a></span>) – (M,) array, permutation of group ids [0, …, M-1].</p></li>
+<li><p><strong>num_groups</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a> | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span>) – Number of unique groups. If not provided, inferred from
+group_decoding_order length.</p></li>
+</ul>
 </dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_atoms']</span></code></span></p>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>(N,) array, decoding step for each residue.</p>
 </dd>
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>An atom mask where each atom can only attend to itself and previous atoms.</p>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>decoding_step_map</p>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.autoregression.make_autoregressive_mask">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.autoregression.</span></span><span class="sig-name descname"><span class="pre">make_autoregressive_mask</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">decoding_step_map</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/autoregression.html#make_autoregressive_mask"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.autoregression.make_autoregressive_mask" title="Link to this definition">#</a></dt>
+<dd><p>Create an (N, N) AR mask for group-based decoding.</p>
+<p>Positions at step i can attend to all positions at steps &lt;= i.
+This allows positions in the same group (same step) to attend to each other.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>decoding_step_map</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.jax.dev/en/latest/_autosummary/jax.Array.html#jax.Array" title="(in JAX)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Array</span></code></a></span>) – (N,) array, decoding step for each residue.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>(N, N) boolean array where mask[i,j]=True means position i</dt><dd><p>can attend to position j.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>mask</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.autoregression.resolve_tie_groups">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.autoregression.</span></span><span class="sig-name descname"><span class="pre">resolve_tie_groups</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spec</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">combined_protein</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">structure_mappings</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_structures</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/autoregression.html#resolve_tie_groups"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.autoregression.resolve_tie_groups" title="Link to this definition">#</a></dt>
+<dd><p>Resolve tie groups for tied_positions modes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>spec</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.RunSpecification" title="prxteinmpnn.run.specs.RunSpecification"><code class="xref py py-class docutils literal notranslate"><span class="pre">RunSpecification</span></code></a></span>) – RunSpecification with tied_positions.</p></li>
+<li><p><strong>combined_protein</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference internal" href="prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein" title="prxteinmpnn.utils.data_structures.Protein"><code class="xref py py-class docutils literal notranslate"><span class="pre">Protein</span></code></a></span>) – Protein dataclass with batch_dim=1 (1, seq_len, …).</p></li>
+<li><p><strong>structure_mappings</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Sequence</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a>] | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span>) – Optional, for ‘auto’ mode.</p></li>
+<li><p><strong>num_structures</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a> | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span>) – Optional, number of structures concatenated (for ‘direct’ mode).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>jnp.ndarray of shape (n,) with group ids.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tie_group_map</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="prxteinmpnn.utils.autoregression.generate_ar_mask">
+<span class="sig-prename descclassname"><span class="pre">prxteinmpnn.utils.autoregression.</span></span><span class="sig-name descname"><span class="pre">generate_ar_mask</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">decoding_order</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chain_idx</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tie_group_map</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_groups</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/prxteinmpnn/utils/autoregression.html#generate_ar_mask"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#prxteinmpnn.utils.autoregression.generate_ar_mask" title="Link to this definition">#</a></dt>
+<dd><p>Get the autoregressive mask for the given decoding order.</p>
+<p>When tie_group_map is provided, positions in the same group can attend to each
+other (within the same decoding step), enabling tied sampling.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>decoding_order</strong> (<span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Int[Array,</span> <span class="pre">'num_residues']</span></code></span>) – The order in which atoms are decoded.</p></li>
+<li><p><strong>chain_idx</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.jax.dev/en/latest/_autosummary/jax.Array.html#jax.Array" title="(in JAX)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Array</span></code></a> | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span>) – Optional chain indices. If provided, atoms can only attend to
+atoms in the same chain that come before them in the decoding order.</p></li>
+<li><p><strong>tie_group_map</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.jax.dev/en/latest/_autosummary/jax.Array.html#jax.Array" title="(in JAX)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Array</span></code></a> | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span>) – Optional (N,) array mapping each position to a group ID.
+When provided, positions in the same group are decoded simultaneously
+and can attend to each other.</p></li>
+<li><p><strong>num_groups</strong> (<span class="sphinx_autodoc_typehints-type"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a> | <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></span>) – Number of unique groups in tie_group_map. Required if
+tie_group_map is provided. Should equal tie_group_map.max() + 1
+when groups are normalized to [0, 1, …, num_groups-1].</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><span class="sphinx_autodoc_typehints-type"><code class="xref py py-class docutils literal notranslate"><span class="pre">Bool[Array,</span> <span class="pre">'num_residues</span> <span class="pre">num_residues']</span></code></span></p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>An autoregressive mask (N, N) where mask[i,j]=1 means position i can
+attend to position j during decoding.</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Standard AR mask</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">order</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">mask</span> <span class="o">=</span> <span class="n">generate_ar_mask</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># mask = [[1, 0, 0], [1, 1, 0], [1, 1, 1]]</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># With tied positions</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">tie_map</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>  <span class="c1"># Positions 0 and 2 are tied</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">mask</span> <span class="o">=</span> <span class="n">generate_ar_mask</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">tie_group_map</span><span class="o">=</span><span class="n">tie_map</span><span class="p">,</span> <span class="n">num_groups</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Positions 0 and 2 can attend to each other</span>
+</pre></div>
+</div>
 </dd></dl>
 
 </section>
@@ -485,6 +578,9 @@ document.write(`
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.autoregression.get_decoding_step_map"><code class="docutils literal notranslate"><span class="pre">get_decoding_step_map()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.autoregression.make_autoregressive_mask"><code class="docutils literal notranslate"><span class="pre">make_autoregressive_mask()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.autoregression.resolve_tie_groups"><code class="docutils literal notranslate"><span class="pre">resolve_tie_groups()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prxteinmpnn.utils.autoregression.generate_ar_mask"><code class="docutils literal notranslate"><span class="pre">generate_ar_mask()</span></code></a></li>
 </ul>
   </nav></div>

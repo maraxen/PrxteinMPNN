@@ -165,7 +165,6 @@
 
 
 
-
 <li class="toctree-l2"><a class="reference internal" href="api/prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="api/prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -379,6 +378,7 @@ document.write(`
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#key-features">Key Features</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#validation">Validation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#use-notes">Use notes</a></li>
 </ul>
@@ -406,7 +406,6 @@ document.write(`
 <li class="toctree-l2"><a class="reference internal" href="api/prxteinmpnn.html#prxteinmpnn.RunSpecification"><code class="docutils literal notranslate"><span class="pre">RunSpecification</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/prxteinmpnn.html#prxteinmpnn.SamplingSpecification"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/prxteinmpnn.html#prxteinmpnn.ScoringSpecification"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/prxteinmpnn.html#prxteinmpnn.categorical_jacobian"><code class="docutils literal notranslate"><span class="pre">categorical_jacobian()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/prxteinmpnn.html#prxteinmpnn.sample"><code class="docutils literal notranslate"><span class="pre">sample()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/prxteinmpnn.html#prxteinmpnn.score"><code class="docutils literal notranslate"><span class="pre">score()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
@@ -441,7 +440,43 @@ document.write(`
 <li><p><strong>JAX Compatibility:</strong> Efficient computation with JAX’s functional programming paradigm</p></li>
 <li><p><strong>Modular Design:</strong> Easy updates and extensions</p></li>
 <li><p><strong>Performance Optimization:</strong> Utilizes JAX’s JIT compilation and vectorization</p></li>
+<li><p><strong>Validated Implementation:</strong> &gt;0.95 correlation with ColabDesign across all decoding paths</p></li>
 </ul>
+</section>
+<section id="validation">
+<h2>Validation<a class="headerlink" href="#validation" title="Link to this heading">#</a></h2>
+<p>PrxteinMPNN has been rigorously validated against the original <a class="reference external" href="https://github.com/sokrypton/ColabDesign">ColabDesign ProteinMPNN</a> implementation:</p>
+<div class="pst-scrollable-table-container"><table class="table" id="id1">
+<caption><span class="caption-text">Equivalence Test Results</span><a class="headerlink" href="#id1" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 40.0%" />
+<col style="width: 30.0%" />
+<col style="width: 30.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Decoding Path</p></th>
+<th class="head"><p>Correlation</p></th>
+<th class="head"><p>Status</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Unconditional</p></td>
+<td><p>0.984</p></td>
+<td><p>✅ Validated</p></td>
+</tr>
+<tr class="row-odd"><td><p>Conditional</p></td>
+<td><p>0.958-0.984</p></td>
+<td><p>✅ Validated</p></td>
+</tr>
+<tr class="row-even"><td><p>Autoregressive</p></td>
+<td><p>0.953-0.970</p></td>
+<td><p>✅ Validated</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>All three decoding paths achieve <strong>&gt;0.95 Pearson correlation</strong> with ColabDesign outputs, ensuring faithful reproduction of the original model’s behavior.</p>
+<p>For detailed validation results and testing procedures, see <a class="reference external" href="https://github.com/maraxen/PrxteinMPNN/blob/main/docs/FINAL_VALIDATION_RESULTS.md">FINAL_VALIDATION_RESULTS.md</a>.</p>
 </section>
 <section id="installation">
 <h2>Installation<a class="headerlink" href="#installation" title="Link to this heading">#</a></h2>
@@ -495,6 +530,7 @@ document.write(`
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#key-features">Key Features</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#validation">Validation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#use-notes">Use notes</a></li>
 </ul>

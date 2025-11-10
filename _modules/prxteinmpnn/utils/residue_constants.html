@@ -163,7 +163,6 @@
 
 
 
-
 <li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -779,7 +778,10 @@ document.write(`
   <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">lines_iter</span><span class="p">:</span>
     <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;-&quot;</span><span class="p">:</span>
       <span class="k">break</span>
-    <span class="n">bond</span><span class="p">,</span> <span class="n">resname</span><span class="p">,</span> <span class="n">length</span><span class="p">,</span> <span class="n">stddev</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+    <span class="n">parts</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">4</span><span class="p">:</span>  <span class="c1"># noqa: PLR2004</span>
+      <span class="k">continue</span>
+    <span class="n">bond</span><span class="p">,</span> <span class="n">resname</span><span class="p">,</span> <span class="n">length</span><span class="p">,</span> <span class="n">stddev</span> <span class="o">=</span> <span class="n">parts</span>
     <span class="n">atom1</span><span class="p">,</span> <span class="n">atom2</span> <span class="o">=</span> <span class="n">bond</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">resname</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">residue_bonds</span><span class="p">:</span>
       <span class="n">residue_bonds</span><span class="p">[</span><span class="n">resname</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
@@ -790,7 +792,10 @@ document.write(`
   <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">lines_iter</span><span class="p">:</span>
     <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;-&quot;</span><span class="p">:</span>
       <span class="k">break</span>
-    <span class="n">bond</span><span class="p">,</span> <span class="n">resname</span><span class="p">,</span> <span class="n">angle_degree</span><span class="p">,</span> <span class="n">stddev_degree</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+    <span class="n">parts</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">4</span><span class="p">:</span>  <span class="c1"># noqa: PLR2004</span>
+      <span class="k">continue</span>
+    <span class="n">bond</span><span class="p">,</span> <span class="n">resname</span><span class="p">,</span> <span class="n">angle_degree</span><span class="p">,</span> <span class="n">stddev_degree</span> <span class="o">=</span> <span class="n">parts</span>
     <span class="n">atom1</span><span class="p">,</span> <span class="n">atom2</span><span class="p">,</span> <span class="n">atom3</span> <span class="o">=</span> <span class="n">bond</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">resname</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">residue_bond_angles</span><span class="p">:</span>
       <span class="n">residue_bond_angles</span><span class="p">[</span><span class="n">resname</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>

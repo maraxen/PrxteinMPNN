@@ -163,7 +163,6 @@
 
 
 
-
 <li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -364,18 +363,30 @@ document.write(`
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">flax.struct</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.residue_constants</span><span class="w"> </span><span class="kn">import</span> <span class="n">atom_order</span>
+
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
   <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
   <span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">Int</span>
 
   <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">BIC</span><span class="p">,</span>
+    <span class="n">AlphaCarbonMask</span><span class="p">,</span>
     <span class="n">AtomMask</span><span class="p">,</span>
     <span class="n">BackboneDihedrals</span><span class="p">,</span>
     <span class="n">ChainIndex</span><span class="p">,</span>
+    <span class="n">ComponentCounts</span><span class="p">,</span>
+    <span class="n">Converged</span><span class="p">,</span>
+    <span class="n">Covariances</span><span class="p">,</span>
+    <span class="n">EnsembleData</span><span class="p">,</span>
+    <span class="n">LogLikelihood</span><span class="p">,</span>
+    <span class="n">Means</span><span class="p">,</span>
     <span class="n">OneHotProteinSequence</span><span class="p">,</span>
     <span class="n">ProteinSequence</span><span class="p">,</span>
     <span class="n">ResidueIndex</span><span class="p">,</span>
+    <span class="n">Responsibilities</span><span class="p">,</span>
     <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
+    <span class="n">Weights</span><span class="p">,</span>
   <span class="p">)</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span> <span class="k">as</span> <span class="n">dc</span>
@@ -435,6 +446,26 @@ document.write(`
 
 
 
+<div class="viewcode-block" id="include_feature">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.include_feature">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">include_feature</span><span class="p">(</span><span class="n">feature_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">include_features</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Determine if a feature should be included.</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">      feature_name (str): The name of the feature to check.</span>
+<span class="sd">      include_features (Sequence[str] | None): The list of features to include.</span>
+<span class="sd">          If None, no features are included.</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">      bool: True if the feature should be included, False otherwise.</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="n">include_features</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">return</span> <span class="kc">False</span>
+  <span class="k">return</span> <span class="n">feature_name</span> <span class="ow">in</span> <span class="n">include_features</span> <span class="ow">or</span> <span class="s2">&quot;all&quot;</span> <span class="ow">in</span> <span class="n">include_features</span></div>
+
+
+
 <div class="viewcode-block" id="Protein">
 <a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein">[docs]</a>
 <span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -449,56 +480,94 @@ document.write(`
 <span class="sd">      number of atom types (e.g., N, CA, CB, C, O), and 3 is the spatial dimension (x, y, z).</span>
 <span class="sd">    aatype (Sequence): Amino-acid type for each residue represented as an integer between 0 and 20,</span>
 <span class="sd">      where 20 is &#39;X&#39;. Shape is [num_res].</span>
-<span class="sd">    atom_mask (AtomMask): Binary float mask to indicate presence of a particular atom.</span>
+<span class="sd">    mask (AlphaCarbonMask): Binary float mask to indicate presence of alpha carbon atom.</span>
 <span class="sd">      1.0 if an atom is present and 0.0 if not. This should be used for loss masking.</span>
 <span class="sd">      Shape is [num_res, num_atom_type].</span>
 <span class="sd">    residue_index (AtomResidueIndex): Residue index as used in PDB. It is not necessarily</span>
 <span class="sd">      continuous or 0-indexed. Shape is [num_res].</span>
+<span class="sd">    chain_index (ChainIndex): Chain index for each residue. Shape is [num_res].</span>
+<span class="sd">    dihedrals (BackboneDihedrals | None): Dihedral angles for backbone atoms (phi, psi, omega).</span>
+<span class="sd">      Shape is [num_res, 3]. If not provided, defaults to None.</span>
+<span class="sd">    mapping (jnp.Array | None): Optional array mapping residues in the ensemble to original</span>
+<span class="sd">      structure indices. Shape is [num_res, num_frames]. If not provided, defaults to None.</span>
+<span class="sd">    full_coordinates (StructureAtomicCoordinates | None): Full atomic coordinates</span>
+<span class="sd">      including all heavy atoms. Shape is (num_res, num_full_atom_type, 3), where num_full_atom_type</span>
+<span class="sd">      is the number of all heavy atom types (e.g., N, CA, CB, C, O, CG, etc.), and 3 is the spatial</span>
+<span class="sd">      dimension (x, y, z). If not provided, defaults to None.</span>
+<span class="sd">    full_atom_mask (AtomMask | None): Binary float mask to indicate presence of a particular</span>
+<span class="sd">      heavy atom. 1.0 if an atom is present and 0.0 if not. This should be used for loss masking.</span>
+<span class="sd">      Shape is [num_res, num_full_atom_type]. If not provided, defaults to None.</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
 
   <span class="n">coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span>
   <span class="n">aatype</span><span class="p">:</span> <span class="n">ProteinSequence</span>
   <span class="n">one_hot_sequence</span><span class="p">:</span> <span class="n">OneHotProteinSequence</span>
-  <span class="n">atom_mask</span><span class="p">:</span> <span class="n">AtomMask</span>
+  <span class="n">mask</span><span class="p">:</span> <span class="n">AlphaCarbonMask</span>
   <span class="n">residue_index</span><span class="p">:</span> <span class="n">ResidueIndex</span>
   <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span>
   <span class="n">dihedrals</span><span class="p">:</span> <span class="n">BackboneDihedrals</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
   <span class="n">mapping</span><span class="p">:</span> <span class="n">Int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
   <span class="n">full_coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">full_atom_mask</span><span class="p">:</span> <span class="n">AtomMask</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
 <div class="viewcode-block" id="Protein.from_tuple">
 <a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.Protein.from_tuple">[docs]</a>
   <span class="nd">@classmethod</span>
-  <span class="k">def</span><span class="w"> </span><span class="nf">from_tuple</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">protein_tuple</span><span class="p">:</span> <span class="n">ProteinTuple</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Protein</span><span class="p">:</span>
+  <span class="k">def</span><span class="w"> </span><span class="nf">from_tuple</span><span class="p">(</span>
+    <span class="bp">cls</span><span class="p">,</span>
+    <span class="n">protein_tuple</span><span class="p">:</span> <span class="n">ProteinTuple</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">include_extras</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span>
+      <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;dihedrals&quot;</span><span class="p">,</span> <span class="s2">&quot;mapping&quot;</span><span class="p">,</span> <span class="s2">&quot;full_coordinates&quot;</span><span class="p">,</span> <span class="s2">&quot;full_atom_mask&quot;</span><span class="p">,</span> <span class="s2">&quot;all&quot;</span><span class="p">]</span>
+    <span class="p">]</span>
+    <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Protein</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a Protein instance from a ProteinTuple.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        protein_tuple (ProteinTuple): The input protein tuple.</span>
+<span class="sd">        include_extras:</span>
+<span class="sd">            Optional list of extra fields to include from the tuple.</span>
+<span class="sd">            If &#39;all&#39; is included, all optional fields will be included.</span>
+<span class="sd">            If None, no optional fields will be included.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">        Protein: The output protein dataclass.</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># NOTE: Keep atom ordering as-is from parser (matches 0.871 correlation baseline)</span>
+    <span class="c1"># The parser places atoms in PDB file order where O and CB are swapped vs atom37 standard,</span>
+    <span class="c1"># but this is how the model achieves 0.871 correlation, so we preserve it.</span>
+
     <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
       <span class="n">coordinates</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">coordinates</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span>
       <span class="n">aatype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">aatype</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int8</span><span class="p">),</span>
       <span class="n">one_hot_sequence</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="mi">21</span><span class="p">)[</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">aatype</span><span class="p">],</span>
-      <span class="n">atom_mask</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">atom_mask</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span>
+      <span class="n">mask</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">atom_mask</span><span class="p">[:,</span> <span class="n">atom_order</span><span class="p">[</span><span class="s2">&quot;CA&quot;</span><span class="p">]],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span>
       <span class="n">residue_index</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">residue_index</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span>
       <span class="n">chain_index</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">chain_index</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span>
       <span class="n">dihedrals</span><span class="o">=</span><span class="p">(</span>
         <span class="kc">None</span>
-        <span class="k">if</span> <span class="n">protein_tuple</span><span class="o">.</span><span class="n">dihedrals</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">protein_tuple</span><span class="o">.</span><span class="n">dihedrals</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">include_feature</span><span class="p">(</span><span class="s2">&quot;dihedrals&quot;</span><span class="p">,</span> <span class="n">include_extras</span><span class="p">)</span>
         <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">dihedrals</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
       <span class="p">),</span>
       <span class="n">mapping</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">mapping</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
       <span class="k">if</span> <span class="n">protein_tuple</span><span class="o">.</span><span class="n">mapping</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+      <span class="ow">and</span> <span class="n">include_extras</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+      <span class="ow">and</span> <span class="p">(</span><span class="s2">&quot;mapping&quot;</span> <span class="ow">in</span> <span class="n">include_extras</span> <span class="ow">or</span> <span class="s2">&quot;all&quot;</span> <span class="ow">in</span> <span class="n">include_extras</span><span class="p">)</span>
       <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
       <span class="n">full_coordinates</span><span class="o">=</span><span class="p">(</span>
         <span class="kc">None</span>
         <span class="k">if</span> <span class="n">protein_tuple</span><span class="o">.</span><span class="n">full_coordinates</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="ow">or</span> <span class="ow">not</span> <span class="n">include_feature</span><span class="p">(</span><span class="s2">&quot;full_coordinates&quot;</span><span class="p">,</span> <span class="n">include_extras</span><span class="p">)</span>
         <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">full_coordinates</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+      <span class="p">),</span>
+      <span class="n">full_atom_mask</span><span class="o">=</span><span class="p">(</span>
+        <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">protein_tuple</span><span class="o">.</span><span class="n">full_coordinates</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="ow">or</span> <span class="ow">not</span> <span class="n">include_feature</span><span class="p">(</span><span class="s2">&quot;full_atom_mask&quot;</span><span class="p">,</span> <span class="n">include_extras</span><span class="p">)</span>
+        <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">protein_tuple</span><span class="o">.</span><span class="n">atom_mask</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
       <span class="p">),</span>
     <span class="p">)</span></div>
 </div>
@@ -509,41 +578,72 @@ document.write(`
 <span class="n">ProteinBatch</span> <span class="o">=</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Protein</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="ProteinEnsemble">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.ProteinEnsemble">[docs]</a>
-<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">ProteinEnsemble</span><span class="p">:</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Protein structure or ensemble representation.</span>
+<div class="viewcode-block" id="_EStepState">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures._EStepState">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_EStepState</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;State for accumulating statistics during the E-step.&quot;&quot;&quot;</span>
 
-<span class="sd">  Attributes:</span>
-<span class="sd">    coordinates (StructureAtomicCoordinates): Atom positions in the structure, represented as a</span>
-<span class="sd">      3D array. Cartesian coordinates of atoms in angstroms. The atom types correspond to</span>
-<span class="sd">      residue_constants.atom_types, i.e. the first three are N, CA, CB. Shape is</span>
-<span class="sd">      (num_res, num_atom_type, 3), where num_res is the number of residues, num_atom_type is the</span>
-<span class="sd">      number of atom types (e.g., N, CA, CB, C, O), and 3 is the spatial dimension (x, y, z).</span>
-<span class="sd">    aatype (Sequence): Amino-acid type for each residue represented as an integer between 0 and 20,</span>
-<span class="sd">      where 20 is &#39;X&#39;. Shape is [num_res].</span>
-<span class="sd">    atom_mask (AtomMask): Binary float mask to indicate presence of a particular atom.</span>
-<span class="sd">      1.0 if an atom is present and 0.0 if not. This should be used for loss masking.</span>
-<span class="sd">      Shape is [num_res, num_atom_type].</span>
-<span class="sd">    residue_index (AtomResidueIndex): Residue index as used in PDB. It is not necessarily</span>
-<span class="sd">      continuous or 0-indexed. Shape is [num_res].</span>
-<span class="sd">    chain_index (ChainIndex): Chain index for each residue. Shape is [num_res].</span>
-<span class="sd">    dihedrals (BackboneDihedrals | None): Dihedral angles for backbone atoms (phi, psi, omega).</span>
-<span class="sd">      Shape is [num_res, 3]. If not provided, defaults to None.</span>
-<span class="sd">    mapping (jnp.Array | None): Optional array mapping residues in the ensemble to original</span>
-<span class="sd">      structure indices. Shape is [num_res, num_frames]. If not provided, defaults to None.</span>
+  <span class="n">component_counts</span><span class="p">:</span> <span class="n">ComponentCounts</span>
+  <span class="n">weighted_data</span><span class="p">:</span> <span class="n">EnsembleData</span>
+  <span class="n">weighted_squared_data</span><span class="p">:</span> <span class="n">EnsembleData</span>
+  <span class="n">log_likelihood_total</span><span class="p">:</span> <span class="n">LogLikelihood</span></div>
+
+
+
+<div class="viewcode-block" id="GMM">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.GMM">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">GMM</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Dataclass to hold GMM parameters.&quot;&quot;&quot;</span>
+
+  <span class="n">means</span><span class="p">:</span> <span class="n">Means</span>
+  <span class="n">covariances</span><span class="p">:</span> <span class="n">Covariances</span>
+  <span class="n">weights</span><span class="p">:</span> <span class="n">Weights</span>
+  <span class="n">responsibilities</span><span class="p">:</span> <span class="n">Responsibilities</span>
+  <span class="n">n_components</span><span class="p">:</span> <span class="nb">int</span>
+  <span class="n">n_features</span><span class="p">:</span> <span class="nb">int</span></div>
+
+
+
+<div class="viewcode-block" id="EMLoopState">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMLoopState">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">EMLoopState</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;State for the in-memory EM loop.&quot;&quot;&quot;</span>
+
+  <span class="n">gmm</span><span class="p">:</span> <span class="n">GMM</span>
+  <span class="n">n_iter</span><span class="p">:</span> <span class="n">Int</span>
+  <span class="n">log_likelihood</span><span class="p">:</span> <span class="n">LogLikelihood</span>
+  <span class="n">log_likelihood_diff</span><span class="p">:</span> <span class="n">LogLikelihood</span></div>
+
+
+
+<div class="viewcode-block" id="EMFitterResult">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.utils.data_structures.html#prxteinmpnn.utils.data_structures.EMFitterResult">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">EMFitterResult</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Result of the Expectation-Maximization fitting process.</span>
+
+<span class="sd">  Attributes</span>
+<span class="sd">  ----------</span>
+<span class="sd">  gmm : GMM</span>
+<span class="sd">      The final fitted Gaussian mixture model.</span>
+<span class="sd">  n_iter : jax.Array</span>
+<span class="sd">      The total number of iterations performed.</span>
+<span class="sd">  log_likelihood : jax.Array</span>
+<span class="sd">      The log-likelihood of the data under the final model.</span>
+<span class="sd">  converged : jax.Array</span>
+<span class="sd">      A boolean indicating if the algorithm converged within the max iterations.</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
 
-  <span class="n">coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span>
-  <span class="n">aatype</span><span class="p">:</span> <span class="n">ProteinSequence</span>
-  <span class="n">one_hot_sequence</span><span class="p">:</span> <span class="n">OneHotProteinSequence</span>
-  <span class="n">atom_mask</span><span class="p">:</span> <span class="n">AtomMask</span>
-  <span class="n">residue_index</span><span class="p">:</span> <span class="n">ResidueIndex</span>
-  <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span>
-  <span class="n">dihedrals</span><span class="p">:</span> <span class="n">BackboneDihedrals</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-  <span class="n">mapping</span><span class="p">:</span> <span class="n">Int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
+  <span class="n">gmm</span><span class="p">:</span> <span class="n">GMM</span>
+  <span class="n">n_iter</span><span class="p">:</span> <span class="n">Int</span>
+  <span class="n">log_likelihood</span><span class="p">:</span> <span class="n">LogLikelihood</span>
+  <span class="n">log_likelihood_diff</span><span class="p">:</span> <span class="n">LogLikelihood</span>
+  <span class="n">converged</span><span class="p">:</span> <span class="n">Converged</span>
+  <span class="n">features</span><span class="p">:</span> <span class="n">EnsembleData</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">bic</span><span class="p">:</span> <span class="n">BIC</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
 
 
 

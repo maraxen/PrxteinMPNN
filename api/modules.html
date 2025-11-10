@@ -164,7 +164,6 @@
 
 
 
-
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -405,6 +404,8 @@ document.write(`
 <li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.html"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification</span></code></a><ul>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.JacobianSpecification.apc_batch_size"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.apc_batch_size</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.JacobianSpecification.apc_residue_batch_size"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.apc_residue_batch_size</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.JacobianSpecification.average_encodings"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.average_encodings</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.JacobianSpecification.average_logits"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.average_logits</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.JacobianSpecification.combine"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.combine</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.JacobianSpecification.combine_batch_size"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.combine_batch_size</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.JacobianSpecification.combine_fn"><code class="docutils literal notranslate"><span class="pre">JacobianSpecification.combine_fn</span></code></a></li>
@@ -424,7 +425,6 @@ document.write(`
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.RunSpecification.batch_size"><code class="docutils literal notranslate"><span class="pre">RunSpecification.batch_size</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.RunSpecification.backbone_noise"><code class="docutils literal notranslate"><span class="pre">RunSpecification.backbone_noise</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.RunSpecification.foldcomp_database"><code class="docutils literal notranslate"><span class="pre">RunSpecification.foldcomp_database</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.RunSpecification.num_workers"><code class="docutils literal notranslate"><span class="pre">RunSpecification.num_workers</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.RunSpecification.ar_mask"><code class="docutils literal notranslate"><span class="pre">RunSpecification.ar_mask</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.RunSpecification.random_seed"><code class="docutils literal notranslate"><span class="pre">RunSpecification.random_seed</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.RunSpecification.chain_id"><code class="docutils literal notranslate"><span class="pre">RunSpecification.chain_id</span></code></a></li>
@@ -436,6 +436,7 @@ document.write(`
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id1"><code class="docutils literal notranslate"><span class="pre">RunSpecification.ar_mask</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id2"><code class="docutils literal notranslate"><span class="pre">RunSpecification.backbone_noise</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id3"><code class="docutils literal notranslate"><span class="pre">RunSpecification.batch_size</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.RunSpecification.cache_path"><code class="docutils literal notranslate"><span class="pre">RunSpecification.cache_path</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id4"><code class="docutils literal notranslate"><span class="pre">RunSpecification.chain_id</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id5"><code class="docutils literal notranslate"><span class="pre">RunSpecification.conformational_states</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id6"><code class="docutils literal notranslate"><span class="pre">RunSpecification.decoding_order_fn</span></code></a></li>
@@ -443,19 +444,26 @@ document.write(`
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id8"><code class="docutils literal notranslate"><span class="pre">RunSpecification.model</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id9"><code class="docutils literal notranslate"><span class="pre">RunSpecification.model_version</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id10"><code class="docutils literal notranslate"><span class="pre">RunSpecification.model_weights</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id11"><code class="docutils literal notranslate"><span class="pre">RunSpecification.num_workers</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id12"><code class="docutils literal notranslate"><span class="pre">RunSpecification.random_seed</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.RunSpecification.output_path"><code class="docutils literal notranslate"><span class="pre">RunSpecification.output_path</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.RunSpecification.overwrite_cache"><code class="docutils literal notranslate"><span class="pre">RunSpecification.overwrite_cache</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.RunSpecification.pass_mode"><code class="docutils literal notranslate"><span class="pre">RunSpecification.pass_mode</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id11"><code class="docutils literal notranslate"><span class="pre">RunSpecification.random_seed</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.RunSpecification.tied_positions"><code class="docutils literal notranslate"><span class="pre">RunSpecification.tied_positions</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.RunSpecification.topology"><code class="docutils literal notranslate"><span class="pre">RunSpecification.topology</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id13"><code class="docutils literal notranslate"><span class="pre">RunSpecification.inputs</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id12"><code class="docutils literal notranslate"><span class="pre">RunSpecification.inputs</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.SamplingSpecification"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification</span></code></a><ul>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.SamplingSpecification.average_encodings"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.average_encodings</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.SamplingSpecification.average_logits"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.average_logits</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.SamplingSpecification.bias"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.bias</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.SamplingSpecification.fixed_positions"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.fixed_positions</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.SamplingSpecification.iterations"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.iterations</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.SamplingSpecification.learning_rate"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.learning_rate</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.SamplingSpecification.noise_batch_size"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.noise_batch_size</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.SamplingSpecification.num_samples"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.num_samples</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.SamplingSpecification.output_h5_path"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.output_h5_path</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.SamplingSpecification.samples_batch_size"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.samples_batch_size</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.SamplingSpecification.sampling_strategy"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.sampling_strategy</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.SamplingSpecification.temperature"><code class="docutils literal notranslate"><span class="pre">SamplingSpecification.temperature</span></code></a></li>
 </ul>
@@ -468,29 +476,26 @@ document.write(`
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.ScoringSpecification.return_all_scores"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.return_all_scores</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.ScoringSpecification.score_batch_size"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.score_batch_size</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.ScoringSpecification.output_h5_path"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.output_h5_path</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id14"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.output_h5_path</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id15"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.return_all_scores</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id16"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.return_decoding_orders</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id17"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.return_logits</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id18"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.score_batch_size</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id19"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.sequences_to_score</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id20"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.temperature</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id13"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.output_h5_path</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id14"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.return_all_scores</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id15"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.return_decoding_orders</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id16"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.return_logits</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id17"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.score_batch_size</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id18"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.sequences_to_score</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.html#id19"><code class="docutils literal notranslate"><span class="pre">ScoringSpecification.temperature</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.categorical_jacobian"><code class="docutils literal notranslate"><span class="pre">categorical_jacobian()</span></code></a></li>
 <li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.sample"><code class="docutils literal notranslate"><span class="pre">sample()</span></code></a></li>
 <li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.html#prxteinmpnn.score"><code class="docutils literal notranslate"><span class="pre">score()</span></code></a></li>
 <li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
-<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.mpnn.html#prxteinmpnn.mpnn.get_mpnn_model"><code class="docutils literal notranslate"><span class="pre">get_mpnn_model()</span></code></a></li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
 <li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.model.html">model: MPNN model architecture</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.html#prxteinmpnn.model.dense_layer"><code class="docutils literal notranslate"><span class="pre">dense_layer()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.html#prxteinmpnn.model.extract_features"><code class="docutils literal notranslate"><span class="pre">extract_features()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.html#prxteinmpnn.model.final_projection"><code class="docutils literal notranslate"><span class="pre">final_projection()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.html#prxteinmpnn.model.make_decoder"><code class="docutils literal notranslate"><span class="pre">make_decoder()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.html#prxteinmpnn.model.make_encoder"><code class="docutils literal notranslate"><span class="pre">make_encoder()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.html#prxteinmpnn.model.Decoder"><code class="docutils literal notranslate"><span class="pre">Decoder</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.html#prxteinmpnn.model.DecoderLayer"><code class="docutils literal notranslate"><span class="pre">DecoderLayer</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.html#prxteinmpnn.model.Encoder"><code class="docutils literal notranslate"><span class="pre">Encoder</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.html#prxteinmpnn.model.EncoderLayer"><code class="docutils literal notranslate"><span class="pre">EncoderLayer</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.html#prxteinmpnn.model.ProteinFeatures"><code class="docutils literal notranslate"><span class="pre">ProteinFeatures</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.html#prxteinmpnn.model.PrxteinMPNN"><code class="docutils literal notranslate"><span class="pre">PrxteinMPNN</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.encoder.html">encoder</a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.decoder.html">decoder</a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.model.projection.html">projection</a></li>
@@ -499,7 +504,12 @@ document.write(`
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="prxteinmpnn.sampling.html">sampling: Sampling methods for MPNN</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.sampling.html#prxteinmpnn.sampling.make_conditional_logits_fn"><code class="docutils literal notranslate"><span class="pre">make_conditional_logits_fn()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.sampling.html#prxteinmpnn.sampling.make_encoding_conditional_logits_split_fn"><code class="docutils literal notranslate"><span class="pre">make_encoding_conditional_logits_split_fn()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.sampling.html#prxteinmpnn.sampling.make_encoding_sampling_split_fn"><code class="docutils literal notranslate"><span class="pre">make_encoding_sampling_split_fn()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.sampling.html#prxteinmpnn.sampling.make_sample_sequences"><code class="docutils literal notranslate"><span class="pre">make_sample_sequences()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.sampling.html#prxteinmpnn.sampling.make_unconditional_logits_fn"><code class="docutils literal notranslate"><span class="pre">make_unconditional_logits_fn()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.sampling.html#prxteinmpnn.sampling.sample"><code class="docutils literal notranslate"><span class="pre">sample()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.sampling.initialize.html">initialize</a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.sampling.sample.html">sample</a></li>
 <li class="toctree-l2"><a class="reference internal" href="prxteinmpnn.sampling.sampling_step.html">sampling_step</a></li>

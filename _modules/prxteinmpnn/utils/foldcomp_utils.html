@@ -163,7 +163,6 @@
 
 
 
-
 <li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -356,19 +355,39 @@ document.write(`
 <span class="sd">prxteinmpnn.utils.foldcomp_utils</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">cache</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Literal</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">foldcomp</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.io.parsing</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-  <span class="n">string_to_protein_sequence</span><span class="p">,</span>
-<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.io.parsing.mappings</span><span class="w"> </span><span class="kn">import</span> <span class="n">string_to_protein_sequence</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.data_structures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ProteinStream</span><span class="p">,</span> <span class="n">ProteinTuple</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+  <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
+
+  <span class="kn">import</span><span class="w"> </span><span class="nn">foldcomp</span>  <span class="c1"># type: ignore[import-untyped]</span>
+
+  <span class="n">FOLDCOMP_INSTALLED</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="k">else</span><span class="p">:</span>
+  <span class="n">FOLDCOMP_INSTALLED</span> <span class="o">=</span> <span class="kc">False</span>
+  <span class="n">foldcomp</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># type: ignore[no-redef]</span>
+  <span class="k">try</span><span class="p">:</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">foldcomp</span>  <span class="c1"># type: ignore[import-untyped]</span>
+
+    <span class="n">FOLDCOMP_INSTALLED</span> <span class="o">=</span> <span class="kc">True</span>
+  <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="k">pass</span>
+
+<span class="c1"># Error message constant</span>
+<span class="n">FOLDCOMP_NOT_INSTALLED_MSG</span> <span class="o">=</span> <span class="p">(</span>
+  <span class="s2">&quot;The &#39;foldcomp&#39; library is required to use the FoldComp utilities &quot;</span>
+  <span class="s2">&quot;but it is not installed. Please install it with: pip install foldcomp&quot;</span>
+<span class="p">)</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
@@ -407,7 +426,9 @@ document.write(`
 
 <span class="sd">  This is designed to be called from within a synchronous worker process.</span>
 <span class="sd">  &quot;&quot;&quot;</span>
-  <span class="n">foldcomp</span><span class="o">.</span><span class="n">setup</span><span class="p">(</span><span class="n">database</span><span class="p">)</span></div>
+  <span class="k">if</span> <span class="ow">not</span> <span class="n">FOLDCOMP_INSTALLED</span><span class="p">:</span>
+    <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span><span class="n">FOLDCOMP_NOT_INSTALLED_MSG</span><span class="p">)</span>
+  <span class="n">foldcomp</span><span class="o">.</span><span class="n">setup</span><span class="p">(</span><span class="n">database</span><span class="p">)</span>  <span class="c1"># type: ignore[union-attr]</span></div>
 
 
 
@@ -426,10 +447,11 @@ document.write(`
 <span class="sd">    database: The FoldCompDatabase to use.</span>
 
 <span class="sd">  Returns:</span>
-<span class="sd">    A list of ProteinEnsemble objects. Each ensemble contains the structure(s)</span>
-<span class="sd">    for one of the requested protein IDs.</span>
+<span class="sd">    A generator of Protein objects.</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="ow">not</span> <span class="n">FOLDCOMP_INSTALLED</span><span class="p">:</span>
+    <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span><span class="n">FOLDCOMP_NOT_INSTALLED_MSG</span><span class="p">)</span>
   <span class="k">if</span> <span class="n">database</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
     <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
       <span class="s2">&quot;No FoldComp database specified. Defaulting to &#39;afdb_rep_v4&#39;.&quot;</span><span class="p">,</span>

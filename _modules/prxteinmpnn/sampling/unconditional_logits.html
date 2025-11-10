@@ -7,7 +7,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>prxteinmpnn.model.masked_attention &#8212; PrxteinMPNN 0.1.0 documentation</title>
+    <title>prxteinmpnn.sampling.unconditional_logits &#8212; PrxteinMPNN 0.1.0 documentation</title>
   
   
   
@@ -46,7 +46,7 @@
     <script src="../../../_static/copybutton.js?v=30646c52"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
     <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/prxteinmpnn/model/masked_attention';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/prxteinmpnn/sampling/unconditional_logits';</script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -163,7 +163,6 @@
 
 
 
-
 <li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -261,6 +260,9 @@
     
     <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
     
+    
+    <li class="breadcrumb-item"><a href="../sampling.html" class="nav-link">prxteinmpnn.sampling</a></li>
+    
     <li class="breadcrumb-item active" aria-current="page">prxteinmpnn....</li>
   </ul>
 </nav>
@@ -350,34 +352,126 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <h1>Source code for prxteinmpnn.model.masked_attention</h1><div class="highlight"><pre>
-<span></span><span class="sd">&quot;&quot;&quot;Masked attention functions.&quot;&quot;&quot;</span>
+  <h1>Source code for prxteinmpnn.sampling.unconditional_logits</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Factory for creating unconditional logits functions.</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
+<span class="sd">Unconditional logits are computed without providing a sequence input,</span>
+<span class="sd">allowing the model to predict the most likely amino acids at each position</span>
+<span class="sd">based solely on the structure.</span>
+
+<span class="sd">This is used for:</span>
+<span class="sd">- Straight-through optimization (as the target distribution)</span>
+<span class="sd">- Baseline sequence scoring</span>
+<span class="sd">- Conformational inference</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">AttentionMask</span><span class="p">,</span> <span class="n">Message</span>
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+  <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
 
-<span class="n">MaskedAttentionType</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;none&quot;</span><span class="p">,</span> <span class="s2">&quot;cross&quot;</span><span class="p">,</span> <span class="s2">&quot;conditional&quot;</span><span class="p">]</span>
+  <span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">PRNGKeyArray</span>
+
+  <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model</span><span class="w"> </span><span class="kn">import</span> <span class="n">PrxteinMPNN</span>
+  <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">AlphaCarbonMask</span><span class="p">,</span>
+    <span class="n">AutoRegressiveMask</span><span class="p">,</span>
+    <span class="n">BackboneNoise</span><span class="p">,</span>
+    <span class="n">ChainIndex</span><span class="p">,</span>
+    <span class="n">Logits</span><span class="p">,</span>
+    <span class="n">ResidueIndex</span><span class="p">,</span>
+    <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
+  <span class="p">)</span>
+
+  <span class="n">UnconditionalLogitsFn</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">[</span>
+    <span class="p">[</span>
+      <span class="n">PRNGKeyArray</span><span class="p">,</span>
+      <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
+      <span class="n">AlphaCarbonMask</span><span class="p">,</span>
+      <span class="n">ResidueIndex</span><span class="p">,</span>
+      <span class="n">ChainIndex</span><span class="p">,</span>
+      <span class="n">AutoRegressiveMask</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+      <span class="n">BackboneNoise</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">],</span>
+    <span class="n">Logits</span><span class="p">,</span>
+  <span class="p">]</span>
 
 
-<div class="viewcode-block" id="mask_attention">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.model.masked_attention.html#prxteinmpnn.model.masked_attention.mask_attention">[docs]</a>
-<span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">mask_attention</span><span class="p">(</span><span class="n">message</span><span class="p">:</span> <span class="n">Message</span><span class="p">,</span> <span class="n">attention_mask</span><span class="p">:</span> <span class="n">AttentionMask</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Message</span><span class="p">:</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Apply attention mask to the message.</span>
+<div class="viewcode-block" id="make_unconditional_logits_fn">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.sampling.html#prxteinmpnn.sampling.make_unconditional_logits_fn">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">make_unconditional_logits_fn</span><span class="p">(</span>
+  <span class="n">model</span><span class="p">:</span> <span class="n">PrxteinMPNN</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">UnconditionalLogitsFn</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Create a function to compute unconditional logits from a structure.</span>
+
+<span class="sd">  Unconditional logits are computed without sequence input, predicting</span>
+<span class="sd">  the most likely amino acids at each position based purely on structure.</span>
 
 <span class="sd">  Args:</span>
-<span class="sd">    message: The message to be masked.</span>
-<span class="sd">    attention_mask: The attention mask to apply.</span>
+<span class="sd">    model: A PrxteinMPNN Equinox model instance.</span>
 
 <span class="sd">  Returns:</span>
-<span class="sd">    The masked message.</span>
+<span class="sd">    A function that computes unconditional logits from structures.</span>
+
+<span class="sd">  Example:</span>
+<span class="sd">    &gt;&gt;&gt; from prxteinmpnn.io.weights import load_model</span>
+<span class="sd">    &gt;&gt;&gt; model = load_model()</span>
+<span class="sd">    &gt;&gt;&gt; logits_fn = make_unconditional_logits_fn(model)</span>
+<span class="sd">    &gt;&gt;&gt; logits = logits_fn(key, coords, mask, res_idx, chain_idx)</span>
 
 <span class="sd">  &quot;&quot;&quot;</span>
-  <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">attention_mask</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">message</span></div>
+
+  <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">)</span>
+  <span class="k">def</span><span class="w"> </span><span class="nf">unconditional_logits</span><span class="p">(</span>
+    <span class="n">prng_key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
+    <span class="n">structure_coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
+    <span class="n">mask</span><span class="p">:</span> <span class="n">AlphaCarbonMask</span><span class="p">,</span>
+    <span class="n">residue_index</span><span class="p">:</span> <span class="n">ResidueIndex</span><span class="p">,</span>
+    <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span><span class="p">,</span>
+    <span class="n">ar_mask</span><span class="p">:</span> <span class="n">AutoRegressiveMask</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">backbone_noise</span><span class="p">:</span> <span class="n">BackboneNoise</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Logits</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Compute unconditional logits for a structure.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">      prng_key: JAX random key (unused but kept for API consistency).</span>
+<span class="sd">      structure_coordinates: Atomic coordinates (N, 4, 3).</span>
+<span class="sd">      mask: Alpha carbon mask indicating valid residues.</span>
+<span class="sd">      residue_index: Residue indices.</span>
+<span class="sd">      chain_index: Chain indices.</span>
+<span class="sd">      ar_mask: Optional autoregressive mask (N, N).</span>
+<span class="sd">      backbone_noise: Optional noise for backbone coordinates.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">      Logits of shape (N, 21) for each residue position.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">      &gt;&gt;&gt; logits = unconditional_logits(</span>
+<span class="sd">      ...     key, coords, mask, res_idx, chain_idx</span>
+<span class="sd">      ... )</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">del</span> <span class="n">prng_key</span>  <span class="c1"># Not used in unconditional mode</span>
+
+    <span class="c1"># Run model in unconditional mode</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">logits</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span>
+      <span class="n">structure_coordinates</span><span class="p">,</span>
+      <span class="n">mask</span><span class="p">,</span>
+      <span class="n">residue_index</span><span class="p">,</span>
+      <span class="n">chain_index</span><span class="p">,</span>
+      <span class="n">decoding_approach</span><span class="o">=</span><span class="s2">&quot;unconditional&quot;</span><span class="p">,</span>
+      <span class="n">ar_mask</span><span class="o">=</span><span class="n">ar_mask</span><span class="p">,</span>
+      <span class="n">backbone_noise</span><span class="o">=</span><span class="n">backbone_noise</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">logits</span>
+
+  <span class="k">return</span> <span class="n">unconditional_logits</span></div>
 
 </pre></div>
 

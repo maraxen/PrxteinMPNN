@@ -163,7 +163,6 @@
 
 
 
-
 <li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -351,173 +350,183 @@ document.write(`
                 <article class="bd-article">
                   
   <h1>Source code for prxteinmpnn.model.features</h1><div class="highlight"><pre>
-<span></span><span class="sd">&quot;&quot;&quot;Feature extraction for protein structures in the PrxteinMPNN model.&quot;&quot;&quot;</span>
+<span></span><span class="sd">&quot;&quot;&quot;Feature extraction module for PrxteinMPNN.</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
+<span class="sd">This module contains the ProteinFeatures class that extracts and projects</span>
+<span class="sd">features from raw protein coordinates.</span>
+<span class="sd">&quot;&quot;&quot;</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">equinox</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">eqx</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">Array</span><span class="p">,</span> <span class="n">Int</span><span class="p">,</span> <span class="n">PRNGKeyArray</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.coordinates</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
   <span class="n">apply_noise_to_coordinates</span><span class="p">,</span>
   <span class="n">compute_backbone_coordinates</span><span class="p">,</span>
   <span class="n">compute_backbone_distance</span><span class="p">,</span>
 <span class="p">)</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.graph</span><span class="w"> </span><span class="kn">import</span> <span class="n">NeighborOffsets</span><span class="p">,</span> <span class="n">compute_neighbor_offsets</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.normalize</span><span class="w"> </span><span class="kn">import</span> <span class="n">layer_normalization</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.graph</span><span class="w"> </span><span class="kn">import</span> <span class="n">compute_neighbor_offsets</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.radial_basis</span><span class="w"> </span><span class="kn">import</span> <span class="n">compute_radial_basis</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-  <span class="n">AtomMask</span><span class="p">,</span>
-  <span class="n">BackboneNoise</span><span class="p">,</span>
-  <span class="n">ChainIndex</span><span class="p">,</span>
-  <span class="n">EdgeFeatures</span><span class="p">,</span>
-  <span class="n">ModelParameters</span><span class="p">,</span>
-  <span class="n">NeighborIndices</span><span class="p">,</span>
-  <span class="n">ResidueIndex</span><span class="p">,</span>
-  <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
-<span class="p">)</span>
 
-<span class="n">EdgeChainNeighbors</span> <span class="o">=</span> <span class="n">Int</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;num_atoms num_neighbors&quot;</span><span class="p">]</span>
-<span class="n">EncodedPositions</span> <span class="o">=</span> <span class="n">Int</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;num_atoms num_neighbors (2 * MAXIMUM_RELATIVE_FEATURES + 2)&quot;</span><span class="p">]</span>
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+  <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">AlphaCarbonMask</span><span class="p">,</span>
+    <span class="n">BackboneNoise</span><span class="p">,</span>
+    <span class="n">ChainIndex</span><span class="p">,</span>
+    <span class="n">EdgeFeatures</span><span class="p">,</span>
+    <span class="n">NeighborIndices</span><span class="p">,</span>
+    <span class="n">ResidueIndex</span><span class="p">,</span>
+    <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
+  <span class="p">)</span>
 
+<span class="c1"># Type alias for PRNG keys</span>
+<span class="n">PRNGKeyArray</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+
+<span class="c1"># Layer normalization</span>
+<span class="n">LayerNorm</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">LayerNorm</span>
+
+<span class="c1"># Feature extraction constants</span>
 <span class="n">MAXIMUM_RELATIVE_FEATURES</span> <span class="o">=</span> <span class="mi">32</span>
-
+<span class="n">POS_EMBED_DIM</span> <span class="o">=</span> <span class="mi">16</span>
 <span class="n">top_k</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">top_k</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;k&quot;</span><span class="p">,))</span>
 
 
-<div class="viewcode-block" id="get_edge_chains_neighbors">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.model.features.html#prxteinmpnn.model.get_edge_chains_neighbors">[docs]</a>
-<span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">get_edge_chains_neighbors</span><span class="p">(</span>
-  <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span><span class="p">,</span>
-  <span class="n">neighbor_indices</span><span class="p">:</span> <span class="n">NeighborIndices</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EdgeChainNeighbors</span><span class="p">:</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Compute edge chains for neighbors.&quot;&quot;&quot;</span>
-  <span class="n">edge_chains</span> <span class="o">=</span> <span class="p">(</span><span class="n">chain_index</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">==</span> <span class="n">chain_index</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:])</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
-  <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">take_along_axis</span><span class="p">(</span><span class="n">edge_chains</span><span class="p">,</span> <span class="n">neighbor_indices</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
+<div class="viewcode-block" id="ProteinFeatures">
+<a class="viewcode-back" href="../../../api/prxteinmpnn.model.features.html#prxteinmpnn.model.ProteinFeatures">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ProteinFeatures</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Extracts and projects features from raw protein coordinates.</span>
 
-
-
-<div class="viewcode-block" id="encode_positions">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.model.features.html#prxteinmpnn.model.encode_positions">[docs]</a>
-<span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">encode_positions</span><span class="p">(</span>
-  <span class="n">neighbor_offsets</span><span class="p">:</span> <span class="n">NeighborOffsets</span><span class="p">,</span>
-  <span class="n">edge_chains_neighbors</span><span class="p">:</span> <span class="n">EdgeChainNeighbors</span><span class="p">,</span>
-  <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EncodedPositions</span><span class="p">:</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Encode positions based on neighbor offsets and edge chains.&quot;&quot;&quot;</span>
-  <span class="n">neighbor_offset_factor</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span>
-    <span class="n">neighbor_offsets</span> <span class="o">+</span> <span class="n">MAXIMUM_RELATIVE_FEATURES</span><span class="p">,</span>
-    <span class="mi">0</span><span class="p">,</span>
-    <span class="mi">2</span> <span class="o">*</span> <span class="n">MAXIMUM_RELATIVE_FEATURES</span><span class="p">,</span>
-  <span class="p">)</span>
-  <span class="n">edge_chain_factor</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">edge_chains_neighbors</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">MAXIMUM_RELATIVE_FEATURES</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
-  <span class="n">encoded_offset</span> <span class="o">=</span> <span class="n">neighbor_offset_factor</span> <span class="o">*</span> <span class="n">edge_chains_neighbors</span> <span class="o">+</span> <span class="n">edge_chain_factor</span>
-  <span class="n">encoded_offset_one_hot</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">one_hot</span><span class="p">(</span><span class="n">encoded_offset</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">MAXIMUM_RELATIVE_FEATURES</span> <span class="o">+</span> <span class="mi">2</span><span class="p">)</span>
-  <span class="n">pos_enc_params</span> <span class="o">=</span> <span class="n">model_parameters</span><span class="p">[</span>
-    <span class="s2">&quot;protein_mpnn/~/protein_features/~/positional_encodings/~/embedding_linear&quot;</span>
-  <span class="p">]</span>
-  <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">encoded_offset_one_hot</span><span class="p">,</span> <span class="n">pos_enc_params</span><span class="p">[</span><span class="s2">&quot;w&quot;</span><span class="p">])</span> <span class="o">+</span> <span class="n">pos_enc_params</span><span class="p">[</span><span class="s2">&quot;b&quot;</span><span class="p">]</span></div>
-
-
-
-<div class="viewcode-block" id="embed_edges">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.model.features.html#prxteinmpnn.model.embed_edges">[docs]</a>
-<span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">embed_edges</span><span class="p">(</span>
-  <span class="n">edge_features</span><span class="p">:</span> <span class="n">EncodedPositions</span><span class="p">,</span>
-  <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EdgeFeatures</span><span class="p">:</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Embed edge features using model parameters.&quot;&quot;&quot;</span>
-  <span class="n">edge_emb_params</span> <span class="o">=</span> <span class="n">model_parameters</span><span class="p">[</span><span class="s2">&quot;protein_mpnn/~/protein_features/~/edge_embedding&quot;</span><span class="p">]</span>
-  <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">edge_features</span><span class="p">,</span> <span class="n">edge_emb_params</span><span class="p">[</span><span class="s2">&quot;w&quot;</span><span class="p">])</span></div>
-
-
-
-<div class="viewcode-block" id="extract_features">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.model.features.html#prxteinmpnn.model.extract_features">[docs]</a>
-<span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;k_neighbors&quot;</span><span class="p">,))</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">extract_features</span><span class="p">(</span>
-  <span class="n">prng_key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
-  <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
-  <span class="n">structure_coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
-  <span class="n">mask</span><span class="p">:</span> <span class="n">AtomMask</span><span class="p">,</span>
-  <span class="n">residue_index</span><span class="p">:</span> <span class="n">ResidueIndex</span><span class="p">,</span>
-  <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span><span class="p">,</span>
-  <span class="n">k_neighbors</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">48</span><span class="p">,</span>
-  <span class="n">backbone_noise</span><span class="p">:</span> <span class="n">BackboneNoise</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">EdgeFeatures</span><span class="p">,</span> <span class="n">NeighborIndices</span><span class="p">,</span> <span class="n">PRNGKeyArray</span><span class="p">]:</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Extract features from protein structure coordinates.</span>
-
-<span class="sd">  Args:</span>
-<span class="sd">    structure_coordinates: Atomic coordinates of the protein structure.</span>
-<span class="sd">    mask: Mask indicating valid atoms in the structure.</span>
-<span class="sd">    residue_index: Residue indices for each atom.</span>
-<span class="sd">    chain_index: Chain indices for each atom.</span>
-<span class="sd">    model_parameters: Model parameters for the feature extraction.</span>
-<span class="sd">    prng_key: JAX random key for stochastic operations.</span>
-<span class="sd">    k_neighbors: Maximum number of neighbors to consider for each atom.</span>
-<span class="sd">    backbone_noise: Standard deviation for Gaussian noise augmentation.</span>
-
-<span class="sd">  Returns:</span>
-<span class="sd">    edge_features: Edge features after concatenation and normalization.</span>
-<span class="sd">    edge_indices: Indices of neighboring atoms.</span>
-
+<span class="sd">  This module encapsulates k-NN, RBF, positional encodings, and edge projections.</span>
+<span class="sd">  Note: W_e projection is NOT here - it&#39;s in the main model (matches ColabDesign).</span>
 <span class="sd">  &quot;&quot;&quot;</span>
-  <span class="k">if</span> <span class="n">backbone_noise</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-    <span class="n">backbone_noise</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
 
-  <span class="n">noised_coordinates</span><span class="p">,</span> <span class="n">prng_key</span> <span class="o">=</span> <span class="n">apply_noise_to_coordinates</span><span class="p">(</span>
-    <span class="n">prng_key</span><span class="p">,</span>
-    <span class="n">structure_coordinates</span><span class="p">,</span>
-    <span class="n">backbone_noise</span><span class="o">=</span><span class="n">backbone_noise</span><span class="p">,</span>
-  <span class="p">)</span>
-  <span class="n">backbone_atom_coordinates</span> <span class="o">=</span> <span class="n">compute_backbone_coordinates</span><span class="p">(</span><span class="n">noised_coordinates</span><span class="p">)</span>
-  <span class="n">distances</span> <span class="o">=</span> <span class="n">compute_backbone_distance</span><span class="p">(</span><span class="n">backbone_atom_coordinates</span><span class="p">)</span>
-  <span class="n">distances_masked</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
-    <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
-      <span class="p">(</span><span class="n">mask</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">mask</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:])</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">bool</span><span class="p">),</span>
-      <span class="n">distances</span><span class="p">,</span>
-      <span class="n">jnp</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span>
-    <span class="p">),</span>
-  <span class="p">)</span>
-  <span class="n">k</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">k_neighbors</span><span class="p">,</span> <span class="n">structure_coordinates</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-  <span class="n">_</span><span class="p">,</span> <span class="n">neighbor_indices</span> <span class="o">=</span> <span class="n">top_k</span><span class="p">(</span><span class="o">-</span><span class="n">distances_masked</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
-  <span class="n">neighbor_indices</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">neighbor_indices</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
-  <span class="n">rbf</span> <span class="o">=</span> <span class="n">compute_radial_basis</span><span class="p">(</span><span class="n">backbone_atom_coordinates</span><span class="p">,</span> <span class="n">neighbor_indices</span><span class="p">)</span>
-  <span class="n">neighbor_offsets</span> <span class="o">=</span> <span class="n">compute_neighbor_offsets</span><span class="p">(</span><span class="n">residue_index</span><span class="p">,</span> <span class="n">neighbor_indices</span><span class="p">)</span>
-  <span class="n">edge_chains_neighbors</span> <span class="o">=</span> <span class="n">get_edge_chains_neighbors</span><span class="p">(</span>
-    <span class="n">chain_index</span><span class="p">,</span>
-    <span class="n">neighbor_indices</span><span class="p">,</span>
-  <span class="p">)</span>
-  <span class="n">encoded_positions</span> <span class="o">=</span> <span class="n">encode_positions</span><span class="p">(</span>
-    <span class="n">neighbor_offsets</span><span class="p">,</span>
-    <span class="n">edge_chains_neighbors</span><span class="p">,</span>
-    <span class="n">model_parameters</span><span class="p">,</span>
-  <span class="p">)</span>
-  <span class="n">edges</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">encoded_positions</span><span class="p">,</span> <span class="n">rbf</span><span class="p">],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
-  <span class="n">edge_features</span> <span class="o">=</span> <span class="n">embed_edges</span><span class="p">(</span><span class="n">edges</span><span class="p">,</span> <span class="n">model_parameters</span><span class="p">)</span>
-  <span class="n">norm_edge_params</span> <span class="o">=</span> <span class="n">model_parameters</span><span class="p">[</span><span class="s2">&quot;protein_mpnn/~/protein_features/~/norm_edges&quot;</span><span class="p">]</span>
-  <span class="n">edge_features</span> <span class="o">=</span> <span class="n">layer_normalization</span><span class="p">(</span><span class="n">edge_features</span><span class="p">,</span> <span class="n">norm_edge_params</span><span class="p">)</span>
-  <span class="k">return</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">neighbor_indices</span><span class="p">,</span> <span class="n">prng_key</span></div>
+  <span class="n">w_pos</span><span class="p">:</span> <span class="n">eqx</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span>
+  <span class="n">w_e</span><span class="p">:</span> <span class="n">eqx</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span>
+  <span class="n">norm_edges</span><span class="p">:</span> <span class="n">LayerNorm</span>
+  <span class="n">w_e_proj</span><span class="p">:</span> <span class="n">eqx</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span>  <span class="c1"># Final edge projection</span>
+  <span class="n">k_neighbors</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">rbf_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">pos_embed_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
+  <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">node_features</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>  <span class="c1"># noqa: ARG002</span>
+    <span class="n">edge_features</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">k_neighbors</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
+  <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Initialize feature extraction layers.</span>
 
+<span class="sd">    Args:</span>
+<span class="sd">      node_features: Dimension of node features (not directly used, kept for API compat).</span>
+<span class="sd">      edge_features: Dimension of edge features.</span>
+<span class="sd">      k_neighbors: Number of nearest neighbors to consider.</span>
+<span class="sd">      key: PRNG key for initialization.</span>
 
-<div class="viewcode-block" id="project_features">
-<a class="viewcode-back" href="../../../api/prxteinmpnn.model.features.html#prxteinmpnn.model.project_features">[docs]</a>
-<span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">project_features</span><span class="p">(</span>
-  <span class="n">model_parameters</span><span class="p">:</span> <span class="n">ModelParameters</span><span class="p">,</span>
-  <span class="n">edge_features</span><span class="p">:</span> <span class="n">EdgeFeatures</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EdgeFeatures</span><span class="p">:</span>
-<span class="w">  </span><span class="sd">&quot;&quot;&quot;Project edge features using model parameters.&quot;&quot;&quot;</span>
-  <span class="n">w_e</span><span class="p">,</span> <span class="n">b_e</span> <span class="o">=</span> <span class="p">(</span>
-    <span class="n">model_parameters</span><span class="p">[</span><span class="s2">&quot;protein_mpnn/~/W_e&quot;</span><span class="p">][</span><span class="s2">&quot;w&quot;</span><span class="p">],</span>
-    <span class="n">model_parameters</span><span class="p">[</span><span class="s2">&quot;protein_mpnn/~/W_e&quot;</span><span class="p">][</span><span class="s2">&quot;b&quot;</span><span class="p">],</span>
-  <span class="p">)</span>
-  <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">edge_features</span><span class="p">,</span> <span class="n">w_e</span><span class="p">)</span> <span class="o">+</span> <span class="n">b_e</span></div>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">keys</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">k_neighbors</span> <span class="o">=</span> <span class="n">k_neighbors</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">rbf_dim</span> <span class="o">=</span> <span class="mi">16</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">pos_embed_dim</span> <span class="o">=</span> <span class="n">POS_EMBED_DIM</span>
+
+    <span class="n">pos_one_hot_dim</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">MAXIMUM_RELATIVE_FEATURES</span> <span class="o">+</span> <span class="mi">2</span>  <span class="c1"># 66</span>
+    <span class="n">edge_embed_in_dim</span> <span class="o">=</span> <span class="mi">416</span>  <span class="c1"># Match original model&#39;s edge embedding input size</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">w_pos</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">pos_one_hot_dim</span><span class="p">,</span> <span class="n">POS_EMBED_DIM</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">w_e</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">edge_embed_in_dim</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">use_bias</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">keys</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">norm_edges</span> <span class="o">=</span> <span class="n">LayerNorm</span><span class="p">(</span><span class="n">edge_features</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">w_e_proj</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">edge_features</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">keys</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+
+  <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">prng_key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
+    <span class="n">structure_coordinates</span><span class="p">:</span> <span class="n">StructureAtomicCoordinates</span><span class="p">,</span>
+    <span class="n">mask</span><span class="p">:</span> <span class="n">AlphaCarbonMask</span><span class="p">,</span>
+    <span class="n">residue_index</span><span class="p">:</span> <span class="n">ResidueIndex</span><span class="p">,</span>
+    <span class="n">chain_index</span><span class="p">:</span> <span class="n">ChainIndex</span><span class="p">,</span>
+    <span class="n">backbone_noise</span><span class="p">:</span> <span class="n">BackboneNoise</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">EdgeFeatures</span><span class="p">,</span> <span class="n">NeighborIndices</span><span class="p">,</span> <span class="n">PRNGKeyArray</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Extract and project features from protein structure.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">      prng_key: PRNG key for coordinate noise.</span>
+<span class="sd">      structure_coordinates: Atomic coordinates (N, CA, C, O).</span>
+<span class="sd">      mask: Alpha carbon mask.</span>
+<span class="sd">      residue_index: Residue indices.</span>
+<span class="sd">      chain_index: Chain indices.</span>
+<span class="sd">      backbone_noise: Noise to add to backbone coordinates.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">      Tuple of (edge_features, neighbor_indices, updated_prng_key).</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">backbone_noise</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+      <span class="n">backbone_noise</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+    <span class="n">noised_coordinates</span><span class="p">,</span> <span class="n">prng_key</span> <span class="o">=</span> <span class="n">apply_noise_to_coordinates</span><span class="p">(</span>
+      <span class="n">prng_key</span><span class="p">,</span>
+      <span class="n">structure_coordinates</span><span class="p">,</span>
+      <span class="n">backbone_noise</span><span class="o">=</span><span class="n">backbone_noise</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">backbone_atom_coordinates</span> <span class="o">=</span> <span class="n">compute_backbone_coordinates</span><span class="p">(</span><span class="n">noised_coordinates</span><span class="p">)</span>
+    <span class="n">distances</span> <span class="o">=</span> <span class="n">compute_backbone_distance</span><span class="p">(</span><span class="n">backbone_atom_coordinates</span><span class="p">)</span>
+
+    <span class="n">distances_masked</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+      <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">mask</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">mask</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:])</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">bool</span><span class="p">),</span>
+        <span class="n">distances</span><span class="p">,</span>
+        <span class="n">jnp</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span>
+      <span class="p">),</span>
+    <span class="p">)</span>
+
+    <span class="n">k</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">k_neighbors</span><span class="p">,</span> <span class="n">structure_coordinates</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">neighbor_indices</span> <span class="o">=</span> <span class="n">top_k</span><span class="p">(</span><span class="o">-</span><span class="n">distances_masked</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
+    <span class="n">neighbor_indices</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">neighbor_indices</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+
+    <span class="n">rbf</span> <span class="o">=</span> <span class="n">compute_radial_basis</span><span class="p">(</span><span class="n">backbone_atom_coordinates</span><span class="p">,</span> <span class="n">neighbor_indices</span><span class="p">)</span>
+    <span class="n">neighbor_offsets</span> <span class="o">=</span> <span class="n">compute_neighbor_offsets</span><span class="p">(</span><span class="n">residue_index</span><span class="p">,</span> <span class="n">neighbor_indices</span><span class="p">)</span>
+
+    <span class="c1"># Get edge chains neighbors</span>
+    <span class="n">edge_chains</span> <span class="o">=</span> <span class="p">(</span><span class="n">chain_index</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">==</span> <span class="n">chain_index</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:])</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+    <span class="n">edge_chains_neighbors</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">take_along_axis</span><span class="p">(</span>
+      <span class="n">edge_chains</span><span class="p">,</span>
+      <span class="n">neighbor_indices</span><span class="p">,</span>
+      <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Encode positions</span>
+    <span class="n">neighbor_offset_factor</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span>
+      <span class="n">neighbor_offsets</span> <span class="o">+</span> <span class="n">MAXIMUM_RELATIVE_FEATURES</span><span class="p">,</span>
+      <span class="mi">0</span><span class="p">,</span>
+      <span class="mi">2</span> <span class="o">*</span> <span class="n">MAXIMUM_RELATIVE_FEATURES</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">edge_chain_factor</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">edge_chains_neighbors</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">MAXIMUM_RELATIVE_FEATURES</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">encoded_offset</span> <span class="o">=</span> <span class="n">neighbor_offset_factor</span> <span class="o">*</span> <span class="n">edge_chains_neighbors</span> <span class="o">+</span> <span class="n">edge_chain_factor</span>
+    <span class="n">encoded_offset_one_hot</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">one_hot</span><span class="p">(</span>
+      <span class="n">encoded_offset</span><span class="p">,</span>
+      <span class="mi">2</span> <span class="o">*</span> <span class="n">MAXIMUM_RELATIVE_FEATURES</span> <span class="o">+</span> <span class="mi">2</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="c1"># vmap over (N, K)</span>
+    <span class="n">encoded_positions</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">w_pos</span><span class="p">))(</span><span class="n">encoded_offset_one_hot</span><span class="p">)</span>
+
+    <span class="c1"># Embed edges</span>
+    <span class="n">edges</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">encoded_positions</span><span class="p">,</span> <span class="n">rbf</span><span class="p">],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">edge_features</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">w_e</span><span class="p">))(</span><span class="n">edges</span><span class="p">)</span>
+
+    <span class="n">edge_features</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">norm_edges</span><span class="p">))(</span><span class="n">edge_features</span><span class="p">)</span>
+
+    <span class="c1"># Final edge projection (W_e in ColabDesign)</span>
+    <span class="n">edge_features</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">w_e_proj</span><span class="p">))(</span><span class="n">edge_features</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">neighbor_indices</span><span class="p">,</span> <span class="n">prng_key</span></div>
 
 </pre></div>
 

@@ -163,7 +163,6 @@
 
 
 
-
 <li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.io.html">io: Input/Output for Structure and Trajectories</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/prxteinmpnn.mpnn.html">mpnn: Fetch model parameters</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/prxteinmpnn.model.html">model: MPNN model architecture</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
@@ -357,18 +356,33 @@ document.write(`
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">h5py</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.sampling.sample</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_sample_sequences</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.autoregression</span><span class="w"> </span><span class="kn">import</span> <span class="n">resolve_tie_groups</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.decoding_order</span><span class="w"> </span><span class="kn">import</span> <span class="n">random_decoding_order</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.residue_constants</span><span class="w"> </span><span class="kn">import</span> <span class="n">atom_order</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.prep</span><span class="w"> </span><span class="kn">import</span> <span class="n">prep_protein_stream_and_model</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">SamplingSpecification</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+  <span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">PRNGKeyArray</span>
+
+  <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">AlphaCarbonMask</span><span class="p">,</span>
+    <span class="n">BackboneCoordinates</span><span class="p">,</span>
+    <span class="n">BackboneNoise</span><span class="p">,</span>
+    <span class="n">ChainIndex</span><span class="p">,</span>
+    <span class="n">DecodingOrder</span><span class="p">,</span>
+    <span class="n">Logits</span><span class="p">,</span>
+    <span class="n">ProteinSequence</span><span class="p">,</span>
+    <span class="n">ResidueIndex</span><span class="p">,</span>
+  <span class="p">)</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 <span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -378,7 +392,7 @@ document.write(`
 <a class="viewcode-back" href="../../../api/prxteinmpnn.html#prxteinmpnn.sample">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">sample</span><span class="p">(</span>
   <span class="n">spec</span><span class="p">:</span> <span class="n">SamplingSpecification</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-  <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+  <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>  <span class="c1"># noqa: ANN401</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">  </span><span class="sd">&quot;&quot;&quot;Sample new sequences for the given input structures.</span>
 
@@ -405,7 +419,6 @@ document.write(`
 <span class="sd">        iterations: Number of optimization iterations for &quot;straight_through&quot; sampling.</span>
 <span class="sd">        learning_rate: Learning rate for &quot;straight_through&quot; sampling.</span>
 <span class="sd">        batch_size: The number of structures to process in a single batch.</span>
-<span class="sd">        num_workers: Number of parallel workers for data loading.</span>
 <span class="sd">      **kwargs: Additional keyword arguments for structure loading.</span>
 
 <span class="sd">  Returns:</span>
@@ -418,9 +431,10 @@ document.write(`
   <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">:</span>
     <span class="k">return</span> <span class="n">_sample_streaming</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
 
-  <span class="n">protein_iterator</span><span class="p">,</span> <span class="n">model_parameters</span> <span class="o">=</span> <span class="n">prep_protein_stream_and_model</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+  <span class="n">protein_iterator</span><span class="p">,</span> <span class="n">model</span> <span class="o">=</span> <span class="n">prep_protein_stream_and_model</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+
   <span class="n">sampler_fn</span> <span class="o">=</span> <span class="n">make_sample_sequences</span><span class="p">(</span>
-    <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
     <span class="n">decoding_order_fn</span><span class="o">=</span><span class="n">random_decoding_order</span><span class="p">,</span>
     <span class="n">sampling_strategy</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">sampling_strategy</span><span class="p">,</span>
   <span class="p">)</span>
@@ -428,17 +442,27 @@ document.write(`
   <span class="n">all_sequences</span><span class="p">,</span> <span class="n">all_logits</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
 
   <span class="k">for</span> <span class="n">batched_ensemble</span> <span class="ow">in</span> <span class="n">protein_iterator</span><span class="p">:</span>
-    <span class="n">residue_mask</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">atom_mask</span><span class="p">[:,</span> <span class="p">:,</span> <span class="n">atom_order</span><span class="p">[</span><span class="s2">&quot;CA&quot;</span><span class="p">]]</span>
     <span class="n">keys</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">key</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">random_seed</span><span class="p">),</span> <span class="n">spec</span><span class="o">.</span><span class="n">num_samples</span><span class="p">)</span>
+
+    <span class="c1"># Compute tie groups if needed</span>
+    <span class="n">tie_group_map</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">num_groups</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="c1"># Handle inter-chain mode with tied positions</span>
+    <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">pass_mode</span> <span class="o">==</span> <span class="s2">&quot;inter&quot;</span> <span class="ow">and</span> <span class="n">spec</span><span class="o">.</span><span class="n">tied_positions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># noqa: S105</span>
+      <span class="c1"># For inter mode, loader has already concatenated structures with sequential chain IDs</span>
+      <span class="c1"># Just resolve the tie groups on the concatenated protein</span>
+      <span class="n">tie_group_map</span> <span class="o">=</span> <span class="n">resolve_tie_groups</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">batched_ensemble</span><span class="p">)</span>
+      <span class="n">num_groups</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">tie_group_map</span><span class="p">))</span> <span class="o">+</span> <span class="mi">1</span>
 
     <span class="n">vmap_samples</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span>
       <span class="n">sampler_fn</span><span class="p">,</span>
-      <span class="n">in_axes</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+      <span class="n">in_axes</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
       <span class="n">out_axes</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">vmap_noises</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span>
       <span class="n">vmap_samples</span><span class="p">,</span>
-      <span class="n">in_axes</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+      <span class="n">in_axes</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
       <span class="n">out_axes</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">vmap_structures</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span>
@@ -456,13 +480,15 @@ document.write(`
         <span class="kc">None</span><span class="p">,</span>  <span class="c1"># iterations</span>
         <span class="kc">None</span><span class="p">,</span>  <span class="c1"># learning_rate</span>
         <span class="kc">None</span><span class="p">,</span>  <span class="c1"># temperature</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># tie_group_map</span>
+        <span class="kc">None</span><span class="p">,</span>  <span class="c1"># num_groups</span>
       <span class="p">),</span>
       <span class="n">out_axes</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">sampled_sequences</span><span class="p">,</span> <span class="n">logits</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">vmap_structures</span><span class="p">(</span>
       <span class="n">keys</span><span class="p">,</span>
       <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">coordinates</span><span class="p">,</span>
-      <span class="n">residue_mask</span><span class="p">,</span>
+      <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">mask</span><span class="p">,</span>
       <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">residue_index</span><span class="p">,</span>
       <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">chain_index</span><span class="p">,</span>
       <span class="mi">48</span><span class="p">,</span>
@@ -476,6 +502,8 @@ document.write(`
       <span class="n">spec</span><span class="o">.</span><span class="n">iterations</span><span class="p">,</span>
       <span class="n">spec</span><span class="o">.</span><span class="n">learning_rate</span><span class="p">,</span>
       <span class="n">spec</span><span class="o">.</span><span class="n">temperature</span><span class="p">,</span>
+      <span class="n">tie_group_map</span><span class="p">,</span>
+      <span class="n">num_groups</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">all_sequences</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sampled_sequences</span><span class="p">)</span>
     <span class="n">all_logits</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">logits</span><span class="p">)</span>
@@ -501,85 +529,145 @@ document.write(`
     <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;output_h5_path must be provided for streaming.&quot;</span>
     <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
 
-  <span class="n">protein_iterator</span><span class="p">,</span> <span class="n">model_parameters</span> <span class="o">=</span> <span class="n">prep_protein_stream_and_model</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+  <span class="n">protein_iterator</span><span class="p">,</span> <span class="n">model</span> <span class="o">=</span> <span class="n">prep_protein_stream_and_model</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+
+  <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">average_encodings</span><span class="p">:</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;average_encodings feature is temporarily disabled during Equinox migration&quot;</span>
+    <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
   <span class="n">sampler_fn</span> <span class="o">=</span> <span class="n">make_sample_sequences</span><span class="p">(</span>
-    <span class="n">model_parameters</span><span class="o">=</span><span class="n">model_parameters</span><span class="p">,</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
     <span class="n">decoding_order_fn</span><span class="o">=</span><span class="n">random_decoding_order</span><span class="p">,</span>
-    <span class="n">sampling_strategy</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">sampling_strategy</span><span class="p">,</span>
+    <span class="n">sampling_strategy</span><span class="o">=</span><span class="s2">&quot;temperature&quot;</span><span class="p">,</span>
   <span class="p">)</span>
 
   <span class="k">with</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-    <span class="n">seq_ds</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">create_dataset</span><span class="p">(</span>
-      <span class="s2">&quot;sequences&quot;</span><span class="p">,</span>
-      <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
-      <span class="n">maxshape</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-      <span class="n">chunks</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-      <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;i4&quot;</span><span class="p">,</span>
-    <span class="p">)</span>
-    <span class="n">logits_ds</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">create_dataset</span><span class="p">(</span>
-      <span class="s2">&quot;logits&quot;</span><span class="p">,</span>
-      <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
-      <span class="n">maxshape</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-      <span class="n">chunks</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-      <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;f4&quot;</span><span class="p">,</span>
-    <span class="p">)</span>
+    <span class="n">structure_idx</span> <span class="o">=</span> <span class="mi">0</span>
 
     <span class="k">for</span> <span class="n">batched_ensemble</span> <span class="ow">in</span> <span class="n">protein_iterator</span><span class="p">:</span>
-      <span class="n">residue_mask</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">atom_mask</span><span class="p">[:,</span> <span class="p">:,</span> <span class="n">atom_order</span><span class="p">[</span><span class="s2">&quot;CA&quot;</span><span class="p">]]</span>
       <span class="n">keys</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">key</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">random_seed</span><span class="p">),</span> <span class="n">spec</span><span class="o">.</span><span class="n">num_samples</span><span class="p">)</span>
 
-      <span class="n">vmap_samples</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span>
-        <span class="n">sampler_fn</span><span class="p">,</span>
-        <span class="n">in_axes</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-        <span class="n">out_axes</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-      <span class="p">)</span>
-      <span class="n">vmap_noises</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span>
-        <span class="n">vmap_samples</span><span class="p">,</span>
-        <span class="n">in_axes</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-        <span class="n">out_axes</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-      <span class="p">)</span>
-      <span class="n">vmap_structures</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span>
-        <span class="n">vmap_noises</span><span class="p">,</span>
-        <span class="n">in_axes</span><span class="o">=</span><span class="p">(</span>
-          <span class="kc">None</span><span class="p">,</span>  <span class="c1"># keys</span>
-          <span class="mi">0</span><span class="p">,</span>  <span class="c1"># coordinates</span>
-          <span class="mi">0</span><span class="p">,</span>  <span class="c1"># residue_mask</span>
-          <span class="mi">0</span><span class="p">,</span>  <span class="c1"># residue_index</span>
-          <span class="mi">0</span><span class="p">,</span>  <span class="c1"># chain_index</span>
-          <span class="kc">None</span><span class="p">,</span>  <span class="c1"># k_neighbors</span>
-          <span class="kc">None</span><span class="p">,</span>  <span class="c1"># bias</span>
-          <span class="kc">None</span><span class="p">,</span>  <span class="c1"># fixed_positions</span>
-          <span class="kc">None</span><span class="p">,</span>  <span class="c1"># backbone_noise</span>
-          <span class="kc">None</span><span class="p">,</span>  <span class="c1"># iterations</span>
-          <span class="kc">None</span><span class="p">,</span>  <span class="c1"># learning_rate</span>
-          <span class="kc">None</span><span class="p">,</span>  <span class="c1"># temperature</span>
-        <span class="p">),</span>
-        <span class="n">out_axes</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-      <span class="p">)</span>
-      <span class="n">sampled_sequences</span><span class="p">,</span> <span class="n">logits</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">vmap_structures</span><span class="p">(</span>
-        <span class="n">keys</span><span class="p">,</span>
-        <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">coordinates</span><span class="p">,</span>
-        <span class="n">residue_mask</span><span class="p">,</span>
-        <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">residue_index</span><span class="p">,</span>
-        <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">chain_index</span><span class="p">,</span>
-        <span class="mi">48</span><span class="p">,</span>
-        <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">bias</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span> <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">bias</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">fixed_positions</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">fixed_positions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-        <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+      <span class="c1"># Compute tie groups if needed</span>
+      <span class="n">tie_group_map</span> <span class="o">=</span> <span class="kc">None</span>
+      <span class="n">num_groups</span> <span class="o">=</span> <span class="kc">None</span>
+
+      <span class="c1"># Handle inter-chain mode with tied positions</span>
+      <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">pass_mode</span> <span class="o">==</span> <span class="s2">&quot;inter&quot;</span> <span class="ow">and</span> <span class="n">spec</span><span class="o">.</span><span class="n">tied_positions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># noqa: S105</span>
+        <span class="c1"># For inter mode, loader has already concatenated structures with sequential chain IDs</span>
+        <span class="c1"># Just resolve the tie groups on the concatenated protein</span>
+        <span class="n">tie_group_map</span> <span class="o">=</span> <span class="n">resolve_tie_groups</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">batched_ensemble</span><span class="p">)</span>
+        <span class="n">num_groups</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">tie_group_map</span><span class="p">))</span> <span class="o">+</span> <span class="mi">1</span>
+
+      <span class="n">noise_array</span> <span class="o">=</span> <span class="p">(</span>
         <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">backbone_noise</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">backbone_noise</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-        <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">spec</span><span class="o">.</span><span class="n">iterations</span><span class="p">,</span>
-        <span class="n">spec</span><span class="o">.</span><span class="n">learning_rate</span><span class="p">,</span>
-        <span class="n">spec</span><span class="o">.</span><span class="n">temperature</span><span class="p">,</span>
+        <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
       <span class="p">)</span>
 
-      <span class="n">seq_ds</span><span class="o">.</span><span class="n">resize</span><span class="p">(</span><span class="n">seq_ds</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">sampled_sequences</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-      <span class="n">seq_ds</span><span class="p">[</span><span class="o">-</span><span class="n">sampled_sequences</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="p">:,</span> <span class="p">:,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">sampled_sequences</span>
+      <span class="c1"># Create the sample function with bound parameters to avoid closure issues</span>
+      <span class="n">sample_fn_with_params</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span>
+        <span class="n">sampler_fn</span><span class="p">,</span>
+        <span class="n">_k_neighbors</span><span class="o">=</span><span class="mi">48</span><span class="p">,</span>
+        <span class="n">bias</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">bias</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span> <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">bias</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">fixed_positions</span><span class="o">=</span><span class="p">(</span>
+          <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">fixed_positions</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+          <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">fixed_positions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+          <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">),</span>
+        <span class="n">_iterations</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">iterations</span><span class="p">,</span>
+        <span class="n">_learning_rate</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">learning_rate</span><span class="p">,</span>
+        <span class="n">temperature</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">temperature</span><span class="p">,</span>
+        <span class="n">tie_group_map</span><span class="o">=</span><span class="n">tie_group_map</span><span class="p">,</span>
+        <span class="n">num_groups</span><span class="o">=</span><span class="n">num_groups</span><span class="p">,</span>
+      <span class="p">)</span>
 
-      <span class="n">logits_ds</span><span class="o">.</span><span class="n">resize</span><span class="p">(</span><span class="n">logits_ds</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">logits</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-      <span class="n">logits_ds</span><span class="p">[</span><span class="o">-</span><span class="n">logits</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="p">:,</span> <span class="p">:,</span> <span class="p">:,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">logits</span>
+      <span class="k">def</span><span class="w"> </span><span class="nf">sample_single_noise</span><span class="p">(</span>
+        <span class="n">key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
+        <span class="n">coords</span><span class="p">:</span> <span class="n">BackboneCoordinates</span><span class="p">,</span>
+        <span class="n">mask</span><span class="p">:</span> <span class="n">AlphaCarbonMask</span><span class="p">,</span>
+        <span class="n">residue_ix</span><span class="p">:</span> <span class="n">ResidueIndex</span><span class="p">,</span>
+        <span class="n">chain_ix</span><span class="p">:</span> <span class="n">ChainIndex</span><span class="p">,</span>
+        <span class="n">noise</span><span class="p">:</span> <span class="n">BackboneNoise</span><span class="p">,</span>
+        <span class="n">_sampler</span><span class="p">:</span> <span class="n">partial</span> <span class="o">=</span> <span class="n">sample_fn_with_params</span><span class="p">,</span>  <span class="c1"># Bind to avoid closure issues</span>
+      <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">,</span> <span class="n">DecodingOrder</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Sample one sequence for one structure at one noise level.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_sampler</span><span class="p">(</span>
+          <span class="n">key</span><span class="p">,</span>
+          <span class="n">coords</span><span class="p">,</span>
+          <span class="n">mask</span><span class="p">,</span>
+          <span class="n">residue_ix</span><span class="p">,</span>
+          <span class="n">chain_ix</span><span class="p">,</span>
+          <span class="n">backbone_noise</span><span class="o">=</span><span class="n">noise</span><span class="p">,</span>
+        <span class="p">)</span>
+
+      <span class="k">def</span><span class="w"> </span><span class="nf">mapped_fn_noise</span><span class="p">(</span>
+        <span class="n">key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
+        <span class="n">coords</span><span class="p">:</span> <span class="n">BackboneCoordinates</span><span class="p">,</span>
+        <span class="n">mask</span><span class="p">:</span> <span class="n">AlphaCarbonMask</span><span class="p">,</span>
+        <span class="n">residue_ix</span><span class="p">:</span> <span class="n">ResidueIndex</span><span class="p">,</span>
+        <span class="n">chain_ix</span><span class="p">:</span> <span class="n">ChainIndex</span><span class="p">,</span>
+        <span class="n">noise_arr</span><span class="p">:</span> <span class="n">BackboneNoise</span><span class="p">,</span>
+      <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">,</span> <span class="n">DecodingOrder</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Compute samples across all noise levels for a single structure/sample.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">map</span><span class="p">(</span>
+          <span class="n">partial</span><span class="p">(</span>
+            <span class="n">sample_single_noise</span><span class="p">,</span>
+            <span class="n">key</span><span class="p">,</span>
+            <span class="n">coords</span><span class="p">,</span>
+            <span class="n">mask</span><span class="p">,</span>
+            <span class="n">residue_ix</span><span class="p">,</span>
+            <span class="n">chain_ix</span><span class="p">,</span>
+          <span class="p">),</span>
+          <span class="n">noise_arr</span><span class="p">,</span>
+          <span class="n">batch_size</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">noise_batch_size</span><span class="p">,</span>
+        <span class="p">)</span>
+
+      <span class="k">def</span><span class="w"> </span><span class="nf">internal_sample</span><span class="p">(</span>
+        <span class="n">coords</span><span class="p">:</span> <span class="n">BackboneCoordinates</span><span class="p">,</span>
+        <span class="n">mask</span><span class="p">:</span> <span class="n">AlphaCarbonMask</span><span class="p">,</span>
+        <span class="n">residue_ix</span><span class="p">:</span> <span class="n">ResidueIndex</span><span class="p">,</span>
+        <span class="n">chain_ix</span><span class="p">:</span> <span class="n">ChainIndex</span><span class="p">,</span>
+        <span class="n">keys_arr</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
+        <span class="n">noise_arr</span><span class="p">:</span> <span class="n">BackboneNoise</span><span class="p">,</span>
+      <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">ProteinSequence</span><span class="p">,</span> <span class="n">Logits</span><span class="p">,</span> <span class="n">DecodingOrder</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Sample mapping over keys and noise.&quot;&quot;&quot;</span>
+        <span class="n">noise_map_fn</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span>
+          <span class="n">mapped_fn_noise</span><span class="p">,</span>
+          <span class="n">coords</span><span class="o">=</span><span class="n">coords</span><span class="p">,</span>
+          <span class="n">mask</span><span class="o">=</span><span class="n">mask</span><span class="p">,</span>
+          <span class="n">residue_ix</span><span class="o">=</span><span class="n">residue_ix</span><span class="p">,</span>
+          <span class="n">chain_ix</span><span class="o">=</span><span class="n">chain_ix</span><span class="p">,</span>
+          <span class="n">noise_arr</span><span class="o">=</span><span class="n">noise_arr</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">map</span><span class="p">(</span>
+          <span class="n">noise_map_fn</span><span class="p">,</span>
+          <span class="n">keys_arr</span><span class="p">,</span>
+          <span class="n">batch_size</span><span class="o">=</span><span class="n">spec</span><span class="o">.</span><span class="n">samples_batch_size</span><span class="p">,</span>
+        <span class="p">)</span>
+
+      <span class="n">vmap_structures</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">internal_sample</span><span class="p">,</span> <span class="n">in_axes</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+
+      <span class="n">sampled_sequences</span><span class="p">,</span> <span class="n">sampled_logits</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">vmap_structures</span><span class="p">(</span>
+        <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">coordinates</span><span class="p">,</span>
+        <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">mask</span><span class="p">,</span>
+        <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">residue_index</span><span class="p">,</span>
+        <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">chain_index</span><span class="p">,</span>
+        <span class="n">keys</span><span class="p">,</span>
+        <span class="n">noise_array</span><span class="p">,</span>
+      <span class="p">)</span>
+
+      <span class="c1"># Store each structure in its own group to handle variable lengths</span>
+      <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">sampled_sequences</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+        <span class="n">grp</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">create_group</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;structure_</span><span class="si">{</span><span class="n">structure_idx</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">grp</span><span class="o">.</span><span class="n">create_dataset</span><span class="p">(</span><span class="s2">&quot;sequences&quot;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">sampled_sequences</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;i4&quot;</span><span class="p">)</span>
+        <span class="n">grp</span><span class="o">.</span><span class="n">create_dataset</span><span class="p">(</span><span class="s2">&quot;logits&quot;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">sampled_logits</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;f4&quot;</span><span class="p">)</span>
+        <span class="c1"># Store metadata about the structure</span>
+        <span class="n">grp</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">&quot;structure_index&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">structure_idx</span>
+        <span class="n">grp</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">&quot;num_samples&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sampled_sequences</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">grp</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">&quot;num_noise_levels&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sampled_sequences</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">grp</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">&quot;sequence_length&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sampled_sequences</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
+        <span class="n">structure_idx</span> <span class="o">+=</span> <span class="mi">1</span>
 
       <span class="n">f</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
 
@@ -589,6 +677,33 @@ document.write(`
       <span class="s2">&quot;specification&quot;</span><span class="p">:</span> <span class="n">spec</span><span class="p">,</span>
     <span class="p">},</span>
   <span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_sample_streaming_averaged</span><span class="p">(</span>
+  <span class="n">_spec</span><span class="p">:</span> <span class="n">SamplingSpecification</span><span class="p">,</span>
+  <span class="n">_protein_iterator</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>  <span class="c1"># noqa: ANN401</span>
+  <span class="n">_model</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>  <span class="c1"># noqa: ANN401</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">SamplingSpecification</span><span class="p">]]:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Sample with averaged encodings across noise levels.</span>
+
+<span class="sd">  TODO: Re-implement this feature after Equinox migration is complete.</span>
+<span class="sd">  This requires a way to separate encoding and sampling steps in the new architecture.</span>
+<span class="sd">  See issue: TBD</span>
+
+<span class="sd">  Args:</span>
+<span class="sd">    _spec: Sampling specification (unused).</span>
+<span class="sd">    _protein_iterator: Protein data iterator (unused).</span>
+<span class="sd">    _model: PrxteinMPNN model (unused).</span>
+
+<span class="sd">  Returns:</span>
+<span class="sd">    Nothing, always raises NotImplementedError.</span>
+
+<span class="sd">  Raises:</span>
+<span class="sd">    NotImplementedError: This feature is temporarily disabled.</span>
+
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;average_encodings feature is temporarily disabled during Equinox migration&quot;</span>
+  <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
 </pre></div>
 
                 </article>

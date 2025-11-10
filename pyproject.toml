@@ -53,7 +53,9 @@ tests = [
     "chex",
     "anyio",
     "pyright",
-    "foldcomp"
+    "foldcomp",
+    # ColabDesign: Install manually from https://github.com/sokrypton/ColabDesign.git@e31a56f
+    # pip install git+https://github.com/sokrypton/ColabDesign.git@e31a56f
 ]
 dev = [
   "ruff",

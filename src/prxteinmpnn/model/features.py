@@ -43,12 +43,13 @@ class ProteinFeatures(eqx.Module):
   """Extracts and projects features from raw protein coordinates.
 
   This module encapsulates k-NN, RBF, positional encodings, and edge projections.
+  Note: W_e projection is NOT here - it's in the main model (matches ColabDesign).
   """
 
   w_pos: eqx.nn.Linear
   w_e: eqx.nn.Linear
   norm_edges: LayerNorm
-  w_e_proj: eqx.nn.Linear
+  w_e_proj: eqx.nn.Linear  # Final edge projection
   k_neighbors: int = eqx.field(static=True)
   rbf_dim: int = eqx.field(static=True)
   pos_embed_dim: int = eqx.field(static=True)
@@ -159,10 +160,12 @@ class ProteinFeatures(eqx.Module):
 
     # Embed edges
     edges = jnp.concatenate([encoded_positions, rbf], axis=-1)
+
     edge_features = jax.vmap(jax.vmap(self.w_e))(edges)
+
     edge_features = jax.vmap(jax.vmap(self.norm_edges))(edge_features)
 
-    # Project features
+    # Final edge projection (W_e in ColabDesign)
     edge_features = jax.vmap(jax.vmap(self.w_e_proj))(edge_features)
 
     return edge_features, neighbor_indices, prng_key

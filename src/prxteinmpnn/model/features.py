@@ -160,22 +160,10 @@ class ProteinFeatures(eqx.Module):
 
     # Embed edges
     edges = jnp.concatenate([encoded_positions, rbf], axis=-1)
-    jax.debug.print("🔍 PrxteinMPNN ProteinFeatures.__call__")
-    jax.debug.print("  edges.shape: {}", edges.shape)
-    jax.debug.print("  edges[0,0,:5]: {}", edges[0,0,:5])
-    jax.debug.print("  edges[0,0] FULL VECTOR: {}", edges[0,0])
-
     edge_features = jax.vmap(jax.vmap(self.w_e))(edges)
-    jax.debug.print("  After w_e (edge_embedding), edge_features.shape: {}", edge_features.shape)
-    jax.debug.print("  After w_e, edge_features[0,0,:5]: {}", edge_features[0,0,:5])
-
     edge_features = jax.vmap(jax.vmap(self.norm_edges))(edge_features)
-    jax.debug.print("  After norm_edges, edge_features.shape: {}", edge_features.shape)
-    jax.debug.print("  After norm_edges, edge_features[0,0,:5]: {}", edge_features[0,0,:5])
 
     # Final edge projection (W_e in ColabDesign)
     edge_features = jax.vmap(jax.vmap(self.w_e_proj))(edge_features)
-    jax.debug.print("  After w_e_proj (FINAL), edge_features.shape: {}", edge_features.shape)
-    jax.debug.print("  After w_e_proj (FINAL), edge_features[0,0,:5]: {}", edge_features[0,0,:5])
 
     return edge_features, neighbor_indices, prng_key

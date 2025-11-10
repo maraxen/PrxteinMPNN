@@ -157,29 +157,15 @@ class ProteinFeatures(eqx.Module):
 
     # vmap over (N, K)
     encoded_positions = jax.vmap(jax.vmap(self.w_pos))(encoded_offset_one_hot)
-    jax.debug.print("🔹 PrxteinMPNN ProteinFeatures")
-    jax.debug.print("  RBF shape: {}", rbf.shape)
-    jax.debug.print("  RBF[0,0,:5]: {}", rbf[0,0,:5])
-    jax.debug.print("  Positional encoding shape: {}", encoded_positions.shape)
-    jax.debug.print("  Positional[0,0,:5]: {}", encoded_positions[0,0,:5])
 
     # Embed edges
     edges = jnp.concatenate([encoded_positions, rbf], axis=-1)
-    jax.debug.print("  Concatenated edges shape: {}", edges.shape)
-    jax.debug.print("  Edges[0,0,:5]: {}", edges[0,0,:5])
-    jax.debug.print("  Edges[0,0,-5:]: {}", edges[0,0,-5:])
-    jax.debug.print("  Edges[0,0] FULL (for manual test): {}", edges[0,0])
 
     edge_features = jax.vmap(jax.vmap(self.w_e))(edges)
-    jax.debug.print("  After w_e shape: {}", edge_features.shape)
-    jax.debug.print("  After w_e[0,0,:5]: {}", edge_features[0,0,:5])
 
     edge_features = jax.vmap(jax.vmap(self.norm_edges))(edge_features)
-    jax.debug.print("  After norm_edges[0,0,:5]: {}", edge_features[0,0,:5])
 
     # Final edge projection (W_e in ColabDesign)
     edge_features = jax.vmap(jax.vmap(self.w_e_proj))(edge_features)
-    jax.debug.print("  After w_e_proj[0,0,:5]: {}", edge_features[0,0,:5])
-    jax.debug.print("  After w_e_proj[0,0] MEAN: {}", jnp.mean(edge_features[0,0]))
 
     return edge_features, neighbor_indices, prng_key

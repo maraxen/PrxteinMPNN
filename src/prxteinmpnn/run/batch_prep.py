@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import TYPE_CHECKING, NamedTuple
 
 import jax.numpy as jnp
 
 if TYPE_CHECKING:
+  from collections.abc import Sequence
+
   from prxteinmpnn.run.specs import RunSpecification
   from prxteinmpnn.utils.data_structures import Protein
 
@@ -51,7 +52,7 @@ def prepare_inter_mode_batch_from_protein(
     >>> combined, mapping = prepare_inter_mode_batch_from_protein(protein_batch, spec)
 
   """
-  if spec.pass_mode != "inter":
+  if spec.pass_mode != "inter":  # noqa: S105
     msg = "prepare_inter_mode_batch_from_protein is only valid for pass_mode='inter'."
     raise ValueError(msg)
 
@@ -116,7 +117,7 @@ def prepare_inter_mode_batch(
     >>> combined, mapping = prepare_inter_mode_batch(inputs, spec)
 
   """
-  if spec.pass_mode != "inter":
+  if spec.pass_mode != "inter":  # noqa: S105
     msg = "prepare_inter_mode_batch is only valid for pass_mode='inter'."
     raise ValueError(msg)
   xs, ss, masks, chain_ids, residue_indices, mappings = [], [], [], [], [], []

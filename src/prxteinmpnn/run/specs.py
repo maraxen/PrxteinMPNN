@@ -91,7 +91,7 @@ class RunSpecification:
     if self.cache_path and isinstance(self.cache_path, str):
       object.__setattr__(self, "cache_path", Path(self.cache_path))
     # Validation for tied_positions and pass_mode
-    if self.tied_positions in ("auto", "direct") and self.pass_mode != "inter":
+    if self.tied_positions in ("auto", "direct") and self.pass_mode != "inter":  # noqa: S105
       msg = (
         f"If tied_positions is '{self.tied_positions}', pass_mode must be 'inter'. "
         f"Got pass_mode='{self.pass_mode}'."

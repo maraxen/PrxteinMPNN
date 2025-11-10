@@ -116,10 +116,16 @@ def validate_ordering() -> None:
 
     # Check tuple lengths
     if len(PDB_ORDER_BACKBONE) != BACKBONE_LENGTH:
-      msg = f"PDB_ORDER_BACKBONE length mismatch: got={len(PDB_ORDER_BACKBONE)}, expected={BACKBONE_LENGTH}"
+      msg = (
+        f"PDB_ORDER_BACKBONE length mismatch: "
+        f"got={len(PDB_ORDER_BACKBONE)}, expected={BACKBONE_LENGTH}"
+      )
       raise ValueError(msg)
     if len(ATOM37_ORDER_BACKBONE) != BACKBONE_LENGTH:
-      msg = f"ATOM37_ORDER_BACKBONE length mismatch: got={len(ATOM37_ORDER_BACKBONE)}, expected={BACKBONE_LENGTH}"
+      msg = (
+        f"ATOM37_ORDER_BACKBONE length mismatch: "
+        f"got={len(ATOM37_ORDER_BACKBONE)}, expected={BACKBONE_LENGTH}"
+      )
       raise ValueError(msg)
 
 

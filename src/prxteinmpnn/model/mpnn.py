@@ -705,22 +705,18 @@ class PrxteinMPNN(eqx.Module):
     mask_fw = mask_1d * (1 - attention_mask)
     decoding_order = jnp.argsort(jnp.sum(autoregressive_mask, axis=1))
 
-    # Precompute encoder context
+    # Precompute encoder context: [e_ij, 0_j, h_j]
+    # This matches the unconditional decoder structure
     encoder_edge_neighbors = concatenate_neighbor_nodes(
       jnp.zeros_like(node_features),
       edge_features,
       neighbor_indices,
-    )
-    encoder_context = jnp.concatenate(
-      [
-        jnp.tile(
-          jnp.expand_dims(node_features, -2),
-          [1, edge_features.shape[1], 1],
-        ),
-        encoder_edge_neighbors,
-      ],
-      -1,
-    )
+    )  # [e_ij, 0_j]
+    encoder_context = concatenate_neighbor_nodes(
+      node_features,
+      encoder_edge_neighbors,
+      neighbor_indices,
+    )  # [[e_ij, 0_j], h_j] = [e_ij, 0_j, h_j]
     encoder_context = encoder_context * mask_fw[..., None]
 
     def autoregressive_step(

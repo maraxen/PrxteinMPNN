@@ -172,8 +172,8 @@ class ProteinFeaturesDirect(eqx.Module):
 
     # Apply scale and offset from LayerNorm
     # Note: eqx.nn.LayerNorm stores scale as 'weight' and offset as 'bias'
-    scale = self.norm_edges.weight if hasattr(self.norm_edges, 'weight') else jnp.ones(edge_features.shape[-1])
-    offset = self.norm_edges.bias if hasattr(self.norm_edges, 'bias') else jnp.zeros(edge_features.shape[-1])
+    scale = self.norm_edges.weight if hasattr(self.norm_edges, "weight") else jnp.ones(edge_features.shape[-1])
+    offset = self.norm_edges.bias if hasattr(self.norm_edges, "bias") else jnp.zeros(edge_features.shape[-1])
     edge_features = edge_features_normalized * scale + offset
 
     # Project features (shape: N, K, 128 @ 128, 128 = N, K, 128)

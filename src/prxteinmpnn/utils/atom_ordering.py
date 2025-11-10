@@ -23,6 +23,7 @@ Example:
     >>> # Extract backbone atoms from parser output
     >>> nitrogen = coords[:, PDB_ORDER_INDICES['N'], :]
     >>> oxygen = coords[:, PDB_ORDER_INDICES['O'], :]  # Index 3, not 4!
+
 """
 
 from typing import Final
@@ -63,6 +64,7 @@ def validate_ordering() -> None:
 
     Raises:
         AssertionError: If the ordering is incorrect.
+
     """
     # Check N, CA, C are the same
     assert PDB_ORDER_INDICES["N"] == ATOM37_ORDER_INDICES["N"] == 0

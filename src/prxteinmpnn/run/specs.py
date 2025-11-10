@@ -151,6 +151,8 @@ class SamplingSpecification(RunSpecification):
   noise_batch_size: int = 4
   average_encodings: bool = False
   average_logits: None | Literal["structures", "noise", "both"] = None
+  multi_state_strategy: Literal["mean", "min", "product", "max_min"] = "mean"
+  multi_state_alpha: float = 0.5
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""

@@ -91,7 +91,7 @@ def setup_mixed_precision(precision: str) -> None:
 
 
 def train_step(
-  model: PrxteinMPNN,
+  model: PrxteinMPNN | eqx.Module,
   opt_state: optax.OptState,
   optimizer: optax.GradientTransformation,
   coordinates: jax.Array,
@@ -126,7 +126,7 @@ def train_step(
   """
   batch_size = coordinates.shape[0]
 
-  def loss_fn(model: PrxteinMPNN) -> tuple[jax.Array, jax.Array]:
+  def loss_fn(model: PrxteinMPNN | eqx.Module) -> tuple[jax.Array, jax.Array]:
     """Compute loss for current batch."""
     # Split PRNG keys for each item in batch
     batch_keys = jax.random.split(prng_key, batch_size)
@@ -147,7 +147,7 @@ def train_step(
         decoding_approach="unconditional",
         prng_key=key,
         backbone_noise=jnp.array(0.0),  # Can add noise during training if desired
-      )
+      )  # pyright: ignore[reportCallIssue]
       return logits
 
     logits_batch = jax.vmap(single_forward)(

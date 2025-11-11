@@ -42,8 +42,8 @@ class DecoderLayer(eqx.Module):
   def __init__(
     self,
     node_features: int,
-    edge_context_features: int,  # This will be 384
-    hidden_features: int,
+    edge_context_features: int,
+    _hidden_features: int,
     *,
     key: PRNGKeyArray,
   ) -> None:
@@ -85,7 +85,7 @@ class DecoderLayer(eqx.Module):
     self.dense = eqx.nn.MLP(
       in_size=node_features,
       out_size=node_features,
-      width_size=hidden_features,
+      width_size=mlp_input_dim,
       depth=1,
       activation=_gelu,
       key=keys[1],

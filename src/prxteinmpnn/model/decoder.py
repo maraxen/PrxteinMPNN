@@ -199,8 +199,8 @@ class Decoder(eqx.Module):
 
     keys = jax.random.split(key, num_layers)
 
-    # The context dim is 384 ([h_i/s_i, e_ij, h_j/s_j])
-    edge_context_features = 384
+    # The context dim is [h_i, e_ij, h_j] = node_features + edge_features + node_features
+    edge_context_features = 2 * node_features + edge_features
 
     self.layers = tuple(
       DecoderLayer(node_features, edge_context_features, hidden_features, key=k) for k in keys

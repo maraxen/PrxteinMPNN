@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -72,6 +73,77 @@ def create_optimizer(
   )
 
   return optimizer, schedule
+
+
+@dataclass
+class TrainingResult:
+  """Container for results returned by :func:`train`.
+
+  Attributes:
+    final_model: The trained model instance.
+    final_step: The final training step index.
+    checkpoint_dir: Path to the checkpoint directory used.
+
+  """
+
+  final_model: PrxteinMPNN | eqx.Module
+  final_step: int
+  checkpoint_dir: str | Path
+
+
+def _init_checkpoint_and_model(
+  spec: TrainingSpecification,
+) -> tuple[PrxteinMPNN | eqx.Module, Any, int, ocp.CheckpointManager]:
+  """Initialize or restore model, optimizer state and checkpoint manager.
+
+  Returns (model, opt_state, start_step, checkpoint_manager).
+  """
+  checkpoint_dir = Path(spec.checkpoint_dir)
+  checkpoint_dir.mkdir(parents=True, exist_ok=True)
+  options = ocp.CheckpointManagerOptions(max_to_keep=spec.keep_last_n_checkpoints)
+  checkpoint_manager = ocp.CheckpointManager(checkpoint_dir, options=options)
+
+  opt_state: ArrayTree | None = None
+  if spec.resume_from_checkpoint:
+    model_template = load_model(spec.model_version, spec.model_weights)
+    model, opt_state, _, start_step = restore_checkpoint(
+      checkpoint_manager,
+      model_template,
+      step=None,  # Load latest
+    )
+    logger.info("Resumed from checkpoint at step %d", start_step)
+  else:
+    model = load_model(spec.model_version, spec.model_weights)
+    start_step = 0
+    # Initialize optimizer state with filtered model parameters
+    optimizer_obj, _ = create_optimizer(spec)
+    opt_state = optimizer_obj.init(eqx.filter(model, eqx.is_inexact_array))
+
+  return model, opt_state, start_step, checkpoint_manager
+
+
+def _create_dataloaders(spec: TrainingSpecification) -> tuple[Any, Any]:
+  """Create training and validation data loaders based on the spec.
+
+  Returns:
+    Tuple of (train_loader, val_loader) where val_loader may be None.
+
+  """
+  train_loader = create_protein_dataset(
+    spec.inputs,  # pyright: ignore[reportArgumentType]
+    batch_size=spec.batch_size,
+    foldcomp_database=spec.foldcomp_database,
+  )
+
+  val_loader = None
+  if spec.validation_data:
+    val_loader = create_protein_dataset(
+      spec.validation_data,
+      batch_size=spec.batch_size,
+      foldcomp_database=spec.foldcomp_database,
+    )
+
+  return train_loader, val_loader
 
 
 def setup_mixed_precision(precision: str) -> None:
@@ -276,7 +348,7 @@ def eval_step(
   )
 
 
-def train(spec: TrainingSpecification) -> dict[str, Any]:  # noqa: C901, PLR0912
+def train(spec: TrainingSpecification) -> TrainingResult:
   """Train PrxteinMPNN model.
 
   Args:
@@ -303,43 +375,12 @@ def train(spec: TrainingSpecification) -> dict[str, Any]:  # noqa: C901, PLR0912
 
   optimizer, lr_schedule = create_optimizer(spec)
 
-  # Create Orbax CheckpointManager
-  checkpoint_dir = Path(spec.checkpoint_dir)
-  checkpoint_dir.mkdir(parents=True, exist_ok=True)
-  options = ocp.CheckpointManagerOptions(max_to_keep=spec.keep_last_n_checkpoints)
-  checkpoint_manager = ocp.CheckpointManager(checkpoint_dir, options=options)
-
-  opt_state: ArrayTree | None = None
-  if spec.resume_from_checkpoint:
-    model_template = load_model(spec.model_version, spec.model_weights)
-    model, opt_state, _, start_step = restore_checkpoint(
-      checkpoint_manager,
-      model_template,
-      step=None,  # Load latest
-    )
-    logger.info("Resumed from checkpoint at step %d", start_step)
-  else:
-    model = load_model(spec.model_version, spec.model_weights)
-    start_step = 0
-    # Initialize optimizer state with filtered model parameters
-    opt_state = optimizer.init(eqx.filter(model, eqx.is_inexact_array))
+  # Initialize or restore model and checkpoint manager
+  model, opt_state, start_step, checkpoint_manager = _init_checkpoint_and_model(spec)
 
   # Create data loaders
-  train_loader = create_protein_dataset(
-    spec.inputs,  # pyright: ignore[reportArgumentType]
-    batch_size=spec.batch_size,
-    foldcomp_database=spec.foldcomp_database,
-  )
+  train_loader, val_loader = _create_dataloaders(spec)
 
-  val_loader = None
-  if spec.validation_data:
-    val_loader = create_protein_dataset(
-      spec.validation_data,
-      batch_size=spec.batch_size,
-      foldcomp_database=spec.foldcomp_database,
-    )
-
-  # Training loop
   step = start_step
   best_val_metric = float("inf")
   patience_counter = 0
@@ -354,12 +395,11 @@ def train(spec: TrainingSpecification) -> dict[str, Any]:  # noqa: C901, PLR0912
     for batch in train_loader:
       prng_key, subkey = jax.random.split(prng_key)
 
-      # Training step
       model, opt_state, train_metrics = eqx.filter_jit(train_step)(
         model,
         opt_state,
         optimizer,
-        batch.coordinates,  # Remove batch dimension if present
+        batch.coordinates,
         batch.mask,
         batch.residue_index,
         batch.chain_index,
@@ -372,17 +412,6 @@ def train(spec: TrainingSpecification) -> dict[str, Any]:  # noqa: C901, PLR0912
 
       step += 1
 
-      # Logging
-      if step % spec.log_every == 0:
-        logger.info(
-          "Step %d: loss=%.4f, acc=%.4f, ppl=%.4f",
-          step,
-          train_metrics.loss,
-          train_metrics.accuracy,
-          train_metrics.perplexity,
-        )
-
-      # Evaluation
       if val_loader and step % spec.eval_every == 0:
         val_metrics_list = []
         for val_batch in val_loader:
@@ -402,11 +431,15 @@ def train(spec: TrainingSpecification) -> dict[str, Any]:  # noqa: C901, PLR0912
         avg_val_loss = jnp.mean(jnp.array([m.val_loss for m in val_metrics_list]))
         avg_val_acc = jnp.mean(jnp.array([m.val_accuracy for m in val_metrics_list]))
 
+        # Convert JAX arrays to Python floats for logging
+        val_loss_float = jax.device_get(avg_val_loss).item()
+        val_acc_float = jax.device_get(avg_val_acc).item()
+
         logger.info(
           "Validation at step %d: val_loss=%.4f, val_acc=%.4f",
           step,
-          avg_val_loss,
-          avg_val_acc,
+          val_loss_float,
+          val_acc_float,
         )
 
         # Early stopping check
@@ -436,8 +469,4 @@ def train(spec: TrainingSpecification) -> dict[str, Any]:  # noqa: C901, PLR0912
 
   checkpoint_manager.close()
 
-  return {
-    "final_model": model,
-    "final_step": step,
-    "checkpoint_dir": spec.checkpoint_dir,
-  }
+  return TrainingResult(final_model=model, final_step=step, checkpoint_dir=spec.checkpoint_dir)

@@ -40,7 +40,6 @@ if TYPE_CHECKING:
     StructureAtomicCoordinates,
   )
 
-# Define decoding approach type
 DecodingApproach = Literal["unconditional", "conditional", "autoregressive"]
 
 
@@ -51,13 +50,10 @@ class PrxteinMPNN(eqx.Module):
   encoder: Encoder
   decoder: Decoder
 
-  # Feature embedding layers
   w_s_embed: eqx.nn.Embedding  # For sequence
 
-  # Final projection
   w_out: eqx.nn.Linear
 
-  # Store dimensions as static metadata
   node_features_dim: int = eqx.field(static=True)
   edge_features_dim: int = eqx.field(static=True)
   num_decoder_layers: int = eqx.field(static=True)
@@ -994,6 +990,7 @@ class PrxteinMPNN(eqx.Module):
     tie_group_map: jnp.ndarray | None = None,
     multi_state_strategy: Literal["mean", "min", "product", "max_min"] = "mean",
     multi_state_alpha: float = 0.5,
+    structure_mapping: jnp.ndarray | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Forward pass for the complete model.
 
@@ -1023,6 +1020,10 @@ class PrxteinMPNN(eqx.Module):
           Only used in "autoregressive" mode with tied positions (optional).
       multi_state_alpha: Weight for min component when multi_state_strategy="max_min".
           Range [0, 1] where 0=pure mean, 1=pure min (optional).
+      structure_mapping: Optional (N,) array mapping each residue to a structure ID.
+                        When provided (multi-state mode), prevents cross-structure
+                        neighbors to avoid information leakage between conformational states.
+
 
     Returns:
       A tuple of (OneHotProteinSequence, Logits).
@@ -1045,16 +1046,14 @@ class PrxteinMPNN(eqx.Module):
       ... )
 
     """
-    # 1. Prepare keys and noise
     if prng_key is None:
-      prng_key = jax.random.PRNGKey(0)  # Use a default key if none provided
+      prng_key = jax.random.PRNGKey(0)
 
     prng_key, feat_key = jax.random.split(prng_key)
 
     if backbone_noise is None:
       backbone_noise = jnp.array(0.0, dtype=jnp.float32)
 
-    # 2. Run Feature Extraction
     edge_features, neighbor_indices, _ = self.features(
       feat_key,
       structure_coordinates,
@@ -1062,9 +1061,9 @@ class PrxteinMPNN(eqx.Module):
       residue_index,
       chain_index,
       backbone_noise,
+      structure_mapping=structure_mapping,
     )
 
-    # 3. Prepare inputs for jax.lax.switch
     branch_indices = {
       "unconditional": 0,
       "conditional": 1,
@@ -1072,8 +1071,6 @@ class PrxteinMPNN(eqx.Module):
     }
     branch_index = branch_indices[decoding_approach]
 
-    # All branches must accept the same (super-set) of arguments.
-    # We fill in defaults for modes that don't use them.
     if ar_mask is None:
       ar_mask = jnp.zeros((mask.shape[0], mask.shape[0]), dtype=jnp.int32)
 
@@ -1088,24 +1085,18 @@ class PrxteinMPNN(eqx.Module):
     if bias is None:
       bias = jnp.zeros((mask.shape[0], 21), dtype=jnp.float32)
 
-    # Note: tie_group_map is only used in autoregressive mode, but all branches
-    # must accept the same arguments for jax.lax.switch compatibility
-
-    # Convert multi_state_strategy string to integer for JAX tracing
     strategy_map = {"mean": 0, "min": 1, "product": 2, "max_min": 3}
     multi_state_strategy_idx = jnp.array(
       strategy_map[multi_state_strategy],
       dtype=jnp.int32,
     )
 
-    # 4. Define the branches for jax.lax.switch
     branches = [
       self._call_unconditional,
       self._call_conditional,
       self._call_autoregressive,
     ]
 
-    # 5. Collect all operands
     operands = (
       edge_features,
       neighbor_indices,
@@ -1120,5 +1111,4 @@ class PrxteinMPNN(eqx.Module):
       multi_state_alpha,
     )
 
-    # 6. Run the switch
     return jax.lax.switch(branch_index, branches, *operands)

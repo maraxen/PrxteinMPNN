@@ -33,6 +33,7 @@ ScoringFn = Callable[
     int,
     BackboneNoise | None,
     AutoRegressiveMask | None,
+    jax.Array | None,
   ],
   tuple[Float, Logits, DecodingOrder],
 ]
@@ -77,6 +78,7 @@ def make_score_sequence(
     _k_neighbors: int = 48,
     backbone_noise: BackboneNoise | None = None,
     ar_mask: AutoRegressiveMask | None = None,
+    structure_mapping: jax.Array | None = None,
   ) -> tuple[Float, Logits, DecodingOrder]:
     """Score a sequence on a structure using the ProteinMPNN model.
 
@@ -90,6 +92,10 @@ def make_score_sequence(
       _k_neighbors: Deprecated, model handles internally (kept for API compatibility).
       backbone_noise: Optional noise for backbone coordinates.
       ar_mask: Optional custom autoregressive mask.
+      structure_mapping: Optional (N,) array mapping each residue to a structure ID.
+                  When provided (multi-state mode), prevents cross-structure
+                  neighbors to avoid information leakage between conformational states.
+
 
     Returns:
       Tuple of (average score, logits, decoding order).
@@ -120,6 +126,7 @@ def make_score_sequence(
       temperature=0.0,  # Not used in conditional mode
       bias=None,  # No bias in scoring
       backbone_noise=backbone_noise,
+      structure_mapping=structure_mapping,
     )
 
     # Compute score from logits

@@ -18,19 +18,11 @@ import equinox as eqx
 import jax
 
 
-# Avoid Equinox attempting to hash module fields containing JAX arrays
-# during JAX tracing (which can raise TypeError: unhashable type).
-# Use object id-based hash to make Module hashable in tracing/cache contexts.
 def _eqx_module_hash(self: object) -> int:  # pragma: no cover - safe shim
   return id(self)
 
 
 eqx.Module.__hash__ = _eqx_module_hash
-
-# Provide a runtime-friendly fallback for the ConditionalLogitsFn symbol so that
-# modules (and tests) can import the name at runtime. The precise, detailed
-# type alias is created only under TYPE_CHECKING to avoid importing heavy or
-# optional typing modules at runtime.
 if TYPE_CHECKING:
   from collections.abc import Callable
 
@@ -58,12 +50,11 @@ if TYPE_CHECKING:
       ProteinSequence,
       AutoRegressiveMask | None,
       BackboneNoise | None,
+      jax.Array | None,
     ],
     Logits,
   ]
 else:
-  # Runtime fallback: a generic callable returning Any. This keeps imports safe
-  # at runtime while allowing test modules to import the symbol.
   from collections.abc import Callable
   from typing import Any
 
@@ -102,6 +93,7 @@ def make_conditional_logits_fn(
     sequence: ProteinSequence,
     ar_mask: AutoRegressiveMask | None = None,
     backbone_noise: BackboneNoise | None = None,
+    structure_mapping: jax.Array | None = None,
   ) -> Logits:
     """Compute conditional logits for a sequence-structure pair.
 
@@ -114,6 +106,9 @@ def make_conditional_logits_fn(
       sequence: Protein sequence as integer array (N,) or one-hot (N, 21).
       ar_mask: Optional autoregressive mask (N, N).
       backbone_noise: Optional noise for backbone coordinates.
+      structure_mapping: Optional (N,) array mapping each residue to a structure ID.
+                        When provided (multi-state mode), prevents cross-structure
+                        neighbors to avoid information leakage between conformational states.
 
     Returns:
       Logits of shape (N, 21) for each residue position.
@@ -124,12 +119,6 @@ def make_conditional_logits_fn(
       ... )
 
     """
-    # Keep prng_key available for feature extraction below.
-
-    # Manually run feature extraction and the model's conditional path
-    # to avoid dispatch through jax.lax.switch (which can trigger other
-    # branches under tracing). This keeps the conditional logits path
-    # explicit and avoids dynamic indexing issues in other branches.
     edge_features, neighbor_indices, _ = model.features(
       prng_key,
       structure_coordinates,
@@ -137,6 +126,7 @@ def make_conditional_logits_fn(
       residue_index,
       chain_index,
       backbone_noise,
+      structure_mapping,
     )
 
     ar_mask = (
@@ -209,16 +199,20 @@ def make_encoding_conditional_logits_split_fn(
     chain_index: ChainIndex,
     backbone_noise: BackboneNoise | None = None,
     prng_key: PRNGKeyArray | None = None,
+    structure_mapping: jax.Array | None = None,
   ) -> tuple:
     """Encode structure to get encoder features.
 
     Args:
-      prng_key: JAX random key for feature extraction.
       structure_coordinates: Atomic coordinates (N, 4, 3).
       mask: Alpha carbon mask indicating valid residues.
       residue_index: Residue indices.
       chain_index: Chain indices.
       backbone_noise: Optional noise for backbone coordinates.
+      prng_key: JAX random key for feature extraction.
+      structure_mapping: Optional (N,) array mapping each residue to a structure ID.
+                        When provided (multi-state mode), prevents cross-structure
+                        neighbors to avoid information leakage between conformational states.
 
     Returns:
       Tuple of (node_features, edge_features, neighbor_indices, mask, ar_mask_placeholder)
@@ -229,11 +223,8 @@ def make_encoding_conditional_logits_split_fn(
       backbone_noise = jax.numpy.array(0.0, dtype=jax.numpy.float32)
 
     if prng_key is None:
-      # Use a fixed deterministic key when none is provided to keep behavior
-      # deterministic in contexts that don't supply a PRNGKey.
       prng_key = jax.random.PRNGKey(0)
 
-    # Run feature extraction
     edge_features, neighbor_indices, _ = model.features(
       prng_key,
       structure_coordinates,
@@ -241,17 +232,15 @@ def make_encoding_conditional_logits_split_fn(
       residue_index,
       chain_index,
       backbone_noise,
+      structure_mapping=structure_mapping,
     )
 
-    # Run encoder
     node_features, processed_edge_features = model.encoder(
       edge_features,
       neighbor_indices,
       mask,
     )
 
-    # Return encoder outputs + metadata needed for decoding
-    # Include ar_mask placeholder (zeros) for shape consistency
     ar_mask_placeholder = jax.numpy.zeros((mask.shape[0], mask.shape[0]), dtype=jax.numpy.int32)
 
     return (node_features, processed_edge_features, neighbor_indices, mask, ar_mask_placeholder)
@@ -278,14 +267,11 @@ def make_encoding_conditional_logits_split_fn(
     if ar_mask is None:
       ar_mask = jax.numpy.zeros((mask.shape[0], mask.shape[0]), dtype=jax.numpy.int32)
 
-    # Ensure sequence is one-hot encoded
     if sequence.ndim == 1:
-      # Convert from integer to one-hot
       one_hot_sequence = jax.nn.one_hot(sequence, model.w_s_embed.num_embeddings)
     else:
       one_hot_sequence = sequence
 
-    # Run decoder in conditional mode
     decoded_node_features = model.decoder.call_conditional(
       node_features,
       processed_edge_features,
@@ -296,7 +282,6 @@ def make_encoding_conditional_logits_split_fn(
       model.w_s_embed.weight,
     )
 
-    # Project to logits
     return jax.vmap(model.w_out)(decoded_node_features)
 
   return encode_fn, decode_fn

@@ -151,6 +151,7 @@ def _compute_batch_outputs(
         chain_ix: ChainIndex,
         one_hot_sequence: OneHotProteinSequence,
         noise: Float,
+        struct_mapping: jax.Array | None,
       ) -> Logits:
         def logit_fn(one_hot_flat: jax.Array) -> jax.Array:
           one_hot_2d = one_hot_flat.reshape(one_hot_sequence.shape)
@@ -163,6 +164,7 @@ def _compute_batch_outputs(
             one_hot_2d,
             None,  # ar_mask
             noise,  # backbone_noise
+            struct_mapping,  # structure_mapping
           )
           return logits.flatten()
 
@@ -178,6 +180,7 @@ def _compute_batch_outputs(
         residue_ix: ResidueIndex,
         chain_ix: ChainIndex,
         one_hot_sequence: OneHotProteinSequence,
+        struct_mapping: jax.Array | None,
       ) -> jax.Array:
         """Compute Jacobians for a single structure across multiple noise levels."""
         return jax.lax.map(
@@ -188,6 +191,7 @@ def _compute_batch_outputs(
             residue_ix,
             chain_ix,
             one_hot_sequence,
+            struct_mapping=struct_mapping,
           ),
           jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
           batch_size=spec.noise_batch_size,
@@ -199,6 +203,7 @@ def _compute_batch_outputs(
         batched_ensemble.residue_index,
         batched_ensemble.chain_index,
         batched_ensemble.one_hot_sequence,
+        batched_ensemble.mapping,
       )
       yield jacobians_batch, batched_ensemble.one_hot_sequence
     if spec.average_encodings and encode_fn is not None:
@@ -209,6 +214,7 @@ def _compute_batch_outputs(
         residue_ix: ResidueIndex,
         chain_ix: ChainIndex,
         noise: Float,
+        struct_mapping: jax.Array | None,
       ) -> tuple[NodeFeatures, EdgeFeatures, NeighborIndices, AlphaCarbonMask, AutoRegressiveMask]:
         return encode_fn(
           coords,
@@ -216,6 +222,7 @@ def _compute_batch_outputs(
           residue_ix,
           chain_ix,
           backbone_noise=noise,
+          structure_mapping=struct_mapping,
         )
 
       def mapped_fn(
@@ -223,10 +230,18 @@ def _compute_batch_outputs(
         mask: AlphaCarbonMask,
         residue_ix: ResidueIndex,
         chain_ix: ChainIndex,
+        struct_mapping: jax.Array | None,
       ) -> jax.Array:
         """Compute encodings for a single structure across multiple noise levels."""
         return jax.lax.map(
-          partial(compute_encodings_for_structure, coords, mask, residue_ix, chain_ix),
+          partial(
+            compute_encodings_for_structure,
+            coords,
+            mask,
+            residue_ix,
+            chain_ix,
+            struct_mapping=struct_mapping,
+          ),
           jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
           batch_size=spec.noise_batch_size,
         )
@@ -236,6 +251,7 @@ def _compute_batch_outputs(
         batched_ensemble.mask,
         batched_ensemble.residue_index,
         batched_ensemble.chain_index,
+        batched_ensemble.mapping,
       )
       yield encodings_batch, batched_ensemble.one_hot_sequence
 
@@ -305,7 +321,6 @@ def _categorical_jacobian_in_memory(
   )
 
   if spec.average_encodings:
-    # Average encodings path: collect all encodings, average them, then compute jacobians
     if encode_fn is None or decode_fn is None:
       msg = "encode_fn and decode_fn must be provided for average_encodings mode"
       raise ValueError(msg)
@@ -317,19 +332,14 @@ def _categorical_jacobian_in_memory(
     all_encodings = [item[0] for item in all_encodings_and_sequences]
     all_sequences = [item[1] for item in all_encodings_and_sequences]
 
-    # Initialize rolling average with first batch
     averaged_encodings, count = _get_initial_rolling_average_state(all_encodings[0])
 
-    # Update with remaining batches
     for encodings_batch in all_encodings[1:]:
       averaged_encodings, count = _update_rolling_average(
         (averaged_encodings, count),
         encodings_batch,
       )
 
-    # Now compute jacobians using the averaged encodings and decode_fn
-    # averaged_encodings is a PyTree with shapes like (seq_len, features)
-    # Concatenate all sequences
     all_sequences_concat = jnp.concatenate(all_sequences, axis=0)
 
     def compute_jacobian_for_sequence(
@@ -339,7 +349,6 @@ def _categorical_jacobian_in_memory(
 
       def logit_fn(one_hot_flat: jax.Array) -> jax.Array:
         one_hot_2d = one_hot_flat.reshape(one_hot_sequence.shape)
-        # Use averaged encodings with decode_fn
         logits = decode_fn(averaged_encodings, one_hot_2d, None)  # ar_mask=None
         return logits.flatten()
 
@@ -349,12 +358,8 @@ def _categorical_jacobian_in_memory(
         spec.jacobian_batch_size,
       )
 
-    # Compute jacobians for all sequences
     jacobians = jax.vmap(compute_jacobian_for_sequence)(all_sequences_concat)
-    # Add noise dimension to match expected shape (batch, noise_levels, seq_len, 21, seq_len, 21)
-    # Since we averaged over noise, we have a single "effective" noise level
     jacobians = jacobians[:, None, :, :, :, :]  # Add noise dimension
-    # Post-process and return results (APC, combine) for averaged-encodings path
     apc_jacobians = (
       jax.vmap(jax.vmap(apc_corrected_frobenius_norm))(jacobians) if spec.compute_apc else None
     )
@@ -385,7 +390,6 @@ def _categorical_jacobian_in_memory(
       },
     }
 
-  # --- Path for Standard Jacobian Computation (non-averaged encodings) ---
   all_outputs_and_sequences = list(output_generator)
   if not all_outputs_and_sequences:
     return {"categorical_jacobians": None, "metadata": None}

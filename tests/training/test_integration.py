@@ -27,7 +27,8 @@ def test_train_overfit_single_batch(temp_data_dir, temp_checkpoint_dir, small_mo
     
     # Should not raise
     # results = train(spec)
-    # assert results["final_step"] > 0
+    # If used, train() now returns a TrainingResult dataclass:
+    # assert results.final_step > 0
     
     # Placeholder assertion
     assert spec.num_epochs == 2

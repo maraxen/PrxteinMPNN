@@ -52,6 +52,7 @@ def make_optimize_sequence_fn(
     BackboneNoise | None,
     jnp.ndarray | None,
     int | None,
+    jax.Array | None,
   ],
   tuple[ProteinSequence, Logits, Logits],
 ]:
@@ -105,6 +106,7 @@ def make_optimize_sequence_fn(
     backbone_noise: BackboneNoise | None = None,
     tie_group_map: jnp.ndarray | None = None,
     num_groups: int | None = None,
+    structure_mapping: jax.Array | None = None,
   ) -> tuple[ProteinSequence, Logits, Logits]:
     """Optimize a sequence by finding self-consistent logits via autoregressive decoder.
 
@@ -143,10 +145,8 @@ def make_optimize_sequence_fn(
     num_residues = structure_coordinates.shape[0]
     num_classes = 21
 
-    # Initialize sequence logits to optimize (start from zeros)
     sequence_logits = jnp.zeros((num_residues, num_classes), dtype=jnp.float32)
 
-    # Set up Adam optimizer
     optimizer = optax.adam(learning_rate)
     opt_state = optimizer.init(sequence_logits)
 
@@ -167,7 +167,6 @@ def make_optimize_sequence_fn(
       current_logits, current_opt_state, current_key = carry
       key_decoding_orders, next_key = jax.random.split(current_key)
 
-      # Generate multiple random decoding orders for augmentation
       keys_for_decoding = jax.random.split(key_decoding_orders, batch_size)
       decoding_orders, _ = jax.vmap(decoding_order_fn, in_axes=(0, None, None, None))(
         keys_for_decoding,
@@ -176,7 +175,6 @@ def make_optimize_sequence_fn(
         num_groups,
       )
 
-      # Vmap over decoding orders: (D, N) -> (D, N, N)
       ar_masks = jax.vmap(generate_ar_mask, in_axes=(0, None))(decoding_orders, tie_group_map)
 
       def loss_fn(logits: Logits) -> Float:
@@ -192,12 +190,9 @@ def make_optimize_sequence_fn(
           Scalar loss value.
 
         """
-        # Apply straight-through estimator with temperature to get discrete sequence
         one_hot_sequence = straight_through_estimator(logits / temperature)
 
-        # Run autoregressive decoder with this sequence under different AR masks
         def eval_with_mask(ar_mask: AutoRegressiveMask) -> Logits:
-          # Use conditional mode to get decoder output for the STE-discretized sequence
           _, output_logits = model(
             structure_coordinates,
             mask,
@@ -207,50 +202,35 @@ def make_optimize_sequence_fn(
             one_hot_sequence=one_hot_sequence,
             ar_mask=ar_mask,
             backbone_noise=backbone_noise,
+            structure_mapping=structure_mapping,
           )
           return output_logits
 
-        # Evaluate with multiple AR masks and average predictions
         pred_logits_batch = jax.vmap(eval_with_mask)(ar_masks)
         output_logits = jnp.mean(pred_logits_batch, axis=0)
 
-        # Loss: cross-entropy between decoder output and our current logits
-        # We want the decoder to predict our sequence
         loss = optax.softmax_cross_entropy(
           logits=output_logits,
-          labels=straight_through_estimator(logits),  # Use STE again for labels
+          labels=straight_through_estimator(logits),
         )
 
-        # Mask invalid positions and return mean loss
         return (loss * mask).sum() / (mask.sum() + 1e-8)
 
-      # Compute loss and gradients
       _, grads = jax.value_and_grad(loss_fn)(current_logits)
 
-      # Update logits with Adam
       updates, next_opt_state = optimizer.update(grads, current_opt_state)
       next_logits: Logits = optax.apply_updates(current_logits, updates)  # type: ignore[assignment]
 
-      # Enforce tied positions: average logits within each group
       if tie_group_map is not None and num_groups is not None:
-        # For each group, compute average logits and broadcast to all positions in that group
-        # Create one-hot encoding of group memberships: (N, num_groups)
         group_one_hot = jax.nn.one_hot(
           tie_group_map,
           num_groups,
           dtype=jnp.float32,
         )  # (N, num_groups)
 
-        # Compute sum of logits for each group: (num_groups, 21)
         group_logit_sums = jnp.einsum("ng,na->ga", group_one_hot, next_logits)
-
-        # Count positions in each group: (num_groups,)
-        group_counts = group_one_hot.sum(axis=0)  # (num_groups,)
-
-        # Average logits per group: (num_groups, 21)
+        group_counts = group_one_hot.sum(axis=0)
         group_avg_logits = group_logit_sums / (group_counts[:, None] + 1e-8)
-
-        # Broadcast averaged logits back to all positions via group membership: (N, 21)
         next_logits = jnp.einsum("ng,ga->na", group_one_hot, group_avg_logits)
 
       return next_logits, next_opt_state, next_key

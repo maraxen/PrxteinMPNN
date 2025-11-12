@@ -79,17 +79,17 @@ def score(
 
     vmap_sequences = jax.vmap(
       score_single_pair,
-      in_axes=(None, 0, None, None, None, None, None, None, None),
+      in_axes=(None, 0, None, None, None, None, None, None, None, None),
       out_axes=0,
     )
     vmap_noises = jax.vmap(
       vmap_sequences,
-      in_axes=(None, None, None, None, None, None, None, 0, None),
+      in_axes=(None, None, None, None, None, None, None, 0, None, None),
       out_axes=0,
     )
     vmap_structures = jax.vmap(
       vmap_noises,
-      in_axes=(None, None, 0, 0, 0, 0, None, None, None),
+      in_axes=(None, None, 0, 0, 0, 0, None, None, None, None),
       out_axes=0,
     )
     scores, logits, _decoding_orders = vmap_structures(
@@ -102,6 +102,7 @@ def score(
       48,
       jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
       current_ar_mask,
+      batched_ensemble.mapping,
     )
     all_scores.append(scores)
     all_logits.append(logits)
@@ -158,31 +159,32 @@ def _score_streaming(
         current_ar_mask = jnp.asarray(spec.ar_mask)
 
       vmap_sequences = jax.vmap(
-          score_single_pair,
-          in_axes=(None, 0, None, None, None, None, None, None, None),
-          out_axes=0,
+        score_single_pair,
+        in_axes=(None, 0, None, None, None, None, None, None, None, None),
+        out_axes=0,
       )
       vmap_noises = jax.vmap(
-          vmap_sequences,
-          in_axes=(None, None, None, None, None, None, None, 0, None),
-          out_axes=0,
+        vmap_sequences,
+        in_axes=(None, None, None, None, None, None, None, 0, None, None),
+        out_axes=0,
       )
       vmap_structures = jax.vmap(
-          vmap_noises,
-          in_axes=(None, None, 0, 0, 0, 0, None, None, None),
-          out_axes=0,
+        vmap_noises,
+        in_axes=(None, None, 0, 0, 0, 0, None, None, None, None),
+        out_axes=0,
       )
 
       scores, logits, _ = vmap_structures(
-          jax.random.key(spec.random_seed),
-          batched_sequences,
-          batched_ensemble.coordinates,
-          batched_ensemble.mask,
-          batched_ensemble.residue_index,
-          batched_ensemble.chain_index,
-          48,
-          jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
-          current_ar_mask,
+        jax.random.key(spec.random_seed),
+        batched_sequences,
+        batched_ensemble.coordinates,
+        batched_ensemble.mask,
+        batched_ensemble.residue_index,
+        batched_ensemble.chain_index,
+        48,
+        jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
+        current_ar_mask,
+        batched_ensemble.mapping,
       )
 
       scores_ds.resize(scores_ds.shape[0] + scores.size, axis=0)

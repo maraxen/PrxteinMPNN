@@ -124,8 +124,6 @@ def project_forces_onto_backbone(
   frames = compute_backbone_frame(
     backbone_positions,
   )
-  # frames shape: (4, n_residues, 3)
-  # aggregated_forces shape: (n_residues, 3)
 
   def project_residue(agg_force: jax.Array, residue_frames: jax.Array) -> jax.Array:
     """Project aggregated force for one residue onto its 4 frame vectors.
@@ -140,13 +138,8 @@ def project_forces_onto_backbone(
     """
     return jnp.sum(agg_force[jnp.newaxis, :] * residue_frames, axis=-1)
 
-  # Vmap over residues: frames has shape (4, n_residues, 3)
-  # We want to vmap over axis 1 of frames to get each residue's 4 frames
   forces = jax.vmap(project_residue, in_axes=(0, 1))(aggregated_forces, frames)
-  # forces shape after vmap: (n_residues, 4)
   magnitude = jnp.linalg.norm(aggregated_forces, axis=-1, keepdims=True)
-  # magnitude shape: (n_residues, 1)
-
   return jnp.concatenate([forces, magnitude], axis=-1)
 
 
@@ -175,7 +168,6 @@ def project_forces_onto_backbone_per_atom(
 
   """
   frames = compute_backbone_frame(backbone_positions)
-  # frames shape: (4, n_residues, 3)
 
   def project_per_residue(force_vector: jax.Array, residue_frames: jax.Array) -> jax.Array:
     """Project each backbone atom's force onto all frame vectors.
@@ -188,20 +180,12 @@ def project_forces_onto_backbone_per_atom(
         Projections of 5 atoms onto 4 frames. Shape: (4, 5).
 
     """
-    # For each atom, project onto all 4 frames
-    # force_vector: (5, 3), residue_frames: (4, 3)
-    # Result: (4, 5) - each row is projections of all atoms onto one frame
     return jnp.dot(residue_frames, force_vector.T)  # (4, 3) @ (3, 5) -> (4, 5)
 
-  # Vmap over residues: frames has shape (4, n_residues, 3)
   forces = jax.vmap(project_per_residue, in_axes=(0, 1))(force_vectors, frames)
-  # forces shape after vmap: (n_residues, 4, 5)
-
   magnitude = jnp.linalg.norm(force_vectors, axis=-1)  # (n_residues, 5)
-
-  # Stack projections with magnitude for each atom
-  # Result shape: (n_residues, 4, 5) + (n_residues, 5) -> (n_residues, 5, 5)
-  result = jnp.stack(
-    [forces[:, 0, :], forces[:, 1, :], forces[:, 2, :], forces[:, 3, :], magnitude], axis=-1
+  result = jnp.concatenate(
+    [forces, magnitude],
+    axis=-1,
   )
   return result.reshape(force_vectors.shape[0], -1)

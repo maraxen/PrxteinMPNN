@@ -88,6 +88,7 @@ def make_sample_sequences(
       temperature: Float | None = None,
       tie_group_map: jnp.ndarray | None = None,
       num_groups: int | None = None,
+      structure_mapping: jax.Array | None = None,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """Optimize a sequence using straight-through estimation.
 
@@ -106,6 +107,9 @@ def make_sample_sequences(
         temperature: Temperature for STE sampling (default: 1.0).
         tie_group_map: Optional (N,) array mapping positions to group IDs for tied sampling.
         num_groups: Number of unique groups when using tied positions.
+        structure_mapping: Optional (N,) array mapping each residue to a structure ID.
+                  When provided (multi-state mode), prevents cross-structure
+                  neighbors to avoid information leakage between conformational states.
 
       Returns:
         Tuple of (optimized sequence, final logits, decoding order).
@@ -139,6 +143,7 @@ def make_sample_sequences(
         backbone_noise,
         tie_group_map,
         num_groups,
+        structure_mapping,
       )
 
       return optimized_sequence, final_logits, decoding_order
@@ -165,6 +170,7 @@ def make_sample_sequences(
       num_groups: int | None = None,
       multi_state_strategy: Literal["mean", "min", "product", "max_min"] = "mean",
       multi_state_alpha: float = 0.5,
+      structure_mapping: jax.Array | None = None,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """Sample a sequence from a structure using the ProteinMPNN model.
 
@@ -186,6 +192,10 @@ def make_sample_sequences(
         multi_state_strategy: Strategy for combining logits across tied positions
           ("mean", "min", "product", "max_min").
         multi_state_alpha: Weight for min component when strategy="max_min" (0-1).
+        structure_mapping: Optional (N,) array mapping each residue to a structure ID.
+                  When provided (multi-state mode), prevents cross-structure
+                  neighbors to avoid information leakage between conformational states.
+
 
       Returns:
         Tuple of (sampled sequence, logits, decoding order).
@@ -223,6 +233,7 @@ def make_sample_sequences(
         tie_group_map=tie_group_map,
         multi_state_strategy=multi_state_strategy,
         multi_state_alpha=multi_state_alpha,
+        structure_mapping=structure_mapping,
       )
 
       one_hot_ndim = 2

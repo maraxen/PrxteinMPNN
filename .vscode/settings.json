@@ -41,6 +41,8 @@
     "chex",
     "cimist",
     "clust",
+    "Colab",
+    "colabdesign",
     "coro",
     "dbscan",
     "dgamma",

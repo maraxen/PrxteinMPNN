@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Literal
 
 import equinox as eqx
 import jax
+import jax.nn.initializers as init
 from huggingface_hub import hf_hub_download
 
 if TYPE_CHECKING:
@@ -24,10 +25,9 @@ ALL_MODEL_VERSIONS: list[MODEL_VERSION] = [
   "v_48_030",
 ]
 
-# Model hyperparameters (same for all models)
 NODE_FEATURES = 128
 EDGE_FEATURES = 128
-HIDDEN_FEATURES = 512
+HIDDEN_FEATURES = 128
 NUM_ENCODER_LAYERS = 3
 NUM_DECODER_LAYERS = 3
 K_NEIGHBORS = 48
@@ -36,18 +36,21 @@ VOCAB_SIZE = 21
 
 def load_weights(
   model_version: MODEL_VERSION = "v_48_020",
-  model_weights: MODEL_WEIGHTS = "original",
+  model_weights: MODEL_WEIGHTS | None = "original",
   local_path: str | None = None,
   skeleton: eqx.Module | None = None,
+  key: jax.Array | None = None,
 ) -> PyTree | eqx.Module:
   """Load PrxteinMPNN weights from Hugging Face Hub or a local path.
 
   Args:
       model_version: The model version (e.g., "v_48_020").
       model_weights: The weight type ("original" or "soluble").
+                     If None, reinitializes skeleton with Glorot normal.
       local_path: Optional. If provided, loads from this local file.
       skeleton: Optional. If provided, loads weights *into* this
                 eqx.Module skeleton. Required for .eqx format.
+      key: Optional JAX random key for reinitialization when model_weights is None.
 
   Returns:
       The loaded model (as a raw PyTree or populated eqx.Module).
@@ -55,8 +58,40 @@ def load_weights(
   Example:
       >>> # Load from HuggingFace (.eqx format, recommended)
       >>> model = load_model(model_version="v_48_020", model_weights="original")
+      >>> # Or reinitialize with Glorot normal
+      >>> key = jax.random.PRNGKey(42)
+      >>> model = load_model(model_version="v_48_020", model_weights=None, key=key)
 
   """
+  if model_weights is None:
+    if skeleton is None:
+      msg = "skeleton is required when model_weights is None"
+      raise ValueError(msg)
+    if key is None:
+      key = jax.random.PRNGKey(0)
+
+    params, static = eqx.partition(skeleton, eqx.is_inexact_array)
+
+    param_leaves = jax.tree_util.tree_leaves(params)
+    keys = jax.random.split(key, len(param_leaves))
+
+    min_weight_dims = 2
+
+    def initialize_param(param: jax.Array, key: jax.Array) -> jax.Array:
+      """Initialize parameter with appropriate distribution based on shape."""
+      shape = param.shape
+      if len(shape) >= min_weight_dims:
+        return init.glorot_normal()(key, shape, param.dtype)
+      return init.normal(stddev=0.01)(key, shape, param.dtype)
+
+    initialized_leaves = [initialize_param(p, k) for p, k in zip(param_leaves, keys, strict=True)]
+    new_params = jax.tree_util.tree_unflatten(
+      jax.tree_util.tree_structure(params),
+      initialized_leaves,
+    )
+
+    return eqx.combine(new_params, static)
+
   if local_path:
     weights_file_path = local_path
   else:
@@ -101,20 +136,16 @@ def load_model(
       >>> seq, logits = model(coords, mask, res_idx, chain_idx, "unconditional")
 
   """
-  # Import here to avoid circular dependency
-  # This is intentional to break import cycles
   from prxteinmpnn.model import PrxteinMPNN  # noqa: PLC0415
 
   if key is None:
     key = jax.random.PRNGKey(0)
 
-  # Parse model_version if it contains the full name (e.g., "original_v_48_020")
   if "_v_" in model_version:
-    # Extract weights type and version from full name
     parts = model_version.split("_v_", 1)
     model_weights = parts[0]  # type: ignore[assignment]
     model_version = f"v_{parts[1]}"  # type: ignore[assignment]
-  # Create skeleton with correct hyperparameters
+
   skeleton = PrxteinMPNN(
     node_features=NODE_FEATURES,
     edge_features=EDGE_FEATURES,
@@ -126,7 +157,6 @@ def load_model(
     key=key,
   )
 
-  # Load weights - returns the skeleton populated with weights
   loaded = load_weights(
     model_version=model_version,
     model_weights=model_weights,
@@ -134,7 +164,6 @@ def load_model(
     skeleton=skeleton,
   )
 
-  # Type check for safety
   if not isinstance(loaded, PrxteinMPNN):
     msg = f"Expected PrxteinMPNN, got {type(loaded)}"
     raise TypeError(msg)

@@ -42,8 +42,8 @@ class DecoderLayer(eqx.Module):
   def __init__(
     self,
     node_features: int,
-    edge_context_features: int,  # This will be 384
-    hidden_features: int,
+    edge_context_features: int,
+    _hidden_features: int,
     *,
     key: PRNGKeyArray,
   ) -> None:
@@ -85,7 +85,7 @@ class DecoderLayer(eqx.Module):
     self.dense = eqx.nn.MLP(
       in_size=node_features,
       out_size=node_features,
-      width_size=hidden_features,
+      width_size=mlp_input_dim,
       depth=1,
       activation=_gelu,
       key=keys[1],
@@ -199,8 +199,8 @@ class Decoder(eqx.Module):
 
     keys = jax.random.split(key, num_layers)
 
-    # The context dim is 384 ([h_i/s_i, e_ij, h_j/s_j])
-    edge_context_features = 384
+    # The context dim is [h_i, e_ij, h_j] = node_features + edge_features + node_features
+    edge_context_features = 2 * node_features + edge_features
 
     self.layers = tuple(
       DecoderLayer(node_features, edge_context_features, hidden_features, key=k) for k in keys

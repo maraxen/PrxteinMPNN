@@ -90,14 +90,10 @@ def sample(
   for batched_ensemble in protein_iterator:
     keys = jax.random.split(jax.random.key(spec.random_seed), spec.num_samples)
 
-    # Compute tie groups if needed
     tie_group_map = None
     num_groups = None
 
-    # Handle inter-chain mode with tied positions
     if spec.pass_mode == "inter" and spec.tied_positions is not None:  # noqa: S105
-      # For inter mode, loader has already concatenated structures with sequential chain IDs
-      # Just resolve the tie groups on the concatenated protein
       tie_group_map = resolve_tie_groups(spec, batched_ensemble)
       num_groups = int(jnp.max(tie_group_map)) + 1
 
@@ -120,6 +116,7 @@ def sample(
         None,  # num_groups
         None,  # multi_state_strategy
         None,  # multi_state_alpha
+        None,  # interstructure mapping
       ),
       out_axes=0,
     )
@@ -142,6 +139,7 @@ def sample(
         None,  # num_groups
         None,  # multi_state_strategy
         None,  # multi_state_alpha
+        None,  # interstructure mapping
       ),
       out_axes=0,
     )
@@ -164,6 +162,7 @@ def sample(
         None,  # num_groups
         None,  # multi_state_strategy
         None,  # multi_state_alpha
+        None,  # interstructure mapping
       ),
       out_axes=0,
     )
@@ -188,6 +187,7 @@ def sample(
       num_groups,
       spec.multi_state_strategy,
       spec.multi_state_alpha,
+      batched_ensemble.mapping,
     )
     all_sequences.append(sampled_sequences)
     all_logits.append(logits)
@@ -264,6 +264,7 @@ def _sample_streaming(
         num_groups=num_groups,
         multi_state_strategy=spec.multi_state_strategy,
         multi_state_alpha=spec.multi_state_alpha,
+        structure_mapping=batched_ensemble.mapping,
       )
 
       def sample_single_noise(

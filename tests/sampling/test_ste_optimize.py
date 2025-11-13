@@ -38,6 +38,7 @@ class MockPrxteinMPNN(eqx.Module):
         one_hot_sequence: Array,
         ar_mask: AutoRegressiveMask,
         backbone_noise: BackboneNoise | None = None,
+        structure_mapping: Array | None = None,
     ) -> tuple[None, Logits]:
         """Return mock logits."""
         chex.assert_shape(

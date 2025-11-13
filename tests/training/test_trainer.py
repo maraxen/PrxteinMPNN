@@ -64,7 +64,7 @@ def test_setup_mixed_precision():
     setup_mixed_precision("fp16")
     setup_mixed_precision("bf16")
 
-
+@pytest.mark.slow("Takes a while on a CPU-only machine.")
 def test_train_step_reduces_loss(small_model: eqx.Module, mock_batch) -> None:
     """Test that multiple training steps reduce loss."""
     optimizer, schedule = create_optimizer(

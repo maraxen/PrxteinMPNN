@@ -352,7 +352,7 @@ def compute_lj_forces(
 
   force_magnitudes = apply_self_exclusion(force_magnitudes, exclude_self=exclude_self)
   distances_safe = clamp_distances(distances, min_distance)
-  unit_displacements = displacements / distances_safe[..., None]
+  unit_displacements = -displacements / distances_safe[..., None]
   force_vectors = force_magnitudes[..., None] * unit_displacements
   return jnp.sum(force_vectors, axis=1)
 

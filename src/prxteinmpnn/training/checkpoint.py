@@ -63,7 +63,18 @@ def save_checkpoint(
     args=ocp.args.Composite(
       model=ocp.args.StandardSave(model_params),  # pyright: ignore[reportCallIssue]
       opt_state=ocp.args.StandardSave(opt_state),  # pyright: ignore[reportCallIssue]
-      metrics=ocp.args.PyTreeSave(metrics if metrics is not None else TrainingMetrics()),  # pyright: ignore[reportCallIssue]
+      metrics=ocp.args.PyTreeSave(  # pyright: ignore[reportCallIssue]
+        args=(  # pyright: ignore[reportCallIssue]
+          metrics
+          if metrics is not None
+          else TrainingMetrics(
+            loss=jnp.array(0.0),
+            accuracy=jnp.array(0.0),
+            perplexity=jnp.array(0.0),
+            learning_rate=0.0,
+          )
+        ),
+      ),
     ),
   )
 

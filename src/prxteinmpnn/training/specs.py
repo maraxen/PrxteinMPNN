@@ -99,7 +99,7 @@ class TrainingSpecification(RunSpecification):
 
   # Physics features (Phase 1)
   use_electrostatics: bool = False
-  _use_vdw: bool = False
+  use_vdw: bool = False
   physics_feature_weight: float = 1.0
 
   # Regularization

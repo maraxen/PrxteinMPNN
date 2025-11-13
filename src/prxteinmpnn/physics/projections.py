@@ -182,10 +182,13 @@ def project_forces_onto_backbone_per_atom(
     """
     return jnp.dot(residue_frames, force_vector.T)  # (4, 3) @ (3, 5) -> (4, 5)
 
-  forces = jax.vmap(project_per_residue, in_axes=(0, 1))(force_vectors, frames)
+  forces = jax.vmap(project_per_residue, in_axes=(0, 1))(
+    force_vectors,
+    frames,
+  )  # (n_residues, 4, 5)
   magnitude = jnp.linalg.norm(force_vectors, axis=-1)  # (n_residues, 5)
   result = jnp.concatenate(
-    [forces, magnitude],
-    axis=-1,
+    [forces.squeeze(), magnitude],
+    axis=0,
   )
   return result.reshape(force_vectors.shape[0], -1)

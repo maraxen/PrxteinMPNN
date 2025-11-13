@@ -360,7 +360,6 @@ class PrxteinMPNN(eqx.Module):
       >>> avg_logits = PrxteinMPNN._average_logits_over_group(logits, group_mask)
 
     """
-    # Find max logits within the group for numerical stability
     max_logits = jnp.max(
       logits,
       where=group_mask[:, None],
@@ -369,15 +368,12 @@ class PrxteinMPNN(eqx.Module):
       keepdims=True,
     )  # (1, 21)
 
-    # Shift logits and compute exp
     shifted_logits = logits - max_logits  # (N, 21)
     exp_logits = jnp.exp(shifted_logits)  # (N, 21)
 
-    # Mask out non-group positions and sum
     masked_exp_logits = jnp.where(group_mask[:, None], exp_logits, 0.0)  # (N, 21)
     sum_exp_logits = jnp.sum(masked_exp_logits, axis=0, keepdims=True)  # (1, 21)
 
-    # Compute average and convert back to log space
     num_in_group = jnp.sum(group_mask)
     avg_exp_logits = sum_exp_logits / num_in_group  # (1, 21)
     return jnp.log(avg_exp_logits) + max_logits  # (1, 21)
@@ -585,36 +581,18 @@ class PrxteinMPNN(eqx.Module):
 
     """
     num_residues = node_features.shape[0]
-
-    # Find group decoding order based on first appearance in decoding_order
-    # Get the group ID at each position in decoding_order
     groups_in_order = tie_group_map[decoding_order]
-
-    # Find unique groups preserving order of first appearance using cumulative comparison
-    # For each position, check if this group appeared earlier in the sequence
-    # Create a lower triangular mask to check all previous positions
     position_indices = jnp.arange(num_residues)
-    # Create mask: mask[i,j] = True if i > j (i.e., j is before i)
     is_before_mask = position_indices[:, None] > position_indices[None, :]
-    # Check if current group (at each position) matches any previous group
-    # groups_in_order[:, None] has shape (N, 1), groups_in_order[None, :] has shape (1, N)
     group_matches = groups_in_order[:, None] == groups_in_order[None, :]
-    # For each position i, check if its group appears in any position j < i
     appeared_before = jnp.any(group_matches & is_before_mask, axis=1)
-    # Mark first occurrences (positions where group hasn't appeared before)
     is_first_occurrence = ~appeared_before
-
-    # Extract the group IDs at their first occurrences
-    # Use compress with static size to avoid boolean indexing issues
-    # Maximum possible size is num_residues (all positions in different groups)
     group_decoding_order = jnp.compress(
       is_first_occurrence,
       groups_in_order,
       size=num_residues,
       fill_value=-1,
     )
-    # Note: group_decoding_order now contains the group IDs followed by -1 padding
-    # The scan will iterate over this, and steps with group_id=-1 will be no-ops
 
     def group_autoregressive_step(
       carry: tuple[NodeFeatures, NodeFeatures, Logits, OneHotProteinSequence],
@@ -629,7 +607,6 @@ class PrxteinMPNN(eqx.Module):
 
       group_mask = tie_group_map == group_id
 
-      # Process positions and collect logits
       all_layers_h, computed_logits = self._process_group_positions(
         group_mask,
         all_layers_h,
@@ -641,7 +618,6 @@ class PrxteinMPNN(eqx.Module):
         mask_bw,
       )
 
-      # Combine logits using multi-state strategy and sample
       combined_logits = self._combine_logits_multistate_idx(
         computed_logits,
         group_mask,
@@ -661,7 +637,6 @@ class PrxteinMPNN(eqx.Module):
 
       return (all_layers_h, s_embed, all_logits, sequence), None
 
-    # Initialize scan
     initial_all_layers_h = jnp.zeros(
       (self.num_decoder_layers + 1, num_residues, self.node_features_dim),
     )
@@ -678,7 +653,6 @@ class PrxteinMPNN(eqx.Module):
       initial_sequence,
     )
 
-    # Use the length of group_decoding_order to determine how many groups we have
     actual_num_groups = group_decoding_order.shape[0]
     scan_inputs = (group_decoding_order, jax.random.split(prng_key, actual_num_groups))
 
@@ -717,7 +691,6 @@ class PrxteinMPNN(eqx.Module):
       Tuple of (updated all_logits, updated s_embed, updated sequence).
 
     """
-    # Average bias across group
     group_bias = jnp.sum(
       jnp.where(group_mask[:, None], bias, 0.0),
       axis=0,
@@ -725,7 +698,6 @@ class PrxteinMPNN(eqx.Module):
     ) / jnp.sum(group_mask)
     logits_with_bias = avg_logits + group_bias
 
-    # Sample once for the entire group
     sampled_logits = (logits_with_bias / temperature) + jax.random.gumbel(
       key,
       logits_with_bias.shape,
@@ -735,7 +707,6 @@ class PrxteinMPNN(eqx.Module):
     padding = jnp.zeros_like(one_hot_sample[..., :1])
     one_hot_seq = jnp.concatenate([one_hot_sample, padding], axis=-1)
 
-    # Broadcast to all group positions
     s_embed_new = one_hot_seq @ self.w_s_embed.weight
     all_logits = jnp.where(group_mask[:, None], jnp.squeeze(avg_logits), all_logits)
     s_embed = jnp.where(group_mask[:, None], jnp.squeeze(s_embed_new), s_embed)
@@ -814,9 +785,6 @@ class PrxteinMPNN(eqx.Module):
     mask_bw = mask_1d * attention_mask
     mask_fw = mask_1d * (1 - attention_mask)
     decoding_order = jnp.argsort(jnp.sum(autoregressive_mask, axis=1))
-
-    # Precompute encoder context: [e_ij, 0_j, h_j]
-    # This matches the unconditional decoder structure
     encoder_edge_neighbors = concatenate_neighbor_nodes(
       jnp.zeros_like(node_features),
       edge_features,
@@ -839,20 +807,17 @@ class PrxteinMPNN(eqx.Module):
       all_layers_h, s_embed, all_logits, sequence = carry
       position, key = scan_inputs
 
-      # Direct indexing at current position
       encoder_context_pos = encoder_context[position]  # (K, 384)
       neighbor_indices_pos = neighbor_indices[position]  # (K,)
       mask_pos = mask[position]  # scalar
       mask_bw_pos = mask_bw[position]  # (K,)
 
-      # Compute edge sequence features for this position
       edge_sequence_features = concatenate_neighbor_nodes(
         s_embed,
         edge_features[position],
         neighbor_indices_pos,
       )  # (K, 256)
 
-      # Decoder Layer Loop
       for layer_idx, layer in enumerate(self.decoder.layers):
         # Get node features for this layer at current position
         h_in_pos = all_layers_h[layer_idx, position]  # [C]
@@ -923,10 +888,7 @@ class PrxteinMPNN(eqx.Module):
         next_sequence,
       ), None
 
-    # Branch based on whether we have tied positions
     if tie_group_map is None:
-      # Standard position-by-position sampling
-      # Initialize Scan
       initial_all_layers_h = jnp.zeros(
         (self.num_decoder_layers + 1, num_residues, self.node_features_dim),
       )
@@ -956,7 +918,6 @@ class PrxteinMPNN(eqx.Module):
 
       return final_sequence, final_all_logits
 
-    # Group-based sampling with logit combining
     return self._run_tied_position_scan(
       prng_key,
       node_features,
@@ -973,7 +934,7 @@ class PrxteinMPNN(eqx.Module):
       multi_state_alpha,
     )
 
-  def __call__(
+  def __call__(  # noqa: PLR0913
     self,
     structure_coordinates: StructureAtomicCoordinates,
     mask: AlphaCarbonMask,
@@ -991,6 +952,9 @@ class PrxteinMPNN(eqx.Module):
     multi_state_strategy: Literal["mean", "min", "product", "max_min"] = "mean",
     multi_state_alpha: float = 0.5,
     structure_mapping: jnp.ndarray | None = None,
+    initial_node_features: jnp.ndarray | None = None,
+    use_electrostatics: bool = False,
+    _use_vdw: bool = False,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Forward pass for the complete model.
 
@@ -1023,6 +987,13 @@ class PrxteinMPNN(eqx.Module):
       structure_mapping: Optional (N,) array mapping each residue to a structure ID.
                         When provided (multi-state mode), prevents cross-structure
                         neighbors to avoid information leakage between conformational states.
+      initial_node_features: Optional (n_residues, feature_dim) physics features
+                to use as initial node representations. If provided and the encoder
+                is a PhysicsEncoder with use_initial_features=True, these will be
+                used instead of zeros. Typically contains electrostatic features
+                with shape (n_residues, 5).
+      use_electrostatics: Whether to use electrostatic features in the physics encoder.
+      _use_vdw: Whether to use van der Waals features in the physics encoder (not implemented).
 
 
     Returns:
@@ -1054,7 +1025,7 @@ class PrxteinMPNN(eqx.Module):
     if backbone_noise is None:
       backbone_noise = jnp.array(0.0, dtype=jnp.float32)
 
-    edge_features, neighbor_indices, _ = self.features(
+    edge_features, neighbor_indices, node_features, _ = self.features(
       feat_key,
       structure_coordinates,
       mask,
@@ -1062,6 +1033,16 @@ class PrxteinMPNN(eqx.Module):
       chain_index,
       backbone_noise,
       structure_mapping=structure_mapping,
+      initial_node_features=initial_node_features,
+      use_electrostatics=use_electrostatics,
+      _use_vdw=_use_vdw,
+    )
+
+    _, edge_features = self.encoder(
+      edge_features,
+      neighbor_indices,
+      mask,
+      node_features,
     )
 
     branch_indices = {

@@ -98,7 +98,8 @@ class TrainingSpecification(RunSpecification):
   resume_from_checkpoint: str | Path | None = None
 
   # Physics features (Phase 1)
-  use_physics_features: bool = False
+  use_electrostatics: bool = False
+  _use_vdw: bool = False
   physics_feature_weight: float = 1.0
 
   # Regularization
@@ -107,6 +108,19 @@ class TrainingSpecification(RunSpecification):
   # Early stopping
   early_stopping_patience: int | None = None
   early_stopping_metric: Literal["val_loss", "val_accuracy", "val_perplexity"] = "val_loss"
+
+  # Preprocessed data support
+  use_preprocessed: bool = False
+  """If True, load from preprocessed array_record files instead of parsing on-the-fly."""
+
+  preprocessed_index_path: Path | None = None
+  """Path to index file for preprocessed data (required if use_preprocessed=True)."""
+
+  validation_preprocessed_path: Path | None = None
+  """Path to validation array_record file (if using preprocessed validation data)."""
+
+  validation_preprocessed_index_path: Path | None = None
+  """Path to validation index file (if using preprocessed validation data)."""
 
   def __post_init__(self) -> None:
     """Validate training specification."""

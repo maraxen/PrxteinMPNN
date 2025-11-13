@@ -177,12 +177,15 @@ class Encoder(eqx.Module):
     edge_features: EdgeFeatures,
     neighbor_indices: NeighborIndices,
     mask: AlphaCarbonMask,
+    node_features: NodeFeatures | None = None,
   ) -> tuple[NodeFeatures, EdgeFeatures]:
     """Forward pass for the encoder."""
-    node_features = jnp.zeros((edge_features.shape[0], self.node_feature_dim))
+    node_features = (
+      jnp.zeros((edge_features.shape[0], self.node_feature_dim))
+      if node_features is None
+      else node_features
+    )
 
-    # Compute attention mask: mask[i] * mask[j] for all pairs, then gather along neighbors
-    # Shape: (N, N) -> (N, K) where K is number of neighbors
     mask_2d = mask[:, None] * mask[None, :]  # (N, N)
     mask_attend = jnp.take_along_axis(mask_2d, neighbor_indices, axis=1)  # (N, K)
 

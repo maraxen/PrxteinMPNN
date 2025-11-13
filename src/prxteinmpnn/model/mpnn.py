@@ -130,6 +130,7 @@ class PrxteinMPNN(eqx.Module):
 
   def _call_unconditional(
     self,
+    node_features: NodeFeatures,
     edge_features: EdgeFeatures,
     neighbor_indices: NeighborIndices,
     mask: AlphaCarbonMask,
@@ -145,7 +146,8 @@ class PrxteinMPNN(eqx.Module):
     """Run the unconditional (scoring) path.
 
     Args:
-      edge_features: Edge features from feature extraction.
+      node_features: Node features from encoding.
+      edge_features: Edge features from encoding.
       neighbor_indices: Indices of neighbors for each node.
       mask: Alpha carbon mask.
       _ar_mask: Unused, required for jax.lax.switch signature.
@@ -172,15 +174,9 @@ class PrxteinMPNN(eqx.Module):
       >>> seq, logits = model._call_unconditional(edge_feats, neighbor_idx, mask)
 
     """
-    node_features, processed_edge_features = self.encoder(
-      edge_features,
-      neighbor_indices,
-      mask,
-    )
-
     decoded_node_features = self.decoder(
       node_features,
-      processed_edge_features,
+      edge_features,
       neighbor_indices,  # Pass neighbor indices for correct context
       mask,
     )
@@ -196,6 +192,7 @@ class PrxteinMPNN(eqx.Module):
 
   def _call_conditional(
     self,
+    node_features: NodeFeatures,
     edge_features: EdgeFeatures,
     neighbor_indices: NeighborIndices,
     mask: AlphaCarbonMask,
@@ -211,7 +208,8 @@ class PrxteinMPNN(eqx.Module):
     """Run the conditional (scoring) path.
 
     Args:
-      edge_features: Edge features from feature extraction.
+      node_features: Node features from encoding.
+      edge_features: Edge features from encoding.
       neighbor_indices: Indices of neighbors for each node.
       mask: Alpha carbon mask.
       _ar_mask: Autoregressive mask for conditional decoding.
@@ -242,14 +240,9 @@ class PrxteinMPNN(eqx.Module):
       ... )
 
     """
-    node_features, processed_edge_features = self.encoder(
-      edge_features,
-      neighbor_indices,
-      mask,
-    )
     decoded_node_features = self.decoder.call_conditional(
       node_features,
-      processed_edge_features,
+      edge_features,
       neighbor_indices,
       mask,
       _ar_mask,
@@ -263,6 +256,7 @@ class PrxteinMPNN(eqx.Module):
 
   def _call_autoregressive(
     self,
+    node_features: NodeFeatures,
     edge_features: EdgeFeatures,
     neighbor_indices: NeighborIndices,
     mask: AlphaCarbonMask,
@@ -278,7 +272,8 @@ class PrxteinMPNN(eqx.Module):
     """Run the autoregressive (sampling) path.
 
     Args:
-      edge_features: Edge features from feature extraction.
+      node_features: Node features from encoding.
+      edge_features: Edge features from encoding.
       neighbor_indices: Indices of neighbors for each node.
       mask: Alpha carbon mask.
       ar_mask: Autoregressive mask for sampling.
@@ -311,17 +306,10 @@ class PrxteinMPNN(eqx.Module):
       ... )
 
     """
-    # Convert strategy index back to string
-    node_features, processed_edge_features = self.encoder(
-      edge_features,
-      neighbor_indices,
-      mask,
-    )
-
     seq, logits = self._run_autoregressive_scan(
       prng_key,
       node_features,
-      processed_edge_features,
+      edge_features,
       neighbor_indices,
       mask,
       ar_mask,

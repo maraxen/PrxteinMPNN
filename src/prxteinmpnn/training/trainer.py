@@ -102,7 +102,10 @@ def _init_checkpoint_and_model(
   checkpoint_dir = Path(spec.checkpoint_dir)
   checkpoint_dir.mkdir(parents=True, exist_ok=True)
   options = ocp.CheckpointManagerOptions(max_to_keep=spec.keep_last_n_checkpoints)
-  checkpoint_manager = ocp.CheckpointManager(checkpoint_dir, options=options)
+  checkpoint_manager = ocp.CheckpointManager(
+    checkpoint_dir,
+    options=options,
+  )
 
   opt_state: ArrayTree | None = None
   if spec.resume_from_checkpoint:

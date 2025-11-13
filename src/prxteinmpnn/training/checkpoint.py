@@ -13,7 +13,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import equinox as eqx
+import jax.numpy as jnp
 import orbax.checkpoint as ocp
+
+from prxteinmpnn.training.metrics import TrainingMetrics
 
 if TYPE_CHECKING:
   import optax
@@ -26,7 +29,7 @@ def save_checkpoint(
   step: int,
   model: PrxteinMPNN,
   opt_state: optax.OptState,
-  metrics: dict | None = None,
+  metrics: TrainingMetrics | None = None,
 ) -> bool:
   """Save Equinox model and optimizer state using Orbax CheckpointManager.
 
@@ -60,7 +63,7 @@ def save_checkpoint(
     args=ocp.args.Composite(
       model=ocp.args.StandardSave(model_params),  # pyright: ignore[reportCallIssue]
       opt_state=ocp.args.StandardSave(opt_state),  # pyright: ignore[reportCallIssue]
-      metrics=ocp.args.JsonSave(metrics if metrics is not None else {}),  # pyright: ignore[reportCallIssue]
+      metrics=ocp.args.PyTreeSave(metrics if metrics is not None else TrainingMetrics()),  # pyright: ignore[reportCallIssue]
     ),
   )
 
@@ -69,7 +72,7 @@ def restore_checkpoint(
   manager: ocp.CheckpointManager,
   model_template: PrxteinMPNN,
   step: int | None = None,
-) -> tuple[PrxteinMPNN, optax.OptState, dict, int]:
+) -> tuple[PrxteinMPNN, optax.OptState, TrainingMetrics, int]:
   """Restore Equinox model and optimizer state from Orbax checkpoint.
 
   This is a convenience function that handles restoring an Equinox model
@@ -102,13 +105,18 @@ def restore_checkpoint(
   # Restore using Orbax CheckpointManager
   # Provide abstract structure for proper restoration
   abstract_model = eqx.filter(model_template, eqx.is_inexact_array)
-
+  abstract_metrics = TrainingMetrics(
+    loss=jnp.array(0.0),
+    accuracy=jnp.array(0.0),
+    perplexity=jnp.array(0.0),
+    learning_rate=0.0,
+  )
   restored = manager.restore(
     step,
     args=ocp.args.Composite(
       model=ocp.args.StandardRestore(abstract_model),  # pyright: ignore[reportCallIssue]
       opt_state=ocp.args.StandardRestore(None),  # pyright: ignore[reportCallIssue]
-      metrics=ocp.args.JsonRestore(),  # pyright: ignore[reportCallIssue]
+      metrics=ocp.args.PyTreeRestore(abstract_metrics),  # pyright: ignore[reportCallIssue]
     ),
   )
 

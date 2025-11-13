@@ -13,22 +13,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import equinox as eqx
-import jax.numpy as jnp
+import jax
 import orbax.checkpoint as ocp
-
-from prxteinmpnn.training.metrics import TrainingMetrics
 
 if TYPE_CHECKING:
   import optax
 
   from prxteinmpnn.model.mpnn import PrxteinMPNN
-
-blank_metrics = TrainingMetrics(
-  loss=jnp.array(0.0),
-  accuracy=jnp.array(0.0),
-  perplexity=jnp.array(0.0),
-  learning_rate=0.0,
-)
+  from prxteinmpnn.training.metrics import TrainingMetrics
 
 
 def save_checkpoint(
@@ -64,13 +56,23 @@ def save_checkpoint(
 
   """
   model_params = eqx.filter(model, eqx.is_inexact_array)
-  metrics_to_save = metrics if metrics is not None else blank_metrics
+  metrics_dict: dict[str, float | None] = {}
+  if metrics is not None:
+    metrics_dict = {
+      "loss": float(jax.device_get(metrics.loss)),
+      "accuracy": float(jax.device_get(metrics.accuracy)),
+      "perplexity": float(jax.device_get(metrics.perplexity)),
+      "learning_rate": float(metrics.learning_rate),
+      "grad_norm": float(jax.device_get(metrics.grad_norm))
+      if metrics.grad_norm is not None
+      else None,
+    }
   return manager.save(
     step,
     args=ocp.args.Composite(
       model=ocp.args.StandardSave(model_params),  # pyright: ignore[reportCallIssue]
       opt_state=ocp.args.StandardSave(opt_state),  # pyright: ignore[reportCallIssue]
-      metrics=ocp.args.PyTreeSave(metrics_to_save),  # pyright: ignore[reportCallIssue]
+      metrics=ocp.args.JsonSave(metrics_dict),  # pyright: ignore[reportCallIssue]
     ),
   )
 
@@ -115,11 +117,10 @@ def restore_checkpoint(
     args=ocp.args.Composite(
       model=ocp.args.StandardRestore(abstract_model),  # pyright: ignore[reportCallIssue]
       opt_state=ocp.args.StandardRestore(None),  # pyright: ignore[reportCallIssue]
-      metrics=ocp.args.PyTreeRestore(blank_metrics),  # pyright: ignore[reportCallIssue]
+      metrics=ocp.args.JsonRestore(),  # pyright: ignore[reportCallIssue]
     ),
   )
 
-  # Combine restored parameters with template structure
   restored_model = eqx.combine(restored["model"], model_template)
 
   return restored_model, restored["opt_state"], restored["metrics"], step

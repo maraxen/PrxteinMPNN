@@ -29,6 +29,7 @@ def mock_model() -> PrxteinMPNN:
         temperature=None,
         bias=None,
         backbone_noise=None,
+        structure_mapping=None,
     ):
         n_residues, _, _ = structure_coordinates.shape
         logits = jax.random.uniform(

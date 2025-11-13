@@ -14,7 +14,6 @@ from prxteinmpnn.training.checkpoint import restore_checkpoint, save_checkpoint
 from prxteinmpnn.training.specs import TrainingSpecification
 from prxteinmpnn.training.trainer import create_optimizer
 
-
 def test_checkpoint_integration_with_trainer_setup(small_model, temp_checkpoint_dir):
     """Test that checkpoint setup works as trainer.py would use it."""
     spec = TrainingSpecification(

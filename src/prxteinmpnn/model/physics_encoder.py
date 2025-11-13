@@ -71,13 +71,9 @@ class PhysicsEncoder(eqx.Module):
     n_residues = edge_features.shape[0]
     node_dim = self.base_encoder.node_feature_dim
 
-    # Initialize node features
     if self.use_initial_features and initial_node_features is not None:
-      # Project physics features (5D) to node feature space
-      # Simple linear projection: repeat/pad to match dimensions
       feat_dim = initial_node_features.shape[-1]
       if feat_dim < node_dim:
-        # Repeat features to fill node dimension
         repeats = node_dim // feat_dim
         remainder = node_dim % feat_dim
         repeated = jnp.tile(initial_node_features, (1, repeats))
@@ -87,19 +83,15 @@ class PhysicsEncoder(eqx.Module):
         else:
           node_features = repeated
       elif feat_dim > node_dim:
-        # Truncate if somehow we have more features
         node_features = initial_node_features[:, :node_dim]
       else:
         node_features = initial_node_features
     else:
-      # Standard behavior: zero initialization
       node_features = jnp.zeros((n_residues, node_dim))
 
-    # Compute attention mask
     mask_2d = mask[:, None] * mask[None, :]
     mask_attend = jnp.take_along_axis(mask_2d, neighbor_indices, axis=1)
 
-    # Run through encoder layers
     for layer in self.base_encoder.layers:
       node_features, edge_features = layer(
         node_features,

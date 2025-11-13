@@ -110,7 +110,12 @@ def _init_checkpoint_and_model(
 
   opt_state: ArrayTree | None = None
   if spec.resume_from_checkpoint:
-    model_template = load_model(spec.model_version, spec.model_weights)
+    model_template = load_model(
+      spec.model_version,
+      spec.model_weights,
+      use_electrostatics=spec.use_electrostatics,
+      use_vdw=spec.use_vdw,
+    )
     model, opt_state, _, start_step = restore_checkpoint(
       checkpoint_manager,
       model_template,
@@ -118,7 +123,12 @@ def _init_checkpoint_and_model(
     )
     logger.info("Resumed from checkpoint at step %d", start_step)
   else:
-    model = load_model(spec.model_version, spec.model_weights)
+    model = load_model(
+      spec.model_version,
+      spec.model_weights,
+      use_electrostatics=spec.use_electrostatics,
+      use_vdw=spec.use_vdw,
+    )
     start_step = 0
     optimizer_obj, _ = create_optimizer(spec)
     opt_state = optimizer_obj.init(eqx.filter(model, eqx.is_inexact_array))

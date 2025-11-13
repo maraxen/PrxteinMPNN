@@ -12,7 +12,6 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.physics.features import compute_electrostatic_node_features
 from prxteinmpnn.utils.coordinates import (
   apply_noise_to_coordinates,
   compute_backbone_coordinates,
@@ -20,7 +19,6 @@ from prxteinmpnn.utils.coordinates import (
 )
 from prxteinmpnn.utils.graph import compute_neighbor_offsets
 from prxteinmpnn.utils.radial_basis import compute_radial_basis
-from prxteinmpnn.utils.types import NodeFeatures
 
 if TYPE_CHECKING:
   from prxteinmpnn.utils.types import (
@@ -29,9 +27,11 @@ if TYPE_CHECKING:
     ChainIndex,
     EdgeFeatures,
     NeighborIndices,
+    NodeFeatures,
     ResidueIndex,
     StructureAtomicCoordinates,
   )
+
 
 # Type alias for PRNG keys
 PRNGKeyArray = jax.Array
@@ -101,9 +101,6 @@ class ProteinFeatures(eqx.Module):
     backbone_noise: BackboneNoise | None,
     structure_mapping: jnp.ndarray | None = None,
     initial_node_features: jnp.ndarray | None = None,
-    *,
-    use_electrostatics: bool = False,
-    _use_vdw: bool = False,
   ) -> tuple[EdgeFeatures, NeighborIndices, NodeFeatures | None, PRNGKeyArray]:
     """Extract and project features from protein structure.
 
@@ -117,6 +114,7 @@ class ProteinFeatures(eqx.Module):
       structure_mapping: Optional (N,) array mapping each residue to a structure ID.
                         When provided (multi-state mode), prevents cross-structure
                         neighbors to avoid information leakage between conformational states.
+      initial_node_features: Optional initial node features.
 
     Returns:
       Tuple of (edge_features, neighbor_indices, updated_prng_key).
@@ -192,15 +190,5 @@ class ProteinFeatures(eqx.Module):
 
     # Final edge projection (W_e in ColabDesign)
     edge_features = jax.vmap(jax.vmap(self.w_e_proj))(edge_features)
-    if use_electrostatics and initial_node_features is None:
-      # Append electrostatic features
-      electrostatic_features = compute_electrostatic_node_features(
-        protein=eqx.tree_at(
-          lambda p: p.full_coordinates,
-          structure_coordinates,
-          structure_coordinates,
-        ),
-      )  # (N, 5)
-      node_features = electrostatic_features
 
     return edge_features, neighbor_indices, node_features, prng_key

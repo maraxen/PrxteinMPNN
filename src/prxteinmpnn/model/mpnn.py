@@ -953,8 +953,6 @@ class PrxteinMPNN(eqx.Module):
     multi_state_alpha: float = 0.5,
     structure_mapping: jnp.ndarray | None = None,
     initial_node_features: jnp.ndarray | None = None,
-    use_electrostatics: bool = False,
-    _use_vdw: bool = False,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Forward pass for the complete model.
 
@@ -1034,8 +1032,6 @@ class PrxteinMPNN(eqx.Module):
       backbone_noise,
       structure_mapping=structure_mapping,
       initial_node_features=initial_node_features,
-      use_electrostatics=use_electrostatics,
-      _use_vdw=_use_vdw,
     )
 
     _, edge_features = self.encoder(

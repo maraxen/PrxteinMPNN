@@ -10,6 +10,7 @@ from collections.abc import Sequence
 import jax
 import jax.numpy as jnp
 
+from prxteinmpnn.physics.features import compute_electrostatic_features_batch
 from prxteinmpnn.utils.data_structures import Protein, ProteinTuple
 
 _MAX_TRIES = 5
@@ -82,23 +83,19 @@ def concatenate_proteins_for_inter_mode(elements: Sequence[ProteinTuple]) -> Pro
   return jax.tree_util.tree_map(lambda x: x[None, ...], concatenated)
 
 
-def pad_and_collate_proteins(elements: Sequence[ProteinTuple]) -> Protein:  # noqa: C901
-  """Batch and pad a list of ProteinTuples into a ProteinBatch.
-
-  Take a list of individual `ProteinTuple`s and batch them together into a
-  single `ProteinBatch`, padding them to the maximum length in the batch.
+def _validate_and_flatten_elements(
+  elements: Sequence[ProteinTuple],
+) -> list[ProteinTuple]:
+  """Ensure all elements are ProteinTuple and flatten nested sequences.
 
   Args:
-    elements (list[ProteinTuple]): List of protein tuples to collate.
+    elements (Sequence[ProteinTuple]): List of protein tuples to validate.
 
   Returns:
-    Protein: Batched and padded protein ensemble.
+    list[ProteinTuple]: Validated and flattened list of ProteinTuple.
 
   Raises:
-    ValueError: If the input list is empty.
-
-  Example:
-    >>> ensemble = pad_and_collate_proteins([protein_tuple1, protein_tuple2])
+    ValueError: If the input list is empty or too deeply nested.
 
   """
   if not elements:
@@ -115,46 +112,89 @@ def pad_and_collate_proteins(elements: Sequence[ProteinTuple]) -> Protein:  # no
       msg = "Too many nested sequences in elements; cannot collate."
       warnings.warn(msg, stacklevel=2)
       raise ValueError(msg)
+  return list(elements)
 
-  proteins = [Protein.from_tuple(p) for p in elements]
-  max_len = max(p.coordinates.shape[0] for p in proteins)
 
-  padded_proteins = []
-  for p in proteins:
-    pad_len = max_len - p.coordinates.shape[0]
-    protein_len = p.coordinates.shape[0]
+def _apply_electrostatics_if_needed(
+  elements: list[ProteinTuple],
+  *,
+  use_electrostatics: bool,
+) -> list[ProteinTuple]:
+  """Apply electrostatic features if requested.
 
-    full_coords_len = p.full_coordinates.shape[0] if p.full_coordinates is not None else None
-    full_coords_pad_len = max_len - full_coords_len if full_coords_len is not None else 0
+  Args:
+    elements (list[ProteinTuple]): List of protein tuples.
+    use_electrostatics (bool): Whether to compute and add electrostatic features.
 
-    def pad_fn(
-      x: jnp.ndarray | None,
-      *,
-      pad_len: int = pad_len,
-      protein_len: int = protein_len,
-      full_coords_len: int | None = full_coords_len,
-      full_coords_pad_len: int = full_coords_pad_len,
-    ) -> jnp.ndarray | None:
-      """Pad array along first dimension if it matches the protein residue count."""
-      if x is None:
-        return None
-      if not hasattr(x, "shape") or not hasattr(x, "ndim"):
-        return x
-      if hasattr(x, "__array__"):
-        x = jnp.asarray(x)
-      if x.ndim == 0:
-        return x
+  Returns:
+    list[ProteinTuple]: Updated list with electrostatic features if requested.
 
-      if full_coords_len is not None and x.shape[0] == full_coords_len:
-        return jnp.pad(x, ((0, full_coords_pad_len),) + ((0, 0),) * (x.ndim - 1))
+  """
+  if not use_electrostatics:
+    return elements
+  phys_feats, _ = compute_electrostatic_features_batch(elements)
+  return [p._replace(physics_features=feat) for p, feat in zip(elements, phys_feats, strict=False)]
 
-      if x.shape[0] == protein_len:
-        return jnp.pad(x, ((0, pad_len),) + ((0, 0),) * (x.ndim - 1))
 
+def _pad_protein(protein: Protein, max_len: int) -> Protein:
+  """Pad a single Protein to max_len.
+
+  Args:
+    protein (Protein): Protein to pad.
+    max_len (int): Maximum length to pad to.
+
+  Returns:
+    Protein: Padded protein.
+
+  """
+  pad_len = max_len - protein.coordinates.shape[0]
+  protein_len = protein.coordinates.shape[0]
+  full_coords_len = (
+    protein.full_coordinates.shape[0] if protein.full_coordinates is not None else None
+  )
+  full_coords_pad_len = max_len - full_coords_len if full_coords_len is not None else 0
+
+  def pad_fn(
+    x: jnp.ndarray | None,
+    *,
+    pad_len: int = pad_len,
+    protein_len: int = protein_len,
+    full_coords_len: int | None = full_coords_len,
+    full_coords_pad_len: int = full_coords_pad_len,
+  ) -> jnp.ndarray | None:
+    """Pad array along first dimension if it matches the protein residue count."""
+    if x is None:
+      return None
+    if not hasattr(x, "shape") or not hasattr(x, "ndim"):
+      return x
+    if hasattr(x, "__array__"):
+      x = jnp.asarray(x)
+    if x.ndim == 0:
       return x
 
-    padded_p = jax.tree_util.tree_map(pad_fn, p)
-    padded_proteins.append(padded_p)
+    if full_coords_len is not None and x.shape[0] == full_coords_len:
+      return jnp.pad(x, ((0, full_coords_pad_len),) + ((0, 0),) * (x.ndim - 1))
+
+    if x.shape[0] == protein_len:
+      return jnp.pad(x, ((0, pad_len),) + ((0, 0),) * (x.ndim - 1))
+
+    return x
+
+  return jax.tree_util.tree_map(pad_fn, protein)
+
+
+def _stack_padded_proteins(
+  padded_proteins: list[Protein],
+) -> Protein:
+  """Stack a list of padded Proteins into a batch.
+
+  Args:
+    padded_proteins (list[Protein]): List of padded proteins.
+
+  Returns:
+    Protein: Batched protein.
+
+  """
 
   def stack_fn(*arrays: jnp.ndarray | None) -> jnp.ndarray | None:
     """Stack arrays, handling None values and scalars."""
@@ -169,3 +209,37 @@ def pad_and_collate_proteins(elements: Sequence[ProteinTuple]) -> Protein:  # no
     return jnp.stack(non_none, axis=0)
 
   return jax.tree_util.tree_map(stack_fn, *padded_proteins)
+
+
+def pad_and_collate_proteins(
+  elements: Sequence[ProteinTuple],
+  *,
+  use_electrostatics: bool = False,
+  _use_vdw: bool = False,
+) -> Protein:
+  """Batch and pad a list of ProteinTuples into a ProteinBatch.
+
+  Take a list of individual `ProteinTuple`s and batch them together into a
+  single `ProteinBatch`, padding them to the maximum length in the batch.
+
+  Args:
+    elements (list[ProteinTuple]): List of protein tuples to collate.
+    use_electrostatics (bool): Whether to compute and add electrostatic features.
+
+  Returns:
+    Protein: Batched and padded protein ensemble.
+
+  Raises:
+    ValueError: If the input list is empty.
+
+  Example:
+    >>> ensemble = pad_and_collate_proteins([protein_tuple1, protein_tuple2],
+    use_electrostatics=True)
+
+  """
+  elements = _validate_and_flatten_elements(elements)
+  elements = _apply_electrostatics_if_needed(elements, use_electrostatics=use_electrostatics)
+  proteins = [Protein.from_tuple(p) for p in elements]
+  max_len = max(p.coordinates.shape[0] for p in proteins)
+  padded_proteins = [_pad_protein(p, max_len) for p in proteins]
+  return _stack_padded_proteins(padded_proteins)

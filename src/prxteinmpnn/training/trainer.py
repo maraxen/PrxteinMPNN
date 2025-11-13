@@ -12,6 +12,7 @@ import jax
 import jax.numpy as jnp
 import optax
 import orbax.checkpoint as ocp
+import tqdm
 
 from prxteinmpnn.io.loaders import create_protein_dataset
 from prxteinmpnn.io.weights import load_model
@@ -396,6 +397,7 @@ def train(spec: TrainingSpecification) -> TrainingResult:
 
   for epoch in range(spec.num_epochs):
     logger.info("Epoch %d/%d", epoch + 1, spec.num_epochs)
+    pbar = tqdm.tqdm(train_loader, desc=f"Epoch {epoch + 1}/{spec.num_epochs}")
 
     for batch in train_loader:
       prng_key, subkey = jax.random.split(prng_key)
@@ -416,6 +418,8 @@ def train(spec: TrainingSpecification) -> TrainingResult:
       )
 
       step += 1
+      loss_float = jax.device_get(train_metrics.loss).item()
+      pbar.set_postfix({"loss": loss_float})
 
       if val_loader and step % spec.eval_every == 0:
         val_metrics_list = []

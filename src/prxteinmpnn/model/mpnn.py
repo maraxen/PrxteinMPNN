@@ -1065,6 +1065,7 @@ class PrxteinMPNN(eqx.Module):
     ]
 
     operands = (
+      node_features,
       edge_features,
       neighbor_indices,
       mask,

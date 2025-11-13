@@ -67,32 +67,21 @@ def compute_electrostatic_node_features(
     msg = "ProteinTuple must have full_coordinates to compute electrostatic features"
     raise ValueError(msg)
 
-  # Use ProteinMPNN's standard backbone representation: N, CA, C, O, CB (5 atoms)
   # compute_backbone_coordinates returns (n_residues, 5, 3) in this exact order
   backbone_positions = compute_backbone_coordinates(
     jnp.array(protein.coordinates),
   )
-
-  # Extract charges for backbone atoms from PQR data
-  # We need to match the positions in backbone_positions to positions in full_coordinates
-  # to get the corresponding charges
   all_positions = jnp.array(protein.full_coordinates)
   all_charges = jnp.array(protein.charges)
 
-  # For each backbone atom position, find its charge by matching coordinates
-  # backbone_positions shape: (n_residues, 5, 3)
-  # We'll flatten and match each position to find its charge
   n_residues = backbone_positions.shape[0]
   backbone_positions_flat = backbone_positions.reshape(-1, 3)  # (n_residues*5, 3)
 
-  # Find matching charges by computing distances between backbone and all positions
-  # This is a (n_residues*5, n_all_atoms) distance matrix
   distances = jnp.linalg.norm(
     backbone_positions_flat[:, None, :] - all_positions[None, :, :],
     axis=-1,
   )
 
-  # For each backbone atom, find the closest atom in full_coordinates
   closest_indices = jnp.argmin(distances, axis=1)
   backbone_charges_flat = all_charges[closest_indices]
   backbone_charges = backbone_charges_flat.reshape(n_residues, 5)

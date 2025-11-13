@@ -63,10 +63,12 @@ class EncoderLayer(eqx.Module):
     self.edge_features_dim = edge_features
 
     keys = jax.random.split(key, 4)
+    embed_input_size = edge_features + node_features * 2
+
     self.edge_message_mlp = eqx.nn.MLP(
-      in_size=384,
-      out_size=128,
-      width_size=128,
+      in_size=embed_input_size,
+      out_size=edge_features,
+      width_size=hidden_features,
       depth=2,
       activation=_gelu,
       key=keys[0],
@@ -75,14 +77,14 @@ class EncoderLayer(eqx.Module):
     self.dense = eqx.nn.MLP(
       in_size=node_features,
       out_size=node_features,
-      width_size=hidden_features,
+      width_size=embed_input_size + hidden_features,
       depth=1,
       activation=_gelu,
       key=keys[1],
     )
     self.norm2 = LayerNorm(node_features)
     self.edge_update_mlp = eqx.nn.MLP(
-      in_size=node_features * 2 + edge_features,
+      in_size=embed_input_size,
       out_size=edge_features,
       width_size=edge_features,
       depth=2,

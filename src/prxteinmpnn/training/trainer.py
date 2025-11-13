@@ -16,6 +16,7 @@ import orbax.checkpoint as ocp
 
 from prxteinmpnn.io.loaders import create_protein_dataset
 from prxteinmpnn.io.weights import load_model
+from prxteinmpnn.model.physics_encoder import create_physics_encoder
 from prxteinmpnn.training.checkpoint import restore_checkpoint, save_checkpoint
 from prxteinmpnn.training.losses import (
   cross_entropy_loss,
@@ -96,6 +97,8 @@ def _init_checkpoint_and_model(
 ) -> tuple[PrxteinMPNN | eqx.Module, Any, int, ocp.CheckpointManager]:
   """Initialize or restore model, optimizer state and checkpoint manager.
 
+  Applies physics encoder surgery if use_physics_features is enabled.
+
   Returns (model, opt_state, start_step, checkpoint_manager).
   """
   checkpoint_dir = Path(spec.checkpoint_dir)
@@ -118,6 +121,21 @@ def _init_checkpoint_and_model(
     # Initialize optimizer state with filtered model parameters
     optimizer_obj, _ = create_optimizer(spec)
     opt_state = optimizer_obj.init(eqx.filter(model, eqx.is_inexact_array))
+
+  # Apply physics encoder surgery if enabled
+  if spec.use_physics_features:
+    logger.info("Applying physics encoder surgery with use_initial_features=True")
+    physics_encoder = create_physics_encoder(
+      model.encoder,  # pyright: ignore[reportAttributeAccessIssue]
+      use_initial_features=True,
+    )
+    # Replace encoder in model using equinox tree_at
+    model = eqx.tree_at(
+      lambda m: m.encoder,  # pyright: ignore[reportArgumentType]
+      model,
+      physics_encoder,
+    )
+    logger.info("Physics encoder applied successfully")
 
   return model, opt_state, start_step, checkpoint_manager
 

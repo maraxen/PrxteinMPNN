@@ -78,6 +78,7 @@ class ProteinTuple(NamedTuple):
   estat_backbone_mask: np.ndarray | None = None
   estat_resid: np.ndarray | None = None
   estat_chain_index: np.ndarray | None = None
+  physics_features: np.ndarray | None = None
 
 
 @dc
@@ -130,6 +131,21 @@ class EstatInfo:
   estat_chain_index: np.ndarray
 
 
+def none_or_jnp(array: np.ndarray | None) -> jnp.ndarray | None:
+  """Convert a numpy array to jnp array, or return None if input is None.
+
+  Args:
+      array (np.ndarray | None): Input numpy array or None.
+
+  Returns:
+      jnp.ndarray | None: Converted jnp array or None.
+
+  """
+  if array is None:
+    return None
+  return jnp.asarray(array)
+
+
 @dataclass(frozen=True)
 class Protein:
   """Protein structure or ensemble representation.
@@ -172,11 +188,12 @@ class Protein:
   mapping: Int | None = None
   full_coordinates: StructureAtomicCoordinates | None = None
   full_atom_mask: AtomMask | None = None
-  charges: np.ndarray | None = None
-  radii: np.ndarray | None = None
-  estat_backbone_mask: np.ndarray | None = None
-  estat_resid: np.ndarray | None = None
-  estat_chain_index: np.ndarray | None = None
+  charges: jnp.ndarray | None = None
+  radii: jnp.ndarray | None = None
+  estat_backbone_mask: jnp.ndarray | None = None
+  estat_resid: jnp.ndarray | None = None
+  estat_chain_index: jnp.ndarray | None = None
+  physics_features: jnp.ndarray | None = None
 
   @classmethod
   def from_tuple(
@@ -211,30 +228,33 @@ class Protein:
       dihedrals=(
         None
         if protein_tuple.dihedrals is None or not include_feature("dihedrals", include_extras)
-        else jnp.asarray(protein_tuple.dihedrals, dtype=jnp.float64)
+        else none_or_jnp(protein_tuple.dihedrals)
       ),
-      mapping=jnp.asarray(protein_tuple.mapping, dtype=jnp.int32)
-      if protein_tuple.mapping is not None
-      and include_extras is not None
-      and ("mapping" in include_extras or "all" in include_extras)
-      else None,
+      mapping=(
+        none_or_jnp(protein_tuple.mapping)
+        if protein_tuple.mapping is not None
+        and include_extras is not None
+        and ("mapping" in include_extras or "all" in include_extras)
+        else None
+      ),
       full_coordinates=(
         None
         if protein_tuple.full_coordinates is None
         or not include_feature("full_coordinates", include_extras)
-        else jnp.asarray(protein_tuple.full_coordinates, dtype=jnp.float32)
+        else none_or_jnp(protein_tuple.full_coordinates)
       ),
       full_atom_mask=(
         None
         if protein_tuple.full_coordinates is None
         or not include_feature("full_atom_mask", include_extras)
-        else jnp.asarray(protein_tuple.atom_mask, dtype=jnp.float32)
+        else none_or_jnp(protein_tuple.atom_mask)
       ),
-      charges=protein_tuple.charges,
-      radii=protein_tuple.radii,
-      estat_backbone_mask=protein_tuple.estat_backbone_mask,
-      estat_resid=protein_tuple.estat_resid,
-      estat_chain_index=protein_tuple.estat_chain_index,
+      charges=none_or_jnp(protein_tuple.charges),
+      radii=none_or_jnp(protein_tuple.radii),
+      estat_backbone_mask=none_or_jnp(protein_tuple.estat_backbone_mask),
+      estat_resid=none_or_jnp(protein_tuple.estat_resid),
+      estat_chain_index=none_or_jnp(protein_tuple.estat_chain_index),
+      physics_features=none_or_jnp(protein_tuple.physics_features),
     )
 
 

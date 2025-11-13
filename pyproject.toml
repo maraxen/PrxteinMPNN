@@ -26,6 +26,7 @@ dependencies = [
     "equinox>=0.13.2",
     "huggingface-hub>=1.0.1",
     "jax-md>=0.2.26",
+    "msgpack-numpy>=0.4.8",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",

@@ -16,7 +16,6 @@ import tqdm
 
 from prxteinmpnn.io.loaders import create_protein_dataset
 from prxteinmpnn.io.weights import load_model
-from prxteinmpnn.model.physics_encoder import create_physics_encoder
 from prxteinmpnn.training.checkpoint import restore_checkpoint, save_checkpoint
 from prxteinmpnn.training.losses import (
   cross_entropy_loss,
@@ -87,14 +86,14 @@ class TrainingResult:
 
   """
 
-  final_model: PrxteinMPNN | eqx.Module
+  final_model: PrxteinMPNN
   final_step: int
   checkpoint_dir: str | Path
 
 
 def _init_checkpoint_and_model(
   spec: TrainingSpecification,
-) -> tuple[PrxteinMPNN | eqx.Module, Any, int, ocp.CheckpointManager]:
+) -> tuple[PrxteinMPNN, Any, int, ocp.CheckpointManager]:
   """Initialize or restore model, optimizer state and checkpoint manager.
 
   Applies physics encoder surgery if use_physics_features is enabled.
@@ -124,41 +123,37 @@ def _init_checkpoint_and_model(
     optimizer_obj, _ = create_optimizer(spec)
     opt_state = optimizer_obj.init(eqx.filter(model, eqx.is_inexact_array))
 
-  if spec.use_physics_features:
-    logger.info("Applying physics encoder surgery with use_initial_features=True")
-    physics_encoder = create_physics_encoder(
-      model.encoder,  # pyright: ignore[reportAttributeAccessIssue]
-      use_initial_features=True,
-    )
-    model = eqx.tree_at(
-      lambda m: m.encoder,  # pyright: ignore[reportArgumentType]
-      model,
-      physics_encoder,
-    )
-    logger.info("Physics encoder applied successfully")
-
   return model, opt_state, start_step, checkpoint_manager
 
 
 def _create_dataloaders(spec: TrainingSpecification) -> tuple[Any, Any]:
-  """Create training and validation data loaders based on the spec.
-
-  Returns:
-    Tuple of (train_loader, val_loader) where val_loader may be None.
-
-  """
+  """Create training and validation data loaders based on the spec."""
   train_loader = create_protein_dataset(
     spec.inputs,  # pyright: ignore[reportArgumentType]
     batch_size=spec.batch_size,
-    foldcomp_database=spec.foldcomp_database,
+    foldcomp_database=spec.foldcomp_database if not spec.use_preprocessed else None,
+    use_preprocessed=spec.use_preprocessed,
+    preprocessed_index_path=spec.preprocessed_index_path,
   )
 
   val_loader = None
   if spec.validation_data:
+    val_use_preprocessed = spec.use_preprocessed
+    val_inputs = spec.validation_data
+    val_index_path = spec.validation_preprocessed_index_path
+
+    if spec.validation_preprocessed_path is not None:
+      val_use_preprocessed = True
+      val_inputs = spec.validation_preprocessed_path
+      if val_index_path is None:
+        val_index_path = Path(val_inputs).with_suffix(".index.json")
+
     val_loader = create_protein_dataset(
-      spec.validation_data,
+      val_inputs,
       batch_size=spec.batch_size,
-      foldcomp_database=spec.foldcomp_database,
+      foldcomp_database=spec.foldcomp_database if not val_use_preprocessed else None,
+      use_preprocessed=val_use_preprocessed,
+      preprocessed_index_path=val_index_path,
     )
 
   return train_loader, val_loader
@@ -180,7 +175,7 @@ def setup_mixed_precision(precision: str) -> None:
 
 
 def train_step(
-  model: PrxteinMPNN | eqx.Module,
+  model: PrxteinMPNN,
   opt_state: optax.OptState,
   optimizer: optax.GradientTransformation,
   coordinates: jax.Array,
@@ -192,6 +187,10 @@ def train_step(
   label_smoothing: float,
   current_step: int,
   lr_schedule: optax.Schedule,
+  physics_features: jax.Array | None = None,
+  *,
+  use_electrostatics: bool = False,
+  _use_vdw: bool = False,
 ) -> tuple[PrxteinMPNN, optax.OptState, TrainingMetrics]:
   """Single training step.
 
@@ -208,6 +207,9 @@ def train_step(
       label_smoothing: Label smoothing factor
       current_step: Current training step (used for learning rate scheduling)
       lr_schedule: Learning rate schedule function
+      physics_features: Optional physics features (if used)
+      use_electrostatics: Whether to use electrostatic features
+      _use_vdw: Whether to use van der Waals features
 
   Returns:
       Tuple of (updated_model, updated_opt_state, metrics)
@@ -215,7 +217,7 @@ def train_step(
   """
   batch_size = coordinates.shape[0]
 
-  def loss_fn(model: PrxteinMPNN | eqx.Module) -> tuple[jax.Array, jax.Array]:
+  def loss_fn(model: PrxteinMPNN) -> tuple[jax.Array, jax.Array]:
     """Compute loss for current batch."""
     batch_keys = jax.random.split(prng_key, batch_size)
 
@@ -225,6 +227,7 @@ def train_step(
       res_idx: jax.Array,
       chain_idx: jax.Array,
       key: jax.Array,
+      phys_feat: jax.Array | None = None,
     ) -> Logits:
       """Forward pass for a single protein."""
       _, logits = model(
@@ -234,8 +237,11 @@ def train_step(
         chain_idx,
         decoding_approach="unconditional",
         prng_key=key,
-        backbone_noise=jnp.array(0.0),  # Can add noise during training if desired
-      )  # pyright: ignore[reportCallIssue]
+        backbone_noise=jnp.array(0.0),
+        initial_node_features=phys_feat,
+        use_electrostatics=use_electrostatics,
+        _use_vdw=_use_vdw,
+      )
       return logits
 
     logits_batch = jax.vmap(single_forward)(
@@ -244,7 +250,8 @@ def train_step(
       residue_index,
       chain_index,
       batch_keys,
-    )  # (batch_size, seq_len, 21)
+      physics_features,
+    )
 
     def batch_loss(logits: Logits, seq: jax.Array, msk: jax.Array) -> jax.Array:
       return cross_entropy_loss(logits, seq, msk, label_smoothing)
@@ -290,6 +297,10 @@ def eval_step(
   chain_index: jax.Array,  # (batch_size, seq_len)
   sequence: jax.Array,  # (batch_size, seq_len)
   prng_key: jax.Array,
+  physics_features: jax.Array | None = None,
+  *,
+  use_electrostatics: bool = False,
+  _use_vdw: bool = False,
 ) -> EvaluationMetrics:
   """Single evaluation step with batching.
 
@@ -301,6 +312,9 @@ def eval_step(
       chain_index: Chain indices (batched)
       sequence: Target sequence (batched)
       prng_key: PRNG key
+      physics_features: Optional physics features (if used)
+      use_electrostatics: Whether to use electrostatic features
+      _use_vdw: Whether to use van der Waals features
 
   Returns:
       Evaluation metrics
@@ -315,6 +329,7 @@ def eval_step(
     res_idx: jax.Array,
     chain_idx: jax.Array,
     key: jax.Array,
+    phys_feat: jax.Array | None = None,
   ) -> Logits:
     """Forward pass for a single protein."""
     _, logits = model(
@@ -325,6 +340,9 @@ def eval_step(
       decoding_approach="unconditional",
       prng_key=key,
       backbone_noise=jnp.array(0.0),
+      initial_node_features=phys_feat,
+      use_electrostatics=use_electrostatics,
+      _use_vdw=_use_vdw,
     )
     return logits
 
@@ -334,6 +352,7 @@ def eval_step(
     residue_index,
     chain_index,
     batch_keys,
+    physics_features,
   )
 
   def batch_metrics(
@@ -417,6 +436,8 @@ def train(spec: TrainingSpecification) -> TrainingResult:
         spec.label_smoothing,
         step,
         lr_schedule,
+        batch.physics_features,
+        use_electrostatics=spec.use_electrostatics,
       )
 
       step += 1
@@ -435,6 +456,8 @@ def train(spec: TrainingSpecification) -> TrainingResult:
             val_batch.chain_index,
             val_batch.aatype,
             subkey,
+            val_batch.physics_features,
+            use_electrostatics=spec.use_electrostatics,
           )
           val_metrics_list.append(val_metrics)
 

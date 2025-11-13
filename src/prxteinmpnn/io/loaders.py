@@ -10,6 +10,7 @@ import grain
 from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase
 
 from . import dataset, operations, prefetch_autotune
+from .array_record_source import ArrayRecordDataSource  # NEW
 
 
 def create_protein_dataset(
@@ -18,37 +19,68 @@ def create_protein_dataset(
   parse_kwargs: dict[str, Any] | None = None,
   foldcomp_database: FoldCompDatabase | None = None,
   pass_mode: str = "intra",  # noqa: S107
+  *,
+  use_preprocessed: bool = False,
+  preprocessed_index_path: str | Path | None = None,
 ) -> grain.IterDataset:
   """Construct a high-performance protein data pipeline using Grain.
 
-  This function sets up a data loading pipeline that preprocesses inputs,
-  caches them to an HDF5 file, and then efficiently reads protein structure
-  frames.
-
   Args:
       inputs: A single input (file, PDB ID, etc.) or a sequence of such inputs.
+              When use_preprocessed=True, this should be the path to the array_record file.
       batch_size: The number of protein structures to include in each batch.
       parse_kwargs: Optional dictionary of keyword arguments for parsing.
       foldcomp_database: Optional path to a FoldComp database.
       pass_mode: "intra" (default) for normal batching, "inter" for concatenation.
-      cache_path: Optional path to cache the preprocessed HDF5 file. If None,
-                  a default path is used.
+      use_preprocessed: If True, load from preprocessed array_record files
+      preprocessed_index_path: Path to index file (required if use_preprocessed=True)
 
   Returns:
       A Grain IterDataset that yields batches of padded `Protein` objects.
 
-  """
-  if not isinstance(inputs, Sequence) or isinstance(inputs, (str, pathlib.Path)):
-    inputs = (inputs,)
+  Example:
+      >>> # File-based loading (original)
+      >>> ds = create_protein_dataset(
+      ...     inputs="data/train/",
+      ...     batch_size=8,
+      ... )
 
+      >>> # Preprocessed loading (new, faster)
+      >>> ds = create_protein_dataset(
+      ...     inputs="data/preprocessed/train.array_record",
+      ...     batch_size=8,
+      ...     use_preprocessed=True,
+      ...     preprocessed_index_path="data/preprocessed/train.index.json",
+      ... )
+
+  """
   parse_kwargs = parse_kwargs or {}
 
-  source = dataset.ProteinDataSource(
-    inputs=inputs,
-    parse_kwargs=parse_kwargs,
-    foldcomp_database=foldcomp_database,
-  )
-  ds = grain.MapDataset.source(source)
+  if use_preprocessed:
+    if preprocessed_index_path is None:
+      msg = "preprocessed_index_path is required when use_preprocessed=True"
+      raise ValueError(msg)
+
+    if not isinstance(inputs, (str, Path)):
+      msg = "When use_preprocessed=True, inputs must be a single path to array_record file"
+      raise ValueError(msg)
+
+    source = ArrayRecordDataSource(
+      array_record_path=inputs,
+      index_path=preprocessed_index_path,
+    )
+    ds = grain.MapDataset.source(source)
+
+  else:
+    if not isinstance(inputs, Sequence) or isinstance(inputs, (str, pathlib.Path)):
+      inputs = (inputs,)
+
+    source = dataset.ProteinDataSource(
+      inputs=inputs,
+      parse_kwargs=parse_kwargs,
+      foldcomp_database=foldcomp_database,
+    )
+    ds = grain.MapDataset.source(source)
 
   performance_config = prefetch_autotune.pick_performance_config(
     ds=ds,
@@ -57,7 +89,6 @@ def create_protein_dataset(
     max_buffer_size=None,
   )
 
-  # Choose batch function based on pass_mode
   batch_fn = (
     operations.concatenate_proteins_for_inter_mode
     if pass_mode == "inter"  # noqa: S105

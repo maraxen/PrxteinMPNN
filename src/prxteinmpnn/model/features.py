@@ -12,6 +12,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
+from prxteinmpnn.physics.features import compute_electrostatic_node_features
 from prxteinmpnn.utils.coordinates import (
   apply_noise_to_coordinates,
   compute_backbone_coordinates,
@@ -19,6 +20,7 @@ from prxteinmpnn.utils.coordinates import (
 )
 from prxteinmpnn.utils.graph import compute_neighbor_offsets
 from prxteinmpnn.utils.radial_basis import compute_radial_basis
+from prxteinmpnn.utils.types import NodeFeatures
 
 if TYPE_CHECKING:
   from prxteinmpnn.utils.types import (
@@ -98,7 +100,11 @@ class ProteinFeatures(eqx.Module):
     chain_index: ChainIndex,
     backbone_noise: BackboneNoise | None,
     structure_mapping: jnp.ndarray | None = None,
-  ) -> tuple[EdgeFeatures, NeighborIndices, PRNGKeyArray]:
+    initial_node_features: jnp.ndarray | None = None,
+    *,
+    use_electrostatics: bool = False,
+    _use_vdw: bool = False,
+  ) -> tuple[EdgeFeatures, NeighborIndices, NodeFeatures | None, PRNGKeyArray]:
     """Extract and project features from protein structure.
 
     Args:
@@ -116,6 +122,8 @@ class ProteinFeatures(eqx.Module):
       Tuple of (edge_features, neighbor_indices, updated_prng_key).
 
     """
+    node_features = None if initial_node_features is None else initial_node_features
+
     if backbone_noise is None:
       backbone_noise = jnp.array(0.0, dtype=jnp.float32)
 
@@ -184,5 +192,15 @@ class ProteinFeatures(eqx.Module):
 
     # Final edge projection (W_e in ColabDesign)
     edge_features = jax.vmap(jax.vmap(self.w_e_proj))(edge_features)
+    if use_electrostatics and initial_node_features is None:
+      # Append electrostatic features
+      electrostatic_features = compute_electrostatic_node_features(
+        protein=eqx.tree_at(
+          lambda p: p.full_coordinates,
+          structure_coordinates,
+          structure_coordinates,
+        ),
+      )  # (N, 5)
+      node_features = electrostatic_features
 
-    return edge_features, neighbor_indices, prng_key
+    return edge_features, neighbor_indices, node_features, prng_key

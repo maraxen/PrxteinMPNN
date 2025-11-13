@@ -23,6 +23,13 @@ if TYPE_CHECKING:
 
   from prxteinmpnn.model.mpnn import PrxteinMPNN
 
+blank_metrics = TrainingMetrics(
+  loss=jnp.array(0.0),
+  accuracy=jnp.array(0.0),
+  perplexity=jnp.array(0.0),
+  learning_rate=0.0,
+)
+
 
 def save_checkpoint(
   manager: ocp.CheckpointManager,
@@ -57,24 +64,13 @@ def save_checkpoint(
 
   """
   model_params = eqx.filter(model, eqx.is_inexact_array)
-
+  metrics_to_save = metrics if metrics is not None else blank_metrics
   return manager.save(
     step,
     args=ocp.args.Composite(
       model=ocp.args.StandardSave(model_params),  # pyright: ignore[reportCallIssue]
       opt_state=ocp.args.StandardSave(opt_state),  # pyright: ignore[reportCallIssue]
-      metrics=ocp.args.PyTreeSave(  # pyright: ignore[reportCallIssue]
-        args=(  # pyright: ignore[reportCallIssue]
-          metrics
-          if metrics is not None
-          else TrainingMetrics(
-            loss=jnp.array(0.0),
-            accuracy=jnp.array(0.0),
-            perplexity=jnp.array(0.0),
-            learning_rate=0.0,
-          )
-        ),
-      ),
+      metrics=ocp.args.PyTreeSave(metrics_to_save),  # pyright: ignore[reportCallIssue]
     ),
   )
 
@@ -113,21 +109,13 @@ def restore_checkpoint(
       msg = f"No checkpoints found in {manager.directory}"
       raise ValueError(msg)
 
-  # Restore using Orbax CheckpointManager
-  # Provide abstract structure for proper restoration
   abstract_model = eqx.filter(model_template, eqx.is_inexact_array)
-  abstract_metrics = TrainingMetrics(
-    loss=jnp.array(0.0),
-    accuracy=jnp.array(0.0),
-    perplexity=jnp.array(0.0),
-    learning_rate=0.0,
-  )
   restored = manager.restore(
     step,
     args=ocp.args.Composite(
       model=ocp.args.StandardRestore(abstract_model),  # pyright: ignore[reportCallIssue]
       opt_state=ocp.args.StandardRestore(None),  # pyright: ignore[reportCallIssue]
-      metrics=ocp.args.PyTreeRestore(abstract_metrics),  # pyright: ignore[reportCallIssue]
+      metrics=ocp.args.PyTreeRestore(blank_metrics),  # pyright: ignore[reportCallIssue]
     ),
   )
 

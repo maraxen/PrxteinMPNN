@@ -1,1 +1,1 @@
-"""Utilities to preprocess data to array_records"""
+"""Utilities to preprocess data to array records."""

@@ -10,7 +10,7 @@ from optax import GradientTransformation
 if TYPE_CHECKING:
   from prxteinmpnn.model.mpnn import PrxteinMPNN
 
-NodeFeatures = Int[Array, "num_atoms num_features"]  # Node features
+NodeFeatures = Float[Array, "num_atoms num_features"]  # Node features
 EdgeFeatures = Float[Array, "num_atoms num_neighbors num_features"]  # Edge features
 Message = Float[Array, "num_atoms num_neighbors num_features"]  # Message passing features
 AtomicCoordinate = Float[Array, "3"]  # Atomic coordinates (x, y, z)

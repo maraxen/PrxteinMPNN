@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import jax
@@ -100,7 +101,7 @@ def compute_electrostatic_node_features(
 
 
 def compute_electrostatic_features_batch(
-  proteins: list[ProteinTuple],
+  proteins: Sequence[ProteinTuple],
   max_length: int | None = None,
   *,
   pad_value: float = 0.0,

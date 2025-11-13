@@ -188,9 +188,6 @@ def train_step(
   current_step: int,
   lr_schedule: optax.Schedule,
   physics_features: jax.Array | None = None,
-  *,
-  use_electrostatics: bool = False,
-  _use_vdw: bool = False,
 ) -> tuple[PrxteinMPNN, optax.OptState, TrainingMetrics]:
   """Single training step.
 
@@ -239,8 +236,6 @@ def train_step(
         prng_key=key,
         backbone_noise=jnp.array(0.0),
         initial_node_features=phys_feat,
-        use_electrostatics=use_electrostatics,
-        _use_vdw=_use_vdw,
       )
       return logits
 
@@ -298,9 +293,6 @@ def eval_step(
   sequence: jax.Array,  # (batch_size, seq_len)
   prng_key: jax.Array,
   physics_features: jax.Array | None = None,
-  *,
-  use_electrostatics: bool = False,
-  _use_vdw: bool = False,
 ) -> EvaluationMetrics:
   """Single evaluation step with batching.
 
@@ -341,8 +333,6 @@ def eval_step(
       prng_key=key,
       backbone_noise=jnp.array(0.0),
       initial_node_features=phys_feat,
-      use_electrostatics=use_electrostatics,
-      _use_vdw=_use_vdw,
     )
     return logits
 
@@ -437,7 +427,6 @@ def train(spec: TrainingSpecification) -> TrainingResult:
         step,
         lr_schedule,
         batch.physics_features,
-        use_electrostatics=spec.use_electrostatics,
       )
 
       step += 1
@@ -457,7 +446,6 @@ def train(spec: TrainingSpecification) -> TrainingResult:
             val_batch.aatype,
             subkey,
             val_batch.physics_features,
-            use_electrostatics=spec.use_electrostatics,
           )
           val_metrics_list.append(val_metrics)
 

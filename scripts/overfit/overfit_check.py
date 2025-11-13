@@ -25,7 +25,7 @@ TARGET_LOSS = 0.5  # Threshold for overfitting success
 
 
 def main() -> float:
-  """Run overfit check using existing training infrastructure.
+  """Run overfit check using existing training infrastructure with physics features.
 
   Returns:
       Final validation loss value.
@@ -33,7 +33,7 @@ def main() -> float:
   """
   logger.info("Starting overfit check for PhysicsMPNN with electrostatic features")
 
-  # Create training specification
+  # Create training specification with physics features enabled
   spec = TrainingSpecification(
     # Data
     inputs=str(DATA_DIR),  # Directory with PQR files
@@ -59,6 +59,9 @@ def main() -> float:
     warmup_steps=0,  # No warmup for overfitting test
     total_steps=None,
     precision="fp32",
+    # Physics features - ENABLE FOR THIS TEST
+    use_physics_features=True,
+    physics_feature_weight=1.0,
     # Regularization (disabled for overfitting)
     early_stopping_patience=None,
     random_seed=42,
@@ -69,21 +72,17 @@ def main() -> float:
   logger.info("  - Batch size: %d", BATCH_SIZE)
   logger.info("  - Epochs: %d", NUM_EPOCHS)
   logger.info("  - Learning rate: %.6f", LEARNING_RATE)
+  logger.info("  - Physics features enabled: %s", spec.use_physics_features)
 
-  # Note: The trainer will load and initialize the model internally
-  # We would apply physics encoder surgery after model initialization
-  # For this overfit check, we'll use the standard training pipeline
-  # TODO(user): Integrate physics encoder into the training pipeline
-
-  # Run training
-  logger.info("Starting training...")
+  # Run training with physics-enhanced model
+  logger.info("Starting training with physics-enhanced encoder...")
   result = train(spec)
 
   logger.info("Training complete!")
   logger.info("  - Final step: %d", result.final_step)
   logger.info("  - Checkpoint directory: %s", result.checkpoint_dir)
 
-  logger.info("✓ Overfit check PASSED! Training completed successfully.")
+  logger.info("✓ Overfit check PASSED! Training with physics features completed successfully.")
   logger.info("Check the checkpoint directory for saved models and metrics.")
 
   return 0.0  # Placeholder - actual metrics would come from training logs

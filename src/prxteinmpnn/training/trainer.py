@@ -52,21 +52,19 @@ def create_optimizer(
       Tuple of (optimizer, learning_rate_schedule)
 
   """
-  # Learning rate schedule with warmup
   if spec.warmup_steps > 0:
     schedule = optax.warmup_cosine_decay_schedule(
       init_value=0.0,
       peak_value=spec.learning_rate,
       warmup_steps=spec.warmup_steps,
-      decay_steps=spec.total_steps or (spec.num_epochs * 1000),  # Rough estimate
+      decay_steps=spec.total_steps or (spec.num_epochs * 1000),
       end_value=spec.learning_rate * 0.1,
     )
   else:
     schedule = optax.constant_schedule(spec.learning_rate)
 
-  # Create optimizer chain
   optimizer = optax.chain(
-    optax.clip_by_global_norm(spec.gradient_clip),  # Gradient clipping
+    optax.clip_by_global_norm(spec.gradient_clip),
     optax.adamw(
       learning_rate=schedule,
       weight_decay=spec.weight_decay,
@@ -118,18 +116,15 @@ def _init_checkpoint_and_model(
   else:
     model = load_model(spec.model_version, spec.model_weights)
     start_step = 0
-    # Initialize optimizer state with filtered model parameters
     optimizer_obj, _ = create_optimizer(spec)
     opt_state = optimizer_obj.init(eqx.filter(model, eqx.is_inexact_array))
 
-  # Apply physics encoder surgery if enabled
   if spec.use_physics_features:
     logger.info("Applying physics encoder surgery with use_initial_features=True")
     physics_encoder = create_physics_encoder(
       model.encoder,  # pyright: ignore[reportAttributeAccessIssue]
       use_initial_features=True,
     )
-    # Replace encoder in model using equinox tree_at
     model = eqx.tree_at(
       lambda m: m.encoder,  # pyright: ignore[reportArgumentType]
       model,
@@ -174,7 +169,6 @@ def setup_mixed_precision(precision: str) -> None:
   if precision == "fp16":
     logger.info("Using FP16 mixed precision (manual casting required)")
   elif precision == "bf16":
-    # BF16 is natively supported on TPU/newer GPUs
     logger.info("Using BF16 mixed precision")
   else:
     logger.info("Using FP32 (full precision)")
@@ -218,7 +212,6 @@ def train_step(
 
   def loss_fn(model: PrxteinMPNN | eqx.Module) -> tuple[jax.Array, jax.Array]:
     """Compute loss for current batch."""
-    # Split PRNG keys for each item in batch
     batch_keys = jax.random.split(prng_key, batch_size)
 
     def single_forward(
@@ -248,7 +241,6 @@ def train_step(
       batch_keys,
     )  # (batch_size, seq_len, 21)
 
-    # Compute loss for each item in batch, then average
     def batch_loss(logits: Logits, seq: jax.Array, msk: jax.Array) -> jax.Array:
       return cross_entropy_loss(logits, seq, msk, label_smoothing)
 
@@ -257,10 +249,8 @@ def train_step(
 
     return loss, logits_batch
 
-  # Compute gradients
   (loss, logits_batch), grads = eqx.filter_value_and_grad(loss_fn, has_aux=True)(model)
 
-  # Compute metrics (average across batch)
   def batch_metrics(logits: Logits, seq: jax.Array, msk: jax.Array) -> tuple[jax.Array, jax.Array]:
     acc = sequence_recovery_accuracy(logits, seq, msk)
     ppl = perplexity(logits, seq, msk)
@@ -270,10 +260,8 @@ def train_step(
   accuracy = jnp.mean(accuracies)
   ppl = jnp.mean(perplexities)
   grad_norm = compute_grad_norm(grads)
-  # Get current learning rate
   current_lr = lr_schedule(current_step)
 
-  # Update parameters
   params = eqx.filter(model, eqx.is_inexact_array)
   updates, new_opt_state = optimizer.update(grads, opt_state, params)
   new_model = eqx.apply_updates(model, updates)
@@ -393,7 +381,6 @@ def train(spec: TrainingSpecification) -> TrainingResult:
 
   optimizer, lr_schedule = create_optimizer(spec)
 
-  # Initialize or restore model and checkpoint manager
   model, opt_state, start_step, checkpoint_manager = _init_checkpoint_and_model(spec)
 
   # Create data loaders
@@ -445,11 +432,9 @@ def train(spec: TrainingSpecification) -> TrainingResult:
           )
           val_metrics_list.append(val_metrics)
 
-        # Average validation metrics
         avg_val_loss = jnp.mean(jnp.array([m.val_loss for m in val_metrics_list]))
         avg_val_acc = jnp.mean(jnp.array([m.val_accuracy for m in val_metrics_list]))
 
-        # Convert JAX arrays to Python floats for logging
         val_loss_float = jax.device_get(avg_val_loss).item()
         val_acc_float = jax.device_get(avg_val_acc).item()
 

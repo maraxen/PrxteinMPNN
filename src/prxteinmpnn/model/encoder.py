@@ -183,7 +183,7 @@ class Encoder(eqx.Module):
     node_features = (
       jnp.zeros((edge_features.shape[0], self.node_feature_dim))
       if node_features is None
-      else node_features
+      else jnp.reshape(node_features, (edge_features.shape[0], self.node_feature_dim))
     )
 
     mask_2d = mask[:, None] * mask[None, :]  # (N, N)

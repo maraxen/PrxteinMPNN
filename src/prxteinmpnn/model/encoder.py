@@ -145,6 +145,8 @@ class Encoder(eqx.Module):
   """The complete encoder module for ProteinMPNN."""
 
   layers: tuple[EncoderLayer, ...]
+  physics_projection: eqx.nn.Linear  # For physical properties
+
   node_feature_dim: int = eqx.field(static=True)
 
   def __init__(
@@ -153,6 +155,7 @@ class Encoder(eqx.Module):
     edge_features: int,
     hidden_features: int,
     num_layers: int = 3,
+    physics_feature_dim: int | None = None,
     *,
     key: PRNGKeyArray,
   ) -> None:
@@ -163,6 +166,7 @@ class Encoder(eqx.Module):
       edge_features: Dimension of edge features.
       hidden_features: Dimension of hidden features in feedforward network.
       num_layers: Number of encoder layers.
+      physics_feature_dim: Dimension of physical features.
       key: PRNG key for initialization.
 
     """
@@ -171,6 +175,14 @@ class Encoder(eqx.Module):
     self.layers = tuple(
       EncoderLayer(node_features, edge_features, hidden_features, key=k) for k in keys
     )
+    if physics_feature_dim is not None:
+      self.physics_projection = eqx.nn.Linear(
+        physics_feature_dim,
+        node_features,
+        key=keys[-1],
+      )
+    else:
+      self.physics_projection = None  # type: ignore[assignment]
 
   def __call__(
     self,
@@ -183,7 +195,7 @@ class Encoder(eqx.Module):
     node_features = (
       jnp.zeros((edge_features.shape[0], self.node_feature_dim))
       if node_features is None
-      else jnp.reshape(node_features, (edge_features.shape[0], self.node_feature_dim))
+      else self.physics_projection(node_features)
     )
 
     mask_2d = mask[:, None] * mask[None, :]  # (N, N)

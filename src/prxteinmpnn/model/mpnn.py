@@ -66,6 +66,7 @@ class PrxteinMPNN(eqx.Module):
     num_encoder_layers: int,
     num_decoder_layers: int,
     k_neighbors: int,
+    physics_feature_dim: int | None = None,
     num_amino_acids: int = 21,
     vocab_size: int = 21,  # for w_s
     *,
@@ -112,6 +113,7 @@ class PrxteinMPNN(eqx.Module):
       edge_features,
       hidden_features,
       num_encoder_layers,
+      physics_feature_dim=physics_feature_dim,
       key=keys[1],
     )
     self.decoder = Decoder(
@@ -1022,7 +1024,7 @@ class PrxteinMPNN(eqx.Module):
       initial_node_features=initial_node_features,
     )
 
-    _, edge_features = self.encoder(
+    node_features, edge_features = self.encoder(
       edge_features,
       neighbor_indices,
       mask,

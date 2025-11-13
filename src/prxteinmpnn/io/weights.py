@@ -109,6 +109,9 @@ def load_model(
   model_weights: MODEL_WEIGHTS = "original",
   local_path: str | None = None,
   key: jax.Array | None = None,
+  *,
+  use_electrostatics: bool = False,
+  use_vdw: bool = False,
 ) -> PrxteinMPNN:
   """Load a fully instantiated PrxteinMPNN model with pre-trained weights.
 
@@ -150,6 +153,7 @@ def load_model(
     node_features=NODE_FEATURES,
     edge_features=EDGE_FEATURES,
     hidden_features=HIDDEN_FEATURES,
+    physics_feature_dim=5 if use_electrostatics or use_vdw else None,
     num_encoder_layers=NUM_ENCODER_LAYERS,
     num_decoder_layers=NUM_DECODER_LAYERS,
     vocab_size=VOCAB_SIZE,

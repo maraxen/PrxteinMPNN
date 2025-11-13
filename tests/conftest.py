@@ -21,6 +21,13 @@ def protein_structure() -> Protein:
 
 
 @pytest.fixture(scope="session")
+def pqr_protein_tuple() -> "ProteinTuple":
+    """Load a sample protein structure from a PQR file."""
+    pqr_path = Path(__file__).parent / "data" / "1a00.pqr"
+    return next(parse_input(str(pqr_path)))
+
+
+@pytest.fixture(scope="session")
 def model_inputs(protein_structure: Protein) -> dict:
     """Create model inputs from a protein structure."""
     return {

@@ -132,6 +132,8 @@ def _create_dataloaders(spec: TrainingSpecification) -> tuple[Any, Any]:
     spec.inputs,  # pyright: ignore[reportArgumentType]
     batch_size=spec.batch_size,
     foldcomp_database=spec.foldcomp_database if not spec.use_preprocessed else None,
+    use_electrostatics=spec.use_electrostatics,
+    use_vdw=spec.use_vdw,
     use_preprocessed=spec.use_preprocessed,
     preprocessed_index_path=spec.preprocessed_index_path,
   )
@@ -153,6 +155,8 @@ def _create_dataloaders(spec: TrainingSpecification) -> tuple[Any, Any]:
       batch_size=spec.batch_size,
       foldcomp_database=spec.foldcomp_database if not val_use_preprocessed else None,
       use_preprocessed=val_use_preprocessed,
+      use_electrostatics=spec.use_electrostatics,
+      use_vdw=spec.use_vdw,
       preprocessed_index_path=val_index_path,
     )
 

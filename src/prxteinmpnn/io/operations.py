@@ -215,7 +215,7 @@ def pad_and_collate_proteins(
   elements: Sequence[ProteinTuple],
   *,
   use_electrostatics: bool = False,
-  _use_vdw: bool = False,
+  use_vdw: bool = False,  # noqa: ARG001
 ) -> Protein:
   """Batch and pad a list of ProteinTuples into a ProteinBatch.
 

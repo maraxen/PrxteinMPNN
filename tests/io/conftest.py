@@ -23,10 +23,10 @@ loop_
 _atom_site.group_PDB
 _atom_site.id
 _atom_site.type_symbol
-_atom_site.label_atom_id
-_atom_site.label_comp_id
-_atom_site.label_asym_id
-_atom_site.label_seq_id
+_atom_site.auth_atom_id
+_atom_site.auth_comp_id
+_atom_site.auth_asym_id
+_atom_site.auth_seq_id
 _atom_site.Cartn_x
 _atom_site.Cartn_y
 _atom_site.Cartn_z

@@ -64,7 +64,9 @@ def create_optimizer(
     schedule = optax.constant_schedule(spec.learning_rate)
 
   optimizer = optax.chain(
-    optax.clip_by_global_norm(spec.gradient_clip),
+    optax.clip_by_global_norm(spec.gradient_clip)
+    if spec.gradient_clip is not None
+    else optax.identity(),
     optax.adamw(
       learning_rate=schedule,
       weight_decay=spec.weight_decay,

@@ -81,7 +81,7 @@ class TrainingSpecification(RunSpecification):
   weight_decay: float = 0.01
   warmup_steps: int = 1000
   total_steps: int | None = None
-  gradient_clip: float = 1.0
+  gradient_clip: float | None = None
 
   # Training loop
   num_epochs: int = 10

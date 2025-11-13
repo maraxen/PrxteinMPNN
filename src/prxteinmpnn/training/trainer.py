@@ -480,7 +480,7 @@ def train(spec: TrainingSpecification) -> TrainingResult:
           step,
           model,
           opt_state,
-          metrics=train_metrics.to_dict(),
+          metrics=train_metrics,
         )
 
   logger.info("Training complete!")

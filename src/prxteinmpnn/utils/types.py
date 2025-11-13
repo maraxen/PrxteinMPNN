@@ -56,7 +56,7 @@ DecodingOrderOutputs = tuple[DecodingOrder, PRNGKeyArray]
 CEELoss = Float[Array, ""]  # Cross-entropy loss
 SamplingHyperparameters = tuple[float | int | Array | GradientTransformation, ...]
 
-AlphaCarbonMask = Int[Array, "num_residues 3"]
+AlphaCarbonMask = Int[Array, "num_residues"]
 BackboneDihedrals = Float[Array, "num_residues 3"]  # Dihedral angles for backbone atoms
 BackboneNoise = Float[Array, "n"]  # Noise added to backbone coordinates
 BackboneAtomCoordinates = Float[Array, "num_residues 4 3"]  # Backbone atom coordinates

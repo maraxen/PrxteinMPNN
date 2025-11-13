@@ -83,6 +83,22 @@ foldcomp = [
     "foldcomp",
 ]
 
+[tool.ruff]
+line-length = 100
+fix = true
+indent-width = 2
+exclude = [".venv", "venv", "build", "dist", "__pycache__", "tests", "examples"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = ["PD", "D203", "D213"]
+pylint.max-args = 15
+
+[tool.ruff.lint.per-file-ignores]
+"src/prxteinmpnn/run.py" = ["E402", "PLR0913", "ANN401"]
+"src/prxteinmpnn/io/parsing.py" = ["ANN401"]
+"tests/test_adapter.py" = ["S101", "T201", "ANN201", "INP001", "PLC0415", "SLF001"]
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 
@@ -94,6 +110,7 @@ include = ["src/**/*.py"]
 exclude = ["**/tests/**/*.py"]
 
 [tool.pytest.ini_options]
+testpaths = ["tests"]
 pythonpath = ["src"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",

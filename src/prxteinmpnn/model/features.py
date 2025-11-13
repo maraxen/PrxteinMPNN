@@ -97,6 +97,7 @@ class ProteinFeatures(eqx.Module):
     residue_index: ResidueIndex,
     chain_index: ChainIndex,
     backbone_noise: BackboneNoise | None,
+    structure_mapping: jnp.ndarray | None = None,
   ) -> tuple[EdgeFeatures, NeighborIndices, PRNGKeyArray]:
     """Extract and project features from protein structure.
 
@@ -107,6 +108,9 @@ class ProteinFeatures(eqx.Module):
       residue_index: Residue indices.
       chain_index: Chain indices.
       backbone_noise: Noise to add to backbone coordinates.
+      structure_mapping: Optional (N,) array mapping each residue to a structure ID.
+                        When provided (multi-state mode), prevents cross-structure
+                        neighbors to avoid information leakage between conformational states.
 
     Returns:
       Tuple of (edge_features, neighbor_indices, updated_prng_key).
@@ -123,6 +127,7 @@ class ProteinFeatures(eqx.Module):
     backbone_atom_coordinates = compute_backbone_coordinates(noised_coordinates)
     distances = compute_backbone_distance(backbone_atom_coordinates)
 
+    # Base masking: valid residues
     distances_masked = jnp.array(
       jnp.where(
         (mask[:, None] * mask[None, :]).astype(bool),
@@ -130,6 +135,14 @@ class ProteinFeatures(eqx.Module):
         jnp.inf,
       ),
     )
+
+    if structure_mapping is not None:
+      same_structure = structure_mapping[:, None] == structure_mapping[None, :]
+      distances_masked = jnp.where(
+        same_structure,
+        distances_masked,
+        jnp.inf,
+      )
 
     k = min(self.k_neighbors, structure_coordinates.shape[0])
     _, neighbor_indices = top_k(-distances_masked, k)

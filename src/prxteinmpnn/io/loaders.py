@@ -2,6 +2,7 @@
 
 import pathlib
 from collections.abc import Sequence
+from functools import partial
 from pathlib import Path
 from typing import IO, Any
 
@@ -20,6 +21,8 @@ def create_protein_dataset(
   foldcomp_database: FoldCompDatabase | None = None,
   pass_mode: str = "intra",  # noqa: S107
   *,
+  use_electrostatics: bool = False,
+  use_vdw: bool = False,
   use_preprocessed: bool = False,
   preprocessed_index_path: str | Path | None = None,
 ) -> grain.IterDataset:
@@ -92,7 +95,11 @@ def create_protein_dataset(
   batch_fn = (
     operations.concatenate_proteins_for_inter_mode
     if pass_mode == "inter"  # noqa: S105
-    else operations.pad_and_collate_proteins
+    else partial(
+      operations.pad_and_collate_proteins,
+      use_electrostatics=use_electrostatics,
+      use_vdw=use_vdw,
+    )
   )
 
   return ds.to_iter_dataset(read_options=performance_config.read_options).batch(

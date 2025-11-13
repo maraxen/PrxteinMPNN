@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -37,7 +36,7 @@ if TYPE_CHECKING:
   from prxteinmpnn.utils.types import BackboneCoordinates, Logits
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
+logging.basicConfig(level=logging.INFO)
 
 
 def create_optimizer(
@@ -378,7 +377,6 @@ def train(spec: TrainingSpecification) -> TrainingResult:
       >>> print(f"Final validation accuracy: {results['final_val_accuracy']}")
 
   """
-  # Setup
   setup_mixed_precision(spec.precision)
   logger.info("Starting training with spec: %s", spec)
 
@@ -386,7 +384,6 @@ def train(spec: TrainingSpecification) -> TrainingResult:
 
   model, opt_state, start_step, checkpoint_manager = _init_checkpoint_and_model(spec)
 
-  # Create data loaders
   train_loader, val_loader = _create_dataloaders(spec)
 
   step = start_step
@@ -448,7 +445,6 @@ def train(spec: TrainingSpecification) -> TrainingResult:
           val_acc_float,
         )
 
-        # Early stopping check
         if spec.early_stopping_patience:
           current_metric = avg_val_loss  # Can switch based on spec.early_stopping_metric
           if current_metric < best_val_metric:
@@ -461,7 +457,6 @@ def train(spec: TrainingSpecification) -> TrainingResult:
             logger.info("Early stopping triggered at step %d", step)
             break
 
-      # Checkpointing
       if step % spec.checkpoint_every == 0:
         save_checkpoint(
           checkpoint_manager,

@@ -12,7 +12,7 @@ import jax
 import jax.numpy as jnp
 
 from prxteinmpnn.model.decoder import Decoder
-from prxteinmpnn.model.encoder import Encoder
+from prxteinmpnn.model.encoder import Encoder, PhysicsEncoder
 from prxteinmpnn.model.features import ProteinFeatures
 from prxteinmpnn.model.multi_state_sampling import (
   max_min_over_group_logits,
@@ -47,7 +47,7 @@ class PrxteinMPNN(eqx.Module):
   """The complete end-to-end ProteinMPNN model."""
 
   features: ProteinFeatures
-  encoder: Encoder
+  encoder: Encoder | PhysicsEncoder
   decoder: Decoder
 
   w_s_embed: eqx.nn.Embedding  # For sequence
@@ -108,13 +108,23 @@ class PrxteinMPNN(eqx.Module):
       k_neighbors,
       key=keys[0],
     )
-    self.encoder = Encoder(
-      node_features,
-      edge_features,
-      hidden_features,
-      num_encoder_layers,
-      physics_feature_dim=physics_feature_dim,
-      key=keys[1],
+    self.encoder = (
+      Encoder(
+        node_features,
+        edge_features,
+        hidden_features,
+        num_encoder_layers,
+        key=keys[1],
+      )
+      if physics_feature_dim is None
+      else PhysicsEncoder(
+        node_features,
+        edge_features,
+        hidden_features,
+        num_encoder_layers,
+        physics_feature_dim,
+        key=keys[1],
+      )
     )
     self.decoder = Decoder(
       node_features,

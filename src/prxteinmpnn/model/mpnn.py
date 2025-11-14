@@ -41,6 +41,8 @@ if TYPE_CHECKING:
   )
 
 DecodingApproach = Literal["unconditional", "conditional", "autoregressive"]
+MEDIUM_CONFLICT_THRESHOLD = 0.3
+HIGH_CONFLICT_THRESHOLD = 0.6
 
 
 class PrxteinMPNN(eqx.Module):
@@ -380,6 +382,78 @@ class PrxteinMPNN(eqx.Module):
     return jnp.log(avg_exp_logits) + max_logits  # (1, 21)
 
   @staticmethod
+  def _compute_jsd_for_group(logits: Logits, group_mask: jnp.ndarray) -> float:
+    """Compute Jensen-Shannon divergence (JSD) between structures in a group.
+
+    Args:
+      logits: Logits array of shape (num_structures, num_positions, num_aa).
+      group_mask: Boolean mask of shape (num_structures,) indicating group membership.
+
+    Returns:
+      Average pairwise JSD for the group (across positions).
+
+    """
+    group_logits = logits[group_mask]
+    probs = jax.nn.softmax(group_logits, axis=-1)  # (G, N, A)
+    mean_probs = jnp.mean(probs, axis=0)  # (N, A)
+
+    def jsd(p: Logits, m: Logits) -> jnp.ndarray:
+      kl1 = jnp.sum(
+        jnp.array(
+          jnp.where(
+            p > 0,
+            p * (jnp.log(p + 1e-8) - jnp.log(m + 1e-8)),
+            0,
+          ),
+        ),
+        axis=-1,
+      )
+      kl2 = jnp.sum(
+        jnp.array(
+          jnp.where(
+            m > 0,
+            m * (jnp.log(m + 1e-8) - jnp.log(p + 1e-8)),
+            0,
+          ),
+        ),
+        axis=-1,
+      )
+      return 0.5 * (kl1 + kl2)
+
+    jsd_vals = jax.vmap(lambda p: jsd(p, mean_probs))(probs)  # (G, N)
+    return float(jnp.mean(jsd_vals))
+
+  @staticmethod
+  def _find_acceptable_amino_acids(
+    logits: Logits,
+    group_mask: jnp.ndarray,
+    min_acceptable_prob: float = 0.05,
+    boost: float = 3.0,
+    penalty: float = -3.0,
+  ) -> jnp.ndarray:
+    """Find amino acids acceptable in all structures and adjust logits.
+
+    Args:
+      logits: Logits array of shape (num_structures, num_positions, num_aa).
+      group_mask: Boolean mask of shape (num_structures,) indicating group membership.
+      min_acceptable_prob: Minimum probability for an AA to be considered acceptable.
+      boost: Value to add to acceptable AAs.
+      penalty: Value to add to non-acceptable AAs.
+
+    Returns:
+      Adjusted logits of shape (num_positions, num_aa).
+
+    """
+    group_logits = logits[group_mask]  # (G, N, A)
+    probs = jax.nn.softmax(group_logits, axis=-1)  # (G, N, A)
+    acceptable = jnp.all(probs > min_acceptable_prob, axis=0)  # (N, A)
+    none_acceptable = ~jnp.any(acceptable, axis=-1)  # (N,)
+    geo_mean = jnp.exp(jnp.mean(jnp.log(probs + 1e-8), axis=0))  # (N, A)
+    fallback = geo_mean > min_acceptable_prob
+    acceptable = jnp.where(none_acceptable[:, None], fallback, acceptable)
+    return jnp.where(acceptable, boost, penalty)
+
+  @staticmethod
   def _combine_logits_multistate(
     logits: Logits,
     group_mask: jnp.ndarray,
@@ -457,7 +531,20 @@ class PrxteinMPNN(eqx.Module):
     def max_min_fn(_: tuple) -> jnp.ndarray:
       return max_min_over_group_logits(logits, group_mask, alpha)
 
-    branches = [mean_fn, min_fn, product_fn, max_min_fn]
+    def adaptive_fn(_: tuple) -> jnp.ndarray:
+      jsd = PrxteinMPNN._compute_jsd_for_group(logits, group_mask)
+      if jsd < MEDIUM_CONFLICT_THRESHOLD:
+        return PrxteinMPNN._average_logits_over_group(logits, group_mask)
+      if jsd > HIGH_CONFLICT_THRESHOLD:
+        return PrxteinMPNN._find_acceptable_amino_acids(logits, group_mask)
+      mean_logits = PrxteinMPNN._average_logits_over_group(logits, group_mask)
+      acc_logits = PrxteinMPNN._find_acceptable_amino_acids(logits, group_mask)
+      return 0.5 * mean_logits + 0.5 * acc_logits
+
+    def acceptable_fn(_: tuple) -> jnp.ndarray:
+      return PrxteinMPNN._find_acceptable_amino_acids(logits, group_mask)
+
+    branches = [mean_fn, min_fn, product_fn, max_min_fn, adaptive_fn, acceptable_fn]
     return jax.lax.switch(strategy_idx, branches, ())
 
   def _process_group_positions(
@@ -1063,7 +1150,7 @@ class PrxteinMPNN(eqx.Module):
     if bias is None:
       bias = jnp.zeros((mask.shape[0], 21), dtype=jnp.float32)
 
-    strategy_map = {"mean": 0, "min": 1, "product": 2, "max_min": 3}
+    strategy_map = {"mean": 0, "min": 1, "product": 2, "max_min": 3, "adaptive": 4, "acceptable": 5}
     multi_state_strategy_idx = jnp.array(
       strategy_map[multi_state_strategy],
       dtype=jnp.int32,

@@ -97,16 +97,13 @@ def max_min_over_group_logits(
     >>> balanced_logits = max_min_over_group_logits(logits, group_mask, alpha=0.5)
 
   """
-  # Compute min logits (worst-case)
   min_logits = min_over_group_logits(logits, group_mask)
 
-  # Compute mean logits (average-case) using standard averaging
   masked_logits = jnp.where(group_mask[:, None], logits, 0.0)
   sum_logits = jnp.sum(masked_logits, axis=0, keepdims=True)
   num_in_group = jnp.sum(group_mask)
   mean_logits = sum_logits / num_in_group
 
-  # Weighted combination
   return alpha * min_logits + (1.0 - alpha) * mean_logits
 
 
@@ -140,16 +137,12 @@ def softmin_over_group_logits(
     >>> soft_avg = softmin_over_group_logits(logits, group_mask, temperature=10.0)
 
   """
-  # Mask out non-group positions
   masked_logits = jnp.where(
     group_mask[:, None],
     logits,
-    1e9,  # Large value for non-group positions
+    1e9,
   )
 
-  # Compute soft minimum using log-sum-exp
-  # softmin(x) = -log(sum(exp(-x/T))) * T
-  #           = -logsumexp(-x/T) * T
   neg_scaled_logits = -masked_logits / temperature
   log_sum_exp = jnp.max(neg_scaled_logits, axis=0, keepdims=True) + jnp.log(
     jnp.sum(
@@ -193,8 +186,6 @@ def product_of_probabilities_logits(
     >>> # AA0 has even higher combined probability, AA1 has even lower
 
   """
-  # Mask out non-group positions (use 0 so they don't affect sum)
   masked_logits = jnp.where(group_mask[:, None], logits, 0.0)
 
-  # Sum logits across all states
   return jnp.sum(masked_logits, axis=0, keepdims=True)

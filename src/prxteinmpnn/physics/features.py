@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import jax
@@ -13,6 +12,8 @@ from prxteinmpnn.physics.projections import project_forces_onto_backbone
 from prxteinmpnn.utils.coordinates import compute_backbone_coordinates
 
 if TYPE_CHECKING:
+  from collections.abc import Sequence
+
   from prxteinmpnn.utils.data_structures import ProteinTuple
 
 

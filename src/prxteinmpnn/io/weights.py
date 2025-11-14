@@ -149,11 +149,12 @@ def load_model(
     model_weights = parts[0]  # type: ignore[assignment]
     model_version = f"v_{parts[1]}"  # type: ignore[assignment]
 
+  physics_feature_dim = 0 + (5 if use_electrostatics else 0) + (0 if not use_vdw else 5)
   skeleton = PrxteinMPNN(
     node_features=NODE_FEATURES,
     edge_features=EDGE_FEATURES,
     hidden_features=HIDDEN_FEATURES,
-    physics_feature_dim=5 if use_electrostatics or use_vdw else None,
+    physics_feature_dim=physics_feature_dim if physics_feature_dim > 0 else None,
     num_encoder_layers=NUM_ENCODER_LAYERS,
     num_decoder_layers=NUM_DECODER_LAYERS,
     vocab_size=VOCAB_SIZE,

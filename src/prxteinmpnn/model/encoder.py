@@ -145,7 +145,65 @@ class Encoder(eqx.Module):
   """The complete encoder module for ProteinMPNN."""
 
   layers: tuple[EncoderLayer, ...]
-  physics_projection: eqx.nn.Linear  # For physical properties
+
+  node_feature_dim: int = eqx.field(static=True)
+
+  def __init__(
+    self,
+    node_features: int,
+    edge_features: int,
+    hidden_features: int,
+    num_layers: int = 3,
+    _physics_feature_dim: int | None = None,
+    *,
+    key: PRNGKeyArray,
+  ) -> None:
+    """Initialize the encoder.
+
+    Args:
+      node_features: Dimension of node features.
+      edge_features: Dimension of edge features.
+      hidden_features: Dimension of hidden features in feedforward network.
+      num_layers: Number of encoder layers.
+      physics_feature_dim: Dimension of physical features.
+      key: PRNG key for initialization.
+
+    """
+    self.node_feature_dim = node_features
+    keys = jax.random.split(key, num_layers)
+    self.layers = tuple(
+      EncoderLayer(node_features, edge_features, hidden_features, key=k) for k in keys
+    )
+
+  def __call__(
+    self,
+    edge_features: EdgeFeatures,
+    neighbor_indices: NeighborIndices,
+    mask: AlphaCarbonMask,
+    node_features: NodeFeatures | None = None,
+  ) -> tuple[NodeFeatures, EdgeFeatures]:
+    """Forward pass for the encoder."""
+    node_features = jnp.zeros((edge_features.shape[0], self.node_feature_dim))
+
+    mask_2d = mask[:, None] * mask[None, :]  # (N, N)
+    mask_attend = jnp.take_along_axis(mask_2d, neighbor_indices, axis=1)  # (N, K)
+
+    for layer in self.layers:
+      node_features, edge_features = layer(
+        node_features,
+        edge_features,
+        neighbor_indices,
+        mask,
+        mask_attend,
+      )
+    return node_features, edge_features
+
+
+class PhysicsEncoder(eqx.Module):
+  """The complete encoder module for ProteinMPNN."""
+
+  layers: tuple[EncoderLayer, ...]
+  physics_projection: eqx.nn.Linear
 
   node_feature_dim: int = eqx.field(static=True)
 

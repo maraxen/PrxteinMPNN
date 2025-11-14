@@ -101,6 +101,8 @@ class ProteinFeatures(eqx.Module):
     backbone_noise: BackboneNoise | None,
     structure_mapping: jnp.ndarray | None = None,
     initial_node_features: jnp.ndarray | None = None,
+    *,
+    debug_mode: bool = True,
   ) -> tuple[EdgeFeatures, NeighborIndices, NodeFeatures | None, PRNGKeyArray]:
     """Extract and project features from protein structure.
 
@@ -115,6 +117,7 @@ class ProteinFeatures(eqx.Module):
                         When provided (multi-state mode), prevents cross-structure
                         neighbors to avoid information leakage between conformational states.
       initial_node_features: Optional initial node features.
+      debug_mode: If True, enables debug prints.
 
     Returns:
       Tuple of (edge_features, neighbor_indices, updated_prng_key).
@@ -141,6 +144,8 @@ class ProteinFeatures(eqx.Module):
         jnp.inf,
       ),
     )
+    if debug_mode:
+      jax.debug.print("Distances masked shape: {}", distances_masked.shape)
 
     if structure_mapping is not None:
       same_structure = structure_mapping[:, jnp.newaxis] == structure_mapping[jnp.newaxis, :]
@@ -151,10 +156,16 @@ class ProteinFeatures(eqx.Module):
           jnp.inf,
         ),
       )
+      if debug_mode:
+        jax.debug.print("Multi-state mode: applied structure mapping mask.")
+        jax.debug.print("Distances masked shape (multi-state): {}", distances_masked.shape)
 
     k = min(self.k_neighbors, structure_coordinates.shape[0])
     _, neighbor_indices = top_k(-distances_masked, k)
     neighbor_indices = jnp.array(neighbor_indices, dtype=jnp.int32)
+
+    if debug_mode:
+      jax.debug.print("Neighbor indices shape: {}", neighbor_indices.shape)
 
     rbf = compute_radial_basis(backbone_atom_coordinates, neighbor_indices)
     neighbor_offsets = compute_neighbor_offsets(residue_index, neighbor_indices)

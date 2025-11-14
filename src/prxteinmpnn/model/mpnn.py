@@ -436,29 +436,38 @@ class PrxteinMPNN(eqx.Module):
     """Find amino acids acceptable in all structures and adjust logits.
 
     Args:
-      logits: Logits array of shape (num_structures, num_positions, num_aa).
-      group_mask: Boolean mask of shape (num_structures,) indicating group membership.
+      logits: Logits array of shape (num_positions, num_aa).
+      group_mask: Boolean mask of shape (num_positions,) indicating group membership.
       min_acceptable_prob: Minimum probability for an AA to be considered acceptable.
       boost: Value to add to acceptable AAs.
       penalty: Value to add to non-acceptable AAs.
 
     Returns:
-      Adjusted logits of shape (num_positions, num_aa).
+      Adjusted logits of shape (1, num_aa).
 
     """
-    mask_expanded = group_mask[:, None, None]
-    probs = jax.nn.softmax(logits, axis=-1)
-    masked_probs = jnp.where(mask_expanded, probs, 1.0)
-    min_probs = jnp.min(masked_probs, axis=0)
-    acceptable = min_probs > min_acceptable_prob
-    none_acceptable = ~jnp.any(acceptable, axis=-1)
-    log_probs = jnp.log(masked_probs + 1e-8)
+    mask_expanded = group_mask[:, None]  # Shape (N_pos, 1)
+    probs = jax.nn.softmax(logits, axis=-1)  # Shape (N_pos, 21)
+    # Set non-group probs to 1.0 so they pass the jnp.min
+    masked_probs = jnp.where(mask_expanded, probs, 1.0)  # Shape (N_pos, 21)
+    min_probs = jnp.min(
+      masked_probs,
+      axis=0,
+      where=mask_expanded,
+      initial=1.0,
+    )  # Shape (21,)
+    acceptable = min_probs > min_acceptable_prob  # Shape (21,)
+    none_acceptable = ~jnp.any(acceptable, axis=-1)  # Scalar
+    log_probs = jnp.log(probs + 1e-8)  # Use probs, not masked_probs
     num_in_group = jnp.sum(group_mask)
-    masked_log_probs = jnp.where(mask_expanded, log_probs, 0.0)
-    geo_mean = jnp.exp(jnp.sum(masked_log_probs, axis=0) / jnp.maximum(num_in_group, 1.0))
-    fallback = geo_mean > min_acceptable_prob
-    acceptable = jnp.where(none_acceptable[:, None], fallback, acceptable)
-    return jnp.where(acceptable, boost, penalty)
+    masked_log_probs = jnp.where(mask_expanded, log_probs, 0.0)  # Shape (N_pos, 21)
+    # Geometric mean of probs *within the group*
+    geo_mean = jnp.exp(
+      jnp.sum(masked_log_probs, axis=0) / jnp.maximum(num_in_group, 1.0),
+    )  # Shape (21,)
+    fallback = geo_mean > min_acceptable_prob  # Shape (21,)
+    acceptable = jnp.where(none_acceptable, fallback, acceptable)  # Shape (21,)
+    return jnp.expand_dims(jnp.where(acceptable, boost, penalty), axis=0)
 
   @staticmethod
   def _combine_logits_multistate(

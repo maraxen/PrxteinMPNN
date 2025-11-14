@@ -142,17 +142,6 @@ class ProteinFeatures(eqx.Module):
     backbone_atom_coordinates = compute_backbone_coordinates(noised_coordinates)
     distances = compute_backbone_distance(backbone_atom_coordinates)
 
-    # Base masking: valid residues
-    distances_masked = jnp.array(
-      jnp.where(
-        (mask[:, None] * mask[None, :]).astype(bool),
-        distances,
-        jnp.inf,
-      ),
-    )
-    if debug_mode:
-      jax.debug.print("Distances masked shape: {}", distances_masked.shape)
-
     if structure_mapping is not None:
       same_structure = structure_mapping[:, jnp.newaxis] == structure_mapping[jnp.newaxis, :]
       distances_masked = jnp.array(
@@ -162,9 +151,14 @@ class ProteinFeatures(eqx.Module):
           jnp.inf,
         ),
       )
-      if debug_mode:
-        jax.debug.print("Multi-state mode: applied structure mapping mask.")
-        jax.debug.print("Distances masked shape (multi-state): {}", distances_masked.shape)
+    else:
+      distances_masked = jnp.array(
+        jnp.where(
+          (mask[:, None] * mask[None, :]).astype(bool),
+          distances,
+          jnp.inf,
+        ),
+      )
 
     k = min(self.k_neighbors, structure_coordinates.shape[0])
     _, neighbor_indices = top_k(-distances_masked, k)

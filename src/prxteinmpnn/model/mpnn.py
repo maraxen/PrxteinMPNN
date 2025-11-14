@@ -382,7 +382,7 @@ class PrxteinMPNN(eqx.Module):
     return jnp.log(avg_exp_logits) + max_logits  # (1, 21)
 
   @staticmethod
-  def _compute_jsd_for_group(logits: Logits, group_mask: jnp.ndarray) -> float:
+  def _compute_jsd_for_group(logits: Logits, group_mask: jnp.ndarray) -> jnp.ndarray:
     """Compute Jensen-Shannon divergence (JSD) between structures in a group.
 
     Args:
@@ -390,38 +390,40 @@ class PrxteinMPNN(eqx.Module):
       group_mask: Boolean mask of shape (num_structures,) indicating group membership.
 
     Returns:
-      Average pairwise JSD for the group (across positions).
+      Average pairwise JSD for the group (across positions) as a scalar JAX array.
 
     """
-    group_logits = logits[group_mask]
-    probs = jax.nn.softmax(group_logits, axis=-1)  # (G, N, A)
-    mean_probs = jnp.mean(probs, axis=0)  # (N, A)
+    mask_expanded = group_mask[:, None, None]
+
+    probs = jax.nn.softmax(logits, axis=-1)
+
+    masked_probs = jnp.where(mask_expanded, probs, 0.0)
+    num_in_group = jnp.sum(group_mask)
+    mean_probs = jnp.sum(masked_probs, axis=0) / jnp.maximum(num_in_group, 1.0)
 
     def jsd(p: Logits, m: Logits) -> jnp.ndarray:
       kl1 = jnp.sum(
-        jnp.array(
-          jnp.where(
-            p > 0,
-            p * (jnp.log(p + 1e-8) - jnp.log(m + 1e-8)),
-            0,
-          ),
+        jnp.where(
+          p > 0,
+          p * (jnp.log(p + 1e-8) - jnp.log(m + 1e-8)),
+          0,
         ),
         axis=-1,
       )
       kl2 = jnp.sum(
-        jnp.array(
-          jnp.where(
-            m > 0,
-            m * (jnp.log(m + 1e-8) - jnp.log(p + 1e-8)),
-            0,
-          ),
+        jnp.where(
+          m > 0,
+          m * (jnp.log(m + 1e-8) - jnp.log(p + 1e-8)),
+          0,
         ),
         axis=-1,
       )
       return 0.5 * (kl1 + kl2)
 
-    jsd_vals = jax.vmap(lambda p: jsd(p, mean_probs))(probs)  # (G, N)
-    return float(jnp.mean(jsd_vals))
+    jsd_vals = jax.vmap(lambda p: jsd(p, mean_probs))(probs)
+    masked_jsd = jnp.where(group_mask[:, None], jsd_vals, 0.0)
+
+    return jnp.sum(masked_jsd) / jnp.maximum(num_in_group, 1.0)
 
   @staticmethod
   def _find_acceptable_amino_acids(
@@ -444,11 +446,16 @@ class PrxteinMPNN(eqx.Module):
       Adjusted logits of shape (num_positions, num_aa).
 
     """
-    group_logits = logits[group_mask]  # (G, N, A)
-    probs = jax.nn.softmax(group_logits, axis=-1)  # (G, N, A)
-    acceptable = jnp.all(probs > min_acceptable_prob, axis=0)  # (N, A)
-    none_acceptable = ~jnp.any(acceptable, axis=-1)  # (N,)
-    geo_mean = jnp.exp(jnp.mean(jnp.log(probs + 1e-8), axis=0))  # (N, A)
+    mask_expanded = group_mask[:, None, None]
+    probs = jax.nn.softmax(logits, axis=-1)
+    masked_probs = jnp.where(mask_expanded, probs, 1.0)
+    min_probs = jnp.min(masked_probs, axis=0)
+    acceptable = min_probs > min_acceptable_prob
+    none_acceptable = ~jnp.any(acceptable, axis=-1)
+    log_probs = jnp.log(masked_probs + 1e-8)
+    num_in_group = jnp.sum(group_mask)
+    masked_log_probs = jnp.where(mask_expanded, log_probs, 0.0)
+    geo_mean = jnp.exp(jnp.sum(masked_log_probs, axis=0) / jnp.maximum(num_in_group, 1.0))
     fallback = geo_mean > min_acceptable_prob
     acceptable = jnp.where(none_acceptable[:, None], fallback, acceptable)
     return jnp.where(acceptable, boost, penalty)

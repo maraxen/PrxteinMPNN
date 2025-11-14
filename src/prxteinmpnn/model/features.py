@@ -143,11 +143,13 @@ class ProteinFeatures(eqx.Module):
     )
 
     if structure_mapping is not None:
-      same_structure = structure_mapping[:, None] == structure_mapping[None, :]
-      distances_masked = jnp.where(
-        same_structure,
-        distances_masked,
-        jnp.inf,
+      same_structure = structure_mapping[:, jnp.newaxis] == structure_mapping[jnp.newaxis, :]
+      distances_masked = jnp.array(
+        jnp.where(
+          same_structure & (mask[:, None] * mask[None, :]).astype(bool),
+          distances,
+          jnp.inf,
+        ),
       )
 
     k = min(self.k_neighbors, structure_coordinates.shape[0])

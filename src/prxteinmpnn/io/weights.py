@@ -141,7 +141,7 @@ def load_model(
       >>> seq, logits = model(coords, mask, res_idx, chain_idx, "unconditional")
 
   """
-  from prxteinmpnn.model import PrxteinMPNN  # noqa: PLC0415
+  from prxteinmpnn.model import PrxteinMPNN
 
   if key is None:
     key = jax.random.PRNGKey(0)

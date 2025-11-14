@@ -123,6 +123,12 @@ class ProteinFeatures(eqx.Module):
       Tuple of (edge_features, neighbor_indices, updated_prng_key).
 
     """
+    if debug_mode:
+      jax.debug.print("Structure coordinates shape: {}", structure_coordinates.shape)
+      jax.debug.print("Mask shape: {}", mask.shape)
+      jax.debug.print("Residue index shape: {}", residue_index.shape)
+      jax.debug.print("Chain index shape: {}", chain_index.shape)
+      jax.debug.print("Backbone noise: {}", backbone_noise)
     node_features = None if initial_node_features is None else initial_node_features
 
     if backbone_noise is None:

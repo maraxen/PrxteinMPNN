@@ -162,7 +162,7 @@ def sample(
         None,  # num_groups
         None,  # multi_state_strategy
         None,  # multi_state_alpha
-        None,  # interstructure mapping
+        0,  # interstructure mapping
       ),
       out_axes=0,
     )

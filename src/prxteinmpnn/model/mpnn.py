@@ -503,7 +503,7 @@ class PrxteinMPNN(eqx.Module):
     raise ValueError(msg)
 
   @staticmethod
-  def _combine_logits_multistate_idx(
+  def _combine_logits_multistate_idx(  # noqa: C901
     logits: Logits,
     group_mask: jnp.ndarray,
     strategy_idx: Int,
@@ -540,13 +540,32 @@ class PrxteinMPNN(eqx.Module):
 
     def adaptive_fn(_: tuple) -> jnp.ndarray:
       jsd = PrxteinMPNN._compute_jsd_for_group(logits, group_mask)
-      if jsd < MEDIUM_CONFLICT_THRESHOLD:
+
+      def low_conflict_branch(_: tuple) -> jnp.ndarray:
         return PrxteinMPNN._average_logits_over_group(logits, group_mask)
-      if jsd > HIGH_CONFLICT_THRESHOLD:
-        return PrxteinMPNN._find_acceptable_amino_acids(logits, group_mask)
-      mean_logits = PrxteinMPNN._average_logits_over_group(logits, group_mask)
-      acc_logits = PrxteinMPNN._find_acceptable_amino_acids(logits, group_mask)
-      return 0.5 * mean_logits + 0.5 * acc_logits
+
+      def high_or_medium_conflict_branch(_: tuple) -> jnp.ndarray:
+        def high_conflict_branch(_: tuple) -> jnp.ndarray:
+          return PrxteinMPNN._find_acceptable_amino_acids(logits, group_mask)
+
+        def medium_conflict_branch(_: tuple) -> jnp.ndarray:
+          mean_logits = PrxteinMPNN._average_logits_over_group(logits, group_mask)
+          acc_logits = PrxteinMPNN._find_acceptable_amino_acids(logits, group_mask)
+          return 0.5 * mean_logits + 0.5 * acc_logits
+
+        return jax.lax.cond(
+          jsd > HIGH_CONFLICT_THRESHOLD,
+          high_conflict_branch,
+          medium_conflict_branch,
+          None,
+        )
+
+      return jax.lax.cond(
+        jsd < MEDIUM_CONFLICT_THRESHOLD,
+        low_conflict_branch,
+        high_or_medium_conflict_branch,
+        None,
+      )
 
     def acceptable_fn(_: tuple) -> jnp.ndarray:
       return PrxteinMPNN._find_acceptable_amino_acids(logits, group_mask)

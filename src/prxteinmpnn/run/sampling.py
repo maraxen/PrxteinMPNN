@@ -162,7 +162,7 @@ def sample(
         None,  # num_groups
         None,  # multi_state_strategy
         None,  # multi_state_alpha
-        0,  # interstructure mapping
+        0 if batched_ensemble.mapping is not None else None,  # interstructure mapping
       ),
       out_axes=0,
     )

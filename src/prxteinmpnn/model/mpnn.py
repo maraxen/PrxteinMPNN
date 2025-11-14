@@ -410,13 +410,13 @@ class PrxteinMPNN(eqx.Module):
 
     """
     if strategy == "mean":
-      return jax.vmap(PrxteinMPNN._average_logits_over_group)(logits, group_mask)
+      return PrxteinMPNN._average_logits_over_group(logits, group_mask)
     if strategy == "min":
-      return jax.vmap(min_over_group_logits)(logits, group_mask)
+      return min_over_group_logits(logits, group_mask)
     if strategy == "product":
-      return jax.vmap(product_of_probabilities_logits)(logits, group_mask)
+      return product_of_probabilities_logits(logits, group_mask)
     if strategy == "max_min":
-      return jax.vmap(max_min_over_group_logits, in_axes=(0, 0, None))(logits, group_mask, alpha)
+      return max_min_over_group_logits(logits, group_mask, alpha)
     msg = f"Unknown multi-state strategy: {strategy}"
     raise ValueError(msg)
 

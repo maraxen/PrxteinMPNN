@@ -66,7 +66,7 @@ def create_protein_dataset(
       msg = "preprocessed_index_path is required when use_preprocessed=True"
       raise ValueError(msg)
 
-    if not isinstance(inputs, (str, Path)):
+    if not isinstance(inputs, (str | Path)):
       msg = "When use_preprocessed=True, inputs must be a single path to array_record file"
       raise ValueError(msg)
 
@@ -77,7 +77,7 @@ def create_protein_dataset(
     ds = grain.MapDataset.source(source)
 
   else:
-    if not isinstance(inputs, Sequence) or isinstance(inputs, (str, pathlib.Path)):
+    if not isinstance(inputs, Sequence) or isinstance(inputs, str | pathlib.Path):
       inputs = (inputs,)
 
     source = dataset.ProteinDataSource(

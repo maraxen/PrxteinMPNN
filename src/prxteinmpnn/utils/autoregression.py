@@ -135,7 +135,7 @@ def resolve_tie_groups(  # noqa: C901, PLR0912
   ) -> list[tuple[int, list[int]]]:
     group_map = defaultdict(list)
     for group_idx, group in enumerate(groups):
-      if isinstance(group[0], (list, tuple)):
+      if isinstance(group[0], (list | tuple)):
         for tup in group:
           group_map[group_idx].append(tup)
       else:

@@ -150,7 +150,7 @@ class ProteinFeatures(eqx.Module):
           distances,
           jnp.inf,
         ),
-      )
+      ).squeeze()
     else:
       distances_masked = jnp.array(
         jnp.where(

@@ -101,8 +101,6 @@ class ProteinFeatures(eqx.Module):
     backbone_noise: BackboneNoise | None,
     structure_mapping: jnp.ndarray | None = None,
     initial_node_features: jnp.ndarray | None = None,
-    *,
-    debug_mode: bool = True,
   ) -> tuple[EdgeFeatures, NeighborIndices, NodeFeatures | None, PRNGKeyArray]:
     """Extract and project features from protein structure.
 
@@ -123,12 +121,6 @@ class ProteinFeatures(eqx.Module):
       Tuple of (edge_features, neighbor_indices, updated_prng_key).
 
     """
-    if debug_mode:
-      jax.debug.print("Structure coordinates shape: {}", structure_coordinates.shape)
-      jax.debug.print("Mask shape: {}", mask.shape)
-      jax.debug.print("Residue index shape: {}", residue_index.shape)
-      jax.debug.print("Chain index shape: {}", chain_index.shape)
-      jax.debug.print("Backbone noise: {}", backbone_noise)
     node_features = None if initial_node_features is None else initial_node_features
 
     if backbone_noise is None:
@@ -142,35 +134,31 @@ class ProteinFeatures(eqx.Module):
     backbone_atom_coordinates = compute_backbone_coordinates(noised_coordinates)
     distances = compute_backbone_distance(backbone_atom_coordinates)
 
+    distances_masked = jnp.array(
+      jnp.where(
+        (mask[:, None] * mask[None, :]).astype(bool),
+        distances,
+        jnp.inf,
+      ),
+    )
+
     if structure_mapping is not None:
       same_structure = structure_mapping[:, jnp.newaxis] == structure_mapping[jnp.newaxis, :]
       distances_masked = jnp.array(
         jnp.where(
-          same_structure & (mask[:, None] * mask[None, :]).astype(bool),
-          distances,
+          same_structure.astype(bool),
+          distances_masked,
           jnp.inf,
         ),
       ).squeeze()
-    else:
-      distances_masked = jnp.array(
-        jnp.where(
-          (mask[:, None] * mask[None, :]).astype(bool),
-          distances,
-          jnp.inf,
-        ),
-      )
 
     k = min(self.k_neighbors, structure_coordinates.shape[0])
     _, neighbor_indices = top_k(-distances_masked, k)
     neighbor_indices = jnp.array(neighbor_indices, dtype=jnp.int32)
 
-    if debug_mode:
-      jax.debug.print("Neighbor indices shape: {}", neighbor_indices.shape)
-
     rbf = compute_radial_basis(backbone_atom_coordinates, neighbor_indices)
     neighbor_offsets = compute_neighbor_offsets(residue_index, neighbor_indices)
 
-    # Get edge chains neighbors
     edge_chains = (chain_index[:, None] == chain_index[None, :]).astype(int)
     edge_chains_neighbors = jnp.take_along_axis(
       edge_chains,
@@ -178,7 +166,6 @@ class ProteinFeatures(eqx.Module):
       axis=1,
     )
 
-    # Encode positions
     neighbor_offset_factor = jnp.clip(
       neighbor_offsets + MAXIMUM_RELATIVE_FEATURES,
       0,
@@ -191,17 +178,14 @@ class ProteinFeatures(eqx.Module):
       2 * MAXIMUM_RELATIVE_FEATURES + 2,
     )
 
-    # vmap over (N, K)
     encoded_positions = jax.vmap(jax.vmap(self.w_pos))(encoded_offset_one_hot)
 
-    # Embed edges
     edges = jnp.concatenate([encoded_positions, rbf], axis=-1)
 
     edge_features = jax.vmap(jax.vmap(self.w_e))(edges)
 
     edge_features = jax.vmap(jax.vmap(self.norm_edges))(edge_features)
 
-    # Final edge projection (W_e in ColabDesign)
     edge_features = jax.vmap(jax.vmap(self.w_e_proj))(edge_features)
 
     return edge_features, neighbor_indices, node_features, prng_key

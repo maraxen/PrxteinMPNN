@@ -35,6 +35,8 @@ def create_protein_dataset(
       parse_kwargs: Optional dictionary of keyword arguments for parsing.
       foldcomp_database: Optional path to a FoldComp database.
       pass_mode: "intra" (default) for normal batching, "inter" for concatenation.
+      use_electrostatics: Whether to compute and include electrostatic features.
+      use_vdw: Whether to compute and include van der Waals features.
       use_preprocessed: If True, load from preprocessed array_record files
       preprocessed_index_path: Path to index file (required if use_preprocessed=True)
 

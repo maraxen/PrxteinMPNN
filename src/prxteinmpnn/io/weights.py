@@ -125,6 +125,8 @@ def load_model(
                      Ignored if model_version contains the full name.
       local_path: Optional. If provided, loads from this local .eqx file.
       key: Optional JAX random key. If None, uses default PRNGKey(0).
+      use_electrostatics: bool = False, Whether to include electrostatic features.
+      use_vdw: bool = False, Whether to include van der Waals features.
 
   Returns:
       A fully loaded PrxteinMPNN model ready for inference.

@@ -225,6 +225,7 @@ def pad_and_collate_proteins(
   Args:
     elements (list[ProteinTuple]): List of protein tuples to collate.
     use_electrostatics (bool): Whether to compute and add electrostatic features.
+    use_vdw (bool): Placeholder for van der Waals features (not implemented).
 
   Returns:
     Protein: Batched and padded protein ensemble.

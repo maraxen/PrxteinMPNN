@@ -81,6 +81,7 @@ class PrxteinMPNN(eqx.Module):
       num_encoder_layers: Number of encoder layers.
       num_decoder_layers: Number of decoder layers.
       k_neighbors: Number of nearest neighbors for graph construction.
+      physics_feature_dim: Dimension of physical features (if any).
       num_amino_acids: Number of amino acid types (default: 21).
       vocab_size: Size of sequence vocabulary (default: 21).
       key: PRNG key for initialization.

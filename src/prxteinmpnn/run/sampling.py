@@ -264,7 +264,6 @@ def _sample_streaming(
         num_groups=num_groups,
         multi_state_strategy=spec.multi_state_strategy,
         multi_state_alpha=spec.multi_state_alpha,
-        structure_mapping=batched_ensemble.mapping,
       )
 
       def sample_single_noise(
@@ -274,6 +273,7 @@ def _sample_streaming(
         residue_ix: ResidueIndex,
         chain_ix: ChainIndex,
         noise: BackboneNoise,
+        structure_mapping: jnp.ndarray | None = None,
         _sampler: partial = sample_fn_with_params,  # Bind to avoid closure issues
       ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
         """Sample one sequence for one structure at one noise level."""
@@ -284,6 +284,7 @@ def _sample_streaming(
           residue_ix,
           chain_ix,
           backbone_noise=noise,
+          structure_mapping=structure_mapping,
         )
 
       def mapped_fn_noise(
@@ -293,6 +294,7 @@ def _sample_streaming(
         residue_ix: ResidueIndex,
         chain_ix: ChainIndex,
         noise_arr: BackboneNoise,
+        structure_mapping: jnp.ndarray | None = None,
       ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
         """Compute samples across all noise levels for a single structure/sample."""
         return jax.lax.map(
@@ -303,6 +305,7 @@ def _sample_streaming(
             mask,
             residue_ix,
             chain_ix,
+            structure_mapping=structure_mapping,
           ),
           noise_arr,
           batch_size=spec.noise_batch_size,
@@ -315,6 +318,7 @@ def _sample_streaming(
         chain_ix: ChainIndex,
         keys_arr: PRNGKeyArray,
         noise_arr: BackboneNoise,
+        structure_mapping: jnp.ndarray | None = None,
       ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
         """Sample mapping over keys and noise."""
         noise_map_fn = partial(
@@ -324,6 +328,7 @@ def _sample_streaming(
           residue_ix=residue_ix,
           chain_ix=chain_ix,
           noise_arr=noise_arr,
+          structure_mapping=structure_mapping,
         )
 
         return jax.lax.map(
@@ -332,7 +337,10 @@ def _sample_streaming(
           batch_size=spec.samples_batch_size,
         )
 
-      vmap_structures = jax.vmap(internal_sample, in_axes=(0, 0, 0, 0, None, None))
+      vmap_structures = jax.vmap(
+        internal_sample,
+        in_axes=(0, 0, 0, 0, None, None, 0 if batched_ensemble.mapping is not None else None),
+      )
 
       sampled_sequences, sampled_logits, _ = vmap_structures(
         batched_ensemble.coordinates,
@@ -341,6 +349,7 @@ def _sample_streaming(
         batched_ensemble.chain_index,
         keys,
         noise_array,
+        batched_ensemble.mapping,
       )
 
       # Store each structure in its own group to handle variable lengths

@@ -252,7 +252,7 @@ def make_encoding_sampling_split_fn(
   model_parameters: PrxteinMPNN,
   decoding_order_fn: DecodingOrderFn | None = None,
   sampling_strategy: Literal["temperature", "straight_through"] = "temperature",
-) -> tuple[Callable, Callable]:
+) -> tuple[Callable, Callable, Callable]:
   """Create separate encoding and sampling functions for averaged encodings.
 
   This splits the sampling process into two parts:
@@ -442,4 +442,4 @@ def make_encoding_sampling_split_fn(
 
     return final_seq
 
-  return encode_fn, sample_fn
+  return encode_fn, sample_fn, decode_logits_fn

@@ -119,39 +119,17 @@ def make_conditional_logits_fn(
       ... )
 
     """
-    edge_features, neighbor_indices, _ = model.features(
-      prng_key,
-      structure_coordinates,
-      mask,
-      residue_index,
-      chain_index,
-      backbone_noise,
-      structure_mapping,
-    )
-
-    ar_mask = (
-      jax.numpy.zeros((mask.shape[0], mask.shape[0]), dtype=jax.numpy.int32)
-      if ar_mask is None
-      else ar_mask
-    )
-
-    # Default multi-state parameters for conditional logit computation
-    _multi_state_strategy_idx = jax.numpy.array(0, dtype=jax.numpy.int32)  # 0 = "mean"
-    _multi_state_alpha = 0.5
-
-    # Call the model's conditional path directly
-    _, logits = model._call_conditional(  # noqa: SLF001
-      edge_features,
-      neighbor_indices,
-      mask,
-      ar_mask,
-      sequence,
-      prng_key,
-      0.0,  # temperature unused in conditional path
-      jax.numpy.zeros((mask.shape[0], 21), dtype=jax.numpy.float32),
-      None,  # tie_group_map not used in jacobian computation
-      _multi_state_strategy_idx,
-      _multi_state_alpha,
+    _, logits = model(
+      structure_coordinates=structure_coordinates,
+      mask=mask,
+      residue_index=residue_index,
+      chain_index=chain_index,
+      decoding_approach="conditional",
+      prng_key=prng_key,
+      one_hot_sequence=sequence,
+      ar_mask=ar_mask,
+      backbone_noise=backbone_noise,
+      structure_mapping=structure_mapping,
     )
 
     return logits
@@ -225,7 +203,7 @@ def make_encoding_conditional_logits_split_fn(
     if prng_key is None:
       prng_key = jax.random.PRNGKey(0)
 
-    edge_features, neighbor_indices, _ = model.features(
+    edge_features, neighbor_indices, initial_node_features, _ = model.features(
       prng_key,
       structure_coordinates,
       mask,
@@ -239,6 +217,7 @@ def make_encoding_conditional_logits_split_fn(
       edge_features,
       neighbor_indices,
       mask,
+      node_features=initial_node_features,
     )
 
     ar_mask_placeholder = jax.numpy.zeros((mask.shape[0], mask.shape[0]), dtype=jax.numpy.int32)

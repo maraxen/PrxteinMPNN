@@ -11,8 +11,8 @@ import h5py
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.model.mpnn import PrxteinMPNN
-from prxteinmpnn.sampling.sample import make_encoding_sampling_split_fn, make_sample_sequences
+from prxteinmpnn.run.averaging import get_averaged_encodings, make_encoding_sampling_split_fn
+from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.utils.autoregression import resolve_tie_groups
 from prxteinmpnn.utils.decoding_order import random_decoding_order
 
@@ -24,7 +24,8 @@ if TYPE_CHECKING:
 
   from grain.python import IterDataset
   from jaxtyping import PRNGKeyArray
-
+  
+  from prxteinmpnn.model.mpnn import PrxteinMPNN
   from prxteinmpnn.utils.data_structures import Protein
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
@@ -212,14 +213,14 @@ def sample(
     if spec.output_h5_path:
       return _sample_streaming_averaged(spec, protein_iterator, model)
 
-    encode_fn, sample_fn, decode_fn = make_encoding_sampling_split_fn(model)
+    _, sample_fn, decode_fn = make_encoding_sampling_split_fn(model)
     all_sequences, all_logits = [], []
 
     for batched_ensemble in protein_iterator:
       sampled_sequences, logits = _sample_batch_averaged(
         spec,
         batched_ensemble,
-        encode_fn,
+        model,
         sample_fn,
         decode_fn,
       )
@@ -302,7 +303,7 @@ def _sample_streaming(
 def _sample_batch_averaged(
   spec: SamplingSpecification,
   batched_ensemble: Protein,
-  encode_fn: Callable,
+  model: PrxteinMPNN,
   sample_fn: Callable,
   decode_fn: Callable,
 ) -> tuple[ProteinSequence, Logits]:
@@ -316,99 +317,14 @@ def _sample_batch_averaged(
     tie_group_map = resolve_tie_groups(spec, batched_ensemble)
     num_groups = int(jnp.max(tie_group_map)) + 1
 
-  noise_array = (
-    jnp.asarray(spec.backbone_noise, dtype=jnp.float32)
-    if spec.backbone_noise is not None
-    else jnp.zeros(1)
+  averaged_encodings = get_averaged_encodings(
+      batched_ensemble,
+      model,
+      spec.backbone_noise,
+      spec.noise_batch_size,
+      spec.random_seed,
+      spec.average_encoding_mode,
   )
-
-  def encode_single_noise(
-    key: PRNGKeyArray,
-    coords: BackboneCoordinates,
-    mask: AlphaCarbonMask,
-    residue_ix: ResidueIndex,
-    chain_ix: ChainIndex,
-    noise: BackboneNoise,
-    structure_mapping: jnp.ndarray | None = None,
-    _encoder: Callable = encode_fn,  # Bind to avoid closure issues
-  ) -> tuple:
-    """Encode one structure at one noise level."""
-    return _encoder(
-      key,
-      coords,
-      mask,
-      residue_ix,
-      chain_ix,
-      backbone_noise=noise,
-    )
-  def mapped_encode_noise(
-    key: PRNGKeyArray,
-    coords: BackboneCoordinates,
-    mask: AlphaCarbonMask,
-    residue_ix: ResidueIndex,
-    chain_ix: ChainIndex,
-    noise_arr: BackboneNoise,
-    structure_mapping: jnp.ndarray | None = None,
-  ) -> tuple:
-    """Compute encodings across all noise levels for a single structure."""
-    return jax.lax.map(
-      partial(
-        encode_single_noise,
-        key,
-        coords,
-        mask,
-        residue_ix,
-        chain_ix,
-        structure_mapping=structure_mapping,
-      ),
-      noise_arr,
-      batch_size=spec.noise_batch_size,
-    )
-
-  # Vmap over structures to get encodings for all structures and noise levels
-  vmap_encode_structures = jax.vmap(
-    mapped_encode_noise,
-    in_axes=(None, 0, 0, 0, 0, None, 0 if batched_ensemble.mapping is not None else None),
-  )
-
-  # encoded_features_per_noise will have shape (num_structures, num_noise_levels, ...)
-  encoded_features_per_noise = vmap_encode_structures(
-    jax.random.key(spec.random_seed),  # Use a consistent key for encoding
-    batched_ensemble.coordinates,
-    batched_ensemble.mask,
-    batched_ensemble.residue_index,
-    batched_ensemble.chain_index,
-    noise_array,
-    batched_ensemble.mapping,
-  )
-
-  # Unpack and average features
-  node_features, processed_edge_features, neighbor_indices, mask, ar_mask = encoded_features_per_noise
-  
-  if spec.average_encoding_mode == "inputs":
-    averaging_axis = 0
-    # Take features from the first structure
-    neighbor_indices = neighbor_indices[0, :, ...]
-    mask = mask[0, :, ...]
-    ar_mask = ar_mask[0, :, ...]
-  elif spec.average_encoding_mode == "noise_levels":
-    averaging_axis = 1
-    # Take features from the first noise level
-    neighbor_indices = neighbor_indices[:, 0, ...]
-    mask = mask[:, 0, ...]
-    ar_mask = ar_mask[:, 0, ...]
-  else:  # "inputs_and_noise"
-    averaging_axis = (0, 1)
-    # Take features from the first structure and noise level
-    neighbor_indices = neighbor_indices[0, 0, ...]
-    mask = mask[0, 0, ...]
-    ar_mask = ar_mask[0, 0, ...]
-
-  avg_node_features = jnp.mean(node_features, axis=averaging_axis)
-  avg_processed_edge_features = jnp.mean(processed_edge_features, axis=averaging_axis)
-  
-  averaged_encodings = (avg_node_features, avg_processed_edge_features, neighbor_indices, mask, ar_mask)
-
   # Now sample from the averaged encodings
   sample_fn_with_params = partial(
     sample_fn,
@@ -439,11 +355,11 @@ def _sample_batch_averaged(
   ) -> ProteinSequence:
     """Sample mapping over keys for averaged features."""
     decoding_order_keys = jax.random.split(jax.random.key(spec.random_seed + 1), spec.num_samples)
-    
+
     vmap_sample_fn = jax.vmap(
-        partial(sample_single_sequence, encoded_feat=encoded_feat), 
-        in_axes=(0, 0), 
-        out_axes=0
+        partial(sample_single_sequence, encoded_feat=encoded_feat),
+        in_axes=(0, 0),
+        out_axes=0,
     )
     return vmap_sample_fn(keys_arr, decoding_order_keys)
 
@@ -468,14 +384,14 @@ def _sample_batch_averaged(
   ar_mask = jnp.zeros((seq_len, seq_len), dtype=jnp.int32)
 
   if spec.average_encoding_mode == "inputs_and_noise":
-    def get_logits(seq):
+    def get_logits(seq: ProteinSequence) -> Logits:
         return decode_fn(averaged_encodings, seq, ar_mask)
-    
+
     vmap_logits = jax.vmap(get_logits)
     logits = vmap_logits(sampled_sequences[0])
     logits = jnp.expand_dims(logits, axis=0)
   else:
-    def get_logits(seq, enc):
+    def get_logits(seq: ProteinSequence, enc: tuple) -> Logits:
         return decode_fn(enc, seq, ar_mask)
 
     vmap_logits = jax.vmap(jax.vmap(get_logits, in_axes=(0, None)), in_axes=(0, 0))
@@ -490,9 +406,7 @@ def _sample_streaming_averaged(
   model: PrxteinMPNN,
 ) -> dict[str, str | dict[str, SamplingSpecification]]:
   """Sample new sequences with averaged encodings and stream results to an HDF5 file."""
-  from prxteinmpnn.sampling.sample import make_encoding_sampling_split_fn
-
-  encode_fn, sample_fn, decode_fn = make_encoding_sampling_split_fn(model)
+  _, sample_fn, decode_fn = make_encoding_sampling_split_fn(model)
 
   with h5py.File(spec.output_h5_path, "w") as f:
     structure_idx = 0
@@ -501,7 +415,7 @@ def _sample_streaming_averaged(
       sampled_sequences, sampled_logits = _sample_batch_averaged(
         spec,
         batched_ensemble,
-        encode_fn,
+        model,
         sample_fn,
         decode_fn,
       )

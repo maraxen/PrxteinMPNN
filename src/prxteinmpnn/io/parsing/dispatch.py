@@ -87,7 +87,7 @@ def parse_input(  # noqa: C901, PLR0912, PLR0915
   temp_path = None
   tmp_top_path = None
 
-  if not isinstance(source, (pathlib.Path, str)):
+  if not isinstance(source, (pathlib.Path | str)):
     logger.debug("Source is IO. Creating temporary PDB file.")
     with tempfile.NamedTemporaryFile(
       mode="w",
@@ -100,7 +100,7 @@ def parse_input(  # noqa: C901, PLR0912, PLR0915
       source = temp_path
 
   try:
-    if isinstance(source, (str, pathlib.Path)):
+    if isinstance(source, (str | pathlib.Path)):
       path = pathlib.Path(source)
       if path.suffix.lower() == ".pqr":
         logger.info("Dispatching to PQR parser.")

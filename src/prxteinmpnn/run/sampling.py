@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
   from grain.python import IterDataset
   from jaxtyping import PRNGKeyArray
-  
+
   from prxteinmpnn.model.mpnn import PrxteinMPNN
   from prxteinmpnn.utils.data_structures import Protein
   from prxteinmpnn.utils.types import (
@@ -318,12 +318,12 @@ def _sample_batch_averaged(
     num_groups = int(jnp.max(tie_group_map)) + 1
 
   averaged_encodings = get_averaged_encodings(
-      batched_ensemble,
-      model,
-      spec.backbone_noise,
-      spec.noise_batch_size,
-      spec.random_seed,
-      spec.average_encoding_mode,
+    batched_ensemble,
+    model,
+    spec.backbone_noise,
+    spec.noise_batch_size,
+    spec.random_seed,
+    spec.average_encoding_mode,
   )
   # Now sample from the averaged encodings
   sample_fn_with_params = partial(
@@ -357,9 +357,9 @@ def _sample_batch_averaged(
     decoding_order_keys = jax.random.split(jax.random.key(spec.random_seed + 1), spec.num_samples)
 
     vmap_sample_fn = jax.vmap(
-        partial(sample_single_sequence, encoded_feat=encoded_feat),
-        in_axes=(0, 0),
-        out_axes=0,
+      partial(sample_single_sequence, encoded_feat=encoded_feat),
+      in_axes=(0, 0),
+      out_axes=0,
     )
     return vmap_sample_fn(keys_arr, decoding_order_keys)
 
@@ -384,17 +384,19 @@ def _sample_batch_averaged(
   ar_mask = jnp.zeros((seq_len, seq_len), dtype=jnp.int32)
 
   if spec.average_encoding_mode == "inputs_and_noise":
-    def get_logits(seq: ProteinSequence) -> Logits:
-        return decode_fn(averaged_encodings, seq, ar_mask)
 
-    vmap_logits = jax.vmap(get_logits)
+    def get_logits_local_both(seq: ProteinSequence) -> Logits:
+      return decode_fn(averaged_encodings, seq, ar_mask)
+
+    vmap_logits = jax.vmap(get_logits_local_both)
     logits = vmap_logits(sampled_sequences[0])
     logits = jnp.expand_dims(logits, axis=0)
   else:
-    def get_logits(seq: ProteinSequence, enc: tuple) -> Logits:
-        return decode_fn(enc, seq, ar_mask)
 
-    vmap_logits = jax.vmap(jax.vmap(get_logits, in_axes=(0, None)), in_axes=(0, 0))
+    def get_logits_local(seq: ProteinSequence, enc: tuple) -> Logits:
+      return decode_fn(enc, seq, ar_mask)
+
+    vmap_logits = jax.vmap(jax.vmap(get_logits_local, in_axes=(0, None)), in_axes=(0, 0))
     logits = vmap_logits(sampled_sequences, averaged_encodings)
 
   return sampled_sequences, logits

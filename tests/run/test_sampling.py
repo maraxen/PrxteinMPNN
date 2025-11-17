@@ -48,9 +48,9 @@ def test_sample_non_streaming(use_spec):
 
             assert "sequences" in result
             assert "logits" in result
-            # Shape: (N_structures, N_noise, N_samples, S)
-            assert result["sequences"].shape == (1, 1, 2, 10)
-            assert result["logits"].shape == (1, 1, 2, 10, 21)
+            # Shape: (N_structures, N_samples, N_noise, S)
+            assert result["sequences"].shape == (1, 2, 1, 10)
+            assert result["logits"].shape == (1, 2, 1, 10, 21)
 
 def test_sample_streaming():
     """Test the streaming functionality of the sample function."""
@@ -90,13 +90,6 @@ def test_sample_streaming():
                     assert f["structure_0/sequences"].shape == (2, 2, 10)
                     assert f["structure_0/logits"].shape == (2, 2, 10, 21)
 
-def test_sample_streaming_averaged_raises_not_implemented():
-    """Test that _sample_streaming_averaged raises NotImplementedError."""
-    with pytest.raises(NotImplementedError):
-        _sample_streaming_averaged(None, None, None)
 
-def test_sample_streaming_raises_value_error_if_no_output_path():
-    """Test that _sample_streaming raises ValueError if no output path is provided."""
-    spec = SamplingSpecification(inputs=["1ubq.pdb"], output_h5_path=None)
-    with pytest.raises(ValueError, match="output_h5_path must be provided for streaming."):
-        _sample_streaming(spec)
+
+

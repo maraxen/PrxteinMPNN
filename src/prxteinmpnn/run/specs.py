@@ -149,7 +149,8 @@ class SamplingSpecification(RunSpecification):
   output_h5_path: str | Path | None = None
   samples_batch_size: int = 16
   noise_batch_size: int = 4
-  average_encodings: bool = False
+  average_node_features: bool = False
+  average_encoding_mode: Literal["inputs", "noise_levels", "inputs_and_noise"] = "inputs_and_noise"
   average_logits: None | Literal["structures", "noise", "both"] = None
   multi_state_strategy: Literal["mean", "min", "product", "max_min"] = "mean"
   multi_state_alpha: float = 0.5

@@ -82,7 +82,7 @@ class RunSpecification:
 
   # Tied-position logit averaging fields
   tied_positions: Sequence[tuple[int, int]] | Literal["auto", "direct"] | None = None
-  pass_mode: Literal["inter", "intra"] = "intra"  # noqa: S105 (not a password)
+  pass_mode: Literal["inter", "intra"] = "intra"
 
   def __post_init__(self) -> None:
     """Post-initialization processing and validation for tied-position logit averaging."""
@@ -111,6 +111,9 @@ class ScoringSpecification(RunSpecification):
       return_all_scores: Whether to return scores for all sequences (default is False).
       score_batch_size: The batch size for scoring sequences (default is 16).
       output_h5_path: Optional path to an HDF5 file for streaming output.
+      average_node_features: Whether to average node features (default is False).
+      average_encoding_mode: Mode for averaging encodings (default is "inputs_and_noise").
+      noise_batch_size: The batch size for noise levels (default is 4).
 
   """
 
@@ -121,6 +124,9 @@ class ScoringSpecification(RunSpecification):
   return_all_scores: bool = False
   score_batch_size: int = 16
   output_h5_path: str | Path | None = None
+  average_node_features: bool = False
+  average_encoding_mode: Literal["inputs", "noise_levels", "inputs_and_noise"] = "inputs_and_noise"
+  noise_batch_size: int = 4
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""
@@ -174,6 +180,7 @@ class JacobianSpecification(RunSpecification):
   noise_batch_size: int = 1
   jacobian_batch_size: int = 16
   average_encodings: bool = True
+  average_encoding_mode: Literal["inputs", "noise_levels", "inputs_and_noise"] = "inputs_and_noise"
   average_logits: None | Literal["structures", "noise", "both"] = None
   combine: bool = False
   combine_batch_size: int = 8
@@ -185,6 +192,7 @@ class JacobianSpecification(RunSpecification):
   compute_apc: bool = True
   apc_batch_size: int = 8
   apc_residue_batch_size: int = 1000
+  noise_batch_size: int = 4
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""

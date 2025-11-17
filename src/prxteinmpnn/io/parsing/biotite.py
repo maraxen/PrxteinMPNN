@@ -310,4 +310,10 @@ def _parse_biotite(
   except Exception as e:
     msg = f"Failed to parse structure from source: {source}. {type(e).__name__}: {e}"
     logger.exception(msg)
-    raise RuntimeError(msg) from e
+    yield ProteinTuple(
+      coordinates=np.empty((0, 37, 3), dtype=np.float32),
+      aatype=np.empty((0,), dtype=np.int32),
+      atom_mask=np.empty((0, 37), dtype=bool),
+      residue_index=np.empty((0,), dtype=np.int32),
+      chain_index=np.empty((0,), dtype=np.int32),
+    )

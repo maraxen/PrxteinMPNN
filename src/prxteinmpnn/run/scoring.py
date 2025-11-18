@@ -74,7 +74,11 @@ def score(
   protein_iterator, model = prep_protein_stream_and_model(spec)
 
   if spec.average_node_features:
-      sampling_spec = SamplingSpecification(**spec.dict())
+      from dataclasses import asdict, fields
+      spec_dict = asdict(spec)
+      sampling_fields = {f.name for f in fields(SamplingSpecification)}
+      filtered_spec = {k: v for k, v in spec_dict.items() if k in sampling_fields}
+      sampling_spec = SamplingSpecification(**filtered_spec)
       all_scores, all_logits = [], []
       for batched_ensemble in protein_iterator:
           scores, logits = _score_batch_averaged(

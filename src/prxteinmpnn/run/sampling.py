@@ -257,20 +257,23 @@ def sample(
 
   max_len = max(arr.shape[-1] for arr in all_sequences)
 
-  def pad_to_max(arr: jax.Array, target_len: int, pad_value: int = 0) -> jax.Array:
-    """Pad the last dimension of a JAX array to target_len."""
-    diff = target_len - arr.shape[-1]
+  def pad_to_max(arr: jax.Array, target_len: int, axis: int = -1, pad_value: int = 0) -> jax.Array:
+    """Pad the specified dimension of a JAX array to target_len."""
+    diff = target_len - arr.shape[axis]
     if diff == 0:
       return arr
-    padding_config = [(0, 0)] * (arr.ndim - 1) + [(0, diff)]
+    padding_config = [(0, 0)] * arr.ndim
+    # Handle negative axis
+    axis = axis % arr.ndim
+    padding_config[axis] = (0, diff)
     return jnp.pad(arr, padding_config, constant_values=pad_value)
 
-  all_sequences_padded = [pad_to_max(seq, max_len, pad_value=0) for seq in all_sequences]
+  all_sequences_padded = [pad_to_max(seq, max_len, axis=-1, pad_value=0) for seq in all_sequences]
 
-  all_logits_padded = [pad_to_max(logits, max_len, pad_value=0) for logits in all_logits]
+  all_logits_padded = [pad_to_max(logits, max_len, axis=-2, pad_value=0) for logits in all_logits]
 
   all_masks = [
-    pad_to_max(jnp.ones(seq.shape, dtype=jnp.int32), max_len, pad_value=0) for seq in all_sequences
+    pad_to_max(jnp.ones(seq.shape, dtype=jnp.int32), max_len, axis=-1, pad_value=0) for seq in all_sequences
   ]
 
   return {

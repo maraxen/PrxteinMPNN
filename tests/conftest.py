@@ -132,3 +132,14 @@ def mock_model_parameters() -> ModelParameters:
 
   return params
 
+@pytest.fixture(params=[False, True], ids=["eager", "jit"])
+def apply_jit(request):
+    """Returns a function that conditionally JITs the input function."""
+    should_jit = request.param
+
+    def _wrapper(fn, **kwargs):
+        if should_jit:
+            return jax.jit(fn, **kwargs)
+        return fn
+
+    return _wrapper

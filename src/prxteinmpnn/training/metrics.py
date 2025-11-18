@@ -17,6 +17,18 @@ class TrainingMetrics:
   learning_rate: float
   grad_norm: jax.Array | None = None
 
+  def to_dict(self) -> dict[str, float | None]:
+    """Convert metrics to a dictionary of Python floats."""
+    metrics_dict = {
+        "loss": float(jax.device_get(self.loss)),
+        "accuracy": float(jax.device_get(self.accuracy)),
+        "perplexity": float(jax.device_get(self.perplexity)),
+        "learning_rate": float(self.learning_rate),
+    }
+    if self.grad_norm is not None:
+        metrics_dict["grad_norm"] = float(jax.device_get(self.grad_norm))
+    return metrics_dict
+
 
 @dataclass
 class EvaluationMetrics:
@@ -25,6 +37,14 @@ class EvaluationMetrics:
   val_loss: jax.Array
   val_accuracy: jax.Array
   val_perplexity: jax.Array
+
+  def to_dict(self) -> dict[str, float]:
+    """Convert metrics to a dictionary of Python floats."""
+    return {
+        "val_loss": float(jax.device_get(self.val_loss)),
+        "val_accuracy": float(jax.device_get(self.val_accuracy)),
+        "val_perplexity": float(jax.device_get(self.val_perplexity)),
+    }
 
 
 def compute_grad_norm(grads: dict) -> jax.Array:

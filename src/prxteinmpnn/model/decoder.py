@@ -305,7 +305,7 @@ class Decoder(eqx.Module):
 
     """
     # 1. Embed the sequence
-    embedded_sequence = one_hot_sequence @ w_s_weight  # s_i
+    embedded_sequence = jnp.atleast_2d(one_hot_sequence) @ w_s_weight  # s_i
 
     # 2. Initialize context features
     # Following functional implementation (decoder.py lines 127-141)

@@ -181,6 +181,46 @@ def _resolve_inputs(  # noqa: C901
     yield from get_protein_structures(foldcomp_ids, foldcomp_database)
 
 
+def _get_input_chain_pairs(
+  inputs: Sequence[str | pathlib.Path | IO[str]],
+  chain_id_arg: Sequence[str] | str | set[str] | dict[str, str] | None,
+) -> Iterator[tuple[str | pathlib.Path | IO[str], Any]]:
+  """Pair inputs with their corresponding chain_id based on the argument type."""
+  if chain_id_arg is None or isinstance(chain_id_arg, str):
+    return ((i, chain_id_arg) for i in inputs)
+
+  if isinstance(chain_id_arg, set):
+    chain_list = list(chain_id_arg)
+    return ((i, chain_list) for i in inputs)
+
+  if isinstance(chain_id_arg, dict):
+
+    def _get_chain_from_dict(item: str | pathlib.Path | IO[str]) -> str | set[str]:
+      key = str(item)
+      if key in chain_id_arg:
+        return chain_id_arg[key]
+
+      if isinstance(item, pathlib.Path) and item.name in chain_id_arg:
+        return chain_id_arg[item.name]
+
+      msg = f"Input '{key}' not found in chain_id dictionary keys."
+      raise ValueError(msg)
+
+    return ((i, _get_chain_from_dict(i)) for i in inputs)
+
+  if isinstance(chain_id_arg, Sequence):
+    if len(chain_id_arg) != len(inputs):
+      msg = (
+        f"chain_id sequence length ({len(chain_id_arg)}) "
+        f"does not match inputs length ({len(inputs)})."
+      )
+      raise ValueError(msg)
+    return zip(inputs, chain_id_arg, strict=False)
+
+  msg = f"Unsupported type for chain_id: {type(chain_id_arg)}"
+  raise TypeError(msg)
+
+
 def frame_iterator_from_inputs(
   inputs: Sequence[str | pathlib.Path | IO[str]],
   parse_kwargs: dict[str, Any] | None = None,
@@ -188,23 +228,26 @@ def frame_iterator_from_inputs(
 ) -> Iterator[ProteinTuple]:
   """Create a generator that yields ProteinTuple frames from mixed inputs.
 
-  This function resolves various input types (file paths, PDB IDs, FoldComp IDs,
-  StringIO objects, and direct ProteinTuple instances) and parses them into
-  ProteinTuple frames.
-
-  Args:
-    inputs: A sequence of mixed input types.
-    parse_kwargs: Optional dictionary of keyword arguments for the parsing function.
-    foldcomp_database: An optional FoldCompDatabase for resolving FoldComp IDs.
-
-  Yields:
-    ProteinTuple frames parsed from the inputs.
-
+  Supports flexible chain_id assignment:
+  - None/str: Applies to all inputs.
+  - Set: Applies as a filter (any of these chains) to all inputs.
+  - Sequence: 1:1 mapping with inputs (lengths must match).
+  - Dict: Maps input string representation to chain_id.
   """
   parse_kwargs = parse_kwargs or {}
-  resolved_sources = _resolve_inputs(inputs, foldcomp_database)
-  for source in resolved_sources:
-    if isinstance(source, ProteinTuple):
-      yield source
-    else:
-      yield from parse_input(source, **parse_kwargs)
+  chain_id_arg = parse_kwargs.pop("chain_id", None)
+
+  input_chain_pairs = _get_input_chain_pairs(inputs, chain_id_arg)
+
+  for input_item, specific_chain_id in input_chain_pairs:
+    resolved_sources = _resolve_inputs([input_item], foldcomp_database)
+
+    for source in resolved_sources:
+      if isinstance(source, ProteinTuple):
+        yield source
+      else:
+        yield from parse_input(
+          source,
+          chain_id=specific_chain_id,
+          **parse_kwargs,
+        )

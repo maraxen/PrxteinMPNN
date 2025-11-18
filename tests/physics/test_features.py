@@ -1,24 +1,51 @@
 """Tests for physics-based node features."""
+import chex
 import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+
 from prxteinmpnn.physics.features import (
-    compute_electrostatic_node_features,
     compute_electrostatic_features_batch,
+    compute_electrostatic_node_features,
 )
 from prxteinmpnn.utils.data_structures import ProteinTuple
 
 
-def test_compute_electrostatic_node_features_shape(pqr_protein_tuple: ProteinTuple):
+def deep_tuple(x):
+    """Recursively convert numpy arrays and lists to nested tuples."""
+    if isinstance(x, np.ndarray):
+        return tuple(deep_tuple(y) for y in x)
+    if isinstance(x, list):
+        return tuple(deep_tuple(y) for y in x)
+    return x
+
+
+@pytest.mark.parametrize("jit_compile", [True, False], ids=["jit", "eager"])
+def test_compute_electrostatic_node_features_shape(
+    pqr_protein_tuple: ProteinTuple, jit_compile
+):
     """Test that the computed features have the correct shape."""
-    features = compute_electrostatic_node_features(pqr_protein_tuple)
+    data_dict = pqr_protein_tuple._asdict()
+    hashable_dict = {
+        k: deep_tuple(v) if isinstance(v, (np.ndarray, list)) else v
+        for k, v in data_dict.items()
+    }
+    hashable_protein_tuple = ProteinTuple(**hashable_dict)
+
+    fn = compute_electrostatic_node_features
+    if jit_compile:
+        fn = jax.jit(fn, static_argnames="protein")
+
+    features = fn(hashable_protein_tuple)
     n_residues = pqr_protein_tuple.coordinates.shape[0]
-    assert features.shape == (n_residues, 5)
-    assert jnp.all(jnp.isfinite(features))
+    chex.assert_shape(features, (n_residues, 5))
+    chex.assert_tree_all_finite(features)
 
 
-def test_compute_electrostatic_node_features_no_charges(pqr_protein_tuple: ProteinTuple):
+def test_compute_electrostatic_node_features_no_charges(
+    pqr_protein_tuple: ProteinTuple,
+):
     """Test that a ValueError is raised if protein has no charges."""
     protein_no_charges = pqr_protein_tuple._replace(charges=None)
     with pytest.raises(ValueError, match="must have charges"):
@@ -34,51 +61,75 @@ def test_compute_electrostatic_node_features_no_full_coordinates(
         compute_electrostatic_node_features(protein_no_full_coords)
 
 
-def deep_tuple(x):
-    """Recursively convert numpy array to nested tuples."""
-    if isinstance(x, np.ndarray):
-        return tuple(deep_tuple(y) for y in x)
-    return x
-
-
-def test_compute_electrostatic_node_features_jittable(pqr_protein_tuple: ProteinTuple):
+@pytest.mark.parametrize("jit_compile", [True, False], ids=["jit", "eager"])
+def test_compute_electrostatic_node_features_jittable(
+    pqr_protein_tuple: ProteinTuple, jit_compile
+):
     """Test that the feature computation can be JIT compiled."""
     # Convert numpy arrays in the ProteinTuple to nested tuples to make it hashable
     # for JAX's static argument hashing mechanism.
     data_dict = pqr_protein_tuple._asdict()
     hashable_dict = {
-        k: deep_tuple(v) if isinstance(v, np.ndarray) else v
+        k: deep_tuple(v) if isinstance(v, (np.ndarray, list)) else v
         for k, v in data_dict.items()
     }
     hashable_protein_tuple = ProteinTuple(**hashable_dict)
 
-    jitted_fn = jax.jit(
-        compute_electrostatic_node_features, static_argnames="protein"
-    )
-    features = jitted_fn(hashable_protein_tuple)
-    assert jnp.all(jnp.isfinite(features))
+    fn = compute_electrostatic_node_features
+    if jit_compile:
+        fn = jax.jit(fn, static_argnames="protein")
+    features = fn(hashable_protein_tuple)
+    chex.assert_tree_all_finite(features)
 
 
-def test_compute_electrostatic_features_batch_shape(pqr_protein_tuple: ProteinTuple):
+@pytest.mark.parametrize("jit_compile", [True, False], ids=["jit", "eager"])
+def test_compute_electrostatic_features_batch_shape(
+    pqr_protein_tuple: ProteinTuple, jit_compile
+):
     """Test that the batched features have the correct shape."""
-    proteins = [pqr_protein_tuple, pqr_protein_tuple]
-    features, mask = compute_electrostatic_features_batch(proteins)
+    data_dict = pqr_protein_tuple._asdict()
+    hashable_dict = {
+        k: deep_tuple(v) if isinstance(v, (np.ndarray, list)) else v
+        for k, v in data_dict.items()
+    }
+    hashable_protein_tuple = ProteinTuple(**hashable_dict)
+    proteins = (hashable_protein_tuple, hashable_protein_tuple)
+
+    fn = compute_electrostatic_features_batch
+    if jit_compile:
+        fn = jax.jit(fn, static_argnames="proteins")
+
+    features, mask = fn(proteins)
     n_residues = pqr_protein_tuple.coordinates.shape[0]
-    assert features.shape == (2, n_residues, 5)
-    assert mask.shape == (2, n_residues)
-    assert jnp.all(mask == 1.0)
+    chex.assert_shape(features, (2, n_residues, 5))
+    chex.assert_shape(mask, (2, n_residues))
+    chex.assert_trees_all_close(mask, jnp.ones_like(mask))
 
 
-def test_compute_electrostatic_features_batch_padding(pqr_protein_tuple: ProteinTuple):
+@pytest.mark.parametrize("jit_compile", [True, False], ids=["jit", "eager"])
+def test_compute_electrostatic_features_batch_padding(
+    pqr_protein_tuple: ProteinTuple, jit_compile
+):
     """Test that padding is applied correctly."""
-    proteins = [pqr_protein_tuple]
-    max_length = pqr_protein_tuple.coordinates.shape[0] + 10
-    features, mask = compute_electrostatic_features_batch(
-        proteins, max_length=max_length
-    )
-    assert features.shape == (1, max_length, 5)
-    assert mask.shape == (1, max_length)
-    assert jnp.sum(mask) == pqr_protein_tuple.coordinates.shape[0]
+    data_dict = pqr_protein_tuple._asdict()
+    hashable_dict = {
+        k: deep_tuple(v) if isinstance(v, (np.ndarray, list)) else v
+        for k, v in data_dict.items()
+    }
+    hashable_protein_tuple = ProteinTuple(**hashable_dict)
+    proteins = (hashable_protein_tuple,)
+
+    n_residues = pqr_protein_tuple.coordinates.shape[0]
+    max_length = n_residues + 10
+
+    fn = compute_electrostatic_features_batch
+    if jit_compile:
+        fn = jax.jit(fn, static_argnames=["proteins", "max_length"])
+
+    features, mask = fn(proteins, max_length=max_length)
+    chex.assert_shape(features, (1, max_length, 5))
+    chex.assert_shape(mask, (1, max_length))
+    chex.assert_trees_all_close(jnp.sum(mask), n_residues)
 
 
 def test_compute_electrostatic_features_batch_empty_list():

@@ -1,5 +1,6 @@
 """Tests for force field loading and saving."""
 
+import chex
 import jax.numpy as jnp
 import pytest
 
@@ -114,10 +115,9 @@ def test_force_field_save_and_load(temp_ff_dir):
     # Load
     ff_loaded = load_force_field(filepath)
     
-    # Check arrays match
-    assert jnp.allclose(ff_loaded.charges_by_id, ff_original.charges_by_id)
-    assert jnp.allclose(ff_loaded.sigmas_by_id, ff_original.sigmas_by_id)
-    assert jnp.allclose(ff_loaded.epsilons_by_id, ff_original.epsilons_by_id)
+    chex.assert_trees_all_close(ff_loaded.charges_by_id, ff_original.charges_by_id)
+    chex.assert_trees_all_close(ff_loaded.sigmas_by_id, ff_original.sigmas_by_id)
+    chex.assert_trees_all_close(ff_loaded.epsilons_by_id, ff_original.epsilons_by_id)
     
     # Check static fields match
     assert ff_loaded.atom_key_to_id == ff_original.atom_key_to_id

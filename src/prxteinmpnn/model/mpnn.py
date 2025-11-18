@@ -155,6 +155,7 @@ class PrxteinMPNN(eqx.Module):
     _tie_group_map: jnp.ndarray | None,
     _multi_state_strategy_idx: Int,
     _multi_state_alpha: float,
+    _initial_node_features: NodeFeatures | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the unconditional (scoring) path.
 
@@ -209,14 +210,15 @@ class PrxteinMPNN(eqx.Module):
     edge_features: EdgeFeatures,
     neighbor_indices: NeighborIndices,
     mask: AlphaCarbonMask,
-    _ar_mask: AutoRegressiveMask,
+    ar_mask: AutoRegressiveMask,
     one_hot_sequence: OneHotProteinSequence,
-    _prng_key: PRNGKeyArray,
-    _temperature: Float,
-    _bias: Logits,
-    _tie_group_map: jnp.ndarray | None,
-    _multi_state_strategy_idx: Int,
-    _multi_state_alpha: float,
+    prng_key: PRNGKeyArray,
+    temperature: Float,
+    bias: Logits,
+    tie_group_map: jnp.ndarray | None,
+    multi_state_strategy_idx: Int,
+    multi_state_alpha: float,
+    initial_node_features: NodeFeatures | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the conditional (scoring) path.
 
@@ -258,7 +260,7 @@ class PrxteinMPNN(eqx.Module):
       edge_features,
       neighbor_indices,
       mask,
-      _ar_mask,
+      ar_mask,
       one_hot_sequence,
       self.w_s_embed.weight,
     )
@@ -281,6 +283,7 @@ class PrxteinMPNN(eqx.Module):
     tie_group_map: jnp.ndarray | None,
     multi_state_strategy_idx: Int,
     multi_state_alpha: float = 0.5,
+    _initial_node_features: NodeFeatures | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the autoregressive (sampling) path.
 
@@ -1076,18 +1079,18 @@ class PrxteinMPNN(eqx.Module):
     ]
 
     operands = (
-      node_features,
-      edge_features,
-      neighbor_indices,
-      mask,
-      ar_mask,
-      one_hot_sequence,
-      prng_key,
-      temperature,
-      bias,
-      tie_group_map,
-      multi_state_strategy_idx,
-      multi_state_alpha,
+        node_features,
+        edge_features,
+        neighbor_indices,
+        mask,
+        ar_mask,
+        one_hot_sequence,
+        prng_key,
+        temperature,
+        bias,
+        tie_group_map,
+        multi_state_strategy_idx,
+        multi_state_alpha,
+        initial_node_features,
     )
-
     return jax.lax.switch(branch_index, branches, *operands)

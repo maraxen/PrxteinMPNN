@@ -119,7 +119,7 @@ def make_conditional_logits_fn(
       ... )
 
     """
-    edge_features, neighbor_indices, _ = model.features(
+    edge_features, neighbor_indices, _, _ = model.features(
       prng_key,
       structure_coordinates,
       mask,
@@ -225,7 +225,7 @@ def make_encoding_conditional_logits_split_fn(
     if prng_key is None:
       prng_key = jax.random.PRNGKey(0)
 
-    edge_features, neighbor_indices, _ = model.features(
+    edge_features, neighbor_indices, _, _ = model.features(
       prng_key,
       structure_coordinates,
       mask,

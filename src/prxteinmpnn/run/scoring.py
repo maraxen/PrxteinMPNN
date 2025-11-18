@@ -156,12 +156,24 @@ def _score_batch_averaged(
     )
 
     def score_single_sequence(seq: "ProteinSequence", enc: tuple) -> tuple[jnp.ndarray, "Logits"]:
-        score, logits, _ = score_sequence_with_encoding(
-            model,
-            seq,
-            enc,
-        )
-        return score, logits
+        avg_node, avg_edge, neighbors, mask, ar_mask_struct = enc
+        
+        # neighbors has shape (..., L, K). avg_node has shape (L, D).
+        # Flatten batch dimensions of neighbors
+        neighbors_flat = neighbors.reshape((-1, neighbors.shape[-2], neighbors.shape[-1]))
+        mask_flat = mask.reshape((-1, mask.shape[-1]))
+        ar_mask_struct_flat = ar_mask_struct.reshape((-1, ar_mask_struct.shape[-2], ar_mask_struct.shape[-1]))
+        
+        def score_one(n_idx, m, ar_m):
+             # score_sequence_with_encoding returns (score, logits, decoding_order)
+             return score_sequence_with_encoding(
+                 model, 
+                 seq, 
+                 (avg_node, avg_edge, n_idx, m, ar_m)
+             )
+        
+        scores_batch, logits_batch, _ = jax.vmap(score_one)(neighbors_flat, mask_flat, ar_mask_struct_flat)
+        return jnp.mean(scores_batch, axis=0), jnp.mean(logits_batch, axis=0)
 
     if spec.average_encoding_mode == "inputs_and_noise":
         vmap_score = jax.vmap(score_single_sequence, in_axes=(0, None))
@@ -169,9 +181,15 @@ def _score_batch_averaged(
         scores = jnp.expand_dims(scores, axis=0)
         logits = jnp.expand_dims(logits, axis=0)
     else:
+        # Determine structural axis to map over (the one NOT averaged)
+        struct_axis = 1 if spec.average_encoding_mode == "inputs" else 0
+        
+        # vmap over sequences (axis 0)
+        # vmap over outer batch (axis 0 of enc_node, axis struct_axis of enc_neighbors)
+        
         vmap_score = jax.vmap(
             jax.vmap(score_single_sequence, in_axes=(0, None)),
-            in_axes=(None, 0),
+            in_axes=(None, (0, 0, struct_axis, struct_axis, struct_axis)),
         )
         scores, logits = vmap_score(sequences, averaged_encodings)
 

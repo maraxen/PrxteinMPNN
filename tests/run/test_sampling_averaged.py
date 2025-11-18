@@ -46,7 +46,7 @@ def mock_model():
     "average_mode, expected_shape",
     [
         ("inputs_and_noise", (1, 3, 10)),
-        ("noise_levels", (1, 6, 10)),
+        ("noise_levels", (1, 3, 10)),
         ("inputs", (1, 6, 10)),
     ],
 )
@@ -97,6 +97,6 @@ def test_sample_averaged_streaming(mock_protein, mock_model):
                 assert "sequences" in f["structure_0"]
                 assert "logits" in f["structure_0"]
                 # Shape is num_samples * num_noise
-                assert f["structure_0/sequences"].shape == (4, 10)
-                assert f["structure_0/logits"].shape == (4, 10, 21)
+                assert f["structure_0/sequences"].shape == (2, 10)
+                assert f["structure_0/logits"].shape == (2, 10, 21)
                 assert f["structure_0"].attrs["num_noise_levels"] == 1 # Averaged

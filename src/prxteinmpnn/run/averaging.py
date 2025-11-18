@@ -125,34 +125,28 @@ def get_averaged_encodings(
 
     if average_encoding_mode == "inputs":
         averaging_axis = 0
-        # When averaging over inputs, we assume all structures have the same topology.
-        # Therefore, we can take the neighbor_indices, mask, and ar_mask from the first structure.
-        neighbor_indices = neighbor_indices[0, :, ...]
-        mask = mask[0, :, ...]
-        ar_mask = ar_mask[0, :, ...]
     elif average_encoding_mode == "noise_levels":
         averaging_axis = 1
-        # When averaging over noise levels, the topology is the same for each noise level.
-        neighbor_indices = neighbor_indices[:, 0, ...]
-        mask = mask[:, 0, ...]
-        ar_mask = ar_mask[:, 0, ...]
     else:  # "inputs_and_noise"
         averaging_axis = (0, 1)
-        # Averaging over both, take from the first structure and first noise level.
-        neighbor_indices = neighbor_indices[0, 0, ...]
-        mask = mask[0, 0, ...]
-        ar_mask = ar_mask[0, 0, ...]
 
     avg_node_features = jnp.mean(node_features, axis=averaging_axis)
     avg_processed_edge_features = jnp.mean(processed_edge_features, axis=averaging_axis)
 
-    return (avg_node_features, avg_processed_edge_features, neighbor_indices, mask, ar_mask)
+    return (
+        avg_node_features,
+        avg_processed_edge_features,
+        neighbor_indices,
+        mask,
+        ar_mask,
+    )
 
 
 def make_encoding_sampling_split_fn(
   model_parameters: PrxteinMPNN,
   decoding_order_fn: DecodingOrderFn | None = None,
   sampling_strategy: Literal["temperature", "straight_through"] = "temperature",
+  decode_fn_wrapper: Callable[[Callable], Callable] | None = None,
 ) -> tuple[Callable, Callable, Callable]:
   """Create separate encoding and sampling functions for averaged encodings.
 
@@ -172,6 +166,7 @@ def make_encoding_sampling_split_fn(
     model_parameters: A PrxteinMPNN Equinox model instance.
     decoding_order_fn: Function to generate decoding order (default: random).
     sampling_strategy: Sampling strategy - "temperature" or "straight_through".
+    decode_fn_wrapper: Optional wrapper for the decode function.
 
   Returns:
     Tuple of (encode_fn, sample_fn) where:
@@ -200,6 +195,9 @@ def make_encoding_sampling_split_fn(
   encode_logits_fn, decode_logits_fn = make_encoding_conditional_logits_split_fn(
     model_parameters,
   )
+
+  if decode_fn_wrapper is not None:
+    decode_logits_fn = decode_fn_wrapper(decode_logits_fn)
 
   @partial(jax.jit, static_argnames=("k_neighbors",))
   def encode_fn(

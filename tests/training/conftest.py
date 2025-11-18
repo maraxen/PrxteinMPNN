@@ -1,104 +1,85 @@
-"""Shared fixtures for training tests."""
-
-from __future__ import annotations
+"""Shared test fixtures for training tests."""
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
 import pytest
+from jax import random
 
-if TYPE_CHECKING:
-    from prxteinmpnn.model.mpnn import PrxteinMPNN
-    from prxteinmpnn.utils.data_structures import Protein
-
-
-@pytest.fixture
-def temp_checkpoint_dir(tmp_path: Path) -> Path:
-    """Create a temporary directory for checkpoints."""
-    checkpoint_dir = tmp_path / "checkpoints"
-    checkpoint_dir.mkdir()
-    return checkpoint_dir
+from prxteinmpnn.io.parsing import parse_input
+from prxteinmpnn.utils.data_structures import Protein
+from prxteinmpnn.model.mpnn import PrxteinMPNN
 
 
-@pytest.fixture
-def temp_data_dir(tmp_path: Path) -> Path:
-    """Create a temporary directory for training data."""
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    (data_dir / "train").mkdir()
-    (data_dir / "val").mkdir()
-    return data_dir
+@pytest.fixture(scope="session")
+def protein_structure() -> Protein:
+    """Load a sample protein structure from a PDB file."""
+    pdb_path = Path(__file__).parent.parent / "data" / "1ubq.pdb"
+    protein_tuple = next(parse_input(str(pdb_path)))
+    return Protein.from_tuple(protein_tuple)
 
 
 @pytest.fixture
 def small_model() -> PrxteinMPNN:
     """Create a small PrxteinMPNN model for testing."""
-    from prxteinmpnn.model.mpnn import PrxteinMPNN
-    
-    key = jax.random.PRNGKey(0)
-    model = PrxteinMPNN(
+    return PrxteinMPNN(
         node_features=32,
         edge_features=32,
-        hidden_features=64,
+        hidden_features=32,
         num_encoder_layers=1,
         num_decoder_layers=1,
-        k_neighbors=8,
-        num_amino_acids=21,
-        vocab_size=21,
-        key=key,
+        k_neighbors=30,
+        key=random.PRNGKey(0),
     )
-    return model
 
 
 @pytest.fixture
-def mock_batch() -> Protein:
-    """Create a mock protein batch for testing.
-    
-    Returns a batch with proper structure for trainer.train_step:
-    - coordinates: (batch_size, seq_len, 4, 3)
-    - mask: (batch_size, seq_len)
-    - residue_index: (batch_size, seq_len)
-    - chain_index: (batch_size, seq_len)
-    - aatype: (batch_size, seq_len)
-    """
-    from prxteinmpnn.utils.data_structures import Protein
-    
-    batch_size = 2
-    seq_len = 8
-    
-    # Use coordinates that form valid protein structure
-    # All atoms at same position for simplicity
-    coordinates = jnp.ones((batch_size, seq_len, 4, 3)) * jnp.array([[[0.0, 0.0, 0.0]]])
-    
-    return Protein(
-        coordinates=coordinates,
-        mask=jnp.ones((batch_size, seq_len)),
-        residue_index=jnp.tile(jnp.arange(seq_len), (batch_size, 1)),
-        chain_index=jnp.zeros((batch_size, seq_len), dtype=jnp.int32),
-        aatype=jnp.tile(jnp.arange(seq_len) % 21, (batch_size, 1)),
-        full_atom_mask=jnp.ones((batch_size, seq_len, 1)),
-        one_hot_sequence=jax.nn.one_hot(
-            jnp.tile(jnp.arange(seq_len) % 21, (batch_size, 1)),
-            21,
-        ),
+def mock_batch(protein_structure: Protein) -> Protein:
+    """Create a mock batch of protein structures."""
+    return jax.tree_util.tree_map(
+        lambda x: jnp.expand_dims(x, axis=0), protein_structure
     )
 
 
 @pytest.fixture
 def mock_logits() -> jax.Array:
-    """Create mock logits for testing."""
-    return jax.random.normal(jax.random.PRNGKey(0), (10, 21))
+    """Create mock logits for testing loss functions."""
+    return jax.random.normal(random.PRNGKey(0), (10, 21))
 
 
 @pytest.fixture
 def mock_targets() -> jax.Array:
-    """Create mock target sequences."""
-    return jnp.arange(10) % 21
+    """Create mock targets for testing loss functions."""
+    return jax.random.randint(random.PRNGKey(0), (10,), 0, 21)
 
 
 @pytest.fixture
 def mock_mask() -> jax.Array:
-    """Create mock mask."""
+    """Create a mock mask for testing loss functions."""
     return jnp.ones(10)
+
+
+@pytest.fixture(params=[False, True], ids=["eager", "jit"])
+def apply_jit(request):
+    """Returns a function that conditionally JITs the input function."""
+    should_jit = request.param
+
+    def _wrapper(fn, **kwargs):
+        if should_jit:
+            return jax.jit(fn, **kwargs)
+        return fn
+
+    return _wrapper
+
+
+@pytest.fixture
+def temp_checkpoint_dir(tmp_path: Path) -> Path:
+    """Create a temporary directory for checkpointing."""
+    return tmp_path / "checkpoints"
+
+
+@pytest.fixture
+def temp_data_dir(tmp_path: Path) -> Path:
+    """Create a temporary directory for data."""
+    return tmp_path / "data"

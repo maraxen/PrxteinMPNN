@@ -4,9 +4,11 @@ from collections.abc import Callable
 from functools import partial
 
 import jax
+import jax.numpy as jnp
 from jaxtyping import Float, PRNGKeyArray
 
 from prxteinmpnn.model import PrxteinMPNN
+from prxteinmpnn.run.averaging import make_encoding_sampling_split_fn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
 from prxteinmpnn.utils.types import (
@@ -41,6 +43,30 @@ ScoringFn = Callable[
 
 SCORE_EPS = 1e-8
 
+
+def score_sequence_with_encoding(
+    model: PrxteinMPNN,
+    sequence: ProteinSequence,
+    encoding: tuple,
+) -> tuple[Float, Logits, DecodingOrder]:
+    """Score a sequence on a structure using pre-computed encodings."""
+    _, _, decode_fn = make_encoding_sampling_split_fn(model)
+    
+    if sequence.ndim == 1:
+        sequence = jax.nn.one_hot(sequence, num_classes=21)
+    
+    seq_len = sequence.shape[0]
+    ar_mask = jnp.zeros((seq_len, seq_len), dtype=jnp.int32)
+    
+    logits = decode_fn(encoding, sequence, ar_mask)
+    
+    log_probability = jax.nn.log_softmax(logits, axis=-1)[..., :20]
+    score = -(sequence[..., :20] * log_probability).sum(-1)
+    mask = encoding[3] # mask is the 4th element in the encoding tuple
+    masked_score_sum = (score * mask).sum(-1)
+    mask_sum = mask.sum() + SCORE_EPS
+
+    return masked_score_sum / mask_sum, logits, jnp.arange(seq_len)
 
 def make_score_sequence(
   model: PrxteinMPNN,

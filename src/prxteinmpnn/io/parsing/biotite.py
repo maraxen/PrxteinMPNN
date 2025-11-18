@@ -199,7 +199,7 @@ def atom_array_dihedrals(
 def _validate_atom_array_type(atom_array: Any) -> None:  # noqa: ANN401
   """Validate that the atom array is of the expected type."""
   logger.debug("Validating atom array type.")
-  if not isinstance(atom_array, (AtomArray, AtomArrayStack)):
+  if not isinstance(atom_array, (AtomArray | AtomArrayStack)):
     msg = f"Expected AtomArray or AtomArrayStack, but got {type(atom_array)}."
     logger.error(msg)
     raise TypeError(msg)
@@ -249,7 +249,7 @@ def _parse_biotite(
     logger.debug("Structure loaded successfully using Biotite.")
     _validate_atom_array_type(atom_array)
 
-    if isinstance(atom_array, (AtomArray, AtomArrayStack)):
+    if isinstance(atom_array, (AtomArray | AtomArrayStack)):
       static_features, atom_array = _extract_biotite_static_features(atom_array, chain_id=chain_id)
       num_frames = atom_array.stack_depth() if isinstance(atom_array, AtomArrayStack) else 1
       frame_count = 0
@@ -310,4 +310,10 @@ def _parse_biotite(
   except Exception as e:
     msg = f"Failed to parse structure from source: {source}. {type(e).__name__}: {e}"
     logger.exception(msg)
-    raise RuntimeError(msg) from e
+    yield ProteinTuple(
+      coordinates=np.empty((0, 37, 3), dtype=np.float32),
+      aatype=np.empty((0,), dtype=np.int32),
+      atom_mask=np.empty((0, 37), dtype=bool),
+      residue_index=np.empty((0,), dtype=np.int32),
+      chain_index=np.empty((0,), dtype=np.int32),
+    )

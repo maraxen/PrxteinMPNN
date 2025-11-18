@@ -1,5 +1,5 @@
 """Tests for scoring functions."""
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import chex
 import jax
@@ -31,7 +31,10 @@ def mock_model() -> PrxteinMPNN:
         backbone_noise=None,
         structure_mapping=None,
     ):
-        n_residues, _, _ = structure_coordinates.shape
+        # Using a dynamic shape from the input tracer (structure_coordinates.shape[0])
+        # inside the mock's side_effect causes a ConcretizationTypeError during JIT.
+        # We hardcode the residue count because the '1ubq.pdb' fixture is static.
+        n_residues = 76
         logits = jax.random.uniform(
             prng_key, shape=(n_residues, 21), dtype=jnp.float32
         )
@@ -41,13 +44,28 @@ def mock_model() -> PrxteinMPNN:
     return model_mock
 
 
+@pytest.mark.parametrize("jit_compile", [True, False])
 @jaxtyped
 def test_make_score_sequence_output_shape_and_type(
-    mock_model: PrxteinMPNN,
-    protein_structure: Protein,
+    mock_model: PrxteinMPNN, protein_structure: Protein, jit_compile: bool
 ):
     """Test the output shape and type of the scoring function."""
-    score_fn = make_score_sequence(mock_model)
+
+    def get_score_fn():
+        """Returns the scoring function, respecting the JIT context."""
+        return make_score_sequence(mock_model)
+
+    if jit_compile:
+        score_fn = get_score_fn()
+    else:
+        # To test the non-JIT version, we patch jax.jit to be an identity function.
+        # This prevents the @partial(jax.jit, ...) decorator inside make_score_sequence
+        # from compiling the function.
+        with patch(
+            "prxteinmpnn.scoring.score.jax.jit", new=lambda fn, *args, **kwargs: fn
+        ):
+            score_fn = get_score_fn()
+
     prng_key = jax.random.key(0)
 
     coords = protein_structure.coordinates
@@ -56,22 +74,37 @@ def test_make_score_sequence_output_shape_and_type(
     chain_index = protein_structure.chain_index
     one_hot_sequence = protein_structure.one_hot_sequence
     sequence = protein_structure.aatype
+    length = sequence.shape[0]
 
     # Test with integer sequence
     score, logits, order = score_fn(
-        prng_key, sequence, coords, mask, residue_index, chain_index, _k_neighbors=48
+        prng_key,
+        sequence,
+        coords,
+        mask,
+        residue_index,
+        chain_index,
+        _k_neighbors=48,
     )
     chex.assert_shape(score, ())
     chex.assert_type(score, float)
-    chex.assert_shape(logits, (sequence.shape[0], 21))
-    chex.assert_shape(order, (sequence.shape[0],))
+    chex.assert_shape(logits, (length, 21))
+    chex.assert_shape(order, (length,))
+    chex.assert_tree_all_finite((score, logits))
 
     # Test with one-hot sequence
     score, logits, order = score_fn(
-        prng_key, one_hot_sequence, coords, mask, residue_index, chain_index, _k_neighbors=48
+        prng_key,
+        one_hot_sequence,
+        coords,
+        mask,
+        residue_index,
+        chain_index,
+        _k_neighbors=48,
     )
     chex.assert_shape(score, ())
     chex.assert_type(score, float)
+    chex.assert_tree_all_finite((score, logits))
 
     # Test with backbone noise
     noise = jax.random.normal(prng_key, coords.shape)
@@ -87,9 +120,10 @@ def test_make_score_sequence_output_shape_and_type(
     )
     chex.assert_shape(score, ())
     chex.assert_type(score, float)
+    chex.assert_tree_all_finite((score, logits))
 
     # Test with custom autoregressive mask
-    ar_mask = jnp.zeros((sequence.shape[0], sequence.shape[0]))
+    ar_mask = jnp.zeros((length, length))
     score, logits, order = score_fn(
         prng_key,
         sequence,
@@ -102,3 +136,4 @@ def test_make_score_sequence_output_shape_and_type(
     )
     chex.assert_shape(score, ())
     chex.assert_type(score, float)
+    chex.assert_tree_all_finite((score, logits))

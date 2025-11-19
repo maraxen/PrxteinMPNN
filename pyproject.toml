@@ -117,5 +117,10 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
 
+[dependency-groups]
+dev = [
+    "torch>=2.9.1",
+]
+
 [tool.setuptools.package-data]
 include = ["prxteinmpnn/model/original/*.pkl", "prxteinmpnn/model/soluble/*.pkl", "prxteinmpnn/examples/*.ipynb", "prxteinmpnn/examples/*.pdb",]

@@ -19,6 +19,9 @@ if TYPE_CHECKING:
 
 def compute_electrostatic_node_features(
   protein: ProteinTuple,
+  *,
+  noise_scale: float | jax.Array = 0.0,
+  key: jax.Array | None = None,
 ) -> jax.Array:
   """Compute SE(3)-invariant electrostatic features for each residue.
 
@@ -40,8 +43,9 @@ def compute_electrostatic_node_features(
         - charges: (n_residues, n_atom_types) partial charges for all atoms
         - aatype: (n_residues,) amino acid type indices
       exclude_cb_self_interaction: If True, exclude forces between CB/H and itself
-        within the same residue (default: True). This prevents the CB hydrogen
         on glycine from interacting with itself.
+      noise_scale: Scale of Gaussian noise to add to forces (default: 0.0).
+      key: PRNG key for noise generation (required if noise_scale > 0).
 
   Returns:
       Electrostatic features, shape (n_residues, 5):
@@ -93,6 +97,8 @@ def compute_electrostatic_node_features(
     all_positions,
     backbone_charges,
     all_charges,
+    noise_scale=noise_scale,
+    key=key,
   )
 
   return project_forces_onto_backbone(

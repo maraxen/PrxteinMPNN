@@ -43,7 +43,8 @@ def sample_fn(mpnn_model):
   )
 
 
-def test_sample_sequences_with_structure_mapping(sample_fn):
+@pytest.mark.parametrize("with_jit", [True, False])
+def test_sample_sequences_with_structure_mapping(sample_fn, with_jit):
   """Test that sample_sequences works correctly with structure_mapping.
 
   Verifies that sequence sampling respects structure boundaries when
@@ -53,7 +54,8 @@ def test_sample_sequences_with_structure_mapping(sample_fn):
   prng_key = jax.random.key(1)
 
   # Sample sequences with structure_mapping
-  sequence, logits, decoding_order = sample_fn(
+  variant_fn = sample_fn if not with_jit else jax.jit(sample_fn)
+  sequence, logits, decoding_order = variant_fn(
     prng_key,
     protein.coordinates,
     protein.atom_mask,

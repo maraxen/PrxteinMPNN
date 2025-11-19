@@ -7,6 +7,7 @@ import h5py
 import jax
 import jax.numpy as jnp
 import pytest
+import chex
 from prxteinmpnn.run.sampling import sample, SamplingSpecification
 from prxteinmpnn.utils.data_structures import Protein
 
@@ -69,10 +70,11 @@ def test_sample_averaged_non_streaming(
         )
         result = sample(spec)
 
+        chex.assert_shape(result["sequences"], expected_shape)
+        chex.assert_shape(result["logits"], expected_shape + (21,))
+        chex.assert_tree_all_finite((result["sequences"], result["logits"]))
         assert "sequences" in result
         assert "logits" in result
-        assert result["sequences"].shape == expected_shape
-        assert result["logits"].shape == expected_shape + (21,)
 
 def test_sample_averaged_streaming(mock_protein, mock_model):
     """Test the sample function with averaged node features (streaming)."""

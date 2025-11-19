@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import pytest
 
 from prxteinmpnn.model.mpnn import PrxteinMPNN
-from prxteinmpnn.sampling.sample import make_encoding_sampling_split_fn
+from prxteinmpnn.sampling import make_encoding_sampling_split_fn
 from prxteinmpnn.utils.decoding_order import random_decoding_order
 
 

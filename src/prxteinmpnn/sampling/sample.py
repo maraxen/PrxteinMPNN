@@ -245,3 +245,99 @@ def make_sample_sequences(
 
   msg = f"Unknown sampling strategy: {sampling_strategy}"
   raise ValueError(msg)
+
+
+def make_encoding_sampling_split_fn(
+  model: PrxteinMPNN,
+) -> tuple[Callable, Callable]:
+    """Create separate encoding and sampling functions.
+
+    This splits the model into two parts:
+    1. Encoding: Structure -> Encoder features
+    2. Sampling: (Encoder features, Decoding Order) -> Sequence
+
+    This is useful for applications where the encoding can be cached and reused.
+
+    Args:
+        model: A PrxteinMPNN Equinox model instance.
+
+    Returns:
+        Tuple of (encode_fn, sample_fn).
+    """
+
+    def encode_fn(
+        prng_key: PRNGKeyArray,
+        structure_coordinates: StructureAtomicCoordinates,
+        mask: AlphaCarbonMask,
+        residue_index: ResidueIndex,
+        chain_index: ChainIndex,
+        backbone_noise: BackboneNoise | None = None,
+        structure_mapping: jax.Array | None = None,
+    ) -> tuple:
+        """Encode structure to get encoder features."""
+        edge_features, neighbor_indices, initial_node_features, _ = model.features(
+            prng_key,
+            structure_coordinates,
+            mask,
+            residue_index,
+            chain_index,
+            backbone_noise,
+            structure_mapping,
+        )
+
+        node_features, processed_edge_features = model.encoder(
+            edge_features,
+            neighbor_indices,
+            mask,
+            initial_node_features
+        )
+
+        return (node_features, processed_edge_features, neighbor_indices, mask)
+
+    def sample_fn(
+        prng_key: PRNGKeyArray,
+        encoded_features: tuple,
+        decoding_order: DecodingOrder,
+        temperature: Float | None = None,
+        bias: InputBias | None = None,
+        tie_group_map: jnp.ndarray | None = None,
+        num_groups: int | None = None,
+        multi_state_strategy: Literal["mean", "min", "product", "max_min"] = "mean",
+        multi_state_alpha: float = 0.5,
+    ) -> ProteinSequence:
+        """Sample a sequence from encoded features."""
+        node_features, processed_edge_features, neighbor_indices, mask = encoded_features
+
+        if temperature is None:
+            temperature = jnp.array(1.0, dtype=jnp.float32)
+
+        ar_mask = generate_ar_mask(decoding_order, None, tie_group_map, num_groups)
+
+        strategy_map = {"mean": 0, "min": 1, "product": 2, "max_min": 3}
+        multi_state_strategy_idx = jnp.array(
+            strategy_map[multi_state_strategy],
+            dtype=jnp.int32,
+        )
+
+        sampled_sequence, _ = model._call_autoregressive(
+            node_features,
+            processed_edge_features,
+            neighbor_indices,
+            mask,
+            ar_mask,
+            jnp.zeros((mask.shape[0], model.w_s_embed.num_embeddings)),
+            prng_key,
+            temperature,
+            bias if bias is not None else jnp.zeros((mask.shape[0], 21)),
+            tie_group_map,
+            multi_state_strategy_idx,
+            multi_state_alpha,
+        )
+
+        one_hot_ndim = 2
+        if sampled_sequence.ndim == one_hot_ndim:
+            sampled_sequence = sampled_sequence.argmax(axis=-1).astype(jnp.int8)
+
+        return sampled_sequence
+
+    return encode_fn, sample_fn

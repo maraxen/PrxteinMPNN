@@ -15,7 +15,15 @@ from array_record.python.array_record_module import ArrayRecordWriter
 import msgpack
 import msgpack_numpy as m
 
+from prxteinmpnn.utils.data_structures import ProteinTuple
+from prxteinmpnn.physics.force_fields import load_force_field_from_hub
 from prxteinmpnn.io.parsing.mappings import string_to_protein_sequence
+from prxteinmpnn.utils.residue_constants import (
+    atom_types,
+    restype_1to3,
+    restypes,
+    van_der_waals_radius,
+)
 
 m.patch()
 
@@ -77,97 +85,113 @@ def convert_to_array_record(
     protein_index = {}
     global_record_index = 0
     
+    # Load force field
+    logger.info("Loading force field...")
+    force_field = load_force_field_from_hub("ff14SB")
+    
     for pt_file in tqdm.tqdm(pt_files, desc="Processing files"):
         proteins = parse_pt_file(pt_file)
         
         for protein in proteins:
-            # Extract relevant fields and map to our schema
-            # Original keys often include: 'seq', 'coords', 'name', 'num_chains_per_cluster' etc.
-            
             try:
-                # Basic validation - we need at least coords (xyz) and sequence
+                # Check if this is a metadata file (PDBID.pt)
+                if 'chains' in protein and 'xyz' not in protein:
+                    logger.debug(f"Skipping metadata file {pt_file}")
+                    continue
+
                 if 'seq' not in protein or 'xyz' not in protein:
+                    logger.warning(f"Skipping protein {protein.get('name', 'unknown')} in {pt_file}: missing 'seq' or 'xyz'")
                     continue
                 
                 name = protein.get('name', str(uuid.uuid4()))
                 
-                # Coords: [L, 4, 3] (N, CA, C, O)
+                # Extract coordinates (N, CA, C, O)
                 coords = protein['xyz']
                 if isinstance(coords, torch.Tensor):
                     coords = coords.numpy()
                 
-                # Ensure coords are [L, 4, 3]
-                # If input is [L, 14, 3] or similar, take first 4 (N, CA, C, O)
                 if coords.shape[1] > 4:
                     coords = coords[:, :4, :]
                 
-                # Handle NaNs in coordinates
-                # Create mask for valid atoms (not NaN)
-                # Check if any coordinate in the atom is NaN
-                atom_is_nan = np.isnan(coords).any(axis=-1) # [L, 4]
+                # Handle NaNs
+                atom_is_nan = np.isnan(coords).any(axis=-1)
                 backbone_mask = ~atom_is_nan
-                
-                # Replace NaNs with 0.0 to avoid numerical issues
                 coords = np.nan_to_num(coords, nan=0.0)
                 
-                # Sequence
+                # Process sequence
                 seq = protein['seq']
                 if isinstance(seq, torch.Tensor):
                     seq = seq.numpy()
                 elif isinstance(seq, str):
                     seq = string_to_protein_sequence(seq)
                 
-                # If sequence is one-hot or something else, we might need to convert.
-                # But usually in these .pt files it's integer indices.
-                # Let's ensure it's integer.
                 if seq.dtype == np.float32 or seq.dtype == np.float64:
                      seq = seq.astype(np.int32)
 
-                # Mask (residue level)
+                # Process mask
                 mask = protein.get('mask')
                 if mask is None:
                     mask = np.ones(len(seq), dtype=bool)
                 elif isinstance(mask, torch.Tensor):
                     mask = mask.numpy().astype(bool)
-                    # If mask is 2D [L, 14] or similar, take CA (index 1) or reduce
                     if mask.ndim == 2:
-                        # Assuming standard order N, CA, C, O...
-                        # If shape is [L, 4] or [L, 14] or [L, 37]
                         if mask.shape[1] > 1:
                              mask = mask[:, 1] # Take CA
                         else:
                              mask = mask.flatten()
                 
-                # Update residue mask based on CA existence
-                # If CA is missing (NaN), the residue should probably be masked out too
-                # or at least we should know.
-                # ProteinMPNN uses 'mask' for residue validity.
-                # Let's AND it with CA validity.
-                ca_valid = backbone_mask[:, 1] # CA is index 1
+                # Combine with coordinate validity
+                ca_valid = backbone_mask[:, 1]
                 mask = mask & ca_valid
                 
-                # Chain index
+                # Metadata
                 chain_idx = protein.get('chain_idx')
                 if chain_idx is None:
                     chain_idx = np.zeros(len(seq), dtype=np.int32)
                 elif isinstance(chain_idx, torch.Tensor):
                     chain_idx = chain_idx.numpy().astype(np.int32)
                 
-                # Residue index
                 res_idx = protein.get('residue_idx')
                 if res_idx is None:
                     res_idx = np.arange(len(seq), dtype=np.int32)
                 elif isinstance(res_idx, torch.Tensor):
                     res_idx = res_idx.numpy().astype(np.int32)
 
-                # Physics features placeholder (zeros for now as we are just loading raw data)
-                # In a real pipeline, we'd compute these.
-                physics_features = np.zeros((len(seq), 5), dtype=np.float32)
-
-                # Construct full atom mask (L, 37)
-                # We only have backbone (4 atoms), so set first 4 cols from backbone_mask
+                # Construct full atom mask from backbone
                 full_atom_mask = np.zeros((len(seq), 37), dtype=bool)
                 full_atom_mask[:, :4] = backbone_mask
+
+                # Compute physics parameters
+                charges = np.zeros((len(seq), 37), dtype=np.float32)
+                sigmas = np.zeros((len(seq), 37), dtype=np.float32)
+                epsilons = np.zeros((len(seq), 37), dtype=np.float32)
+                radii = np.zeros((len(seq), 37), dtype=np.float32)
+
+                # Load force field (cached)
+                # We load it outside the loop ideally, but for now let's rely on lru_cache or similar if it exists,
+                # or just load it once before the loop.
+                # Actually, let's load it once before the loop.
+                
+                for i, res_idx in enumerate(seq):
+                    if res_idx >= len(restypes):
+                        res_name = "UNK"
+                    else:
+                        res_letter = restypes[res_idx]
+                        res_name = restype_1to3.get(res_letter, "UNK")
+                    
+                    for j, atom_name in enumerate(atom_types):
+                        # Physics params from Force Field
+                        q = force_field.get_charge(res_name, atom_name)
+                        sig, eps = force_field.get_lj_params(res_name, atom_name)
+                        
+                        # Radius from constants (element based)
+                        element = atom_name[0]
+                        rad = van_der_waals_radius.get(element, 1.5)
+                        
+                        charges[i, j] = q
+                        sigmas[i, j] = sig
+                        epsilons[i, j] = eps
+                        radii[i, j] = rad
 
                 record_data = {
                     "protein_id": name,
@@ -178,11 +202,12 @@ def convert_to_array_record(
                     "residue_index": res_idx.astype(np.int32),
                     "chain_index": chain_idx.astype(np.int32),
                     "mask": mask.astype(bool),
-                    "physics_features": physics_features,
-                    # Dummy full atomic data to satisfy schema
+                    "physics_features": np.zeros((len(seq), 5), dtype=np.float32),
                     "full_coordinates": np.zeros((len(seq) * 37, 3), dtype=np.float32),
-                    "charges": np.zeros(len(seq) * 37, dtype=np.float32),
-                    "radii": np.zeros(len(seq) * 37, dtype=np.float32),
+                    "charges": charges,
+                    "sigmas": sigmas,
+                    "epsilons": epsilons,
+                    "radii": radii,
                     "estat_backbone_mask": np.zeros(len(seq) * 37, dtype=bool),
                     "estat_resid": np.zeros(len(seq) * 37, dtype=np.int32),
                     "estat_chain_index": np.zeros(len(seq) * 37, dtype=np.int32),

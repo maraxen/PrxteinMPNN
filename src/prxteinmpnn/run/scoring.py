@@ -4,22 +4,23 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import Any, Callable, TYPE_CHECKING
+from dataclasses import asdict, fields
+from typing import TYPE_CHECKING, Any
 
 import h5py
 import jax
 import jax.numpy as jnp
 
 from prxteinmpnn.run.averaging import get_averaged_encodings
-from prxteinmpnn.scoring.score import make_score_sequence
+from prxteinmpnn.scoring.score import make_score_sequence, score_sequence_with_encoding
 from prxteinmpnn.utils.aa_convert import string_to_protein_sequence
 
 from .prep import prep_protein_stream_and_model
-from .specs import ScoringSpecification, SamplingSpecification
+from .specs import SamplingSpecification, ScoringSpecification
 
 if TYPE_CHECKING:
     from prxteinmpnn.model.mpnn import PrxteinMPNN
-    from prxteinmpnn.utils.data_structures import Protein, ProteinSequence, Logits
+    from prxteinmpnn.utils.data_structures import Logits, Protein, ProteinSequence
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
@@ -74,7 +75,6 @@ def score(
   protein_iterator, model = prep_protein_stream_and_model(spec)
 
   if spec.average_node_features:
-      from dataclasses import asdict, fields
       spec_dict = asdict(spec)
       sampling_fields = {f.name for f in fields(SamplingSpecification)}
       filtered_spec = {k: v for k, v in spec_dict.items() if k in sampling_fields}
@@ -96,7 +96,9 @@ def score(
     for batched_ensemble in protein_iterator:
         max_len = batched_ensemble.coordinates.shape[1]
         current_ar_mask = (
-            1 - jnp.eye(max_len, dtype=jnp.bool_) if spec.ar_mask is None else jnp.asarray(spec.ar_mask)
+            1 - jnp.eye(max_len, dtype=jnp.bool_)
+            if spec.ar_mask is None
+            else jnp.asarray(spec.ar_mask)
         )
 
         vmap_sequences = jax.vmap(
@@ -143,13 +145,11 @@ def score(
 
 def _score_batch_averaged(
     spec: SamplingSpecification,
-    batched_ensemble: "Protein",
-    model: "PrxteinMPNN",
-    sequences: "ProteinSequence",
-) -> tuple[jnp.ndarray, "Logits"]:
+    batched_ensemble: Protein,
+    model: PrxteinMPNN,
+    sequences: ProteinSequence,
+) -> tuple[jnp.ndarray, Logits]:
     """Score sequences for a batched ensemble of proteins using averaged encodings."""
-    from prxteinmpnn.scoring.score import score_sequence_with_encoding
-
     averaged_encodings = get_averaged_encodings(
         batched_ensemble,
         model,
@@ -159,24 +159,30 @@ def _score_batch_averaged(
         spec.average_encoding_mode,
     )
 
-    def score_single_sequence(seq: "ProteinSequence", enc: tuple) -> tuple[jnp.ndarray, "Logits"]:
+    def score_single_sequence(seq: ProteinSequence, enc: tuple) -> tuple[jnp.ndarray, Logits]:
         avg_node, avg_edge, neighbors, mask, ar_mask_struct = enc
-        
+
         # neighbors has shape (..., L, K). avg_node has shape (L, D).
         # Flatten batch dimensions of neighbors
         neighbors_flat = neighbors.reshape((-1, neighbors.shape[-2], neighbors.shape[-1]))
         mask_flat = mask.reshape((-1, mask.shape[-1]))
-        ar_mask_struct_flat = ar_mask_struct.reshape((-1, ar_mask_struct.shape[-2], ar_mask_struct.shape[-1]))
-        
-        def score_one(n_idx, m, ar_m):
-             # score_sequence_with_encoding returns (score, logits, decoding_order)
-             return score_sequence_with_encoding(
-                 model, 
-                 seq, 
-                 (avg_node, avg_edge, n_idx, m, ar_m)
-             )
-        
-        scores_batch, logits_batch, _ = jax.vmap(score_one)(neighbors_flat, mask_flat, ar_mask_struct_flat)
+        ar_mask_struct_flat = ar_mask_struct.reshape(
+            (-1, ar_mask_struct.shape[-2], ar_mask_struct.shape[-1]),
+        )
+
+        def score_one(
+            n_idx: jnp.ndarray, m: jnp.ndarray, ar_m: jnp.ndarray,
+        ) -> tuple[jnp.ndarray, Logits, jnp.ndarray]:
+            # score_sequence_with_encoding returns (score, logits, decoding_order)
+            return score_sequence_with_encoding(
+                model,
+                seq,
+                (avg_node, avg_edge, n_idx, m, ar_m),
+            )
+
+        scores_batch, logits_batch, _ = jax.vmap(score_one)(
+            neighbors_flat, mask_flat, ar_mask_struct_flat,
+        )
         return jnp.mean(scores_batch, axis=0), jnp.mean(logits_batch, axis=0)
 
     if spec.average_encoding_mode == "inputs_and_noise":
@@ -187,10 +193,10 @@ def _score_batch_averaged(
     else:
         # Determine structural axis to map over (the one NOT averaged)
         struct_axis = 1 if spec.average_encoding_mode == "inputs" else 0
-        
+
         # vmap over sequences (axis 0)
         # vmap over outer batch (axis 0 of enc_node, axis struct_axis of enc_neighbors)
-        
+
         vmap_score = jax.vmap(
             jax.vmap(score_single_sequence, in_axes=(0, None)),
             in_axes=(None, (0, 0, struct_axis, struct_axis, struct_axis)),

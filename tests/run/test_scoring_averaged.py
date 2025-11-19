@@ -34,7 +34,7 @@ def mock_model():
 
 @patch("prxteinmpnn.run.scoring.prep_protein_stream_and_model")
 @patch("prxteinmpnn.run.scoring.get_averaged_encodings")
-@patch("prxteinmpnn.scoring.score.score_sequence_with_encoding")
+@patch("prxteinmpnn.run.scoring.score_sequence_with_encoding")
 def test_score_averaged_inputs_and_noise(mock_score_seq, mock_get_enc, mock_prep, mock_protein, mock_model):
     """Test scoring with average_node_features=True and mode='inputs_and_noise'."""
     # Arrange
@@ -88,7 +88,7 @@ def test_score_averaged_inputs_and_noise(mock_score_seq, mock_get_enc, mock_prep
 
 @patch("prxteinmpnn.run.scoring.prep_protein_stream_and_model")
 @patch("prxteinmpnn.run.scoring.get_averaged_encodings")
-@patch("prxteinmpnn.scoring.score.score_sequence_with_encoding")
+@patch("prxteinmpnn.run.scoring.score_sequence_with_encoding")
 def test_score_averaged_inputs_only(mock_score_seq, mock_get_enc, mock_prep, mock_protein, mock_model):
     """Test scoring with average_node_features=True and mode='inputs'."""
     # Arrange

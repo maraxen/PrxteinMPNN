@@ -131,6 +131,7 @@ def make_optimize_sequence_fn(
           When provided, positions in the same group are constrained to have
           identical logits during optimization.
       num_groups: Number of unique groups when using tied positions.
+      structure_mapping: Optional array for mapping structures.
 
     Returns:
       Tuple of (optimized sequence, final output logits, optimized logits).

@@ -6,11 +6,9 @@ import jax
 import jax.numpy as jnp
 import pytest
 from prxteinmpnn.model import PrxteinMPNN
-from prxteinmpnn.sampling import (
-    make_encoding_sampling_split_fn,
-    make_sample_sequences,
-    sample,
-)
+from prxteinmpnn.run.averaging import make_encoding_sampling_split_fn
+from prxteinmpnn.sampling import sample
+from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.utils.decoding_order import random_decoding_order
 
 
@@ -87,7 +85,7 @@ def test_make_encoding_sampling_split_fn_jit(
         k_neighbors=48,
         key=rng_key,
     )
-    encode_fn, sample_fn = make_encoding_sampling_split_fn(model)
+    encode_fn, sample_fn, _ = make_encoding_sampling_split_fn(model)
     encode_fn = jax.jit(encode_fn)
     sample_fn = jax.jit(sample_fn)
 
@@ -126,7 +124,7 @@ def test_make_encoding_sampling_split_fn_no_jit(
         k_neighbors=48,
         key=rng_key,
     )
-    encode_fn, sample_fn = make_encoding_sampling_split_fn(model)
+    encode_fn, sample_fn, _ = make_encoding_sampling_split_fn(model)
 
     # Test encode_fn
     encoded_features = encode_fn(

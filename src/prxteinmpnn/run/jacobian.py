@@ -17,7 +17,7 @@ if TYPE_CHECKING:
   from collections.abc import Callable, Generator
 
   from grain.python import IterDataset
-  from jaxtyping import Float, Int, PyTree
+  from jaxtyping import Float, Int
 
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
@@ -261,20 +261,20 @@ def _get_initial_rolling_average_state(
 ) -> tuple[list, list, list, list, list]:
   """Get the initial state for the rolling average of encodings."""
   node_features, edge_features, neighbor_indices, mask, ar_mask = initial_encodings
-  
+
   # Flatten batch and noise dimensions
   flat_node = node_features.reshape((-1,) + node_features.shape[2:])
   flat_edge = edge_features.reshape((-1,) + edge_features.shape[2:])
   flat_neighbors = neighbor_indices.reshape((-1,) + neighbor_indices.shape[2:])
   flat_mask = mask.reshape((-1,) + mask.shape[2:])
   flat_ar_mask = ar_mask.reshape((-1,) + ar_mask.shape[2:])
-  
+
   return (
-      [flat_node], 
-      [flat_edge], 
-      [flat_neighbors], 
-      [flat_mask], 
-      [flat_ar_mask]
+      [flat_node],
+      [flat_edge],
+      [flat_neighbors],
+      [flat_mask],
+      [flat_ar_mask],
   )
 
 
@@ -285,14 +285,14 @@ def _update_rolling_average(
   """Update the rolling average of encodings with a new batch."""
   nodes, edges, neighbors_list, masks, ar_masks = state
   node_features, edge_features, neighbor_indices, mask, ar_mask = new_encodings
-  
+
   # Flatten and append
   nodes.append(node_features.reshape((-1,) + node_features.shape[2:]))
   edges.append(edge_features.reshape((-1,) + edge_features.shape[2:]))
   neighbors_list.append(neighbor_indices.reshape((-1,) + neighbor_indices.shape[2:]))
   masks.append(mask.reshape((-1,) + mask.shape[2:]))
   ar_masks.append(ar_mask.reshape((-1,) + ar_mask.shape[2:]))
-  
+
   return nodes, edges, neighbors_list, masks, ar_masks
 
 
@@ -402,17 +402,17 @@ def _categorical_jacobian_in_memory(
     ) -> jax.Array:
       """Compute jacobian for a single sequence using averaged encodings."""
       # one_hot_sequence is (L_max, 21) (from all_sequences_concat)
-      
+
       def logit_fn(one_hot_flat: jax.Array) -> jax.Array:
         one_hot_2d = one_hot_flat.reshape(one_hot_sequence.shape)
-        
+
         def decode_single(n_idx, m, ar_m):
             return decode_fn(
-                (averaged_node, averaged_edge, n_idx, m, ar_m), 
-                one_hot_2d, 
-                None
+                (averaged_node, averaged_edge, n_idx, m, ar_m),
+                one_hot_2d,
+                None,
             )
-            
+
         logits_batch = jax.vmap(decode_single)(all_neighbors, all_mask, all_ar_mask)
         logits = jnp.mean(logits_batch, axis=0)
         return logits.flatten()

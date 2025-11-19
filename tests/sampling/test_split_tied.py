@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import pytest
 
 from prxteinmpnn.model.mpnn import PrxteinMPNN
-from prxteinmpnn.sampling.sample import make_encoding_sampling_split_fn
+from prxteinmpnn.run.averaging import make_encoding_sampling_split_fn
 from prxteinmpnn.utils.decoding_order import random_decoding_order
 
 
@@ -33,7 +33,7 @@ def test_split_path_with_tied_positions_jit(model_inputs, rng_key):
     num_groups = jnp.unique(tie_group_map).shape[0]
 
     # Create split functions
-    encode_fn, sample_fn = make_encoding_sampling_split_fn(model)
+    encode_fn, sample_fn, _ = make_encoding_sampling_split_fn(model)
     encode_fn = jax.jit(encode_fn)
     sample_fn = jax.jit(sample_fn, static_argnames=["num_groups"])
 
@@ -94,7 +94,7 @@ def test_split_path_with_tied_positions_no_jit(model_inputs, rng_key):
     num_groups = jnp.unique(tie_group_map).shape[0]
 
     # Create split functions
-    encode_fn, sample_fn = make_encoding_sampling_split_fn(model)
+    encode_fn, sample_fn, _ = make_encoding_sampling_split_fn(model)
 
     # Encode structure once
     encoded_features = encode_fn(
@@ -142,7 +142,7 @@ def test_split_path_without_tied_positions_jit(model_inputs, rng_key):
         key=rng_key,
     )
 
-    encode_fn, sample_fn = make_encoding_sampling_split_fn(model)
+    encode_fn, sample_fn, _ = make_encoding_sampling_split_fn(model)
     encode_fn = jax.jit(encode_fn)
     sample_fn = jax.jit(sample_fn)
 
@@ -181,7 +181,7 @@ def test_split_path_without_tied_positions_no_jit(model_inputs, rng_key):
         key=rng_key,
     )
 
-    encode_fn, sample_fn = make_encoding_sampling_split_fn(model)
+    encode_fn, sample_fn, _ = make_encoding_sampling_split_fn(model)
 
     # Encode structure
     encoded_features = encode_fn(
@@ -233,7 +233,7 @@ def test_split_path_consistency_with_full_path_jit(model_inputs, rng_key):
     )
 
     # Sample using split path
-    encode_fn, sample_fn = make_encoding_sampling_split_fn(model)
+    encode_fn, sample_fn, _ = make_encoding_sampling_split_fn(model)
     encode_fn = jax.jit(encode_fn)
     sample_fn = jax.jit(sample_fn, static_argnames=["num_groups"])
     encoded_features = encode_fn(
@@ -303,7 +303,7 @@ def test_split_path_consistency_with_full_path_no_jit(model_inputs, rng_key):
     )
 
     # Sample using split path
-    encode_fn, sample_fn = make_encoding_sampling_split_fn(model)
+    encode_fn, sample_fn, _ = make_encoding_sampling_split_fn(model)
     encoded_features = encode_fn(
         key,
         model_inputs["structure_coordinates"],
@@ -361,7 +361,7 @@ def test_split_path_with_temperature_jit(model_inputs, rng_key):
     tie_group_map = tie_group_map.at[1].set(0)  # 0,1 in group 0
     num_groups = jnp.unique(tie_group_map).shape[0]
 
-    encode_fn, sample_fn = make_encoding_sampling_split_fn(model)
+    encode_fn, sample_fn, _ = make_encoding_sampling_split_fn(model)
     encode_fn = jax.jit(encode_fn)
     sample_fn = jax.jit(sample_fn, static_argnames=["num_groups"])
 
@@ -426,7 +426,7 @@ def test_split_path_with_temperature_no_jit(model_inputs, rng_key):
     tie_group_map = tie_group_map.at[1].set(0)  # 0,1 in group 0
     num_groups = jnp.unique(tie_group_map).shape[0]
 
-    encode_fn, sample_fn = make_encoding_sampling_split_fn(model)
+    encode_fn, sample_fn, _ = make_encoding_sampling_split_fn(model)
 
     # Encode once
     encoded_features = encode_fn(

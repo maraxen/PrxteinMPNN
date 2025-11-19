@@ -42,7 +42,8 @@ def score_fn(mpnn_model):
   )
 
 
-def test_score_sequences_with_structure_mapping(score_fn):
+@pytest.mark.parametrize("with_jit", [True, False])
+def test_score_sequences_with_structure_mapping(score_fn, with_jit):
   """Test that score_sequence works correctly with structure_mapping.
 
   Verifies that sequence scoring respects structure boundaries when
@@ -55,7 +56,8 @@ def test_score_sequences_with_structure_mapping(score_fn):
   sequence = jax.random.randint(prng_key, (protein.coordinates.shape[0],), 0, 20)
 
   # Score sequence with structure_mapping
-  score, logits, decoding_order = score_fn(
+  variant_fn = score_fn if not with_jit else jax.jit(score_fn)
+  score, logits, decoding_order = variant_fn(
     prng_key,
     sequence,
     protein.coordinates,

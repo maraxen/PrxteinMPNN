@@ -3,6 +3,7 @@ import h5py
 import jax.numpy as jnp
 import pytest
 from unittest.mock import patch, MagicMock
+import chex
 
 from prxteinmpnn.run.scoring import score
 from prxteinmpnn.run.specs import ScoringSpecification
@@ -43,6 +44,9 @@ def test_score_without_streaming(mock_prep, mock_protein, mock_model):
     results = score(spec)
 
     # Assert
+    chex.assert_shape(results["scores"], (10, 1, 2))
+    chex.assert_shape(results["logits"], (10, 1, 2, 10, 21))
+    chex.assert_tree_all_finite((results["scores"], results["logits"]))
     assert "scores" in results
     assert "logits" in results
     assert "metadata" in results

@@ -7,6 +7,7 @@ import h5py
 import jax
 import jax.numpy as jnp
 import pytest
+import chex
 from prxteinmpnn.run.sampling import sample, SamplingSpecification, _sample_streaming_averaged, _sample_streaming
 from prxteinmpnn.utils.data_structures import Protein
 
@@ -46,11 +47,11 @@ def test_sample_non_streaming(use_spec):
                     backbone_noise=[0.1],
                 )
 
+            chex.assert_shape(result["sequences"], (1, 2, 1, 10))
+            chex.assert_shape(result["logits"], (1, 2, 1, 10, 21))
+            chex.assert_tree_all_finite((result["sequences"], result["logits"]))
             assert "sequences" in result
             assert "logits" in result
-            # Shape: (N_structures, N_samples, N_noise, S)
-            assert result["sequences"].shape == (1, 2, 1, 10)
-            assert result["logits"].shape == (1, 2, 1, 10, 21)
 
 def test_sample_streaming():
     """Test the streaming functionality of the sample function."""

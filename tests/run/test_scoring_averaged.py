@@ -3,6 +3,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 from unittest.mock import patch, MagicMock
+import chex
 
 from prxteinmpnn.run.scoring import score
 from prxteinmpnn.run.specs import ScoringSpecification
@@ -72,13 +73,11 @@ def test_score_averaged_inputs_and_noise(mock_score_seq, mock_get_enc, mock_prep
     results = score(spec)
 
     # Assert
+    chex.assert_shape(results["scores"], (1, 1))
+    chex.assert_shape(results["logits"], (1, 1, L, 21))
+    chex.assert_tree_all_finite((results["scores"], results["logits"]))
     assert "scores" in results
     assert "logits" in results
-    # Expected shape: (1, 1) for scores (1 sequence, 1 averaged result)
-    # Wait, score returns (N_seq, ...)
-    # With inputs_and_noise, we get 1 result per sequence.
-    assert results["scores"].shape == (1, 1) 
-    assert results["logits"].shape == (1, 1, L, 21)
     
     # Verify mocks called
     mock_get_enc.assert_called_once()
@@ -129,8 +128,8 @@ def test_score_averaged_inputs_only(mock_score_seq, mock_get_enc, mock_prep, moc
     results = score(spec)
 
     # Assert
+    chex.assert_shape(results["scores"], (2, 1))
+    chex.assert_shape(results["logits"], (2, 1, L, 21))
+    chex.assert_tree_all_finite((results["scores"], results["logits"]))
     assert "scores" in results
-    # Should have shape (2, 1) -> 2 noise levels (effective structures), 1 sequence
-    assert results["scores"].shape == (2, 1)
-    assert results["logits"].shape == (2, 1, L, 21)
 

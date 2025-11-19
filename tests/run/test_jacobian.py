@@ -5,6 +5,7 @@ from prxteinmpnn.run.specs import JacobianSpecification
 import tempfile
 import h5py
 import pytest
+import chex
 
 def test_categorical_jacobian_in_memory(protein_structure, mock_model_parameters):
     spec = JacobianSpecification(
@@ -14,6 +15,7 @@ def test_categorical_jacobian_in_memory(protein_structure, mock_model_parameters
         backbone_noise=[0.0],
     )
     results = categorical_jacobian(spec=spec)
+    chex.assert_tree_all_finite(results["categorical_jacobians"])
     assert "categorical_jacobians" in results
     assert results["categorical_jacobians"] is not None
 

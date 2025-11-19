@@ -2,13 +2,17 @@
 
 import logging
 import pathlib
-from collections.abc import Sequence
+from collections.abc import Sequence, Iterator
 from io import StringIO
+
+from biotite.structure import AtomArray, AtomArrayStack, filter_solvent
+import biotite.structure as structure
 
 import mdtraj as md
 import numpy as np
 
-from prxteinmpnn.utils.data_structures import ProteinStream, ProteinTuple, TrajectoryStaticFeatures
+from prxteinmpnn.utils.data_structures import ProteinStream, TrajectoryStaticFeatures
+from prxteinmpnn.io.parsing.structures import ProcessedStructure
 from prxteinmpnn.utils.residue_constants import (
   atom_order,
 )
@@ -136,65 +140,160 @@ def _extract_mdtraj_static_features(
   )
 
 
-def _parse_mdtraj_hdf5(
+def _mdtraj_to_atom_array(
+  traj: md.Trajectory,
+) -> AtomArray | AtomArrayStack:
+  """Convert an mdtraj trajectory to a biotite AtomArray or AtomArrayStack."""
+  # Create AtomArray
+  if traj.n_frames > 1:
+    atom_array = AtomArrayStack(traj.n_frames, traj.n_atoms)
+    atom_array.coord = traj.xyz * 10  # Convert nm to Angstrom
+  else:
+    atom_array = AtomArray(traj.n_atoms)
+    atom_array.coord = traj.xyz[0] * 10  # Convert nm to Angstrom
+
+  # Topology
+  top = traj.top
+  
+  # We need to map mdtraj topology to biotite arrays
+  # This can be slow for large systems, but necessary for standardization.
+  
+  # Residue IDs
+  res_ids = np.array([a.residue.resSeq for a in top.atoms], dtype=int)
+  atom_array.res_id = res_ids
+  
+  # Residue Names
+  res_names = np.array([a.residue.name for a in top.atoms], dtype="U3")
+  atom_array.res_name = res_names
+  
+  # Atom Names
+  atom_names = np.array([a.name for a in top.atoms], dtype="U6")
+  atom_array.atom_name = atom_names
+  
+  # Chain IDs
+  # MDTraj chain indices are 0-based. Biotite expects strings usually, or we can use A, B, C...
+  # Let's map 0->A, 1->B etc.
+  chain_indices = np.array([a.residue.chain.index for a in top.atoms], dtype=int)
+  # Handle > 26 chains?
+  # For now simple mapping.
+  def chain_idx_to_id(idx):
+      if idx < 26:
+          return chr(ord('A') + idx)
+      return str(idx) # Fallback
+      
+  chain_ids = np.array([chain_idx_to_id(i) for i in chain_indices], dtype="U3")
+  atom_array.chain_id = chain_ids
+  
+  # Elements
+  elements = np.array([a.element.symbol for a in top.atoms], dtype="U2")
+  atom_array.element = elements
+  
+  return atom_array
+
+
+def parse_mdtraj_to_processed_structure(
   source: str | StringIO | pathlib.Path,
   chain_id: Sequence[str] | str | None,
   *,
-  extract_dihedrals: bool = False,
+  extract_dihedrals: bool = False, # Kept for compatibility but ignored here
   topology: str | pathlib.Path | None = None,
-) -> ProteinStream:
+) -> Iterator[ProcessedStructure]:
   """Parse HDF5 structure files directly using mdtraj."""
   logger.info("Starting MDTraj HDF5 parsing for source: %s", source)
   try:
-    dihedrals = None
     if not topology:
       first_frame = md.load_frame(str(source), 0)
     else:
       first_frame = md.load_frame(str(source), 0, top=str(topology))
     logger.debug("Loaded first frame to determine topology.")
 
+    # We don't need to extract static features here anymore, 
+    # as ProcessedStructure will be processed downstream.
+    # But we DO need to handle chain selection here to reduce data size.
+    
+    # Note: _select_chain_mdtraj returns a new trajectory with sliced topology.
     first_frame = _select_chain_mdtraj(first_frame, chain_id=chain_id)
-
-    static_features = _extract_mdtraj_static_features(
-      first_frame,
-    )
-    logger.info(
-      "Successfully extracted static features for %d residues.",
-      static_features.num_residues,
-    )
+    
+    # We need to apply the same selection to chunks.
+    # MDTraj iterload doesn't support atom selection on load.
+    # So we load chunks and then slice.
+    # But we need the atom indices from the first frame selection.
+    
+    # Re-derive selection indices
+    atom_indices = None
+    if chain_id is not None:
+        # This logic is duplicated from _select_chain_mdtraj but we need the indices
+        if isinstance(chain_id, str):
+            chain_id = [chain_id]
+        # We need the ORIGINAL topology to select indices.
+        # first_frame is already sliced.
+        # Let's reload first frame or just use the logic on the loaded chunk.
+        pass
 
     traj_iterator = md.iterload(str(source))
     frame_count = 0
+    
     for traj_chunk in traj_iterator:
       logger.debug("Processing MDTraj chunk with %d frames.", traj_chunk.n_frames)
-      for frame in traj_chunk:
-        frame_count += 1
-        coords = frame.xyz
+      
+      # Apply chain selection if needed
+      if chain_id is not None:
+          traj_chunk = _select_chain_mdtraj(traj_chunk, chain_id=chain_id)
+          
+      # Convert to AtomArray
+      atom_array = _mdtraj_to_atom_array(traj_chunk)
+      
+      # Apply solvent removal if needed
+      solvent_mask = filter_solvent(atom_array)
+      if np.any(solvent_mask):
+          n_solvent = np.sum(solvent_mask)
+          logger.info("Removing %d solvent atoms from MDTraj chunk", n_solvent)
+          if isinstance(atom_array, AtomArrayStack):
+              atom_array = atom_array[:, ~solvent_mask]
+          else:
+              atom_array = atom_array[~solvent_mask]
+      
+      # Add hydrogens if missing
+      if isinstance(atom_array, AtomArray):  # Only for single frames
+          has_hydrogens = (atom_array.element == "H").any()
+          if not has_hydrogens:
+              logger.info("Adding hydrogens to MDTraj AtomArray")
+              # Infer bonds for hydride
+              if not atom_array.bonds:
+                  try:
+                      atom_array.bonds = structure.connect_via_residue_names(atom_array)
+                  except Exception as e:
+                      logger.warning("Failed to infer bonds: %s", e)
+                      atom_array.bonds = structure.connect_via_distances(atom_array)
+              
+              # Add charge annotation
+              if "charge" not in atom_array.get_annotation_categories():
+                  atom_array.set_annotation("charge", np.zeros(atom_array.array_length(), dtype=int))
+              
+              try:
+                  import hydride
+                  atom_array, _ = hydride.add_hydrogen(atom_array)
+                  logger.info("Hydrogens added to MDTraj structure")
+              except Exception as e:
+                  logger.warning("Failed to add hydrogens: %s", e)
+      
+      # Yield ProcessedStructure
+      # We yield one ProcessedStructure per chunk (containing a stack) 
+      # or one per frame?
+      # processed_structure_to_protein_tuples handles stacks.
+      # So we can yield the stack.
+      
+      frame_count += traj_chunk.n_frames
+      
+      # We need r_indices and chain_ids for ProcessedStructure
+      # These are available in atom_array.
+      
+      yield ProcessedStructure(
+          atom_array=atom_array,
+          r_indices=atom_array.res_id,
+          chain_ids=np.zeros(atom_array.array_length(), dtype=np.int32), # Placeholder, will be recomputed
+      )
 
-        if extract_dihedrals:
-          dihedrals = mdtraj_dihedrals(
-            frame,
-            static_features.num_residues,
-            static_features.nitrogen_mask,
-          )
-
-        coords_37 = process_coordinates(
-          coords[0],  # MDTraj xyz is (n_frames, n_atoms, 3)
-          static_features.num_residues,
-          static_features.static_atom_mask_37,
-          static_features.valid_atom_mask,
-        )
-        logger.debug("Yielding frame %d from source %s.", frame_count, source)
-        yield ProteinTuple(
-          coordinates=coords_37,
-          aatype=static_features.aatype,
-          atom_mask=static_features.static_atom_mask_37,
-          residue_index=static_features.residue_indices,
-          chain_index=static_features.chain_index,
-          dihedrals=dihedrals,
-          source=str(source),
-          full_coordinates=coords[0],
-        )
     logger.info("Finished MDTraj HDF5 parsing. Yielded %d frames.", frame_count)
 
   except Exception as e:

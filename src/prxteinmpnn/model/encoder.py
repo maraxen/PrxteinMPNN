@@ -119,7 +119,7 @@ class EncoderLayer(eqx.Module):
 
     # Apply attention mask to zero out messages from invalid neighbors
     if mask_attend is not None:
-      message = jnp.expand_dims(mask_attend, -1) * message
+      message = message * mask_attend[..., None]
 
     aggregated_message = jnp.sum(message, -2) / scale
     node_features = node_features + aggregated_message
@@ -183,10 +183,11 @@ class Encoder(eqx.Module):
     node_features: NodeFeatures | None = None,
   ) -> tuple[NodeFeatures, EdgeFeatures]:
     """Forward pass for the encoder."""
-    node_features = jnp.zeros((edge_features.shape[0], self.node_feature_dim))
+    if node_features is None:
+        node_features = jnp.zeros((edge_features.shape[0], self.node_feature_dim))
 
-    mask_2d = mask[:, None] * mask[None, :]  # (N, N)
-    mask_attend = jnp.take_along_axis(mask_2d, neighbor_indices, axis=1)  # (N, K)
+    mask_2d = mask[:, None] * mask[None, :]
+    mask_attend = jnp.take_along_axis(mask_2d, neighbor_indices.astype(jnp.int32), axis=1)
 
     for layer in self.layers:
       node_features, edge_features = layer(
@@ -256,8 +257,8 @@ class PhysicsEncoder(eqx.Module):
       else jax.vmap(self.physics_projection)(node_features)
     )
 
-    mask_2d = mask[:, None] * mask[None, :]  # (N, N)
-    mask_attend = jnp.take_along_axis(mask_2d, neighbor_indices, axis=1)  # (N, K)
+    mask_2d = mask[:, None] * mask[None, :]
+    mask_attend = jnp.take_along_axis(mask_2d, neighbor_indices.astype(jnp.int32), axis=1)
 
     for layer in self.layers:
       node_features, edge_features = layer(

@@ -119,7 +119,7 @@ def make_conditional_logits_fn(
       ... )
 
     """
-    edge_features, neighbor_indices, _, _ = model.features(
+    edge_features, neighbor_indices, node_features, _ = model.features(
       prng_key,
       structure_coordinates,
       mask,
@@ -127,6 +127,13 @@ def make_conditional_logits_fn(
       chain_index,
       backbone_noise,
       structure_mapping,
+    )
+
+    node_features, edge_features = model.encoder(
+        edge_features,
+        neighbor_indices,
+        mask,
+        node_features,
     )
 
     ar_mask = (
@@ -141,6 +148,7 @@ def make_conditional_logits_fn(
 
     # Call the model's conditional path directly
     _, logits = model._call_conditional(  # noqa: SLF001
+      node_features,
       edge_features,
       neighbor_indices,
       mask,
@@ -225,7 +233,7 @@ def make_encoding_conditional_logits_split_fn(
     if prng_key is None:
       prng_key = jax.random.PRNGKey(0)
 
-    edge_features, neighbor_indices, _, _ = model.features(
+    edge_features, neighbor_indices, initial_node_features, _ = model.features(
       prng_key,
       structure_coordinates,
       mask,
@@ -239,7 +247,7 @@ def make_encoding_conditional_logits_split_fn(
       edge_features,
       neighbor_indices,
       mask,
-      node_features=initial_node_features,
+      initial_node_features
     )
 
     ar_mask_placeholder = jax.numpy.zeros((mask.shape[0], mask.shape[0]), dtype=jax.numpy.int32)

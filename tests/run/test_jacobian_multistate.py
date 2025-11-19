@@ -38,7 +38,8 @@ def conditional_logits_fn(mpnn_model):
   return make_conditional_logits_fn(model=mpnn_model)
 
 
-def test_categorical_jacobian_with_structure_mapping(conditional_logits_fn):
+@pytest.mark.parametrize("with_jit", [True, False])
+def test_categorical_jacobian_with_structure_mapping(conditional_logits_fn, with_jit):
   """Test that conditional logits work correctly with structure_mapping.
 
   Verifies that the Jacobian computation pipeline (via conditional logits)
@@ -52,7 +53,8 @@ def test_categorical_jacobian_with_structure_mapping(conditional_logits_fn):
   sequence_one_hot = jax.nn.one_hot(sequence_idx, num_classes=21)
 
   # Compute conditional logits with structure_mapping
-  logits = conditional_logits_fn(
+  variant_fn = conditional_logits_fn if not with_jit else jax.jit(conditional_logits_fn)
+  logits = variant_fn(
     prng_key,
     protein.coordinates,
     protein.atom_mask,

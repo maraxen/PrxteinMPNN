@@ -104,6 +104,8 @@ class TrainingSpecification(RunSpecification):
 
   # Regularization
   label_smoothing: float = 0.0
+  mask_strategy: Literal["random_order", "bert"] = "random_order"
+  mask_prob: float = 0.15
 
   # Early stopping
   early_stopping_patience: int | None = None

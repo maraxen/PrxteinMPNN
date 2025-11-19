@@ -585,6 +585,8 @@ class PrxteinMPNN(eqx.Module):
 
     """
     num_residues = node_features.shape[0]
+    if tie_group_map is None:
+        tie_group_map = jnp.arange(num_residues)
     groups_in_order = tie_group_map[decoding_order]
     position_indices = jnp.arange(num_residues)
     is_before_mask = position_indices[:, None] > position_indices[None, :]

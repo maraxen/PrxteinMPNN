@@ -386,6 +386,14 @@ van_der_waals_radius = {
   "S": 1.8,
 }
 
+# Van der Waals epsilon [kcal/mol] (approximate AMBER/CHARMM values)
+van_der_waals_epsilon = {
+  "C": 0.15,
+  "N": 0.17,
+  "O": 0.12,
+  "S": 0.25,
+}
+
 
 class Bond(NamedTuple):
   """A bond between two atoms."""

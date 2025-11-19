@@ -12,6 +12,7 @@ from typing import IO
 import numpy as np
 
 from prxteinmpnn.utils.data_structures import EstatInfo
+from prxteinmpnn.utils.residue_constants import van_der_waals_epsilon
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ def _parse_pqr(  # noqa: PLR0915
     lines = pqr_file.readlines()
 
   atom_lines = [line for line in lines if line.startswith(("ATOM", "HETATM"))]
-  charge_array, radius_array, estat_backbone_mask, estat_resid, estat_chain_id = [], [], [], [], []
+  epsilon_array = []
   backbone_names = {"N", "CA", "C", "O"}
 
   # Normalize chain_id to a set for filtering
@@ -91,6 +92,12 @@ def _parse_pqr(  # noqa: PLR0915
       z = float(fields[z_idx])
       occupancy = 1.00
       bfactor = 0.00
+      
+      # Lookup epsilon based on first letter of atom name (C, N, O, S)
+      # Default to C if unknown (0.15)
+      element = atom_name[0]
+      epsilon = van_der_waals_epsilon.get(element, 0.15)
+      
     except (IndexError, ValueError) as e:
       logger.warning("Failed to parse charge/radius from line: %s; error: %s", line.strip(), e)
       continue
@@ -101,6 +108,7 @@ def _parse_pqr(  # noqa: PLR0915
 
     charge_array.append(charge)
     radius_array.append(radius)
+    epsilon_array.append(epsilon)
     estat_backbone_mask.append(atom_name in backbone_names)
 
     # Parse residue sequence number, handling insertion codes (e.g., '52A')
@@ -157,6 +165,7 @@ def _parse_pqr(  # noqa: PLR0915
     EstatInfo(
       np.array(charge_array, dtype=np.float32),
       np.array(radius_array, dtype=np.float32),
+      np.array(epsilon_array, dtype=np.float32),
       np.array(estat_backbone_mask, dtype=bool),
       np.array(estat_resid, dtype=np.int32),
       np.array(estat_chain_id, dtype=np.int32),

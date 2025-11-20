@@ -1,6 +1,8 @@
 from dataclasses import dataclass
+
 import numpy as np
 from biotite.structure import AtomArray, AtomArrayStack
+
 
 @dataclass
 class ProcessedStructure:
@@ -14,6 +16,7 @@ class ProcessedStructure:
     radii: Optional array of atomic radii.
     epsilons: Optional array of atomic epsilons.
     sigmas: Optional array of atomic sigmas.
+
   """
 
   atom_array: AtomArray | AtomArrayStack

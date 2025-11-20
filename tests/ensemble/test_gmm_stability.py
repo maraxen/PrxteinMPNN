@@ -7,9 +7,7 @@ energy wells that are later refined by DBSCAN clustering.
 
 from __future__ import annotations
 
-import jax
 import jax.numpy as jnp
-import pytest
 
 from prxteinmpnn.ensemble.bic import compute_bic
 

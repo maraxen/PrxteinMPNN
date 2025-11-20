@@ -3,7 +3,6 @@
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-import pytest
 
 from prxteinmpnn.utils.data_structures import ProteinTuple
 from prxteinmpnn.utils.foldcomp_utils import (

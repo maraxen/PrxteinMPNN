@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-import jax
+import chex
 import jax.numpy as jnp
 import pytest
-import chex
 
 from prxteinmpnn.model.multi_state_sampling import (
-  max_min_over_group_logits,
-  min_over_group_logits,
-  product_of_probabilities_logits,
+    max_min_over_group_logits,
+    min_over_group_logits,
+    product_of_probabilities_logits,
 )
+
 
 class TestMultiStateSampling(chex.TestCase):
     def test_min_over_group_logits(self) -> None:

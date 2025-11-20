@@ -4,6 +4,7 @@ import chex
 import jax
 import jax.numpy as jnp
 import pytest
+
 from prxteinmpnn.model import PrxteinMPNN
 from prxteinmpnn.sampling import make_sample_sequences
 
@@ -103,7 +104,7 @@ def test_ste_optimization_without_tied_positions_jit(model_inputs, rng_key):
         key=rng_key,
     )
     sample_fn = jax.jit(
-        make_sample_sequences(model, sampling_strategy="straight_through")
+        make_sample_sequences(model, sampling_strategy="straight_through"),
     )
     seq, logits, order = sample_fn(
         rng_key,

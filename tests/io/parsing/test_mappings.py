@@ -1,16 +1,8 @@
 
 """Unit tests for the prxteinmpnn.io.parsing submodule."""
 
-import pathlib
-import tempfile
-from io import StringIO
 
-import h5py
-import mdtraj as md
 import numpy as np
-import pytest
-from biotite.structure import Atom, AtomArray, AtomArrayStack, array as strucarray
-from chex import assert_trees_all_close
 
 from prxteinmpnn.io.parsing.mappings import (
     _check_if_file_empty,
@@ -22,9 +14,7 @@ from prxteinmpnn.io.parsing.mappings import (
     string_key_to_index,
     string_to_protein_sequence,
 )
-from prxteinmpnn.utils.data_structures import ProteinTuple
-from prxteinmpnn.utils.residue_constants import resname_to_idx, restype_order, unk_restype_index
-from conftest import PDB_1UBQ_STRING
+
 
 def test_af_to_mpnn():
     """Test conversion from AlphaFold to ProteinMPNN alphabet."""
@@ -58,7 +48,7 @@ def test_af_to_mpnn():
 def test_mpnn_to_af():
     """Test conversion from ProteinMPNN to AlphaFold alphabet."""
     mpnn_sequence = np.array(
-        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
     )
     af_sequence = mpnn_to_af(mpnn_sequence)
     print(af_sequence)

@@ -11,18 +11,18 @@ All async operations and direct I/O handling have been moved to the
 import logging
 import pathlib
 import warnings
-from collections.abc import Sequence, Iterator
+from collections.abc import Iterator, Sequence
 from io import StringIO
 from typing import cast
 
 import h5py
 import numpy as np
+from biotite import structure
 from biotite.structure import AtomArray, filter_solvent
-import biotite.structure as structure
 
-from prxteinmpnn.utils import residue_constants as rc
-from prxteinmpnn.utils.data_structures import ProteinStream, TrajectoryStaticFeatures
 from prxteinmpnn.io.parsing.structures import ProcessedStructure
+from prxteinmpnn.utils import residue_constants as rc
+from prxteinmpnn.utils.data_structures import TrajectoryStaticFeatures
 
 from .coords import process_coordinates
 from .mappings import residue_names_to_aatype
@@ -134,7 +134,7 @@ def parse_mdcath_to_processed_structure(  # noqa: PLR0915, C901
               frame_count += 1
               frame_coords_full = coords_dataset[frame_index]
 
-              coords_37 = process_coordinates(
+              process_coordinates(
                 frame_coords_full,
                 static_features.num_residues,
                 static_features.static_atom_mask_37,
@@ -145,40 +145,40 @@ def parse_mdcath_to_processed_structure(  # noqa: PLR0915, C901
               # Or just yield ProcessedStructure for each frame?
               # ProcessedStructure expects AtomArray or AtomArrayStack.
               # Here we are iterating frames, so we yield one by one.
-              
+
               # We need to construct an AtomArray from the coordinates and static features.
               # This is a bit involved as we need to map back from 37-atom representation or full atoms?
               # frame_coords_full is (num_full_atoms, 3).
               # We have valid_atom_mask which is all ones.
-              
+
               # We can construct an AtomArray with all atoms.
               # We need atom names and residue names.
-              
+
               # Reconstructing AtomArray from raw arrays is tedious but necessary for ProcessedStructure.
               # However, for MDCATH, we might just want to wrap the data we have?
               # But ProcessedStructure requires AtomArray.
-              
+
               # Build AtomArray from coordinates
               num_atoms = frame_coords_full.shape[0]
               atom_array = AtomArray(num_atoms)
               atom_array.coord = frame_coords_full
-              
+
               # Populate basic atom information
               # We need to expand residue-level info to atom-level
               # This is simplified - ideally we'd reconstruct full atom details
               atom_array.res_id = np.repeat(static_features.residue_indices, num_atoms // static_features.num_residues)
               atom_array.res_name = np.repeat(resnames, num_atoms // static_features.num_residues)
-              atom_array.chain_id = np.repeat(['A'], num_atoms)  # Simplified
-              
+              atom_array.chain_id = np.repeat(["A"], num_atoms)  # Simplified
+
               # Apply solvent removal
               solvent_mask = filter_solvent(atom_array)
               if np.any(solvent_mask):
                   n_solvent = np.sum(solvent_mask)
                   logger.info("Removing %d solvent atoms from MDCATH frame", n_solvent)
                   atom_array = atom_array[~solvent_mask]
-              
+
               # Add hydrogens if missing
-              has_hydrogens = (atom_array.element == "H").any() if hasattr(atom_array, 'element') else False
+              has_hydrogens = (atom_array.element == "H").any() if hasattr(atom_array, "element") else False
               if not has_hydrogens:
                   logger.info("Adding hydrogens to MDCATH AtomArray")
                   # Infer bonds
@@ -188,18 +188,18 @@ def parse_mdcath_to_processed_structure(  # noqa: PLR0915, C901
                       except Exception as e:
                           logger.warning("Failed to infer bonds: %s", e)
                           atom_array.bonds = structure.connect_via_distances(atom_array)
-                  
+
                   # Add charge annotation
                   if "charge" not in atom_array.get_annotation_categories():
                       atom_array.set_annotation("charge", np.zeros(atom_array.array_length(), dtype=int))
-                  
+
                   try:
                       import hydride
                       atom_array, _ = hydride.add_hydrogen(atom_array)
                       logger.info("Hydrogens added to MDCATH structure")
                   except Exception as e:
                       logger.warning("Failed to add hydrogens: %s", e)
-              
+
               yield ProcessedStructure(
                   atom_array=atom_array,
                   r_indices=atom_array.res_id,

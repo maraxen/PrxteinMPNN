@@ -88,7 +88,18 @@ foldcomp = [
 line-length = 100
 fix = true
 indent-width = 2
-exclude = [".venv", "venv", "build", "dist", "__pycache__", "tests", "examples"]
+force-exclude = true
+exclude = [
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+    "__pycache__",
+    "tests",
+    "examples",
+    "*.ipynb",
+    "src/prxteinmpnn/training/data/download_and_process.py",
+]
 
 [tool.ruff.lint]
 select = ["ALL"]

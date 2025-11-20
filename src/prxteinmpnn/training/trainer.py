@@ -188,7 +188,7 @@ def setup_mixed_precision(precision: str) -> None:
     logger.info("Using FP32 (full precision)")
 
 
-def train_step(
+def train_step(  # noqa: PLR0913
   model: PrxteinMPNN,
   opt_state: optax.OptState,
   optimizer: optax.GradientTransformation,
@@ -222,8 +222,9 @@ def train_step(
       current_step: Current training step (used for learning rate scheduling)
       lr_schedule: Learning rate schedule function
       physics_features: Optional physics features (if used)
-      use_electrostatics: Whether to use electrostatic features
-      _use_vdw: Whether to use van der Waals features
+      backbone_noise_std: Standard deviation of Gaussian noise added to backbone coordinates
+      mask_strategy: Strategy for autoregressive masking ("random_order" or "bert")
+      mask_prob: Probability of masking a token if using "bert" strategy
 
   Returns:
       Tuple of (updated_model, updated_opt_state, metrics)
@@ -246,7 +247,7 @@ def train_step(
     ) -> Logits:
       """Forward pass for a single protein."""
       key, subkey = jax.random.split(key)
-      
+
       # Generate autoregressive mask
       n_nodes = mask.shape[0]
       if mask_strategy == "random_order":
@@ -363,7 +364,9 @@ def eval_step(
     phys_feat: jax.Array | None = None,
   ) -> Logits:
     """Forward pass for a single protein."""
-    _, logits = model(
+    # Use inference mode for evaluation
+    inference_model = eqx.nn.inference_mode(model)
+    _, logits = inference_model(
       coords,
       msk,
       res_idx,

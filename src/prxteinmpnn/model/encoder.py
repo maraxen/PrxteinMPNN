@@ -39,6 +39,9 @@ class EncoderLayer(eqx.Module):
   norm2: LayerNorm
   edge_update_mlp: eqx.nn.MLP
   norm3: LayerNorm
+  dropout1: eqx.nn.Dropout
+  dropout2: eqx.nn.Dropout
+  dropout3: eqx.nn.Dropout
   node_features_dim: int = eqx.field(static=True)
   edge_features_dim: int = eqx.field(static=True)
 
@@ -47,6 +50,7 @@ class EncoderLayer(eqx.Module):
     node_features: int,
     edge_features: int,
     hidden_features: int,
+    dropout_rate: float = 0.1,
     *,
     key: PRNGKeyArray,
   ) -> None:
@@ -62,8 +66,12 @@ class EncoderLayer(eqx.Module):
     self.node_features_dim = node_features
     self.edge_features_dim = edge_features
 
-    keys = jax.random.split(key, 4)
+    keys = jax.random.split(key, 7)
     embed_input_size = edge_features + node_features * 2
+
+    self.dropout1 = eqx.nn.Dropout(dropout_rate)
+    self.dropout2 = eqx.nn.Dropout(dropout_rate)
+    self.dropout3 = eqx.nn.Dropout(dropout_rate)
 
     self.edge_message_mlp = eqx.nn.MLP(
       in_size=embed_input_size,
@@ -71,7 +79,7 @@ class EncoderLayer(eqx.Module):
       width_size=hidden_features,
       depth=2,
       activation=_gelu,
-      key=keys[0],
+      key=keys[3],
     )
     self.norm1 = LayerNorm(node_features)
     self.dense = eqx.nn.MLP(
@@ -80,7 +88,7 @@ class EncoderLayer(eqx.Module):
       width_size=embed_input_size + hidden_features,
       depth=1,
       activation=_gelu,
-      key=keys[1],
+      key=keys[4],
     )
     self.norm2 = LayerNorm(node_features)
     self.edge_update_mlp = eqx.nn.MLP(
@@ -89,7 +97,7 @@ class EncoderLayer(eqx.Module):
       width_size=edge_features,
       depth=2,
       activation=_gelu,
-      key=keys[2],
+      key=keys[5],
     )
     self.norm3 = LayerNorm(edge_features)
 
@@ -112,8 +120,12 @@ class EncoderLayer(eqx.Module):
     mask: AlphaCarbonMask,
     mask_attend: jnp.ndarray | None = None,
     scale: float = 30.0,
+    *,
+    key: PRNGKeyArray | None = None,
   ) -> tuple[NodeFeatures, EdgeFeatures]:
     """Forward pass for the encoder layer."""
+    keys = jax.random.split(key, 3) if key is not None else (None, None, None)
+
     mlp_input = self._get_mlp_input(node_features, edge_features, neighbor_indices)
     message = jax.vmap(jax.vmap(self.edge_message_mlp))(mlp_input)
 
@@ -122,9 +134,19 @@ class EncoderLayer(eqx.Module):
       message = message * mask_attend[..., None]
 
     aggregated_message = jnp.sum(message, -2) / scale
+
+    # dropout1
+    aggregated_message = self.dropout1(aggregated_message, key=keys[0])
+
     node_features = node_features + aggregated_message
     node_features = jax.vmap(self.norm1)(node_features)
-    node_features = node_features + jax.vmap(self.dense)(node_features)
+
+    dense_out = jax.vmap(self.dense)(node_features)
+
+    # dropout2
+    dense_out = self.dropout2(dense_out, key=keys[1])
+
+    node_features = node_features + dense_out
     node_features = jax.vmap(self.norm2)(node_features)
     node_features = mask[:, None] * node_features
 
@@ -135,6 +157,10 @@ class EncoderLayer(eqx.Module):
     )
     mlp_input_edge_update = jnp.concatenate([node_features_expand, edge_features_cat], -1)
     edge_message = jax.vmap(jax.vmap(self.edge_update_mlp))(mlp_input_edge_update)
+
+    # dropout3
+    edge_message = self.dropout3(edge_message, key=keys[2])
+
     edge_features = edge_features + edge_message
     edge_features = jax.vmap(jax.vmap(self.norm3))(edge_features)
 
@@ -154,6 +180,7 @@ class Encoder(eqx.Module):
     edge_features: int,
     hidden_features: int,
     num_layers: int = 3,
+    dropout_rate: float = 0.1,
     _physics_feature_dim: int | None = None,
     *,
     key: PRNGKeyArray,
@@ -172,7 +199,14 @@ class Encoder(eqx.Module):
     self.node_feature_dim = node_features
     keys = jax.random.split(key, num_layers)
     self.layers = tuple(
-      EncoderLayer(node_features, edge_features, hidden_features, key=k) for k in keys
+      EncoderLayer(
+        node_features,
+        edge_features,
+        hidden_features,
+        dropout_rate=dropout_rate,
+        key=k,
+      )
+      for k in keys
     )
 
   def __call__(
@@ -181,21 +215,26 @@ class Encoder(eqx.Module):
     neighbor_indices: NeighborIndices,
     mask: AlphaCarbonMask,
     node_features: NodeFeatures | None = None,
+    *,
+    key: PRNGKeyArray | None = None,
   ) -> tuple[NodeFeatures, EdgeFeatures]:
     """Forward pass for the encoder."""
+    keys = jax.random.split(key, len(self.layers)) if key is not None else [None] * len(self.layers)
+
     if node_features is None:
         node_features = jnp.zeros((edge_features.shape[0], self.node_feature_dim))
 
     mask_2d = mask[:, None] * mask[None, :]
     mask_attend = jnp.take_along_axis(mask_2d, neighbor_indices.astype(jnp.int32), axis=1)
 
-    for layer in self.layers:
+    for i, layer in enumerate(self.layers):
       node_features, edge_features = layer(
         node_features,
         edge_features,
         neighbor_indices,
         mask,
         mask_attend,
+        key=keys[i],
       )
     return node_features, edge_features
 
@@ -214,6 +253,7 @@ class PhysicsEncoder(eqx.Module):
     edge_features: int,
     hidden_features: int,
     num_layers: int = 3,
+    dropout_rate: float = 0.1,
     physics_feature_dim: int | None = None,
     *,
     key: PRNGKeyArray,
@@ -232,7 +272,14 @@ class PhysicsEncoder(eqx.Module):
     self.node_feature_dim = node_features
     keys = jax.random.split(key, num_layers)
     self.layers = tuple(
-      EncoderLayer(node_features, edge_features, hidden_features, key=k) for k in keys
+      EncoderLayer(
+        node_features,
+        edge_features,
+        hidden_features,
+        dropout_rate=dropout_rate,
+        key=k,
+      )
+      for k in keys
     )
     if physics_feature_dim is not None:
       self.physics_projection = eqx.nn.Linear(
@@ -249,8 +296,12 @@ class PhysicsEncoder(eqx.Module):
     neighbor_indices: NeighborIndices,
     mask: AlphaCarbonMask,
     node_features: NodeFeatures | None = None,
+    *,
+    key: PRNGKeyArray | None = None,
   ) -> tuple[NodeFeatures, EdgeFeatures]:
     """Forward pass for the encoder."""
+    keys = jax.random.split(key, len(self.layers)) if key is not None else [None] * len(self.layers)
+
     node_features = (
       jnp.zeros((edge_features.shape[0], self.node_feature_dim))
       if node_features is None
@@ -260,12 +311,13 @@ class PhysicsEncoder(eqx.Module):
     mask_2d = mask[:, None] * mask[None, :]
     mask_attend = jnp.take_along_axis(mask_2d, neighbor_indices.astype(jnp.int32), axis=1)
 
-    for layer in self.layers:
+    for i, layer in enumerate(self.layers):
       node_features, edge_features = layer(
         node_features,
         edge_features,
         neighbor_indices,
         mask,
         mask_attend,
+        key=keys[i],
       )
     return node_features, edge_features

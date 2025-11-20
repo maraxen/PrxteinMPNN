@@ -1,13 +1,14 @@
 """Tests for averaged scoring functionality."""
-import jax
+from unittest.mock import MagicMock, patch
+
+import chex
 import jax.numpy as jnp
 import pytest
-from unittest.mock import patch, MagicMock
-import chex
 
 from prxteinmpnn.run.scoring import score
 from prxteinmpnn.run.specs import ScoringSpecification
 from prxteinmpnn.utils.data_structures import Protein
+
 
 @pytest.fixture
 def mock_protein():
@@ -39,7 +40,7 @@ def test_score_averaged_inputs_and_noise(mock_score_seq, mock_get_enc, mock_prep
     """Test scoring with average_node_features=True and mode='inputs_and_noise'."""
     # Arrange
     mock_prep.return_value = ([mock_protein], mock_model)
-    
+
     # Mock averaged encodings: (avg_node, avg_edge, neighbors, mask, ar_mask)
     # Shapes: node (L, D), edge (L, L, D), neighbors (N, M, L, K), mask (N, M, L), ar_mask (N, M, L, L)
     # For inputs_and_noise, we expect flattened batch dims in the end?
@@ -53,12 +54,12 @@ def test_score_averaged_inputs_and_noise(mock_score_seq, mock_get_enc, mock_prep
         jnp.zeros((1, 1, L)), # mask
         jnp.zeros((1, 1, L, L)), # ar_mask
     )
-    
+
     # Mock score_sequence_with_encoding return: (score, logits, decoding_order)
     mock_score_seq.return_value = (
         jnp.array(0.5), # score
         jnp.zeros((L, 21)), # logits
-        jnp.arange(L) # decoding order
+        jnp.arange(L), # decoding order
     )
 
     spec = ScoringSpecification(
@@ -66,7 +67,7 @@ def test_score_averaged_inputs_and_noise(mock_score_seq, mock_get_enc, mock_prep
         sequences_to_score=["G" * L],
         average_node_features=True,
         average_encoding_mode="inputs_and_noise",
-        backbone_noise=[0.1]
+        backbone_noise=[0.1],
     )
 
     # Act
@@ -78,7 +79,7 @@ def test_score_averaged_inputs_and_noise(mock_score_seq, mock_get_enc, mock_prep
     chex.assert_tree_all_finite((results["scores"], results["logits"]))
     assert "scores" in results
     assert "logits" in results
-    
+
     # Verify mocks called
     mock_get_enc.assert_called_once()
     # mock_score_seq called via vmap, so difficult to check exact call count easily without side effects,
@@ -93,14 +94,14 @@ def test_score_averaged_inputs_only(mock_score_seq, mock_get_enc, mock_prep, moc
     """Test scoring with average_node_features=True and mode='inputs'."""
     # Arrange
     mock_prep.return_value = ([mock_protein], mock_model)
-    
+
     L = 10
     # mode='inputs' means we average over inputs (axis 0), keep noise (axis 1).
     # encodings: node (Batch, L, D) -> (Noise, L, D) ?
     # get_averaged_encodings returns (avg_node, avg_edge, neighbors, mask, ar_mask)
     # If mode='inputs', avg_node has shape (Noise, L, D).
     # neighbors has shape (Inputs, Noise, L, K).
-    
+
     # Let's assume 2 noise levels.
     mock_get_enc.return_value = (
         jnp.zeros((2, L, 1)), # node (Noise=2)
@@ -109,11 +110,11 @@ def test_score_averaged_inputs_only(mock_score_seq, mock_get_enc, mock_prep, moc
         jnp.zeros((1, 2, L)), # mask
         jnp.zeros((1, 2, L, L)), # ar_mask
     )
-    
+
     mock_score_seq.return_value = (
         jnp.array(0.5),
         jnp.zeros((L, 21)),
-        jnp.arange(L)
+        jnp.arange(L),
     )
 
     spec = ScoringSpecification(
@@ -121,7 +122,7 @@ def test_score_averaged_inputs_only(mock_score_seq, mock_get_enc, mock_prep, moc
         sequences_to_score=["G" * L],
         average_node_features=True,
         average_encoding_mode="inputs", # Average over inputs, keep noise
-        backbone_noise=[0.1, 0.2]
+        backbone_noise=[0.1, 0.2],
     )
 
     # Act

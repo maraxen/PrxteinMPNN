@@ -24,22 +24,23 @@ if TYPE_CHECKING:
 
 class SinusoidalEmbedding(eqx.Module):
     """Sinusoidal positional embeddings for time."""
-    
+
     embedding_dim: int
     max_period: float = 10000.0
-    
+
     def __call__(self, timesteps: jax.Array, *, key: PRNGKeyArray | None = None) -> jax.Array:
         """Compute sinusoidal embeddings.
-        
+
         Args:
             timesteps: [B] array of timesteps
-            
+
         Returns:
             [B, embedding_dim] embeddings
+
         """
         half_dim = self.embedding_dim // 2
         freqs = jnp.exp(
-            -jnp.log(self.max_period) * jnp.arange(0, half_dim, dtype=jnp.float32) / half_dim
+            -jnp.log(self.max_period) * jnp.arange(0, half_dim, dtype=jnp.float32) / half_dim,
         )
         if timesteps.ndim == 0:
             args = timesteps * freqs
@@ -47,26 +48,26 @@ class SinusoidalEmbedding(eqx.Module):
         else:
             args = timesteps[:, None].astype(jnp.float32) * freqs[None, :]
             embedding = jnp.concatenate([jnp.cos(args), jnp.sin(args)], axis=-1)
-        
+
         if self.embedding_dim % 2 == 1:
             embedding = jnp.concatenate([embedding, jnp.zeros_like(embedding[:, :1])], axis=-1)
-            
+
         return embedding
 
 
 class SwiGLU(eqx.Module):
     """SwiGLU activation layer."""
-    
+
     w_gate: eqx.nn.Linear
     w_val: eqx.nn.Linear
     w_out: eqx.nn.Linear
-    
-    def __init__(self, in_dim: int, hidden_dim: int, out_dim: int, key: PRNGKeyArray):
+
+    def __init__(self, in_dim: int, hidden_dim: int, out_dim: int, key: PRNGKeyArray) -> None:
         k1, k2, k3 = jax.random.split(key, 3)
         self.w_gate = eqx.nn.Linear(in_dim, hidden_dim, key=k1)
         self.w_val = eqx.nn.Linear(in_dim, hidden_dim, key=k2)
         self.w_out = eqx.nn.Linear(hidden_dim, out_dim, key=k3)
-        
+
     def __call__(self, x: jax.Array, *, key: PRNGKeyArray | None = None) -> jax.Array:
         gate = jax.nn.silu(self.w_gate(x))
         val = self.w_val(x)
@@ -75,9 +76,9 @@ class SwiGLU(eqx.Module):
 
 class DiffusionPrxteinMPNN(PrxteinMPNN):
     """ProteinMPNN extended for diffusion training."""
-    
+
     w_t_embed: eqx.Module  # Sinusoidal + MLP
-    
+
     def __init__(
         self,
         node_features: int,
@@ -93,7 +94,7 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
         key: PRNGKeyArray,
     ) -> None:
         key, t_key = jax.random.split(key)
-        
+
         super().__init__(
             node_features,
             edge_features,
@@ -106,7 +107,7 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
             vocab_size,
             key=key,
         )
-        
+
         # Timestep embedding: Sinusoidal -> SwiGLU MLP -> Node Features
         # We project to node_features_dim so we can add it to node features
         self.w_t_embed = eqx.nn.Sequential([
@@ -139,7 +140,7 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
         physics_features: jax.Array | None = None,
         physics_noise_scale: float | jax.Array = 0.0,
     ) -> tuple[OneHotProteinSequence, Logits]:
-        
+
         if decoding_approach != "diffusion":
             return super().__call__(
                 structure_coordinates,
@@ -160,7 +161,7 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
                 initial_node_features=initial_node_features,
                 physics_features=physics_features,
             )
-            
+
         # --- Diffusion Logic ---
         if prng_key is None:
             prng_key = jax.random.PRNGKey(0)
@@ -168,13 +169,13 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
 
         if backbone_noise is None:
             backbone_noise = jnp.array(0.0, dtype=jnp.float32)
-            
+
         # Apply noise to physics features if provided
         if physics_features is not None and physics_noise_scale > 0.0:
              # Use feat_key for noise generation
              phys_noise = jax.random.normal(feat_key, physics_features.shape)
              physics_features = physics_features + phys_noise * physics_noise_scale
-            
+
         # 1. Extract Features & Encode (Standard MPNN)
         edge_features, neighbor_indices, node_features, _ = self.features(
             feat_key,
@@ -193,32 +194,34 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
             mask,
             node_features,
         )
-        
+
         # 2. Inject Timestep Embedding
         if timestep is None:
-             raise ValueError("timestep is required for diffusion mode")
-             
+             msg = "timestep is required for diffusion mode"
+             raise ValueError(msg)
+
         t_embed = self.w_t_embed(timestep) # [B, C]
-        
+
         # Broadcast t_embed to [B, N, C] (batched) or [1, N, C] (unbatched/vmapped)
         if timestep.ndim == 1:
              t_embed = t_embed[:, None, :] # [B, 1, C]
         else:
              t_embed = t_embed[None, :] # [1, C]
-             
+
         node_features = node_features + t_embed
-        
+
         # 3. Decode (Conditional on Noisy Sequence)
         if noisy_sequence is None:
-            raise ValueError("noisy_sequence is required for diffusion mode")
-            
+            msg = "noisy_sequence is required for diffusion mode"
+            raise ValueError(msg)
+
         # Use full visibility mask for parallel decoding if not provided
         if ar_mask is None:
             n = mask.shape[0]
             ar_mask = jnp.ones((n, n), dtype=jnp.int32)
-            
+
         # Call internal conditional method bypassing super().__call__ dispatch
-        
+
         return self._call_conditional(
             node_features,
             edge_features,

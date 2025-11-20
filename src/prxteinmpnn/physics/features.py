@@ -8,8 +8,8 @@ import jax
 import jax.numpy as jnp
 
 from prxteinmpnn.physics.electrostatics import compute_coulomb_forces_at_backbone
-from prxteinmpnn.physics.vdw import compute_lj_forces_at_backbone
 from prxteinmpnn.physics.projections import project_forces_onto_backbone
+from prxteinmpnn.physics.vdw import compute_lj_forces_at_backbone
 from prxteinmpnn.utils.coordinates import compute_backbone_coordinates
 
 if TYPE_CHECKING:
@@ -157,10 +157,10 @@ def compute_vdw_node_features(
     axis=-1,
   )
   closest_indices = jnp.argmin(distances, axis=1)
-  
+
   backbone_sigmas_flat = all_sigmas[closest_indices]
   backbone_epsilons_flat = all_epsilons[closest_indices]
-  
+
   backbone_sigmas = backbone_sigmas_flat.reshape(n_residues, 5)
   backbone_epsilons = backbone_epsilons_flat.reshape(n_residues, 5)
 

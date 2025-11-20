@@ -1,28 +1,27 @@
 """Contains the logic for averaging node features over multiple structures and/or noise levels."""
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from functools import partial
-from typing import Literal, Tuple, Sequence
+from typing import Literal
 
 import jax
 import jax.numpy as jnp
 from jaxtyping import Float, Int, PRNGKeyArray
 
 from prxteinmpnn.model.mpnn import PrxteinMPNN
-from prxteinmpnn.run.specs import SamplingSpecification
 from prxteinmpnn.sampling.conditional_logits import make_encoding_conditional_logits_split_fn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.data_structures import Protein
+from prxteinmpnn.utils.decoding_order import DecodingOrder, DecodingOrderFn
 from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
     BackboneCoordinates,
     BackboneNoise,
     ChainIndex,
+    InputBias,
     ProteinSequence,
     ResidueIndex,
     StructureAtomicCoordinates,
 )
-from prxteinmpnn.utils.decoding_order import DecodingOrder, DecodingOrderFn
-from prxteinmpnn.utils.types import InputBias
 
 
 def get_averaged_encodings(
@@ -32,9 +31,8 @@ def get_averaged_encodings(
     noise_batch_size: int,
     random_seed: int,
     average_encoding_mode: Literal["inputs", "noise_levels", "inputs_and_noise"],
-) -> Tuple:
-    """
-    Compute averaged node and edge features from an ensemble of protein structures.
+) -> tuple:
+    """Compute averaged node and edge features from an ensemble of protein structures.
 
     This function encodes a batch of protein structures at multiple noise levels,
     then averages the resulting node and edge features based on the specified
@@ -51,6 +49,7 @@ def get_averaged_encodings(
     Returns:
         A tuple containing the averaged encodings and other necessary features for
         downstream tasks (sampling, scoring, etc.).
+
     """
     encode_fn, _, _ = make_encoding_sampling_split_fn(model)
 

@@ -1,8 +1,8 @@
 """Unit tests for residue constants."""
 
-from unittest.mock import patch, mock_open
+from unittest.mock import mock_open, patch
+
 import numpy as np
-import pytest
 
 from prxteinmpnn.utils import residue_constants
 
@@ -27,7 +27,7 @@ def test_process_lines_iter_chemical_props():
     """Test processing of stereo chemical properties from an iterator."""
     lines_iter = iter(MOCK_STEREO_CHEMICAL_PROPS.splitlines())
     residue_bonds, residue_bond_angles = residue_constants.process_lines_iter_chemical_props(
-        lines_iter
+        lines_iter,
     )
 
     assert "ALA" in residue_bonds
@@ -52,7 +52,7 @@ def test_process_lines_iter_chemical_props_empty():
     """Test processing of empty stereo chemical properties."""
     lines_iter = iter(MOCK_STEREO_CHEMICAL_PROPS_EMPTY.splitlines())
     residue_bonds, residue_bond_angles = residue_constants.process_lines_iter_chemical_props(
-        lines_iter
+        lines_iter,
     )
     assert "UNK" in residue_bonds
     assert not residue_bonds["UNK"]
@@ -79,7 +79,7 @@ def test_load_stereo_chemical_props(mock_file):
     assert virtual_bond.atom1_name == "N"
     assert virtual_bond.atom2_name == "C"
     expected_length = np.sqrt(
-        1.458**2 + 1.526**2 - 2 * 1.458 * 1.526 * np.cos(np.deg2rad(111.2))
+        1.458**2 + 1.526**2 - 2 * 1.458 * 1.526 * np.cos(np.deg2rad(111.2)),
     )
     assert np.isclose(virtual_bond.length, expected_length)
 

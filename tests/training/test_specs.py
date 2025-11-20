@@ -1,7 +1,11 @@
 """Tests for TrainingSpecification."""
 from pathlib import Path
+
 import pytest
+
 from prxteinmpnn.training.specs import TrainingSpecification
+
+
 def test_training_spec_defaults():
     """Test that TrainingSpecification has sensible defaults."""
     spec = TrainingSpecification(

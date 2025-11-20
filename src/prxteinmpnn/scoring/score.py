@@ -51,15 +51,15 @@ def score_sequence_with_encoding(
 ) -> tuple[Float, Logits, DecodingOrder]:
     """Score a sequence on a structure using pre-computed encodings."""
     _, _, decode_fn = make_encoding_sampling_split_fn(model)
-    
+
     if sequence.ndim == 1:
         sequence = jax.nn.one_hot(sequence, num_classes=21)
-    
+
     seq_len = sequence.shape[0]
     ar_mask = jnp.zeros((seq_len, seq_len), dtype=jnp.int32)
-    
+
     logits = decode_fn(encoding, sequence, ar_mask)
-    
+
     log_probability = jax.nn.log_softmax(logits, axis=-1)[..., :20]
     score = -(sequence[..., :20] * log_probability).sum(-1)
     mask = encoding[3] # mask is the 4th element in the encoding tuple

@@ -1,15 +1,9 @@
 """Unit tests for amino acid conversion functions in the prxteinmpnn.utils.aa_convert module."""
 
-import pytest
 import jax.numpy as jnp
 import numpy as np
 
 from prxteinmpnn.utils import aa_convert
-from prxteinmpnn.utils.residue_constants import (
-    restype_order,
-    restype_order_with_x,
-    unk_restype_index,
-)
 
 
 def test_af_to_mpnn_with_integer_sequence():
@@ -26,7 +20,7 @@ def test_mpnn_to_af_and_back_roundtrip():
     af_seq = aa_convert.mpnn_to_af(mpnn_seq)
     mpnn_seq_back = aa_convert.af_to_mpnn(af_seq)
     assert jnp.allclose(
-        mpnn_seq_back, mpnn_seq
+        mpnn_seq_back, mpnn_seq,
     ), f"Expected {mpnn_seq}, got {mpnn_seq_back}"
 
 
@@ -52,7 +46,7 @@ def test_string_to_protein_sequence():
 
     custom_map = {"A": 10, "R": 20}
     result_custom = aa_convert.string_to_protein_sequence(
-        "ARX", aa_map=custom_map, unk_index=99
+        "ARX", aa_map=custom_map, unk_index=99,
     )
     expected_custom = jnp.array([10, 20, 99])
     assert jnp.allclose(result_custom, expected_custom)
@@ -70,7 +64,7 @@ def test_protein_sequence_to_string():
     # We want to map AF 0 to "ALA", AF 2 to "ASN", and AF 7 should be unknown ("X")
     af_custom_map = {0: "ALA", 2: "ASN"}
     result_custom = aa_convert.protein_sequence_to_string(
-        jnp.array([0, 11, 5]), aa_map=af_custom_map
+        jnp.array([0, 11, 5]), aa_map=af_custom_map,
     )
     expected_custom = "ALAASNX"
     assert result_custom == expected_custom

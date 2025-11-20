@@ -3,6 +3,7 @@
 import chex
 import jax
 import jax.numpy as jnp
+
 from prxteinmpnn.utils.gelu import GeLU
 
 
@@ -11,6 +12,7 @@ def test_gelu():
 
     Raises:
         AssertionError: If the output does not match the JAX implementation.
+
     """
     x = jnp.array([-3.0, -1.0, 0.0, 1.0, 3.0])
     expected_y = jax.nn.gelu(x, approximate=False)

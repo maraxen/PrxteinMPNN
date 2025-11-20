@@ -1,16 +1,17 @@
 """Integration tests for trainer with checkpoint functionality."""
-import tempfile
 from pathlib import Path
+
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-import optax
 import orbax.checkpoint as ocp
-import pytest
+
 from prxteinmpnn.training.checkpoint import restore_checkpoint, save_checkpoint
+from prxteinmpnn.training.metrics import TrainingMetrics
 from prxteinmpnn.training.specs import TrainingSpecification
 from prxteinmpnn.training.trainer import create_optimizer
-from prxteinmpnn.training.metrics import TrainingMetrics
+
+
 def test_checkpoint_integration_with_trainer_setup(small_model, temp_checkpoint_dir):
     """Test that checkpoint setup works as trainer.py would use it."""
     spec = TrainingSpecification(

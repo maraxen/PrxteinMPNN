@@ -1,8 +1,10 @@
 """Tests for the PrxteinMPNN model."""
+from functools import partial
+
 import chex
 import jax
 import jax.numpy as jnp
-from functools import partial
+
 from prxteinmpnn.model.mpnn import PrxteinMPNN
 
 
@@ -32,7 +34,7 @@ class TestMPNN(chex.TestCase):
         """Test the __call__ method with all decoding approaches."""
 
         @partial(
-            self.variant, static_argnames=["decoding_approach", "multi_state_strategy"]
+            self.variant, static_argnames=["decoding_approach", "multi_state_strategy"],
         )
         def call_fn(decoding_approach, multi_state_strategy, **kwargs):
             return self.model(

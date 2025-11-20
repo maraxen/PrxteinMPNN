@@ -1,11 +1,8 @@
 """Tests for unconditional_logits."""
-from functools import partial
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import chex
-import equinox as eqx
-import jax
 import jax.numpy as jnp
 import pytest
 from jaxtyping import PRNGKeyArray

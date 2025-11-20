@@ -64,29 +64,29 @@ class TestAlignments(chex.TestCase):
     def test_batch_processing(self):
         """Test batch processing for alignment functions."""
         batch_score_matrices = jnp.stack(
-            [self.sample_score_matrix, self.sample_score_matrix]
+            [self.sample_score_matrix, self.sample_score_matrix],
         )
         masks_a = jnp.array([[True, True, True], [True, True, True]])
         masks_b = jnp.array([[True, True, True], [True, True, True]])
         batch_masks = (masks_a, masks_b)
 
         align_fn_no_gap = self.variant(
-            smith_waterman_no_gap(unroll_factor=2, batch=True)
+            smith_waterman_no_gap(unroll_factor=2, batch=True),
         )
         align_fn_gap = self.variant(
-            smith_waterman(unroll_factor=2, ninf=-1e30, batch=True)
+            smith_waterman(unroll_factor=2, ninf=-1e30, batch=True),
         )
         align_fn_affine = self.variant(
-            smith_waterman_affine(unroll=2, ninf=-1e30, batch=True)
+            smith_waterman_affine(unroll=2, ninf=-1e30, batch=True),
         )
         align_fn_nw = self.variant(
-            needleman_wunsch_alignment(unroll_factor=2, batch=True)
+            needleman_wunsch_alignment(unroll_factor=2, batch=True),
         )
 
         result_no_gap = align_fn_no_gap(batch_score_matrices, batch_masks, 1.0)
         result_gap = align_fn_gap(batch_score_matrices, batch_masks, -1.0, 1.0)
         result_affine = align_fn_affine(
-            batch_score_matrices, batch_masks, -1.0, -2.0, 1.0
+            batch_score_matrices, batch_masks, -1.0, -2.0, 1.0,
         )
         result_nw = align_fn_nw(batch_score_matrices, batch_masks, -1.0, 1.0)
 
@@ -94,7 +94,7 @@ class TestAlignments(chex.TestCase):
             chex.assert_shape(result, (2, 3, 3))
             chex.assert_tree_all_finite(result)
             assert jnp.all(
-                result.sum(axis=(-1, -2)) > 0
+                result.sum(axis=(-1, -2)) > 0,
             ), "All alignment traces should be positive."
 
     @chex.variants(with_jit=True, without_jit=True)
@@ -102,10 +102,10 @@ class TestAlignments(chex.TestCase):
         """Test the Needleman-Wunsch alignment."""
         masks = (jnp.array([True, True, True]), jnp.array([True, True, True]))
         align_fn = self.variant(
-            needleman_wunsch_alignment(unroll_factor=2, batch=False)
+            needleman_wunsch_alignment(unroll_factor=2, batch=False),
         )
         result = align_fn(
-            self.sample_score_matrix, masks, gap_penalty=-1.0, temperature=1.0
+            self.sample_score_matrix, masks, gap_penalty=-1.0, temperature=1.0,
         )
         chex.assert_shape(result, self.sample_score_matrix.shape)
         chex.assert_tree_all_finite(result)

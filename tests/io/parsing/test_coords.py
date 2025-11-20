@@ -1,13 +1,13 @@
 """Tests for coordinate utilities."""
 
 import numpy as np
-import pytest
 from chex import assert_trees_all_close
+
 from prxteinmpnn.io.parsing.coords import (
     compute_cb_precise,
     extend_coordinate,
-    process_coordinates,
 )
+
 
 def test_extend_coordinate():
     """Test the extend_coordinate function."""

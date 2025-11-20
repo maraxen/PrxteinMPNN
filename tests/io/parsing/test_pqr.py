@@ -2,44 +2,37 @@
 """
 
 import pathlib
+
 import numpy as np
 import pytest
-from prxteinmpnn.io.parsing.pqr import _parse_pqr
-from prxteinmpnn.utils.data_structures import EstatInfo
+
+from prxteinmpnn.io.parsing.pqr import parse_pqr_to_processed_structure
+from prxteinmpnn.io.parsing.structures import ProcessedStructure
 
 TEST_PQR_PATH = pathlib.Path(__file__).parent.parent.parent / "data" / "1a00.pqr"
 
 def test_parse_pqr_basic():
     """Test parsing a standard PQR file."""
-    temp_path, estat_info = _parse_pqr(TEST_PQR_PATH)
-    assert temp_path.exists()
-    assert isinstance(estat_info, EstatInfo)
-    assert estat_info.charges.shape == estat_info.radii.shape
-    assert estat_info.charges.dtype == np.float32
-    assert estat_info.radii.dtype == np.float32
-    assert estat_info.estat_backbone_mask.dtype == bool
-    assert estat_info.estat_resid.dtype == np.int32
-    assert estat_info.estat_chain_index.dtype == np.int32
-    # Check at least one backbone atom is present
-    assert estat_info.estat_backbone_mask.any()
-    temp_path.unlink()
+    processed_structure = parse_pqr_to_processed_structure(TEST_PQR_PATH)
+    assert isinstance(processed_structure, ProcessedStructure)
+    assert processed_structure.charges.shape == processed_structure.radii.shape
+    assert processed_structure.charges.dtype == np.float32
+    assert processed_structure.radii.dtype == np.float32
+    # Check that we have atoms
+    assert processed_structure.atom_array.array_length() > 0
 
 def test_parse_pqr_chain_selection():
     """Test parsing with chain selection (should only include chain A)."""
-    temp_path, estat_info = _parse_pqr(TEST_PQR_PATH, chain_id="A")
-    assert temp_path.exists()
-    # All chain indices should correspond to 'A'
-    assert np.all(estat_info.estat_chain_index == ord("A"))
-    temp_path.unlink()
+    processed_structure = parse_pqr_to_processed_structure(TEST_PQR_PATH, chain_id="A")
+    # Check that all chain IDs in the atom array are 'A'
+    assert np.all(processed_structure.atom_array.chain_id == "A")
 
 def test_parse_pqr_empty(tmp_path):
-    """Test parsing an empty PQR file (should return empty arrays)."""
+    """Test parsing an empty PQR file (should raise ValueError)."""
     empty_pqr = tmp_path / "empty.pqr"
     empty_pqr.write_text("")
-    temp_path, estat_info = _parse_pqr(empty_pqr)
-    assert temp_path.exists()
-    assert estat_info.charges.size == 0
-    temp_path.unlink()
+    with pytest.raises(ValueError, match="No atoms found"):
+        parse_pqr_to_processed_structure(empty_pqr)
 
 def test_parse_pqr_insertion_codes(tmp_path):
     """Test parsing PQR file with residue insertion codes (e.g., '52A')."""
@@ -57,17 +50,11 @@ ATOM      8  CA  ALA A  52B     17.000  27.000  37.000   0.100   1.700
 ATOM      9  N   ALA A  53      18.000  28.000  38.000  -0.500   1.850
 """
     pqr_with_insertion.write_text(pqr_content)
-    temp_path, estat_info = _parse_pqr(pqr_with_insertion)
-    
-    assert temp_path.exists()
-    assert len(estat_info.charges) == 9
-    
+    processed_structure = parse_pqr_to_processed_structure(pqr_with_insertion)
+
+    assert len(processed_structure.charges) == 9
+
     # Check that residue IDs are extracted correctly (numeric part only)
     # 50, 50, 52, 52, 52, 52, 52, 52, 53
-    expected_resids = np.array([50, 50, 52, 52, 52, 52, 52, 52, 53], dtype=np.int32)
-    assert np.array_equal(estat_info.estat_resid, expected_resids)
-    
-    # Check that backbone atoms are identified correctly
-    assert estat_info.estat_backbone_mask.sum() == 9  # All N and CA atoms
-    
-    temp_path.unlink()
+    expected_resids = np.array([50, 50, 52, 52, 52, 52, 52, 52, 53], dtype=int)
+    assert np.array_equal(processed_structure.r_indices, expected_resids)

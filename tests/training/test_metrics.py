@@ -1,13 +1,14 @@
 """Tests for training metrics."""
 import chex
-import jax
 import jax.numpy as jnp
-import pytest
+
 from prxteinmpnn.training.metrics import (
     EvaluationMetrics,
     TrainingMetrics,
     compute_grad_norm,
 )
+
+
 def test_training_metrics_creation():
     """Test creating TrainingMetrics."""
     metrics = TrainingMetrics(

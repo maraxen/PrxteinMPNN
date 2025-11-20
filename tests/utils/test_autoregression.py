@@ -58,7 +58,7 @@ def test_resolve_tie_groups_auto():
 
 def test_resolve_tie_groups_explicit():
   """Test resolve_tie_groups with explicit tied positions."""
-  inp = make_input([10000, 10001, 10000, 10001], [5, 10, 6, 11])  # noqa: PLR2004
+  inp = make_input([10000, 10001, 10000, 10001], [5, 10, 6, 11])
   spec = RunSpecification(inputs=["dummy"], tied_positions=[[(10000, 5), (10001, 10)]])
   out = resolve_tie_groups(spec, inp)
   chain_ids = inp.chain_index[0]
@@ -96,6 +96,7 @@ def test_generate_ar_mask(decoding_order, expected_mask):
 
     Raises:
         AssertionError: If the output does not match the expected value.
+
     """
     mask = generate_ar_mask(decoding_order)
     chex.assert_trees_all_equal(mask, expected_mask)

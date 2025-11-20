@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-import optax
 
-from prxteinmpnn.model.diffusion_mpnn import DiffusionPrxteinMPNN
-from prxteinmpnn.training.diffusion import NoiseSchedule
-from prxteinmpnn.training.losses import cross_entropy_loss, sequence_recovery_accuracy, perplexity
-from prxteinmpnn.utils.types import Logits, TrainingMetrics
+from prxteinmpnn.training.losses import cross_entropy_loss, perplexity, sequence_recovery_accuracy
+
+if TYPE_CHECKING:
+    import optax
+
+    from prxteinmpnn.model.diffusion_mpnn import DiffusionPrxteinMPNN
+    from prxteinmpnn.training.diffusion import NoiseSchedule
+    from prxteinmpnn.utils.types import Logits, TrainingMetrics
 
 
 @eqx.filter_jit
@@ -44,7 +47,7 @@ def train_step(
         # 1. Sample random timesteps t for each item in the batch
         keys = jax.random.split(prng_key, 2)
         t_key, noise_key = keys[0], keys[1]
-        
+
         timesteps = jax.random.randint(
             t_key,
             shape=(batch_size,),
@@ -66,15 +69,15 @@ def train_step(
         model_keys = jax.random.split(noise_key, batch_size)
 
         def single_forward(
-            coords,
-            msk,
-            res_idx,
-            chain_idx,
-            noisy_seq,
-            t,
-            key,
-            phys_feat,
-        ):
+            coords: jax.Array,
+            msk: jax.Array,
+            res_idx: jax.Array,
+            chain_idx: jax.Array,
+            noisy_seq: jax.Array,
+            t: jax.Array,
+            key: jax.Array,
+            phys_feat: jax.Array | None,
+        ) -> jax.Array:
             # We use decoding_approach="diffusion" which triggers the subclass logic
             _, logits = model(
                 coords,
@@ -112,18 +115,20 @@ def train_step(
         return loss, logits_batch
 
     (loss, logits_batch), grads = eqx.filter_value_and_grad(loss_fn, has_aux=True)(model)
-    
+
     updates, new_opt_state = optimizer.update(grads, opt_state, model)
     new_model = eqx.apply_updates(model, updates)
 
     # Metrics
-    def batch_metrics(logits: Logits, seq: jax.Array, msk: jax.Array) -> tuple[jax.Array, jax.Array]:
+    def batch_metrics(
+        logits: Logits, seq: jax.Array, msk: jax.Array,
+    ) -> tuple[jax.Array, jax.Array]:
         acc = sequence_recovery_accuracy(logits, seq, msk)
         ppl = perplexity(logits, seq, msk)
         return acc, ppl
 
     accuracies, perplexities = jax.vmap(batch_metrics)(logits_batch, sequence, mask)
-    
+
     metrics = {
         "loss": loss,
         "accuracy": jnp.mean(accuracies),

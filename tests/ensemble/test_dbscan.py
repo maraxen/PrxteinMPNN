@@ -1,25 +1,26 @@
 """Tests for DBSCAN clustering functionality."""
 
+from unittest.mock import Mock, patch
+
 import chex
 import jax
 import jax.numpy as jnp
 import pytest
-from unittest.mock import Mock, patch
 
 from prxteinmpnn.ensemble.dbscan import (
   ConformationalStates,
-  GMMClusteringResult,
   EntropyTrace,
+  GMMClusteringResult,
+  _get_neighborhood,
   compute_component_distances,
   dbscan_cluster,
   trace_entropy_across_eps,
-  _get_neighborhood,
 )
 
 
 class TestResidueConformationalStates:
   """Test the ResidueConformationalStates dataclass."""
-  
+
   def test_residue_conformational_states_creation(self):
     """Test creation of ResidueConformationalStates.
     
@@ -28,6 +29,7 @@ class TestResidueConformationalStates:
       
     Example:
       >>> test_residue_conformational_states_creation()
+
     """
     states = ConformationalStates(
       n_states=5,
@@ -40,7 +42,7 @@ class TestResidueConformationalStates:
       dbscan_eps=0.5,
       min_cluster_weight=0.01,
     )
-    
+
     assert states.n_states == 5
     assert states.mle_entropy == 1.2
     chex.assert_shape(states.state_trajectory, (5,))
@@ -49,7 +51,7 @@ class TestResidueConformationalStates:
 
 class TestGMMClusteringResult:
   """Test the GMMClusteringResult dataclass."""
-  
+
   def test_gmm_clustering_result_creation(self):
     """Test creation of GMMClusteringResult.
     
@@ -58,6 +60,7 @@ class TestGMMClusteringResult:
       
     Example:
       >>> test_gmm_clustering_result_creation()
+
     """
     n_components = 10
     result = GMMClusteringResult(
@@ -73,7 +76,7 @@ class TestGMMClusteringResult:
       min_cluster_weight=0.01,
       state_density_matrix=jnp.eye(n_components) / n_components,
     )
-    
+
     assert result.plug_in_entropy == 2.3
     chex.assert_shape(result.coarse_graining_matrix, (n_components, n_components))
     chex.assert_shape(result.state_probabilities, (n_components,))
@@ -81,7 +84,7 @@ class TestGMMClusteringResult:
 
 class TestEntropyTrace:
   """Test the EntropyTrace dataclass."""
-  
+
   def test_entropy_trace_creation(self):
     """Test creation of EntropyTrace.
     
@@ -90,6 +93,7 @@ class TestEntropyTrace:
       
     Example:
       >>> test_entropy_trace_creation()
+
     """
     n_eps = 50
     trace = EntropyTrace(
@@ -100,7 +104,7 @@ class TestEntropyTrace:
       z_score_sq=jnp.ones(n_eps) * 0.5,
       eps_values=jnp.linspace(0.01, 0.99, n_eps),
     )
-    
+
     chex.assert_shape(trace.plug_in_entropy, (n_eps,))
     chex.assert_shape(trace.eps_values, (n_eps,))
     assert jnp.allclose(trace.plug_in_entropy, 2.0)
@@ -108,7 +112,7 @@ class TestEntropyTrace:
 
 class TestComputeComponentDistances:
   """Test component distance computation."""
-  
+
   def test_compute_component_distances_shape(self):
     """Test output shape of distance computation.
     
@@ -117,17 +121,18 @@ class TestComputeComponentDistances:
       
     Example:
       >>> test_compute_component_distances_shape()
+
     """
     n_components = 5
     n_features = 21
     key = jax.random.PRNGKey(42)
     means = jax.random.normal(key, (n_components, n_features))
-    
+
     distances = compute_component_distances(means)
-    
+
     chex.assert_shape(distances, (n_components, n_components))
     chex.assert_type(distances, jnp.floating)
-  
+
   def test_compute_component_distances_symmetry(self):
     """Test that distance matrix is symmetric.
     
@@ -136,16 +141,17 @@ class TestComputeComponentDistances:
       
     Example:
       >>> test_compute_component_distances_symmetry()
+
     """
     n_components = 4
     n_features = 21
     key = jax.random.PRNGKey(123)
     means = jax.random.normal(key, (n_components, n_features))
-    
+
     distances = compute_component_distances(means)
-    
+
     assert jnp.allclose(distances, distances.T), "Distance matrix should be symmetric"
-  
+
   def test_compute_component_distances_diagonal_zeros(self):
     """Test that diagonal elements are zero.
     
@@ -154,17 +160,18 @@ class TestComputeComponentDistances:
       
     Example:
       >>> test_compute_component_distances_diagonal_zeros()
+
     """
     n_components = 3
     n_features = 10
     key = jax.random.PRNGKey(456)
     means = jax.random.normal(key, (n_components, n_features))
-    
+
     distances = compute_component_distances(means)
-    
+
     diagonal = jnp.diag(distances)
     assert jnp.allclose(diagonal, 0.0, atol=1e-6), "Diagonal should be zero"
-  
+
   def test_compute_component_distances_positive(self):
     """Test that all distances are non-negative.
     
@@ -173,20 +180,21 @@ class TestComputeComponentDistances:
       
     Example:
       >>> test_compute_component_distances_positive()
+
     """
     n_components = 6
     n_features = 21
     key = jax.random.PRNGKey(789)
     means = jax.random.normal(key, (n_components, n_features))
-    
+
     distances = compute_component_distances(means)
-    
+
     assert jnp.all(distances >= 0), "All distances should be non-negative"
 
 
 class TestGetNeighborhood:
   """Test neighborhood computation."""
-  
+
   def test_get_neighborhood_shape(self):
     """Test output shape of neighborhood computation.
     
@@ -195,16 +203,17 @@ class TestGetNeighborhood:
       
     Example:
       >>> test_get_neighborhood_shape()
+
     """
     n_components = 5
     distance_matrix = jax.random.uniform(jax.random.PRNGKey(0), (n_components, n_components))
     eps = 0.5
-    
+
     neighborhood = _get_neighborhood(distance_matrix, eps)
-    
+
     chex.assert_shape(neighborhood, (n_components, n_components))
     chex.assert_type(neighborhood, jnp.floating)
-  
+
   def test_get_neighborhood_binary(self):
     """Test that neighborhood matrix is binary.
     
@@ -213,6 +222,7 @@ class TestGetNeighborhood:
       
     Example:
       >>> test_get_neighborhood_binary()
+
     """
     n_components = 4
     distance_matrix = jnp.array([[0, 0.3, 0.7, 0.2],
@@ -220,12 +230,12 @@ class TestGetNeighborhood:
                                  [0.7, 0.4, 0, 0.6],
                                  [0.2, 0.8, 0.6, 0]])
     eps = 0.5
-    
+
     neighborhood = _get_neighborhood(distance_matrix, eps)
-    
+
     # Should be binary (0 or 1)
     assert jnp.all(jnp.isin(neighborhood, jnp.array([0.0, 1.0]))), "Neighborhood should be binary"
-  
+
   def test_get_neighborhood_threshold(self):
     """Test neighborhood threshold behavior.
     
@@ -234,56 +244,58 @@ class TestGetNeighborhood:
       
     Example:
       >>> test_get_neighborhood_threshold()
+
     """
     distance_matrix = jnp.array([[0, 0.3, 0.7],
                                  [0.3, 0, 0.4],
                                  [0.7, 0.4, 0]])
     eps = 0.5
-    
+
     neighborhood = _get_neighborhood(distance_matrix, eps)
-    
+
     # Distances <= eps should be 1, distances > eps should be 0
     expected = jnp.array([[1, 1, 0],  # 0 <= 0.5, 0.3 <= 0.5, 0.7 > 0.5
                           [1, 1, 1],  # 0.3 <= 0.5, 0 <= 0.5, 0.4 <= 0.5
                           [0, 1, 1]]) # 0.7 > 0.5, 0.4 <= 0.5, 0 <= 0.5
-    
+
     assert jnp.allclose(neighborhood, expected), f"Expected {expected}, got {neighborhood}"
 
 
 class TestPerformDbscanClustering:
   """Test DBSCAN clustering functionality."""
-  
+
   @pytest.fixture
   def mock_clustering_data(self):
     """Create mock data for clustering tests.
     
     Returns:
       Dictionary containing mock clustering data.
+
     """
     n_components = 6
     n_observations = 20
     key = jax.random.PRNGKey(42)
-    
+
     # Create simple distance matrix
     distance_matrix = jax.random.uniform(key, (n_components, n_components))
     distance_matrix = (distance_matrix + distance_matrix.T) / 2  # Make symmetric
     distance_matrix = distance_matrix.at[jnp.diag_indices(n_components)].set(0)  # Zero diagonal
-    
+
     component_weights = jnp.ones(n_components) / n_components
     responsibility_matrix = jax.random.uniform(
-      jax.random.split(key)[1], (n_observations, n_components)
+      jax.random.split(key)[1], (n_observations, n_components),
     )
     # Normalize responsibilities
     responsibility_matrix = responsibility_matrix / responsibility_matrix.sum(axis=1, keepdims=True)
-    
+
     return {
-      'distance_matrix': distance_matrix,
-      'component_weights': component_weights,
-      'responsibility_matrix': responsibility_matrix,
-      'eps': 0.3,
-      'min_cluster_weight': 0.05,
+      "distance_matrix": distance_matrix,
+      "component_weights": component_weights,
+      "responsibility_matrix": responsibility_matrix,
+      "eps": 0.3,
+      "min_cluster_weight": 0.05,
     }
-  
+
   def test_perform_dbscan_clustering_output_types(self, mock_clustering_data):
       """Test that DBSCAN clustering returns correct types.
       
@@ -295,14 +307,15 @@ class TestPerformDbscanClustering:
         
       Example:
         >>> test_perform_dbscan_clustering_output_types(mock_clustering_data)
+
       """
       result = dbscan_cluster(**mock_clustering_data)
-      
+
       assert isinstance(result, GMMClusteringResult)
       chex.assert_type(result.coarse_graining_matrix, jnp.floating)
       chex.assert_type(result.state_probabilities, jnp.floating)
       chex.assert_type(result.plug_in_entropy, jnp.floating)
-  
+
   def test_perform_dbscan_clustering_output_shapes(self, mock_clustering_data):
     """Test that DBSCAN clustering returns correct shapes.
     
@@ -314,17 +327,18 @@ class TestPerformDbscanClustering:
       
     Example:
       >>> test_perform_dbscan_clustering_output_shapes(mock_clustering_data)
+
     """
     data = mock_clustering_data
-    n_components = data['distance_matrix'].shape[0]
-    
+    n_components = data["distance_matrix"].shape[0]
+
     result = dbscan_cluster(**data)
-    
+
     chex.assert_shape(result.coarse_graining_matrix, (n_components, n_components))
     chex.assert_shape(result.core_component_connectivity, (n_components, n_components))
     chex.assert_shape(result.state_probabilities, (n_components,))
     chex.assert_shape(result.state_density_matrix, (n_components, n_components))
-  
+
   def test_perform_dbscan_clustering_probability_sum(self, mock_clustering_data):
     """Test that state probabilities sum to approximately 1.
     
@@ -336,12 +350,13 @@ class TestPerformDbscanClustering:
       
     Example:
       >>> test_perform_dbscan_clustering_probability_sum(mock_clustering_data)
+
     """
     result = dbscan_cluster(**mock_clustering_data)
-    
+
     prob_sum = jnp.sum(result.state_probabilities)
     assert jnp.allclose(prob_sum, 1.0, atol=1e-5), f"Probabilities sum to {prob_sum}, not 1.0"
-  
+
   def test_perform_dbscan_clustering_connectivity_methods(self, mock_clustering_data):
     """Test different connectivity methods.
     
@@ -353,60 +368,63 @@ class TestPerformDbscanClustering:
       
     Example:
       >>> test_perform_dbscan_clustering_connectivity_methods(mock_clustering_data)
+
     """
     data = mock_clustering_data
-    
+
     # Test 'expm' method (default)
-    result_expm = dbscan_cluster(**data, connectivity_method='expm')
+    result_expm = dbscan_cluster(**data, connectivity_method="expm")
     assert isinstance(result_expm, GMMClusteringResult)
-    
+
     # Test 'power' method
-    result_power = dbscan_cluster(**data, connectivity_method='power')
+    result_power = dbscan_cluster(**data, connectivity_method="power")
     assert isinstance(result_power, GMMClusteringResult)
-    
+
     # Results may be different but should have same structure
     chex.assert_shape(
       result_expm.coarse_graining_matrix,
-      result_power.coarse_graining_matrix.shape
+      result_power.coarse_graining_matrix.shape,
     )
-  
+
 
 class TestTraceEntropyAcrossEps:
   """Test entropy tracing functionality."""
-  
+
   @pytest.fixture
   def mock_gmm(self):
     """Create mock GMM for testing.
     
     Returns:
       Mock GMM object.
+
     """
     gmm = Mock()
     n_components = 10
     n_features = 21
     key = jax.random.PRNGKey(42)
-    
+
     gmm.means_ = jax.random.normal(key, (n_components, n_features))
     gmm.weights_ = jnp.ones(n_components) / n_components
     gmm.predict_proba.return_value = jax.random.uniform(
-      jax.random.split(key)[1], (50, n_components)
+      jax.random.split(key)[1], (50, n_components),
     )
-    
+
     return gmm
-  
+
   @pytest.fixture
   def mock_logits_for_trace(self):
     """Create mock logits for entropy tracing.
     
     Returns:
       Mock logits array.
+
     """
     n_timesteps = 50
     n_features = 21
     key = jax.random.PRNGKey(123)
     return jax.random.normal(key, (n_timesteps, n_features))
 
-  @patch('prxteinmpnn.ensemble.dbscan.dbscan_cluster')
+  @patch("prxteinmpnn.ensemble.dbscan.dbscan_cluster")
   def test_trace_entropy_across_eps_default_eps(
     self,
     mock_clustering,
@@ -425,6 +443,7 @@ class TestTraceEntropyAcrossEps:
       
     Example:
       >>> test_trace_entropy_across_eps_default_eps(...)
+
     """
     # Setup mock clustering result
     mock_result = Mock()
@@ -433,16 +452,16 @@ class TestTraceEntropyAcrossEps:
     mock_result.posterior_mean_entropy = 1.95
     mock_result.posterior_entropy_std_err = 0.1
     mock_clustering.return_value = mock_result
-    
+
     # Test tracing
     trace = trace_entropy_across_eps(mock_gmm, mock_logits_for_trace)
-    
+
     assert isinstance(trace, EntropyTrace)
     chex.assert_shape(trace.eps_values, (99,))  # Default linspace(0.01, 0.99, 99)
     chex.assert_shape(trace.plug_in_entropy, (99,))
     chex.assert_shape(trace.von_neumann_entropy, (99,))
-  
-  @patch('prxteinmpnn.ensemble.dbscan.dbscan_cluster')
+
+  @patch("prxteinmpnn.ensemble.dbscan.dbscan_cluster")
   def test_trace_entropy_across_eps_custom_eps(
     self,
     mock_clustering,
@@ -461,6 +480,7 @@ class TestTraceEntropyAcrossEps:
       
     Example:
       >>> test_trace_entropy_across_eps_custom_eps(...)
+
     """
     # Setup mock clustering result
     mock_result = Mock()
@@ -469,22 +489,22 @@ class TestTraceEntropyAcrossEps:
     mock_result.posterior_mean_entropy = 1.45
     mock_result.posterior_entropy_std_err = 0.05
     mock_clustering.return_value = mock_result
-    
+
     # Custom eps values
     custom_eps = jnp.array([0.1, 0.3, 0.5, 0.7])
-    
+
     trace = trace_entropy_across_eps(
       mock_gmm,
       mock_logits_for_trace,
-      eps_values=custom_eps
+      eps_values=custom_eps,
     )
-    
+
     chex.assert_shape(trace.eps_values, (4,))
     chex.assert_shape(trace.plug_in_entropy, (4,))
     assert jnp.allclose(trace.eps_values, custom_eps)
-  
-  @patch('prxteinmpnn.ensemble.dbscan.dbscan_cluster')
-  @patch('jax.lax.map')
+
+  @patch("prxteinmpnn.ensemble.dbscan.dbscan_cluster")
+  @patch("jax.lax.map")
   def test_trace_entropy_across_eps_chunked(
     self,
     mock_lax_map,
@@ -505,6 +525,7 @@ class TestTraceEntropyAcrossEps:
       
     Example:
       >>> test_trace_entropy_across_eps_chunked(...)
+
     """
     # Setup mock returns
     mock_results = (
@@ -515,16 +536,16 @@ class TestTraceEntropyAcrossEps:
       jnp.array([0.5, 0.5, 0.5]),
     )
     mock_lax_map.return_value = mock_results
-    
+
     large_eps = jnp.linspace(0.01, 0.99, 150)  # Large enough to trigger chunking
-    
+
     trace = trace_entropy_across_eps(
       mock_gmm,
       mock_logits_for_trace,
       eps_values=large_eps,
       vmap_chunk_size=50,
     )
-    
+
     # Should use lax.map for chunked processing
     mock_lax_map.assert_called_once()
     chex.assert_shape(trace.plug_in_entropy, (3,))  # Flattened mock results

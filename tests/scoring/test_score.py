@@ -36,7 +36,7 @@ def mock_model() -> PrxteinMPNN:
         # We hardcode the residue count because the '1ubq.pdb' fixture is static.
         n_residues = 76
         logits = jax.random.uniform(
-            prng_key, shape=(n_residues, 21), dtype=jnp.float32
+            prng_key, shape=(n_residues, 21), dtype=jnp.float32,
         )
         return None, logits
 
@@ -47,7 +47,7 @@ def mock_model() -> PrxteinMPNN:
 @pytest.mark.parametrize("jit_compile", [True, False])
 @jaxtyped
 def test_make_score_sequence_output_shape_and_type(
-    mock_model: PrxteinMPNN, protein_structure: Protein, jit_compile: bool
+    mock_model: PrxteinMPNN, protein_structure: Protein, jit_compile: bool,
 ):
     """Test the output shape and type of the scoring function."""
 
@@ -62,7 +62,7 @@ def test_make_score_sequence_output_shape_and_type(
         # This prevents the @partial(jax.jit, ...) decorator inside make_score_sequence
         # from compiling the function.
         with patch(
-            "prxteinmpnn.scoring.score.jax.jit", new=lambda fn, *args, **kwargs: fn
+            "prxteinmpnn.scoring.score.jax.jit", new=lambda fn, *args, **kwargs: fn,
         ):
             score_fn = get_score_fn()
 

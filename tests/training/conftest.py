@@ -8,8 +8,8 @@ import pytest
 from jax import random
 
 from prxteinmpnn.io.parsing import parse_input
-from prxteinmpnn.utils.data_structures import Protein
 from prxteinmpnn.model.mpnn import PrxteinMPNN
+from prxteinmpnn.utils.data_structures import Protein
 
 
 @pytest.fixture(scope="session")
@@ -38,7 +38,7 @@ def small_model() -> PrxteinMPNN:
 def mock_batch(protein_structure: Protein) -> Protein:
     """Create a mock batch of protein structures."""
     return jax.tree_util.tree_map(
-        lambda x: jnp.expand_dims(x, axis=0), protein_structure
+        lambda x: jnp.expand_dims(x, axis=0), protein_structure,
     )
 
 

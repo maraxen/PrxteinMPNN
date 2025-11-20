@@ -1,6 +1,7 @@
 """Test suite for the psa module."""
 import jax.numpy as jnp
 import pytest
+
 from prxteinmpnn.psa.psa import (
     calculate_deformation_gradient,
     calculate_green_lagrange_strain,
@@ -8,6 +9,7 @@ from prxteinmpnn.psa.psa import (
     run_psa,
 )
 from prxteinmpnn.utils.data_structures import Protein
+
 
 @pytest.fixture
 def reference_coordinates():
@@ -19,20 +21,20 @@ def deformed_coordinates():
 
 def test_calculate_deformation_gradient(reference_coordinates, deformed_coordinates):
     deformation_gradient = calculate_deformation_gradient(
-        reference_coordinates, deformed_coordinates
+        reference_coordinates, deformed_coordinates,
     )
     assert deformation_gradient.shape == (3, 3)
 
 def test_calculate_green_lagrange_strain(reference_coordinates, deformed_coordinates):
     deformation_gradient = calculate_deformation_gradient(
-        reference_coordinates, deformed_coordinates
+        reference_coordinates, deformed_coordinates,
     )
     green_lagrange_strain = calculate_green_lagrange_strain(deformation_gradient)
     assert green_lagrange_strain.shape == (3, 3)
 
 def test_calculate_principal_strains(reference_coordinates, deformed_coordinates):
     deformation_gradient = calculate_deformation_gradient(
-        reference_coordinates, deformed_coordinates
+        reference_coordinates, deformed_coordinates,
     )
     green_lagrange_strain = calculate_green_lagrange_strain(deformation_gradient)
     principal_strains = calculate_principal_strains(green_lagrange_strain)

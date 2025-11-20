@@ -1,12 +1,13 @@
 
 import pathlib
 import tempfile
-from prxteinmpnn.utils import residue_constants as rc
 
 import h5py
 import mdtraj as md
 import numpy as np
 import pytest
+
+from prxteinmpnn.utils import residue_constants as rc
 
 PDB_1UBQ_STRING = """
 HEADER    CHROMOSOMAL PROTEIN                     02-JAN-87   1UBQ
@@ -68,7 +69,7 @@ _atom_site.B_iso_or_equiv
 _atom_site.pdbx_PDB_model_num
 _atom_site.pdbx_PDB_ins_code
 ATOM 1 N N GLY A 1 -6.778 -1.424 4.200 1.00 0.00 1 ?
-"""
+""",
         )
         filepath = f.name
     yield filepath
@@ -109,8 +110,7 @@ def single_model_hdf5_file(single_model_pdb_file):
 
 @pytest.fixture
 def mdcath_hdf5_file():
-    """
-    Pytest fixture to create a mock mdCATH HDF5 file.
+    """Pytest fixture to create a mock mdCATH HDF5 file.
     It creates a simplified structure with a single domain, one temperature,
     one replica, and mock datasets.
     """
@@ -123,37 +123,37 @@ def mdcath_hdf5_file():
     num_residues = 71
     num_full_atoms = 1055 # As per your coords example
     num_frames = 10 # Number of frames in the trajectory
-    
+
     # Mock data for datasets
     mock_box = np.array([[10.0, 0, 0], [0, 10.0, 0], [0, 0, 10.0]], dtype=np.float32)
     mock_coords = np.random.rand(num_frames, num_full_atoms, 3).astype(np.float32) * 100
-    
+
     # Mock dssp: (frames, num_residues), often string/object type.
     # Let's use characters 'H', 'E', 'C' for helix, strand, coil.
-    mock_dssp_values = np.array([list("HHHHHEEECCCCEEEEHHHHHCCHHHHCCCCCHHHHHHHHHHHHHHHHCCEEEEECC") * 2], dtype='|O')
+    mock_dssp_values = np.array([list("HHHHHEEECCCCEEEEHHHHHCCHHHHCCCCCHHHHHHHHHHHHHHHHCCEEEEECC") * 2], dtype="|O")
     mock_dssp_values = np.tile(mock_dssp_values, (num_frames, 1))[:, :num_residues] # Adjust length
-    
+
     mock_forces = np.random.rand(num_frames, num_full_atoms, 3).astype(np.float32)
     mock_gyration_radius = np.random.rand(num_frames).astype(np.float64) * 10
     mock_rmsd = np.random.rand(num_frames).astype(np.float32) * 5
     mock_rmsf = np.random.rand(num_residues).astype(np.float32) * 2
-    
+
     # Mock 'resid' for aatype (integer representation of amino acid types)
     # Let's create a sequence of 71 residues, e.g., 0=ALA, 1=ARG, 2=ASN...
     # Make sure it's an array of integer types
     mock_aatype_ints = np.arange(num_residues, dtype=np.int32) % 20 # Cycle through 20 AA types
     mock_resnames = np.array(
-        [rc.restype_1to3.get(i, "UNK") for i in mock_aatype_ints], dtype="S3"
+        [rc.restype_1to3.get(i, "UNK") for i in mock_aatype_ints], dtype="S3",
     )
 
-    with h5py.File(tmp_file_path, 'w') as f:
+    with h5py.File(tmp_file_path, "w") as f:
         domain_group = f.create_group(domain_id)
 
         # Add 'resid' dataset directly under the domain group
         # This is where we assume the 'resid' for aatype is stored
         domain_group.create_dataset("resid", data=mock_aatype_ints)
         domain_group.create_dataset("resname", data=mock_resnames)
-        
+
         # Add a dummy 'numResidues' attribute for consistency, though we derive from resid
         domain_group.attrs["numResidues"] = num_residues
 
@@ -172,7 +172,7 @@ def mdcath_hdf5_file():
             replica_group.create_dataset("gyrationRadius", data=mock_gyration_radius)
             replica_group.create_dataset("rmsd", data=mock_rmsd)
             replica_group.create_dataset("rmsf", data=mock_rmsf)
-    
+
     # The fixture yields the path to the created mock HDF5 file
     yield tmp_file_path
 

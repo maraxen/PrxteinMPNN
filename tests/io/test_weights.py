@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.io.weights import load_model, load_weights
+from prxteinmpnn.io.weights import load_weights
 
 
 def test_load_weights_with_none_initializes_glorot_normal():
@@ -22,6 +22,7 @@ def test_load_weights_with_none_initializes_glorot_normal():
 
   Example:
     >>> test_load_weights_with_none_initializes_glorot_normal()
+
   """
   # Create a simple model skeleton
   class SimpleModel(eqx.Module):
@@ -85,6 +86,7 @@ def test_load_weights_none_requires_skeleton():
 
   Example:
     >>> test_load_weights_none_requires_skeleton()
+
   """
   with pytest.raises(ValueError, match="skeleton is required when model_weights is None"):
     load_weights(model_weights=None, skeleton=None)
@@ -104,6 +106,7 @@ def test_load_weights_preserves_structure():
 
   Example:
     >>> test_load_weights_preserves_structure()
+
   """
   # Create a nested model structure
   class InnerModule(eqx.Module):

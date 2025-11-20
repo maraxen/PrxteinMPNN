@@ -273,7 +273,10 @@ def sample(
   all_logits_padded = [pad_to_max(logits, max_len, axis=-2, pad_value=0) for logits in all_logits]
 
   all_masks = [
-    pad_to_max(jnp.ones(seq.shape, dtype=jnp.int32), max_len, axis=-1, pad_value=0) for seq in all_sequences
+    pad_to_max(
+        jnp.ones(seq.shape, dtype=jnp.int32), max_len, axis=-1, pad_value=0,
+    )
+    for seq in all_sequences
   ]
 
   return {
@@ -326,8 +329,8 @@ def _sample_batch_averaged(
   spec: SamplingSpecification,
   batched_ensemble: Protein,
   model: PrxteinMPNN,
-  sample_fn: Callable,  # This arg is now unused/overwritten, but kept for signature compat if needed
-  decode_fn: Callable,  # Unused
+  sample_fn: Callable,  # noqa: ARG001
+  decode_fn: Callable,  # noqa: ARG001
 ) -> tuple[ProteinSequence, Logits]:
   """Sample sequences for a batched ensemble of proteins using averaged encodings."""
   keys = jax.random.split(jax.random.key(spec.random_seed), spec.num_samples)
@@ -352,26 +355,33 @@ def _sample_batch_averaged(
   def decode_wrapper(base_decode_fn: Callable) -> Callable:
     def wrapped(encoded_features: tuple, sequence: ProteinSequence, ar_mask_in: Any) -> Logits:
       avg_node, avg_edge, neighbors, mask, ar_mask_struct = encoded_features
-      
-      batch_shape = neighbors.shape[:-2]
-      
+
+      neighbors.shape[:-2]
+
       # Flatten batch dimensions
-      neighbors_flat = neighbors.reshape((-1, neighbors.shape[-2], neighbors.shape[-1]))
+      neighbors_flat = neighbors.reshape(
+          (-1, neighbors.shape[-2], neighbors.shape[-1]),
+      )
       mask_flat = mask.reshape((-1, mask.shape[-1]))
-      ar_mask_struct_flat = ar_mask_struct.reshape((-1, ar_mask_struct.shape[-2], ar_mask_struct.shape[-1]))
-      
-      def decode_single(n_idx, m, ar_m):
+      ar_mask_struct_flat = ar_mask_struct.reshape(
+          (-1, ar_mask_struct.shape[-2], ar_mask_struct.shape[-1]),
+      )
+
+      def decode_single(
+          n_idx: jnp.ndarray, m: jnp.ndarray, ar_m: jnp.ndarray,
+      ) -> Logits:
         # Reconstruct tuple for base function
         # Note: ar_mask_in is the autoregressive mask for sampling (L, L)
         # ar_m is the structural mask (L, L) or similar.
         # decode_logits_fn takes (encoded, seq, ar_mask).
         # We pass the structural ar_mask as part of encoded features if needed?
         # Wait, base_decode_fn signature is (encoded_features, sequence, ar_mask).
-        # encoded_features expected by base_decode_fn is (node, edge, neighbors, mask, ar_mask_struct).
+        # encoded_features expected by base_decode_fn is:
+        # (node, edge, neighbors, mask, ar_mask_struct).
         return base_decode_fn(
             (avg_node, avg_edge, n_idx, m, ar_m),
             sequence,
-            ar_mask_in
+            ar_mask_in,
         )
 
       logits_batch = jax.vmap(decode_single)(neighbors_flat, mask_flat, ar_mask_struct_flat)
@@ -381,7 +391,7 @@ def _sample_batch_averaged(
   # Create a new sample_fn with the wrapper
   _, sample_fn_wrapped, decode_fn_wrapped = make_encoding_sampling_split_fn(
       model,
-      decode_fn_wrapper=decode_wrapper
+      decode_fn_wrapper=decode_wrapper,
   )
 
   sample_fn_with_params = partial(
@@ -437,24 +447,23 @@ def _sample_batch_averaged(
     # averaged_encodings: avg_node (M, ...), neighbors (N, M, ...).
     # We want to map over M.
     # For neighbors, we map over axis 1.
-    
-    in_axes_neighbors = 1 if spec.average_encoding_mode == "inputs" else 0
+
     # If mode="noise_levels" (avg over axis 1), we keep axis 0 (inputs).
     # averaged_encodings: avg_node (N, ...), neighbors (N, M, ...).
     # We map over N (axis 0).
-    
+
     # Wait, get_averaged_encodings returns tuple.
     # (avg_node, avg_edge, neighbors, mask, ar_mask).
     # avg_node has shape (Batch, ...).
     # neighbors has shape (N, M, ...).
-    
+
     # We need to construct in_axes for the tuple.
     # tuple structure: (node, edge, neighbors, mask, ar_mask).
     # node/edge: always axis 0 (because they are averaged to (Batch, ...)).
     # neighbors/mask/ar_mask: axis 1 if "inputs", axis 0 if "noise_levels".
-    
+
     struct_axis = 1 if spec.average_encoding_mode == "inputs" else 0
-    
+
     vmap_sample_structures = jax.vmap(
       internal_sample_averaged,
       in_axes=((0, 0, struct_axis, struct_axis, struct_axis), None),
@@ -481,26 +490,26 @@ def _sample_batch_averaged(
 
     # vmap over samples (axis 0 of seq)
     # vmap over outer batch (axis 0 of seqs, axis 0/1 of enc)
-    
-    # sampled_sequences: (Batch, NumSamples, L)
-    # averaged_encodings: (Batch, ...) for node, (N, M, ...) for struct
-    
+
+    # sampled_sequences shape: (Batch, NumSamples, L)
+    # averaged_encodings shape: (Batch, ...) for node, (N, M, ...) for struct
+
     # We want to map `get_logits_local` over Batch.
     # Inside, we map over NumSamples.
-    
+
     struct_axis = 1 if spec.average_encoding_mode == "inputs" else 0
-    
+
     vmap_logits = jax.vmap(
-        jax.vmap(get_logits_local, in_axes=(0, None)), 
-        in_axes=(0, (0, 0, struct_axis, struct_axis, struct_axis))
+        jax.vmap(get_logits_local, in_axes=(0, None)),
+        in_axes=(0, (0, 0, struct_axis, struct_axis, struct_axis)),
     )
     logits = vmap_logits(sampled_sequences, averaged_encodings)
 
   # Flatten batch dimensions into samples
-  # sampled_sequences: (Batch, Samples, L)
-  # logits: (Batch, Samples, L, 21)
+  # sampled_sequences shape: (Batch, Samples, L)
+  # logits shape: (Batch, Samples, L, 21)
   # We want (1, Batch*Samples, L)
-  
+
   sampled_sequences = sampled_sequences.reshape((1, -1, seq_len))
   logits = logits.reshape((1, -1, seq_len, 21))
 

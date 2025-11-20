@@ -5,11 +5,12 @@ This module provides utilities to populate missing physics parameters
 """
 
 import logging
+
 import numpy as np
 from biotite.structure import AtomArray
 
+from prxteinmpnn.physics.constants import DEFAULT_EPSILON, DEFAULT_SIGMA
 from prxteinmpnn.physics.force_fields import FullForceField, load_force_field_from_hub
-from prxteinmpnn.physics.constants import DEFAULT_SIGMA, DEFAULT_EPSILON
 
 logger = logging.getLogger(__name__)
 
@@ -20,14 +21,15 @@ def populate_physics_parameters(
     force_field_name: str = "amber14-all",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Populate physics parameters from force field for atoms without explicit values.
-    
+
     Args:
         atom_array: Biotite AtomArray with atom information
         force_field: Optional pre-loaded FullForceField. If None, loads from hub.
         force_field_name: Name of force field to load if force_field is None
-        
+
     Returns:
         Tuple of (charges, sigmas, epsilons) arrays
+
     """
     if force_field is None:
         try:
@@ -36,20 +38,20 @@ def populate_physics_parameters(
         except Exception as e:
             logger.warning("Failed to load force field %s: %s. Using defaults.", force_field_name, e)
             return _get_default_parameters(atom_array)
-    
+
     n_atoms = atom_array.array_length()
     charges = np.zeros(n_atoms, dtype=np.float32)
     sigmas = np.zeros(n_atoms, dtype=np.float32)
     epsilons = np.zeros(n_atoms, dtype=np.float32)
-    
+
     # Get residue and atom names
     res_names = atom_array.res_name
     atom_names = atom_array.atom_name
-    
+
     for i in range(n_atoms):
         res_name = res_names[i]
         atom_name = atom_names[i]
-        
+
         # Try to get parameters from force field
         try:
             charges[i] = force_field.get_charge(res_name, atom_name)
@@ -61,18 +63,18 @@ def populate_physics_parameters(
             # Defaults are already set (zeros for charge, will use element-based below)
             sigmas[i] = DEFAULT_SIGMA
             epsilons[i] = DEFAULT_EPSILON
-    
+
     return charges, sigmas, epsilons
 
 
 def _get_default_parameters(atom_array: AtomArray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Get default physics parameters based on element types.
-    
+
     Fallback when force field is not available.
     """
     n_atoms = atom_array.array_length()
     elements = atom_array.element
-    
+
     # Simple element-based defaults
     element_params = {
         "C": (1.908, 0.086),
@@ -82,15 +84,12 @@ def _get_default_parameters(atom_array: AtomArray) -> tuple[np.ndarray, np.ndarr
         "H": (0.600, 0.0157),
         "P": (2.100, 0.200),
     }
-    
+
     charges = np.zeros(n_atoms, dtype=np.float32)
     sigmas = np.zeros(n_atoms, dtype=np.float32)
     epsilons = np.zeros(n_atoms, dtype=np.float32)
-    
+
     for i, elem in enumerate(elements):
-        if elem in element_params:
-            sigmas[i], epsilons[i] = element_params[elem]
-        else:
-            sigmas[i], epsilons[i] = DEFAULT_SIGMA, DEFAULT_EPSILON
-    
+        sigmas[i], epsilons[i] = element_params.get(elem, (DEFAULT_SIGMA, DEFAULT_EPSILON))
+
     return charges, sigmas, epsilons

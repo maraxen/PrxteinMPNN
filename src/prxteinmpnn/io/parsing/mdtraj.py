@@ -2,22 +2,20 @@
 
 import logging
 import pathlib
-from collections.abc import Sequence, Iterator
+from collections.abc import Iterator, Sequence
 from io import StringIO
-
-from biotite.structure import AtomArray, AtomArrayStack, filter_solvent
-import biotite.structure as structure
 
 import mdtraj as md
 import numpy as np
+from biotite import structure
+from biotite.structure import AtomArray, AtomArrayStack, filter_solvent
 
-from prxteinmpnn.utils.data_structures import ProteinStream, TrajectoryStaticFeatures
 from prxteinmpnn.io.parsing.structures import ProcessedStructure
+from prxteinmpnn.utils.data_structures import TrajectoryStaticFeatures
 from prxteinmpnn.utils.residue_constants import (
   atom_order,
 )
 
-from .coords import process_coordinates
 from .mappings import atom_names_to_index, residue_names_to_aatype
 
 logger = logging.getLogger(__name__)
@@ -154,22 +152,22 @@ def _mdtraj_to_atom_array(
 
   # Topology
   top = traj.top
-  
+
   # We need to map mdtraj topology to biotite arrays
   # This can be slow for large systems, but necessary for standardization.
-  
+
   # Residue IDs
   res_ids = np.array([a.residue.resSeq for a in top.atoms], dtype=int)
   atom_array.res_id = res_ids
-  
+
   # Residue Names
   res_names = np.array([a.residue.name for a in top.atoms], dtype="U3")
   atom_array.res_name = res_names
-  
+
   # Atom Names
   atom_names = np.array([a.name for a in top.atoms], dtype="U6")
   atom_array.atom_name = atom_names
-  
+
   # Chain IDs
   # MDTraj chain indices are 0-based. Biotite expects strings usually, or we can use A, B, C...
   # Let's map 0->A, 1->B etc.
@@ -178,16 +176,16 @@ def _mdtraj_to_atom_array(
   # For now simple mapping.
   def chain_idx_to_id(idx):
       if idx < 26:
-          return chr(ord('A') + idx)
+          return chr(ord("A") + idx)
       return str(idx) # Fallback
-      
+
   chain_ids = np.array([chain_idx_to_id(i) for i in chain_indices], dtype="U3")
   atom_array.chain_id = chain_ids
-  
+
   # Elements
   elements = np.array([a.element.symbol for a in top.atoms], dtype="U2")
   atom_array.element = elements
-  
+
   return atom_array
 
 
@@ -207,20 +205,19 @@ def parse_mdtraj_to_processed_structure(
       first_frame = md.load_frame(str(source), 0, top=str(topology))
     logger.debug("Loaded first frame to determine topology.")
 
-    # We don't need to extract static features here anymore, 
+    # We don't need to extract static features here anymore,
     # as ProcessedStructure will be processed downstream.
     # But we DO need to handle chain selection here to reduce data size.
-    
+
     # Note: _select_chain_mdtraj returns a new trajectory with sliced topology.
     first_frame = _select_chain_mdtraj(first_frame, chain_id=chain_id)
-    
+
     # We need to apply the same selection to chunks.
     # MDTraj iterload doesn't support atom selection on load.
     # So we load chunks and then slice.
     # But we need the atom indices from the first frame selection.
-    
+
     # Re-derive selection indices
-    atom_indices = None
     if chain_id is not None:
         # This logic is duplicated from _select_chain_mdtraj but we need the indices
         if isinstance(chain_id, str):
@@ -228,21 +225,20 @@ def parse_mdtraj_to_processed_structure(
         # We need the ORIGINAL topology to select indices.
         # first_frame is already sliced.
         # Let's reload first frame or just use the logic on the loaded chunk.
-        pass
 
     traj_iterator = md.iterload(str(source))
     frame_count = 0
-    
+
     for traj_chunk in traj_iterator:
       logger.debug("Processing MDTraj chunk with %d frames.", traj_chunk.n_frames)
-      
+
       # Apply chain selection if needed
       if chain_id is not None:
           traj_chunk = _select_chain_mdtraj(traj_chunk, chain_id=chain_id)
-          
+
       # Convert to AtomArray
       atom_array = _mdtraj_to_atom_array(traj_chunk)
-      
+
       # Apply solvent removal if needed
       solvent_mask = filter_solvent(atom_array)
       if np.any(solvent_mask):
@@ -252,7 +248,7 @@ def parse_mdtraj_to_processed_structure(
               atom_array = atom_array[:, ~solvent_mask]
           else:
               atom_array = atom_array[~solvent_mask]
-      
+
       # Add hydrogens if missing
       if isinstance(atom_array, AtomArray):  # Only for single frames
           has_hydrogens = (atom_array.element == "H").any()
@@ -265,29 +261,29 @@ def parse_mdtraj_to_processed_structure(
                   except Exception as e:
                       logger.warning("Failed to infer bonds: %s", e)
                       atom_array.bonds = structure.connect_via_distances(atom_array)
-              
+
               # Add charge annotation
               if "charge" not in atom_array.get_annotation_categories():
                   atom_array.set_annotation("charge", np.zeros(atom_array.array_length(), dtype=int))
-              
+
               try:
                   import hydride
                   atom_array, _ = hydride.add_hydrogen(atom_array)
                   logger.info("Hydrogens added to MDTraj structure")
               except Exception as e:
                   logger.warning("Failed to add hydrogens: %s", e)
-      
+
       # Yield ProcessedStructure
-      # We yield one ProcessedStructure per chunk (containing a stack) 
+      # We yield one ProcessedStructure per chunk (containing a stack)
       # or one per frame?
       # processed_structure_to_protein_tuples handles stacks.
       # So we can yield the stack.
-      
+
       frame_count += traj_chunk.n_frames
-      
+
       # We need r_indices and chain_ids for ProcessedStructure
       # These are available in atom_array.
-      
+
       yield ProcessedStructure(
           atom_array=atom_array,
           r_indices=atom_array.res_id,

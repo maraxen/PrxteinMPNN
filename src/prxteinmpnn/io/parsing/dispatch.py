@@ -21,11 +21,11 @@ import mdtraj as md
 
 from prxteinmpnn.utils.data_structures import ProteinStream
 
-from .biotite import _parse_biotite, processed_structure_to_protein_tuples, load_structure_with_hydride
+from .biotite import _parse_biotite
 from .mdcath import parse_mdcath_to_processed_structure
 from .mdtraj import parse_mdtraj_to_processed_structure
 from .pqr import parse_pqr_to_processed_structure
-from prxteinmpnn.io.parsing.structures import ProcessedStructure
+from .utils import processed_structure_to_protein_tuples
 
 logger = logging.getLogger(__name__)
 
@@ -107,9 +107,9 @@ def parse_input(  # noqa: C901, PLR0912, PLR0915
         logger.info("Dispatching to PQR parser.")
         processed = parse_pqr_to_processed_structure(path, chain_id)
         yield from processed_structure_to_protein_tuples(
-            processed, 
-            str(path), 
-            extract_dihedrals=extract_dihedrals
+            processed,
+            str(path),
+            extract_dihedrals=extract_dihedrals,
         )
         return
       if path.suffix.lower() in {".h5", ".hdf5"}:
@@ -121,7 +121,7 @@ def parse_input(  # noqa: C901, PLR0912, PLR0915
               yield from processed_structure_to_protein_tuples(
                   processed,
                   str(path),
-                  extract_dihedrals=extract_dihedrals
+                  extract_dihedrals=extract_dihedrals,
               )
         elif h5_structure == "mdtraj":
           logger.info("Dispatching to MDTraj HDF5 parser.")
@@ -133,7 +133,7 @@ def parse_input(  # noqa: C901, PLR0912, PLR0915
               yield from processed_structure_to_protein_tuples(
                   processed,
                   str(path),
-                  extract_dihedrals=extract_dihedrals
+                  extract_dihedrals=extract_dihedrals,
               )
         else:
           logger.warning("Unknown HDF5 structure, returning early.")

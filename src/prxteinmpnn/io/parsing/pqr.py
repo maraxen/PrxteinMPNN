@@ -5,16 +5,12 @@ prxteinmpnn.io.parsing.pqr
 
 import logging
 import pathlib
-import tempfile
 from collections.abc import Sequence
 from typing import IO
 
 import numpy as np
 from biotite.structure import AtomArray
 
-from prxteinmpnn.utils.data_structures import (
-  EstatInfo,
-)
 from prxteinmpnn.io.parsing.structures import ProcessedStructure
 from prxteinmpnn.utils.residue_constants import van_der_waals_epsilon
 
@@ -36,7 +32,7 @@ def parse_pqr_to_processed_structure(
     lines = pqr_file.readlines()
 
   atom_lines = [line for line in lines if line.startswith(("ATOM", "HETATM"))]
-  
+
   # Pre-allocate lists
   coords = []
   atom_names = []
@@ -47,7 +43,7 @@ def parse_pqr_to_processed_structure(
   charges = []
   radii = []
   epsilons = []
-  
+
   # Normalize chain_id to a set for filtering
   chain_id_set = (
     {chain_id} if isinstance(chain_id, str) else set(chain_id) if chain_id is not None else None
@@ -84,21 +80,21 @@ def parse_pqr_to_processed_structure(
       x = float(fields[x_idx])
       y = float(fields[y_idx])
       z = float(fields[z_idx])
-      
+
       # Lookup epsilon
       element = atom_name[0]
       epsilon = van_der_waals_epsilon.get(element, 0.15)
-      
+
       coords.append([x, y, z])
       atom_names.append(atom_name)
       res_names.append(res_name)
       chain_ids.append(chain)
-      
+
       # Parse res_seq (remove insertion code for now or keep it?)
       # Biotite res_id is integer.
       res_num_str = "".join(c for c in res_seq if c.isdigit() or c == "-")
       res_ids.append(int(res_num_str) if res_num_str else -1)
-      
+
       elements.append(element)
       charges.append(charge)
       radii.append(radius)
@@ -110,7 +106,8 @@ def parse_pqr_to_processed_structure(
 
   num_atoms = len(coords)
   if num_atoms == 0:
-      raise ValueError("No atoms found in PQR file.")
+      msg = "No atoms found in PQR file."
+      raise ValueError(msg)
 
   # Create AtomArray
   atom_array = AtomArray(num_atoms)
@@ -120,13 +117,13 @@ def parse_pqr_to_processed_structure(
   atom_array.chain_id = np.array(chain_ids, dtype="U3")
   atom_array.res_id = np.array(res_ids, dtype=int)
   atom_array.element = np.array(elements, dtype="U2")
-  
+
   # Add charge annotation for consistency (though we store it in ProcessedStructure)
   atom_array.set_annotation("charge", np.array(charges, dtype=int)) # Biotite expects int? No, usually float but PDB is weird.
   # Actually Biotite's charge annotation is usually integer formal charge.
   # Partial charges are not standard in AtomArray unless we add a custom annotation.
   # But we return charges separately in ProcessedStructure.
-  
+
   return ProcessedStructure(
       atom_array=atom_array,
       r_indices=atom_array.res_id,

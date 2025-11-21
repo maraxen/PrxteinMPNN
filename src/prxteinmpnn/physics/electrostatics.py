@@ -177,6 +177,9 @@ def compute_coulomb_forces_at_backbone(
   backbone_charges: jax.Array,
   all_atom_charges: jax.Array,
   coulomb_constant: float = COULOMB_CONSTANT,
+  *,
+  noise_scale: float | jax.Array = 0.0,
+  key: jax.Array | None = None,
 ) -> jax.Array:
   """Compute Coulomb forces at all five backbone atoms from all charges.
 
@@ -198,6 +201,8 @@ def compute_coulomb_forces_at_backbone(
       all_atom_charges: Partial charges for all atoms,
         shape (n_atoms,)
       coulomb_constant: Coulomb constant
+      noise_scale: Scale of Gaussian noise to add to forces (simulating thermal fluctuations).
+      key: PRNG key for noise generation (required if noise_scale > 0).
 
   Returns:
       Force vectors at backbone atoms, shape (n_residues, 5, 3)
@@ -234,5 +239,12 @@ def compute_coulomb_forces_at_backbone(
     coulomb_constant,
     exclude_self=True,
   )
+
+  if noise_scale > 0.0:
+    if key is None:
+      msg = "Must provide key when noise_scale > 0"
+      raise ValueError(msg)
+    noise = jax.random.normal(key, forces_flat.shape)
+    forces_flat = forces_flat + noise * noise_scale
 
   return forces_flat.reshape(n_residues, 5, 3)

@@ -80,3 +80,12 @@ LogLikelihood = Float[Array, ""]
 ComponentCounts = Int[Array, "n_components"]
 BIC = Float[Array, ""]
 PCAInputData = Float[Array, "num_samples num_features"]
+
+class TrainingMetrics(dict):
+    """Dictionary containing training metrics."""
+
+    loss: float
+    accuracy: float
+    perplexity: float
+    learning_rate: float
+

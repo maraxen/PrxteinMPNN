@@ -1,15 +1,17 @@
 """Tests for the sampling script with averaged node features."""
 import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
+import chex
 import h5py
 import jax
 import jax.numpy as jnp
 import pytest
-import chex
-from prxteinmpnn.run.sampling import sample, SamplingSpecification
+
+from prxteinmpnn.run.sampling import SamplingSpecification, sample
 from prxteinmpnn.utils.data_structures import Protein
+
 
 @pytest.fixture
 def mock_protein():
@@ -20,7 +22,7 @@ def mock_protein():
         one_hot_sequence=jax.nn.one_hot(jnp.ones((1, 10), dtype=jnp.int8), 21),
         mask=jnp.ones((1, 10)),
         residue_index=jnp.arange(10)[None, :],
-        chain_index=jnp.zeros((1, 10))
+        chain_index=jnp.zeros((1, 10)),
     )
 
 @pytest.fixture
@@ -52,7 +54,7 @@ def mock_model():
     ],
 )
 def test_sample_averaged_non_streaming(
-    mock_protein, mock_model, average_mode, expected_shape
+    mock_protein, mock_model, average_mode, expected_shape,
 ):
     """Test the sample function with averaged node features (non-streaming)."""
     # The new implementation is too complex to mock individual functions inside.
@@ -80,7 +82,7 @@ def test_sample_averaged_streaming(mock_protein, mock_model):
     """Test the sample function with averaged node features (streaming)."""
     with tempfile.TemporaryDirectory() as tempdir:
         output_h5_path = Path(tempdir) / "output_averaged.h5"
-        with patch('prxteinmpnn.run.sampling.prep_protein_stream_and_model', return_value=([mock_protein], mock_model)):
+        with patch("prxteinmpnn.run.sampling.prep_protein_stream_and_model", return_value=([mock_protein], mock_model)):
             spec = SamplingSpecification(
                 inputs=["dummy.pdb"],
                 num_samples=2,

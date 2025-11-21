@@ -2,7 +2,8 @@
 
 import pathlib
 from io import StringIO
-from unittest.mock import Mock, mock_open as mock_file_open, patch
+from unittest.mock import Mock, patch
+from unittest.mock import mock_open as mock_file_open
 
 import pytest
 import requests

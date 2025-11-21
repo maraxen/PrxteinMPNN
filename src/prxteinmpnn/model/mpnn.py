@@ -69,6 +69,7 @@ class PrxteinMPNN(eqx.Module):
     physics_feature_dim: int | None = None,
     num_amino_acids: int = 21,
     vocab_size: int = 21,  # for w_s
+    dropout_rate: float = 0.1,
     *,
     key: PRNGKeyArray,
   ) -> None:
@@ -115,6 +116,7 @@ class PrxteinMPNN(eqx.Module):
         edge_features,
         hidden_features,
         num_encoder_layers,
+        dropout_rate=dropout_rate,
         key=keys[1],
       )
       if physics_feature_dim is None
@@ -124,6 +126,7 @@ class PrxteinMPNN(eqx.Module):
         hidden_features,
         num_encoder_layers,
         physics_feature_dim,
+        dropout_rate=dropout_rate,
         key=keys[1],
       )
     )
@@ -132,6 +135,7 @@ class PrxteinMPNN(eqx.Module):
       edge_features,
       hidden_features,
       num_decoder_layers,
+      dropout_rate=dropout_rate,
       key=keys[2],
     )
     self.w_s_embed = eqx.nn.Embedding(
@@ -193,6 +197,7 @@ class PrxteinMPNN(eqx.Module):
       edge_features,
       neighbor_indices,  # Pass neighbor indices for correct context
       mask,
+      key=_prng_key,
     )
 
     logits = jax.vmap(self.w_out)(decoded_node_features)
@@ -218,6 +223,7 @@ class PrxteinMPNN(eqx.Module):
     tie_group_map: jnp.ndarray | None,
     multi_state_strategy_idx: Int,
     multi_state_alpha: float,
+
     initial_node_features: NodeFeatures | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the conditional (scoring) path.
@@ -263,6 +269,7 @@ class PrxteinMPNN(eqx.Module):
       ar_mask,
       one_hot_sequence,
       self.w_s_embed.weight,
+      key=prng_key,
     )
     logits = jax.vmap(self.w_out)(decoded_node_features)
 
@@ -523,7 +530,12 @@ class PrxteinMPNN(eqx.Module):
         h_in_expanded = jnp.expand_dims(h_in_pos, axis=0)
         decoding_context_expanded = jnp.expand_dims(decoding_context, axis=0)
 
-        h_out_pos = layer(h_in_expanded, decoding_context_expanded, mask=mask_pos)
+        h_out_pos = layer(
+            h_in_expanded,
+            decoding_context_expanded,
+            mask=mask_pos,
+            key=None, # Dropout will use inference mode set on model
+        )
 
         position_all_layers_h = position_all_layers_h.at[layer_idx + 1, idx].set(
           jnp.squeeze(h_out_pos),
@@ -824,6 +836,9 @@ class PrxteinMPNN(eqx.Module):
         neighbor_indices_pos,
       )  # (K, 256)
 
+      # Split key for layers
+      layer_keys = jax.random.split(key, len(self.decoder.layers))
+
       for layer_idx, layer in enumerate(self.decoder.layers):
         # Get node features for this layer at current position
         h_in_pos = all_layers_h[layer_idx, position]  # [C]
@@ -849,6 +864,7 @@ class PrxteinMPNN(eqx.Module):
           h_in_expanded,
           decoding_context_expanded,
           mask=mask_pos,
+          key=layer_keys[layer_idx],
         )  # [1, C]
 
         # Update the state for next layer
@@ -1045,6 +1061,7 @@ class PrxteinMPNN(eqx.Module):
       neighbor_indices,
       mask,
       node_features,
+      key=prng_key,
     )
 
     branch_indices = {

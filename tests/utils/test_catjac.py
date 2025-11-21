@@ -106,7 +106,7 @@ def test_make_combine_jac_custom_function(sample_jacobians, sample_sequences):
     combine_fn = make_combine_jac(combine_fn=custom_combine)
     combined, _ = combine_fn(sample_jacobians, sample_sequences, None)
     assert combined.shape == (1, 9, 5, 21, 5, 21)
-    
+
     default_fn = make_combine_jac()
     simple_added, _ = default_fn(sample_jacobians, sample_sequences, None)
     assert not jnp.allclose(combined, simple_added)
@@ -117,11 +117,11 @@ def temp_h5_file(sample_jacobians, sample_sequences):
   """Create a temporary HDF5 file with sample data."""
   with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as tmp:
     tmp_path = Path(tmp.name)
-  
+
   with h5py.File(tmp_path, "w") as f:
     f.create_dataset("categorical_jacobians", data=np.array(sample_jacobians))
     f.create_dataset("one_hot_sequences", data=np.array(sample_sequences))
-  
+
   yield tmp_path
   tmp_path.unlink(missing_ok=True)
 
@@ -145,7 +145,7 @@ def test_combine_jacobians_h5_stream_mismatched_lengths(temp_h5_file):
   with h5py.File(temp_h5_file, "a") as f:
     del f["one_hot_sequences"]
     f.create_dataset("one_hot_sequences", data=np.array(jnp.ones((3, 5))))
-  
+
   with pytest.raises(ValueError, match="Jacobian and sequence arrays must have the same length."):
     combine_jacobians_h5_stream(h5_path=temp_h5_file, weights=jnp.ones(2))
 
@@ -154,19 +154,19 @@ def test_combine_jacobians_h5_stream_larger_dataset():
   """Test combine_jacobians_h5_stream with a larger dataset."""
   with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as tmp:
     tmp_path = Path(tmp.name)
-  
+
   n_samples = 4
   jacobians = np.random.randn(n_samples, 3, 5, 21, 5, 21)
   sequences = np.random.randint(0, 20, (n_samples, 5))
-  
+
   with h5py.File(tmp_path, "w") as f:
     f.create_dataset("categorical_jacobians", data=jacobians)
     f.create_dataset("one_hot_sequences", data=sequences)
-  
+
   combine_jacobians_h5_stream(h5_path=tmp_path, batch_size=2, weights=jnp.ones(n_samples))
-  
+
   with h5py.File(tmp_path, "r") as f:
     num_pairs = n_samples * (n_samples - 1) // 2
     assert f["combined_catjac"].shape[0] == num_pairs
-  
+
   tmp_path.unlink(missing_ok=True)

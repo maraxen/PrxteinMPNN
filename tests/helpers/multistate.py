@@ -49,8 +49,9 @@ def create_multistate_test_batch(
   if key is None:
     key = jax.random.key(0)
 
-  from prxteinmpnn.utils.data_structures import ProteinTuple
   import numpy as np
+
+  from prxteinmpnn.utils.data_structures import ProteinTuple
 
   total_residues = n_structures * n_residues_each
 

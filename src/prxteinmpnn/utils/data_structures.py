@@ -75,6 +75,8 @@ class ProteinTuple(NamedTuple):
   mapping: np.ndarray | None = None
   charges: np.ndarray | None = None
   radii: np.ndarray | None = None
+  sigmas: np.ndarray | None = None
+  epsilons: np.ndarray | None = None
   estat_backbone_mask: np.ndarray | None = None
   estat_resid: np.ndarray | None = None
   estat_chain_index: np.ndarray | None = None
@@ -118,6 +120,7 @@ class EstatInfo:
   Attributes:
     charges: Numpy array of atomic charges.
     radii: Numpy array of atomic radii.
+    epsilons: Numpy array of atomic epsilons.
     estat_backbone_mask: Boolean numpy array indicating backbone atoms.
     estat_resid: Integer numpy array of residue numbers.
     estat_chain_index: Integer numpy array of chain indices (ord value).
@@ -126,6 +129,7 @@ class EstatInfo:
 
   charges: np.ndarray
   radii: np.ndarray
+  epsilons: np.ndarray
   estat_backbone_mask: np.ndarray
   estat_resid: np.ndarray
   estat_chain_index: np.ndarray
@@ -190,6 +194,8 @@ class Protein:
   full_atom_mask: AtomMask | None = None
   charges: jnp.ndarray | None = None
   radii: jnp.ndarray | None = None
+  sigmas: jnp.ndarray | None = None
+  epsilons: jnp.ndarray | None = None
   estat_backbone_mask: jnp.ndarray | None = None
   estat_resid: jnp.ndarray | None = None
   estat_chain_index: jnp.ndarray | None = None
@@ -251,6 +257,8 @@ class Protein:
       ),
       charges=none_or_jnp(protein_tuple.charges),
       radii=none_or_jnp(protein_tuple.radii),
+      sigmas=none_or_jnp(protein_tuple.sigmas),
+      epsilons=none_or_jnp(protein_tuple.epsilons),
       estat_backbone_mask=none_or_jnp(protein_tuple.estat_backbone_mask),
       estat_resid=none_or_jnp(protein_tuple.estat_resid),
       estat_chain_index=none_or_jnp(protein_tuple.estat_chain_index),

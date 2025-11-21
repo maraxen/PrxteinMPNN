@@ -8,24 +8,16 @@ import h5py
 import mdtraj as md
 import numpy as np
 import pytest
-from biotite.structure import Atom, AtomArray, AtomArrayStack, array as strucarray
-from chex import assert_trees_all_close
+from biotite.structure import AtomArray, AtomArrayStack
+from conftest import (
+    PDB_1UBQ_STRING as PDB_STRING,
+)
 
 from prxteinmpnn.io.parsing.dispatch import (
     _determine_h5_structure,
     parse_input,
 )
 from prxteinmpnn.utils.data_structures import ProteinTuple
-from prxteinmpnn.utils.residue_constants import resname_to_idx, restype_order, unk_restype_index
-from conftest import (
-    PDB_1UBQ_STRING as PDB_STRING,
-    pdb_file,
-    cif_file,
-    hdf5_file,
-    mdcath_hdf5_file,
-    single_model_hdf5_file,
-)
-
 
 
 def test_determine_h5_structure_mdcath(mdcath_hdf5_file):
@@ -44,13 +36,13 @@ def test_determine_h5_structure_unknown():
     """Test HDF5 structure determination for unknown files."""
     with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as tmp:
         filepath = tmp.name
-    
+
     with h5py.File(filepath, "w") as f:
         f.create_dataset("random_data", data=[1, 2, 3])
-    
+
     structure = _determine_h5_structure(filepath)
     assert structure == "mdcath"
-    
+
     pathlib.Path(filepath).unlink()
 
 
@@ -157,7 +149,7 @@ class TestParseInput:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".h5", delete=False) as tmp:
             traj.save_hdf5(tmp.name)
             filepath = tmp.name
-        
+
         protein_stream = parse_input(filepath)
         protein_list = list(protein_stream)
         assert len(protein_list) == 4
@@ -172,7 +164,7 @@ class TestParseInput:
         stack.res_id = np.array([1, 1, 1, 1])
         stack.chain_id = np.array(["A", "A", "A", "A"])
         stack.coord = np.random.rand(1, 4, 3)
-        
+
         with tempfile.NamedTemporaryFile(mode="w", suffix=".pdb", delete=False) as tmp:
             from biotite.structure.io.pdb import PDBFile
             pdb_file = PDBFile()
@@ -245,42 +237,42 @@ class TestParseInput:
         """Test parsing a malformed HDF5 file."""
         with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as tmp:
             filepath = tmp.name
-        
+
         # Create an empty HDF5 file
         with h5py.File(filepath, "w") as f:
             pass
-        
+
         protein_list = list(parse_input(filepath))
         assert len(protein_list) == 0
-        
+
         pathlib.Path(filepath).unlink()
 
     def test_parse_hdf5_invalid_mdcath(self):
         """Test parsing an invalid mdCATH HDF5 file."""
         with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as tmp:
             filepath = tmp.name
-        
+
         with h5py.File(filepath, "w") as f:
             f.attrs["layout"] = "mdcath_v1.0"
             # Missing required data
-        
+
         protein_list = list(parse_input(filepath))
         assert len(protein_list) == 0
-        
+
         pathlib.Path(filepath).unlink()
 
     def test_parse_hdf5_invalid_mdtraj(self):
         """Test parsing an invalid mdtraj HDF5 file."""
         with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as tmp:
             filepath = tmp.name
-        
+
         # Create HDF5 with invalid structure for mdtraj
         with h5py.File(filepath, "w") as f:
             f.create_dataset("invalid", data=[1, 2, 3])
-        
+
         protein_list = list(parse_input(filepath))
         assert len(protein_list) == 0
-        
+
         pathlib.Path(filepath).unlink()
 
 

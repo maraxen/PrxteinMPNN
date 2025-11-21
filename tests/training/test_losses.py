@@ -2,12 +2,14 @@
 import chex
 import jax
 import jax.numpy as jnp
-import pytest
+
 from prxteinmpnn.training.losses import (
     cross_entropy_loss,
     perplexity,
     sequence_recovery_accuracy,
 )
+
+
 def test_cross_entropy_loss_basic(mock_logits, mock_targets, mock_mask, apply_jit):
     """Test basic cross-entropy loss computation."""
     loss_fn = apply_jit(cross_entropy_loss)
@@ -16,15 +18,15 @@ def test_cross_entropy_loss_basic(mock_logits, mock_targets, mock_mask, apply_ji
     chex.assert_tree_all_finite(loss)
     assert loss >= 0.0
 def test_cross_entropy_loss_with_label_smoothing(
-    mock_logits, mock_targets, mock_mask, apply_jit
+    mock_logits, mock_targets, mock_mask, apply_jit,
 ):
     """Test cross-entropy loss with label smoothing."""
     loss_fn = apply_jit(cross_entropy_loss, static_argnames=["label_smoothing"])
     loss_no_smoothing = loss_fn(
-        mock_logits, mock_targets, mock_mask, label_smoothing=0.0
+        mock_logits, mock_targets, mock_mask, label_smoothing=0.0,
     )
     loss_with_smoothing = loss_fn(
-        mock_logits, mock_targets, mock_mask, label_smoothing=0.1
+        mock_logits, mock_targets, mock_mask, label_smoothing=0.1,
     )
     assert not jnp.allclose(loss_no_smoothing, loss_with_smoothing)
 def test_cross_entropy_loss_with_mask(apply_jit):

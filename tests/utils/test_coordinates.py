@@ -3,6 +3,7 @@
 import chex
 import jax
 import jax.numpy as jnp
+
 from prxteinmpnn.utils.coordinates import (
     apply_noise_to_coordinates,
     compute_backbone_coordinates,
@@ -24,13 +25,13 @@ class TestCoordinates(chex.TestCase):
         # Test with no noise
         apply_noise_fn = self.variant(apply_noise_to_coordinates)
         coords_no_noise, _ = apply_noise_fn(
-            KEY, coords, backbone_noise=jnp.array(0.0)
+            KEY, coords, backbone_noise=jnp.array(0.0),
         )
         chex.assert_trees_all_close(coords, coords_no_noise)
 
         # Test with noise
         coords_with_noise, _ = apply_noise_fn(
-            KEY, coords, backbone_noise=jnp.array(0.1)
+            KEY, coords, backbone_noise=jnp.array(0.1),
         )
         chex.assert_shape(coords, coords_with_noise.shape)
         assert not jnp.allclose(coords, coords_with_noise)
@@ -51,7 +52,7 @@ class TestCoordinates(chex.TestCase):
 
         compute_c_beta_fn = self.variant(compute_c_beta)
         computed_cb = compute_c_beta_fn(
-            alpha_to_nitrogen, carbon_to_alpha, alpha_carbon
+            alpha_to_nitrogen, carbon_to_alpha, alpha_carbon,
         )
         chex.assert_trees_all_close(computed_cb, expected_cb)
         chex.assert_tree_all_finite(computed_cb)
@@ -94,7 +95,7 @@ class TestCoordinates(chex.TestCase):
 
         # Place D in the xy-plane
         d = extend_coordinate_fn(
-            a, b, c, bond_length=1.0, bond_angle=jnp.pi / 2, dihedral_angle=0.0
+            a, b, c, bond_length=1.0, bond_angle=jnp.pi / 2, dihedral_angle=0.0,
         )
         # Corrected expected value
         chex.assert_trees_all_close(d, jnp.array([1.0, 1.0, 0.0]), atol=1e-6)
@@ -102,7 +103,7 @@ class TestCoordinates(chex.TestCase):
 
         # Place D out of the xy-plane
         d_dihedral = extend_coordinate_fn(
-            a, b, c, bond_length=1.0, bond_angle=jnp.pi / 2, dihedral_angle=jnp.pi / 2
+            a, b, c, bond_length=1.0, bond_angle=jnp.pi / 2, dihedral_angle=jnp.pi / 2,
         )
         chex.assert_trees_all_close(d_dihedral, jnp.array([0.0, 1.0, -1.0]), atol=1e-6)
         chex.assert_tree_all_finite(d_dihedral)

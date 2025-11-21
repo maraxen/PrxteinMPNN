@@ -247,7 +247,7 @@ def make_encoding_conditional_logits_split_fn(
       edge_features,
       neighbor_indices,
       mask,
-      initial_node_features
+      initial_node_features,
     )
 
     ar_mask_placeholder = jax.numpy.zeros((mask.shape[0], mask.shape[0]), dtype=jax.numpy.int32)

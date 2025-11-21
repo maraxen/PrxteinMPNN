@@ -1,5 +1,7 @@
 import pytest
+
 from prxteinmpnn.run.specs import RunSpecification
+
 
 def test_run_spec_instantiation_tied_modes():
     # Valid combinations

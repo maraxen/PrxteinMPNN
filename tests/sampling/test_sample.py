@@ -5,9 +5,10 @@ import chex
 import jax
 import jax.numpy as jnp
 import pytest
+
 from prxteinmpnn.model import PrxteinMPNN
+from prxteinmpnn.run.averaging import make_encoding_sampling_split_fn
 from prxteinmpnn.sampling import (
-    make_encoding_sampling_split_fn,
     make_sample_sequences,
     sample,
 )
@@ -15,7 +16,7 @@ from prxteinmpnn.utils.decoding_order import random_decoding_order
 
 
 def test_make_sample_sequences_temperature_jit(
-    mock_model_parameters, model_inputs, rng_key
+    mock_model_parameters, model_inputs, rng_key,
 ):
     """Test temperature sampling with make_sample_sequences."""
     model = PrxteinMPNN(
@@ -28,7 +29,7 @@ def test_make_sample_sequences_temperature_jit(
         key=rng_key,
     )
     sample_fn = jax.jit(
-        make_sample_sequences(model, sampling_strategy="temperature")
+        make_sample_sequences(model, sampling_strategy="temperature"),
     )
     seq, logits, order = sample_fn(
         rng_key,
@@ -46,7 +47,7 @@ def test_make_sample_sequences_temperature_jit(
 
 
 def test_make_sample_sequences_temperature_no_jit(
-    mock_model_parameters, model_inputs, rng_key
+    mock_model_parameters, model_inputs, rng_key,
 ):
     """Test temperature sampling with make_sample_sequences."""
     model = PrxteinMPNN(
@@ -75,7 +76,7 @@ def test_make_sample_sequences_temperature_no_jit(
 
 
 def test_make_encoding_sampling_split_fn_jit(
-    mock_model_parameters, model_inputs, rng_key
+    mock_model_parameters, model_inputs, rng_key,
 ):
     """Test make_encoding_sampling_split_fn."""
     model = PrxteinMPNN(
@@ -87,7 +88,7 @@ def test_make_encoding_sampling_split_fn_jit(
         k_neighbors=48,
         key=rng_key,
     )
-    encode_fn, sample_fn = make_encoding_sampling_split_fn(model)
+    encode_fn, sample_fn, _ = make_encoding_sampling_split_fn(model)
     encode_fn = jax.jit(encode_fn)
     sample_fn = jax.jit(sample_fn)
 
@@ -104,7 +105,7 @@ def test_make_encoding_sampling_split_fn_jit(
 
     # Test sample_fn
     decoding_order, _ = random_decoding_order(
-        rng_key, model_inputs["structure_coordinates"].shape[0]
+        rng_key, model_inputs["structure_coordinates"].shape[0],
     )
     seq = sample_fn(rng_key, encoded_features, decoding_order)
 
@@ -114,7 +115,7 @@ def test_make_encoding_sampling_split_fn_jit(
 
 
 def test_make_encoding_sampling_split_fn_no_jit(
-    mock_model_parameters, model_inputs, rng_key
+    mock_model_parameters, model_inputs, rng_key,
 ):
     """Test make_encoding_sampling_split_fn."""
     model = PrxteinMPNN(
@@ -126,7 +127,7 @@ def test_make_encoding_sampling_split_fn_no_jit(
         k_neighbors=48,
         key=rng_key,
     )
-    encode_fn, sample_fn = make_encoding_sampling_split_fn(model)
+    encode_fn, sample_fn, _ = make_encoding_sampling_split_fn(model)
 
     # Test encode_fn
     encoded_features = encode_fn(
@@ -141,7 +142,7 @@ def test_make_encoding_sampling_split_fn_no_jit(
 
     # Test sample_fn
     decoding_order, _ = random_decoding_order(
-        rng_key, model_inputs["structure_coordinates"].shape[0]
+        rng_key, model_inputs["structure_coordinates"].shape[0],
     )
     seq = sample_fn(rng_key, encoded_features, decoding_order)
 
@@ -151,7 +152,7 @@ def test_make_encoding_sampling_split_fn_no_jit(
 
 
 def test_make_sample_sequences_invalid_strategy(
-    mock_model_parameters, rng_key
+    mock_model_parameters, rng_key,
 ):
     """Test make_sample_sequences with an invalid sampling strategy."""
     model = PrxteinMPNN(
@@ -168,7 +169,7 @@ def test_make_sample_sequences_invalid_strategy(
 
 
 def test_make_sample_sequences_straight_through_jit(
-    mock_model_parameters, model_inputs, rng_key
+    mock_model_parameters, model_inputs, rng_key,
 ):
     """Test straight_through sampling with make_sample_sequences."""
     model = PrxteinMPNN(
@@ -201,7 +202,7 @@ def test_make_sample_sequences_straight_through_jit(
 
 
 def test_make_sample_sequences_straight_through_no_jit(
-    mock_model_parameters, model_inputs, rng_key
+    mock_model_parameters, model_inputs, rng_key,
 ):
     """Test straight_through sampling with make_sample_sequences."""
     model = PrxteinMPNN(
@@ -231,7 +232,7 @@ def test_make_sample_sequences_straight_through_no_jit(
 
 
 def test_sample_convenience_function_jit(
-    mock_model_parameters, model_inputs, rng_key
+    mock_model_parameters, model_inputs, rng_key,
 ):
     """Test the `sample` convenience function."""
     model = PrxteinMPNN(
@@ -261,7 +262,7 @@ def test_sample_convenience_function_jit(
 
 
 def test_sample_convenience_function_no_jit(
-    mock_model_parameters, model_inputs, rng_key
+    mock_model_parameters, model_inputs, rng_key,
 ):
     """Test the `sample` convenience function."""
     model = PrxteinMPNN(

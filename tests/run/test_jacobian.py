@@ -1,11 +1,13 @@
 """Test suite for the jacobian module."""
+import tempfile
+
+import chex
+import h5py
+import pytest
+
 from prxteinmpnn.run.jacobian import categorical_jacobian
 from prxteinmpnn.run.specs import JacobianSpecification
 
-import tempfile
-import h5py
-import pytest
-import chex
 
 def test_categorical_jacobian_in_memory(protein_structure, mock_model_parameters):
     spec = JacobianSpecification(

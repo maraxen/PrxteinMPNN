@@ -23,7 +23,7 @@ def deep_tuple(x):
 
 @pytest.mark.parametrize("jit_compile", [True, False], ids=["jit", "eager"])
 def test_compute_electrostatic_node_features_shape(
-    pqr_protein_tuple: ProteinTuple, jit_compile
+    pqr_protein_tuple: ProteinTuple, jit_compile,
 ):
     """Test that the computed features have the correct shape."""
     data_dict = pqr_protein_tuple._asdict()
@@ -63,7 +63,7 @@ def test_compute_electrostatic_node_features_no_full_coordinates(
 
 @pytest.mark.parametrize("jit_compile", [True, False], ids=["jit", "eager"])
 def test_compute_electrostatic_node_features_jittable(
-    pqr_protein_tuple: ProteinTuple, jit_compile
+    pqr_protein_tuple: ProteinTuple, jit_compile,
 ):
     """Test that the feature computation can be JIT compiled."""
     # Convert numpy arrays in the ProteinTuple to nested tuples to make it hashable
@@ -84,7 +84,7 @@ def test_compute_electrostatic_node_features_jittable(
 
 @pytest.mark.parametrize("jit_compile", [True, False], ids=["jit", "eager"])
 def test_compute_electrostatic_features_batch_shape(
-    pqr_protein_tuple: ProteinTuple, jit_compile
+    pqr_protein_tuple: ProteinTuple, jit_compile,
 ):
     """Test that the batched features have the correct shape."""
     data_dict = pqr_protein_tuple._asdict()
@@ -108,7 +108,7 @@ def test_compute_electrostatic_features_batch_shape(
 
 @pytest.mark.parametrize("jit_compile", [True, False], ids=["jit", "eager"])
 def test_compute_electrostatic_features_batch_padding(
-    pqr_protein_tuple: ProteinTuple, jit_compile
+    pqr_protein_tuple: ProteinTuple, jit_compile,
 ):
     """Test that padding is applied correctly."""
     data_dict = pqr_protein_tuple._asdict()

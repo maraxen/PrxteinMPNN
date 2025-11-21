@@ -16,3 +16,5 @@ build/
 *.eqx
 .DS_Store
 .coverage
+*.pt
+*.csv

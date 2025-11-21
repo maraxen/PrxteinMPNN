@@ -188,7 +188,7 @@ def setup_mixed_precision(precision: str) -> None:
     logger.info("Using FP32 (full precision)")
 
 
-def train_step(
+def train_step(  # noqa: PLR0913
   model: PrxteinMPNN,
   opt_state: optax.OptState,
   optimizer: optax.GradientTransformation,
@@ -202,6 +202,9 @@ def train_step(
   current_step: int,
   lr_schedule: optax.Schedule,
   physics_features: jax.Array | None = None,
+  backbone_noise_std: float = 0.0,
+  mask_strategy: str = "random_order",
+  mask_prob: float = 0.15,
 ) -> tuple[PrxteinMPNN, optax.OptState, TrainingMetrics]:
   """Single training step.
 
@@ -219,8 +222,9 @@ def train_step(
       current_step: Current training step (used for learning rate scheduling)
       lr_schedule: Learning rate schedule function
       physics_features: Optional physics features (if used)
-      use_electrostatics: Whether to use electrostatic features
-      _use_vdw: Whether to use van der Waals features
+      backbone_noise_std: Standard deviation of Gaussian noise added to backbone coordinates
+      mask_strategy: Strategy for autoregressive masking ("random_order" or "bert")
+      mask_prob: Probability of masking a token if using "bert" strategy
 
   Returns:
       Tuple of (updated_model, updated_opt_state, metrics)
@@ -237,18 +241,39 @@ def train_step(
       mask: jax.Array,
       res_idx: jax.Array,
       chain_idx: jax.Array,
+      seq: jax.Array,
       key: jax.Array,
       phys_feat: jax.Array | None = None,
     ) -> Logits:
       """Forward pass for a single protein."""
+      key, subkey = jax.random.split(key)
+
+      # Generate autoregressive mask
+      n_nodes = mask.shape[0]
+      if mask_strategy == "random_order":
+        decoding_order = jax.random.permutation(subkey, jnp.arange(n_nodes))
+        ranks = jnp.argsort(decoding_order)
+        ar_mask = ranks[None, :] < ranks[:, None]
+      elif mask_strategy == "bert":
+        mask_prob_mask = jax.random.bernoulli(subkey, mask_prob, shape=(n_nodes,))
+        can_see = 1.0 - mask_prob_mask
+        ar_mask = jnp.tile(can_see[None, :], (n_nodes, 1))
+      else:
+        ar_mask = jnp.ones((n_nodes, n_nodes))
+
+      # Convert sequence to one-hot
+      one_hot_seq = jax.nn.one_hot(seq, 21)
+
       _, logits = model(
         coords,
         mask,
         res_idx,
         chain_idx,
-        decoding_approach="unconditional",
+        decoding_approach="conditional",
         prng_key=key,
-        backbone_noise=jnp.array(0.0),
+        ar_mask=ar_mask,
+        one_hot_sequence=one_hot_seq,
+        backbone_noise=jnp.array(backbone_noise_std),
         initial_node_features=phys_feat,
       )
       return logits
@@ -258,6 +283,7 @@ def train_step(
       mask,
       residue_index,
       chain_index,
+      sequence,
       batch_keys,
       physics_features,
     )
@@ -291,7 +317,7 @@ def train_step(
     loss=loss,
     accuracy=accuracy,
     perplexity=ppl,
-    learning_rate=float(current_lr),
+    learning_rate=current_lr,
     grad_norm=grad_norm,
   )
 
@@ -338,7 +364,9 @@ def eval_step(
     phys_feat: jax.Array | None = None,
   ) -> Logits:
     """Forward pass for a single protein."""
-    _, logits = model(
+    # Use inference mode for evaluation
+    inference_model = eqx.nn.inference_mode(model)
+    _, logits = inference_model(
       coords,
       msk,
       res_idx,
@@ -441,6 +469,9 @@ def train(spec: TrainingSpecification) -> TrainingResult:
         step,
         lr_schedule,
         batch.physics_features,
+        spec.backbone_noise[0] if isinstance(spec.backbone_noise, tuple) else spec.backbone_noise,
+        spec.mask_strategy,
+        spec.mask_prob,
       )
 
       step += 1

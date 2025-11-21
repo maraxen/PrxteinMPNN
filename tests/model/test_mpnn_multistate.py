@@ -5,17 +5,16 @@ protein design with structure_mapping, ensuring proper isolation of conformation
 states during encoding and decoding.
 """
 
+import chex
 import jax
 import jax.numpy as jnp
-import pytest
-import chex
-
-from prxteinmpnn.model.mpnn import PrxteinMPNN
 from helpers.multistate import (
   create_multistate_test_batch,
   create_simple_multistate_protein,
-  verify_no_cross_structure_neighbors,
 )
+
+from prxteinmpnn.model.mpnn import PrxteinMPNN
+
 
 class TestMPNNMultiState(chex.TestCase):
 

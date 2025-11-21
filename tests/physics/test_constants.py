@@ -18,20 +18,20 @@ from prxteinmpnn.physics.constants import (
 def test_coulomb_constant_value():
     """Test that Coulomb constant has expected value."""
     # Standard value for protein simulations
-    assert COULOMB_CONSTANT_KCAL == pytest.approx(332.0636, rel=1e-4)
+    assert pytest.approx(332.0636, rel=1e-4) == COULOMB_CONSTANT_KCAL
     assert COULOMB_CONSTANT == COULOMB_CONSTANT_KCAL
 
 
 def test_unit_conversions_are_inverses():
     """Test that unit conversion constants are inverses."""
-    assert KCAL_TO_KJ * KJ_TO_KCAL == pytest.approx(1.0)
-    assert NM_TO_ANGSTROM * ANGSTROM_TO_NM == pytest.approx(1.0)
+    assert pytest.approx(1.0) == KCAL_TO_KJ * KJ_TO_KCAL
+    assert pytest.approx(1.0) == NM_TO_ANGSTROM * ANGSTROM_TO_NM
 
 
 def test_unit_conversion_values():
     """Test specific unit conversion values."""
-    assert KCAL_TO_KJ == pytest.approx(4.184, rel=1e-4)
-    assert NM_TO_ANGSTROM == pytest.approx(10.0)
+    assert pytest.approx(4.184, rel=1e-4) == KCAL_TO_KJ
+    assert pytest.approx(10.0) == NM_TO_ANGSTROM
 
 
 def test_default_lj_parameters():

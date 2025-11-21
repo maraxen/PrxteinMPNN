@@ -42,7 +42,9 @@ LayerNorm = eqx.nn.LayerNorm
 # Feature extraction constants
 MAXIMUM_RELATIVE_FEATURES = 32
 POS_EMBED_DIM = 16
-top_k = jax.jit(jax.lax.top_k, static_argnames=("k",))
+def top_k(x: jax.Array, k: int) -> tuple[jax.Array, jax.Array]:
+    """Wrapper for jax.lax.top_k."""
+    return jax.lax.top_k(x, k)
 
 
 class ProteinFeatures(eqx.Module):
@@ -166,9 +168,8 @@ class ProteinFeatures(eqx.Module):
       axis=1,
     )
 
-    neighbor_offset_factor = jnp.clip(
-      neighbor_offsets + MAXIMUM_RELATIVE_FEATURES,
-      0,
+    neighbor_offset_factor = jnp.minimum(
+      jnp.maximum(neighbor_offsets + MAXIMUM_RELATIVE_FEATURES, 0),
       2 * MAXIMUM_RELATIVE_FEATURES,
     )
     edge_chain_factor = (1 - edge_chains_neighbors) * (2 * MAXIMUM_RELATIVE_FEATURES + 1)

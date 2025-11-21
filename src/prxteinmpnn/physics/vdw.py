@@ -411,6 +411,9 @@ def compute_lj_forces_at_backbone(
   backbone_epsilons: jax.Array,
   all_atom_sigmas: jax.Array,
   all_atom_epsilons: jax.Array,
+  *,
+  noise_scale: float | jax.Array = 0.0,
+  key: jax.Array | None = None,
 ) -> jax.Array:
   """Compute Lennard-Jones forces at all five backbone atoms.
 
@@ -430,6 +433,8 @@ def compute_lj_forces_at_backbone(
           shape (n_atoms,).
       all_atom_epsilons (jax.Array): LJ epsilon parameters for all atoms,
           shape (n_atoms,).
+      noise_scale: Scale of Gaussian noise to add to forces.
+      key: PRNG key for noise generation.
 
   Returns:
       jax.Array: Force vectors at backbone atoms, shape (n_residues, 5, 3).
@@ -468,6 +473,13 @@ def compute_lj_forces_at_backbone(
     backbone_epsilons_flat,
     all_atom_epsilons,
   )
+
+  if noise_scale > 0.0:
+    if key is None:
+      msg = "Must provide key when noise_scale > 0"
+      raise ValueError(msg)
+    noise = jax.random.normal(key, forces_flat.shape)
+    forces_flat = forces_flat + noise * noise_scale
 
   return forces_flat.reshape(n_residues, 5, 3)
 

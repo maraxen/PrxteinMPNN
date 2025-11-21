@@ -3,7 +3,8 @@
 import chex
 import jax
 import jax.numpy as jnp
-from prxteinmpnn.utils.radial_basis import compute_radial_basis, RADIAL_BASES
+
+from prxteinmpnn.utils.radial_basis import RADIAL_BASES, compute_radial_basis
 
 
 def test_compute_radial_basis_shape():
@@ -11,6 +12,7 @@ def test_compute_radial_basis_shape():
 
     Raises:
         AssertionError: If the output shape is incorrect.
+
     """
     L, K = 10, 8  # Num residues, num neighbors
     backbone_coords = jnp.zeros((L, 5, 3))
@@ -31,6 +33,7 @@ def test_compute_radial_basis_values():
 
     Raises:
         AssertionError: If the output values are incorrect.
+
     """
     L, K = 2, 1
     # Set all atom coords to zero. All distances will be zero.
@@ -49,9 +52,9 @@ def test_compute_radial_basis_values():
     # All 25 atom pairs have the same distance (0), so all RBFs should be the same.
     # We check the RBF for the first residue, first neighbor, first atom pair.
     chex.assert_trees_all_close(
-        rbf_output[0, 0, :RADIAL_BASES], expected_rbf_values, atol=1e-5
+        rbf_output[0, 0, :RADIAL_BASES], expected_rbf_values, atol=1e-5,
     )
     # And for the last atom pair
     chex.assert_trees_all_close(
-        rbf_output[0, 0, -RADIAL_BASES:], expected_rbf_values, atol=1e-5
+        rbf_output[0, 0, -RADIAL_BASES:], expected_rbf_values, atol=1e-5,
     )

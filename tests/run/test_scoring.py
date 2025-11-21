@@ -1,9 +1,9 @@
 """Tests for the scoring module."""
-import h5py
+from unittest.mock import MagicMock, patch
+
+import chex
 import jax.numpy as jnp
 import pytest
-from unittest.mock import patch, MagicMock
-import chex
 
 from prxteinmpnn.run.scoring import score
 from prxteinmpnn.run.specs import ScoringSpecification

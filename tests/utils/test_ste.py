@@ -1,8 +1,8 @@
 """Unit tests for the Straight-Through Estimator (STE) module."""
 
+import chex
 import jax
 import jax.numpy as jnp
-import chex
 
 from prxteinmpnn.utils import ste
 
@@ -15,7 +15,7 @@ def test_straight_through_estimator():
 
     # Check that the output is close to the one-hot encoding of the argmax
     chex.assert_trees_all_close(
-        jnp.argmax(result, axis=-1), jnp.argmax(expected_one_hot, axis=-1)
+        jnp.argmax(result, axis=-1), jnp.argmax(expected_one_hot, axis=-1),
     )
     chex.assert_shape(result, logits.shape)
 

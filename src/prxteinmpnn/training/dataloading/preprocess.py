@@ -149,7 +149,7 @@ def _worker_process_protein(args: tuple) -> tuple[str, Path | None]:
     # Validate features if requested
     if spec.validate_features:
       for key, value in record_data.items():
-        if isinstance(value, (np.ndarray, jnp.ndarray)) and not np.all(
+        if isinstance(value, np.ndarray | jnp.ndarray) and not np.all(
           np.isfinite(value),
         ):
           logger.warning("Non-finite values in %s for %s", key, pqr_path)

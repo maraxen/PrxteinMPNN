@@ -52,7 +52,7 @@ def _add_hydrogens_mdcath(atom_array: AtomArray) -> AtomArray:
       )
 
     try:
-      import hydride  # noqa: PLC0415
+      import hydride
 
       atom_array, _ = hydride.add_hydrogen(atom_array)
       logger.info("Hydrogens added to MDCATH structure")
@@ -84,14 +84,17 @@ def _process_mdcath_frame(
     static_features.residue_indices, num_atoms // static_features.num_residues,
   )
   atom_array.res_name = np.repeat(resnames, num_atoms // static_features.num_residues)
-  
+
   # Map chain indices to chain IDs (A, B, C...)
   # We need to expand chain_index (residue-level) to atom-level
-  chain_index_atom = np.repeat(static_features.chain_index, num_atoms // static_features.num_residues)
-  
+  chain_index_atom = np.repeat(
+      static_features.chain_index, num_atoms // static_features.num_residues,
+  )
+
   def chain_idx_to_id(idx: int) -> str:
       # Simple mapping: 0->A, 1->B, etc.
-      if idx < 26:
+      num_letters = 26
+      if idx < num_letters:
           return chr(ord("A") + idx)
       return str(idx)
 
@@ -162,14 +165,14 @@ def _get_static_features_mdcath(
       " 'resid' dataset not found at domain_group level. "
       "Cannot determine residue names. This is critical for feature extraction."
     )
-    logger.error(msg)
+    logger.exception(msg)
     raise ValueError(msg) from None
 
   num_residues = aatype.shape[0]
   logger.info("Final residue count used: %d", num_residues)
 
   residue_indices = np.arange(num_residues)
-  
+
   # Try to find chain information
   if "chain" in domain_group:
       chain_ids_raw = cast("h5py.Dataset", domain_group["chain"])[:].astype("U")
@@ -179,7 +182,9 @@ def _get_static_features_mdcath(
       chain_index = np.array([chain_map[cid] for cid in chain_ids_raw], dtype=np.int32)
       logger.info("Found chain information in MDcath file.")
   else:
-      logger.warning("No 'chain' dataset found in MDcath file. Defaulting to single chain (index 0).")
+      logger.warning(
+          "No 'chain' dataset found in MDcath file. Defaulting to single chain (index 0).",
+      )
       chain_index = np.zeros(num_residues, dtype=np.int32)
 
   atom_mask_37 = np.zeros((num_residues, 37), dtype=bool)

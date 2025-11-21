@@ -81,7 +81,7 @@ def _add_hydrogens_to_structure(
     logger.info("No charge annotation found. Adding zero charges for Hydride compatibility.")
     atom_array.set_annotation("charge", np.zeros(atom_array.array_length(), dtype=int))
 
-  import hydride  # noqa: PLC0415
+  import hydride
 
   atom_array, _ = hydride.add_hydrogen(atom_array)
   logger.info("Hydrogens added. New atom count: %d", atom_array.array_length())
@@ -212,10 +212,4 @@ def _parse_biotite(
   except Exception as e:
     msg = f"Failed to parse structure from source: {source}. {type(e).__name__}: {e}"
     logger.exception(msg)
-    yield ProteinTuple(
-      coordinates=np.empty((0, 37, 3), dtype=np.float32),
-      aatype=np.empty((0,), dtype=np.int32),
-      atom_mask=np.empty((0, 37), dtype=bool),
-      residue_index=np.empty((0,), dtype=np.int32),
-      chain_index=np.empty((0,), dtype=np.int32),
-    )
+    raise RuntimeError(msg) from e

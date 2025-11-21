@@ -144,7 +144,6 @@ def _mdtraj_to_atom_array(
   traj: md.Trajectory,
 ) -> AtomArray | AtomArrayStack:
   """Convert an mdtraj trajectory to a biotite AtomArray or AtomArrayStack."""
-  # Create AtomArray
   if traj.n_frames > 1:
     atom_array = AtomArrayStack(traj.n_frames, traj.n_atoms)
     atom_array.coord = traj.xyz * 10  # Convert nm to Angstrom
@@ -210,7 +209,7 @@ def _add_hydrogens_if_needed(atom_array: AtomArray) -> AtomArray:
       atom_array.set_annotation("charge", np.zeros(atom_array.array_length(), dtype=int))
 
     try:
-      import hydride  # noqa: PLC0415
+      import hydride
 
       atom_array, _ = hydride.add_hydrogen(atom_array)
       logger.info("Hydrogens added to MDTraj structure")

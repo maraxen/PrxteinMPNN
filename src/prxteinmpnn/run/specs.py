@@ -68,6 +68,11 @@ class RunSpecification:
   model_version: ModelVersion = "v_48_020"
   batch_size: int = 32
   backbone_noise: Sequence[float] | float = (0.0,)
+  backbone_noise_mode: Literal["direct", "temperature"] = "direct"
+  estat_noise: Sequence[float] | float | None = None
+  estat_noise_mode: Literal["direct", "temperature"] = "direct"
+  vdw_noise: Sequence[float] | float | None = None
+  vdw_noise_mode: Literal["direct", "temperature"] = "direct"
   foldcomp_database: FoldCompDatabase | None = None
   ar_mask: None | ArrayLike = None
   random_seed: int = 42
@@ -88,6 +93,10 @@ class RunSpecification:
     """Post-initialization processing and validation for tied-position logit averaging."""
     if isinstance(self.backbone_noise, float):
       object.__setattr__(self, "backbone_noise", (self.backbone_noise,))
+    if isinstance(self.estat_noise, float):
+      object.__setattr__(self, "estat_noise", (self.estat_noise,))
+    if isinstance(self.vdw_noise, float):
+      object.__setattr__(self, "vdw_noise", (self.vdw_noise,))
     if self.cache_path and isinstance(self.cache_path, str):
       object.__setattr__(self, "cache_path", Path(self.cache_path))
     # Validation for tied_positions and pass_mode

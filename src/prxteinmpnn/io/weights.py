@@ -112,6 +112,7 @@ def load_model(
   *,
   use_electrostatics: bool = False,
   use_vdw: bool = False,
+  dropout_rate: float = 0.1,
 ) -> PrxteinMPNN:
   """Load a fully instantiated PrxteinMPNN model with pre-trained weights.
 
@@ -127,6 +128,7 @@ def load_model(
       key: Optional JAX random key. If None, uses default PRNGKey(0).
       use_electrostatics: bool = False, Whether to include electrostatic features.
       use_vdw: bool = False, Whether to include van der Waals features.
+      dropout_rate: Dropout rate (default: 0.1).
 
   Returns:
       A fully loaded PrxteinMPNN model ready for inference.
@@ -141,7 +143,7 @@ def load_model(
       >>> seq, logits = model(coords, mask, res_idx, chain_idx, "unconditional")
 
   """
-  from prxteinmpnn.model import PrxteinMPNN
+  from prxteinmpnn.model import PrxteinMPNN  # noqa: PLC0415
 
   if key is None:
     key = jax.random.PRNGKey(0)
@@ -161,6 +163,7 @@ def load_model(
     num_decoder_layers=NUM_DECODER_LAYERS,
     vocab_size=VOCAB_SIZE,
     k_neighbors=K_NEIGHBORS,
+    dropout_rate=dropout_rate,
     key=key,
   )
 

@@ -85,6 +85,7 @@ class PrxteinMPNN(eqx.Module):
       physics_feature_dim: Dimension of physical features (if any).
       num_amino_acids: Number of amino acid types (default: 21).
       vocab_size: Size of sequence vocabulary (default: 21).
+      dropout_rate: Dropout rate (default: 0.1).
       key: PRNG key for initialization.
 
     Returns:
@@ -170,12 +171,13 @@ class PrxteinMPNN(eqx.Module):
       mask: Alpha carbon mask.
       _ar_mask: Unused, required for jax.lax.switch signature.
       _one_hot_sequence: Unused, required for jax.lax.switch signature.
-      prng_key: Unused, required for jax.lax.switch signature.
+      _prng_key: Unused, required for jax.lax.switch signature.
       _temperature: Unused, required for jax.lax.switch signature.
       _bias: Unused, required for jax.lax.switch signature.
       _tie_group_map: Unused, required for jax.lax.switch signature.
       _multi_state_strategy_idx: Unused, required for jax.lax.switch signature.
       _multi_state_alpha: Unused, required for jax.lax.switch signature.
+      _initial_node_features: Unused.
 
     Returns:
       Tuple of (dummy sequence, logits).
@@ -218,12 +220,12 @@ class PrxteinMPNN(eqx.Module):
     ar_mask: AutoRegressiveMask,
     one_hot_sequence: OneHotProteinSequence,
     prng_key: PRNGKeyArray,
-    temperature: Float,
-    bias: Logits,
-    tie_group_map: jnp.ndarray | None,
-    multi_state_strategy_idx: Int,
-    multi_state_alpha: float,
-    initial_node_features: NodeFeatures | None = None,
+    _temperature: Float,
+    _bias: Logits,
+    _tie_group_map: jnp.ndarray | None,
+    _multi_state_strategy_idx: Int,
+    _multi_state_alpha: float,
+    _initial_node_features: NodeFeatures | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the conditional (scoring) path.
 
@@ -232,14 +234,15 @@ class PrxteinMPNN(eqx.Module):
       edge_features: Edge features from encoding.
       neighbor_indices: Indices of neighbors for each node.
       mask: Alpha carbon mask.
-      _ar_mask: Autoregressive mask for conditional decoding.
+      ar_mask: Autoregressive mask for conditional decoding.
       one_hot_sequence: One-hot encoded protein sequence.
-      prng_key: Unused, required for jax.lax.switch signature.
+      prng_key: PRNG Key.
       _temperature: Unused, required for jax.lax.switch signature.
       _bias: Unused, required for jax.lax.switch signature.
       _tie_group_map: Unused, required for jax.lax.switch signature.
       _multi_state_strategy_idx: Unused, required for jax.lax.switch signature.
       _multi_state_alpha: Unused, required for jax.lax.switch signature.
+      _initial_node_features: Unused.
 
     Returns:
       Tuple of (input sequence, logits).
@@ -307,6 +310,7 @@ class PrxteinMPNN(eqx.Module):
           When provided, positions in the same group sample identical amino acids.
       multi_state_strategy_idx: Integer index for strategy (0=mean, 1=min, 2=product, 3=max_min).
       multi_state_alpha: Weight for min component when strategy="max_min".
+      _initial_node_features: Unused.
 
     Returns:
       Tuple of (sampled sequence, logits).
@@ -731,7 +735,7 @@ class PrxteinMPNN(eqx.Module):
 
     return all_logits, s_embed, sequence
 
-  def _run_autoregressive_scan(
+  def _run_autoregressive_scan(  # noqa: PLR0915
     self,
     prng_key: PRNGKeyArray,
     node_features: NodeFeatures,
@@ -1011,9 +1015,6 @@ class PrxteinMPNN(eqx.Module):
                 is a PhysicsEncoder with use_initial_features=True, these will be
                 used instead of zeros. Typically contains electrostatic features
                 with shape (n_residues, 5).
-      use_electrostatics: Whether to use electrostatic features in the physics encoder.
-      _use_vdw: Whether to use van der Waals features in the physics encoder (not implemented).
-
 
     Returns:
       A tuple of (OneHotProteinSequence, Logits).

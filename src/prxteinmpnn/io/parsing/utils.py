@@ -209,11 +209,11 @@ def atom_array_dihedrals(
   return clean_dihedrals
 
 
-def processed_structure_to_protein_tuples(
+def processed_structure_to_protein_tuples(  # noqa: C901
   processed_structure: ProcessedStructure,
   source_name: str,
-  extract_dihedrals: bool = False,
-  populate_physics: bool = True,
+  extract_dihedrals: bool = False,  # noqa: FBT001, FBT002
+  populate_physics: bool = True,  # noqa: FBT001, FBT002
   force_field_name: str = "amber14-all",
 ) -> ProteinStream:
   """Convert a ProcessedStructure into a stream of ProteinTuples.
@@ -241,35 +241,39 @@ def processed_structure_to_protein_tuples(
   epsilons = processed_structure.epsilons
 
   if populate_physics and (charges is None or sigmas is None or epsilons is None):
-      logger.info("Populating missing physics parameters from force field")
-      from prxteinmpnn.io.parsing.physics_utils import populate_physics_parameters
+    logger.info("Populating missing physics parameters from force field")
+    from prxteinmpnn.io.parsing.physics_utils import populate_physics_parameters  # noqa: PLC0415
 
-      charges_ff, sigmas_ff, epsilons_ff = populate_physics_parameters(
-          atom_array,
-          force_field_name=force_field_name,
+    charges_ff, sigmas_ff, epsilons_ff = populate_physics_parameters(
+      atom_array,
+      force_field_name=force_field_name,
+    )
+
+    # Use force field values for missing parameters
+    if charges is None:
+      charges = charges_ff
+    if sigmas is None:
+      sigmas = sigmas_ff
+    if epsilons is None:
+      epsilons = epsilons_ff
+
+    # Radii: use van der Waals radii if not present
+    if radii is None:
+      from prxteinmpnn.io.parsing.physics_utils import _get_default_parameters  # noqa: PLC0415
+
+      _, _, _ = _get_default_parameters(atom_array)  # Just for consistency
+      # Simple element-based radii
+      element_radii = {
+        "H": 1.20,
+        "C": 1.70,
+        "N": 1.55,
+        "O": 1.52,
+        "S": 1.80,
+        "P": 1.80,
+      }
+      radii = np.array(
+        [element_radii.get(elem, 1.70) for elem in atom_array.element], dtype=np.float32,
       )
-
-      # Use force field values for missing parameters
-      if charges is None:
-          charges = charges_ff
-      if sigmas is None:
-          sigmas = sigmas_ff
-      if epsilons is None:
-          epsilons = epsilons_ff
-
-      # Radii: use van der Waals radii if not present
-      if radii is None:
-          from prxteinmpnn.io.parsing.physics_utils import _get_default_parameters
-          _, _, _ = _get_default_parameters(atom_array)  # Just for consistency
-          # Simple element-based radii
-          element_radii = {
-              "H": 1.20, "C": 1.70, "N": 1.55,
-              "O": 1.52, "S": 1.80, "P": 1.80,
-          }
-          radii = np.array([
-              element_radii.get(elem, 1.70)
-              for elem in atom_array.element
-          ], dtype=np.float32)
 
   num_frames = atom_array.stack_depth() if isinstance(atom_array, AtomArrayStack) else 1
   frame_count = 0

@@ -160,7 +160,7 @@ class ProteinFeaturesDirect(eqx.Module):
 
     # Direct matrix multiply instead of vmap (shape: N, K, 66 @ 66, 16 = N, K, 16)
     w_pos_weight = self.w_pos.weight  # (16, 66)
-    w_pos_bias = self.w_pos.bias      # (16,)
+    w_pos_bias = self.w_pos.bias  # (16,)
     if w_pos_bias is None:
       encoded_positions = encoded_offset_one_hot @ w_pos_weight.T
     else:
@@ -191,7 +191,7 @@ class ProteinFeaturesDirect(eqx.Module):
 
     # Project features (shape: N, K, 128 @ 128, 128 = N, K, 128)
     w_e_proj_weight = self.w_e_proj.weight  # (128, 128)
-    w_e_proj_bias = self.w_e_proj.bias      # (128,)
+    w_e_proj_bias = self.w_e_proj.bias  # (128,)
     if w_e_proj_bias is None:
       edge_features = edge_features @ w_e_proj_weight.T
     else:

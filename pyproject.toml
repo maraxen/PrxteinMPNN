@@ -20,6 +20,7 @@ dependencies = [
     "optax",
     "h5py",
     "grain",
+    "hydride",
     "pcax>=0.1.0",
     "tables>=3.10.2",
     "array-record>=0.8.1",
@@ -97,6 +98,7 @@ exclude = [
     "__pycache__",
     "tests",
     "examples",
+    "scripts",
     "*.ipynb",
     "src/prxteinmpnn/training/data/download_and_process.py",
 ]
@@ -110,6 +112,7 @@ pylint.max-args = 15
 "src/prxteinmpnn/run.py" = ["E402", "PLR0913", "ANN401"]
 "src/prxteinmpnn/io/parsing.py" = ["ANN401"]
 "tests/test_adapter.py" = ["S101", "T201", "ANN201", "INP001", "PLC0415", "SLF001"]
+"scripts/**/*.py" = ["T201", "INP001"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}

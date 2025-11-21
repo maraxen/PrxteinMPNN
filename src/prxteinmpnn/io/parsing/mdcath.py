@@ -30,7 +30,7 @@ from .mappings import residue_names_to_aatype
 logger = logging.getLogger(__name__)
 
 
-def parse_mdcath_to_processed_structure(  # noqa: PLR0915, C901
+def parse_mdcath_to_processed_structure(  # noqa: PLR0915, C901, PLR0912
   source: str | StringIO | pathlib.Path,
   chain_id: Sequence[str] | str | None,
 ) -> Iterator[ProcessedStructure]:
@@ -86,14 +86,12 @@ def parse_mdcath_to_processed_structure(  # noqa: PLR0915, C901
 
       atom_mask_37 = np.zeros((num_residues, 37), dtype=bool)
       resnames = cast("h5py.Dataset", domain_group["resname"])[:].astype("U3")
-      three_to_one = {
-          name: name for name in np.unique(resnames)
-      }
+      three_to_one = {name: name for name in np.unique(resnames)}
       for i, resname in enumerate(resnames):
-          if resname in three_to_one:
-              for atom_name in rc.restype_name_to_atom14_names[three_to_one[resname]]:
-                  if atom_name in rc.atom_order:
-                      atom_mask_37[i, rc.atom_order[atom_name]] = True
+        if resname in three_to_one:
+          for atom_name in rc.restype_name_to_atom14_names[three_to_one[resname]]:
+            if atom_name in rc.atom_order:
+              atom_mask_37[i, rc.atom_order[atom_name]] = True
 
       sample_coords_shape = cast(
         "h5py.Dataset",
@@ -147,14 +145,16 @@ def parse_mdcath_to_processed_structure(  # noqa: PLR0915, C901
               # Here we are iterating frames, so we yield one by one.
 
               # We need to construct an AtomArray from the coordinates and static features.
-              # This is a bit involved as we need to map back from 37-atom representation or full atoms?
+              # This is a bit involved as we need to map back from 37-atom representation
+              # or full atoms?
               # frame_coords_full is (num_full_atoms, 3).
               # We have valid_atom_mask which is all ones.
 
               # We can construct an AtomArray with all atoms.
               # We need atom names and residue names.
 
-              # Reconstructing AtomArray from raw arrays is tedious but necessary for ProcessedStructure.
+              # Reconstructing AtomArray from raw arrays is tedious but necessary
+              # for ProcessedStructure.
               # However, for MDCATH, we might just want to wrap the data we have?
               # But ProcessedStructure requires AtomArray.
 
@@ -166,44 +166,51 @@ def parse_mdcath_to_processed_structure(  # noqa: PLR0915, C901
               # Populate basic atom information
               # We need to expand residue-level info to atom-level
               # This is simplified - ideally we'd reconstruct full atom details
-              atom_array.res_id = np.repeat(static_features.residue_indices, num_atoms // static_features.num_residues)
+              atom_array.res_id = np.repeat(
+                static_features.residue_indices, num_atoms // static_features.num_residues,
+              )
               atom_array.res_name = np.repeat(resnames, num_atoms // static_features.num_residues)
               atom_array.chain_id = np.repeat(["A"], num_atoms)  # Simplified
 
               # Apply solvent removal
               solvent_mask = filter_solvent(atom_array)
               if np.any(solvent_mask):
-                  n_solvent = np.sum(solvent_mask)
-                  logger.info("Removing %d solvent atoms from MDCATH frame", n_solvent)
-                  atom_array = atom_array[~solvent_mask]
+                n_solvent = np.sum(solvent_mask)
+                logger.info("Removing %d solvent atoms from MDCATH frame", n_solvent)
+                atom_array = atom_array[~solvent_mask]
 
               # Add hydrogens if missing
-              has_hydrogens = (atom_array.element == "H").any() if hasattr(atom_array, "element") else False
+              has_hydrogens = (
+                (atom_array.element == "H").any() if hasattr(atom_array, "element") else False
+              )
               if not has_hydrogens:
-                  logger.info("Adding hydrogens to MDCATH AtomArray")
-                  # Infer bonds
-                  if not atom_array.bonds:
-                      try:
-                          atom_array.bonds = structure.connect_via_residue_names(atom_array)
-                      except Exception as e:
-                          logger.warning("Failed to infer bonds: %s", e)
-                          atom_array.bonds = structure.connect_via_distances(atom_array)
-
-                  # Add charge annotation
-                  if "charge" not in atom_array.get_annotation_categories():
-                      atom_array.set_annotation("charge", np.zeros(atom_array.array_length(), dtype=int))
-
+                logger.info("Adding hydrogens to MDCATH AtomArray")
+                # Infer bonds
+                if not atom_array.bonds:
                   try:
-                      import hydride
-                      atom_array, _ = hydride.add_hydrogen(atom_array)
-                      logger.info("Hydrogens added to MDCATH structure")
-                  except Exception as e:
-                      logger.warning("Failed to add hydrogens: %s", e)
+                    atom_array.bonds = structure.connect_via_residue_names(atom_array)
+                  except Exception as e:  # noqa: BLE001
+                    logger.warning("Failed to infer bonds: %s", e)
+                    atom_array.bonds = structure.connect_via_distances(atom_array)
+
+                # Add charge annotation
+                if "charge" not in atom_array.get_annotation_categories():
+                  atom_array.set_annotation(
+                    "charge", np.zeros(atom_array.array_length(), dtype=int),
+                  )
+
+                try:
+                  import hydride  # noqa: PLC0415
+
+                  atom_array, _ = hydride.add_hydrogen(atom_array)
+                  logger.info("Hydrogens added to MDCATH structure")
+                except Exception as e:  # noqa: BLE001
+                  logger.warning("Failed to add hydrogens: %s", e)
 
               yield ProcessedStructure(
-                  atom_array=atom_array,
-                  r_indices=atom_array.res_id,
-                  chain_ids=np.zeros(atom_array.array_length(), dtype=np.int32),
+                atom_array=atom_array,
+                r_indices=atom_array.res_id,
+                chain_ids=np.zeros(atom_array.array_length(), dtype=np.int32),
               )
       logger.info("Finished mdCATH HDF5 parsing. Yielded %d frames.", frame_count)
 

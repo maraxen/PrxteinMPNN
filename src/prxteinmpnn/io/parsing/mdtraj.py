@@ -172,12 +172,13 @@ def _mdtraj_to_atom_array(
   # MDTraj chain indices are 0-based. Biotite expects strings usually, or we can use A, B, C...
   # Let's map 0->A, 1->B etc.
   chain_indices = np.array([a.residue.chain.index for a in top.atoms], dtype=int)
+
   # Handle > 26 chains?
   # For now simple mapping.
-  def chain_idx_to_id(idx):
-      if idx < 26:
-          return chr(ord("A") + idx)
-      return str(idx) # Fallback
+  def chain_idx_to_id(idx: int) -> str:
+    if idx < 26:  # noqa: PLR2004
+      return chr(ord("A") + idx)
+    return str(idx)  # Fallback
 
   chain_ids = np.array([chain_idx_to_id(i) for i in chain_indices], dtype="U3")
   atom_array.chain_id = chain_ids
@@ -189,11 +190,11 @@ def _mdtraj_to_atom_array(
   return atom_array
 
 
-def parse_mdtraj_to_processed_structure(
+def parse_mdtraj_to_processed_structure(  # noqa: C901, PLR0912
   source: str | StringIO | pathlib.Path,
   chain_id: Sequence[str] | str | None,
   *,
-  extract_dihedrals: bool = False, # Kept for compatibility but ignored here
+  extract_dihedrals: bool = False,  # noqa: ARG001
   topology: str | pathlib.Path | None = None,
 ) -> Iterator[ProcessedStructure]:
   """Parse HDF5 structure files directly using mdtraj."""
@@ -218,13 +219,12 @@ def parse_mdtraj_to_processed_structure(
     # But we need the atom indices from the first frame selection.
 
     # Re-derive selection indices
-    if chain_id is not None:
-        # This logic is duplicated from _select_chain_mdtraj but we need the indices
-        if isinstance(chain_id, str):
-            chain_id = [chain_id]
-        # We need the ORIGINAL topology to select indices.
-        # first_frame is already sliced.
-        # Let's reload first frame or just use the logic on the loaded chunk.
+    if chain_id is not None and isinstance(chain_id, str):
+      # This logic is duplicated from _select_chain_mdtraj but we need the indices
+      chain_id = [chain_id]
+      # We need the ORIGINAL topology to select indices.
+      # first_frame is already sliced.
+      # Let's reload first frame or just use the logic on the loaded chunk.
 
     traj_iterator = md.iterload(str(source))
     frame_count = 0
@@ -234,7 +234,7 @@ def parse_mdtraj_to_processed_structure(
 
       # Apply chain selection if needed
       if chain_id is not None:
-          traj_chunk = _select_chain_mdtraj(traj_chunk, chain_id=chain_id)
+        traj_chunk = _select_chain_mdtraj(traj_chunk, chain_id=chain_id)  # noqa: PLW2901
 
       # Convert to AtomArray
       atom_array = _mdtraj_to_atom_array(traj_chunk)
@@ -242,36 +242,37 @@ def parse_mdtraj_to_processed_structure(
       # Apply solvent removal if needed
       solvent_mask = filter_solvent(atom_array)
       if np.any(solvent_mask):
-          n_solvent = np.sum(solvent_mask)
-          logger.info("Removing %d solvent atoms from MDTraj chunk", n_solvent)
-          if isinstance(atom_array, AtomArrayStack):
-              atom_array = atom_array[:, ~solvent_mask]
-          else:
-              atom_array = atom_array[~solvent_mask]
+        n_solvent = np.sum(solvent_mask)
+        logger.info("Removing %d solvent atoms from MDTraj chunk", n_solvent)
+        if isinstance(atom_array, AtomArrayStack):
+          atom_array = atom_array[:, ~solvent_mask]
+        else:
+          atom_array = atom_array[~solvent_mask]
 
       # Add hydrogens if missing
       if isinstance(atom_array, AtomArray):  # Only for single frames
-          has_hydrogens = (atom_array.element == "H").any()
-          if not has_hydrogens:
-              logger.info("Adding hydrogens to MDTraj AtomArray")
-              # Infer bonds for hydride
-              if not atom_array.bonds:
-                  try:
-                      atom_array.bonds = structure.connect_via_residue_names(atom_array)
-                  except Exception as e:
-                      logger.warning("Failed to infer bonds: %s", e)
-                      atom_array.bonds = structure.connect_via_distances(atom_array)
+        has_hydrogens = (atom_array.element == "H").any()
+        if not has_hydrogens:
+          logger.info("Adding hydrogens to MDTraj AtomArray")
+          # Infer bonds for hydride
+          if not atom_array.bonds:
+            try:
+              atom_array.bonds = structure.connect_via_residue_names(atom_array)
+            except Exception as e:  # noqa: BLE001
+              logger.warning("Failed to infer bonds: %s", e)
+              atom_array.bonds = structure.connect_via_distances(atom_array)
 
-              # Add charge annotation
-              if "charge" not in atom_array.get_annotation_categories():
-                  atom_array.set_annotation("charge", np.zeros(atom_array.array_length(), dtype=int))
+          # Add charge annotation
+          if "charge" not in atom_array.get_annotation_categories():
+            atom_array.set_annotation("charge", np.zeros(atom_array.array_length(), dtype=int))
 
-              try:
-                  import hydride
-                  atom_array, _ = hydride.add_hydrogen(atom_array)
-                  logger.info("Hydrogens added to MDTraj structure")
-              except Exception as e:
-                  logger.warning("Failed to add hydrogens: %s", e)
+          try:
+            import hydride  # noqa: PLC0415
+
+            atom_array, _ = hydride.add_hydrogen(atom_array)
+            logger.info("Hydrogens added to MDTraj structure")
+          except Exception as e:  # noqa: BLE001
+            logger.warning("Failed to add hydrogens: %s", e)
 
       # Yield ProcessedStructure
       # We yield one ProcessedStructure per chunk (containing a stack)
@@ -285,9 +286,11 @@ def parse_mdtraj_to_processed_structure(
       # These are available in atom_array.
 
       yield ProcessedStructure(
-          atom_array=atom_array,
-          r_indices=atom_array.res_id,
-          chain_ids=np.zeros(atom_array.array_length(), dtype=np.int32), # Placeholder, will be recomputed
+        atom_array=atom_array,
+        r_indices=atom_array.res_id,
+        chain_ids=np.zeros(
+          atom_array.array_length(), dtype=np.int32,
+        ),  # Placeholder, will be recomputed
       )
 
     logger.info("Finished MDTraj HDF5 parsing. Yielded %d frames.", frame_count)

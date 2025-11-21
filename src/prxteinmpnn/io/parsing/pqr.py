@@ -79,7 +79,7 @@ def parse_pqr_to_processed_structure(
   chain_id: Sequence[str] | str | None = None,
 ) -> ProcessedStructure:
   """Parse a PQR file directly into a ProcessedStructure."""
-  if isinstance(pqr_file, (str, pathlib.Path)):
+  if isinstance(pqr_file, str | pathlib.Path):
     path = pathlib.Path(pqr_file)
     with path.open() as f:
       lines = f.readlines()

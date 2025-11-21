@@ -25,7 +25,7 @@ def _get_element_size_bytes(element: Any) -> int:  # noqa: ANN401
   if isinstance(element, dict):
     for value in element.values():
       size += _get_element_size_bytes(value)
-  elif isinstance(element, (list, tuple)):
+  elif isinstance(element, list | tuple):
     for item in element:
       size += _get_element_size_bytes(item)
   elif isinstance(element, np.ndarray):

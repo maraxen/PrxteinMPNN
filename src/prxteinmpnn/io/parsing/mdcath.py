@@ -32,9 +32,7 @@ logger = logging.getLogger(__name__)
 
 def _add_hydrogens_mdcath(atom_array: AtomArray) -> AtomArray:
   """Add hydrogens to AtomArray if missing."""
-  has_hydrogens = (
-    (atom_array.element == "H").any() if hasattr(atom_array, "element") else False
-  )
+  has_hydrogens = (atom_array.element == "H").any() if hasattr(atom_array, "element") else False
   if not has_hydrogens:
     logger.info("Adding hydrogens to MDCATH AtomArray")
     # Infer bonds
@@ -48,7 +46,8 @@ def _add_hydrogens_mdcath(atom_array: AtomArray) -> AtomArray:
     # Add charge annotation
     if "charge" not in atom_array.get_annotation_categories():
       atom_array.set_annotation(
-        "charge", np.zeros(atom_array.array_length(), dtype=int),
+        "charge",
+        np.zeros(atom_array.array_length(), dtype=int),
       )
 
     try:
@@ -81,22 +80,24 @@ def _process_mdcath_frame(
 
   # Populate basic atom information
   atom_array.res_id = np.repeat(
-    static_features.residue_indices, num_atoms // static_features.num_residues,
+    static_features.residue_indices,
+    num_atoms // static_features.num_residues,
   )
   atom_array.res_name = np.repeat(resnames, num_atoms // static_features.num_residues)
 
   # Map chain indices to chain IDs (A, B, C...)
   # We need to expand chain_index (residue-level) to atom-level
   chain_index_atom = np.repeat(
-      static_features.chain_index, num_atoms // static_features.num_residues,
+    static_features.chain_index,
+    num_atoms // static_features.num_residues,
   )
 
   def chain_idx_to_id(idx: int) -> str:
-      # Simple mapping: 0->A, 1->B, etc.
-      num_letters = 26
-      if idx < num_letters:
-          return chr(ord("A") + idx)
-      return str(idx)
+    # Simple mapping: 0->A, 1->B, etc.
+    num_letters = 26
+    if idx < num_letters:
+      return chr(ord("A") + idx)
+    return str(idx)
 
   atom_array.chain_id = np.array([chain_idx_to_id(i) for i in chain_index_atom], dtype="U3")
 
@@ -175,17 +176,17 @@ def _get_static_features_mdcath(
 
   # Try to find chain information
   if "chain" in domain_group:
-      chain_ids_raw = cast("h5py.Dataset", domain_group["chain"])[:].astype("U")
-      # Map chain IDs to indices
-      unique_chains = np.unique(chain_ids_raw)
-      chain_map = {cid: i for i, cid in enumerate(unique_chains)}
-      chain_index = np.array([chain_map[cid] for cid in chain_ids_raw], dtype=np.int32)
-      logger.info("Found chain information in MDcath file.")
+    chain_ids_raw = cast("h5py.Dataset", domain_group["chain"])[:].astype("U")
+    # Map chain IDs to indices
+    unique_chains = np.unique(chain_ids_raw)
+    chain_map = {cid: i for i, cid in enumerate(unique_chains)}
+    chain_index = np.array([chain_map[cid] for cid in chain_ids_raw], dtype=np.int32)
+    logger.info("Found chain information in MDcath file.")
   else:
-      logger.warning(
-          "No 'chain' dataset found in MDcath file. Defaulting to single chain (index 0).",
-      )
-      chain_index = np.zeros(num_residues, dtype=np.int32)
+    logger.warning(
+      "No 'chain' dataset found in MDcath file. Defaulting to single chain (index 0).",
+    )
+    chain_index = np.zeros(num_residues, dtype=np.int32)
 
   atom_mask_37 = np.zeros((num_residues, 37), dtype=bool)
   three_to_one = {name: name for name in np.unique(resnames)}

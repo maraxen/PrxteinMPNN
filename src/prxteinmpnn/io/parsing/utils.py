@@ -15,6 +15,10 @@ from biotite.structure import (
   get_residues,
 )
 
+from prxteinmpnn.io.parsing.physics_utils import (
+  _get_default_parameters,
+  populate_physics_parameters,
+)
 from prxteinmpnn.io.parsing.structures import ProcessedStructure
 from prxteinmpnn.utils.data_structures import (
   ProteinStream,
@@ -209,11 +213,59 @@ def atom_array_dihedrals(
   return clean_dihedrals
 
 
-def processed_structure_to_protein_tuples(  # noqa: C901
+def _resolve_physics_parameters(
+  processed_structure: ProcessedStructure,
+  atom_array: AtomArray | AtomArrayStack,
+  *,
+  populate_physics: bool,
+  force_field_name: str,
+) -> tuple[np.ndarray | None, np.ndarray | None, np.ndarray | None, np.ndarray | None]:
+  """Resolve physics parameters from processed structure or populate them."""
+  charges = processed_structure.charges
+  radii = processed_structure.radii
+  sigmas = processed_structure.sigmas
+  epsilons = processed_structure.epsilons
+
+  if populate_physics and (charges is None or sigmas is None or epsilons is None):
+    logger.info("Populating missing physics parameters from force field")
+
+    charges_ff, sigmas_ff, epsilons_ff = populate_physics_parameters(
+      atom_array,
+      force_field_name=force_field_name,
+    )
+
+    # Use force field values for missing parameters
+    if charges is None:
+      charges = charges_ff
+    if sigmas is None:
+      sigmas = sigmas_ff
+    if epsilons is None:
+      epsilons = epsilons_ff
+
+    # Radii: use van der Waals radii if not present
+    if radii is None:
+      _, _, _ = _get_default_parameters(atom_array)  # Just for consistency
+      # Simple element-based radii
+      element_radii = {
+        "H": 1.20,
+        "C": 1.70,
+        "N": 1.55,
+        "O": 1.52,
+        "S": 1.80,
+        "P": 1.80,
+      }
+      radii = np.array(
+        [element_radii.get(elem, 1.70) for elem in atom_array.element], dtype=np.float32,
+      )
+  return charges, radii, sigmas, epsilons
+
+
+def processed_structure_to_protein_tuples(
   processed_structure: ProcessedStructure,
   source_name: str,
-  extract_dihedrals: bool = False,  # noqa: FBT001, FBT002
-  populate_physics: bool = True,  # noqa: FBT001, FBT002
+  *,
+  extract_dihedrals: bool = False,
+  populate_physics: bool = True,
   force_field_name: str = "amber14-all",
 ) -> ProteinStream:
   """Convert a ProcessedStructure into a stream of ProteinTuples.
@@ -234,95 +286,30 @@ def processed_structure_to_protein_tuples(  # noqa: C901
 
   static_features, atom_array = _extract_biotite_static_features(atom_array, chain_id=None)
 
-  # Populate physics parameters if not already present and requested
-  charges = processed_structure.charges
-  radii = processed_structure.radii
-  sigmas = processed_structure.sigmas
-  epsilons = processed_structure.epsilons
-
-  if populate_physics and (charges is None or sigmas is None or epsilons is None):
-    logger.info("Populating missing physics parameters from force field")
-    from prxteinmpnn.io.parsing.physics_utils import populate_physics_parameters  # noqa: PLC0415
-
-    charges_ff, sigmas_ff, epsilons_ff = populate_physics_parameters(
-      atom_array,
-      force_field_name=force_field_name,
-    )
-
-    # Use force field values for missing parameters
-    if charges is None:
-      charges = charges_ff
-    if sigmas is None:
-      sigmas = sigmas_ff
-    if epsilons is None:
-      epsilons = epsilons_ff
-
-    # Radii: use van der Waals radii if not present
-    if radii is None:
-      from prxteinmpnn.io.parsing.physics_utils import _get_default_parameters  # noqa: PLC0415
-
-      _, _, _ = _get_default_parameters(atom_array)  # Just for consistency
-      # Simple element-based radii
-      element_radii = {
-        "H": 1.20,
-        "C": 1.70,
-        "N": 1.55,
-        "O": 1.52,
-        "S": 1.80,
-        "P": 1.80,
-      }
-      radii = np.array(
-        [element_radii.get(elem, 1.70) for elem in atom_array.element], dtype=np.float32,
-      )
+  charges, radii, sigmas, epsilons = _resolve_physics_parameters(
+    processed_structure,
+    atom_array,
+    populate_physics=populate_physics,
+    force_field_name=force_field_name,
+  )
 
   num_frames = atom_array.stack_depth() if isinstance(atom_array, AtomArrayStack) else 1
   frame_count = 0
 
-  if isinstance(atom_array, AtomArrayStack):
-    for frame in atom_array:
-      frame_count += 1
-      dihedrals = None
-      if extract_dihedrals:
-        dihedrals = atom_array_dihedrals(frame)
-
-      coords = np.asarray(frame.coord)
-      coords_37 = process_coordinates(
-        coords,
-        static_features.num_residues,
-        static_features.static_atom_mask_37,
-        static_features.valid_atom_mask,
-      )
-      logger.debug("Yielding frame %d of %d from Biotite stack.", frame_count, num_frames)
-      yield ProteinTuple(
-        coordinates=coords_37,
-        aatype=static_features.aatype,
-        atom_mask=static_features.static_atom_mask_37,
-        residue_index=static_features.residue_indices,
-        chain_index=static_features.chain_index,
-        dihedrals=dihedrals,
-        source=str(source_name),
-        full_coordinates=coords,
-        charges=charges,
-        radii=radii,
-        epsilons=epsilons,
-        sigmas=sigmas,
-      )
-
-  elif isinstance(atom_array, AtomArray):
-    frame_count += 1
+  # Helper for yielding logic
+  def _yield_protein_tuple(frame: AtomArray) -> ProteinTuple:
     dihedrals = None
     if extract_dihedrals:
-      dihedrals = atom_array_dihedrals(atom_array)
+      dihedrals = atom_array_dihedrals(frame)
 
-    coords = np.asarray(atom_array.coord)
+    coords = np.asarray(frame.coord)
     coords_37 = process_coordinates(
       coords,
       static_features.num_residues,
       static_features.static_atom_mask_37,
       static_features.valid_atom_mask,
     )
-    logger.debug("Yielding single frame from Biotite AtomArray.")
-    yield ProteinTuple(
+    return ProteinTuple(
       coordinates=coords_37,
       aatype=static_features.aatype,
       atom_mask=static_features.static_atom_mask_37,
@@ -336,3 +323,14 @@ def processed_structure_to_protein_tuples(  # noqa: C901
       epsilons=epsilons,
       sigmas=sigmas,
     )
+
+  if isinstance(atom_array, AtomArrayStack):
+    for frame in atom_array:
+      frame_count += 1
+      logger.debug("Yielding frame %d of %d from Biotite stack.", frame_count, num_frames)
+      yield _yield_protein_tuple(frame)
+
+  elif isinstance(atom_array, AtomArray):
+    frame_count += 1
+    logger.debug("Yielding single frame from Biotite AtomArray.")
+    yield _yield_protein_tuple(atom_array)

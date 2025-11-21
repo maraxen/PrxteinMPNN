@@ -192,7 +192,6 @@ class JacobianSpecification(RunSpecification):
   compute_apc: bool = True
   apc_batch_size: int = 8
   apc_residue_batch_size: int = 1000
-  noise_batch_size: int = 4
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""

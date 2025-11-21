@@ -1,9 +1,10 @@
 """Tests for electrostatic calculations."""
+from functools import partial
+
 import chex
 import jax
 import jax.numpy as jnp
 import pytest
-from functools import partial
 
 from prxteinmpnn.physics.electrostatics import (
     compute_coulomb_forces,
@@ -70,7 +71,7 @@ def test_pairwise_displacements_known_distance(jit_compile):
     # So displacement_fn(pos_i, pos_j) = pos_i - pos_j (based on implementation)
     # We call it with (pos_i, pos_j) so we get pos_i - pos_j
     chex.assert_trees_all_close(
-        jnp.abs(displacements[0, 0]), jnp.array([3.0, 4.0, 0.0])
+        jnp.abs(displacements[0, 0]), jnp.array([3.0, 4.0, 0.0]),
     )
 
 
@@ -113,7 +114,7 @@ def test_coulomb_forces_same_charges_repel(jit_compile):
 
 @pytest.mark.parametrize("jit_compile", [True, False], ids=["jit", "eager"])
 def test_coulomb_forces_magnitude_scales_with_charge(
-    simple_positions, jit_compile
+    simple_positions, jit_compile,
 ):
     """Test that force magnitude scales linearly with charge."""
     fn = partial(compute_coulomb_forces, exclude_self=True)
@@ -123,7 +124,7 @@ def test_coulomb_forces_magnitude_scales_with_charge(
     charges_2x = charges_1x * 2.0
 
     displacements, distances = compute_pairwise_displacements(
-        simple_positions, simple_positions
+        simple_positions, simple_positions,
     )
 
     # With corrected API: both target and source charges scale quadratically (q_i * q_j)
@@ -186,22 +187,22 @@ def test_coulomb_forces_at_backbone_multi_residue(
 
 @pytest.mark.parametrize("jit_compile", [True, False], ids=["jit", "eager"])
 def test_coulomb_forces_vmappable(
-    simple_positions, simple_charges, jit_compile
+    simple_positions, simple_charges, jit_compile,
 ):
     """Test that Coulomb forces can be vmapped over batches."""
     # Create batch of 3 charge distributions
     batch_charges = jnp.stack(
-        [simple_charges, simple_charges * 2, simple_charges * 0.5]
+        [simple_charges, simple_charges * 2, simple_charges * 0.5],
     )
 
     displacements, distances = compute_pairwise_displacements(
-        simple_positions, simple_positions
+        simple_positions, simple_positions,
     )
 
     # Vmap over charge distributions (both target and source)
     def vmapped_fn(charges):
         return compute_coulomb_forces(
-            displacements, distances, charges, charges
+            displacements, distances, charges, charges,
         )
 
     fn = jax.vmap(vmapped_fn)
@@ -216,16 +217,16 @@ def test_coulomb_forces_vmappable(
 
 @pytest.mark.parametrize("jit_compile", [True, False], ids=["jit", "eager"])
 def test_coulomb_forces_differentiable(
-    simple_positions, simple_charges, jit_compile
+    simple_positions, simple_charges, jit_compile,
 ):
     """Test that Coulomb forces are differentiable w.r.t. positions."""
 
     def force_magnitude(positions):
         displacements, distances = compute_pairwise_displacements(
-            positions, positions
+            positions, positions,
         )
         forces = compute_coulomb_forces(
-            displacements, distances, simple_charges, simple_charges
+            displacements, distances, simple_charges, simple_charges,
         )
         return jnp.sum(jnp.linalg.norm(forces, axis=-1))
 
@@ -248,7 +249,7 @@ def test_coulomb_forces_zero_for_neutral(jit_compile):
     charges = jnp.array([0.0, 0.0])
 
     displacements, distances = compute_pairwise_displacements(
-        positions, positions
+        positions, positions,
     )
     forces = fn(displacements, distances, charges, charges)
 

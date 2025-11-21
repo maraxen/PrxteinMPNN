@@ -176,7 +176,7 @@ class TestARMaskWithTies:
     chain_idx = jnp.array([0, 0, 1, 1])  # Two chains
 
     mask = generate_ar_mask(
-      decoding_order, chain_idx=chain_idx, tie_group_map=tie_group_map, num_groups=num_groups
+      decoding_order, chain_idx=chain_idx, tie_group_map=tie_group_map, num_groups=num_groups,
     )
 
     # Within same chain and same group: should attend

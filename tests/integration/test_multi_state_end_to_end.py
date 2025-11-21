@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import jax.numpy as jnp
 import pytest
 
 from prxteinmpnn.run.specs import SamplingSpecification
@@ -31,7 +30,7 @@ def test_sampling_spec_has_multi_state_parameters() -> None:
     multi_state_strategy="min",
     multi_state_alpha=0.7,
   )
-  
+
   assert spec.multi_state_strategy == "min"
   assert spec.multi_state_alpha == 0.7
   assert spec.tied_positions == "direct"
@@ -55,7 +54,7 @@ def test_sampling_spec_default_multi_state_parameters() -> None:
   
   """
   spec = SamplingSpecification(inputs=["test.pdb"])
-  
+
   assert spec.multi_state_strategy == "mean"
   assert spec.multi_state_alpha == 0.5
 
@@ -77,7 +76,7 @@ def test_all_multi_state_strategies_accepted() -> None:
   
   """
   strategies = ["mean", "min", "product", "max_min"]
-  
+
   for strategy in strategies:
     spec = SamplingSpecification(
       inputs=["test.pdb"],
@@ -103,7 +102,7 @@ def test_multi_state_alpha_range() -> None:
   
   """
   alphas = [0.0, 0.3, 0.5, 0.7, 1.0]
-  
+
   for alpha in alphas:
     spec = SamplingSpecification(
       inputs=["test.pdb"],

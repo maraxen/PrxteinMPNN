@@ -247,12 +247,17 @@ def _process_mdtraj_chunk(
   if isinstance(atom_array, AtomArray):  # Only for single frames
     atom_array = _add_hydrogens_if_needed(atom_array)
 
+  # Re-derive chain indices from atom_array.chain_id
+  # We assume chain_id are strings like "A", "B", etc.
+  # We need to map them to 0-based indices.
+  unique_chains = sorted(set(atom_array.chain_id))
+  chain_map = {cid: i for i, cid in enumerate(unique_chains)}
+  chain_ids_int = np.array([chain_map[cid] for cid in atom_array.chain_id], dtype=np.int32)
+
   return ProcessedStructure(
     atom_array=atom_array,
     r_indices=atom_array.res_id,
-    chain_ids=np.zeros(
-      atom_array.array_length(), dtype=np.int32,
-    ),  # Placeholder, will be recomputed
+    chain_ids=chain_ids_int,
   )
 
 

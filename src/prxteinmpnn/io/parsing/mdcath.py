@@ -84,7 +84,18 @@ def _process_mdcath_frame(
     static_features.residue_indices, num_atoms // static_features.num_residues,
   )
   atom_array.res_name = np.repeat(resnames, num_atoms // static_features.num_residues)
-  atom_array.chain_id = np.repeat(["A"], num_atoms)  # Simplified
+  
+  # Map chain indices to chain IDs (A, B, C...)
+  # We need to expand chain_index (residue-level) to atom-level
+  chain_index_atom = np.repeat(static_features.chain_index, num_atoms // static_features.num_residues)
+  
+  def chain_idx_to_id(idx: int) -> str:
+      # Simple mapping: 0->A, 1->B, etc.
+      if idx < 26:
+          return chr(ord("A") + idx)
+      return str(idx)
+
+  atom_array.chain_id = np.array([chain_idx_to_id(i) for i in chain_index_atom], dtype="U3")
 
   # Apply solvent removal
   solvent_mask = filter_solvent(atom_array)
@@ -98,7 +109,7 @@ def _process_mdcath_frame(
   return ProcessedStructure(
     atom_array=atom_array,
     r_indices=atom_array.res_id,
-    chain_ids=np.zeros(atom_array.array_length(), dtype=np.int32),
+    chain_ids=chain_index_atom,
   )
 
 
@@ -149,20 +160,27 @@ def _get_static_features_mdcath(
   except KeyError:
     msg = (
       " 'resid' dataset not found at domain_group level. "
-      "Using a generic aatype (all Alanine). Please confirm 'resid' location."
+      "Cannot determine residue names. This is critical for feature extraction."
     )
-    logger.warning(msg)
-    warnings.warn(msg, stacklevel=2)
-    aatype = np.zeros(num_residues_from_dssp, dtype=np.int32)
-    # If resnames missing, we can't construct AtomArray properly later?
-    # We'll assume ALA
-    resnames = np.full(num_residues_from_dssp, "ALA", dtype="U3")
+    logger.error(msg)
+    raise ValueError(msg) from None
 
   num_residues = aatype.shape[0]
   logger.info("Final residue count used: %d", num_residues)
 
   residue_indices = np.arange(num_residues)
-  chain_index = np.zeros(num_residues, dtype=np.int32)
+  
+  # Try to find chain information
+  if "chain" in domain_group:
+      chain_ids_raw = cast("h5py.Dataset", domain_group["chain"])[:].astype("U")
+      # Map chain IDs to indices
+      unique_chains = np.unique(chain_ids_raw)
+      chain_map = {cid: i for i, cid in enumerate(unique_chains)}
+      chain_index = np.array([chain_map[cid] for cid in chain_ids_raw], dtype=np.int32)
+      logger.info("Found chain information in MDcath file.")
+  else:
+      logger.warning("No 'chain' dataset found in MDcath file. Defaulting to single chain (index 0).")
+      chain_index = np.zeros(num_residues, dtype=np.int32)
 
   atom_mask_37 = np.zeros((num_residues, 37), dtype=bool)
   three_to_one = {name: name for name in np.unique(resnames)}

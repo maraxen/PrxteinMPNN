@@ -186,8 +186,6 @@ def _worker_process_protein(args: tuple) -> tuple[str, Path | None]:
     return (protein_id, shard_path)
 
 
-
-
 def _load_checkpoint_metadata(metadata_file: Path) -> dict[str, Any]:
   """Load processing checkpoint from JSONL metadata file."""
   if not metadata_file.exists():

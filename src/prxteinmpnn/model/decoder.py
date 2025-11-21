@@ -56,6 +56,7 @@ class DecoderLayer(eqx.Module):
       node_features: Dimension of node features (e.g., 128).
       edge_context_features: Dimension of edge context (e.g., 384).
       hidden_features: Dimension of hidden layer in dense MLP.
+      dropout_rate: Dropout rate (default: 0.1).
       key: PRNG key for initialization.
 
     Returns:
@@ -118,6 +119,7 @@ class DecoderLayer(eqx.Module):
       mask: Alpha carbon mask of shape (N,).
       scale: Scaling factor for message aggregation (default: 30.0).
       attention_mask: Optional attention mask for conditional decoding.
+      key: PRNG key for dropout (optional).
 
     Returns:
       Updated node features of shape (N, C).
@@ -160,7 +162,6 @@ class DecoderLayer(eqx.Module):
 
     node_features = node_features + aggregated_message
 
-
     # vmap over N
     node_features_norm1 = jax.vmap(self.norm1)(node_features)
     dense_output = jax.vmap(self.dense)(node_features_norm1)  # This works
@@ -201,6 +202,7 @@ class Decoder(eqx.Module):
       edge_features: Dimension of edge features (e.g., 128).
       hidden_features: Dimension of hidden layer in decoder layers.
       num_layers: Number of decoder layers (default: 3).
+      dropout_rate: Dropout rate (default: 0.1).
       key: PRNG key for initialization.
 
     Returns:
@@ -249,6 +251,7 @@ class Decoder(eqx.Module):
       edge_features: Edge features from encoder of shape (N, K, 128).
       neighbor_indices: Indices of neighbors for each node.
       mask: Alpha carbon mask of shape (N,).
+      key: PRNG key for dropout (optional).
 
     Returns:
       Decoded node features of shape (N, 128).
@@ -316,6 +319,7 @@ class Decoder(eqx.Module):
       ar_mask: Autoregressive mask for conditional decoding.
       one_hot_sequence: One-hot encoded protein sequence.
       w_s_weight: Sequence embedding weight matrix.
+      key: PRNG key for dropout (optional).
 
     Returns:
       Decoded node features of shape (N, 128).

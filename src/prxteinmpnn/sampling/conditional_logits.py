@@ -130,10 +130,10 @@ def make_conditional_logits_fn(
     )
 
     node_features, edge_features = model.encoder(
-        edge_features,
-        neighbor_indices,
-        mask,
-        node_features,
+      edge_features,
+      neighbor_indices,
+      mask,
+      node_features,
     )
 
     ar_mask = (

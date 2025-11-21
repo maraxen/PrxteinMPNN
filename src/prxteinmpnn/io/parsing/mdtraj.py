@@ -20,6 +20,8 @@ from .mappings import atom_names_to_index, residue_names_to_aatype
 
 logger = logging.getLogger(__name__)
 
+ALPHABET_SIZE = 26
+
 
 def mdtraj_dihedrals(
   traj: md.Trajectory,
@@ -172,12 +174,13 @@ def _mdtraj_to_atom_array(
   # MDTraj chain indices are 0-based. Biotite expects strings usually, or we can use A, B, C...
   # Let's map 0->A, 1->B etc.
   chain_indices = np.array([a.residue.chain.index for a in top.atoms], dtype=int)
+
   # Handle > 26 chains?
   # For now simple mapping.
-  def chain_idx_to_id(idx):
-      if idx < 26:
-          return chr(ord("A") + idx)
-      return str(idx) # Fallback
+  def chain_idx_to_id(idx: int) -> str:
+    if idx < ALPHABET_SIZE:
+      return chr(ord("A") + idx)
+    return str(idx)  # Fallback
 
   chain_ids = np.array([chain_idx_to_id(i) for i in chain_indices], dtype="U3")
   atom_array.chain_id = chain_ids
@@ -189,11 +192,75 @@ def _mdtraj_to_atom_array(
   return atom_array
 
 
+def _add_hydrogens_if_needed(atom_array: AtomArray) -> AtomArray:
+  """Add hydrogens to AtomArray if missing."""
+  has_hydrogens = (atom_array.element == "H").any()
+  if not has_hydrogens:
+    logger.info("Adding hydrogens to MDTraj AtomArray")
+    # Infer bonds for hydride
+    if not atom_array.bonds:
+      try:
+        atom_array.bonds = structure.connect_via_residue_names(atom_array)
+      except Exception as e:  # noqa: BLE001
+        logger.warning("Failed to infer bonds: %s", e)
+        atom_array.bonds = structure.connect_via_distances(atom_array)
+
+    # Add charge annotation
+    if "charge" not in atom_array.get_annotation_categories():
+      atom_array.set_annotation("charge", np.zeros(atom_array.array_length(), dtype=int))
+
+    try:
+      import hydride  # noqa: PLC0415
+
+      atom_array, _ = hydride.add_hydrogen(atom_array)
+      logger.info("Hydrogens added to MDTraj structure")
+    except Exception as e:  # noqa: BLE001
+      logger.warning("Failed to add hydrogens: %s", e)
+  return atom_array
+
+
+def _process_mdtraj_chunk(
+  traj_chunk: md.Trajectory,
+  chain_id: Sequence[str] | str | None,
+) -> ProcessedStructure:
+  """Process a single MDTraj chunk."""
+  logger.debug("Processing MDTraj chunk with %d frames.", traj_chunk.n_frames)
+
+  # Apply chain selection if needed
+  if chain_id is not None:
+    traj_chunk = _select_chain_mdtraj(traj_chunk, chain_id=chain_id)
+
+  # Convert to AtomArray
+  atom_array = _mdtraj_to_atom_array(traj_chunk)
+
+  # Apply solvent removal if needed
+  solvent_mask = filter_solvent(atom_array)
+  if np.any(solvent_mask):
+    n_solvent = np.sum(solvent_mask)
+    logger.info("Removing %d solvent atoms from MDTraj chunk", n_solvent)
+    if isinstance(atom_array, AtomArrayStack):
+      atom_array = atom_array[:, ~solvent_mask]
+    else:
+      atom_array = atom_array[~solvent_mask]
+
+  # Add hydrogens if missing
+  if isinstance(atom_array, AtomArray):  # Only for single frames
+    atom_array = _add_hydrogens_if_needed(atom_array)
+
+  return ProcessedStructure(
+    atom_array=atom_array,
+    r_indices=atom_array.res_id,
+    chain_ids=np.zeros(
+      atom_array.array_length(), dtype=np.int32,
+    ),  # Placeholder, will be recomputed
+  )
+
+
 def parse_mdtraj_to_processed_structure(
   source: str | StringIO | pathlib.Path,
   chain_id: Sequence[str] | str | None,
   *,
-  extract_dihedrals: bool = False, # Kept for compatibility but ignored here
+  extract_dihedrals: bool = False,  # noqa: ARG001
   topology: str | pathlib.Path | None = None,
 ) -> Iterator[ProcessedStructure]:
   """Parse HDF5 structure files directly using mdtraj."""
@@ -210,85 +277,22 @@ def parse_mdtraj_to_processed_structure(
     # But we DO need to handle chain selection here to reduce data size.
 
     # Note: _select_chain_mdtraj returns a new trajectory with sliced topology.
-    first_frame = _select_chain_mdtraj(first_frame, chain_id=chain_id)
-
-    # We need to apply the same selection to chunks.
-    # MDTraj iterload doesn't support atom selection on load.
-    # So we load chunks and then slice.
-    # But we need the atom indices from the first frame selection.
+    _ = _select_chain_mdtraj(first_frame, chain_id=chain_id)
 
     # Re-derive selection indices
-    if chain_id is not None:
-        # This logic is duplicated from _select_chain_mdtraj but we need the indices
-        if isinstance(chain_id, str):
-            chain_id = [chain_id]
-        # We need the ORIGINAL topology to select indices.
-        # first_frame is already sliced.
-        # Let's reload first frame or just use the logic on the loaded chunk.
+    if chain_id is not None and isinstance(chain_id, str):
+      chain_id = [chain_id]
 
     traj_iterator = md.iterload(str(source))
     frame_count = 0
 
     for traj_chunk in traj_iterator:
-      logger.debug("Processing MDTraj chunk with %d frames.", traj_chunk.n_frames)
-
-      # Apply chain selection if needed
-      if chain_id is not None:
-          traj_chunk = _select_chain_mdtraj(traj_chunk, chain_id=chain_id)
-
-      # Convert to AtomArray
-      atom_array = _mdtraj_to_atom_array(traj_chunk)
-
-      # Apply solvent removal if needed
-      solvent_mask = filter_solvent(atom_array)
-      if np.any(solvent_mask):
-          n_solvent = np.sum(solvent_mask)
-          logger.info("Removing %d solvent atoms from MDTraj chunk", n_solvent)
-          if isinstance(atom_array, AtomArrayStack):
-              atom_array = atom_array[:, ~solvent_mask]
-          else:
-              atom_array = atom_array[~solvent_mask]
-
-      # Add hydrogens if missing
-      if isinstance(atom_array, AtomArray):  # Only for single frames
-          has_hydrogens = (atom_array.element == "H").any()
-          if not has_hydrogens:
-              logger.info("Adding hydrogens to MDTraj AtomArray")
-              # Infer bonds for hydride
-              if not atom_array.bonds:
-                  try:
-                      atom_array.bonds = structure.connect_via_residue_names(atom_array)
-                  except Exception as e:
-                      logger.warning("Failed to infer bonds: %s", e)
-                      atom_array.bonds = structure.connect_via_distances(atom_array)
-
-              # Add charge annotation
-              if "charge" not in atom_array.get_annotation_categories():
-                  atom_array.set_annotation("charge", np.zeros(atom_array.array_length(), dtype=int))
-
-              try:
-                  import hydride
-                  atom_array, _ = hydride.add_hydrogen(atom_array)
-                  logger.info("Hydrogens added to MDTraj structure")
-              except Exception as e:
-                  logger.warning("Failed to add hydrogens: %s", e)
-
-      # Yield ProcessedStructure
-      # We yield one ProcessedStructure per chunk (containing a stack)
-      # or one per frame?
-      # processed_structure_to_protein_tuples handles stacks.
-      # So we can yield the stack.
-
-      frame_count += traj_chunk.n_frames
-
-      # We need r_indices and chain_ids for ProcessedStructure
-      # These are available in atom_array.
-
-      yield ProcessedStructure(
-          atom_array=atom_array,
-          r_indices=atom_array.res_id,
-          chain_ids=np.zeros(atom_array.array_length(), dtype=np.int32), # Placeholder, will be recomputed
-      )
+      processed_chunk = _process_mdtraj_chunk(traj_chunk, chain_id)
+      if isinstance(processed_chunk.atom_array, AtomArrayStack):
+        frame_count += processed_chunk.atom_array.stack_depth()
+      else:
+        frame_count += 1
+      yield processed_chunk
 
     logger.info("Finished MDTraj HDF5 parsing. Yielded %d frames.", frame_count)
 

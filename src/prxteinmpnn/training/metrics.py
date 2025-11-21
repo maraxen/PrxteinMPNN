@@ -20,13 +20,13 @@ class TrainingMetrics:
   def to_dict(self) -> dict[str, float | None]:
     """Convert metrics to a dictionary of Python floats."""
     metrics_dict = {
-        "loss": float(jax.device_get(self.loss)),
-        "accuracy": float(jax.device_get(self.accuracy)),
-        "perplexity": float(jax.device_get(self.perplexity)),
-        "learning_rate": float(self.learning_rate),
+      "loss": float(jax.device_get(self.loss)),
+      "accuracy": float(jax.device_get(self.accuracy)),
+      "perplexity": float(jax.device_get(self.perplexity)),
+      "learning_rate": float(self.learning_rate),
     }
     if self.grad_norm is not None:
-        metrics_dict["grad_norm"] = float(jax.device_get(self.grad_norm))
+      metrics_dict["grad_norm"] = float(jax.device_get(self.grad_norm))
     return metrics_dict
 
 
@@ -41,9 +41,9 @@ class EvaluationMetrics:
   def to_dict(self) -> dict[str, float]:
     """Convert metrics to a dictionary of Python floats."""
     return {
-        "val_loss": float(jax.device_get(self.val_loss)),
-        "val_accuracy": float(jax.device_get(self.val_accuracy)),
-        "val_perplexity": float(jax.device_get(self.val_perplexity)),
+      "val_loss": float(jax.device_get(self.val_loss)),
+      "val_accuracy": float(jax.device_get(self.val_accuracy)),
+      "val_perplexity": float(jax.device_get(self.val_perplexity)),
     }
 
 

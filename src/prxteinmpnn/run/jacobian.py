@@ -270,11 +270,11 @@ def _get_initial_rolling_average_state(
   flat_ar_mask = ar_mask.reshape((-1, *ar_mask.shape[2:]))
 
   return (
-      [flat_node],
-      [flat_edge],
-      [flat_neighbors],
-      [flat_mask],
-      [flat_ar_mask],
+    [flat_node],
+    [flat_edge],
+    [flat_neighbors],
+    [flat_mask],
+    [flat_ar_mask],
   )
 
 
@@ -297,14 +297,14 @@ def _update_rolling_average(
 
 
 def _pad_and_concatenate_features(
-    nodes_list: list[jax.Array],
-    edges_list: list[jax.Array],
-    neighbors_list: list[jax.Array],
-    masks_list: list[jax.Array],
-    ar_masks_list: list[jax.Array],
-    sequences_list: list[jax.Array],
+  nodes_list: list[jax.Array],
+  edges_list: list[jax.Array],
+  neighbors_list: list[jax.Array],
+  masks_list: list[jax.Array],
+  ar_masks_list: list[jax.Array],
+  sequences_list: list[jax.Array],
 ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
-  """Pads and concatenates feature lists along the batch dimension."""
+  """Pad and concatenate feature lists along the batch dimension."""
   max_len = max(x.shape[1] for x in nodes_list)
 
   def _pad_list(arrays: list[jax.Array], pad_dims: tuple[int, ...]) -> jax.Array:
@@ -321,12 +321,12 @@ def _pad_and_concatenate_features(
     return jnp.concatenate(padded, axis=0)
 
   return (
-      _pad_list(nodes_list, (1,)),
-      _pad_list(edges_list, (1,)),
-      _pad_list(neighbors_list, (1,)),
-      _pad_list(masks_list, (1,)),
-      _pad_list(ar_masks_list, (1, 2)),
-      _pad_list(sequences_list, (1,)),
+    _pad_list(nodes_list, (1,)),
+    _pad_list(edges_list, (1,)),
+    _pad_list(neighbors_list, (1,)),
+    _pad_list(masks_list, (1,)),
+    _pad_list(ar_masks_list, (1, 2)),
+    _pad_list(sequences_list, (1,)),
   )
 
 
@@ -358,31 +358,29 @@ def _categorical_jacobian_in_memory(
     all_sequences = [item[1] for item in all_encodings_and_sequences]
 
     nodes_list, edges_list, neighbors_list, masks_list, ar_masks_list = (
-        _get_initial_rolling_average_state(all_encodings[0])
+      _get_initial_rolling_average_state(all_encodings[0])
     )
 
     for encodings_batch in all_encodings[1:]:
-      nodes_list, edges_list, neighbors_list, masks_list, ar_masks_list = (
-          _update_rolling_average(
-              (nodes_list, edges_list, neighbors_list, masks_list, ar_masks_list),
-              encodings_batch,
-          )
+      nodes_list, edges_list, neighbors_list, masks_list, ar_masks_list = _update_rolling_average(
+        (nodes_list, edges_list, neighbors_list, masks_list, ar_masks_list),
+        encodings_batch,
       )
 
     (
-        all_nodes,
-        all_edges,
-        all_neighbors,
-        all_mask,
-        all_ar_mask,
-        all_sequences_concat,
+      all_nodes,
+      all_edges,
+      all_neighbors,
+      all_mask,
+      all_ar_mask,
+      all_sequences_concat,
     ) = _pad_and_concatenate_features(
-        nodes_list,
-        edges_list,
-        neighbors_list,
-        masks_list,
-        ar_masks_list,
-        all_sequences,
+      nodes_list,
+      edges_list,
+      neighbors_list,
+      masks_list,
+      ar_masks_list,
+      all_sequences,
     )
 
     # Compute averaged node and edge features using mask
@@ -393,9 +391,7 @@ def _categorical_jacobian_in_memory(
     averaged_node = jnp.sum(all_nodes * mask_expanded, axis=0) / mask_sum
 
     mask_expanded_edge = all_mask[..., None, None]
-    averaged_edge = (
-        jnp.sum(all_edges * mask_expanded_edge, axis=0) / mask_sum[..., None]
-    )
+    averaged_edge = jnp.sum(all_edges * mask_expanded_edge, axis=0) / mask_sum[..., None]
 
     def compute_jacobian_for_sequence(
       one_hot_sequence: OneHotProteinSequence,
@@ -407,13 +403,15 @@ def _categorical_jacobian_in_memory(
         one_hot_2d = one_hot_flat.reshape(one_hot_sequence.shape)
 
         def decode_single(
-            n_idx: jax.Array, m: jax.Array, ar_m: jax.Array,
+          n_idx: jax.Array,
+          m: jax.Array,
+          ar_m: jax.Array,
         ) -> jax.Array:
-            return decode_fn(
-                (averaged_node, averaged_edge, n_idx, m, ar_m),
-                one_hot_2d,
-                None,
-            )
+          return decode_fn(
+            (averaged_node, averaged_edge, n_idx, m, ar_m),
+            one_hot_2d,
+            None,
+          )
 
         logits_batch = jax.vmap(decode_single)(all_neighbors, all_mask, all_ar_mask)
         logits = jnp.mean(logits_batch, axis=0)

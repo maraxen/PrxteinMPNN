@@ -1191,6 +1191,26 @@ wheels = [
 ]
 
 [[package]]
+name = "hydride"
+version = "1.2.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "biotite" },
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/63/a2/d600d62ea1f551002503066576cd45a7bc478da1acdc44c8796d5b05dc19/hydride-1.2.3.tar.gz", hash = "sha256:d1d06dcfb4c4957f109bd2445a115021cf69ff7c1639cb3f96961c58b38c6453", size = 293435, upload-time = "2024-11-04T11:37:06.648Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/75/5c/ad922192c64eada9bba98bd3a9255faf4faae78adfd4537d11eb2ed1b8e3/hydride-1.2.3-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:5b249a18109d60ce990c0a47d07620863dfe3f23495aa1e04ca15e9e086ffc9e", size = 452841, upload-time = "2024-11-04T11:36:52.47Z" },
+    { url = "https://files.pythonhosted.org/packages/93/ec/0894ec1e38266e183db3e5ac148d7bddab4fda2f25447ec13716ec05d8fe/hydride-1.2.3-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:f6ef6875d6f720de694fe53254648e886c83681d05fe4988a823a2dbd06d38fb", size = 441244, upload-time = "2024-11-04T11:36:53.951Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/28/c52153387c6efa7ac7d9c3c5df068aa686d8468c797f9a045d0993c77913/hydride-1.2.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:c196b287c7dd6ceb6e98d52aec1f8755f9bd641146b55a3236bae58c48ddf6be", size = 1196593, upload-time = "2024-11-04T11:36:55.093Z" },
+    { url = "https://files.pythonhosted.org/packages/ff/5a/2c72655c2554840081d61b5680a067f4b8c1bc746032ab8f355846aeb750/hydride-1.2.3-cp311-cp311-win_amd64.whl", hash = "sha256:6220f9159bcb1a5e985382dff5d25fcf0c848896190265d4d43a0252a039691e", size = 425532, upload-time = "2024-11-04T11:36:56.907Z" },
+    { url = "https://files.pythonhosted.org/packages/0d/fb/6163b0f4f6b89daa9045bf15fd2546ce43e717614116a477c7a40b7d73b7/hydride-1.2.3-cp312-cp312-macosx_10_9_x86_64.whl", hash = "sha256:3884f4969f2df7237e5bc8c82e47026b6c4ba91de3bbc546b5ac938b4365bac5", size = 451179, upload-time = "2024-11-04T11:36:58.665Z" },
+    { url = "https://files.pythonhosted.org/packages/87/23/409e5c2b1cfaf918c4d9c84d7a3a9f930e293e05affc6b5d020d08b0a9de/hydride-1.2.3-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:2b7221eceb732539e42419c6612e5f9c6a33074ad0547e5048d0d5c38a23734c", size = 440277, upload-time = "2024-11-04T11:37:00.204Z" },
+    { url = "https://files.pythonhosted.org/packages/73/d4/7ca768b20e6d62ee0c967c3e770ca9bf720b396f03111ccaf230e94a023c/hydride-1.2.3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:76ecdf1cebe6042549fa4580ee829670c472563a8b66b25cb74c48d4e0f1e2d2", size = 1186352, upload-time = "2024-11-04T11:37:04.144Z" },
+    { url = "https://files.pythonhosted.org/packages/a4/2e/9095f2ba3da50db53e21db7d93a85e8f96c0ebb7eb43f375e81596f46e32/hydride-1.2.3-cp312-cp312-win_amd64.whl", hash = "sha256:051de12202d675e551b741e9f1734f375b504bd63486c5aa8b565f89d20c444d", size = 422029, upload-time = "2024-11-04T11:37:05.247Z" },
+]
+
+[[package]]
 name = "idna"
 version = "3.10"
 source = { registry = "https://pypi.org/simple" }
@@ -2767,6 +2787,7 @@ dependencies = [
     { name = "grain" },
     { name = "h5py" },
     { name = "huggingface-hub" },
+    { name = "hydride" },
     { name = "jax" },
     { name = "jax-md" },
     { name = "jaxlib" },
@@ -2852,6 +2873,7 @@ requires-dist = [
     { name = "grain" },
     { name = "h5py" },
     { name = "huggingface-hub", specifier = ">=1.0.1" },
+    { name = "hydride" },
     { name = "jax" },
     { name = "jax-md", specifier = ">=0.2.26" },
     { name = "jaxlib" },

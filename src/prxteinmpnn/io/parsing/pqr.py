@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 n_index: np.ndarray
 
 
-def parse_pqr_to_processed_structure(
+def parse_pqr_to_processed_structure(  # noqa: PLR0915
   pqr_file: IO[str] | str | pathlib.Path,
   chain_id: Sequence[str] | str | None = None,
 ) -> ProcessedStructure:
@@ -56,7 +56,7 @@ def parse_pqr_to_processed_structure(
       radius = float(fields[-1])
 
       # Handle cases where serial number runs into record name
-      if len(fields[0]) > 6:
+      if len(fields[0]) > 6:  # noqa: PLR2004
         atom_name = fields[1]
         res_name = fields[2]
         chain = fields[3]
@@ -106,8 +106,8 @@ def parse_pqr_to_processed_structure(
 
   num_atoms = len(coords)
   if num_atoms == 0:
-      msg = "No atoms found in PQR file."
-      raise ValueError(msg)
+    msg = "No atoms found in PQR file."
+    raise ValueError(msg)
 
   # Create AtomArray
   atom_array = AtomArray(num_atoms)
@@ -119,16 +119,18 @@ def parse_pqr_to_processed_structure(
   atom_array.element = np.array(elements, dtype="U2")
 
   # Add charge annotation for consistency (though we store it in ProcessedStructure)
-  atom_array.set_annotation("charge", np.array(charges, dtype=int)) # Biotite expects int? No, usually float but PDB is weird.
+  atom_array.set_annotation(
+    "charge", np.array(charges, dtype=int),
+  )  # Biotite expects int? No, usually float but PDB is weird.
   # Actually Biotite's charge annotation is usually integer formal charge.
   # Partial charges are not standard in AtomArray unless we add a custom annotation.
   # But we return charges separately in ProcessedStructure.
 
   return ProcessedStructure(
-      atom_array=atom_array,
-      r_indices=atom_array.res_id,
-      chain_ids=np.zeros(num_atoms, dtype=np.int32), # Placeholder
-      charges=np.array(charges, dtype=np.float32),
-      radii=np.array(radii, dtype=np.float32),
-      epsilons=np.array(epsilons, dtype=np.float32),
+    atom_array=atom_array,
+    r_indices=atom_array.res_id,
+    chain_ids=np.zeros(num_atoms, dtype=np.int32),  # Placeholder
+    charges=np.array(charges, dtype=np.float32),
+    radii=np.array(radii, dtype=np.float32),
+    epsilons=np.array(epsilons, dtype=np.float32),
   )

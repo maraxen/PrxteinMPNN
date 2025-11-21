@@ -84,11 +84,11 @@ def _process_mdcath_frame(
     static_features.residue_indices, num_atoms // static_features.num_residues,
   )
   atom_array.res_name = np.repeat(resnames, num_atoms // static_features.num_residues)
-  
+
   # Map chain indices to chain IDs (A, B, C...)
   # We need to expand chain_index (residue-level) to atom-level
   chain_index_atom = np.repeat(static_features.chain_index, num_atoms // static_features.num_residues)
-  
+
   def chain_idx_to_id(idx: int) -> str:
       # Simple mapping: 0->A, 1->B, etc.
       if idx < 26:
@@ -169,7 +169,7 @@ def _get_static_features_mdcath(
   logger.info("Final residue count used: %d", num_residues)
 
   residue_indices = np.arange(num_residues)
-  
+
   # Try to find chain information
   if "chain" in domain_group:
       chain_ids_raw = cast("h5py.Dataset", domain_group["chain"])[:].astype("U")

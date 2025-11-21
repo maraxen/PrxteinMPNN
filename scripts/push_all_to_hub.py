@@ -85,7 +85,7 @@ Examples:
     print(f"Dry run: {args.dry_run}")
     
     if not args.dry_run:
-        token = args.token or os.environ.get("HF_TOKEN")
+        token = True # I am logged in not needed, args.token or os.environ.get("HF_TOKEN")
         if not token:
             print("\n✗ Error: No HuggingFace token provided.")
             print("Use --token argument or set HF_TOKEN environment variable.")

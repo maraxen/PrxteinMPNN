@@ -10,6 +10,10 @@ COULOMB_CONSTANT_ATOMIC = 1.0  # Atomic units (Hartree)
 # Default Coulomb constant (use kcal/mol units)
 COULOMB_CONSTANT = COULOMB_CONSTANT_KCAL
 
+# Boltzmann constant in kcal/(mol·K) (Molar Gas Constant R)
+# Value: 1.987204e-3 kcal/mol/K
+BOLTZMANN_KCAL = 0.0019872
+
 # Numerical stability parameters
 MIN_DISTANCE = 1e-7  # Minimum distance to avoid division by zero (Angstroms)
 MAX_FORCE = 1e6  # Maximum force magnitude (kcal/mol/Å) for clamping

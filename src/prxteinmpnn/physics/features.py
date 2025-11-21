@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 
+from prxteinmpnn.physics.constants import BOLTZMANN_KCAL
 from prxteinmpnn.physics.electrostatics import compute_coulomb_forces_at_backbone
 from prxteinmpnn.physics.projections import project_forces_onto_backbone
 from prxteinmpnn.physics.vdw import compute_lj_forces_at_backbone
@@ -18,10 +19,46 @@ if TYPE_CHECKING:
   from prxteinmpnn.utils.data_structures import ProteinTuple
 
 
+def _resolve_sigma(
+  value: float | jax.Array | None,
+  mode: str,
+) -> float | jax.Array:
+  """Resolve the noise standard deviation (sigma) from the input value and mode.
+
+  Args:
+      value: The noise parameter.
+             - If mode='direct', this is the raw sigma.
+             - If mode='temperature', this is T (Kelvin).
+      mode: 'direct' or 'temperature'.
+
+  Returns:
+      The calculated standard deviation (sigma).
+
+  """
+  # Treat None as 0.0
+  if value is None:
+    return 0.0
+
+  val = jnp.asarray(value)
+
+  if mode == "direct":
+    return val
+
+  if mode == "temperature":
+    # Physics Formula: sigma = sqrt(0.5 * R * T)
+    # We clamp T to 0.0 to prevent NaN from negative sqrt
+    thermal_energy = jnp.maximum(0.5 * BOLTZMANN_KCAL * val, 0.0)
+    return jnp.sqrt(thermal_energy)
+
+  msg = f"Unknown noise mode: {mode}"
+  raise ValueError(msg)
+
+
 def compute_electrostatic_node_features(
   protein: ProteinTuple,
   *,
-  noise_scale: float | jax.Array = 0.0,
+  noise_scale: float | jax.Array | None = None,
+  noise_mode: str = "direct",
   key: jax.Array | None = None,
 ) -> jax.Array:
   """Compute SE(3)-invariant electrostatic features for each residue.
@@ -43,9 +80,8 @@ def compute_electrostatic_node_features(
         - coordinates: (n_residues, n_atom_types, 3) backbone atom positions
         - charges: (n_residues, n_atom_types) partial charges for all atoms
         - aatype: (n_residues,) amino acid type indices
-      exclude_cb_self_interaction: If True, exclude forces between CB/H and itself
-        on glycine from interacting with itself.
       noise_scale: Scale of Gaussian noise to add to forces (default: 0.0).
+      noise_mode: 'direct' or 'temperature'.
       key: PRNG key for noise generation (required if noise_scale > 0).
 
   Returns:
@@ -93,12 +129,14 @@ def compute_electrostatic_node_features(
   backbone_charges_flat = all_charges[closest_indices]
   backbone_charges = backbone_charges_flat.reshape(n_residues, 5)
 
+  sigma = _resolve_sigma(noise_scale, noise_mode)
+
   forces_at_backbone = compute_coulomb_forces_at_backbone(
     backbone_positions,
     all_positions,
     backbone_charges,
     all_charges,
-    noise_scale=noise_scale,
+    noise_scale=sigma,
     key=key,
   )
 
@@ -111,7 +149,8 @@ def compute_electrostatic_node_features(
 def compute_vdw_node_features(
   protein: ProteinTuple,
   *,
-  noise_scale: float | jax.Array = 0.0,
+  noise_scale: float | jax.Array | None = None,
+  noise_mode: str = "direct",
   key: jax.Array | None = None,
 ) -> jax.Array:
   """Compute SE(3)-invariant Van der Waals features for each residue.
@@ -127,6 +166,7 @@ def compute_vdw_node_features(
         - sigmas: (n_atoms,) LJ sigma parameters
         - epsilons: (n_atoms,) LJ epsilon parameters
       noise_scale: Scale of Gaussian noise to add to forces.
+      noise_mode: 'direct' or 'temperature'.
       key: PRNG key for noise generation.
 
   Returns:
@@ -164,6 +204,8 @@ def compute_vdw_node_features(
   backbone_sigmas = backbone_sigmas_flat.reshape(n_residues, 5)
   backbone_epsilons = backbone_epsilons_flat.reshape(n_residues, 5)
 
+  sigma = _resolve_sigma(noise_scale, noise_mode)
+
   forces_at_backbone = compute_lj_forces_at_backbone(
     backbone_positions,
     all_positions,
@@ -171,7 +213,7 @@ def compute_vdw_node_features(
     backbone_epsilons,
     all_sigmas,
     all_epsilons,
-    noise_scale=noise_scale,
+    noise_scale=sigma,
     key=key,
   )
 

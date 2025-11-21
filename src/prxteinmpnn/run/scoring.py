@@ -20,7 +20,8 @@ from .specs import SamplingSpecification, ScoringSpecification
 
 if TYPE_CHECKING:
   from prxteinmpnn.model.mpnn import PrxteinMPNN
-  from prxteinmpnn.utils.data_structures import Logits, Protein, ProteinSequence
+  from prxteinmpnn.utils.data_structures import Protein
+  from prxteinmpnn.utils.types import Logits, ProteinSequence
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)

@@ -7,7 +7,7 @@ This module provides utilities to populate missing physics parameters
 import logging
 
 import numpy as np
-from biotite.structure import AtomArray
+from biotite.structure import AtomArray, AtomArrayStack
 
 from prxteinmpnn.physics.constants import DEFAULT_EPSILON, DEFAULT_SIGMA
 from prxteinmpnn.physics.force_fields import FullForceField, load_force_field_from_hub
@@ -16,14 +16,14 @@ logger = logging.getLogger(__name__)
 
 
 def populate_physics_parameters(
-  atom_array: AtomArray,
+  atom_array: AtomArray | AtomArrayStack,
   force_field: FullForceField | None = None,
   force_field_name: str = "amber14-all",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
   """Populate physics parameters from force field for atoms without explicit values.
 
   Args:
-      atom_array: Biotite AtomArray with atom information
+      atom_array: Biotite AtomArray or AtomArrayStack with atom information
       force_field: Optional pre-loaded FullForceField. If None, loads from hub.
       force_field_name: Name of force field to load if force_field is None
 
@@ -48,6 +48,11 @@ def populate_physics_parameters(
   res_names = atom_array.res_name
   atom_names = atom_array.atom_name
 
+  if res_names is None or atom_names is None:
+    msg = "AtomArray must have residue and atom names."
+    logger.error(msg)
+    raise ValueError(msg)
+
   for i in range(n_atoms):
     res_name = res_names[i]
     atom_name = atom_names[i]
@@ -67,13 +72,19 @@ def populate_physics_parameters(
   return charges, sigmas, epsilons
 
 
-def _get_default_parameters(atom_array: AtomArray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def _get_default_parameters(
+  atom_array: AtomArray | AtomArrayStack,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
   """Get default physics parameters based on element types.
 
   Fallback when force field is not available.
   """
   n_atoms = atom_array.array_length()
   elements = atom_array.element
+
+  if elements is None:
+    msg = "AtomArray must have element annotation."
+    raise ValueError(msg)
 
   # Simple element-based defaults
   element_params = {

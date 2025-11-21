@@ -254,8 +254,15 @@ def _resolve_physics_parameters(
         "S": 1.80,
         "P": 1.80,
       }
+
+      elements = atom_array.element
+      if elements is None:
+        msg = "AtomArray must have element annotation."
+        raise ValueError(msg)
+
       radii = np.array(
-        [element_radii.get(elem, 1.70) for elem in atom_array.element], dtype=np.float32,
+        [element_radii.get(elem, 1.70) for elem in elements],
+        dtype=np.float32,
       )
   return charges, radii, sigmas, epsilons
 

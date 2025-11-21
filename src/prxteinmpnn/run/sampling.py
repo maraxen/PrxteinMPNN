@@ -333,7 +333,9 @@ def _create_decode_wrapper(base_decode_fn: Callable) -> Callable:
   """Create a custom decode wrapper that averages logits over structural features."""
 
   def wrapped(
-    encoded_features: tuple, sequence: ProteinSequence, ar_mask_in: AutoRegressiveMask,
+    encoded_features: tuple,
+    sequence: ProteinSequence,
+    ar_mask_in: AutoRegressiveMask,
   ) -> Logits:
     avg_node, avg_edge, neighbors, mask, ar_mask_struct = encoded_features
 

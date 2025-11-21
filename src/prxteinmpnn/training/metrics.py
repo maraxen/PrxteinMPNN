@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import jax
 import jax.numpy as jnp
 from flax.struct import dataclass
@@ -14,16 +16,16 @@ class TrainingMetrics:
   loss: jax.Array
   accuracy: jax.Array
   perplexity: jax.Array
-  learning_rate: float
+  learning_rate: Any
   grad_norm: jax.Array | None = None
 
   def to_dict(self) -> dict[str, float | None]:
     """Convert metrics to a dictionary of Python floats."""
-    metrics_dict = {
+    metrics_dict: dict[str, float | None] = {
       "loss": float(jax.device_get(self.loss)),
       "accuracy": float(jax.device_get(self.accuracy)),
       "perplexity": float(jax.device_get(self.perplexity)),
-      "learning_rate": float(self.learning_rate),
+      "learning_rate": float(jax.device_get(self.learning_rate)),
     }
     if self.grad_norm is not None:
       metrics_dict["grad_norm"] = float(jax.device_get(self.grad_norm))

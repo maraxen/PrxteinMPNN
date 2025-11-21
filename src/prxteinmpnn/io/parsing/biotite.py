@@ -3,12 +3,13 @@
 import logging
 import pathlib
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from biotite import structure
 from biotite.structure import AtomArray, AtomArrayStack
 from biotite.structure import io as structure_io
+from biotite.structure.bonds import connect_via_distances, connect_via_residue_names
 
 from prxteinmpnn.io.parsing.structures import ProcessedStructure
 from prxteinmpnn.io.parsing.utils import (
@@ -35,9 +36,9 @@ def _remove_solvent_from_structure(
     logger.info("Removing %d solvent atoms", n_solvent)
 
     if isinstance(atom_array, AtomArrayStack):
-      atom_array = atom_array[:, ~solvent_mask]
+      atom_array = cast("AtomArrayStack", atom_array[:, ~solvent_mask])
     else:
-      atom_array = atom_array[~solvent_mask]
+      atom_array = cast("AtomArray", atom_array[~solvent_mask])
 
     logger.debug("Structure after solvent removal: %d atoms", atom_array.array_length())
   return atom_array
@@ -71,10 +72,10 @@ def _add_hydrogens_to_structure(
   if not atom_array.bonds:
     logger.info("No BondList found. Inferring bonds via residue names.")
     try:
-      atom_array.bonds = structure.connect_via_residue_names(atom_array)
+      atom_array.bonds = connect_via_residue_names(atom_array)
     except Exception as e:  # noqa: BLE001
       logger.warning("Failed to connect via residue names: %s. Falling back to distances.", e)
-      atom_array.bonds = structure.connect_via_distances(atom_array)
+      atom_array.bonds = connect_via_distances(atom_array)
 
   # Hydride also requires a 'charge' annotation, even if 0.
   if "charge" not in atom_array.get_annotation_categories():
@@ -194,9 +195,14 @@ def _parse_biotite(
       radii = estat_info.radii
       epsilons = estat_info.epsilons
 
+    r_indices = atom_array.res_id
+    if r_indices is None:
+      # Should not happen for loaded structure
+      r_indices = np.zeros(atom_array.array_length(), dtype=np.int32)
+
     processed = ProcessedStructure(
       atom_array=atom_array,
-      r_indices=atom_array.res_id,
+      r_indices=r_indices,
       chain_ids=np.zeros(atom_array.array_length(), dtype=np.int32),  # Placeholder
       charges=charges,
       radii=radii,

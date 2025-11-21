@@ -138,7 +138,8 @@ def parse_pqr_to_processed_structure(
 
   # Add charge annotation for consistency
   atom_array.set_annotation(
-    "charge", np.array(charges, dtype=int),
+    "charge",
+    np.array(charges, dtype=int),
   )
 
   return ProcessedStructure(

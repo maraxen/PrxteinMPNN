@@ -4,11 +4,17 @@ import logging
 import pathlib
 from collections.abc import Iterator, Sequence
 from io import StringIO
+from typing import Any, cast
 
 import mdtraj as md
 import numpy as np
 from biotite import structure
-from biotite.structure import AtomArray, AtomArrayStack, filter_solvent
+from biotite.structure import (
+  AtomArray,
+  AtomArrayStack,
+  filter_solvent,
+)
+from biotite.structure.bonds import connect_via_distances, connect_via_residue_names
 
 from prxteinmpnn.io.parsing.structures import ProcessedStructure
 from prxteinmpnn.utils.data_structures import TrajectoryStaticFeatures
@@ -53,7 +59,8 @@ def _select_chain_mdtraj(
   chain_id: Sequence[str] | str | None = None,
 ) -> md.Trajectory:
   """Select specific chains from an md.Trajectory."""
-  if traj.top is None:
+  topology = traj.top
+  if topology is None:
     msg = "Trajectory does not have a topology."
     logger.error(msg)
     raise ValueError(msg)
@@ -63,9 +70,9 @@ def _select_chain_mdtraj(
       chain_id = [chain_id]
 
     logger.info("Selecting chain(s) %s in MDTraj topology.", chain_id)
-    chain_indices = [c.index for c in traj.top.chains if c.chain_id in chain_id]
+    chain_indices = [c.index for c in topology.chains if c.chain_id in chain_id]
     selection = " or ".join(f"chainid {idx}" for idx in chain_indices)
-    atom_indices = traj.top.select(selection)
+    atom_indices = topology.select(selection)
 
     if atom_indices.size == 0:
       msg = f"No atoms found for chain(s) {chain_id}."
@@ -85,14 +92,14 @@ def _extract_mdtraj_static_features(
 ) -> TrajectoryStaticFeatures:
   """Extract frame-invariant (static) features from a trajectory chunk's topology."""
   logger.info("Extracting static features using MDTraj topology.")
-  if traj_chunk.top is None:
+  topology = traj_chunk.top
+  if topology is None:
     msg = "Trajectory does not have a topology."
     logger.error(msg)
     raise ValueError(msg)
   if atom_map is None:
     atom_map = atom_order
 
-  topology = traj_chunk.top
   num_residues_all = topology.n_residues
   if num_residues_all == 0:
     msg = "Trajectory has no residues after filtering."
@@ -145,15 +152,24 @@ def _mdtraj_to_atom_array(
 ) -> AtomArray | AtomArrayStack:
   """Convert an mdtraj trajectory to a biotite AtomArray or AtomArrayStack."""
   # Create AtomArray
+  xyz = traj.xyz
+  if xyz is None:
+    msg = "Trajectory must have coordinates."
+    raise ValueError(msg)
+
   if traj.n_frames > 1:
     atom_array = AtomArrayStack(traj.n_frames, traj.n_atoms)
-    atom_array.coord = traj.xyz * 10  # Convert nm to Angstrom
+    atom_array.coord = xyz * 10  # Convert nm to Angstrom
   else:
     atom_array = AtomArray(traj.n_atoms)
-    atom_array.coord = traj.xyz[0] * 10  # Convert nm to Angstrom
+    atom_array.coord = xyz[0] * 10  # Convert nm to Angstrom
 
   # Topology
   top = traj.top
+  if top is None:
+    msg = "Trajectory does not have a topology."
+    logger.error(msg)
+    raise ValueError(msg)
 
   # We need to map mdtraj topology to biotite arrays
   # This can be slow for large systems, but necessary for standardization.
@@ -200,10 +216,10 @@ def _add_hydrogens_if_needed(atom_array: AtomArray) -> AtomArray:
     # Infer bonds for hydride
     if not atom_array.bonds:
       try:
-        atom_array.bonds = structure.connect_via_residue_names(atom_array)
+        atom_array.bonds = connect_via_residue_names(atom_array)
       except Exception as e:  # noqa: BLE001
         logger.warning("Failed to infer bonds: %s", e)
-        atom_array.bonds = structure.connect_via_distances(atom_array)
+        atom_array.bonds = connect_via_distances(atom_array)
 
     # Add charge annotation
     if "charge" not in atom_array.get_annotation_categories():
@@ -239,19 +255,25 @@ def _process_mdtraj_chunk(
     n_solvent = np.sum(solvent_mask)
     logger.info("Removing %d solvent atoms from MDTraj chunk", n_solvent)
     if isinstance(atom_array, AtomArrayStack):
-      atom_array = atom_array[:, ~solvent_mask]
+      atom_array = cast("AtomArrayStack", atom_array[:, ~solvent_mask])
     else:
-      atom_array = atom_array[~solvent_mask]
+      atom_array = cast("AtomArray", atom_array[~solvent_mask])
 
   # Add hydrogens if missing
   if isinstance(atom_array, AtomArray):  # Only for single frames
     atom_array = _add_hydrogens_if_needed(atom_array)
 
+  r_indices = atom_array.res_id
+  if r_indices is None:
+    msg = "AtomArray must have residue IDs."
+    raise ValueError(msg)
+
   return ProcessedStructure(
     atom_array=atom_array,
-    r_indices=atom_array.res_id,
+    r_indices=r_indices,
     chain_ids=np.zeros(
-      atom_array.array_length(), dtype=np.int32,
+      atom_array.array_length(),
+      dtype=np.int32,
     ),  # Placeholder, will be recomputed
   )
 

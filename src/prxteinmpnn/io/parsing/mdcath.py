@@ -19,6 +19,7 @@ import h5py
 import numpy as np
 from biotite import structure
 from biotite.structure import AtomArray, filter_solvent
+from biotite.structure.bonds import connect_via_distances, connect_via_residue_names
 
 from prxteinmpnn.io.parsing.structures import ProcessedStructure
 from prxteinmpnn.utils import residue_constants as rc
@@ -32,23 +33,22 @@ logger = logging.getLogger(__name__)
 
 def _add_hydrogens_mdcath(atom_array: AtomArray) -> AtomArray:
   """Add hydrogens to AtomArray if missing."""
-  has_hydrogens = (
-    (atom_array.element == "H").any() if hasattr(atom_array, "element") else False
-  )
+  has_hydrogens = (atom_array.element == "H").any() if hasattr(atom_array, "element") else False
   if not has_hydrogens:
     logger.info("Adding hydrogens to MDCATH AtomArray")
     # Infer bonds
     if not atom_array.bonds:
       try:
-        atom_array.bonds = structure.connect_via_residue_names(atom_array)
+        atom_array.bonds = connect_via_residue_names(atom_array)
       except Exception as e:  # noqa: BLE001
         logger.warning("Failed to infer bonds: %s", e)
-        atom_array.bonds = structure.connect_via_distances(atom_array)
+        atom_array.bonds = connect_via_distances(atom_array)
 
     # Add charge annotation
     if "charge" not in atom_array.get_annotation_categories():
       atom_array.set_annotation(
-        "charge", np.zeros(atom_array.array_length(), dtype=int),
+        "charge",
+        np.zeros(atom_array.array_length(), dtype=int),
       )
 
     try:
@@ -81,7 +81,8 @@ def _process_mdcath_frame(
 
   # Populate basic atom information
   atom_array.res_id = np.repeat(
-    static_features.residue_indices, num_atoms // static_features.num_residues,
+    static_features.residue_indices,
+    num_atoms // static_features.num_residues,
   )
   atom_array.res_name = np.repeat(resnames, num_atoms // static_features.num_residues)
   atom_array.chain_id = np.repeat(["A"], num_atoms)  # Simplified
@@ -91,13 +92,19 @@ def _process_mdcath_frame(
   if np.any(solvent_mask):
     n_solvent = np.sum(solvent_mask)
     logger.info("Removing %d solvent atoms from MDCATH frame", n_solvent)
-    atom_array = atom_array[~solvent_mask]
+    atom_array = cast("AtomArray", atom_array[~solvent_mask])
 
   atom_array = _add_hydrogens_mdcath(atom_array)
 
+  r_indices = atom_array.res_id
+  if r_indices is None:
+    # Should not happen as we populated it
+    msg = "AtomArray residue IDs are missing."
+    raise ValueError(msg)
+
   return ProcessedStructure(
     atom_array=atom_array,
-    r_indices=atom_array.res_id,
+    r_indices=r_indices,
     chain_ids=np.zeros(atom_array.array_length(), dtype=np.int32),
   )
 

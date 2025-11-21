@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import equinox as eqx
 import jax
@@ -469,7 +469,9 @@ def train(spec: TrainingSpecification) -> TrainingResult:
         step,
         lr_schedule,
         batch.physics_features,
-        spec.backbone_noise[0] if isinstance(spec.backbone_noise, tuple) else spec.backbone_noise,
+        float(spec.backbone_noise[0])
+        if isinstance(spec.backbone_noise, (tuple, list))
+        else float(cast(Any, spec.backbone_noise)),
         spec.mask_strategy,
         spec.mask_prob,
       )

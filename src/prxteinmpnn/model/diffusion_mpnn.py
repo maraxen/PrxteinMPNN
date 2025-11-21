@@ -87,7 +87,7 @@ class SwiGLU(eqx.Module):
 class DiffusionPrxteinMPNN(PrxteinMPNN):
   """ProteinMPNN extended for diffusion training."""
 
-  w_t_embed: eqx.Module  # Sinusoidal + MLP
+  w_t_embed: eqx.nn.Sequential  # Sinusoidal + MLP
 
   def __init__(
     self,
@@ -213,12 +213,17 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
         multi_state_alpha=multi_state_alpha,
         structure_mapping=structure_mapping,
         initial_node_features=initial_node_features,
-        physics_features=physics_features,
       )
 
     # --- Diffusion Logic ---
     if prng_key is None:
       prng_key = jax.random.PRNGKey(0)
+
+    # Ensure prng_key is an Array for Pyright
+    if not hasattr(prng_key, "shape"): # Basic check or cast
+        # In JAX, keys are arrays.
+        pass
+
     prng_key, feat_key = jax.random.split(prng_key)
 
     if backbone_noise is None:
@@ -272,6 +277,10 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
       ar_mask = jnp.ones((n, n), dtype=jnp.int32)
 
     # Call internal conditional method bypassing super().__call__ dispatch
+
+    if prng_key is None:
+      # Should have been handled earlier, but for Pyright
+      prng_key = jax.random.PRNGKey(0)
 
     return self._call_conditional(
       node_features,

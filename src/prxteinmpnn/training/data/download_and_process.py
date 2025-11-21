@@ -174,10 +174,12 @@ def _extract_and_validate_data(
         # Handle mismatch if necessary, or just skip
         pass
 
-    ca_valid = backbone_mask[:, 1]
+    # Ensure backbone_mask is treated as array
+    backbone_mask_arr = np.asarray(backbone_mask, dtype=bool)
+    ca_valid = backbone_mask_arr[:, 1]
     mask = mask & ca_valid
 
-    return name, seq, coords, mask, backbone_mask
+    return name, seq, coords, mask, backbone_mask_arr
 
 
 def _compute_physics_features(

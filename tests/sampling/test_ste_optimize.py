@@ -1,13 +1,12 @@
 """Tests for the ste_optimize module."""
-from functools import partial
-from typing import Callable
+from collections.abc import Callable
 
 import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
-from jaxtyping import Array, Float, Int, PRNGKeyArray
+from jaxtyping import Array
 
 from prxteinmpnn.sampling.ste_optimize import make_optimize_sequence_fn
 from prxteinmpnn.utils.types import (
@@ -16,7 +15,6 @@ from prxteinmpnn.utils.types import (
     BackboneNoise,
     ChainIndex,
     Logits,
-    ProteinSequence,
     ResidueIndex,
     StructureAtomicCoordinates,
 )
@@ -42,16 +40,16 @@ class MockPrxteinMPNN(eqx.Module):
     ) -> tuple[None, Logits]:
         """Return mock logits."""
         chex.assert_shape(
-            structure_coordinates, (self.num_residues, 4, 3)
+            structure_coordinates, (self.num_residues, 4, 3),
         )
         chex.assert_shape(mask, (self.num_residues,))
         chex.assert_shape(residue_index, (self.num_residues,))
         chex.assert_shape(chain_index, (self.num_residues,))
         chex.assert_shape(
-            one_hot_sequence, (self.num_residues, self.num_classes)
+            one_hot_sequence, (self.num_residues, self.num_classes),
         )
         chex.assert_shape(
-            ar_mask, (self.num_residues, self.num_residues)
+            ar_mask, (self.num_residues, self.num_residues),
         )
 
         return None, jax.random.normal(

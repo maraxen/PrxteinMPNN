@@ -30,8 +30,8 @@ from array_record.python.array_record_module import (
   ArrayRecordWriter,
 )
 
-from prxteinmpnn.io.parsing.biotite import _parse_biotite
-from prxteinmpnn.io.parsing.pqr import _parse_pqr
+from prxteinmpnn.io.parsing.biotite import processed_structure_to_protein_tuples
+from prxteinmpnn.io.parsing.pqr import parse_pqr_to_processed_structure
 from prxteinmpnn.physics.features import compute_electrostatic_node_features
 from prxteinmpnn.physics.force_fields import load_force_field_from_hub
 
@@ -95,81 +95,86 @@ def _worker_process_protein(args: tuple) -> tuple[str, Path | None]:
   protein_id = pqr_path.stem
 
   try:
-    temp_pdb_path, estat_info = _parse_pqr(pqr_path, chain_id=None)
+    # Use new pipeline: parse PQR directly to ProcessedStructure
+    processed_structure = parse_pqr_to_processed_structure(pqr_path, chain_id=None)
+
+    # Convert to ProteinTuple
+    protein_generator = processed_structure_to_protein_tuples(
+      processed_structure,
+      source_name=str(pqr_path),
+      extract_dihedrals=False,
+      populate_physics=False,  # PQR already has physics params
+    )
+    protein_tuple = next(protein_generator)
+
+    # Compute physics features
+    physics_features = compute_electrostatic_node_features(protein_tuple)
+
+    record_data = {
+      # Basic structure info
+      "protein_id": protein_id,
+      "source_file": str(pqr_path),
+      # Coordinates and sequence
+      "coordinates": np.array(protein_tuple.coordinates),  # (N, 37, 3) backbone
+      "aatype": np.array(protein_tuple.aatype),  # (N,)
+      "atom_mask": np.array(protein_tuple.atom_mask),  # (N, 37)
+      # Indexing
+      "residue_index": np.array(protein_tuple.residue_index),  # (N,)
+      "chain_index": np.array(protein_tuple.chain_index),  # (N,)
+      "mask": np.array(protein_tuple.atom_mask[:, 1]),  # (N,) CA mask
+      # Physics features (the main output)
+      "physics_features": np.array(physics_features),  # (N, 5)
+      # Full atomic data (for verification/debugging)
+      "full_coordinates": np.array(protein_tuple.full_coordinates),  # (n_atoms, 3)
+      "charges": np.array(protein_tuple.charges),  # (n_atoms,)
+      "radii": np.array(protein_tuple.radii),  # (n_atoms,)
+      # Estat metadata
+      "estat_backbone_mask": (
+        np.array(protein_tuple.estat_backbone_mask)
+        if protein_tuple.estat_backbone_mask is not None
+        else np.zeros(len(protein_tuple.full_coordinates), dtype=bool)
+      ),
+      "estat_resid": (
+        np.array(protein_tuple.estat_resid)
+        if protein_tuple.estat_resid is not None
+        else np.zeros(len(protein_tuple.full_coordinates), dtype=np.int32)
+      ),
+      "estat_chain_index": (
+        np.array(protein_tuple.estat_chain_index)
+        if protein_tuple.estat_chain_index is not None
+        else np.zeros(len(protein_tuple.full_coordinates), dtype=np.int32)
+      ),
+    }
+
+    # Validate features if requested
+    if spec.validate_features:
+      for key, value in record_data.items():
+        if isinstance(value, (np.ndarray, jnp.ndarray)) and not np.all(
+          np.isfinite(value),
+        ):
+          logger.warning("Non-finite values in %s for %s", key, pqr_path)
+          return (protein_id, None)
+
+      # Check that physics features are reasonable
+      physics_mag = physics_features[:, -1]  # Force magnitude
+      max_reasonable_force = 1e6  # Use a named constant for clarity
+      if np.any(physics_mag > max_reasonable_force):
+        logger.warning(
+          "Unusually large forces (max=%.2e) in %s",
+          np.max(physics_mag),
+          pqr_path,
+        )
+
+    shard_path = temp_dir_path / f"shard-{uuid.uuid4().hex}.array_record"
+    writer = ArrayRecordWriter(
+      str(shard_path),
+      f"{spec.compression},group_size:{spec.group_size}",
+    )
 
     try:
-      protein_generator = _parse_biotite(
-        temp_pdb_path,
-        model=None,
-        altloc="first",
-        chain_id=None,
-        estat_info=estat_info,
-        extract_dihedrals=False,
-      )
-      protein_tuple = next(protein_generator)
-      physics_features = compute_electrostatic_node_features(protein_tuple)
-
-      record_data = {
-        # Basic structure info
-        "protein_id": protein_id,
-        "source_file": str(pqr_path),
-        # Coordinates and sequence
-        "coordinates": np.array(protein_tuple.coordinates),  # (N, 37, 3) backbone
-        "aatype": np.array(protein_tuple.aatype),  # (N,)
-        "atom_mask": np.array(protein_tuple.atom_mask),  # (N, 37)
-        # Indexing
-        "residue_index": np.array(protein_tuple.residue_index),  # (N,)
-        "chain_index": np.array(protein_tuple.chain_index),  # (N,)
-        "mask": np.array(protein_tuple.atom_mask[:, 1]),  # (N,) CA mask
-        # Physics features (the main output)
-        "physics_features": np.array(physics_features),  # (N, 5)
-        # Full atomic data (for verification/debugging)
-        "full_coordinates": np.array(protein_tuple.full_coordinates),  # (n_atoms, 3)
-        "charges": np.array(protein_tuple.charges),  # (n_atoms,)
-        "radii": np.array(protein_tuple.radii),  # (n_atoms,)
-        # Estat metadata
-        "estat_backbone_mask": np.array(protein_tuple.estat_backbone_mask),  # (n_atoms,)
-        "estat_resid": np.array(protein_tuple.estat_resid),  # (n_atoms,)
-        "estat_chain_index": np.array(protein_tuple.estat_chain_index),  # (n_atoms,)
-      }
-
-      # Validate features if requested
-      if spec.validate_features:
-        for key, value in record_data.items():
-          if isinstance(value, (np.ndarray, jnp.ndarray)) and not np.all(
-            np.isfinite(value),
-          ):
-            logger.warning("Non-finite values in %s for %s", key, pqr_path)
-            return (protein_id, None)
-
-        # Check that physics features are reasonable
-        physics_mag = physics_features[:, -1]  # Force magnitude
-        max_reasonable_force = 1e6  # Use a named constant for clarity
-        if np.any(physics_mag > max_reasonable_force):
-          logger.warning(
-            "Unusually large forces (max=%.2e) in %s",
-            np.max(physics_mag),
-            pqr_path,
-          )
-
-      shard_path = temp_dir_path / f"shard-{uuid.uuid4().hex}.array_record"
-      writer = ArrayRecordWriter(
-        str(shard_path),
-        f"{spec.compression},group_size:{spec.group_size}",
-      )
-
-      try:
-        writer.write(msgpack.packb(record_data, use_bin_type=True))
-      finally:
-        writer.close()
-
-      return (protein_id, shard_path)
-
+      writer.write(msgpack.packb(record_data, use_bin_type=True))
     finally:
-      try:
-        temp_pdb_path.unlink()
-      except Exception as e:  # noqa: BLE001
-        logger.debug("Could not delete temp file %s: %s", temp_pdb_path, e)
+      writer.close()
 
   except StopIteration:
     logger.exception("No frames found in %s", pqr_path)
@@ -177,6 +182,10 @@ def _worker_process_protein(args: tuple) -> tuple[str, Path | None]:
   except Exception:
     logger.exception("Failed to process %s", pqr_path)
     return (protein_id, None)
+  else:
+    return (protein_id, shard_path)
+
+
 
 
 def _load_checkpoint_metadata(metadata_file: Path) -> dict[str, Any]:

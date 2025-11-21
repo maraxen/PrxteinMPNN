@@ -5,7 +5,6 @@ Tests cover von Neumann entropy, MLE entropy, and Bayesian entropy estimators.
 
 import chex
 import jax.numpy as jnp
-import pytest
 from jax.lax import digamma
 
 from prxteinmpnn.utils.entropy import (
@@ -91,7 +90,7 @@ class TestVonNeumannEntropy(chex.TestCase):
         result = von_neumman_fn(rho)
         eigenvals, _ = jnp.linalg.eigh(rho)
         expected_manual = jnp.sum(
-            jnp.where(eigenvals > 0, -eigenvals * jnp.log(eigenvals), 0)
+            jnp.where(eigenvals > 0, -eigenvals * jnp.log(eigenvals), 0),
         )
         chex.assert_trees_all_close(result, expected_manual, atol=1e-6)
         chex.assert_tree_all_finite(result)
@@ -181,7 +180,7 @@ class TestPosteriorEntropySquaredMean(chex.TestCase):
         """Test that posterior entropy squared mean is always non-negative."""
         alpha = jnp.array([2.0, 3.0, 1.0])
         posterior_entropy_squared_mean_fn = self.variant(
-            posterior_entropy_squared_mean
+            posterior_entropy_squared_mean,
         )
         result = posterior_entropy_squared_mean_fn(alpha)
         assert result >= 0.0
@@ -192,7 +191,7 @@ class TestPosteriorEntropySquaredMean(chex.TestCase):
         """Test posterior entropy squared mean with single dimension."""
         alpha = jnp.array([5.0])
         posterior_entropy_squared_mean_fn = self.variant(
-            posterior_entropy_squared_mean
+            posterior_entropy_squared_mean,
         )
         result = posterior_entropy_squared_mean_fn(alpha)
         chex.assert_trees_all_close(result, 0.0)

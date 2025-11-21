@@ -1,7 +1,6 @@
 """Integration tests for complete physics pipeline."""
 import chex
 import jax.numpy as jnp
-import pytest
 
 from prxteinmpnn.physics import (
     compute_coulomb_forces_at_backbone,
@@ -50,7 +49,7 @@ def test_physics_features_are_rotation_invariant(
         simple_charges,
     )
     features_orig = project_forces_onto_backbone(
-        forces_orig, backbone_positions_single_residue
+        forces_orig, backbone_positions_single_residue,
     )
 
     R = Rotation.random().as_matrix()
@@ -58,7 +57,7 @@ def test_physics_features_are_rotation_invariant(
     pos_rotated = jnp.dot(simple_positions, R.T)
 
     forces_rot = compute_coulomb_forces_at_backbone(
-        bb_rotated, pos_rotated, backbone_charges_single_residue, simple_charges
+        bb_rotated, pos_rotated, backbone_charges_single_residue, simple_charges,
     )
     features_rot = project_forces_onto_backbone(forces_rot, bb_rotated)
 
@@ -79,7 +78,7 @@ def test_physics_features_scale_with_charges(
         simple_charges,
     )
     features_1x = project_forces_onto_backbone(
-        forces_1x, backbone_positions_single_residue
+        forces_1x, backbone_positions_single_residue,
     )
 
     forces_2x = compute_coulomb_forces_at_backbone(
@@ -89,14 +88,14 @@ def test_physics_features_scale_with_charges(
         simple_charges * 2.0,
     )
     features_2x = project_forces_onto_backbone(
-        forces_2x, backbone_positions_single_residue
+        forces_2x, backbone_positions_single_residue,
     )
 
     chex.assert_trees_all_close(features_2x, features_1x * 2.0, rtol=1e-5)
 
 
 def test_zero_charges_produce_zero_features(
-    backbone_positions_single_residue, simple_positions
+    backbone_positions_single_residue, simple_positions,
 ):
     """Test that zero charges produce zero physics features."""
     zero_charges = jnp.zeros_like(simple_positions[:, 0])
@@ -109,7 +108,7 @@ def test_zero_charges_produce_zero_features(
         zero_charges,
     )
     features = project_forces_onto_backbone(
-        forces, backbone_positions_single_residue
+        forces, backbone_positions_single_residue,
     )
 
     chex.assert_trees_all_close(features, jnp.zeros_like(features), atol=1e-10)

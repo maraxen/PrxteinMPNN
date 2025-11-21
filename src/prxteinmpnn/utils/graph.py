@@ -15,7 +15,6 @@ from prxteinmpnn.utils.types import (
 NeighborOffsets = Int[Array, "num_residues num_neighbors"]
 
 
-@jax.jit
 def compute_neighbor_offsets(
   residue_indices: ResidueIndex,
   neighbor_indices: NeighborIndices,

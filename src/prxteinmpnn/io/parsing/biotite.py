@@ -25,13 +25,78 @@ from prxteinmpnn.utils.data_structures import (
 logger = logging.getLogger(__name__)
 
 
-def load_structure_with_hydride(  # noqa: C901, PLR0912
+def _remove_solvent_from_structure(
+  atom_array: AtomArray | AtomArrayStack,
+) -> AtomArray | AtomArrayStack:
+  """Remove solvent atoms from the structure."""
+  solvent_mask = structure.filter_solvent(atom_array)
+  if np.any(solvent_mask):
+    n_solvent = np.sum(solvent_mask)
+    logger.info("Removing %d solvent atoms", n_solvent)
+
+    if isinstance(atom_array, AtomArrayStack):
+      atom_array = atom_array[:, ~solvent_mask]
+    else:
+      atom_array = atom_array[~solvent_mask]
+
+    logger.debug("Structure after solvent removal: %d atoms", atom_array.array_length())
+  return atom_array
+
+
+def _add_hydrogens_to_structure(
+  atom_array: AtomArray | AtomArrayStack,
+) -> AtomArray | AtomArrayStack:
+  """Add hydrogens to the structure using Hydride."""
+  # Check if hydrogens exist
+  has_hydrogens = (atom_array.element == "H").any()
+  if has_hydrogens:
+    logger.debug("Structure already has hydrogens.")
+    return atom_array
+
+  logger.info("No hydrogens found. Adding hydrogens using Hydride.")
+
+  if isinstance(atom_array, AtomArrayStack):
+    logger.warning(
+      "Hydride integration with AtomArrayStack is experimental. "
+      "Processing frame 0 only for now or iterating?",
+    )
+    # Hydride returns a single AtomArray.
+    # For now, let's just return the stack as is if we can't easily protonate it,
+    # or warn.
+    # Ideally we should iterate and protonate each frame, but topology might change?
+    # Let's just support AtomArray for now for hydride.
+    return atom_array
+
+  # Hydride requires a BondList. If not present, we must infer it.
+  if not atom_array.bonds:
+    logger.info("No BondList found. Inferring bonds via residue names.")
+    try:
+      atom_array.bonds = structure.connect_via_residue_names(atom_array)
+    except Exception as e:  # noqa: BLE001
+      logger.warning("Failed to connect via residue names: %s. Falling back to distances.", e)
+      atom_array.bonds = structure.connect_via_distances(atom_array)
+
+  # Hydride also requires a 'charge' annotation, even if 0.
+  if "charge" not in atom_array.get_annotation_categories():
+    logger.info("No charge annotation found. Adding zero charges for Hydride compatibility.")
+    atom_array.set_annotation("charge", np.zeros(atom_array.array_length(), dtype=int))
+
+  import hydride  # noqa: PLC0415
+
+  atom_array, _ = hydride.add_hydrogen(atom_array)
+  logger.info("Hydrogens added. New atom count: %d", atom_array.array_length())
+
+  return atom_array
+
+
+def load_structure_with_hydride(
   source: str | pathlib.Path,
   model: int | None = None,
   altloc: str | None = None,
   topology: str | pathlib.Path | None = None,
-  add_hydrogens: bool = True,  # noqa: FBT001, FBT002
-  remove_solvent: bool = True,  # noqa: FBT001, FBT002
+  *,
+  add_hydrogens: bool = True,
+  remove_solvent: bool = True,
   **kwargs: Any,  # noqa: ANN401
 ) -> AtomArray | AtomArrayStack:
   """Load a structure and optionally add hydrogens using Hydride.
@@ -78,58 +143,11 @@ def load_structure_with_hydride(  # noqa: C901, PLR0912
   )
   _validate_atom_array_type(atom_array)
 
-  # Remove solvent before adding hydrogens
   if remove_solvent:
-    solvent_mask = structure.filter_solvent(atom_array)
-    if np.any(solvent_mask):
-      n_solvent = np.sum(solvent_mask)
-      logger.info("Removing %d solvent atoms", n_solvent)
-
-      if isinstance(atom_array, AtomArrayStack):
-        atom_array = atom_array[:, ~solvent_mask]
-      else:
-        atom_array = atom_array[~solvent_mask]
-
-      logger.debug("Structure after solvent removal: %d atoms", atom_array.array_length())
+    atom_array = _remove_solvent_from_structure(atom_array)
 
   if add_hydrogens:
-    # Check if hydrogens exist
-    has_hydrogens = (atom_array.element == "H").any()
-    if has_hydrogens:
-      logger.debug("Structure already has hydrogens.")
-      return atom_array
-
-    logger.info("No hydrogens found. Adding hydrogens using Hydride.")
-
-    if isinstance(atom_array, AtomArrayStack):
-      logger.warning(
-        "Hydride integration with AtomArrayStack is experimental. "
-        "Processing frame 0 only for now or iterating?",
-      )
-      # Hydride returns a single AtomArray.
-      # For now, let's just return the stack as is if we can't easily protonate it,
-      # or warn.
-      # Ideally we should iterate and protonate each frame, but topology might change?
-      # Let's just support AtomArray for now for hydride.
-    else:
-      # Hydride requires a BondList. If not present, we must infer it.
-      if not atom_array.bonds:
-        logger.info("No BondList found. Inferring bonds via residue names.")
-        try:
-          atom_array.bonds = structure.connect_via_residue_names(atom_array)
-        except Exception as e:  # noqa: BLE001
-          logger.warning("Failed to connect via residue names: %s. Falling back to distances.", e)
-          atom_array.bonds = structure.connect_via_distances(atom_array)
-
-      # Hydride also requires a 'charge' annotation, even if 0.
-      if "charge" not in atom_array.get_annotation_categories():
-        logger.info("No charge annotation found. Adding zero charges for Hydride compatibility.")
-        atom_array.set_annotation("charge", np.zeros(atom_array.array_length(), dtype=int))
-
-      import hydride  # noqa: PLC0415
-
-      atom_array, _ = hydride.add_hydrogen(atom_array)
-      logger.info("Hydrogens added. New atom count: %d", atom_array.array_length())
+    atom_array = _add_hydrogens_to_structure(atom_array)
 
   return atom_array
 

@@ -16,9 +16,10 @@ import json
 import logging
 import multiprocessing as mp
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import jax.numpy as jnp
 import msgpack
@@ -55,6 +56,11 @@ class PreprocessingSpecification:
   compression: str = "zstd:9"
   validate_features: bool = True
   group_size: int = 1
+
+  estat_noise: Sequence[float] | float | None = None
+  estat_noise_mode: Literal["direct", "temperature"] = "direct"
+  vdw_noise: Sequence[float] | float | None = None
+  vdw_noise_mode: Literal["direct", "temperature"] = "direct"
 
   # Derived paths
   index_file: Path = field(init=False)
@@ -108,7 +114,17 @@ def _worker_process_protein(args: tuple) -> tuple[str, Path | None]:
     protein_tuple = next(protein_generator)
 
     # Compute physics features
-    physics_features = compute_electrostatic_node_features(protein_tuple)
+    estat_val = spec.estat_noise
+    if isinstance(estat_val, (list, tuple)):
+      estat_val = estat_val[0] if estat_val else 0.0
+    elif estat_val is None:
+      estat_val = 0.0
+
+    physics_features = compute_electrostatic_node_features(
+      protein_tuple,
+      noise_scale=estat_val,
+      noise_mode=spec.estat_noise_mode,
+    )
 
     record_data = {
       # Basic structure info

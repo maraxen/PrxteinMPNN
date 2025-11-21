@@ -12,6 +12,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
+from prxteinmpnn.physics.constants import BOLTZMANN_KCAL
 from prxteinmpnn.utils.coordinates import (
   apply_noise_to_coordinates,
   compute_backbone_coordinates,
@@ -103,6 +104,7 @@ class ProteinFeatures(eqx.Module):
     residue_index: ResidueIndex,
     chain_index: ChainIndex,
     backbone_noise: BackboneNoise | None,
+    backbone_noise_mode: str = "direct",
     structure_mapping: jnp.ndarray | None = None,
     initial_node_features: jnp.ndarray | None = None,
   ) -> tuple[EdgeFeatures, NeighborIndices, NodeFeatures | None, PRNGKeyArray]:
@@ -115,11 +117,11 @@ class ProteinFeatures(eqx.Module):
       residue_index: Residue indices.
       chain_index: Chain indices.
       backbone_noise: Noise to add to backbone coordinates.
+      backbone_noise_mode: Mode for backbone noise ("direct" or "temperature").
       structure_mapping: Optional (N,) array mapping each residue to a structure ID.
                         When provided (multi-state mode), prevents cross-structure
                         neighbors to avoid information leakage between conformational states.
       initial_node_features: Optional initial node features.
-      debug_mode: If True, enables debug prints.
 
     Returns:
       Tuple of (edge_features, neighbor_indices, updated_prng_key).
@@ -130,10 +132,19 @@ class ProteinFeatures(eqx.Module):
     if backbone_noise is None:
       backbone_noise = jnp.array(0.0, dtype=jnp.float32)
 
+    # Resolve Sigma
+    if backbone_noise_mode == "temperature":
+      # Apply 0.5 factor here as well for consistency
+      thermal_energy = jnp.maximum(0.5 * BOLTZMANN_KCAL * backbone_noise, 0.0)
+      final_sigma = jnp.sqrt(thermal_energy)
+    else:
+      # Direct mode: value is sigma
+      final_sigma = backbone_noise
+
     noised_coordinates, prng_key = apply_noise_to_coordinates(
       prng_key,
       structure_coordinates,
-      backbone_noise=backbone_noise,
+      backbone_noise=final_sigma,
     )
     backbone_atom_coordinates = compute_backbone_coordinates(noised_coordinates)
     distances = compute_backbone_distance(backbone_atom_coordinates)

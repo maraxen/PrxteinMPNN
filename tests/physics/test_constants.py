@@ -22,6 +22,14 @@ def test_coulomb_constant_value():
     assert COULOMB_CONSTANT == COULOMB_CONSTANT_KCAL
 
 
+def test_boltzmann_constant_value():
+    """Test that Boltzmann constant has expected value."""
+    from prxteinmpnn.physics.constants import BOLTZMANN_KCAL
+
+    # Value: 1.987204e-3 kcal/mol/K
+    assert pytest.approx(0.0019872, rel=1e-4) == BOLTZMANN_KCAL
+
+
 def test_unit_conversions_are_inverses():
     """Test that unit conversion constants are inverses."""
     assert pytest.approx(1.0) == KCAL_TO_KJ * KJ_TO_KCAL

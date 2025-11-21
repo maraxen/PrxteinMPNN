@@ -60,6 +60,7 @@ class EncoderLayer(eqx.Module):
       node_features: Dimension of node features.
       edge_features: Dimension of edge features.
       hidden_features: Dimension of hidden features in feedforward network.
+      dropout_rate: Dropout rate (default: 0.1).
       key: PRNG key for initialization.
 
     """
@@ -192,6 +193,7 @@ class Encoder(eqx.Module):
       edge_features: Dimension of edge features.
       hidden_features: Dimension of hidden features in feedforward network.
       num_layers: Number of encoder layers.
+      dropout_rate: Dropout rate (default: 0.1).
       physics_feature_dim: Dimension of physical features.
       key: PRNG key for initialization.
 
@@ -222,7 +224,7 @@ class Encoder(eqx.Module):
     keys = jax.random.split(key, len(self.layers)) if key is not None else [None] * len(self.layers)
 
     if node_features is None:
-        node_features = jnp.zeros((edge_features.shape[0], self.node_feature_dim))
+      node_features = jnp.zeros((edge_features.shape[0], self.node_feature_dim))
 
     mask_2d = mask[:, None] * mask[None, :]
     mask_attend = jnp.take_along_axis(mask_2d, neighbor_indices.astype(jnp.int32), axis=1)
@@ -265,6 +267,7 @@ class PhysicsEncoder(eqx.Module):
       edge_features: Dimension of edge features.
       hidden_features: Dimension of hidden features in feedforward network.
       num_layers: Number of encoder layers.
+      dropout_rate: Dropout rate (default: 0.1).
       physics_feature_dim: Dimension of physical features.
       key: PRNG key for initialization.
 

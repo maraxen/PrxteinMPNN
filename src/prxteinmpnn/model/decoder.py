@@ -70,7 +70,7 @@ class DecoderLayer(eqx.Module):
 
     """
     keys = jax.random.split(key, 4)
-    
+
     self.dropout1 = eqx.nn.Dropout(dropout_rate)
     self.dropout2 = eqx.nn.Dropout(dropout_rate)
 
@@ -135,7 +135,7 @@ class DecoderLayer(eqx.Module):
 
     """
     keys = jax.random.split(key, 2) if key is not None else (None, None)
-    
+
     # Tile central node features [h_i (N, 1, C)]
     node_features_expand = jnp.tile(
       jnp.expand_dims(node_features, -2),
@@ -154,20 +154,20 @@ class DecoderLayer(eqx.Module):
 
     # Aggregate messages
     aggregated_message = jnp.sum(message, -2) / scale
-    
+
     # dropout1
     aggregated_message = self.dropout1(aggregated_message, key=keys[0])
-    
+
     node_features = node_features + aggregated_message
 
 
     # vmap over N
     node_features_norm1 = jax.vmap(self.norm1)(node_features)
     dense_output = jax.vmap(self.dense)(node_features_norm1)  # This works
-    
+
     # dropout2
     dense_output = self.dropout2(dense_output, key=keys[1])
-    
+
     node_features = node_features_norm1 + dense_output
     node_features_norm2 = jax.vmap(self.norm2)(node_features)
 
@@ -267,7 +267,7 @@ class Decoder(eqx.Module):
 
     """
     keys = jax.random.split(key, len(self.layers)) if key is not None else [None] * len(self.layers)
-    
+
     # Prepare 384-dim context tensor *once*
     # For unconditional: [0, h_E_ij, h_V_j] where j is the neighbor
     # First concatenate zeros with edge features
@@ -339,7 +339,7 @@ class Decoder(eqx.Module):
 
     """
     keys = jax.random.split(key, len(self.layers)) if key is not None else [None] * len(self.layers)
-    
+
     # 1. Embed the sequence
     embedded_sequence = jnp.atleast_2d(one_hot_sequence) @ w_s_weight  # s_i
 

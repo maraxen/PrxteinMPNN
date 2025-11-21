@@ -835,7 +835,7 @@ class PrxteinMPNN(eqx.Module):
         edge_features[position],
         neighbor_indices_pos,
       )  # (K, 256)
-      
+
       # Split key for layers
       layer_keys = jax.random.split(key, len(self.decoder.layers))
 

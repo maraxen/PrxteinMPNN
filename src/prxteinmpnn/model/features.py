@@ -42,7 +42,9 @@ LayerNorm = eqx.nn.LayerNorm
 # Feature extraction constants
 MAXIMUM_RELATIVE_FEATURES = 32
 POS_EMBED_DIM = 16
-def top_k(x, k): return jax.lax.top_k(x, k)
+def top_k(x: jax.Array, k: int) -> tuple[jax.Array, jax.Array]:
+    """Wrapper for jax.lax.top_k."""
+    return jax.lax.top_k(x, k)
 
 
 class ProteinFeatures(eqx.Module):

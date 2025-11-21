@@ -4,7 +4,7 @@ import tempfile
 
 from biotite.structure.io import load_structure
 
-from prxteinmpnn.io.parsing.biotite import (
+from prxteinmpnn.io.parsing.utils import (
     atom_array_dihedrals,
 )
 

@@ -39,10 +39,10 @@ def _add_hydrogens_mdcath(atom_array: AtomArray) -> AtomArray:
     # Infer bonds
     if not atom_array.bonds:
       try:
-        atom_array.bonds = structure.connect_via_residue_names(atom_array)
+        atom_array.bonds = structure.connect_via_residue_names(atom_array)  # pyright: ignore[reportAttributeAccessIssue]
       except Exception as e:  # noqa: BLE001
         logger.warning("Failed to infer bonds: %s", e)
-        atom_array.bonds = structure.connect_via_distances(atom_array)
+        atom_array.bonds = structure.connect_via_distances(atom_array)  # pyright: ignore[reportAttributeAccessIssue]
 
     # Add charge annotation
     if "charge" not in atom_array.get_annotation_categories():
@@ -105,13 +105,13 @@ def _process_mdcath_frame(
   if np.any(solvent_mask):
     n_solvent = np.sum(solvent_mask)
     logger.info("Removing %d solvent atoms from MDCATH frame", n_solvent)
-    atom_array = atom_array[~solvent_mask]
+    atom_array = atom_array[~solvent_mask]  # pyright: ignore[reportAssignmentType]
 
-  atom_array = _add_hydrogens_mdcath(atom_array)
+  atom_array = _add_hydrogens_mdcath(cast(AtomArray, atom_array))
 
   return ProcessedStructure(
     atom_array=atom_array,
-    r_indices=atom_array.res_id,
+    r_indices=atom_array.res_id,  # pyright: ignore[reportArgumentType]
     chain_ids=chain_index_atom,
   )
 

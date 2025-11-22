@@ -2,9 +2,12 @@
 from unittest.mock import MagicMock, patch
 
 import chex
+import equinox as eqx
+import jax
 import jax.numpy as jnp
 import pytest
 
+from prxteinmpnn.model.mpnn import PrxteinMPNN
 from prxteinmpnn.run.scoring import score
 from prxteinmpnn.run.specs import ScoringSpecification
 from prxteinmpnn.utils.data_structures import Protein
@@ -26,42 +29,26 @@ def mock_protein():
 
 @pytest.fixture
 def mock_model():
-    """Creates a mock model for testing."""
-    model = MagicMock()
-    # Mock the return of make_encoding_sampling_split_fn components if needed
-    # But score calls get_averaged_encodings which uses model.
-    # We might need to mock get_averaged_encodings directly to avoid complex model mocking.
-    return model
+    """Creates a small real model for testing."""
+    key = jax.random.key(0)
+    model = PrxteinMPNN(
+        node_features=16,
+        edge_features=16,
+        hidden_features=16,
+        num_encoder_layers=1,
+        num_decoder_layers=1,
+        k_neighbors=5,
+        key=key,
+    )
+    return eqx.tree_inference(model, value=True)
 
 @patch("prxteinmpnn.run.scoring.prep_protein_stream_and_model")
-@patch("prxteinmpnn.run.scoring.get_averaged_encodings")
-@patch("prxteinmpnn.scoring.score.score_sequence_with_encoding")
-def test_score_averaged_inputs_and_noise(mock_score_seq, mock_get_enc, mock_prep, mock_protein, mock_model):
+def test_score_averaged_inputs_and_noise(mock_prep, mock_protein, mock_model):
     """Test scoring with average_node_features=True and mode='inputs_and_noise'."""
     # Arrange
     mock_prep.return_value = ([mock_protein], mock_model)
 
-    # Mock averaged encodings: (avg_node, avg_edge, neighbors, mask, ar_mask)
-    # Shapes: node (L, D), edge (L, L, D), neighbors (N, M, L, K), mask (N, M, L), ar_mask (N, M, L, L)
-    # For inputs_and_noise, we expect flattened batch dims in the end?
-    # Actually get_averaged_encodings returns what the model produces.
-    # Let's mock simple shapes.
     L = 10
-    mock_get_enc.return_value = (
-        jnp.zeros((L, 1)), # node
-        jnp.zeros((L, 1, 1)), # edge
-        jnp.zeros((1, 1, L, 1)), # neighbors (N=1, M=1)
-        jnp.zeros((1, 1, L)), # mask
-        jnp.zeros((1, 1, L, L)), # ar_mask
-    )
-
-    # Mock score_sequence_with_encoding return: (score, logits, decoding_order)
-    mock_score_seq.return_value = (
-        jnp.array(0.5), # score
-        jnp.zeros((L, 21)), # logits
-        jnp.arange(L), # decoding order
-    )
-
     spec = ScoringSpecification(
         inputs=["dummy_path"],
         sequences_to_score=["G" * L],
@@ -80,43 +67,13 @@ def test_score_averaged_inputs_and_noise(mock_score_seq, mock_get_enc, mock_prep
     assert "scores" in results
     assert "logits" in results
 
-    # Verify mocks called
-    mock_get_enc.assert_called_once()
-    # mock_score_seq called via vmap, so difficult to check exact call count easily without side effects,
-    # but we can check it was called.
-    # Actually, since we mock the function inside the module, we can check.
-    assert mock_score_seq.call_count >= 1
-
 @patch("prxteinmpnn.run.scoring.prep_protein_stream_and_model")
-@patch("prxteinmpnn.run.scoring.get_averaged_encodings")
-@patch("prxteinmpnn.scoring.score.score_sequence_with_encoding")
-def test_score_averaged_inputs_only(mock_score_seq, mock_get_enc, mock_prep, mock_protein, mock_model):
+def test_score_averaged_inputs_only(mock_prep, mock_protein, mock_model):
     """Test scoring with average_node_features=True and mode='inputs'."""
     # Arrange
     mock_prep.return_value = ([mock_protein], mock_model)
 
     L = 10
-    # mode='inputs' means we average over inputs (axis 0), keep noise (axis 1).
-    # encodings: node (Batch, L, D) -> (Noise, L, D) ?
-    # get_averaged_encodings returns (avg_node, avg_edge, neighbors, mask, ar_mask)
-    # If mode='inputs', avg_node has shape (Noise, L, D).
-    # neighbors has shape (Inputs, Noise, L, K).
-
-    # Let's assume 2 noise levels.
-    mock_get_enc.return_value = (
-        jnp.zeros((2, L, 1)), # node (Noise=2)
-        jnp.zeros((2, L, 1, 1)), # edge
-        jnp.zeros((1, 2, L, 1)), # neighbors (Inputs=1, Noise=2)
-        jnp.zeros((1, 2, L)), # mask
-        jnp.zeros((1, 2, L, L)), # ar_mask
-    )
-
-    mock_score_seq.return_value = (
-        jnp.array(0.5),
-        jnp.zeros((L, 21)),
-        jnp.arange(L),
-    )
-
     spec = ScoringSpecification(
         inputs=["dummy_path"],
         sequences_to_score=["G" * L],

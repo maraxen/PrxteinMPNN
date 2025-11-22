@@ -1,8 +1,10 @@
 """Tests for split encoding/sampling path with tied positions."""
 
 import chex
+import equinox as eqx
 import jax
 import jax.numpy as jnp
+import pytest
 
 from prxteinmpnn.model.mpnn import PrxteinMPNN
 from prxteinmpnn.run.averaging import make_encoding_sampling_split_fn
@@ -20,6 +22,7 @@ def test_split_path_with_tied_positions_jit(model_inputs, rng_key):
         k_neighbors=48,
         key=rng_key,
     )
+    model = eqx.tree_inference(model, value=True)
 
     # Create tied positions manually: [0,1,2] in group 0, [5,6] in group 1, others independent
     n_residues = model_inputs["structure_coordinates"].shape[0]
@@ -81,6 +84,7 @@ def test_split_path_with_tied_positions_no_jit(model_inputs, rng_key):
         k_neighbors=48,
         key=rng_key,
     )
+    model = eqx.tree_inference(model, value=True)
 
     # Create tied positions manually: [0,1,2] in group 0, [5,6] in group 1, others independent
     n_residues = model_inputs["structure_coordinates"].shape[0]
@@ -140,6 +144,7 @@ def test_split_path_without_tied_positions_jit(model_inputs, rng_key):
         k_neighbors=48,
         key=rng_key,
     )
+    model = eqx.tree_inference(model, value=True)
 
     encode_fn, sample_fn, _ = make_encoding_sampling_split_fn(model)
     encode_fn = jax.jit(encode_fn)
@@ -179,6 +184,7 @@ def test_split_path_without_tied_positions_no_jit(model_inputs, rng_key):
         k_neighbors=48,
         key=rng_key,
     )
+    model = eqx.tree_inference(model, value=True)
 
     encode_fn, sample_fn, _ = make_encoding_sampling_split_fn(model)
 
@@ -218,6 +224,7 @@ def test_split_path_consistency_with_full_path_jit(model_inputs, rng_key):
         k_neighbors=48,
         key=rng_key,
     )
+    model = eqx.tree_inference(model, value=True)
 
     # Create tied positions manually: [0,1] in group 0, [2,3] in group 1
     n_residues = model_inputs["structure_coordinates"].shape[0]
@@ -288,6 +295,7 @@ def test_split_path_consistency_with_full_path_no_jit(model_inputs, rng_key):
         k_neighbors=48,
         key=rng_key,
     )
+    model = eqx.tree_inference(model, value=True)
 
     # Create tied positions manually: [0,1] in group 0, [2,3] in group 1
     n_residues = model_inputs["structure_coordinates"].shape[0]
@@ -353,6 +361,7 @@ def test_split_path_with_temperature_jit(model_inputs, rng_key):
         k_neighbors=48,
         key=rng_key,
     )
+    model = eqx.tree_inference(model, value=True)
 
     n_residues = model_inputs["structure_coordinates"].shape[0]
     # Create tied positions manually: [0,1] in group 0
@@ -418,6 +427,7 @@ def test_split_path_with_temperature_no_jit(model_inputs, rng_key):
         k_neighbors=48,
         key=rng_key,
     )
+    model = eqx.tree_inference(model, value=True)
 
     n_residues = model_inputs["structure_coordinates"].shape[0]
     # Create tied positions manually: [0,1] in group 0

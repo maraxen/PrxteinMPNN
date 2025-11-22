@@ -45,8 +45,8 @@ def populate_physics_parameters(
   epsilons = np.zeros(n_atoms, dtype=np.float32)
 
   # Get residue and atom names
-  res_names = atom_array.res_name
-  atom_names = atom_array.atom_name
+  res_names = np.array(atom_array.res_name)
+  atom_names = np.array(atom_array.atom_name)
 
   for i in range(n_atoms):
     res_name = res_names[i]
@@ -73,7 +73,7 @@ def _get_default_parameters(atom_array: AtomArray) -> tuple[np.ndarray, np.ndarr
   Fallback when force field is not available.
   """
   n_atoms = atom_array.array_length()
-  elements = atom_array.element
+  elements = np.array(atom_array.element)
 
   # Simple element-based defaults
   element_params = {

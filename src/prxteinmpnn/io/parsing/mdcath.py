@@ -107,7 +107,7 @@ def _process_mdcath_frame(
     logger.info("Removing %d solvent atoms from MDCATH frame", n_solvent)
     atom_array = atom_array[~solvent_mask]  # pyright: ignore[reportAssignmentType]
 
-  atom_array = _add_hydrogens_mdcath(cast(AtomArray, atom_array))
+  atom_array = _add_hydrogens_mdcath(cast("AtomArray", atom_array))
 
   return ProcessedStructure(
     atom_array=atom_array,

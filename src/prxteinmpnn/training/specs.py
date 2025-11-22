@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -96,6 +101,7 @@ class TrainingSpecification(RunSpecification):
   checkpoint_every: int = 1000
   keep_last_n_checkpoints: int = 3
   resume_from_checkpoint: str | Path | None = None
+  save_at_epochs: Sequence[int] | None = None
 
   # Physics features (Phase 1)
   use_electrostatics: bool = False

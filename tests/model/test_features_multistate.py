@@ -209,7 +209,7 @@ class TestFeatures(chex.TestCase):
         res_idx,
         chain_idx,
         noise,
-        mapping,
+        structure_mapping=mapping,
       )
 
     prng_key = jax.random.key(1)
@@ -234,7 +234,7 @@ class TestFeatures(chex.TestCase):
       protein.residue_index,
       protein.chain_index,
       None,
-      protein.mapping,
+      structure_mapping=protein.mapping,
     )
     chex.assert_tree_all_finite((edge_features_nojit, neighbors_nojit))
 

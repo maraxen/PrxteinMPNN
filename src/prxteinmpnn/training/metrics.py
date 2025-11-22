@@ -14,7 +14,7 @@ class TrainingMetrics:
   loss: jax.Array
   accuracy: jax.Array
   perplexity: jax.Array
-  learning_rate: jax.Array
+  learning_rate: jax.Array | float
   grad_norm: jax.Array | None = None
 
   def to_dict(self) -> dict[str, float | None]:

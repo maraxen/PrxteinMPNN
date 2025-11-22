@@ -2,20 +2,20 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+import optax
 
 from prxteinmpnn.training.losses import cross_entropy_loss, perplexity, sequence_recovery_accuracy
+from prxteinmpnn.training.metrics import TrainingMetrics
 
 if TYPE_CHECKING:
-  import optax
-
   from prxteinmpnn.model.diffusion_mpnn import DiffusionPrxteinMPNN
   from prxteinmpnn.training.diffusion import NoiseSchedule
-  from prxteinmpnn.utils.types import Logits, TrainingMetrics
+  from prxteinmpnn.utils.types import Logits
 
 
 @eqx.filter_jit
@@ -116,7 +116,7 @@ def train_step(
 
   (loss, logits_batch), grads = eqx.filter_value_and_grad(loss_fn, has_aux=True)(model)
 
-  updates, new_opt_state = optimizer.update(grads, opt_state, model)
+  updates, new_opt_state = optimizer.update(grads, opt_state, cast(optax.Params, model))
   new_model = eqx.apply_updates(model, updates)
 
   # Metrics
@@ -131,11 +131,11 @@ def train_step(
 
   accuracies, perplexities = jax.vmap(batch_metrics)(logits_batch, sequence, mask)
 
-  metrics = {
-    "loss": loss,
-    "accuracy": jnp.mean(accuracies),
-    "perplexity": jnp.mean(perplexities),
-    "learning_rate": lr_schedule(current_step),
-  }
+  metrics = TrainingMetrics(
+    loss=loss,
+    accuracy=jnp.mean(accuracies),
+    perplexity=jnp.mean(perplexities),
+    learning_rate=lr_schedule(current_step),
+  )
 
   return new_model, new_opt_state, metrics

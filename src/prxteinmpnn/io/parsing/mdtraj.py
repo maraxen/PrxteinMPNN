@@ -145,15 +145,23 @@ def _mdtraj_to_atom_array(
   traj: md.Trajectory,
 ) -> AtomArray | AtomArrayStack:
   """Convert an mdtraj trajectory to a biotite AtomArray or AtomArrayStack."""
+  if traj.top is None:
+    msg = "Trajectory topology is None"
+    raise ValueError(msg)
+  # Topology
+  top = traj.top
+
+  # Ensure xyz is present
+  if traj.xyz is None:
+    msg = "Trajectory coordinates (xyz) are None"
+    raise ValueError(msg)
+
   if traj.n_frames > 1:
     atom_array = AtomArrayStack(traj.n_frames, traj.n_atoms)
     atom_array.coord = traj.xyz * 10  # Convert nm to Angstrom
   else:
     atom_array = AtomArray(traj.n_atoms)
     atom_array.coord = traj.xyz[0] * 10  # Convert nm to Angstrom
-
-  # Topology
-  top = traj.top
 
   # We need to map mdtraj topology to biotite arrays
   # This can be slow for large systems, but necessary for standardization.
@@ -200,10 +208,10 @@ def _add_hydrogens_if_needed(atom_array: AtomArray) -> AtomArray:
     # Infer bonds for hydride
     if not atom_array.bonds:
       try:
-        atom_array.bonds = structure.connect_via_residue_names(atom_array)
+        atom_array.bonds = structure.connect_via_residue_names(atom_array)  # pyright: ignore[reportAttributeAccessIssue]
       except Exception as e:  # noqa: BLE001
         logger.warning("Failed to infer bonds: %s", e)
-        atom_array.bonds = structure.connect_via_distances(atom_array)
+        atom_array.bonds = structure.connect_via_distances(atom_array)  # pyright: ignore[reportAttributeAccessIssue]
 
     # Add charge annotation
     if "charge" not in atom_array.get_annotation_categories():
@@ -237,9 +245,9 @@ def _process_mdtraj_chunk(
     n_solvent = np.sum(solvent_mask)
     logger.info("Removing %d solvent atoms from MDTraj chunk", n_solvent)
     if isinstance(atom_array, AtomArrayStack):
-      atom_array = atom_array[:, ~solvent_mask]
+      atom_array = atom_array[:, ~solvent_mask]  # pyright: ignore[reportAssignmentType]
     else:
-      atom_array = atom_array[~solvent_mask]
+      atom_array = atom_array[~solvent_mask]  # pyright: ignore[reportAssignmentType]
 
   # Add hydrogens if missing
   if isinstance(atom_array, AtomArray):  # Only for single frames
@@ -248,13 +256,13 @@ def _process_mdtraj_chunk(
   # Re-derive chain indices from atom_array.chain_id
   # We assume chain_id are strings like "A", "B", etc.
   # We need to map them to 0-based indices.
-  unique_chains = sorted(set(atom_array.chain_id))
+  unique_chains = sorted(set(atom_array.chain_id))  # pyright: ignore[reportArgumentType]
   chain_map = {cid: i for i, cid in enumerate(unique_chains)}
-  chain_ids_int = np.array([chain_map[cid] for cid in atom_array.chain_id], dtype=np.int32)
+  chain_ids_int = np.array([chain_map[cid] for cid in atom_array.chain_id], dtype=np.int32)  # pyright: ignore[reportArgumentType, reportOptionalIterable]
 
   return ProcessedStructure(
-    atom_array=atom_array,
-    r_indices=atom_array.res_id,
+    atom_array=atom_array,  # pyright: ignore[reportArgumentType]
+    r_indices=atom_array.res_id,  # pyright: ignore[reportArgumentType]
     chain_ids=chain_ids_int,
   )
 

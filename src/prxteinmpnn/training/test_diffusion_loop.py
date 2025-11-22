@@ -86,7 +86,7 @@ def test_diffusion_training() -> None:
       physics_noise_scale=0.5,
     )
 
-    logger.info("Loss: %.4f, Acc: %.4f", metrics["loss"], metrics["accuracy"])
+    logger.info("Loss: %.4f, Acc: %.4f", metrics.loss, metrics.accuracy)
 
   logger.info("Diffusion training test passed!")
 

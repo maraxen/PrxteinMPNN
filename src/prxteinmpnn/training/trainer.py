@@ -317,7 +317,7 @@ def train_step(  # noqa: PLR0913
     loss=loss,
     accuracy=accuracy,
     perplexity=ppl,
-    learning_rate=current_lr,
+    learning_rate=current_lr,  # pyright: ignore[reportArgumentType]
     grad_norm=grad_norm,
   )
 
@@ -455,6 +455,11 @@ def train(spec: TrainingSpecification) -> TrainingResult:
     for batch in train_loader:
       prng_key, subkey = jax.random.split(prng_key)
 
+      if isinstance(spec.backbone_noise, (float, int)):
+        backbone_noise_std = float(spec.backbone_noise)
+      else:
+        backbone_noise_std = float(spec.backbone_noise[0])
+
       model, opt_state, train_metrics = eqx.filter_jit(train_step)(
         model,
         opt_state,
@@ -469,7 +474,7 @@ def train(spec: TrainingSpecification) -> TrainingResult:
         step,
         lr_schedule,
         batch.physics_features,
-        spec.backbone_noise[0] if isinstance(spec.backbone_noise, tuple) else spec.backbone_noise,
+        backbone_noise_std,
         spec.mask_strategy,
         spec.mask_prob,
       )

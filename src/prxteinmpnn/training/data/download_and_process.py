@@ -12,7 +12,7 @@ from typing import Any
 import msgpack
 import msgpack_numpy as m
 import numpy as np
-import torch
+import torch  # pyright: ignore[reportMissingImports]
 import tqdm
 from array_record.python.array_record_module import ArrayRecordWriter
 
@@ -149,7 +149,7 @@ def _extract_and_validate_data(
 
     # Handle NaNs
     atom_is_nan = np.isnan(coords).any(axis=-1)
-    backbone_mask = ~atom_is_nan
+    backbone_mask = np.asarray(~atom_is_nan)
     coords = np.nan_to_num(coords, nan=0.0)
 
     # Process sequence
@@ -174,10 +174,14 @@ def _extract_and_validate_data(
         # Handle mismatch if necessary, or just skip
         pass
 
-    ca_valid = backbone_mask[:, 1]
+    if backbone_mask.ndim > 1:
+        ca_valid = backbone_mask[:, 1]
+    else:
+        ca_valid = backbone_mask
+
     mask = mask & ca_valid
 
-    return name, seq, coords, mask, backbone_mask
+    return name, seq, coords, mask, np.asarray(backbone_mask)
 
 
 def _compute_physics_features(

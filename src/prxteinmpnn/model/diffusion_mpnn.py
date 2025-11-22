@@ -87,7 +87,7 @@ class SwiGLU(eqx.Module):
 class DiffusionPrxteinMPNN(PrxteinMPNN):
   """ProteinMPNN extended for diffusion training."""
 
-  w_t_embed: eqx.Module  # Sinusoidal + MLP
+  w_t_embed: eqx.nn.Sequential  # Sinusoidal + MLP
 
   def __init__(
     self,
@@ -213,12 +213,13 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
         multi_state_alpha=multi_state_alpha,
         structure_mapping=structure_mapping,
         initial_node_features=initial_node_features,
-        physics_features=physics_features,
       )
 
     # --- Diffusion Logic ---
     if prng_key is None:
       prng_key = jax.random.PRNGKey(0)
+    # Assert prng_key is not None for type checkers (though handled above)
+    assert prng_key is not None  # noqa: S101
     prng_key, feat_key = jax.random.split(prng_key)
 
     if backbone_noise is None:
@@ -280,7 +281,7 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
       mask,
       ar_mask,
       noisy_sequence,
-      prng_key,  # Unused
+      prng_key,  # pyright: ignore[reportArgumentType] # Unused
       jnp.array(1.0),  # Temp unused
       jnp.zeros((mask.shape[0], 21)),  # Bias unused
       None,  # tie_group_map unused

@@ -88,3 +88,13 @@ def test_training_spec_physics_features():
     assert spec.use_electrostatics is True
     assert spec.use_vdw is True
     assert spec.physics_feature_weight == 2.0
+
+
+def test_training_spec_save_at_epochs():
+    """Test save_at_epochs configuration."""
+    spec = TrainingSpecification(
+        inputs="data/train/",
+        num_epochs=10,
+        save_at_epochs=[1, 5, 10],
+    )
+    assert spec.save_at_epochs == [1, 5, 10]

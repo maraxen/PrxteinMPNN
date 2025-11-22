@@ -151,7 +151,7 @@ def test_merge_shards_to_final(tmp_path):
          # Reader called for each shard
          assert MockReader.call_count == 2
 
-         assert index == {"p1": 0, "p2": 1}
+         assert index == {"p1": {"idx": [0], "set": "train"}, "p2": {"idx": [1], "set": "train"}}
          assert index_file.exists()
 
          # Check metadata

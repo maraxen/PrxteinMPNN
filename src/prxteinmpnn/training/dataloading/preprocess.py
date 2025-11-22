@@ -150,17 +150,32 @@ def _worker_process_protein(args: tuple) -> tuple[str, Path | None]:
       "estat_backbone_mask": (
         np.array(protein_tuple.estat_backbone_mask)
         if protein_tuple.estat_backbone_mask is not None
-        else np.zeros(len(protein_tuple.full_coordinates), dtype=bool)
+        else np.zeros(
+          len(protein_tuple.full_coordinates)
+          if protein_tuple.full_coordinates is not None
+          else 0,
+          dtype=bool,
+        )
       ),
       "estat_resid": (
         np.array(protein_tuple.estat_resid)
         if protein_tuple.estat_resid is not None
-        else np.zeros(len(protein_tuple.full_coordinates), dtype=np.int32)
+        else np.zeros(
+          len(protein_tuple.full_coordinates)
+          if protein_tuple.full_coordinates is not None
+          else 0,
+          dtype=np.int32,
+        )
       ),
       "estat_chain_index": (
         np.array(protein_tuple.estat_chain_index)
         if protein_tuple.estat_chain_index is not None
-        else np.zeros(len(protein_tuple.full_coordinates), dtype=np.int32)
+        else np.zeros(
+          len(protein_tuple.full_coordinates)
+          if protein_tuple.full_coordinates is not None
+          else 0,
+          dtype=np.int32,
+        )
       ),
     }
 
@@ -306,7 +321,7 @@ def _merge_shards_to_final(
             try:
               unpacked = msgpack.unpackb(record_bytes, raw=False)
               protein_id = unpacked["protein_id"]
-              protein_index[protein_id] = global_record_index
+              protein_index[protein_id] = {"idx": [global_record_index], "set": "train"}
 
               # Append to metadata
               _append_metadata(metadata_file, protein_id, "success")

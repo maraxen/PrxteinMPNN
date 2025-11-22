@@ -93,7 +93,7 @@ class TrainingResult:
 
 def _init_checkpoint_and_model(
   spec: TrainingSpecification,
-) -> tuple[PrxteinMPNN, Any, int, ocp.CheckpointManager]:
+) -> tuple[PrxteinMPNN, Any, int, ocp.CheckpointManager, ocp.CheckpointManager]:
   """Initialize or restore model, optimizer state and checkpoint manager.
 
   Applies physics encoder surgery if use_physics_features is enabled.
@@ -106,6 +106,15 @@ def _init_checkpoint_and_model(
   checkpoint_manager = ocp.CheckpointManager(
     checkpoint_dir,
     options=options,
+  )
+
+  # Permanent checkpoint manager for specific epochs
+  permanent_checkpoint_dir = checkpoint_dir / "kept"
+  permanent_checkpoint_dir.mkdir(parents=True, exist_ok=True)
+  permanent_options = ocp.CheckpointManagerOptions(max_to_keep=None)  # Keep all
+  permanent_manager = ocp.CheckpointManager(
+    permanent_checkpoint_dir,
+    options=permanent_options,
   )
 
   opt_state: ArrayTree | None = None
@@ -133,7 +142,7 @@ def _init_checkpoint_and_model(
     optimizer_obj, _ = create_optimizer(spec)
     opt_state = optimizer_obj.init(eqx.filter(model, eqx.is_inexact_array))
 
-  return model, opt_state, start_step, checkpoint_manager
+  return model, opt_state, start_step, checkpoint_manager, permanent_manager
 
 
 def _create_dataloaders(spec: TrainingSpecification) -> tuple[Any, Any]:
@@ -146,6 +155,7 @@ def _create_dataloaders(spec: TrainingSpecification) -> tuple[Any, Any]:
     use_vdw=spec.use_vdw,
     use_preprocessed=spec.use_preprocessed,
     preprocessed_index_path=spec.preprocessed_index_path,
+    split="train",
   )
 
   val_loader = None
@@ -168,6 +178,7 @@ def _create_dataloaders(spec: TrainingSpecification) -> tuple[Any, Any]:
       use_electrostatics=spec.use_electrostatics,
       use_vdw=spec.use_vdw,
       preprocessed_index_path=val_index_path,
+      split="valid",
     )
 
   return train_loader, val_loader
@@ -317,7 +328,7 @@ def train_step(  # noqa: PLR0913
     loss=loss,
     accuracy=accuracy,
     perplexity=ppl,
-    learning_rate=current_lr,
+    learning_rate=float(current_lr),
     grad_norm=grad_norm,
   )
 
@@ -410,7 +421,7 @@ def eval_step(
   )
 
 
-def train(spec: TrainingSpecification) -> TrainingResult:
+def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912, PLR0915
   """Train PrxteinMPNN model.
 
   Args:
@@ -436,7 +447,9 @@ def train(spec: TrainingSpecification) -> TrainingResult:
 
   optimizer, lr_schedule = create_optimizer(spec)
 
-  model, opt_state, start_step, checkpoint_manager = _init_checkpoint_and_model(spec)
+  model, opt_state, start_step, checkpoint_manager, permanent_manager = (
+    _init_checkpoint_and_model(spec)
+  )
 
   train_loader, val_loader = _create_dataloaders(spec)
 
@@ -469,7 +482,7 @@ def train(spec: TrainingSpecification) -> TrainingResult:
         step,
         lr_schedule,
         batch.physics_features,
-        spec.backbone_noise[0] if isinstance(spec.backbone_noise, tuple) else spec.backbone_noise,
+        spec.backbone_noise[0] if isinstance(spec.backbone_noise, tuple) else spec.backbone_noise,  # type: ignore[reportArgumentType]
         spec.mask_strategy,
         spec.mask_prob,
       )
@@ -528,8 +541,87 @@ def train(spec: TrainingSpecification) -> TrainingResult:
           metrics=train_metrics,
         )
 
+      # Persistent checkpointing
+      if spec.save_at_epochs and (epoch + 1) in spec.save_at_epochs:
+        logger.info("Saving persistent checkpoint for epoch %d", epoch + 1)
+        save_checkpoint(
+          permanent_manager,
+          step,
+          model,
+          opt_state,
+          metrics=train_metrics,
+        )
+
   logger.info("Training complete!")
 
+  logger.info("Training complete!")
+
+  # Final Test Loop
+  logger.info("Starting final test evaluation...")
+  test_loader = None
+
+  # Determine test data source
+  test_inputs = spec.validation_data # Default to validation data if no separate test set
+  test_use_preprocessed = spec.use_preprocessed
+  test_index_path = spec.validation_preprocessed_index_path
+
+  # If we are using preprocessed data, we try to load the 'test' split from the same file
+  # or a specific test file if one were added to spec
+  if spec.use_preprocessed and spec.preprocessed_index_path:
+      # If validation path is set, use that, otherwise fall back to training path
+      test_inputs = spec.validation_preprocessed_path or spec.inputs  # type: ignore[reportArgumentType]
+
+      test_index_path = (
+          spec.validation_preprocessed_index_path or spec.preprocessed_index_path
+      )
+
+  try:
+      test_loader = create_protein_dataset(
+        test_inputs,  # type: ignore[reportArgumentType]
+        batch_size=spec.batch_size,
+        foldcomp_database=spec.foldcomp_database if not test_use_preprocessed else None,
+        use_preprocessed=test_use_preprocessed,
+        use_electrostatics=spec.use_electrostatics,
+        use_vdw=spec.use_vdw,
+        preprocessed_index_path=test_index_path,
+        split="test",
+      )
+
+      test_metrics_list = []
+      for test_batch in tqdm.tqdm(test_loader, desc="Testing"):
+          prng_key, subkey = jax.random.split(prng_key)
+          test_metrics = eqx.filter_jit(eval_step)(
+            model,
+            test_batch.coordinates,
+            test_batch.mask,
+            test_batch.residue_index,
+            test_batch.chain_index,
+            test_batch.aatype,
+            subkey,
+            test_batch.physics_features,
+          )
+          test_metrics_list.append(test_metrics)
+
+      if test_metrics_list:
+          avg_test_loss = jnp.mean(jnp.array([m.val_loss for m in test_metrics_list]))
+          avg_test_acc = jnp.mean(jnp.array([m.val_accuracy for m in test_metrics_list]))
+          avg_test_ppl = jnp.mean(jnp.array([m.val_perplexity for m in test_metrics_list]))
+
+          logger.info("=" * 40)
+          logger.info("Final Test Results:")
+          logger.info("  Loss: %.4f", jax.device_get(avg_test_loss).item())
+          logger.info("  Accuracy: %.4f", jax.device_get(avg_test_acc).item())
+          logger.info("  Perplexity: %.4f", jax.device_get(avg_test_ppl).item())
+          logger.info("=" * 40)
+      else:
+          logger.warning("Test loader was empty. No test metrics computed.")
+
+  except Exception:  # noqa: BLE001
+      logger.warning(
+          "Could not create test loader or run testing (possibly no 'test' split found).",
+      )
+
   checkpoint_manager.close()
+  permanent_manager.close()
 
   return TrainingResult(final_model=model, final_step=step, checkpoint_dir=spec.checkpoint_dir)

@@ -4,11 +4,13 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import chex
+import equinox as eqx
 import h5py
 import jax
 import jax.numpy as jnp
 import pytest
 
+from prxteinmpnn.model.mpnn import PrxteinMPNN
 from prxteinmpnn.run.sampling import SamplingSpecification, sample
 from prxteinmpnn.utils.data_structures import Protein
 
@@ -27,23 +29,19 @@ def mock_protein():
 
 @pytest.fixture
 def mock_model():
-    """Fixture for a mock PrxteinMPNN model."""
-    model = MagicMock()
-    # Mock the model's w_s_embed.num_embeddings for decode_fn
-    model.w_s_embed.num_embeddings = 21
-    model.features.return_value = (
-        jnp.ones((10, 48, 128)),  # edge_features
-        jnp.ones((10, 48), dtype=jnp.int32),  # neighbor_indices
-        jnp.ones((10, 128)),  # initial_node_features
-        None,
+    """Fixture for a small real PrxteinMPNN model."""
+    key = jax.random.key(0)
+    model = PrxteinMPNN(
+        node_features=16,
+        edge_features=16,
+        hidden_features=16,
+        num_encoder_layers=1,
+        num_decoder_layers=1,
+        k_neighbors=5,
+        key=key,
     )
-    model.encoder.return_value = (
-        jnp.ones((10, 128)),  # node_features
-        jnp.ones((10, 48, 128)),  # processed_edge_features
-    )
-    model.decoder.call_conditional.return_value = jnp.ones((10, 128))
-    model.w_out.return_value = jnp.ones((21,))
-    return model
+    # Set to inference mode to avoid dropout randomness requiring keys
+    return eqx.tree_inference(model, value=True)
 
 @pytest.mark.parametrize(
     "average_mode, expected_shape",

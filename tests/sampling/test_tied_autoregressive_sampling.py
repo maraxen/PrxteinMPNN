@@ -12,6 +12,7 @@ sampling path, including:
 # ruff: noqa: S101, PLR2004, ANN001, ANN201, RUF059, F841
 
 import chex
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
@@ -25,7 +26,7 @@ from prxteinmpnn.utils.decoding_order import random_decoding_order
 @pytest.fixture
 def simple_model(rng_key):
   """Create a small model for testing."""
-  return PrxteinMPNN(
+  model = PrxteinMPNN(
     node_features=128,
     edge_features=128,
     hidden_features=128,
@@ -34,6 +35,7 @@ def simple_model(rng_key):
     k_neighbors=30,
     key=rng_key,
   )
+  return eqx.tree_inference(model, value=True)
 
 
 @pytest.fixture
@@ -431,6 +433,7 @@ class TestEdgeCases:
       k_neighbors=30,
       key=rng_key,
     )
+    model = eqx.tree_inference(model, value=True)
 
     structure = {
       "structure_coordinates": jnp.ones((1, 4, 3)),
@@ -486,6 +489,7 @@ class TestIntegrationWithRealModel:
       k_neighbors=48,
       key=rng_key,
     )
+    model = eqx.tree_inference(model, value=True)
 
     sample_fn = make_sample_sequences(model, sampling_strategy="temperature")
 

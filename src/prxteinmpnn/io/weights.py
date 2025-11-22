@@ -9,10 +9,10 @@ import jax
 import jax.nn.initializers as init
 from huggingface_hub import hf_hub_download
 
+from prxteinmpnn.model import PrxteinMPNN
+
 if TYPE_CHECKING:
   from jaxtyping import PyTree
-
-  from prxteinmpnn.model import PrxteinMPNN
 
 MODEL_WEIGHTS = Literal["original", "soluble"]
 MODEL_VERSION = Literal["v_48_002", "v_48_010", "v_48_020", "v_48_030"]
@@ -143,8 +143,6 @@ def load_model(
       >>> seq, logits = model(coords, mask, res_idx, chain_idx, "unconditional")
 
   """
-  from prxteinmpnn.model import PrxteinMPNN
-
   if key is None:
     key = jax.random.PRNGKey(0)
 

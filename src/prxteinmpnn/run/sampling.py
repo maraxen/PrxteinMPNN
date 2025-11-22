@@ -368,7 +368,7 @@ def _sample_batch_averaged(
   batched_ensemble: Protein,
   model: PrxteinMPNN,
   sample_fn: Callable,  # noqa: ARG001
-  decode_fn: Callable,
+  decode_fn: Callable,  # noqa: ARG001
 ) -> tuple[ProteinSequence, Logits]:
   """Sample sequences for a batched ensemble of proteins using averaged encodings."""
   keys = jax.random.split(jax.random.key(spec.random_seed), spec.num_samples)
@@ -389,12 +389,10 @@ def _sample_batch_averaged(
     spec.average_encoding_mode,
   )
 
-  decode_wrapper = _create_decode_wrapper(decode_fn)
-
   # Create a new sample_fn with the wrapper
   _, sample_fn_wrapped, decode_fn_wrapped = make_encoding_sampling_split_fn(
     model,
-    decode_fn_wrapper=decode_wrapper,
+    decode_fn_wrapper=_create_decode_wrapper,
   )
 
   sample_fn_with_params = partial(

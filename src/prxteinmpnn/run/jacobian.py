@@ -9,6 +9,7 @@ from functools import partial
 from hashlib import sha256
 from typing import TYPE_CHECKING, Any, cast
 
+import equinox as eqx
 import h5py
 import jax
 import jax.numpy as jnp
@@ -101,6 +102,8 @@ def categorical_jacobian(
     spec = JacobianSpecification(**kwargs)
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
+  model = eqx.tree_inference(model, value=True)
+
   if spec.average_encodings:
     encode_fn, decode_fn = make_encoding_conditional_logits_split_fn(
       model=model,

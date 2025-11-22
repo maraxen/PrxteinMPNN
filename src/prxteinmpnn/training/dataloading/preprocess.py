@@ -16,10 +16,12 @@ import json
 import logging
 import multiprocessing as mp
 import uuid
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+  from collections.abc import Sequence
 
 import jax.numpy as jnp
 import msgpack

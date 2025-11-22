@@ -16,6 +16,7 @@ from io import StringIO
 from typing import cast
 
 import h5py
+import hydride
 import numpy as np
 from biotite import structure
 from biotite.structure import AtomArray, filter_solvent
@@ -51,8 +52,6 @@ def _add_hydrogens_mdcath(atom_array: AtomArray) -> AtomArray:
       )
 
     try:
-      import hydride
-
       atom_array, _ = hydride.add_hydrogen(atom_array)
       logger.info("Hydrogens added to MDCATH structure")
     except Exception as e:  # noqa: BLE001

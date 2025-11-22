@@ -119,8 +119,10 @@ def make_conditional_logits_fn(
       ... )
 
     """
+    key_features, key_encoder, key_conditional = jax.random.split(prng_key, 3)
+
     edge_features, neighbor_indices, node_features, _ = model.features(
-      prng_key,
+      key_features,
       structure_coordinates,
       mask,
       residue_index,
@@ -134,6 +136,7 @@ def make_conditional_logits_fn(
       neighbor_indices,
       mask,
       node_features,
+      key=key_encoder,
     )
 
     ar_mask = (
@@ -154,7 +157,7 @@ def make_conditional_logits_fn(
       mask,
       ar_mask,
       sequence,
-      prng_key,
+      key_conditional,
       0.0,  # temperature unused in conditional path
       jax.numpy.zeros((mask.shape[0], 21), dtype=jax.numpy.float32),
       None,  # tie_group_map not used in jacobian computation
@@ -199,6 +202,8 @@ def make_encoding_conditional_logits_split_fn(
     >>> logits2 = decode_fn(encoding, sequence2)
 
   """
+  # Use inference mode for decoding to skip dropout (allows running without PRNG key)
+  inference_model = eqx.tree_inference(model, value=True)
 
   def encode_fn(
     structure_coordinates: StructureAtomicCoordinates,
@@ -233,8 +238,10 @@ def make_encoding_conditional_logits_split_fn(
     if prng_key is None:
       prng_key = jax.random.PRNGKey(0)
 
+    key_features, key_encoder = jax.random.split(prng_key, 2)
+
     edge_features, neighbor_indices, initial_node_features, _ = model.features(
-      prng_key,
+      key_features,
       structure_coordinates,
       mask,
       residue_index,
@@ -248,6 +255,7 @@ def make_encoding_conditional_logits_split_fn(
       neighbor_indices,
       mask,
       initial_node_features,
+      key=key_encoder,
     )
 
     ar_mask_placeholder = jax.numpy.zeros((mask.shape[0], mask.shape[0]), dtype=jax.numpy.int32)
@@ -277,20 +285,20 @@ def make_encoding_conditional_logits_split_fn(
       ar_mask = jax.numpy.zeros((mask.shape[0], mask.shape[0]), dtype=jax.numpy.int32)
 
     if sequence.ndim == 1:
-      one_hot_sequence = jax.nn.one_hot(sequence, model.w_s_embed.num_embeddings)
+      one_hot_sequence = jax.nn.one_hot(sequence, inference_model.w_s_embed.num_embeddings)
     else:
       one_hot_sequence = sequence
 
-    decoded_node_features = model.decoder.call_conditional(
+    decoded_node_features = inference_model.decoder.call_conditional(
       node_features,
       processed_edge_features,
       neighbor_indices,
       mask,
       ar_mask,
       one_hot_sequence,
-      model.w_s_embed.weight,
+      inference_model.w_s_embed.weight,
     )
 
-    return jax.vmap(model.w_out)(decoded_node_features)
+    return jax.vmap(inference_model.w_out)(decoded_node_features)
 
   return encode_fn, decode_fn

@@ -5,6 +5,7 @@ import pathlib
 from collections.abc import Iterator, Sequence
 from io import StringIO
 
+import hydride
 import mdtraj as md
 import numpy as np
 from biotite import structure
@@ -209,8 +210,6 @@ def _add_hydrogens_if_needed(atom_array: AtomArray) -> AtomArray:
       atom_array.set_annotation("charge", np.zeros(atom_array.array_length(), dtype=int))
 
     try:
-      import hydride
-
       atom_array, _ = hydride.add_hydrogen(atom_array)
       logger.info("Hydrogens added to MDTraj structure")
     except Exception as e:  # noqa: BLE001

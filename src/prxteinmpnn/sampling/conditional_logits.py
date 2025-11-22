@@ -128,7 +128,7 @@ def make_conditional_logits_fn(
       residue_index,
       chain_index,
       backbone_noise,
-      structure_mapping,
+      structure_mapping=structure_mapping,
     )
 
     node_features, edge_features = model.encoder(
@@ -203,7 +203,7 @@ def make_encoding_conditional_logits_split_fn(
 
   """
   # Use inference mode for decoding to skip dropout (allows running without PRNG key)
-  inference_model = eqx.tree_inference(model, value=True)
+  inference_model = eqx.nn.inference_mode(model, value=True)
 
   def encode_fn(
     structure_coordinates: StructureAtomicCoordinates,

@@ -229,8 +229,13 @@ def _resolve_physics_parameters(
   if populate_physics and (charges is None or sigmas is None or epsilons is None):
     logger.info("Populating missing physics parameters from force field")
 
+    # Use first frame for parameter extraction if stack
+    calc_array = (
+      cast("AtomArray", atom_array[0]) if isinstance(atom_array, AtomArrayStack) else atom_array
+    )
+
     charges_ff, sigmas_ff, epsilons_ff = populate_physics_parameters(
-      atom_array,
+      calc_array,
       force_field_name=force_field_name,
     )
 
@@ -244,7 +249,7 @@ def _resolve_physics_parameters(
 
     # Radii: use van der Waals radii if not present
     if radii is None:
-      _, _, _ = _get_default_parameters(atom_array)  # Just for consistency
+      _, _, _ = _get_default_parameters(calc_array)  # Just for consistency
       # Simple element-based radii
       element_radii = {
         "H": 1.20,
@@ -255,7 +260,8 @@ def _resolve_physics_parameters(
         "P": 1.80,
       }
       radii = np.array(
-        [element_radii.get(elem, 1.70) for elem in atom_array.element], dtype=np.float32,
+        [element_radii.get(elem, 1.70) for elem in calc_array.element],  # pyright: ignore[reportOptionalIterable]
+        dtype=np.float32,
       )
   return charges, radii, sigmas, epsilons
 
@@ -310,8 +316,8 @@ def processed_structure_to_protein_tuples(
       static_features.valid_atom_mask,
     )
     # Compute electrostatic metadata
-    estat_backbone_mask = np.isin(frame.atom_name, ["N", "CA", "C", "O"])
-    estat_resid = frame.res_id.astype(np.int32)
+    estat_backbone_mask = np.isin(frame.atom_name, ["N", "CA", "C", "O"])  # pyright: ignore[reportArgumentType]
+    estat_resid = frame.res_id.astype(np.int32)  # pyright: ignore[reportOptionalMemberAccess]
     estat_chain_index = _get_chain_index(frame)
 
     return ProteinTuple(

@@ -25,6 +25,7 @@ def create_protein_dataset(
   use_vdw: bool = False,
   use_preprocessed: bool = False,
   preprocessed_index_path: str | Path | None = None,
+  split: str = "train",
 ) -> grain.IterDataset:
   """Construct a high-performance protein data pipeline using Grain.
 
@@ -39,6 +40,7 @@ def create_protein_dataset(
       use_vdw: Whether to compute and include van der Waals features.
       use_preprocessed: If True, load from preprocessed array_record files
       preprocessed_index_path: Path to index file (required if use_preprocessed=True)
+      split: Data split to load ("train", "valid", "test")
 
   Returns:
       A Grain IterDataset that yields batches of padded `Protein` objects.
@@ -73,6 +75,7 @@ def create_protein_dataset(
     source = ArrayRecordDataSource(
       array_record_path=inputs,
       index_path=preprocessed_index_path,
+      split=split,
     )
     ds = grain.MapDataset.source(source)
 

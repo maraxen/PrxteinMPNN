@@ -309,6 +309,11 @@ def processed_structure_to_protein_tuples(
       static_features.static_atom_mask_37,
       static_features.valid_atom_mask,
     )
+    # Compute electrostatic metadata
+    estat_backbone_mask = np.isin(frame.atom_name, ["N", "CA", "C", "O"])
+    estat_resid = frame.res_id.astype(np.int32)
+    estat_chain_index = _get_chain_index(frame)
+
     return ProteinTuple(
       coordinates=coords_37,
       aatype=static_features.aatype,
@@ -322,6 +327,9 @@ def processed_structure_to_protein_tuples(
       radii=radii,
       epsilons=epsilons,
       sigmas=sigmas,
+      estat_backbone_mask=estat_backbone_mask,
+      estat_resid=estat_resid,
+      estat_chain_index=estat_chain_index,
     )
 
   if isinstance(atom_array, AtomArrayStack):

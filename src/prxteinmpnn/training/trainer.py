@@ -469,7 +469,7 @@ def train(spec: TrainingSpecification) -> TrainingResult:
         step,
         lr_schedule,
         batch.physics_features,
-        spec.backbone_noise[0] if isinstance(spec.backbone_noise, tuple) else spec.backbone_noise,
+        float(spec.backbone_noise[0]) if isinstance(spec.backbone_noise, (tuple, list)) else float(spec.backbone_noise),
         spec.mask_strategy,
         spec.mask_prob,
       )

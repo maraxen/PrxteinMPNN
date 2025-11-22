@@ -202,6 +202,8 @@ def make_encoding_conditional_logits_split_fn(
     >>> logits2 = decode_fn(encoding, sequence2)
 
   """
+  # Use inference mode for decoding to skip dropout (allows running without PRNG key)
+  inference_model = eqx.tree_inference(model, value=True)
 
   def encode_fn(
     structure_coordinates: StructureAtomicCoordinates,
@@ -283,20 +285,20 @@ def make_encoding_conditional_logits_split_fn(
       ar_mask = jax.numpy.zeros((mask.shape[0], mask.shape[0]), dtype=jax.numpy.int32)
 
     if sequence.ndim == 1:
-      one_hot_sequence = jax.nn.one_hot(sequence, model.w_s_embed.num_embeddings)
+      one_hot_sequence = jax.nn.one_hot(sequence, inference_model.w_s_embed.num_embeddings)
     else:
       one_hot_sequence = sequence
 
-    decoded_node_features = model.decoder.call_conditional(
+    decoded_node_features = inference_model.decoder.call_conditional(
       node_features,
       processed_edge_features,
       neighbor_indices,
       mask,
       ar_mask,
       one_hot_sequence,
-      model.w_s_embed.weight,
+      inference_model.w_s_embed.weight,
     )
 
-    return jax.vmap(model.w_out)(decoded_node_features)
+    return jax.vmap(inference_model.w_out)(decoded_node_features)
 
   return encode_fn, decode_fn

@@ -7,12 +7,13 @@ from typing import TYPE_CHECKING, cast
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-import optax
 
 from prxteinmpnn.training.losses import cross_entropy_loss, perplexity, sequence_recovery_accuracy
 from prxteinmpnn.training.metrics import TrainingMetrics
 
 if TYPE_CHECKING:
+  import optax
+
   from prxteinmpnn.model.diffusion_mpnn import DiffusionPrxteinMPNN
   from prxteinmpnn.training.diffusion import NoiseSchedule
   from prxteinmpnn.utils.types import Logits
@@ -116,7 +117,7 @@ def train_step(
 
   (loss, logits_batch), grads = eqx.filter_value_and_grad(loss_fn, has_aux=True)(model)
 
-  updates, new_opt_state = optimizer.update(grads, opt_state, cast(optax.Params, model))
+  updates, new_opt_state = optimizer.update(grads, opt_state, cast("optax.Params", model))
   new_model = eqx.apply_updates(model, updates)
 
   # Metrics
@@ -135,7 +136,7 @@ def train_step(
     loss=loss,
     accuracy=jnp.mean(accuracies),
     perplexity=jnp.mean(perplexities),
-    learning_rate=lr_schedule(current_step),
+    learning_rate=lr_schedule(current_step),  # pyright: ignore[reportArgumentType]
   )
 
   return new_model, new_opt_state, metrics

@@ -5,6 +5,7 @@ import pathlib
 from collections.abc import Sequence
 from typing import Any
 
+import hydride
 import numpy as np
 from biotite import structure
 from biotite.structure import AtomArray, AtomArrayStack
@@ -80,8 +81,6 @@ def _add_hydrogens_to_structure(
   if "charge" not in atom_array.get_annotation_categories():
     logger.info("No charge annotation found. Adding zero charges for Hydride compatibility.")
     atom_array.set_annotation("charge", np.zeros(atom_array.array_length(), dtype=int))
-
-  import hydride
 
   atom_array, _ = hydride.add_hydrogen(atom_array)
   logger.info("Hydrogens added. New atom count: %d", atom_array.array_length())

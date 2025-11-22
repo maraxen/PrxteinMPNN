@@ -2842,6 +2842,7 @@ foldcomp = [
 tests = [
     { name = "anyio" },
     { name = "chex" },
+    { name = "colabdesign" },
     { name = "foldcomp" },
     { name = "pyright" },
     { name = "pytest" },
@@ -2864,6 +2865,7 @@ requires-dist = [
     { name = "chex", marker = "extra == 'dev'" },
     { name = "chex", marker = "extra == 'tests'" },
     { name = "colabdesign", marker = "extra == 'dev'", git = "https://github.com/sokrypton/ColabDesign.git?rev=e31a56f" },
+    { name = "colabdesign", marker = "extra == 'tests'", git = "https://github.com/sokrypton/ColabDesign.git?rev=e31a56f" },
     { name = "equinox", specifier = ">=0.13.2" },
     { name = "flax" },
     { name = "foldcomp", marker = "extra == 'dev'" },

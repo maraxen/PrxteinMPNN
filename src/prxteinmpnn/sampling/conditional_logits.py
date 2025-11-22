@@ -119,8 +119,10 @@ def make_conditional_logits_fn(
       ... )
 
     """
+    key_features, key_encoder, key_conditional = jax.random.split(prng_key, 3)
+
     edge_features, neighbor_indices, node_features, _ = model.features(
-      prng_key,
+      key_features,
       structure_coordinates,
       mask,
       residue_index,
@@ -134,6 +136,7 @@ def make_conditional_logits_fn(
       neighbor_indices,
       mask,
       node_features,
+      key=key_encoder,
     )
 
     ar_mask = (
@@ -154,7 +157,7 @@ def make_conditional_logits_fn(
       mask,
       ar_mask,
       sequence,
-      prng_key,
+      key_conditional,
       0.0,  # temperature unused in conditional path
       jax.numpy.zeros((mask.shape[0], 21), dtype=jax.numpy.float32),
       None,  # tie_group_map not used in jacobian computation
@@ -233,8 +236,10 @@ def make_encoding_conditional_logits_split_fn(
     if prng_key is None:
       prng_key = jax.random.PRNGKey(0)
 
+    key_features, key_encoder = jax.random.split(prng_key, 2)
+
     edge_features, neighbor_indices, initial_node_features, _ = model.features(
-      prng_key,
+      key_features,
       structure_coordinates,
       mask,
       residue_index,
@@ -248,6 +253,7 @@ def make_encoding_conditional_logits_split_fn(
       neighbor_indices,
       mask,
       initial_node_features,
+      key=key_encoder,
     )
 
     ar_mask_placeholder = jax.numpy.zeros((mask.shape[0], mask.shape[0]), dtype=jax.numpy.int32)

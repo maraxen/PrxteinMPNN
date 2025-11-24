@@ -81,16 +81,13 @@ class ArrayRecordDataSource(grain.RandomAccessDataSource):
     if not self.index_path.exists():
       if split in ["inference", "all"]:
         logger.info(
-            "Index file not found at %s, but split is '%s'. "
-            "Assuming all records in array_record file for this split.",
-            self.index_path,
-            split,
+          "Index file not found at %s, but split is '%s'. "
+          "Assuming all records in array_record file for this split.",
+          self.index_path,
+          split,
         )
         # Create a dummy full_index where all records belong to this split
-        full_index = {
-            f"record_{i}": {"idx": [i], "set": split}
-            for i in range(self._length)
-        }
+        full_index = {f"record_{i}": {"idx": [i], "set": split} for i in range(self._length)}
       else:
         msg = f"Index file not found: {self.index_path}"
         raise FileNotFoundError(msg)
@@ -212,55 +209,52 @@ class ArrayRecordDataSource(grain.RandomAccessDataSource):
     # We'll return empty arrays if full_coordinates is missing.
     full_coords = record.get("full_coordinates")
     if full_coords is not None:
-        full_coords = np.array(full_coords, dtype=np.float32)
-        n_atoms = full_coords.shape[0]
-        default_charges = np.zeros((n_atoms,), dtype=np.float32)
-        default_radii = np.zeros((n_atoms,), dtype=np.float32)
+      full_coords = np.array(full_coords, dtype=np.float32)
+      n_atoms = full_coords.shape[0]
+      default_charges = np.zeros((n_atoms,), dtype=np.float32)
+      default_radii = np.zeros((n_atoms,), dtype=np.float32)
     else:
-        full_coords = np.zeros((0, 3), dtype=np.float32)
-        default_charges = np.zeros((0,), dtype=np.float32)
-        default_radii = np.zeros((0,), dtype=np.float32)
+      full_coords = np.zeros((0, 3), dtype=np.float32)
+      default_charges = np.zeros((0,), dtype=np.float32)
+      default_radii = np.zeros((0,), dtype=np.float32)
 
     return ProteinTuple(
       coordinates=coordinates,
       aatype=np.array(record["aatype"], dtype=np.int8),
       atom_mask=np.array(
-          record.get("atom_mask", np.ones((n_residues, 37), dtype=bool)),
-          dtype=bool,
+        record.get("atom_mask", np.ones((n_residues, 37), dtype=bool)),
+        dtype=bool,
       ),
       residue_index=np.array(
-          record.get("residue_index", np.arange(n_residues)),
-          dtype=np.int32,
+        record.get("residue_index", np.arange(n_residues)),
+        dtype=np.int32,
       ),
       chain_index=np.array(
-          record.get("chain_index", np.zeros(n_residues)),
-          dtype=np.int32,
+        record.get("chain_index", np.zeros(n_residues)),
+        dtype=np.int32,
       ),
       dihedrals=None,
       source=record.get("source_file", "unknown"),
-
       # Full atomic data
       full_coordinates=full_coords,
       charges=np.array(record.get("charges", default_charges), dtype=np.float32),
       radii=np.array(record.get("radii", default_radii), dtype=np.float32),
-
       # Estat metadata
       estat_backbone_mask=np.array(
-          record.get(
-              "estat_backbone_mask",
-              record.get("atom_mask", np.zeros(n_residues, dtype=bool)),
-          ),
-          dtype=bool,
+        record.get(
+          "estat_backbone_mask",
+          record.get("atom_mask", np.zeros(n_residues, dtype=bool)),
+        ),
+        dtype=bool,
       ),
       estat_resid=np.array(
-          record.get("estat_resid", record.get("residue_index", np.zeros(n_residues))),
-          dtype=np.int32,
+        record.get("estat_resid", record.get("residue_index", np.zeros(n_residues))),
+        dtype=np.int32,
       ),
       estat_chain_index=np.array(
-          record.get("estat_chain_index", record.get("chain_index", np.zeros(n_residues))),
-          dtype=np.int32,
+        record.get("estat_chain_index", record.get("chain_index", np.zeros(n_residues))),
+        dtype=np.int32,
       ),
-
       # Physics features
       physics_features=np.array(record.get("physics_features", default_physics), dtype=np.float32),
     )
@@ -308,11 +302,11 @@ def get_protein_by_id(
   # We need to find where this file_record_index is in our filtered _record_indices list
   # This is O(N) which is slow, but get_protein_by_id is mainly for debugging
   try:
-      dataset_index = source._record_indices.index(file_record_index)  # noqa: SLF001
-      return source[dataset_index]
+    dataset_index = source._record_indices.index(file_record_index)  # noqa: SLF001
+    return source[dataset_index]
   except ValueError:
-      logger.warning(
-          "Protein ID '%s' found in index but its records are not in this split",
-          protein_id,
-      )
-      return None
+    logger.warning(
+      "Protein ID '%s' found in index but its records are not in this split",
+      protein_id,
+    )
+    return None

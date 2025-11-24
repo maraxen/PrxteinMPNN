@@ -447,8 +447,8 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
 
   optimizer, lr_schedule = create_optimizer(spec)
 
-  model, opt_state, start_step, checkpoint_manager, permanent_manager = (
-    _init_checkpoint_and_model(spec)
+  model, opt_state, start_step, checkpoint_manager, permanent_manager = _init_checkpoint_and_model(
+    spec,
   )
 
   train_loader, val_loader = _create_dataloaders(spec)
@@ -566,65 +566,63 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
   test_loader = None
 
   # Determine test data source
-  test_inputs = spec.validation_data # Default to validation data if no separate test set
+  test_inputs = spec.validation_data  # Default to validation data if no separate test set
   test_use_preprocessed = spec.use_preprocessed
   test_index_path = spec.validation_preprocessed_index_path
 
   # If we are using preprocessed data, we try to load the 'test' split from the same file
   # or a specific test file if one were added to spec
   if spec.use_preprocessed and spec.preprocessed_index_path:
-      # If validation path is set, use that, otherwise fall back to training path
-      test_inputs = spec.validation_preprocessed_path or spec.inputs
+    # If validation path is set, use that, otherwise fall back to training path
+    test_inputs = spec.validation_preprocessed_path or spec.inputs
 
-      test_index_path = (
-          spec.validation_preprocessed_index_path or spec.preprocessed_index_path
-      )
+    test_index_path = spec.validation_preprocessed_index_path or spec.preprocessed_index_path
 
   try:
-      test_loader = create_protein_dataset(
-        test_inputs,  # type: ignore[invalid-argument-type]
-        batch_size=spec.batch_size,
-        foldcomp_database=spec.foldcomp_database if not test_use_preprocessed else None,
-        use_preprocessed=test_use_preprocessed,
-        use_electrostatics=spec.use_electrostatics,
-        use_vdw=spec.use_vdw,
-        preprocessed_index_path=test_index_path,
-        split="test",
+    test_loader = create_protein_dataset(
+      test_inputs,  # type: ignore[invalid-argument-type]
+      batch_size=spec.batch_size,
+      foldcomp_database=spec.foldcomp_database if not test_use_preprocessed else None,
+      use_preprocessed=test_use_preprocessed,
+      use_electrostatics=spec.use_electrostatics,
+      use_vdw=spec.use_vdw,
+      preprocessed_index_path=test_index_path,
+      split="test",
+    )
+
+    test_metrics_list = []
+    for test_batch in tqdm.tqdm(test_loader, desc="Testing"):
+      prng_key, subkey = jax.random.split(prng_key)
+      test_metrics = eqx.filter_jit(eval_step)(
+        model,
+        test_batch.coordinates,
+        test_batch.mask,
+        test_batch.residue_index,
+        test_batch.chain_index,
+        test_batch.aatype,
+        subkey,
+        test_batch.physics_features,
       )
+      test_metrics_list.append(test_metrics)
 
-      test_metrics_list = []
-      for test_batch in tqdm.tqdm(test_loader, desc="Testing"):
-          prng_key, subkey = jax.random.split(prng_key)
-          test_metrics = eqx.filter_jit(eval_step)(
-            model,
-            test_batch.coordinates,
-            test_batch.mask,
-            test_batch.residue_index,
-            test_batch.chain_index,
-            test_batch.aatype,
-            subkey,
-            test_batch.physics_features,
-          )
-          test_metrics_list.append(test_metrics)
+    if test_metrics_list:
+      avg_test_loss = jnp.mean(jnp.array([m.val_loss for m in test_metrics_list]))
+      avg_test_acc = jnp.mean(jnp.array([m.val_accuracy for m in test_metrics_list]))
+      avg_test_ppl = jnp.mean(jnp.array([m.val_perplexity for m in test_metrics_list]))
 
-      if test_metrics_list:
-          avg_test_loss = jnp.mean(jnp.array([m.val_loss for m in test_metrics_list]))
-          avg_test_acc = jnp.mean(jnp.array([m.val_accuracy for m in test_metrics_list]))
-          avg_test_ppl = jnp.mean(jnp.array([m.val_perplexity for m in test_metrics_list]))
-
-          logger.info("=" * 40)
-          logger.info("Final Test Results:")
-          logger.info("  Loss: %.4f", jax.device_get(avg_test_loss).item())
-          logger.info("  Accuracy: %.4f", jax.device_get(avg_test_acc).item())
-          logger.info("  Perplexity: %.4f", jax.device_get(avg_test_ppl).item())
-          logger.info("=" * 40)
-      else:
-          logger.warning("Test loader was empty. No test metrics computed.")
+      logger.info("=" * 40)
+      logger.info("Final Test Results:")
+      logger.info("  Loss: %.4f", jax.device_get(avg_test_loss).item())
+      logger.info("  Accuracy: %.4f", jax.device_get(avg_test_acc).item())
+      logger.info("  Perplexity: %.4f", jax.device_get(avg_test_ppl).item())
+      logger.info("=" * 40)
+    else:
+      logger.warning("Test loader was empty. No test metrics computed.")
 
   except Exception:  # noqa: BLE001
-      logger.warning(
-          "Could not create test loader or run testing (possibly no 'test' split found).",
-      )
+    logger.warning(
+      "Could not create test loader or run testing (possibly no 'test' split found).",
+    )
 
   checkpoint_manager.close()
   permanent_manager.close()

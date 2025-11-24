@@ -704,14 +704,14 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
       split="test",
     )
 
-      test_metrics_list = []
-      for test_batch in tqdm.tqdm(test_loader, desc="Testing"):
-          prng_key, subkey = jax.random.split(prng_key)
+    test_metrics_list = []
+    for test_batch in tqdm.tqdm(test_loader, desc="Testing"):
+      prng_key, subkey = jax.random.split(prng_key)
 
-          if mesh is not None and spec.shard_batch:
-            test_batch = shard_pytree(test_batch, mesh)  # noqa: PLW2901
+      if mesh is not None and spec.shard_batch:
+        test_batch = shard_pytree(test_batch, mesh)  # noqa: PLW2901
 
-          if mesh is not None:
+      if mesh is not None:
             with mesh:
               test_metrics = eqx.filter_jit(eval_step)(
                 model,
@@ -725,34 +725,34 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
                 spec.training_mode,
                 noise_schedule,
               )
-          else:
-            test_metrics = eqx.filter_jit(eval_step)(
-              model,
-              test_batch.coordinates,
-              test_batch.mask,
-              test_batch.residue_index,
-              test_batch.chain_index,
-              test_batch.aatype,
-              subkey,
-              test_batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
-              spec.training_mode,
-              noise_schedule,
-            )
-          test_metrics_list.append(test_metrics)
-
-      if test_metrics_list:
-          avg_test_loss = jnp.mean(jnp.array([m.val_loss for m in test_metrics_list]))
-          avg_test_acc = jnp.mean(jnp.array([m.val_accuracy for m in test_metrics_list]))
-          avg_test_ppl = jnp.mean(jnp.array([m.val_perplexity for m in test_metrics_list]))
-
-          logger.info("=" * 40)
-          logger.info("Final Test Results:")
-          logger.info("  Loss: %.4f", jax.device_get(avg_test_loss).item())
-          logger.info("  Accuracy: %.4f", jax.device_get(avg_test_acc).item())
-          logger.info("  Perplexity: %.4f", jax.device_get(avg_test_ppl).item())
-          logger.info("=" * 40)
       else:
-          logger.warning("Test loader was empty. No test metrics computed.")
+        test_metrics = eqx.filter_jit(eval_step)(
+          model,
+          test_batch.coordinates,
+          test_batch.mask,
+          test_batch.residue_index,
+          test_batch.chain_index,
+          test_batch.aatype,
+          subkey,
+          test_batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
+          spec.training_mode,
+          noise_schedule,
+        )
+        test_metrics_list.append(test_metrics)
+
+    if test_metrics_list:
+      avg_test_loss = jnp.mean(jnp.array([m.val_loss for m in test_metrics_list]))
+      avg_test_acc = jnp.mean(jnp.array([m.val_accuracy for m in test_metrics_list]))
+      avg_test_ppl = jnp.mean(jnp.array([m.val_perplexity for m in test_metrics_list]))
+
+      logger.info("=" * 40)
+      logger.info("Final Test Results:")
+      logger.info("  Loss: %.4f", jax.device_get(avg_test_loss).item())
+      logger.info("  Accuracy: %.4f", jax.device_get(avg_test_acc).item())
+      logger.info("  Perplexity: %.4f", jax.device_get(avg_test_ppl).item())
+      logger.info("=" * 40)
+    else:
+      logger.warning("Test loader was empty. No test metrics computed.")
 
   except Exception:  # noqa: BLE001
     logger.warning(

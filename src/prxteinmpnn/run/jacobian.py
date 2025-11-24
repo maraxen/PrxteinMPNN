@@ -108,7 +108,7 @@ def categorical_jacobian(
     mesh = create_mesh()
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
-  model = eqx.tree_inference(model, value=True)
+  model = eqx.nn.inference_mode(model, value=True)
 
   if spec.average_encodings:
     encode_fn, decode_fn = make_encoding_conditional_logits_split_fn(

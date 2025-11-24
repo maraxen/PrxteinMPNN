@@ -115,6 +115,7 @@ def create_protein_dataset(
       operations.pad_and_collate_proteins,
       use_electrostatics=use_electrostatics,
       use_vdw=use_vdw,
+      max_length=max_length,
     )
   )
 

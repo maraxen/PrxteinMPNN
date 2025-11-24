@@ -43,6 +43,8 @@ def create_protein_dataset(
       use_preprocessed: If True, load from preprocessed array_record files
       preprocessed_index_path: Path to index file (required if use_preprocessed=True)
       split: Data split to load ("train", "valid", "test")
+      max_length: Maximum length for truncation/padding.
+      truncation_strategy: Strategy for truncation ("none", "random_crop", "center_crop").
 
   Returns:
       A Grain IterDataset that yields batches of padded `Protein` objects.
@@ -98,7 +100,7 @@ def create_protein_dataset(
         operations.truncate_protein,
         max_length=max_length,
         strategy=truncation_strategy,
-      )
+      ),
     )
 
   performance_config = prefetch_autotune.pick_performance_config(

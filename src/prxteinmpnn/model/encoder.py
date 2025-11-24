@@ -136,7 +136,6 @@ class EncoderLayer(eqx.Module):
 
     aggregated_message = jnp.sum(message, -2) / scale
 
-    # dropout1
     aggregated_message = self.dropout1(aggregated_message, key=keys[0])
 
     node_features = node_features + aggregated_message
@@ -144,7 +143,6 @@ class EncoderLayer(eqx.Module):
 
     dense_out = jax.vmap(self.dense)(node_features)
 
-    # dropout2
     dense_out = self.dropout2(dense_out, key=keys[1])
 
     node_features = node_features + dense_out
@@ -159,7 +157,6 @@ class EncoderLayer(eqx.Module):
     mlp_input_edge_update = jnp.concatenate([node_features_expand, edge_features_cat], -1)
     edge_message = jax.vmap(jax.vmap(self.edge_update_mlp))(mlp_input_edge_update)
 
-    # dropout3
     edge_message = self.dropout3(edge_message, key=keys[2])
 
     edge_features = edge_features + edge_message

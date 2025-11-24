@@ -22,7 +22,7 @@ def _eqx_module_hash(self: object) -> int:  # pragma: no cover - safe shim
   return id(self)
 
 
-eqx.Module.__hash__ = _eqx_module_hash
+eqx.Module.__hash__ = _eqx_module_hash  # type: ignore[invalid-assignment]
 if TYPE_CHECKING:
   from collections.abc import Callable
 

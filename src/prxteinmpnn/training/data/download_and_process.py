@@ -12,9 +12,9 @@ from typing import Any
 import msgpack
 import msgpack_numpy as m
 import numpy as np
-import torch  # pyright: ignore[reportMissingImports]
+import torch
 import tqdm
-from array_record.python.array_record_module import ArrayRecordWriter
+from array_record.python.array_record_module import ArrayRecordWriter  # type: ignore[unresolved-import]
 
 from prxteinmpnn.io.parsing.mappings import string_to_protein_sequence
 from prxteinmpnn.physics.force_fields import load_force_field_from_hub

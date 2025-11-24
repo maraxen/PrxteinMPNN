@@ -184,7 +184,7 @@ def apply_self_exclusion(
   if n != m:
     return values
 
-  mask = jnp.eye(n, dtype=bool)
+  mask = jnp.eye(n, dtype=jnp.bool_)
   # Broadcast mask to match values shape
   while mask.ndim < values.ndim:
     mask = mask[..., None]

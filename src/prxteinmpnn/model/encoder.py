@@ -291,7 +291,7 @@ class PhysicsEncoder(eqx.Module):
         key=keys[-1],
       )
     else:
-      self.physics_projection = None  # type: ignore[assignment]
+      self.physics_projection = None  # type: ignore[invalid-assignment]
 
   def __call__(
     self,

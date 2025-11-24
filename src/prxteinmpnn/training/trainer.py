@@ -148,7 +148,7 @@ def _init_checkpoint_and_model(
 def _create_dataloaders(spec: TrainingSpecification) -> tuple[Any, Any]:
   """Create training and validation data loaders based on the spec."""
   train_loader = create_protein_dataset(
-    spec.inputs,  # pyright: ignore[reportArgumentType]
+    spec.inputs,  # type: ignore[invalid-argument-type]
     batch_size=spec.batch_size,
     foldcomp_database=spec.foldcomp_database if not spec.use_preprocessed else None,
     use_electrostatics=spec.use_electrostatics,
@@ -328,7 +328,7 @@ def train_step(  # noqa: PLR0913
     loss=loss,
     accuracy=accuracy,
     perplexity=ppl,
-    learning_rate=current_lr,  # pyright: ignore[reportArgumentType]
+    learning_rate=current_lr,  # type: ignore[invalid-argument-type]
     grad_norm=grad_norm,
   )
 
@@ -574,7 +574,7 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
   # or a specific test file if one were added to spec
   if spec.use_preprocessed and spec.preprocessed_index_path:
       # If validation path is set, use that, otherwise fall back to training path
-      test_inputs = spec.validation_preprocessed_path or spec.inputs  # type: ignore[reportArgumentType]
+      test_inputs = spec.validation_preprocessed_path or spec.inputs
 
       test_index_path = (
           spec.validation_preprocessed_index_path or spec.preprocessed_index_path
@@ -582,7 +582,7 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
 
   try:
       test_loader = create_protein_dataset(
-        test_inputs,  # type: ignore[reportArgumentType]
+        test_inputs,  # type: ignore[invalid-argument-type]
         batch_size=spec.batch_size,
         foldcomp_database=spec.foldcomp_database if not test_use_preprocessed else None,
         use_preprocessed=test_use_preprocessed,

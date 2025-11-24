@@ -136,7 +136,7 @@ def train_step(
     loss=loss,
     accuracy=jnp.mean(accuracies),
     perplexity=jnp.mean(perplexities),
-    learning_rate=lr_schedule(current_step),  # pyright: ignore[reportArgumentType]
+    learning_rate=lr_schedule(current_step),  # type: ignore[invalid-argument-type]
   )
 
   return new_model, new_opt_state, metrics

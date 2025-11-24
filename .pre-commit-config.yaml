@@ -4,8 +4,11 @@ repos:
     hooks:
       - id: ruff
       - id: ruff-format
-  - repo: https://github.com/pre-commit/mirrors-pyright
-    rev: v1.1.360
+  - repo: local
     hooks:
-      - id: pyright
+      - id: ty
+        name: ty
+        entry: uv run ty check
+        language: system
+        types: [python]
         exclude: ^tests/

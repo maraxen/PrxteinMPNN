@@ -61,7 +61,7 @@ def sort_by_weight(
 
   """
   ix = jnp.argsort(-state.log_weights)
-  new_state = state.replace(  # type: ignore[attr-access]
+  new_state = state.replace(  # type: ignore[unresolved-attribute]
     mu=state.mu[ix],
     kappa=state.kappa[ix],
     log_weights=state.log_weights[ix],
@@ -314,7 +314,7 @@ def em_step(
     lambda: False,
   )
 
-  return (next_state, theta, mask, atol, gtol, gmaxiter), next_converged  # type: ignore[return-type]
+  return (next_state, theta, mask, atol, gtol, gmaxiter), next_converged  # type: ignore[invalid-return-type]
 
 
 @partial(jax.jit, static_argnames=("max_iter", "atol", "gtol", "gmaxiter"))
@@ -346,7 +346,7 @@ def fit(
   final_carry, _ = scan(
     em_step,
     init_carry,
-    (jnp.arange(max_iter), jnp.zeros(max_iter, dtype=bool)),
+    (jnp.arange(max_iter), jnp.zeros(max_iter, dtype=jnp.bool_)),
   )
   final_state, _, _, _, _, _ = final_carry
   responsibilities = e_step(

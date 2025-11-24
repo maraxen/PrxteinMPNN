@@ -152,4 +152,4 @@ class TrainingSpecification(RunSpecification):
       raise ValueError(msg)
 
     # Create checkpoint directory if it doesn't exist
-    self.checkpoint_dir.mkdir(parents=True, exist_ok=True)  # pyright: ignore[reportAttributeAccessIssue]
+    self.checkpoint_dir.mkdir(parents=True, exist_ok=True)  # type: ignore[possibly-missing-attribute]

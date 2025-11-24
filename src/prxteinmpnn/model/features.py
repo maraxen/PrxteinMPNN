@@ -151,7 +151,7 @@ class ProteinFeatures(eqx.Module):
 
     distances_masked = jnp.array(
       jnp.where(
-        (mask[:, None] * mask[None, :]).astype(bool),
+        (mask[:, None] * mask[None, :]).astype(jnp.bool_),
         distances,
         jnp.inf,
       ),
@@ -161,7 +161,7 @@ class ProteinFeatures(eqx.Module):
       same_structure = structure_mapping[:, jnp.newaxis] == structure_mapping[jnp.newaxis, :]
       distances_masked = jnp.array(
         jnp.where(
-          same_structure.astype(bool),
+          same_structure.astype(jnp.bool_),
           distances_masked,
           jnp.inf,
         ),
@@ -174,7 +174,7 @@ class ProteinFeatures(eqx.Module):
     rbf = compute_radial_basis(backbone_atom_coordinates, neighbor_indices)
     neighbor_offsets = compute_neighbor_offsets(residue_index, neighbor_indices)
 
-    edge_chains = (chain_index[:, None] == chain_index[None, :]).astype(int)
+    edge_chains = (chain_index[:, None] == chain_index[None, :]).astype(jnp.int32)
     edge_chains_neighbors = jnp.take_along_axis(
       edge_chains,
       neighbor_indices,

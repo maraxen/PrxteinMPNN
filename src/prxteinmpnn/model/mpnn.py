@@ -380,17 +380,17 @@ class PrxteinMPNN(eqx.Module):
       initial=-1e9,
       axis=0,
       keepdims=True,
-    )  # (1, 21)
+    )
 
-    shifted_logits = logits - max_logits  # (N, 21)
-    exp_logits = jnp.exp(shifted_logits)  # (N, 21)
+    shifted_logits = logits - max_logits
+    exp_logits = jnp.exp(shifted_logits)
 
-    masked_exp_logits = jnp.where(group_mask[:, None], exp_logits, 0.0)  # (N, 21)
-    sum_exp_logits = jnp.sum(masked_exp_logits, axis=0, keepdims=True)  # (1, 21)
+    masked_exp_logits = jnp.where(group_mask[:, None], exp_logits, 0.0)
+    sum_exp_logits = jnp.sum(masked_exp_logits, axis=0, keepdims=True)
 
     num_in_group = jnp.sum(group_mask)
-    avg_exp_logits = sum_exp_logits / num_in_group  # (1, 21)
-    return jnp.log(avg_exp_logits) + max_logits  # (1, 21)
+    avg_exp_logits = sum_exp_logits / num_in_group
+    return jnp.log(avg_exp_logits) + max_logits
 
   @staticmethod
   def _combine_logits_multistate(
@@ -828,39 +828,38 @@ class PrxteinMPNN(eqx.Module):
       all_layers_h, s_embed, all_logits, sequence = carry
       position, key = scan_inputs
 
-      encoder_context_pos = encoder_context[position]  # (K, 384)
-      neighbor_indices_pos = neighbor_indices[position]  # (K,)
-      mask_pos = mask[position]  # scalar
-      mask_bw_pos = mask_bw[position]  # (K,)
+      encoder_context_pos = encoder_context[position]
+      neighbor_indices_pos = neighbor_indices[position]
+      mask_pos = mask[position]
+      mask_bw_pos = mask_bw[position]
 
       edge_sequence_features = concatenate_neighbor_nodes(
         s_embed,
         edge_features[position],
         neighbor_indices_pos,
-      )  # (K, 256)
+      )
 
-      # Split key for layers
       layer_keys = jax.random.split(key, len(self.decoder.layers))
 
       for layer_idx, layer in enumerate(self.decoder.layers):
         # Get node features for this layer at current position
-        h_in_pos = all_layers_h[layer_idx, position]  # [C]
+        h_in_pos = all_layers_h[layer_idx, position]
 
         # Compute decoder context for this position
         decoder_context_pos = concatenate_neighbor_nodes(
           all_layers_h[layer_idx],
           edge_sequence_features,
           neighbor_indices_pos,
-        )  # (K, 384)
+        )
 
         # Combine with encoder context using backward mask
         decoding_context = (
           mask_bw_pos[..., None] * decoder_context_pos + encoder_context_pos
-        )  # (K, 384)
+        )
 
         # Expand dims for layer forward pass
-        h_in_expanded = jnp.expand_dims(h_in_pos, axis=0)  # [1, C]
-        decoding_context_expanded = jnp.expand_dims(decoding_context, axis=0)  # [1, K, 384]
+        h_in_expanded = jnp.expand_dims(h_in_pos, axis=0)
+        decoding_context_expanded = jnp.expand_dims(decoding_context, axis=0)
 
         # Call DecoderLayer
         h_out_pos = layer(
@@ -868,20 +867,17 @@ class PrxteinMPNN(eqx.Module):
           decoding_context_expanded,
           mask=mask_pos,
           key=layer_keys[layer_idx],
-        )  # [1, C]
+        )
 
         # Update the state for next layer
         all_layers_h = all_layers_h.at[layer_idx + 1, position].set(jnp.squeeze(h_out_pos))
 
-      # Sampling Step
-      # Get final layer output for this position
-      final_h_pos = all_layers_h[-1, position]  # [C]
-      logits_pos_vec = self.w_out(final_h_pos)  # [21]
-      logits_pos = jnp.expand_dims(logits_pos_vec, axis=0)  # [1, 21]
+      final_h_pos = all_layers_h[-1, position]
+      logits_pos_vec = self.w_out(final_h_pos)
+      logits_pos = jnp.expand_dims(logits_pos_vec, axis=0)
 
       next_all_logits = all_logits.at[position, :].set(jnp.squeeze(logits_pos))
 
-      # Apply bias before sampling
       bias_pos = jax.lax.dynamic_slice(
         bias,
         (position, 0),
@@ -889,7 +885,6 @@ class PrxteinMPNN(eqx.Module):
       )
       logits_with_bias = logits_pos + bias_pos
 
-      # Gumbel-max trick
       sampled_logits = (logits_with_bias / temperature) + jax.random.gumbel(
         key,
         logits_with_bias.shape,
@@ -901,7 +896,7 @@ class PrxteinMPNN(eqx.Module):
 
       one_hot_seq_pos = jnp.concatenate([one_hot_sample, padding], axis=-1)
 
-      s_embed_pos = one_hot_seq_pos @ self.w_s_embed.weight  # [1, C]
+      s_embed_pos = one_hot_seq_pos @ self.w_s_embed.weight
 
       next_s_embed = s_embed.at[position, :].set(jnp.squeeze(s_embed_pos))
       next_sequence = sequence.at[position, :].set(jnp.squeeze(one_hot_seq_pos))

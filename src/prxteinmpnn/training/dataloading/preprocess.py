@@ -114,6 +114,7 @@ def _worker_process_protein(args: tuple) -> tuple[str, Path | None]:
       populate_physics=False,  # PQR already has physics params
     )
     protein_tuple = next(protein_generator)
+    assert protein_tuple.full_coordinates is not None  # noqa: S101
 
     # Compute physics features
     estat_val = spec.estat_noise

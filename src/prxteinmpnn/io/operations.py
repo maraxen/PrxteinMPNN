@@ -280,16 +280,19 @@ def pad_and_collate_proteins(
   *,
   use_electrostatics: bool = False,
   use_vdw: bool = False,  # noqa: ARG001
+  max_length: int | None = None,
 ) -> Protein:
   """Batch and pad a list of ProteinTuples into a ProteinBatch.
 
   Take a list of individual `ProteinTuple`s and batch them together into a
-  single `ProteinBatch`, padding them to the maximum length in the batch.
+  single `ProteinBatch`, padding them to a fixed length.
 
   Args:
     elements (list[ProteinTuple]): List of protein tuples to collate.
     use_electrostatics (bool): Whether to compute and add electrostatic features.
     use_vdw (bool): Placeholder for van der Waals features (not implemented).
+    max_length (int | None): Fixed length to pad all proteins to. If None, pads to
+      the maximum length in the batch (variable per batch).
 
   Returns:
     Protein: Batched and padded protein ensemble.
@@ -299,12 +302,18 @@ def pad_and_collate_proteins(
 
   Example:
     >>> ensemble = pad_and_collate_proteins([protein_tuple1, protein_tuple2],
-    use_electrostatics=True)
+    use_electrostatics=True, max_length=512)
 
   """
   elements = _validate_and_flatten_elements(elements)
   elements = _apply_electrostatics_if_needed(elements, use_electrostatics=use_electrostatics)
   proteins = [Protein.from_tuple(p) for p in elements]
-  max_len = max(p.coordinates.shape[0] for p in proteins)
-  padded_proteins = [_pad_protein(p, max_len) for p in proteins]
+  
+  # Use fixed max_length if provided, otherwise use max in batch
+  if max_length is not None:
+    pad_len = max_length
+  else:
+    pad_len = max(p.coordinates.shape[0] for p in proteins)
+  
+  padded_proteins = [_pad_protein(p, pad_len) for p in proteins]
   return _stack_padded_proteins(padded_proteins)

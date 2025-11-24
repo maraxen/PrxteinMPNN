@@ -15,6 +15,7 @@ from prxteinmpnn.run.averaging import get_averaged_encodings, make_encoding_samp
 from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.utils.autoregression import resolve_tie_groups
 from prxteinmpnn.utils.decoding_order import random_decoding_order
+from prxteinmpnn.utils.sharding import create_mesh, shard_pytree
 
 from .prep import prep_protein_stream_and_model
 from .specs import SamplingSpecification
@@ -211,30 +212,7 @@ def sample(
   protein_iterator, model = prep_protein_stream_and_model(spec)
 
   if spec.average_node_features:
-    if spec.output_h5_path:
-      return _sample_streaming_averaged(spec, protein_iterator, model)
-
-    _, sample_fn, decode_fn = make_encoding_sampling_split_fn(model)
-    all_sequences, all_logits = [], []
-
-    for batched_ensemble in protein_iterator:
-      sampled_sequences, logits = _sample_batch_averaged(
-        spec,
-        batched_ensemble,
-        model,
-        sample_fn,
-        decode_fn,
-      )
-      all_sequences.append(sampled_sequences)
-      all_logits.append(logits)
-
-    return {
-      "sequences": jnp.concatenate(all_sequences, axis=0),
-      "logits": jnp.concatenate(all_logits, axis=0),
-      "metadata": {
-        "specification": spec,
-      },
-    }
+    return _sample_averaged_mode(spec, protein_iterator, model)
 
   sampler_fn = make_sample_sequences(
     model=model,
@@ -242,17 +220,33 @@ def sample(
     sampling_strategy=spec.sampling_strategy,
   )
 
+  # Initialize mesh if requested
+  mesh = None
+  if spec.use_sharding:
+    mesh = create_mesh()
+
   if spec.output_h5_path:
-    return _sample_streaming(spec, protein_iterator, sampler_fn)
+    return _sample_streaming(spec, protein_iterator, sampler_fn, mesh=mesh)
 
   all_sequences, all_logits = [], []
 
   for batched_ensemble in protein_iterator:
-    sampled_sequences, logits = _sample_batch(
-      spec,
-      batched_ensemble,
-      sampler_fn,
-    )
+    if mesh is not None and spec.shard_batch:
+      batched_ensemble = shard_pytree(batched_ensemble, mesh)  # noqa: PLW2901
+
+    if mesh is not None:
+      with mesh:
+        sampled_sequences, logits = _sample_batch(
+          spec,
+          batched_ensemble,
+          sampler_fn,
+        )
+    else:
+      sampled_sequences, logits = _sample_batch(
+        spec,
+        batched_ensemble,
+        sampler_fn,
+      )
     all_sequences.append(sampled_sequences)
     all_logits.append(logits)
 
@@ -297,17 +291,29 @@ def _sample_streaming(
   spec: SamplingSpecification,
   protein_iterator: IterDataset,
   sampler_fn: Callable,
+  mesh: jax.sharding.Mesh | None = None,
 ) -> dict[str, str | dict[str, SamplingSpecification]]:
   """Sample new sequences and stream results to an HDF5 file."""
   with h5py.File(spec.output_h5_path, "w") as f:
     structure_idx = 0
 
     for batched_ensemble in protein_iterator:
-      sampled_sequences, sampled_logits = _sample_batch(
-        spec,
-        batched_ensemble,
-        sampler_fn,
-      )
+      if mesh is not None and spec.shard_batch:
+        batched_ensemble = shard_pytree(batched_ensemble, mesh)  # noqa: PLW2901
+
+      if mesh is not None:
+        with mesh:
+          sampled_sequences, sampled_logits = _sample_batch(
+            spec,
+            batched_ensemble,
+            sampler_fn,
+          )
+      else:
+        sampled_sequences, sampled_logits = _sample_batch(
+          spec,
+          batched_ensemble,
+          sampler_fn,
+        )
       for i in range(sampled_sequences.shape[0]):
         grp = f.create_group(f"structure_{structure_idx}")
         grp.create_dataset("sequences", data=sampled_sequences[i], dtype="i4")
@@ -361,6 +367,37 @@ def _create_decode_wrapper(base_decode_fn: Callable) -> Callable:
     return jnp.mean(logits_batch, axis=0)
 
   return wrapped
+
+def _sample_averaged_mode(
+  spec: SamplingSpecification,
+  protein_iterator: Any,  # noqa: ANN401
+  model: PrxteinMPNN,
+) -> dict[str, Any]:
+  """Run sampling in averaged node features mode."""
+  if spec.output_h5_path:
+    return _sample_streaming_averaged(spec, protein_iterator, model)
+
+  _, sample_fn, decode_fn = make_encoding_sampling_split_fn(model)
+  all_sequences, all_logits = [], []
+
+  for batched_ensemble in protein_iterator:
+    sampled_sequences, logits = _sample_batch_averaged(
+      spec,
+      batched_ensemble,
+      model,
+      sample_fn,
+      decode_fn,
+    )
+    all_sequences.append(sampled_sequences)
+    all_logits.append(logits)
+
+  return {
+    "sequences": jnp.concatenate(all_sequences, axis=0),
+    "logits": jnp.concatenate(all_logits, axis=0),
+    "metadata": {
+      "specification": spec,
+    },
+  }
 
 
 def _sample_batch_averaged(

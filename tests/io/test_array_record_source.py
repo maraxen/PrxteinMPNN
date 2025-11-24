@@ -60,6 +60,31 @@ def test_array_record_source_splits(tmp_path, mock_index_content, mock_record_da
         ds_test = ArrayRecordDataSource(record_path, index_path, split="test")
         assert len(ds_test) == 0
 
+        # Test Inference Split Fallback (split in index but not found -> empty, wait, logic is: if split is inference AND not in sets, use all)
+        # In this mock index, "inference" is not present.
+        ds_inf = ArrayRecordDataSource(record_path, index_path, split="inference")
+        # Should default to all 4 records
+        assert len(ds_inf) == 4
+
+def test_array_record_source_missing_index_inference(tmp_path, mock_record_data):
+    # Test case where index file is missing entirely, but split is "inference"
+    record_path = tmp_path / "data.array_record"
+    record_path.touch()
+    index_path = tmp_path / "nonexistent.json"
+
+    with patch("prxteinmpnn.io.array_record_source.ArrayRecordReader") as MockReader:
+        mock_reader = MockReader.return_value
+        mock_reader.num_records.return_value = 5 # 5 records total
+        packed_data = msgpack.packb(mock_record_data, use_bin_type=True)
+        mock_reader.read.return_value = [packed_data]
+
+        ds = ArrayRecordDataSource(record_path, index_path, split="inference")
+        assert len(ds) == 5
+        
+        # Should fail for other splits
+        with pytest.raises(FileNotFoundError):
+             ArrayRecordDataSource(record_path, index_path, split="train")
+
 def test_array_record_source_robustness(tmp_path, mock_index_content, mock_record_data):
     index_path = tmp_path / "index.json"
     index_path.write_text(json.dumps(mock_index_content))

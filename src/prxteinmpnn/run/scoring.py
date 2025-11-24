@@ -14,6 +14,7 @@ import jax.numpy as jnp
 from prxteinmpnn.run.averaging import get_averaged_encodings
 from prxteinmpnn.scoring.score import make_score_sequence, score_sequence_with_encoding
 from prxteinmpnn.utils.aa_convert import string_to_protein_sequence
+from prxteinmpnn.utils.sharding import create_mesh, shard_pytree
 
 from .prep import prep_protein_stream_and_model
 from .specs import SamplingSpecification, ScoringSpecification
@@ -60,8 +61,13 @@ def score(
   if spec is None:
     spec = ScoringSpecification(**kwargs)
 
+  # Initialize mesh if requested
+  mesh = None
+  if spec.use_sharding:
+    mesh = create_mesh()
+
   if spec.output_h5_path:
-    return _score_streaming(spec)
+    return _score_streaming(spec, mesh=mesh)
 
   if not spec.sequences_to_score:
     msg = (
@@ -75,60 +81,13 @@ def score(
   protein_iterator, model = prep_protein_stream_and_model(spec)
 
   if spec.average_node_features:
-    spec_dict = asdict(spec)
-    sampling_fields = {f.name for f in fields(SamplingSpecification)}
-    filtered_spec = {k: v for k, v in spec_dict.items() if k in sampling_fields}
-    sampling_spec = SamplingSpecification(**filtered_spec)
-    all_scores, all_logits = [], []
-    for batched_ensemble in protein_iterator:
-      scores, logits = _score_batch_averaged(
-        sampling_spec,
-        batched_ensemble,
-        model,
-        batched_sequences,
-      )
-      all_scores.append(scores)
-      all_logits.append(logits)
+    all_scores, all_logits = _score_averaged_mode(
+      spec, protein_iterator, model, batched_sequences, mesh,
+    )
   else:
-    score_single_pair = make_score_sequence(model=model)
-    all_scores, all_logits = [], []
-
-    for batched_ensemble in protein_iterator:
-      max_len = batched_ensemble.coordinates.shape[1]
-      if spec.ar_mask is None:
-        current_ar_mask = 1 - jnp.eye(max_len, dtype=jnp.bool_)
-      else:
-        current_ar_mask = jnp.asarray(spec.ar_mask)
-
-      vmap_sequences = jax.vmap(
-        score_single_pair,
-        in_axes=(None, 0, None, None, None, None, None, None, None, None),
-        out_axes=0,
-      )
-      vmap_noises = jax.vmap(
-        vmap_sequences,
-        in_axes=(None, None, None, None, None, None, None, 0, None, None),
-        out_axes=0,
-      )
-      vmap_structures = jax.vmap(
-        vmap_noises,
-        in_axes=(None, None, 0, 0, 0, 0, None, None, None, None),
-        out_axes=0,
-      )
-      scores, logits, _decoding_orders = vmap_structures(
-        jax.random.key(spec.random_seed),
-        batched_sequences,
-        batched_ensemble.coordinates,
-        batched_ensemble.mask,
-        batched_ensemble.residue_index,
-        batched_ensemble.chain_index,
-        48,
-        jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
-        current_ar_mask,
-        batched_ensemble.mapping,
-      )
-      all_scores.append(scores)
-      all_logits.append(logits)
+    all_scores, all_logits = _score_standard_mode(
+      spec, protein_iterator, model, batched_sequences, mesh,
+    )
 
   if not all_scores:
     return {}
@@ -141,6 +100,111 @@ def score(
     },
   }
 
+
+def _score_averaged_mode(
+  spec: ScoringSpecification,
+  protein_iterator: Any,  # noqa: ANN401
+  model: PrxteinMPNN,
+  batched_sequences: jax.Array,
+  mesh: jax.sharding.Mesh | None = None,
+) -> tuple[list[jnp.ndarray], list[Logits]]:
+  """Run scoring in averaged node features mode."""
+  spec_dict = asdict(spec)
+  sampling_fields = {f.name for f in fields(SamplingSpecification)}
+  filtered_spec = {k: v for k, v in spec_dict.items() if k in sampling_fields}
+  sampling_spec = SamplingSpecification(**filtered_spec)
+  all_scores, all_logits = [], []
+
+  for batched_ensemble in protein_iterator:
+    if mesh is not None and spec.shard_batch:
+      batched_ensemble = shard_pytree(batched_ensemble, mesh)  # noqa: PLW2901
+
+    if mesh is not None:
+      with mesh:
+        scores, logits = _score_batch_averaged(
+          sampling_spec,
+          batched_ensemble,
+          model,
+          batched_sequences,
+        )
+    else:
+      scores, logits = _score_batch_averaged(
+        sampling_spec,
+        batched_ensemble,
+        model,
+        batched_sequences,
+      )
+    all_scores.append(scores)
+    all_logits.append(logits)
+
+  return all_scores, all_logits
+
+
+def _score_standard_mode(
+  spec: ScoringSpecification,
+  protein_iterator: Any,  # noqa: ANN401
+  model: PrxteinMPNN,
+  batched_sequences: jax.Array,
+  mesh: jax.sharding.Mesh | None = None,
+) -> tuple[list[jnp.ndarray], list[Logits]]:
+  """Run scoring in standard mode."""
+  score_single_pair = make_score_sequence(model=model)
+  all_scores, all_logits = [], []
+
+  for batched_ensemble in protein_iterator:
+    if mesh is not None and spec.shard_batch:
+      batched_ensemble = shard_pytree(batched_ensemble, mesh)  # noqa: PLW2901
+
+    max_len = batched_ensemble.coordinates.shape[1]
+    if spec.ar_mask is None:
+      current_ar_mask = 1 - jnp.eye(max_len, dtype=jnp.bool_)
+    else:
+      current_ar_mask = jnp.asarray(spec.ar_mask)
+
+    vmap_sequences = jax.vmap(
+      score_single_pair,
+      in_axes=(None, 0, None, None, None, None, None, None, None, None),
+      out_axes=0,
+    )
+    vmap_noises = jax.vmap(
+      vmap_sequences,
+      in_axes=(None, None, None, None, None, None, None, 0, None, None),
+      out_axes=0,
+    )
+    vmap_structures = jax.vmap(
+      vmap_noises,
+      in_axes=(None, None, 0, 0, 0, 0, None, None, None, None),
+      out_axes=0,
+    )
+
+    def _compute(
+      ensemble: Protein,
+      vs: Any = vmap_structures,  # noqa: ANN401
+      cam: jax.Array = current_ar_mask,
+    ) -> tuple[jnp.ndarray, Logits, jnp.ndarray]:
+      return vs(
+        jax.random.key(spec.random_seed),
+        batched_sequences,
+        ensemble.coordinates,
+        ensemble.mask,
+        ensemble.residue_index,
+        ensemble.chain_index,
+        48,
+        jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
+        cam,
+        ensemble.mapping,
+      )
+
+    if mesh is not None:
+      with mesh:
+        scores, logits, _decoding_orders = _compute(batched_ensemble)
+    else:
+      scores, logits, _decoding_orders = _compute(batched_ensemble)
+
+    all_scores.append(scores)
+    all_logits.append(logits)
+
+  return all_scores, all_logits
 
 def _score_batch_averaged(
   spec: SamplingSpecification,
@@ -213,6 +277,7 @@ def _score_batch_averaged(
 
 def _score_streaming(
   spec: ScoringSpecification,
+  mesh: jax.sharding.Mesh | None = None,
 ) -> dict[str, str | dict[str, ScoringSpecification]]:
   """Score sequences and stream results to an HDF5 file."""
   if not spec.output_h5_path:
@@ -244,6 +309,9 @@ def _score_streaming(
     )
 
     for batched_ensemble in protein_iterator:
+      if mesh is not None and spec.shard_batch:
+        batched_ensemble = shard_pytree(batched_ensemble, mesh)  # noqa: PLW2901
+
       max_len = batched_ensemble.coordinates.shape[0]
       if spec.ar_mask is None:
         current_ar_mask = 1 - jnp.eye(max_len, dtype=jnp.bool_)
@@ -266,18 +334,29 @@ def _score_streaming(
         out_axes=0,
       )
 
-      scores, logits, _ = vmap_structures(
-        jax.random.key(spec.random_seed),
-        batched_sequences,
-        batched_ensemble.coordinates,
-        batched_ensemble.mask,
-        batched_ensemble.residue_index,
-        batched_ensemble.chain_index,
-        48,
-        jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
-        current_ar_mask,
-        batched_ensemble.mapping,
-      )
+      def _compute(
+        ensemble: Protein,
+        vs: Any = vmap_structures,  # noqa: ANN401
+        cam: jax.Array = current_ar_mask,
+      ) -> tuple[jnp.ndarray, Logits, jnp.ndarray]:
+        return vs(
+          jax.random.key(spec.random_seed),
+          batched_sequences,
+          ensemble.coordinates,
+          ensemble.mask,
+          ensemble.residue_index,
+          ensemble.chain_index,
+          48,
+          jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
+          cam,
+          ensemble.mapping,
+        )
+
+      if mesh is not None:
+        with mesh:
+          scores, logits, _ = _compute(batched_ensemble)
+      else:
+        scores, logits, _ = _compute(batched_ensemble)
 
       scores_ds.resize(scores_ds.shape[0] + scores.size, axis=0)
       scores_ds[-scores.size :] = scores.flatten()

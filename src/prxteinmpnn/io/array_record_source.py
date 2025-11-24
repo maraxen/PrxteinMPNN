@@ -69,13 +69,32 @@ class ArrayRecordDataSource(grain.RandomAccessDataSource):
       msg = f"Array record file not found: {self.array_record_path}"
       raise FileNotFoundError(msg)
 
-    if not self.index_path.exists():
-      msg = f"Index file not found: {self.index_path}"
-      raise FileNotFoundError(msg)
+    # Initialize reader early to get num_records if needed for "all" or "inference" split
+    self.reader = ArrayRecordReader(str(self.array_record_path))
+    self._length = self.reader.num_records()
 
     # Load index
-    with self.index_path.open("r") as f:
-      full_index = json.load(f)
+    # If index_path doesn't exist, we might be in a special "inference" or "all" mode
+    # where the index is implicitly all records in the array_record file.
+    if not self.index_path.exists():
+      if split in ["inference", "all"]:
+        logger.info(
+            "Index file not found at %s, but split is '%s'. "
+            "Assuming all records in array_record file for this split.",
+            self.index_path,
+            split,
+        )
+        # Create a dummy full_index where all records belong to this split
+        full_index = {
+            f"record_{i}": {"idx": [i], "set": split}
+            for i in range(self._length)
+        }
+      else:
+        msg = f"Index file not found: {self.index_path}"
+        raise FileNotFoundError(msg)
+    else:
+      with self.index_path.open("r") as f:
+        full_index = json.load(f)
 
     # Filter index by split
     self.index = {}
@@ -93,6 +112,16 @@ class ArrayRecordDataSource(grain.RandomAccessDataSource):
     self._record_indices = []
     for entry in self.index.values():
       self._record_indices.extend(entry["idx"])
+
+    # Fallback for inference/all split if no records found in index
+    if len(self._record_indices) == 0 and split in ["inference", "all"]:
+      logger.info(
+        "No records found for split '%s' in index, but split is '%s'. "
+        "Falling back to using all records in array_record file.",
+        split,
+        split,
+      )
+      self._record_indices = list(range(self._length))
 
     logger.info(
       "Loaded %d records for split '%s' from %s",

@@ -270,7 +270,6 @@ def train_step(  # noqa: PLR0913
       """Forward pass for a single protein."""
       key, subkey = jax.random.split(key)
 
-      # Generate autoregressive mask
       n_nodes = mask.shape[0]
       if mask_strategy == "random_order":
         decoding_order = jax.random.permutation(subkey, jnp.arange(n_nodes))
@@ -283,26 +282,14 @@ def train_step(  # noqa: PLR0913
       else:
         ar_mask = jnp.ones((n_nodes, n_nodes))
 
-      # Convert sequence to one-hot
       one_hot_seq = jax.nn.one_hot(seq, 21)
 
       if training_mode == "diffusion":
         if noise_schedule is None:
-             # Should be unreachable if called correctly, but for safety
-             raise ValueError("noise_schedule required for diffusion training")
+          raise ValueError("noise_schedule required for diffusion training")
 
-        # Sample timestep
         t = jax.random.randint(subkey, (), 0, noise_schedule.num_steps)
-        
-        # Add noise to sequence (operating on one-hot)
-        # We treat one-hot as continuous for diffusion here, or use discrete diffusion
-        # For this implementation, we'll assume continuous diffusion on embeddings/one-hots
-        # as implied by the model taking `noisy_sequence`
-        
-        # Sample noise
         noise = jax.random.normal(subkey, one_hot_seq.shape)
-        
-        # Diffuse
         noisy_seq, _ = noise_schedule.sample_forward(one_hot_seq, t, noise)
         
         _, logits = model(
@@ -313,11 +300,10 @@ def train_step(  # noqa: PLR0913
             decoding_approach="diffusion",
             timestep=t,
             noisy_sequence=noisy_seq,
-            physics_features=phys_feat, # Pass physics features if available
+            physics_features=phys_feat,
         )
         return logits
 
-      # Autoregressive / Conditional path
       _, logits = model(
         coords,
         mask,
@@ -332,15 +318,6 @@ def train_step(  # noqa: PLR0913
       )
       return logits
 
-    # Dimension mismatch fix: Only pass physics features if they are actually used
-    # The model expects (N, 5) if physics_feature_dim is set, but if we pass None
-    # to a model expecting features, or features to a model not expecting them,
-    # we might have issues.
-    # However, the main issue reported was passing features when NOT set up.
-    # We should ensure we pass None if the model doesn't have a physics encoder,
-    # OR if we just want to be safe, we rely on the caller (train loop) to pass None
-    # if spec.use_physics_features is False.
-    # Here we just pass what we get.
     
     logits_batch = jax.vmap(single_forward)(
       coordinates,
@@ -430,18 +407,13 @@ def eval_step(
     phys_feat: jax.Array | None = None,
   ) -> Logits:
     """Forward pass for a single protein."""
-    # Use inference mode for evaluation
     inference_model = eqx.nn.inference_mode(model)
     
     if training_mode == "diffusion":
         if noise_schedule is None:
-             raise ValueError("noise_schedule required for diffusion evaluation")
+          raise ValueError("noise_schedule required for diffusion evaluation")
              
-        # Sample timestep (random for eval loss, or could be fixed)
-        # For validation loss, we typically want to average over t
-        # Here we just sample random t per example
         t = jax.random.randint(key, (), 0, noise_schedule.num_steps)
-        
         one_hot_seq = jax.nn.one_hot(seq, 21)
         noise = jax.random.normal(key, one_hot_seq.shape)
         noisy_seq, _ = noise_schedule.sample_forward(one_hot_seq, t, noise)
@@ -539,8 +511,6 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
   patience_counter = 0
 
   prng_key = jax.random.PRNGKey(spec.random_seed)
-  
-  # Initialize noise schedule if diffusion
   noise_schedule = None
   if spec.training_mode == "diffusion":
       noise_schedule = NoiseSchedule(
@@ -552,7 +522,6 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
 
   logger.info("Starting training loop...")
 
-  # Initialize mesh if requested
   mesh = None
   if spec.use_sharding:
     mesh = create_mesh()

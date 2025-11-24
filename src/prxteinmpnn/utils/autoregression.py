@@ -206,7 +206,7 @@ def generate_ar_mask(
   if tie_group_map is None:
     row_indices = decoding_order[:, None]
     col_indices = decoding_order[None, :]
-    ar_mask = (row_indices >= col_indices).astype(int)
+    ar_mask = (row_indices >= col_indices).astype(jnp.int32)
   else:
     if num_groups is None:
       msg = "num_groups must be provided when tie_group_map is not None"
@@ -217,10 +217,10 @@ def generate_ar_mask(
     group_decoding_order = jnp.argsort(group_first_occurrence)
 
     decoding_step_map = get_decoding_step_map(tie_group_map, group_decoding_order, num_groups)
-    ar_mask = make_autoregressive_mask(decoding_step_map).astype(int)
+    ar_mask = make_autoregressive_mask(decoding_step_map).astype(jnp.int32)
 
   if chain_idx is not None:
-    same_chain = (chain_idx[:, None] == chain_idx[None, :]).astype(int)
+    same_chain = (chain_idx[:, None] == chain_idx[None, :]).astype(jnp.int32)
     ar_mask = ar_mask * same_chain
 
   return ar_mask

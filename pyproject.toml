@@ -54,13 +54,13 @@ tests = [
     "trio",
     "chex",
     "anyio",
-    "pyright",
+    "ty",
     "foldcomp",
     "colabdesign @ git+https://github.com/sokrypton/ColabDesign.git@e31a56f",
 ]
 dev = [
   "ruff",
-  "pyright",
+  "ty",
   "sphinx",
   "sphinx-rtd-theme",
   "sphinx-autodoc-typehints",
@@ -119,9 +119,6 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[tool.pyright]
-include = ["src/**/*.py"]
-exclude = ["**/tests/**/*.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -129,6 +126,9 @@ pythonpath = ["src"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
+
+[tool.ty.rules]
+invalid-type-form = "ignore"
 
 [dependency-groups]
 dev = [

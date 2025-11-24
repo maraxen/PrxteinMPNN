@@ -260,7 +260,7 @@ def _resolve_physics_parameters(
         "P": 1.80,
       }
       radii = np.array(
-        [element_radii.get(elem, 1.70) for elem in calc_array.element],  # pyright: ignore[reportOptionalIterable]
+        [element_radii.get(elem, 1.70) for elem in calc_array.element],
         dtype=np.float32,
       )
   return charges, radii, sigmas, epsilons
@@ -316,8 +316,8 @@ def processed_structure_to_protein_tuples(
       static_features.valid_atom_mask,
     )
     # Compute electrostatic metadata
-    estat_backbone_mask = np.isin(frame.atom_name, ["N", "CA", "C", "O"])  # pyright: ignore[reportArgumentType]
-    estat_resid = frame.res_id.astype(np.int32)  # pyright: ignore[reportOptionalMemberAccess]
+    estat_backbone_mask = np.isin(frame.atom_name, ["N", "CA", "C", "O"])
+    estat_resid = frame.res_id.astype(np.int32)
     estat_chain_index = _get_chain_index(frame)
 
     return ProteinTuple(

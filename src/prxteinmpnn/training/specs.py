@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+  from collections.abc import Sequence
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -166,4 +166,4 @@ class TrainingSpecification(RunSpecification):
       raise ValueError(msg)
 
     # Create checkpoint directory if it doesn't exist
-    self.checkpoint_dir.mkdir(parents=True, exist_ok=True)  # pyright: ignore[reportAttributeAccessIssue]
+    self.checkpoint_dir.mkdir(parents=True, exist_ok=True)  # type: ignore[possibly-missing-attribute]

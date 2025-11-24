@@ -76,8 +76,9 @@ class TrainingSpecification(RunSpecification):
       >>> results = train(spec)
 
   """
-  model_weights: str | Path | None = None,
-  model_version: str | None = None,
+
+  model_weights: str | Path | None = None
+  model_version: str | None = None
   # Data paths
   validation_data: str | Path | None = None
   cache_preprocessed: bool = True

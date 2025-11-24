@@ -287,16 +287,19 @@ def _compute_batch_outputs(
       if mesh is not None:
         with mesh:
           jacobians_batch = _compute_jacobians_for_batch(
-            batched_ensemble, spec, conditional_logits_fn,
+            batched_ensemble,
+            spec,
+            conditional_logits_fn,
           )
       else:
         jacobians_batch = _compute_jacobians_for_batch(
-          batched_ensemble, spec, conditional_logits_fn,
+          batched_ensemble,
+          spec,
+          conditional_logits_fn,
         )
 
       yield jacobians_batch, batched_ensemble.one_hot_sequence
     if spec.average_encodings and encode_fn is not None:
-
       if mesh is not None:
         with mesh:
           encodings_batch = _compute_encodings_for_batch(batched_ensemble, spec, encode_fn)

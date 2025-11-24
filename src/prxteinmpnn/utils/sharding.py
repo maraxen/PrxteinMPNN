@@ -1,4 +1,5 @@
 """JAX sharding utilities for distributed training and inference."""
+
 import logging
 from typing import TypeVar
 
@@ -7,6 +8,7 @@ import jax.numpy as jnp
 from jax.sharding import Mesh, NamedSharding, PartitionSpec
 
 logger = logging.getLogger(__name__)
+
 
 def create_mesh(num_devices: int | None = None) -> Mesh:
   """Create a JAX Mesh with a 'data' axis for data parallelism.
@@ -57,7 +59,7 @@ def get_batch_sharding(mesh: Mesh, dimensions: int = 1) -> NamedSharding:
 
   """
   # Axis 0 is 'data', others are None
-  spec = (("data",) + (None,) * (dimensions - 1))
+  spec = ("data",) + (None,) * (dimensions - 1)
   return NamedSharding(mesh, PartitionSpec(*spec))
 
 
@@ -75,6 +77,7 @@ def get_replicated_sharding(mesh: Mesh, dimensions: int = 1) -> NamedSharding:
   spec = (None,) * dimensions
   return NamedSharding(mesh, PartitionSpec(*spec))
 
+
 T = TypeVar("T")
 
 
@@ -91,10 +94,6 @@ def shard_pytree(pytree: T, mesh: Mesh) -> T:
   """
   sharding = get_batch_sharding(mesh)
   return jax.tree.map(
-    lambda x: (
-      jax.device_put(x, sharding)
-      if isinstance(x, (jax.Array, jnp.ndarray))
-      else x
-    ),
+    lambda x: (jax.device_put(x, sharding) if isinstance(x, (jax.Array, jnp.ndarray)) else x),
     pytree,
   )

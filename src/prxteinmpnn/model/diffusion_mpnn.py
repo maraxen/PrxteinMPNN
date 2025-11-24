@@ -87,7 +87,8 @@ class SwiGLU(eqx.Module):
 class DiffusionPrxteinMPNN(PrxteinMPNN):
   """ProteinMPNN extended for diffusion training."""
 
-  w_t_embed: eqx.nn.Sequential  # Sinusoidal + MLP
+  t_embed_sin: SinusoidalEmbedding
+  t_embed_mlp: SwiGLU
 
   def __init__(
     self,
@@ -135,12 +136,8 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
 
     # Timestep embedding: Sinusoidal -> SwiGLU MLP -> Node Features
     # We project to node_features_dim so we can add it to node features
-    self.w_t_embed = eqx.nn.Sequential(
-      [
-        SinusoidalEmbedding(node_features),
-        SwiGLU(node_features, node_features * 4, node_features, key=t_key),
-      ],
-    )
+    self.t_embed_sin = SinusoidalEmbedding(node_features)
+    self.t_embed_mlp = SwiGLU(node_features, node_features * 4, node_features, key=t_key)
 
   def __call__(  # noqa: PLR0913
     self,
@@ -219,8 +216,9 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
     if prng_key is None:
       prng_key = jax.random.PRNGKey(0)
     # Assert prng_key is not None for type checkers (though handled above)
+    # Assert prng_key is not None for type checkers (though handled above)
     assert prng_key is not None  # noqa: S101
-    prng_key, feat_key = jax.random.split(prng_key)
+    prng_key, feat_key, enc_key = jax.random.split(prng_key, 3)
 
     if backbone_noise is None:
       backbone_noise = jnp.array(0.0, dtype=jnp.float32)
@@ -228,7 +226,9 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
     # Apply noise to physics features if provided
     if physics_features is not None and physics_noise_scale > 0.0:
       # Use feat_key for noise generation
-      phys_noise = jax.random.normal(feat_key, physics_features.shape)
+      # We need another key if we want to be strict, but let's just split feat_key
+      feat_key, phys_key = jax.random.split(feat_key)
+      phys_noise = jax.random.normal(phys_key, physics_features.shape)
       physics_features = physics_features + phys_noise * physics_noise_scale
 
     # 1. Extract Features & Encode (Standard MPNN)
@@ -248,6 +248,7 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
       neighbor_indices,
       mask,
       node_features,
+      key=enc_key,
     )
 
     # 2. Inject Timestep Embedding
@@ -255,7 +256,8 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
       msg = "timestep is required for diffusion mode"
       raise ValueError(msg)
 
-    t_embed = self.w_t_embed(timestep)  # [B, C]
+    t_embed = self.t_embed_sin(timestep)
+    t_embed = self.t_embed_mlp(t_embed)  # [B, C]
 
     # Broadcast t_embed to [B, N, C] (batched) or [1, N, C] (unbatched/vmapped)
     t_embed = t_embed[:, None, :] if timestep.ndim == 1 else t_embed[None, :]

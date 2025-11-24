@@ -83,11 +83,19 @@ def score(
 
   if spec.average_node_features:
     all_scores, all_logits = _score_averaged_mode(
-      spec, protein_iterator, model, batched_sequences, mesh,
+      spec,
+      protein_iterator,
+      model,
+      batched_sequences,
+      mesh,
     )
   else:
     all_scores, all_logits = _score_standard_mode(
-      spec, protein_iterator, model, batched_sequences, mesh,
+      spec,
+      protein_iterator,
+      model,
+      batched_sequences,
+      mesh,
     )
 
   if not all_scores:
@@ -206,6 +214,7 @@ def _score_standard_mode(
     all_logits.append(logits)
 
   return all_scores, all_logits
+
 
 def _score_batch_averaged(
   spec: SamplingSpecification,

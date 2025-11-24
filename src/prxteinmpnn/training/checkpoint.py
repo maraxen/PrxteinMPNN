@@ -70,9 +70,9 @@ def save_checkpoint(
   return manager.save(
     step,
     args=ocp.args.Composite(
-      model=ocp.args.StandardSave(model_params),  # pyright: ignore[reportCallIssue]
-      opt_state=ocp.args.StandardSave(opt_state),  # pyright: ignore[reportCallIssue]
-      metrics=ocp.args.JsonSave(metrics_dict),  # pyright: ignore[reportCallIssue]
+      model=ocp.args.StandardSave(model_params),
+      opt_state=ocp.args.StandardSave(opt_state),
+      metrics=ocp.args.JsonSave(metrics_dict),
     ),
   )
 
@@ -115,9 +115,9 @@ def restore_checkpoint(
   restored = manager.restore(
     step,
     args=ocp.args.Composite(
-      model=ocp.args.StandardRestore(abstract_model),  # pyright: ignore[reportCallIssue]
-      opt_state=ocp.args.StandardRestore(None),  # pyright: ignore[reportCallIssue]
-      metrics=ocp.args.JsonRestore(),  # pyright: ignore[reportCallIssue]
+      model=ocp.args.StandardRestore(abstract_model),
+      opt_state=ocp.args.StandardRestore(None),
+      metrics=ocp.args.JsonRestore(),
     ),
   )
 

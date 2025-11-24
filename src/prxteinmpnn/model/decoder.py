@@ -75,20 +75,18 @@ class DecoderLayer(eqx.Module):
     self.dropout1 = eqx.nn.Dropout(dropout_rate)
     self.dropout2 = eqx.nn.Dropout(dropout_rate)
 
-    # Input dim is [h_i (128), e_context (384)] = 512
+    # Input dim is [h_i, e_context]
     mlp_input_dim = node_features + edge_context_features
 
-    # Message MLP: 512 -> 128 -> 128 -> 128 (width=node_features, not hidden_features)
     self.message_mlp = eqx.nn.MLP(
       in_size=mlp_input_dim,
       out_size=node_features,
-      width_size=node_features,  # 128, matches functional W1/W2/W3
+      width_size=node_features,
       depth=2,
       activation=_gelu,
       key=keys[2],
     )
     self.norm1 = LayerNorm(node_features)
-    # Use eqx.nn.MLP for the dense layer
     self.dense = eqx.nn.MLP(
       in_size=node_features,
       out_size=node_features,
@@ -138,13 +136,12 @@ class DecoderLayer(eqx.Module):
     """
     keys = jax.random.split(key, 2) if key is not None else (None, None)
 
-    # Tile central node features [h_i (N, 1, C)]
     node_features_expand = jnp.tile(
       jnp.expand_dims(node_features, -2),
       [1, layer_edge_features.shape[1], 1],
     )
 
-    # Concat with context [h_i (N, K, C), e_context (N, K, 384)]
+    # Concat with context [h_i, e_context]
     mlp_input = jnp.concatenate([node_features_expand, layer_edge_features], -1)
 
     # Apply MLP to each (atom, neighbor) pair: vmap over atoms, then over neighbors
@@ -154,19 +151,15 @@ class DecoderLayer(eqx.Module):
     if attention_mask is not None:
       message = jnp.expand_dims(attention_mask, -1) * message
 
-    # Aggregate messages
     aggregated_message = jnp.sum(message, -2) / scale
 
-    # dropout1
     aggregated_message = self.dropout1(aggregated_message, key=keys[0])
 
     node_features = node_features + aggregated_message
 
-    # vmap over N
     node_features_norm1 = jax.vmap(self.norm1)(node_features)
-    dense_output = jax.vmap(self.dense)(node_features_norm1)  # This works
+    dense_output = jax.vmap(self.dense)(node_features_norm1)
 
-    # dropout2
     dense_output = self.dropout2(dense_output, key=keys[1])
 
     node_features = node_features_norm1 + dense_output
@@ -221,7 +214,7 @@ class Decoder(eqx.Module):
 
     keys = jax.random.split(key, num_layers)
 
-    # The context dim is [h_i, e_ij, h_j] = node_features + edge_features + node_features
+    # The context dim is [h_i, e_ij, h_j]
     edge_context_features = 2 * node_features + edge_features
 
     self.layers = tuple(
@@ -271,21 +264,21 @@ class Decoder(eqx.Module):
     """
     keys = jax.random.split(key, len(self.layers)) if key is not None else [None] * len(self.layers)
 
-    # Prepare 384-dim context tensor *once*
+    # Prepare context tensor *once*
     # For unconditional: [0, h_E_ij, h_V_j] where j is the neighbor
     # First concatenate zeros with edge features
     zeros_with_edges = concatenate_neighbor_nodes(
       jnp.zeros_like(node_features),
       edge_features,
       neighbor_indices,
-    )  # Shape: (N, K, 128 + 128) = (N, K, 256)
+    )
 
     # Then concatenate node features with the above
     layer_edge_features = concatenate_neighbor_nodes(
       node_features,
       zeros_with_edges,
       neighbor_indices,
-    )  # Shape: (N, K, 256 + 128) = (N, K, 384)
+    )
 
     loop_node_features = node_features
     for i, layer in enumerate(self.layers):
@@ -344,50 +337,40 @@ class Decoder(eqx.Module):
     """
     keys = jax.random.split(key, len(self.layers)) if key is not None else [None] * len(self.layers)
 
-    # 1. Embed the sequence
-    embedded_sequence = jnp.atleast_2d(one_hot_sequence) @ w_s_weight  # s_i
+    embedded_sequence = jnp.atleast_2d(one_hot_sequence) @ w_s_weight
 
-    # 2. Initialize context features
-    # Following functional implementation (decoder.py lines 127-141)
-
-    # First: [0, e_ij, h_j] -> (N, K, 256)
     temp_node_edge = concatenate_neighbor_nodes(
       jnp.zeros_like(node_features),
       edge_features,
       neighbor_indices,
-    )
-    # Second: [h_i, [0, e_ij, h_j]] -> (N, K, 384)
+    )  # [0, e_ij, h_j]
+
     node_edge_features = concatenate_neighbor_nodes(
       node_features,
       temp_node_edge,
       neighbor_indices,
-    )
+    )  # [h_i, [0, e_ij, h_j]]
 
-    # [e_ij, s_j] -> (N, K, 256)
-    # Note: concatenate_neighbor_nodes returns [edge_features, neighbor_features]
     sequence_edge_features = concatenate_neighbor_nodes(
       embedded_sequence,
       edge_features,
       neighbor_indices,
-    )
+    )  # [e_ij, s_j]
 
-    # 3. Prepare masks
     attention_mask = jnp.take_along_axis(ar_mask, neighbor_indices, axis=1)
     mask_bw = mask[:, None] * attention_mask
     mask_fw = mask[:, None] * (1 - attention_mask)
     masked_node_edge_features = mask_fw[..., None] * node_edge_features
 
-    # 4. Run the decoder loop
-    # Following functional implementation (decoder.py lines 480-497)
     loop_node_features = node_features
     for i, layer in enumerate(self.layers):
       # Construct the decoder context for this layer by gathering neighbor features
       # and concatenating with sequence edge features
       current_features = concatenate_neighbor_nodes(
-        loop_node_features,  # (N, 128) -> gather neighbors -> (N, K, 128) = h_j
-        sequence_edge_features,  # (N, K, 256) = [e_ij, s_j]
+        loop_node_features,
+        sequence_edge_features,
         neighbor_indices,
-      )  # Result: (N, K, 384) = [e_ij, s_j, h_j]
+      )
 
       layer_edge_features = (mask_bw[..., None] * current_features) + masked_node_edge_features
 

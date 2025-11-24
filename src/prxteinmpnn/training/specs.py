@@ -76,7 +76,8 @@ class TrainingSpecification(RunSpecification):
       >>> results = train(spec)
 
   """
-
+  model_weights: str | Path | None = None,
+  model_version: str | None = None,
   # Data paths
   validation_data: str | Path | None = None
   cache_preprocessed: bool = True
@@ -112,6 +113,15 @@ class TrainingSpecification(RunSpecification):
   label_smoothing: float = 0.0
   mask_strategy: Literal["random_order", "bert"] = "random_order"
   mask_prob: float = 0.15
+
+  # Training Mode
+  training_mode: Literal["autoregressive", "diffusion"] = "autoregressive"
+
+  # Diffusion parameters
+  diffusion_num_steps: int = 1000
+  diffusion_schedule_type: Literal["cosine", "linear"] = "cosine"
+  diffusion_beta_start: float = 1e-4
+  diffusion_beta_end: float = 0.02
 
   # Early stopping
   early_stopping_patience: int | None = None

@@ -9,11 +9,10 @@ from collections.abc import Sequence
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from prxteinmpnn.physics.features import compute_electrostatic_features_batch
 from prxteinmpnn.utils.data_structures import Protein, ProteinTuple
-
-import numpy as np
 
 _MAX_TRIES = 5
 
@@ -308,12 +307,12 @@ def pad_and_collate_proteins(
   elements = _validate_and_flatten_elements(elements)
   elements = _apply_electrostatics_if_needed(elements, use_electrostatics=use_electrostatics)
   proteins = [Protein.from_tuple(p) for p in elements]
-  
+
   # Use fixed max_length if provided, otherwise use max in batch
   if max_length is not None:
     pad_len = max_length
   else:
     pad_len = max(p.coordinates.shape[0] for p in proteins)
-  
+
   padded_proteins = [_pad_protein(p, pad_len) for p in proteins]
   return _stack_padded_proteins(padded_proteins)

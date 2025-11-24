@@ -185,20 +185,20 @@ def load_model(
           dropout_rate=dropout_rate,
           key=key,
         )
-        
+
         loaded_temp = load_weights(
             model_version=model_version,
             model_weights=model_weights,
             local_path=local_path,
             skeleton=temp_skeleton,
         )
-        
+
         # Transfer weights to diffusion skeleton
         # We replace the common components
         skeleton = eqx.tree_at(
             lambda m: (m.features, m.encoder, m.decoder, m.w_s_embed, m.w_out),
             skeleton,
-            (loaded_temp.features, loaded_temp.encoder, loaded_temp.decoder, loaded_temp.w_s_embed, loaded_temp.w_out)
+            (loaded_temp.features, loaded_temp.encoder, loaded_temp.decoder, loaded_temp.w_s_embed, loaded_temp.w_out),
         )
         return skeleton
 

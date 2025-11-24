@@ -98,7 +98,7 @@ def create_protein_dataset(
         operations.truncate_protein,
         max_length=max_length,
         strategy=truncation_strategy,
-      )
+      ),
     )
 
   performance_config = prefetch_autotune.pick_performance_config(

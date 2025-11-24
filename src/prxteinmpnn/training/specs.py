@@ -76,8 +76,9 @@ class TrainingSpecification(RunSpecification):
       >>> results = train(spec)
 
   """
-  model_weights: str | Path | None = None,
-  model_version: str | None = None,
+
+  model_weights: str | Path | None = None  # type: ignore[reportIncompatibleVariableOverride]
+  model_version: str | None = None  # type: ignore[reportIncompatibleVariableOverride]
   # Data paths
   validation_data: str | Path | None = None
   cache_preprocessed: bool = True
@@ -135,7 +136,7 @@ class TrainingSpecification(RunSpecification):
   use_preprocessed: bool = False
   """If True, load from preprocessed array_record files instead of parsing on-the-fly."""
 
-  preprocessed_index_path: Path | None = None
+  preprocessed_index_path: str | Path | None = None  # type: ignore[reportIncompatibleVariableOverride]
   """Path to index file for preprocessed data (required if use_preprocessed=True)."""
 
   validation_preprocessed_path: Path | None = None
@@ -143,6 +144,14 @@ class TrainingSpecification(RunSpecification):
 
   validation_preprocessed_index_path: Path | None = None
   """Path to validation index file (if using preprocessed validation data)."""
+
+  # W&B Integration
+  use_wandb: bool = False
+  wandb_project: str = "prxteinmpnn"
+  wandb_entity: str | None = None
+  wandb_run_name: str | None = None
+  wandb_tags: Sequence[str] | None = None
+  wandb_group: str | None = None
 
   def __post_init__(self) -> None:
     """Validate training specification."""

@@ -134,6 +134,9 @@ markers = [
 dev = [
     "torch>=2.9.1",
 ]
+training = [
+    "wandb>=0.23.0",
+]
 
 [tool.setuptools.package-data]
 include = ["prxteinmpnn/model/original/*.pkl", "prxteinmpnn/model/soluble/*.pkl", "prxteinmpnn/examples/*.ipynb", "prxteinmpnn/examples/*.pdb",]

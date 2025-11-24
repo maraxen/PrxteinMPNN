@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -13,10 +13,12 @@ import jax.numpy as jnp
 import optax
 import orbax.checkpoint as ocp
 import tqdm
+import wandb
 
 from prxteinmpnn.io.loaders import create_protein_dataset
 from prxteinmpnn.io.weights import load_model
 from prxteinmpnn.training.checkpoint import restore_checkpoint, save_checkpoint
+from prxteinmpnn.training.diffusion import NoiseSchedule
 from prxteinmpnn.training.losses import (
   cross_entropy_loss,
   perplexity,
@@ -27,7 +29,6 @@ from prxteinmpnn.training.metrics import (
   TrainingMetrics,
   compute_grad_norm,
 )
-from prxteinmpnn.training.diffusion import NoiseSchedule
 from prxteinmpnn.utils.sharding import create_mesh, shard_pytree
 
 if TYPE_CHECKING:
@@ -122,8 +123,8 @@ def _init_checkpoint_and_model(
   opt_state: ArrayTree | None = None
   if spec.resume_from_checkpoint:
     model_template = load_model(
-      spec.model_version,
-      spec.model_weights,
+      spec.model_version,  # type: ignore[reportArgumentType]
+      spec.model_weights,  # type: ignore[reportArgumentType]
       use_electrostatics=spec.use_electrostatics,
       use_vdw=spec.use_vdw,
     )
@@ -135,8 +136,8 @@ def _init_checkpoint_and_model(
     logger.info("Resumed from checkpoint at step %d", start_step)
   else:
     model = load_model(
-      spec.model_version,
-      spec.model_weights,
+      spec.model_version,  # type: ignore[reportArgumentType]
+      spec.model_weights,  # type: ignore[reportArgumentType]
       use_electrostatics=spec.use_electrostatics,
       use_vdw=spec.use_vdw,
       training_mode=spec.training_mode,
@@ -286,21 +287,22 @@ def train_step(  # noqa: PLR0913
 
       if training_mode == "diffusion":
         if noise_schedule is None:
-          raise ValueError("noise_schedule required for diffusion training")
+          msg = "noise_schedule required for diffusion training"
+          raise ValueError(msg)
 
         t = jax.random.randint(subkey, (), 0, noise_schedule.num_steps)
         noise = jax.random.normal(subkey, one_hot_seq.shape)
         noisy_seq, _ = noise_schedule.sample_forward(one_hot_seq, t, noise)
-        
+
         _, logits = model(
             coords,
             mask,
             res_idx,
             chain_idx,
             decoding_approach="diffusion",
-            timestep=t,
-            noisy_sequence=noisy_seq,
-            physics_features=phys_feat,
+            timestep=t,  # type: ignore[reportCallIssue]
+            noisy_sequence=noisy_seq,  # type: ignore[reportCallIssue]
+            physics_features=phys_feat,  # type: ignore[reportCallIssue]
         )
         return logits
 
@@ -318,7 +320,7 @@ def train_step(  # noqa: PLR0913
       )
       return logits
 
-    
+
     logits_batch = jax.vmap(single_forward)(
       coordinates,
       mask,
@@ -388,8 +390,8 @@ def eval_step(
       sequence: Target sequence (batched)
       prng_key: PRNG key
       physics_features: Optional physics features (if used)
-      use_electrostatics: Whether to use electrostatic features
-      _use_vdw: Whether to use van der Waals features
+      training_mode: "autoregressive" or "diffusion"
+      noise_schedule: Noise schedule for diffusion training
 
   Returns:
       Evaluation metrics
@@ -403,32 +405,34 @@ def eval_step(
     msk: jax.Array,
     res_idx: jax.Array,
     chain_idx: jax.Array,
+    seq: jax.Array,
     key: jax.Array,
     phys_feat: jax.Array | None = None,
   ) -> Logits:
     """Forward pass for a single protein."""
     inference_model = eqx.nn.inference_mode(model)
-    
+
     if training_mode == "diffusion":
-        if noise_schedule is None:
-          raise ValueError("noise_schedule required for diffusion evaluation")
-             
-        t = jax.random.randint(key, (), 0, noise_schedule.num_steps)
-        one_hot_seq = jax.nn.one_hot(seq, 21)
-        noise = jax.random.normal(key, one_hot_seq.shape)
-        noisy_seq, _ = noise_schedule.sample_forward(one_hot_seq, t, noise)
-        
-        _, logits = inference_model(
-            coords,
-            msk,
-            res_idx,
-            chain_idx,
-            decoding_approach="diffusion",
-            timestep=t,
-            noisy_sequence=noisy_seq,
-            physics_features=phys_feat,
-        )
-        return logits
+      if noise_schedule is None:
+        msg = "noise_schedule required for diffusion evaluation"
+        raise ValueError(msg)
+
+      t = jax.random.randint(key, (), 0, noise_schedule.num_steps)
+      one_hot_seq = jax.nn.one_hot(seq, 21)
+      noise = jax.random.normal(key, one_hot_seq.shape)
+      noisy_seq, _ = noise_schedule.sample_forward(one_hot_seq, t, noise)
+
+      _, logits = inference_model(
+        coords,
+        msk,
+        res_idx,
+        chain_idx,
+        decoding_approach="diffusion",
+        timestep=t,  # type: ignore[reportCallIssue]
+        noisy_sequence=noisy_seq,  # type: ignore[reportCallIssue]
+        physics_features=phys_feat,  # type: ignore[reportCallIssue]
+      )
+      return logits
 
     _, logits = inference_model(
       coords,
@@ -447,6 +451,7 @@ def eval_step(
     mask,
     residue_index,
     chain_index,
+    sequence,
     batch_keys,
     physics_features,
   )
@@ -497,6 +502,18 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
   """
   setup_mixed_precision(spec.precision)
   logger.info("Starting training with spec: %s", spec)
+
+  # Initialize W&B
+  if spec.use_wandb:
+    wandb.init(
+      project=spec.wandb_project,
+      entity=spec.wandb_entity,
+      name=spec.wandb_run_name,
+      group=spec.wandb_group,
+      tags=spec.wandb_tags,
+      config=asdict(spec) if hasattr(spec, "_asdict") else spec.__dict__,
+      resume="allow" if spec.resume_from_checkpoint else None,
+    )
 
   optimizer, lr_schedule = create_optimizer(spec)
 
@@ -589,6 +606,19 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
       loss_float = jax.device_get(train_metrics.loss).item()
       pbar.set_postfix({"loss": loss_float})
 
+      # W&B Logging
+      if spec.use_wandb and step % spec.log_every == 0:
+        metrics_dict = {
+          "train/loss": loss_float,
+          "train/accuracy": jax.device_get(train_metrics.accuracy).item(),
+          "train/perplexity": jax.device_get(train_metrics.perplexity).item(),
+          "train/learning_rate": jax.device_get(train_metrics.learning_rate).item(),
+          "train/grad_norm": jax.device_get(train_metrics.grad_norm).item(),
+          "epoch": epoch + 1,
+          "step": step,
+        }
+        wandb.log(metrics_dict, step=step)
+
       if val_loader and step % spec.eval_every == 0:
         val_metrics_list = []
         for val_batch in val_loader:
@@ -628,6 +658,7 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
 
         avg_val_loss = jnp.mean(jnp.array([m.val_loss for m in val_metrics_list]))
         avg_val_acc = jnp.mean(jnp.array([m.val_accuracy for m in val_metrics_list]))
+        avg_val_ppl = jnp.mean(jnp.array([m.val_perplexity for m in val_metrics_list]))
 
         val_loss_float = jax.device_get(avg_val_loss).item()
         val_acc_float = jax.device_get(avg_val_acc).item()
@@ -638,6 +669,17 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
           val_loss_float,
           val_acc_float,
         )
+
+        if spec.use_wandb:
+          wandb.log(
+            {
+              "val/loss": val_loss_float,
+              "val/accuracy": val_acc_float,
+              "val/perplexity": jax.device_get(avg_val_ppl).item(),
+              "step": step,
+            },
+            step=step,
+          )
 
         if spec.early_stopping_patience:
           current_metric = avg_val_loss  # Can switch based on spec.early_stopping_metric
@@ -763,5 +805,8 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
 
   checkpoint_manager.close()
   permanent_manager.close()
+
+  if spec.use_wandb:
+    wandb.finish()
 
   return TrainingResult(final_model=model, final_step=step, checkpoint_dir=spec.checkpoint_dir)

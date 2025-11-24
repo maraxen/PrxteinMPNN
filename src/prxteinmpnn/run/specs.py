@@ -37,7 +37,7 @@ logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
 
 
 def _loader_inputs(inputs: Sequence[str | StringIO] | str | StringIO) -> Sequence[str | StringIO]:
-  return (inputs,) if not isinstance(inputs, Sequence) else inputs
+  return (inputs,) if not isinstance(inputs, Sequence) else inputs  # type: ignore[invalid-return-type]
 
 
 @dataclass

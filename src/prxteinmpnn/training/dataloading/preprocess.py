@@ -28,7 +28,7 @@ import msgpack
 import msgpack_numpy as m
 import numpy as np
 import tqdm
-from array_record.python.array_record_module import (
+from array_record.python.array_record_module import (  # type: ignore[unresolved-import]
   ArrayRecordReader,
   ArrayRecordWriter,
 )
@@ -152,9 +152,7 @@ def _worker_process_protein(args: tuple) -> tuple[str, Path | None]:
         np.array(protein_tuple.estat_backbone_mask)
         if protein_tuple.estat_backbone_mask is not None
         else np.zeros(
-          len(protein_tuple.full_coordinates)
-          if protein_tuple.full_coordinates is not None
-          else 0,
+          len(protein_tuple.full_coordinates) if protein_tuple.full_coordinates is not None else 0,
           dtype=bool,
         )
       ),
@@ -162,9 +160,7 @@ def _worker_process_protein(args: tuple) -> tuple[str, Path | None]:
         np.array(protein_tuple.estat_resid)
         if protein_tuple.estat_resid is not None
         else np.zeros(
-          len(protein_tuple.full_coordinates)
-          if protein_tuple.full_coordinates is not None
-          else 0,
+          len(protein_tuple.full_coordinates) if protein_tuple.full_coordinates is not None else 0,
           dtype=np.int32,
         )
       ),
@@ -172,9 +168,7 @@ def _worker_process_protein(args: tuple) -> tuple[str, Path | None]:
         np.array(protein_tuple.estat_chain_index)
         if protein_tuple.estat_chain_index is not None
         else np.zeros(
-          len(protein_tuple.full_coordinates)
-          if protein_tuple.full_coordinates is not None
-          else 0,
+          len(protein_tuple.full_coordinates) if protein_tuple.full_coordinates is not None else 0,
           dtype=np.int32,
         )
       ),

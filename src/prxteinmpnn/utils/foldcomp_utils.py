@@ -18,14 +18,14 @@ from prxteinmpnn.utils.data_structures import ProteinStream, ProteinTuple
 if TYPE_CHECKING:
   from collections.abc import Sequence
 
-  import foldcomp  # type: ignore[import-untyped]
+  import foldcomp
 
   FOLDCOMP_INSTALLED = True
 else:
   FOLDCOMP_INSTALLED = False
-  foldcomp: Any = None  # type: ignore[no-redef]
+  foldcomp: Any = None
   try:
-    import foldcomp  # type: ignore[import-untyped]
+    import foldcomp
 
     FOLDCOMP_INSTALLED = True
   except ImportError:
@@ -74,7 +74,7 @@ def _setup_foldcomp_database(database: FoldCompDatabase) -> None:
   """
   if not FOLDCOMP_INSTALLED:
     raise ImportError(FOLDCOMP_NOT_INSTALLED_MSG)
-  foldcomp.setup(database)  # type: ignore[union-attr]
+  foldcomp.setup(database)
 
 
 def get_protein_structures(
@@ -102,10 +102,10 @@ def get_protein_structures(
     )
     database = "afdb_rep_v4"
   _setup_foldcomp_database(database)
-  with foldcomp.open(database, ids=protein_ids, decompress=False) as proteins:  # type: ignore[attr-access]
+  with foldcomp.open(database, ids=protein_ids, decompress=False) as proteins:  # type: ignore[unresolved-attribute]
     for name, fcz in proteins:
       try:
-        fcz_data = foldcomp.get_data(fcz)  # type: ignore[attr-access]
+        fcz_data = foldcomp.get_data(fcz)  # type: ignore[unresolved-attribute]
 
         phi = np.array(fcz_data["phi"], dtype=np.float64)
         psi = np.array(fcz_data["psi"], dtype=np.float64)

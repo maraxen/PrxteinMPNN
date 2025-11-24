@@ -35,9 +35,9 @@ def _remove_solvent_from_structure(
     logger.info("Removing %d solvent atoms", n_solvent)
 
     if isinstance(atom_array, AtomArrayStack):
-      atom_array = atom_array[:, ~solvent_mask]  # pyright: ignore[reportAssignmentType]
+      atom_array = atom_array[:, ~solvent_mask]
     else:
-      atom_array = atom_array[~solvent_mask]  # pyright: ignore[reportAssignmentType]
+      atom_array = atom_array[~solvent_mask]
 
     logger.debug("Structure after solvent removal: %d atoms", atom_array.array_length())
   return atom_array
@@ -71,10 +71,10 @@ def _add_hydrogens_to_structure(
   if not atom_array.bonds:
     logger.info("No BondList found. Inferring bonds via residue names.")
     try:
-      atom_array.bonds = structure.connect_via_residue_names(atom_array)  # pyright: ignore[reportAttributeAccessIssue]
+      atom_array.bonds = structure.connect_via_residue_names(atom_array)  # type: ignore[unresolved-attribute]
     except Exception as e:  # noqa: BLE001
       logger.warning("Failed to connect via residue names: %s. Falling back to distances.", e)
-      atom_array.bonds = structure.connect_via_distances(atom_array)  # pyright: ignore[reportAttributeAccessIssue]
+      atom_array.bonds = structure.connect_via_distances(atom_array)  # type: ignore[unresolved-attribute]
 
   # Hydride also requires a 'charge' annotation, even if 0.
   if "charge" not in atom_array.get_annotation_categories():
@@ -194,7 +194,7 @@ def _parse_biotite(
 
     processed = ProcessedStructure(
       atom_array=atom_array,
-      r_indices=atom_array.res_id,  # pyright: ignore[reportArgumentType]
+      r_indices=atom_array.res_id,
       chain_ids=np.zeros(atom_array.array_length(), dtype=np.int32),  # Placeholder
       charges=charges,
       radii=radii,

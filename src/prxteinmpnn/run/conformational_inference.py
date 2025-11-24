@@ -222,9 +222,9 @@ def _pca_preprocess(
         gmm_features = jnp.array(pca_components[:])
         pca_state_group = cast("h5py.Group", f[f"pca_{spec.pca_n_components}_state"])
         pca_state = pcax.pca.PCAState(
-          components=jnp.array(pca_state_group["components"][:]),  # type: ignore[index]
-          means=jnp.array(pca_state_group["means"][:]),  # type: ignore[index]
-          explained_variance=jnp.array(pca_state_group["explained_variance"][:]),  # type: ignore[index]
+          components=jnp.array(pca_state_group["components"][:]),
+          means=jnp.array(pca_state_group["means"][:]),
+          explained_variance=jnp.array(pca_state_group["explained_variance"][:]),
         )
         logger.info("PCA components shape: %s", gmm_features.shape)
         return (gmm_features, {"pca_state": pca_state})
@@ -318,7 +318,7 @@ def infer_conformations(
   if spec.output_h5_path:
     with h5py.File(spec.output_h5_path, "r") as f:
       features_for_ci = jnp.array(cast("h5py.Dataset", f[feature_key])[:])
-      if features_for_ci.shape[0] == 0:  # type: ignore[attr-defined]
+      if features_for_ci.shape[0] == 0:
         msg = "No data in HDF5 file for GMM fitting."
         raise ValueError(msg)
 

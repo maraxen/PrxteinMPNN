@@ -150,8 +150,8 @@ def load_model(
 
   if "_v_" in model_version:
     parts = model_version.split("_v_", 1)
-    model_weights = parts[0]  # type: ignore[assignment]
-    model_version = f"v_{parts[1]}"  # type: ignore[assignment]
+    model_weights = parts[0]
+    model_version = f"v_{parts[1]}"
 
   physics_feature_dim = 0 + (5 if use_electrostatics else 0) + (0 if not use_vdw else 5)
 

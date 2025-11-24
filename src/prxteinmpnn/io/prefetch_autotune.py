@@ -107,7 +107,7 @@ def _get_buffer_size(
   # Find the datasets with non-batched elements.
   dss = _find_prefetch_iter_dataset_parents(ds)
   average_elem_size_mb = _get_average_element_size_mb(
-    dss,  # type: ignore[arg-type]
+    dss,  # type: ignore[invalid-argument-type]
     samples_to_check=samples_to_check,
   )
   if max_buffer_size is None:

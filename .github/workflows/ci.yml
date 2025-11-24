@@ -28,7 +28,7 @@ jobs:
           source .venv/bin/activate
           uv pip install .[dev]
           ruff check .
-          pyright
+          uv run ty check
 
   unit-tests:
     runs-on: ubuntu-latest

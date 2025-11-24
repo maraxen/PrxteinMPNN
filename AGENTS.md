@@ -58,10 +58,10 @@ def example_function():
 * **Execution:** Run `ruff check src/ --fix` regularly to apply automatic fixes.
 * **Fix Failure Threshold:** **If automated `ruff --fix` attempts fail more than 5 times consecutively on the same set of issues, cease further attempts and flag the code for manual review by the user.**
 
-### C. Type Checking (Pyright)
+### C. Type Checking (Astral Ty)
 
-* **Evaluator:** Use **Pyright** for static type checking.
-* **Strict Mode:** All code should pass Pyright in **strict mode**. Ensure type hints are accurate and comprehensive to satisfy strict type checking.
+* **Evaluator:** Use **Astral Ty** for static type checking.
+* **Execution:** Run `uv run ty check` to check for type errors.
 
 ### D. Testing
 

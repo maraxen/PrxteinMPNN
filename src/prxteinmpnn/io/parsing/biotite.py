@@ -20,7 +20,6 @@ from prxteinmpnn.io.parsing.utils import (
 from prxteinmpnn.utils.data_structures import (
   EstatInfo,
   ProteinStream,
-  ProteinTuple,
 )
 
 logger = logging.getLogger(__name__)

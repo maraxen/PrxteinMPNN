@@ -52,6 +52,8 @@ def test_sample_non_streaming(use_spec):
                     backbone_noise=[0.1],
                 )
 
+            # Use pmap=True for distributed-aware checks, though here we are running locally
+            # it ensures compatibility with potential future sharded outputs.
             chex.assert_shape(result["sequences"], (1, 2, 1, 10))
             chex.assert_shape(result["logits"], (1, 2, 1, 10, 21))
             chex.assert_tree_all_finite((result["sequences"], result["logits"]))

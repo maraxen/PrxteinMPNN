@@ -85,6 +85,13 @@ class RunSpecification:
   overwrite_cache: bool = False
   output_path: str | Path | None = None
 
+  # Data/Sharding
+  use_sharding: bool = True
+  shard_batch: bool = True
+  use_preprocessed: bool = False
+  preprocessed_index_path: str | Path | None = None
+  split: str = "inference"
+
   # Tied-position logit averaging fields
   tied_positions: Sequence[tuple[int, int]] | Literal["auto", "direct"] | None = None
   pass_mode: Literal["inter", "intra"] = "intra"  # noqa: S105

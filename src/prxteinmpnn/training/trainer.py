@@ -27,6 +27,8 @@ from prxteinmpnn.training.metrics import (
   TrainingMetrics,
   compute_grad_norm,
 )
+from prxteinmpnn.training.diffusion import NoiseSchedule
+from prxteinmpnn.utils.sharding import create_mesh, shard_pytree
 
 if TYPE_CHECKING:
   from chex import ArrayTree
@@ -137,6 +139,7 @@ def _init_checkpoint_and_model(
       spec.model_weights,
       use_electrostatics=spec.use_electrostatics,
       use_vdw=spec.use_vdw,
+      training_mode=spec.training_mode,
     )
     start_step = 0
     optimizer_obj, _ = create_optimizer(spec)
@@ -156,6 +159,8 @@ def _create_dataloaders(spec: TrainingSpecification) -> tuple[Any, Any]:
     use_preprocessed=spec.use_preprocessed,
     preprocessed_index_path=spec.preprocessed_index_path,
     split="train",
+    max_length=spec.max_length,
+    truncation_strategy=spec.truncation_strategy,
   )
 
   val_loader = None
@@ -179,6 +184,8 @@ def _create_dataloaders(spec: TrainingSpecification) -> tuple[Any, Any]:
       use_vdw=spec.use_vdw,
       preprocessed_index_path=val_index_path,
       split="valid",
+      max_length=spec.max_length,
+      truncation_strategy=spec.truncation_strategy,
     )
 
   return train_loader, val_loader
@@ -216,6 +223,8 @@ def train_step(  # noqa: PLR0913
   backbone_noise_std: float = 0.0,
   mask_strategy: str = "random_order",
   mask_prob: float = 0.15,
+  training_mode: str = "autoregressive",
+  noise_schedule: NoiseSchedule | None = None,
 ) -> tuple[PrxteinMPNN, optax.OptState, TrainingMetrics]:
   """Single training step.
 
@@ -236,6 +245,8 @@ def train_step(  # noqa: PLR0913
       backbone_noise_std: Standard deviation of Gaussian noise added to backbone coordinates
       mask_strategy: Strategy for autoregressive masking ("random_order" or "bert")
       mask_prob: Probability of masking a token if using "bert" strategy
+      training_mode: "autoregressive" or "diffusion"
+      noise_schedule: Noise schedule for diffusion training
 
   Returns:
       Tuple of (updated_model, updated_opt_state, metrics)
@@ -259,7 +270,6 @@ def train_step(  # noqa: PLR0913
       """Forward pass for a single protein."""
       key, subkey = jax.random.split(key)
 
-      # Generate autoregressive mask
       n_nodes = mask.shape[0]
       if mask_strategy == "random_order":
         decoding_order = jax.random.permutation(subkey, jnp.arange(n_nodes))
@@ -272,8 +282,27 @@ def train_step(  # noqa: PLR0913
       else:
         ar_mask = jnp.ones((n_nodes, n_nodes))
 
-      # Convert sequence to one-hot
       one_hot_seq = jax.nn.one_hot(seq, 21)
+
+      if training_mode == "diffusion":
+        if noise_schedule is None:
+          raise ValueError("noise_schedule required for diffusion training")
+
+        t = jax.random.randint(subkey, (), 0, noise_schedule.num_steps)
+        noise = jax.random.normal(subkey, one_hot_seq.shape)
+        noisy_seq, _ = noise_schedule.sample_forward(one_hot_seq, t, noise)
+        
+        _, logits = model(
+            coords,
+            mask,
+            res_idx,
+            chain_idx,
+            decoding_approach="diffusion",
+            timestep=t,
+            noisy_sequence=noisy_seq,
+            physics_features=phys_feat,
+        )
+        return logits
 
       _, logits = model(
         coords,
@@ -289,6 +318,7 @@ def train_step(  # noqa: PLR0913
       )
       return logits
 
+    
     logits_batch = jax.vmap(single_forward)(
       coordinates,
       mask,
@@ -344,6 +374,8 @@ def eval_step(
   sequence: jax.Array,  # (batch_size, seq_len)
   prng_key: jax.Array,
   physics_features: jax.Array | None = None,
+  training_mode: str = "autoregressive",
+  noise_schedule: NoiseSchedule | None = None,
 ) -> EvaluationMetrics:
   """Single evaluation step with batching.
 
@@ -375,8 +407,29 @@ def eval_step(
     phys_feat: jax.Array | None = None,
   ) -> Logits:
     """Forward pass for a single protein."""
-    # Use inference mode for evaluation
     inference_model = eqx.nn.inference_mode(model)
+    
+    if training_mode == "diffusion":
+        if noise_schedule is None:
+          raise ValueError("noise_schedule required for diffusion evaluation")
+             
+        t = jax.random.randint(key, (), 0, noise_schedule.num_steps)
+        one_hot_seq = jax.nn.one_hot(seq, 21)
+        noise = jax.random.normal(key, one_hot_seq.shape)
+        noisy_seq, _ = noise_schedule.sample_forward(one_hot_seq, t, noise)
+        
+        _, logits = inference_model(
+            coords,
+            msk,
+            res_idx,
+            chain_idx,
+            decoding_approach="diffusion",
+            timestep=t,
+            noisy_sequence=noisy_seq,
+            physics_features=phys_feat,
+        )
+        return logits
+
     _, logits = inference_model(
       coords,
       msk,
@@ -458,8 +511,20 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
   patience_counter = 0
 
   prng_key = jax.random.PRNGKey(spec.random_seed)
+  noise_schedule = None
+  if spec.training_mode == "diffusion":
+      noise_schedule = NoiseSchedule(
+          num_steps=spec.diffusion_num_steps,
+          beta_start=spec.diffusion_beta_start,
+          beta_end=spec.diffusion_beta_end,
+          schedule_type=spec.diffusion_schedule_type,
+      )
 
   logger.info("Starting training loop...")
+
+  mesh = None
+  if spec.use_sharding:
+    mesh = create_mesh()
 
   for epoch in range(spec.num_epochs):
     logger.info("Epoch %d/%d", epoch + 1, spec.num_epochs)
@@ -473,24 +538,52 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
       else:
         backbone_noise_std = float(spec.backbone_noise[0])
 
-      model, opt_state, train_metrics = eqx.filter_jit(train_step)(
-        model,
-        opt_state,
-        optimizer,
-        batch.coordinates,
-        batch.mask,
-        batch.residue_index,
-        batch.chain_index,
-        batch.aatype,
-        subkey,
-        spec.label_smoothing,
-        step,
-        lr_schedule,
-        batch.physics_features,
-        backbone_noise_std,
-        spec.mask_strategy,
-        spec.mask_prob,
-      )
+      if mesh is not None and spec.shard_batch:
+        batch = shard_pytree(batch, mesh)  # noqa: PLW2901
+
+      if mesh is not None:
+        with mesh:
+          model, opt_state, train_metrics = eqx.filter_jit(train_step)(
+            model,
+            opt_state,
+            optimizer,
+            batch.coordinates,
+            batch.mask,
+            batch.residue_index,
+            batch.chain_index,
+            batch.aatype,
+            subkey,
+            spec.label_smoothing,
+            step,
+            lr_schedule,
+            batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
+            backbone_noise_std,
+            spec.mask_strategy,
+            spec.mask_prob,
+            spec.training_mode,
+            noise_schedule,
+          )
+      else:
+        model, opt_state, train_metrics = eqx.filter_jit(train_step)(
+          model,
+          opt_state,
+          optimizer,
+          batch.coordinates,
+          batch.mask,
+          batch.residue_index,
+          batch.chain_index,
+          batch.aatype,
+          subkey,
+          spec.label_smoothing,
+          step,
+          lr_schedule,
+          batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
+          backbone_noise_std,
+          spec.mask_strategy,
+          spec.mask_prob,
+          spec.training_mode,
+          noise_schedule,
+        )
 
       step += 1
       loss_float = jax.device_get(train_metrics.loss).item()
@@ -500,16 +593,37 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
         val_metrics_list = []
         for val_batch in val_loader:
           prng_key, subkey = jax.random.split(prng_key)
-          val_metrics = eqx.filter_jit(eval_step)(
-            model,
-            val_batch.coordinates,
-            val_batch.mask,
-            val_batch.residue_index,
-            val_batch.chain_index,
-            val_batch.aatype,
-            subkey,
-            val_batch.physics_features,
-          )
+
+          if mesh is not None and spec.shard_batch:
+            val_batch = shard_pytree(val_batch, mesh)  # noqa: PLW2901
+
+          if mesh is not None:
+            with mesh:
+              val_metrics = eqx.filter_jit(eval_step)(
+                model,
+                val_batch.coordinates,
+                val_batch.mask,
+                val_batch.residue_index,
+                val_batch.chain_index,
+                val_batch.aatype,
+                subkey,
+                val_batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
+                spec.training_mode,
+                noise_schedule,
+              )
+          else:
+            val_metrics = eqx.filter_jit(eval_step)(
+              model,
+              val_batch.coordinates,
+              val_batch.mask,
+              val_batch.residue_index,
+              val_batch.chain_index,
+              val_batch.aatype,
+              subkey,
+              val_batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
+              spec.training_mode,
+              noise_schedule,
+            )
           val_metrics_list.append(val_metrics)
 
         avg_val_loss = jnp.mean(jnp.array([m.val_loss for m in val_metrics_list]))
@@ -590,34 +704,55 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
       split="test",
     )
 
-    test_metrics_list = []
-    for test_batch in tqdm.tqdm(test_loader, desc="Testing"):
-      prng_key, subkey = jax.random.split(prng_key)
-      test_metrics = eqx.filter_jit(eval_step)(
-        model,
-        test_batch.coordinates,
-        test_batch.mask,
-        test_batch.residue_index,
-        test_batch.chain_index,
-        test_batch.aatype,
-        subkey,
-        test_batch.physics_features,
-      )
-      test_metrics_list.append(test_metrics)
+      test_metrics_list = []
+      for test_batch in tqdm.tqdm(test_loader, desc="Testing"):
+          prng_key, subkey = jax.random.split(prng_key)
 
-    if test_metrics_list:
-      avg_test_loss = jnp.mean(jnp.array([m.val_loss for m in test_metrics_list]))
-      avg_test_acc = jnp.mean(jnp.array([m.val_accuracy for m in test_metrics_list]))
-      avg_test_ppl = jnp.mean(jnp.array([m.val_perplexity for m in test_metrics_list]))
+          if mesh is not None and spec.shard_batch:
+            test_batch = shard_pytree(test_batch, mesh)  # noqa: PLW2901
 
-      logger.info("=" * 40)
-      logger.info("Final Test Results:")
-      logger.info("  Loss: %.4f", jax.device_get(avg_test_loss).item())
-      logger.info("  Accuracy: %.4f", jax.device_get(avg_test_acc).item())
-      logger.info("  Perplexity: %.4f", jax.device_get(avg_test_ppl).item())
-      logger.info("=" * 40)
-    else:
-      logger.warning("Test loader was empty. No test metrics computed.")
+          if mesh is not None:
+            with mesh:
+              test_metrics = eqx.filter_jit(eval_step)(
+                model,
+                test_batch.coordinates,
+                test_batch.mask,
+                test_batch.residue_index,
+                test_batch.chain_index,
+                test_batch.aatype,
+                subkey,
+                test_batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
+                spec.training_mode,
+                noise_schedule,
+              )
+          else:
+            test_metrics = eqx.filter_jit(eval_step)(
+              model,
+              test_batch.coordinates,
+              test_batch.mask,
+              test_batch.residue_index,
+              test_batch.chain_index,
+              test_batch.aatype,
+              subkey,
+              test_batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
+              spec.training_mode,
+              noise_schedule,
+            )
+          test_metrics_list.append(test_metrics)
+
+      if test_metrics_list:
+          avg_test_loss = jnp.mean(jnp.array([m.val_loss for m in test_metrics_list]))
+          avg_test_acc = jnp.mean(jnp.array([m.val_accuracy for m in test_metrics_list]))
+          avg_test_ppl = jnp.mean(jnp.array([m.val_perplexity for m in test_metrics_list]))
+
+          logger.info("=" * 40)
+          logger.info("Final Test Results:")
+          logger.info("  Loss: %.4f", jax.device_get(avg_test_loss).item())
+          logger.info("  Accuracy: %.4f", jax.device_get(avg_test_acc).item())
+          logger.info("  Perplexity: %.4f", jax.device_get(avg_test_ppl).item())
+          logger.info("=" * 40)
+      else:
+          logger.warning("Test loader was empty. No test metrics computed.")
 
   except Exception:  # noqa: BLE001
     logger.warning(

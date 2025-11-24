@@ -113,6 +113,7 @@ def load_model(
   use_electrostatics: bool = False,
   use_vdw: bool = False,
   dropout_rate: float = 0.1,
+  training_mode: Literal["autoregressive", "diffusion"] = "autoregressive",
 ) -> PrxteinMPNN:
   """Load a fully instantiated PrxteinMPNN model with pre-trained weights.
 
@@ -129,6 +130,7 @@ def load_model(
       use_electrostatics: bool = False, Whether to include electrostatic features.
       use_vdw: bool = False, Whether to include van der Waals features.
       dropout_rate: Dropout rate (default: 0.1).
+      training_mode: "autoregressive" or "diffusion" (default: "autoregressive").
 
   Returns:
       A fully loaded PrxteinMPNN model ready for inference.
@@ -152,18 +154,67 @@ def load_model(
     model_version = f"v_{parts[1]}"
 
   physics_feature_dim = 0 + (5 if use_electrostatics else 0) + (0 if not use_vdw else 5)
-  skeleton = PrxteinMPNN(
-    node_features=NODE_FEATURES,
-    edge_features=EDGE_FEATURES,
-    hidden_features=HIDDEN_FEATURES,
-    physics_feature_dim=physics_feature_dim if physics_feature_dim > 0 else None,
-    num_encoder_layers=NUM_ENCODER_LAYERS,
-    num_decoder_layers=NUM_DECODER_LAYERS,
-    vocab_size=VOCAB_SIZE,
-    k_neighbors=K_NEIGHBORS,
-    dropout_rate=dropout_rate,
-    key=key,
-  )
+
+  if training_mode == "diffusion":
+    from prxteinmpnn.model.diffusion_mpnn import DiffusionPrxteinMPNN
+
+    skeleton = DiffusionPrxteinMPNN(
+      node_features=NODE_FEATURES,
+      edge_features=EDGE_FEATURES,
+      hidden_features=HIDDEN_FEATURES,
+      physics_feature_dim=physics_feature_dim if physics_feature_dim > 0 else None,
+      num_encoder_layers=NUM_ENCODER_LAYERS,
+      num_decoder_layers=NUM_DECODER_LAYERS,
+      vocab_size=VOCAB_SIZE,
+      k_neighbors=K_NEIGHBORS,
+      key=key,
+    )
+
+    # If loading standard weights into diffusion model, we need to load into a standard
+    # skeleton first and then transfer the weights, as the structures don't match exactly.
+    if model_weights in ["original", "soluble"]:
+        temp_skeleton = PrxteinMPNN(
+          node_features=NODE_FEATURES,
+          edge_features=EDGE_FEATURES,
+          hidden_features=HIDDEN_FEATURES,
+          physics_feature_dim=physics_feature_dim if physics_feature_dim > 0 else None,
+          num_encoder_layers=NUM_ENCODER_LAYERS,
+          num_decoder_layers=NUM_DECODER_LAYERS,
+          vocab_size=VOCAB_SIZE,
+          k_neighbors=K_NEIGHBORS,
+          dropout_rate=dropout_rate,
+          key=key,
+        )
+        
+        loaded_temp = load_weights(
+            model_version=model_version,
+            model_weights=model_weights,
+            local_path=local_path,
+            skeleton=temp_skeleton,
+        )
+        
+        # Transfer weights to diffusion skeleton
+        # We replace the common components
+        skeleton = eqx.tree_at(
+            lambda m: (m.features, m.encoder, m.decoder, m.w_s_embed, m.w_out),
+            skeleton,
+            (loaded_temp.features, loaded_temp.encoder, loaded_temp.decoder, loaded_temp.w_s_embed, loaded_temp.w_out)
+        )
+        return skeleton
+
+  else:
+    skeleton = PrxteinMPNN(
+      node_features=NODE_FEATURES,
+      edge_features=EDGE_FEATURES,
+      hidden_features=HIDDEN_FEATURES,
+      physics_feature_dim=physics_feature_dim if physics_feature_dim > 0 else None,
+      num_encoder_layers=NUM_ENCODER_LAYERS,
+      num_decoder_layers=NUM_DECODER_LAYERS,
+      vocab_size=VOCAB_SIZE,
+      k_neighbors=K_NEIGHBORS,
+      dropout_rate=dropout_rate,
+      key=key,
+    )
 
   loaded = load_weights(
     model_version=model_version,

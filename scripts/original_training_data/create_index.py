@@ -137,7 +137,7 @@ def main():
             # We use read(i, i+1) to get specific records safely if the bindings support it, 
             # or standard sequential read if we iterate naturally. 
             # Assuming sequential access is fastest:
-            data_bytes = reader.read([i])[0] # Reading by index list to get specific record
+            data_bytes = reader.read() # Reading by index list to get specific record
             
             # Unpack
             record = msgpack.unpackb(data_bytes, raw=False)

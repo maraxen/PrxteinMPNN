@@ -26,6 +26,8 @@ def create_protein_dataset(
   use_preprocessed: bool = False,
   preprocessed_index_path: str | Path | None = None,
   split: str = "train",
+  max_length: int | None = 512,
+  truncation_strategy: str = "none",
 ) -> grain.IterDataset:
   """Construct a high-performance protein data pipeline using Grain.
 
@@ -90,6 +92,15 @@ def create_protein_dataset(
     )
     ds = grain.MapDataset.source(source)
 
+  if max_length is not None and truncation_strategy != "none":
+    ds = ds.map(
+      partial(
+        operations.truncate_protein,
+        max_length=max_length,
+        strategy=truncation_strategy,
+      )
+    )
+
   performance_config = prefetch_autotune.pick_performance_config(
     ds=ds,
     ram_budget_mb=1024,
@@ -104,6 +115,7 @@ def create_protein_dataset(
       operations.pad_and_collate_proteins,
       use_electrostatics=use_electrostatics,
       use_vdw=use_vdw,
+      max_length=max_length,
     )
   )
 

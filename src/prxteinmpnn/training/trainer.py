@@ -28,6 +28,7 @@ from prxteinmpnn.training.metrics import (
   compute_grad_norm,
 )
 from prxteinmpnn.training.diffusion import NoiseSchedule
+from prxteinmpnn.utils.sharding import create_mesh, shard_pytree
 
 if TYPE_CHECKING:
   from chex import ArrayTree
@@ -158,6 +159,8 @@ def _create_dataloaders(spec: TrainingSpecification) -> tuple[Any, Any]:
     use_preprocessed=spec.use_preprocessed,
     preprocessed_index_path=spec.preprocessed_index_path,
     split="train",
+    max_length=spec.max_length,
+    truncation_strategy=spec.truncation_strategy,
   )
 
   val_loader = None
@@ -181,6 +184,8 @@ def _create_dataloaders(spec: TrainingSpecification) -> tuple[Any, Any]:
       use_vdw=spec.use_vdw,
       preprocessed_index_path=val_index_path,
       split="valid",
+      max_length=spec.max_length,
+      truncation_strategy=spec.truncation_strategy,
     )
 
   return train_loader, val_loader
@@ -547,6 +552,11 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
 
   logger.info("Starting training loop...")
 
+  # Initialize mesh if requested
+  mesh = None
+  if spec.use_sharding:
+    mesh = create_mesh()
+
   for epoch in range(spec.num_epochs):
     logger.info("Epoch %d/%d", epoch + 1, spec.num_epochs)
     pbar = tqdm.tqdm(train_loader, desc=f"Epoch {epoch + 1}/{spec.num_epochs}")
@@ -559,26 +569,52 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
       else:
         backbone_noise_std = float(spec.backbone_noise[0])
 
-      model, opt_state, train_metrics = eqx.filter_jit(train_step)(
-        model,
-        opt_state,
-        optimizer,
-        batch.coordinates,
-        batch.mask,
-        batch.residue_index,
-        batch.chain_index,
-        batch.aatype,
-        subkey,
-        spec.label_smoothing,
-        step,
-        lr_schedule,
-        batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
-        backbone_noise_std,
-        spec.mask_strategy,
-        spec.mask_prob,
-        spec.training_mode,
-        noise_schedule,
-      )
+      if mesh is not None and spec.shard_batch:
+        batch = shard_pytree(batch, mesh)  # noqa: PLW2901
+
+      if mesh is not None:
+        with mesh:
+          model, opt_state, train_metrics = eqx.filter_jit(train_step)(
+            model,
+            opt_state,
+            optimizer,
+            batch.coordinates,
+            batch.mask,
+            batch.residue_index,
+            batch.chain_index,
+            batch.aatype,
+            subkey,
+            spec.label_smoothing,
+            step,
+            lr_schedule,
+            batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
+            backbone_noise_std,
+            spec.mask_strategy,
+            spec.mask_prob,
+            spec.training_mode,
+            noise_schedule,
+          )
+      else:
+        model, opt_state, train_metrics = eqx.filter_jit(train_step)(
+          model,
+          opt_state,
+          optimizer,
+          batch.coordinates,
+          batch.mask,
+          batch.residue_index,
+          batch.chain_index,
+          batch.aatype,
+          subkey,
+          spec.label_smoothing,
+          step,
+          lr_schedule,
+          batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
+          backbone_noise_std,
+          spec.mask_strategy,
+          spec.mask_prob,
+          spec.training_mode,
+          noise_schedule,
+        )
 
       step += 1
       loss_float = jax.device_get(train_metrics.loss).item()
@@ -588,18 +624,37 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
         val_metrics_list = []
         for val_batch in val_loader:
           prng_key, subkey = jax.random.split(prng_key)
-          val_metrics = eqx.filter_jit(eval_step)(
-            model,
-            val_batch.coordinates,
-            val_batch.mask,
-            val_batch.residue_index,
-            val_batch.chain_index,
-            val_batch.aatype,
-            subkey,
-            val_batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
-            spec.training_mode,
-            noise_schedule,
-          )
+
+          if mesh is not None and spec.shard_batch:
+            val_batch = shard_pytree(val_batch, mesh)  # noqa: PLW2901
+
+          if mesh is not None:
+            with mesh:
+              val_metrics = eqx.filter_jit(eval_step)(
+                model,
+                val_batch.coordinates,
+                val_batch.mask,
+                val_batch.residue_index,
+                val_batch.chain_index,
+                val_batch.aatype,
+                subkey,
+                val_batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
+                spec.training_mode,
+                noise_schedule,
+              )
+          else:
+            val_metrics = eqx.filter_jit(eval_step)(
+              model,
+              val_batch.coordinates,
+              val_batch.mask,
+              val_batch.residue_index,
+              val_batch.chain_index,
+              val_batch.aatype,
+              subkey,
+              val_batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
+              spec.training_mode,
+              noise_schedule,
+            )
           val_metrics_list.append(val_metrics)
 
         avg_val_loss = jnp.mean(jnp.array([m.val_loss for m in val_metrics_list]))
@@ -685,18 +740,37 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
       test_metrics_list = []
       for test_batch in tqdm.tqdm(test_loader, desc="Testing"):
           prng_key, subkey = jax.random.split(prng_key)
-          test_metrics = eqx.filter_jit(eval_step)(
-            model,
-            test_batch.coordinates,
-            test_batch.mask,
-            test_batch.residue_index,
-            test_batch.chain_index,
-            test_batch.aatype,
-            subkey,
-            test_batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
-            spec.training_mode,
-            noise_schedule,
-          )
+
+          if mesh is not None and spec.shard_batch:
+            test_batch = shard_pytree(test_batch, mesh)  # noqa: PLW2901
+
+          if mesh is not None:
+            with mesh:
+              test_metrics = eqx.filter_jit(eval_step)(
+                model,
+                test_batch.coordinates,
+                test_batch.mask,
+                test_batch.residue_index,
+                test_batch.chain_index,
+                test_batch.aatype,
+                subkey,
+                test_batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
+                spec.training_mode,
+                noise_schedule,
+              )
+          else:
+            test_metrics = eqx.filter_jit(eval_step)(
+              model,
+              test_batch.coordinates,
+              test_batch.mask,
+              test_batch.residue_index,
+              test_batch.chain_index,
+              test_batch.aatype,
+              subkey,
+              test_batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
+              spec.training_mode,
+              noise_schedule,
+            )
           test_metrics_list.append(test_metrics)
 
       if test_metrics_list:

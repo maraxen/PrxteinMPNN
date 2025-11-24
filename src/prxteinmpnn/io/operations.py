@@ -13,7 +13,71 @@ import jax.numpy as jnp
 from prxteinmpnn.physics.features import compute_electrostatic_features_batch
 from prxteinmpnn.utils.data_structures import Protein, ProteinTuple
 
+import numpy as np
+
 _MAX_TRIES = 5
+
+
+def truncate_protein(
+  protein: ProteinTuple,
+  max_length: int | None,
+  strategy: str = "none",
+) -> ProteinTuple:
+  """Truncate a protein to a maximum length.
+
+  Args:
+    protein: The protein tuple to truncate.
+    max_length: The maximum length. If None, no truncation is performed.
+    strategy: The truncation strategy ("random_crop", "center_crop", "none").
+
+  Returns:
+    The truncated protein tuple.
+
+  """
+  if max_length is None or strategy == "none":
+    return protein
+
+  length = protein.coordinates.shape[0]
+  if length <= max_length:
+    return protein
+
+  if strategy == "center_crop":
+    start = (length - max_length) // 2
+  elif strategy == "random_crop":
+    start = np.random.randint(0, length - max_length + 1)
+  else:
+    msg = f"Unknown truncation strategy: {strategy}"
+    raise ValueError(msg)
+
+  end = start + max_length
+
+  def slice_array(arr: np.ndarray | None) -> np.ndarray | None:
+    if arr is None:
+      return None
+    # Assuming the first dimension is always the residue dimension for arrays that need slicing
+    if hasattr(arr, "shape") and arr.shape[0] == length:
+      return arr[start:end]
+    return arr
+
+  return protein._replace(
+    coordinates=slice_array(protein.coordinates),
+    aatype=slice_array(protein.aatype),
+    atom_mask=slice_array(protein.atom_mask),
+    residue_index=slice_array(protein.residue_index),
+    chain_index=slice_array(protein.chain_index),
+    full_coordinates=slice_array(protein.full_coordinates),
+    dihedrals=slice_array(protein.dihedrals),
+    mapping=slice_array(protein.mapping),
+    charges=slice_array(protein.charges),
+    radii=slice_array(protein.radii),
+    sigmas=slice_array(protein.sigmas),
+    epsilons=slice_array(protein.epsilons),
+    estat_backbone_mask=slice_array(protein.estat_backbone_mask),
+    estat_resid=slice_array(protein.estat_resid),
+    estat_chain_index=slice_array(protein.estat_chain_index),
+    physics_features=slice_array(protein.physics_features),
+  )
+
 
 
 def concatenate_proteins_for_inter_mode(elements: Sequence[ProteinTuple]) -> Protein:

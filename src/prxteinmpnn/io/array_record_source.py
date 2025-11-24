@@ -11,7 +11,9 @@ import grain.python as grain
 import msgpack
 import msgpack_numpy as m
 import numpy as np
-from array_record.python.array_record_module import ArrayRecordReader
+from array_record.python.array_record_module import (  # type: ignore[unresolved-import]
+  ArrayRecordReader,
+)
 
 from prxteinmpnn.utils.data_structures import ProteinTuple
 

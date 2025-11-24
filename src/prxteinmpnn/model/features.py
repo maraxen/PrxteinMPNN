@@ -34,10 +34,8 @@ if TYPE_CHECKING:
   )
 
 
-# Type alias for PRNG keys
 PRNGKeyArray = jax.Array
 
-# Layer normalization
 LayerNorm = eqx.nn.LayerNorm
 
 # Feature extraction constants
@@ -67,7 +65,7 @@ class ProteinFeatures(eqx.Module):
 
   def __init__(
     self,
-    node_features: int,  # noqa: ARG002
+    node_features: int,
     edge_features: int,
     k_neighbors: int,
     *,
@@ -82,13 +80,15 @@ class ProteinFeatures(eqx.Module):
       key: PRNG key for initialization.
 
     """
+    del node_features  # Unused, kept for API compatibility
+
     keys = jax.random.split(key, 3)
 
     self.k_neighbors = k_neighbors
     self.rbf_dim = 16
     self.pos_embed_dim = POS_EMBED_DIM
 
-    pos_one_hot_dim = 2 * MAXIMUM_RELATIVE_FEATURES + 2  # 66
+    pos_one_hot_dim = 2 * MAXIMUM_RELATIVE_FEATURES + 2
     edge_embed_in_dim = 416  # Match original model's edge embedding input size
 
     self.w_pos = eqx.nn.Linear(pos_one_hot_dim, POS_EMBED_DIM, key=keys[0])

@@ -114,7 +114,7 @@ def make_sample_sequences(
         Tuple of (optimized sequence, final logits, decoding order).
 
       """
-      del bias, fixed_positions, _k_neighbors  # Not used in optimization
+      del bias, fixed_positions, _k_neighbors
 
       if iterations is None:
         iterations = jnp.array(100, dtype=jnp.int32)
@@ -205,7 +205,7 @@ def make_sample_sequences(
         ... )
 
       """
-      del fixed_positions  # Not yet implemented
+      del fixed_positions
 
       if temperature is None:
         temperature = jnp.array(1.0, dtype=jnp.float32)

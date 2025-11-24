@@ -109,6 +109,10 @@ class TrainingSpecification(RunSpecification):
   use_vdw: bool = False
   physics_feature_weight: float = 1.0
 
+  # Data Augmentation & Truncation
+  max_length: int | None = None
+  truncation_strategy: Literal["random_crop", "center_crop", "none"] = "none"
+
   # Regularization
   label_smoothing: float = 0.0
   mask_strategy: Literal["random_order", "bert"] = "random_order"

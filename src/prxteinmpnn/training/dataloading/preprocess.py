@@ -28,7 +28,7 @@ import msgpack
 import msgpack_numpy as m
 import numpy as np
 import tqdm
-from array_record.python.array_record_module import (
+from array_record.python.array_record_module import (  # type: ignore[unresolved-import]
   ArrayRecordReader,
   ArrayRecordWriter,
 )

@@ -53,7 +53,7 @@ def concatenate_proteins_for_inter_mode(elements: Sequence[ProteinTuple]) -> Pro
   tries = 0
   while not all(isinstance(p, ProteinTuple) for p in elements):
     if any(isinstance(p, Sequence) for p in elements):
-      elements = [p[0] if isinstance(p, Sequence) else p for p in elements]  # type: ignore[index]
+      elements = [p[0] if isinstance(p, Sequence) else p for p in elements]  # type: ignore[invalid-assignment]
       tries += 1
     if tries > _MAX_TRIES:
       msg = "Too many nested sequences in elements; cannot collate."
@@ -106,7 +106,7 @@ def _validate_and_flatten_elements(
   tries = 0
   while not all(isinstance(p, ProteinTuple) for p in elements):
     if any(isinstance(p, Sequence) for p in elements):
-      elements = [p[0] if isinstance(p, Sequence) else p for p in elements]  # type: ignore[index]
+      elements = [p[0] if isinstance(p, Sequence) else p for p in elements]  # type: ignore[invalid-assignment]
       tries += 1
     if tries > _MAX_TRIES:
       msg = "Too many nested sequences in elements; cannot collate."

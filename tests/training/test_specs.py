@@ -42,7 +42,7 @@ def test_training_spec_requires_epochs_or_steps():
     with pytest.raises(ValueError, match="Either total_steps or num_epochs must be provided"):
         TrainingSpecification(
             inputs="data/train/",
-            num_epochs=None, # pyright: ignore[reportArgumentType]
+            num_epochs=None, # type: ignore
             total_steps=None,
         )
 def test_training_spec_invalid_precision():
@@ -51,7 +51,7 @@ def test_training_spec_invalid_precision():
         TrainingSpecification(
             inputs="data/train/",
             num_epochs=5,
-            precision="fp64",  # Invalid # pyright: ignore[reportArgumentType]
+            precision="fp64",  # Invalid # type: ignore
         )
 def test_training_spec_warmup_and_decay():
     """Test learning rate schedule parameters."""

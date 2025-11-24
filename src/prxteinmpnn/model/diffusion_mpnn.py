@@ -201,7 +201,7 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
         mask,
         residue_index,
         chain_index,
-        decoding_approach,  # type: ignore[arg-type]
+        decoding_approach,
         prng_key=prng_key,
         ar_mask=ar_mask,
         one_hot_sequence=one_hot_sequence,
@@ -281,7 +281,7 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
       mask,
       ar_mask,
       noisy_sequence,
-      prng_key,  # pyright: ignore[reportArgumentType] # Unused
+      prng_key,
       jnp.array(1.0),  # Temp unused
       jnp.zeros((mask.shape[0], 21)),  # Bias unused
       None,  # tie_group_map unused

@@ -42,6 +42,7 @@ from prxteinmpnn.utils.apc import apc_corrected_frobenius_norm
 from prxteinmpnn.utils.catjac import (
   make_combine_jac,
 )
+from prxteinmpnn.utils.sharding import create_mesh, shard_pytree
 
 from .prep import prep_protein_stream_and_model
 from .specs import JacobianSpecification
@@ -101,6 +102,11 @@ def categorical_jacobian(
   if spec is None:
     spec = JacobianSpecification(**kwargs)
 
+  # Initialize mesh if requested
+  mesh = None
+  if spec.use_sharding:
+    mesh = create_mesh()
+
   protein_iterator, model = prep_protein_stream_and_model(spec)
   model = eqx.tree_inference(model, value=True)
 
@@ -123,6 +129,7 @@ def categorical_jacobian(
       encode_fn,
       decode_fn,
       spec_hash,
+      mesh=mesh,
     )
 
   return _categorical_jacobian_in_memory(
@@ -131,6 +138,7 @@ def categorical_jacobian(
     conditional_logits_fn,
     encode_fn,
     decode_fn,
+    mesh=mesh,
   )
 
 
@@ -139,9 +147,13 @@ def _compute_batch_outputs(
   protein_iterator: IterDataset,
   conditional_logits_fn: ConditionalLogitsFn | None,
   encode_fn: Callable | None,
+  mesh: jax.sharding.Mesh | None = None,
 ) -> Generator[tuple[Any, jax.Array], None, None]:
   """Generate and yield Jacobian batches or encoding batches."""
   for batched_ensemble in protein_iterator:
+    if mesh is not None and spec.shard_batch:
+      batched_ensemble = shard_pytree(batched_ensemble, mesh)  # noqa: PLW2901
+
     if not spec.average_encodings:
       if conditional_logits_fn is None:
         msg = "conditional_logits_fn must be provided when not using average_encodings"
@@ -200,14 +212,22 @@ def _compute_batch_outputs(
           batch_size=spec.noise_batch_size,
         )
 
-      jacobians_batch = jax.vmap(mapped_fn1)(
-        batched_ensemble.coordinates,
-        batched_ensemble.mask,
-        batched_ensemble.residue_index,
-        batched_ensemble.chain_index,
-        batched_ensemble.one_hot_sequence,
-        batched_ensemble.mapping,
-      )
+      def _compute_jacobians(ensemble):
+        return jax.vmap(mapped_fn1)(
+          ensemble.coordinates,
+          ensemble.mask,
+          ensemble.residue_index,
+          ensemble.chain_index,
+          ensemble.one_hot_sequence,
+          ensemble.mapping,
+        )
+
+      if mesh is not None:
+        with mesh:
+          jacobians_batch = _compute_jacobians(batched_ensemble)
+      else:
+        jacobians_batch = _compute_jacobians(batched_ensemble)
+
       yield jacobians_batch, batched_ensemble.one_hot_sequence
     if spec.average_encodings and encode_fn is not None:
 
@@ -249,13 +269,20 @@ def _compute_batch_outputs(
           batch_size=spec.noise_batch_size,
         )
 
-      encodings_batch = jax.vmap(mapped_fn)(
-        batched_ensemble.coordinates,
-        batched_ensemble.mask,
-        batched_ensemble.residue_index,
-        batched_ensemble.chain_index,
-        batched_ensemble.mapping,
-      )
+      def _compute_encodings(ensemble):
+        return jax.vmap(mapped_fn)(
+          ensemble.coordinates,
+          ensemble.mask,
+          ensemble.residue_index,
+          ensemble.chain_index,
+          ensemble.mapping,
+        )
+
+      if mesh is not None:
+        with mesh:
+          encodings_batch = _compute_encodings(batched_ensemble)
+      else:
+        encodings_batch = _compute_encodings(batched_ensemble)
       yield encodings_batch, batched_ensemble.one_hot_sequence
 
 
@@ -339,6 +366,7 @@ def _categorical_jacobian_in_memory(
   conditional_logits_fn: Any,  # noqa: ANN401
   encode_fn: Callable | None,
   decode_fn: Callable | None,
+  mesh: jax.sharding.Mesh | None = None,
 ) -> dict[str, jax.Array | dict[str, JacobianSpecification] | None]:
   """Compute Jacobians and store them in memory."""
   output_generator = _compute_batch_outputs(
@@ -346,6 +374,7 @@ def _categorical_jacobian_in_memory(
     protein_iterator,
     conditional_logits_fn,
     encode_fn,
+    mesh=mesh,
   )
 
   if spec.average_encodings:
@@ -505,6 +534,7 @@ def _compute_and_write_jacobians_streaming(
   encode_fn: Callable | None,
   decode_fn: Callable | None,
   spec_hash: str,
+  mesh: jax.sharding.Mesh | None = None,
 ) -> None:
   """Compute Jacobians and stream them to a group in an HDF5 file."""
   group = f.require_group(spec_hash)
@@ -555,6 +585,7 @@ def _compute_and_write_jacobians_streaming(
     resumable_iterator,
     conditional_logits_fn,
     encode_fn,
+    mesh=mesh,
   ):
     current_size = jac_ds.shape[0]
     new_size = current_size + batch_output.shape[0]
@@ -589,6 +620,7 @@ def _categorical_jacobian_streaming(
   encode_fn: Callable | None,
   decode_fn: Callable | None,
   spec_hash: str,
+  mesh: jax.sharding.Mesh | None = None,
 ) -> dict[str, Any]:
   """Compute Jacobians and stream them to a group in an HDF5 file."""
   if not spec.output_h5_path:
@@ -604,6 +636,7 @@ def _categorical_jacobian_streaming(
       encode_fn,
       decode_fn,
       spec_hash,
+      mesh=mesh,
     )
 
   return {

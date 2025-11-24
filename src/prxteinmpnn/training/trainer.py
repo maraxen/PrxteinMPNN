@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import equinox as eqx
 import jax
@@ -17,6 +17,7 @@ import tqdm
 from prxteinmpnn.io.loaders import create_protein_dataset
 from prxteinmpnn.io.weights import load_model
 from prxteinmpnn.training.checkpoint import restore_checkpoint, save_checkpoint
+from prxteinmpnn.training.diffusion import NoiseSchedule
 from prxteinmpnn.training.losses import (
   cross_entropy_loss,
   perplexity,
@@ -27,12 +28,12 @@ from prxteinmpnn.training.metrics import (
   TrainingMetrics,
   compute_grad_norm,
 )
-from prxteinmpnn.training.diffusion import NoiseSchedule
 from prxteinmpnn.utils.sharding import create_mesh, shard_pytree
 
 if TYPE_CHECKING:
   from chex import ArrayTree
 
+  from prxteinmpnn.model.diffusion_mpnn import DiffusionPrxteinMPNN
   from prxteinmpnn.model.mpnn import PrxteinMPNN
   from prxteinmpnn.training.specs import TrainingSpecification
   from prxteinmpnn.utils.types import BackboneCoordinates, Logits
@@ -122,8 +123,8 @@ def _init_checkpoint_and_model(
   opt_state: ArrayTree | None = None
   if spec.resume_from_checkpoint:
     model_template = load_model(
-      spec.model_version,
-      spec.model_weights,
+      spec.model_version,  # type: ignore[invalid-argument-type]
+      spec.model_weights,  # type: ignore[invalid-argument-type]
       use_electrostatics=spec.use_electrostatics,
       use_vdw=spec.use_vdw,
     )
@@ -135,8 +136,8 @@ def _init_checkpoint_and_model(
     logger.info("Resumed from checkpoint at step %d", start_step)
   else:
     model = load_model(
-      spec.model_version,
-      spec.model_weights,
+      spec.model_version,  # type: ignore[invalid-argument-type]
+      spec.model_weights,  # type: ignore[invalid-argument-type]
       use_electrostatics=spec.use_electrostatics,
       use_vdw=spec.use_vdw,
       training_mode=spec.training_mode,
@@ -286,13 +287,15 @@ def train_step(  # noqa: PLR0913
 
       if training_mode == "diffusion":
         if noise_schedule is None:
-          raise ValueError("noise_schedule required for diffusion training")
+          msg = "noise_schedule required for diffusion training"
+          raise ValueError(msg)
 
         t = jax.random.randint(subkey, (), 0, noise_schedule.num_steps)
         noise = jax.random.normal(subkey, one_hot_seq.shape)
         noisy_seq, _ = noise_schedule.sample_forward(one_hot_seq, t, noise)
-        
-        _, logits = model(
+
+        diff_model = cast("DiffusionPrxteinMPNN", model)
+        _, logits = diff_model(
             coords,
             mask,
             res_idx,
@@ -318,7 +321,7 @@ def train_step(  # noqa: PLR0913
       )
       return logits
 
-    
+
     logits_batch = jax.vmap(single_forward)(
       coordinates,
       mask,
@@ -388,8 +391,8 @@ def eval_step(
       sequence: Target sequence (batched)
       prng_key: PRNG key
       physics_features: Optional physics features (if used)
-      use_electrostatics: Whether to use electrostatic features
-      _use_vdw: Whether to use van der Waals features
+      training_mode: "autoregressive" or "diffusion"
+      noise_schedule: Noise schedule for diffusion training
 
   Returns:
       Evaluation metrics
@@ -403,22 +406,25 @@ def eval_step(
     msk: jax.Array,
     res_idx: jax.Array,
     chain_idx: jax.Array,
+    seq: jax.Array,
     key: jax.Array,
     phys_feat: jax.Array | None = None,
   ) -> Logits:
     """Forward pass for a single protein."""
     inference_model = eqx.nn.inference_mode(model)
-    
+
     if training_mode == "diffusion":
         if noise_schedule is None:
-          raise ValueError("noise_schedule required for diffusion evaluation")
-             
+          msg = "noise_schedule required for diffusion evaluation"
+          raise ValueError(msg)
+
         t = jax.random.randint(key, (), 0, noise_schedule.num_steps)
         one_hot_seq = jax.nn.one_hot(seq, 21)
         noise = jax.random.normal(key, one_hot_seq.shape)
         noisy_seq, _ = noise_schedule.sample_forward(one_hot_seq, t, noise)
-        
-        _, logits = inference_model(
+
+        diff_model = cast("DiffusionPrxteinMPNN", inference_model)
+        _, logits = diff_model(
             coords,
             msk,
             res_idx,
@@ -447,6 +453,7 @@ def eval_step(
     mask,
     residue_index,
     chain_index,
+    sequence,
     batch_keys,
     physics_features,
   )
@@ -673,8 +680,6 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
 
   logger.info("Training complete!")
 
-  logger.info("Training complete!")
-
   # Final Test Loop
   logger.info("Starting final test evaluation...")
   test_loader = None
@@ -704,55 +709,55 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
       split="test",
     )
 
-      test_metrics_list = []
-      for test_batch in tqdm.tqdm(test_loader, desc="Testing"):
-          prng_key, subkey = jax.random.split(prng_key)
+    test_metrics_list = []
+    for test_batch in tqdm.tqdm(test_loader, desc="Testing"):
+      prng_key, subkey = jax.random.split(prng_key)
 
-          if mesh is not None and spec.shard_batch:
-            test_batch = shard_pytree(test_batch, mesh)  # noqa: PLW2901
+      if mesh is not None and spec.shard_batch:
+        test_batch = shard_pytree(test_batch, mesh)  # noqa: PLW2901
 
-          if mesh is not None:
-            with mesh:
-              test_metrics = eqx.filter_jit(eval_step)(
-                model,
-                test_batch.coordinates,
-                test_batch.mask,
-                test_batch.residue_index,
-                test_batch.chain_index,
-                test_batch.aatype,
-                subkey,
-                test_batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
-                spec.training_mode,
-                noise_schedule,
-              )
-          else:
-            test_metrics = eqx.filter_jit(eval_step)(
-              model,
-              test_batch.coordinates,
-              test_batch.mask,
-              test_batch.residue_index,
-              test_batch.chain_index,
-              test_batch.aatype,
-              subkey,
-              test_batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
-              spec.training_mode,
-              noise_schedule,
-            )
-          test_metrics_list.append(test_metrics)
-
-      if test_metrics_list:
-          avg_test_loss = jnp.mean(jnp.array([m.val_loss for m in test_metrics_list]))
-          avg_test_acc = jnp.mean(jnp.array([m.val_accuracy for m in test_metrics_list]))
-          avg_test_ppl = jnp.mean(jnp.array([m.val_perplexity for m in test_metrics_list]))
-
-          logger.info("=" * 40)
-          logger.info("Final Test Results:")
-          logger.info("  Loss: %.4f", jax.device_get(avg_test_loss).item())
-          logger.info("  Accuracy: %.4f", jax.device_get(avg_test_acc).item())
-          logger.info("  Perplexity: %.4f", jax.device_get(avg_test_ppl).item())
-          logger.info("=" * 40)
+      if mesh is not None:
+        with mesh:
+          test_metrics = eqx.filter_jit(eval_step)(
+            model,
+            test_batch.coordinates,
+            test_batch.mask,
+            test_batch.residue_index,
+            test_batch.chain_index,
+            test_batch.aatype,
+            subkey,
+            test_batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
+            spec.training_mode,
+            noise_schedule,
+          )
       else:
-          logger.warning("Test loader was empty. No test metrics computed.")
+        test_metrics = eqx.filter_jit(eval_step)(
+          model,
+          test_batch.coordinates,
+          test_batch.mask,
+          test_batch.residue_index,
+          test_batch.chain_index,
+          test_batch.aatype,
+          subkey,
+          test_batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
+          spec.training_mode,
+          noise_schedule,
+        )
+      test_metrics_list.append(test_metrics)
+
+    if test_metrics_list:
+      avg_test_loss = jnp.mean(jnp.array([m.val_loss for m in test_metrics_list]))
+      avg_test_acc = jnp.mean(jnp.array([m.val_accuracy for m in test_metrics_list]))
+      avg_test_ppl = jnp.mean(jnp.array([m.val_perplexity for m in test_metrics_list]))
+
+      logger.info("=" * 40)
+      logger.info("Final Test Results:")
+      logger.info("  Loss: %.4f", jax.device_get(avg_test_loss).item())
+      logger.info("  Accuracy: %.4f", jax.device_get(avg_test_acc).item())
+      logger.info("  Perplexity: %.4f", jax.device_get(avg_test_ppl).item())
+      logger.info("=" * 40)
+    else:
+      logger.warning("Test loader was empty. No test metrics computed.")
 
   except Exception:  # noqa: BLE001
     logger.warning(

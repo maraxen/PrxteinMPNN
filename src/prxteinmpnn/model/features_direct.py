@@ -124,7 +124,7 @@ class ProteinFeaturesDirect(eqx.Module):
 
     distances_masked = jnp.array(
       jnp.where(
-        (mask[:, None] * mask[None, :]).astype(bool),
+        (mask[:, None] * mask[None, :]).astype(jnp.bool_),
         distances,
         jnp.inf,
       ),
@@ -138,7 +138,7 @@ class ProteinFeaturesDirect(eqx.Module):
     neighbor_offsets = compute_neighbor_offsets(residue_index, neighbor_indices)
 
     # Get edge chains neighbors
-    edge_chains = (chain_index[:, None] == chain_index[None, :]).astype(int)
+    edge_chains = (chain_index[:, None] == chain_index[None, :]).astype(jnp.int32)
     edge_chains_neighbors = jnp.take_along_axis(
       edge_chains,
       neighbor_indices,

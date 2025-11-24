@@ -20,6 +20,7 @@ if TYPE_CHECKING:
   from grain.python import IterDataset
   from jaxtyping import Float, Int
 
+  from prxteinmpnn.utils.data_structures import Protein
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
     AutoRegressiveMask,
@@ -142,6 +143,130 @@ def categorical_jacobian(
   )
 
 
+def _compute_jacobians_for_batch(
+  ensemble: Protein,
+  spec: JacobianSpecification,
+  conditional_logits_fn: ConditionalLogitsFn,
+) -> jax.Array:
+  """Compute Jacobians for a batch of structures."""
+
+  def compute_jacobian_for_structure(
+    coords: StructureAtomicCoordinates,
+    mask: AlphaCarbonMask,
+    residue_ix: ResidueIndex,
+    chain_ix: ChainIndex,
+    one_hot_sequence: OneHotProteinSequence,
+    noise: Float,
+    struct_mapping: jax.Array | None,
+  ) -> Logits:
+    def logit_fn(one_hot_flat: jax.Array) -> jax.Array:
+      one_hot_2d = one_hot_flat.reshape(one_hot_sequence.shape)
+      logits = conditional_logits_fn(
+        jax.random.key(spec.random_seed),
+        coords,
+        mask,
+        residue_ix,
+        chain_ix,
+        one_hot_2d,
+        None,  # ar_mask
+        noise,  # backbone_noise
+        struct_mapping,  # structure_mapping
+      )
+      return logits.flatten()
+
+    return _compute_jacobian_from_logit_fn(
+      logit_fn,
+      one_hot_sequence,
+      spec.jacobian_batch_size,
+    )
+
+  def mapped_fn1(
+    coords: StructureAtomicCoordinates,
+    mask: AlphaCarbonMask,
+    residue_ix: ResidueIndex,
+    chain_ix: ChainIndex,
+    one_hot_sequence: OneHotProteinSequence,
+    struct_mapping: jax.Array | None,
+  ) -> jax.Array:
+    """Compute Jacobians for a single structure across multiple noise levels."""
+    return jax.lax.map(
+      partial(
+        compute_jacobian_for_structure,
+        coords,
+        mask,
+        residue_ix,
+        chain_ix,
+        one_hot_sequence,
+        struct_mapping=struct_mapping,
+      ),
+      jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
+      batch_size=spec.noise_batch_size,
+    )
+
+  return jax.vmap(mapped_fn1)(
+    ensemble.coordinates,
+    ensemble.mask,
+    ensemble.residue_index,
+    ensemble.chain_index,
+    ensemble.one_hot_sequence,
+    ensemble.mapping,
+  )
+
+
+def _compute_encodings_for_batch(
+  ensemble: Protein,
+  spec: JacobianSpecification,
+  encode_fn: Callable,
+) -> Any:  # noqa: ANN401
+  """Compute encodings for a batch of structures."""
+
+  def compute_encodings_for_structure(
+    coords: StructureAtomicCoordinates,
+    mask: AlphaCarbonMask,
+    residue_ix: ResidueIndex,
+    chain_ix: ChainIndex,
+    noise: Float,
+    struct_mapping: jax.Array | None,
+  ) -> tuple[NodeFeatures, EdgeFeatures, NeighborIndices, AlphaCarbonMask, AutoRegressiveMask]:
+    return encode_fn(
+      coords,
+      mask,
+      residue_ix,
+      chain_ix,
+      backbone_noise=noise,
+      structure_mapping=struct_mapping,
+    )
+
+  def mapped_fn(
+    coords: StructureAtomicCoordinates,
+    mask: AlphaCarbonMask,
+    residue_ix: ResidueIndex,
+    chain_ix: ChainIndex,
+    struct_mapping: jax.Array | None,
+  ) -> jax.Array:
+    """Compute encodings for a single structure across multiple noise levels."""
+    return jax.lax.map(
+      partial(
+        compute_encodings_for_structure,
+        coords,
+        mask,
+        residue_ix,
+        chain_ix,
+        struct_mapping=struct_mapping,
+      ),
+      jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
+      batch_size=spec.noise_batch_size,
+    )
+
+  return jax.vmap(mapped_fn)(
+    ensemble.coordinates,
+    ensemble.mask,
+    ensemble.residue_index,
+    ensemble.chain_index,
+    ensemble.mapping,
+  )
+
+
 def _compute_batch_outputs(
   spec: JacobianSpecification,
   protein_iterator: IterDataset,
@@ -159,130 +284,27 @@ def _compute_batch_outputs(
         msg = "conditional_logits_fn must be provided when not using average_encodings"
         raise ValueError(msg)
 
-      def compute_jacobian_for_structure(
-        coords: StructureAtomicCoordinates,
-        mask: AlphaCarbonMask,
-        residue_ix: ResidueIndex,
-        chain_ix: ChainIndex,
-        one_hot_sequence: OneHotProteinSequence,
-        noise: Float,
-        struct_mapping: jax.Array | None,
-      ) -> Logits:
-        def logit_fn(one_hot_flat: jax.Array) -> jax.Array:
-          one_hot_2d = one_hot_flat.reshape(one_hot_sequence.shape)
-          logits = conditional_logits_fn(
-            jax.random.key(spec.random_seed),
-            coords,
-            mask,
-            residue_ix,
-            chain_ix,
-            one_hot_2d,
-            None,  # ar_mask
-            noise,  # backbone_noise
-            struct_mapping,  # structure_mapping
-          )
-          return logits.flatten()
-
-        return _compute_jacobian_from_logit_fn(
-          logit_fn,
-          one_hot_sequence,
-          spec.jacobian_batch_size,
-        )
-
-      def mapped_fn1(
-        coords: StructureAtomicCoordinates,
-        mask: AlphaCarbonMask,
-        residue_ix: ResidueIndex,
-        chain_ix: ChainIndex,
-        one_hot_sequence: OneHotProteinSequence,
-        struct_mapping: jax.Array | None,
-      ) -> jax.Array:
-        """Compute Jacobians for a single structure across multiple noise levels."""
-        return jax.lax.map(
-          partial(
-            compute_jacobian_for_structure,
-            coords,
-            mask,
-            residue_ix,
-            chain_ix,
-            one_hot_sequence,
-            struct_mapping=struct_mapping,
-          ),
-          jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
-          batch_size=spec.noise_batch_size,
-        )
-
-      def _compute_jacobians(ensemble):
-        return jax.vmap(mapped_fn1)(
-          ensemble.coordinates,
-          ensemble.mask,
-          ensemble.residue_index,
-          ensemble.chain_index,
-          ensemble.one_hot_sequence,
-          ensemble.mapping,
-        )
-
       if mesh is not None:
         with mesh:
-          jacobians_batch = _compute_jacobians(batched_ensemble)
+          jacobians_batch = _compute_jacobians_for_batch(
+            batched_ensemble,
+            spec,
+            conditional_logits_fn,
+          )
       else:
-        jacobians_batch = _compute_jacobians(batched_ensemble)
+        jacobians_batch = _compute_jacobians_for_batch(
+          batched_ensemble,
+          spec,
+          conditional_logits_fn,
+        )
 
       yield jacobians_batch, batched_ensemble.one_hot_sequence
     if spec.average_encodings and encode_fn is not None:
-
-      def compute_encodings_for_structure(
-        coords: StructureAtomicCoordinates,
-        mask: AlphaCarbonMask,
-        residue_ix: ResidueIndex,
-        chain_ix: ChainIndex,
-        noise: Float,
-        struct_mapping: jax.Array | None,
-      ) -> tuple[NodeFeatures, EdgeFeatures, NeighborIndices, AlphaCarbonMask, AutoRegressiveMask]:
-        return encode_fn(
-          coords,
-          mask,
-          residue_ix,
-          chain_ix,
-          backbone_noise=noise,
-          structure_mapping=struct_mapping,
-        )
-
-      def mapped_fn(
-        coords: StructureAtomicCoordinates,
-        mask: AlphaCarbonMask,
-        residue_ix: ResidueIndex,
-        chain_ix: ChainIndex,
-        struct_mapping: jax.Array | None,
-      ) -> jax.Array:
-        """Compute encodings for a single structure across multiple noise levels."""
-        return jax.lax.map(
-          partial(
-            compute_encodings_for_structure,
-            coords,
-            mask,
-            residue_ix,
-            chain_ix,
-            struct_mapping=struct_mapping,
-          ),
-          jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
-          batch_size=spec.noise_batch_size,
-        )
-
-      def _compute_encodings(ensemble):
-        return jax.vmap(mapped_fn)(
-          ensemble.coordinates,
-          ensemble.mask,
-          ensemble.residue_index,
-          ensemble.chain_index,
-          ensemble.mapping,
-        )
-
       if mesh is not None:
         with mesh:
-          encodings_batch = _compute_encodings(batched_ensemble)
+          encodings_batch = _compute_encodings_for_batch(batched_ensemble, spec, encode_fn)
       else:
-        encodings_batch = _compute_encodings(batched_ensemble)
+        encodings_batch = _compute_encodings_for_batch(batched_ensemble, spec, encode_fn)
       yield encodings_batch, batched_ensemble.one_hot_sequence
 
 

@@ -216,8 +216,8 @@ def combine_jacobians_h5_stream(
       mapping = align_sequences(jnp.stack([seq_i, seq_j]))[0]
       return _combine_fn(jac_i, jac_j, mapping, pair_weights), mapping
 
-    out_shape = (jacobians_dset.shape[1] ** 2, *jacobians_dset.shape[2:])  # pyright: ignore[reportAttributeAccessIssue]
-    n_residues = sequences_dset.shape[1]  # pyright: ignore[reportAttributeAccessIssue]
+    out_shape = (jacobians_dset.shape[1] ** 2, *jacobians_dset.shape[2:])
+    n_residues = sequences_dset.shape[1]
 
     chunk_size = min(batch_size, 100, total_pairs)
     dset = f.create_dataset(

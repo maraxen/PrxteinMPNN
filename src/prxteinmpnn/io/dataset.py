@@ -42,7 +42,7 @@ class ProteinDataSource(grain.RandomAccessDataSource):
       frame_iterator_from_inputs(
         self.inputs,
         self.parse_kwargs,
-        self.foldcomp_database,  # type: ignore[arg-type]
+        self.foldcomp_database,
       ),
     )
     self._length = len(self.frames)

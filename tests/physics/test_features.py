@@ -148,10 +148,10 @@ def test_compute_electrostatic_features_batch_max_length_too_small(
         compute_electrostatic_features_batch(proteins, max_length=max_length)
 
 
-def test_compute_electrostatic_node_features_temperature_mode(
+def test_compute_electrostatic_node_features_thermal_mode(
     pqr_protein_tuple: ProteinTuple,
 ):
-    """Test that temperature mode works correctly."""
+    """Test that thermal mode works correctly."""
     # Use a dummy key for noise
     key = jax.random.key(0)
 
@@ -164,7 +164,7 @@ def test_compute_electrostatic_node_features_temperature_mode(
         key=key,
     )
 
-    # Mode: temperature
+    # Mode: thermal
     # Calculate T such that sigma is roughly 1.0
     # sigma = sqrt(0.5 * R * T) => sigma^2 = 0.5 * R * T => T = sigma^2 / (0.5 * R)
     from prxteinmpnn.physics.constants import BOLTZMANN_KCAL
@@ -174,7 +174,7 @@ def test_compute_electrostatic_node_features_temperature_mode(
     features_temp = compute_electrostatic_node_features(
         pqr_protein_tuple,
         noise_scale=t,
-        noise_mode="temperature",
+        noise_mode="thermal",
         key=key,
     )
 

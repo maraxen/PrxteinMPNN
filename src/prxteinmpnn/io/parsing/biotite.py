@@ -159,6 +159,7 @@ def _parse_biotite(
   estat_info: EstatInfo | None = None,
   *,
   extract_dihedrals: bool = False,
+  add_hydrogens: bool = True,
   **kwargs: Any,  # noqa: ANN401
 ) -> ProteinStream:
   """Parse standard structure files using biotite."""
@@ -175,7 +176,7 @@ def _parse_biotite(
       model=model,
       altloc=altloc,
       topology=topology,
-      add_hydrogens=True,
+      add_hydrogens=add_hydrogens,
       **kwargs,
     )
 

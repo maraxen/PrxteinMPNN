@@ -117,7 +117,7 @@ class ProteinFeatures(eqx.Module):
       residue_index: Residue indices.
       chain_index: Chain indices.
       backbone_noise: Noise to add to backbone coordinates.
-      backbone_noise_mode: Mode for backbone noise ("direct" or "temperature").
+      backbone_noise_mode: Mode for backbone noise ("direct" or "thermal").
       structure_mapping: Optional (N,) array mapping each residue to a structure ID.
                         When provided (multi-state mode), prevents cross-structure
                         neighbors to avoid information leakage between conformational states.
@@ -133,12 +133,11 @@ class ProteinFeatures(eqx.Module):
       backbone_noise = jnp.array(0.0, dtype=jnp.float32)
 
     # Resolve Sigma
-    if backbone_noise_mode == "temperature":
+    if backbone_noise_mode == "thermal":
       # Apply 0.5 factor here as well for consistency
       thermal_energy = jnp.maximum(0.5 * BOLTZMANN_KCAL * backbone_noise, 0.0)
       final_sigma = jnp.sqrt(thermal_energy)
     else:
-      # Direct mode: value is sigma
       final_sigma = backbone_noise
 
     noised_coordinates, prng_key = apply_noise_to_coordinates(

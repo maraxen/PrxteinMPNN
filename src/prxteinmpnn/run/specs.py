@@ -68,11 +68,11 @@ class RunSpecification:
   model_version: ModelVersion = "v_48_020"
   batch_size: int = 32
   backbone_noise: Sequence[float] | float = (0.0,)
-  backbone_noise_mode: Literal["direct", "temperature"] = "direct"
+  backbone_noise_mode: Literal["direct", "thermal"] = "direct"
   estat_noise: Sequence[float] | float | None = None
-  estat_noise_mode: Literal["direct", "temperature"] = "direct"
+  estat_noise_mode: Literal["direct", "thermal"] = "direct"
   vdw_noise: Sequence[float] | float | None = None
-  vdw_noise_mode: Literal["direct", "temperature"] = "direct"
+  vdw_noise_mode: Literal["direct", "thermal"] = "direct"
   foldcomp_database: FoldCompDatabase | None = None
   ar_mask: None | ArrayLike = None
   random_seed: int = 42

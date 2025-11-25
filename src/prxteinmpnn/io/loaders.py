@@ -23,6 +23,10 @@ def create_protein_dataset(
   *,
   use_electrostatics: bool = False,
   use_vdw: bool = False,
+  estat_noise: Sequence[float] | float | None = None,
+  estat_noise_mode: str = "direct",
+  vdw_noise: Sequence[float] | float | None = None,
+  vdw_noise_mode: str = "direct",
   use_preprocessed: bool = False,
   preprocessed_index_path: str | Path | None = None,
   split: str = "train",
@@ -40,6 +44,10 @@ def create_protein_dataset(
       pass_mode: "intra" (default) for normal batching, "inter" for concatenation.
       use_electrostatics: Whether to compute and include electrostatic features.
       use_vdw: Whether to compute and include van der Waals features.
+      estat_noise: Noise level(s) for electrostatics.
+      estat_noise_mode: Mode for electrostatic noise.
+      vdw_noise: Noise level(s) for vdW.
+      vdw_noise_mode: Mode for vdW noise.
       use_preprocessed: If True, load from preprocessed array_record files
       preprocessed_index_path: Path to index file (required if use_preprocessed=True)
       split: Data split to load ("train", "valid", "test")
@@ -120,6 +128,10 @@ def create_protein_dataset(
       operations.pad_and_collate_proteins,
       use_electrostatics=use_electrostatics,
       use_vdw=use_vdw,
+      estat_noise=estat_noise,
+      estat_noise_mode=estat_noise_mode,
+      vdw_noise=vdw_noise,
+      vdw_noise_mode=vdw_noise_mode,
       max_length=max_length,
     )
   )

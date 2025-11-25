@@ -73,6 +73,8 @@ class RunSpecification:
   estat_noise_mode: Literal["direct", "thermal"] = "direct"
   vdw_noise: Sequence[float] | float | None = None
   vdw_noise_mode: Literal["direct", "thermal"] = "direct"
+  use_electrostatics: bool = False
+  use_vdw: bool = False
   foldcomp_database: FoldCompDatabase | None = None
   ar_mask: None | ArrayLike = None
   random_seed: int = 42
@@ -102,8 +104,13 @@ class RunSpecification:
       object.__setattr__(self, "backbone_noise", (self.backbone_noise,))
     if isinstance(self.estat_noise, float):
       object.__setattr__(self, "estat_noise", (self.estat_noise,))
+    if self.estat_noise is not None:
+      object.__setattr__(self, "use_electrostatics", True)
+
     if isinstance(self.vdw_noise, float):
       object.__setattr__(self, "vdw_noise", (self.vdw_noise,))
+    if self.vdw_noise is not None:
+      object.__setattr__(self, "use_vdw", True)
     if self.cache_path and isinstance(self.cache_path, str):
       object.__setattr__(self, "cache_path", Path(self.cache_path))
     # Validation for tied_positions and pass_mode

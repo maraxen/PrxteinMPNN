@@ -182,12 +182,16 @@ def _apply_electrostatics_if_needed(
   elements: list[ProteinTuple],
   *,
   use_electrostatics: bool,
+  estat_noise: Sequence[float] | float | None = None,
+  estat_noise_mode: str = "direct",
 ) -> list[ProteinTuple]:
   """Apply electrostatic features if requested.
 
   Args:
     elements (list[ProteinTuple]): List of protein tuples.
     use_electrostatics (bool): Whether to compute and add electrostatic features.
+    estat_noise: Noise level(s) for electrostatics.
+    estat_noise_mode: Mode for electrostatic noise ("direct" or "thermal").
 
   Returns:
     list[ProteinTuple]: Updated list with electrostatic features if requested.
@@ -195,7 +199,26 @@ def _apply_electrostatics_if_needed(
   """
   if not use_electrostatics:
     return elements
-  phys_feats, _ = compute_electrostatic_features_batch(elements)
+
+  # Handle noise broadcasting if needed, or just pass single value if uniform
+  # For now, assuming uniform noise for the batch or handling inside feature computation
+  # compute_electrostatic_features_batch doesn't take noise yet, we need to update it or call node features directly
+  # Actually compute_electrostatic_features_batch calls compute_electrostatic_node_features per protein.
+  # We can pass the noise value there.
+
+  noise_val = estat_noise
+  if isinstance(noise_val, Sequence):
+      noise_val = noise_val[0] # Simple handling for now
+
+  phys_feats = []
+  for p in elements:
+      feat = compute_electrostatic_node_features(
+          p,
+          noise_scale=noise_val,
+          noise_mode=estat_noise_mode
+      )
+      phys_feats.append(feat)
+
   return [p._replace(physics_features=feat) for p, feat in zip(elements, phys_feats, strict=False)]
 
 
@@ -279,6 +302,10 @@ def pad_and_collate_proteins(
   *,
   use_electrostatics: bool = False,
   use_vdw: bool = False,  # noqa: ARG001
+  estat_noise: Sequence[float] | float | None = None,
+  estat_noise_mode: str = "direct",
+  vdw_noise: Sequence[float] | float | None = None, # noqa: ARG001
+  vdw_noise_mode: str = "direct", # noqa: ARG001
   max_length: int | None = None,
 ) -> Protein:
   """Batch and pad a list of ProteinTuples into a ProteinBatch.
@@ -290,6 +317,10 @@ def pad_and_collate_proteins(
     elements (list[ProteinTuple]): List of protein tuples to collate.
     use_electrostatics (bool): Whether to compute and add electrostatic features.
     use_vdw (bool): Placeholder for van der Waals features (not implemented).
+    estat_noise: Noise level(s) for electrostatics.
+    estat_noise_mode: Mode for electrostatic noise.
+    vdw_noise: Noise level(s) for vdW.
+    vdw_noise_mode: Mode for vdW noise.
     max_length (int | None): Fixed length to pad all proteins to. If None, pads to
       the maximum length in the batch (variable per batch).
 
@@ -305,7 +336,12 @@ def pad_and_collate_proteins(
 
   """
   elements = _validate_and_flatten_elements(elements)
-  elements = _apply_electrostatics_if_needed(elements, use_electrostatics=use_electrostatics)
+  elements = _apply_electrostatics_if_needed(
+      elements,
+      use_electrostatics=use_electrostatics,
+      estat_noise=estat_noise,
+      estat_noise_mode=estat_noise_mode,
+  )
   proteins = [Protein.from_tuple(p) for p in elements]
 
   # Use fixed max_length if provided, otherwise use max in batch

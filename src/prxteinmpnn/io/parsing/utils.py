@@ -272,7 +272,7 @@ def processed_structure_to_protein_tuples(
   *,
   extract_dihedrals: bool = False,
   populate_physics: bool = True,
-  force_field_name: str = "amber14-all",
+  force_field_name: str = "ff14SB",
 ) -> ProteinStream:
   """Convert a ProcessedStructure into a stream of ProteinTuples.
 
@@ -285,24 +285,16 @@ def processed_structure_to_protein_tuples(
 
   """
   atom_array = processed_structure.atom_array
-
-  # Extract static features
-  # We assume the AtomArray in ProcessedStructure is what we want to process.
-  # So we pass chain_id=None to _extract_biotite_static_features.
-
   static_features, atom_array = _extract_biotite_static_features(atom_array, chain_id=None)
-
   charges, radii, sigmas, epsilons = _resolve_physics_parameters(
     processed_structure,
     atom_array,
     populate_physics=populate_physics,
     force_field_name=force_field_name,
   )
-
   num_frames = atom_array.stack_depth() if isinstance(atom_array, AtomArrayStack) else 1
   frame_count = 0
 
-  # Helper for yielding logic
   def _yield_protein_tuple(frame: AtomArray) -> ProteinTuple:
     dihedrals = None
     if extract_dihedrals:
@@ -315,7 +307,6 @@ def processed_structure_to_protein_tuples(
       static_features.static_atom_mask_37,
       static_features.valid_atom_mask,
     )
-    # Compute electrostatic metadata
     estat_backbone_mask = np.isin(frame.atom_name, ["N", "CA", "C", "O"])
     estat_resid = frame.res_id.astype(np.int32)
     estat_chain_index = _get_chain_index(frame)

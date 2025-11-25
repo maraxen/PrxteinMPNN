@@ -60,9 +60,9 @@ class PreprocessingSpecification:
   group_size: int = 1
 
   estat_noise: Sequence[float] | float | None = None
-  estat_noise_mode: Literal["direct", "temperature"] = "direct"
+  estat_noise_mode: Literal["direct", "thermal"] = "direct"
   vdw_noise: Sequence[float] | float | None = None
-  vdw_noise_mode: Literal["direct", "temperature"] = "direct"
+  vdw_noise_mode: Literal["direct", "thermal"] = "direct"
 
   # Derived paths
   index_file: Path = field(init=False)

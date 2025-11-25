@@ -28,8 +28,8 @@ def _resolve_sigma(
   Args:
       value: The noise parameter.
              - If mode='direct', this is the raw sigma.
-             - If mode='temperature', this is T (Kelvin).
-      mode: 'direct' or 'temperature'.
+             - If mode='thermal', this is T (Kelvin).
+      mode: 'direct' or 'thermal'.
 
   Returns:
       The calculated standard deviation (sigma).
@@ -44,7 +44,7 @@ def _resolve_sigma(
   if mode == "direct":
     return val
 
-  if mode == "temperature":
+  if mode == "thermal":
     # Physics Formula: sigma = sqrt(0.5 * R * T)
     # We clamp T to 0.0 to prevent NaN from negative sqrt
     thermal_energy = jnp.maximum(0.5 * BOLTZMANN_KCAL * val, 0.0)
@@ -81,7 +81,7 @@ def compute_electrostatic_node_features(
         - charges: (n_residues, n_atom_types) partial charges for all atoms
         - aatype: (n_residues,) amino acid type indices
       noise_scale: Scale of Gaussian noise to add to forces (default: 0.0).
-      noise_mode: 'direct' or 'temperature'.
+      noise_mode: 'direct' or 'thermal'.
       key: PRNG key for noise generation (required if noise_scale > 0).
 
   Returns:
@@ -166,7 +166,7 @@ def compute_vdw_node_features(
         - sigmas: (n_atoms,) LJ sigma parameters
         - epsilons: (n_atoms,) LJ epsilon parameters
       noise_scale: Scale of Gaussian noise to add to forces.
-      noise_mode: 'direct' or 'temperature'.
+      noise_mode: 'direct' or 'thermal'.
       key: PRNG key for noise generation.
 
   Returns:

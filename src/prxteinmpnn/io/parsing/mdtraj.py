@@ -228,6 +228,7 @@ def _add_hydrogens_if_needed(atom_array: AtomArray) -> AtomArray:
 def _process_mdtraj_chunk(
   traj_chunk: md.Trajectory,
   chain_id: Sequence[str] | str | None,
+  add_hydrogens: bool = True,
 ) -> ProcessedStructure:
   """Process a single MDTraj chunk."""
   logger.debug("Processing MDTraj chunk with %d frames.", traj_chunk.n_frames)
@@ -250,7 +251,7 @@ def _process_mdtraj_chunk(
       atom_array = atom_array[~solvent_mask]
 
   # Add hydrogens if missing
-  if isinstance(atom_array, AtomArray):  # Only for single frames
+  if add_hydrogens and isinstance(atom_array, AtomArray):  # Only for single frames
     atom_array = _add_hydrogens_if_needed(atom_array)
 
   # Re-derive chain indices from atom_array.chain_id
@@ -273,6 +274,7 @@ def parse_mdtraj_to_processed_structure(
   *,
   extract_dihedrals: bool = False,  # noqa: ARG001
   topology: str | pathlib.Path | None = None,
+  add_hydrogens: bool = True,
 ) -> Iterator[ProcessedStructure]:
   """Parse HDF5 structure files directly using mdtraj."""
   logger.info("Starting MDTraj HDF5 parsing for source: %s", source)
@@ -298,7 +300,7 @@ def parse_mdtraj_to_processed_structure(
     frame_count = 0
 
     for traj_chunk in traj_iterator:
-      processed_chunk = _process_mdtraj_chunk(traj_chunk, chain_id)
+      processed_chunk = _process_mdtraj_chunk(traj_chunk, chain_id, add_hydrogens=add_hydrogens)
       if isinstance(processed_chunk.atom_array, AtomArrayStack):
         frame_count += processed_chunk.atom_array.stack_depth()
       else:

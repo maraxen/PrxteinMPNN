@@ -52,7 +52,7 @@ class PreprocessingSpecification:
   input_dir: Path
   output_file: Path
   num_workers: int = 8
-  force_field: str = "amber14-all"
+  force_field: str = "ff14SB"
   resume_from_checkpoint: bool = True
   compute_lj: bool = False  # Not implemented yet
   compression: str = "zstd:9"

@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 def populate_physics_parameters(
   atom_array: AtomArray,
   force_field: FullForceField | None = None,
-  force_field_name: str = "amber14-all",
+  force_field_name: str = "ff14SB",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
   """Populate physics parameters from force field for atoms without explicit values.
 

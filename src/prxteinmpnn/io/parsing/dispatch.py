@@ -114,10 +114,15 @@ def parse_input(  # noqa: C901, PLR0912, PLR0915
         return
       if path.suffix.lower() in {".h5", ".hdf5"}:
         h5_structure = _determine_h5_structure(path)
+        add_hydrogens = kwargs.get("add_hydrogens", True)
 
         if h5_structure == "mdcath":
           logger.info("Dispatching to mdCATH HDF5 parser.")
-          for processed in parse_mdcath_to_processed_structure(path, chain_id):
+          for processed in parse_mdcath_to_processed_structure(
+            path,
+            chain_id,
+            add_hydrogens=add_hydrogens,
+          ):
             yield from processed_structure_to_protein_tuples(
               processed,
               str(path),
@@ -129,6 +134,7 @@ def parse_input(  # noqa: C901, PLR0912, PLR0915
             path,
             chain_id,
             topology=topology,
+            add_hydrogens=add_hydrogens,
           ):
             yield from processed_structure_to_protein_tuples(
               processed,

@@ -63,6 +63,7 @@ def _process_mdcath_frame(
   frame_coords_full: np.ndarray,
   resnames: np.ndarray,
   static_features: TrajectoryStaticFeatures,
+  add_hydrogens: bool = True,
 ) -> ProcessedStructure:
   """Process a single MDCATH frame."""
   process_coordinates(
@@ -107,7 +108,8 @@ def _process_mdcath_frame(
     logger.info("Removing %d solvent atoms from MDCATH frame", n_solvent)
     atom_array = atom_array[~solvent_mask]
 
-  atom_array = _add_hydrogens_mdcath(cast("AtomArray", atom_array))
+  if add_hydrogens:
+    atom_array = _add_hydrogens_mdcath(cast("AtomArray", atom_array))
 
   return ProcessedStructure(
     atom_array=atom_array,
@@ -218,6 +220,7 @@ def _get_static_features_mdcath(
 def parse_mdcath_to_processed_structure(
   source: str | StringIO | pathlib.Path,
   chain_id: Sequence[str] | str | None,
+  add_hydrogens: bool = True,
 ) -> Iterator[ProcessedStructure]:
   """Parse mdCATH HDF5 files."""
   logger.info("Starting mdCATH HDF5 parsing for source: %s", source)
@@ -237,7 +240,12 @@ def parse_mdcath_to_processed_structure(
       frame_count = 0
       for frame_coords_full in _iter_mdcath_frames(domain_group):
         frame_count += 1
-        yield _process_mdcath_frame(frame_coords_full, resnames, static_features)
+        yield _process_mdcath_frame(
+          frame_coords_full,
+          resnames,
+          static_features,
+          add_hydrogens=add_hydrogens,
+        )
 
       logger.info("Finished mdCATH HDF5 parsing. Yielded %d frames.", frame_count)
 

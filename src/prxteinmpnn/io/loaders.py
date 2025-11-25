@@ -66,6 +66,9 @@ def create_protein_dataset(
 
   """
   parse_kwargs = parse_kwargs or {}
+  # Only add hydrogens/relax if we need physics features
+  if "add_hydrogens" not in parse_kwargs:
+    parse_kwargs["add_hydrogens"] = use_electrostatics or use_vdw
 
   if use_preprocessed:
     if preprocessed_index_path is None:

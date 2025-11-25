@@ -106,8 +106,6 @@ class TrainingSpecification(RunSpecification):
   save_at_epochs: Sequence[int] | None = None
 
   # Physics features (Phase 1)
-  use_electrostatics: bool = False
-  use_vdw: bool = False
   physics_feature_weight: float = 1.0
 
   # Data Augmentation & Truncation

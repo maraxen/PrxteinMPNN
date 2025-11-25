@@ -78,67 +78,33 @@ def _sample_batch(
     ),
     _iterations=spec.iterations,
     _learning_rate=spec.learning_rate,
-    tie_group_map=tie_group_map,
-    num_groups=num_groups,
     multi_state_strategy=spec.multi_state_strategy,
     multi_state_alpha=spec.multi_state_alpha,
+    num_groups=num_groups,
   )
 
-  def sample_single_noise(
+  def sample_single_config(
     key: PRNGKeyArray,
     coords: BackboneCoordinates,
     mask: AlphaCarbonMask,
     residue_ix: ResidueIndex,
     chain_ix: ChainIndex,
-    noise: BackboneNoise,
-    temperature: float,
+    noise: float,
+    temp: float,
+    current_tie_map: jnp.ndarray | None,
     structure_mapping: jnp.ndarray | None = None,
-    _sampler: partial = sample_fn_with_params,  # Bind to avoid closure issues
   ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
-    """Sample one sequence for one structure at one noise level."""
-    return _sampler(
+    """Sample one sequence for one structure configuration."""
+    return sample_fn_with_params(
       key,
       coords,
       mask,
       residue_ix,
       chain_ix,
       backbone_noise=noise,
-      temperature=temperature,
+      temperature=temp,
+      tie_group_map=current_tie_map,
       structure_mapping=structure_mapping,
-    )
-
-  def mapped_fn_noise(
-    key: PRNGKeyArray,
-    coords: BackboneCoordinates,
-    mask: AlphaCarbonMask,
-    residue_ix: ResidueIndex,
-    chain_ix: ChainIndex,
-    noise_arr: BackboneNoise,
-    structure_mapping: jnp.ndarray | None = None,
-  ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
-    """Compute samples across all noise levels for a single structure/sample."""
-
-    def mapped_fn_temp(
-      noise: BackboneNoise,
-    ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
-      return jax.lax.map(
-        lambda t: sample_single_noise(
-          key,
-          coords,
-          mask,
-          residue_ix,
-          chain_ix,
-          noise,
-          t,
-          structure_mapping=structure_mapping,
-        ),
-        temperature_array,
-      )
-
-    return jax.lax.map(
-      mapped_fn_temp,
-      noise_arr,
-      batch_size=spec.noise_batch_size,
     )
 
   def internal_sample(
@@ -147,29 +113,36 @@ def _sample_batch(
     residue_ix: ResidueIndex,
     chain_ix: ChainIndex,
     keys_arr: PRNGKeyArray,
-    noise_arr: BackboneNoise,
+    current_tie_map: jnp.ndarray | None,
     structure_mapping: jnp.ndarray | None = None,
   ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
-    """Sample mapping over keys and noise."""
-    noise_map_fn = partial(
-      mapped_fn_noise,
-      coords=coords,
-      mask=mask,
-      residue_ix=residue_ix,
-      chain_ix=chain_ix,
-      noise_arr=noise_arr,
-      structure_mapping=structure_mapping,
-    )
+    """Sample mapping over keys (sequential) and noise/temp (vectorized)."""
+
+    def map_over_noise_and_temp(
+      k: PRNGKeyArray,
+    ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
+      
+      def vmap_over_temp(n: float) -> tuple[ProteinSequence, Logits, DecodingOrder]:
+        return jax.vmap(
+            lambda t: sample_single_config(
+                k, coords, mask, residue_ix, chain_ix, n, t, current_tie_map, structure_mapping
+            )
+        )(temperature_array)
+
+      return jax.vmap(vmap_over_temp)(noise_array)
 
     return jax.lax.map(
-      noise_map_fn,
+      map_over_noise_and_temp,
       keys_arr,
       batch_size=spec.samples_batch_size,
     )
 
+  tie_map_in_axis = 0 if tie_group_map is not None else None
+  mapping_in_axis = 0 if batched_ensemble.mapping is not None else None
+
   vmap_structures = jax.vmap(
     internal_sample,
-    in_axes=(0, 0, 0, 0, None, None, 0 if batched_ensemble.mapping is not None else None),
+    in_axes=(0, 0, 0, 0, None, tie_map_in_axis, mapping_in_axis),
   )
 
   sampled_sequences, sampled_logits, _ = vmap_structures(
@@ -178,9 +151,10 @@ def _sample_batch(
     batched_ensemble.residue_index,
     batched_ensemble.chain_index,
     keys,
-    noise_array,
+    tie_group_map,
     batched_ensemble.mapping,
   )
+  
   return sampled_sequences, sampled_logits
 
 

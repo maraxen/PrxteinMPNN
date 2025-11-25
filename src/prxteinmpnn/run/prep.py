@@ -52,6 +52,12 @@ def prep_protein_stream_and_model(
     use_preprocessed=spec.use_preprocessed,
     preprocessed_index_path=spec.preprocessed_index_path,
     split=spec.split,
+    use_electrostatics=spec.use_electrostatics,
+    estat_noise=spec.estat_noise,
+    estat_noise_mode=spec.estat_noise_mode,
+    use_vdw=spec.use_vdw,
+    vdw_noise=spec.vdw_noise,
+    vdw_noise_mode=spec.vdw_noise_mode,
   )
   # use_new_architecture parameter is deprecated; always use Equinox model now
   del use_new_architecture

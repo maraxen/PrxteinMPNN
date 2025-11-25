@@ -163,7 +163,7 @@ class SamplingSpecification(RunSpecification):
 
   num_samples: int = 1
   sampling_strategy: Literal["temperature", "straight_through"] = "temperature"
-  temperature: float = 0.1
+  temperature: Sequence[float] | float = 0.1
   bias: ArrayLike | None = None
   fixed_positions: ArrayLike | None = None
   iterations: int | None = None
@@ -180,6 +180,8 @@ class SamplingSpecification(RunSpecification):
   def __post_init__(self) -> None:
     """Post-initialization processing."""
     super().__post_init__()
+    if isinstance(self.temperature, float):
+      object.__setattr__(self, "temperature", (self.temperature,))
     if self.sampling_strategy == "straight_through" and (
       self.iterations is None or self.learning_rate is None
     ):

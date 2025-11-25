@@ -65,6 +65,8 @@ def _sample_batch(
     else jnp.zeros(1)
   )
 
+  temperature_array = jnp.asarray(spec.temperature, dtype=jnp.float32)
+
   sample_fn_with_params = partial(
     sampler_fn,
     _k_neighbors=48,
@@ -76,7 +78,6 @@ def _sample_batch(
     ),
     _iterations=spec.iterations,
     _learning_rate=spec.learning_rate,
-    temperature=spec.temperature,
     tie_group_map=tie_group_map,
     num_groups=num_groups,
     multi_state_strategy=spec.multi_state_strategy,
@@ -90,6 +91,7 @@ def _sample_batch(
     residue_ix: ResidueIndex,
     chain_ix: ChainIndex,
     noise: BackboneNoise,
+    temperature: float,
     structure_mapping: jnp.ndarray | None = None,
     _sampler: partial = sample_fn_with_params,  # Bind to avoid closure issues
   ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
@@ -101,6 +103,7 @@ def _sample_batch(
       residue_ix,
       chain_ix,
       backbone_noise=noise,
+      temperature=temperature,
       structure_mapping=structure_mapping,
     )
 
@@ -114,16 +117,26 @@ def _sample_batch(
     structure_mapping: jnp.ndarray | None = None,
   ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
     """Compute samples across all noise levels for a single structure/sample."""
+
+    def mapped_fn_temp(
+      noise: BackboneNoise,
+    ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
+      return jax.lax.map(
+        lambda t: sample_single_noise(
+          key,
+          coords,
+          mask,
+          residue_ix,
+          chain_ix,
+          noise,
+          t,
+          structure_mapping=structure_mapping,
+        ),
+        temperature_array,
+      )
+
     return jax.lax.map(
-      partial(
-        sample_single_noise,
-        key,
-        coords,
-        mask,
-        residue_ix,
-        chain_ix,
-        structure_mapping=structure_mapping,
-      ),
+      mapped_fn_temp,
       noise_arr,
       batch_size=spec.noise_batch_size,
     )
@@ -322,7 +335,8 @@ def _sample_streaming(
         grp.attrs["structure_index"] = structure_idx
         grp.attrs["num_samples"] = sampled_sequences.shape[1]
         grp.attrs["num_noise_levels"] = sampled_sequences.shape[2]
-        grp.attrs["sequence_length"] = sampled_sequences.shape[3]
+        grp.attrs["num_temperatures"] = sampled_sequences.shape[3]
+        grp.attrs["sequence_length"] = sampled_sequences.shape[4]
         structure_idx += 1
 
       f.flush()
@@ -438,7 +452,6 @@ def _sample_batch_averaged(
   sample_fn_with_params = partial(
     sample_fn_wrapped,
     bias=jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
-    temperature=spec.temperature,
     tie_group_map=tie_group_map,
     num_groups=num_groups,
   )
@@ -447,6 +460,7 @@ def _sample_batch_averaged(
     key: PRNGKeyArray,
     decoding_order_key: PRNGKeyArray,
     encoded_feat: tuple,
+    temperature: float,
     _sampler: partial = sample_fn_with_params,
   ) -> ProteinSequence:
     """Sample one sequence from averaged features."""
@@ -457,7 +471,7 @@ def _sample_batch_averaged(
       tie_group_map,
       num_groups,
     )
-    return _sampler(key, encoded_feat, decoding_order)
+    return _sampler(key, encoded_feat, decoding_order, temperature=temperature)
 
   def internal_sample_averaged(
     encoded_feat: tuple,
@@ -466,8 +480,15 @@ def _sample_batch_averaged(
     """Sample mapping over keys for averaged features."""
     decoding_order_keys = jax.random.split(jax.random.key(spec.random_seed + 1), spec.num_samples)
 
+    temperature_array = jnp.asarray(spec.temperature, dtype=jnp.float32)
+
+    def sample_for_key(k: PRNGKeyArray, dok: PRNGKeyArray) -> ProteinSequence:
+      return jax.vmap(
+        lambda t: sample_single_sequence(k, dok, encoded_feat, t),
+      )(temperature_array)
+
     vmap_sample_fn = jax.vmap(
-      partial(sample_single_sequence, encoded_feat=encoded_feat),
+      sample_for_key,
       in_axes=(0, 0),
       out_axes=0,
     )
@@ -498,7 +519,7 @@ def _sample_batch_averaged(
   if spec.average_encoding_mode == "inputs_and_noise":
 
     def get_logits_local_both(seq: ProteinSequence) -> Logits:
-      return decode_fn_wrapped(averaged_encodings, seq, ar_mask)
+      return jax.vmap(lambda s: decode_fn_wrapped(averaged_encodings, s, ar_mask))(seq)
 
     vmap_logits = jax.vmap(get_logits_local_both)
     logits = vmap_logits(sampled_sequences[0])
@@ -506,7 +527,7 @@ def _sample_batch_averaged(
   else:
 
     def get_logits_local(seq: ProteinSequence, enc: tuple) -> Logits:
-      return decode_fn_wrapped(enc, seq, ar_mask)
+      return jax.vmap(lambda s: decode_fn_wrapped(enc, s, ar_mask))(seq)
 
     struct_axis = 1 if spec.average_encoding_mode == "inputs" else 0
 
@@ -516,8 +537,9 @@ def _sample_batch_averaged(
     )
     logits = vmap_logits(sampled_sequences, averaged_encodings)
 
-  sampled_sequences = sampled_sequences.reshape((1, -1, seq_len))
-  logits = logits.reshape((1, -1, seq_len, 21))
+  # Reshape to (1, -1, num_temps, seq_len)
+  sampled_sequences = sampled_sequences.reshape((1, -1, len(spec.temperature), seq_len))
+  logits = logits.reshape((1, -1, len(spec.temperature), seq_len, 21))
 
   return sampled_sequences, logits
 
@@ -549,7 +571,8 @@ def _sample_streaming_averaged(
         grp.attrs["structure_index"] = structure_idx
         grp.attrs["num_samples"] = sampled_sequences.shape[1]
         grp.attrs["num_noise_levels"] = 1  # Averaged, so effectively 1 noise level
-        grp.attrs["sequence_length"] = sampled_sequences.shape[2]
+        grp.attrs["num_temperatures"] = sampled_sequences.shape[2]
+        grp.attrs["sequence_length"] = sampled_sequences.shape[3]
         structure_idx += 1
 
       f.flush()

@@ -175,7 +175,8 @@ class SamplingSpecification(RunSpecification):
   learning_rate: float | None = None
   output_h5_path: str | Path | None = None
   samples_batch_size: int = 16
-  noise_batch_size: int = 4
+  noise_batch_size: int = 1
+  temperature_batch_size: int = 1
   average_node_features: bool = False
   average_encoding_mode: Literal["inputs", "noise_levels", "inputs_and_noise"] = "inputs_and_noise"
   average_logits: None | Literal["structures", "noise", "both"] = None

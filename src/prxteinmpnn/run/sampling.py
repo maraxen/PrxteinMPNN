@@ -15,7 +15,6 @@ from prxteinmpnn.run.averaging import get_averaged_encodings, make_encoding_samp
 from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.utils.autoregression import resolve_tie_groups
 from prxteinmpnn.utils.decoding_order import random_decoding_order
-from prxteinmpnn.utils.sharding import create_mesh, shard_pytree
 
 from .prep import prep_protein_stream_and_model
 from .specs import SamplingSpecification
@@ -214,33 +213,17 @@ def sample(
     sampling_strategy=spec.sampling_strategy,
   )
 
-  # Initialize mesh if requested
-  mesh = None
-  if spec.use_sharding:
-    mesh = create_mesh()
-
   if spec.output_h5_path:
-    return _sample_streaming(spec, protein_iterator, sampler_fn, mesh=mesh)
+    return _sample_streaming(spec, protein_iterator, sampler_fn)
 
   all_sequences, all_logits, all_pseudo_perplexities = [], [], []
 
   for batched_ensemble in protein_iterator:
-    if mesh is not None and spec.shard_batch:
-      batched_ensemble = shard_pytree(batched_ensemble, mesh)  # noqa: PLW2901
-
-    if mesh is not None:
-      with mesh:
-        sampled_sequences, logits, pseudo_perplexity = _sample_batch(
-          spec,
-          batched_ensemble,
-          sampler_fn,
-        )
-    else:
-      sampled_sequences, logits, pseudo_perplexity = _sample_batch(
-        spec,
-        batched_ensemble,
-        sampler_fn,
-      )
+    sampled_sequences, logits, pseudo_perplexity = _sample_batch(
+      spec,
+      batched_ensemble,
+      sampler_fn,
+    )
     all_sequences.append(sampled_sequences)
     all_logits.append(logits)
     if pseudo_perplexity is not None:
@@ -291,29 +274,17 @@ def _sample_streaming(
   spec: SamplingSpecification,
   protein_iterator: IterDataset,
   sampler_fn: Callable,
-  mesh: jax.sharding.Mesh | None = None,
 ) -> dict[str, str | dict[str, SamplingSpecification]]:
   """Sample new sequences and stream results to an HDF5 file."""
   with h5py.File(spec.output_h5_path, "w") as f:
     structure_idx = 0
 
     for batched_ensemble in protein_iterator:
-      if mesh is not None and spec.shard_batch:
-        batched_ensemble = shard_pytree(batched_ensemble, mesh)  # noqa: PLW2901
-
-      if mesh is not None:
-        with mesh:
-          sampled_sequences, sampled_logits, pseudo_perplexity = _sample_batch(
-            spec,
-            batched_ensemble,
-            sampler_fn,
-          )
-      else:
-        sampled_sequences, sampled_logits, pseudo_perplexity = _sample_batch(
-          spec,
-          batched_ensemble,
-          sampler_fn,
-        )
+      sampled_sequences, sampled_logits, pseudo_perplexity = _sample_batch(
+        spec,
+        batched_ensemble,
+        sampler_fn,
+      )
       for i in range(sampled_sequences.shape[0]):
         grp = f.create_group(f"structure_{structure_idx}")
         grp.create_dataset("sequences", data=sampled_sequences[i], dtype="i4")
@@ -536,6 +507,10 @@ def _sample_batch_averaged(
   sampled_sequences = sampled_sequences.reshape((1, -1, len(spec.temperature), seq_len))
   logits = logits.reshape((1, -1, len(spec.temperature), seq_len, 21))
 
+  if len(spec.temperature) == 1:
+      sampled_sequences = jnp.squeeze(sampled_sequences, axis=2)
+      logits = jnp.squeeze(logits, axis=2)
+
   if spec.compute_pseudo_perplexity:
     one_hot_sequences = jax.nn.one_hot(sampled_sequences, num_classes=21)
     log_probs = jax.nn.log_softmax(logits, axis=-1)
@@ -575,8 +550,8 @@ def _sample_streaming_averaged(
         grp.attrs["structure_index"] = structure_idx
         grp.attrs["num_samples"] = sampled_sequences.shape[1]
         grp.attrs["num_noise_levels"] = 1  # Averaged, so effectively 1 noise level
-        grp.attrs["num_temperatures"] = sampled_sequences.shape[2]
-        grp.attrs["sequence_length"] = sampled_sequences.shape[3]
+        grp.attrs["num_temperatures"] = sampled_sequences.shape[2] if sampled_sequences.ndim == 4 else 1
+        grp.attrs["sequence_length"] = sampled_sequences.shape[-1]
         structure_idx += 1
 
       f.flush()

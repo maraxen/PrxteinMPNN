@@ -155,7 +155,14 @@ def _sample_batch(
     batched_ensemble.mapping,
   )
   
-  return sampled_sequences, sampled_logits
+  if spec.compute_pseudo_perplexity:
+    one_hot_sequences = jax.nn.one_hot(sampled_sequences, num_classes=21)
+    log_probs = jax.nn.log_softmax(sampled_logits, axis=-1)
+    nll = -jnp.sum(one_hot_sequences * log_probs, axis=(-1, -2))
+    pseudo_perplexity = jnp.exp(nll / jnp.sum(batched_ensemble.mask, axis=-1))
+    return sampled_sequences, sampled_logits, pseudo_perplexity
+  else:
+    return sampled_sequences, sampled_logits, None
 
 
 def sample(
@@ -215,7 +222,7 @@ def sample(
   if spec.output_h5_path:
     return _sample_streaming(spec, protein_iterator, sampler_fn, mesh=mesh)
 
-  all_sequences, all_logits = [], []
+  all_sequences, all_logits, all_pseudo_perplexities = [], [], []
 
   for batched_ensemble in protein_iterator:
     if mesh is not None and spec.shard_batch:
@@ -223,19 +230,21 @@ def sample(
 
     if mesh is not None:
       with mesh:
-        sampled_sequences, logits = _sample_batch(
+        sampled_sequences, logits, pseudo_perplexity = _sample_batch(
           spec,
           batched_ensemble,
           sampler_fn,
         )
     else:
-      sampled_sequences, logits = _sample_batch(
+      sampled_sequences, logits, pseudo_perplexity = _sample_batch(
         spec,
         batched_ensemble,
         sampler_fn,
       )
     all_sequences.append(sampled_sequences)
     all_logits.append(logits)
+    if pseudo_perplexity is not None:
+        all_pseudo_perplexities.append(pseudo_perplexity)
 
   max_len = max(arr.shape[-1] for arr in all_sequences)
 
@@ -264,14 +273,18 @@ def sample(
     for seq in all_sequences
   ]
 
-  return {
-    "sequences": jnp.concatenate(all_sequences_padded, axis=0),
-    "logits": jnp.concatenate(all_logits_padded, axis=0),
-    "mask": jnp.concatenate(all_masks, axis=0),  # It's good practice to return this
-    "metadata": {
-      "specification": spec,
-    },
+  results = {
+      "sequences": jnp.concatenate(all_sequences_padded, axis=0),
+      "logits": jnp.concatenate(all_logits_padded, axis=0),
+      "mask": jnp.concatenate(all_masks, axis=0),
+      "metadata": {
+          "specification": spec,
+      },
   }
+  if all_pseudo_perplexities:
+      results["pseudo_perplexity"] = jnp.concatenate(all_pseudo_perplexities, axis=0)
+
+  return results
 
 
 def _sample_streaming(
@@ -290,13 +303,13 @@ def _sample_streaming(
 
       if mesh is not None:
         with mesh:
-          sampled_sequences, sampled_logits = _sample_batch(
+          sampled_sequences, sampled_logits, pseudo_perplexity = _sample_batch(
             spec,
             batched_ensemble,
             sampler_fn,
           )
       else:
-        sampled_sequences, sampled_logits = _sample_batch(
+        sampled_sequences, sampled_logits, pseudo_perplexity = _sample_batch(
           spec,
           batched_ensemble,
           sampler_fn,
@@ -305,6 +318,8 @@ def _sample_streaming(
         grp = f.create_group(f"structure_{structure_idx}")
         grp.create_dataset("sequences", data=sampled_sequences[i], dtype="i4")
         grp.create_dataset("logits", data=sampled_logits[i], dtype="f4")
+        if pseudo_perplexity is not None:
+            grp.create_dataset("pseudo_perplexity", data=pseudo_perplexity[i], dtype="f4")
         # Store metadata about the structure
         grp.attrs["structure_index"] = structure_idx
         grp.attrs["num_samples"] = sampled_sequences.shape[1]
@@ -369,10 +384,10 @@ def _sample_averaged_mode(
     return _sample_streaming_averaged(spec, protein_iterator, model)
 
   _, sample_fn, decode_fn = make_encoding_sampling_split_fn(model)
-  all_sequences, all_logits = [], []
+  all_sequences, all_logits, all_pseudo_perplexities = [], [], []
 
   for batched_ensemble in protein_iterator:
-    sampled_sequences, logits = _sample_batch_averaged(
+    sampled_sequences, logits, pseudo_perplexity = _sample_batch_averaged(
       spec,
       batched_ensemble,
       model,
@@ -381,14 +396,20 @@ def _sample_averaged_mode(
     )
     all_sequences.append(sampled_sequences)
     all_logits.append(logits)
+    if pseudo_perplexity is not None:
+      all_pseudo_perplexities.append(pseudo_perplexity)
 
-  return {
-    "sequences": jnp.concatenate(all_sequences, axis=0),
-    "logits": jnp.concatenate(all_logits, axis=0),
-    "metadata": {
-      "specification": spec,
-    },
+  results = {
+      "sequences": jnp.concatenate(all_sequences, axis=0),
+      "logits": jnp.concatenate(all_logits, axis=0),
+      "metadata": {
+          "specification": spec,
+      },
   }
+  if all_pseudo_perplexities:
+      results["pseudo_perplexity"] = jnp.concatenate(all_pseudo_perplexities, axis=0)
+
+  return results
 
 
 def _sample_batch_averaged(
@@ -515,7 +536,14 @@ def _sample_batch_averaged(
   sampled_sequences = sampled_sequences.reshape((1, -1, len(spec.temperature), seq_len))
   logits = logits.reshape((1, -1, len(spec.temperature), seq_len, 21))
 
-  return sampled_sequences, logits
+  if spec.compute_pseudo_perplexity:
+    one_hot_sequences = jax.nn.one_hot(sampled_sequences, num_classes=21)
+    log_probs = jax.nn.log_softmax(logits, axis=-1)
+    nll = -jnp.sum(one_hot_sequences * log_probs, axis=(-1, -2))
+    pseudo_perplexity = jnp.exp(nll / jnp.sum(batched_ensemble.mask, axis=-1))
+    return sampled_sequences, logits, pseudo_perplexity
+  else:
+    return sampled_sequences, logits, None
 
 
 def _sample_streaming_averaged(
@@ -530,7 +558,7 @@ def _sample_streaming_averaged(
     structure_idx = 0
 
     for batched_ensemble in protein_iterator:
-      sampled_sequences, sampled_logits = _sample_batch_averaged(
+      sampled_sequences, sampled_logits, pseudo_perplexity = _sample_batch_averaged(
         spec,
         batched_ensemble,
         model,
@@ -541,6 +569,8 @@ def _sample_streaming_averaged(
         grp = f.create_group(f"structure_{structure_idx}")
         grp.create_dataset("sequences", data=sampled_sequences[i], dtype="i4")
         grp.create_dataset("logits", data=sampled_logits[i], dtype="f4")
+        if pseudo_perplexity is not None:
+            grp.create_dataset("pseudo_perplexity", data=pseudo_perplexity[i], dtype="f4")
         # Store metadata about the structure
         grp.attrs["structure_index"] = structure_idx
         grp.attrs["num_samples"] = sampled_sequences.shape[1]

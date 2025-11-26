@@ -27,3 +27,8 @@ ANGSTROM_TO_NM = 0.1  # Angstroms to nanometers
 # Lennard-Jones defaults (for future use)
 DEFAULT_SIGMA = 3.5  # Angstroms (typical for carbon)
 DEFAULT_EPSILON = 0.1  # kcal/mol (typical for nonpolar atoms)
+
+# Generalized Born constants
+DIELECTRIC_WATER = 78.5
+DIELECTRIC_PROTEIN = 1.0
+PROBE_RADIUS = 1.4  # Angstroms

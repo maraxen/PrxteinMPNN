@@ -101,6 +101,9 @@ def run_simulation(
   min_steps: int = 500,
   therm_steps: int = 1000,
   dielectric_constant: float = 1.0,
+  implicit_solvent: bool = True,
+  solvent_dielectric: float = 78.5,
+  solute_dielectric: float = 1.0,
   key: Array | None = None,
 ) -> Array:
   """Run full simulation: Minimization -> Thermalization.
@@ -111,6 +114,10 @@ def run_simulation(
       temperature: Temperature in Kelvin.
       min_steps: Minimization steps.
       therm_steps: Thermalization steps.
+      dielectric_constant: Dielectric constant for screened Coulomb (if implicit_solvent=False).
+      implicit_solvent: Whether to use Generalized Born implicit solvent.
+      solvent_dielectric: Solvent dielectric for GB.
+      solute_dielectric: Solute dielectric for GB.
       key: PRNG key.
 
   Returns:
@@ -118,8 +125,14 @@ def run_simulation(
 
   """
   displacement_fn, _ = space.free()
-  displacement_fn, _ = space.free()
-  energy_fn = system.make_energy_fn(displacement_fn, system_params, dielectric_constant=dielectric_constant)
+  energy_fn = system.make_energy_fn(
+      displacement_fn, 
+      system_params, 
+      dielectric_constant=dielectric_constant,
+      implicit_solvent=implicit_solvent,
+      solvent_dielectric=solvent_dielectric,
+      solute_dielectric=solute_dielectric
+  )
 
   # 1. Minimize
   r_min = run_minimization(energy_fn, r_init, steps=min_steps)

@@ -170,6 +170,9 @@ def make_sample_sequences(
       multi_state_strategy: Literal["mean", "min", "product", "max_min"] = "mean",
       multi_state_alpha: float = 0.5,
       structure_mapping: jax.Array | None = None,
+      full_coordinates: jax.Array | None = None,
+      md_params: dict[str, jax.Array] | None = None,
+      md_config: dict[str, float | int] | None = None,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """Sample a sequence from a structure using the ProteinMPNN model.
 
@@ -194,6 +197,9 @@ def make_sample_sequences(
         structure_mapping: Optional (N,) array mapping each residue to a structure ID.
                   When provided (multi-state mode), prevents cross-structure
                   neighbors to avoid information leakage between conformational states.
+        full_coordinates: Full atomic coordinates for MD.
+        md_params: MD parameters.
+        md_config: MD configuration.
 
 
       Returns:
@@ -233,6 +239,9 @@ def make_sample_sequences(
         multi_state_strategy=multi_state_strategy,
         multi_state_alpha=multi_state_alpha,
         structure_mapping=structure_mapping,
+        full_coordinates=full_coordinates,
+        md_params=md_params,
+        md_config=md_config,
       )
 
       one_hot_ndim = 2

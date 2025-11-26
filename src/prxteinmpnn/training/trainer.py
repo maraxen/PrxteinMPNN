@@ -233,7 +233,11 @@ def train_step(  # noqa: PLR0913
   mask_strategy: str = "random_order",
   mask_prob: float = 0.15,
   training_mode: str = "autoregressive",
+  training_mode: str = "autoregressive",
   noise_schedule: NoiseSchedule | None = None,
+  full_coordinates: jax.Array | None = None,
+  md_params: dict[str, jax.Array] | None = None,
+  md_config: dict[str, float | int] | None = None,
 ) -> tuple[PrxteinMPNN, optax.OptState, TrainingMetrics]:
   """Single training step.
 
@@ -256,6 +260,9 @@ def train_step(  # noqa: PLR0913
       mask_prob: Probability of masking a token if using "bert" strategy
       training_mode: "autoregressive" or "diffusion"
       noise_schedule: Noise schedule for diffusion training
+      full_coordinates: Full atomic coordinates for MD
+      md_params: MD parameters
+      md_config: MD configuration
 
   Returns:
       Tuple of (updated_model, updated_opt_state, metrics)
@@ -275,6 +282,8 @@ def train_step(  # noqa: PLR0913
       seq: jax.Array,
       key: jax.Array,
       phys_feat: jax.Array | None = None,
+      full_coords: jax.Array | None = None,
+      md_p: dict[str, jax.Array] | None = None,
     ) -> Logits:
       """Forward pass for a single protein."""
       key, subkey = jax.random.split(key)
@@ -312,6 +321,9 @@ def train_step(  # noqa: PLR0913
             timestep=t,
             noisy_sequence=noisy_seq,
             physics_features=phys_feat,
+            full_coordinates=full_coords,
+            md_params=md_p,
+            md_config=md_config,
         )
         return logits
 
@@ -326,6 +338,9 @@ def train_step(  # noqa: PLR0913
         one_hot_sequence=one_hot_seq,
         backbone_noise=jnp.array(backbone_noise_std),
         initial_node_features=phys_feat,
+        full_coordinates=full_coords,
+        md_params=md_p,
+        md_config=md_config,
       )
       return logits
 
@@ -338,6 +353,8 @@ def train_step(  # noqa: PLR0913
       sequence,
       batch_keys,
       physics_features,
+      full_coordinates,
+      md_params,
     )
 
     def batch_loss(logits: Logits, seq: jax.Array, msk: jax.Array) -> jax.Array:
@@ -387,6 +404,9 @@ def eval_step(
   physics_features: jax.Array | None = None,
   training_mode: str = "autoregressive",
   noise_schedule: NoiseSchedule | None = None,
+  full_coordinates: jax.Array | None = None,
+  md_params: dict[str, jax.Array] | None = None,
+  md_config: dict[str, float | int] | None = None,
 ) -> EvaluationMetrics:
   """Single evaluation step with batching.
 
@@ -401,6 +421,9 @@ def eval_step(
       physics_features: Optional physics features (if used)
       training_mode: "autoregressive" or "diffusion"
       noise_schedule: Noise schedule for diffusion training
+      full_coordinates: Full atomic coordinates for MD
+      md_params: MD parameters
+      md_config: MD configuration
 
   Returns:
       Evaluation metrics
@@ -417,6 +440,8 @@ def eval_step(
     seq: jax.Array,
     key: jax.Array,
     phys_feat: jax.Array | None = None,
+    full_coords: jax.Array | None = None,
+    md_p: dict[str, jax.Array] | None = None,
   ) -> Logits:
     """Forward pass for a single protein."""
     inference_model = eqx.nn.inference_mode(model)
@@ -441,6 +466,9 @@ def eval_step(
             timestep=t,
             noisy_sequence=noisy_seq,
             physics_features=phys_feat,
+            full_coordinates=full_coords,
+            md_params=md_p,
+            md_config=md_config,
         )
         return logits
 
@@ -453,6 +481,9 @@ def eval_step(
       prng_key=key,
       backbone_noise=jnp.array(0.0),
       initial_node_features=phys_feat,
+      full_coordinates=full_coords,
+      md_params=md_p,
+      md_config=md_config,
     )
     return logits
 
@@ -464,6 +495,8 @@ def eval_step(
     sequence,
     batch_keys,
     physics_features,
+    full_coordinates,
+    md_params,
   )
 
   def batch_metrics(
@@ -541,6 +574,28 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
   if spec.use_sharding:
     mesh = create_mesh()
 
+  def _get_md_args(batch):
+      md_params = None
+      md_config = None
+      if spec.backbone_noise_mode == "md":
+          md_params = {
+              "bonds": batch.md_bonds,
+              "bond_params": batch.md_bond_params,
+              "angles": batch.md_angles,
+              "angle_params": batch.md_angle_params,
+              "backbone_indices": batch.md_backbone_indices,
+              "exclusion_mask": batch.md_exclusion_mask,
+              "charges": batch.charges,
+              "sigmas": batch.sigmas,
+              "epsilons": batch.epsilons,
+          }
+          md_config = {
+              "temperature": spec.md_temperature,
+              "min_steps": spec.md_min_steps,
+              "therm_steps": spec.md_therm_steps,
+          }
+      return batch.full_coordinates, md_params, md_config
+
   for epoch in range(spec.num_epochs):
     logger.info("Epoch %d/%d", epoch + 1, spec.num_epochs)
     pbar = tqdm.tqdm(train_loader, desc=f"Epoch {epoch + 1}/{spec.num_epochs}")
@@ -555,6 +610,8 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
 
       if mesh is not None and spec.shard_batch:
         batch = shard_pytree(batch, mesh)  # noqa: PLW2901
+
+      full_coords, md_p, md_c = _get_md_args(batch)
 
       if mesh is not None:
         with mesh:
@@ -577,6 +634,9 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
             spec.mask_prob,
             spec.training_mode,
             noise_schedule,
+            full_coords,
+            md_p,
+            md_c,
           )
       else:
         model, opt_state, train_metrics = eqx.filter_jit(train_step)(
@@ -598,6 +658,9 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
           spec.mask_prob,
           spec.training_mode,
           noise_schedule,
+          full_coords,
+          md_p,
+          md_c,
         )
 
       step += 1
@@ -612,6 +675,8 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
           if mesh is not None and spec.shard_batch:
             val_batch = shard_pytree(val_batch, mesh)  # noqa: PLW2901
 
+          val_full_coords, val_md_p, val_md_c = _get_md_args(val_batch)
+
           if mesh is not None:
             with mesh:
               val_metrics = eqx.filter_jit(eval_step)(
@@ -625,6 +690,9 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
                 val_batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
                 spec.training_mode,
                 noise_schedule,
+                val_full_coords,
+                val_md_p,
+                val_md_c,
               )
           else:
             val_metrics = eqx.filter_jit(eval_step)(
@@ -638,6 +706,9 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
               val_batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
               spec.training_mode,
               noise_schedule,
+              val_full_coords,
+              val_md_p,
+              val_md_c,
             )
           val_metrics_list.append(val_metrics)
 
@@ -728,6 +799,8 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
       if mesh is not None and spec.shard_batch:
         test_batch = shard_pytree(test_batch, mesh)  # noqa: PLW2901
 
+      test_full_coords, test_md_p, test_md_c = _get_md_args(test_batch)
+
       if mesh is not None:
         with mesh:
           test_metrics = eqx.filter_jit(eval_step)(
@@ -741,6 +814,9 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
             test_batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
             spec.training_mode,
             noise_schedule,
+            test_full_coords,
+            test_md_p,
+            test_md_c,
           )
       else:
         test_metrics = eqx.filter_jit(eval_step)(
@@ -754,6 +830,9 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
           test_batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
           spec.training_mode,
           noise_schedule,
+          test_full_coords,
+          test_md_p,
+          test_md_c,
         )
       test_metrics_list.append(test_metrics)
 

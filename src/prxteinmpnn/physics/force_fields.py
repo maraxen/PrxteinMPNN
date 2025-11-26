@@ -33,7 +33,7 @@ class FullForceField(eqx.Module):
       source_files: Source XML files used to create this force field
 
   Example:
-      >>> ff = load_force_field("amber14")
+      >>> ff = load_force_field("ff14SB")
       >>> charge = ff.charges_by_id[ff.atom_key_to_id[("ALA", "CA")]]
       >>> print(f"CA charge in ALA: {charge}")
 
@@ -116,7 +116,6 @@ def save_force_field(
   """
   filepath = Path(filepath)
 
-  # Extract hyperparameters (static fields)
   hyperparams = {
     "atom_key_to_id": force_field.atom_key_to_id,
     "id_to_atom_key": force_field.id_to_atom_key,
@@ -128,7 +127,6 @@ def save_force_field(
     "source_files": force_field.source_files,
   }
 
-  # Convert tuple keys to strings for JSON serialization
   sanitized_hyperparams = hyperparams.copy()
   sanitized_hyperparams["atom_key_to_id"] = {
     f"{key[0]}|{key[1]}": value
@@ -181,7 +179,7 @@ def load_force_field_from_hub(
   """Load force field from HuggingFace Hub.
 
   Args:
-      force_field_name: Name of force field (e.g., "amber14-all")
+      force_field_name: Name of force field (e.g., "ff14SB")
       repo_id: HuggingFace repository ID
       cache_dir: Optional cache directory
 
@@ -189,7 +187,7 @@ def load_force_field_from_hub(
       FullForceField object
 
   Example:
-      >>> ff = load_force_field_from_hub("amber14-all")
+      >>> ff = load_force_field_from_hub("ff14SB")
       >>> print(f"Loaded {len(ff.id_to_atom_key)} atom types")
 
   """

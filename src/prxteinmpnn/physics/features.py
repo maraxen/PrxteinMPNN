@@ -110,13 +110,26 @@ def compute_electrostatic_node_features(
     msg = "ProteinTuple must have full_coordinates to compute electrostatic features"
     raise ValueError(msg)
 
-  # compute_backbone_coordinates returns (n_residues, 5, 3) in this exact order
-  backbone_positions = compute_backbone_coordinates(
-    jnp.array(protein.coordinates),
-  )
-  all_positions = jnp.array(protein.full_coordinates)
-  all_charges = jnp.array(protein.charges)
+def _compute_electrostatic_features_raw(
+  backbone_positions: jax.Array,
+  all_positions: jax.Array,
+  all_charges: jax.Array,
+  noise_scale: float | jax.Array = 0.0,
+  key: jax.Array | None = None,
+) -> jax.Array:
+  """Compute electrostatic features from raw arrays.
 
+  Args:
+      backbone_positions: (n_residues, 5, 3)
+      all_positions: (n_atoms, 3)
+      all_charges: (n_atoms,)
+      noise_scale: Noise scale.
+      key: PRNG key.
+
+  Returns:
+      Features (n_residues, 5)
+
+  """
   n_residues = backbone_positions.shape[0]
   backbone_positions_flat = backbone_positions.reshape(-1, 3)  # (n_residues*5, 3)
 
@@ -129,14 +142,102 @@ def compute_electrostatic_node_features(
   backbone_charges_flat = all_charges[closest_indices]
   backbone_charges = backbone_charges_flat.reshape(n_residues, 5)
 
-  sigma = _resolve_sigma(noise_scale, noise_mode)
-
   forces_at_backbone = compute_coulomb_forces_at_backbone(
     backbone_positions,
     all_positions,
     backbone_charges,
     all_charges,
+    noise_scale=noise_scale,
+    key=key,
+  )
+
+  return project_forces_onto_backbone(
+    forces_at_backbone,
+    backbone_positions,
+  )
+
+
+def compute_electrostatic_node_features(
+  protein: ProteinTuple,
+  *,
+  noise_scale: float | jax.Array | None = None,
+  noise_mode: str = "direct",
+  key: jax.Array | None = None,
+) -> jax.Array:
+  """Compute SE(3)-invariant electrostatic features for each residue.
+
+  See `_compute_electrostatic_features_raw` for implementation details.
+  """
+  if protein.charges is None:
+    msg = "ProteinTuple must have charges (PQR data) to compute electrostatic features"
+    raise ValueError(msg)
+
+  if protein.full_coordinates is None:
+    msg = "ProteinTuple must have full_coordinates to compute electrostatic features"
+    raise ValueError(msg)
+
+  backbone_positions = compute_backbone_coordinates(
+    jnp.array(protein.coordinates),
+  )
+  all_positions = jnp.array(protein.full_coordinates)
+  all_charges = jnp.array(protein.charges)
+
+  sigma = _resolve_sigma(noise_scale, noise_mode)
+
+  return _compute_electrostatic_features_raw(
+    backbone_positions,
+    all_positions,
+    all_charges,
     noise_scale=sigma,
+    key=key,
+  )
+
+
+def _compute_vdw_features_raw(
+  backbone_positions: jax.Array,
+  all_positions: jax.Array,
+  all_sigmas: jax.Array,
+  all_epsilons: jax.Array,
+  noise_scale: float | jax.Array = 0.0,
+  key: jax.Array | None = None,
+) -> jax.Array:
+  """Compute vdW features from raw arrays.
+
+  Args:
+      backbone_positions: (n_residues, 5, 3)
+      all_positions: (n_atoms, 3)
+      all_sigmas: (n_atoms,)
+      all_epsilons: (n_atoms,)
+      noise_scale: Noise scale.
+      key: PRNG key.
+
+  Returns:
+      Features (n_residues, 5)
+
+  """
+  n_residues = backbone_positions.shape[0]
+  backbone_positions_flat = backbone_positions.reshape(-1, 3)
+
+  distances = jnp.linalg.norm(
+    backbone_positions_flat[:, None, :] - all_positions[None, :, :],
+    axis=-1,
+  )
+  closest_indices = jnp.argmin(distances, axis=1)
+
+  backbone_sigmas_flat = all_sigmas[closest_indices]
+  backbone_epsilons_flat = all_epsilons[closest_indices]
+
+  backbone_sigmas = backbone_sigmas_flat.reshape(n_residues, 5)
+  backbone_epsilons = backbone_epsilons_flat.reshape(n_residues, 5)
+
+  forces_at_backbone = compute_lj_forces_at_backbone(
+    backbone_positions,
+    all_positions,
+    backbone_sigmas,
+    backbone_epsilons,
+    all_sigmas,
+    all_epsilons,
+    noise_scale=noise_scale,
     key=key,
   )
 
@@ -155,23 +256,7 @@ def compute_vdw_node_features(
 ) -> jax.Array:
   """Compute SE(3)-invariant Van der Waals features for each residue.
 
-  Computes LJ forces at backbone atoms from all atoms, then projects these
-  forces onto the backbone frame.
-
-  Args:
-      protein: ProteinTuple containing structure and LJ parameters.
-        Must have:
-        - coordinates: (n_residues, n_atom_types, 3) backbone atom positions
-        - full_coordinates: (n_atoms, 3) all atom positions
-        - sigmas: (n_atoms,) LJ sigma parameters
-        - epsilons: (n_atoms,) LJ epsilon parameters
-      noise_scale: Scale of Gaussian noise to add to forces.
-      noise_mode: 'direct' or 'thermal'.
-      key: PRNG key for noise generation.
-
-  Returns:
-      vdW features, shape (n_residues, 5).
-
+  See `_compute_vdw_features_raw` for implementation details.
   """
   if protein.sigmas is None or protein.epsilons is None:
     msg = "ProteinTuple must have sigmas and epsilons to compute vdW features"
@@ -188,38 +273,15 @@ def compute_vdw_node_features(
   all_sigmas = jnp.array(protein.sigmas)
   all_epsilons = jnp.array(protein.epsilons)
 
-  # Map sigmas/epsilons to backbone atoms by finding closest atom in 'full_coordinates'
-  n_residues = backbone_positions.shape[0]
-  backbone_positions_flat = backbone_positions.reshape(-1, 3)
-
-  distances = jnp.linalg.norm(
-    backbone_positions_flat[:, None, :] - all_positions[None, :, :],
-    axis=-1,
-  )
-  closest_indices = jnp.argmin(distances, axis=1)
-
-  backbone_sigmas_flat = all_sigmas[closest_indices]
-  backbone_epsilons_flat = all_epsilons[closest_indices]
-
-  backbone_sigmas = backbone_sigmas_flat.reshape(n_residues, 5)
-  backbone_epsilons = backbone_epsilons_flat.reshape(n_residues, 5)
-
   sigma = _resolve_sigma(noise_scale, noise_mode)
 
-  forces_at_backbone = compute_lj_forces_at_backbone(
+  return _compute_vdw_features_raw(
     backbone_positions,
     all_positions,
-    backbone_sigmas,
-    backbone_epsilons,
     all_sigmas,
     all_epsilons,
     noise_scale=sigma,
     key=key,
-  )
-
-  return project_forces_onto_backbone(
-    forces_at_backbone,
-    backbone_positions,
   )
 
 

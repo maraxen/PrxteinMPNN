@@ -81,6 +81,11 @@ def _sample_batch(
     multi_state_strategy=spec.multi_state_strategy,
     multi_state_alpha=spec.multi_state_alpha,
     num_groups=num_groups,
+    md_config={
+        "temperature": spec.md_temperature,
+        "min_steps": spec.md_min_steps,
+        "therm_steps": spec.md_therm_steps,
+    } if spec.backbone_noise_mode == "md" else None,
   )
 
   def sample_single_config(
@@ -93,6 +98,8 @@ def _sample_batch(
     temp: float,
     current_tie_map: jnp.ndarray | None,
     structure_mapping: jnp.ndarray | None = None,
+    full_coords: jax.Array | None = None,
+    md_p: dict[str, jax.Array] | None = None,
   ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
     """Sample one sequence for one structure configuration."""
     return sample_fn_with_params(
@@ -105,6 +112,8 @@ def _sample_batch(
       temperature=temp,
       tie_group_map=current_tie_map,
       structure_mapping=structure_mapping,
+      full_coordinates=full_coords,
+      md_params=md_p,
     )
 
   def internal_sample(
@@ -115,6 +124,8 @@ def _sample_batch(
     keys_arr: PRNGKeyArray,
     current_tie_map: jnp.ndarray | None,
     structure_mapping: jnp.ndarray | None = None,
+    full_coords: jax.Array | None = None,
+    md_p: dict[str, jax.Array] | None = None,
   ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
     """Sample mapping over keys (sequential) and noise/temp (vectorized)."""
 
@@ -125,7 +136,7 @@ def _sample_batch(
       def vmap_over_temp(n: float) -> tuple[ProteinSequence, Logits, DecodingOrder]:
         return jax.vmap(
             lambda t: sample_single_config(
-                k, coords, mask, residue_ix, chain_ix, n, t, current_tie_map, structure_mapping
+                k, coords, mask, residue_ix, chain_ix, n, t, current_tie_map, structure_mapping, full_coords, md_p
             )
         )(temperature_array)
 
@@ -142,8 +153,22 @@ def _sample_batch(
 
   vmap_structures = jax.vmap(
     internal_sample,
-    in_axes=(0, 0, 0, 0, None, tie_map_in_axis, mapping_in_axis),
+    in_axes=(0, 0, 0, 0, None, tie_map_in_axis, mapping_in_axis, 0, 0),
   )
+
+  md_params = None
+  if spec.backbone_noise_mode == "md":
+      md_params = {
+          "bonds": batched_ensemble.md_bonds,
+          "bond_params": batched_ensemble.md_bond_params,
+          "angles": batched_ensemble.md_angles,
+          "angle_params": batched_ensemble.md_angle_params,
+          "backbone_indices": batched_ensemble.md_backbone_indices,
+          "exclusion_mask": batched_ensemble.md_exclusion_mask,
+          "charges": batched_ensemble.charges,
+          "sigmas": batched_ensemble.sigmas,
+          "epsilons": batched_ensemble.epsilons,
+      }
 
   sampled_sequences, sampled_logits, _ = vmap_structures(
     batched_ensemble.coordinates,
@@ -153,6 +178,8 @@ def _sample_batch(
     keys,
     tie_group_map,
     batched_ensemble.mapping,
+    batched_ensemble.full_coordinates,
+    md_params,
   )
   
   return sampled_sequences, sampled_logits

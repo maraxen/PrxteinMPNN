@@ -81,6 +81,12 @@ class ProteinTuple(NamedTuple):
   estat_resid: np.ndarray | None = None
   estat_chain_index: np.ndarray | None = None
   physics_features: np.ndarray | None = None
+  md_bonds: np.ndarray | None = None
+  md_bond_params: np.ndarray | None = None
+  md_angles: np.ndarray | None = None
+  md_angle_params: np.ndarray | None = None
+  md_backbone_indices: np.ndarray | None = None
+  md_exclusion_mask: np.ndarray | None = None
 
 
 @dc
@@ -200,6 +206,12 @@ class Protein:
   estat_resid: jnp.ndarray | None = None
   estat_chain_index: jnp.ndarray | None = None
   physics_features: jnp.ndarray | None = None
+  md_bonds: jnp.ndarray | None = None
+  md_bond_params: jnp.ndarray | None = None
+  md_angles: jnp.ndarray | None = None
+  md_angle_params: jnp.ndarray | None = None
+  md_backbone_indices: jnp.ndarray | None = None
+  md_exclusion_mask: jnp.ndarray | None = None
 
   @classmethod
   def from_tuple(
@@ -263,6 +275,12 @@ class Protein:
       estat_resid=none_or_jnp(protein_tuple.estat_resid),
       estat_chain_index=none_or_jnp(protein_tuple.estat_chain_index),
       physics_features=none_or_jnp(protein_tuple.physics_features),
+      md_bonds=none_or_jnp(protein_tuple.md_bonds),
+      md_bond_params=none_or_jnp(protein_tuple.md_bond_params),
+      md_angles=none_or_jnp(protein_tuple.md_angles),
+      md_angle_params=none_or_jnp(protein_tuple.md_angle_params),
+      md_backbone_indices=none_or_jnp(protein_tuple.md_backbone_indices),
+      md_exclusion_mask=none_or_jnp(protein_tuple.md_exclusion_mask),
     )
 
 

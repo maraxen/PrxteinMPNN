@@ -96,7 +96,6 @@ def test_benchmark_energy_evaluation(ala_system, benchmark):
     
     print(f"\nEnergy evaluation: {result:.4f} kcal/mol")
 
-
 def test_benchmark_minimization(ala_system, benchmark):
     """Benchmark minimization performance."""
     params, coords = ala_system

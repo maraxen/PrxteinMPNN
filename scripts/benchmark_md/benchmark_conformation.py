@@ -221,7 +221,10 @@ def run_benchmark():
             # vmap over keys
             def single_run(k):
                 # simulate.run_simulation is JIT-able
-                md_coords = simulate.run_simulation(params, coords, temperature=temp_kelvin, min_steps=MD_STEPS, therm_steps=MD_THERM, dielectric_constant=80.0, key=k)
+                md_coords = simulate.run_simulation(
+                    params, coords, temperature=temp_kelvin, min_steps=MD_STEPS, therm_steps=MD_THERM,
+                    implicit_solvent=True, solvent_dielectric=78.5, solute_dielectric=1.0, key=k
+                )
                 phi, psi = compute_dihedrals_jax(md_coords, n_idx, ca_idx, c_idx)
                 valid = is_allowed_jax(phi, psi)
                 return jnp.mean(valid[1:-1]) * 100

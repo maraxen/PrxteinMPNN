@@ -142,6 +142,9 @@ def apply_md_sampling(coords, params, temperature, key):
         temperature=temperature * 300.0, 
         min_steps=100,
         therm_steps=500,
+        implicit_solvent=True,
+        solvent_dielectric=78.5,
+        solute_dielectric=1.0,
         key=key
     )
     return r_final

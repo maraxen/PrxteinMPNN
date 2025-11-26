@@ -125,7 +125,10 @@ def apply_gaussian_noise(coords, scale, key):
     return coords + jax.random.normal(key, coords.shape) * scale
 
 def apply_md_sampling(coords, params, temperature, key):
-    return simulate.run_simulation(params, coords, temperature=temperature * 300.0, min_steps=MD_STEPS, therm_steps=MD_THERM, key=key)
+    return simulate.run_simulation(
+        params, coords, temperature=temperature * 300.0, min_steps=MD_STEPS, therm_steps=MD_THERM,
+        implicit_solvent=True, solvent_dielectric=78.5, solute_dielectric=1.0, key=key
+    )
 
 # --- Diversity Metrics ---
 def compute_metrics(sequences, native_seq, logits_list=None):

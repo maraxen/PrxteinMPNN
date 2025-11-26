@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 from jax_md import energy, partition, space, util
 
-from prxteinmpnn.physics import bonded
+from prxteinmpnn.physics import bonded, generalized_born
 from prxteinmpnn.physics.jax_md_bridge import SystemParams
 
 Array = util.Array
@@ -19,6 +19,9 @@ def make_energy_fn(
   system_params: SystemParams,
   neighbor_list: partition.NeighborList | None = None,
   dielectric_constant: float = 1.0,
+  implicit_solvent: bool = True,
+  solvent_dielectric: float = 78.5,
+  solute_dielectric: float = 1.0,
 ) -> Callable[[Array], Array]:
   """Creates the total potential energy function.
 
@@ -58,16 +61,6 @@ def make_energy_fn(
   epsilons = system_params["epsilons"]
   exclusion_mask = system_params["exclusion_mask"]
 
-  # Lennard-Jones
-  # jax_md.energy.lennard_jones expects sigma, epsilon.
-  # It computes 4*eps * ((sigma/r)^12 - (sigma/r)^6).
-  # We need combination rules.
-  # Standard Amber/Charmm: sigma_ij = (sigma_i + sigma_j)/2, eps_ij = sqrt(eps_i * eps_j)
-  # jax_md `lennard_jones` takes sigma, epsilon as arrays and broadcasts?
-  # No, it usually takes scalar or array of same shape as r.
-  # `lennard_jones_neighbor_list` takes sigma, epsilon which can be per-particle?
-  # We need to define a custom pair interaction or use `lennard_jones_pair` with mapped parameters.
-
   # Let's use `energy.lennard_jones_neighbor_list` but we need to pre-combine parameters
   # or use a custom energy function passed to `neighbor_list_energy`.
   # `jax_md` provides `energy.lennard_jones` which works on distances.
@@ -77,139 +70,152 @@ def make_energy_fn(
     epsilon = jnp.sqrt(eps_i * eps_j)
     return energy.lennard_jones(dr, sigma, epsilon)
 
-  # Electrostatics (Screened Coulomb)
-  # V = q_i * q_j / (4 * pi * eps0 * r) * exp(-kappa * r)
-  # In kcal/mol/A/e^2 units: 332.0637 * q_i * q_j / r
-  # We use a constant factor.
-  # In kcal/mol/A/e^2 units: 332.0637 * q_i * q_j / r
-  # We use a constant factor, scaled by dielectric constant.
-  COULOMB_CONSTANT = 332.0637 / dielectric_constant
-  KAPPA = 0.1  # Inverse Debye length (1/A), approx 0.1M salt
+  # Electrostatics
+  # -------------------------------------------------------------------------
+  # We support two modes:
+  # 1. Implicit Solvent (Generalized Born) - Default
+  # 2. Vacuum + Screened Coulomb (Legacy)
 
-  def coulomb_pair(dr, q_i, q_j, **kwargs):
-    interaction = (q_i * q_j) / (dr + 1e-6)
-    screening = jnp.exp(-KAPPA * dr)
-    return COULOMB_CONSTANT * interaction * screening
+  def compute_electrostatics(r, neighbor_idx=None):
+    # Prepare parameters
+    # Intrinsic radii for GB: R ~ sigma / 2
+    radii = sigmas * 0.5
+
+    if implicit_solvent:
+      # Generalized Born (OBC)
+      if neighbor_idx is None:
+        # Dense O(N^2)
+        return generalized_born.compute_gb_energy(
+          r, charges, radii,
+          solvent_dielectric=solvent_dielectric,
+          solute_dielectric=solute_dielectric
+        )
+      else:
+        # Neighbor List
+        return generalized_born.compute_gb_energy_neighbor_list(
+          r, charges, radii, neighbor_idx,
+          solvent_dielectric=solvent_dielectric,
+          solute_dielectric=solute_dielectric
+        )
+    else:
+      # Screened Coulomb (Legacy)
+      # V = q_i * q_j / (eps * r) * exp(-kappa * r)
+      # We use the provided dielectric_constant (usually 1.0 or 80.0)
+      
+      # Constants
+      COULOMB_CONSTANT = 332.0637 / dielectric_constant
+      KAPPA = 0.1  # Inverse Debye length
+      
+      if neighbor_idx is None:
+        # Dense
+        dr = space.map_product(displacement_fn)(r, r)
+        dist = space.distance(dr)
+        q_ij = charges[:, None] * charges[None, :]
+        e_elec = COULOMB_CONSTANT * (q_ij / (dist + 1e-6)) * jnp.exp(-KAPPA * dist)
+        # Mask self
+        mask = 1.0 - jnp.eye(charges.shape[0])
+        e_elec = jnp.where(mask, e_elec, 0.0)
+        
+        # Apply exclusion mask
+        e_elec = jnp.where(exclusion_mask, e_elec, 0.0)
+
+        return 0.5 * jnp.sum(e_elec)
+      else:
+        # Neighbor List
+        idx = neighbor_idx
+        r_neighbors = r[idx]
+        r_central = r[:, None, :]
+        dr = jax.vmap(lambda ra, rb: displacement_fn(ra, rb))(r_central, r_neighbors)
+        dist = space.distance(dr)
+        
+        q_neighbors = charges[idx]
+        q_central = charges[:, None]
+        q_ij = q_central * q_neighbors
+        
+        e_elec = COULOMB_CONSTANT * (q_ij / (dist + 1e-6)) * jnp.exp(-KAPPA * dist)
+        
+        # Mask padding
+        mask_neighbors = idx < r.shape[0]
+        
+        # Exclusion lookup
+        i_idx = jnp.arange(r.shape[0])[:, None]
+        safe_idx = jnp.minimum(idx, r.shape[0] - 1)
+        interaction_allowed = exclusion_mask[i_idx, safe_idx]
+        
+        final_mask = mask_neighbors & interaction_allowed
+        e_elec = jnp.where(final_mask, e_elec, 0.0)
+        
+        return 0.5 * jnp.sum(e_elec)
 
   # Combine Non-Bonded
-  def non_bonded_pair(dr, p_i, p_j, **kwargs):
-    # p_i contains [q, sigma, epsilon]
-    q_i, sig_i, eps_i = p_i
-    q_j, sig_j, eps_j = p_j
-
-    e_lj = lj_pair(dr, sig_i, sig_j, eps_i, eps_j)
-    e_elec = coulomb_pair(dr, q_i, q_j)
-    return e_lj + e_elec
-
-  # We stack parameters for easy mapping
-  # (N, 3)
-  particle_params = jnp.stack([charges, sigmas, epsilons], axis=-1)
-
-  # Create Neighbor List Energy
-  # We define a custom function that uses the neighbor list
-  def total_energy(r: Array, neighbor: partition.NeighborList | None = None, **kwargs) -> Array:
-    e_bond = bond_energy_fn(r)
-    e_angle = angle_energy_fn(r)
-
-    # Non-bonded
-    if neighbor is None:
-      # Fallback to N^2 dense
-      # Compute all pairs
+  # -------------------------------------------------------------------------
+  
+  # We separate LJ and Electrostatics because GB is global (or different structure).
+  # LJ is always pairwise (dense or neighbor).
+  
+  def compute_lj(r, neighbor_idx=None):
+    if neighbor_idx is None:
+      # Dense
       dr = space.map_product(displacement_fn)(r, r)
       dist = space.distance(dr)
       
-      # Compute energy for all pairs
-      # We vmap over i and j
-      # non_bonded_pair expects scalars, so we vmap twice
-      
-      # Efficient way:
-      # Pre-calculate sigma_ij, eps_ij, q_ij matrices
-      # But let's stick to the pair function for clarity if JIT handles it.
-      
-      # Vectorized computation
-      # Sigma: (N, 1) + (1, N)
       sig_ij = 0.5 * (sigmas[:, None] + sigmas[None, :])
       eps_ij = jnp.sqrt(epsilons[:, None] * epsilons[None, :])
-      q_ij = charges[:, None] * charges[None, :]
       
       e_lj = energy.lennard_jones(dist, sig_ij, eps_ij)
-      e_elec = COULOMB_CONSTANT * (q_ij / (dist + 1e-6)) * jnp.exp(-KAPPA * dist)
       
-      e_nb = e_lj + e_elec
+      # Mask self and exclusions
+      # Exclusion mask is (N, N)
+      mask = exclusion_mask
+      e_lj = jnp.where(mask, e_lj, 0.0)
       
-      # Apply mask
-      # exclusion_mask is (N, N)
-      e_nb = jnp.where(exclusion_mask, e_nb, 0.0)
-
-
-
-      
-      # Sum and divide by 2 (double counting)
-      return e_bond + e_angle + 0.5 * jnp.sum(e_nb)
-
+      return 0.5 * jnp.sum(e_lj)
     else:
       # Neighbor List
-      # neighbor.idx is (N, max_neighbors)
-      # We gather neighbors
-      
-      idx = neighbor.idx
-      
-      # Gather positions
-      r_neighbors = r[idx] # (N, max_neighbors, 3)
-      r_central = r[:, None, :] # (N, 1, 3)
-      
+      idx = neighbor_idx
+      r_neighbors = r[idx]
+      r_central = r[:, None, :]
       dr = jax.vmap(lambda ra, rb: displacement_fn(ra, rb))(r_central, r_neighbors)
       dist = space.distance(dr)
       
-      # Gather params
       sig_neighbors = sigmas[idx]
       eps_neighbors = epsilons[idx]
-      q_neighbors = charges[idx]
-      
       sig_central = sigmas[:, None]
       eps_central = epsilons[:, None]
-      q_central = charges[:, None]
       
-      # Compute
       sig_ij = 0.5 * (sig_central + sig_neighbors)
       eps_ij = jnp.sqrt(eps_central * eps_neighbors)
-      q_ij = q_central * q_neighbors
       
       e_lj = energy.lennard_jones(dist, sig_ij, eps_ij)
-      e_elec = COULOMB_CONSTANT * (q_ij / (dist + 1e-6)) * jnp.exp(-KAPPA * dist)
       
-      e_nb = e_lj + e_elec
-      
-      # Apply Mask
-      # We need to look up the exclusion mask for (i, j)
-      # i is range(N), j is idx
-      # mask_val = exclusion_mask[i, idx]
-      # We can use vmap or advanced indexing
-      
-      # i indices: (N, 1) broadcasted
-      i_idx = jnp.arange(r.shape[0])[:, None]
-      
-      # Mask lookup
-      # Note: idx contains N (padding) which is out of bounds for mask if mask is (N, N)
-      # But jax handles OOB by clamping or error?
-      # jax_md neighbor lists pad with N.
-      # We should ensure exclusion_mask is padded or handle N.
-      # Actually, `idx` values < N are valid. `idx` == N is padding.
-      # We can mask where idx < N.
-      
+      # Mask padding and exclusions
       mask_neighbors = idx < r.shape[0]
       
-      # Look up exclusion
-      # We need to be careful with OOB.
-      # Safe lookup: clamp idx to 0..N-1, then apply mask_neighbors
+      # Exclusion lookup
+      i_idx = jnp.arange(r.shape[0])[:, None]
       safe_idx = jnp.minimum(idx, r.shape[0] - 1)
       interaction_allowed = exclusion_mask[i_idx, safe_idx]
       
-      # Combine masks
       final_mask = mask_neighbors & interaction_allowed
+      e_lj = jnp.where(final_mask, e_lj, 0.0)
       
-      e_nb = jnp.where(final_mask, e_nb, 0.0)
-      
-      return e_bond + e_angle + 0.5 * jnp.sum(e_nb)
+      return 0.5 * jnp.sum(e_lj)
+
+  # Total Energy Function
+  # -------------------------------------------------------------------------
+  def total_energy(r: Array, neighbor: partition.NeighborList | None = None, **kwargs) -> Array:
+    e_bond = bond_energy_fn(r)
+    e_angle = angle_energy_fn(r)
+    
+    neighbor_idx = neighbor.idx if neighbor is not None else None
+    
+    e_lj = compute_lj(r, neighbor_idx)
+    e_elec = compute_electrostatics(r, neighbor_idx)
+    
+    # Note: GB energy already includes 0.5 factor and self-energy.
+    # Screened Coulomb includes 0.5 factor.
+    # LJ includes 0.5 factor.
+    
+    return e_bond + e_angle + e_lj + e_elec
 
   return total_energy

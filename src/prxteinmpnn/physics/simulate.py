@@ -100,6 +100,7 @@ def run_simulation(
   temperature: float = 300.0,
   min_steps: int = 500,
   therm_steps: int = 1000,
+  dielectric_constant: float = 1.0,
   key: Array | None = None,
 ) -> Array:
   """Run full simulation: Minimization -> Thermalization.
@@ -117,7 +118,8 @@ def run_simulation(
 
   """
   displacement_fn, _ = space.free()
-  energy_fn = system.make_energy_fn(displacement_fn, system_params)
+  displacement_fn, _ = space.free()
+  energy_fn = system.make_energy_fn(displacement_fn, system_params, dielectric_constant=dielectric_constant)
 
   # 1. Minimize
   r_min = run_minimization(energy_fn, r_init, steps=min_steps)

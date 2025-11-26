@@ -18,6 +18,7 @@ def make_energy_fn(
   displacement_fn: space.DisplacementFn,
   system_params: SystemParams,
   neighbor_list: partition.NeighborList | None = None,
+  dielectric_constant: float = 1.0,
 ) -> Callable[[Array], Array]:
   """Creates the total potential energy function.
 
@@ -80,7 +81,9 @@ def make_energy_fn(
   # V = q_i * q_j / (4 * pi * eps0 * r) * exp(-kappa * r)
   # In kcal/mol/A/e^2 units: 332.0637 * q_i * q_j / r
   # We use a constant factor.
-  COULOMB_CONSTANT = 332.0637
+  # In kcal/mol/A/e^2 units: 332.0637 * q_i * q_j / r
+  # We use a constant factor, scaled by dielectric constant.
+  COULOMB_CONSTANT = 332.0637 / dielectric_constant
   KAPPA = 0.1  # Inverse Debye length (1/A), approx 0.1M salt
 
   def coulomb_pair(dr, q_i, q_j, **kwargs):

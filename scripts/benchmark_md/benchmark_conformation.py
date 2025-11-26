@@ -228,7 +228,7 @@ def run_benchmark():
             
             return jax.vmap(single_run)(keys)
 
-        for temp in [300, 400, 500]:
+        for temp in [250, 298, 350, 450]:
             key, subkey = jax.random.split(key)
             subkeys = jax.random.split(subkey, NUM_SAMPLES)
             scores = run_md_batch(subkeys, float(temp))

@@ -12,7 +12,7 @@ import jax
 import jax.numpy as jnp
 
 from prxteinmpnn.run.averaging import get_averaged_encodings
-from prxteinmpnn.scoring.score import make_score_sequence, score_sequence_with_encoding
+from prxteinmpnn.scoring.score import make_score_fn, score_sequence_with_encoding
 from prxteinmpnn.utils.aa_convert import string_to_protein_sequence
 from prxteinmpnn.utils.sharding import create_mesh, shard_pytree
 
@@ -157,7 +157,7 @@ def _score_standard_mode(
   mesh: jax.sharding.Mesh | None = None,
 ) -> tuple[list[jnp.ndarray], list[Logits]]:
   """Run scoring in standard mode."""
-  score_single_pair = make_score_sequence(model=model)
+  score_single_pair = make_score_fn(model=model)
   all_scores, all_logits = [], []
 
   for batched_ensemble in protein_iterator:
@@ -300,7 +300,7 @@ def _score_streaming(
     batched_sequences = jnp.expand_dims(batched_sequences, 0)
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
-  score_single_pair = make_score_sequence(model=model)
+  score_single_pair = make_score_fn(model=model)
 
   with h5py.File(spec.output_h5_path, "w") as f:
     scores_ds = f.create_dataset(

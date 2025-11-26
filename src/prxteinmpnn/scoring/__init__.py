@@ -1,5 +1,5 @@
-"""Scoring functions for evaluating protein sequences."""
+"""Scoring module for PrxteinMPNN."""
 
-from . import score
+from .score import make_score_fn
 
-__all__ = ["score"]
+__all__ = ["make_score_fn"]

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Literal
 
 import equinox as eqx
 import jax
+import jax.numpy as jnp
 import jax.nn.initializers as init
 from huggingface_hub import hf_hub_download
 

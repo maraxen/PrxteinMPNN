@@ -19,7 +19,7 @@ jax.config.update("jax_enable_x64", True)
 
 # Constants
 DEV_SET = ["1UBQ", "1CRN", "1BPTI", "2GB1", "1L2Y"]
-NUM_SAMPLES = 32
+NUM_SAMPLES = 8
 MD_STEPS = 100
 MD_THERM = 500
 
@@ -45,6 +45,14 @@ def extract_system_from_biotite(atom_array):
     atom_names = []
     coords_list = []
     
+    # We also need to track indices of N, CA, C for each residue for dihedral calc
+    # Since we flatten everything, we need absolute indices into the coordinate array
+    n_indices = []
+    ca_indices = []
+    c_indices = []
+    
+    current_atom_idx = 0
+    
     for res in struc.residue_iter(atom_array):
         res_name = res[0].res_name
         if res_name not in residue_constants.restype_3to1: continue
@@ -56,142 +64,107 @@ def extract_system_from_biotite(atom_array):
         atom_names.extend(std_atoms)
         
         res_coords = np.full((len(std_atoms), 3), np.nan)
+        
+        # Find indices for this residue
+        res_n_idx = -1
+        res_ca_idx = -1
+        res_c_idx = -1
+        
         for i, atom_name in enumerate(std_atoms):
             mask = res.atom_name == atom_name
-            if np.any(mask): res_coords[i] = res[mask][0].coord
-            elif np.any(res.atom_name == "CA"): res_coords[i] = res[res.atom_name == "CA"][0].coord
-            else: res_coords[i] = np.array([0., 0., 0.])
+            if np.any(mask): 
+                res_coords[i] = res[mask][0].coord
+            elif np.any(res.atom_name == "CA"): 
+                res_coords[i] = res[res.atom_name == "CA"][0].coord
+            else: 
+                res_coords[i] = np.array([0., 0., 0.])
+                
+            if atom_name == "N": res_n_idx = current_atom_idx + i
+            if atom_name == "CA": res_ca_idx = current_atom_idx + i
+            if atom_name == "C": res_c_idx = current_atom_idx + i
+            
         coords_list.append(res_coords)
         
-    if not coords_list: return None, None, None, None
+        if res_n_idx != -1 and res_ca_idx != -1 and res_c_idx != -1:
+            n_indices.append(res_n_idx)
+            ca_indices.append(res_ca_idx)
+            c_indices.append(res_c_idx)
+        else:
+            # Should not happen given backbone check, but for safety
+            pass
+
+        current_atom_idx += len(std_atoms)
+        
+    if not coords_list: return None, None, None, None, None, None, None
     coords = np.vstack(coords_list)
-    return coords, res_names, atom_names, atom_array
+    return coords, res_names, atom_names, atom_array, np.array(n_indices), np.array(ca_indices), np.array(c_indices)
 
 def apply_gaussian_noise(coords, scale, key):
     return coords + jax.random.normal(key, coords.shape) * scale
 
-def apply_md_sampling(coords, params, temperature, key):
-    return simulate.run_simulation(params, coords, temperature=temperature * 300.0, min_steps=MD_STEPS, therm_steps=MD_THERM, key=key)
+def compute_dihedrals_jax(coords, n_idx, ca_idx, c_idx):
+    """Compute Phi and Psi angles using JAX.
+    
+    Args:
+        coords: (N_atoms, 3)
+        n_idx: (N_res,) indices of N atoms
+        ca_idx: (N_res,) indices of CA atoms
+        c_idx: (N_res,) indices of C atoms
+        
+    Returns:
+        phi: (N_res,) in degrees
+        psi: (N_res,) in degrees
+    """
+    def compute_dihedral(p1, p2, p3, p4):
+        b0 = -1.0 * (p2 - p1)
+        b1 = p3 - p2
+        b2 = p4 - p3
 
-def check_ramachandran(atom_array, coords):
-    """Check Ramachandran validity."""
-    # Update coords
-    # We need to map the flat coords back to atom_array
-    # This assumes atom_array has same atoms as extracted
-    # But extract_system filters atoms.
-    # So we should create a new atom_array or update carefully.
-    
-    # Let's just create a new AtomArray from scratch using the extracted info
-    # Or better, just update the filtered atom_array returned by extract_system
-    
-    # We need to ensure the atom count matches.
-    # extract_system returns coords for *standard atoms only*.
-    # The atom_array passed in might have more (hydrogens, OXT, etc).
-    # We need to filter atom_array to match coords.
-    
-    # Let's filter atom_array to only include the atoms we extracted
-    # This is tricky.
-    # Instead, let's just use the fact that we know the residue structure.
-    # We can reconstruct a minimal AtomArray for dihedral calculation.
-    # Biotite needs N, CA, C atoms for Phi/Psi.
-    
-    # We extracted N, CA, C, O for every residue (checked backbone_mask).
-    # So we can just pull them out from coords.
-    
-    # Reconstruct simple array
-    # We need to know which rows in coords correspond to N, CA, C.
-    # We have res_names and atom_names.
-    
-    phi_psi_list = []
-    
-    # We can use biotite.structure.dihedral_backbone if we have an AtomArray.
-    # Let's build a minimal one.
-    
-    # Create an empty AtomArray
-    # We need to know total atoms.
-    n_atoms = len(coords)
-    new_array = struc.AtomArray(n_atoms)
-    new_array.coord = coords
-    new_array.res_id = np.zeros(n_atoms, dtype=int) # Dummy
-    new_array.chain_id = np.full(n_atoms, "A", dtype="U1")
-    new_array.atom_name = np.full(n_atoms, "   ", dtype="U4")
-    
-    # Fill in details
-    curr_idx = 0
-    res_id = 1
-    for r_name in atom_array.res_name: # This iterates over atoms, not residues? No, atom_array.res_name is array.
-        pass
-    
-    # Let's iterate over the res_names/atom_names we extracted
-    # But we need to pass res_names and atom_names to this function?
-    # No, we can just do it in the loop.
-    pass
+        b1 /= jnp.linalg.norm(b1, axis=-1, keepdims=True)
 
-def compute_dihedrals_from_coords(coords, res_names):
-    """Compute Phi/Psi angles manually or via Biotite."""
-    # Construct a minimal AtomArray
-    # We need N, CA, C for each residue.
+        v = b0 - jnp.sum(b0 * b1, axis=-1, keepdims=True) * b1
+        w = b2 - jnp.sum(b2 * b1, axis=-1, keepdims=True) * b1
+
+        x = jnp.sum(v * w, axis=-1)
+        y = jnp.sum(jnp.cross(b1, v) * w, axis=-1)
+
+        return jnp.degrees(jnp.arctan2(y, x))
+
+    # Phi
+    # Valid for residues 1 to N-1
+    c_prev = coords[c_idx[:-1]]
+    n_curr = coords[n_idx[1:]]
+    ca_curr = coords[ca_idx[1:]]
+    c_curr_phi = coords[c_idx[1:]]
     
-    # Flattened list of atoms
-    atoms = []
-    curr_idx = 0
+    phi_vals = compute_dihedral(c_prev, n_curr, ca_curr, c_curr_phi)
+    # Pad first residue with 0.0
+    phi = jnp.concatenate([jnp.array([0.0]), phi_vals])
+
+    # Psi
+    # Valid for residues 0 to N-2
+    n_curr_psi = coords[n_idx[:-1]]
+    ca_curr_psi = coords[ca_idx[:-1]]
+    c_curr_psi = coords[c_idx[:-1]]
+    n_next = coords[n_idx[1:]]
     
-    # We need to assign res_id to group them
-    res_ids = []
-    atom_names_list = []
-    
-    for i, r_name in enumerate(res_names):
-        std_atoms = residue_constants.residue_atoms.get(r_name, [])
-        n_atoms = len(std_atoms)
-        
-        for j, atom in enumerate(std_atoms):
-            atom_names_list.append(atom)
-            res_ids.append(i + 1)
-            
-        curr_idx += n_atoms
-        
-    new_array = struc.AtomArray(len(coords))
-    new_array.coord = coords
-    new_array.res_id = np.array(res_ids)
-    new_array.atom_name = np.array(atom_names_list)
-    new_array.chain_id = np.full(len(coords), "A")
-    
-    # Calculate dihedrals
-    # biotite.structure.dihedral_backbone returns (phi, psi, omega)
-    # It returns shape (N_res, 3)
-    try:
-        phi, psi, omega = struc.dihedral_backbone(new_array)
-    except Exception:
-        return np.array([]), np.array([])
-        
-    # Convert to degrees
-    phi = np.degrees(phi)
-    psi = np.degrees(psi)
+    psi_vals = compute_dihedral(n_curr_psi, ca_curr_psi, c_curr_psi, n_next)
+    # Pad last residue
+    psi = jnp.concatenate([psi_vals, jnp.array([0.0])])
     
     return phi, psi
 
-def is_allowed(phi, psi):
-    """Check if Phi/Psi is in allowed region (General)."""
-    # Simple General Region Check
-    # Alpha: -180 < phi < -20, -100 < psi < 45 (Broad)
-    # Beta: -180 < phi < -20, 45 < psi < 180 (Broad)
-    # Plus some allowed regions for Gly/Pro?
-    # Let's use a very broad "Not Forbidden" check.
-    # Forbidden: phi > 0 (except Gly), or steric clash regions.
-    # Let's just check if it falls in the "Favored" or "Allowed" regions of a standard plot.
-    # For benchmark, we compare MD vs Gaussian.
-    # Gaussian often puts atoms in random places, so phi/psi will be uniform or weird.
-    # MD should keep them in valid regions.
-    
-    # Let's use a simple box for Alpha/Beta
+def is_allowed_jax(phi, psi):
+    """Check Ramachandran validity (JAX compatible)."""
+    # Simple General Region Check (Broad)
     is_alpha = (phi > -160) & (phi < -20) & (psi > -100) & (psi < 50)
     is_beta = (phi > -180) & (phi < -20) & (psi > 50) & (psi < 180)
-    is_left_alpha = (phi > 20) & (phi < 100) & (psi > 0) & (psi < 100) # Rare but possible (Gly)
+    is_left_alpha = (phi > 20) & (phi < 100) & (psi > 0) & (psi < 100)
     
     return is_alpha | is_beta | is_left_alpha
 
 def run_benchmark():
-    print("Benchmarking Conformational Validity...")
+    print("Benchmarking Conformational Validity (Optimized with VMAP)...")
     ff = force_fields.load_force_field_from_hub("ff14SB")
     
     results = []
@@ -202,45 +175,64 @@ def run_benchmark():
         atom_array = download_and_load_pdb(pdb_id)
         if atom_array is None: continue
         
-        coords_np, res_names, atom_names, filtered_array = extract_system_from_biotite(atom_array)
+        coords_np, res_names, atom_names, filtered_array, n_idx, ca_idx, c_idx = extract_system_from_biotite(atom_array)
         if coords_np is None: continue
         
         params = jax_md_bridge.parameterize_system(ff, res_names, atom_names)
         coords = jnp.array(coords_np)
+        n_idx = jnp.array(n_idx)
+        ca_idx = jnp.array(ca_idx)
+        c_idx = jnp.array(c_idx)
         
         # 1. Baseline
-        phi, psi = compute_dihedrals_from_coords(coords_np, res_names)
-        valid = is_allowed(phi, psi)
-        pct_valid = np.mean(valid) * 100 if len(valid) > 0 else 0
-        results.append({"pdb": pdb_id, "method": "baseline", "param": 0, "valid_pct": pct_valid})
+        phi, psi = compute_dihedrals_jax(coords, n_idx, ca_idx, c_idx)
+        valid = is_allowed_jax(phi, psi)
+        if len(valid) > 2:
+            pct_valid = jnp.mean(valid[1:-1]) * 100
+        else:
+            pct_valid = 0.0
+        results.append({"pdb": pdb_id, "method": "baseline", "param": 0, "valid_pct": float(pct_valid)})
         
-        # 2. Gaussian
+        # 2. Gaussian (VMAP)
         print("  Method: Gaussian...")
-        for scale in [0.1, 0.2, 0.5]:
-            valid_pcts = []
-            for i in range(NUM_SAMPLES):
-                key, subkey = jax.random.split(key)
-                noisy = apply_gaussian_noise(coords, scale, subkey)
-                phi, psi = compute_dihedrals_from_coords(np.array(noisy), res_names)
-                valid = is_allowed(phi, psi)
-                valid_pcts.append(np.mean(valid) * 100 if len(valid) > 0 else 0)
-            results.append({"pdb": pdb_id, "method": "gaussian", "param": scale, "valid_pct": np.mean(valid_pcts)})
+        
+        @jax.jit
+        def run_gaussian_batch(keys, scale):
+            # vmap over keys
+            def single_run(k):
+                noisy = apply_gaussian_noise(coords, scale, k)
+                phi, psi = compute_dihedrals_jax(noisy, n_idx, ca_idx, c_idx)
+                valid = is_allowed_jax(phi, psi)
+                return jnp.mean(valid[1:-1]) * 100
             
-        # 3. MD
+            return jax.vmap(single_run)(keys)
+
+        for scale in [0.1, 0.2, 0.5]:
+            key, subkey = jax.random.split(key)
+            subkeys = jax.random.split(subkey, NUM_SAMPLES)
+            scores = run_gaussian_batch(subkeys, scale)
+            results.append({"pdb": pdb_id, "method": "gaussian", "param": scale, "valid_pct": float(jnp.mean(scores))})
+            
+        # 3. MD (VMAP)
         print("  Method: MD...")
+        
+        @jax.jit
+        def run_md_batch(keys, temp_kelvin):
+            # vmap over keys
+            def single_run(k):
+                # simulate.run_simulation is JIT-able
+                md_coords = simulate.run_simulation(params, coords, temperature=temp_kelvin, min_steps=MD_STEPS, therm_steps=MD_THERM, key=k)
+                phi, psi = compute_dihedrals_jax(md_coords, n_idx, ca_idx, c_idx)
+                valid = is_allowed_jax(phi, psi)
+                return jnp.mean(valid[1:-1]) * 100
+            
+            return jax.vmap(single_run)(keys)
+
         for temp in [300, 400, 500]:
-            valid_pcts = []
-            for i in range(NUM_SAMPLES):
-                key, subkey = jax.random.split(key)
-                try:
-                    md_coords = apply_md_sampling(coords, params, temp/300.0, subkey)
-                    phi, psi = compute_dihedrals_from_coords(np.array(md_coords), res_names)
-                    valid = is_allowed(phi, psi)
-                    valid_pcts.append(np.mean(valid) * 100 if len(valid) > 0 else 0)
-                except Exception:
-                    pass
-            if valid_pcts:
-                results.append({"pdb": pdb_id, "method": "md", "param": temp, "valid_pct": np.mean(valid_pcts)})
+            key, subkey = jax.random.split(key)
+            subkeys = jax.random.split(subkey, NUM_SAMPLES)
+            scores = run_md_batch(subkeys, float(temp))
+            results.append({"pdb": pdb_id, "method": "md", "param": temp, "valid_pct": float(jnp.mean(scores))})
 
     df = pd.DataFrame(results)
     df.to_csv("benchmark_conformation.csv", index=False)

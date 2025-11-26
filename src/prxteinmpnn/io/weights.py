@@ -101,6 +101,9 @@ def load_weights(
       filename=f"eqx/{filename}",
       repo_type="model",
     )
+  # Ensure skeleton is float32 even if x64 is enabled
+  # This prevents RuntimeError when loading float32 weights into a float64 skeleton
+  skeleton = jax.tree_util.tree_map(lambda x: x.astype(jnp.float32) if eqx.is_inexact_array(x) else x, skeleton)
   return eqx.tree_deserialise_leaves(weights_file_path, skeleton)
 
 

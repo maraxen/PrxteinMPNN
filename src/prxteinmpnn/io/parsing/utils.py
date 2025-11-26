@@ -271,7 +271,7 @@ def processed_structure_to_protein_tuples(
   source_name: str,
   *,
   extract_dihedrals: bool = False,
-  populate_physics: bool = True,
+  populate_physics: bool = False,
   force_field_name: str = "ff14SB",
 ) -> ProteinStream:
   """Convert a ProcessedStructure into a stream of ProteinTuples.

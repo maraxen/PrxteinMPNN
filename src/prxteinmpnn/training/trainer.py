@@ -233,7 +233,6 @@ def train_step(  # noqa: PLR0913
   mask_strategy: str = "random_order",
   mask_prob: float = 0.15,
   training_mode: str = "autoregressive",
-  training_mode: str = "autoregressive",
   noise_schedule: NoiseSchedule | None = None,
   full_coordinates: jax.Array | None = None,
   md_params: dict[str, jax.Array] | None = None,

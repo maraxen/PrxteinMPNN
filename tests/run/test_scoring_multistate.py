@@ -13,7 +13,7 @@ from helpers.multistate import (
 )
 
 from prxteinmpnn.model.mpnn import PrxteinMPNN
-from prxteinmpnn.scoring.score import make_score_sequence
+from prxteinmpnn.scoring.score import make_score_fn
 from prxteinmpnn.utils.decoding_order import random_decoding_order
 
 
@@ -36,7 +36,7 @@ def mpnn_model():
 @pytest.fixture
 def score_fn(mpnn_model):
   """Create a score_sequence function."""
-  return make_score_sequence(
+  return make_score_fn(
     model=mpnn_model,
     decoding_order_fn=random_decoding_order,
   )
@@ -196,7 +196,7 @@ def test_score_sequences_jit_compatible(mpnn_model):
   protein = create_simple_multistate_protein(key=jax.random.key(0))
 
   # Create score function
-  score_fn = make_score_sequence(
+  score_fn = make_score_fn(
     model=mpnn_model,
     decoding_order_fn=random_decoding_order,
   )

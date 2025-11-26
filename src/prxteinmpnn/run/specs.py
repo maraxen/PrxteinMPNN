@@ -88,8 +88,6 @@ class RunSpecification:
   output_path: str | Path | None = None
 
   # Data/Sharding
-  use_sharding: bool = True
-  shard_batch: bool = True
   use_preprocessed: bool = False
   preprocessed_index_path: str | Path | None = None
   split: str = "inference"

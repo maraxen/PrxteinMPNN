@@ -973,6 +973,9 @@ class PrxteinMPNN(eqx.Module):
     multi_state_alpha: float = 0.5,
     structure_mapping: jnp.ndarray | None = None,
     initial_node_features: jnp.ndarray | None = None,
+    full_coordinates: jnp.ndarray | None = None,
+    md_params: dict[str, jax.Array] | None = None,
+    md_config: dict[str, float | int] | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Forward pass for the complete model.
 
@@ -1010,6 +1013,9 @@ class PrxteinMPNN(eqx.Module):
                 is a PhysicsEncoder with use_initial_features=True, these will be
                 used instead of zeros. Typically contains electrostatic features
                 with shape (n_residues, 5).
+      full_coordinates: Full atomic coordinates for MD (optional).
+      md_params: MD parameters dictionary for "md" mode (optional).
+      md_config: Configuration for MD (temperature, steps) (optional).
 
     Returns:
       A tuple of (OneHotProteinSequence, Logits).
@@ -1049,6 +1055,9 @@ class PrxteinMPNN(eqx.Module):
       backbone_noise,
       structure_mapping=structure_mapping,
       initial_node_features=initial_node_features,
+      full_coordinates=full_coordinates,
+      md_params=md_params,
+      md_config=md_config,
     )
 
     node_features, edge_features = self.encoder(

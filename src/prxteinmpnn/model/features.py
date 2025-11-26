@@ -12,14 +12,23 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
+from prxteinmpnn.physics import simulate
 from prxteinmpnn.physics.constants import BOLTZMANN_KCAL
-from prxteinmpnn.utils.coordinates import (
-  apply_noise_to_coordinates,
-  compute_backbone_coordinates,
-  compute_backbone_distance,
-)
+
+# Feature extraction constants
+MAXIMUM_RELATIVE_FEATURES = 32
+POS_EMBED_DIM = 16
+top_k = jax.jit(jax.lax.top_k, static_argnames=("k",))
+
+
+    # I will implement the MD branch in the replacement.
 from prxteinmpnn.utils.graph import compute_neighbor_offsets
 from prxteinmpnn.utils.radial_basis import compute_radial_basis
+from prxteinmpnn.utils.coordinates import (
+    apply_noise_to_coordinates,
+    compute_backbone_coordinates,
+    compute_backbone_distance,
+)
 
 if TYPE_CHECKING:
   from prxteinmpnn.utils.types import (
@@ -107,6 +116,9 @@ class ProteinFeatures(eqx.Module):
     backbone_noise_mode: str = "direct",
     structure_mapping: jnp.ndarray | None = None,
     initial_node_features: jnp.ndarray | None = None,
+    full_coordinates: jnp.ndarray | None = None,
+    md_params: dict[str, jax.Array] | None = None,
+    md_config: dict[str, float | int] | None = None,
   ) -> tuple[EdgeFeatures, NeighborIndices, NodeFeatures | None, PRNGKeyArray]:
     """Extract and project features from protein structure.
 
@@ -117,11 +129,14 @@ class ProteinFeatures(eqx.Module):
       residue_index: Residue indices.
       chain_index: Chain indices.
       backbone_noise: Noise to add to backbone coordinates.
-      backbone_noise_mode: Mode for backbone noise ("direct" or "thermal").
+      backbone_noise_mode: Mode for backbone noise ("direct", "thermal", "md").
       structure_mapping: Optional (N,) array mapping each residue to a structure ID.
                         When provided (multi-state mode), prevents cross-structure
                         neighbors to avoid information leakage between conformational states.
       initial_node_features: Optional initial node features.
+      full_coordinates: Full atomic coordinates for MD (N_atoms, 3).
+      md_params: MD parameters dictionary for "md" mode.
+      md_config: Configuration for MD (temperature, steps).
 
     Returns:
       Tuple of (edge_features, neighbor_indices, updated_prng_key).
@@ -140,11 +155,35 @@ class ProteinFeatures(eqx.Module):
     else:
       final_sigma = backbone_noise
 
-    noised_coordinates, prng_key = apply_noise_to_coordinates(
-      prng_key,
-      structure_coordinates,
-      backbone_noise=final_sigma,
-    )
+    if backbone_noise_mode == "md" and md_params is not None and full_coordinates is not None:
+      # Run MD Simulation
+      temp = md_config.get("temperature", 300.0) if md_config else 300.0
+      min_steps = md_config.get("min_steps", 500) if md_config else 500
+      therm_steps = md_config.get("therm_steps", 1000) if md_config else 1000
+
+      r_final = simulate.run_simulation(
+        md_params,
+        full_coordinates,
+        temperature=temp,
+        min_steps=min_steps,
+        therm_steps=therm_steps,
+        key=prng_key,
+      )
+
+      # Extract backbone coordinates
+      # md_params["backbone_indices"] is (N_res, 4)
+      bb_indices = md_params["backbone_indices"]
+      noised_coordinates = r_final[bb_indices]
+      
+      # Consume key
+      prng_key, _ = jax.random.split(prng_key)
+      
+    else:
+      noised_coordinates, prng_key = apply_noise_to_coordinates(
+        prng_key,
+        structure_coordinates,
+        backbone_noise=final_sigma,
+      )
     backbone_atom_coordinates = compute_backbone_coordinates(noised_coordinates)
     distances = compute_backbone_distance(backbone_atom_coordinates)
 

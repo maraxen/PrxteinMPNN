@@ -68,7 +68,17 @@ class RunSpecification:
   model_version: ModelVersion = "v_48_020"
   batch_size: int = 32
   backbone_noise: Sequence[float] | float = (0.0,)
-  backbone_noise_mode: Literal["direct", "thermal"] = "direct"
+  backbone_noise_mode: str = "direct"
+  """Mode for backbone noise: 'direct' (Gaussian) or 'md' (Molecular Dynamics)."""
+  
+  md_min_steps: int = 500
+  """Number of minimization steps for MD mode."""
+  
+  md_therm_steps: int = 1000
+  """Number of thermalization steps for MD mode."""
+  
+  md_temperature: float = 300.0
+  """Temperature (Kelvin) for MD thermalization."""
   estat_noise: Sequence[float] | float | None = None
   estat_noise_mode: Literal["direct", "thermal"] = "direct"
   vdw_noise: Sequence[float] | float | None = None

@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from .prep import prep_protein_stream_and_model
+
 if TYPE_CHECKING:
   from prxteinmpnn.run.specs import InspectionSpecification
 
@@ -58,6 +60,14 @@ def inspect_model(spec: InspectionSpecification) -> dict[str, object]:
     dict_keys(['unconditional_logits', 'edge_features', 'distance_matrix'])
 
   """
-  del spec  # Placeholder to avoid unused variable warning
+  protein_iterator, _ = prep_protein_stream_and_model(spec)
+
+  results = {
+    "metadata": {
+      "specification": spec,
+      "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
+    }
+  }
+
   # Implementation will be added in subsequent PRs
-  return {}
+  return results

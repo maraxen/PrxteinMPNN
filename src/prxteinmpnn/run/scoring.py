@@ -98,6 +98,7 @@ def score(
     "logits": jnp.concatenate(all_logits, axis=0),
     "metadata": {
       "specification": spec,
+      "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
     },
   }
 
@@ -343,5 +344,6 @@ def _score_streaming(
     "output_h5_path": str(spec.output_h5_path),
     "metadata": {
       "specification": spec,
+      "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
     },
   }

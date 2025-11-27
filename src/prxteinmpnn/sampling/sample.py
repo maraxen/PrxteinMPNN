@@ -151,7 +151,17 @@ def make_sample_sequences(
 
   if sampling_strategy == "temperature":
 
-    @partial(jax.jit, static_argnames=("_k_neighbors", "num_groups", "multi_state_strategy"))
+    @partial(
+      jax.jit,
+      static_argnames=(
+        "_k_neighbors",
+        "num_groups",
+        "multi_state_strategy",
+        "_iterations",
+        "_learning_rate",
+        "multi_state_alpha",
+      ),
+    )
     def sample_sequences(
       prng_key: PRNGKeyArray,
       structure_coordinates: StructureAtomicCoordinates,

@@ -5,7 +5,7 @@ import pathlib
 import msgpack
 import msgpack_numpy as m
 import tqdm
-from array_record.python import array_record_module as array_record
+from array_record.python import array_record_module as array_record  # type: ignore[unresolved-import]
 
 # Patch msgpack to handle numpy arrays serialized in the records
 m.patch()

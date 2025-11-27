@@ -63,6 +63,7 @@ def _process_mdcath_frame(
   frame_coords_full: np.ndarray,
   resnames: np.ndarray,
   static_features: TrajectoryStaticFeatures,
+  *,
   add_hydrogens: bool = True,
 ) -> ProcessedStructure:
   """Process a single MDCATH frame."""
@@ -220,6 +221,7 @@ def _get_static_features_mdcath(
 def parse_mdcath_to_processed_structure(
   source: str | StringIO | pathlib.Path,
   chain_id: Sequence[str] | str | None,
+  *,
   add_hydrogens: bool = True,
 ) -> Iterator[ProcessedStructure]:
   """Parse mdCATH HDF5 files."""

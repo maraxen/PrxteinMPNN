@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import sys
 from functools import partial
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import h5py
 import jax
@@ -20,7 +20,7 @@ from .prep import prep_protein_stream_and_model
 from .specs import SamplingSpecification
 
 if TYPE_CHECKING:
-  from collections.abc import Callable
+  from collections.abc import Callable, Sequence
 
   from grain.python import IterDataset
   from jaxtyping import PRNGKeyArray
@@ -31,7 +31,6 @@ if TYPE_CHECKING:
     AlphaCarbonMask,
     AutoRegressiveMask,
     BackboneCoordinates,
-    BackboneNoise,
     ChainIndex,
     DecodingOrder,
     Logits,
@@ -42,12 +41,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
 
+RANK_WITH_TEMPERATURE = 4
+
 
 def _sample_batch(
   spec: SamplingSpecification,
   batched_ensemble: Protein,
   sampler_fn: Callable,
-) -> tuple[ProteinSequence, Logits]:
+) -> tuple[ProteinSequence, Logits, jax.Array | None]:
   """Sample sequences for a batched ensemble of proteins."""
   keys = jax.random.split(jax.random.key(spec.random_seed), spec.num_samples)
 
@@ -169,8 +170,7 @@ def _sample_batch(
     nll = -jnp.sum(one_hot_sequences * log_probs, axis=(-1, -2))
     pseudo_perplexity = jnp.exp(nll / jnp.sum(batched_ensemble.mask, axis=-1))
     return sampled_sequences, sampled_logits, pseudo_perplexity
-  else:
-    return sampled_sequences, sampled_logits, None
+  return sampled_sequences, sampled_logits, None
 
 
 def sample(
@@ -284,7 +284,7 @@ def _sample_streaming(
   spec: SamplingSpecification,
   protein_iterator: IterDataset,
   sampler_fn: Callable,
-) -> dict[str, str | dict[str, SamplingSpecification]]:
+) -> dict[str, Any]:
   """Sample new sequences and stream results to an HDF5 file."""
   with h5py.File(spec.output_h5_path, "w") as f:
     structure_idx = 0
@@ -395,13 +395,89 @@ def _sample_averaged_mode(
   return results
 
 
+def _internal_sample_averaged(
+  spec: SamplingSpecification,
+  encoded_feat: tuple,
+  keys_arr: PRNGKeyArray,
+  sample_fn_with_params: Callable,
+  tie_group_map: jnp.ndarray | None,
+  num_groups: int | None,
+) -> ProteinSequence:
+  """Sample mapping over keys for averaged features."""
+  decoding_order_keys = jax.random.split(jax.random.key(spec.random_seed + 1), spec.num_samples)
+
+  temperature_array = jnp.asarray(spec.temperature, dtype=jnp.float32)
+
+  def sample_single_sequence(
+    key: PRNGKeyArray,
+    decoding_order_key: PRNGKeyArray,
+    encoded_feat: tuple,
+    temperature: float,
+  ) -> ProteinSequence:
+    """Sample one sequence from averaged features."""
+    seq_len = encoded_feat[0].shape[0]
+    decoding_order, _ = random_decoding_order(
+      decoding_order_key,
+      seq_len,
+      tie_group_map,
+      num_groups,
+    )
+    return sample_fn_with_params(key, encoded_feat, decoding_order, temperature=temperature)
+
+  def sample_for_key(k: PRNGKeyArray, dok: PRNGKeyArray) -> ProteinSequence:
+    return jax.vmap(
+      lambda t: sample_single_sequence(k, dok, encoded_feat, t),
+    )(temperature_array)
+
+  vmap_sample_fn = jax.vmap(
+    sample_for_key,
+    in_axes=(0, 0),
+    out_axes=0,
+  )
+  return vmap_sample_fn(keys_arr, decoding_order_keys)
+
+
+def _compute_logits_averaged(
+  spec: SamplingSpecification,
+  averaged_encodings: tuple,
+  sampled_sequences: ProteinSequence,
+  decode_fn_wrapped: Callable,
+) -> Logits:
+  """Compute logits for the sampled sequences."""
+  seq_len = sampled_sequences.shape[-1]
+  ar_mask = jnp.zeros((seq_len, seq_len), dtype=jnp.int32)
+
+  if spec.average_encoding_mode == "inputs_and_noise":
+
+    def get_logits_local_both(seq: ProteinSequence) -> Logits:
+      return jax.vmap(lambda s: decode_fn_wrapped(averaged_encodings, s, ar_mask))(seq)
+
+    vmap_logits = jax.vmap(get_logits_local_both)
+    logits = vmap_logits(sampled_sequences[0])
+    logits = jnp.expand_dims(logits, axis=0)
+  else:
+
+    def get_logits_local(seq: ProteinSequence, enc: tuple) -> Logits:
+      return jax.vmap(lambda s: decode_fn_wrapped(enc, s, ar_mask))(seq)
+
+    struct_axis = 1 if spec.average_encoding_mode == "inputs" else 0
+
+    vmap_logits = jax.vmap(
+      jax.vmap(get_logits_local, in_axes=(0, None)),
+      in_axes=(0, (0, 0, struct_axis, struct_axis, struct_axis)),
+    )
+    logits = vmap_logits(sampled_sequences, averaged_encodings)
+
+  return logits
+
+
 def _sample_batch_averaged(
   spec: SamplingSpecification,
   batched_ensemble: Protein,
   model: PrxteinMPNN,
   sample_fn: Callable,  # noqa: ARG001
   decode_fn: Callable,  # noqa: ARG001
-) -> tuple[ProteinSequence, Logits]:
+) -> tuple[ProteinSequence, Logits, jax.Array | None]:
   """Sample sequences for a batched ensemble of proteins using averaged encodings."""
   keys = jax.random.split(jax.random.key(spec.random_seed), spec.num_samples)
 
@@ -434,92 +510,46 @@ def _sample_batch_averaged(
     num_groups=num_groups,
   )
 
-  def sample_single_sequence(
-    key: PRNGKeyArray,
-    decoding_order_key: PRNGKeyArray,
-    encoded_feat: tuple,
-    temperature: float,
-    _sampler: partial = sample_fn_with_params,
-  ) -> ProteinSequence:
-    """Sample one sequence from averaged features."""
-    seq_len = encoded_feat[0].shape[0]
-    decoding_order, _ = random_decoding_order(
-      decoding_order_key,
-      seq_len,
-      tie_group_map,
-      num_groups,
-    )
-    return _sampler(key, encoded_feat, decoding_order, temperature=temperature)
-
-  def internal_sample_averaged(
-    encoded_feat: tuple,
-    keys_arr: PRNGKeyArray,
-  ) -> ProteinSequence:
-    """Sample mapping over keys for averaged features."""
-    decoding_order_keys = jax.random.split(jax.random.key(spec.random_seed + 1), spec.num_samples)
-
-    temperature_array = jnp.asarray(spec.temperature, dtype=jnp.float32)
-
-    def sample_for_key(k: PRNGKeyArray, dok: PRNGKeyArray) -> ProteinSequence:
-      return jax.vmap(
-        lambda t: sample_single_sequence(k, dok, encoded_feat, t),
-      )(temperature_array)
-
-    vmap_sample_fn = jax.vmap(
-      sample_for_key,
-      in_axes=(0, 0),
-      out_axes=0,
-    )
-    return vmap_sample_fn(keys_arr, decoding_order_keys)
-
   if spec.average_encoding_mode == "inputs_and_noise":
-    sampled_sequences = internal_sample_averaged(
+    sampled_sequences = _internal_sample_averaged(
+      spec,
       averaged_encodings,
       keys,
+      sample_fn_with_params,
+      tie_group_map,
+      num_groups,
     )
     sampled_sequences = jnp.expand_dims(sampled_sequences, axis=0)
   else:
     struct_axis = 1 if spec.average_encoding_mode == "inputs" else 0
 
+    def _call_internal(enc: tuple) -> ProteinSequence:
+      return _internal_sample_averaged(
+        spec,
+        enc,
+        keys,
+        sample_fn_with_params,
+        tie_group_map,
+        num_groups,
+      )
+
     vmap_sample_structures = jax.vmap(
-      internal_sample_averaged,
-      in_axes=((0, 0, struct_axis, struct_axis, struct_axis), None),
+      _call_internal,
+      in_axes=((0, 0, struct_axis, struct_axis, struct_axis),),
     )
     sampled_sequences = vmap_sample_structures(
       averaged_encodings,
-      keys,
     )
 
-  # Get logits for the sampled sequences using the SAME wrapped decode function
-  seq_len = sampled_sequences.shape[-1]
-  ar_mask = jnp.zeros((seq_len, seq_len), dtype=jnp.int32)
+  logits = _compute_logits_averaged(spec, averaged_encodings, sampled_sequences, decode_fn_wrapped)
 
-  if spec.average_encoding_mode == "inputs_and_noise":
-
-    def get_logits_local_both(seq: ProteinSequence) -> Logits:
-      return jax.vmap(lambda s: decode_fn_wrapped(averaged_encodings, s, ar_mask))(seq)
-
-    vmap_logits = jax.vmap(get_logits_local_both)
-    logits = vmap_logits(sampled_sequences[0])
-    logits = jnp.expand_dims(logits, axis=0)
-  else:
-
-    def get_logits_local(seq: ProteinSequence, enc: tuple) -> Logits:
-      return jax.vmap(lambda s: decode_fn_wrapped(enc, s, ar_mask))(seq)
-
-    struct_axis = 1 if spec.average_encoding_mode == "inputs" else 0
-
-    vmap_logits = jax.vmap(
-      jax.vmap(get_logits_local, in_axes=(0, None)),
-      in_axes=(0, (0, 0, struct_axis, struct_axis, struct_axis)),
-    )
-    logits = vmap_logits(sampled_sequences, averaged_encodings)
-
+  num_temps = len(cast("Sequence[float]", spec.temperature))
   # Reshape to (1, -1, num_temps, seq_len)
-  sampled_sequences = sampled_sequences.reshape((1, -1, len(spec.temperature), seq_len))
-  logits = logits.reshape((1, -1, len(spec.temperature), seq_len, 21))
+  seq_len = sampled_sequences.shape[-1]
+  sampled_sequences = sampled_sequences.reshape((1, -1, num_temps, seq_len))
+  logits = logits.reshape((1, -1, num_temps, seq_len, 21))
 
-  if len(spec.temperature) == 1:
+  if num_temps == 1:
     sampled_sequences = jnp.squeeze(sampled_sequences, axis=2)
     logits = jnp.squeeze(logits, axis=2)
 
@@ -529,15 +559,14 @@ def _sample_batch_averaged(
     nll = -jnp.sum(one_hot_sequences * log_probs, axis=(-1, -2))
     pseudo_perplexity = jnp.exp(nll / jnp.sum(batched_ensemble.mask, axis=-1))
     return sampled_sequences, logits, pseudo_perplexity
-  else:
-    return sampled_sequences, logits, None
+  return sampled_sequences, logits, None
 
 
 def _sample_streaming_averaged(
   spec: SamplingSpecification,
   protein_iterator: IterDataset,
   model: PrxteinMPNN,
-) -> dict[str, str | dict[str, SamplingSpecification]]:
+) -> dict[str, Any]:
   """Sample new sequences with averaged encodings and stream results to an HDF5 file."""
   _, sample_fn, decode_fn = make_encoding_sampling_split_fn(model)
 
@@ -563,7 +592,7 @@ def _sample_streaming_averaged(
         grp.attrs["num_samples"] = sampled_sequences.shape[1]
         grp.attrs["num_noise_levels"] = 1  # Averaged, so effectively 1 noise level
         grp.attrs["num_temperatures"] = (
-          sampled_sequences.shape[2] if sampled_sequences.ndim == 4 else 1
+          sampled_sequences.shape[2] if sampled_sequences.ndim == RANK_WITH_TEMPERATURE else 1
         )
         grp.attrs["sequence_length"] = sampled_sequences.shape[-1]
         structure_idx += 1

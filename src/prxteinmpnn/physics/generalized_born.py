@@ -34,6 +34,14 @@ def compute_born_radii(
 ) -> Array:
     """Computes effective Born radii using the OBC II approximation.
 
+    The Born radius $B_i$ is calculated as:
+
+    $$
+    B_i^{-1} = \\rho_i^{-1} - \\rho_i^{-1} \\tanh(\\alpha \\Psi_i - \\beta \\Psi_i^2 + \\gamma \\Psi_i^3)
+    $$
+
+    where $\\Psi_i = \\rho_i I_i$, and $I_i$ is the pairwise descreening integral.
+
     Args:
         positions: Atom positions (N, 3).
         radii: Intrinsic atomic radii (N,).
@@ -43,99 +51,50 @@ def compute_born_radii(
     Returns:
         Born radii (N,).
     """
-    # 1. Calculate pairwise distances
-    # (N, N, 3)
-    dr = positions[:, None, :] - positions[None, :, :]
-    # (N, N)
-    r_ij = safe_norm(dr, axis=-1)
-    
-    # Avoid division by zero and self-interaction in distance terms
-    # We add a large value to diagonal to make self-interaction terms vanish/stable
-    # during the integral calculation (since we mask them out anyway).
-    # If we use a small epsilon, the 1/r term in the integral can blow up gradients.
-    r_ij_safe = r_ij + jnp.eye(r_ij.shape[0]) * 10.0
+    delta_positions = positions[:, None, :] - positions[None, :, :] # (N, N, 3)
+    distances = safe_norm(delta_positions, axis=-1) # (N, N)
 
-    # 2. Compute Pair Integrals (H_ij)
-    # We integrate the volume of atom j over the space outside atom i.
-    # Standard GBSA approximations (HCT/OBC) use an analytical overlap formula.
-    
-    # Offset radii
-    rho_i = radii - dielectric_offset
-    # Scaled radii for neighbor j (usually just radii, sometimes scaled)
-    # In standard OBC, we integrate over the vdW sphere of j.
-    # Some implementations scale radii by a factor (e.g. 1.0).
-    r_j = radii
-    
-    # We compute the term H_ij for each pair.
-    # H_ij is the contribution of atom j to the reduction of Born radius of atom i.
-    
-    # Vectorized computation of H_ij
-    # r: distance r_ij
-    # R_i: rho_i (radius of atom i)
-    # R_j: r_j (radius of atom j)
-    
-    # Broadcast for (N, N) matrix
-    R_i = rho_i[:, None]
-    R_j = r_j[None, :]
-    dist = r_ij_safe
+    # Add large value to diagonal to avoid self-interaction singularities
+    distances_safe = distances + jnp.eye(distances.shape[0]) * 10.0
 
-    # We only sum over j != i.
-    # Mask for i != j
-    mask = 1.0 - jnp.eye(dist.shape[0])
+    offset_radii = radii - dielectric_offset
+    radii_j = radii
+
+    radii_i_broadcast = offset_radii[:, None] # (N, 1)
+    radii_j_broadcast = radii_j[None, :]      # (1, N)
     
-    # Apply to all pairs
-    # (N, N)
-    H_ij = compute_pair_integral(dist, R_i, R_j)
+    mask = 1.0 - jnp.eye(distances.shape[0]) # Mask for i != j
     
-    # Mask self-interactions (i=j)
-    # H_ii should be 0.
-    H_ij = jnp.where(mask, H_ij, 0.0)
+    pair_integrals = compute_pair_integral(distances_safe, radii_i_broadcast, radii_j_broadcast) # (N, N)
+    pair_integrals = jnp.where(mask, pair_integrals, 0.0)
     
-    # Also, if r > cutoff, H_ij ~ 0.
-    # We don't strictly need a cutoff for correctness, but for speed in dense, we just sum.
+    born_radius_inverse_term = jnp.sum(pair_integrals, axis=1) # (N,)
     
-    # 3. Sum integrals to get effective inverse radius
-    # I_i = sum_j H_ij
-    I_i = jnp.sum(H_ij, axis=1)
+    scaled_integral = offset_radii * born_radius_inverse_term
+    tanh_argument = ALPHA_OBC * scaled_integral - BETA_OBC * scaled_integral**2 + GAMMA_OBC * scaled_integral**3
+    inv_born_radii = (1.0 / offset_radii) * (1.0 - jnp.tanh(tanh_argument))
     
-    # 4. Calculate Born Radius (alpha_i) using OBC approximation
-    # B_i^-1 = rho_i^-1 - I_i
-    # But OBC adds a correction factor.
-    # R_inv = 1/rho_i - 1/R_i * tanh(...)
-    
-    # OBC Formula:
-    # B_inv = 1/rho_i - 1/rho_i * tanh(alpha*y - beta*y^2 + gamma*y^3)
-    # where y = rho_i * I_i
-    
-    y = rho_i * I_i
-    
-    # OBC II coefficients
-    # alpha=1.0, beta=0.8, gamma=4.85
-    term = ALPHA_OBC * y - BETA_OBC * y**2 + GAMMA_OBC * y**3
-    
-    inv_born_radii = (1.0 / rho_i) * (1.0 - jnp.tanh(term))
-    
-    born_radii = 1.0 / inv_born_radii
-    
-    return born_radii
+    return 1.0 / inv_born_radii
 
 
-def f_gb(r: Array, alpha_i: Array, alpha_j: Array) -> Array:
-    """Computes the GB effective distance function f_GB(r_ij).
+def f_gb(distance: Array, born_radii_i: Array, born_radii_j: Array) -> Array:
+    """Computes the GB effective distance function $f_{GB}(r_{ij})$.
 
-    f_GB = sqrt(r^2 + alpha_i * alpha_j * exp(-r^2 / (4 * alpha_i * alpha_j)))
+    $$
+    f_{GB}(r_{ij}) = \\sqrt{r_{ij}^2 + B_i B_j \\exp\\left(-\\frac{r_{ij}^2}{4 B_i B_j}\\right)}
+    $$
 
     Args:
-        r: Pairwise distance (scalar or array).
-        alpha_i: Born radius of atom i.
-        alpha_j: Born radius of atom j.
+        distance: Pairwise distance (scalar or array).
+        born_radii_i: Born radius of atom i ($B_i$).
+        born_radii_j: Born radius of atom j ($B_j$).
 
     Returns:
         Effective GB distance.
     """
-    a_prod = alpha_i * alpha_j
-    exp_term = jnp.exp(- (r**2) / (4.0 * a_prod))
-    return jnp.sqrt(r**2 + a_prod * exp_term)
+    radii_product = born_radii_i * born_radii_j
+    exp_term = jnp.exp(- (distance**2) / (4.0 * radii_product))
+    return jnp.sqrt(distance**2 + radii_product * exp_term)
 
 
 def compute_gb_energy(
@@ -148,75 +107,74 @@ def compute_gb_energy(
 ) -> Array:
     """Computes the Generalized Born solvation energy.
 
-    E_GB = -0.5 * (1/eps_in - 1/eps_out) * sum_ij (q_i * q_j / f_GB(r_ij))
+    $$
+    \\Delta G_{pol} = -\\frac{1}{2} \\left(\\frac{1}{\\epsilon_{in}} - \\frac{1}{\\epsilon_{out}}\\right) \\sum_{ij} \\frac{q_i q_j}{f_{GB}(r_{ij})}
+    $$
+
+    Includes self-solvation energy terms ($i=j$).
 
     Args:
         positions: Atom positions (N, 3).
         charges: Atom charges (N,).
         radii: Atom radii (N,).
-        solvent_dielectric: Solvent dielectric constant.
-        solute_dielectric: Solute dielectric constant.
+        solvent_dielectric: Solvent dielectric constant ($\\epsilon_{out}$).
+        solute_dielectric: Solute dielectric constant ($\\epsilon_{in}$).
         dielectric_offset: Offset for Born radius calculation.
 
     Returns:
         Total GB energy (scalar).
     """
-    # 1. Compute Born Radii
-    alpha = compute_born_radii(positions, radii, dielectric_offset=dielectric_offset)
+    born_radii = compute_born_radii(positions, radii, dielectric_offset=dielectric_offset)
     
-    # 2. Compute Pairwise Terms
-    # (N, N)
-    dr = positions[:, None, :] - positions[None, :, :]
-    r_ij = safe_norm(dr, axis=-1)
+    delta_positions = positions[:, None, :] - positions[None, :, :] # (N, N, 3)
+    distances = safe_norm(delta_positions, axis=-1) # (N, N)
     
-    # Broadcast alphas
-    # (N, N)
-    alpha_i = alpha[:, None]
-    alpha_j = alpha[None, :]
+    born_radii_i = born_radii[:, None] # (N, 1)
+    born_radii_j = born_radii[None, :] # (1, N)
     
-    # Compute f_GB
-    f_gb_ij = f_gb(r_ij, alpha_i, alpha_j)
-    
-    # 3. Compute Energy
-    # Pre-factor
-    # constant * (1/eps_in - 1/eps_out)
-    # Note: COULOMB_CONSTANT is in kcal/mol/A/e^2
-    # The formula is usually:
-    # E = -0.5 * C * (1/eps_in - 1/eps_out) * sum ...
+    effective_distances = f_gb(distances, born_radii_i, born_radii_j)
     
     tau = (1.0 / solute_dielectric) - (1.0 / solvent_dielectric)
     prefactor = -0.5 * constants.COULOMB_CONSTANT * tau
     
-    # Charge product
-    q_ij = charges[:, None] * charges[None, :]
+    charge_products = charges[:, None] * charges[None, :] # (N, N)
+    energy_terms = charge_products / effective_distances
     
-    # Term matrix
-    E_ij = q_ij / f_gb_ij
-    
-    # Sum
-    # We sum all pairs including i=j.
-    # For i=j, r=0, f_gb = alpha_i.
-    # This represents the self-solvation energy (Born energy of single ion).
-    # E_self = -0.5 * (1/eps_in - 1/eps_out) * q^2 / alpha
-    
-    total_energy = prefactor * jnp.sum(E_ij)
+    total_energy = prefactor * jnp.sum(energy_terms)
     
     return total_energy
 
 
-def compute_pair_integral(r: Array, r_i: Array, r_j: Array) -> Array:
-    """Computes the pair integral term H_ij for OBC."""
-    L = jnp.maximum(r_i, jnp.abs(r - r_j))
-    U = r + r_j
+def compute_pair_integral(distance: Array, radius_i: Array, radius_j: Array) -> Array:
+    """Computes the pair integral term $H_{ij}$ for OBC.
     
-    inv_L = 1.0 / L
-    inv_U = 1.0 / U
+    This integral represents the volume of atom j that overlaps with the descreening region of atom i.
+
+    $$
+    H_{ij} = \\frac{1}{2} \\left[ \\frac{1}{L_{ij}} - \\frac{1}{U_{ij}} \\right] + \\frac{1}{4r_{ij}} \\left[ \\frac{1}{U_{ij}^2} - \\frac{1}{L_{ij}^2} \\right] + \\frac{1}{2r_{ij}} \\ln \\frac{L_{ij}}{U_{ij}}
+    $$
+
+    where $L_{ij} = \\max(\\rho_i, |r_{ij} - \\rho_j|)$ and $U_{ij} = r_{ij} + \\rho_j$.
     
-    term1 = 0.5 * (inv_L - inv_U)
-    term2 = 0.25 * r * (inv_U**2 - inv_L**2)
+    Args:
+        distance: Distance between atoms i and j ($r_{ij}$).
+        radius_i: Radius of atom i ($\\rho_i$, usually offset radius).
+        radius_j: Radius of atom j ($\\rho_j$, usually vdW radius).
+        
+    Returns:
+        The integral value $H_{ij}$.
+    """
+    lower_limit = jnp.maximum(radius_i, jnp.abs(distance - radius_j))
+    upper_limit = distance + radius_j
     
-    r_safe = jnp.maximum(r, 1e-6)
-    term3 = (0.5 / r_safe) * jnp.log(L / U)
+    inv_lower = 1.0 / lower_limit
+    inv_upper = 1.0 / upper_limit
+    
+    term1 = 0.5 * (inv_lower - inv_upper)
+    term2 = 0.25 * distance * (inv_upper**2 - inv_lower**2)
+    
+    distance_safe = jnp.maximum(distance, 1e-6)
+    term3 = (0.5 / distance_safe) * jnp.log(lower_limit / upper_limit)
     
     return term1 + term2 + term3
 
@@ -227,48 +185,51 @@ def compute_born_radii_neighbor_list(
     neighbor_idx: Array,
     dielectric_offset: float = 0.09,
 ) -> Array:
-    """Computes effective Born radii using neighbor lists."""
-    # neighbor_idx: (N, K)
+    """Computes effective Born radii using neighbor lists.
+    
+    This version uses a neighbor list to compute interactions only within a cutoff,
+    which approximates the full $N^2$ calculation.
+
+    The Born radius $B_i$ is calculated as:
+
+    $$
+    B_i^{-1} = \\rho_i^{-1} - \\rho_i^{-1} \\tanh(\\alpha \\Psi_i - \\beta \\Psi_i^2 + \\gamma \\Psi_i^3)
+    $$
+
+    where $\\Psi_i = \\rho_i I_i$, and $I_i$ is the pairwise descreening integral summed over neighbors.
+    
+    Args:
+        positions: Atom positions (N, 3).
+        radii: Intrinsic atomic radii (N,).
+        neighbor_idx: Neighbor list indices (N, K).
+        dielectric_offset: Offset for Born radius calculation.
+        
+    Returns:
+        Born radii (N,).
+    """
     N, K = neighbor_idx.shape
     
-    # Gather positions
-    # (N, K, 3)
-    r_neighbors = positions[neighbor_idx]
-    r_central = positions[:, None, :]
+    neighbor_positions = positions[neighbor_idx] # (N, K, 3)
+    central_positions = positions[:, None, :]    # (N, 1, 3)
     
-    # Distances
-    dr = r_central - r_neighbors
-    r_ij = safe_norm(dr, axis=-1)
+    delta_positions = central_positions - neighbor_positions # (N, K, 3)
+    distances = safe_norm(delta_positions, axis=-1) # (N, K)
     
-    # Mask padding (idx == N)
-    # neighbor_idx values are in [0, N]. N is padding.
-    mask_neighbors = neighbor_idx < N
+    mask_neighbors = neighbor_idx < N # Mask padding
     
-    # Also mask self-interaction if present in neighbor list (usually not, but safe to check)
-    # But neighbor lists usually exclude self unless explicitly requested.
-    # Assuming standard jax_md neighbor lists which might include self if dr=0?
-    # Usually they don't include self.
+    offset_radii = radii - dielectric_offset
+    radii_j = radii[neighbor_idx] # (N, K)
     
-    # Radii
-    rho_i = radii - dielectric_offset
-    r_j = radii[neighbor_idx] # (N, K)
+    radii_i_broadcast = offset_radii[:, None] # (N, 1)
     
-    R_i = rho_i[:, None]
-    R_j = r_j
+    pair_integrals = compute_pair_integral(distances, radii_i_broadcast, radii_j)
+    pair_integrals = jnp.where(mask_neighbors, pair_integrals, 0.0)
     
-    # Compute integrals
-    H_ij = compute_pair_integral(r_ij, R_i, R_j)
+    born_radius_inverse_term = jnp.sum(pair_integrals, axis=1)
     
-    # Apply mask
-    H_ij = jnp.where(mask_neighbors, H_ij, 0.0)
-    
-    # Sum
-    I_i = jnp.sum(H_ij, axis=1)
-    
-    # OBC Formula
-    y = rho_i * I_i
-    term = ALPHA_OBC * y - BETA_OBC * y**2 + GAMMA_OBC * y**3
-    inv_born_radii = (1.0 / rho_i) * (1.0 - jnp.tanh(term))
+    scaled_integral = offset_radii * born_radius_inverse_term
+    tanh_argument = ALPHA_OBC * scaled_integral - BETA_OBC * scaled_integral**2 + GAMMA_OBC * scaled_integral**3
+    inv_born_radii = (1.0 / offset_radii) * (1.0 - jnp.tanh(tanh_argument))
     
     return 1.0 / inv_born_radii
 
@@ -282,45 +243,55 @@ def compute_gb_energy_neighbor_list(
     solute_dielectric: float = constants.DIELECTRIC_PROTEIN,
     dielectric_offset: float = 0.09,
 ) -> Array:
-    """Computes GB energy using neighbor lists."""
-    # 1. Born Radii
-    alpha = compute_born_radii_neighbor_list(
+    """Computes GB energy using neighbor lists.
+    
+    Calculates the Generalized Born energy using a neighbor list for pairwise interactions.
+
+    $$
+    \\Delta G_{pol} = -\\frac{1}{2} \\left(\\frac{1}{\\epsilon_{in}} - \\frac{1}{\\epsilon_{out}}\\right) \\sum_{ij} \\frac{q_i q_j}{f_{GB}(r_{ij})}
+    $$
+    
+    Args:
+        positions: Atom positions (N, 3).
+        charges: Atom charges (N,).
+        radii: Atom radii (N,).
+        neighbor_idx: Neighbor list indices (N, K).
+        solvent_dielectric: Solvent dielectric constant ($\\epsilon_{out}$).
+        solute_dielectric: Solute dielectric constant ($\\epsilon_{in}$).
+        dielectric_offset: Offset for Born radius calculation.
+        
+    Returns:
+        Total GB energy (scalar).
+    """
+    born_radii = compute_born_radii_neighbor_list(
         positions, radii, neighbor_idx, dielectric_offset
     )
     
-    # 2. Pairwise Terms
-    # We iterate over neighbors again
-    r_neighbors = positions[neighbor_idx]
-    r_central = positions[:, None, :]
-    dr = r_central - r_neighbors
-    r_ij = safe_norm(dr, axis=-1)
+    neighbor_positions = positions[neighbor_idx] # (N, K, 3)
+    central_positions = positions[:, None, :]    # (N, 1, 3)
+    delta_positions = central_positions - neighbor_positions # (N, K, 3)
+    distances = safe_norm(delta_positions, axis=-1)          # (N, K)
     
-    alpha_i = alpha[:, None]
-    alpha_j = alpha[neighbor_idx]
+    born_radii_i = born_radii[:, None]       # (N, 1)
+    born_radii_j = born_radii[neighbor_idx]  # (N, K)
     
-    f_gb_ij = f_gb(r_ij, alpha_i, alpha_j)
+    effective_distances = f_gb(distances, born_radii_i, born_radii_j)
     
-    # 3. Energy
     tau = (1.0 / solute_dielectric) - (1.0 / solvent_dielectric)
     prefactor = -0.5 * constants.COULOMB_CONSTANT * tau
     
-    q_i = charges[:, None]
-    q_j = charges[neighbor_idx]
-    q_ij = q_i * q_j
+    charges_i = charges[:, None]        # (N, 1)
+    charges_j = charges[neighbor_idx]   # (N, K)
+    charge_products = charges_i * charges_j
     
-    E_ij = q_ij / f_gb_ij
+    energy_terms = charge_products / effective_distances
     
-    # Mask
     N = positions.shape[0]
     mask_neighbors = neighbor_idx < N
-    E_ij = jnp.where(mask_neighbors, E_ij, 0.0)
+    energy_terms = jnp.where(mask_neighbors, energy_terms, 0.0)
     
-    # Sum over neighbors
-    # So we just sum E_ij (neighbors) + E_ii (self).
-    # And multiply by prefactor.
-    
-    term_neighbors = jnp.sum(E_ij)
-    term_self = jnp.sum((charges**2) / alpha)
+    term_neighbors = jnp.sum(energy_terms)
+    term_self = jnp.sum((charges**2) / born_radii)
     
     total_energy = prefactor * (term_neighbors + term_self)
     

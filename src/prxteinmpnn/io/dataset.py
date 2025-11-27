@@ -61,7 +61,7 @@ class ProteinDataSource(grain.RandomAccessDataSource):
       if is_valid:
         self.frames.append(frame)
       else:
-        logging.warning(f"Skipping invalid frame from {frame.source}: {reason}")
+        logger.warning("Skipping invalid frame from %s: %s", frame.source, reason)
         self.skipped_frames.append({"source": frame.source, "reason": reason})
 
     self._length = len(self.frames)
@@ -70,7 +70,7 @@ class ProteinDataSource(grain.RandomAccessDataSource):
     """Return the total number of frames available."""
     return self._length
 
-  def __getitem__(self, index: SupportsIndex) -> ProteinTuple:
+  def __getitem__(self, index: SupportsIndex) -> ProteinTuple:  # type: ignore[override]
     """Return the ProteinTuple at the specified index.
 
     Args:

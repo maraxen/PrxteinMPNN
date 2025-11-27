@@ -2,7 +2,7 @@ import argparse
 import re
 import os
 from pathlib import Path
-from array_record.python import array_record_module as array_record
+from array_record.python import array_record_module as array_record  # type: ignore[unresolved-import]
 
 def inspect_shards(data_dir: Path, expected_shards: int):
     """
@@ -90,7 +90,7 @@ def inspect_shards(data_dir: Path, expected_shards: int):
     if missing_indices or corrupt_shards:
         print(f"\n🔄 TO RESUME: You need to re-run processing for shard indices:")
         # Combine missing and corrupted indices into a todo list
-        todo_indices = sorted(missing_indices + [int(pattern.search(c.name).group(1)) for c in corrupt_shards])
+        todo_indices = sorted(missing_indices + [int(pattern.search(c.name).group(1)) for c in corrupt_shards])  # type: ignore[possibly-missing-attribute]
         print(f"   Target Indices: {todo_indices}")
 
 if __name__ == "__main__":

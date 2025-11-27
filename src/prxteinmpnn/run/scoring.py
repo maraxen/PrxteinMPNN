@@ -259,7 +259,7 @@ def _score_batch_averaged(
 
 def _score_streaming(
   spec: ScoringSpecification,
-) -> dict[str, str | dict[str, ScoringSpecification]]:
+) -> dict[str, Any]:
   """Score sequences and stream results to an HDF5 file."""
   if not spec.output_h5_path:
     msg = "output_h5_path must be provided for streaming."

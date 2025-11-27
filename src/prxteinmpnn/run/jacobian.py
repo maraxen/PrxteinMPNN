@@ -79,15 +79,7 @@ def _compute_jacobian_from_logit_fn(
 def categorical_jacobian(
   spec: JacobianSpecification | None = None,
   **kwargs: Any,  # noqa: ANN401
-) -> dict[
-  str,
-  jax.Array
-  | dict[
-    str,
-    JacobianSpecification,
-  ]
-  | None,
-]:
+) -> dict[str, Any]:
   """Compute the Jacobian of the model's logits with respect to the input sequence.
 
   Args:
@@ -364,7 +356,7 @@ def _categorical_jacobian_in_memory(
   conditional_logits_fn: Any,  # noqa: ANN401
   encode_fn: Callable | None,
   decode_fn: Callable | None,
-) -> dict[str, jax.Array | dict[str, JacobianSpecification] | None]:
+) -> dict[str, Any]:
   """Compute Jacobians and store them in memory."""
   output_generator = _compute_batch_outputs(
     spec,

@@ -165,3 +165,4 @@ def make_score_fn(
     return masked_score_sum / mask_sum, logits, decoding_order
 
   return score_sequence
+make_score_sequence = make_score_fn

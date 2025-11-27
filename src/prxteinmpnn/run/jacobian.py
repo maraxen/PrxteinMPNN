@@ -480,12 +480,16 @@ def _categorical_jacobian_in_memory(
       "mapping": mapping,
       "metadata": {
         "spec": spec,
+        "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
       },
     }
 
   all_outputs_and_sequences = list(output_generator)
   if not all_outputs_and_sequences:
-    return {"categorical_jacobians": None, "metadata": None}
+    return {
+      "categorical_jacobians": None,
+      "metadata": {"spec": spec, "skipped_inputs": getattr(protein_iterator, "skipped_frames", [])},
+    }
 
   all_outputs = [item[0] for item in all_outputs_and_sequences]
   all_sequences = [item[1] for item in all_outputs_and_sequences]
@@ -518,6 +522,7 @@ def _categorical_jacobian_in_memory(
     "mapping": mapping,
     "metadata": {
       "spec": spec,
+      "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
     },
   }
 
@@ -636,5 +641,6 @@ def _categorical_jacobian_streaming(
     "spec_hash": spec_hash,
     "metadata": {
       "spec": spec,
+      "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
     },
   }

@@ -136,7 +136,12 @@ def create_protein_dataset(
     )
   )
 
-  return ds.to_iter_dataset(read_options=performance_config.read_options).batch(
+  iter_ds = ds.to_iter_dataset(read_options=performance_config.read_options).batch(
     batch_size,
     batch_fn=batch_fn,
   )
+
+  if hasattr(source, "skipped_frames"):
+    iter_ds.skipped_frames = source.skipped_frames
+
+  return iter_ds

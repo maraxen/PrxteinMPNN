@@ -78,7 +78,6 @@ def truncate_protein(
   )
 
 
-
 def concatenate_proteins_for_inter_mode(elements: Sequence[ProteinTuple]) -> Protein:
   """Concatenate proteins for inter-chain mode (pass_mode='inter').
 
@@ -208,16 +207,14 @@ def _apply_electrostatics_if_needed(
 
   noise_val = estat_noise
   if isinstance(noise_val, Sequence):
-      noise_val = noise_val[0] # Simple handling for now
+    noise_val = noise_val[0]  # Simple handling for now
 
   phys_feats = []
   for p in elements:
-      feat = compute_electrostatic_node_features(
-          p,
-          noise_scale=noise_val,
-          noise_mode=estat_noise_mode
-      )
-      phys_feats.append(feat)
+    feat = compute_electrostatic_node_features(
+      p, noise_scale=noise_val, noise_mode=estat_noise_mode
+    )
+    phys_feats.append(feat)
 
   return [p._replace(physics_features=feat) for p, feat in zip(elements, phys_feats, strict=False)]
 
@@ -304,8 +301,8 @@ def pad_and_collate_proteins(
   use_vdw: bool = False,  # noqa: ARG001
   estat_noise: Sequence[float] | float | None = None,
   estat_noise_mode: str = "direct",
-  vdw_noise: Sequence[float] | float | None = None, # noqa: ARG001
-  vdw_noise_mode: str = "direct", # noqa: ARG001
+  vdw_noise: Sequence[float] | float | None = None,  # noqa: ARG001
+  vdw_noise_mode: str = "direct",  # noqa: ARG001
   max_length: int | None = None,
 ) -> Protein:
   """Batch and pad a list of ProteinTuples into a ProteinBatch.
@@ -337,10 +334,10 @@ def pad_and_collate_proteins(
   """
   elements = _validate_and_flatten_elements(elements)
   elements = _apply_electrostatics_if_needed(
-      elements,
-      use_electrostatics=use_electrostatics,
-      estat_noise=estat_noise,
-      estat_noise_mode=estat_noise_mode,
+    elements,
+    use_electrostatics=use_electrostatics,
+    estat_noise=estat_noise,
+    estat_noise_mode=estat_noise_mode,
   )
   proteins = [Protein.from_tuple(p) for p in elements]
 

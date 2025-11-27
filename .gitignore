@@ -18,3 +18,5 @@ build/
 .coverage
 *.pt
 *.csv
+
+!src/prxteinmpnn/physics/force_fields/*.eqx

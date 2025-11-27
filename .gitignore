@@ -19,4 +19,5 @@ build/
 *.pt
 *.csv
 
-!src/prxteinmpnn/physics/force_fields/*.eqx
+!src/prxteinmpnn/physics/force_fields/eqx/*.eqx
+!src/prxteinmpnn/physics/force_fields/xml/*.xml

@@ -853,9 +853,7 @@ class PrxteinMPNN(eqx.Module):
         )
 
         # Combine with encoder context using backward mask
-        decoding_context = (
-          mask_bw_pos[..., None] * decoder_context_pos + encoder_context_pos
-        )
+        decoding_context = mask_bw_pos[..., None] * decoder_context_pos + encoder_context_pos
 
         # Expand dims for layer forward pass
         h_in_expanded = jnp.expand_dims(h_in_pos, axis=0)

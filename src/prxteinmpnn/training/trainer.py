@@ -303,14 +303,14 @@ def train_step(  # noqa: PLR0913
 
         diff_model = cast("DiffusionPrxteinMPNN", model)
         _, logits = diff_model(
-            coords,
-            mask,
-            res_idx,
-            chain_idx,
-            decoding_approach="diffusion",
-            timestep=t,
-            noisy_sequence=noisy_seq,
-            physics_features=phys_feat,
+          coords,
+          mask,
+          res_idx,
+          chain_idx,
+          decoding_approach="diffusion",
+          timestep=t,
+          noisy_sequence=noisy_seq,
+          physics_features=phys_feat,
         )
         return logits
 
@@ -327,7 +327,6 @@ def train_step(  # noqa: PLR0913
         initial_node_features=phys_feat,
       )
       return logits
-
 
     logits_batch = jax.vmap(single_forward)(
       coordinates,
@@ -421,27 +420,27 @@ def eval_step(
     inference_model = eqx.nn.inference_mode(model)
 
     if training_mode == "diffusion":
-        if noise_schedule is None:
-          msg = "noise_schedule required for diffusion evaluation"
-          raise ValueError(msg)
+      if noise_schedule is None:
+        msg = "noise_schedule required for diffusion evaluation"
+        raise ValueError(msg)
 
-        t = jax.random.randint(key, (), 0, noise_schedule.num_steps)
-        one_hot_seq = jax.nn.one_hot(seq, 21)
-        noise = jax.random.normal(key, one_hot_seq.shape)
-        noisy_seq, _ = noise_schedule.sample_forward(one_hot_seq, t, noise)
+      t = jax.random.randint(key, (), 0, noise_schedule.num_steps)
+      one_hot_seq = jax.nn.one_hot(seq, 21)
+      noise = jax.random.normal(key, one_hot_seq.shape)
+      noisy_seq, _ = noise_schedule.sample_forward(one_hot_seq, t, noise)
 
-        diff_model = cast("DiffusionPrxteinMPNN", inference_model)
-        _, logits = diff_model(
-            coords,
-            msk,
-            res_idx,
-            chain_idx,
-            decoding_approach="diffusion",
-            timestep=t,
-            noisy_sequence=noisy_seq,
-            physics_features=phys_feat,
-        )
-        return logits
+      diff_model = cast("DiffusionPrxteinMPNN", inference_model)
+      _, logits = diff_model(
+        coords,
+        msk,
+        res_idx,
+        chain_idx,
+        decoding_approach="diffusion",
+        timestep=t,
+        noisy_sequence=noisy_seq,
+        physics_features=phys_feat,
+      )
+      return logits
 
     _, logits = inference_model(
       coords,
@@ -527,12 +526,12 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
   prng_key = jax.random.PRNGKey(spec.random_seed)
   noise_schedule = None
   if spec.training_mode == "diffusion":
-      noise_schedule = NoiseSchedule(
-          num_steps=spec.diffusion_num_steps,
-          beta_start=spec.diffusion_beta_start,
-          beta_end=spec.diffusion_beta_end,
-          schedule_type=spec.diffusion_schedule_type,
-      )
+    noise_schedule = NoiseSchedule(
+      num_steps=spec.diffusion_num_steps,
+      beta_start=spec.diffusion_beta_start,
+      beta_end=spec.diffusion_beta_end,
+      schedule_type=spec.diffusion_schedule_type,
+    )
 
   logger.info("Starting training loop...")
 

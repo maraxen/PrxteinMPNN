@@ -162,7 +162,7 @@ def _sample_batch(
     tie_group_map,
     batched_ensemble.mapping,
   )
-  
+
   if spec.compute_pseudo_perplexity:
     one_hot_sequences = jax.nn.one_hot(sampled_sequences, num_classes=21)
     log_probs = jax.nn.log_softmax(sampled_logits, axis=-1)
@@ -236,7 +236,7 @@ def sample(
     all_sequences.append(sampled_sequences)
     all_logits.append(logits)
     if pseudo_perplexity is not None:
-        all_pseudo_perplexities.append(pseudo_perplexity)
+      all_pseudo_perplexities.append(pseudo_perplexity)
 
   max_len = max(arr.shape[-1] for arr in all_sequences)
 
@@ -266,15 +266,16 @@ def sample(
   ]
 
   results = {
-      "sequences": jnp.concatenate(all_sequences_padded, axis=0),
-      "logits": jnp.concatenate(all_logits_padded, axis=0),
-      "mask": jnp.concatenate(all_masks, axis=0),
-      "metadata": {
-          "specification": spec,
-      },
+    "sequences": jnp.concatenate(all_sequences_padded, axis=0),
+    "logits": jnp.concatenate(all_logits_padded, axis=0),
+    "mask": jnp.concatenate(all_masks, axis=0),
+    "metadata": {
+      "specification": spec,
+      "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
+    },
   }
   if all_pseudo_perplexities:
-      results["pseudo_perplexity"] = jnp.concatenate(all_pseudo_perplexities, axis=0)
+    results["pseudo_perplexity"] = jnp.concatenate(all_pseudo_perplexities, axis=0)
 
   return results
 
@@ -299,7 +300,7 @@ def _sample_streaming(
         grp.create_dataset("sequences", data=sampled_sequences[i], dtype="i4")
         grp.create_dataset("logits", data=sampled_logits[i], dtype="f4")
         if pseudo_perplexity is not None:
-            grp.create_dataset("pseudo_perplexity", data=pseudo_perplexity[i], dtype="f4")
+          grp.create_dataset("pseudo_perplexity", data=pseudo_perplexity[i], dtype="f4")
         # Store metadata about the structure
         grp.attrs["structure_index"] = structure_idx
         grp.attrs["num_samples"] = sampled_sequences.shape[1]
@@ -314,6 +315,7 @@ def _sample_streaming(
     "output_h5_path": str(spec.output_h5_path),
     "metadata": {
       "specification": spec,
+      "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
     },
   }
 
@@ -380,14 +382,15 @@ def _sample_averaged_mode(
       all_pseudo_perplexities.append(pseudo_perplexity)
 
   results = {
-      "sequences": jnp.concatenate(all_sequences, axis=0),
-      "logits": jnp.concatenate(all_logits, axis=0),
-      "metadata": {
-          "specification": spec,
-      },
+    "sequences": jnp.concatenate(all_sequences, axis=0),
+    "logits": jnp.concatenate(all_logits, axis=0),
+    "metadata": {
+      "specification": spec,
+      "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
+    },
   }
   if all_pseudo_perplexities:
-      results["pseudo_perplexity"] = jnp.concatenate(all_pseudo_perplexities, axis=0)
+    results["pseudo_perplexity"] = jnp.concatenate(all_pseudo_perplexities, axis=0)
 
   return results
 
@@ -517,8 +520,8 @@ def _sample_batch_averaged(
   logits = logits.reshape((1, -1, len(spec.temperature), seq_len, 21))
 
   if len(spec.temperature) == 1:
-      sampled_sequences = jnp.squeeze(sampled_sequences, axis=2)
-      logits = jnp.squeeze(logits, axis=2)
+    sampled_sequences = jnp.squeeze(sampled_sequences, axis=2)
+    logits = jnp.squeeze(logits, axis=2)
 
   if spec.compute_pseudo_perplexity:
     one_hot_sequences = jax.nn.one_hot(sampled_sequences, num_classes=21)
@@ -554,12 +557,14 @@ def _sample_streaming_averaged(
         grp.create_dataset("sequences", data=sampled_sequences[i], dtype="i4")
         grp.create_dataset("logits", data=sampled_logits[i], dtype="f4")
         if pseudo_perplexity is not None:
-            grp.create_dataset("pseudo_perplexity", data=pseudo_perplexity[i], dtype="f4")
+          grp.create_dataset("pseudo_perplexity", data=pseudo_perplexity[i], dtype="f4")
         # Store metadata about the structure
         grp.attrs["structure_index"] = structure_idx
         grp.attrs["num_samples"] = sampled_sequences.shape[1]
         grp.attrs["num_noise_levels"] = 1  # Averaged, so effectively 1 noise level
-        grp.attrs["num_temperatures"] = sampled_sequences.shape[2] if sampled_sequences.ndim == 4 else 1
+        grp.attrs["num_temperatures"] = (
+          sampled_sequences.shape[2] if sampled_sequences.ndim == 4 else 1
+        )
         grp.attrs["sequence_length"] = sampled_sequences.shape[-1]
         structure_idx += 1
 
@@ -569,5 +574,6 @@ def _sample_streaming_averaged(
     "output_h5_path": str(spec.output_h5_path),
     "metadata": {
       "specification": spec,
+      "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
     },
   }

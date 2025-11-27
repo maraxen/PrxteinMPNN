@@ -11,7 +11,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from prxteinmpnn.physics.features import compute_electrostatic_features_batch
+from prxteinmpnn.physics.features import compute_electrostatic_node_features
 from prxteinmpnn.utils.data_structures import Protein, ProteinTuple
 
 _MAX_TRIES = 5
@@ -201,9 +201,10 @@ def _apply_electrostatics_if_needed(
 
   # Handle noise broadcasting if needed, or just pass single value if uniform
   # For now, assuming uniform noise for the batch or handling inside feature computation
-  # compute_electrostatic_features_batch doesn't take noise yet, we need to update it or call node features directly
-  # Actually compute_electrostatic_features_batch calls compute_electrostatic_node_features per protein.
-  # We can pass the noise value there.
+  # compute_electrostatic_features_batch doesn't take noise yet, we need to update
+  # it or call node features directly.
+  # Actually compute_electrostatic_features_batch calls compute_electrostatic_node_features
+  # per protein. We can pass the noise value there.
 
   noise_val = estat_noise
   if isinstance(noise_val, Sequence):
@@ -212,7 +213,7 @@ def _apply_electrostatics_if_needed(
   phys_feats = []
   for p in elements:
     feat = compute_electrostatic_node_features(
-      p, noise_scale=noise_val, noise_mode=estat_noise_mode
+      p, noise_scale=noise_val, noise_mode=estat_noise_mode,
     )
     phys_feats.append(feat)
 

@@ -228,6 +228,7 @@ def _add_hydrogens_if_needed(atom_array: AtomArray) -> AtomArray:
 def _process_mdtraj_chunk(
   traj_chunk: md.Trajectory,
   chain_id: Sequence[str] | str | None,
+  *,
   add_hydrogens: bool = True,
 ) -> ProcessedStructure:
   """Process a single MDTraj chunk."""

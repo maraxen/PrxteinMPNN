@@ -147,7 +147,7 @@ class ArrayRecordDataSource(grain.RandomAccessDataSource):
     """Return the total number of records."""
     return len(self._record_indices)
 
-  def __getitem__(self, index: SupportsIndex) -> ProteinTuple:
+  def __getitem__(self, index: SupportsIndex) -> ProteinTuple:  # type: ignore[override]
     """Load and deserialize a protein structure.
 
     Args:

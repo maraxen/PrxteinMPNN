@@ -51,7 +51,7 @@ def main() -> float:
     checkpoint_dir=str(CHECKPOINT_DIR),
     checkpoint_every=5,
     keep_last_n_checkpoints=2,
-    resume_from_checkpoint=False,
+    resume_from_checkpoint=None,
     # Logging
     log_every=1,
     eval_every=5,
@@ -60,7 +60,7 @@ def main() -> float:
     total_steps=None,
     precision="fp32",
     # Physics features - ENABLE FOR THIS TEST
-    use_physics_features=True,
+    use_electrostatics=True,
     physics_feature_weight=1.0,
     # Regularization (disabled for overfitting)
     early_stopping_patience=None,
@@ -72,7 +72,7 @@ def main() -> float:
   logger.info("  - Batch size: %d", BATCH_SIZE)
   logger.info("  - Epochs: %d", NUM_EPOCHS)
   logger.info("  - Learning rate: %.6f", LEARNING_RATE)
-  logger.info("  - Physics features enabled: %s", spec.use_physics_features)
+  logger.info("  - Physics features enabled: %s", spec.use_electrostatics)
 
   # Run training with physics-enhanced model
   logger.info("Starting training with physics-enhanced encoder...")

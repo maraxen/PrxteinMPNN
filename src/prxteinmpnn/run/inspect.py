@@ -62,12 +62,10 @@ def inspect_model(spec: InspectionSpecification) -> dict[str, object]:
   """
   protein_iterator, _ = prep_protein_stream_and_model(spec)
 
-  results = {
+  # Implementation will be added in subsequent PRs
+  return {
     "metadata": {
       "specification": spec,
       "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
-    }
+    },
   }
-
-  # Implementation will be added in subsequent PRs
-  return results

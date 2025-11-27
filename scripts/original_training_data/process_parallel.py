@@ -17,7 +17,7 @@ import msgpack
 import msgpack_numpy as m
 import numpy as np
 import torch
-from array_record.python.array_record_module import ArrayRecordWriter
+from array_record.python.array_record_module import ArrayRecordWriter  # type: ignore[unresolved-import]
 
 # Local Imports
 from prxteinmpnn.physics.force_fields import load_force_field_from_hub

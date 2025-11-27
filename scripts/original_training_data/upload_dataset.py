@@ -5,7 +5,7 @@ import pathlib
 import sys
 from typing import Optional
 
-from array_record.python import array_record_module as array_record
+from array_record.python import array_record_module as array_record  # type: ignore[unresolved-import]
 from huggingface_hub import HfApi, create_repo
 
 # Configure logging

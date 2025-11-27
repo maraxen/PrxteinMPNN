@@ -20,6 +20,9 @@ ALPHA_OBC = 1.0
 BETA_OBC = 0.8
 GAMMA_OBC = 4.85
 
+# Non-polar Solvation Parameters
+SURFACE_TENSION = 0.005  # kcal/mol/A^2
+
 
 def safe_norm(x: Array, axis: int = -1, eps: float = 1e-12) -> Array:
     """Computes norm safely to avoid NaN gradients at zero."""
@@ -296,3 +299,182 @@ def compute_gb_energy_neighbor_list(
     total_energy = prefactor * (term_neighbors + term_self)
     
     return total_energy
+
+
+def compute_sasa(
+    positions: Array,
+    radii: Array,
+    probe_radius: float = constants.PROBE_RADIUS,
+) -> Array:
+    """Computes the Solvent Accessible Surface Area (SASA) using a pairwise approximation.
+
+    Uses the probabilistic approximation:
+    $A_i = S_i \\prod_{j \\neq i} (1 - \\frac{b_{ij}}{S_i})$
+
+    where $b_{ij}$ is the area of atom i covered by atom j.
+
+    Args:
+        positions: Atom positions (N, 3).
+        radii: Atom radii (N,).
+        probe_radius: Solvent probe radius.
+
+    Returns:
+        Total SASA (scalar).
+    """
+    N = positions.shape[0]
+    
+    # Expanded radii
+    r_i = radii + probe_radius
+    r_j = radii + probe_radius
+    
+    # Surface area of isolated spheres
+    S_i = 4.0 * jnp.pi * r_i**2
+    
+    # Pairwise distances
+    delta_positions = positions[:, None, :] - positions[None, :, :]
+    d_ij = safe_norm(delta_positions, axis=-1)
+    
+    # Avoid self-interaction and division by zero
+    d_ij = d_ij + jnp.eye(N) * 10.0
+    
+    # Broadcast radii
+    r_i_mat = r_i[:, None]
+    r_j_mat = r_j[None, :]
+    
+    # Calculate buried area b_ij
+    # b_ij = (pi * r_i / d_ij) * (r_j^2 - (d_ij - r_i)^2)
+    
+    term1 = r_j_mat**2 - (d_ij - r_i_mat)**2
+    b_ij = (jnp.pi * r_i_mat / d_ij) * term1
+    
+    # Conditions
+    # 1. No overlap: d_ij >= r_i + r_j -> b_ij = 0
+    no_overlap = d_ij >= (r_i_mat + r_j_mat)
+    
+    # 2. i inside j: r_j >= r_i + d_ij -> b_ij = S_i (fully buried)
+    i_inside_j = r_j_mat >= (r_i_mat + d_ij)
+    
+    # 3. j inside i: r_i >= r_j + d_ij -> b_ij = 0 (j doesn't cover i's surface)
+    j_inside_i = r_i_mat >= (r_j_mat + d_ij)
+    
+    # Apply conditions
+    b_ij = jnp.where(no_overlap, 0.0, b_ij)
+    b_ij = jnp.where(i_inside_j, S_i[:, None], b_ij)
+    b_ij = jnp.where(j_inside_i, 0.0, b_ij)
+    
+    # Mask self
+    mask = 1.0 - jnp.eye(N)
+    b_ij = b_ij * mask
+    
+    # Fraction of area exposed
+    # f_i = Product_j (1 - b_ij / S_i)
+    # We clamp (1 - b_ij/S_i) to [0, 1] to avoid negative areas
+    
+    fraction_covered = b_ij / S_i[:, None]
+    fraction_exposed_pair = jnp.maximum(0.0, 1.0 - fraction_covered)
+    
+    total_fraction_exposed = jnp.prod(fraction_exposed_pair, axis=1)
+    
+    A_i = S_i * total_fraction_exposed
+    
+    return jnp.sum(A_i)
+
+
+def compute_sasa_neighbor_list(
+    positions: Array,
+    radii: Array,
+    neighbor_idx: Array,
+    probe_radius: float = constants.PROBE_RADIUS,
+) -> Array:
+    """Computes SASA using neighbor lists.
+
+    Args:
+        positions: Atom positions (N, 3).
+        radii: Atom radii (N,).
+        neighbor_idx: Neighbor list indices (N, K).
+        probe_radius: Solvent probe radius.
+
+    Returns:
+        Total SASA (scalar).
+    """
+    N, K = neighbor_idx.shape
+    
+    # Expanded radii
+    r_i = radii + probe_radius
+    r_j_all = radii + probe_radius
+    
+    # Surface area of isolated spheres
+    S_i = 4.0 * jnp.pi * r_i**2
+    
+    # Neighbor positions
+    neighbor_positions = positions[neighbor_idx] # (N, K, 3)
+    central_positions = positions[:, None, :]    # (N, 1, 3)
+    
+    delta_positions = central_positions - neighbor_positions
+    d_ij = safe_norm(delta_positions, axis=-1) # (N, K)
+    
+    # Radii
+    r_i_mat = r_i[:, None]      # (N, 1)
+    r_j_mat = r_j_all[neighbor_idx] # (N, K)
+    
+    # Calculate buried area b_ij
+    term1 = r_j_mat**2 - (d_ij - r_i_mat)**2
+    
+    # Avoid division by zero for self/padding (d_ij approx 0)
+    d_ij_safe = d_ij + 1e-6
+    b_ij = (jnp.pi * r_i_mat / d_ij_safe) * term1
+    
+    # Conditions
+    no_overlap = d_ij >= (r_i_mat + r_j_mat)
+    i_inside_j = r_j_mat >= (r_i_mat + d_ij)
+    j_inside_i = r_i_mat >= (r_j_mat + d_ij)
+    
+    # Apply conditions
+    b_ij = jnp.where(no_overlap, 0.0, b_ij)
+    b_ij = jnp.where(i_inside_j, S_i[:, None], b_ij)
+    b_ij = jnp.where(j_inside_i, 0.0, b_ij)
+    
+    # Mask neighbors
+    mask_neighbors = neighbor_idx < N
+    b_ij = jnp.where(mask_neighbors, b_ij, 0.0)
+    
+    # Fraction exposed
+    fraction_covered = b_ij / S_i[:, None]
+    fraction_exposed_pair = jnp.maximum(0.0, 1.0 - fraction_covered)
+    
+    total_fraction_exposed = jnp.prod(fraction_exposed_pair, axis=1)
+    
+    A_i = S_i * total_fraction_exposed
+    
+    return jnp.sum(A_i)
+
+
+def compute_nonpolar_energy(
+    positions: Array,
+    radii: Array,
+    surface_tension: float = SURFACE_TENSION,
+    probe_radius: float = constants.PROBE_RADIUS,
+    neighbor_idx: Array | None = None,
+) -> Array:
+    """Computes the non-polar solvation energy (SASA term).
+
+    $$
+    \\Delta G_{np} = \\gamma \\cdot SASA
+    $$
+
+    Args:
+        positions: Atom positions (N, 3).
+        radii: Atom radii (N,).
+        surface_tension: Surface tension parameter (gamma).
+        probe_radius: Solvent probe radius.
+        neighbor_idx: Optional neighbor list indices.
+
+    Returns:
+        Non-polar energy (scalar).
+    """
+    if neighbor_idx is None:
+        sasa = compute_sasa(positions, radii, probe_radius)
+    else:
+        sasa = compute_sasa_neighbor_list(positions, radii, neighbor_idx, probe_radius)
+        
+    return surface_tension * sasa

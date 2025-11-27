@@ -10,6 +10,7 @@ import biotite.structure.io.pdb as pdb
 import biotite.structure as struc
 import biotite.database.rcsb as rcsb
 import itertools
+import argparse
 
 # PrxteinMPNN imports
 from prxteinmpnn.physics import simulate, force_fields, jax_md_bridge, system
@@ -26,6 +27,7 @@ jax.config.update("jax_enable_x64", True)
 
 # Constants
 DEV_SET = ["1UBQ", "1CRN", "1BPTI", "2GB1", "1L2Y"]
+QUICK_DEV_SET = ["1UAO"]
 NUM_SAMPLES = 32 # Total sequences per method/param
 MD_STEPS = 100
 MD_THERM = 500
@@ -188,8 +190,8 @@ def compute_metrics(sequences, native_seq, logits_list=None):
         "perplexity": avg_perplexity
     }
 
-def run_benchmark():
-    print(f"Benchmarking Diversity vs Recovery on Dev Set: {DEV_SET}")
+def run_benchmark(pdb_set=DEV_SET):
+    print(f"Benchmarking Diversity vs Recovery on Dev Set: {pdb_set}")
     ff = force_fields.load_force_field_from_hub("ff14SB")
     model = load_model(model_version="v_48_020")
     
@@ -199,7 +201,7 @@ def run_benchmark():
     key = jax.random.PRNGKey(0)
     results = []
     
-    for pdb_id in DEV_SET:
+    for pdb_id in pdb_set:
         print(f"\nProcessing {pdb_id}...")
         atom_array = download_and_load_pdb(pdb_id)
         if atom_array is None: continue
@@ -291,4 +293,9 @@ def run_benchmark():
     print("Saved results to benchmark_diversity.csv")
 
 if __name__ == "__main__":
-    run_benchmark()
+    parser = argparse.ArgumentParser(description="Run diversity benchmark.")
+    parser.add_argument("--quick", action="store_true", help="Run on quick dev set (Chignolin).")
+    args = parser.parse_args()
+    
+    target_set = QUICK_DEV_SET if args.quick else DEV_SET
+    run_benchmark(target_set)

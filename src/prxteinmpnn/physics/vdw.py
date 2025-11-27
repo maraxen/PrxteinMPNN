@@ -21,11 +21,13 @@ def combine_lj_parameters(
 
   Lorentz-Berthelot combining rules:
 
-  .. math::
+  $$
+    \sigma_{ij} = \frac{\sigma_i + \sigma_j}{2}
+  $$
 
-    \\sigma_{ij} = \\frac{\\sigma_i + \\sigma_j}{2}
-
-    \\varepsilon_{ij} = \\sqrt{\\varepsilon_i \\cdot \\varepsilon_j}
+  $$
+    \varepsilon_{ij} = \sqrt{\varepsilon_i \cdot \varepsilon_j}
+  $$
 
   These are the most common combining rules in molecular mechanics.
 
@@ -202,10 +204,9 @@ def compute_lj_energy_pairwise(
 
   Implements the 12-6 Lennard-Jones potential:
 
-  .. math::
-
-    E_{LJ}(r) = 4 \\varepsilon \\left[ \\left( \\frac{\\sigma}{r} \\right)^{12}
-    - \\left( \\frac{\\sigma}{r} \\right)^6 \\right]
+  $$
+    E_{LJ}(r) = 4 \varepsilon \left[ \left( \frac{\sigma}{r} \right)^{12} - \left( \frac{\sigma}{r} \right)^6 \right]
+  $$
 
   The 12th power term represents short-range repulsion (Pauli exclusion),
   and the 6th power term represents long-range attraction (dispersion).
@@ -243,24 +244,21 @@ def compute_lj_force_magnitude_pairwise(
 
   The force is the negative derivative of the LJ potential:
 
-  .. math::
-
-    F_{LJ}(r) = -\\frac{dE}{dr}
+  $$
+    F_{LJ}(r) = -\frac{dE}{dr}
+  $$
 
   For the 12-6 Lennard-Jones potential:
 
-  .. math::
-
-    E_{LJ}(r) = 4 \\varepsilon \\left[ \\left( \\frac{\\sigma}{r}
-    \\right)^{12} - \\left( \\frac{\\sigma}{r} \\right)^6 \\right]
+  $$
+    E_{LJ}(r) = 4 \varepsilon \left[ \left( \frac{\sigma}{r} \right)^{12} - \left( \frac{\sigma}{r} \right)^6 \right]
+  $$
 
   The force magnitude simplifies to:
 
-  .. math::
-
-    F_{LJ}(r) = \\frac{24 \\varepsilon}{r} \\left[ 2 \\left(
-    \\frac{\\sigma}{r} \\right)^{12} - \\left( \\frac{\\sigma}{r}
-    \\right)^6 \\right]
+  $$
+    F_{LJ}(r) = \frac{24 \varepsilon}{r} \left[ 2 \left( \frac{\sigma}{r} \right)^{12} - \left( \frac{\sigma}{r} \right)^6 \right]
+  $$
 
   Positive force = repulsive, negative force = attractive.
 

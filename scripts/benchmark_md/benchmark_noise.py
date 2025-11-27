@@ -18,84 +18,48 @@ from jax_md import space
 DEV_SET = ["1UBQ", "1CRN", "1BPTI", "2GB1", "1L2Y"]
 NUM_SAMPLES = 32
 
-def download_and_load_pdb(pdb_id, output_dir="data/pdb"):
-    """Download and load PDB using Biotite."""
-    os.makedirs(output_dir, exist_ok=True)
-    pdb_path = os.path.join(output_dir, f"{pdb_id.lower()}.pdb")
-    
-    if not os.path.exists(pdb_path):
-        try:
-            pdb_path = rcsb.fetch(pdb_id, "pdb", output_dir)
-        except Exception as e:
-            print(f"Failed to fetch {pdb_id}: {e}")
-            return None
-            
-    pdb_file = pdb.PDBFile.read(pdb_path)
-    atom_array = pdb.get_structure(pdb_file, model=1)
-    return atom_array
+from prxteinmpnn.io.process import frame_iterator_from_inputs
+from prxteinmpnn.utils.data_structures import ProteinTuple
 
-def extract_system_from_biotite(atom_array):
-    """Extract coordinates and topology from Biotite AtomArray."""
-    # Filter for protein
-    atom_array = atom_array[struc.filter_amino_acids(atom_array)]
+# Dev Set PDB IDs
+DEV_SET = ["1UBQ", "1CRN", "1BPTI", "2GB1", "1L2Y"]
+NUM_SAMPLES = 32
+
+def protein_tuple_to_jax_md_input(protein_tuple, ff):
+    """Convert ProteinTuple to flat arrays for JAX MD."""
+    # 1. Reconstruct sequence
+    restypes = residue_constants.restypes + ["X"]
+    seq_str = [restypes[i] for i in protein_tuple.aatype]
+    res_names = [residue_constants.restype_1to3.get(r, "UNK") for r in seq_str]
     
-    # Get first chain
-    chains = struc.get_chains(atom_array)
-    if len(chains) > 0:
-        atom_array = atom_array[atom_array.chain_id == chains[0]]
-        
-    # Remove hydrogens (we'll add them back via parameterization if needed, 
-    # but for now we need to match the force field expectations)
-    # Actually, parameterize_system expects standard residues.
-    # We need to extract sequence and coordinates for heavy atoms.
+    # 2. Flatten coordinates and generate atom names
+    flat_coords = []
+    flat_atom_names = []
+    atom_counts = []
     
-    res_names = []
-    atom_names = []
-    coords_list = []
+    L = protein_tuple.coordinates.shape[0]
     
-    # Iterate over residues
-    for res in struc.residue_iter(atom_array):
-        res_name = res[0].res_name
-        if res_name not in residue_constants.restype_3to1:
+    for i in range(L):
+        res_name = res_names[i]
+        if res_name == "UNK": 
+            atom_counts.append(0)
             continue
-            
-        # Standard atoms for this residue
+        
         std_atoms = residue_constants.residue_atoms.get(res_name, [])
         
-        # Check backbone
-        backbone_mask = np.isin(res.atom_name, ["N", "CA", "C", "O"])
-        if np.sum(backbone_mask) < 4:
-            continue
-            
-        res_names.append(res_name)
-        atom_names.extend(std_atoms)
-        
-        # Extract coords for all standard atoms
-        # Initialize with NaN
-        res_coords = np.full((len(std_atoms), 3), np.nan)
-        
-        for i, atom_name in enumerate(std_atoms):
-            mask = res.atom_name == atom_name
-            if np.any(mask):
-                res_coords[i] = res[mask][0].coord
-            else:
-                # Missing atom. 
-                # For benchmark, we can't easily fix this without pdbfixer.
-                # We'll place at CA (bad geometry) or skip.
-                # Let's place at CA if available, else 0
-                ca_mask = res.atom_name == "CA"
-                if np.any(ca_mask):
-                    res_coords[i] = res[ca_mask][0].coord
-                else:
-                    res_coords[i] = np.array([0., 0., 0.])
-                    
-        coords_list.append(res_coords)
-        
-    if not coords_list:
-        return None, None, None
-        
-    coords = np.vstack(coords_list)
-    return coords, res_names, atom_names
+        count = 0
+        for atom_name in std_atoms:
+            atom_idx = residue_constants.atom_order.get(atom_name)
+            if atom_idx is not None and protein_tuple.atom_mask[i, atom_idx] > 0.5:
+                flat_coords.append(protein_tuple.coordinates[i, atom_idx])
+                flat_atom_names.append(atom_name)
+                count += 1
+        atom_counts.append(count)
+                
+    # Parameterize system to get params
+    params = jax_md_bridge.parameterize_system(ff, res_names, flat_atom_names, atom_counts=atom_counts)
+    
+    return jnp.array(flat_coords), params
 
 def compute_geometry_metrics(coords, params):
     """Compute geometric metrics using JAX MD."""
@@ -109,7 +73,8 @@ def compute_geometry_metrics(coords, params):
     r2 = coords[bonds[:, 1]]
     
     # Direct displacement (free space supports vectorization)
-    dr = displacement_fn(r1, r2)
+    # Fix: Use vmap for pairwise displacement
+    dr = jax.vmap(displacement_fn)(r1, r2)
     d = jnp.linalg.norm(dr, axis=-1)
     
     bond_dev = jnp.abs(d - bond_params[:, 0])
@@ -149,34 +114,80 @@ def apply_md_sampling(coords, params, temperature, key):
     )
     return r_final
 
-def run_benchmark():
+def run_benchmark(pdb_set=DEV_SET):
     """Run the geometric integrity benchmark."""
-    print(f"Benchmarking Geometric Integrity on Dev Set: {DEV_SET}")
+    print(f"Benchmarking Geometric Integrity on {pdb_set}")
     print(f"Samples per condition: {NUM_SAMPLES}")
     
     ff = force_fields.load_force_field_from_hub("ff14SB")
     results = []
     key = jax.random.PRNGKey(0)
     
-    for pdb_id in DEV_SET:
+    # Pre-load proteins
+    proteins = {}
+    
+    # Download PDBs first
+    pdb_dir = "data/pdb"
+    os.makedirs(pdb_dir, exist_ok=True)
+    pdb_paths = []
+    for pdb_id in pdb_set:
+        pdb_path = os.path.join(pdb_dir, f"{pdb_id.lower()}.pdb")
+        if not os.path.exists(pdb_path):
+            try:
+                rcsb.fetch(pdb_id, "pdb", pdb_dir)
+            except Exception as e:
+                print(f"Failed to fetch {pdb_id}: {e}")
+                continue
+        if os.path.exists(pdb_path):
+            pdb_paths.append(pdb_path)
+
+    # Use unified data loader
+    from prxteinmpnn.io import process
+    
+    for pdb_path in pdb_paths:
+        pdb_id = os.path.basename(pdb_path).split(".")[0].upper()
+        print(f"Processing {pdb_id}...")
+        
+        # Create iterator for single file to get first frame
+        iterator = process.frame_iterator_from_inputs([pdb_path])
+        
+        try:
+            protein_tuple = next(iterator)
+        except StopIteration:
+            print(f"No frames found in {pdb_id}")
+            continue
+        except Exception as e:
+            print(f"Error loading {pdb_id}: {e}")
+            continue
+        
+        try:
+            jax_md_input = protein_tuple_to_jax_md_input(protein_tuple, ff)
+            if jax_md_input is None:
+                print(f"Skipping {pdb_id} due to processing failure")
+                continue
+                
+            coords, params = jax_md_input
+            
+            proteins[pdb_id] = {
+                "coords": coords,
+                "params": params
+            }
+        except Exception as e:
+            print(f"Error processing {pdb_id}: {e}")
+            import traceback
+            traceback.print_exc()
+            continue
+            
+    for pdb_id in pdb_set:
+        if pdb_id not in proteins:
+            print(f"Skipping {pdb_id} as it was not pre-loaded.")
+            continue
+            
         print(f"\nProcessing {pdb_id}...")
         try:
-            atom_array = download_and_load_pdb(pdb_id)
-            if atom_array is None:
-                continue
-                
-            coords_np, res_names, atom_names = extract_system_from_biotite(atom_array)
-            if coords_np is None:
-                print(f"  Failed to extract system from {pdb_id}")
-                continue
-                
-            params = jax_md_bridge.parameterize_system(ff, res_names, atom_names)
-            
-            if len(coords_np) != len(params["charges"]):
-                print(f"  Mismatch: Coords {len(coords_np)} != Params {len(params['charges'])}")
-                continue
-                
-            coords = jnp.array(coords_np)
+            data = proteins[pdb_id]
+            coords = data["coords"]
+            params = data["params"]
             
             # 1. Baseline (No Noise)
             print("  Evaluating Baseline...")
@@ -219,4 +230,9 @@ def run_benchmark():
     print("Results saved to benchmark_geometric_integrity.csv")
 
 if __name__ == "__main__":
-    run_benchmark()
+    parser = argparse.ArgumentParser(description="Run geometric integrity benchmark.")
+    parser.add_argument("--quick", action="store_true", help="Run on quick dev set (Chignolin).")
+    args = parser.parse_args()
+    
+    target_set = QUICK_DEV_SET if args.quick else DEV_SET
+    run_benchmark(target_set)

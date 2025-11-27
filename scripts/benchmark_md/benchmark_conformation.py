@@ -9,6 +9,7 @@ import jax.numpy as jnp
 import biotite.structure.io.pdb as pdb
 import biotite.structure as struc
 import biotite.database.rcsb as rcsb
+import argparse
 
 # PrxteinMPNN imports
 from prxteinmpnn.physics import simulate, force_fields, jax_md_bridge, system
@@ -19,6 +20,7 @@ jax.config.update("jax_enable_x64", True)
 
 # Constants
 DEV_SET = ["1UBQ", "1CRN", "1BPTI", "2GB1", "1L2Y"]
+QUICK_DEV_SET = ["1UAO"]
 NUM_SAMPLES = 8
 MD_STEPS = 100
 MD_THERM = 500
@@ -163,20 +165,43 @@ def is_allowed_jax(phi, psi):
     
     return is_alpha | is_beta | is_left_alpha
 
-def run_benchmark():
-    print("Benchmarking Conformational Validity (Optimized with VMAP)...")
+def run_benchmark(pdb_set=DEV_SET):
+    print(f"Benchmarking Conformational Validity (Optimized with VMAP) on {pdb_set}...")
     ff = force_fields.load_force_field_from_hub("ff14SB")
     
     results = []
     key = jax.random.PRNGKey(0)
     
-    for pdb_id in DEV_SET:
+    for pdb_id in pdb_set:
         print(f"\nProcessing {pdb_id}...")
-        atom_array = download_and_load_pdb(pdb_id)
-        if atom_array is None: continue
+        cache_path = os.path.join("data", "cache", f"{pdb_id}_system.npz")
+        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
         
-        coords_np, res_names, atom_names, filtered_array, n_idx, ca_idx, c_idx = extract_system_from_biotite(atom_array)
-        if coords_np is None: continue
+        if os.path.exists(cache_path):
+            print(f"  Loading from cache: {cache_path}")
+            data = np.load(cache_path)
+            coords_np = data["coords"]
+            res_names = data["res_names"].tolist()
+            atom_names = data["atom_names"].tolist()
+            n_idx = data["n_idx"]
+            ca_idx = data["ca_idx"]
+            c_idx = data["c_idx"]
+        else:
+            atom_array = download_and_load_pdb(pdb_id)
+            if atom_array is None: continue
+            
+            coords_np, res_names, atom_names, filtered_array, n_idx, ca_idx, c_idx = extract_system_from_biotite(atom_array)
+            if coords_np is None: continue
+            
+            np.savez(
+                cache_path, 
+                coords=coords_np, 
+                res_names=res_names, 
+                atom_names=atom_names, 
+                n_idx=n_idx, 
+                ca_idx=ca_idx, 
+                c_idx=c_idx
+            )
         
         params = jax_md_bridge.parameterize_system(ff, res_names, atom_names)
         coords = jnp.array(coords_np)
@@ -242,4 +267,9 @@ def run_benchmark():
     print("Saved results to benchmark_conformation.csv")
 
 if __name__ == "__main__":
-    run_benchmark()
+    parser = argparse.ArgumentParser(description="Run conformational validity benchmark.")
+    parser.add_argument("--quick", action="store_true", help="Run on quick dev set (Chignolin).")
+    args = parser.parse_args()
+    
+    target_set = QUICK_DEV_SET if args.quick else DEV_SET
+    run_benchmark(target_set)

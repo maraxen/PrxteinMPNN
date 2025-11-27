@@ -10,6 +10,7 @@ import biotite.structure.io.pdb as pdb
 import biotite.structure as struc
 import biotite.database.rcsb as rcsb
 from biotite.structure.io import save_structure
+import argparse
 
 # PrxteinMPNN imports
 from prxteinmpnn.physics import simulate, force_fields, jax_md_bridge, system
@@ -25,6 +26,7 @@ from prxteinmpnn.utils.decoding_order import random_decoding_order
 
 # Constants
 DEV_SET = ["1UBQ", "1CRN", "1BPTI", "2GB1", "1L2Y"]
+QUICK_DEV_SET = ["1UAO"]
 NUM_SAMPLES = 4  # Reduced for speed in this script, user can increase
 MD_STEPS = 100
 MD_THERM = 500
@@ -201,8 +203,8 @@ def calculate_rmsd(native_coords, pred_coords):
     # Placeholder
     return 0.0
 
-def run_benchmark():
-    print(f"Benchmarking Designability (scRMSD) on Dev Set: {DEV_SET}")
+def run_benchmark(pdb_set=DEV_SET):
+    print(f"Benchmarking Designability (scRMSD) on Dev Set: {pdb_set}")
     
     # Load Force Field
     # Note: force_fields might need x64? Usually parameters are f64.
@@ -240,7 +242,7 @@ def run_benchmark():
     key = jax.random.PRNGKey(0)
     results = []
     
-    for pdb_id in DEV_SET:
+    for pdb_id in pdb_set:
         print(f"\nProcessing {pdb_id}...")
         atom_array = download_and_load_pdb(pdb_id)
         if atom_array is None: continue
@@ -352,4 +354,9 @@ def run_benchmark():
     print("3. Compute RMSD")
 
 if __name__ == "__main__":
-    run_benchmark()
+    parser = argparse.ArgumentParser(description="Run scRMSD benchmark.")
+    parser.add_argument("--quick", action="store_true", help="Run on quick dev set (Chignolin).")
+    args = parser.parse_args()
+    
+    target_set = QUICK_DEV_SET if args.quick else DEV_SET
+    run_benchmark(target_set)

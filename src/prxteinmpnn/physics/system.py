@@ -53,6 +53,18 @@ def make_energy_fn(
     system_params["angle_params"],
   )
 
+  dihedral_energy_fn = bonded.make_dihedral_energy_fn(
+    displacement_fn,
+    system_params["dihedrals"],
+    system_params["dihedral_params"],
+  )
+
+  improper_energy_fn = bonded.make_dihedral_energy_fn(
+    displacement_fn,
+    system_params["impropers"],
+    system_params["improper_params"],
+  )
+
   # 2. Non-Bonded Terms
   # We need to handle exclusions.
   # The energy functions below need to be wrapped to apply the mask.
@@ -78,74 +90,102 @@ def make_energy_fn(
 
   def compute_electrostatics(r, neighbor_idx=None):
     # Prepare parameters
-    # Intrinsic radii for GB: R ~ sigma / 2
-    radii = sigmas * 0.5
+    # Intrinsic radii for GB
+    if "gb_radii" in system_params and system_params["gb_radii"] is not None:
+      radii = system_params["gb_radii"]
+    else:
+      # Fallback: R ~ sigma / 2 (approximate)
+      radii = sigmas * 0.5
 
+    e_gb = 0.0
     if implicit_solvent:
-      # Generalized Born (OBC)
+      # Generalized Born (OBC) - Solvation Term
       if neighbor_idx is None:
         # Dense O(N^2)
-        return generalized_born.compute_gb_energy(
+        e_gb = generalized_born.compute_gb_energy(
           r, charges, radii,
           solvent_dielectric=solvent_dielectric,
           solute_dielectric=solute_dielectric
         )
       else:
         # Neighbor List
-        return generalized_born.compute_gb_energy_neighbor_list(
+        e_gb = generalized_born.compute_gb_energy_neighbor_list(
           r, charges, radii, neighbor_idx,
           solvent_dielectric=solvent_dielectric,
           solute_dielectric=solute_dielectric
         )
+    
+    # Direct Coulomb / Screened Coulomb
+    # If implicit_solvent is True, we want Vacuum Coulomb (Kappa=0) with solute_dielectric.
+    # If implicit_solvent is False, we want Screened Coulomb (Legacy) with dielectric_constant.
+    
+    if implicit_solvent:
+        eff_dielectric = solute_dielectric
+        kappa = 0.0
     else:
-      # Screened Coulomb (Legacy)
-      # V = q_i * q_j / (eps * r) * exp(-kappa * r)
-      # We use the provided dielectric_constant (usually 1.0 or 80.0)
-      
-      # Constants
-      COULOMB_CONSTANT = 332.0637 / dielectric_constant
-      KAPPA = 0.1  # Inverse Debye length
-      
-      if neighbor_idx is None:
-        # Dense
-        dr = space.map_product(displacement_fn)(r, r)
-        dist = space.distance(dr)
-        q_ij = charges[:, None] * charges[None, :]
-        e_elec = COULOMB_CONSTANT * (q_ij / (dist + 1e-6)) * jnp.exp(-KAPPA * dist)
-        # Mask self
-        mask = 1.0 - jnp.eye(charges.shape[0])
-        e_elec = jnp.where(mask, e_elec, 0.0)
-        
-        # Apply exclusion mask
-        e_elec = jnp.where(exclusion_mask, e_elec, 0.0)
+        eff_dielectric = dielectric_constant
+        kappa = 0.1  # Legacy screened coulomb kappa
 
-        return 0.5 * jnp.sum(e_elec)
+    COULOMB_CONSTANT = 332.0637 / eff_dielectric
+    
+    if neighbor_idx is None:
+      # Dense
+      dr = space.map_product(displacement_fn)(r, r)
+      dist = space.distance(dr)
+      q_ij = charges[:, None] * charges[None, :]
+      
+      # Avoid divide by zero
+      dist_safe = dist + 1e-6
+      
+      if kappa > 0:
+          e_coul = COULOMB_CONSTANT * (q_ij / dist_safe) * jnp.exp(-kappa * dist)
       else:
-        # Neighbor List
-        idx = neighbor_idx
-        r_neighbors = r[idx]
-        r_central = r[:, None, :]
-        dr = jax.vmap(lambda ra, rb: displacement_fn(ra, rb))(r_central, r_neighbors)
-        dist = space.distance(dr)
-        
-        q_neighbors = charges[idx]
-        q_central = charges[:, None]
-        q_ij = q_central * q_neighbors
-        
-        e_elec = COULOMB_CONSTANT * (q_ij / (dist + 1e-6)) * jnp.exp(-KAPPA * dist)
-        
-        # Mask padding
-        mask_neighbors = idx < r.shape[0]
-        
-        # Exclusion lookup
-        i_idx = jnp.arange(r.shape[0])[:, None]
-        safe_idx = jnp.minimum(idx, r.shape[0] - 1)
-        interaction_allowed = exclusion_mask[i_idx, safe_idx]
-        
-        final_mask = mask_neighbors & interaction_allowed
-        e_elec = jnp.where(final_mask, e_elec, 0.0)
-        
-        return 0.5 * jnp.sum(e_elec)
+          e_coul = COULOMB_CONSTANT * (q_ij / dist_safe)
+          
+      # Mask self
+      mask = 1.0 - jnp.eye(charges.shape[0])
+      e_coul = jnp.where(mask, e_coul, 0.0)
+      
+      # Apply exclusion mask
+      e_coul = jnp.where(exclusion_mask, e_coul, 0.0)
+
+      e_direct = 0.5 * jnp.sum(e_coul)
+    else:
+      # Neighbor List
+      idx = neighbor_idx
+      r_neighbors = r[idx]
+      r_central = r[:, None, :]
+      dr = jax.vmap(lambda ra, rb: displacement_fn(ra, rb))(r_central, r_neighbors)
+      dist = space.distance(dr)
+      
+      q_neighbors = charges[idx]
+      q_central = charges[:, None]
+      q_ij = q_central * q_neighbors
+      
+      dist_safe = dist + 1e-6
+      
+      if kappa > 0:
+          e_coul = COULOMB_CONSTANT * (q_ij / dist_safe) * jnp.exp(-kappa * dist)
+      else:
+          e_coul = COULOMB_CONSTANT * (q_ij / dist_safe)
+      
+      # Mask padding
+      mask_neighbors = idx < r.shape[0]
+      
+      # Exclusion lookup
+      i_idx = jnp.arange(r.shape[0])[:, None]
+      safe_idx = jnp.minimum(idx, r.shape[0] - 1)
+      interaction_allowed = exclusion_mask[i_idx, safe_idx]
+      
+      final_mask = mask_neighbors & interaction_allowed
+      e_coul = jnp.where(final_mask, e_coul, 0.0)
+      
+      e_direct = 0.5 * jnp.sum(e_coul)
+
+    if implicit_solvent:
+        return e_gb + e_direct
+    else:
+        return e_direct
 
   # Combine Non-Bonded
   # -------------------------------------------------------------------------
@@ -206,6 +246,8 @@ def make_energy_fn(
   def total_energy(r: Array, neighbor: partition.NeighborList | None = None, **kwargs) -> Array:
     e_bond = bond_energy_fn(r)
     e_angle = angle_energy_fn(r)
+    e_dihedral = dihedral_energy_fn(r)
+    e_improper = improper_energy_fn(r)
     
     neighbor_idx = neighbor.idx if neighbor is not None else None
     
@@ -216,6 +258,6 @@ def make_energy_fn(
     # Screened Coulomb includes 0.5 factor.
     # LJ includes 0.5 factor.
     
-    return e_bond + e_angle + e_lj + e_elec
+    return e_bond + e_angle + e_dihedral + e_improper + e_lj + e_elec
 
   return total_energy

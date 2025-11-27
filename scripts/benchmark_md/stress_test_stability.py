@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import jax
 import jax.numpy as jnp
+from prxteinmpnn.utils import residue_constants
 import biotite.structure.io.pdb as pdb
 import biotite.structure as struc
 import biotite.database.rcsb as rcsb

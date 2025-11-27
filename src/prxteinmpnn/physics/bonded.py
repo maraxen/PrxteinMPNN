@@ -84,3 +84,65 @@ def make_angle_energy_fn(
     return 0.5 * jnp.sum(k * (theta - theta0) ** 2)
 
   return angle_energy
+
+
+def make_dihedral_energy_fn(
+  displacement_fn: space.DisplacementFn,
+  dihedral_indices: Array,
+  dihedral_params: Array,
+) -> Callable[[Array], Array]:
+  """Creates a function to compute dihedral (torsion) energy.
+
+  E = k * (1 + cos(n * phi - gamma))
+
+  Args:
+      displacement_fn: JAX MD displacement function.
+      dihedral_indices: (N_dihedrals, 4) array of atom indices (i, j, k, l).
+      dihedral_params: (N_dihedrals, 3) array of (periodicity, phase, k).
+
+  Returns:
+      A function energy(R) -> float.
+
+  """
+  periodicity = dihedral_params[:, 0]
+  phase = dihedral_params[:, 1]
+  k = dihedral_params[:, 2]
+
+  def dihedral_energy(r: Array, **kwargs) -> Array:  # noqa: ARG001
+    # Extract positions
+    r_i = r[dihedral_indices[:, 0]]
+    r_j = r[dihedral_indices[:, 1]]
+    r_k = r[dihedral_indices[:, 2]]
+    r_l = r[dihedral_indices[:, 3]]
+
+    # Vectors
+    # b0: i -> j
+    # b1: j -> k
+    # b2: k -> l
+    b0 = jax.vmap(displacement_fn)(r_j, r_i)
+    b1 = jax.vmap(displacement_fn)(r_k, r_j)
+    b2 = jax.vmap(displacement_fn)(r_l, r_k)
+
+    # Normalize b1
+    b1_norm = jnp.linalg.norm(b1, axis=-1, keepdims=True) + 1e-8
+    b1_unit = b1 / b1_norm
+
+    # Projections onto plane perpendicular to b1
+    # v = b0 - (b0 . b1_unit) * b1_unit
+    # w = b2 - (b2 . b1_unit) * b1_unit
+    v = b0 - jnp.sum(b0 * b1_unit, axis=-1, keepdims=True) * b1_unit
+    w = b2 - jnp.sum(b2 * b1_unit, axis=-1, keepdims=True) * b1_unit
+
+    # Angle calculation
+    # x = v . w
+    # y = (b1_unit x v) . w
+    x = jnp.sum(v * w, axis=-1)
+    y = jnp.sum(jnp.cross(b1_unit, v) * w, axis=-1)
+
+    phi = jnp.arctan2(y, x)  # in radians
+
+    # Energy
+    # E = k * (1 + cos(n * phi - gamma))
+    return jnp.sum(k * (1.0 + jnp.cos(periodicity * phi - phase)))
+
+  return dihedral_energy

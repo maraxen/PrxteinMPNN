@@ -9,6 +9,7 @@ import jax.numpy as jnp
 import biotite.structure.io.pdb as pdb
 import biotite.structure as struc
 import biotite.database.rcsb as rcsb
+import argparse
 
 # PrxteinMPNN imports
 from prxteinmpnn.physics import simulate, force_fields, jax_md_bridge, system
@@ -21,6 +22,9 @@ jax.config.update("jax_enable_x64", True)
 PDB_ID = "1UBQ"
 LENGTHS = [100, 250, 500, 1000, 1500, 2000]
 STEPS = 100
+
+QUICK_PDB_ID = "1UAO"
+QUICK_LENGTHS = [100, 200]
 
 def download_and_load_pdb(pdb_id, output_dir="data/pdb"):
     os.makedirs(output_dir, exist_ok=True)
@@ -101,19 +105,19 @@ def create_dummy_system(base_atom_array, target_length):
     coords = np.vstack(coords_list)
     return coords, res_names, atom_names
 
-def run_benchmark():
-    print("Benchmarking Computational Scaling...")
+def run_benchmark(pdb_id=PDB_ID, lengths=LENGTHS):
+    print(f"Benchmarking Computational Scaling on {pdb_id} with lengths {lengths}...")
     ff = force_fields.load_force_field_from_hub("ff14SB")
     
-    atom_array = download_and_load_pdb(PDB_ID)
+    atom_array = download_and_load_pdb(pdb_id)
     if atom_array is None:
-        print(f"Failed to load {PDB_ID}")
+        print(f"Failed to load {pdb_id}")
         return
 
     results = []
     key = jax.random.PRNGKey(0)
     
-    for length in LENGTHS:
+    for length in lengths:
         print(f"\nTarget Length: {length}")
         
         # Create System
@@ -183,4 +187,10 @@ def run_benchmark():
     print("Saved results to benchmark_scaling.csv")
 
 if __name__ == "__main__":
-    run_benchmark()
+    parser = argparse.ArgumentParser(description="Run scaling benchmark.")
+    parser.add_argument("--quick", action="store_true", help="Run on quick dev set (Chignolin, fewer lengths).")
+    args = parser.parse_args()
+    
+    target_pdb = QUICK_PDB_ID if args.quick else PDB_ID
+    target_lengths = QUICK_LENGTHS if args.quick else LENGTHS
+    run_benchmark(target_pdb, target_lengths)

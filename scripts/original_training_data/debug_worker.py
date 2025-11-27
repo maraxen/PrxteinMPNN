@@ -16,7 +16,7 @@ print(f"ORIGINAL JAX PLATFORM: {os.environ.get('JAX_PLATFORMS', 'Not Set')}")
 import jax
 jax.config.update("jax_platform_name", "cpu")
 jax.config.update("jax_enable_x64", True)
-print(f"JAX Backend: {jax.lib.xla_bridge.get_backend().platform}")
+print(f"JAX Backend: {jax.lib.xla_bridge.get_backend().platform}")  # type: ignore[possibly-missing-attribute]
 
 # 2. Check Data Directory
 DATA_DIR = Path("src/prxteinmpnn/training/data/pdb_2021aug02")

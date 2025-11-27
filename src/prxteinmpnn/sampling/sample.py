@@ -71,7 +71,15 @@ def make_sample_sequences(
   if sampling_strategy == "straight_through":
     optimize_fn = make_optimize_sequence_fn(model, decoding_order_fn)
 
-    @partial(jax.jit, static_argnames=("_k_neighbors", "num_groups"))
+    @partial(
+      jax.jit,
+      static_argnames=(
+        "_k_neighbors",
+        "num_groups",
+        "multi_state_strategy",
+        "multi_state_alpha",
+      ),
+    )
     def sample_sequences(
       prng_key: PRNGKeyArray,
       structure_coordinates: StructureAtomicCoordinates,
@@ -84,9 +92,13 @@ def make_sample_sequences(
       backbone_noise: BackboneNoise | None = None,
       iterations: Int | None = None,
       learning_rate: Float | None = None,
+      _iterations: Int | None = None,
+      _learning_rate: Float | None = None,
       temperature: Float | None = None,
       tie_group_map: jnp.ndarray | None = None,
       num_groups: int | None = None,
+      multi_state_strategy: Literal["mean", "min", "product", "max_min"] = "mean",
+      multi_state_alpha: float = 0.5,
       structure_mapping: jax.Array | None = None,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """Optimize a sequence using straight-through estimation.
@@ -103,9 +115,13 @@ def make_sample_sequences(
         backbone_noise: Optional noise for backbone coordinates.
         iterations: Number of optimization steps (default: 100).
         learning_rate: Learning rate for optimization (default: 0.01).
+        _iterations: Alias for iterations (for API compatibility).
+        _learning_rate: Alias for learning_rate (for API compatibility).
         temperature: Temperature for STE sampling (default: 1.0).
         tie_group_map: Optional (N,) array mapping positions to group IDs for tied sampling.
         num_groups: Number of unique groups when using tied positions.
+        multi_state_strategy: Unused in straight_through mode (kept for API compatibility).
+        multi_state_alpha: Unused in straight_through mode (kept for API compatibility).
         structure_mapping: Optional (N,) array mapping each residue to a structure ID.
                   When provided (multi-state mode), prevents cross-structure
                   neighbors to avoid information leakage between conformational states.
@@ -114,12 +130,14 @@ def make_sample_sequences(
         Tuple of (optimized sequence, final logits, decoding order).
 
       """
-      del bias, fixed_positions, _k_neighbors
+      del bias, fixed_positions, _k_neighbors, multi_state_strategy, multi_state_alpha
 
       if iterations is None:
-        iterations = jnp.array(100, dtype=jnp.int32)
+        iterations = _iterations if _iterations is not None else jnp.array(100, dtype=jnp.int32)
       if learning_rate is None:
-        learning_rate = jnp.array(0.01, dtype=jnp.float32)
+        learning_rate = (
+          _learning_rate if _learning_rate is not None else jnp.array(0.01, dtype=jnp.float32)
+        )
       if temperature is None:
         temperature = jnp.array(1.0, dtype=jnp.float32)
 
@@ -151,7 +169,15 @@ def make_sample_sequences(
 
   if sampling_strategy == "temperature":
 
-    @partial(jax.jit, static_argnames=("_k_neighbors", "num_groups", "multi_state_strategy"))
+    @partial(
+      jax.jit,
+      static_argnames=(
+        "_k_neighbors",
+        "num_groups",
+        "multi_state_strategy",
+        "multi_state_alpha",
+      ),
+    )
     def sample_sequences(
       prng_key: PRNGKeyArray,
       structure_coordinates: StructureAtomicCoordinates,

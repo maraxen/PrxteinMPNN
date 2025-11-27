@@ -76,8 +76,8 @@ def _sample_batch(
       if spec.fixed_positions is not None
       else None
     ),
-    _iterations=spec.iterations,
-    _learning_rate=spec.learning_rate,
+    iterations=spec.iterations,
+    learning_rate=spec.learning_rate,
     multi_state_strategy=spec.multi_state_strategy,
     multi_state_alpha=spec.multi_state_alpha,
     num_groups=num_groups,

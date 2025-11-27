@@ -22,6 +22,7 @@ def make_energy_fn(
   implicit_solvent: bool = True,
   solvent_dielectric: float = 78.5,
   solute_dielectric: float = 1.0,
+  surface_tension: float = 0.005,
 ) -> Callable[[Array], Array]:
   """Creates the total potential energy function.
 
@@ -240,6 +241,20 @@ def make_energy_fn(
       e_lj = jnp.where(final_mask, e_lj, 0.0)
       
       return 0.5 * jnp.sum(e_lj)
+      
+  def compute_nonpolar(r, neighbor_idx=None):
+    if not implicit_solvent:
+        return 0.0
+        
+    # Prepare parameters (same as electrostatics)
+    if "gb_radii" in system_params and system_params["gb_radii"] is not None:
+      radii = system_params["gb_radii"]
+    else:
+      radii = sigmas * 0.5
+      
+    return generalized_born.compute_nonpolar_energy(
+        r, radii, surface_tension=surface_tension, neighbor_idx=neighbor_idx
+    )
 
   # Total Energy Function
   # -------------------------------------------------------------------------
@@ -253,11 +268,12 @@ def make_energy_fn(
     
     e_lj = compute_lj(r, neighbor_idx)
     e_elec = compute_electrostatics(r, neighbor_idx)
+    e_np = compute_nonpolar(r, neighbor_idx)
     
     # Note: GB energy already includes 0.5 factor and self-energy.
     # Screened Coulomb includes 0.5 factor.
     # LJ includes 0.5 factor.
     
-    return e_bond + e_angle + e_dihedral + e_improper + e_lj + e_elec
+    return e_bond + e_angle + e_dihedral + e_improper + e_lj + e_elec + e_np
 
   return total_energy

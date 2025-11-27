@@ -120,15 +120,24 @@ def _sample_batch(
     def map_over_noise_and_temp(
       k: PRNGKeyArray,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
-      
-      def vmap_over_temp(n: float) -> tuple[ProteinSequence, Logits, DecodingOrder]:
-        return jax.vmap(
-            lambda t: sample_single_config(
-                k, coords, mask, residue_ix, chain_ix, n, t, current_tie_map, structure_mapping
-            )
-        )(temperature_array)
+      def map_over_temp(n: float) -> tuple[ProteinSequence, Logits, DecodingOrder]:
+        return jax.lax.map(
+          lambda t: sample_single_config(
+            k,
+            coords,
+            mask,
+            residue_ix,
+            chain_ix,
+            n,
+            t,
+            current_tie_map,
+            structure_mapping,
+          ),
+          temperature_array,
+          batch_size=spec.temperature_batch_size,
+        )
 
-      return jax.vmap(vmap_over_temp)(noise_array)
+      return jax.lax.map(map_over_temp, noise_array, batch_size=spec.noise_batch_size)
 
     return jax.lax.map(
       map_over_noise_and_temp,

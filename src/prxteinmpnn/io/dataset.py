@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from typing import IO, Any, SupportsIndex
 
 import grain.python as grain
+import numpy as np
 
 from prxteinmpnn.utils.data_structures import ProteinTuple
 from prxteinmpnn.utils.foldcomp_utils import (
@@ -15,6 +16,17 @@ from prxteinmpnn.utils.foldcomp_utils import (
 from .process import frame_iterator_from_inputs
 
 logger = logging.getLogger(__name__)
+
+
+def _is_frame_valid(frame: ProteinTuple) -> tuple[bool, str]:
+  """Check if a protein frame is valid."""
+  if len(frame.aatype) == 0:
+    return False, "Empty structure"
+  if frame.coordinates.shape[0] != len(frame.aatype):
+    return False, "Shape mismatch between coordinates and aatype"
+  if np.isnan(frame.coordinates).any():
+    return False, "NaN values in coordinates"
+  return True, ""
 
 
 class ProteinDataSource(grain.RandomAccessDataSource):
@@ -38,13 +50,20 @@ class ProteinDataSource(grain.RandomAccessDataSource):
     self.inputs = inputs
     self.parse_kwargs = parse_kwargs or {}
     self.foldcomp_database = foldcomp_database
-    self.frames = list(
-      frame_iterator_from_inputs(
-        self.inputs,
-        self.parse_kwargs,
-        self.foldcomp_database,
-      ),
-    )
+    self.frames = []
+    self.skipped_frames = []
+    for frame in frame_iterator_from_inputs(
+      self.inputs,
+      self.parse_kwargs,
+      self.foldcomp_database,
+    ):
+      is_valid, reason = _is_frame_valid(frame)
+      if is_valid:
+        self.frames.append(frame)
+      else:
+        logging.warning(f"Skipping invalid frame from {frame.source}: {reason}")
+        self.skipped_frames.append({"source": frame.source, "reason": reason})
+
     self._length = len(self.frames)
 
   def __len__(self) -> int:

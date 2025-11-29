@@ -167,7 +167,16 @@ def is_allowed_jax(phi, psi):
 
 def run_benchmark(pdb_set=DEV_SET):
     print(f"Benchmarking Conformational Validity (Optimized with VMAP) on {pdb_set}...")
-    ff = force_fields.load_force_field_from_hub("ff14SB")
+    try:
+        ff_path = "src/prxteinmpnn/physics/force_fields/eqx/protein19SB.eqx"
+        if os.path.exists(ff_path):
+            print(f"Loading local force field: {ff_path}")
+            ff = force_fields.load_force_field(ff_path)
+        else:
+            raise FileNotFoundError
+    except Exception:
+        print("Local protein19SB not found, falling back to ff14SB from Hub...")
+        ff = force_fields.load_force_field_from_hub("ff14SB")
     
     results = []
     key = jax.random.PRNGKey(0)

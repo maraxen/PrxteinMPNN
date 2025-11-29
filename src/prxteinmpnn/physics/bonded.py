@@ -119,7 +119,11 @@ def make_dihedral_energy_fn(
     # b0: i -> j
     # b1: j -> k
     # b2: k -> l
-    b0 = jax.vmap(displacement_fn)(r_j, r_i)
+    # b0: i -> j (vector from j to i for correct angle definition? No, usually i->j)
+    # Wait, analysis showed we need r_i - r_j to match IUPAC with current angle logic.
+    # displacement_fn(a, b) = a - b.
+    # We want r_i - r_j. So displacement_fn(r_i, r_j).
+    b0 = jax.vmap(displacement_fn)(r_i, r_j)
     b1 = jax.vmap(displacement_fn)(r_k, r_j)
     b2 = jax.vmap(displacement_fn)(r_l, r_k)
 

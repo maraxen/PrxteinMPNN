@@ -23,6 +23,7 @@ class FullForceField(eqx.Module):
       charges_by_id: Partial charges for each atom type
       sigmas_by_id: Lennard-Jones sigma parameters (Angstroms)
       epsilons_by_id: Lennard-Jones epsilon parameters (kcal/mol)
+      cmap_energy_grids: CMAP energy correction grids (N_maps, Grid, Grid)
       atom_key_to_id: Map from (residue, atom) to integer ID
       id_to_atom_key: Reverse map from ID to (residue, atom)
       atom_class_map: Map from atom to force field class
@@ -30,6 +31,7 @@ class FullForceField(eqx.Module):
       angles: Angle parameters
       propers: Proper dihedral parameters
       impropers: Improper dihedral parameters
+      cmap_torsions: CMAP torsion definitions
       source_files: Source XML files used to create this force field
 
   Example:
@@ -43,6 +45,7 @@ class FullForceField(eqx.Module):
   charges_by_id: jnp.ndarray  # (n_atoms,) partial charges
   sigmas_by_id: jnp.ndarray  # (n_atoms,) LJ sigma (Angstroms)
   epsilons_by_id: jnp.ndarray  # (n_atoms,) LJ epsilon (kcal/mol)
+  cmap_energy_grids: jnp.ndarray  # (n_maps, grid_size, grid_size)
 
   # Static metadata (immutable)
   atom_key_to_id: dict[tuple[str, str], int] = eqx.field(static=True)
@@ -52,6 +55,7 @@ class FullForceField(eqx.Module):
   angles: list[tuple[str, str, str, float, float]] = eqx.field(static=True)
   propers: list[dict[str, Any]] = eqx.field(static=True)
   impropers: list[dict[str, Any]] = eqx.field(static=True)
+  cmap_torsions: list[dict[str, Any]] = eqx.field(static=True)
   source_files: list[str] = eqx.field(static=True)
 
   def get_charge(self, residue: str, atom: str) -> float:
@@ -93,10 +97,20 @@ def _make_ff_skeleton(hyperparams: dict[str, Any]) -> FullForceField:
   Used internally for deserialization.
   """
   num_atoms = len(hyperparams["id_to_atom_key"])
+  
+  # Infer CMAP shape from metadata if available, else default to empty
+  num_maps = hyperparams.pop("num_cmap_maps", 0)
+  grid_size = hyperparams.pop("cmap_grid_size", 24)
+  
+  # Backward compatibility
+  if "cmap_torsions" not in hyperparams:
+      hyperparams["cmap_torsions"] = []
+
   return FullForceField(
     charges_by_id=jnp.zeros(num_atoms, dtype=jnp.float32),
     sigmas_by_id=jnp.zeros(num_atoms, dtype=jnp.float32),
     epsilons_by_id=jnp.zeros(num_atoms, dtype=jnp.float32),
+    cmap_energy_grids=jnp.zeros((num_maps, grid_size, grid_size), dtype=jnp.float32),
     **hyperparams,
   )
 
@@ -124,7 +138,11 @@ def save_force_field(
     "angles": force_field.angles,
     "propers": force_field.propers,
     "impropers": force_field.impropers,
+    "cmap_torsions": force_field.cmap_torsions,
     "source_files": force_field.source_files,
+    # Metadata for reconstructing skeleton
+    "num_cmap_maps": force_field.cmap_energy_grids.shape[0],
+    "cmap_grid_size": force_field.cmap_energy_grids.shape[1]
   }
 
   sanitized_hyperparams = hyperparams.copy()

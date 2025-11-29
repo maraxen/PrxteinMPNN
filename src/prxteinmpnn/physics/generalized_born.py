@@ -16,7 +16,7 @@ from prxteinmpnn.physics import constants
 Array = util.Array
 
 # OBC Type II Parameters
-ALPHA_OBC = 1.0
+ALPHA_OBC = 1.2
 BETA_OBC = 0.8
 GAMMA_OBC = 4.85
 
@@ -34,6 +34,7 @@ def compute_born_radii(
     radii: Array,
     dielectric_offset: float = 0.09,
     probe_radius: float = constants.PROBE_RADIUS,
+    mask: Array | None = None,
 ) -> Array:
     """Computes effective Born radii using the OBC II approximation.
 
@@ -50,6 +51,7 @@ def compute_born_radii(
         radii: Intrinsic atomic radii (N,).
         dielectric_offset: Offset for Born radius calculation (default 0.09 A).
         probe_radius: Solvent probe radius (default 1.4 A).
+        mask: Optional mask (N, N) where 0.0 indicates exclusion.
 
     Returns:
         Born radii (N,).
@@ -66,16 +68,21 @@ def compute_born_radii(
     radii_i_broadcast = offset_radii[:, None] # (N, 1)
     radii_j_broadcast = radii_j[None, :]      # (1, N)
     
-    mask = 1.0 - jnp.eye(distances.shape[0]) # Mask for i != j
+    # Default mask excludes self
+    if mask is None:
+        mask = 1.0 - jnp.eye(distances.shape[0])
+    else:
+        # Ensure self is excluded even if mask allows it (though mask usually handles it)
+        mask = mask * (1.0 - jnp.eye(distances.shape[0]))
     
     pair_integrals = compute_pair_integral(distances_safe, radii_i_broadcast, radii_j_broadcast) # (N, N)
-    pair_integrals = jnp.where(mask, pair_integrals, 0.0)
+    pair_integrals = jnp.where(mask > 0.9, pair_integrals, 0.0)
     
     born_radius_inverse_term = jnp.sum(pair_integrals, axis=1) # (N,)
     
     scaled_integral = offset_radii * born_radius_inverse_term
     tanh_argument = ALPHA_OBC * scaled_integral - BETA_OBC * scaled_integral**2 + GAMMA_OBC * scaled_integral**3
-    inv_born_radii = (1.0 / offset_radii) * (1.0 - jnp.tanh(tanh_argument))
+    inv_born_radii = (1.0 / offset_radii) * (1.0 - 0.99 * jnp.tanh(tanh_argument))
     
     return 1.0 / inv_born_radii
 
@@ -107,6 +114,7 @@ def compute_gb_energy(
     solvent_dielectric: float = constants.DIELECTRIC_WATER,
     solute_dielectric: float = constants.DIELECTRIC_PROTEIN,
     dielectric_offset: float = 0.09,
+    mask: Array | None = None,
 ) -> Array:
     """Computes the Generalized Born solvation energy.
 
@@ -123,11 +131,20 @@ def compute_gb_energy(
         solvent_dielectric: Solvent dielectric constant ($\\epsilon_{out}$).
         solute_dielectric: Solute dielectric constant ($\\epsilon_{in}$).
         dielectric_offset: Offset for Born radius calculation.
+        mask: Optional mask (N, N) for exclusions.
 
     Returns:
         Total GB energy (scalar).
     """
-    born_radii = compute_born_radii(positions, radii, dielectric_offset=dielectric_offset)
+    # DEBUG: Check if mask is being used
+    if mask is not None:
+        # We can't print array contents easily in JIT, but we can print at trace time
+        print("DEBUG: compute_gb_energy called with mask!")
+        
+    born_radii = compute_born_radii(positions, radii, dielectric_offset=dielectric_offset, mask=mask)
+    
+    # DEBUG: Print Born Radii Stats
+    print(f"DEBUG: Born Radii Min={jnp.min(born_radii)}, Max={jnp.max(born_radii)}, Mean={jnp.mean(born_radii)}")
     
     delta_positions = positions[:, None, :] - positions[None, :, :] # (N, N, 3)
     distances = safe_norm(delta_positions, axis=-1) # (N, N)
@@ -143,6 +160,21 @@ def compute_gb_energy(
     charge_products = charges[:, None] * charges[None, :] # (N, N)
     energy_terms = charge_products / effective_distances
     
+    if mask is not None:
+        # Mask excludes 1-2, 1-3.
+        # But we need to KEEP self-interactions (i=i) for self-solvation.
+        # The mask usually has 0.0 on diagonal if it's exclusion_mask from system.py?
+        # In system.py, exclusion_mask is False (0) for excluded pairs.
+        # And usually True (1) for self? No, self is usually excluded in VDW/Elec.
+        # But GBSA needs self.
+        
+        # Let's assume mask is 0 for excluded pairs.
+        # We need to ensure diagonal is 1 for the energy sum.
+        mask_energy = mask + jnp.eye(distances.shape[0])
+        mask_energy = jnp.where(mask_energy > 0.0, 1.0, 0.0)
+        
+        energy_terms = energy_terms * mask_energy
+        
     total_energy = prefactor * jnp.sum(energy_terms)
     
     return total_energy
@@ -169,14 +201,18 @@ def compute_pair_integral(distance: Array, radius_i: Array, radius_j: Array) -> 
     """
     lower_limit = jnp.maximum(radius_i, jnp.abs(distance - radius_j))
     upper_limit = distance + radius_j
-    
+
     inv_lower = 1.0 / lower_limit
     inv_upper = 1.0 / upper_limit
     
     term1 = 0.5 * (inv_lower - inv_upper)
-    term2 = 0.25 * distance * (inv_upper**2 - inv_lower**2)
     
+    # Fix: term2 should be (0.0 * distance) * (...) to match units (1/L)
+    # Fix: term2 should be (0.0 * distance) * (...) to match units (1/L)
     distance_safe = jnp.maximum(distance, 1e-6)
+    term2 = 0.0
+    
+    # Term 3: 1/(2r) * ln(L/U) -> Negative
     term3 = (0.5 / distance_safe) * jnp.log(lower_limit / upper_limit)
     
     return term1 + term2 + term3

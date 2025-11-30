@@ -16,7 +16,7 @@ from prxteinmpnn.physics import constants
 Array = util.Array
 
 # OBC Type II Parameters
-ALPHA_OBC = 1.2
+ALPHA_OBC = 1.0 # Corrected from 1.2 to match Onufriev 2004 & OpenMM
 BETA_OBC = 0.8
 GAMMA_OBC = 4.85
 
@@ -35,6 +35,7 @@ def compute_born_radii(
     dielectric_offset: float = 0.09,
     probe_radius: float = constants.PROBE_RADIUS,
     mask: Array | None = None,
+    scaled_radii: Array | None = None,
 ) -> Array:
     """Computes effective Born radii using the OBC II approximation.
 
@@ -63,7 +64,11 @@ def compute_born_radii(
     distances_safe = distances + jnp.eye(distances.shape[0]) * 10.0
 
     offset_radii = radii - dielectric_offset
-    radii_j = radii
+    
+    if scaled_radii is None:
+        radii_j = radii
+    else:
+        radii_j = scaled_radii
 
     radii_i_broadcast = offset_radii[:, None] # (N, 1)
     radii_j_broadcast = radii_j[None, :]      # (1, N)
@@ -82,7 +87,10 @@ def compute_born_radii(
     
     scaled_integral = offset_radii * born_radius_inverse_term
     tanh_argument = ALPHA_OBC * scaled_integral - BETA_OBC * scaled_integral**2 + GAMMA_OBC * scaled_integral**3
-    inv_born_radii = (1.0 / offset_radii) * (1.0 - 0.99 * jnp.tanh(tanh_argument))
+    # OpenMM Formula: B = 1 / (1/or - tanh(psi - ...)/radius)
+    # inv_B = 1/or - tanh(...)/radius
+    # Note: OpenMM uses full radius in the tanh term denominator, and no 0.99 factor.
+    inv_born_radii = 1.0 / offset_radii - jnp.tanh(tanh_argument) / radii
     
     return 1.0 / inv_born_radii
 
@@ -115,7 +123,8 @@ def compute_gb_energy(
     solute_dielectric: float = constants.DIELECTRIC_PROTEIN,
     dielectric_offset: float = 0.09,
     mask: Array | None = None,
-) -> Array:
+    scaled_radii: Array | None = None,
+) -> tuple[Array, Array]:
     """Computes the Generalized Born solvation energy.
 
     $$
@@ -134,14 +143,14 @@ def compute_gb_energy(
         mask: Optional mask (N, N) for exclusions.
 
     Returns:
-        Total GB energy (scalar).
+        Tuple of (Total GB energy, Born Radii).
     """
     # DEBUG: Check if mask is being used
     if mask is not None:
         # We can't print array contents easily in JIT, but we can print at trace time
         print("DEBUG: compute_gb_energy called with mask!")
         
-    born_radii = compute_born_radii(positions, radii, dielectric_offset=dielectric_offset, mask=mask)
+    born_radii = compute_born_radii(positions, radii, dielectric_offset=dielectric_offset, mask=mask, scaled_radii=scaled_radii)
     
     # DEBUG: Print Born Radii Stats
     print(f"DEBUG: Born Radii Min={jnp.min(born_radii)}, Max={jnp.max(born_radii)}, Mean={jnp.mean(born_radii)}")
@@ -177,7 +186,7 @@ def compute_gb_energy(
         
     total_energy = prefactor * jnp.sum(energy_terms)
     
-    return total_energy
+    return total_energy, born_radii
 
 
 def compute_pair_integral(distance: Array, radius_i: Array, radius_j: Array) -> Array:
@@ -202,20 +211,40 @@ def compute_pair_integral(distance: Array, radius_i: Array, radius_j: Array) -> 
     lower_limit = jnp.maximum(radius_i, jnp.abs(distance - radius_j))
     upper_limit = distance + radius_j
 
+    # OpenMM CustomGBForce Formula (from amber14/implicit/obc2.xml)
+    # Expression: 0.5*(1/L-1/U+0.25*(r-sr2^2/r)*(1/(U^2)-1/(L^2))+0.5*log(L/U)/r)
+    
     inv_lower = 1.0 / lower_limit
     inv_upper = 1.0 / upper_limit
     
+    # Term 1: 0.5 * (1/L - 1/U)
     term1 = 0.5 * (inv_lower - inv_upper)
     
-    # Fix: term2 should be (0.0 * distance) * (...) to match units (1/L)
-    # Fix: term2 should be (0.0 * distance) * (...) to match units (1/L)
     distance_safe = jnp.maximum(distance, 1e-6)
-    term2 = 0.0
+    r2 = distance_safe**2
+    rj2 = radius_j**2
     
-    # Term 3: 1/(2r) * ln(L/U) -> Negative
-    term3 = (0.5 / distance_safe) * jnp.log(lower_limit / upper_limit)
+    # Term 2: 0.5 * 0.5/r * ln(L/U) = 0.25/r * ln(L/U)
+    term2 = (0.25 / distance_safe) * jnp.log(lower_limit / upper_limit)
     
-    return term1 + term2 + term3
+    # Term 3: 0.5 * 0.25/r * (r^2 - rj^2) * (1/U^2 - 1/L^2)
+    #       = 0.125/r * (r^2 - rj^2) * (1/U^2 - 1/L^2)
+    term3 = (0.125 / distance_safe) * (r2 - rj2) * (inv_upper**2 - inv_lower**2)
+    
+    total = term1 + term2 + term3
+    
+    # Condition: step(r + sr2 - or1) => r + rj - ri >= 0 => ri <= r + rj
+    # If ri > r + rj (j inside i), result is 0.
+    # We can implement this with jnp.where
+    condition = radius_i <= (distance + radius_j)
+    total = jnp.where(condition, total, 0.0)
+    
+    # Note: CustomGBForce expression does NOT include the conditional term for buried atoms (ri < rj - r).
+    
+    # Debug print for first pair
+    # jax.debug.print("T1={t1} T2={t2} T3={t3} Tot={tot}", t1=term1[0,1], t2=term2[0,1], t3=term3[0,1], tot=total[0,1])
+    
+    return total
 
 
 def compute_born_radii_neighbor_list(
@@ -281,7 +310,7 @@ def compute_gb_energy_neighbor_list(
     solvent_dielectric: float = constants.DIELECTRIC_WATER,
     solute_dielectric: float = constants.DIELECTRIC_PROTEIN,
     dielectric_offset: float = 0.09,
-) -> Array:
+) -> tuple[Array, Array]:
     """Computes GB energy using neighbor lists.
     
     Calculates the Generalized Born energy using a neighbor list for pairwise interactions.
@@ -300,7 +329,7 @@ def compute_gb_energy_neighbor_list(
         dielectric_offset: Offset for Born radius calculation.
         
     Returns:
-        Total GB energy (scalar).
+        Tuple of (Total GB energy, Born Radii).
     """
     born_radii = compute_born_radii_neighbor_list(
         positions, radii, neighbor_idx, dielectric_offset
@@ -334,7 +363,7 @@ def compute_gb_energy_neighbor_list(
     
     total_energy = prefactor * (term_neighbors + term_self)
     
-    return total_energy
+    return total_energy, born_radii
 
 
 def compute_sasa(
@@ -514,3 +543,35 @@ def compute_nonpolar_energy(
         sasa = compute_sasa_neighbor_list(positions, radii, neighbor_idx, probe_radius)
         
     return surface_tension * sasa
+
+
+def compute_ace_nonpolar_energy(
+    radii: Array,
+    born_radii: Array,
+    surface_tension: float = SURFACE_TENSION,
+    probe_radius: float = constants.PROBE_RADIUS,
+) -> Array:
+    """Computes non-polar solvation energy using the ACE approximation.
+    
+    Approximation used by OpenMM's CustomGBForce (OBC1/2):
+    E = 4 * pi * gamma * (r + r_probe)^2 * (r / B)^6
+    
+    Args:
+        radii: Atomic radii (N,).
+        born_radii: Born radii (N,).
+        surface_tension: Surface tension (gamma) in kcal/mol/A^2.
+        probe_radius: Solvent probe radius in Angstroms.
+        
+    Returns:
+        Total non-polar energy (scalar).
+    """
+    # Coefficient: 4 * pi * gamma
+    # For gamma=0.00542, coeff ~= 0.068
+    coeff = 4.0 * jnp.pi * surface_tension
+    
+    term1 = (radii + probe_radius)**2
+    term2 = (radii / born_radii)**6
+    
+    energy_per_atom = coeff * term1 * term2
+    
+    return jnp.sum(energy_per_atom)

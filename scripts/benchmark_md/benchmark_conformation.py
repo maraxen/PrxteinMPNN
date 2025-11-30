@@ -22,8 +22,10 @@ jax.config.update("jax_enable_x64", True)
 DEV_SET = ["1UBQ", "1CRN", "1BPTI", "2GB1", "1L2Y"]
 QUICK_DEV_SET = ["1UAO"]
 NUM_SAMPLES = 8
-MD_STEPS = 100
-MD_THERM = 500
+MD_STEPS = 1000
+MD_THERM = 1000
+
+from prxteinmpnn.io.parsing import biotite as parsing_biotite
 
 # --- Shared Helpers ---
 def download_and_load_pdb(pdb_id, output_dir="data/pdb"):
@@ -34,10 +36,20 @@ def download_and_load_pdb(pdb_id, output_dir="data/pdb"):
             pdb_path = rcsb.fetch(pdb_id, "pdb", output_dir)
         except Exception:
             return None
-    pdb_file = pdb.PDBFile.read(pdb_path)
-    return pdb.get_structure(pdb_file, model=1)
+    
+    # Use our parsing utility which handles Hydride
+    # Note: We load as AtomArray (model=1)
+    try:
+        atom_array = parsing_biotite.load_structure_with_hydride(
+            pdb_path, model=1, add_hydrogens=True, remove_solvent=True
+        )
+        return atom_array
+    except Exception as e:
+        print(f"Failed to load {pdb_id}: {e}")
+        return None
 
 def extract_system_from_biotite(atom_array):
+    # Filter for amino acids (already done by remove_solvent mostly, but good to be safe)
     atom_array = atom_array[struc.filter_amino_acids(atom_array)]
     chains = struc.get_chains(atom_array)
     if len(chains) > 0:
@@ -48,54 +60,58 @@ def extract_system_from_biotite(atom_array):
     coords_list = []
     
     # We also need to track indices of N, CA, C for each residue for dihedral calc
-    # Since we flatten everything, we need absolute indices into the coordinate array
     n_indices = []
     ca_indices = []
     c_indices = []
     
     current_atom_idx = 0
     
-    for res in struc.residue_iter(atom_array):
+    # Iterate residues
+    # Note: We must preserve the atoms returned by Hydride/Biotite
+    for i, res in enumerate(struc.residue_iter(atom_array)):
         res_name = res[0].res_name
         if res_name not in residue_constants.restype_3to1: continue
-        std_atoms = residue_constants.residue_atoms.get(res_name, [])
+        
+        # Check backbone
         backbone_mask = np.isin(res.atom_name, ["N", "CA", "C", "O"])
         if np.sum(backbone_mask) < 4: continue
             
         res_names.append(res_name)
-        atom_names.extend(std_atoms)
         
-        res_coords = np.full((len(std_atoms), 3), np.nan)
+        # Extract all atoms in this residue
+        res_atom_names = res.atom_name.tolist()
+        res_coords = res.coord
         
-        # Find indices for this residue
-        res_n_idx = -1
-        res_ca_idx = -1
-        res_c_idx = -1
-        
-        for i, atom_name in enumerate(std_atoms):
-            mask = res.atom_name == atom_name
-            if np.any(mask): 
-                res_coords[i] = res[mask][0].coord
-            elif np.any(res.atom_name == "CA"): 
-                res_coords[i] = res[res.atom_name == "CA"][0].coord
-            else: 
-                res_coords[i] = np.array([0., 0., 0.])
-                
-            if atom_name == "N": res_n_idx = current_atom_idx + i
-            if atom_name == "CA": res_ca_idx = current_atom_idx + i
-            if atom_name == "C": res_c_idx = current_atom_idx + i
+        # Fix N-term H -> H1, H2, H3 for Amber (if present)
+        if i == 0:
+            # Check if we have H1, H2, H3 already
+            has_h1 = "H1" in res_atom_names
+            has_h2 = "H2" in res_atom_names
+            has_h3 = "H3" in res_atom_names
             
+            if not (has_h1 and has_h2 and has_h3):
+                 # If we have H, rename it to H1 (legacy fallback)
+                 for k, name in enumerate(res_atom_names):
+                    if name == "H":
+                        res_atom_names[k] = "H1"
+        
+        atom_names.extend(res_atom_names)
         coords_list.append(res_coords)
         
-        if res_n_idx != -1 and res_ca_idx != -1 and res_c_idx != -1:
-            n_indices.append(res_n_idx)
-            ca_indices.append(res_ca_idx)
-            c_indices.append(res_c_idx)
-        else:
-            # Should not happen given backbone check, but for safety
-            pass
+        # Find indices for dihedrals
+        # We need relative index within residue
+        try:
+            n_local = res_atom_names.index("N")
+            ca_local = res_atom_names.index("CA")
+            c_local = res_atom_names.index("C")
+            
+            n_indices.append(current_atom_idx + n_local)
+            ca_indices.append(current_atom_idx + ca_local)
+            c_indices.append(current_atom_idx + c_local)
+        except ValueError:
+            pass # Should be caught by backbone check above
 
-        current_atom_idx += len(std_atoms)
+        current_atom_idx += len(res_atom_names)
         
     if not coords_list: return None, None, None, None, None, None, None
     coords = np.vstack(coords_list)
@@ -165,17 +181,16 @@ def is_allowed_jax(phi, psi):
     
     return is_alpha | is_beta | is_left_alpha
 
-def run_benchmark(pdb_set=DEV_SET):
+def run_benchmark(pdb_set=DEV_SET, force_field_path="src/prxteinmpnn/physics/force_fields/eqx/protein19SB.eqx"):
     print(f"Benchmarking Conformational Validity (Optimized with VMAP) on {pdb_set}...")
     try:
-        ff_path = "src/prxteinmpnn/physics/force_fields/eqx/protein19SB.eqx"
-        if os.path.exists(ff_path):
-            print(f"Loading local force field: {ff_path}")
-            ff = force_fields.load_force_field(ff_path)
+        if os.path.exists(force_field_path):
+            print(f"Loading local force field: {force_field_path}")
+            ff = force_fields.load_force_field(force_field_path)
         else:
             raise FileNotFoundError
     except Exception:
-        print("Local protein19SB not found, falling back to ff14SB from Hub...")
+        print(f"Force field {force_field_path} not found, falling back to ff14SB from Hub...")
         ff = force_fields.load_force_field_from_hub("ff14SB")
     
     results = []
@@ -278,7 +293,8 @@ def run_benchmark(pdb_set=DEV_SET):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run conformational validity benchmark.")
     parser.add_argument("--quick", action="store_true", help="Run on quick dev set (Chignolin).")
+    parser.add_argument("--force_field", type=str, default="src/prxteinmpnn/physics/force_fields/eqx/protein19SB.eqx", help="Path to force field file.")
     args = parser.parse_args()
     
     target_set = QUICK_DEV_SET if args.quick else DEV_SET
-    run_benchmark(target_set)
+    run_benchmark(target_set, args.force_field)

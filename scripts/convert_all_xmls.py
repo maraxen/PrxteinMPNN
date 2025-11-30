@@ -38,15 +38,22 @@ def parse_xml_to_eqx(xml_path: str, output_dir: str):
         hyperparams = {
             "atom_key_to_id": {("UNK", "UNK"): 0}, "id_to_atom_key": [("UNK", "UNK")],
             "atom_class_map": {}, "source_files": [os.path.basename(xml_path)],
-            "bonds": [], "angles": [], "propers": [], "impropers": [], "cmap_torsions": []
+            "bonds": [], "angles": [], "propers": [], "impropers": [], "cmap_torsions": [],
+            "residue_templates": {}
         }
         current_id = 1
 
         # Parse Residues & Atoms
         for res in root.findall('Residues/Residue'):
             res_name = res.attrib['name']
+            
+            # Track atoms in this residue for bond mapping (index -> name)
+            res_atom_names = []
+            
             for atom in res.findall('Atom'):
                 atom_name, atom_type = atom.attrib['name'], atom.attrib['type']
+                res_atom_names.append(atom_name)
+                
                 key = (res_name, atom_name)
                 
                 if key not in hyperparams["atom_key_to_id"]:
@@ -60,6 +67,24 @@ def parse_xml_to_eqx(xml_path: str, output_dir: str):
                     sigmas.append(sigma * NM_TO_ANGSTROM)
                     epsilons.append(epsilon * KJ_TO_KCAL)
                     current_id += 1
+            
+            # Extract Residue Internal Bonds (Templates)
+            res_bonds = []
+            for bond in res.findall('Bond'):
+                if 'from' in bond.attrib and 'to' in bond.attrib:
+                    idx1 = int(bond.attrib['from'])
+                    idx2 = int(bond.attrib['to'])
+                    if idx1 < len(res_atom_names) and idx2 < len(res_atom_names):
+                        name1 = res_atom_names[idx1]
+                        name2 = res_atom_names[idx2]
+                        res_bonds.append((name1, name2))
+                elif 'atomName1' in bond.attrib and 'atomName2' in bond.attrib:
+                    name1 = bond.attrib['atomName1']
+                    name2 = bond.attrib['atomName2']
+                    res_bonds.append((name1, name2))
+            
+            if res_bonds:
+                hyperparams["residue_templates"][res_name] = res_bonds
         
         # Parse Standard Terms
         for b in root.findall('HarmonicBondForce/Bond'):
@@ -140,6 +165,8 @@ def parse_xml_to_eqx(xml_path: str, output_dir: str):
 
     except Exception as e:
         print(f"🛑 Error processing {ff_name}: {e}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
     if not os.path.exists("openmmforcefields"):

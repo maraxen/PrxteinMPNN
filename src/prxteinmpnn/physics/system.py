@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 from jax_md import energy, partition, space, util
 
-from prxteinmpnn.physics import bonded, generalized_born, cmap, sasa
+from prxteinmpnn.physics import bonded, generalized_born, cmap, sasa, constants
 from prxteinmpnn.physics.jax_md_bridge import SystemParams
 
 Array = util.Array
@@ -48,9 +48,9 @@ def make_energy_fn(
   dielectric_constant: float = 1.0,
   implicit_solvent: bool = True,
   solvent_dielectric: float = 78.5,
-  solute_dielectric: float = 1.0,
-  surface_tension: float = 0.005,
-  dielectric_offset: float = 0.09,
+  solute_dielectric: float = constants.DIELECTRIC_PROTEIN,
+  surface_tension: float = constants.SURFACE_TENSION,
+  dielectric_offset: float = constants.DIELECTRIC_OFFSET,
 ) -> Callable[[Array], Array]:
   """Creates the total potential energy function.
 
@@ -122,12 +122,12 @@ def make_energy_fn(
     # Prepare parameters
     if "gb_radii" in system_params and system_params["gb_radii"] is not None:
       radii = system_params["gb_radii"]
-      print(f"DEBUG: Using provided gb_radii. Stats: Min={jnp.min(radii)}, Max={jnp.max(radii)}")
     else:
       radii = sigmas * 0.5
-      print(f"DEBUG: Using fallback radii (sigma*0.5). Stats: Min={jnp.min(radii)}, Max={jnp.max(radii)}")
 
     e_gb = 0.0
+    born_radii = None
+    
     if implicit_solvent:
       # Generalized Born (OBC) - Solvation Term
       # Use scale_matrix_vdw > 0 as mask if available, else exclusion_mask
@@ -136,17 +136,19 @@ def make_energy_fn(
           gb_mask = scale_matrix_vdw > 0.0
       else:
           gb_mask = exclusion_mask
-
           
+      scaled_radii = system_params.get("scaled_radii")
+      
       if neighbor_idx is None:
-        e_gb = generalized_born.compute_gb_energy(
+        e_gb, born_radii = generalized_born.compute_gb_energy(
             r, 
             charges, 
             radii, 
             solvent_dielectric=solvent_dielectric, 
             solute_dielectric=solute_dielectric,
             dielectric_offset=dielectric_offset,
-            mask=gb_mask
+            mask=None, # OpenMM CustomGBForce has 0 exclusions, so we include all pairs (including 1-2, 1-3, and self)
+            scaled_radii=scaled_radii
         )
       else:
         # TODO: Update neighbor list version of GBSA to accept mask
@@ -154,7 +156,7 @@ def make_energy_fn(
         # No, neighbor list usually includes everything within cutoff.
         # But we don't have mask support in compute_gb_energy_neighbor_list yet.
         # Since validation script uses N^2 (neighbor_idx=None), this is fine for now.
-        e_gb = generalized_born.compute_gb_energy_neighbor_list(
+        e_gb, born_radii = generalized_born.compute_gb_energy_neighbor_list(
             r, 
             charges, 
             radii, 
@@ -164,20 +166,7 @@ def make_energy_fn(
             dielectric_offset=dielectric_offset
         )
       
-      # Non-polar Solvation (SASA)
-      e_np = generalized_born.compute_nonpolar_energy(
-          r, 
-          radii, 
-          surface_tension=surface_tension, 
-          neighbor_idx=neighbor_idx
-      )
-      
-      # DEBUG: Print GBSA components
-      # print(f"DEBUG: GBSA e_gb={e_gb}, e_np={e_np}")
-      
-      # FIX: Do NOT return here! We need to calculate e_direct (Coulomb)
-      # And do NOT return e_np here, as it is added in total_energy
-      # return e_gb + e_np 
+      # Non-polar Solvation (SASA) - Now computed separately using ACE
       pass
     
     # Direct Coulomb / Screened Coulomb
@@ -252,9 +241,9 @@ def make_energy_fn(
       e_direct = 0.5 * jnp.sum(e_coul)
 
     if implicit_solvent:
-        return e_gb + e_direct
+        return e_gb, e_direct, born_radii
     else:
-        return e_direct
+        return 0.0, e_direct, None
 
   # Combine Non-Bonded
   # -------------------------------------------------------------------------
@@ -313,8 +302,8 @@ def make_energy_fn(
       
       return 0.5 * jnp.sum(e_lj)
       
-  def compute_nonpolar(r, neighbor_idx=None):
-    if not implicit_solvent:
+  def compute_nonpolar(r, born_radii, neighbor_idx=None):
+    if not implicit_solvent or born_radii is None:
         return 0.0
         
     if "gb_radii" in system_params and system_params["gb_radii"] is not None:
@@ -322,11 +311,9 @@ def make_energy_fn(
     else:
       radii = sigmas * 0.5
       
-    # Use new SASA implementation
-    return sasa.compute_sasa_energy_approx(
-        r, radii, gamma=surface_tension, offset=0.0 # Offset usually handled elsewhere or 0?
-        # User sasa.py default offset is 0.92, but maybe we want to pass it?
-        # Let's use default params from sasa.py if not specified, but here we pass surface_tension as gamma.
+    # Use ACE approximation (matches OpenMM CustomGBForce)
+    return generalized_born.compute_ace_nonpolar_energy(
+        radii, born_radii, surface_tension=surface_tension, probe_radius=constants.PROBE_RADIUS
     )
 
   def compute_cmap_term(r):
@@ -364,11 +351,9 @@ def make_energy_fn(
     neighbor_idx = neighbor.idx if neighbor is not None else None
     
     e_lj = compute_lj(r, neighbor_idx)
-    e_elec = compute_electrostatics(r, neighbor_idx)
-    e_np = compute_nonpolar(r, neighbor_idx)
-    
-    # DEBUG: Print all components
-    print(f"DEBUG: Components: Bond={e_bond}, Angle={e_angle}, Dihedral={e_dihedral}, Improper={e_improper}, CMAP={e_cmap}, LJ={e_lj}, Elec={e_elec}, NP={e_np}")
+    e_gb, e_direct, born_radii = compute_electrostatics(r, neighbor_idx)
+    e_elec = e_gb + e_direct
+    e_np = compute_nonpolar(r, born_radii, neighbor_idx)
     
     return e_bond + e_angle + e_dihedral + e_improper + e_cmap + e_lj + e_elec + e_np
 

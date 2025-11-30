@@ -32,6 +32,7 @@ class FullForceField(eqx.Module):
       propers: Proper dihedral parameters
       impropers: Improper dihedral parameters
       cmap_torsions: CMAP torsion definitions
+      residue_templates: Residue internal topology (bonds)
       source_files: Source XML files used to create this force field
 
   Example:
@@ -56,6 +57,7 @@ class FullForceField(eqx.Module):
   propers: list[dict[str, Any]] = eqx.field(static=True)
   impropers: list[dict[str, Any]] = eqx.field(static=True)
   cmap_torsions: list[dict[str, Any]] = eqx.field(static=True)
+  residue_templates: dict[str, list[tuple[str, str]]] = eqx.field(static=True)
   source_files: list[str] = eqx.field(static=True)
 
   def get_charge(self, residue: str, atom: str) -> float:
@@ -105,6 +107,8 @@ def _make_ff_skeleton(hyperparams: dict[str, Any]) -> FullForceField:
   # Backward compatibility
   if "cmap_torsions" not in hyperparams:
       hyperparams["cmap_torsions"] = []
+  if "residue_templates" not in hyperparams:
+      hyperparams["residue_templates"] = {}
 
   return FullForceField(
     charges_by_id=jnp.zeros(num_atoms, dtype=jnp.float32),
@@ -139,6 +143,7 @@ def save_force_field(
     "propers": force_field.propers,
     "impropers": force_field.impropers,
     "cmap_torsions": force_field.cmap_torsions,
+    "residue_templates": force_field.residue_templates,
     "source_files": force_field.source_files,
     # Metadata for reconstructing skeleton
     "num_cmap_maps": force_field.cmap_energy_grids.shape[0],

@@ -17,11 +17,15 @@ class SystemParams(TypedDict):
   """Parameters for a JAX MD system."""
 
   charges: jnp.ndarray  # (N,)
+  masses: jnp.ndarray # (N,) Atomic masses (amu)
   sigmas: jnp.ndarray  # (N,)
   epsilons: jnp.ndarray  # (N,)
   gb_radii: jnp.ndarray  # (N,) Implicit solvent radii (mbondi2)
+  scaled_radii: jnp.ndarray # (N,) Scaled radii for descreening (OBC2)
   bonds: jnp.ndarray  # (N_bonds, 2)
   bond_params: jnp.ndarray  # (N_bonds, 2) [length, k]
+  constrained_bonds: jnp.ndarray # (N_constraints, 2)
+  constrained_bond_lengths: jnp.ndarray # (N_constraints,)
   angles: jnp.ndarray  # (N_angles, 3)
   angle_params: jnp.ndarray  # (N_angles, 2) [theta0, k]
   backbone_indices: jnp.ndarray  # (N_residues, 4) [N, CA, C, O] indices
@@ -34,12 +38,7 @@ class SystemParams(TypedDict):
   improper_params: jnp.ndarray  # (N_impropers, 3) [periodicity, phase, k]
   cmap_energy_grids: jnp.ndarray # (N_maps, Grid, Grid)
   cmap_indices: jnp.ndarray # (N_torsions,) map index for each torsion
-  cmap_torsions: jnp.ndarray # (N_torsions, 5) [i, j, k, l, map_idx] - wait, we need indices of atoms. 
-                             # Actually, CMAP is usually defined on phi/psi pairs.
-                             # But general CMAP is a torsion-torsion map.
-                             # In Amber, it's usually 5 atoms defining 2 torsions? No, it's 5 atoms A-B-C-D-E.
-                             # Torsions are A-B-C-D and B-C-D-E.
-                             # So we need to store the 5 atom indices.
+  cmap_torsions: jnp.ndarray # (N_torsions, 5) [i, j, k, l, map_idx]
 
 
 def parameterize_system(
@@ -79,7 +78,7 @@ def parameterize_system(
 
   backbone_indices_list = []
 
-  # Load standard topology templates
+  # Load standard topology templates (fallback)
   std_bonds, _, std_angles = residue_constants.load_stereo_chemical_props()
 
   current_atom_idx = 0
@@ -108,10 +107,10 @@ def parameterize_system(
       # a is (class1, class2, class3, theta, k)
       c1, c2, c3, theta, k = a
       angle_lookup[(c1, c2, c3)] = (theta, k)
-      # Also store reverse? Or check reverse on lookup?
-      # Let's check reverse on lookup to save memory/time, or just store both.
-      # Storing both is safer.
       angle_lookup[(c3, c2, c1)] = (theta, k) 
+
+  # Pre-calculate available residues in FF
+  ff_residues = set(r for r, a in force_field.atom_key_to_id.keys())
 
   for r_i, res_name in enumerate(residues):
     if atom_counts is not None:
@@ -122,6 +121,49 @@ def parameterize_system(
         expected_atoms = residue_constants.residue_atoms.get(res_name, [])
         res_atom_names = expected_atoms
         
+    # --- Residue Mapping Logic ---
+    # 1. Terminal Mapping
+    mapped_res_name = res_name
+    is_n_term = (r_i == 0)
+    is_c_term = (r_i == len(residues) - 1)
+    
+    # Check for specific terminal atoms to confirm
+    has_oxt = "OXT" in res_atom_names
+    
+    if is_c_term or has_oxt:
+        # Generic C-terminal mapping (e.g. ALA -> CALA)
+        # We assume standard Amber naming: C + ResName
+        # Check if C+ResName exists in force field
+        c_term_name = f"C{res_name}"
+        if c_term_name in ff_residues:
+             mapped_res_name = c_term_name
+             
+    elif is_n_term:
+        # Generic N-terminal mapping (e.g. ALA -> NALA)
+        # We assume standard Amber naming: N + ResName
+        # Check if N+ResName exists in force field
+        n_term_name = f"N{res_name}"
+        if n_term_name in ff_residues:
+            mapped_res_name = n_term_name
+
+    # 2. Histidine Mapping (HIS -> HIE/HID/HIP)
+    if res_name == "HIS":
+        has_hd1 = "HD1" in res_atom_names
+        has_he2 = "HE2" in res_atom_names
+        
+        if has_hd1 and has_he2:
+            mapped_res_name = "HIP" # Both protonated
+        elif has_hd1:
+            mapped_res_name = "HID" # Delta protonated
+        elif has_he2:
+            mapped_res_name = "HIE" # Epsilon protonated (default neutral)
+        else:
+            mapped_res_name = "HIE" # Default fallback
+            
+    # Apply mapping
+    res_name = mapped_res_name
+    # -----------------------------
+
     # Map: local_atom_name -> global_index
     local_map = {}
     
@@ -149,7 +191,36 @@ def parameterize_system(
     backbone_indices_list.append(bb_indices)
 
     # Internal Bonds
-    if res_name in std_bonds:
+    # Priority: FF Templates > residue_constants
+    
+    bonds_found = False
+    
+    # 1. Try Force Field Templates (includes Hydrogens!)
+    if hasattr(force_field, 'residue_templates') and res_name in force_field.residue_templates:
+        bonds_found = True
+        for atom1, atom2 in force_field.residue_templates[res_name]:
+            if atom1 in local_map and atom2 in local_map:
+                idx1 = local_map[atom1]
+                idx2 = local_map[atom2]
+                bonds_list.append([idx1, idx2])
+                
+                # Lookup params
+                c1 = get_class(idx1)
+                c2 = get_class(idx2)
+                key = tuple(sorted((c1, c2)))
+                
+                if key in bond_lookup:
+                    l_nm, k_nm = bond_lookup[key]
+                    length = l_nm * 10.0
+                    k = (k_nm / 418.4) * 2.0
+                    bond_params_list.append([length, k])
+                else:
+                    bond_params_list.append([1.0, 300.0])
+            else:
+                 pass 
+
+    # 2. Fallback to residue_constants (only if no template found)
+    if not bonds_found and res_name in std_bonds:
       for bond in std_bonds[res_name]:
         if bond.atom1_name in local_map and bond.atom2_name in local_map:
           idx1 = local_map[bond.atom1_name]
@@ -159,64 +230,75 @@ def parameterize_system(
           # Lookup params
           c1 = get_class(idx1)
           c2 = get_class(idx2)
-          
-          # Try direct match or reverse
           key = tuple(sorted((c1, c2)))
+          
           if key in bond_lookup:
               l_nm, k_nm = bond_lookup[key]
-              # Convert units:
-              # Length: nm -> Angstrom (x10)
-              # Stiffness: kJ/mol/nm^2 -> kcal/mol/A^2
-              # 1 kJ = 1/4.184 kcal
-              # 1 nm = 10 A => 1 nm^2 = 100 A^2
-              # k_A = k_nm * (1/4.184) / 100
-              # AMBER uses E = k(r-r0)^2. JAX MD uses E = 1/2 k(r-r0)^2.
-              # So we need to multiply k by 2.
               length = l_nm * 10.0
               k = (k_nm / 418.4) * 2.0
               bond_params_list.append([length, k])
           else:
-              # Fallback (should not happen for valid FF)
               bond_params_list.append([bond.length, 300.0])
 
-    # Internal Angles
-    if res_name in std_angles:
-      for angle in std_angles[res_name]:
-        if (
-          angle.atom1_name in local_map
-          and angle.atom2_name in local_map
-          and angle.atom3name in local_map
-        ):
-          idx1 = local_map[angle.atom1_name]
-          idx2 = local_map[angle.atom2_name]
-          idx3 = local_map[angle.atom3name]
-          angles_list.append([idx1, idx2, idx3])
-          
-          # Lookup params
-          c1 = get_class(idx1)
-          c2 = get_class(idx2)
-          c3 = get_class(idx3)
-          
-          # Try match (forward or reverse)
-          # Angle is defined by (c1, c2, c3). c2 is central.
-          # Match (c1, c2, c3) or (c3, c2, c1)
-          
-          params = None
-          if (c1, c2, c3) in angle_lookup:
-              params = angle_lookup[(c1, c2, c3)]
-          elif (c3, c2, c1) in angle_lookup:
-              params = angle_lookup[(c3, c2, c1)]
-              
-          if params:
-              theta, k_kj = params
-              # Convert units:
-              # Stiffness: kJ/mol/rad^2 -> kcal/mol/rad^2
-              # AMBER uses E = k(theta-theta0)^2. Bonded.py uses E = 1/2 k(theta-theta0)^2.
-              # So we need to multiply k by 2.
-              k = (k_kj / 4.184) * 2.0
-              angle_params_list.append([theta, k])
-          else:
-              angle_params_list.append([angle.angle_rad, 80.0])
+    # Internal Angles - Generate from Bonds
+    # Build local adjacency for this residue's atoms
+    # We need to consider that bonds might connect to previous residue (Peptide Bond)
+    # But here we are iterating residues.
+    # Actually, it's better to generate ALL angles after ALL bonds are found for the whole system.
+    # But parameterize_system iterates residues.
+    # If we do it here, we only find intra-residue angles (and maybe peptide bond angles if we handle prev_c).
+    
+    # BETTER APPROACH:
+    # Collect ALL bonds first (including peptide bonds), then generate ALL angles/dihedrals at the end.
+    # Currently, bonds are collected per residue + peptide bond.
+    # So `bonds_list` grows.
+    # We can move Angle generation to AFTER the residue loop.
+    # -----------------------------------------------------------------------
+    # Generate Angles from Bonds
+    # -----------------------------------------------------------------------
+    # Build adjacency for angles
+    adj_angles = {i: [] for i in range(n_atoms)}
+    for b in bonds_list:
+        adj_angles[b[0]].append(b[1])
+        adj_angles[b[1]].append(b[0])
+
+    angles_list = []
+    angle_params_list = []
+    seen_angles = set()
+
+    for j in range(n_atoms):
+        neighbors = adj_angles[j]
+        if len(neighbors) < 2: continue
+        
+        import itertools
+        for i, k in itertools.combinations(neighbors, 2):
+            # Angle i-j-k
+            # Sort i, k to avoid duplicates (i-j-k vs k-j-i)
+            if i > k: i, k = k, i
+            
+            if (i, j, k) in seen_angles: continue
+            seen_angles.add((i, j, k))
+            
+            angles_list.append([i, j, k])
+            
+            # Lookup params
+            c1 = get_class(i)
+            c2 = get_class(j)
+            c3 = get_class(k)
+            
+            params = None
+            if (c1, c2, c3) in angle_lookup:
+                params = angle_lookup[(c1, c2, c3)]
+            elif (c3, c2, c1) in angle_lookup:
+                params = angle_lookup[(c3, c2, c1)]
+                
+            if params:
+                theta, k_kj = params
+                k = (k_kj / 4.184) * 2.0
+                angle_params_list.append([theta, k])
+            else:
+                # Fallback: 109.5 degrees (1.91 rad), k=100.0 (50 kcal/mol/rad^2)
+                angle_params_list.append([1.91, 100.0])
 
     # Peptide Bond (Prev C -> Curr N)
     if prev_c_idx != -1 and "N" in local_map:
@@ -270,12 +352,8 @@ def parameterize_system(
       scale_matrix_elec = scale_matrix_elec.at[a_idx[:, 0], a_idx[:, 2]].set(0.0)
       scale_matrix_elec = scale_matrix_elec.at[a_idx[:, 2], a_idx[:, 0]].set(0.0)
 
-  # Legacy exclusion mask (for backward compat or if needed)
-  exclusion_mask = (scale_matrix_vdw > 0.0) # Roughly correct, but 1-4 are > 0.
-  # Wait, exclusion_mask in system.py was used to MASK interactions.
-  # If 1-4 are scaled, they are NOT excluded.
-  # So exclusion_mask should only be False for 1-2 and 1-3.
-  # Which corresponds to scale == 0.0.
+  # Legacy exclusion mask
+  exclusion_mask = (scale_matrix_vdw > 0.0)
   
   # -----------------------------------------------------------------------
   # Torsions (Dihedrals) & 1-4 Scaling
@@ -287,8 +365,6 @@ def parameterize_system(
 
   dihedrals_list = []
   dihedral_params_list = []
-
-
 
   # Find Dihedrals
   seen_dihedrals = set()
@@ -355,31 +431,16 @@ def parameterize_system(
                       dihedral_params_list.append(term)
 
   # Apply 1-4 Scaling
-  # Note: 1-4 scaling applies to ALL 1-4 pairs, even if no dihedral term exists in FF.
-  # But usually they go together.
-  # We need to ensure we don't overwrite 1-2 or 1-3 if they happen to be 1-4 (e.g. rings).
-  # But for proteins (linear), 1-4 is distinct from 1-2/1-3 except in small rings (PRO).
-  # In PRO, 1-4 might be 1-3? No, 5-mem ring.
-  # Standard practice: If it's 1-2 or 1-3, it's 0.0. If it's 1-4 AND NOT 1-2/1-3, it's scaled.
-  
   if pairs_14:
       p14 = jnp.array(list(pairs_14), dtype=jnp.int32)
       # Check if currently 0.0 (meaning 1-2 or 1-3)
       current_vals = scale_matrix_vdw[p14[:, 0], p14[:, 1]]
       
       # Only update if not already 0.0
-      # We can do this by mask
       mask_update = current_vals > 0.0
       
       p14_update = p14[mask_update]
       if len(p14_update) > 0:
-          # 1-4 interactions: Scale instead of exclude
-          # Electrostatics: 1/1.2 ~= 0.8333
-          # Van der Waals: 1/2.0 = 0.5
-          
-          # Note: We only scale if the value is currently > 0.0 (meaning it wasn't excluded as 1-2 or 1-3)
-          # The check `current_vals > 0.0` above ensures this.
-          
           scale_matrix_vdw = scale_matrix_vdw.at[p14_update[:, 0], p14_update[:, 1]].set(0.5)
           scale_matrix_vdw = scale_matrix_vdw.at[p14_update[:, 1], p14_update[:, 0]].set(0.5)
           
@@ -389,37 +450,15 @@ def parameterize_system(
   # -----------------------------------------------------------------------
   # CMAP
   # -----------------------------------------------------------------------
-  # CMAP terms are 5-atom sequences: i-j-k-l-m.
-  # They define two torsions: phi(i-j-k-l) and psi(j-k-l-m).
-  # We need to find all such 5-atom chains and match against force_field.cmap_torsions.
-  
   cmap_torsions_list = [] # [i, j, k, l, m]
   cmap_indices_list = [] # map_index
-  
-  # Iterate over central atoms k
-  # We need path of length 4 edges (5 atoms).
-  # i - j - k - l - m
-  # Iterate over j-k and k-l bonds?
-  # Let's iterate over all 5-atom paths.
-  # Optimization: CMAP is usually only on backbone.
-  # C_prev - N - CA - C - N_next
-  # We can just look for backbone atoms if we want to be fast, but generic is better.
-  
-  # Iterate over middle atom k.
-  # Find neighbors j, l.
-  # Find neighbors of j (i).
-  # Find neighbors of l (m).
-  
-  # This is O(N * degree^4). For proteins degree ~ 3-4. Fast enough.
   
   for k in range(n_atoms):
       neighbors_k = adj[k]
       for j in neighbors_k:
           for l in neighbors_k:
-              if j == l: continue # Distinct neighbors
-              if j > l: continue # Avoid double counting central pair direction? 
-              # Actually CMAP is directional usually? No, maps are usually symmetric or defined specifically.
-              # But let's check all paths.
+              if j == l: continue 
+              if j > l: continue 
               
               # Neighbors of j
               for i in adj[j]:
@@ -430,37 +469,16 @@ def parameterize_system(
                       if m == k: continue
                       
                       # Path i-j-k-l-m
-                      # Check against FF
                       c_i, c_j, c_k, c_l, c_m = get_class(i), get_class(j), get_class(k), get_class(l), get_class(m)
                       classes = [c_i, c_j, c_k, c_l, c_m]
                       
-                      # Match
                       for cmap_def in force_field.cmap_torsions:
-                          # cmap_def['classes'] is tuple of 5
-                          # Check match (wildcards?)
-                          # Usually CMAP is very specific, no wildcards.
-                          
-                          # Check forward
                           if cmap_def['classes'] == tuple(classes):
                               cmap_torsions_list.append([i, j, k, l, m])
                               cmap_indices_list.append(cmap_def['map_index'])
                               break
                           
-                          # Check reverse
-                          # If the FF defines A-B-C-D-E, and we found E-D-C-B-A (which is valid chemically)
-                          # We should add it as E-D-C-B-A.
-                          # Note: The map index assumes the torsion order of the definition.
-                          # If we match reverse, we are adding the reverse sequence.
-                          # The energy function calculates phi/psi on the sequence passed.
-                          # So if we pass E-D-C-B-A, it calculates phi(E-D-C-B) and psi(D-C-B-A).
-                          # This corresponds to the reverse traversal.
-                          # Is the map symmetric? Usually yes for backbone if it's just phi/psi.
-                          # But strictly, we should match the definition.
                           if cmap_def['classes'] == tuple(classes[::-1]):
-                              # We matched the reverse of the definition.
-                              # So the sequence i-j-k-l-m corresponds to the reverse of the FF definition.
-                              # This means we should probably add it as m-l-k-j-i to match the FF definition order?
-                              # Yes, let's add it as m-l-k-j-i so the phi/psi calculation aligns with the map.
                               cmap_torsions_list.append([m, l, k, j, i])
                               cmap_indices_list.append(cmap_def['map_index'])
                               break
@@ -511,13 +529,25 @@ def parameterize_system(
   # Convert to JAX arrays
   return {
     "charges": jnp.array(charges_list, dtype=jnp.float32),
+    "masses": jnp.array(assign_masses(atom_names), dtype=jnp.float32),
     "sigmas": jnp.array(sigmas_list, dtype=jnp.float32),
     "epsilons": jnp.array(epsilons_list, dtype=jnp.float32),
     "gb_radii": jnp.array(
       assign_mbondi2_radii(atom_names, residues, bonds_list), dtype=jnp.float32
     ),
+    "scaled_radii": jnp.array(
+      assign_mbondi2_radii(atom_names, residues, bonds_list), dtype=jnp.float32
+    ) * jnp.array(assign_obc2_scaling_factors(atom_names), dtype=jnp.float32),
     "bonds": jnp.array(bonds_list, dtype=jnp.int32).reshape(-1, 2),
     "bond_params": jnp.array(bond_params_list, dtype=jnp.float32).reshape(-1, 2),
+    "constrained_bonds": jnp.array(
+        [b for i, b in enumerate(bonds_list) if atom_names[b[0]].startswith("H") or atom_names[b[1]].startswith("H")],
+        dtype=jnp.int32
+    ).reshape(-1, 2),
+    "constrained_bond_lengths": jnp.array(
+        [bond_params_list[i][0] for i, b in enumerate(bonds_list) if atom_names[b[0]].startswith("H") or atom_names[b[1]].startswith("H")],
+        dtype=jnp.float32
+    ),
     "angles": jnp.array(angles_list, dtype=jnp.int32).reshape(-1, 3),
     "angle_params": jnp.array(angle_params_list, dtype=jnp.float32).reshape(-1, 2),
     "backbone_indices": jnp.array(backbone_indices_list, dtype=jnp.int32).reshape(-1, 4),
@@ -620,3 +650,56 @@ def assign_mbondi2_radii(
       radii[i] = 1.50
 
   return radii
+
+
+def assign_obc2_scaling_factors(atom_names: list[str]) -> list[float]:
+  """Assign scaling factors for OBC2 GBSA calculation.
+  
+  Reference:
+      Onufriev, Bashford, Case, Proteins 55, 383-394 (2004).
+      
+  Factors:
+      H: 0.85
+      C: 0.72
+      N: 0.79
+      O: 0.85
+      F: 0.88
+      P: 0.86
+      S: 0.96
+      Other: 0.80
+  """
+  factors = []
+  for name in atom_names:
+      element = name[0]
+      if element == "H": factors.append(0.85)
+      elif element == "C": factors.append(0.72)
+      elif element == "N": factors.append(0.79)
+      elif element == "O": factors.append(0.85)
+      elif element == "F": factors.append(0.88)
+      elif element == "P": factors.append(0.86)
+      elif element == "S": factors.append(0.96)
+      else: factors.append(0.80)
+  return factors
+
+
+def assign_masses(atom_names: list[str]) -> list[float]:
+  """Assign atomic masses based on element type.
+  
+  Args:
+      atom_names: List of atom names.
+      
+  Returns:
+      List of masses in amu.
+  """
+  masses = []
+  for name in atom_names:
+      element = name[0]
+      if element == "H": masses.append(1.008)
+      elif element == "C": masses.append(12.011)
+      elif element == "N": masses.append(14.007)
+      elif element == "O": masses.append(15.999)
+      elif element == "S": masses.append(32.06)
+      elif element == "P": masses.append(30.97)
+      elif element == "F": masses.append(18.998)
+      else: masses.append(12.0) # Default
+  return masses

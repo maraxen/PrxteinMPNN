@@ -32,3 +32,5 @@ DEFAULT_EPSILON = 0.1  # kcal/mol (typical for nonpolar atoms)
 DIELECTRIC_WATER = 78.5
 DIELECTRIC_PROTEIN = 1.0
 PROBE_RADIUS = 1.4  # Angstroms
+SURFACE_TENSION = 0.0054  # kcal/mol/Å² (Matches OpenMM default for OBC2)
+DIELECTRIC_OFFSET = 0.09  # Angstroms (Matches OpenMM default for OBC2)

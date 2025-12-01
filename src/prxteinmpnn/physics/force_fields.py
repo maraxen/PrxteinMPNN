@@ -27,6 +27,7 @@ class FullForceField(eqx.Module):
       atom_key_to_id: Map from (residue, atom) to integer ID
       id_to_atom_key: Reverse map from ID to (residue, atom)
       atom_class_map: Map from atom to force field class
+      atom_type_map: Map from atom to force field type
       bonds: Bond parameters
       angles: Angle parameters
       propers: Proper dihedral parameters
@@ -52,6 +53,7 @@ class FullForceField(eqx.Module):
   atom_key_to_id: dict[tuple[str, str], int] = eqx.field(static=True)
   id_to_atom_key: list[tuple[str, str]] = eqx.field(static=True)
   atom_class_map: dict[str, str] = eqx.field(static=True)
+  atom_type_map: dict[str, str] = eqx.field(static=True)
   bonds: list[tuple[str, str, float, float]] = eqx.field(static=True)
   angles: list[tuple[str, str, str, float, float]] = eqx.field(static=True)
   propers: list[dict[str, Any]] = eqx.field(static=True)
@@ -138,6 +140,7 @@ def save_force_field(
     "atom_key_to_id": force_field.atom_key_to_id,
     "id_to_atom_key": force_field.id_to_atom_key,
     "atom_class_map": force_field.atom_class_map,
+    "atom_type_map": force_field.atom_type_map,
     "bonds": force_field.bonds,
     "angles": force_field.angles,
     "propers": force_field.propers,

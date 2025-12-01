@@ -13,7 +13,7 @@ try:
     import openmm
     import openmm.app as app
     import openmm.unit as unit
-    # from pdbfixer import PDBFixer
+    import openmm.unit as unit
 except ImportError:
     print(colored("Error: OpenMM not found. Please install it.", "red"))
     sys.exit(1)

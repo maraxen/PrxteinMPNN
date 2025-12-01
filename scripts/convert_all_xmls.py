@@ -37,7 +37,7 @@ def parse_xml_to_eqx(xml_path: str, output_dir: str):
         charges, sigmas, epsilons = [0.0], [1.0], [0.0]
         hyperparams = {
             "atom_key_to_id": {("UNK", "UNK"): 0}, "id_to_atom_key": [("UNK", "UNK")],
-            "atom_class_map": {}, "source_files": [os.path.basename(xml_path)],
+            "atom_class_map": {}, "atom_type_map": {}, "source_files": [os.path.basename(xml_path)],
             "bonds": [], "angles": [], "propers": [], "impropers": [], "cmap_torsions": [],
             "residue_templates": {}
         }
@@ -63,6 +63,7 @@ def parse_xml_to_eqx(xml_path: str, output_dir: str):
                     hyperparams["atom_key_to_id"][key] = current_id
                     hyperparams["id_to_atom_key"].append(key)
                     hyperparams["atom_class_map"][f"{res_name}_{atom_name}"] = atom_cls
+                    hyperparams["atom_type_map"][f"{res_name}_{atom_name}"] = atom_type
                     charges.append(float(atom.attrib.get('charge', 0.0)))
                     sigmas.append(sigma * NM_TO_ANGSTROM)
                     epsilons.append(epsilon * KJ_TO_KCAL)
@@ -102,8 +103,14 @@ def parse_xml_to_eqx(xml_path: str, output_dir: str):
         def parse_tor(tag_name):
             data = []
             for t in root.findall(f'PeriodicTorsionForce/{tag_name}'):
-                classes = [t.attrib.get(f'class{i}') or t.attrib.get(f'type{i}') for i in range(1, 5)]
-                if not all(classes): continue
+                classes = []
+                for i in range(1, 5):
+                    c = t.attrib.get(f'class{i}')
+                    if c is None:
+                        c = t.attrib.get(f'type{i}')
+                    classes.append(c)
+                
+                if any(c is None for c in classes): continue
                 terms = []
                 for i in range(1, 7):
                     if f'periodicity{i}' in t.attrib:
@@ -159,6 +166,7 @@ def parse_xml_to_eqx(xml_path: str, output_dir: str):
             **hyperparams
         )
         
+        # Save to disk
         output_path = os.path.join(output_dir, f"{ff_name}.eqx")
         save_force_field(output_path, model)
         print(f"✅ Saved {output_path}")

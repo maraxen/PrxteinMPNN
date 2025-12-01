@@ -6,20 +6,22 @@ import jax.numpy as jnp
 from termcolor import colored
 import pandas as pd
 
-# OpenMM Imports
 try:
     import openmm
     import openmm.app as app
     import openmm.unit as unit
-    from pdbfixer import PDBFixer
+    import biotite.structure.io.pdb as pdb
+    import biotite.structure as struc
+    import hydride
 except ImportError:
-    print(colored("Error: OpenMM or PDBFixer not found. Please install them.", "red"))
+    print(colored("Error: OpenMM not found. Please install it.", "red"))
     sys.exit(1)
 
 # PrxteinMPNN Imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../src")))
 from prxteinmpnn.physics import force_fields, jax_md_bridge, system
 from prxteinmpnn.utils import residue_constants
+from prxteinmpnn.io.parsing import biotite as parsing_biotite
 
 # Configuration
 FF_EQX_PATH = "src/prxteinmpnn/physics/force_fields/eqx/protein19SB.eqx"
@@ -68,15 +70,53 @@ def run_validation():
     
     # 2. OpenMM Setup (Ground Truth)
     print(colored("\n[1] Setting up OpenMM System...", "yellow"))
-    fixer = PDBFixer(filename=pdb_file)
-    fixer.findMissingResidues()
-    fixer.findMissingAtoms()
-    fixer.addMissingAtoms()
-    fixer.addMissingHydrogens(7.0)
+    # Use Hydride to load and prep structure
+    print(colored("Loading with Hydride (Manual)...", "cyan"))
+    # Load raw
+    pdb_file_bio = pdb.PDBFile.read(pdb_file)
+    atom_array = pdb_file_bio.get_structure(model=1)
     
+    # Connect
+    if not atom_array.bonds:
+        atom_array.bonds = struc.connect_via_residue_names(atom_array)
+        
+    # Set charges for Hydride
+    # Default 0
+    atom_array.set_annotation("charge", np.zeros(atom_array.array_length(), dtype=int))
+    
+    # Set N-term N charge to +1 to get NH3+
+    # Find first N
+    n_mask = (atom_array.atom_name == "N") & (atom_array.res_id == atom_array.res_id[0])
+    atom_array.charge[n_mask] = 1
+    
+    # Set C-term C charge to -1 to get COO- (no HXT)
+    # Find last C (actually OXT or C?)
+    # Hydride looks at total charge of residue?
+    # Or charge on atoms?
+    # Usually carboxylate C or O is charged.
+    # Let's set charge on C-term C to -1? Or OXT?
+    # Let's try setting charge on OXT to -1.
+    oxt_mask = (atom_array.atom_name == "OXT") & (atom_array.res_id == atom_array.res_id[-1])
+    atom_array.charge[oxt_mask] = -1
+    
+    # Add Hydrogens
+    atom_array, _ = hydride.add_hydrogen(atom_array)
+    
+    # Convert to OpenMM Topology/Positions via temporary PDB
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix=".pdb", mode="w+") as tmp:
+        pdb_file_bio = pdb.PDBFile()
+        pdb_file_bio.set_structure(atom_array)
+        pdb_file_bio.write(tmp)
+        tmp.flush()
+        tmp.seek(0)
+        pdb_file_omm = app.PDBFile(tmp.name)
+        topology = pdb_file_omm.topology
+        positions = pdb_file_omm.positions
+
     omm_ff = app.ForceField(*OPENMM_XMLS)
     omm_system = omm_ff.createSystem(
-        fixer.topology,
+        topology,
         nonbondedMethod=app.NoCutoff,
         constraints=None
     )
@@ -106,7 +146,7 @@ def run_validation():
     atom_names = []
     atom_counts = []
     
-    for chain in fixer.topology.chains():
+    for chain in topology.chains():
         for res in chain.residues():
             residues.append(res.name)
             count = 0

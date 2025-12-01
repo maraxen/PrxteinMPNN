@@ -81,7 +81,18 @@ def compute_born_radii(
         mask = mask * (1.0 - jnp.eye(distances.shape[0]))
     
     pair_integrals = compute_pair_integral(distances_safe, radii_i_broadcast, radii_j_broadcast) # (N, N)
-    pair_integrals = jnp.where(mask > 0.9, pair_integrals, 0.0)
+    
+    if mask is not None:
+        pair_integrals = pair_integrals * mask
+    else:
+        # Default excludes self (handled by mask usually, but if mask is None, we assume all pairs included except self)
+        # Actually, compute_born_radii logic above:
+        # if mask is None: mask = 1.0 - eye
+        # else: mask = mask * (1.0 - eye)
+        # So mask is NEVER None here because of lines 77-81.
+        pass
+        
+    # pair_integrals = jnp.where(mask > 0.9, pair_integrals, 0.0)
     
     born_radius_inverse_term = jnp.sum(pair_integrals, axis=1) # (N,)
     
@@ -123,6 +134,7 @@ def compute_gb_energy(
     solute_dielectric: float = constants.DIELECTRIC_PROTEIN,
     dielectric_offset: float = 0.09,
     mask: Array | None = None,
+    energy_mask: Array | None = None,
     scaled_radii: Array | None = None,
 ) -> tuple[Array, Array]:
     """Computes the Generalized Born solvation energy.
@@ -140,7 +152,9 @@ def compute_gb_energy(
         solvent_dielectric: Solvent dielectric constant ($\\epsilon_{out}$).
         solute_dielectric: Solute dielectric constant ($\\epsilon_{in}$).
         dielectric_offset: Offset for Born radius calculation.
-        mask: Optional mask (N, N) for exclusions.
+        mask: Optional mask (N, N) for Born radii calculation.
+        energy_mask: Optional mask (N, N) for Energy summation.
+        scaled_radii: Optional scaled radii for Born radii calculation.
 
     Returns:
         Tuple of (Total GB energy, Born Radii).
@@ -148,12 +162,12 @@ def compute_gb_energy(
     # DEBUG: Check if mask is being used
     if mask is not None:
         # We can't print array contents easily in JIT, but we can print at trace time
-        print("DEBUG: compute_gb_energy called with mask!")
-        
+       # print("DEBUG: compute_gb_energy called with mask!")
+        pass
     born_radii = compute_born_radii(positions, radii, dielectric_offset=dielectric_offset, mask=mask, scaled_radii=scaled_radii)
     
     # DEBUG: Print Born Radii Stats
-    print(f"DEBUG: Born Radii Min={jnp.min(born_radii)}, Max={jnp.max(born_radii)}, Mean={jnp.mean(born_radii)}")
+    # print(f"DEBUG: Born Radii Min={jnp.min(born_radii)}, Max={jnp.max(born_radii)}, Mean={jnp.mean(born_radii)}")
     
     delta_positions = positions[:, None, :] - positions[None, :, :] # (N, N, 3)
     distances = safe_norm(delta_positions, axis=-1) # (N, N)
@@ -169,7 +183,7 @@ def compute_gb_energy(
     charge_products = charges[:, None] * charges[None, :] # (N, N)
     energy_terms = charge_products / effective_distances
     
-    if mask is not None:
+    if energy_mask is not None:
         # Mask excludes 1-2, 1-3.
         # But we need to KEEP self-interactions (i=i) for self-solvation.
         # The mask usually has 0.0 on diagonal if it's exclusion_mask from system.py?
@@ -179,10 +193,24 @@ def compute_gb_energy(
         
         # Let's assume mask is 0 for excluded pairs.
         # We need to ensure diagonal is 1 for the energy sum.
-        mask_energy = mask + jnp.eye(distances.shape[0])
-        mask_energy = jnp.where(mask_energy > 0.0, 1.0, 0.0)
+        # But if energy_mask is scaling matrix, we should NOT binarize it.
+        # We assume energy_mask already handles diagonal (or we force it).
+        # In system.py, we set 0.0 to 1.0, so diagonal is 1.0.
+        mask_energy = energy_mask
         
         energy_terms = energy_terms * mask_energy
+    
+    # Legacy support: if mask is provided but energy_mask is not, use mask for energy too?
+    # No, we want to decouple them. If energy_mask is None, include all (except self? No, self included).
+    # But wait, if energy_mask is None, we sum everything.
+    # If mask was provided (for radii), do we use it for energy?
+    # Old behavior: yes.
+    # New behavior: explicit energy_mask.
+    elif mask is not None:
+         # Fallback to old behavior if energy_mask not provided
+         mask_energy = mask + jnp.eye(distances.shape[0])
+         mask_energy = jnp.where(mask_energy > 0.0, 1.0, 0.0)
+         energy_terms = energy_terms * mask_energy
         
     total_energy = prefactor * jnp.sum(energy_terms)
     

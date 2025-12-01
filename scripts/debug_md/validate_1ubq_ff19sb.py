@@ -28,7 +28,7 @@ import biotite.structure.io.pdb as pdb
 # =============================================================================
 # Configuration
 # =============================================================================
-PDB_PATH = "data/pdb/1UAO.pdb"
+PDB_PATH = "data/pdb/1UBQ.pdb"
 FF_EQX_PATH = "src/prxteinmpnn/physics/force_fields/eqx/protein19SB.eqx"
 OPENMM_FF_XMLS = ['amber14-all.xml', 'implicit/obc2.xml'] # Using amber14-all which includes ff19SB usually or similar
 # Note: OpenMM might not have 'amber19sb.xml' by default in older versions, checking...
@@ -47,7 +47,7 @@ KJ_TO_KCAL = 1.0 / 4.184
 
 def run_validation():
     print(colored("===========================================================", "cyan"))
-    print(colored("   JAX MD vs OpenMM Validation: 1UAO + ff19SB + OBC2", "cyan"))
+    print(colored("   JAX MD vs OpenMM Validation: 1UBQ + ff19SB + OBC2", "cyan"))
     print(colored("===========================================================", "cyan"))
 
     # -------------------------------------------------------------------------
@@ -58,8 +58,7 @@ def run_validation():
     # Fix PDB (add missing hydrogens, etc if needed, but 1UAO might be clean)
     # Actually 1UAO is an NMR structure, usually has H.
     # But to be safe and consistent, let's use PDBFixer to ensure topology is standard.
-    # Fix PDB (add missing hydrogens, etc if needed, but 1UAO might be clean)
-    # Use Hydride to load and prep structure
+    # Use Hydride to load and prep structure (Repo's approach)
     print(colored("Loading with Hydride...", "cyan"))
     atom_array = parsing_biotite.load_structure_with_hydride(PDB_PATH, model=1)
     
@@ -74,6 +73,37 @@ def run_validation():
         pdb_file = app.PDBFile(tmp.name)
         topology = pdb_file.topology
         positions = pdb_file.positions
+
+    # DEBUG: Print atoms of first residue to check Hydride output
+    print(colored("DEBUG: Checking residue atoms from Hydride...", "yellow"))
+    for res in topology.residues():
+        if res.index == 0:
+            print(f"Residue: {res.name} (Index 0)")
+            for atom in res.atoms():
+                print(f"  Atom: {atom.name}")
+        if res.index == 41:
+            print(f"Residue: {res.name} (Index 41)")
+            for atom in res.atoms():
+                print(f"  Atom: {atom.name}")
+        if res.index == 75:
+            print(f"Residue: {res.name} (Index 75)")
+            for atom in res.atoms():
+                print(f"  Atom: {atom.name}")
+            break
+
+    # Create ForceField
+    try:
+        # Load local protein.ff19SB.xml AND implicit/obc2.xml
+        ff19sb_xml = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../openmmforcefields/openmmforcefields/ffxml/amber/protein.ff19SB.xml"))
+        if not os.path.exists(ff19sb_xml):
+             # Fallback to standard location or error
+             print(colored(f"Warning: Could not find local protein.ff19SB.xml at {ff19sb_xml}. Trying standard...", "yellow"))
+             omm_ff = app.ForceField('amber14-all.xml', 'implicit/obc2.xml')
+        else:
+             omm_ff = app.ForceField(ff19sb_xml, 'implicit/obc2.xml')
+    except Exception as e:
+        print(colored(f"Error loading ff19SB: {e}", "red"))
+        sys.exit(1)
 
     # Create ForceField
     try:

@@ -94,6 +94,13 @@ def parameterize_system(
       key = f"{r_name}_{a_name}"
       return force_field.atom_class_map.get(key, "")
 
+  # Helper: Get atom type
+  def get_type(idx):
+      if idx not in atom_info_map: return ""
+      r_name, a_name = atom_info_map[idx]
+      key = f"{r_name}_{a_name}"
+      return force_field.atom_type_map.get(key, "")
+
   # Pre-process FF lookups
   bond_lookup = {}
   for b in force_field.bonds:
@@ -212,7 +219,7 @@ def parameterize_system(
                 if key in bond_lookup:
                     l_nm, k_nm = bond_lookup[key]
                     length = l_nm * 10.0
-                    k = (k_nm / 418.4) * 2.0
+                    k = (k_nm / 418.4) # OpenMM k is already 2*k_amber, and we use 0.5*k*(r-r0)^2
                     bond_params_list.append([length, k])
                 else:
                     bond_params_list.append([1.0, 300.0])
@@ -235,7 +242,7 @@ def parameterize_system(
           if key in bond_lookup:
               l_nm, k_nm = bond_lookup[key]
               length = l_nm * 10.0
-              k = (k_nm / 418.4) * 2.0
+              k = (k_nm / 418.4)
               bond_params_list.append([length, k])
           else:
               bond_params_list.append([bond.length, 300.0])
@@ -254,52 +261,6 @@ def parameterize_system(
     # So `bonds_list` grows.
     # We can move Angle generation to AFTER the residue loop.
     # -----------------------------------------------------------------------
-    # Generate Angles from Bonds
-    # -----------------------------------------------------------------------
-    # Build adjacency for angles
-    adj_angles = {i: [] for i in range(n_atoms)}
-    for b in bonds_list:
-        adj_angles[b[0]].append(b[1])
-        adj_angles[b[1]].append(b[0])
-
-    angles_list = []
-    angle_params_list = []
-    seen_angles = set()
-
-    for j in range(n_atoms):
-        neighbors = adj_angles[j]
-        if len(neighbors) < 2: continue
-        
-        import itertools
-        for i, k in itertools.combinations(neighbors, 2):
-            # Angle i-j-k
-            # Sort i, k to avoid duplicates (i-j-k vs k-j-i)
-            if i > k: i, k = k, i
-            
-            if (i, j, k) in seen_angles: continue
-            seen_angles.add((i, j, k))
-            
-            angles_list.append([i, j, k])
-            
-            # Lookup params
-            c1 = get_class(i)
-            c2 = get_class(j)
-            c3 = get_class(k)
-            
-            params = None
-            if (c1, c2, c3) in angle_lookup:
-                params = angle_lookup[(c1, c2, c3)]
-            elif (c3, c2, c1) in angle_lookup:
-                params = angle_lookup[(c3, c2, c1)]
-                
-            if params:
-                theta, k_kj = params
-                k = (k_kj / 4.184) * 2.0
-                angle_params_list.append([theta, k])
-            else:
-                # Fallback: 109.5 degrees (1.91 rad), k=100.0 (50 kcal/mol/rad^2)
-                angle_params_list.append([1.91, 100.0])
-
     # Peptide Bond (Prev C -> Curr N)
     if prev_c_idx != -1 and "N" in local_map:
       curr_n_idx = local_map["N"]
@@ -312,17 +273,65 @@ def parameterize_system(
       if key in bond_lookup:
           l_nm, k_nm = bond_lookup[key]
           length = l_nm * 10.0
-          k = (k_nm / 418.4) * 2.0
+          k = (k_nm / 418.4)
           bond_params_list.append([length, k])
       else:
           bond_params_list.append([1.33, 300.0])
       
+    # Update prev_c
     if "C" in local_map:
       prev_c_idx = local_map["C"]
     else:
       prev_c_idx = -1
 
     current_atom_idx += len(res_atom_names)
+
+  # -----------------------------------------------------------------------
+  # Generate Angles from Bonds (After all bonds are collected)
+  # -----------------------------------------------------------------------
+  # Build adjacency for angles
+  adj_angles = {i: [] for i in range(n_atoms)}
+  for b in bonds_list:
+      adj_angles[b[0]].append(b[1])
+      adj_angles[b[1]].append(b[0])
+
+  angles_list = []
+  angle_params_list = []
+  seen_angles = set()
+
+  for j in range(n_atoms):
+      neighbors = adj_angles[j]
+      if len(neighbors) < 2: continue
+      
+      import itertools
+      for i, k in itertools.combinations(neighbors, 2):
+          # Angle i-j-k
+          # Sort i, k to avoid duplicates (i-j-k vs k-j-i)
+          if i > k: i, k = k, i
+          
+          if (i, j, k) in seen_angles: continue
+          seen_angles.add((i, j, k))
+          
+          angles_list.append([i, j, k])
+          
+          # Lookup params
+          c1 = get_class(i)
+          c2 = get_class(j)
+          c3 = get_class(k)
+          
+          params = None
+          if (c1, c2, c3) in angle_lookup:
+              params = angle_lookup[(c1, c2, c3)]
+          elif (c3, c2, c1) in angle_lookup:
+              params = angle_lookup[(c3, c2, c1)]
+              
+          if params:
+              theta, k_kj = params
+              k = (k_kj / 4.184) # OpenMM k is already 2*k_amber
+              angle_params_list.append([theta, k])
+          else:
+              # Fallback: 109.5 degrees (1.91 rad), k=100.0 (50 kcal/mol/rad^2)
+              angle_params_list.append([1.91, 100.0])
 
   # -----------------------------------------------------------------------
   # Scaling Matrices (1-2, 1-3, 1-4)
@@ -470,19 +479,26 @@ def parameterize_system(
                       
                       # Path i-j-k-l-m
                       c_i, c_j, c_k, c_l, c_m = get_class(i), get_class(j), get_class(k), get_class(l), get_class(m)
-                      classes = [c_i, c_j, c_k, c_l, c_m]
+                      t_i, t_j, t_k, t_l, t_m = get_type(i), get_type(j), get_type(k), get_type(l), get_type(m)
                       
                       for cmap_def in force_field.cmap_torsions:
-                          if cmap_def['classes'] == tuple(classes):
+                          def_classes = cmap_def['classes']
+                          match = True
+                          # Check each atom against class OR type
+                          if def_classes[0] != c_i and def_classes[0] != t_i: match = False
+                          elif def_classes[1] != c_j and def_classes[1] != t_j: match = False
+                          elif def_classes[2] != c_k and def_classes[2] != t_k: match = False
+                          elif def_classes[3] != c_l and def_classes[3] != t_l: match = False
+                          elif def_classes[4] != c_m and def_classes[4] != t_m: match = False
+                          
+                          if match:
                               cmap_torsions_list.append([i, j, k, l, m])
                               cmap_indices_list.append(cmap_def['map_index'])
                               break
-                          
-                          if cmap_def['classes'] == tuple(classes[::-1]):
-                              cmap_torsions_list.append([m, l, k, j, i])
-                              cmap_indices_list.append(cmap_def['map_index'])
-                              break
-                          
+  
+  # -----------------------------------------------------------------------
+  # Impropers
+  # -----------------------------------------------------------------------
   # -----------------------------------------------------------------------
   # Impropers
   # -----------------------------------------------------------------------
@@ -491,40 +507,66 @@ def parameterize_system(
   
   for k in range(n_atoms):
       neighbors = adj[k]
-      if len(neighbors) < 3: continue
+      if len(neighbors) != 3: continue
+      
+      c_k = get_class(k)
+      
+      best_match_score = -1
+      best_terms = []
+      best_perm = None
       
       import itertools
-      for i, j, l in itertools.permutations(neighbors, 3):
+      for perm in itertools.permutations(neighbors, 3):
+          i, j, l = perm
           c_i = get_class(i)
           c_j = get_class(j)
-          c_k = get_class(k)
           c_l = get_class(l)
           
-          best_match_score = -1
-          best_terms = []
+          # Check against all impropers
+          # OpenMM/Amber XML usually defines Improper as Center-N1-N2-N3 (class1-class2-class3-class4)
+          # where class1 is Center.
+          # Or sometimes class3 is Center (Amber standard i-j-k-l).
+          # We need to support both or infer from XML.
+          # Based on protein.ff19SB.xml analysis, class1 seems to be Center.
+          # So we match: class1=k, class2=i, class3=j, class4=l
           
           for improper in force_field.impropers:
               pc = improper['classes']
-              score = sum(1 for x in pc if x != '')
               
-              match_fwd = True
-              if pc[0] != '' and pc[0] != c_i: match_fwd = False
-              elif pc[1] != '' and pc[1] != c_j: match_fwd = False
-              elif pc[2] != '' and pc[2] != c_k: match_fwd = False
-              elif pc[3] != '' and pc[3] != c_l: match_fwd = False
+              # Match assuming class1 is Center (k)
+              # And class2,3,4 are neighbors i,j,l
+              match = True
+              if pc[0] != '' and pc[0] != c_k: match = False
+              elif pc[1] != '' and pc[1] != c_i: match = False
+              elif pc[2] != '' and pc[2] != c_j: match = False
+              elif pc[3] != '' and pc[3] != c_l: match = False
               
-              if match_fwd:
+              if match:
+                  score = sum(1 for x in pc if x != '')
                   if score > best_match_score:
                       best_match_score = score
                       best_terms = improper['terms']
+                      best_perm = (i, j, k, l)
+                  # If scores equal, we keep the first one found? Or last?
+                  # Amber precedence usually says specific overrides general.
+                  # If same specificity, order in file matters.
+                  # We iterate propers in order. So we should update if score >= best?
+                  # But permutations loop complicates this.
+                  # Let's stick to strict > for now, or >= if we want last in file.
+                  # But we are inside permutation loop.
                   elif score == best_match_score:
-                      best_terms = improper['terms']
-                  continue
-                  
-          if best_terms:
-              for term in best_terms:
-                  impropers_list.append([i, j, k, l])
-                  improper_params_list.append(term)
+                       # If same score, maybe this permutation is better?
+                       # Or maybe it's the same definition matched by different permutation?
+                       # If terms are same, doesn't matter.
+                       pass
+
+      if best_terms and best_perm:
+          i, j, k, l = best_perm
+          # Amber improper geometry is usually i-j-k-l (k is center).
+          # So we add [i, j, k, l]
+          for term in best_terms:
+              impropers_list.append([i, j, k, l])
+              improper_params_list.append(term)
 
   # Convert to JAX arrays
   return {

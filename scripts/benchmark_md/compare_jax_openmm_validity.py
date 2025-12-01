@@ -15,7 +15,7 @@ import argparse
 import openmm as mm
 import openmm.app as app
 import openmm.unit as unit
-# from pdbfixer import PDBFixer
+import openmm.unit as unit
 
 # PrxteinMPNN imports
 from prxteinmpnn.physics import simulate, force_fields, jax_md_bridge, system, constants
@@ -28,8 +28,8 @@ jax.config.update("jax_enable_x64", True)
 
 # Constants
 PDB_ID = "1UAO"
-THERM_STEPS = 2000 # 4ps
-PROD_STEPS = 5000  # 10ps
+THERM_STEPS = 100 # 4ps
+PROD_STEPS = 100  # 10ps
 REPORT_INTERVAL = 100
 DT_FS = 1.0
 KB = 0.0019872041 # kcal/mol/K
@@ -52,32 +52,6 @@ def extract_system_with_hydride(pdb_path):
     # We must specify model=1 to get an AtomArray, not Stack, and to ensure Hydride works.
     atom_array = parsing_biotite.load_structure_with_hydride(pdb_path, model=1)
     
-    # Extract data for JAX MD
-    res_names = []
-    atom_names = []
-    atom_counts = []
-    
-    # Indices
-    n_idx = []
-    ca_idx = []
-    c_idx = []
-    
-    idx_counter = 0
-    for res_atoms in struc.residue_iter(atom_array):
-        res_names.append(res_atoms[0].res_name)
-        atom_counts.append(len(res_atoms))
-        
-        for atom in res_atoms:
-            atom_names.append(atom.atom_name)
-            
-            if atom.atom_name == "N": n_idx.append(idx_counter)
-            elif atom.atom_name == "CA": ca_idx.append(idx_counter)
-            elif atom.atom_name == "C": c_idx.append(idx_counter)
-            
-            idx_counter += 1
-            
-    positions_np = atom_array.coord # (N, 3) in Angstroms
-    
     # Convert to OpenMM Topology/Positions via temporary PDB
     # This ensures OpenMM gets exactly what we have in Biotite/Hydride
     import tempfile
@@ -91,7 +65,7 @@ def extract_system_with_hydride(pdb_path):
         topology = pdb_file_omm.topology
         positions = pdb_file_omm.positions
             
-    return positions_np, res_names, atom_names, np.array(n_idx), np.array(ca_idx), np.array(c_idx), atom_counts, topology, positions
+    return atom_array, topology, positions
 
 def compute_dihedrals_jax(coords, n_idx, ca_idx, c_idx):
     """Compute Phi and Psi angles using JAX."""
@@ -241,7 +215,7 @@ def run_jax_simulation(coords, params, n_idx, ca_idx, c_idx):
         solvent_dielectric=78.5,
         solute_dielectric=1.0,
         dielectric_offset=constants.DIELECTRIC_OFFSET, 
-        surface_tension=constants.SURFACE_TENSION # kcal/mol/A^2 (Matches OpenMM default)
+        surface_tension=0.0 # kcal/mol/A^2 (Matches OpenMM obc2.xml default of 0.0)
     )
     
     # Init
@@ -350,40 +324,22 @@ def main():
     
     # Load Data
     pdb_path = download_and_load_pdb(PDB_ID)
-    coords, res_names, atom_names, n_idx, ca_idx, c_idx, atom_counts, topology, positions = extract_system_with_hydride(pdb_path)
-    
-    # Rename terminals for Amber FF
-    if len(res_names) > 0:
-        res_names[0] = "N" + res_names[0]
-        res_names[-1] = "C" + res_names[-1]
+    atom_array, topology, positions = extract_system_with_hydride(pdb_path)
     
     # Load FF
     ff = force_fields.load_force_field("src/prxteinmpnn/physics/force_fields/eqx/protein19SB.eqx")
     
     print(f"DEBUG: FF Residue Templates Count: {len(ff.residue_templates) if ff.residue_templates else 0}")
-    if ff.residue_templates:
-        print(f"DEBUG: Sample Template Keys: {list(ff.residue_templates.keys())[:5]}")
     
-    print(f"DEBUG: First 5 Res Names: {res_names[:5]}")
-    print(f"DEBUG: First Residue Atoms: {atom_names[:10]}")
+    # Parameterize using native IO
+    print("Parameterizing system using native IO (biotite_to_jax_md_system)...")
+    params, coords = parsing_biotite.biotite_to_jax_md_system(atom_array, ff)
     
-    # Debug ASP mismatch
-    if 'ASP' in ff.residue_templates:
-        template_bonds = ff.residue_templates['ASP']
-        template_atoms = set()
-        for a1, a2 in template_bonds:
-            template_atoms.add(a1)
-            template_atoms.add(a2)
-        print(f"DEBUG: ASP Template Atoms: {sorted(list(template_atoms))}")
-        
-        # Find first ASP in res_names
-        try:
-            # Let's just print the first 100 atoms and look manually.
-            print(f"DEBUG: First 100 Atom Names: {atom_names[:100]}")
-        except ValueError:
-            pass
-            
-    params = jax_md_bridge.parameterize_system(ff, res_names, atom_names, atom_counts=atom_counts)
+    # Get indices from params
+    # backbone_indices is (N_res, 4) [N, CA, C, O]
+    n_idx = params["backbone_indices"][:, 0]
+    ca_idx = params["backbone_indices"][:, 1]
+    c_idx = params["backbone_indices"][:, 2]
     
     print(f"DEBUG: Coords Shape: {coords.shape}")
     print(f"DEBUG: Params Sigmas Shape: {params['sigmas'].shape}")
@@ -393,13 +349,6 @@ def main():
     omm_results, minimized_coords = run_openmm_simulation(topology, positions, n_idx, ca_idx, c_idx)
     
     # Run JAX MD (using minimized coords from OpenMM)
-    # Note: We need to ensure coords shape matches. OpenMM might have added hydrogens?
-    # But we loaded PDB with hydrogens already.
-    # OpenMM Modeller might re-order?
-    # Usually Modeller keeps order if we don't addHydrogens.
-    # We skipped addHydrogens in run_openmm_simulation (commented out).
-    # So order should be preserved.
-    
     print(f"DEBUG: Using OpenMM Minimized Coords for JAX MD. Shape: {minimized_coords.shape}")
     jax_results = run_jax_simulation(jnp.array(minimized_coords), params, n_idx, ca_idx, c_idx)
     

@@ -130,12 +130,15 @@ def make_energy_fn(
     
     if implicit_solvent:
       # Generalized Born (OBC) - Solvation Term
-      # Use scale_matrix_vdw > 0 as mask if available, else exclusion_mask
-      gb_mask = None
+      
       if scale_matrix_vdw is not None:
-          gb_mask = scale_matrix_vdw > 0.0
+          # OpenMM GBSA (CustomGBForce) includes all pairs (1-2, 1-3, 1-4) by default.
+          # We set masks to 1.0 to match this behavior.
+          gb_mask = jnp.ones_like(scale_matrix_vdw)
+          gb_energy_mask = jnp.ones_like(scale_matrix_vdw)
       else:
           gb_mask = exclusion_mask
+          gb_energy_mask = None
           
       scaled_radii = system_params.get("scaled_radii")
       
@@ -147,7 +150,8 @@ def make_energy_fn(
             solvent_dielectric=solvent_dielectric, 
             solute_dielectric=solute_dielectric,
             dielectric_offset=dielectric_offset,
-            mask=None, # OpenMM CustomGBForce has 0 exclusions, so we include all pairs (including 1-2, 1-3, and self)
+            mask=gb_mask, # Radii: Scale 1-4 (0.5)
+            energy_mask=gb_energy_mask, # Energy: Full (1.0)
             scaled_radii=scaled_radii
         )
       else:

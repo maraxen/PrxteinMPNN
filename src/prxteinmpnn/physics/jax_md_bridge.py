@@ -495,8 +495,11 @@ def parameterize_system(
 
               if best_terms:
                   for term in best_terms:
-                      dihedrals_list.append([i, j, k, l])
-                      dihedral_params_list.append(term)
+                      # Filter out k=0 terms to avoid phantom topology
+                      if abs(term[2]) > 1e-6:
+                          dihedrals_list.append([i, j, k, l])
+                          dihedral_params_list.append(term)
+
 
   # Apply 1-4 Scaling
   if pairs_14:
@@ -565,8 +568,9 @@ def parameterize_system(
   improper_params_list = []
   
   for k in range(n_atoms):
-      neighbors = adj[k]
+      neighbors = sorted(adj[k])
       if len(neighbors) != 3: continue
+
       
       c_k = get_class(k)
       

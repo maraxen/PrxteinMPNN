@@ -1,0 +1,280 @@
+===========================================================
+   Debug Forces: Component-Wise Finite Difference
+===========================================================
+
+[1] Setting up JAX MD System...
+INFO:prxteinmpnn.io.parsing.biotite:Loading structure from data/pdb/1UBQ.pdb (add_hydrogens=True, remove_solvent=True)
+INFO:prxteinmpnn.io.parsing.biotite:Removing 58 solvent atoms
+INFO:prxteinmpnn.io.parsing.biotite:No hydrogens found. Adding hydrogens using Hydride.
+INFO:prxteinmpnn.io.parsing.biotite:No BondList found. Inferring bonds via residue names.
+INFO:prxteinmpnn.io.parsing.biotite:No charge annotation found. Adding zero charges for Hydride compatibility.
+INFO:prxteinmpnn.io.parsing.biotite:Hydrogens added. New atom count: 1231
+Loaded 76 residues, 1231 atoms.
+
+[2] Defining Component Energy Functions...
+
+[3] Running Finite Difference Checks...
+
+Checking Torsion...
+  Atom 856 (NH2):
+    Ana: [-4.9751976e+07  1.3843748e+07  5.7972704e+07]
+    FD:  [-74.31030273 -37.53662109 161.43798828]
+    Diff: [4.9751900e+07 1.3843786e+07 5.7972544e+07] (Rel: 427428.996893)
+    FAIL: Large discrepancy!
+    Inspecting Torsions for Atom 856...
+      Torsion: 852-853-854-856 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.4458, 1.2971, 1.3594
+      Torsion: 865-853-854-856 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.0264, 1.2971, 1.3594
+      Torsion: 856-854-855-866 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3594, 1.3196, 0.9726
+      Torsion: 856-854-855-867 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3594, 1.3196, 0.9734
+      Torsion: 853-854-856-868 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.2971, 1.3594, 0.9776
+      Torsion: 853-854-856-869 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.2971, 1.3594, 1.0100
+      Torsion: 855-854-856-868 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3196, 1.3594, 0.9776
+      Torsion: 855-854-856-869 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3196, 1.3594, 1.0100
+      Improper: 853-855-854-856 Params: [ 2.         3.1415927 10.5      ]
+      Distances: 2.3292, 1.3196, 1.3594
+      Angles: 26.86, 116.47
+      Proj Norms: v=1.052332, w=1.216924
+      Improper: 854-868-856-869 Params: [2.        3.1415927 1.       ]
+      Distances: 2.0394, 0.9776, 1.0100
+      Angles: 34.99, 59.34
+      Proj Norms: v=1.169420, w=0.868839
+  Atom 0 (N):
+    Ana: [0.5742867  0.61910796 0.03596759]
+    FD:  [ 0.45776367  0.61035156 -0.        ]
+    Diff: [0.11652303 0.0087564  0.03596759] (Rel: 0.160251)
+    FAIL: Large discrepancy!
+    Inspecting Torsions for Atom 0...
+      Torsion: 9-0-1-11 Params: [3.         0.         0.15555556]
+      Distances: 1.0086, 1.4737, 1.0883
+      Torsion: 9-0-1-4 Params: [3.         0.         0.15555556]
+      Distances: 1.0086, 1.4737, 1.5057
+      Torsion: 9-0-1-2 Params: [3.         0.         0.15555556]
+      Distances: 1.0086, 1.4737, 1.5480
+      Torsion: 10-0-1-11 Params: [3.         0.         0.15555556]
+      Distances: 1.0097, 1.4737, 1.0883
+      Torsion: 10-0-1-4 Params: [3.         0.         0.15555556]
+      Distances: 1.0097, 1.4737, 1.5057
+      Torsion: 10-0-1-2 Params: [3.         0.         0.15555556]
+      Distances: 1.0097, 1.4737, 1.5480
+      Torsion: 0-1-4-12 Params: [3.         0.         0.15555556]
+      Distances: 1.4737, 1.5057, 1.0937
+      Torsion: 0-1-4-13 Params: [3.         0.         0.15555556]
+      Distances: 1.4737, 1.5057, 1.0975
+      Torsion: 0-1-4-5 Params: [4.    0.    0.078]
+      Distances: 1.4737, 1.5057, 1.5046
+      Torsion: 0-1-4-5 Params: [3.    0.    0.144]
+      Distances: 1.4737, 1.5057, 1.5046
+      Torsion: 0-1-4-5 Params: [2.        3.1415927 0.184    ]
+      Distances: 1.4737, 1.5057, 1.5046
+      Torsion: 0-1-4-5 Params: [1.        3.1415927 0.1      ]
+      Distances: 1.4737, 1.5057, 1.5046
+  Atom 10 (H3):
+    Ana: [-0.4724844  -0.5569393   0.17554069]
+    FD:  [-0.45776367 -0.45776367  0.30517578]
+    Diff: [0.01472074 0.09917563 0.1296351 ] (Rel: 0.228983)
+    FAIL: Large discrepancy!
+    Inspecting Torsions for Atom 10...
+      Torsion: 10-0-1-11 Params: [3.         0.         0.15555556]
+      Distances: 1.0097, 1.4737, 1.0883
+      Torsion: 10-0-1-4 Params: [3.         0.         0.15555556]
+      Distances: 1.0097, 1.4737, 1.5057
+      Torsion: 10-0-1-2 Params: [3.         0.         0.15555556]
+      Distances: 1.0097, 1.4737, 1.5480
+  Atom 100 (H):
+    Ana: [-0.3129446   0.08995493 -0.37390947]
+    FD:  [-0.30517578  0.15258789 -0.30517578]
+    Diff: [0.00776881 0.06263296 0.06873369] (Rel: 0.203848)
+    FAIL: Large discrepancy!
+    Inspecting Torsions for Atom 100...
+      Torsion: 76-77-91-100 Params: [2.        3.1415927 2.5      ]
+      Distances: 1.5481, 1.2873, 0.9663
+      Torsion: 78-77-91-100 Params: [2.        3.1415927 2.5      ]
+      Distances: 1.2369, 1.2873, 0.9663
+      Torsion: 78-77-91-100 Params: [1. 0. 2.]
+      Distances: 1.2369, 1.2873, 0.9663
+      Improper: 77-100-91-92 Params: [2.        3.1415927 1.1      ]
+      Distances: 1.9531, 0.9663, 1.5042
+      Angles: 35.02, 120.15
+      Proj Norms: v=1.120863, w=1.300752
+
+Checking CMAP...
+  Atom 386 (N):
+    Ana: [10.43013   -7.7692823  1.6237129]
+    FD:  [10.37597656 -7.70568848  1.60217285]
+    Diff: [0.05415344 0.06359386 0.02154005] (Rel: 0.006624)
+    FAIL: Large discrepancy!
+  Atom 0 (N):
+    Ana: [-0. -0. -0.]
+    FD:  [-0. -0. -0.]
+    Diff: [0. 0. 0.] (Rel: 0.000000)
+    PASS
+  Atom 10 (H3):
+    Ana: [-0. -0. -0.]
+    FD:  [-0. -0. -0.]
+    Diff: [0. 0. 0.] (Rel: 0.000000)
+    PASS
+  Atom 100 (H):
+    Ana: [-0. -0. -0.]
+    FD:  [-0. -0. -0.]
+    Diff: [0. 0. 0.] (Rel: 0.000000)
+    PASS
+
+Checking GBSA...
+  Atom 1202 (NH2):
+    Ana: [-29.810919    2.4702644  -1.9112252]
+    FD:  [-29.90722656   2.74658203  -2.13623047]
+    Diff: [0.09630775 0.2763176  0.22500527] (Rel: 0.012260)
+    FAIL: Large discrepancy!
+  Atom 0 (N):
+    Ana: [ 0.6720941   0.86554074 -2.2020192 ]
+    FD:  [ 0.30517578  0.61035156 -0.61035156]
+    Diff: [0.36691833 0.25518918 1.5916677 ] (Rel: 1.805762)
+    FAIL: Large discrepancy!
+  Atom 10 (H3):
+    Ana: [-1.1214496   0.11420941 -0.5496078 ]
+    FD:  [-0.61035156 -1.52587891 -0.30517578]
+    Diff: [0.511098   1.6400883  0.24443203] (Rel: 1.038088)
+    FAIL: Large discrepancy!
+  Atom 100 (H):
+    Ana: [-1.6419822  -0.5213965   0.43620697]
+    FD:  [-2.44140625  0.91552734  0.30517578]
+    Diff: [0.79942405 1.4369239  0.13103119] (Rel: 0.628345)
+    FAIL: Large discrepancy!
+
+Checking specific NH2 atoms: [665, 856, 1159, 1202]
+
+Checking Torsion (Atom 665)...
+  Atom 665 (NH2):
+    Ana: [5.5101638e+05 3.0286710e+06 6.9873055e+06]
+    FD:  [-2699.12719727     3.2043457     19.22607422]
+    Diff: [5.5371550e+05 3.0286678e+06 6.9872865e+06] (Rel: 2828.821637)
+    FAIL: Large discrepancy!
+    Inspecting Torsions for Atom 665...
+      Torsion: 661-662-663-665 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.4598, 1.3388, 1.3372
+      Torsion: 674-662-663-665 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.0264, 1.3388, 1.3372
+      Torsion: 665-663-664-675 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3372, 1.3346, 0.9726
+      Torsion: 665-663-664-676 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3372, 1.3346, 0.9734
+      Torsion: 662-663-665-677 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3388, 1.3372, 0.9777
+      Torsion: 662-663-665-678 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3388, 1.3372, 1.0100
+      Torsion: 664-663-665-677 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3346, 1.3372, 0.9777
+      Torsion: 664-663-665-678 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3346, 1.3372, 1.0100
+      Improper: 662-664-663-665 Params: [ 2.         3.1415927 10.5      ]
+      Distances: 2.3519, 1.3346, 1.3372
+      Angles: 28.44, 117.68
+      Proj Norms: v=1.120021, w=1.184090
+      Improper: 663-677-665-678 Params: [2.        3.1415927 1.       ]
+      Distances: 2.0180, 0.9777, 1.0100
+      Angles: 34.80, 59.47
+      Proj Norms: v=1.151749, w=0.869946
+
+Checking Torsion (Atom 856)...
+  Atom 856 (NH2):
+    Ana: [-4.9751976e+07  1.3843748e+07  5.7972704e+07]
+    FD:  [-74.31030273 -37.53662109 161.43798828]
+    Diff: [4.9751900e+07 1.3843786e+07 5.7972544e+07] (Rel: 427428.996893)
+    FAIL: Large discrepancy!
+    Inspecting Torsions for Atom 856...
+      Torsion: 852-853-854-856 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.4458, 1.2971, 1.3594
+      Torsion: 865-853-854-856 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.0264, 1.2971, 1.3594
+      Torsion: 856-854-855-866 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3594, 1.3196, 0.9726
+      Torsion: 856-854-855-867 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3594, 1.3196, 0.9734
+      Torsion: 853-854-856-868 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.2971, 1.3594, 0.9776
+      Torsion: 853-854-856-869 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.2971, 1.3594, 1.0100
+      Torsion: 855-854-856-868 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3196, 1.3594, 0.9776
+      Torsion: 855-854-856-869 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3196, 1.3594, 1.0100
+      Improper: 853-855-854-856 Params: [ 2.         3.1415927 10.5      ]
+      Distances: 2.3292, 1.3196, 1.3594
+      Angles: 26.86, 116.47
+      Proj Norms: v=1.052332, w=1.216924
+      Improper: 854-868-856-869 Params: [2.        3.1415927 1.       ]
+      Distances: 2.0394, 0.9776, 1.0100
+      Angles: 34.99, 59.34
+      Proj Norms: v=1.169420, w=0.868839
+
+Checking Torsion (Atom 1159)...
+  Atom 1159 (NH2):
+    Ana: [-7.0829394e+05 -1.1509575e+06  6.2264631e+05]
+    FD:  [-359.03930664  659.33227539  566.86401367]
+    Diff: [7.0793488e+05 1.1516169e+06 6.2207944e+05] (Rel: 1581.842059)
+    FAIL: Large discrepancy!
+    Inspecting Torsions for Atom 1159...
+      Torsion: 1155-1156-1157-1159 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.4695, 1.3489, 1.3142
+      Torsion: 1168-1156-1157-1159 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.0264, 1.3489, 1.3142
+      Torsion: 1159-1157-1158-1169 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3142, 1.3212, 0.9726
+      Torsion: 1159-1157-1158-1170 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3142, 1.3212, 0.9734
+      Torsion: 1156-1157-1159-1171 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3489, 1.3142, 0.9776
+      Torsion: 1156-1157-1159-1172 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3489, 1.3142, 1.0100
+      Torsion: 1158-1157-1159-1171 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3212, 1.3142, 0.9776
+      Torsion: 1158-1157-1159-1172 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3212, 1.3142, 1.0100
+      Improper: 1156-1158-1157-1159 Params: [ 2.         3.1415927 10.5      ]
+      Distances: 2.2884, 1.3212, 1.3142
+      Angles: 31.37, 123.68
+      Proj Norms: v=1.191277, w=1.093613
+      Improper: 1157-1171-1159-1172 Params: [2.        3.1415927 1.       ]
+      Distances: 1.9922, 0.9776, 1.0100
+      Angles: 34.83, 59.97
+      Proj Norms: v=1.137786, w=0.874417
+
+Checking Torsion (Atom 1202)...
+  Atom 1202 (NH2):
+    Ana: [-7.9602810e+06 -4.2985740e+07  1.2812333e+07]
+    FD:  [-598.60229492  -90.63720703  -30.67016602]
+    Diff: [7.9596825e+06 4.2985648e+07 1.2812364e+07] (Rel: 75148.640889)
+    FAIL: Large discrepancy!
+    Inspecting Torsions for Atom 1202...
+      Torsion: 1198-1199-1200-1202 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.4604, 1.3386, 1.3317
+      Torsion: 1211-1199-1200-1202 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.0265, 1.3386, 1.3317
+      Torsion: 1202-1200-1201-1212 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3317, 1.3331, 0.9726
+      Torsion: 1202-1200-1201-1213 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3317, 1.3331, 0.9734
+      Torsion: 1199-1200-1202-1214 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3386, 1.3317, 0.9777
+      Torsion: 1199-1200-1202-1215 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3386, 1.3317, 1.0100
+      Torsion: 1201-1200-1202-1214 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3331, 1.3317, 0.9777
+      Torsion: 1201-1200-1202-1215 Params: [2.        3.1415927 2.4      ]
+      Distances: 1.3331, 1.3317, 1.0100
+      Improper: 1199-1201-1200-1202 Params: [ 2.         3.1415927 10.5      ]
+      Distances: 2.3238, 1.3331, 1.3317
+      Angles: 29.63, 119.36
+      Proj Norms: v=1.148973, w=1.160676
+      Improper: 1200-1214-1202-1215 Params: [2.        3.1415927 1.       ]
+      Distances: 2.0149, 0.9777, 1.0100
+      Angles: 34.62, 59.27
+      Proj Norms: v=1.144735, w=0.868175

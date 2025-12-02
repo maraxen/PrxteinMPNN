@@ -182,45 +182,40 @@ def _fix_arg_protonation(atom_array: AtomArray) -> AtomArray:
         except IndexError:
             continue # Missing heavy atoms?
             
-        # Helper to add H
-        def add_h(parent_name, h_name, parent_coord, grand_parent_coord, existing_h_coords):
-            # Calculate position
-            # Vector CZ -> NH
+        # Helper to get geometry
+        def get_geometry(parent_coord, grand_parent_coord):
             v_bond = parent_coord - grand_parent_coord
-            v_bond = v_bond / np.linalg.norm(v_bond)
+            norm_v_bond = np.linalg.norm(v_bond)
+            if norm_v_bond < 1e-6:
+                v_bond = np.array([1.0, 0.0, 0.0])
+            else:
+                v_bond = v_bond / norm_v_bond
+                
+            ne_indices = np.where(res_atoms.atom_name == "NE")[0]
+            if len(ne_indices) > 0:
+                ne_coord = res_atoms.coord[ne_indices[0]]
+                v_ne_cz = grand_parent_coord - ne_coord
+                normal = np.cross(v_ne_cz, v_bond)
+            else:
+                normal = np.cross(v_bond, np.array([1.0, 0.0, 0.0]))
+                
+            if np.linalg.norm(normal) < 1e-3:
+                normal = np.cross(v_bond, np.array([0.0, 1.0, 0.0]))
+            normal = normal / np.linalg.norm(normal)
+            return v_bond, normal
+
+        # Helper to add H
+        def add_h(parent_name, h_name, parent_coord, grand_parent_coord, angle_sign=1):
+            v_bond, normal = get_geometry(parent_coord, grand_parent_coord)
             
-            # We want trigonal planar geometry.
-            # If we have existing H, place new H to balance.
-            # If no existing H, place two H symmetric.
+            # Rotate v_bond by +/- 60 degrees
+            theta = np.radians(60.0 * angle_sign)
+            c = np.cos(theta)
+            s = np.sin(theta)
             
-            # For simplicity, let's just place it at parent + offset vector
-            # that is roughly correct.
-            # v_bond is direction of bond. H should be ~120 deg from it.
-            # We need a vector perpendicular to v_bond.
-            # Arbitrary axis?
-            # Better: use cross product with random vector (or Z axis) to get normal.
+            v_H_dir = v_bond * c + np.cross(normal, v_bond) * s
+            new_pos = parent_coord + v_H_dir * 1.01
             
-            # Simple heuristic: Just place it and let minimization fix it?
-            # But we need to avoid clashes.
-            
-            # Let's try to place it along v_bond rotated.
-            # Or just take v_bond, add random noise, normalize, scale to 1.0 A.
-            # But direction matters.
-            # v_bond points TO parent.
-            # H should point AWAY from parent, roughly along v_bond direction?
-            # No, CZ-NH1-H angle is 120.
-            # So H is roughly extension of CZ-NH1 bond.
-            # v_bond = NH1 - CZ.
-            # H pos = NH1 + v_bond * 1.0 (linear).
-            # This is 180 deg. 120 deg is better.
-            # But 180 is a good starting guess that won't clash with CZ.
-            # It might clash with other things.
-            
-            # If we have existing H, we should place new H away from it.
-            
-            new_pos = parent_coord + v_bond * 1.01 # 1.01 A bond length
-            
-            # Create atom
             new_atom = structure.Atom(
                 coord=new_pos,
                 chain_id=res_atoms.chain_id[0],
@@ -231,27 +226,55 @@ def _fix_arg_protonation(atom_array: AtomArray) -> AtomArray:
             )
             atoms_to_add.append(new_atom)
 
+        # Helper to check existing sign
+        def get_existing_sign(h_name, parent_coord, grand_parent_coord):
+            try:
+                h_idx = np.where(res_atoms.atom_name == h_name)[0][0]
+                h_coord = res_atoms.coord[h_idx]
+                v_bond, normal = get_geometry(parent_coord, grand_parent_coord)
+                
+                # Project H-Parent vector onto cross(normal, v_bond)
+                v_H = h_coord - parent_coord
+                cross_vec = np.cross(normal, v_bond)
+                proj = np.dot(v_H, cross_vec)
+                return 1 if proj > 0 else -1
+            except IndexError:
+                return 0
+
         # Check NH1
         if len(nh1_h) < 2:
-            # Add missing
-            # Identify which one is missing? HH11 or HH12?
-            # Just add HH12 if HH11 exists, or both.
             existing = [name for name in res_atoms.atom_name if name.startswith("HH1")]
-            needed = ["HH11", "HH12"]
-            for n in needed:
-                if n not in existing:
-                    # Check if "H" or "H1" exists and map it?
-                    # Hydride might name them differently.
-                    # But if count is < 2, we need to add.
-                    add_h("NH1", n, nh1_coord, cz_coord, [])
+            occupied_signs = []
+            for h in existing:
+                occupied_signs.append(get_existing_sign(h, nh1_coord, cz_coord))
+            
+            if "HH11" not in existing:
+                # Prefer +1, unless occupied
+                sign = 1 if 1 not in occupied_signs else -1
+                add_h("NH1", "HH11", nh1_coord, cz_coord, angle_sign=sign)
+                occupied_signs.append(sign)
+                
+            if "HH12" not in existing:
+                sign = -1 if -1 not in occupied_signs else 1
+                add_h("NH1", "HH12", nh1_coord, cz_coord, angle_sign=sign)
                     
         # Check NH2
         if len(nh2_h) < 2:
             existing = [name for name in res_atoms.atom_name if name.startswith("HH2")]
-            needed = ["HH21", "HH22"]
-            for n in needed:
-                if n not in existing:
-                    add_h("NH2", n, nh2_coord, cz_coord, [])
+            occupied_signs = []
+            for h in existing:
+                occupied_signs.append(get_existing_sign(h, nh2_coord, cz_coord))
+                
+            if "HH21" not in existing:
+                sign = 1 if 1 not in occupied_signs else -1
+                add_h("NH2", "HH21", nh2_coord, cz_coord, angle_sign=sign)
+                occupied_signs.append(sign)
+                
+            if "HH22" not in existing:
+                sign = -1 if -1 not in occupied_signs else 1
+                add_h("NH2", "HH22", nh2_coord, cz_coord, angle_sign=sign)
+
+
                     
     if atoms_to_add:
         # Append atoms using concatenation
@@ -328,8 +351,16 @@ def load_structure_with_hydride(
 
   if add_hydrogens:
     atom_array = _add_hydrogens_to_structure(atom_array)
+    
+  # Add small perturbation to avoid singularities (e.g. linear angles)
+  # This is a safety net even if we fixed specific cases like ARG.
+  # 0.001 A is small enough to not affect physics but breaks perfect linearity.
+  logger.debug("Applying small coordinate perturbation (0.001 A) to break singularities.")
+  rng = np.random.default_rng(0)
+  atom_array.coord += rng.normal(0, 0.001, atom_array.coord.shape)
 
   return atom_array
+
 
 
 def _parse_biotite(

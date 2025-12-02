@@ -60,9 +60,16 @@ def run_validation():
     # Fix PDB (add missing hydrogens, etc if needed, but 1UAO might be clean)
     # Actually 1UAO is an NMR structure, usually has H.
     # But to be safe and consistent, let's use PDBFixer to ensure topology is standard.
-    # Use Hydride to load and prep structure (Repo's approach)
-    print(colored("Loading with Hydride...", "cyan"))
+    # Use Hydride to load and prep structure    # 1. Load Structure
+    print(colored("\n[1] Loading Structure...", "yellow"))
     atom_array = parsing_biotite.load_structure_with_hydride(PDB_PATH, model=1)
+    
+    # Perturb coordinates to avoid singularities (linear angles from Hydride)
+    # print(colored("    Perturbing coordinates by 0.01 A to avoid singularities...", "yellow"))
+    # np.random.seed(0)
+    # atom_array.coord += np.random.normal(0, 0.01, atom_array.coord.shape)
+
+
     
     # Convert to OpenMM Topology/Positions via temporary PDB
     import tempfile
@@ -813,16 +820,29 @@ def run_validation():
     # It is imported as 'system'
     # But compute_cmap_term is inside make_energy_fn closure in system.py?
     # No, I saw it as a helper function inside make_energy_fn.
-    # It is NOT exposed at module level.
-    # So I can't call it directly.
-    # But I can use the one I defined in this script?
-    # No, I didn't define it in this script.
-    # I can use the total energy function and subtract others? No.
-    # I can rely on the fact that I updated system.py to use (psi, phi).
-    # Let's skip CMAP grad check for now or try to reconstruct it.
+    # Calculate JAX NonBonded explicitly for comparison
+    # We need to use the same functions as system.py
+    # Re-create them here for debug
     
-    # NonBonded
-    # check_grad("NonBonded", ...)
+    # LJ
+    # We need to handle 1-4 scaling correctly.
+    # system.py uses scale_matrix_vdw
+    
+    # Let's just use the values we printed in DEBUG if possible?
+    # No, we need to sum them for the table.
+    
+    # We can use the component functions we defined in debug_forces.py style?
+    # Or just use the fact that we have e_total and other components.
+    # e_nb_gbsa_jax = e_total - e_bond - e_angle - e_torsion - e_cmap
+    # This is safer.
+    
+    jax_nb_gbsa = jax_energy_total - e_bond_jax - e_angle_jax - e_torsion_jax - e_cmap_jax
+    
+    print(f"DEBUG: Inferred JAX NB+GBSA: {jax_nb_gbsa:.4f}")
+    
+    # NonBonded+GBSA
+    omm_nb_gbsa = omm_nonbonded + omm_gbsa
+    print(f"{'NonBonded+GBSA':<20} | {omm_nb_gbsa:20.4f} | {jax_nb_gbsa:20.4f} | {jax_nb_gbsa - omm_nb_gbsa:10.4f} | {'PASS' if abs(jax_nb_gbsa - omm_nb_gbsa) < 100.0 else 'FAIL'}")
     
     # A. Self-Energy Analysis
     from prxteinmpnn.physics import generalized_born, constants

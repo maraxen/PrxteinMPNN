@@ -15,7 +15,11 @@ import biotite.structure.io.pdb as pdb
 PDB_PATH = "data/pdb/1UBQ.pdb"
 FF_EQX_PATH = "src/prxteinmpnn/physics/force_fields/eqx/protein19SB.eqx"
 
+# Enable x64
+jax.config.update("jax_enable_x64", True)
+
 def run_force_debug():
+
     print(colored("===========================================================", "cyan"))
     print(colored("   Debug Forces: Component-Wise Finite Difference", "cyan"))
     print(colored("===========================================================", "cyan"))
@@ -81,7 +85,29 @@ def run_force_debug():
     system_params = jax_md_bridge.parameterize_system(ff, residues, atom_names, atom_counts)
     
     # Positions
-    positions = jnp.array(atom_array.coord, dtype=jnp.float32)
+    positions = jnp.array(atom_array.coord, dtype=jnp.float64) # Use x64
+    
+    # Perturb linear atoms (Hack for Hydride issue)
+    # We know 1215 (HH22) is linear.
+    # Let's find all NH2 hydrogens and perturb them slightly.
+    print(colored("\n[1b] Perturbing NH2 Hydrogens to avoid singularity...", "yellow"))
+    
+    # Find indices of NH2 hydrogens (HH21, HH22, etc.)
+    # In 1UBQ, Arg is residue.
+    # Atom names in Arg: ... NH1, NH2, HH11, HH12, HH21, HH22
+    # We want to perturb HH22 specifically, or just all HH* atoms attached to NH2.
+    
+    # Simple perturbation: Add random noise to ALL atoms?
+    # Or just specific ones.
+    # Let's add small noise to everything to be safe.
+    # 1e-3 A noise.
+    
+    key = jax.random.PRNGKey(0)
+    noise = jax.random.normal(key, positions.shape) * 0.01 # 0.01 A noise
+    positions = positions + noise
+    
+    print("Added 0.01 A noise to all positions.")
+
     
     # Displacement
     displacement_fn, shift_fn = space.free()
@@ -101,6 +127,13 @@ def run_force_debug():
     
     def e_torsion_total(r):
         return e_dih_fn(r) + e_imp_fn(r)
+        
+    def e_torsion_proper(r):
+        return e_dih_fn(r)
+        
+    def e_torsion_improper(r):
+        return e_imp_fn(r)
+
         
     # CMAP
     def e_cmap_fn(r):
@@ -143,6 +176,31 @@ def run_force_debug():
         )
         return e_gb
         
+    # LJ and Coulomb
+    epsilons = system_params["epsilons"]
+    def e_lj_fn(r):
+        # Replicate system.py compute_lj
+        dr = space.map_product(displacement_fn)(r, r)
+        dist = space.distance(dr)
+        sig_ij = 0.5 * (sigmas[:, None] + sigmas[None, :])
+        eps_ij = jnp.sqrt(epsilons[:, None] * epsilons[None, :])
+        e_lj = energy.lennard_jones(dist, sig_ij, eps_ij)
+        if scale_matrix_vdw is not None:
+            e_lj = e_lj * scale_matrix_vdw
+        return 0.5 * jnp.sum(e_lj)
+        
+    def e_coul_fn(r):
+        # Replicate system.py compute_electrostatics (direct part)
+        dr = space.map_product(displacement_fn)(r, r)
+        dist = space.distance(dr)
+        q_ij = charges[:, None] * charges[None, :]
+        dist_safe = dist + 1e-6
+        e_coul = 332.0637 * (q_ij / dist_safe)
+        if scale_matrix_elec is not None:
+            e_coul = e_coul * scale_matrix_elec
+        return 0.5 * jnp.sum(e_coul)
+
+        
     # 3. Finite Difference Check
     print(colored("\n[3] Running Finite Difference Checks...", "yellow"))
     
@@ -152,7 +210,13 @@ def run_force_debug():
         # Analytical Force
         # F = -grad(U)
         grad_fn = jax.grad(energy_fn)
+        
+        # Print Energy
+        e_val = energy_fn(positions)
+        print(f"  Total Energy ({name}): {e_val}")
+        
         forces_analytical = -grad_fn(positions)
+
         
         # Finite Difference
         epsilon = 1e-4
@@ -259,6 +323,54 @@ def run_force_debug():
                             d23 = jnp.linalg.norm(displacement_fn(r2, r3))
                             d34 = jnp.linalg.norm(displacement_fn(r3, r4))
                             print(f"      Distances: {d12:.4f}, {d23:.4f}, {d34:.4f}")
+                            
+                            # Calculate Bond Angles
+                            # i-j-k
+                            v_ji = displacement_fn(r1, r2)
+                            v_jk = displacement_fn(r3, r2) # k - j
+                            cos_theta1 = jnp.dot(v_ji, v_jk) / (jnp.linalg.norm(v_ji) * jnp.linalg.norm(v_jk))
+                            theta1 = jnp.degrees(jnp.arccos(jnp.clip(cos_theta1, -1.0, 1.0)))
+                            
+                            # j-k-l
+                            v_kj = displacement_fn(r2, r3) # j - k
+                            v_kl = displacement_fn(r4, r3) # l - k
+                            cos_theta2 = jnp.dot(v_kj, v_kl) / (jnp.linalg.norm(v_kj) * jnp.linalg.norm(v_kl))
+                            theta2 = jnp.degrees(jnp.arccos(jnp.clip(cos_theta2, -1.0, 1.0)))
+                            
+                            print(f"      Angles: {theta1:.2f}, {theta2:.2f}")
+                            
+                            # Calculate v, w norms (singularity check)
+                            b0 = displacement_fn(r1, r2)
+                            b1 = displacement_fn(r3, r2) # k - j
+                            b2 = displacement_fn(r4, r3) # l - k
+                            
+                            # Use bonded.py logic
+                            # b0 = i - j
+                            # b1 = k - j
+                            # b2 = l - k
+                            # But bonded.py uses:
+                            # b0 = r_i - r_j
+                            # b1 = r_k - r_j
+                            # b2 = r_l - r_k
+                            
+                            b0 = displacement_fn(r1, r2)
+                            b1 = displacement_fn(r3, r2)
+                            b2 = displacement_fn(r4, r3)
+                            
+                            b1_norm = jnp.linalg.norm(b1) + 1e-8
+                            b1_unit = b1 / b1_norm
+                            
+                            v = b0 - jnp.dot(b0, b1_unit) * b1_unit
+                            w = b2 - jnp.dot(b2, b1_unit) * b1_unit
+                            
+                            v_norm = jnp.linalg.norm(v)
+                            w_norm = jnp.linalg.norm(w)
+                            
+                            print(f"      Proj Norms: v={v_norm:.6f}, w={w_norm:.6f}")
+                            
+                            if v_norm < 1e-3 or w_norm < 1e-3:
+                                print(colored("      WARNING: Near Singularity (v or w ~ 0)!", "red"))
+
 
             else:
                 print(colored(f"    PASS", "green"))
@@ -267,11 +379,17 @@ def run_force_debug():
         return max_rel_error
 
     # Check Components
-    # check_component("Bond", e_bond_fn)
-    # check_component("Angle", e_angle_fn)
-    check_component("Torsion", e_torsion_total)
+    check_component("Bond", e_bond_fn)
+    check_component("Angle", e_angle_fn)
+    check_component("Torsion_Total", e_torsion_total)
+    check_component("Torsion_Proper", e_torsion_proper)
+    check_component("Torsion_Improper", e_torsion_improper)
     check_component("CMAP", e_cmap_fn)
     check_component("GBSA", e_gbsa_fn)
+    check_component("LJ", e_lj_fn)
+    check_component("Coulomb", e_coul_fn)
+
+
     
     # Check Atom 1159 (NH2) specifically if requested
     # But indices might differ slightly if Hydride added atoms differently?
@@ -280,7 +398,58 @@ def run_force_debug():
     if nh2_indices:
         print(f"\nChecking specific NH2 atoms: {nh2_indices}")
         for idx in nh2_indices:
-            check_component(f"Torsion (Atom {idx})", e_torsion_total, atom_idx=idx)
+            # check_component(f"Torsion_Proper (Atom {idx})", e_torsion_proper, atom_idx=idx)
+            # check_component(f"Torsion_Improper (Atom {idx})", e_torsion_improper, atom_idx=idx)
+            
+            # Isolate single torsions
+            if idx == 1202: # Focus on the problematic one
+                print(colored(f"\nIsolating Torsions for Atom {idx}...", "yellow"))
+                dihedrals = system_params['dihedrals']
+                d_params = system_params['dihedral_params']
+                
+                for i, d in enumerate(dihedrals):
+                    if idx in d:
+                        # Create a single-torsion energy function
+                        # We need to slice params to keep shapes correct (1, 4) and (1, 3)
+                        single_d_idx = dihedrals[i:i+1]
+                        single_d_param = d_params[i:i+1]
+                        
+                        e_single = bonded.make_dihedral_energy_fn(displacement_fn, single_d_idx, single_d_param)
+                        
+                        p1, p2, p3, p4 = int(d[0]), int(d[1]), int(d[2]), int(d[3])
+                        print(f"\nChecking Single Torsion: {p1}-{p2}-{p3}-{p4}")
+                        
+                        # Calculate Angles
+                        r1 = positions[p1]
+                        r2 = positions[p2]
+                        r3 = positions[p3]
+                        r4 = positions[p4]
+                        
+                        v_ji = displacement_fn(r1, r2)
+                        v_jk = displacement_fn(r3, r2)
+                        cos_theta1 = jnp.dot(v_ji, v_jk) / (jnp.linalg.norm(v_ji) * jnp.linalg.norm(v_jk))
+                        theta1 = jnp.degrees(jnp.arccos(jnp.clip(cos_theta1, -1.0, 1.0)))
+                        
+                        v_kj = displacement_fn(r2, r3)
+                        v_kl = displacement_fn(r4, r3)
+                        cos_theta2 = jnp.dot(v_kj, v_kl) / (jnp.linalg.norm(v_kj) * jnp.linalg.norm(v_kl))
+                        theta2 = jnp.degrees(jnp.arccos(jnp.clip(cos_theta2, -1.0, 1.0)))
+                        
+                        print(f"  Angles: {theta1:.2f}, {theta2:.2f}")
+                        
+                        if abs(theta1 - 180.0) < 1.0 or abs(theta2 - 180.0) < 1.0:
+                            print(colored("  WARNING: Linear Angle Detected!", "red"))
+                            print(f"  Coords:")
+                            print(f"    r1 ({atom_names[p1]}): {r1}")
+                            print(f"    r2 ({atom_names[p2]}): {r2}")
+                            print(f"    r3 ({atom_names[p3]}): {r3}")
+                            print(f"    r4 ({atom_names[p4]}): {r4}")
+                        
+                        check_component(f"Torsion_{i}", e_single, atom_idx=idx)
+
+
+
+
 
 if __name__ == "__main__":
     run_force_debug()

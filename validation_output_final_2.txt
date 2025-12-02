@@ -1,0 +1,191 @@
+DEBUG: Loaded system module from: /Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/src/prxteinmpnn/physics/system.py
+DEBUG: Loaded generalized_born module from: /Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/src/prxteinmpnn/physics/generalized_born.py
+===========================================================
+   JAX MD vs OpenMM Validation: 1UBQ + ff19SB + OBC2
+===========================================================
+
+[1] Setting up OpenMM System...
+Loading with Hydride...
+INFO:prxteinmpnn.io.parsing.biotite:Loading structure from data/pdb/1UBQ.pdb (add_hydrogens=True, remove_solvent=True)
+INFO:prxteinmpnn.io.parsing.biotite:Removing 58 solvent atoms
+INFO:prxteinmpnn.io.parsing.biotite:No hydrogens found. Adding hydrogens using Hydride.
+INFO:prxteinmpnn.io.parsing.biotite:No BondList found. Inferring bonds via residue names.
+INFO:prxteinmpnn.io.parsing.biotite:No charge annotation found. Adding zero charges for Hydride compatibility.
+INFO:prxteinmpnn.io.parsing.biotite:Hydrogens added. New atom count: 1231
+DEBUG: Checking residue atoms from Hydride...
+Residue: MET (Index 0)
+  Atom: N
+  Atom: CA
+  Atom: C
+  Atom: O
+  Atom: CB
+  Atom: CG
+  Atom: SD
+  Atom: CE
+  Atom: H
+  Atom: H2
+  Atom: H3
+  Atom: HA
+  Atom: HB2
+  Atom: HB3
+  Atom: HG2
+  Atom: HG3
+  Atom: HE1
+  Atom: HE2
+  Atom: HE3
+Residue: ARG (Index 41)
+  Atom: N
+  Atom: CA
+  Atom: C
+  Atom: O
+  Atom: CB
+  Atom: CG
+  Atom: CD
+  Atom: NE
+  Atom: CZ
+  Atom: NH1
+  Atom: NH2
+  Atom: H
+  Atom: HA
+  Atom: HB2
+  Atom: HB3
+  Atom: HG2
+  Atom: HG3
+  Atom: HD2
+  Atom: HD3
+  Atom: HE
+  Atom: HH11
+  Atom: HH12
+  Atom: HH21
+  Atom: HH22
+Residue: GLY (Index 75)
+  Atom: N
+  Atom: CA
+  Atom: C
+  Atom: O
+  Atom: OXT
+  Atom: H
+  Atom: HA2
+  Atom: HA3
+OpenMM Total Energy (Vacuum): -1629.6006 kcal/mol
+
+[2] Setting up JAX MD System...
+Creating JAX MD System...
+
+[DEBUG] First Residue (MET) Atoms:
+['N', 'CA', 'C', 'O', 'CB', 'CG', 'SD', 'CE', 'H1', 'H2', 'H3', 'HA', 'HB2', 'HB3', 'HG2', 'HG3', 'HE1', 'HE2', 'HE3']
+
+[DEBUG] System Params Keys:
+['charges', 'masses', 'sigmas', 'epsilons', 'gb_radii', 'scaled_radii', 'bonds', 'bond_params', 'constrained_bonds', 'constrained_bond_lengths', 'angles', 'angle_params', 'backbone_indices', 'exclusion_mask', 'scale_matrix_vdw', 'scale_matrix_elec', 'dihedrals', 'dihedral_params', 'impropers', 'improper_params', 'cmap_energy_grids', 'cmap_indices', 'cmap_torsions', 'cmap_coeffs']
+exclusion_mask shape: (1231, 1231)
+exclusion_mask[0,1] (1-2): False
+exclusion_mask[0,2] (1-3): False
+exclusion_mask[0,3] (1-4): True
+scale_matrix_vdw shape: (1231, 1231)
+scale_matrix_vdw[0,1] (1-2): 0.0
+scale_matrix_vdw[0,2] (1-3): 0.0
+scale_matrix_vdw[0,3] (1-4): 0.5
+scale_matrix_vdw[0,5] (1-5): 0.5
+gb_radii present. Mean: 1.4234
+DEBUG: JAX MD Generated 1237 bonds.
+DEBUG: OpenMM has 1237 bonds.
+PASS: Topology (Bonds) matches.
+DEBUG: Angles: JAX=2257, OpenMM=2257
+DEBUG: Torsions: JAX=5283, OpenMM=3314
+
+[DEBUG] Initial JAX MD Energy Components (Generated Params):
+Total Energy: 53604.0977 kcal/mol
+Bond Energy: 206.0771
+Angle Energy: 626.9956
+Torsion Energy: 397.0877
+NonBonded+GBSA: 52373.9375
+
+[DEBUG] Top 10 Closest Pairs:
+  1. 0.9657 A: 621 (N) - 630 (H)
+  2. 0.9657 A: 630 (H) - 621 (N)
+  3. 0.9657 A: 1192 (N) - 1203 (H)
+  4. 0.9657 A: 1203 (H) - 1192 (N)
+  5. 0.9658 A: 386 (N) - 394 (H)
+  6. 0.9658 A: 394 (H) - 386 (N)
+  7. 0.9658 A: 160 (N) - 164 (H)
+  8. 0.9658 A: 164 (H) - 160 (N)
+  9. 0.9658 A: 1114 (N) - 1121 (H)
+  10. 0.9658 A: 1121 (H) - 1114 (N)
+JAX MD Total Energy: 49725.9141 kcal/mol
+
+[Stage 1] Parameter Validation
+Max Charge Diff: 0.000000 (Tol: 1e-4)
+Max Sigma Diff:  0.000000 (Tol: 1e-4)
+Max Epsilon Diff:0.000000 (Tol: 1e-4)
+PASS: Parameters match.
+
+[Stage 2] Energy Component Validation
+Component            | OpenMM (kcal/mol)    | JAX (kcal/mol)       | Diff       | Status
+-------------------------------------------------------------------------------------
+DEBUG: CMAP (phi, psi): 206.4777
+DEBUG: CMAP (psi, phi): 72.8722
+DEBUG: CMAP (phi, psi) * 0.5: 103.2389
+DEBUG: CMAP (psi, phi) * 0.5: 36.4361
+Bond                 |             206.0783 |             206.0771 |     0.0011 | PASS
+Angle                |             627.4317 |             626.9956 |     0.4360 | FAIL
+Torsion              |             396.9557 |             389.7229 |     7.2329 | FAIL
+CMAP                 |              69.9528 |              72.8722 |    -2.9194 | FAIL
+NonBonded+GBSA       |           -2930.0192 |           48430.2461 | -51360.2656 | FAIL
+-------------------------------------------------------------------------------------
+DEBUG: OpenMM NonBonded: -1790.1956
+DEBUG: OpenMM GBSA: -1139.8236
+-------------------------------------------------------------------------------------
+TOTAL                |           -1629.6006 |           49725.9141 | -51355.5156 | FAIL
+
+[Stage 3] Force Validation
+Force RMSE: 16.553186 kcal/mol/A
+Force Rel-RMSE: 0.004106
+Max Force Error: 304.816779 at atom 1159 (NH2)
+FAIL: Forces mismatch.
+
+[Analysis] Detailed Discrepancy Analysis
+
+[DEBUG] Checking Force Components for NaN:
+  Bond: OK
+  Angle: OK
+  Torsion: OK
+  Improper: OK
+Calculated JAX Self-Energy: -32463.0020 kcal/mol
+JAX GBSA (Total): 48430.2461 kcal/mol
+JAX GBSA (Corrected for Self): 80893.2500 kcal/mol
+OpenMM GBSA + NonBonded: -2930.0192 kcal/mol
+Diff (Corrected): -83823.2656 kcal/mol
+
+Top 10 Torsion Mismatches:
+Idx   | Atoms                | Params (n, phi0, k)       | JAX E      | JAX Phi   
+Sum of JAX Torsion Energies: 389.7229
+OpenMM Total Torsion: 396.9557
+
+Atoms                | JAX E (Sum)  | OpenMM Params                            | Residue
+506-507-510-511      | 4.4455       | 4,0.00,0.09 | 3,0.00,0.06 | 2,3.14,0.65 | 1,3.14,2.15 | ASP32
+609-610-613-614      | 4.4223       | 4,0.00,0.09 | 3,0.00,0.06 | 2,3.14,0.65 | 1,3.14,2.15 | ASP39
+496-495-497-504      | 4.0060       | 2,3.14,2.50 | 1,0.00,2.00                | GLN31
+987-986-988-995      | 4.0028       | 2,3.14,2.50 | 1,0.00,2.00                | GLN62
+628-627-629-636      | 4.0026       | 2,3.14,2.50 | 1,0.00,2.00                | GLN40
+26-25-27-34          | 4.0005       | 2,3.14,2.50 | 1,0.00,2.00                | GLN2
+953-952-954-959      | 4.0005       | 2,3.14,2.50 | 1,0.00,2.00                | ASN60
+645-644-646-653      | 4.0000       | 2,3.14,2.50 | 1,0.00,2.00                | GLN41
+783-782-784-791      | 4.0000       | 2,3.14,2.50 | 1,0.00,2.00                | GLN49
+392-391-393-398      | 4.0000       | 2,3.14,2.50 | 1,0.00,2.00                | ASN25
+372-375-376-377      | 3.9318       | 4,3.14,0.06 | 3,3.14,0.61 | 2,3.14,0.22 | 1,3.14,1.37 | GLU24
+288-301-307-306      | 3.8550       | 3,0.00,0.40 | 2,0.00,2.00 | 1,0.00,2.00  | GLU18
+564-581-587-586      | 3.8506       | 3,0.00,0.40 | 2,0.00,2.00 | 1,0.00,2.00  | ILE36
+256-259-260-261      | 3.8402       | 4,3.14,0.06 | 3,3.14,0.61 | 2,3.14,0.22 | 1,3.14,1.37 | GLU16
+583-595-601-600      | 3.6766       | 3,0.00,0.40 | 2,0.00,2.00 | 1,0.00,2.00  | PRO37
+
+[DEBUG] Checking Angles for NaN/Singularities:
+No NaN angles found directly.
+Found 4 extreme angles (near 0 or pi):
+  Idx 1253: [663 665 678] -> 179.9184 deg (CZ-NH2-HH22)
+  Idx 1601: [854 856 869] -> 179.9184 deg (CZ-NH2-HH22)
+  Idx 2153: [1157 1159 1172] -> 179.9184 deg (CZ-NH2-HH22)
+  Idx 2231: [1200 1202 1215] -> 179.9184 deg (CZ-NH2-HH22)
+Scanning angles for NaN gradient...
+
+[Analysis] SASA Debugging
+Explicit SASA Energy Check: 126.7589 kcal/mol

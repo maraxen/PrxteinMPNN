@@ -2391,6 +2391,32 @@ wheels = [
 ]
 
 [[package]]
+name = "openmm"
+version = "8.4.0.post2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/56/3e/091c18ae7efb9eb0ceacd31cb516510fd8b7b31927f57b1da46f094ff781/openmm-8.4.0.post2-cp311-cp311-macosx_10_12_x86_64.whl", hash = "sha256:9399dd46cf7bf345ad28e77e3457a11298874d2e2e407860cc0e46cceb6d3d11", size = 13228102, upload-time = "2025-11-24T21:41:14.647Z" },
+    { url = "https://files.pythonhosted.org/packages/42/ac/e19f750374532e70fde81f01132e0537b48719ccc2ff2483c5b30b0e7d99/openmm-8.4.0.post2-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:49d0e5a0c41ff471f5a24cb73de71ee517b59cc34beaa17aad429892f57e3962", size = 12741400, upload-time = "2025-11-24T21:41:23.031Z" },
+    { url = "https://files.pythonhosted.org/packages/f9/01/8fea59390d19ef600a7af46a9edb48d05f7f28ba04cf02c6b1f5d8411402/openmm-8.4.0.post2-cp311-cp311-manylinux_2_34_x86_64.whl", hash = "sha256:12ffcd82d596bded1382e30af55907754ee481aafc0fc4a921a97de2ea7a8c55", size = 14248574, upload-time = "2025-11-24T21:41:29.188Z" },
+    { url = "https://files.pythonhosted.org/packages/b5/82/573cf4b24e9ad17bbb1e0582e3848631bfd34c2b14b0aa217273adee0f0a/openmm-8.4.0.post2-cp311-cp311-win_amd64.whl", hash = "sha256:b18fb1fb3128df8f2cedb23af33c484701a6fa51da8204824a445f800581be13", size = 13096083, upload-time = "2025-11-24T21:41:35.644Z" },
+    { url = "https://files.pythonhosted.org/packages/ab/c8/1344fa71c59e891f8dbb107aae192f661a72073ed84064c7828b1a26d9ee/openmm-8.4.0.post2-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:f3c8a012810928b1c0ae91a755d3197e81e7d03d2058d92dd4924d283edeae44", size = 13224672, upload-time = "2025-11-24T21:41:41.97Z" },
+    { url = "https://files.pythonhosted.org/packages/a7/0a/e9d1080eb107349ef090cbe0bd8335f3920708f1435b943df8c1c5496f50/openmm-8.4.0.post2-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:1bde30736f7b4b595041caf083bb4e4e79a794ab164faedd0664eda0348a299f", size = 12739310, upload-time = "2025-11-24T21:41:49.437Z" },
+    { url = "https://files.pythonhosted.org/packages/69/45/ab3937509f5dcde71fe7ac300f24a8d0684448d9b4820470360202bb95e4/openmm-8.4.0.post2-cp312-cp312-manylinux_2_34_x86_64.whl", hash = "sha256:168544c0b388ae71cc3f85e27c36c4f393854a313c4203f9e9957d6214836c13", size = 14253728, upload-time = "2025-11-24T21:41:55.662Z" },
+    { url = "https://files.pythonhosted.org/packages/06/d4/a6022476db6cd0baf0218fa33ed70182f1447e0b6bf5ded124a846c4dab9/openmm-8.4.0.post2-cp312-cp312-win_amd64.whl", hash = "sha256:6e9fd826aedf34b4c27a4dcda83da93e90f3e81305c58bcc07dafee22460a469", size = 13098413, upload-time = "2025-11-24T21:42:00.409Z" },
+    { url = "https://files.pythonhosted.org/packages/d6/4f/be754e36197e075281ce333e906515bc33a326d3f9f9a0e6b97bbf81159a/openmm-8.4.0.post2-cp313-cp313-macosx_10_12_x86_64.whl", hash = "sha256:07dfe965a205e57eff525edad4a65f5b426daa068e491536019bc9b3957bc1f3", size = 13224644, upload-time = "2025-11-24T21:42:07.488Z" },
+    { url = "https://files.pythonhosted.org/packages/9a/50/0cf408fecd04c23aa2767b10293404b513f37a76d0c41f60eba113d85c3b/openmm-8.4.0.post2-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:4fdfae1f8c7612520f3bd2f7c0dccb9d9df5f085e219272ca43617574b88c3a6", size = 12738320, upload-time = "2025-11-24T21:42:14.283Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/da/5534914daa40455f5ed92b4d82c980e5f346922841c4d86b32ed6cb1382b/openmm-8.4.0.post2-cp313-cp313-manylinux_2_34_x86_64.whl", hash = "sha256:70cdd3309064b95bd304af1f195377e54b6f7060b15b37af725d15764b756b09", size = 14251710, upload-time = "2025-11-24T21:42:22.865Z" },
+    { url = "https://files.pythonhosted.org/packages/34/9e/e42c8c6d29050dd8188d33c79c9a40291bf8885d1588f755246bb734effe/openmm-8.4.0.post2-cp313-cp313-win_amd64.whl", hash = "sha256:e2912d803e7473048351cddb59176df191db3cbe21d0ab1a6f83e7020b92f01f", size = 13096685, upload-time = "2025-11-24T21:42:29.885Z" },
+    { url = "https://files.pythonhosted.org/packages/c2/3a/65bf4bb58c1a9276ac24b23a4a9af11d3e7834e2eb9294de7933f68e5020/openmm-8.4.0.post2-cp314-cp314-macosx_10_12_x86_64.whl", hash = "sha256:1aad58ba4cf27eec18061fa8dcef5a22666905f8f0edca0108214cd5a1f8109e", size = 13228237, upload-time = "2025-11-24T21:42:36.813Z" },
+    { url = "https://files.pythonhosted.org/packages/c5/52/22ad8d32421f2e245a4e62e9894b02c4bd864fad5476cbedfcf053d1af24/openmm-8.4.0.post2-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:951e92fb72f031406f5beb876ea87c4ad00a6759cb7675fb6f6c5f81ecf89ab0", size = 12741173, upload-time = "2025-11-24T21:42:44.251Z" },
+    { url = "https://files.pythonhosted.org/packages/ec/14/376b11b79b9b782167728b1fec81a488747453dc878cc553f186696c16cb/openmm-8.4.0.post2-cp314-cp314-manylinux_2_34_x86_64.whl", hash = "sha256:e175a64050d17b571fae66f095abfa9ebf7224ce7bb502e714450925adaa1e98", size = 14253312, upload-time = "2025-11-24T21:42:50.902Z" },
+    { url = "https://files.pythonhosted.org/packages/6d/9b/8b53a1d3ba9975265d37630a4e5141cc0d0934231bb9654ac09940fe26e2/openmm-8.4.0.post2-cp314-cp314-win_amd64.whl", hash = "sha256:25872ca6f1a9140df918af71f879aad457a2a2a45c752265c3a753e25fe028df", size = 13097581, upload-time = "2025-11-24T21:43:00.411Z" },
+]
+
+[[package]]
 name = "opt-einsum"
 version = "3.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2835,6 +2861,7 @@ tests = [
     { name = "chex" },
     { name = "colabdesign" },
     { name = "foldcomp" },
+    { name = "openmm" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -2879,6 +2906,7 @@ requires-dist = [
     { name = "myst-parser", marker = "extra == 'dev'" },
     { name = "myst-parser", marker = "extra == 'docs'" },
     { name = "numpy" },
+    { name = "openmm", marker = "extra == 'tests'" },
     { name = "optax" },
     { name = "pcax", specifier = ">=0.1.0" },
     { name = "pytest", marker = "extra == 'dev'" },

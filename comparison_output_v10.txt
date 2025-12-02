@@ -1,0 +1,41 @@
+Comparing JAX MD vs OpenMM on 1UAO...
+INFO:prxteinmpnn.io.parsing.biotite:Loading structure from data/pdb/1uao.pdb (add_hydrogens=True, remove_solvent=True)
+DEBUG: FF Residue Templates Count: 78
+DEBUG: Sample Template Keys: ['ALA', 'ARG', 'ASH', 'ASN', 'ASP']
+DEBUG: First 5 Res Names: ['NGLY', np.str_('TYR'), np.str_('ASP'), np.str_('PRO'), np.str_('GLU')]
+DEBUG: First Residue Atoms: ['N', 'CA', 'C', 'O', 'H1', 'H2', 'H3', 'HA2', 'HA3', 'N']
+DEBUG: Coords Shape: (138, 3)
+DEBUG: Params Sigmas Shape: (68,)
+DEBUG: Params Charges Shape: (68,)
+Running OpenMM Simulation from data/pdb/1uao.pdb...
+  Minimizing...
+Running JAX MD Simulation...
+Traceback (most recent call last):
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/scripts/benchmark_md/compare_jax_openmm_validity.py", line 346, in <module>
+    main()
+    ~~~~^^
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/scripts/benchmark_md/compare_jax_openmm_validity.py", line 333, in main
+    jax_results = run_jax_simulation(jnp.array(coords), params, n_idx, ca_idx, c_idx)
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/scripts/benchmark_md/compare_jax_openmm_validity.py", line 262, in run_jax_simulation
+    state = init_fn(key, coords, mass=params["masses"])
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/src/prxteinmpnn/physics/simulate.py", line 46, in init_fn
+    force = force_fn(R, **kwargs)
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/.venv/lib/python3.13/site-packages/jax_md/quantity.py", line 82, in force_fn
+    out_shaped = eval_shape(energy_or_force_fn, R, **kwargs)
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/src/prxteinmpnn/physics/system.py", line 353, in total_energy
+    e_lj = compute_lj(r, neighbor_idx)
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/src/prxteinmpnn/physics/system.py", line 259, in compute_lj
+    e_lj = energy.lennard_jones(dist, sig_ij, eps_ij)
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/.venv/lib/python3.13/site-packages/jax_md/energy.py", line 220, in lennard_jones
+    idr = (sigma / dr)
+           ~~~~~~^~~~
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/.venv/lib/python3.13/site-packages/jax/_src/numpy/array_methods.py", line 1141, in op
+    return getattr(self.aval, f"_{name}")(self, *args)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/.venv/lib/python3.13/site-packages/jax/_src/numpy/array_methods.py", line 604, in deferring_binary_op
+    return binary_op(*args)
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/.venv/lib/python3.13/site-packages/jax/_src/numpy/ufuncs.py", line 2473, in true_divide
+    out = lax.div(x1, x2)
+TypeError: div got incompatible shapes for broadcasting: (68, 68), (138, 138).
+--------------------
+For simplicity, JAX has removed its internal frames from the traceback of the following exception. Set JAX_TRACEBACK_FILTERING=off to include these.

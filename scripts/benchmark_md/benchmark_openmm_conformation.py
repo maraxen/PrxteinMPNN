@@ -24,7 +24,7 @@ from prxteinmpnn.utils import residue_constants
 from prxteinmpnn.io.parsing import biotite as parsing_biotite
 
 # Constants
-PDB_ID = "1UAO"
+PDB_ID = "5AWL"
 NUM_SAMPLES = 8
 MD_STEPS = 100
 MD_THERM = 500

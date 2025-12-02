@@ -57,6 +57,7 @@ tests = [
     "ty",
     "foldcomp",
     "colabdesign @ git+https://github.com/sokrypton/ColabDesign.git@e31a56f",
+    "openmm",
 ]
 dev = [
   "ruff",

@@ -1,0 +1,125 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.3, pytest-9.0.1, pluggy-1.6.0
+rootdir: /Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN
+configfile: pyproject.toml
+plugins: jaxtyping-0.3.3, anyio-4.11.0, cov-7.0.0
+collected 2 items
+
+tests/physics/test_jax_md_energy.py DEBUG: res_name=ALA
+DEBUG: local_map keys=['C', 'CA', 'CB', 'N', 'O']
+DEBUG: Found ALA in std_bonds
+DEBUG: Checking bond N-CA
+DEBUG: Checking bond CA-C
+DEBUG: Checking bond C-O
+DEBUG: Checking bond CA-CB
+DEBUG: res_name=GLY
+DEBUG: local_map keys=['C', 'CA', 'N', 'O']
+DEBUG: Found GLY in std_bonds
+DEBUG: Checking bond N-CA
+DEBUG: Checking bond CA-C
+DEBUG: Checking bond C-O
+DEBUG: bonds_list=[[3, 1], [1, 0], [0, 4], [1, 2], [7, 6], [6, 5], [5, 8], [0, 7]]
+DEBUG: exclusion_mask[3, 1]=False
+DEBUG: e_nb max before mask: 3320637.25
+DEBUG: exclusion_mask[3, 1]: False
+DEBUG: exclusion_mask[0, 0]: False
+DEBUG: e_nb[3, 1]: 0.01262542512267828
+DEBUG: e_nb[3, 1] after mask: 0.0
+DEBUG: e_nb sum after mask: 5.713020324707031
+DEBUG: e_nb max before mask: LinearizeTracer<float32[]>
+DEBUG: exclusion_mask[3, 1]: False
+DEBUG: exclusion_mask[0, 0]: False
+DEBUG: e_nb[3, 1]: LinearizeTracer<float32[]>
+DEBUG: e_nb[3, 1] after mask: LinearizeTracer<float32[]>
+DEBUG: e_nb sum after mask: LinearizeTracer<float32[]>
+.DEBUG: res_name=ALA
+DEBUG: local_map keys=['C', 'CA', 'CB', 'N', 'O']
+DEBUG: Found ALA in std_bonds
+DEBUG: Checking bond N-CA
+DEBUG: Checking bond CA-C
+DEBUG: Checking bond C-O
+DEBUG: Checking bond CA-CB
+DEBUG: bonds_list=[[3, 1], [1, 0], [0, 4], [1, 2]]
+DEBUG: exclusion_mask[3, 1]=False
+DEBUG: e_nb max before mask: 3320637.25
+DEBUG: exclusion_mask[3, 1]: False
+DEBUG: exclusion_mask[0, 0]: False
+DEBUG: e_nb[3, 1]: 2237.968017578125
+DEBUG: e_nb[3, 1] after mask: 0.0
+DEBUG: e_nb sum after mask: 9.043709724210203e-06
+F
+
+=================================== FAILURES ===================================
+____________________ test_exclusion_mask_prevents_explosion ____________________
+
+mock_force_field = <physics.test_jax_md_energy.mock_force_field.<locals>.MockFF object at 0x14eb49940>
+
+    def test_exclusion_mask_prevents_explosion(mock_force_field):
+      """Test that bonded atoms don't have massive VDW repulsion."""
+      # Create 2 atoms bonded
+      residues = ["ALA"]
+      # Just use N and CA
+      atom_names = ["N", "CA"]
+    
+      # We need to hack parameterize_system or use a subset
+      # parameterize_system expects full residue atoms usually.
+      # Let's use full ALA but focus on N-CA
+      atom_names = residue_constants.residue_atoms["ALA"]
+    
+      params = jax_md_bridge.parameterize_system(
+          mock_force_field, residues, atom_names
+      )
+    
+      displacement_fn, _ = space.free()
+      energy_fn = system.make_energy_fn(displacement_fn, params)
+    
+      # Place N and CA at 1.46 A (bond length)
+      # Sigma is 3.0 (from mock). 1.46 < 3.0 -> massive repulsion if not excluded.
+    
+      # Construct positions
+      r = jnp.zeros((len(atom_names), 3))
+      # N at 0,0,0. CA at 1.46,0,0
+      # Indices: N is 3, CA is 1 (based on previous test discovery of residue_atoms order)
+      # Wait, residue_atoms order in residue_constants.py is:
+      # "ALA": ["C", "CA", "CB", "N", "O"]
+      # So N=3, CA=1.
+    
+      r = r.at[3].set(jnp.array([0.0, 0.0, 0.0]))
+      r = r.at[1].set(jnp.array([1.46, 0.0, 0.0]))
+    
+      # Move others far away
+      r = r.at[0].set(jnp.array([100.0, 0.0, 0.0]))
+      r = r.at[2].set(jnp.array([200.0, 0.0, 0.0]))
+      r = r.at[4].set(jnp.array([300.0, 0.0, 0.0]))
+    
+      # Calculate energy
+      e = energy_fn(r)
+    
+      # If VDW was active, E ~ (3/1.46)^12 ~ 2^12 ~ 4000 epsilon.
+      # If excluded, E ~ bond energy ~ 0 (at equilibrium).
+      # Plus Coulomb (0.1*0.1 / 1.46 * 332) ~ 2 kcal/mol.
+    
+>     assert e < 100.0 # Should be small
+      ^^^^^^^^^^^^^^^^
+E     assert Array(1.31603e+07, dtype=float32) < 100.0
+
+tests/physics/test_jax_md_energy.py:126: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.13/site-packages/e3nn_jax/_src/irreps.py:654
+  /Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/.venv/lib/python3.13/site-packages/e3nn_jax/_src/irreps.py:654: DeprecationWarning: Creating NamedTuple classes using keyword arguments is deprecated and will be disallowed in Python 3.15. Use the class-based or functional syntax instead.
+    ) -> NamedTuple("Sort", irreps="Irreps", p=Tuple[int, ...], inv=Tuple[int, ...]):
+
+tests/physics/test_jax_md_energy.py::test_energy_function_finite
+tests/physics/test_jax_md_energy.py::test_exclusion_mask_prevents_explosion
+  /Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/.venv/lib/python3.13/site-packages/jax/_src/numpy/reductions.py:232: UserWarning: Explicitly requested dtype <class 'jax.numpy.float64'> requested in sum is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+    return _reduction(a, "sum", lax.add, 0, preproc=_cast_to_numeric,
+
+tests/physics/test_jax_md_energy.py::test_energy_function_finite
+tests/physics/test_jax_md_energy.py::test_exclusion_mask_prevents_explosion
+  /Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/.venv/lib/python3.13/site-packages/jax/_src/numpy/reductions.py:165: UserWarning: Explicitly requested dtype <class 'jax.numpy.float64'> requested in convert_element_type is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+    return lax.convert_element_type(result, dtype or result_dtype)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/physics/test_jax_md_energy.py::test_exclusion_mask_prevents_explosion
+=================== 1 failed, 1 passed, 5 warnings in 3.30s ====================

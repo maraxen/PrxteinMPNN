@@ -1,0 +1,32 @@
+===========================================================
+   End-to-End Physics Verification: 1UAO + ff19SB
+===========================================================
+
+[1] Loading Structure with Hydride...
+INFO:prxteinmpnn.io.parsing.biotite:Loading structure from data/pdb/1UAO.pdb (add_hydrogens=True, remove_solvent=True)
+
+[2] Setting up OpenMM System...
+OpenMM Total Energy: -296.5163 kcal/mol
+OpenMM Total Energy (Re-calc): -296.5163 kcal/mol
+  HarmonicBondForce: 20.4136 kcal/mol
+    Count: 141
+  PeriodicTorsionForce: 49.6002 kcal/mol
+    Count: 355
+  NonbondedForce: -23.2411 kcal/mol
+  CMAPTorsionForce: 10.1867 kcal/mol
+    Count: 8
+  HarmonicAngleForce: 7.9836 kcal/mol
+    Count: 249
+  CustomGBForce: -361.4594 kcal/mol
+
+[3] Setting up JAX MD System...
+DEBUG: Born Radii Min=1.4985363732048875, Max=10.6021670048151, Mean=3.2823360503860064
+DEBUG: Born Radii Min=LinearizeTracer<float64[]>, Max=LinearizeTracer<float64[]>, Mean=LinearizeTracer<float64[]>
+Traceback (most recent call last):
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/scripts/benchmark_md/verify_end_to_end_physics.py", line 487, in <module>
+    run_verification()
+    ~~~~~~~~~~~~~~~~^^
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/scripts/benchmark_md/verify_end_to_end_physics.py", line 267, in run_verification
+    e_nb_gbsa_kcal = e_nb_gbsa
+                     ^^^^^^^^^
+NameError: name 'e_nb_gbsa' is not defined

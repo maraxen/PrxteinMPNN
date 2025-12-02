@@ -32,6 +32,26 @@ All three decoding paths achieve **>0.95 Pearson correlation** with ColabDesign 
 
 **[View Full Validation Report →](docs/FINAL_VALIDATION_RESULTS.md)**
 
+### Physics Validation (JAX MD vs OpenMM)
+
+PrxteinMPNN's JAX MD implementation has been validated against OpenMM:
+
+- **Structure Loading**: Uses `hydride` for robust hydrogenation and bond inference.
+- **Parameters**: Charges, Sigmas, and Epsilons match OpenMM exactly for `ff19SB` (when using compatible XMLs).
+- **Energies**:
+  - **Bond**: Exact match (validated against OpenMM `ff19SB`).
+  - **Angle**: Exact match (validated against OpenMM).
+  - **Non-Bonded/GBSA**: Radii and Parameters match exactly. Energy differences reduced but persist due to Torsion/CMAP topology differences affecting exclusion masks.
+  - **Torsions/CMAP**: Known parameterization logic gaps in JAX MD (missing some terms compared to OpenMM's implementation).
+- **Forces**: Validated to match OpenMM forces when parameters are identical (via injection). End-to-end forces differ due to parameterization differences.
+
+### Implementation Limits
+
+- **Force Fields**: Currently supports `amber19sb` (via `protein19SB.eqx`).
+- **Solvent**: Implicit solvent (GBSA-OBC2) is supported. Explicit solvent is not yet fully implemented.
+- **PDB Loading**: Relies on `hydride` for adding hydrogens. For *ab initio* structures (no hydrogens), `hydride` may default to neutral N-termini (NH2) unless explicitly charged.
+- **Validation**: End-to-end validation against OpenMM requires `openmmforcefields` to be installed to access `amber/protein.ff19SB.xml`.
+
 ### Running Equivalence Tests
 
 ```bash

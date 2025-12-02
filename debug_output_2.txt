@@ -1,0 +1,35 @@
+===========================================================
+   End-to-End Physics Verification: 1UAO + ff19SB
+===========================================================
+
+[1] Loading Structure with Hydride...
+INFO:prxteinmpnn.io.parsing.biotite:Loading structure from data/pdb/1UAO.pdb (add_hydrogens=True, remove_solvent=True)
+
+[2] Setting up OpenMM System...
+OpenMM Total Energy: -296.5163 kcal/mol
+OpenMM Total Energy (Re-calc): -296.5163 kcal/mol
+  HarmonicBondForce: 20.4136 kcal/mol
+    Count: 141
+  PeriodicTorsionForce: 49.6002 kcal/mol
+    Count: 355
+  NonbondedForce: -23.2411 kcal/mol
+  CMAPTorsionForce: 10.1867 kcal/mol
+    Count: 8
+  HarmonicAngleForce: 7.9836 kcal/mol
+    Count: 249
+  CustomGBForce: -361.4594 kcal/mol
+
+[3] Setting up JAX MD System...
+Traceback (most recent call last):
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/scripts/benchmark_md/verify_end_to_end_physics.py", line 458, in <module>
+    run_verification()
+    ~~~~~~~~~~~~~~~~^^
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/scripts/benchmark_md/verify_end_to_end_physics.py", line 182, in run_verification
+    ff = force_fields.load_force_field(FF_EQX_PATH)
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/src/prxteinmpnn/physics/force_fields.py", line 182, in load_force_field
+    with filepath.open("rb") as f:
+         ~~~~~~~~~~~~~^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.3_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py", line 537, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'src/prxteinmpnn/physics/force_fields/eqx/protein.ff19SB.eqx'

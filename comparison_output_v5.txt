@@ -1,0 +1,22 @@
+Comparing JAX MD vs OpenMM on 1UAO...
+INFO:prxteinmpnn.io.parsing.biotite:Loading structure from data/pdb/1uao.pdb (add_hydrogens=True, remove_solvent=True)
+Running OpenMM Simulation from data/pdb/1uao.pdb...
+  Minimizing...
+Running JAX MD Simulation...
+Traceback (most recent call last):
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/scripts/benchmark_md/compare_jax_openmm_validity.py", line 330, in <module>
+    main()
+    ~~~~^^
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/scripts/benchmark_md/compare_jax_openmm_validity.py", line 317, in main
+    jax_results = run_jax_simulation(jnp.array(coords), params, n_idx, ca_idx, c_idx)
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/scripts/benchmark_md/compare_jax_openmm_validity.py", line 253, in run_jax_simulation
+    init_fn, apply_fn = simulate.rattle_langevin(
+                        ~~~~~~~~~~~~~~~~~~~~~~~~^
+        energy_fn,
+        ^^^^^^^^^^
+    ...<5 lines>...
+        bond_lengths=params["constrained_bond_lengths"]
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+TypeError: rattle_langevin() got an unexpected keyword argument 'bond_pairs'

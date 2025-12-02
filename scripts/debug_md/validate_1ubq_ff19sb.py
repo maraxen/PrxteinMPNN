@@ -19,8 +19,10 @@ except ImportError:
 
 # PrxteinMPNN Imports
 # Assuming the script is run from the root or scripts/debug_md
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../src")))
-from prxteinmpnn.physics import force_fields, jax_md_bridge, system
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../src")))
+from prxteinmpnn.physics import force_fields, jax_md_bridge, cmap, system, generalized_born, bonded
+print(f"DEBUG: Loaded system module from: {system.__file__}")
+print(f"DEBUG: Loaded generalized_born module from: {generalized_born.__file__}")
 from prxteinmpnn.utils import residue_constants
 from prxteinmpnn.io.parsing import biotite as parsing_biotite
 import biotite.structure.io.pdb as pdb
@@ -191,6 +193,41 @@ def run_validation():
     # Displacement function (no PBC for this test)
     displacement_fn, shift_fn = space.free()
     
+    # DEBUG: Inspect System Params
+    print(colored("\n[DEBUG] System Params Keys:", "yellow"))
+    print(list(system_params.keys()))
+    
+    if "exclusion_mask" in system_params:
+        em = system_params["exclusion_mask"]
+        print(f"exclusion_mask shape: {em.shape}")
+        print(f"exclusion_mask[0,1] (1-2): {em[0,1]}")
+        print(f"exclusion_mask[0,2] (1-3): {em[0,2]}")
+        print(f"exclusion_mask[0,3] (1-4): {em[0,3]}")
+    else:
+        print("exclusion_mask NOT FOUND!")
+
+    if "scale_matrix_vdw" in system_params:
+        sm = system_params["scale_matrix_vdw"]
+        print(f"scale_matrix_vdw shape: {sm.shape}")
+        # Check 1-2 (Bond) - e.g., atoms 0 and 1
+        print(f"scale_matrix_vdw[0,1] (1-2): {sm[0,1]}")
+        # Check 1-3 (Angle) - e.g., atoms 0 and 2
+        print(f"scale_matrix_vdw[0,2] (1-3): {sm[0,2]}")
+        # Check 1-4 (Dihedral) - e.g., atoms 0 and 4 (N-CA-C-N... wait, N-CA-C-O is 0-1-2-3)
+        # 0(N)-1(CA)-2(C)-3(O) is 1-4? Yes.
+        print(f"scale_matrix_vdw[0,3] (1-4): {sm[0,3]}")
+        # Check 1-5 - e.g., atoms 0 and 5
+        print(f"scale_matrix_vdw[0,5] (1-4?): {sm[0,5]}")
+        # Check 1-6 - e.g., atoms 0 and 6 (N-CA-CB-CG-SD) -> 1-5 interaction
+        print(f"scale_matrix_vdw[0,6] (1-5): {sm[0,6]}")
+    else:
+        print(colored("scale_matrix_vdw NOT FOUND!", "red"))
+        
+    if "gb_radii" in system_params:
+        print(f"gb_radii present. Mean: {jnp.mean(system_params['gb_radii']):.4f}")
+    else:
+        print("gb_radii NOT FOUND!")
+
     # Define jax_positions early
     jax_positions = jnp.array(omm_positions)
 
@@ -371,283 +408,130 @@ def run_validation():
         print(f"Max Charge Diff at atom {idx} ({atom_names[idx]}): {omm_charges[idx]} vs {jax_charges[idx]}")
         
     # -------------------------------------------------------------------------
-    # CRITICAL FIX FOR STAGE 2/3: Sync Parameters from OpenMM
+    # 3b. GBSA Parameter Validation
     # -------------------------------------------------------------------------
-    print(colored("\n[DEBUG] Overwriting JAX parameters with OpenMM parameters for Energy/Force check...", "yellow"))
-    
-    # 1. Overwrite Non-Bonded
-    system_params['charges'] = jnp.array(omm_charges)
-    system_params['sigmas'] = jnp.array(omm_sigmas)
-    system_params['epsilons'] = jnp.array(omm_epsilons)
-    
-    # Extract GB Radii from CustomGBForce
-    # Check CMAP count in OpenMM
-    for force in omm_system.getForces():
-        if isinstance(force, openmm.CMAPTorsionForce):
-            print(f"DEBUG: OpenMM CMAP Torsions Count: {force.getNumTorsions()}")
-            break
+    print(colored("\n[Stage 1b] GBSA Parameter Validation", "magenta"))
     
     omm_gb_radii = []
-    omm_scaled_radii = []
-    found_gbsa = False
-    print("OpenMM Forces:")
+    omm_gb_scales = []
+    
+    # Find GBSA force
+    gbsa_force = None
     for force in omm_system.getForces():
-        print(f" - {force.__class__.__name__}")
         if isinstance(force, openmm.GBSAOBCForce):
-            found_gbsa = True
-            for i in range(force.getNumParticles()):
-                c, r, s = force.getParticleParameters(i)
-                omm_gb_radii.append(r.value_in_unit(unit.angstrom))
-                # GBSAOBCForce uses scaling factor, so we compute scaled_radii
-                omm_scaled_radii.append(r.value_in_unit(unit.angstrom) * s)
+            gbsa_force = force
+            break
         elif isinstance(force, openmm.CustomGBForce):
-            # CustomGBForce usually has per-particle parameters.
-            # We need to find which parameter corresponds to radius.
-            # Usually it's "radius" or "R".
-            print("DEBUG: CustomGBForce Parameter Names:")
-            for i in range(force.getNumPerParticleParameters()):
-                print(f" - {force.getPerParticleParameterName(i)}")
+            gbsa_force = force
+            # print(f"CustomGBForce Formula:\n{gbsa_force.getEnergyFunction()}")
+            # print(dir(gbsa_force))
+            break
             
-            print(f"DEBUG: CustomGBForce Exclusions: {force.getNumExclusions()}")
+    if gbsa_force:
+        print(f"Found GBSA Force: {type(gbsa_force).__name__}")
+        if isinstance(gbsa_force, openmm.GBSAOBCForce):
+            for i in range(gbsa_force.getNumParticles()):
+                q, r, s = gbsa_force.getParticleParameters(i)
+                omm_gb_radii.append(r.value_in_unit(unit.angstrom))
+                omm_gb_scales.append(s.value_in_unit(unit.dimensionless))
+        elif isinstance(gbsa_force, openmm.CustomGBForce):
+            # CustomGBForce parameters depend on definition
+            # Usually [charge, radius, scale] or similar
+            # We need to check parameter names
+            print("CustomGBForce Parameters:")
+            for i in range(gbsa_force.getNumPerParticleParameters()):
+                print(f"  {i}: {gbsa_force.getPerParticleParameterName(i)}")
             
-            print("DEBUG: CustomGBForce Computed Values:")
-            for i in range(force.getNumComputedValues()):
-                name, expression, type = force.getComputedValueParameters(i)
-                print(f" - Value {i} ({name}): {expression}")
-            
-            print("DEBUG: CustomGBForce Energy Terms:")
-            for i in range(force.getNumEnergyTerms()):
-                expression, type = force.getEnergyTermParameters(i)
-                print(f" - Term {i}: {expression}")
-
-            print("DEBUG: First 5 Particle Parameters:")
+            # Print first 5 atoms params raw
+            print("First 5 atoms raw params:")
             for i in range(5):
-                params = force.getParticleParameters(i)
-                print(f" - Particle {i}: {params}")
-                
-            # Assume "radius" or similar exists
-            # Let's try to find "radius" or "R" or "or" (Offset Radius)
+                 print(f"  Atom {i} ({atom_names[i]}): {gbsa_force.getParticleParameters(i)}")
+            
+            # Assuming 'radius' and 'scale' exist
             r_idx = -1
-            sr_idx = -1
-            for i in range(force.getNumPerParticleParameters()):
-                name = force.getPerParticleParameterName(i)
-                if name.lower() in ['radius', 'r', 'radii', 'or']:
-                    r_idx = i
-                if name.lower() in ['sr', 'scaledradius', 'scaled_radius']:
-                    sr_idx = i
+            s_idx = -1
+            for i in range(gbsa_force.getNumPerParticleParameters()):
+                name = gbsa_force.getPerParticleParameterName(i)
+                if name == 'radius': r_idx = i
+                elif name == 'scale': s_idx = i
+                elif name == 'or': r_idx = i # Offset Radius
+                elif name == 'sr': s_idx = i # Scaled Radius
             
-            if r_idx != -1:
-                found_gbsa = True
-                for i in range(force.getNumParticles()):
-                    params = force.getParticleParameters(i)
-                    # params is a tuple of values
-                    r_val = params[r_idx]
-                    # CustomGBForce parameters are dimensionless or in internal units (nm).
-                    # Usually nm.
-                    # Note: 'or' might be offset radius (R - offset). 
-                    # But for now let's assume it's the radius we need.
-                    # Wait, 'or' is offset radius. We need full radius for JAX?
-                    # JAX expects full radius, then subtracts offset.
-                    # If 'or' is offset radius, then full radius = or + offset.
-                    # Offset is 0.009 nm = 0.09 A.
-                    # Let's assume 'or' is what we want for now (maybe add offset?)
-                    # Actually, if we use 'or' as radius in JAX, and JAX subtracts offset, we get 'or - offset'.
-                    # That would be wrong if 'or' is already offset.
-                    # But let's check values. Particle 0: or=0.146 nm = 1.46 A.
-                    # If offset is 0.09 A. 1.46 is reasonable for offset radius.
-                    # If we pass 1.46 to JAX, JAX subtracts 0.09 -> 1.37.
-                    # Is that what we want?
-                    # OpenMM uses 'or' directly as radius_i in the formula.
-                    # My JAX code uses 'offset_radii' (radii - offset) as radius_i.
-                    # So if I pass 'or + offset' to JAX, JAX will compute (or + offset) - offset = or.
-                    # So I should pass 'or + 0.009' (in nm) -> (or + 0.009)*10 (in A).
+            if r_idx >= 0 and s_idx >= 0:
+                for i in range(gbsa_force.getNumParticles()):
+                    params = gbsa_force.getParticleParameters(i)
+                    # 'or' is usually radius - 0.09. We want radius.
+                    # 'sr' is usually radius * scale. We want scale.
                     
-                    # However, let's stick to what we did before: just pass 'or' * 10.
-                    # If 'or' is 1.46 A. JAX uses 1.46 - 0.09 = 1.37 A.
-                    # OpenMM uses 1.46 A directly.
-                    # So there is a mismatch of 0.09 A.
-                    # I should add 0.09 A to the extracted radius if it is 'or'.
+                    val_r = params[r_idx] # nm
+                    val_s = params[s_idx] # nm (scaled radius)
                     
-                    # But first, let's just extract 'sr'.
-                    omm_gb_radii.append(r_val * 10.0 + 0.09) # nm -> A, add offset so JAX subtracts it back to 'or'
+                    # Convert to Angstroms
+                    val_r_A = val_r * 10.0
+                    val_s_A = val_s * 10.0
                     
-                    if sr_idx != -1:
-                        sr_val = params[sr_idx]
-                        omm_scaled_radii.append(sr_val * 10.0) # nm -> A
-                    else:
-                        omm_scaled_radii.append(r_val * 10.0) # Default to unscaled if not found
-            else:
-                print(colored("   Could not find radius parameter in CustomGBForce!", "red"))
-
-    if found_gbsa:
-        system_params['gb_radii'] = jnp.array(omm_gb_radii)
-        if omm_scaled_radii:
-             system_params['scaled_radii'] = jnp.array(omm_scaled_radii)
-             print(f"DEBUG: GB Scaled Radii Stats: Min={np.min(omm_scaled_radii):.4f}, Max={np.max(omm_scaled_radii):.4f}, Mean={np.mean(omm_scaled_radii):.4f}")
-        else:
-             print("Warning: GBSA Scaled Radii not found! Using unscaled.")
-             system_params['scaled_radii'] = jnp.array(omm_gb_radii)
-             
-        print(f"DEBUG: GB Radii Stats: Min={np.min(omm_gb_radii):.4f}, Max={np.max(omm_gb_radii):.4f}, Mean={np.mean(omm_gb_radii):.4f}")
-    else:
-        print(colored("Warning: GBSA Radii not found! Using fallback.", "red"))
-        system_params['gb_radii'] = jnp.ones_like(system_params['charges']) * 1.5
-        system_params['scaled_radii'] = jnp.ones_like(system_params['charges']) * 1.5
-
-    
-    # 2. Overwrite Topology (Bonds) to ensure exclusions are correct
-    # We need to extract bonds from OpenMM HarmonicBondForce
-    omm_bonds = []
-    omm_bond_params = []
-    
-    for force in omm_system.getForces():
-        if isinstance(force, openmm.HarmonicBondForce):
-            for i in range(force.getNumBonds()):
-                p1, p2, length, k = force.getBondParameters(i)
-                omm_bonds.append([p1, p2])
-                # OpenMM k is 0.5 * k * dx^2? No, OpenMM is 0.5 * k * dx^2.
-                # JAX MD bonded.py is 0.5 * k * dx^2.
-                # So k should match directly?
-                # Wait, earlier I said JAX MD needs 2*k if AMBER uses k.
-                # But here we are taking from OpenMM.
-                # OpenMM HarmonicBondForce: E = 0.5 * k * (r-r0)^2
-                # JAX MD bonded.py: E = 0.5 * k * (r-r0)^2
-                # So we copy k directly.
-                l_val = length.value_in_unit(unit.angstrom)
-                k_val = k.value_in_unit(unit.kilocalories_per_mole / unit.angstrom**2)
-                omm_bond_params.append([l_val, k_val])
-                
-    if omm_bonds:
-        print(f"DEBUG: Extracted {len(omm_bonds)} bonds from OpenMM.")
-        
-        # DEBUG: Check if (97, 102) is in omm_bonds
-        pair_found = False
-        for p1, p2 in omm_bonds:
-            if (p1 == 97 and p2 == 102) or (p1 == 102 and p2 == 97):
-                pair_found = True
-                break
-        print(f"DEBUG: Bond (97, 102) found in OpenMM bonds: {pair_found}")
-        
-        system_params['bonds'] = jnp.array(omm_bonds, dtype=jnp.int32)
-        system_params['bond_params'] = jnp.array(omm_bond_params, dtype=jnp.float32)
-        
-        # Re-compute exclusion mask AND scale matrices based on NEW bonds
-        n_atoms = len(omm_charges)
-        adj = {i: set() for i in range(n_atoms)}
-        for p1, p2 in omm_bonds:
-            adj[p1].add(p2)
-            adj[p2].add(p1)
-            
-        # Initialize Scale Matrices (1.0)
-        new_scale_vdw = np.ones((n_atoms, n_atoms), dtype=np.float32)
-        new_scale_elec = np.ones((n_atoms, n_atoms), dtype=np.float32)
-        
-        # Mask Self (0.0)
-        np.fill_diagonal(new_scale_vdw, 0.0)
-        np.fill_diagonal(new_scale_elec, 0.0)
-        
-        # Find 1-2, 1-3, 1-4
-        for i in range(n_atoms):
-            # 1-2 (Bonds) -> 0.0
-            for j in adj[i]:
-                new_scale_vdw[i, j] = 0.0
-                new_scale_elec[i, j] = 0.0
-                
-                # 1-3 (Angles) -> 0.0
-                for k in adj[j]:
-                    if k != i:
-                        new_scale_vdw[i, k] = 0.0
-                        new_scale_elec[i, k] = 0.0
+                    # If name was 'or', it is (radius - offset). Offset is 0.09 A.
+                    # So radius = val_r_A + 0.09
+                    if gbsa_force.getPerParticleParameterName(r_idx) == 'or':
+                        val_r_A += 0.09
                         
-                        # 1-4 (Dihedrals) -> Scaled
-                        for l in adj[k]:
-                            if l != j and l != i:
-                                # Check if 1-4 is also 1-2 or 1-3 (e.g. rings)
-                                # If already 0.0, don't overwrite.
-                                if new_scale_vdw[i, l] != 0.0:
-                                    new_scale_vdw[i, l] = 0.5       # 1/2.0
-                                    new_scale_elec[i, l] = 0.833333 # 1/1.2
-                                    
-        system_params['scale_matrix_vdw'] = jnp.array(new_scale_vdw)
-        system_params['scale_matrix_elec'] = jnp.array(new_scale_elec)
-        # Also update exclusion mask for consistency (though scale matrix takes precedence)
-        system_params['exclusion_mask'] = jnp.array(new_scale_vdw > 0.0)
-        
-        pass
+                    omm_gb_radii.append(val_r_A)
+                    omm_gb_scales.append(val_s_A)
+            else:
+                print("Could not identify radius/scale in CustomGBForce")
 
-    # 3. Overwrite Angles
-    omm_angles = []
-    omm_angle_params = []
-    for force in omm_system.getForces():
-        if isinstance(force, openmm.HarmonicAngleForce):
-            for i in range(force.getNumAngles()):
-                p1, p2, p3, angle, k = force.getAngleParameters(i)
-                omm_angles.append([p1, p2, p3])
-                # OpenMM: 0.5 * k * (theta-theta0)^2
-                # JAX MD: 0.5 * k * (theta-theta0)^2
-                a_val = angle.value_in_unit(unit.radian)
-                k_val = k.value_in_unit(unit.kilocalories_per_mole / unit.radian**2)
-                omm_angle_params.append([a_val, k_val])
-                
-    if omm_angles:
-        system_params['angles'] = jnp.array(omm_angles, dtype=jnp.int32)
-        system_params['angle_params'] = jnp.array(omm_angle_params, dtype=jnp.float32)
-
-    # 4. Overwrite Torsions
-    omm_dihedrals = []
-    omm_dihedral_params = []
-    for force in omm_system.getForces():
-        if isinstance(force, openmm.PeriodicTorsionForce):
-            for i in range(force.getNumTorsions()):
-                p1, p2, p3, p4, per, phase, k = force.getTorsionParameters(i)
-                omm_dihedrals.append([p1, p2, p3, p4])
-                # OpenMM: k * (1 + cos(n*phi - phase))
-                # JAX MD: k * (1 + cos(n*phi - phase))
-                # Note: JAX MD implementation in bonded.py must match this form.
-                # Usually it is: E = k * (1 + cos(n*phi - phase))
-                per_val = per
-                phase_val = phase.value_in_unit(unit.radian)
-                k_val = k.value_in_unit(unit.kilocalories_per_mole)
-                omm_dihedral_params.append([per_val, phase_val, k_val])
-                
-    if omm_dihedrals:
-        system_params['dihedrals'] = jnp.array(omm_dihedrals, dtype=jnp.int32)
-        system_params['dihedral_params'] = jnp.array(omm_dihedral_params, dtype=jnp.float32)
-        # Clear impropers as they are included in PeriodicTorsionForce in OpenMM usually
-        system_params['impropers'] = jnp.zeros((0, 4), dtype=jnp.int32)
-        system_params['improper_params'] = jnp.zeros((0, 3), dtype=jnp.float32)
+        omm_gb_radii = np.array(omm_gb_radii)
+        omm_gb_scales = np.array(omm_gb_scales)
         
-    energy_fn = system.make_energy_fn(
-        displacement_fn,
-        system_params,
-        implicit_solvent=True,
-        dielectric_constant=1.0,
-        solvent_dielectric=78.5,
-        surface_tension=system.constants.SURFACE_TENSION,
-        dielectric_offset=system.constants.DIELECTRIC_OFFSET
-    )
-    
-    # DEBUG: Create Vacuum Energy Fn to isolate GBSA
-    energy_fn_vacuum = system.make_energy_fn(
-        displacement_fn,
-        system_params,
-        implicit_solvent=False,
-        dielectric_constant=1.0
-    )
-    e_vacuum = energy_fn_vacuum(jax_positions)
-    print(f"DEBUG: Vacuum Energy (No GBSA): {e_vacuum:.4f} kcal/mol")
-    
-    # Recalculate Total Energy and Forces with NEW parameters
-    print(colored("Recalculating JAX Energy and Forces with Injected Parameters...", "cyan"))
-    
-    # CMAP is now enabled and should match because we are using ff19SB in OpenMM too.
-    if 'cmap_torsions' in system_params:
-        print(f"DEBUG: JAX CMAP Torsions Count: {system_params['cmap_torsions'].shape[0]}")
-    
-    jax_energy_total = energy_fn(jax_positions)
-    jax_forces = -jax.grad(energy_fn)(jax_positions)
-    print(f"JAX MD Total Energy (Recalculated): {jax_energy_total:.4f} kcal/mol")
-    
+        jax_gb_radii = np.array(system_params['gb_radii'])
+        # JAX scaled_radii is r * scale.
+        jax_scaled_radii = np.array(system_params['scaled_radii'])
+        
+        # Compare 'or' vs 'radius' (if we added 0.09 back)
+        # Compare 'sr' vs 'scaled_radii'
+        
+        # If we extracted 'sr', it corresponds to jax_scaled_radii directly.
+        # If we extracted 'scale', we need to multiply by radius.
+        
+        # Let's assume we extracted 'sr' (scaled radius)
+        # So we compare omm_gb_scales (which is sr) with jax_scaled_radii
+        
+        if len(omm_gb_radii) > 0:
+            diff_r = np.abs(omm_gb_radii - jax_gb_radii)
+            # Check if we need to compare against scaled_radii directly
+            if gbsa_force.getPerParticleParameterName(s_idx) == 'sr':
+                 diff_s = np.abs(omm_gb_scales - jax_scaled_radii)
+                 print("Comparing Scaled Radii (sr vs scaled_radii)")
+            else:
+                 # Compare scales
+                 jax_scales = jax_scaled_radii / (jax_gb_radii + 1e-8)
+                 diff_s = np.abs(omm_gb_scales - jax_scales)
+                 print("Comparing Scale Factors")
+            
+            print(f"Max GBSA Radius Diff: {np.max(diff_r):.6f}")
+            print(f"Max GBSA Scaled Radius Diff:  {np.max(diff_s):.6f}")
+            
+            if np.max(diff_r) > 1e-4:
+                print("\nTop 10 Radius Mismatches:")
+                indices = np.argsort(-diff_r)[:10]
+                for idx in indices:
+                    if diff_r[idx] > 1e-4:
+                        print(f"  Atom {idx} ({atom_names[idx]} in {residues[atom_to_res[idx][0]]}): OpenMM={omm_gb_radii[idx]:.4f}, JAX={jax_gb_radii[idx]:.4f}, Diff={diff_r[idx]:.4f}")
+                
+            if np.max(diff_s) > 1e-4:
+                print("\nTop 10 Scaled Radius Mismatches:")
+                indices = np.argsort(-diff_s)[:10]
+                for idx in indices:
+                    if diff_s[idx] > 1e-4:
+                        # If sr, print sr values
+                        if gbsa_force.getPerParticleParameterName(s_idx) == 'sr':
+                             print(f"  Atom {idx} ({atom_names[idx]}): OpenMM={omm_gb_scales[idx]:.4f}, JAX={jax_scaled_radii[idx]:.4f}, Diff={diff_s[idx]:.4f}")
+                        else:
+                             print(f"  Atom {idx} ({atom_names[idx]}): OpenMM={omm_gb_scales[idx]:.4f}, JAX={jax_scales[idx]:.4f}, Diff={diff_s[idx]:.4f}")
+        else:
+            print("No GBSA parameters extracted from OpenMM.")
+    else:
+        print("No GBSA Force found in OpenMM System.")
     # -------------------------------------------------------------------------
     # 4. Stage 2: Energy Component Validation
     # -------------------------------------------------------------------------
@@ -728,7 +612,63 @@ def run_validation():
         psi_indices = cmap_torsions[:, 1:5]
         phi = system.compute_dihedral_angles(jax_positions, phi_indices, displacement_fn)
         psi = system.compute_dihedral_angles(jax_positions, psi_indices, displacement_fn)
-        e_cmap_jax = cmap.compute_cmap_energy(phi, psi, cmap_indices, cmap_grids)
+        # Recalculate JAX energy with injected params
+    # Note: We need to use the NEW compute_cmap_energy signature which takes coeffs
+    cmap_indices = system_params["cmap_indices"]
+    cmap_coeffs = system_params["cmap_coeffs"]
+    
+    # Use standard JAX MD displacement for free space
+    displacement_fn, shift_fn = space.free()
+    
+    e_bond_jax = bonded.make_bond_energy_fn(displacement_fn, system_params["bonds"], system_params["bond_params"])(jax_positions)
+    e_angle_jax = bonded.make_angle_energy_fn(displacement_fn, system_params["angles"], system_params["angle_params"])(jax_positions)
+    e_torsion_jax = bonded.make_dihedral_energy_fn(displacement_fn, system_params["dihedrals"], system_params["dihedral_params"])(jax_positions)
+    # Improper?
+    e_improper_jax = bonded.make_dihedral_energy_fn(displacement_fn, system_params["impropers"], system_params["improper_params"])(jax_positions)
+    
+    # CMAP
+    # We need to compute phi/psi for CMAP terms
+    # The system.py implementation does this.
+    # But here we want component-wise.
+    # Let's use the helper from system.py if possible, or replicate.
+    # system.py: compute_cmap_term(r)
+    # We can't easily import the internal function.
+    # But we can replicate the logic:
+    cmap_torsions = system_params["cmap_torsions"]
+    phi_indices = cmap_torsions[:, 0:4]
+    psi_indices = cmap_torsions[:, 1:5]
+    
+    def compute_dihedrals(r, idx):
+        # ... (need displacement fn)
+        # Let's just use the energy function from system.py?
+        # No, we want components.
+        # We can use bonded.make_dihedral_energy_fn logic but just for angles?
+        # Or just use features.protein_backbone_torsions?
+        # No, that gives residues.
+        # We need specific torsions.
+        pass
+        
+    # Actually, let's just use the total energy function to get components if possible?
+    # No, JAX MD energy fn returns total.
+    
+    # Let's copy compute_dihedral_angles from system.py or import it?
+    from prxteinmpnn.physics.system import compute_dihedral_angles
+    
+    phi = compute_dihedral_angles(jax_positions, phi_indices, displacement_fn)
+    psi = compute_dihedral_angles(jax_positions, psi_indices, displacement_fn)
+    
+    e_cmap_jax_normal = cmap.compute_cmap_energy(phi, psi, cmap_indices, cmap_coeffs)
+    e_cmap_jax_swap = cmap.compute_cmap_energy(psi, phi, cmap_indices, cmap_coeffs)
+    
+    print(f"DEBUG: CMAP (phi, psi): {e_cmap_jax_normal:.4f}")
+    print(f"DEBUG: CMAP (psi, phi): {e_cmap_jax_swap:.4f}")
+    print(f"DEBUG: CMAP (phi, psi) * 0.5: {e_cmap_jax_normal * 0.5:.4f}")
+    print(f"DEBUG: CMAP (psi, phi) * 0.5: {e_cmap_jax_swap * 0.5:.4f}")
+    
+    # Use the best match for the table (assuming 0.5 is needed and maybe swap)
+    # For now, let's stick to normal * 0.5 as baseline, or whatever matches best.
+    # We will update e_cmap_jax based on findings.
+    e_cmap_jax = e_cmap_jax_swap # Use (psi, phi) ordering which matches OpenMM
 
     # JAX NonBonded (VDW + Elec + GBSA)
     # This is harder to split exactly as OpenMM splits it.
@@ -771,6 +711,42 @@ def run_validation():
     # Let's subtract bonded terms from total to get "Rest"
     jax_rest = jax_energy_total - (e_bond_jax + e_angle_jax + e_torsion_jax + e_cmap_jax)
     omm_rest = omm_nonbonded + omm_gbsa
+    
+    # Explicitly calculate LJ and Coulomb
+    from prxteinmpnn.physics import electrostatics, vdw
+    
+    # LJ
+    sigma_i = jnp.array(system_params['sigmas'])
+    epsilon_i = jnp.array(system_params['epsilons'])
+    
+    # Compute pairwise
+    dr = space.map_product(displacement_fn)(jax_positions, jax_positions)
+    dist = space.distance(dr)
+    
+    # LJ Energy
+    sigma_ij = 0.5 * (sigma_i[:, None] + sigma_i[None, :])
+    epsilon_ij = jnp.sqrt(epsilon_i[:, None] * epsilon_i[None, :])
+    e_lj_mat = energy.lennard_jones(dist, sigma_ij, epsilon_ij)
+    
+    # Apply scaling
+    if "scale_matrix_vdw" in system_params:
+        e_lj_mat = e_lj_mat * system_params["scale_matrix_vdw"]
+    
+    e_lj_total = 0.5 * jnp.sum(e_lj_mat)
+    print(f"DEBUG: Explicit JAX LJ Energy: {e_lj_total:.4f} kcal/mol")
+    
+    # Coulomb Energy
+    charges = jnp.array(system_params['charges'])
+    q_ij = charges[:, None] * charges[None, :]
+    dist_safe = dist + 1e-6
+    e_coul_mat = 332.0637 * q_ij / dist_safe
+    
+    # Apply scaling
+    if "scale_matrix_elec" in system_params:
+        e_coul_mat = e_coul_mat * system_params["scale_matrix_elec"]
+        
+    e_coul_total = 0.5 * jnp.sum(e_coul_mat)
+    print(f"DEBUG: Explicit JAX Coulomb Energy: {e_coul_total:.4f} kcal/mol")
     
     print_row("NonBonded+GBSA", omm_rest, jax_rest)
     
@@ -816,6 +792,38 @@ def run_validation():
     # -------------------------------------------------------------------------
     print(colored("\n[Analysis] Detailed Discrepancy Analysis", "cyan"))
     
+    # Check for NaN in components
+    print(colored("\n[DEBUG] Checking Force Components for NaN:", "yellow"))
+    
+    def check_grad(name, fn):
+        g = jax.grad(fn)(jax_positions)
+        if jnp.any(jnp.isnan(g)):
+            print(f"  {name}: NaN detected!")
+        else:
+            print(f"  {name}: OK")
+            
+    check_grad("Bond", e_bond_fn)
+    check_grad("Angle", e_angle_fn)
+    check_grad("Torsion", e_dih_fn)
+    check_grad("Improper", e_imp_fn)
+    
+    def cmap_fn(r):
+        return system.compute_cmap_term(r) # Uses system.py logic
+    # We need to make sure system.py is imported and available
+    # It is imported as 'system'
+    # But compute_cmap_term is inside make_energy_fn closure in system.py?
+    # No, I saw it as a helper function inside make_energy_fn.
+    # It is NOT exposed at module level.
+    # So I can't call it directly.
+    # But I can use the one I defined in this script?
+    # No, I didn't define it in this script.
+    # I can use the total energy function and subtract others? No.
+    # I can rely on the fact that I updated system.py to use (psi, phi).
+    # Let's skip CMAP grad check for now or try to reconstruct it.
+    
+    # NonBonded
+    # check_grad("NonBonded", ...)
+    
     # A. Self-Energy Analysis
     from prxteinmpnn.physics import generalized_born, constants
     
@@ -826,7 +834,7 @@ def run_validation():
     
     # Note: compute_born_radii expects (N,) arrays
     born_radii = generalized_born.compute_born_radii(
-        jax_positions, radii, dielectric_offset=0.09
+        jax_positions, radii, dielectric_offset=0.09, scaled_radii=system_params['scaled_radii']
     )
     
     # Compute Self Energy
@@ -898,19 +906,138 @@ def run_validation():
     
     # Let's check for outliers in Energy magnitude
     # Maybe some torsions are huge?
-    sorted_idx = jnp.argsort(-jax_torsion_energies)
-    for k in range(10):
-        idx = sorted_idx[k]
-        d = dihedrals[idx]
-        p = dihedral_params[idx]
-        e = jax_torsion_energies[idx]
-        phi = jax_phis[idx]
+    # Build atom to residue map
+    atom_to_res = {}
+    current_atom = 0
+    for i, res_name in enumerate(residues):
+        count = atom_counts[i]
+        for j in range(count):
+            atom_to_res[current_atom + j] = (i, res_name)
+        current_atom += count
+
+    # Build OpenMM Torsion Map
+    omm_torsion_map = {}
+    for force in omm_system.getForces():
+        if isinstance(force, openmm.PeriodicTorsionForce):
+            for i in range(force.getNumTorsions()):
+                p1, p2, p3, p4, per, phase, k = force.getTorsionParameters(i)
+                # Store by sorted tuple or just forward/backward
+                # Torsions are directional (1-2-3-4), but 4-3-2-1 is equivalent?
+                # Usually defined 1-2-3-4.
+                key = (p1, p2, p3, p4)
+                # OpenMM might have multiple terms for same atoms (multiplicity).
+                # We should store list of terms.
+                if key not in omm_torsion_map:
+                    omm_torsion_map[key] = []
+                omm_torsion_map[key].append((per, phase.value_in_unit(unit.radian), k.value_in_unit(unit.kilocalories_per_mole)))
+                
+                # Also store reverse?
+                key_rev = (p4, p3, p2, p1)
+                if key_rev not in omm_torsion_map:
+                    omm_torsion_map[key_rev] = []
+                omm_torsion_map[key_rev].append((per, phase.value_in_unit(unit.radian), k.value_in_unit(unit.kilocalories_per_mole)))
+
+    # Group JAX Torsions by Atoms
+    jax_torsion_grouped = {}
+    for i in range(len(dihedrals)):
+        d = dihedrals[i]
+        key = tuple(sorted((int(d[0]), int(d[1]), int(d[2]), int(d[3])))) # Sort to match OpenMM map key strategy if needed? 
+        # Actually OpenMM map used (p1, p2, p3, p4) and (p4, p3, p2, p1).
+        # Let's use canonical key: min(forward, backward)
+        forward = (int(d[0]), int(d[1]), int(d[2]), int(d[3]))
+        backward = (int(d[3]), int(d[2]), int(d[1]), int(d[0]))
+        key = min(forward, backward)
         
-        atoms = f"{d[0]}-{d[1]}-{d[2]}-{d[3]}"
-        atom_names_str = f"{atom_names[d[0]]}-{atom_names[d[1]]}-{atom_names[d[2]]}-{atom_names[d[3]]}"
-        params_str = f"{p[0]:.1f}, {p[1]:.2f}, {p[2]:.2f}"
+        if key not in jax_torsion_grouped:
+            jax_torsion_grouped[key] = {'energy': 0.0, 'params': [], 'phi': jax_phis[i]}
         
-        print(f"{idx:<5} | {atoms:<20} | {atom_names_str:<20} | {params_str:<25} | {e:<10.4f} | {phi:<10.4f}")
+        jax_torsion_grouped[key]['energy'] += jax_torsion_energies[i]
+        jax_torsion_grouped[key]['params'].append(dihedral_params[i])
+
+    print(f"\n{'Atoms':<20} | {'JAX E (Sum)':<12} | {'OpenMM Params':<40} | {'Residue'}")
+    
+    # Sort grouped by energy
+    grouped_items = sorted(jax_torsion_grouped.items(), key=lambda x: -abs(x[1]['energy']))
+    
+    for k in range(15):
+        if k >= len(grouped_items): break
+        atoms_tuple, data = grouped_items[k]
+        e = data['energy']
+        
+        # Check OpenMM params
+        omm_params_str = "MISSING"
+        # Try forward
+        if atoms_tuple in omm_torsion_map:
+             terms = omm_torsion_map[atoms_tuple]
+             omm_params_str = " | ".join([f"{t[0]},{t[1]:.2f},{t[2]:.2f}" for t in terms])
+        
+        res_info = f"{atom_to_res[atoms_tuple[0]][1]}{atom_to_res[atoms_tuple[0]][0]+1}"
+        atoms_str = f"{atoms_tuple[0]}-{atoms_tuple[1]}-{atoms_tuple[2]}-{atoms_tuple[3]}"
+        
+        print(f"{atoms_str:<20} | {e:<12.4f} | {omm_params_str:<40} | {res_info}")
+
+    # Debug Angles for NaN
+    print(colored("\n[DEBUG] Checking Angles for NaN/Singularities:", "yellow"))
+    angles = system_params['angles']
+    angle_params = system_params['angle_params']
+    
+    # Compute all angles
+    def compute_angle_val(r, idx):
+        r_i = r[idx[0]]
+        r_j = r[idx[1]]
+        r_k = r[idx[2]]
+        
+        v_ji = r_i - r_j
+        v_jk = r_k - r_j
+        
+        # Norms
+        n_ji = jnp.linalg.norm(v_ji)
+        n_jk = jnp.linalg.norm(v_jk)
+        
+        # Cosine
+        dot = jnp.dot(v_ji, v_jk)
+        cos_theta = dot / (n_ji * n_jk + 1e-8)
+        # Clip? JAX MD usually clips in angle function?
+        # bonded.py uses space.angle which uses clip.
+        return jnp.arccos(jnp.clip(cos_theta, -0.999999, 0.999999))
+
+    calc_angles = jax.vmap(compute_angle_val, in_axes=(None, 0))
+    angle_vals = calc_angles(jax_positions, angles)
+    
+    # Check for NaN or extreme values
+    nan_indices = jnp.where(jnp.isnan(angle_vals))[0]
+    if len(nan_indices) > 0:
+        print(f"Found {len(nan_indices)} NaN angles!")
+        for idx in nan_indices[:5]:
+             print(f"  Idx {idx}: {angles[idx]} -> NaN")
+    else:
+        print("No NaN angles found directly.")
+        
+    # Check for angles close to 0 or pi
+    extreme_indices = jnp.where((angle_vals < 0.01) | (angle_vals > 3.13))[0]
+    if len(extreme_indices) > 0:
+        print(f"Found {len(extreme_indices)} extreme angles (near 0 or pi):")
+        for idx in extreme_indices[:10]:
+            deg = angle_vals[idx] * 180.0 / jnp.pi
+            print(f"  Idx {idx}: {angles[idx]} -> {deg:.4f} deg ({atom_names[angles[idx][0]]}-{atom_names[angles[idx][1]]}-{atom_names[angles[idx][2]]})")
+            
+    # Check Force NaN specifically
+    # We already know Angle force has NaN.
+    # Let's find which one contributes NaN to force.
+    # We can use jax.grad per angle? Slow but effective.
+    
+    def single_angle_energy(r, idx, param):
+        return system.bonded.make_angle_energy_fn(displacement_fn, idx[None, :], param[None, :])(r)
+        
+    # Scan for NaN grad
+    print("Scanning angles for NaN gradient...")
+    # This might be slow for 2000 angles.
+    # Let's check only extreme ones first.
+    
+    for idx in extreme_indices:
+        g = jax.grad(single_angle_energy)(jax_positions, angles[idx], angle_params[idx])
+        if jnp.any(jnp.isnan(g)):
+            print(colored(f"  NaN Gradient at Angle {idx}: {angles[idx]}", "red"))
 
     # C. SASA Debugging
     print(colored("\n[Analysis] SASA Debugging", "cyan"))

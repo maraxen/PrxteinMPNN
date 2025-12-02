@@ -1,84 +1,123 @@
 # File: src/prxteinmpnn/physics/cmap.py
 import jax
 import jax.numpy as jnp
-from jax.scipy.ndimage import map_coordinates
 
-def cubic_hermite(p0, p1, p2, p3, x):
+# Inverse matrix for bicubic spline interpolation on unit square
+# Maps [f00, f10, f01, f11, fx00, fx10, fx01, fx11, fy00, fy10, fy01, fy11, fxy00, fxy10, fxy01, fxy11]
+# to polynomial coefficients a_ij.
+A_INV = jnp.array([
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [-3, 3, 0, 0, -2, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [2, -2, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, -3, 3, 0, 0, -2, -1, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 2, -2, 0, 0, 1, 1, 0, 0],
+    [-3, 0, 3, 0, 0, 0, 0, 0, -2, 0, -1, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, -3, 0, 3, 0, 0, 0, 0, 0, -2, 0, -1, 0],
+    [9, -9, -9, 9, 6, 3, -6, -3, 6, -6, 3, -3, 4, 2, 2, 1],
+    [-6, 6, 6, -6, -3, -3, 3, 3, -4, 4, -2, 2, -2, -2, -1, -1],
+    [2, 0, -2, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 2, 0, -2, 0, 0, 0, 0, 0, 1, 0, 1, 0],
+    [-6, 6, 6, -6, -4, -2, 4, 2, -3, 3, -3, 3, -2, -1, -2, -1],
+    [4, -4, -4, 4, 2, 2, -2, -2, 2, -2, 2, -2, 1, 1, 1, 1]
+], dtype=jnp.float32)
+
+
+def eval_bicubic(coeffs_grid, x, y):
     """
-    Cubic Hermite spline interpolation.
-    p0, p1, p2, p3: Values at x=-1, 0, 1, 2.
-    x: Fraction between p1 and p2 (0 to 1).
-    """
-    a = -0.5 * p0 + 1.5 * p1 - 1.5 * p2 + 0.5 * p3
-    b = p0 - 2.5 * p1 + 2.0 * p2 - 0.5 * p3
-    c = -0.5 * p0 + 0.5 * p2
-    d = p1
+    Evaluate bicubic spline at (x, y) using precomputed coefficients.
     
-    return a * x**3 + b * x**2 + c * x + d
-
-def bicubic_interp(grid, x, y):
+    Args:
+        coeffs_grid: (Grid, Grid, 4) array [f, fx, fy, fxy]
+        x, y: Coordinates in grid units
     """
-    Bicubic interpolation on a 2D grid with periodic boundary conditions.
-    x, y: Coordinates in grid units.
-    """
-    grid_size = grid.shape[0]
+    grid_size = coeffs_grid.shape[0]
     
     # Indices
-    x0 = jnp.floor(x).astype(jnp.int32)
-    y0 = jnp.floor(y).astype(jnp.int32)
+    i = jnp.floor(x).astype(jnp.int32) % grid_size
+    j = jnp.floor(y).astype(jnp.int32) % grid_size
     
-    # Fractional parts
-    dx = x - x0
-    dy = y - y0
+    i1 = (i + 1) % grid_size
+    j1 = (j + 1) % grid_size
     
-    # 4x4 neighborhood indices (wrapped)
-    x_indices = (x0 + jnp.arange(-1, 3)) % grid_size
-    y_indices = (y0 + jnp.arange(-1, 3)) % grid_size
+    # Local coordinates
+    u = x - jnp.floor(x)
+    v = y - jnp.floor(y)
     
-    # Gather 4x4 grid points
-    # grid[x, y]
-    # We need to index grid with meshgrid of indices
-    # patch: (4, 4)
-    patch = grid[x_indices[:, None], y_indices[None, :]]
+    # Gather parameters at 4 corners
+    # Shape: (4,) for each
+    p00 = coeffs_grid[i, j]
+    p10 = coeffs_grid[i1, j]
+    p01 = coeffs_grid[i, j1]
+    p11 = coeffs_grid[i1, j1]
     
-    # Interpolate along Y for each of the 4 X rows
-    # We have 4 rows. Each row has 4 points.
-    # We interpolate at y for each row.
+    # Construct x vector for A_inv * x
+    # Order: f, fx, fy, fxy for 00, 10, 01, 11
+    # But A_inv expects:
+    # f00, f10, f01, f11
+    # fx00, fx10, fx01, fx11
+    # fy00, fy10, fy01, fy11
+    # fxy00, fxy10, fxy01, fxy11
     
-    col0 = cubic_hermite(patch[0, 0], patch[0, 1], patch[0, 2], patch[0, 3], dy)
-    col1 = cubic_hermite(patch[1, 0], patch[1, 1], patch[1, 2], patch[1, 3], dy)
-    col2 = cubic_hermite(patch[2, 0], patch[2, 1], patch[2, 2], patch[2, 3], dy)
-    col3 = cubic_hermite(patch[3, 0], patch[3, 1], patch[3, 2], patch[3, 3], dy)
+    x_vec = jnp.concatenate([
+        jnp.array([p00[0], p10[0], p01[0], p11[0]]), # f
+        jnp.array([p00[1], p10[1], p01[1], p11[1]]), # fx
+        jnp.array([p00[2], p10[2], p01[2], p11[2]]), # fy
+        jnp.array([p00[3], p10[3], p01[3], p11[3]])  # fxy
+    ])
     
-    # Interpolate along X
-    value = cubic_hermite(col0, col1, col2, col3, dx)
+    # Solve for polynomial coefficients
+    poly_coeffs = jnp.dot(A_INV, x_vec)
     
-    return value
+    # Evaluate polynomial: sum a_ij * u^i * v^j
+    # poly_coeffs order: a00, a10, a20, a30, a01, ...
+    
+    # We can vectorize this dot product
+    # Powers of u: [1, u, u^2, u^3]
+    # Powers of v: [1, v, v^2, v^3]
+    
+    u_pow = jnp.array([1.0, u, u**2, u**3])
+    v_pow = jnp.array([1.0, v, v**2, v**3])
+    
+    # Outer product to get u^i * v^j terms
+    # Shape (4, 4). Flatten to (16,) matching poly_coeffs order (j outer, i inner)
+    
+    terms = jnp.outer(v_pow, u_pow).flatten()
+    
+    return jnp.dot(poly_coeffs, terms)
 
-def compute_cmap_energy(
-    phi_angles: jnp.ndarray, # (N_torsions,) radians
-    psi_angles: jnp.ndarray, # (N_torsions,) radians
-    map_indices: jnp.ndarray, # (N_torsions,)
-    energy_grids: jnp.ndarray # (N_maps, Grid, Grid)
-) -> jnp.ndarray:
+
+def compute_cmap_energy(phi_angles, psi_angles, map_indices, cmap_coeffs):
     """
-    Computes CMAP energy correction using bicubic interpolation.
+    Compute CMAP energy using Natural Bicubic Spline.
+    
+    Args:
+        phi_angles, psi_angles: (N_torsions,) angles in radians
+        map_indices: (N_torsions,) index of map to use
+        cmap_coeffs: (N_maps, Grid, Grid, 4) spline coefficients
     """
-    grid_size = energy_grids.shape[1]
+    grid_size = cmap_coeffs.shape[1]
     
     # Normalize angles to grid coordinates [0, grid_size)
     # Standard CMAP is defined on [-pi, pi]
     phi_norm = (phi_angles + jnp.pi) / (2 * jnp.pi) * grid_size
     psi_norm = (psi_angles + jnp.pi) / (2 * jnp.pi) * grid_size
     
-    # Wrap for periodicity (0 to grid_size)
-    # Note: bicubic_interp handles wrapping of indices, but we should ensure x, y are reasonable
-    # Actually, x, y can be anything, the floor and mod will handle it.
-    
-    # Vmap over torsions to sample correct map
     def sample_one(m_idx, p, s):
-        return bicubic_interp(energy_grids[m_idx], p, s)
+        return eval_bicubic(cmap_coeffs[m_idx], p, s)
         
     energies = jax.vmap(sample_one)(map_indices, phi_norm, psi_norm)
-    # Factor of 0.5 required to match OpenMM (likely due to XML definition)
-    return 0.5 * jnp.sum(energies)
+    
+    # OpenMM CMAP usually does not need 0.5 factor if defined in XML correctly.
+    # But previous implementation had 0.5.
+    # Let's check if the XML values are already scaled or if the force implies it.
+    # Standard Amber CMAP in OpenMM is just sum of energies.
+    # However, if the values in XML are "energy", then we just sum them.
+    # The 0.5 factor might have been a misunderstanding or specific to how JAX MD implemented torsion?
+    # Torsions in JAX MD often have 0.5 if they double count.
+    # But CMAP is usually listed once per residue.
+    # Let's try WITHOUT 0.5 first, as OpenMM Reference implementation just adds the value.
+    
+    return jnp.sum(energies)

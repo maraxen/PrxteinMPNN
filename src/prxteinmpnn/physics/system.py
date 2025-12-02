@@ -132,10 +132,22 @@ def make_energy_fn(
       # Generalized Born (OBC) - Solvation Term
       
       if scale_matrix_vdw is not None:
-          # OpenMM GBSA (CustomGBForce) includes all pairs (1-2, 1-3, 1-4) by default.
-          # We set masks to 1.0 to match this behavior.
-          gb_mask = jnp.ones_like(scale_matrix_vdw)
-          gb_energy_mask = jnp.ones_like(scale_matrix_vdw)
+          # OpenMM CustomGBForce (OBC2) behavior:
+            # GBSA Hypothesis: Include All in Radii.
+            # Energy: Include 1-2/1-3 (1.0), Exclude 1-4 (0.0), Include others (1.0)
+            gb_mask = jnp.ones_like(scale_matrix_vdw)
+            
+            if scale_matrix_elec is not None:
+                # 1-2/1-3 are 0.0 -> Set to 1.0
+                # 1-4 are ~0.833 -> Set to 0.0
+                # Others are 1.0 -> Keep 1.0
+                mask_12_13 = scale_matrix_elec == 0.0
+                mask_14 = (scale_matrix_elec > 0.0) & (scale_matrix_elec < 0.9)
+                
+                gb_energy_mask = jnp.where(mask_12_13, 1.0, scale_matrix_elec)
+                gb_energy_mask = jnp.where(mask_14, 0.0, gb_energy_mask)
+            else:
+                gb_energy_mask = jnp.ones_like(scale_matrix_vdw)
       else:
           gb_mask = exclusion_mask
           gb_energy_mask = None
@@ -329,7 +341,7 @@ def make_energy_fn(
           return 0.0
           
       cmap_indices = system_params["cmap_indices"]
-      cmap_grids = system_params["cmap_energy_grids"]
+      cmap_coeffs = system_params["cmap_coeffs"]
       
       # cmap_torsions is (N, 5) [i, j, k, l, m]
       # Phi: i-j-k-l
@@ -341,7 +353,12 @@ def make_energy_fn(
       phi = compute_dihedral_angles(r, phi_indices, displacement_fn)
       psi = compute_dihedral_angles(r, psi_indices, displacement_fn)
       
-      return cmap.compute_cmap_energy(phi, psi, cmap_indices, cmap_grids)
+      # Swapped to (psi, phi) based on validation results matching OpenMM
+      # jax.debug.print("CMAP Phi[0]: {}", phi[0])
+      # jax.debug.print("CMAP Psi[0]: {}", psi[0])
+      e_cmap = cmap.compute_cmap_energy(psi, phi, cmap_indices, cmap_coeffs)
+      # jax.debug.print("CMAP Energy (psi, phi): {}", e_cmap)
+      return e_cmap
 
   # Total Energy Function
   # -------------------------------------------------------------------------

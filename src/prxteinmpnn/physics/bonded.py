@@ -77,7 +77,7 @@ def make_angle_energy_fn(
     # Clip to prevent NaN in arccos
     denom = d_ji * d_jk + 1e-8
     cos_theta = jnp.sum(v_ji * v_jk, axis=-1) / denom
-    cos_theta = jnp.clip(cos_theta, -1.0, 1.0)
+    cos_theta = jnp.clip(cos_theta, -0.999999, 0.999999)
     theta = jnp.arccos(cos_theta)
 
     # Harmonic potential: E = 0.5 * k * (theta - theta0)^2

@@ -20,7 +20,7 @@ jax.config.update("jax_enable_x64", True)
 
 # Constants
 DEV_SET = ["1UBQ", "1CRN", "1BPTI", "2GB1", "1L2Y"]
-QUICK_DEV_SET = ["1UAO"]
+QUICK_DEV_SET = ["5AWL"]
 NUM_SAMPLES = 8
 MD_STEPS = 1000
 MD_THERM = 1000
@@ -57,6 +57,8 @@ def extract_system_from_biotite(atom_array):
         
     res_names = []
     atom_names = []
+    atom_names = []
+    atom_counts = []
     coords_list = []
     
     # We also need to track indices of N, CA, C for each residue for dihedral calc
@@ -96,6 +98,7 @@ def extract_system_from_biotite(atom_array):
                         res_atom_names[k] = "H1"
         
         atom_names.extend(res_atom_names)
+        atom_counts.append(len(res_atom_names))
         coords_list.append(res_coords)
         
         # Find indices for dihedrals
@@ -113,9 +116,9 @@ def extract_system_from_biotite(atom_array):
 
         current_atom_idx += len(res_atom_names)
         
-    if not coords_list: return None, None, None, None, None, None, None
+    if not coords_list: return None, None, None, None, None, None, None, None
     coords = np.vstack(coords_list)
-    return coords, res_names, atom_names, atom_array, np.array(n_indices), np.array(ca_indices), np.array(c_indices)
+    return coords, res_names, atom_names, atom_array, np.array(n_indices), np.array(ca_indices), np.array(c_indices), np.array(atom_counts)
 
 def apply_gaussian_noise(coords, scale, key):
     return coords + jax.random.normal(key, coords.shape) * scale
@@ -210,11 +213,12 @@ def run_benchmark(pdb_set=DEV_SET, force_field_path="src/prxteinmpnn/physics/for
             n_idx = data["n_idx"]
             ca_idx = data["ca_idx"]
             c_idx = data["c_idx"]
+            atom_counts = data["atom_counts"].tolist() if "atom_counts" in data else None
         else:
             atom_array = download_and_load_pdb(pdb_id)
             if atom_array is None: continue
             
-            coords_np, res_names, atom_names, filtered_array, n_idx, ca_idx, c_idx = extract_system_from_biotite(atom_array)
+            coords_np, res_names, atom_names, filtered_array, n_idx, ca_idx, c_idx, atom_counts = extract_system_from_biotite(atom_array)
             if coords_np is None: continue
             
             np.savez(
@@ -224,11 +228,14 @@ def run_benchmark(pdb_set=DEV_SET, force_field_path="src/prxteinmpnn/physics/for
                 atom_names=atom_names, 
                 n_idx=n_idx, 
                 ca_idx=ca_idx, 
-                c_idx=c_idx
+                c_idx=c_idx,
+                atom_counts=atom_counts
             )
         
-        params = jax_md_bridge.parameterize_system(ff, res_names, atom_names)
-        coords = jnp.array(coords_np)
+        print(f"DEBUG: len(atom_names) passed to parameterize: {len(atom_names)}")
+        params = jax_md_bridge.parameterize_system(ff, res_names, atom_names, atom_counts=atom_counts)
+        print(f"DEBUG: params['sigmas'].shape: {params['sigmas'].shape}")
+        coords = jnp.array(coords_np, dtype=jnp.float64)
         n_idx = jnp.array(n_idx)
         ca_idx = jnp.array(ca_idx)
         c_idx = jnp.array(c_idx)

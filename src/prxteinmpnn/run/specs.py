@@ -59,6 +59,11 @@ class RunSpecification:
       altloc: The alternate location to use (default is "first").
       decoding_order_fn: An optional function to generate the decoding order (default is None).
       conformational_states: ConformationalStates to use for coarse graining the inference.
+      max_length: Maximum sequence length for padding/truncation (default is 512).
+                  Set to None to disable padding. Controls memory usage - smaller values
+                  reduce memory but may cause recompilation for different sequence lengths.
+      truncation_strategy: Strategy for handling sequences longer than max_length.
+                          Options: "none" (default, no truncation), "random_crop", "center_crop".
 
   """
 
@@ -86,6 +91,8 @@ class RunSpecification:
   cache_path: str | Path | None = None
   overwrite_cache: bool = False
   output_path: str | Path | None = None
+  max_length: int | None = 512
+  truncation_strategy: Literal["none", "random_crop", "center_crop"] = "none"
 
   # Data/Sharding
   use_preprocessed: bool = False

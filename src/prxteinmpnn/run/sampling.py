@@ -15,6 +15,7 @@ from prxteinmpnn.run.averaging import get_averaged_encodings, make_encoding_samp
 from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.utils.autoregression import resolve_tie_groups
 from prxteinmpnn.utils.decoding_order import random_decoding_order
+from prxteinmpnn.utils.safe_map import safe_map as _safe_map
 
 from .prep import prep_protein_stream_and_model
 from .specs import SamplingSpecification
@@ -122,7 +123,7 @@ def _sample_batch(
       k: PRNGKeyArray,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       def map_over_temp(n: float) -> tuple[ProteinSequence, Logits, DecodingOrder]:
-        return jax.lax.map(
+        return _safe_map(
           lambda t: sample_single_config(
             k,
             coords,
@@ -138,9 +139,9 @@ def _sample_batch(
           batch_size=spec.temperature_batch_size,
         )
 
-      return jax.lax.map(map_over_temp, noise_array, batch_size=spec.noise_batch_size)
+      return _safe_map(map_over_temp, noise_array, batch_size=spec.noise_batch_size)
 
-    return jax.lax.map(
+    return _safe_map(
       map_over_noise_and_temp,
       keys_arr,
       batch_size=spec.samples_batch_size,

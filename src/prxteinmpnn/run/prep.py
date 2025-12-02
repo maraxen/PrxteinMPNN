@@ -55,6 +55,8 @@ def prep_protein_stream_and_model(
     use_vdw=spec.use_vdw,
     vdw_noise=spec.vdw_noise,
     vdw_noise_mode=spec.vdw_noise_mode,
+    max_length=spec.max_length,
+    truncation_strategy=spec.truncation_strategy,
   )
   model = load_model(
     model_version=spec.model_version,

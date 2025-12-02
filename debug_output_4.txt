@@ -1,0 +1,116 @@
+===========================================================
+   End-to-End Physics Verification: 1UAO + ff19SB
+===========================================================
+
+[1] Loading Structure with Hydride...
+INFO:prxteinmpnn.io.parsing.biotite:Loading structure from data/pdb/1UAO.pdb (add_hydrogens=True, remove_solvent=True)
+
+[2] Setting up OpenMM System...
+OpenMM Total Energy: -296.5163 kcal/mol
+OpenMM Total Energy (Re-calc): -296.5163 kcal/mol
+  HarmonicBondForce: 20.4136 kcal/mol
+    Count: 141
+  PeriodicTorsionForce: 49.6002 kcal/mol
+    Count: 355
+  NonbondedForce: -23.2411 kcal/mol
+  CMAPTorsionForce: 10.1867 kcal/mol
+    Count: 8
+  HarmonicAngleForce: 7.9836 kcal/mol
+    Count: 249
+  CustomGBForce: -361.4594 kcal/mol
+
+[3] Setting up JAX MD System...
+DEBUG: Checking Proper Torsion 10-13-14-16 Classes: protein-XC-protein-CT-protein-CA-protein-CA
+DEBUG: Best Match Score: 4
+DEBUG: Best Terms: [[4, 3.141592653589793, 0.200832], [3, 0.0, 0.0], [2, 3.141592653589793, 0.288696], [1, 0.0, 0.0]]
+DEBUG: Checking Improper for Center 9 (N), Neighbors 21(protein-H), 10(protein-XC), 2(protein-C)
+DEBUG: Best Match Score: -1
+DEBUG: No match found!
+DEBUG: Checking Improper for Center 9 (N), Neighbors 21(protein-H), 2(protein-C), 10(protein-XC)
+DEBUG: Best Match Score: -1
+DEBUG: No match found!
+DEBUG: Checking Improper for Center 9 (N), Neighbors 10(protein-XC), 21(protein-H), 2(protein-C)
+DEBUG: Best Match Score: -1
+DEBUG: No match found!
+DEBUG: Found Better Match! Score: 2, PC: ['protein-N', '', '', 'protein-H']
+DEBUG: Checking Improper for Center 9 (N), Neighbors 10(protein-XC), 2(protein-C), 21(protein-H)
+DEBUG: Best Match Score: 2
+DEBUG: Best Terms: [[2, 3.141592653589793, 4.184]]
+DEBUG: Found Better Match! Score: 4, PC: ['protein-N', 'protein-C', 'protein-H', 'protein-XC']
+DEBUG: Checking Improper for Center 9 (N), Neighbors 2(protein-C), 21(protein-H), 10(protein-XC)
+DEBUG: Best Match Score: 4
+DEBUG: Best Terms: [[2, 3.141592653589793, 4.6024]]
+DEBUG: Checking Improper for Center 9 (N), Neighbors 2(protein-C), 10(protein-XC), 21(protein-H)
+DEBUG: Best Match Score: 4
+DEBUG: Best Terms: [[2, 3.141592653589793, 4.6024]]
+DEBUG: Added Improper: 2-21-9-10
+DEBUG: Born Radii Min=1.4985363732048875, Max=10.6021670048151, Mean=3.2823360503860064
+DEBUG: Born Radii Min=LinearizeTracer<float64[]>, Max=LinearizeTracer<float64[]>, Mean=LinearizeTracer<float64[]>
+JAX MD Total Energy: -124.7762 kcal/mol
+  Bond: 20.4136 (Count: 141)
+  Angle: 7.9836 (Count: 249)
+  Torsion: 207.5273 (Count: 626)
+  CMAP: 0.0000 (Count: 0)
+  NB+GBSA: -360.7008
+Max Radii Diff: 0.0000
+
+[4] Comparison
+Energy Diff: 171.7401 kcal/mol (Tol: 0.1)
+Force RMSE: 3.877978 kcal/mol/A
+Force Rel-RMSE: 0.146138 (Tol: 0.001)
+PASS: Radii match exactly.
+PASS: Charges match.
+PASS: VDW match.
+
+[5] Component Verification
+PASS: Bond Energy matches (20.4136 vs 20.4136)
+FAIL: Torsion Energy mismatch (207.5273 vs 49.6002)
+
+[DEBUG] Torsion Comparison:
+OpenMM Unique Torsions (Indices): 268
+JAX MD Unique Torsions (Indices): 369
+Missing in JAX (34):
+  (2, 21, 9, 10) (C-H-N-CA) Classes: protein-C-protein-H-protein-N-protein-XC Res: NGLY-TYR-TYR-TYR
+  (116, 119, 118, 128) (CE3-CH2-CZ3-HZ3) Classes: protein-CA-protein-CA-protein-CA-protein-HA Res: TRP-TRP-TRP-TRP
+  (111, 114, 112, 124) (CG-NE1-CD1-HD1) Classes: protein-C*-protein-NA-protein-CW-protein-H4 Res: TRP-TRP-TRP-TRP
+  (118, 113, 116, 126) (CZ3-CD2-CE3-HE3) Classes: protein-CA-protein-CB-protein-CA-protein-HA Res: TRP-TRP-TRP-TRP
+  (131, 133, 132, 134) (CA-O-C-OXT) Classes: protein-CX-protein-O2-protein-C-protein-O2 Res: CGLY-CGLY-CGLY-CGLY
+  (13, 14, 16, 15) (CB-CG-CD2-CD1) Classes: protein-CT-protein-CA-protein-CA-protein-CA Res: TYR-TYR-TYR-TYR
+  (11, 38, 30, 31) (C-H-N-CA) Classes: protein-C-protein-H-protein-N-protein-XC Res: TYR-ASP-ASP-ASP
+  (34, 36, 35, 37) (CB-OD1-CG-OD2) Classes: protein-2C-protein-O2-protein-CO-protein-O2 Res: ASP-ASP-ASP-ASP
+  (93, 106, 94, 95) (CA-N-C-O) Classes: protein-XC-protein-N-protein-C-protein-O Res: THR-TRP-THR-THR
+  (32, 48, 42, 43) (C-CD-N-CA) Classes: protein-C-protein-CT-protein-N-protein-XC Res: ASP-PRO-PRO-PRO
+Extra in JAX (135):
+  (91, 86, 87, 92) (HA3-CA-C-N) Classes: protein-H1-protein-XC-protein-C-protein-N Res: GLY-GLY-GLY-THR
+  (110, 107, 108, 130) (CB-CA-C-N) Classes: protein-CT-protein-XC-protein-C-protein-N Res: TRP-TRP-TRP-CGLY
+  (32, 42, 48, 54) (C-N-CD-HD2) Classes: protein-C-protein-N-protein-CT-protein-H1 Res: ASP-PRO-PRO-PRO
+  (94, 106, 107, 121) (C-N-CA-HA) Classes: protein-C-protein-N-protein-XC-protein-H1 Res: THR-TRP-TRP-TRP
+  (11, 10, 9, 21) (C-CA-N-H) Classes: protein-C-protein-XC-protein-N-protein-H Res: TYR-TYR-TYR-TYR
+  (2, 9, 10, 11) (C-N-CA-C) Classes: protein-C-protein-N-protein-XC-protein-C Res: NGLY-TYR-TYR-TYR
+  (15, 14, 13, 23) (CD1-CG-CB-HB2) Classes: protein-CA-protein-CA-protein-CT-protein-HC Res: TYR-TYR-TYR-TYR
+  (108, 130, 131, 137) (C-N-CA-HA3) Classes: protein-C-protein-N-protein-CX-protein-H1 Res: TRP-CGLY-CGLY-CGLY
+  (45, 44, 43, 46) (O-C-CA-CB) Classes: protein-O-protein-C-protein-XC-protein-CT Res: PRO-PRO-PRO-PRO
+  (96, 93, 94, 106) (CB-CA-C-N) Classes: protein-3C-protein-XC-protein-C-protein-N Res: THR-THR-THR-TRP
+Multiplicity Mismatches:
+  (32, 42, 48, 47) (C-N-CD-CG): OMM=3, JAX=4
+  (10, 13, 14, 16) (CA-CB-CG-CD2): OMM=2, JAX=4
+  (108, 130, 131, 132) (C-N-CA-C): OMM=2, JAX=4
+  (97, 96, 98, 105) (OG1-CB-CG2-HG23): OMM=1, JAX=2
+  (31, 34, 35, 36) (CA-CB-CG-OD1): OMM=2, JAX=4
+  (76, 75, 77, 82) (OG1-CB-CG2-HG21): OMM=1, JAX=2
+  (17, 19, 20, 29) (CE1-CZ-OH-HH): OMM=2, JAX=4
+  (97, 96, 98, 104) (OG1-CB-CG2-HG22): OMM=1, JAX=2
+  (18, 19, 20, 29) (CE2-CZ-OH-HH): OMM=2, JAX=4
+  (76, 75, 77, 84) (OG1-CB-CG2-HG23): OMM=1, JAX=2
+  (76, 75, 72, 79) (OG1-CB-CA-HA): OMM=1, JAX=2
+  (31, 34, 35, 37) (CA-CB-CG-OD2): OMM=2, JAX=4
+  (10, 13, 14, 15) (CA-CB-CG-CD1): OMM=2, JAX=4
+  (97, 96, 98, 103) (OG1-CB-CG2-HG21): OMM=1, JAX=2
+  (76, 75, 77, 83) (OG1-CB-CG2-HG22): OMM=1, JAX=2
+  (97, 96, 93, 100) (OG1-CB-CA-HA): OMM=1, JAX=2
+WARNING: Total Energy discrepancy (171.7401 kcal/mol) is high.
+         Known Issues:
+         - Torsions: JAX MD parameterization logic differs from OpenMM.
+         - NonBonded: Exclusion masks likely differ due to topology differences.
+
+End-to-End Verification PASSED (with Known Issues)!

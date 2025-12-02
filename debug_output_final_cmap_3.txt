@@ -1,0 +1,53 @@
+===========================================================
+   End-to-End Physics Verification: 1UAO + ff19SB
+===========================================================
+
+[1] Loading Structure with Hydride...
+INFO:prxteinmpnn.io.parsing.biotite:Loading structure from data/pdb/1UAO.pdb (add_hydrogens=True, remove_solvent=True)
+
+[2] Setting up OpenMM System...
+OpenMM Total Energy: -296.5163 kcal/mol
+OpenMM Total Energy (Re-calc): -296.5163 kcal/mol
+  HarmonicBondForce: 20.4136 kcal/mol
+    Count: 141
+  PeriodicTorsionForce: 49.6002 kcal/mol
+    Count: 355
+  NonbondedForce: -23.2411 kcal/mol
+  CMAPTorsionForce: 10.1867 kcal/mol
+    Count: 8
+  HarmonicAngleForce: 7.9836 kcal/mol
+    Count: 249
+  CustomGBForce: -361.4594 kcal/mol
+
+[3] Setting up JAX MD System...
+Traceback (most recent call last):
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/scripts/benchmark_md/verify_end_to_end_physics.py", line 482, in <module>
+    run_verification()
+    ~~~~~~~~~~~~~~~~^^
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/scripts/benchmark_md/verify_end_to_end_physics.py", line 231, in run_verification
+    jax_energy = energy_fn(jax_positions)
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/src/prxteinmpnn/physics/system.py", line 349, in total_energy
+    e_cmap = compute_cmap_term(r)
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/src/prxteinmpnn/physics/system.py", line 340, in compute_cmap_term
+    return cmap.compute_cmap_energy(phi, psi, cmap_indices, cmap_grids)
+           ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/src/prxteinmpnn/physics/cmap.py", line 38, in compute_cmap_energy
+    energies = jax.vmap(sample_one)(map_indices, phi_norm, psi_norm)
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/src/prxteinmpnn/physics/cmap.py", line 31, in sample_one
+    return map_coordinates(
+           ~~~~~~~~~~~~~~~^
+        energy_grids[m_idx],
+        ^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        mode='wrap'
+        ^^^^^^^^^^^
+    )[0]
+    ^
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/.venv/lib/python3.13/site-packages/jax/_src/scipy/ndimage.py", line 180, in map_coordinates
+    return _map_coordinates(input, coordinates, order, mode, cval)
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/.venv/lib/python3.13/site-packages/jax/_src/scipy/ndimage.py", line 99, in _map_coordinates
+    raise NotImplementedError(
+        'jax.scipy.ndimage.map_coordinates currently requires order<=1')
+NotImplementedError: jax.scipy.ndimage.map_coordinates currently requires order<=1
+--------------------
+For simplicity, JAX has removed its internal frames from the traceback of the following exception. Set JAX_TRACEBACK_FILTERING=off to include these.

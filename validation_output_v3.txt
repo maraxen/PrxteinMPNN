@@ -1,0 +1,146 @@
+/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/.venv/lib/python3.13/site-packages/jax/_src/numpy/reductions.py:232: UserWarning: Explicitly requested dtype <class 'jax.numpy.float64'> requested in sum is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  return _reduction(a, "sum", lax.add, 0, preproc=_cast_to_numeric,
+/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/.venv/lib/python3.13/site-packages/jax/_src/numpy/reductions.py:165: UserWarning: Explicitly requested dtype <class 'jax.numpy.float64'> requested in convert_element_type is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  return lax.convert_element_type(result, dtype or result_dtype)
+===========================================================
+   JAX MD vs OpenMM Validation: 1UAO + ff19SB + OBC2
+===========================================================
+
+[1] Setting up OpenMM System...
+OpenMM Total Energy (Vacuum): -248.2369 kcal/mol
+
+[2] Setting up JAX MD System...
+DEBUG: Using template for NGLY. Bonds: 8
+DEBUG: Using template for TYR. Bonds: 21
+DEBUG: Using template for ASP. Bonds: 11
+DEBUG: Using template for PRO. Bonds: 14
+DEBUG: Using template for GLU. Bonds: 14
+DEBUG: Using template for THR. Bonds: 13
+DEBUG: Using template for GLY. Bonds: 6
+DEBUG: Using template for THR. Bonds: 13
+DEBUG: Using template for TRP. Bonds: 25
+DEBUG: Using template for CGLY. Bonds: 7
+
+[DEBUG] First Residue (GLY) Atoms:
+['N', 'CA', 'C', 'O', 'H1', 'H2', 'H3', 'HA2', 'HA3']
+DEBUG: Using template for NGLY. Bonds: 8
+DEBUG: Using template for TYR. Bonds: 21
+DEBUG: Using template for ASP. Bonds: 11
+DEBUG: Using template for PRO. Bonds: 14
+DEBUG: Using template for GLU. Bonds: 14
+DEBUG: Using template for THR. Bonds: 13
+DEBUG: Using template for GLY. Bonds: 6
+DEBUG: Using template for THR. Bonds: 13
+DEBUG: Using template for TRP. Bonds: 25
+DEBUG: Using template for CGLY. Bonds: 7
+
+[DEBUG] Top 10 Closest Pairs:
+  1. 0.9600 A: 97 (OG1) - 102 (HG1)
+  2. 0.9600 A: 102 (HG1) - 97 (OG1)
+  3. 0.9600 A: 76 (OG1) - 81 (HG1)
+  4. 0.9600 A: 81 (HG1) - 76 (OG1)
+  5. 0.9601 A: 20 (OH) - 29 (HH)
+  6. 0.9601 A: 29 (HH) - 20 (OH)
+  7. 0.9762 A: 106 (N) - 120 (H)
+  8. 0.9762 A: 120 (H) - 106 (N)
+  9. 0.9788 A: 114 (NE1) - 125 (HE1)
+  10. 0.9788 A: 125 (HE1) - 114 (NE1)
+DEBUG: Using provided gb_radii. Stats: Min=1.2000000476837158, Max=1.7000000476837158
+DEBUG: Born Radii Min=1.498536229133606, Max=10.602158546447754, Mean=3.282336473464966
+DEBUG: Components: Bond=40.82726287841797, Angle=8.373235702514648, Dihedral=166.5312957763672, Improper=0.00038515147753059864, CMAP=0.0, LJ=1673.8355712890625, GB=-341.2097473144531, Direct=696.8590087890625, NP=22.878950119018555
+DEBUG: Using provided gb_radii. Stats: Min=1.2000000476837158, Max=1.7000000476837158
+DEBUG: Born Radii Min=LinearizeTracer<float32[]>, Max=LinearizeTracer<float32[]>, Mean=LinearizeTracer<float32[]>
+DEBUG: Components: Bond=LinearizeTracer<float32[]>, Angle=LinearizeTracer<float32[]>, Dihedral=LinearizeTracer<float32[]>, Improper=LinearizeTracer<float32[]>, CMAP=0.0, LJ=LinearizeTracer<float32[]>, GB=LinearizeTracer<float32[]>, Direct=LinearizeTracer<float32[]>, NP=LinearizeTracer<float32[]>
+JAX MD Total Energy: 2268.0959 kcal/mol
+
+[Stage 1] Parameter Validation
+Max Charge Diff: 0.000000 (Tol: 1e-4)
+Max Sigma Diff:  0.000000 (Tol: 1e-4)
+Max Epsilon Diff:0.000000 (Tol: 1e-4)
+PASS: Parameters match.
+
+[DEBUG] Overwriting JAX parameters with OpenMM parameters for Energy/Force check...
+OpenMM Forces:
+ - HarmonicBondForce
+ - PeriodicTorsionForce
+ - NonbondedForce
+ - HarmonicAngleForce
+ - CustomGBForce
+DEBUG: CustomGBForce Parameter Names:
+ - charge
+ - or
+ - sr
+DEBUG: CustomGBForce Exclusions: 0
+DEBUG: CustomGBForce Computed Values:
+ - Value 0 (I): select(step(r+sr2-or1), 0.5*(1/L-1/U+0.25*(r-sr2^2/r)*(1/(U^2)-1/(L^2))+0.5*log(L/U)/r), 0);U=r+sr2;L=max(or1, D);D=abs(r-sr2)
+ - Value 1 (B): 1/(1/or-tanh(psi-0.8*psi^2+4.85*psi^3)/radius);psi=I*or; radius=or+offset; offset=0.009
+DEBUG: CustomGBForce Energy Terms:
+ - Term 0: -0.5*138.935485*(1/soluteDielectric-1/solventDielectric)*charge^2/B; solventDielectric=78.5; soluteDielectric=1; kappa=0; offset=0.008999999999999999
+ - Term 1: 28.3919551*(radius+0.14)^2*(radius/B)^6; radius=or+offset; solventDielectric=78.5; soluteDielectric=1; kappa=0; offset=0.008999999999999999
+ - Term 2: -138.935485*(1/soluteDielectric-1/solventDielectric)*charge1*charge2/f;f=sqrt(r^2+B1*B2*exp(-r^2/(4*B1*B2))); solventDielectric=78.5; soluteDielectric=1; kappa=0; offset=0.008999999999999999
+DEBUG: First 5 Particle Parameters:
+ - Particle 0: (0.2943, 0.146, 0.11534)
+ - Particle 1: (-0.01, 0.16099999999999998, 0.11591999999999998)
+ - Particle 2: (0.6163, 0.16099999999999998, 0.11591999999999998)
+ - Particle 3: (-0.5722, 0.141, 0.11984999999999998)
+ - Particle 4: (0.1642, 0.12100000000000001, 0.10285000000000001)
+DEBUG: GB Scaled Radii Stats: Min=0.9435, Max=1.1985, Mean=1.0759
+DEBUG: GB Radii Stats: Min=1.2000, Max=1.7000, Mean=1.4496
+DEBUG: Extracted 141 bonds from OpenMM.
+DEBUG: Bond (97, 102) found in OpenMM bonds: True
+DEBUG: Using provided gb_radii. Stats: Min=1.2000000476837158, Max=1.7000000476837158
+DEBUG: Components: Bond=20.41362953186035, Angle=7.9836201667785645, Dihedral=108.06644439697266, Improper=0.0, CMAP=0.0, LJ=54.68016052246094, GB=0.0, Direct=-57.787925720214844, NP=0.0
+DEBUG: Vacuum Energy (No GBSA): 133.3559 kcal/mol
+Recalculating JAX Energy and Forces with Injected Parameters...
+DEBUG: Using provided gb_radii. Stats: Min=1.2000000476837158, Max=1.7000000476837158
+DEBUG: Born Radii Min=1.403448224067688, Max=5.481602191925049, Mean=2.4083335399627686
+DEBUG: Components: Bond=20.41362953186035, Angle=7.9836201667785645, Dihedral=108.06644439697266, Improper=0.0, CMAP=0.0, LJ=54.68016052246094, GB=-369.7113037109375, Direct=-77.9213638305664, NP=22.878950119018555
+DEBUG: Using provided gb_radii. Stats: Min=1.2000000476837158, Max=1.7000000476837158
+DEBUG: Born Radii Min=LinearizeTracer<float32[]>, Max=LinearizeTracer<float32[]>, Mean=LinearizeTracer<float32[]>
+DEBUG: Components: Bond=LinearizeTracer<float32[]>, Angle=LinearizeTracer<float32[]>, Dihedral=LinearizeTracer<float32[]>, Improper=0.0, CMAP=0.0, LJ=LinearizeTracer<float32[]>, GB=LinearizeTracer<float32[]>, Direct=LinearizeTracer<float32[]>, NP=LinearizeTracer<float32[]>
+JAX MD Total Energy (Recalculated): -233.6098 kcal/mol
+
+[Stage 2] Energy Component Validation
+Component            | OpenMM (kcal/mol)    | JAX (kcal/mol)       | Diff       | Status
+-------------------------------------------------------------------------------------
+Bond                 |              20.4136 |              20.4136 |    -0.0000 | PASS
+Angle                |               7.9836 |               7.9836 |    -0.0000 | PASS
+Torsion              |             108.0664 |             108.0664 |     0.0000 | PASS
+CMAP                 |               0.0000 |               0.0000 |     0.0000 | PASS
+NonBonded+GBSA       |            -384.7005 |            -370.0735 |   -14.6270 | FAIL
+-------------------------------------------------------------------------------------
+DEBUG: OpenMM NonBonded: -23.2411
+DEBUG: OpenMM GBSA: -361.4595
+-------------------------------------------------------------------------------------
+TOTAL                |            -248.2369 |            -233.6098 |   -14.6270 | FAIL
+
+[Stage 3] Force Validation
+Force RMSE: 0.153491 kcal/mol/A
+Force Rel-RMSE: 0.005798
+Max Force Error: 0.316700 at atom 2 (C)
+FAIL: Forces mismatch.
+
+[Analysis] Detailed Discrepancy Analysis
+Calculated JAX Self-Energy: -254.2956 kcal/mol
+JAX GBSA (Total): -370.0735 kcal/mol
+JAX GBSA (Corrected for Self): -115.7779 kcal/mol
+OpenMM GBSA + NonBonded: -384.7005 kcal/mol
+Diff (Corrected): -268.9226 kcal/mol
+
+Top 10 Torsion Mismatches:
+Idx   | Atoms                | Params (n, phi0, k)       | JAX E      | JAX Phi   
+Sum of JAX Torsion Energies: 108.0664
+OpenMM Total Torsion: 108.0664
+90    | 30-31-34-35          | N-CA-CB-CG           | 1.0, 3.14, 2.15           | 4.3001     | -3.0561   
+111   | 32-42-48-47          | C-N-CD-CG            | 2.0, 0.00, 2.00           | 3.9961     | -3.1103   
+145   | 44-56-57-60          | C-N-CA-CB            | 2.0, 0.00, 1.80           | 3.6000     | 3.1409    
+323   | 94-106-107-110       | C-N-CA-CB            | 2.0, 0.00, 1.80           | 3.5191     | 2.9911    
+43    | 11-30-31-34          | C-N-CA-CB            | 2.0, 0.00, 1.80           | 3.4620     | 2.9446    
+108   | 32-42-43-46          | C-N-CA-CB            | 2.0, 0.00, 1.80           | 3.3530     | 2.8766    
+20    | 9-10-11-30           | N-CA-C-N             | 2.0, 3.14, 1.58           | 3.1002     | 1.7088    
+8     | 2-9-10-13            | C-N-CA-CB            | 2.0, 0.00, 1.80           | 2.9644     | 2.7079    
+348   | 106-107-108-130      | N-CA-C-N             | 2.0, 3.14, 1.58           | 2.8866     | 1.8694    
+85    | 30-31-32-42          | N-CA-C-N             | 2.0, 3.14, 1.58           | 2.5875     | 2.0105    
+
+[Analysis] SASA Debugging
+Explicit SASA Energy Check: 22.8790 kcal/mol

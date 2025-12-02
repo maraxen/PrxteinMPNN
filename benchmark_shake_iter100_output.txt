@@ -1,0 +1,23 @@
+Benchmarking Conformational Validity (Optimized with VMAP) on ['1UAO']...
+Loading local force field: src/prxteinmpnn/physics/force_fields/eqx/protein19SB.eqx
+
+Processing 1UAO...
+  Loading from cache: data/cache/1UAO_system.npz
+  Method: Gaussian...
+  Method: MD...
+DEBUG: Using provided gb_radii. Stats: Min=JitTracer<float32[]>, Max=JitTracer<float32[]>
+DEBUG: Born Radii Min=JitTracer<float64[]>, Max=JitTracer<float64[]>, Mean=JitTracer<float64[]>
+DEBUG: Components: Bond=JitTracer<float64[]>, Angle=JitTracer<float64[]>, Dihedral=JitTracer<float64[]>, Improper=JitTracer<float64[]>, CMAP=0.0, LJ=JitTracer<float64[]>, GB=JitTracer<float64[]>, Direct=JitTracer<float64[]>, NP=JitTracer<float64[]>
+DEBUG: Using provided gb_radii. Stats: Min=JitTracer<float32[]>, Max=JitTracer<float32[]>
+DEBUG: Born Radii Min=LinearizeTracer<float64[]>, Max=LinearizeTracer<float64[]>, Mean=LinearizeTracer<float64[]>
+DEBUG: Components: Bond=LinearizeTracer<float64[]>, Angle=LinearizeTracer<float64[]>, Dihedral=LinearizeTracer<float64[]>, Improper=LinearizeTracer<float64[]>, CMAP=0.0, LJ=LinearizeTracer<float64[]>, GB=LinearizeTracer<float64[]>, Direct=LinearizeTracer<float64[]>, NP=LinearizeTracer<float64[]>
+DEBUG: Using provided gb_radii. Stats: Min=JitTracer<float32[]>, Max=JitTracer<float32[]>
+DEBUG: Born Radii Min=LinearizeTracer<float64[]>, Max=LinearizeTracer<float64[]>, Mean=LinearizeTracer<float64[]>
+DEBUG: Components: Bond=LinearizeTracer<float64[]>, Angle=LinearizeTracer<float64[]>, Dihedral=LinearizeTracer<float64[]>, Improper=LinearizeTracer<float64[]>, CMAP=0.0, LJ=LinearizeTracer<float64[]>, GB=LinearizeTracer<float64[]>, Direct=LinearizeTracer<float64[]>, NP=LinearizeTracer<float64[]>
+DEBUG: Using provided gb_radii. Stats: Min=JitTracer<float32[]>, Max=JitTracer<float32[]>
+DEBUG: Born Radii Min=LinearizeTracer<float64[]>, Max=LinearizeTracer<float64[]>, Mean=LinearizeTracer<float64[]>
+DEBUG: Components: Bond=LinearizeTracer<float64[]>, Angle=LinearizeTracer<float64[]>, Dihedral=LinearizeTracer<float64[]>, Improper=LinearizeTracer<float64[]>, CMAP=0.0, LJ=LinearizeTracer<float64[]>, GB=LinearizeTracer<float64[]>, Direct=LinearizeTracer<float64[]>, NP=LinearizeTracer<float64[]>
+DEBUG: Using provided gb_radii. Stats: Min=JitTracer<float32[]>, Max=JitTracer<float32[]>
+DEBUG: Born Radii Min=LinearizeTracer<float64[]>, Max=LinearizeTracer<float64[]>, Mean=LinearizeTracer<float64[]>
+DEBUG: Components: Bond=LinearizeTracer<float64[]>, Angle=LinearizeTracer<float64[]>, Dihedral=LinearizeTracer<float64[]>, Improper=LinearizeTracer<float64[]>, CMAP=0.0, LJ=LinearizeTracer<float64[]>, GB=LinearizeTracer<float64[]>, Direct=LinearizeTracer<float64[]>, NP=LinearizeTracer<float64[]>
+Saved results to benchmark_conformation.csv

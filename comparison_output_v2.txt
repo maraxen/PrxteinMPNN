@@ -1,0 +1,41 @@
+Comparing JAX MD vs OpenMM on 1UAO...
+INFO:prxteinmpnn.io.parsing.biotite:Loading structure from data/pdb/1uao.pdb (add_hydrogens=True, remove_solvent=True)
+Running OpenMM Simulation from data/pdb/1uao.pdb...
+  Minimizing...
+Running JAX MD Simulation...
+Traceback (most recent call last):
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/scripts/benchmark_md/compare_jax_openmm_validity.py", line 327, in <module>
+    main()
+    ~~~~^^
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/scripts/benchmark_md/compare_jax_openmm_validity.py", line 314, in main
+    jax_results = run_jax_simulation(jnp.array(coords), params, n_idx, ca_idx, c_idx)
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/scripts/benchmark_md/compare_jax_openmm_validity.py", line 238, in run_jax_simulation
+    energy_fn = system.make_energy_fn(
+        displacement_fn=lambda a, b: a - b, # Simple displacement for non-periodic
+    ...<5 lines>...
+        surface_tension=28.3919551 # Matches OpenMM CustomGBForce
+    )
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/src/prxteinmpnn/physics/system.py", line 80, in make_energy_fn
+    bond_energy_fn = bonded.make_bond_energy_fn(
+      displacement_fn,
+      system_params["bonds"],
+      system_params["bond_params"],
+    )
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/src/prxteinmpnn/physics/bonded.py", line 34, in make_bond_energy_fn
+    return energy.simple_spring_bond(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+      displacement_fn,
+      ^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+      epsilon=k,
+      ^^^^^^^^^^
+    )
+    ^
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/.venv/lib/python3.13/site-packages/jax_md/energy.py", line 100, in simple_spring_bond
+    space.canonicalize_displacement_or_metric(displacement_or_metric),
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/mar/MIT Dropbox/Marielle Russo/2025_workspace/PrxteinMPNN/.venv/lib/python3.13/site-packages/jax_md/space.py", line 458, in canonicalize_displacement_or_metric
+    raise ValueError(
+      'Canonicalize displacement not implemented for spatial dimension larger'
+      'than 4.')
+ValueError: Canonicalize displacement not implemented for spatial dimension largerthan 4.

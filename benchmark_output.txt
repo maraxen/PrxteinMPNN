@@ -1,0 +1,13 @@
+Benchmarking Conformational Validity (Optimized with VMAP) on ['1UAO']...
+Loading local force field: src/prxteinmpnn/physics/force_fields/eqx/protein19SB.eqx
+
+Processing 1UAO...
+  Loading from cache: data/cache/1UAO_system.npz
+  Method: Gaussian...
+  Method: MD...
+DEBUG: Born Radii Min=JitTracer<float64[]>, Max=JitTracer<float64[]>, Mean=JitTracer<float64[]>
+DEBUG: Born Radii Min=LinearizeTracer<float64[]>, Max=LinearizeTracer<float64[]>, Mean=LinearizeTracer<float64[]>
+DEBUG: Born Radii Min=LinearizeTracer<float64[]>, Max=LinearizeTracer<float64[]>, Mean=LinearizeTracer<float64[]>
+DEBUG: Born Radii Min=LinearizeTracer<float64[]>, Max=LinearizeTracer<float64[]>, Mean=LinearizeTracer<float64[]>
+DEBUG: Born Radii Min=LinearizeTracer<float64[]>, Max=LinearizeTracer<float64[]>, Mean=LinearizeTracer<float64[]>
+Saved results to benchmark_conformation.csv

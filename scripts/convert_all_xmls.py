@@ -114,7 +114,7 @@ def parse_xml_to_eqx(xml_path: str, output_dir: str):
                 terms = []
                 for i in range(1, 7):
                     if f'periodicity{i}' in t.attrib:
-                        terms.append((int(t.attrib[f'periodicity{i}']), float(t.attrib[f'phase{i}']), float(t.attrib[f'k{i}'])))
+                        terms.append((int(t.attrib[f'periodicity{i}']), float(t.attrib[f'phase{i}']), float(t.attrib[f'k{i}']) * KJ_TO_KCAL))
                 if terms: data.append({'classes': tuple(classes), 'terms': terms})
             return data
 

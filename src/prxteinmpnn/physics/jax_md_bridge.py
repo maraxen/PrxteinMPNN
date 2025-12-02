@@ -39,6 +39,65 @@ class SystemParams(TypedDict):
   cmap_energy_grids: jnp.ndarray # (N_maps, Grid, Grid)
   cmap_indices: jnp.ndarray # (N_torsions,) map index for each torsion
   cmap_torsions: jnp.ndarray # (N_torsions, 5) [i, j, k, l, map_idx]
+  cmap_coeffs: jnp.ndarray # (N_maps, Grid, Grid, 4) [f, fx, fy, fxy]
+
+
+def solve_periodic_spline_derivatives(y: np.ndarray) -> np.ndarray:
+    """
+    Solve for the first derivatives (k) of a periodic cubic spline.
+    
+    Args:
+        y: (N,) values
+    Returns:
+        k: (N,) derivatives dy/dx at knots
+    """
+    N = len(y)
+    # RHS vector: 3 * (y_{i+1} - y_{i-1})
+    y_next = np.roll(y, -1)
+    y_prev = np.roll(y, 1)
+    rhs = 3.0 * (y_next - y_prev)
+    
+    # Matrix A: Diagonals 4, Off-diagonals 1, Corners 1
+    A = np.zeros((N, N))
+    for i in range(N):
+        A[i, i] = 4.0
+        A[i, (i-1)%N] = 1.0
+        A[i, (i+1)%N] = 1.0
+        
+    # Solve A * k = rhs
+    k = np.linalg.solve(A, rhs)
+    return k
+
+
+def compute_bicubic_params(grid: np.ndarray) -> np.ndarray:
+    """
+    Compute f, fx, fy, fxy at each grid point for natural bicubic spline.
+    
+    Args:
+        grid: (N, N) array of values. Assumes grid[i, j] is at x[i], y[j].
+    Returns:
+        params: (N, N, 4) array where last dim is [f, fx, fy, fxy]
+    """
+    N = grid.shape[0]
+    f = grid
+    
+    # 1. fx: Solve along cols (derivative w.r.t row index i, which is x)
+    fx = np.zeros_like(grid)
+    for j in range(N):
+        fx[:, j] = solve_periodic_spline_derivatives(grid[:, j])
+        
+    # 2. fy: Solve along rows (derivative w.r.t col index j, which is y)
+    fy = np.zeros_like(grid)
+    for i in range(N):
+        fy[i, :] = solve_periodic_spline_derivatives(grid[i, :])
+        
+    # 3. fxy: Solve spline on fx along rows (d/dy of df/dx)
+    fxy = np.zeros_like(grid)
+    for i in range(N):
+        fxy[i, :] = solve_periodic_spline_derivatives(fx[i, :])
+        
+    # Stack: f, fx, fy, fxy
+    return np.stack([f, fx, fy, fxy], axis=-1)
 
 
 def parameterize_system(
@@ -568,41 +627,59 @@ def parameterize_system(
               impropers_list.append([i, j, k, l])
               improper_params_list.append(term)
 
+  # Compute CMAP spline coefficients
+  cmap_energy_grids = jnp.array(force_field.cmap_energy_grids)
+  
+  cmap_coeffs_list = []
+  for grid in force_field.cmap_energy_grids:
+      coeffs = compute_bicubic_params(np.array(grid))
+      cmap_coeffs_list.append(coeffs)
+      
+  if cmap_coeffs_list:
+      cmap_coeffs = jnp.array(np.stack(cmap_coeffs_list))
+  else:
+      # Empty case
+      cmap_coeffs = jnp.zeros((0, 24, 24, 4))
+
+  # Calculate GBSA parameters
+  gb_radii_val = jnp.array(assign_mbondi2_radii(atom_names, residues, bonds_list))
+  # OpenMM defines 'sr' as (radius - offset) * scale_factor
+  # We use 0.09 as the offset (standard for OBC2)
+  offset = 0.09
+  scaled_radii_val = (gb_radii_val - offset) * jnp.array(assign_obc2_scaling_factors(atom_names))
+
   # Convert to JAX arrays
   return {
-    "charges": jnp.array(charges_list, dtype=jnp.float32),
-    "masses": jnp.array(assign_masses(atom_names), dtype=jnp.float32),
-    "sigmas": jnp.array(sigmas_list, dtype=jnp.float32),
-    "epsilons": jnp.array(epsilons_list, dtype=jnp.float32),
-    "gb_radii": jnp.array(
-      assign_mbondi2_radii(atom_names, residues, bonds_list), dtype=jnp.float32
-    ),
-    "scaled_radii": jnp.array(
-      assign_mbondi2_radii(atom_names, residues, bonds_list), dtype=jnp.float32
-    ) * jnp.array(assign_obc2_scaling_factors(atom_names), dtype=jnp.float32),
-    "bonds": jnp.array(bonds_list, dtype=jnp.int32).reshape(-1, 2),
-    "bond_params": jnp.array(bond_params_list, dtype=jnp.float32).reshape(-1, 2),
-    "constrained_bonds": jnp.array(
-        [b for i, b in enumerate(bonds_list) if atom_names[b[0]].startswith("H") or atom_names[b[1]].startswith("H")],
-        dtype=jnp.int32
-    ).reshape(-1, 2),
-    "constrained_bond_lengths": jnp.array(
-        [bond_params_list[i][0] for i, b in enumerate(bonds_list) if atom_names[b[0]].startswith("H") or atom_names[b[1]].startswith("H")],
-        dtype=jnp.float32
-    ),
-    "angles": jnp.array(angles_list, dtype=jnp.int32).reshape(-1, 3),
-    "angle_params": jnp.array(angle_params_list, dtype=jnp.float32).reshape(-1, 2),
-    "backbone_indices": jnp.array(backbone_indices_list, dtype=jnp.int32).reshape(-1, 4),
-    "exclusion_mask": exclusion_mask,
-    "scale_matrix_vdw": scale_matrix_vdw,
-    "scale_matrix_elec": scale_matrix_elec,
-    "dihedrals": jnp.array(dihedrals_list, dtype=jnp.int32).reshape(-1, 4),
-    "dihedral_params": jnp.array(dihedral_params_list, dtype=jnp.float32).reshape(-1, 3),
-    "impropers": jnp.array(impropers_list, dtype=jnp.int32).reshape(-1, 4),
-    "improper_params": jnp.array(improper_params_list, dtype=jnp.float32).reshape(-1, 3),
-    "cmap_energy_grids": force_field.cmap_energy_grids,
-    "cmap_indices": jnp.array(cmap_indices_list, dtype=jnp.int32),
-    "cmap_torsions": jnp.array(cmap_torsions_list, dtype=jnp.int32).reshape(-1, 5),
+      "charges": jnp.array(charges_list),
+      "masses": jnp.array(assign_masses(atom_names)),
+      "sigmas": jnp.array(sigmas_list),
+      "epsilons": jnp.array(epsilons_list),
+      "gb_radii": gb_radii_val,
+      "scaled_radii": scaled_radii_val,
+      "bonds": jnp.array(bonds_list, dtype=jnp.int32) if bonds_list else jnp.zeros((0, 2), dtype=jnp.int32),
+      "bond_params": jnp.array(bond_params_list) if bond_params_list else jnp.zeros((0, 2)),
+      "constrained_bonds": jnp.array(
+          [b for i, b in enumerate(bonds_list) if atom_names[b[0]].startswith("H") or atom_names[b[1]].startswith("H")],
+          dtype=jnp.int32
+      ).reshape(-1, 2),
+      "constrained_bond_lengths": jnp.array(
+          [bond_params_list[i][0] for i, b in enumerate(bonds_list) if atom_names[b[0]].startswith("H") or atom_names[b[1]].startswith("H")],
+          dtype=jnp.float32
+      ),
+      "angles": jnp.array(angles_list, dtype=jnp.int32) if angles_list else jnp.zeros((0, 3), dtype=jnp.int32),
+      "angle_params": jnp.array(angle_params_list) if angle_params_list else jnp.zeros((0, 2)),
+      "backbone_indices": jnp.array(backbone_indices_list, dtype=jnp.int32),
+      "exclusion_mask": jnp.array(exclusion_mask),
+      "scale_matrix_vdw": jnp.array(scale_matrix_vdw),
+      "scale_matrix_elec": jnp.array(scale_matrix_elec),
+      "dihedrals": jnp.array(dihedrals_list, dtype=jnp.int32) if dihedrals_list else jnp.zeros((0, 4), dtype=jnp.int32),
+      "dihedral_params": jnp.array(dihedral_params_list) if dihedral_params_list else jnp.zeros((0, 3)),
+      "impropers": jnp.array(impropers_list, dtype=jnp.int32) if impropers_list else jnp.zeros((0, 4), dtype=jnp.int32),
+      "improper_params": jnp.array(improper_params_list) if improper_params_list else jnp.zeros((0, 3)),
+      "cmap_energy_grids": cmap_energy_grids,
+      "cmap_indices": jnp.array(cmap_indices_list, dtype=jnp.int32) if cmap_indices_list else jnp.zeros((0,), dtype=jnp.int32),
+      "cmap_torsions": jnp.array(cmap_torsions_list, dtype=jnp.int32) if cmap_torsions_list else jnp.zeros((0, 5), dtype=jnp.int32),
+      "cmap_coeffs": cmap_coeffs,
   }
 
 

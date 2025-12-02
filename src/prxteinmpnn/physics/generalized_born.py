@@ -85,6 +85,7 @@ def compute_born_radii(
     if mask is not None:
         pair_integrals = pair_integrals * mask
     else:
+        pass
         # Default excludes self (handled by mask usually, but if mask is None, we assume all pairs included except self)
         # Actually, compute_born_radii logic above:
         # if mask is None: mask = 1.0 - eye
@@ -160,10 +161,8 @@ def compute_gb_energy(
         Tuple of (Total GB energy, Born Radii).
     """
     # DEBUG: Check if mask is being used
-    if mask is not None:
-        # We can't print array contents easily in JIT, but we can print at trace time
-       # print("DEBUG: compute_gb_energy called with mask!")
-        pass
+    # if mask is not None:
+    #     pass
     born_radii = compute_born_radii(positions, radii, dielectric_offset=dielectric_offset, mask=mask, scaled_radii=scaled_radii)
     
     # DEBUG: Print Born Radii Stats
@@ -197,6 +196,13 @@ def compute_gb_energy(
         # We assume energy_mask already handles diagonal (or we force it).
         # In system.py, we set 0.0 to 1.0, so diagonal is 1.0.
         mask_energy = energy_mask
+        
+        # Ensure self-interaction is included for GBSA (diagonal = 1.0)
+        # exclusion_mask usually has 0.0 on diagonal, but GBSA needs self-energy.
+        N = positions.shape[0]
+        # Cast to float to avoid FutureWarning when setting 1.0
+        mask_energy = mask_energy.astype(jnp.float32)
+        mask_energy = mask_energy.at[jnp.diag_indices(N)].set(1.0)
         
         energy_terms = energy_terms * mask_energy
     
@@ -252,11 +258,12 @@ def compute_pair_integral(distance: Array, radius_i: Array, radius_j: Array) -> 
     r2 = distance_safe**2
     rj2 = radius_j**2
     
-    # Term 2: 0.5 * 0.5/r * ln(L/U) = 0.25/r * ln(L/U)
+    # Term 2: 0.25/r * ln(L/U)
+    # OpenMM: 0.5 * 0.5 * log(L/U)/r = 0.25 * log(L/U)/r
     term2 = (0.25 / distance_safe) * jnp.log(lower_limit / upper_limit)
     
-    # Term 3: 0.5 * 0.25/r * (r^2 - rj^2) * (1/U^2 - 1/L^2)
-    #       = 0.125/r * (r^2 - rj^2) * (1/U^2 - 1/L^2)
+    # Term 3: 0.125/r * (r^2 - rj^2) * (1/U^2 - 1/L^2)
+    # OpenMM: 0.5 * 0.25 * ... = 0.125 * ...
     term3 = (0.125 / distance_safe) * (r2 - rj2) * (inv_upper**2 - inv_lower**2)
     
     total = term1 + term2 + term3

@@ -127,6 +127,8 @@ def make_dihedral_energy_fn(
     b1 = jax.vmap(displacement_fn)(r_k, r_j)
     b2 = jax.vmap(displacement_fn)(r_l, r_k)
 
+
+
     # Normalize b1
     b1_norm = jnp.linalg.norm(b1, axis=-1, keepdims=True) + 1e-8
     b1_unit = b1 / b1_norm

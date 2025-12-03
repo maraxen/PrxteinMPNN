@@ -138,16 +138,14 @@ def make_energy_fn(
             gb_mask = jnp.ones_like(scale_matrix_vdw)
             
             if scale_matrix_elec is not None:
-                # 1-2/1-3 are 0.0 -> Set to 1.0
-                # 1-4 are ~0.833 -> Set to 0.0
-                # Others are 1.0 -> Keep 1.0
-                mask_12_13 = scale_matrix_elec == 0.0
-                mask_14 = (scale_matrix_elec > 0.0) & (scale_matrix_elec < 0.9)
-                
-                gb_energy_mask = jnp.where(mask_12_13, 1.0, scale_matrix_elec)
-                gb_energy_mask = jnp.where(mask_14, 0.0, gb_energy_mask)
+                # OpenMM GBSAOBCForce includes ALL pairs (1-2, 1-3, 1-4) in the energy calculation
+                # with scaling factor 1.0.
+                # "The GBSA interaction is calculated between all pairs of particles, 
+                # including those that are excluded from the nonbonded force."
+                gb_energy_mask = jnp.ones_like(scale_matrix_vdw)
             else:
                 gb_energy_mask = jnp.ones_like(scale_matrix_vdw)
+
       else:
           gb_mask = exclusion_mask
           gb_energy_mask = None

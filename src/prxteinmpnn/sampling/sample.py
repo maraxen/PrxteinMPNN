@@ -77,7 +77,6 @@ def make_sample_sequences(
         "_k_neighbors",
         "num_groups",
         "multi_state_strategy",
-        "multi_state_alpha",
       ),
     )
     def sample_sequences(
@@ -95,8 +94,7 @@ def make_sample_sequences(
       temperature: Float | None = None,
       tie_group_map: jnp.ndarray | None = None,
       num_groups: int | None = None,
-      multi_state_strategy: Literal["mean", "min", "product", "max_min"] = "mean",
-      multi_state_alpha: float = 0.5,
+      multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
       structure_mapping: jax.Array | None = None,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """Optimize a sequence using straight-through estimation.
@@ -117,7 +115,6 @@ def make_sample_sequences(
         tie_group_map: Optional (N,) array mapping positions to group IDs for tied sampling.
         num_groups: Number of unique groups when using tied positions.
         multi_state_strategy: Unused in straight_through mode (kept for API compatibility).
-        multi_state_alpha: Unused in straight_through mode (kept for API compatibility).
         structure_mapping: Optional (N,) array mapping each residue to a structure ID.
                   When provided (multi-state mode), prevents cross-structure
                   neighbors to avoid information leakage between conformational states.
@@ -126,7 +123,7 @@ def make_sample_sequences(
         Tuple of (optimized sequence, final logits, decoding order).
 
       """
-      del bias, fixed_positions, _k_neighbors, multi_state_strategy, multi_state_alpha
+      del bias, fixed_positions, _k_neighbors, multi_state_strategy
 
       if iterations is None:
         iterations = jnp.array(100, dtype=jnp.int32)
@@ -169,7 +166,6 @@ def make_sample_sequences(
         "_k_neighbors",
         "num_groups",
         "multi_state_strategy",
-        "multi_state_alpha",
       ),
     )
     def sample_sequences(
@@ -187,8 +183,7 @@ def make_sample_sequences(
       temperature: Float | None = None,
       tie_group_map: jnp.ndarray | None = None,
       num_groups: int | None = None,
-      multi_state_strategy: Literal["mean", "min", "product", "max_min"] = "mean",
-      multi_state_alpha: float = 0.5,
+      multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
       structure_mapping: jax.Array | None = None,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """Sample a sequence from a structure using the ProteinMPNN model.
@@ -209,8 +204,7 @@ def make_sample_sequences(
         tie_group_map: Optional (N,) array mapping positions to group IDs for tied sampling.
         num_groups: Number of unique groups when using tied positions.
         multi_state_strategy: Strategy for combining logits across tied positions
-          ("mean", "min", "product", "max_min").
-        multi_state_alpha: Weight for min component when strategy="max_min" (0-1).
+          ("arithmetic_mean", "geometric_mean", "product").
         structure_mapping: Optional (N,) array mapping each residue to a structure ID.
                   When provided (multi-state mode), prevents cross-structure
                   neighbors to avoid information leakage between conformational states.
@@ -251,7 +245,6 @@ def make_sample_sequences(
         backbone_noise=backbone_noise,
         tie_group_map=tie_group_map,
         multi_state_strategy=multi_state_strategy,
-        multi_state_alpha=multi_state_alpha,
         structure_mapping=structure_mapping,
       )
 

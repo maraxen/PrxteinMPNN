@@ -46,7 +46,7 @@ class TestMPNN(chex.TestCase):
         for decoding_approach in ["unconditional", "conditional", "autoregressive"]:
             seq, logits = call_fn(
                 decoding_approach=decoding_approach,
-                multi_state_strategy="max_min",
+                multi_state_strategy="arithmetic_mean",
                 **self.input_data,
             )
 

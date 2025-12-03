@@ -80,7 +80,6 @@ def _sample_batch(
     iterations=spec.iterations,
     learning_rate=spec.learning_rate,
     multi_state_strategy=spec.multi_state_strategy,
-    multi_state_alpha=spec.multi_state_alpha,
     num_groups=num_groups,
   )
 

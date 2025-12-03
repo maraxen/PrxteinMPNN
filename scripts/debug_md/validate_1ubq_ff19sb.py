@@ -310,7 +310,12 @@ def run_validation():
     
     e_dih_fn = system.bonded.make_dihedral_energy_fn(displacement_fn, system_params['dihedrals'], system_params['dihedral_params'])
     e_imp_fn = system.bonded.make_dihedral_energy_fn(displacement_fn, system_params['impropers'], system_params['improper_params'])
-    print(f"Torsion Energy: {e_dih_fn(jax_positions) + e_imp_fn(jax_positions):.4f}")
+    e_dih_val = e_dih_fn(jax_positions)
+    e_imp_val = e_imp_fn(jax_positions)
+    print(f"Torsion Energy (Proper): {e_dih_val:.4f}")
+    print(f"Torsion Energy (Improper): {e_imp_val:.4f}")
+    print(f"Torsion Energy (Total): {e_dih_val + e_imp_val:.4f}")
+
     
     # NonBonded
     # We can't easily isolate NB without reconstructing.
@@ -602,7 +607,11 @@ def run_validation():
     # JAX Torsion (Dihedral + Improper)
     e_dih_fn = system.bonded.make_dihedral_energy_fn(displacement_fn, system_params['dihedrals'], system_params['dihedral_params'])
     e_imp_fn = system.bonded.make_dihedral_energy_fn(displacement_fn, system_params['impropers'], system_params['improper_params'])
-    e_torsion_jax = e_dih_fn(jax_positions) + e_imp_fn(jax_positions)
+    e_dih_val = e_dih_fn(jax_positions)
+    e_imp_val = e_imp_fn(jax_positions)
+    e_torsion_jax = e_dih_val + e_imp_val
+
+
     
     # JAX CMAP
     e_cmap_jax = 0.0

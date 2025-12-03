@@ -1,7 +1,7 @@
 import argparse
 import logging
 from pathlib import Path
-from array_record.python import array_record_module as array_record
+from array_record.python import array_record_module as array_record  # type: ignore[unresolved-import]
 
 def combine_shards(input_dir: Path, output_path: Path, pattern: str = "data-*.array_record"):
     """

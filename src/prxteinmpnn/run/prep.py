@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 from prxteinmpnn.io import loaders
 from prxteinmpnn.io.weights import load_model
+import equinox as eqx
 
 
 def _loader_inputs(inputs: Sequence[str | StringIO] | str | StringIO) -> Sequence[str | StringIO]:
@@ -23,18 +24,14 @@ def _loader_inputs(inputs: Sequence[str | StringIO] | str | StringIO) -> Sequenc
 
 def prep_protein_stream_and_model(
   spec: Specs,
-  *,
-  use_new_architecture: bool = True,
 ) -> tuple[IterDataset, Model]:
   """Prepare the protein data stream and model parameters.
 
   Args:
       spec: A RunSpecification object containing configuration options.
-      use_new_architecture: If True (default), return a PrxteinMPNN Equinox module.
-                            If False, return legacy PyTree parameters.
 
   Returns:
-      A tuple containing the protein data iterator and model (PyTree or PrxteinMPNN).
+      A tuple containing the protein data iterator and model in inference mode.
 
   """
   parse_kwargs = {
@@ -58,11 +55,15 @@ def prep_protein_stream_and_model(
     use_vdw=spec.use_vdw,
     vdw_noise=spec.vdw_noise,
     vdw_noise_mode=spec.vdw_noise_mode,
+    max_length=spec.max_length,
+    truncation_strategy=spec.truncation_strategy,
   )
-  # use_new_architecture parameter is deprecated; always use Equinox model now
-  del use_new_architecture
   model = load_model(
     model_version=spec.model_version,
     model_weights=spec.model_weights,
   )
+  
+  # Set model to inference mode (disables dropout, etc.)
+  model = eqx.nn.inference_mode(model, value=True)
+  
   return protein_iterator, model

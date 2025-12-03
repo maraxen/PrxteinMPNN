@@ -71,7 +71,14 @@ def make_sample_sequences(
   if sampling_strategy == "straight_through":
     optimize_fn = make_optimize_sequence_fn(model, decoding_order_fn)
 
-    @partial(jax.jit, static_argnames=("_k_neighbors", "num_groups"))
+    @partial(
+      jax.jit,
+      static_argnames=(
+        "_k_neighbors",
+        "num_groups",
+        "multi_state_strategy",
+      ),
+    )
     def sample_sequences(
       prng_key: PRNGKeyArray,
       structure_coordinates: StructureAtomicCoordinates,
@@ -87,6 +94,7 @@ def make_sample_sequences(
       temperature: Float | None = None,
       tie_group_map: jnp.ndarray | None = None,
       num_groups: int | None = None,
+      multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
       structure_mapping: jax.Array | None = None,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """Optimize a sequence using straight-through estimation.
@@ -106,6 +114,7 @@ def make_sample_sequences(
         temperature: Temperature for STE sampling (default: 1.0).
         tie_group_map: Optional (N,) array mapping positions to group IDs for tied sampling.
         num_groups: Number of unique groups when using tied positions.
+        multi_state_strategy: Unused in straight_through mode (kept for API compatibility).
         structure_mapping: Optional (N,) array mapping each residue to a structure ID.
                   When provided (multi-state mode), prevents cross-structure
                   neighbors to avoid information leakage between conformational states.
@@ -114,7 +123,7 @@ def make_sample_sequences(
         Tuple of (optimized sequence, final logits, decoding order).
 
       """
-      del bias, fixed_positions, _k_neighbors
+      del bias, fixed_positions, _k_neighbors, multi_state_strategy
 
       if iterations is None:
         iterations = jnp.array(100, dtype=jnp.int32)
@@ -151,7 +160,14 @@ def make_sample_sequences(
 
   if sampling_strategy == "temperature":
 
-    @partial(jax.jit, static_argnames=("_k_neighbors", "num_groups", "multi_state_strategy"))
+    @partial(
+      jax.jit,
+      static_argnames=(
+        "_k_neighbors",
+        "num_groups",
+        "multi_state_strategy",
+      ),
+    )
     def sample_sequences(
       prng_key: PRNGKeyArray,
       structure_coordinates: StructureAtomicCoordinates,
@@ -162,13 +178,12 @@ def make_sample_sequences(
       bias: InputBias | None = None,
       fixed_positions: jnp.ndarray | None = None,
       backbone_noise: BackboneNoise | None = None,
-      _iterations: Int | None = None,
-      _learning_rate: Float | None = None,
+      iterations: Int | None = None,
+      learning_rate: Float | None = None,
       temperature: Float | None = None,
       tie_group_map: jnp.ndarray | None = None,
       num_groups: int | None = None,
-      multi_state_strategy: Literal["mean", "min", "product", "max_min"] = "mean",
-      multi_state_alpha: float = 0.5,
+      multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
       structure_mapping: jax.Array | None = None,
       full_coordinates: jax.Array | None = None,
       md_params: dict[str, jax.Array] | None = None,
@@ -186,14 +201,13 @@ def make_sample_sequences(
         bias: Optional bias to add to logits (N, 21).
         fixed_positions: Optional mask for positions to keep fixed (not implemented yet).
         backbone_noise: Optional noise for backbone coordinates.
-        _iterations: Unused in temperature mode (for API compatibility).
-        _learning_rate: Unused in temperature mode (for API compatibility).
+        iterations: Unused in temperature mode (for API compatibility).
+        learning_rate: Unused in temperature mode (for API compatibility).
         temperature: Temperature for sampling (default: 1.0).
         tie_group_map: Optional (N,) array mapping positions to group IDs for tied sampling.
         num_groups: Number of unique groups when using tied positions.
         multi_state_strategy: Strategy for combining logits across tied positions
-          ("mean", "min", "product", "max_min").
-        multi_state_alpha: Weight for min component when strategy="max_min" (0-1).
+          ("arithmetic_mean", "geometric_mean", "product").
         structure_mapping: Optional (N,) array mapping each residue to a structure ID.
                   When provided (multi-state mode), prevents cross-structure
                   neighbors to avoid information leakage between conformational states.
@@ -237,7 +251,6 @@ def make_sample_sequences(
         backbone_noise=backbone_noise,
         tie_group_map=tie_group_map,
         multi_state_strategy=multi_state_strategy,
-        multi_state_alpha=multi_state_alpha,
         structure_mapping=structure_mapping,
         full_coordinates=full_coordinates,
         md_params=md_params,

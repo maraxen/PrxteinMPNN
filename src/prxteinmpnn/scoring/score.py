@@ -69,7 +69,7 @@ def score_sequence_with_encoding(
   return masked_score_sum / mask_sum, logits, jnp.arange(seq_len)
 
 
-def make_score_sequence(
+def make_score_fn(
   model: PrxteinMPNN,
   decoding_order_fn: DecodingOrderFn = random_decoding_order,
   _num_encoder_layers: int = 3,
@@ -165,3 +165,4 @@ def make_score_sequence(
     return masked_score_sum / mask_sum, logits, decoding_order
 
   return score_sequence
+make_score_sequence = make_score_fn

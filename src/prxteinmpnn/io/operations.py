@@ -12,7 +12,9 @@ import jax.numpy as jnp
 import numpy as np
 
 from prxteinmpnn.physics import features, force_fields, jax_md_bridge
+from prxteinmpnn.physics.features import compute_electrostatic_node_features
 from prxteinmpnn.utils import residue_constants
+
 from prxteinmpnn.utils.data_structures import Protein, ProteinTuple
 
 _MAX_TRIES = 5
@@ -77,7 +79,6 @@ def truncate_protein(
     estat_chain_index=slice_array(protein.estat_chain_index),
     physics_features=slice_array(protein.physics_features),
   )
-
 
 
 def concatenate_proteins_for_inter_mode(elements: Sequence[ProteinTuple]) -> Protein:
@@ -203,22 +204,21 @@ def _apply_electrostatics_if_needed(
 
   # Handle noise broadcasting if needed, or just pass single value if uniform
   # For now, assuming uniform noise for the batch or handling inside feature computation
-  # compute_electrostatic_features_batch doesn't take noise yet, we need to update it or call node features directly
-  # Actually compute_electrostatic_features_batch calls compute_electrostatic_node_features per protein.
-  # We can pass the noise value there.
+  # compute_electrostatic_features_batch doesn't take noise yet, we need to update
+  # it or call node features directly.
+  # Actually compute_electrostatic_features_batch calls compute_electrostatic_node_features
+  # per protein. We can pass the noise value there.
 
   noise_val = estat_noise
   if isinstance(noise_val, Sequence):
-      noise_val = noise_val[0] # Simple handling for now
+    noise_val = noise_val[0]  # Simple handling for now
 
   phys_feats = []
   for p in elements:
-      feat = compute_electrostatic_node_features(
-          p,
-          noise_scale=noise_val,
-          noise_mode=estat_noise_mode
-      )
-      phys_feats.append(feat)
+    feat = compute_electrostatic_node_features(
+      p, noise_scale=noise_val, noise_mode=estat_noise_mode,
+    )
+    phys_feats.append(feat)
 
   return [p._replace(physics_features=feat) for p, feat in zip(elements, phys_feats, strict=False)]
 
@@ -514,8 +514,8 @@ def pad_and_collate_proteins(
   use_vdw: bool = False,  # noqa: ARG001
   estat_noise: Sequence[float] | float | None = None,
   estat_noise_mode: str = "direct",
-  vdw_noise: Sequence[float] | float | None = None, # noqa: ARG001
-  vdw_noise_mode: str = "direct", # noqa: ARG001
+  vdw_noise: Sequence[float] | float | None = None,  # noqa: ARG001
+  vdw_noise_mode: str = "direct",  # noqa: ARG001
   backbone_noise_mode: str = "direct",
   max_length: int | None = None,
 ) -> Protein:
@@ -548,10 +548,10 @@ def pad_and_collate_proteins(
   """
   elements = _validate_and_flatten_elements(elements)
   elements = _apply_electrostatics_if_needed(
-      elements,
-      use_electrostatics=use_electrostatics,
-      estat_noise=estat_noise,
-      estat_noise_mode=estat_noise_mode,
+    elements,
+    use_electrostatics=use_electrostatics,
+    estat_noise=estat_noise,
+    estat_noise_mode=estat_noise_mode,
   )
   
   # Apply MD parameterization if needed

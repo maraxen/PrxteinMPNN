@@ -154,8 +154,7 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
     bias: Logits | None = None,
     backbone_noise: jax.Array | None = None,
     tie_group_map: jnp.ndarray | None = None,
-    multi_state_strategy: Literal["mean", "min", "product", "max_min"] = "mean",
-    multi_state_alpha: float = 0.5,
+    multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
     structure_mapping: jnp.ndarray | None = None,
     initial_node_features: jnp.ndarray | None = None,
     # Diffusion specific args
@@ -180,7 +179,6 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
         backbone_noise: Noise added to backbone coordinates.
         tie_group_map: Map for tied residues.
         multi_state_strategy: Strategy for multi-state decoding.
-        multi_state_alpha: Alpha parameter for multi-state decoding.
         structure_mapping: Mapping for structure features.
         initial_node_features: Initial node features.
         timestep: Diffusion timestep.
@@ -207,7 +205,6 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
         backbone_noise=backbone_noise,
         tie_group_map=tie_group_map,
         multi_state_strategy=multi_state_strategy,
-        multi_state_alpha=multi_state_alpha,
         structure_mapping=structure_mapping,
         initial_node_features=initial_node_features,
       )
@@ -288,6 +285,6 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
       jnp.zeros((mask.shape[0], 21)),  # Bias unused
       None,  # tie_group_map unused
       0,  # strategy unused
-      0.5,  # alpha unused
+      jnp.array(1.0),  # temperature unused
       initial_node_features,
     )

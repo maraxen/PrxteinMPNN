@@ -111,8 +111,11 @@ def _make_ff_skeleton(hyperparams: dict[str, Any]) -> FullForceField:
       hyperparams["cmap_torsions"] = []
   if "residue_templates" not in hyperparams:
       hyperparams["residue_templates"] = {}
+  if "atom_type_map" not in hyperparams:
+      hyperparams["atom_type_map"] = {}
 
   return FullForceField(
+
     charges_by_id=jnp.zeros(num_atoms, dtype=jnp.float32),
     sigmas_by_id=jnp.zeros(num_atoms, dtype=jnp.float32),
     epsilons_by_id=jnp.zeros(num_atoms, dtype=jnp.float32),

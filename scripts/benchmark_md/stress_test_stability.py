@@ -7,25 +7,28 @@ import numpy as np
 import pandas as pd
 import jax
 import jax.numpy as jnp
-from prxteinmpnn.utils import residue_constants
-import biotite.structure.io.pdb as pdb
+import argparse
+
 import biotite.structure as struc
 import biotite.database.rcsb as rcsb
+import biotite.structure.io.pdb as pdb
+
 from jax_md import space, simulate as jax_simulate, quantity
 
-# PrxteinMPNN imports
+from prxteinmpnn.utils import residue_constants
 from prxteinmpnn.physics import simulate, force_fields, jax_md_bridge, system, constants
 
 # Enable x64 for physics
 jax.config.update("jax_enable_x64", True)
 
 # Constants
-PDB_ID = "1UBQ"
+DEFAULT_PDB_ID = "1UBQ"
 TOTAL_STEPS = 10000
 LOG_INTERVAL = 100
 RMSD_THRESHOLD = 8.0 # Angstroms
 
 def download_and_load_pdb(pdb_id, output_dir="data/pdb"):
+
     os.makedirs(output_dir, exist_ok=True)
     pdb_path = os.path.join(output_dir, f"{pdb_id.lower()}.pdb")
     if not os.path.exists(pdb_path):
@@ -69,12 +72,18 @@ def extract_system_from_biotite(atom_array):
     coords = np.vstack(coords_list)
     return coords, res_names, atom_names
 
-def run_stress_test():
-    print(f"Running Stability Stress Test on {PDB_ID}...")
+def run_stress_test(pdb_id=DEFAULT_PDB_ID, force_field_path="src/prxteinmpnn/physics/force_fields/eqx/protein19SB.eqx"):
+    print(f"Running Stability Stress Test on {pdb_id}...")
     print(f"Total Steps: {TOTAL_STEPS}, Log Interval: {LOG_INTERVAL}")
     
-    ff = force_fields.load_force_field_from_hub("ff14SB")
-    atom_array = download_and_load_pdb(PDB_ID)
+    if os.path.exists(force_field_path):
+        print(f"Loading local force field: {force_field_path}")
+        ff = force_fields.load_force_field(force_field_path)
+    else:
+        print("Local force field not found, falling back to ff14SB from Hub...")
+        ff = force_fields.load_force_field_from_hub("ff14SB")
+
+    atom_array = download_and_load_pdb(pdb_id)
     if atom_array is None: return
     
     coords_np, res_names, atom_names = extract_system_from_biotite(atom_array)
@@ -193,4 +202,9 @@ def run_stress_test():
     # visualize_benchmarks.py will handle it if we add it.
 
 if __name__ == "__main__":
-    run_stress_test()
+    parser = argparse.ArgumentParser(description="Run stability stress test.")
+    parser.add_argument("--pdb", type=str, default=DEFAULT_PDB_ID, help="PDB ID to benchmark.")
+    args = parser.parse_args()
+    
+    run_stress_test(args.pdb)
+

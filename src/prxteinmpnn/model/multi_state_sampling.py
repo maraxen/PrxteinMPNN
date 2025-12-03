@@ -1,10 +1,7 @@
 """Multi-state protein design utilities for tied positions.
 
-This module provides functions for sampling sequences that are compatible with
-multiple conformational states of the same protein. Instead of averaging logits
-(which compromises between states), we find amino acids that maximize the
-MINIMUM probability across all states, ensuring the sequence works well in ALL
-conformations.
+This module provides functions for combining logits across tied positions
+representing the same residue in different conformational states.
 """
 
 from __future__ import annotations
@@ -17,141 +14,88 @@ if TYPE_CHECKING:
   from prxteinmpnn.utils.types import Logits
 
 
-def min_over_group_logits(
+def arithmetic_mean_logits(
   logits: Logits,
   group_mask: jnp.ndarray,
 ) -> jnp.ndarray:
-  """Find amino acids that work well in ALL tied positions (multi-state design).
+  """Average logits across positions in a tie group using log-sum-exp.
 
-  Instead of averaging logits (which creates a compromise), this function finds
-  amino acids that have good probability in ALL states. This is appropriate when
-  tied positions represent the same residue in different conformational states.
+  This implements numerically stable logit averaging for tied positions.
+  Given logits of shape (N, 21) and a boolean mask indicating which
+  positions belong to the current group, returns averaged logits of shape (1, 21).
 
-  Strategy: For each amino acid, take the MINIMUM logit across all tied positions.
-  This ensures the selected amino acid works well in the WORST case (least favorable
-  state), making it robust across all conformations.
+  This is the standard approach for combining predictions across multiple states,
+  treating each state's prediction equally and finding a consensus.
 
   Args:
-    logits: Logits array of shape (N, 21) where N includes all positions.
-    group_mask: Boolean mask of shape (N,) indicating which positions are in the
-                current tie group.
+    logits: Logits array of shape (N, 21).
+    group_mask: Boolean mask of shape (N,) indicating group membership.
 
   Returns:
-    Min logits of shape (1, 21) representing the worst-case logit for each amino
-    acid across all states.
+    Averaged logits of shape (1, 21).
 
   Example:
-    >>> # Two states with different preferences
-    >>> logits = jnp.array([
-    ...     [10.0, -5.0, -5.0],  # State 1: strong preference for AA 0
-    ...     [-5.0, 8.0, -5.0],   # State 2: strong preference for AA 1
-    ... ])
+    >>> logits = jnp.array([[0.1, 0.9], [0.3, 0.7]])
     >>> group_mask = jnp.array([True, True])
-    >>> min_logits = min_over_group_logits(logits, group_mask)
-    >>> # min_logits ≈ [-5.0, -5.0, -5.0]
-    >>> # Both AA 0 and AA 1 have poor worst-case performance
-    >>> # Need to find amino acid that works reasonably well in BOTH states
+    >>> avg_logits = arithmetic_mean_logits(logits, group_mask)
 
   """
-  # For positions not in group, use very large value so they don't affect min
-  masked_logits = jnp.where(
-    group_mask[:, None],
+  max_logits = jnp.max(
     logits,
-    1e9,  # Large value that won't be selected as minimum
+    where=group_mask[:, None],
+    initial=-1e9,
+    axis=0,
+    keepdims=True,
   )
 
-  # Take minimum across all positions for each amino acid
-  return jnp.min(masked_logits, axis=0, keepdims=True)
+  shifted_logits = logits - max_logits
+  exp_logits = jnp.exp(shifted_logits)
+
+  masked_exp_logits = jnp.where(group_mask[:, None], exp_logits, 0.0)
+  sum_exp_logits = jnp.sum(masked_exp_logits, axis=0, keepdims=True)
+
+  num_in_group = jnp.sum(group_mask)
+  avg_exp_logits = sum_exp_logits / num_in_group
+  return jnp.log(avg_exp_logits) + max_logits
 
 
-def max_min_over_group_logits(
+def geometric_mean_logits(
   logits: Logits,
   group_mask: jnp.ndarray,
-  alpha: float = 0.5,
+  temperature: float,
 ) -> jnp.ndarray:
-  """Hybrid approach: balance between worst-case and average-case performance.
+  """Combine logits using geometric mean in probability space.
 
-  This combines min-over-states (robustness) with mean-over-states (optimality)
-  using a weighted combination. Higher alpha favors robustness, lower alpha
-  favors average performance.
+  This computes the geometric mean of probabilities across states:
+  P_geom = (P_1 * P_2 * ... * P_N)^(1/N)
+
+  In log space with temperature scaling:
+  log P_geom = (sum(logits) / temperature) / N
 
   Args:
     logits: Logits array of shape (N, 21).
     group_mask: Boolean mask of shape (N,) for group positions.
-    alpha: Weight for min component (0=pure average, 1=pure min). Default 0.5.
+    temperature: Sampling temperature for scaling.
 
   Returns:
     Combined logits of shape (1, 21).
 
   Example:
     >>> logits = jnp.array([
-    ...     [10.0, -5.0, -5.0],  # State 1
-    ...     [-5.0, 8.0, -5.0],   # State 2
+    ...     [10.0, -5.0, 0.0],  # State 1
+    ...     [8.0, -3.0, 0.0],   # State 2
     ... ])
     >>> group_mask = jnp.array([True, True])
-    >>> # Pure min (alpha=1.0): favors robust amino acids
-    >>> robust_logits = max_min_over_group_logits(logits, group_mask, alpha=1.0)
-    >>> # Pure mean (alpha=0.0): favors average performance
-    >>> avg_logits = max_min_over_group_logits(logits, group_mask, alpha=0.0)
-    >>> # Balanced (alpha=0.5): compromise
-    >>> balanced_logits = max_min_over_group_logits(logits, group_mask, alpha=0.5)
+    >>> temp = 1.0
+    >>> geom_logits = geometric_mean_logits(logits, group_mask, temp)
+    >>> # geom_logits = (10.0 + 8.0) / (1.0 * 2) = 9.0 for AA0
 
   """
-  min_logits = min_over_group_logits(logits, group_mask)
-
   masked_logits = jnp.where(group_mask[:, None], logits, 0.0)
   sum_logits = jnp.sum(masked_logits, axis=0, keepdims=True)
   num_in_group = jnp.sum(group_mask)
-  mean_logits = sum_logits / num_in_group
-
-  return alpha * min_logits + (1.0 - alpha) * mean_logits
-
-
-def softmin_over_group_logits(
-  logits: Logits,
-  group_mask: jnp.ndarray,
-  temperature: float = 1.0,
-) -> jnp.ndarray:
-  """Soft minimum using log-sum-exp trick for numerical stability.
-
-  This is a differentiable approximation to the hard minimum. As temperature
-  approaches 0, this converges to the hard minimum. As temperature increases,
-  this approaches a weighted average.
-
-  The formula is: softmin(x) = -temperature * log(sum(exp(-x/temperature)))
-
-  Args:
-    logits: Logits array of shape (N, 21).
-    group_mask: Boolean mask of shape (N,) for group positions.
-    temperature: Temperature for soft minimum (lower = closer to hard min).
-
-  Returns:
-    Soft minimum logits of shape (1, 21).
-
-  Example:
-    >>> logits = jnp.array([[10.0, -5.0], [8.0, -3.0]])
-    >>> group_mask = jnp.array([True, True])
-    >>> # Low temperature: close to hard min
-    >>> hard_min = softmin_over_group_logits(logits, group_mask, temperature=0.1)
-    >>> # High temperature: closer to average
-    >>> soft_avg = softmin_over_group_logits(logits, group_mask, temperature=10.0)
-
-  """
-  masked_logits = jnp.where(
-    group_mask[:, None],
-    logits,
-    1e9,
-  )
-
-  neg_scaled_logits = -masked_logits / temperature
-  log_sum_exp = jnp.max(neg_scaled_logits, axis=0, keepdims=True) + jnp.log(
-    jnp.sum(
-      jnp.exp(neg_scaled_logits - jnp.max(neg_scaled_logits, axis=0, keepdims=True)),
-      axis=0,
-      keepdims=True,
-    ),
-  )
-  return -log_sum_exp * temperature
+  
+  return sum_logits / (temperature * num_in_group)
 
 
 def product_of_probabilities_logits(

@@ -187,8 +187,7 @@ class SamplingSpecification(RunSpecification):
   average_node_features: bool = False
   average_encoding_mode: Literal["inputs", "noise_levels", "inputs_and_noise"] = "inputs_and_noise"
   average_logits: None | Literal["structures", "noise", "both"] = None
-  multi_state_strategy: Literal["mean", "min", "product", "max_min"] = "mean"
-  multi_state_alpha: float = 0.5
+  multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean"
   compute_pseudo_perplexity: bool = False
 
   def __post_init__(self) -> None:

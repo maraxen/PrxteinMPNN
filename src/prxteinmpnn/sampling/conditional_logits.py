@@ -146,8 +146,8 @@ def make_conditional_logits_fn(
     )
 
     # Default multi-state parameters for conditional logit computation
-    _multi_state_strategy_idx = jax.numpy.array(0, dtype=jax.numpy.int32)  # 0 = "mean"
-    _multi_state_alpha = 0.5
+    _multi_state_strategy_idx = jax.numpy.array(0, dtype=jax.numpy.int32)  # 0 = "arithmetic_mean"
+    _multi_state_temperature = jax.numpy.array(1.0, dtype=jax.numpy.float32)
 
     # Call the model's conditional path directly
     _, logits = model._call_conditional(  # noqa: SLF001
@@ -162,7 +162,7 @@ def make_conditional_logits_fn(
       jax.numpy.zeros((mask.shape[0], 21), dtype=jax.numpy.float32),
       None,  # tie_group_map not used in jacobian computation
       _multi_state_strategy_idx,
-      _multi_state_alpha,
+      _multi_state_temperature,
     )
 
     return logits

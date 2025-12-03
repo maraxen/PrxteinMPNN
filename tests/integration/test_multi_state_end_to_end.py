@@ -27,12 +27,10 @@ def test_sampling_spec_has_multi_state_parameters() -> None:
     inputs=["test.pdb"],
     tied_positions="direct",
     pass_mode="inter",
-    multi_state_strategy="min",
-    multi_state_alpha=0.7,
+    multi_state_strategy="product",
   )
 
-  assert spec.multi_state_strategy == "min"
-  assert spec.multi_state_alpha == 0.7
+  assert spec.multi_state_strategy == "product"
   assert spec.tied_positions == "direct"
   assert spec.pass_mode == "inter"
 
@@ -55,8 +53,7 @@ def test_sampling_spec_default_multi_state_parameters() -> None:
   """
   spec = SamplingSpecification(inputs=["test.pdb"])
 
-  assert spec.multi_state_strategy == "mean"
-  assert spec.multi_state_alpha == 0.5
+  assert spec.multi_state_strategy == "arithmetic_mean"
 
 
 def test_all_multi_state_strategies_accepted() -> None:
@@ -75,7 +72,7 @@ def test_all_multi_state_strategies_accepted() -> None:
     >>> test_all_multi_state_strategies_accepted()
   
   """
-  strategies = ["mean", "min", "product", "max_min"]
+  strategies = ["arithmetic_mean", "geometric_mean", "product"]
 
   for strategy in strategies:
     spec = SamplingSpecification(
@@ -85,31 +82,6 @@ def test_all_multi_state_strategies_accepted() -> None:
     assert spec.multi_state_strategy == strategy
 
 
-def test_multi_state_alpha_range() -> None:
-  """Test that multi_state_alpha accepts valid range.
-  
-  Args:
-    None
-  
-  Returns:
-    None
-  
-  Raises:
-    AssertionError: If alpha values are not properly set.
-  
-  Example:
-    >>> test_multi_state_alpha_range()
-  
-  """
-  alphas = [0.0, 0.3, 0.5, 0.7, 1.0]
-
-  for alpha in alphas:
-    spec = SamplingSpecification(
-      inputs=["test.pdb"],
-      multi_state_alpha=alpha,
-    )
-    assert spec.multi_state_alpha == alpha
-
-
 if __name__ == "__main__":
   pytest.main([__file__, "-v"])
+

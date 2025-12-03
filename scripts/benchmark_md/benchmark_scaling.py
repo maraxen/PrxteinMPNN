@@ -105,9 +105,16 @@ def create_dummy_system(base_atom_array, target_length):
     coords = np.vstack(coords_list)
     return coords, res_names, atom_names
 
-def run_benchmark(pdb_id=PDB_ID, lengths=LENGTHS):
+def run_benchmark(pdb_id=PDB_ID, lengths=LENGTHS, force_field_path="src/prxteinmpnn/physics/force_fields/eqx/protein19SB.eqx"):
     print(f"Benchmarking Computational Scaling on {pdb_id} with lengths {lengths}...")
-    ff = force_fields.load_force_field_from_hub("ff14SB")
+    
+    if os.path.exists(force_field_path):
+        print(f"Loading local force field: {force_field_path}")
+        ff = force_fields.load_force_field(force_field_path)
+    else:
+        print("Local force field not found, falling back to ff14SB from Hub...")
+        ff = force_fields.load_force_field_from_hub("ff14SB")
+
     
     atom_array = download_and_load_pdb(pdb_id)
     if atom_array is None:

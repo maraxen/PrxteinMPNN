@@ -12,9 +12,8 @@ import jax
 import jax.numpy as jnp
 
 from prxteinmpnn.run.averaging import get_averaged_encodings
-from prxteinmpnn.scoring.score import make_score_sequence, score_sequence_with_encoding
+from prxteinmpnn.scoring.score import make_score_fn, score_sequence_with_encoding
 from prxteinmpnn.utils.aa_convert import string_to_protein_sequence
-from prxteinmpnn.utils.sharding import create_mesh, shard_pytree
 
 from .prep import prep_protein_stream_and_model
 from .specs import SamplingSpecification, ScoringSpecification
@@ -62,13 +61,8 @@ def score(
   if spec is None:
     spec = ScoringSpecification(**kwargs)
 
-  # Initialize mesh if requested
-  mesh = None
-  if spec.use_sharding:
-    mesh = create_mesh()
-
   if spec.output_h5_path:
-    return _score_streaming(spec, mesh=mesh)
+    return _score_streaming(spec)
 
   if not spec.sequences_to_score:
     msg = (
@@ -87,7 +81,6 @@ def score(
       protein_iterator,
       model,
       batched_sequences,
-      mesh,
     )
   else:
     all_scores, all_logits = _score_standard_mode(
@@ -95,7 +88,6 @@ def score(
       protein_iterator,
       model,
       batched_sequences,
-      mesh,
     )
 
   if not all_scores:
@@ -106,6 +98,7 @@ def score(
     "logits": jnp.concatenate(all_logits, axis=0),
     "metadata": {
       "specification": spec,
+      "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
     },
   }
 
@@ -115,7 +108,6 @@ def _score_averaged_mode(
   protein_iterator: Any,  # noqa: ANN401
   model: PrxteinMPNN,
   batched_sequences: jax.Array,
-  mesh: jax.sharding.Mesh | None = None,
 ) -> tuple[list[jnp.ndarray], list[Logits]]:
   """Run scoring in averaged node features mode."""
   spec_dict = asdict(spec)
@@ -125,24 +117,12 @@ def _score_averaged_mode(
   all_scores, all_logits = [], []
 
   for batched_ensemble in protein_iterator:
-    if mesh is not None and spec.shard_batch:
-      batched_ensemble = shard_pytree(batched_ensemble, mesh)  # noqa: PLW2901
-
-    if mesh is not None:
-      with mesh:
-        scores, logits = _score_batch_averaged(
-          sampling_spec,
-          batched_ensemble,
-          model,
-          batched_sequences,
-        )
-    else:
-      scores, logits = _score_batch_averaged(
-        sampling_spec,
-        batched_ensemble,
-        model,
-        batched_sequences,
-      )
+    scores, logits = _score_batch_averaged(
+      sampling_spec,
+      batched_ensemble,
+      model,
+      batched_sequences,
+    )
     all_scores.append(scores)
     all_logits.append(logits)
 
@@ -154,16 +134,12 @@ def _score_standard_mode(
   protein_iterator: Any,  # noqa: ANN401
   model: PrxteinMPNN,
   batched_sequences: jax.Array,
-  mesh: jax.sharding.Mesh | None = None,
 ) -> tuple[list[jnp.ndarray], list[Logits]]:
   """Run scoring in standard mode."""
-  score_single_pair = make_score_sequence(model=model)
+  score_single_pair = make_score_fn(model=model)
   all_scores, all_logits = [], []
 
   for batched_ensemble in protein_iterator:
-    if mesh is not None and spec.shard_batch:
-      batched_ensemble = shard_pytree(batched_ensemble, mesh)  # noqa: PLW2901
-
     max_len = batched_ensemble.coordinates.shape[1]
     if spec.ar_mask is None:
       current_ar_mask = 1 - jnp.eye(max_len, dtype=jnp.bool_)
@@ -204,11 +180,7 @@ def _score_standard_mode(
         ensemble.mapping,
       )
 
-    if mesh is not None:
-      with mesh:
-        scores, logits, _decoding_orders = _compute(batched_ensemble)
-    else:
-      scores, logits, _decoding_orders = _compute(batched_ensemble)
+    scores, logits, _decoding_orders = _compute(batched_ensemble)
 
     all_scores.append(scores)
     all_logits.append(logits)
@@ -287,8 +259,7 @@ def _score_batch_averaged(
 
 def _score_streaming(
   spec: ScoringSpecification,
-  mesh: jax.sharding.Mesh | None = None,
-) -> dict[str, str | dict[str, ScoringSpecification]]:
+) -> dict[str, Any]:
   """Score sequences and stream results to an HDF5 file."""
   if not spec.output_h5_path:
     msg = "output_h5_path must be provided for streaming."
@@ -300,7 +271,7 @@ def _score_streaming(
     batched_sequences = jnp.expand_dims(batched_sequences, 0)
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
-  score_single_pair = make_score_sequence(model=model)
+  score_single_pair = make_score_fn(model=model)
 
   with h5py.File(spec.output_h5_path, "w") as f:
     scores_ds = f.create_dataset(
@@ -319,9 +290,6 @@ def _score_streaming(
     )
 
     for batched_ensemble in protein_iterator:
-      if mesh is not None and spec.shard_batch:
-        batched_ensemble = shard_pytree(batched_ensemble, mesh)  # noqa: PLW2901
-
       max_len = batched_ensemble.coordinates.shape[0]
       if spec.ar_mask is None:
         current_ar_mask = 1 - jnp.eye(max_len, dtype=jnp.bool_)
@@ -362,11 +330,7 @@ def _score_streaming(
           ensemble.mapping,
         )
 
-      if mesh is not None:
-        with mesh:
-          scores, logits, _ = _compute(batched_ensemble)
-      else:
-        scores, logits, _ = _compute(batched_ensemble)
+      scores, logits, _ = _compute(batched_ensemble)
 
       scores_ds.resize(scores_ds.shape[0] + scores.size, axis=0)
       scores_ds[-scores.size :] = scores.flatten()
@@ -380,5 +344,6 @@ def _score_streaming(
     "output_h5_path": str(spec.output_h5_path),
     "metadata": {
       "specification": spec,
+      "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
     },
   }

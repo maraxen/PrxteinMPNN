@@ -15,8 +15,8 @@ from prxteinmpnn.model.decoder import Decoder
 from prxteinmpnn.model.encoder import Encoder, PhysicsEncoder
 from prxteinmpnn.model.features import ProteinFeatures
 from prxteinmpnn.model.multi_state_sampling import (
-  max_min_over_group_logits,
-  min_over_group_logits,
+  arithmetic_mean_logits,
+  geometric_mean_logits,
   product_of_probabilities_logits,
 )
 from prxteinmpnn.utils.concatenate import concatenate_neighbor_nodes
@@ -159,7 +159,7 @@ class PrxteinMPNN(eqx.Module):
     _bias: Logits,
     _tie_group_map: jnp.ndarray | None,
     _multi_state_strategy_idx: Int,
-    _multi_state_alpha: float,
+    _multi_state_temperature: Float,
     _initial_node_features: NodeFeatures | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the unconditional (scoring) path.
@@ -176,7 +176,7 @@ class PrxteinMPNN(eqx.Module):
       _bias: Unused, required for jax.lax.switch signature.
       _tie_group_map: Unused, required for jax.lax.switch signature.
       _multi_state_strategy_idx: Unused, required for jax.lax.switch signature.
-      _multi_state_alpha: Unused, required for jax.lax.switch signature.
+      _multi_state_temperature: Unused, required for jax.lax.switch signature.
       _initial_node_features: Unused.
 
     Returns:
@@ -224,7 +224,7 @@ class PrxteinMPNN(eqx.Module):
     _bias: Logits,
     _tie_group_map: jnp.ndarray | None,
     _multi_state_strategy_idx: Int,
-    _multi_state_alpha: float,
+    _multi_state_temperature: Float,
     _initial_node_features: NodeFeatures | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the conditional (scoring) path.
@@ -241,7 +241,7 @@ class PrxteinMPNN(eqx.Module):
       _bias: Unused, required for jax.lax.switch signature.
       _tie_group_map: Unused, required for jax.lax.switch signature.
       _multi_state_strategy_idx: Unused, required for jax.lax.switch signature.
-      _multi_state_alpha: Unused, required for jax.lax.switch signature.
+      _multi_state_temperature: Unused, required for jax.lax.switch signature.
       _initial_node_features: Unused.
 
     Returns:
@@ -291,7 +291,7 @@ class PrxteinMPNN(eqx.Module):
     bias: Logits,
     tie_group_map: jnp.ndarray | None,
     multi_state_strategy_idx: Int,
-    multi_state_alpha: float = 0.5,
+    multi_state_temperature: Float = 1.0,
     _initial_node_features: NodeFeatures | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the autoregressive (sampling) path.
@@ -308,8 +308,8 @@ class PrxteinMPNN(eqx.Module):
       bias: Bias to add to logits before sampling (N, 21).
       tie_group_map: Optional (N,) array mapping each position to a group ID.
           When provided, positions in the same group sample identical amino acids.
-      multi_state_strategy_idx: Integer index for strategy (0=mean, 1=min, 2=product, 3=max_min).
-      multi_state_alpha: Weight for min component when strategy="max_min".
+      multi_state_strategy_idx: Integer index for strategy (0=arithmetic_mean, 1=geometric_mean, 2=product).
+      multi_state_temperature: Temperature for geometric_mean strategy.
       _initial_node_features: Unused.
 
     Returns:
@@ -343,61 +343,18 @@ class PrxteinMPNN(eqx.Module):
       bias,
       tie_group_map,
       multi_state_strategy_idx,
-      multi_state_alpha,
+      multi_state_temperature,
     )
     return seq, logits
 
-  @staticmethod
-  def _average_logits_over_group(
-    logits: Logits,
-    group_mask: jnp.ndarray,
-  ) -> jnp.ndarray:
-    """Average logits across positions in a tie group using log-sum-exp.
 
-    This implements numerically stable logit averaging for tied positions.
-    Given logits of shape (N, 21) and a boolean mask indicating which
-    positions belong to the current group, returns averaged logits of shape (1, 21).
-
-    Args:
-      logits: Logits array of shape (N, 21).
-      group_mask: Boolean mask of shape (N,) indicating group membership.
-
-    Returns:
-      Averaged logits of shape (1, 21).
-
-    Raises:
-      None
-
-    Example:
-      >>> logits = jnp.array([[0.1, 0.9], [0.3, 0.7]])
-      >>> group_mask = jnp.array([True, True])
-      >>> avg_logits = PrxteinMPNN._average_logits_over_group(logits, group_mask)
-
-    """
-    max_logits = jnp.max(
-      logits,
-      where=group_mask[:, None],
-      initial=-1e9,
-      axis=0,
-      keepdims=True,
-    )
-
-    shifted_logits = logits - max_logits
-    exp_logits = jnp.exp(shifted_logits)
-
-    masked_exp_logits = jnp.where(group_mask[:, None], exp_logits, 0.0)
-    sum_exp_logits = jnp.sum(masked_exp_logits, axis=0, keepdims=True)
-
-    num_in_group = jnp.sum(group_mask)
-    avg_exp_logits = sum_exp_logits / num_in_group
-    return jnp.log(avg_exp_logits) + max_logits
 
   @staticmethod
   def _combine_logits_multistate(
     logits: Logits,
     group_mask: jnp.ndarray,
-    strategy: Literal["mean", "min", "product", "max_min"] = "mean",
-    alpha: float = 0.5,
+    strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
+    temperature: float = 1.0,
   ) -> jnp.ndarray:
     """Combine logits across tied positions using different multi-state strategies.
 
@@ -405,11 +362,10 @@ class PrxteinMPNN(eqx.Module):
       logits: Logits array of shape (N, 21).
       group_mask: Boolean mask of shape (N,) indicating group membership.
       strategy: Strategy for combining logits:
-        - "mean": Average logits (consensus prediction, default)
-        - "min": Minimum logits (worst-case robust design)
+        - "arithmetic_mean": Average logits using log-sum-exp (consensus prediction, default)
+        - "geometric_mean": Geometric mean of probabilities with temperature scaling
         - "product": Sum of logits (multiply probabilities)
-        - "max_min": Weighted combination of min and mean (alpha controls weight)
-      alpha: Weight for min component when strategy="max_min" (0=pure mean, 1=pure min).
+      temperature: Temperature for geometric_mean strategy.
 
     Returns:
       Combined logits of shape (1, 21).
@@ -417,20 +373,18 @@ class PrxteinMPNN(eqx.Module):
     Example:
       >>> logits = jnp.array([[10.0, -5.0], [8.0, -3.0]])
       >>> group_mask = jnp.array([True, True])
-      >>> # Average strategy (compromise)
-      >>> avg = PrxteinMPNN._combine_logits_multistate(logits, group_mask, "mean")
-      >>> # Min strategy (robust to worst case)
-      >>> robust = PrxteinMPNN._combine_logits_multistate(logits, group_mask, "min")
+      >>> # Arithmetic mean strategy (compromise)
+      >>> avg = PrxteinMPNN._combine_logits_multistate(logits, group_mask, "arithmetic_mean")
+      >>> # Product strategy (multiply probabilities)
+      >>> prod = PrxteinMPNN._combine_logits_multistate(logits, group_mask, "product")
 
     """
-    if strategy == "mean":
-      return PrxteinMPNN._average_logits_over_group(logits, group_mask)
-    if strategy == "min":
-      return min_over_group_logits(logits, group_mask)
+    if strategy == "arithmetic_mean":
+      return arithmetic_mean_logits(logits, group_mask)
+    if strategy == "geometric_mean":
+      return geometric_mean_logits(logits, group_mask, temperature)
     if strategy == "product":
       return product_of_probabilities_logits(logits, group_mask)
-    if strategy == "max_min":
-      return max_min_over_group_logits(logits, group_mask, alpha)
     msg = f"Unknown multi-state strategy: {strategy}"
     raise ValueError(msg)
 
@@ -439,7 +393,7 @@ class PrxteinMPNN(eqx.Module):
     logits: Logits,
     group_mask: jnp.ndarray,
     strategy_idx: Int,
-    alpha: float = 0.5,
+    temperature: float = 1.0,
   ) -> jnp.ndarray:
     """Combine logits using strategy index (JAX-traceable version).
 
@@ -450,27 +404,24 @@ class PrxteinMPNN(eqx.Module):
     Args:
       logits: Logits array of shape (N, 21).
       group_mask: Boolean mask of shape (N,) indicating group membership.
-      strategy_idx: Integer strategy index (0=mean, 1=min, 2=product, 3=max_min).
-      alpha: Weight for min component when strategy_idx=3 (0=pure mean, 1=pure min).
+      strategy_idx: Integer strategy index (0=arithmetic_mean, 1=geometric_mean, 2=product).
+      temperature: Temperature for geometric_mean strategy.
 
     Returns:
       Combined logits of shape (1, 21).
 
     """
 
-    def mean_fn(_: tuple) -> jnp.ndarray:
-      return PrxteinMPNN._average_logits_over_group(logits, group_mask)
+    def arithmetic_mean_fn(_: tuple) -> jnp.ndarray:
+      return arithmetic_mean_logits(logits, group_mask)
 
-    def min_fn(_: tuple) -> jnp.ndarray:
-      return min_over_group_logits(logits, group_mask)
+    def geometric_mean_fn(_: tuple) -> jnp.ndarray:
+      return geometric_mean_logits(logits, group_mask, temperature)
 
     def product_fn(_: tuple) -> jnp.ndarray:
       return product_of_probabilities_logits(logits, group_mask)
 
-    def max_min_fn(_: tuple) -> jnp.ndarray:
-      return max_min_over_group_logits(logits, group_mask, alpha)
-
-    branches = [mean_fn, min_fn, product_fn, max_min_fn]
+    branches = [arithmetic_mean_fn, geometric_mean_fn, product_fn]
     return jax.lax.switch(strategy_idx, branches, ())
 
   def _process_group_positions(
@@ -576,7 +527,7 @@ class PrxteinMPNN(eqx.Module):
     tie_group_map: jnp.ndarray,
     decoding_order: jnp.ndarray,
     multi_state_strategy_idx: Int = 0,
-    multi_state_alpha: float = 0.5,
+    multi_state_temperature: Float = 1.0,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run group-based autoregressive scan with logit combining.
 
@@ -592,8 +543,8 @@ class PrxteinMPNN(eqx.Module):
       bias: Logits array (N, 21).
       tie_group_map: Group mapping (N,).
       decoding_order: Position decoding order (N,).
-      multi_state_strategy_idx: Integer strategy index (0=mean, 1=min, 2=product, 3=max_min).
-      multi_state_alpha: Weight for min component when strategy_idx=3.
+      multi_state_strategy_idx: Integer strategy index (0=arithmetic_mean, 1=geometric_mean, 2=product).
+      multi_state_temperature: Temperature for geometric_mean strategy.
 
     Returns:
       Tuple of (final sequence, final logits).
@@ -643,7 +594,7 @@ class PrxteinMPNN(eqx.Module):
         computed_logits,
         group_mask,
         multi_state_strategy_idx,
-        multi_state_alpha,
+        multi_state_temperature,
       )
       all_logits, s_embed, sequence = self._sample_and_broadcast_to_group(
         combined_logits,
@@ -747,7 +698,7 @@ class PrxteinMPNN(eqx.Module):
     bias: Logits,
     tie_group_map: jnp.ndarray | None = None,
     multi_state_strategy_idx: Int = 0,
-    multi_state_alpha: float = 0.5,
+    multi_state_temperature: Float = 1.0,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run JAX scan loop for autoregressive sampling with optional tied positions.
 
@@ -771,8 +722,8 @@ class PrxteinMPNN(eqx.Module):
       tie_group_map: Optional (N,) array mapping each position to a group ID.
           When provided, positions in the same group are sampled together
           using combined logits.
-      multi_state_strategy_idx: Integer strategy index (0=mean, 1=min, 2=product, 3=max_min).
-      multi_state_alpha: Weight for min component when strategy_idx=3.
+      multi_state_strategy_idx: Integer strategy index (0=arithmetic_mean, 1=geometric_mean, 2=product).
+      multi_state_temperature: Temperature for geometric_mean strategy.
 
     Returns:
       Tuple of (sampled sequence, final logits).
@@ -853,9 +804,7 @@ class PrxteinMPNN(eqx.Module):
         )
 
         # Combine with encoder context using backward mask
-        decoding_context = (
-          mask_bw_pos[..., None] * decoder_context_pos + encoder_context_pos
-        )
+        decoding_context = mask_bw_pos[..., None] * decoder_context_pos + encoder_context_pos
 
         # Expand dims for layer forward pass
         h_in_expanded = jnp.expand_dims(h_in_pos, axis=0)
@@ -951,7 +900,7 @@ class PrxteinMPNN(eqx.Module):
       tie_group_map,
       decoding_order,
       multi_state_strategy_idx,
-      multi_state_alpha,
+      multi_state_temperature,
     )
 
   def __call__(  # noqa: PLR0913
@@ -969,8 +918,7 @@ class PrxteinMPNN(eqx.Module):
     bias: Logits | None = None,
     backbone_noise: BackboneNoise | None = None,
     tie_group_map: jnp.ndarray | None = None,
-    multi_state_strategy: Literal["mean", "min", "product", "max_min"] = "mean",
-    multi_state_alpha: float = 0.5,
+    multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
     structure_mapping: jnp.ndarray | None = None,
     initial_node_features: jnp.ndarray | None = None,
     full_coordinates: jnp.ndarray | None = None,
@@ -1000,11 +948,10 @@ class PrxteinMPNN(eqx.Module):
           When provided, positions in the same group sample identical amino acids
           using logit combining. Only used in "autoregressive" mode (optional).
       multi_state_strategy: Strategy for combining logits across tied positions.
-          Options: "mean" (default, average), "min" (worst-case robust),
-          "product" (multiply probabilities), "max_min" (weighted combination).
+          Options: "arithmetic_mean" (default, log-sum-exp average), 
+          "geometric_mean" (geometric mean with temperature scaling),
+          "product" (multiply probabilities).
           Only used in "autoregressive" mode with tied positions (optional).
-      multi_state_alpha: Weight for min component when multi_state_strategy="max_min".
-          Range [0, 1] where 0=pure mean, 1=pure min (optional).
       structure_mapping: Optional (N,) array mapping each residue to a structure ID.
                         When provided (multi-state mode), prevents cross-structure
                         neighbors to avoid information leakage between conformational states.
@@ -1089,7 +1036,7 @@ class PrxteinMPNN(eqx.Module):
     if bias is None:
       bias = jnp.zeros((mask.shape[0], 21), dtype=jnp.float32)
 
-    strategy_map = {"mean": 0, "min": 1, "product": 2, "max_min": 3}
+    strategy_map = {"arithmetic_mean": 0, "geometric_mean": 1, "product": 2}
     multi_state_strategy_idx = jnp.array(
       strategy_map[multi_state_strategy],
       dtype=jnp.int32,
@@ -1113,7 +1060,7 @@ class PrxteinMPNN(eqx.Module):
       bias,
       tie_group_map,
       multi_state_strategy_idx,
-      multi_state_alpha,
+      temperature,
       initial_node_features,
     )
     return jax.lax.switch(branch_index, branches, *operands)

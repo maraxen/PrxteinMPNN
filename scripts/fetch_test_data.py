@@ -46,8 +46,8 @@ def fetch_mdcath_data():
             filename=filename,
             repo_type="dataset",
             local_dir=TEST_DATA_DIR,
-            local_dir_use_symlinks=False
-        )
+            local_dir_use_symlinks=False,
+        )  # type: ignore[no-matching-overload]
         logger.info(f"Downloaded MDcath file to {local_path}")
     except Exception as e:
         logger.warning(f"Failed to download {filename}: {e}")
@@ -61,8 +61,8 @@ def fetch_mdcath_data():
                 filename=f"data/{filename}",
                 repo_type="dataset",
                 local_dir=TEST_DATA_DIR,
-                local_dir_use_symlinks=False
-            )
+                local_dir_use_symlinks=False,
+            )  # type: ignore[no-matching-overload]
             logger.info(f"Downloaded MDcath file to {local_path}")
         except Exception as e2:
              logger.error(f"Failed to download MDcath data: {e2}")

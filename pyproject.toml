@@ -129,7 +129,7 @@ markers = [
 ]
 
 [tool.ty.src]
-exclude = ["tests"]
+exclude = ["tests", "examples", "scripts"]
 
 [tool.ty.rules]
 invalid-type-form = "ignore"

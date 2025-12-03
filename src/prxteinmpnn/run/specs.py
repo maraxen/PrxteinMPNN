@@ -59,6 +59,11 @@ class RunSpecification:
       altloc: The alternate location to use (default is "first").
       decoding_order_fn: An optional function to generate the decoding order (default is None).
       conformational_states: ConformationalStates to use for coarse graining the inference.
+      max_length: Maximum sequence length for padding/truncation (default is 512).
+                  Set to None to disable padding. Controls memory usage - smaller values
+                  reduce memory but may cause recompilation for different sequence lengths.
+      truncation_strategy: Strategy for handling sequences longer than max_length.
+                          Options: "none" (default, no truncation), "random_crop", "center_crop".
 
   """
 
@@ -96,10 +101,10 @@ class RunSpecification:
   cache_path: str | Path | None = None
   overwrite_cache: bool = False
   output_path: str | Path | None = None
+  max_length: int | None = 512
+  truncation_strategy: Literal["none", "random_crop", "center_crop"] = "none"
 
   # Data/Sharding
-  use_sharding: bool = True
-  shard_batch: bool = True
   use_preprocessed: bool = False
   preprocessed_index_path: str | Path | None = None
   split: str = "inference"
@@ -187,12 +192,13 @@ class SamplingSpecification(RunSpecification):
   learning_rate: float | None = None
   output_h5_path: str | Path | None = None
   samples_batch_size: int = 16
-  noise_batch_size: int = 4
+  noise_batch_size: int = 1
+  temperature_batch_size: int = 1
   average_node_features: bool = False
   average_encoding_mode: Literal["inputs", "noise_levels", "inputs_and_noise"] = "inputs_and_noise"
   average_logits: None | Literal["structures", "noise", "both"] = None
-  multi_state_strategy: Literal["mean", "min", "product", "max_min"] = "mean"
-  multi_state_alpha: float = 0.5
+  multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean"
+  compute_pseudo_perplexity: bool = False
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""

@@ -14,7 +14,7 @@ from . import dataset, operations, prefetch_autotune
 from .array_record_source import ArrayRecordDataSource  # NEW
 
 
-def create_protein_dataset(
+def create_protein_dataset(  # noqa: PLR0913
   inputs: str | Path | Sequence[str | Path | IO[str]],
   batch_size: int,
   parse_kwargs: dict[str, Any] | None = None,
@@ -136,7 +136,12 @@ def create_protein_dataset(
     )
   )
 
-  return ds.to_iter_dataset(read_options=performance_config.read_options).batch(
+  iter_ds = ds.to_iter_dataset(read_options=performance_config.read_options).batch(
     batch_size,
     batch_fn=batch_fn,
   )
+
+  if hasattr(source, "skipped_frames"):
+    iter_ds.skipped_frames = source.skipped_frames  # type: ignore[attr-defined]
+
+  return iter_ds

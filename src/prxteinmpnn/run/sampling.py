@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import sys
 from functools import partial
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import h5py
 import jax
@@ -15,13 +15,13 @@ from prxteinmpnn.run.averaging import get_averaged_encodings, make_encoding_samp
 from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.utils.autoregression import resolve_tie_groups
 from prxteinmpnn.utils.decoding_order import random_decoding_order
-from prxteinmpnn.utils.sharding import create_mesh, shard_pytree
+from prxteinmpnn.utils.safe_map import safe_map as _safe_map
 
 from .prep import prep_protein_stream_and_model
 from .specs import SamplingSpecification
 
 if TYPE_CHECKING:
-  from collections.abc import Callable
+  from collections.abc import Callable, Sequence
 
   from grain.python import IterDataset
   from jaxtyping import PRNGKeyArray
@@ -32,7 +32,6 @@ if TYPE_CHECKING:
     AlphaCarbonMask,
     AutoRegressiveMask,
     BackboneCoordinates,
-    BackboneNoise,
     ChainIndex,
     DecodingOrder,
     Logits,
@@ -43,12 +42,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
 
+RANK_WITH_TEMPERATURE = 4
+
 
 def _sample_batch(
   spec: SamplingSpecification,
   batched_ensemble: Protein,
   sampler_fn: Callable,
-) -> tuple[ProteinSequence, Logits]:
+) -> tuple[ProteinSequence, Logits, jax.Array | None]:
   """Sample sequences for a batched ensemble of proteins."""
   keys = jax.random.split(jax.random.key(spec.random_seed), spec.num_samples)
 
@@ -76,10 +77,9 @@ def _sample_batch(
       if spec.fixed_positions is not None
       else None
     ),
-    _iterations=spec.iterations,
-    _learning_rate=spec.learning_rate,
+    iterations=spec.iterations,
+    learning_rate=spec.learning_rate,
     multi_state_strategy=spec.multi_state_strategy,
-    multi_state_alpha=spec.multi_state_alpha,
     num_groups=num_groups,
     md_config={
         "temperature": spec.md_temperature,
@@ -132,24 +132,56 @@ def _sample_batch(
     def map_over_noise_and_temp(
       k: PRNGKeyArray,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
-      
-      def vmap_over_temp(n: float) -> tuple[ProteinSequence, Logits, DecodingOrder]:
-        return jax.vmap(
-            lambda t: sample_single_config(
-                k, coords, mask, residue_ix, chain_ix, n, t, current_tie_map, structure_mapping, full_coords, md_p
-            )
-        )(temperature_array)
+      def map_over_temp(n: float) -> tuple[ProteinSequence, Logits, DecodingOrder]:
+        return _safe_map(
+          lambda t: sample_single_config(
+            k,
+            coords,
+            mask,
+            residue_ix,
+            chain_ix,
+            n,
+            t,
+            current_tie_map,
+            structure_mapping,
+            full_coords,
+            md_p,
+          ),
+          temperature_array,
+          batch_size=spec.temperature_batch_size,
+        )
 
-      return jax.vmap(vmap_over_temp)(noise_array)
+      return _safe_map(map_over_temp, noise_array, batch_size=spec.noise_batch_size)
 
-    return jax.lax.map(
+    return _safe_map(
       map_over_noise_and_temp,
       keys_arr,
       batch_size=spec.samples_batch_size,
     )
 
-  tie_map_in_axis = 0 if tie_group_map is not None else None
-  mapping_in_axis = 0 if batched_ensemble.mapping is not None else None
+  # Ensure tie_group_map and mapping have batch dimensions for vmap
+  # tie_group_map comes from resolve_tie_groups with shape (n_residues,)
+  # but vmap expects (batch_size, n_residues) when in_axes=0
+  batch_size = batched_ensemble.coordinates.shape[0]
+  
+  tie_map_for_vmap = None
+  if tie_group_map is not None:
+    # Add batch dimension and broadcast: (n,) -> (1, n) -> (batch_size, n)
+    tie_map_for_vmap = jnp.broadcast_to(
+      jnp.atleast_2d(tie_group_map), 
+      (batch_size, tie_group_map.shape[0])
+    )
+  
+  mapping_for_vmap = batched_ensemble.mapping
+  if batched_ensemble.mapping is not None and batched_ensemble.mapping.ndim == 1:
+    # Add batch dimension and broadcast if needed: (n,) -> (1, n) -> (batch_size, n)
+    mapping_for_vmap = jnp.broadcast_to(
+      jnp.atleast_2d(batched_ensemble.mapping),
+      (batch_size, batched_ensemble.mapping.shape[0])
+    )
+  
+  tie_map_in_axis = 0 if tie_map_for_vmap is not None else None
+  mapping_in_axis = 0 if mapping_for_vmap is not None else None
 
   vmap_structures = jax.vmap(
     internal_sample,
@@ -176,13 +208,19 @@ def _sample_batch(
     batched_ensemble.residue_index,
     batched_ensemble.chain_index,
     keys,
-    tie_group_map,
-    batched_ensemble.mapping,
+    tie_map_for_vmap,
+    mapping_for_vmap,
     batched_ensemble.full_coordinates,
     md_params,
   )
-  
-  return sampled_sequences, sampled_logits
+
+  if spec.compute_pseudo_perplexity:
+    one_hot_sequences = jax.nn.one_hot(sampled_sequences, num_classes=21)
+    log_probs = jax.nn.log_softmax(sampled_logits, axis=-1)
+    nll = -jnp.sum(one_hot_sequences * log_probs, axis=(-1, -2))
+    pseudo_perplexity = jnp.exp(nll / jnp.sum(batched_ensemble.mask, axis=-1))
+    return sampled_sequences, sampled_logits, pseudo_perplexity
+  return sampled_sequences, sampled_logits, None
 
 
 def sample(
@@ -234,35 +272,21 @@ def sample(
     sampling_strategy=spec.sampling_strategy,
   )
 
-  # Initialize mesh if requested
-  mesh = None
-  if spec.use_sharding:
-    mesh = create_mesh()
-
   if spec.output_h5_path:
-    return _sample_streaming(spec, protein_iterator, sampler_fn, mesh=mesh)
+    return _sample_streaming(spec, protein_iterator, sampler_fn)
 
-  all_sequences, all_logits = [], []
+  all_sequences, all_logits, all_pseudo_perplexities = [], [], []
 
   for batched_ensemble in protein_iterator:
-    if mesh is not None and spec.shard_batch:
-      batched_ensemble = shard_pytree(batched_ensemble, mesh)  # noqa: PLW2901
-
-    if mesh is not None:
-      with mesh:
-        sampled_sequences, logits = _sample_batch(
-          spec,
-          batched_ensemble,
-          sampler_fn,
-        )
-    else:
-      sampled_sequences, logits = _sample_batch(
-        spec,
-        batched_ensemble,
-        sampler_fn,
-      )
+    sampled_sequences, logits, pseudo_perplexity = _sample_batch(
+      spec,
+      batched_ensemble,
+      sampler_fn,
+    )
     all_sequences.append(sampled_sequences)
     all_logits.append(logits)
+    if pseudo_perplexity is not None:
+      all_pseudo_perplexities.append(pseudo_perplexity)
 
   max_len = max(arr.shape[-1] for arr in all_sequences)
 
@@ -291,47 +315,42 @@ def sample(
     for seq in all_sequences
   ]
 
-  return {
+  results = {
     "sequences": jnp.concatenate(all_sequences_padded, axis=0),
     "logits": jnp.concatenate(all_logits_padded, axis=0),
-    "mask": jnp.concatenate(all_masks, axis=0),  # It's good practice to return this
+    "mask": jnp.concatenate(all_masks, axis=0),
     "metadata": {
       "specification": spec,
+      "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
     },
   }
+  if all_pseudo_perplexities:
+    results["pseudo_perplexity"] = jnp.concatenate(all_pseudo_perplexities, axis=0)
+
+  return results
 
 
 def _sample_streaming(
   spec: SamplingSpecification,
   protein_iterator: IterDataset,
   sampler_fn: Callable,
-  mesh: jax.sharding.Mesh | None = None,
-) -> dict[str, str | dict[str, SamplingSpecification]]:
+) -> dict[str, Any]:
   """Sample new sequences and stream results to an HDF5 file."""
   with h5py.File(spec.output_h5_path, "w") as f:
     structure_idx = 0
 
     for batched_ensemble in protein_iterator:
-      if mesh is not None and spec.shard_batch:
-        batched_ensemble = shard_pytree(batched_ensemble, mesh)  # noqa: PLW2901
-
-      if mesh is not None:
-        with mesh:
-          sampled_sequences, sampled_logits = _sample_batch(
-            spec,
-            batched_ensemble,
-            sampler_fn,
-          )
-      else:
-        sampled_sequences, sampled_logits = _sample_batch(
-          spec,
-          batched_ensemble,
-          sampler_fn,
-        )
+      sampled_sequences, sampled_logits, pseudo_perplexity = _sample_batch(
+        spec,
+        batched_ensemble,
+        sampler_fn,
+      )
       for i in range(sampled_sequences.shape[0]):
         grp = f.create_group(f"structure_{structure_idx}")
         grp.create_dataset("sequences", data=sampled_sequences[i], dtype="i4")
         grp.create_dataset("logits", data=sampled_logits[i], dtype="f4")
+        if pseudo_perplexity is not None:
+          grp.create_dataset("pseudo_perplexity", data=pseudo_perplexity[i], dtype="f4")
         # Store metadata about the structure
         grp.attrs["structure_index"] = structure_idx
         grp.attrs["num_samples"] = sampled_sequences.shape[1]
@@ -346,6 +365,7 @@ def _sample_streaming(
     "output_h5_path": str(spec.output_h5_path),
     "metadata": {
       "specification": spec,
+      "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
     },
   }
 
@@ -396,10 +416,10 @@ def _sample_averaged_mode(
     return _sample_streaming_averaged(spec, protein_iterator, model)
 
   _, sample_fn, decode_fn = make_encoding_sampling_split_fn(model)
-  all_sequences, all_logits = [], []
+  all_sequences, all_logits, all_pseudo_perplexities = [], [], []
 
   for batched_ensemble in protein_iterator:
-    sampled_sequences, logits = _sample_batch_averaged(
+    sampled_sequences, logits, pseudo_perplexity = _sample_batch_averaged(
       spec,
       batched_ensemble,
       model,
@@ -408,14 +428,97 @@ def _sample_averaged_mode(
     )
     all_sequences.append(sampled_sequences)
     all_logits.append(logits)
+    if pseudo_perplexity is not None:
+      all_pseudo_perplexities.append(pseudo_perplexity)
 
-  return {
+  results = {
     "sequences": jnp.concatenate(all_sequences, axis=0),
     "logits": jnp.concatenate(all_logits, axis=0),
     "metadata": {
       "specification": spec,
+      "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
     },
   }
+  if all_pseudo_perplexities:
+    results["pseudo_perplexity"] = jnp.concatenate(all_pseudo_perplexities, axis=0)
+
+  return results
+
+
+def _internal_sample_averaged(
+  spec: SamplingSpecification,
+  encoded_feat: tuple,
+  keys_arr: PRNGKeyArray,
+  sample_fn_with_params: Callable,
+  tie_group_map: jnp.ndarray | None,
+  num_groups: int | None,
+) -> ProteinSequence:
+  """Sample mapping over keys for averaged features."""
+  decoding_order_keys = jax.random.split(jax.random.key(spec.random_seed + 1), spec.num_samples)
+
+  temperature_array = jnp.asarray(spec.temperature, dtype=jnp.float32)
+
+  def sample_single_sequence(
+    key: PRNGKeyArray,
+    decoding_order_key: PRNGKeyArray,
+    encoded_feat: tuple,
+    temperature: float,
+  ) -> ProteinSequence:
+    """Sample one sequence from averaged features."""
+    seq_len = encoded_feat[0].shape[0]
+    decoding_order, _ = random_decoding_order(
+      decoding_order_key,
+      seq_len,
+      tie_group_map,
+      num_groups,
+    )
+    return sample_fn_with_params(key, encoded_feat, decoding_order, temperature=temperature)
+
+  def sample_for_key(k: PRNGKeyArray, dok: PRNGKeyArray) -> ProteinSequence:
+    return jax.vmap(
+      lambda t: sample_single_sequence(k, dok, encoded_feat, t),
+    )(temperature_array)
+
+  vmap_sample_fn = jax.vmap(
+    sample_for_key,
+    in_axes=(0, 0),
+    out_axes=0,
+  )
+  return vmap_sample_fn(keys_arr, decoding_order_keys)
+
+
+def _compute_logits_averaged(
+  spec: SamplingSpecification,
+  averaged_encodings: tuple,
+  sampled_sequences: ProteinSequence,
+  decode_fn_wrapped: Callable,
+) -> Logits:
+  """Compute logits for the sampled sequences."""
+  seq_len = sampled_sequences.shape[-1]
+  ar_mask = jnp.zeros((seq_len, seq_len), dtype=jnp.int32)
+
+  if spec.average_encoding_mode == "inputs_and_noise":
+
+    def get_logits_local_both(seq: ProteinSequence) -> Logits:
+      return jax.vmap(lambda s: decode_fn_wrapped(averaged_encodings, s, ar_mask))(seq)
+
+    vmap_logits = jax.vmap(get_logits_local_both)
+    logits = vmap_logits(sampled_sequences[0])
+    logits = jnp.expand_dims(logits, axis=0)
+  else:
+
+    def get_logits_local(seq: ProteinSequence, enc: tuple) -> Logits:
+      return jax.vmap(lambda s: decode_fn_wrapped(enc, s, ar_mask))(seq)
+
+    struct_axis = 1 if spec.average_encoding_mode == "inputs" else 0
+
+    vmap_logits = jax.vmap(
+      jax.vmap(get_logits_local, in_axes=(0, None)),
+      in_axes=(0, (0, 0, struct_axis, struct_axis, struct_axis)),
+    )
+    logits = vmap_logits(sampled_sequences, averaged_encodings)
+
+  return logits
 
 
 def _sample_batch_averaged(
@@ -424,7 +527,7 @@ def _sample_batch_averaged(
   model: PrxteinMPNN,
   sample_fn: Callable,  # noqa: ARG001
   decode_fn: Callable,  # noqa: ARG001
-) -> tuple[ProteinSequence, Logits]:
+) -> tuple[ProteinSequence, Logits, jax.Array | None]:
   """Sample sequences for a batched ensemble of proteins using averaged encodings."""
   keys = jax.random.split(jax.random.key(spec.random_seed), spec.num_samples)
 
@@ -457,99 +560,63 @@ def _sample_batch_averaged(
     num_groups=num_groups,
   )
 
-  def sample_single_sequence(
-    key: PRNGKeyArray,
-    decoding_order_key: PRNGKeyArray,
-    encoded_feat: tuple,
-    temperature: float,
-    _sampler: partial = sample_fn_with_params,
-  ) -> ProteinSequence:
-    """Sample one sequence from averaged features."""
-    seq_len = encoded_feat[0].shape[0]
-    decoding_order, _ = random_decoding_order(
-      decoding_order_key,
-      seq_len,
-      tie_group_map,
-      num_groups,
-    )
-    return _sampler(key, encoded_feat, decoding_order, temperature=temperature)
-
-  def internal_sample_averaged(
-    encoded_feat: tuple,
-    keys_arr: PRNGKeyArray,
-  ) -> ProteinSequence:
-    """Sample mapping over keys for averaged features."""
-    decoding_order_keys = jax.random.split(jax.random.key(spec.random_seed + 1), spec.num_samples)
-
-    temperature_array = jnp.asarray(spec.temperature, dtype=jnp.float32)
-
-    def sample_for_key(k: PRNGKeyArray, dok: PRNGKeyArray) -> ProteinSequence:
-      return jax.vmap(
-        lambda t: sample_single_sequence(k, dok, encoded_feat, t),
-      )(temperature_array)
-
-    vmap_sample_fn = jax.vmap(
-      sample_for_key,
-      in_axes=(0, 0),
-      out_axes=0,
-    )
-    return vmap_sample_fn(keys_arr, decoding_order_keys)
-
   if spec.average_encoding_mode == "inputs_and_noise":
-    sampled_sequences = internal_sample_averaged(
+    sampled_sequences = _internal_sample_averaged(
+      spec,
       averaged_encodings,
       keys,
+      sample_fn_with_params,
+      tie_group_map,
+      num_groups,
     )
     sampled_sequences = jnp.expand_dims(sampled_sequences, axis=0)
   else:
     struct_axis = 1 if spec.average_encoding_mode == "inputs" else 0
 
+    def _call_internal(enc: tuple) -> ProteinSequence:
+      return _internal_sample_averaged(
+        spec,
+        enc,
+        keys,
+        sample_fn_with_params,
+        tie_group_map,
+        num_groups,
+      )
+
     vmap_sample_structures = jax.vmap(
-      internal_sample_averaged,
-      in_axes=((0, 0, struct_axis, struct_axis, struct_axis), None),
+      _call_internal,
+      in_axes=((0, 0, struct_axis, struct_axis, struct_axis),),
     )
     sampled_sequences = vmap_sample_structures(
       averaged_encodings,
-      keys,
     )
 
-  # Get logits for the sampled sequences using the SAME wrapped decode function
-  seq_len = sampled_sequences.shape[-1]
-  ar_mask = jnp.zeros((seq_len, seq_len), dtype=jnp.int32)
+  logits = _compute_logits_averaged(spec, averaged_encodings, sampled_sequences, decode_fn_wrapped)
 
-  if spec.average_encoding_mode == "inputs_and_noise":
-
-    def get_logits_local_both(seq: ProteinSequence) -> Logits:
-      return jax.vmap(lambda s: decode_fn_wrapped(averaged_encodings, s, ar_mask))(seq)
-
-    vmap_logits = jax.vmap(get_logits_local_both)
-    logits = vmap_logits(sampled_sequences[0])
-    logits = jnp.expand_dims(logits, axis=0)
-  else:
-
-    def get_logits_local(seq: ProteinSequence, enc: tuple) -> Logits:
-      return jax.vmap(lambda s: decode_fn_wrapped(enc, s, ar_mask))(seq)
-
-    struct_axis = 1 if spec.average_encoding_mode == "inputs" else 0
-
-    vmap_logits = jax.vmap(
-      jax.vmap(get_logits_local, in_axes=(0, None)),
-      in_axes=(0, (0, 0, struct_axis, struct_axis, struct_axis)),
-    )
-    logits = vmap_logits(sampled_sequences, averaged_encodings)
-
+  num_temps = len(cast("Sequence[float]", spec.temperature))
   # Reshape to (1, -1, num_temps, seq_len)
-  sampled_sequences = sampled_sequences.reshape((1, -1, len(spec.temperature), seq_len))
-  logits = logits.reshape((1, -1, len(spec.temperature), seq_len, 21))
+  seq_len = sampled_sequences.shape[-1]
+  sampled_sequences = sampled_sequences.reshape((1, -1, num_temps, seq_len))
+  logits = logits.reshape((1, -1, num_temps, seq_len, 21))
 
-  return sampled_sequences, logits
+  if num_temps == 1:
+    sampled_sequences = jnp.squeeze(sampled_sequences, axis=2)
+    logits = jnp.squeeze(logits, axis=2)
+
+  if spec.compute_pseudo_perplexity:
+    one_hot_sequences = jax.nn.one_hot(sampled_sequences, num_classes=21)
+    log_probs = jax.nn.log_softmax(logits, axis=-1)
+    nll = -jnp.sum(one_hot_sequences * log_probs, axis=(-1, -2))
+    pseudo_perplexity = jnp.exp(nll / jnp.sum(batched_ensemble.mask, axis=-1))
+    return sampled_sequences, logits, pseudo_perplexity
+  return sampled_sequences, logits, None
 
 
 def _sample_streaming_averaged(
   spec: SamplingSpecification,
   protein_iterator: IterDataset,
   model: PrxteinMPNN,
-) -> dict[str, str | dict[str, SamplingSpecification]]:
+) -> dict[str, Any]:
   """Sample new sequences with averaged encodings and stream results to an HDF5 file."""
   _, sample_fn, decode_fn = make_encoding_sampling_split_fn(model)
 
@@ -557,7 +624,7 @@ def _sample_streaming_averaged(
     structure_idx = 0
 
     for batched_ensemble in protein_iterator:
-      sampled_sequences, sampled_logits = _sample_batch_averaged(
+      sampled_sequences, sampled_logits, pseudo_perplexity = _sample_batch_averaged(
         spec,
         batched_ensemble,
         model,
@@ -568,12 +635,16 @@ def _sample_streaming_averaged(
         grp = f.create_group(f"structure_{structure_idx}")
         grp.create_dataset("sequences", data=sampled_sequences[i], dtype="i4")
         grp.create_dataset("logits", data=sampled_logits[i], dtype="f4")
+        if pseudo_perplexity is not None:
+          grp.create_dataset("pseudo_perplexity", data=pseudo_perplexity[i], dtype="f4")
         # Store metadata about the structure
         grp.attrs["structure_index"] = structure_idx
         grp.attrs["num_samples"] = sampled_sequences.shape[1]
         grp.attrs["num_noise_levels"] = 1  # Averaged, so effectively 1 noise level
-        grp.attrs["num_temperatures"] = sampled_sequences.shape[2]
-        grp.attrs["sequence_length"] = sampled_sequences.shape[3]
+        grp.attrs["num_temperatures"] = (
+          sampled_sequences.shape[2] if sampled_sequences.ndim == RANK_WITH_TEMPERATURE else 1
+        )
+        grp.attrs["sequence_length"] = sampled_sequences.shape[-1]
         structure_idx += 1
 
       f.flush()
@@ -582,5 +653,6 @@ def _sample_streaming_averaged(
     "output_h5_path": str(spec.output_h5_path),
     "metadata": {
       "specification": spec,
+      "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
     },
   }

@@ -14,7 +14,7 @@ from . import dataset, operations, prefetch_autotune
 from .array_record_source import ArrayRecordDataSource  # NEW
 
 
-def create_protein_dataset(
+def create_protein_dataset(  # noqa: PLR0913
   inputs: str | Path | Sequence[str | Path | IO[str]],
   batch_size: int,
   parse_kwargs: dict[str, Any] | None = None,
@@ -23,8 +23,15 @@ def create_protein_dataset(
   *,
   use_electrostatics: bool = False,
   use_vdw: bool = False,
+  estat_noise: Sequence[float] | float | None = None,
+  estat_noise_mode: str = "direct",
+  vdw_noise: Sequence[float] | float | None = None,
+  vdw_noise_mode: str = "direct",
   use_preprocessed: bool = False,
   preprocessed_index_path: str | Path | None = None,
+  split: str = "train",
+  max_length: int | None = 512,
+  truncation_strategy: str = "none",
 ) -> grain.IterDataset:
   """Construct a high-performance protein data pipeline using Grain.
 
@@ -37,8 +44,15 @@ def create_protein_dataset(
       pass_mode: "intra" (default) for normal batching, "inter" for concatenation.
       use_electrostatics: Whether to compute and include electrostatic features.
       use_vdw: Whether to compute and include van der Waals features.
+      estat_noise: Noise level(s) for electrostatics.
+      estat_noise_mode: Mode for electrostatic noise.
+      vdw_noise: Noise level(s) for vdW.
+      vdw_noise_mode: Mode for vdW noise.
       use_preprocessed: If True, load from preprocessed array_record files
       preprocessed_index_path: Path to index file (required if use_preprocessed=True)
+      split: Data split to load ("train", "valid", "test")
+      max_length: Maximum length for truncation/padding.
+      truncation_strategy: Strategy for truncation ("none", "random_crop", "center_crop").
 
   Returns:
       A Grain IterDataset that yields batches of padded `Protein` objects.
@@ -60,6 +74,9 @@ def create_protein_dataset(
 
   """
   parse_kwargs = parse_kwargs or {}
+  # Only add hydrogens/relax if we need physics features
+  if "add_hydrogens" not in parse_kwargs:
+    parse_kwargs["add_hydrogens"] = use_electrostatics or use_vdw
 
   if use_preprocessed:
     if preprocessed_index_path is None:
@@ -73,6 +90,7 @@ def create_protein_dataset(
     source = ArrayRecordDataSource(
       array_record_path=inputs,
       index_path=preprocessed_index_path,
+      split=split,
     )
     ds = grain.MapDataset.source(source)
 
@@ -86,6 +104,15 @@ def create_protein_dataset(
       foldcomp_database=foldcomp_database,
     )
     ds = grain.MapDataset.source(source)
+
+  if max_length is not None and truncation_strategy != "none":
+    ds = ds.map(
+      partial(
+        operations.truncate_protein,
+        max_length=max_length,
+        strategy=truncation_strategy,
+      ),
+    )
 
   performance_config = prefetch_autotune.pick_performance_config(
     ds=ds,
@@ -101,10 +128,20 @@ def create_protein_dataset(
       operations.pad_and_collate_proteins,
       use_electrostatics=use_electrostatics,
       use_vdw=use_vdw,
+      estat_noise=estat_noise,
+      estat_noise_mode=estat_noise_mode,
+      vdw_noise=vdw_noise,
+      vdw_noise_mode=vdw_noise_mode,
+      max_length=max_length,
     )
   )
 
-  return ds.to_iter_dataset(read_options=performance_config.read_options).batch(
+  iter_ds = ds.to_iter_dataset(read_options=performance_config.read_options).batch(
     batch_size,
     batch_fn=batch_fn,
   )
+
+  if hasattr(source, "skipped_frames"):
+    iter_ds.skipped_frames = source.skipped_frames  # type: ignore[attr-defined]
+
+  return iter_ds

@@ -4,6 +4,7 @@ import chex
 import jax
 import jax.numpy as jnp
 import pytest
+
 from prxteinmpnn.utils.decoding_order import random_decoding_order
 
 
@@ -12,6 +13,7 @@ def test_random_decoding_order_properties():
 
   Raises:
       AssertionError: If output shapes, types, or values are incorrect.
+
   """
   key = jax.random.PRNGKey(42)
   num_residues = 10
@@ -54,7 +56,7 @@ def test_random_decoding_order_with_various_lengths(num_residues):
 
   chex.assert_shape(decoding_order, (num_residues,))
   assert jnp.unique(decoding_order).shape[0] == num_residues
-  
+
 def test_random_decoding_order_with_zero_length():
   """Test the function with zero-length sequences."""
   key = jax.random.PRNGKey(0)
@@ -62,17 +64,17 @@ def test_random_decoding_order_with_zero_length():
 
   chex.assert_shape(decoding_order, (0,))
   chex.assert_trees_all_equal(decoding_order, jnp.array([], dtype=jnp.int32))
-  
+
 def test_random_decoding_order_with_negative_length():
   """Test the function with negative sequence lengths."""
   key = jax.random.PRNGKey(0)
-  
+
   with pytest.raises(TypeError):
     random_decoding_order(key, -5)
-  
+
   with pytest.raises(TypeError):
     random_decoding_order(key, -1)
-    
+
 def test_random_decoding_order_from_array_shape():
   """Test the function with an array shape input."""
   key = jax.random.PRNGKey(0)

@@ -184,7 +184,7 @@ def apply_self_exclusion(
   if n != m:
     return values
 
-  mask = jnp.eye(n, dtype=bool)
+  mask = jnp.eye(n, dtype=jnp.bool_)
   # Broadcast mask to match values shape
   while mask.ndim < values.ndim:
     mask = mask[..., None]
@@ -476,7 +476,8 @@ def compute_lj_forces_at_backbone(
 
   if noise_scale > 0.0:
     if key is None:
-      raise ValueError("Must provide key when noise_scale > 0")
+      msg = "Must provide key when noise_scale > 0"
+      raise ValueError(msg)
     noise = jax.random.normal(key, forces_flat.shape)
     forces_flat = forces_flat + noise * noise_scale
 

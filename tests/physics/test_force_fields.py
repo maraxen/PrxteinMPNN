@@ -26,7 +26,7 @@ def test_force_field_creation():
         impropers=[],
         source_files=["test.xml"],
     )
-    
+
     assert len(ff.charges_by_id) == 3
     assert len(ff.id_to_atom_key) == 3
 
@@ -46,7 +46,7 @@ def test_force_field_get_charge():
         impropers=[],
         source_files=[],
     )
-    
+
     charge = ff.get_charge("ALA", "CA")
     assert charge == -0.5
 
@@ -66,7 +66,7 @@ def test_force_field_get_charge_unknown_atom():
         impropers=[],
         source_files=[],
     )
-    
+
     charge = ff.get_charge("GLY", "CA")  # Not in force field
     assert charge == 0.0
 
@@ -86,7 +86,7 @@ def test_force_field_get_lj_params():
         impropers=[],
         source_files=[],
     )
-    
+
     sigma, epsilon = ff.get_lj_params("ALA", "CA")
     assert sigma == pytest.approx(3.5, rel=1e-5)
     assert epsilon == pytest.approx(0.1, rel=1e-5)
@@ -107,18 +107,18 @@ def test_force_field_save_and_load(temp_ff_dir):
         impropers=[],
         source_files=["test.xml"],
     )
-    
+
     # Save
     filepath = temp_ff_dir / "test_ff.eqx"
     save_force_field(filepath, ff_original)
-    
+
     # Load
     ff_loaded = load_force_field(filepath)
-    
+
     chex.assert_trees_all_close(ff_loaded.charges_by_id, ff_original.charges_by_id)
     chex.assert_trees_all_close(ff_loaded.sigmas_by_id, ff_original.sigmas_by_id)
     chex.assert_trees_all_close(ff_loaded.epsilons_by_id, ff_original.epsilons_by_id)
-    
+
     # Check static fields match
     assert ff_loaded.atom_key_to_id == ff_original.atom_key_to_id
     assert ff_loaded.id_to_atom_key == ff_original.id_to_atom_key
@@ -141,11 +141,11 @@ def test_force_field_save_load_preserves_tuple_keys(temp_ff_dir):
         impropers=[],
         source_files=[],
     )
-    
+
     filepath = temp_ff_dir / "test_keys.eqx"
     save_force_field(filepath, ff)
     ff_loaded = load_force_field(filepath)
-    
+
     # Keys should still be tuples
     assert isinstance(list(ff_loaded.atom_key_to_id.keys())[0], tuple)
     assert ("ALA", "CA") in ff_loaded.atom_key_to_id

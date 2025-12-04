@@ -70,10 +70,10 @@ def mock_model_parameters() -> ModelParameters:
   params = {
     # Feature extraction parameters
     "protein_mpnn/~/protein_features/~/positional_encodings/~/embedding_linear": _make_linear_params(
-      pos_enc_dim, C_E
+      pos_enc_dim, C_E,
     ),
     "protein_mpnn/~/protein_features/~/edge_embedding": _make_linear_params(
-      INITIAL_EDGE_FEATURES, C_E
+      INITIAL_EDGE_FEATURES, C_E,
     ),
     "protein_mpnn/~/protein_features/~/norm_edges": _make_norm_params(dim=C_E),
     # Main model parameters
@@ -86,10 +86,10 @@ def mock_model_parameters() -> ModelParameters:
   for i in range(3):
     enc_l_name = f"enc{i}"
     dec_l_name = f"dec{i}"
-    enc_prefix = f"protein_mpnn/~/enc_layer"
+    enc_prefix = "protein_mpnn/~/enc_layer"
     if i > 0:
         enc_prefix += f"_{i}"
-    dec_prefix = f"protein_mpnn/~/dec_layer"
+    dec_prefix = "protein_mpnn/~/dec_layer"
     if i > 0:
         dec_prefix += f"_{i}"
 
@@ -106,12 +106,12 @@ def mock_model_parameters() -> ModelParameters:
         f"{enc_prefix}/~/{enc_l_name}_W12": _make_linear_params(C_E, C_E),
         f"{enc_prefix}/~/{enc_l_name}_W13": _make_linear_params(C_E, C_E),
         f"{enc_prefix}/~/position_wise_feed_forward/~/{enc_l_name}_dense_W_in": _make_linear_params(
-          C_V, C_V
+          C_V, C_V,
         ),
         f"{enc_prefix}/~/position_wise_feed_forward/~/{enc_l_name}_dense_W_out": _make_linear_params(
-          C_V, C_V
+          C_V, C_V,
         ),
-      }
+      },
     )
     # Decoder
     params.update(
@@ -122,12 +122,12 @@ def mock_model_parameters() -> ModelParameters:
         f"{dec_prefix}/~/{dec_l_name}_W2": _make_linear_params(C_V, C_V),
         f"{dec_prefix}/~/{dec_l_name}_W3": _make_linear_params(C_V, C_V),
         f"{dec_prefix}/~/position_wise_feed_forward/~/{dec_l_name}_dense_W_in": _make_linear_params(
-          C_V, C_V
+          C_V, C_V,
         ),
         f"{dec_prefix}/~/position_wise_feed_forward/~/{dec_l_name}_dense_W_out": _make_linear_params(
-          C_V, C_V
+          C_V, C_V,
         ),
-      }
+      },
     )
 
   return params

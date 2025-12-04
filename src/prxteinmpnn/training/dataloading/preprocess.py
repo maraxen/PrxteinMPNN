@@ -18,20 +18,23 @@ import multiprocessing as mp
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+  from collections.abc import Sequence
 
 import jax.numpy as jnp
 import msgpack
 import msgpack_numpy as m
 import numpy as np
 import tqdm
-from array_record.python.array_record_module import (
+from array_record.python.array_record_module import (  # type: ignore[unresolved-import]
   ArrayRecordReader,
   ArrayRecordWriter,
 )
 
-from prxteinmpnn.io.parsing.pqr import parse_pqr_to_processed_structure
 from prxteinmpnn.io.parsing.biotite import processed_structure_to_protein_tuples
+from prxteinmpnn.io.parsing.pqr import parse_pqr_to_processed_structure
 from prxteinmpnn.physics.features import compute_electrostatic_node_features
 from prxteinmpnn.physics.force_fields import load_force_field_from_hub
 
@@ -49,12 +52,17 @@ class PreprocessingSpecification:
   input_dir: Path
   output_file: Path
   num_workers: int = 8
-  force_field: str = "amber14-all"
+  force_field: str = "ff14SB"
   resume_from_checkpoint: bool = True
   compute_lj: bool = False  # Not implemented yet
   compression: str = "zstd:9"
   validate_features: bool = True
   group_size: int = 1
+
+  estat_noise: Sequence[float] | float | None = None
+  estat_noise_mode: Literal["direct", "thermal"] = "direct"
+  vdw_noise: Sequence[float] | float | None = None
+  vdw_noise_mode: Literal["direct", "thermal"] = "direct"
 
   # Derived paths
   index_file: Path = field(init=False)
@@ -97,7 +105,7 @@ def _worker_process_protein(args: tuple) -> tuple[str, Path | None]:
   try:
     # Use new pipeline: parse PQR directly to ProcessedStructure
     processed_structure = parse_pqr_to_processed_structure(pqr_path, chain_id=None)
-    
+
     # Convert to ProteinTuple
     protein_generator = processed_structure_to_protein_tuples(
       processed_structure,
@@ -106,9 +114,20 @@ def _worker_process_protein(args: tuple) -> tuple[str, Path | None]:
       populate_physics=False,  # PQR already has physics params
     )
     protein_tuple = next(protein_generator)
-    
+    assert protein_tuple.full_coordinates is not None  # noqa: S101
+
     # Compute physics features
-    physics_features = compute_electrostatic_node_features(protein_tuple)
+    estat_val = spec.estat_noise
+    if isinstance(estat_val, (list, tuple)):
+      estat_val = estat_val[0] if estat_val else 0.0
+    elif estat_val is None:
+      estat_val = 0.0
+
+    physics_features = compute_electrostatic_node_features(
+      protein_tuple,
+      noise_scale=estat_val,
+      noise_mode=spec.estat_noise_mode,
+    )
 
     record_data = {
       # Basic structure info
@@ -129,15 +148,36 @@ def _worker_process_protein(args: tuple) -> tuple[str, Path | None]:
       "charges": np.array(protein_tuple.charges),  # (n_atoms,)
       "radii": np.array(protein_tuple.radii),  # (n_atoms,)
       # Estat metadata
-      "estat_backbone_mask": np.array(protein_tuple.estat_backbone_mask) if protein_tuple.estat_backbone_mask is not None else np.zeros(len(protein_tuple.full_coordinates), dtype=bool),
-      "estat_resid": np.array(protein_tuple.estat_resid) if protein_tuple.estat_resid is not None else np.zeros(len(protein_tuple.full_coordinates), dtype=np.int32),
-      "estat_chain_index": np.array(protein_tuple.estat_chain_index) if protein_tuple.estat_chain_index is not None else np.zeros(len(protein_tuple.full_coordinates), dtype=np.int32),
+      "estat_backbone_mask": (
+        np.array(protein_tuple.estat_backbone_mask)
+        if protein_tuple.estat_backbone_mask is not None
+        else np.zeros(
+          len(protein_tuple.full_coordinates) if protein_tuple.full_coordinates is not None else 0,
+          dtype=bool,
+        )
+      ),
+      "estat_resid": (
+        np.array(protein_tuple.estat_resid)
+        if protein_tuple.estat_resid is not None
+        else np.zeros(
+          len(protein_tuple.full_coordinates) if protein_tuple.full_coordinates is not None else 0,
+          dtype=np.int32,
+        )
+      ),
+      "estat_chain_index": (
+        np.array(protein_tuple.estat_chain_index)
+        if protein_tuple.estat_chain_index is not None
+        else np.zeros(
+          len(protein_tuple.full_coordinates) if protein_tuple.full_coordinates is not None else 0,
+          dtype=np.int32,
+        )
+      ),
     }
 
     # Validate features if requested
     if spec.validate_features:
       for key, value in record_data.items():
-        if isinstance(value, (np.ndarray, jnp.ndarray)) and not np.all(
+        if isinstance(value, np.ndarray | jnp.ndarray) and not np.all(
           np.isfinite(value),
         ):
           logger.warning("Non-finite values in %s for %s", key, pqr_path)
@@ -164,14 +204,14 @@ def _worker_process_protein(args: tuple) -> tuple[str, Path | None]:
     finally:
       writer.close()
 
-    return (protein_id, shard_path)
-
   except StopIteration:
     logger.exception("No frames found in %s", pqr_path)
     return (protein_id, None)
   except Exception:
     logger.exception("Failed to process %s", pqr_path)
     return (protein_id, None)
+  else:
+    return (protein_id, shard_path)
 
 
 def _load_checkpoint_metadata(metadata_file: Path) -> dict[str, Any]:
@@ -276,7 +316,7 @@ def _merge_shards_to_final(
             try:
               unpacked = msgpack.unpackb(record_bytes, raw=False)
               protein_id = unpacked["protein_id"]
-              protein_index[protein_id] = global_record_index
+              protein_index[protein_id] = {"idx": [global_record_index], "set": "train"}
 
               # Append to metadata
               _append_metadata(metadata_file, protein_id, "success")

@@ -1,8 +1,10 @@
 """Tests for data structure definitions."""
 
+from dataclasses import FrozenInstanceError
+
 import jax.numpy as jnp
 import pytest
-from dataclasses import FrozenInstanceError
+
 from prxteinmpnn.utils.data_structures import Protein
 
 
@@ -11,6 +13,7 @@ def test_protein_structure_frozen():
 
     Raises:
         FrozenInstanceError: If the dataclass is mutable.
+
     """
     p = Protein(
         coordinates=jnp.zeros((1, 1, 3)),

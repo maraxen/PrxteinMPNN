@@ -297,8 +297,8 @@ def trace_entropy_across_eps(
   if eps_values is None:
     eps_values = jnp.linspace(0.01, 0.99, 99)
 
-  distance_matrix = compute_component_distances(gmm.means_, distance_metric=distance_metric)
-  component_weights = gmm.weights_
+  distance_matrix = compute_component_distances(gmm.means_, distance_metric=distance_metric)  # type: ignore[unresolved-attribute]
+  component_weights = gmm.weights_  # type: ignore[unresolved-attribute]
   responsibility_matrix = gmm.predict_proba(logits)
 
   def _calculate_for_single_eps(eps: Float) -> tuple:

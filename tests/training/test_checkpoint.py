@@ -1,13 +1,15 @@
 """Tests for checkpoint management."""
 import chex
 import equinox as eqx
-import jax
 import jax.numpy as jnp
 import optax
 import orbax.checkpoint as ocp
 import pytest
+
 from prxteinmpnn.training.checkpoint import restore_checkpoint, save_checkpoint
 from prxteinmpnn.training.metrics import TrainingMetrics
+
+
 def test_checkpoint_manager_initialization(temp_checkpoint_dir):
     """Test Orbax CheckpointManager initialization."""
     options = ocp.CheckpointManagerOptions(max_to_keep=3)

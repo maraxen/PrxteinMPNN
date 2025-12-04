@@ -9,7 +9,7 @@ import pytest
 from gmmx import GaussianMixtureModelJax
 
 from prxteinmpnn.ensemble.gmm import make_fit_gmm
-from prxteinmpnn.ensemble.kmeans import kmeans, _kmeans_plusplus_init
+from prxteinmpnn.ensemble.kmeans import _kmeans_plusplus_init, kmeans
 
 
 @pytest.fixture
@@ -18,6 +18,7 @@ def sample_data():
   
   Returns:
     jnp.ndarray: Sample 2D data array.
+
   """
   key = jax.random.PRNGKey(42)
   return jax.random.normal(key, (100, 5))
@@ -29,6 +30,7 @@ def small_data():
   
   Returns:
     jnp.ndarray: Small 2D data array.
+
   """
   return jnp.array([
     [0.0, 0.0],
@@ -48,12 +50,13 @@ class TestKMeansPlusPlusInit:
     
     Args:
       sample_data: Sample data fixture.
+
     """
     key = jax.random.PRNGKey(42)
     n_clusters = 3
-    
+
     centroids = _kmeans_plusplus_init(key, sample_data, n_clusters)
-    
+
     chex.assert_shape(centroids, (n_clusters, sample_data.shape[1]))
 
   def test_centroids_are_data_points(self, small_data):
@@ -61,12 +64,13 @@ class TestKMeansPlusPlusInit:
     
     Args:
       small_data: Small data fixture.
+
     """
     key = jax.random.PRNGKey(42)
     n_clusters = 3
-    
+
     centroids = _kmeans_plusplus_init(key, small_data, n_clusters)
-    
+
     # Each centroid should be one of the original data points
     for centroid in centroids:
       distances = jnp.linalg.norm(small_data - centroid, axis=1)
@@ -77,11 +81,12 @@ class TestKMeansPlusPlusInit:
     
     Args:
       sample_data: Sample data fixture.
+
     """
     key = jax.random.PRNGKey(42)
-    
+
     centroids = _kmeans_plusplus_init(key, sample_data, 1)
-    
+
     chex.assert_shape(centroids, (1, sample_data.shape[1]))
 
   def test_deterministic_with_same_key(self, sample_data):
@@ -89,13 +94,14 @@ class TestKMeansPlusPlusInit:
     
     Args:
       sample_data: Sample data fixture.
+
     """
     key = jax.random.PRNGKey(42)
     n_clusters = 3
-    
+
     centroids1 = _kmeans_plusplus_init(key, sample_data, n_clusters)
     centroids2 = _kmeans_plusplus_init(key, sample_data, n_clusters)
-    
+
     chex.assert_trees_all_close(centroids1, centroids2)
 
   def test_different_keys_different_results(self, sample_data):
@@ -103,14 +109,15 @@ class TestKMeansPlusPlusInit:
     
     Args:
       sample_data: Sample data fixture.
+
     """
     key1 = jax.random.PRNGKey(42)
     key2 = jax.random.PRNGKey(24)
     n_clusters = 3
-    
+
     centroids1 = _kmeans_plusplus_init(key1, sample_data, n_clusters)
     centroids2 = _kmeans_plusplus_init(key2, sample_data, n_clusters)
-    
+
     # Results should be different (with high probability)
     assert not jnp.allclose(centroids1, centroids2)
 
@@ -121,11 +128,12 @@ class TestKMeansPlusPlusInit:
     Args:
       sample_data: Sample data fixture.
       n_clusters: Number of clusters to test.
+
     """
     key = jax.random.PRNGKey(42)
-    
+
     centroids = _kmeans_plusplus_init(key, sample_data, n_clusters)
-    
+
     chex.assert_shape(centroids, (n_clusters, sample_data.shape[1]))
 
 
@@ -137,12 +145,13 @@ class TestKMeans:
     
     Args:
       sample_data: Sample data fixture.
+
     """
     key = jax.random.PRNGKey(42)
     n_clusters = 3
-    
+
     labels = kmeans(key, sample_data, n_clusters)
-    
+
     chex.assert_shape(labels, (sample_data.shape[0],))
 
   def test_labels_in_valid_range(self, sample_data):
@@ -150,12 +159,13 @@ class TestKMeans:
     
     Args:
       sample_data: Sample data fixture.
+
     """
     key = jax.random.PRNGKey(42)
     n_clusters = 3
-    
+
     labels = kmeans(key, sample_data, n_clusters)
-    
+
     assert jnp.all(labels >= 0)
     assert jnp.all(labels < n_clusters)
 
@@ -165,12 +175,12 @@ class TestKMeans:
     cluster1 = jnp.array([[0.0, 0.0], [0.1, 0.1], [0.0, 0.1]])
     cluster2 = jnp.array([[5.0, 5.0], [5.1, 5.1], [5.0, 5.1]])
     cluster3 = jnp.array([[10.0, 10.0], [10.1, 10.1], [10.0, 10.1]])
-    
+
     data = jnp.vstack([cluster1, cluster2, cluster3])
     key = jax.random.PRNGKey(42)
-    
+
     labels = kmeans(key, data, 3)
-    
+
     # Points in same cluster should have same label
     assert len(jnp.unique(labels[:3])) == 1  # Cluster 1
     assert len(jnp.unique(labels[3:6])) == 1  # Cluster 2
@@ -181,11 +191,12 @@ class TestKMeans:
     
     Args:
       sample_data: Sample data fixture.
+
     """
     key = jax.random.PRNGKey(42)
-    
+
     labels = kmeans(key, sample_data, 1)
-    
+
     # All points should be in cluster 0
     assert jnp.all(labels == 0)
 
@@ -196,11 +207,12 @@ class TestKMeans:
     Args:
       sample_data: Sample data fixture.
       max_iters: Maximum iterations to test.
+
     """
     key = jax.random.PRNGKey(42)
-    
+
     labels = kmeans(key, sample_data, 3, max_iters=max_iters)
-    
+
     chex.assert_shape(labels, (sample_data.shape[0],))
     assert jnp.all(labels >= 0)
     assert jnp.all(labels < 3)
@@ -210,12 +222,13 @@ class TestKMeans:
     
     Args:
       sample_data: Sample data fixture.
+
     """
     key = jax.random.PRNGKey(42)
-    
+
     labels1 = kmeans(key, sample_data, 3)
     labels2 = kmeans(key, sample_data, 3)
-    
+
     chex.assert_trees_all_equal(labels1, labels2)
 
 
@@ -225,7 +238,7 @@ class TestMakeFitGMM:
   def test_returns_callable(self):
     """Test that make_fit_gmm returns a callable function."""
     fit_fn = make_fit_gmm(n_components=3)
-    
+
     assert callable(fit_fn)
 
   @pytest.mark.skip(reason="Blocked by TypeError: JAX JIT compilation is incompatible with mock objects")
@@ -238,26 +251,27 @@ class TestMakeFitGMM:
       mock_kmeans: Mock K-Means function.
       mock_fit_gmm: Mock for the in-memory GMM fitting function.
       sample_data: Sample data fixture.
+
     """
     # Setup mocks
     mock_labels = jnp.array([0, 1, 2, 0, 1] * 20)  # 100 labels
     mock_kmeans.return_value = mock_labels
-    
+
     mock_fitted_gmm = MagicMock(spec=GaussianMixtureModelJax)
     mock_fit_result = MagicMock()
     mock_fit_result.gmm = mock_fitted_gmm
     mock_fit_gmm_states.return_value = mock_fit_result
-    
+
     with patch("prxteinmpnn.ensemble.gmm.GMM") as mock_gmm_class:
       mock_gmm_instance = MagicMock()
       mock_gmm_class.return_value = mock_gmm_instance
-      
+
       # Create and test fit function
       fit_fn = jax.jit(make_fit_gmm(n_components=3))
       key = jax.random.PRNGKey(42)
-      
+
       result = fit_fn(sample_data, key)
-      
+
       # Verify workflow
       mock_kmeans.assert_called_once()
       mock_gmm_class.assert_called_once()
@@ -274,21 +288,21 @@ class TestMakeFitGMM:
           n_components = 3
           mock_labels = jnp.array([0, 1, 2, 0, 1] * 20)
           mock_kmeans.return_value = mock_labels
-          
+
           mock_fit_result = MagicMock()
           mock_fit_result.gmm = MagicMock()
           mock_fit_gmm.return_value = mock_fit_result
-          
+
           # Test
           fit_fn = make_fit_gmm(n_components=n_components)
           key = jax.random.PRNGKey(42)
-          
+
           fit_fn(sample_data, key)
-          
+
           # Check that responsibilities were created correctly
           call_args = mock_gmm_class.call_args
-          responsibilities = call_args[1]['responsibilities']
-          
+          responsibilities = call_args[1]["responsibilities"]
+
           chex.assert_shape(responsibilities, (100, 3))
           # Should be one-hot encoded
           assert jnp.allclose(jnp.sum(responsibilities, axis=1), 1.0)
@@ -299,6 +313,7 @@ class TestMakeFitGMM:
     
     Args:
       n_components: Number of components to test.
+
     """
     with patch("prxteinmpnn.ensemble.kmeans.kmeans") as mock_kmeans:
       with patch("prxteinmpnn.ensemble.gmm.fit_gmm_states") as mock_fit_gmm:
@@ -306,16 +321,16 @@ class TestMakeFitGMM:
           # Setup
           mock_labels = jnp.zeros(50, dtype=jnp.int32)  # All same cluster for simplicity
           mock_kmeans.return_value = mock_labels
-          
+
           mock_fit_result = MagicMock()
           mock_fit_result.gmm = MagicMock()
           mock_fit_gmm.return_value = mock_fit_result
-          
+
           # Test
           fit_fn = make_fit_gmm(
             n_components=n_components,
           )
-          
+
           assert callable(fit_fn)
 
   def test_em_fitter_configuration(self):
@@ -326,15 +341,15 @@ class TestMakeFitGMM:
         gmm_max_iters=200,
         covariance_regularization=1e-5,
       )
-      
+
       key = jax.random.PRNGKey(42)
       data = jnp.ones((10, 2))
       fit_fn(data, key)
 
       mock_fit_gmm.assert_called_once()
       call_args = mock_fit_gmm.call_args
-      assert call_args[1]['max_iter'] == 200
-      assert call_args[1]['covariance_regularization'] == 1e-5
+      assert call_args[1]["max_iter"] == 200
+      assert call_args[1]["covariance_regularization"] == 1e-5
 
   def test_jit_compilation(self, sample_data):
     """Test that the returned function is JIT-compatible."""
@@ -344,16 +359,16 @@ class TestMakeFitGMM:
           # Setup mocks
           mock_labels = jnp.zeros(100, dtype=jnp.int32)
           mock_kmeans.return_value = mock_labels
-          
+
           mock_fitted_gmm = MagicMock()
           mock_fit_result = MagicMock()
           mock_fit_result.gmm = mock_fitted_gmm
           mock_fit_gmm.return_value = mock_fit_result
-          
+
           # Test that function can be JIT compiled
           fit_fn = make_fit_gmm(n_components=3)
           key = jax.random.PRNGKey(42)
-          
+
           # This should not raise an error
           result = fit_fn(sample_data, key)
           assert result is not None
@@ -367,14 +382,14 @@ class TestIntegration:
     # Create realistic clustered data
     key = jax.random.PRNGKey(42)
     keys = jax.random.split(key, 4)
-    
+
     # Generate 3 well-separated clusters
     cluster1 = jax.random.normal(keys[0], (30, 4)) + jnp.array([0, 0, 0, 0])
     cluster2 = jax.random.normal(keys[1], (30, 4)) + jnp.array([5, 5, 5, 5])
     cluster3 = jax.random.normal(keys[2], (40, 4)) + jnp.array([-3, -3, -3, -3])
-    
+
     data = jnp.vstack([cluster1, cluster2, cluster3])
-    
+
     with patch("prxteinmpnn.ensemble.gmm.fit_gmm_states") as mock_fit_gmm:
       with patch("prxteinmpnn.ensemble.gmm.GMM") as mock_gmm_class:
         # Setup mocks to return reasonable values
@@ -383,26 +398,26 @@ class TestIntegration:
         mock_fit_result = MagicMock()
         mock_fit_result.gmm = mock_fitted_gmm
         mock_fit_gmm.return_value = mock_fit_result
-        
+
         mock_gmm_instance = MagicMock()
         mock_gmm_class.return_value = mock_gmm_instance
-        
+
         # Test
         fit_fn = make_fit_gmm(n_components=3)
         result = fit_fn(data, keys[3])
-        
+
         # Verify the workflow completed
         assert result.gmm == mock_fitted_gmm
-        
+
         # Check that responsibilities had correct shape
         call_args = mock_gmm_class.call_args
-        responsibilities = call_args[1]['responsibilities']
+        responsibilities = call_args[1]["responsibilities"]
         chex.assert_shape(responsibilities, (100, 3))
 
   def test_edge_case_single_point_per_cluster(self):
     """Test GMM fitting with minimal data."""
     data = jnp.array([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
-    
+
     with patch("prxteinmpnn.ensemble.gmm.fit_gmm_states") as mock_fit_gmm:
       with patch("prxteinmpnn.ensemble.gmm.GMM") as mock_gmm_class:
         # Setup
@@ -410,15 +425,15 @@ class TestIntegration:
         mock_fit_result = MagicMock()
         mock_fit_result.gmm = mock_fitted_gmm
         mock_fit_gmm.return_value = mock_fit_result
-        
+
         mock_gmm_class.return_value = MagicMock()
-        
+
         # Test
         fit_fn = make_fit_gmm(n_components=3)
         key = jax.random.PRNGKey(42)
-        
+
         result = fit_fn(data, key)
-        
+
         assert result.gmm == mock_fitted_gmm
 
   def test_parameter_validation(self):
@@ -432,6 +447,6 @@ class TestIntegration:
       gmm_max_iters=150,
       covariance_regularization=1e-4,
     )
-    
+
     # Function should be created successfully in all cases
     assert True  # If we reach here, all tests passed

@@ -31,22 +31,22 @@ from typing import Final
 # PDB file order indices for backbone atoms
 # This is the order atoms typically appear in PDB files
 PDB_ORDER_INDICES: Final[dict[str, int]] = {
-    "N": 0,   # Nitrogen (backbone)
-    "CA": 1,  # Alpha carbon
-    "C": 2,   # Carbonyl carbon
-    "O": 3,   # Carbonyl oxygen (index 3 in PDB, but 4 in atom37!)
-    "CB": 4,  # Beta carbon (index 4 in PDB, but 3 in atom37!)
+  "N": 0,  # Nitrogen (backbone)
+  "CA": 1,  # Alpha carbon
+  "C": 2,  # Carbonyl carbon
+  "O": 3,  # Carbonyl oxygen (index 3 in PDB, but 4 in atom37!)
+  "CB": 4,  # Beta carbon (index 4 in PDB, but 3 in atom37!)
 }
 
 # Atom37 standard indices (for reference)
 # This is defined in residue_constants.py as atom_order
 # but we document it here for clarity
 ATOM37_ORDER_INDICES: Final[dict[str, int]] = {
-    "N": 0,   # Nitrogen
-    "CA": 1,  # Alpha carbon
-    "C": 2,   # Carbonyl carbon
-    "CB": 3,  # Beta carbon (index 3 in atom37, but 4 in PDB!)
-    "O": 4,   # Carbonyl oxygen (index 4 in atom37, but 3 in PDB!)
+  "N": 0,  # Nitrogen
+  "CA": 1,  # Alpha carbon
+  "C": 2,  # Carbonyl carbon
+  "CB": 3,  # Beta carbon (index 3 in atom37, but 4 in PDB!)
+  "O": 4,  # Carbonyl oxygen (index 4 in atom37, but 3 in PDB!)
 }
 
 # Backbone atom names in PDB order
@@ -91,42 +91,42 @@ def _validate_index(
 
 
 def validate_ordering() -> None:
-    """Validate that our ordering constants are correct.
+  """Validate that our ordering constants are correct.
 
-    This function checks that the only difference between PDB and atom37
-    ordering is the swap of O and CB at indices 3 and 4.
+  This function checks that the only difference between PDB and atom37
+  ordering is the swap of O and CB at indices 3 and 4.
 
-    Raises:
-        ValueError: If the ordering is incorrect.
+  Raises:
+      ValueError: If the ordering is incorrect.
 
-    """
-    # Check N, CA, C are the same in both orderings
-    _validate_index(PDB_ORDER_INDICES, "PDB_ORDER_INDICES", "N", N_INDEX)
-    _validate_index(ATOM37_ORDER_INDICES, "ATOM37_ORDER_INDICES", "N", N_INDEX)
-    _validate_index(PDB_ORDER_INDICES, "PDB_ORDER_INDICES", "CA", CA_INDEX)
-    _validate_index(ATOM37_ORDER_INDICES, "ATOM37_ORDER_INDICES", "CA", CA_INDEX)
-    _validate_index(PDB_ORDER_INDICES, "PDB_ORDER_INDICES", "C", C_INDEX)
-    _validate_index(ATOM37_ORDER_INDICES, "ATOM37_ORDER_INDICES", "C", C_INDEX)
+  """
+  # Check N, CA, C are the same in both orderings
+  _validate_index(PDB_ORDER_INDICES, "PDB_ORDER_INDICES", "N", N_INDEX)
+  _validate_index(ATOM37_ORDER_INDICES, "ATOM37_ORDER_INDICES", "N", N_INDEX)
+  _validate_index(PDB_ORDER_INDICES, "PDB_ORDER_INDICES", "CA", CA_INDEX)
+  _validate_index(ATOM37_ORDER_INDICES, "ATOM37_ORDER_INDICES", "CA", CA_INDEX)
+  _validate_index(PDB_ORDER_INDICES, "PDB_ORDER_INDICES", "C", C_INDEX)
+  _validate_index(ATOM37_ORDER_INDICES, "ATOM37_ORDER_INDICES", "C", C_INDEX)
 
-    # Check O and CB are swapped between orderings
-    _validate_index(PDB_ORDER_INDICES, "PDB_ORDER_INDICES", "O", O_PDB_INDEX)
-    _validate_index(PDB_ORDER_INDICES, "PDB_ORDER_INDICES", "CB", CB_PDB_INDEX)
-    _validate_index(ATOM37_ORDER_INDICES, "ATOM37_ORDER_INDICES", "CB", CB_ATOM37_INDEX)
-    _validate_index(ATOM37_ORDER_INDICES, "ATOM37_ORDER_INDICES", "O", O_ATOM37_INDEX)
+  # Check O and CB are swapped between orderings
+  _validate_index(PDB_ORDER_INDICES, "PDB_ORDER_INDICES", "O", O_PDB_INDEX)
+  _validate_index(PDB_ORDER_INDICES, "PDB_ORDER_INDICES", "CB", CB_PDB_INDEX)
+  _validate_index(ATOM37_ORDER_INDICES, "ATOM37_ORDER_INDICES", "CB", CB_ATOM37_INDEX)
+  _validate_index(ATOM37_ORDER_INDICES, "ATOM37_ORDER_INDICES", "O", O_ATOM37_INDEX)
 
-    # Check tuple lengths
-    if len(PDB_ORDER_BACKBONE) != BACKBONE_LENGTH:
-      msg = (
-        f"PDB_ORDER_BACKBONE length mismatch: "
-        f"got={len(PDB_ORDER_BACKBONE)}, expected={BACKBONE_LENGTH}"
-      )
-      raise ValueError(msg)
-    if len(ATOM37_ORDER_BACKBONE) != BACKBONE_LENGTH:
-      msg = (
-        f"ATOM37_ORDER_BACKBONE length mismatch: "
-        f"got={len(ATOM37_ORDER_BACKBONE)}, expected={BACKBONE_LENGTH}"
-      )
-      raise ValueError(msg)
+  # Check tuple lengths
+  if len(PDB_ORDER_BACKBONE) != BACKBONE_LENGTH:
+    msg = (
+      f"PDB_ORDER_BACKBONE length mismatch: "
+      f"got={len(PDB_ORDER_BACKBONE)}, expected={BACKBONE_LENGTH}"
+    )
+    raise ValueError(msg)
+  if len(ATOM37_ORDER_BACKBONE) != BACKBONE_LENGTH:
+    msg = (
+      f"ATOM37_ORDER_BACKBONE length mismatch: "
+      f"got={len(ATOM37_ORDER_BACKBONE)}, expected={BACKBONE_LENGTH}"
+    )
+    raise ValueError(msg)
 
 
 # Run validation on import

@@ -3,7 +3,7 @@
 import jax.numpy as jnp
 
 from prxteinmpnn.io.operations import concatenate_proteins_for_inter_mode
-from prxteinmpnn.utils.data_structures import Protein, ProteinTuple
+from prxteinmpnn.utils.data_structures import ProteinTuple
 
 
 def test_concatenate_preserves_unique_chains():
@@ -32,12 +32,12 @@ def test_concatenate_preserves_unique_chains():
 
   # Check results
   assert result.coordinates.shape == (1, 8, 4, 3)  # batch_dim=1, total 8 residues
-  assert result.chain_index.shape == (1, 8)  # noqa: PLR2004
+  assert result.chain_index.shape == (1, 8)
 
   # Expected chain IDs after offset remapping:
   # Protein 1: [0,0,1,1] → [0,0,1,1] (no offset)
   # Protein 2: [0,0,2,2] → [2,2,4,4] (offset by max(1)+1=2)
-  expected_chains = jnp.array([[0, 0, 1, 1, 2, 2, 4, 4]], dtype=jnp.int32)  # noqa: PLR2004
+  expected_chains = jnp.array([[0, 0, 1, 1, 2, 2, 4, 4]], dtype=jnp.int32)
   assert (result.chain_index == expected_chains).all()
 
   # Check structure mapping

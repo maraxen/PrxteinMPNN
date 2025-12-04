@@ -131,7 +131,8 @@ def save_force_field(
   # Convert tuple keys to strings for JSON serialization
   sanitized_hyperparams = hyperparams.copy()
   sanitized_hyperparams["atom_key_to_id"] = {
-    f"{key[0]}|{key[1]}": value for key, value in hyperparams["atom_key_to_id"].items()
+    f"{key[0]}|{key[1]}": value
+    for key, value in hyperparams["atom_key_to_id"].items()  # type: ignore[possibly-missing-attribute]
   }
 
   with Path(filepath).open("wb") as f:

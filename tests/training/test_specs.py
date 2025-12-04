@@ -1,7 +1,11 @@
 """Tests for TrainingSpecification."""
 from pathlib import Path
+
 import pytest
+
 from prxteinmpnn.training.specs import TrainingSpecification
+
+
 def test_training_spec_defaults():
     """Test that TrainingSpecification has sensible defaults."""
     spec = TrainingSpecification(
@@ -38,7 +42,7 @@ def test_training_spec_requires_epochs_or_steps():
     with pytest.raises(ValueError, match="Either total_steps or num_epochs must be provided"):
         TrainingSpecification(
             inputs="data/train/",
-            num_epochs=None, # pyright: ignore[reportArgumentType]
+            num_epochs=None, # type: ignore
             total_steps=None,
         )
 def test_training_spec_invalid_precision():
@@ -47,7 +51,7 @@ def test_training_spec_invalid_precision():
         TrainingSpecification(
             inputs="data/train/",
             num_epochs=5,
-            precision="fp64",  # Invalid # pyright: ignore[reportArgumentType]
+            precision="fp64",  # Invalid # type: ignore
         )
 def test_training_spec_warmup_and_decay():
     """Test learning rate schedule parameters."""
@@ -84,3 +88,13 @@ def test_training_spec_physics_features():
     assert spec.use_electrostatics is True
     assert spec.use_vdw is True
     assert spec.physics_feature_weight == 2.0
+
+
+def test_training_spec_save_at_epochs():
+    """Test save_at_epochs configuration."""
+    spec = TrainingSpecification(
+        inputs="data/train/",
+        num_epochs=10,
+        save_at_epochs=[1, 5, 10],
+    )
+    assert spec.save_at_epochs == [1, 5, 10]

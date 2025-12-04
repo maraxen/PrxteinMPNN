@@ -37,7 +37,7 @@ logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
 
 
 def _loader_inputs(inputs: Sequence[str | StringIO] | str | StringIO) -> Sequence[str | StringIO]:
-  return (inputs,) if not isinstance(inputs, Sequence) else inputs
+  return (inputs,) if not isinstance(inputs, Sequence) else inputs  # type: ignore[invalid-return-type]
 
 
 @dataclass
@@ -59,6 +59,11 @@ class RunSpecification:
       altloc: The alternate location to use (default is "first").
       decoding_order_fn: An optional function to generate the decoding order (default is None).
       conformational_states: ConformationalStates to use for coarse graining the inference.
+      max_length: Maximum sequence length for padding/truncation (default is 512).
+                  Set to None to disable padding. Controls memory usage - smaller values
+                  reduce memory but may cause recompilation for different sequence lengths.
+      truncation_strategy: Strategy for handling sequences longer than max_length.
+                          Options: "none" (default, no truncation), "random_crop", "center_crop".
 
   """
 
@@ -68,6 +73,13 @@ class RunSpecification:
   model_version: ModelVersion = "v_48_020"
   batch_size: int = 32
   backbone_noise: Sequence[float] | float = (0.0,)
+  backbone_noise_mode: Literal["direct", "thermal"] = "direct"
+  estat_noise: Sequence[float] | float | None = None
+  estat_noise_mode: Literal["direct", "thermal"] = "direct"
+  vdw_noise: Sequence[float] | float | None = None
+  vdw_noise_mode: Literal["direct", "thermal"] = "direct"
+  use_electrostatics: bool = False
+  use_vdw: bool = False
   foldcomp_database: FoldCompDatabase | None = None
   ar_mask: None | ArrayLike = None
   random_seed: int = 42
@@ -79,15 +91,31 @@ class RunSpecification:
   cache_path: str | Path | None = None
   overwrite_cache: bool = False
   output_path: str | Path | None = None
+  max_length: int | None = 512
+  truncation_strategy: Literal["none", "random_crop", "center_crop"] = "none"
+
+  # Data/Sharding
+  use_preprocessed: bool = False
+  preprocessed_index_path: str | Path | None = None
+  split: str = "inference"
 
   # Tied-position logit averaging fields
   tied_positions: Sequence[tuple[int, int]] | Literal["auto", "direct"] | None = None
-  pass_mode: Literal["inter", "intra"] = "intra"
+  pass_mode: Literal["inter", "intra"] = "intra"  # noqa: S105
 
   def __post_init__(self) -> None:
     """Post-initialization processing and validation for tied-position logit averaging."""
     if isinstance(self.backbone_noise, float):
       object.__setattr__(self, "backbone_noise", (self.backbone_noise,))
+    if isinstance(self.estat_noise, float):
+      object.__setattr__(self, "estat_noise", (self.estat_noise,))
+    if self.estat_noise is not None:
+      object.__setattr__(self, "use_electrostatics", True)
+
+    if isinstance(self.vdw_noise, float):
+      object.__setattr__(self, "vdw_noise", (self.vdw_noise,))
+    if self.vdw_noise is not None:
+      object.__setattr__(self, "use_vdw", True)
     if self.cache_path and isinstance(self.cache_path, str):
       object.__setattr__(self, "cache_path", Path(self.cache_path))
     # Validation for tied_positions and pass_mode
@@ -147,23 +175,26 @@ class SamplingSpecification(RunSpecification):
 
   num_samples: int = 1
   sampling_strategy: Literal["temperature", "straight_through"] = "temperature"
-  temperature: float = 0.1
+  temperature: Sequence[float] | float = 0.1
   bias: ArrayLike | None = None
   fixed_positions: ArrayLike | None = None
   iterations: int | None = None
   learning_rate: float | None = None
   output_h5_path: str | Path | None = None
   samples_batch_size: int = 16
-  noise_batch_size: int = 4
+  noise_batch_size: int = 1
+  temperature_batch_size: int = 1
   average_node_features: bool = False
   average_encoding_mode: Literal["inputs", "noise_levels", "inputs_and_noise"] = "inputs_and_noise"
   average_logits: None | Literal["structures", "noise", "both"] = None
-  multi_state_strategy: Literal["mean", "min", "product", "max_min"] = "mean"
-  multi_state_alpha: float = 0.5
+  multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean"
+  compute_pseudo_perplexity: bool = False
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""
     super().__post_init__()
+    if isinstance(self.temperature, float):
+      object.__setattr__(self, "temperature", (self.temperature,))
     if self.sampling_strategy == "straight_through" and (
       self.iterations is None or self.learning_rate is None
     ):
@@ -192,7 +223,6 @@ class JacobianSpecification(RunSpecification):
   compute_apc: bool = True
   apc_batch_size: int = 8
   apc_residue_batch_size: int = 1000
-  noise_batch_size: int = 4
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""

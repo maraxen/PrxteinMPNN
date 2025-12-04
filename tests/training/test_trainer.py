@@ -1,11 +1,10 @@
 """Tests for the main training loop."""
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
-import optax
 import pytest
-import equinox as eqx
 
 from prxteinmpnn.training.specs import TrainingSpecification
 from prxteinmpnn.training.trainer import (
@@ -50,9 +49,9 @@ def test_create_optimizer_no_warmup():
         learning_rate=1e-3,
         warmup_steps=0,
     )
-    
+
     optimizer, schedule = create_optimizer(spec)
-    
+
     # Should be constant schedule
     assert schedule(0) == spec.learning_rate
     assert schedule(100) == spec.learning_rate
@@ -74,7 +73,7 @@ def test_train_step_reduces_loss(small_model: eqx.Module, mock_batch) -> None:
             learning_rate=1e-3,
             warmup_steps=0,
             total_steps=1000,
-        )
+        ),
     )
     opt_state = optimizer.init(eqx.filter(small_model, eqx.is_inexact_array))
 

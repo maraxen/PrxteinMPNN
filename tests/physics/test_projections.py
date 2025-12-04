@@ -18,7 +18,7 @@ def test_backbone_frame_shape(backbone_positions_single_residue, jit_compile):
     if jit_compile:
         fn = jax.jit(fn)
     forward, backward, sidechain, normal = fn(
-        backbone_positions_single_residue
+        backbone_positions_single_residue,
     )
 
     chex.assert_shape(forward, (1, 3))
@@ -34,7 +34,7 @@ def test_backbone_frame_unit_vectors(backbone_positions_single_residue, jit_comp
     if jit_compile:
         fn = jax.jit(fn)
     forward, backward, sidechain, normal = fn(
-        backbone_positions_single_residue
+        backbone_positions_single_residue,
     )
 
     chex.assert_trees_all_close(jnp.linalg.norm(forward, axis=-1), 1.0, rtol=1e-5)
@@ -58,18 +58,18 @@ def test_backbone_frame_orthogonality(jit_compile):
                 [1.5, 1.0, 0.0],  # C
                 [1.5, 2.0, 0.0],  # O
                 [1.0, 0.0, 1.0],  # CB (along z)
-            ]
-        ]
+            ],
+        ],
     )
 
     forward, backward, _, normal = fn(positions)
 
     # Normal should be perpendicular to forward and backward
     chex.assert_trees_all_close(
-        jnp.sum(normal * forward, axis=-1), 0.0, atol=1e-5
+        jnp.sum(normal * forward, axis=-1), 0.0, atol=1e-5,
     )
     chex.assert_trees_all_close(
-        jnp.sum(normal * backward, axis=-1), 0.0, atol=1e-5
+        jnp.sum(normal * backward, axis=-1), 0.0, atol=1e-5,
     )
 
 
@@ -88,8 +88,8 @@ def test_backbone_frame_forward_direction(jit_compile):
                 [2.0, 0.0, 0.0],  # C
                 [2.0, 1.0, 0.0],  # O
                 [1.0, 0.0, 1.0],  # CB
-            ]
-        ]
+            ],
+        ],
     )
 
     forward, _, _, _ = fn(positions)
@@ -112,8 +112,8 @@ def test_backbone_frame_backward_direction(jit_compile):
                 [2.0, 0.0, 0.0],  # C
                 [2.0, 1.0, 0.0],  # O
                 [1.0, 0.0, 1.0],  # CB
-            ]
-        ]
+            ],
+        ],
     )
 
     _, backward, _, _ = fn(positions)
@@ -136,8 +136,8 @@ def test_backbone_frame_sidechain_direction(jit_compile):
                 [2.0, 0.0, 0.0],  # C
                 [2.0, 1.0, 0.0],  # O
                 [1.0, 0.0, 1.0],  # CB (along +z from CA)
-            ]
-        ]
+            ],
+        ],
     )
 
     _, _, sidechain, _ = fn(positions)
@@ -161,7 +161,7 @@ def test_project_forces_shape(backbone_positions_single_residue, jit_compile):
 
 @pytest.mark.parametrize("jit_compile", [True, False], ids=["jit", "eager"])
 def test_project_forces_all_features_present(
-    backbone_positions_single_residue, jit_compile
+    backbone_positions_single_residue, jit_compile,
 ):
     """Test that all 5 projection features are computed."""
     fn = project_forces_onto_backbone
@@ -177,7 +177,7 @@ def test_project_forces_all_features_present(
 
 @pytest.mark.parametrize("jit_compile", [True, False], ids=["jit", "eager"])
 def test_project_forces_magnitude_matches_norm(
-    backbone_positions_single_residue, jit_compile
+    backbone_positions_single_residue, jit_compile,
 ):
     """Test that magnitude feature matches force norm."""
     fn = project_forces_onto_backbone
@@ -188,7 +188,7 @@ def test_project_forces_magnitude_matches_norm(
     forces = jnp.tile(force_vector, (1, 5, 1))  # Same force at all atoms
 
     projections = fn(
-        forces, backbone_positions_single_residue, aggregation="mean"
+        forces, backbone_positions_single_residue, aggregation="mean",
     )
 
     # Last feature should be magnitude
@@ -211,8 +211,8 @@ def test_project_forces_aligned_with_forward(jit_compile):
                 [2.0, 0.0, 0.0],  # C
                 [2.0, 1.0, 0.0],  # O
                 [1.0, 0.0, 1.0],  # CB
-            ]
-        ]
+            ],
+        ],
     )
 
     # Force pointing along +x (forward direction) for all 5 atoms
@@ -228,7 +228,7 @@ def test_project_forces_aligned_with_forward(jit_compile):
     assert projections[0, 1] < -0.9  # f_backward
     chex.assert_trees_all_close(projections[0, 2], 0.0, atol=0.1)  # f_sidechain
     chex.assert_trees_all_close(
-        projections[0, 3], 0.0, atol=0.1
+        projections[0, 3], 0.0, atol=0.1,
     )  # f_out_of_plane
 
 
@@ -281,8 +281,8 @@ def test_project_forces_rotation_invariance(rotation_fn, angle, jit_compile):
                 [2.0, 0.0, 0.0],
                 [2.0, 1.0, 0.0],
                 [1.0, 0.0, 1.0],
-            ]
-        ]
+            ],
+        ],
     )
 
     forces = jnp.ones((1, 5, 3))
@@ -304,7 +304,7 @@ def test_project_forces_rotation_invariance(rotation_fn, angle, jit_compile):
 
 @pytest.mark.parametrize("jit_compile", [True, False], ids=["jit", "eager"])
 def test_project_forces_per_atom_shape(
-    backbone_positions_single_residue, jit_compile
+    backbone_positions_single_residue, jit_compile,
 ):
     """Test that per-atom projections have correct shape."""
     fn = project_forces_onto_backbone_per_atom
@@ -320,7 +320,7 @@ def test_project_forces_per_atom_shape(
 
 @pytest.mark.parametrize("jit_compile", [True, False], ids=["jit", "eager"])
 def test_project_forces_aggregation_methods(
-    backbone_positions_single_residue, jit_compile
+    backbone_positions_single_residue, jit_compile,
 ):
     """Test different aggregation methods."""
     fn = project_forces_onto_backbone
@@ -329,10 +329,10 @@ def test_project_forces_aggregation_methods(
     forces = jnp.ones((1, 5, 3))
 
     proj_mean = fn(
-        forces, backbone_positions_single_residue, aggregation="mean"
+        forces, backbone_positions_single_residue, aggregation="mean",
     )
     proj_sum = fn(
-        forces, backbone_positions_single_residue, aggregation="sum"
+        forces, backbone_positions_single_residue, aggregation="sum",
     )
 
     # Sum should be 5x mean (5 atoms)
@@ -345,7 +345,7 @@ def test_project_forces_invalid_aggregation(backbone_positions_single_residue):
 
     with pytest.raises(ValueError, match="Unknown aggregation method"):
         project_forces_onto_backbone(
-            forces, backbone_positions_single_residue, aggregation="invalid"
+            forces, backbone_positions_single_residue, aggregation="invalid",
         )
 
 
@@ -358,8 +358,8 @@ def test_project_forces_is_vmappable(backbone_positions_multi_residue, jit_compi
     # Vmap over batch dimension
     vmapped_fn = jax.vmap(
         lambda forces: project_forces_onto_backbone(
-            forces, backbone_positions_multi_residue
-        )
+            forces, backbone_positions_multi_residue,
+        ),
     )
     if jit_compile:
         vmapped_fn = jax.jit(vmapped_fn)
@@ -367,6 +367,6 @@ def test_project_forces_is_vmappable(backbone_positions_multi_residue, jit_compi
     projections_batch = vmapped_fn(batch_forces)
 
     chex.assert_shape(
-        projections_batch, (3, 3, 5)
+        projections_batch, (3, 3, 5),
     )  # 3 batches, 3 residues, 5 features
     chex.assert_tree_all_finite(projections_batch)

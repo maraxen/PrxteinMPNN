@@ -6,16 +6,16 @@ prevents cross-structure neighbors in multi-state protein design scenarios.
 
 from __future__ import annotations
 
-import jax
-import jax.numpy as jnp
-import pytest
-import chex
-
-from prxteinmpnn.model.features import ProteinFeatures
-
 # Import helpers using relative path
 import sys
 from pathlib import Path
+
+import chex
+import jax
+import jax.numpy as jnp
+import pytest
+
+from prxteinmpnn.model.features import ProteinFeatures
 
 tests_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(tests_dir))
@@ -26,8 +26,9 @@ from helpers.multistate import (  # noqa: E402
   verify_no_cross_structure_neighbors,
 )
 
+
 class TestFeatures(chex.TestCase):
-  
+
   def setUp(self):
     """Create a ProteinFeatures module for testing."""
     key = jax.random.key(42)
@@ -208,7 +209,7 @@ class TestFeatures(chex.TestCase):
         res_idx,
         chain_idx,
         noise,
-        mapping,
+        structure_mapping=mapping,
       )
 
     prng_key = jax.random.key(1)
@@ -233,7 +234,7 @@ class TestFeatures(chex.TestCase):
       protein.residue_index,
       protein.chain_index,
       None,
-      protein.mapping,
+      structure_mapping=protein.mapping,
     )
     chex.assert_tree_all_finite((edge_features_nojit, neighbors_nojit))
 

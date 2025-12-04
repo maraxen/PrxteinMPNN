@@ -22,7 +22,7 @@ def _eqx_module_hash(self: object) -> int:  # pragma: no cover - safe shim
   return id(self)
 
 
-eqx.Module.__hash__ = _eqx_module_hash
+eqx.Module.__hash__ = _eqx_module_hash  # type: ignore[invalid-assignment]
 if TYPE_CHECKING:
   from collections.abc import Callable
 
@@ -119,21 +119,24 @@ def make_conditional_logits_fn(
       ... )
 
     """
+    key_features, key_encoder, key_conditional = jax.random.split(prng_key, 3)
+
     edge_features, neighbor_indices, node_features, _ = model.features(
-      prng_key,
+      key_features,
       structure_coordinates,
       mask,
       residue_index,
       chain_index,
       backbone_noise,
-      structure_mapping,
+      structure_mapping=structure_mapping,
     )
 
     node_features, edge_features = model.encoder(
-        edge_features,
-        neighbor_indices,
-        mask,
-        node_features,
+      edge_features,
+      neighbor_indices,
+      mask,
+      node_features,
+      key=key_encoder,
     )
 
     ar_mask = (
@@ -143,8 +146,8 @@ def make_conditional_logits_fn(
     )
 
     # Default multi-state parameters for conditional logit computation
-    _multi_state_strategy_idx = jax.numpy.array(0, dtype=jax.numpy.int32)  # 0 = "mean"
-    _multi_state_alpha = 0.5
+    _multi_state_strategy_idx = jax.numpy.array(0, dtype=jax.numpy.int32)  # 0 = "arithmetic_mean"
+    _multi_state_temperature = jax.numpy.array(1.0, dtype=jax.numpy.float32)
 
     # Call the model's conditional path directly
     _, logits = model._call_conditional(  # noqa: SLF001
@@ -154,12 +157,12 @@ def make_conditional_logits_fn(
       mask,
       ar_mask,
       sequence,
-      prng_key,
+      key_conditional,
       0.0,  # temperature unused in conditional path
       jax.numpy.zeros((mask.shape[0], 21), dtype=jax.numpy.float32),
       None,  # tie_group_map not used in jacobian computation
       _multi_state_strategy_idx,
-      _multi_state_alpha,
+      _multi_state_temperature,
     )
 
     return logits
@@ -199,6 +202,8 @@ def make_encoding_conditional_logits_split_fn(
     >>> logits2 = decode_fn(encoding, sequence2)
 
   """
+  # Use inference mode for decoding to skip dropout (allows running without PRNG key)
+  inference_model = eqx.nn.inference_mode(model, value=True)
 
   def encode_fn(
     structure_coordinates: StructureAtomicCoordinates,
@@ -233,8 +238,10 @@ def make_encoding_conditional_logits_split_fn(
     if prng_key is None:
       prng_key = jax.random.PRNGKey(0)
 
+    key_features, key_encoder = jax.random.split(prng_key, 2)
+
     edge_features, neighbor_indices, initial_node_features, _ = model.features(
-      prng_key,
+      key_features,
       structure_coordinates,
       mask,
       residue_index,
@@ -247,7 +254,8 @@ def make_encoding_conditional_logits_split_fn(
       edge_features,
       neighbor_indices,
       mask,
-      initial_node_features
+      initial_node_features,
+      key=key_encoder,
     )
 
     ar_mask_placeholder = jax.numpy.zeros((mask.shape[0], mask.shape[0]), dtype=jax.numpy.int32)
@@ -277,20 +285,20 @@ def make_encoding_conditional_logits_split_fn(
       ar_mask = jax.numpy.zeros((mask.shape[0], mask.shape[0]), dtype=jax.numpy.int32)
 
     if sequence.ndim == 1:
-      one_hot_sequence = jax.nn.one_hot(sequence, model.w_s_embed.num_embeddings)
+      one_hot_sequence = jax.nn.one_hot(sequence, inference_model.w_s_embed.num_embeddings)
     else:
       one_hot_sequence = sequence
 
-    decoded_node_features = model.decoder.call_conditional(
+    decoded_node_features = inference_model.decoder.call_conditional(
       node_features,
       processed_edge_features,
       neighbor_indices,
       mask,
       ar_mask,
       one_hot_sequence,
-      model.w_s_embed.weight,
+      inference_model.w_s_embed.weight,
     )
 
-    return jax.vmap(model.w_out)(decoded_node_features)
+    return jax.vmap(inference_model.w_out)(decoded_node_features)
 
   return encode_fn, decode_fn

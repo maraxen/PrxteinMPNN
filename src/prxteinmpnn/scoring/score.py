@@ -45,30 +45,31 @@ SCORE_EPS = 1e-8
 
 
 def score_sequence_with_encoding(
-    model: PrxteinMPNN,
-    sequence: ProteinSequence,
-    encoding: tuple,
+  model: PrxteinMPNN,
+  sequence: ProteinSequence,
+  encoding: tuple,
 ) -> tuple[Float, Logits, DecodingOrder]:
-    """Score a sequence on a structure using pre-computed encodings."""
-    _, _, decode_fn = make_encoding_sampling_split_fn(model)
-    
-    if sequence.ndim == 1:
-        sequence = jax.nn.one_hot(sequence, num_classes=21)
-    
-    seq_len = sequence.shape[0]
-    ar_mask = jnp.zeros((seq_len, seq_len), dtype=jnp.int32)
-    
-    logits = decode_fn(encoding, sequence, ar_mask)
-    
-    log_probability = jax.nn.log_softmax(logits, axis=-1)[..., :20]
-    score = -(sequence[..., :20] * log_probability).sum(-1)
-    mask = encoding[3] # mask is the 4th element in the encoding tuple
-    masked_score_sum = (score * mask).sum(-1)
-    mask_sum = mask.sum() + SCORE_EPS
+  """Score a sequence on a structure using pre-computed encodings."""
+  _, _, decode_fn = make_encoding_sampling_split_fn(model)
 
-    return masked_score_sum / mask_sum, logits, jnp.arange(seq_len)
+  if sequence.ndim == 1:
+    sequence = jax.nn.one_hot(sequence, num_classes=21)
 
-def make_score_sequence(
+  seq_len = sequence.shape[0]
+  ar_mask = jnp.zeros((seq_len, seq_len), dtype=jnp.int32)
+
+  logits = decode_fn(encoding, sequence, ar_mask)
+
+  log_probability = jax.nn.log_softmax(logits, axis=-1)[..., :20]
+  score = -(sequence[..., :20] * log_probability).sum(-1)
+  mask = encoding[3]  # mask is the 4th element in the encoding tuple
+  masked_score_sum = (score * mask).sum(-1)
+  mask_sum = mask.sum() + SCORE_EPS
+
+  return masked_score_sum / mask_sum, logits, jnp.arange(seq_len)
+
+
+def make_score_fn(
   model: PrxteinMPNN,
   decoding_order_fn: DecodingOrderFn = random_decoding_order,
   _num_encoder_layers: int = 3,
@@ -164,3 +165,4 @@ def make_score_sequence(
     return masked_score_sum / mask_sum, logits, decoding_order
 
   return score_sequence
+make_score_sequence = make_score_fn

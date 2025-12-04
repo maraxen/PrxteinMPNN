@@ -1,145 +1,143 @@
 """Contains the logic for averaging node features over multiple structures and/or noise levels."""
-from collections.abc import Callable
+
+from collections.abc import Callable, Sequence
 from functools import partial
-from typing import Literal, Tuple, Sequence
+from typing import Literal
 
 import jax
 import jax.numpy as jnp
 from jaxtyping import Float, Int, PRNGKeyArray
 
 from prxteinmpnn.model.mpnn import PrxteinMPNN
-from prxteinmpnn.run.specs import SamplingSpecification
 from prxteinmpnn.sampling.conditional_logits import make_encoding_conditional_logits_split_fn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.data_structures import Protein
-from prxteinmpnn.utils.types import (
-    AlphaCarbonMask,
-    BackboneCoordinates,
-    BackboneNoise,
-    ChainIndex,
-    ProteinSequence,
-    ResidueIndex,
-    StructureAtomicCoordinates,
-)
 from prxteinmpnn.utils.decoding_order import DecodingOrder, DecodingOrderFn
-from prxteinmpnn.utils.types import InputBias
+from prxteinmpnn.utils.types import (
+  AlphaCarbonMask,
+  BackboneCoordinates,
+  BackboneNoise,
+  ChainIndex,
+  InputBias,
+  ProteinSequence,
+  ResidueIndex,
+  StructureAtomicCoordinates,
+)
 
 
 def get_averaged_encodings(
-    batched_ensemble: Protein,
-    model: PrxteinMPNN,
-    backbone_noise: Sequence[float] | float,
-    noise_batch_size: int,
-    random_seed: int,
-    average_encoding_mode: Literal["inputs", "noise_levels", "inputs_and_noise"],
-) -> Tuple:
-    """
-    Compute averaged node and edge features from an ensemble of protein structures.
+  batched_ensemble: Protein,
+  model: PrxteinMPNN,
+  backbone_noise: Sequence[float] | float,
+  noise_batch_size: int,
+  random_seed: int,
+  average_encoding_mode: Literal["inputs", "noise_levels", "inputs_and_noise"],
+) -> tuple:
+  """Compute averaged node and edge features from an ensemble of protein structures.
 
-    This function encodes a batch of protein structures at multiple noise levels,
-    then averages the resulting node and edge features based on the specified
-    averaging mode.
+  This function encodes a batch of protein structures at multiple noise levels,
+  then averages the resulting node and edge features based on the specified
+  averaging mode.
 
-    Args:
-        batched_ensemble: A batch of protein structures.
-        model: The PrxteinMPNN model.
-        backbone_noise: The backbone noise levels to use.
-        noise_batch_size: The batch size for noise levels.
-        random_seed: The random seed to use.
-        average_encoding_mode: The mode for averaging encodings.
+  Args:
+      batched_ensemble: A batch of protein structures.
+      model: The PrxteinMPNN model.
+      backbone_noise: The backbone noise levels to use.
+      noise_batch_size: The batch size for noise levels.
+      random_seed: The random seed to use.
+      average_encoding_mode: The mode for averaging encodings.
 
-    Returns:
-        A tuple containing the averaged encodings and other necessary features for
-        downstream tasks (sampling, scoring, etc.).
-    """
-    encode_fn, _, _ = make_encoding_sampling_split_fn(model)
+  Returns:
+      A tuple containing the averaged encodings and other necessary features for
+      downstream tasks (sampling, scoring, etc.).
 
-    noise_array = (
-        jnp.asarray(backbone_noise, dtype=jnp.float32)
-        if backbone_noise is not None
-        else jnp.zeros(1)
+  """
+  encode_fn, _, _ = make_encoding_sampling_split_fn(model)
+
+  noise_array = (
+    jnp.asarray(backbone_noise, dtype=jnp.float32) if backbone_noise is not None else jnp.zeros(1)
+  )
+
+  def encode_single_noise(
+    key: PRNGKeyArray,
+    coords: BackboneCoordinates,
+    mask: AlphaCarbonMask,
+    residue_ix: ResidueIndex,
+    chain_ix: ChainIndex,
+    noise: BackboneNoise,
+    _encoder: Callable = encode_fn,
+  ) -> tuple:
+    """Encode one structure at one noise level."""
+    return _encoder(
+      key,
+      coords,
+      mask,
+      residue_ix,
+      chain_ix,
+      backbone_noise=noise,
     )
 
-    def encode_single_noise(
-        key: PRNGKeyArray,
-        coords: BackboneCoordinates,
-        mask: AlphaCarbonMask,
-        residue_ix: ResidueIndex,
-        chain_ix: ChainIndex,
-        noise: BackboneNoise,
-        _encoder: Callable = encode_fn,
-    ) -> tuple:
-        """Encode one structure at one noise level."""
-        return _encoder(
-            key,
-            coords,
-            mask,
-            residue_ix,
-            chain_ix,
-            backbone_noise=noise,
-        )
-
-    def mapped_encode_noise(
-        key: PRNGKeyArray,
-        coords: BackboneCoordinates,
-        mask: AlphaCarbonMask,
-        residue_ix: ResidueIndex,
-        chain_ix: ChainIndex,
-        noise_arr: BackboneNoise,
-    ) -> tuple:
-        """Compute encodings across all noise levels for a single structure."""
-        return jax.lax.map(
-            partial(
-                encode_single_noise,
-                key,
-                coords,
-                mask,
-                residue_ix,
-                chain_ix,
-            ),
-            noise_arr,
-            batch_size=noise_batch_size,
-        )
-
-    vmap_encode_structures = jax.vmap(
-        mapped_encode_noise,
-        in_axes=(None, 0, 0, 0, 0, None),
-    )
-
-    encoded_features_per_noise = vmap_encode_structures(
-        jax.random.key(random_seed),
-        batched_ensemble.coordinates,
-        batched_ensemble.mask,
-        batched_ensemble.residue_index,
-        batched_ensemble.chain_index,
-        noise_array,
-    )
-
-    (
-        node_features,
-        processed_edge_features,
-        neighbor_indices,
+  def mapped_encode_noise(
+    key: PRNGKeyArray,
+    coords: BackboneCoordinates,
+    mask: AlphaCarbonMask,
+    residue_ix: ResidueIndex,
+    chain_ix: ChainIndex,
+    noise_arr: BackboneNoise,
+  ) -> tuple:
+    """Compute encodings across all noise levels for a single structure."""
+    return jax.lax.map(
+      partial(
+        encode_single_noise,
+        key,
+        coords,
         mask,
-        ar_mask,
-    ) = encoded_features_per_noise
-
-    if average_encoding_mode == "inputs":
-        averaging_axis = 0
-    elif average_encoding_mode == "noise_levels":
-        averaging_axis = 1
-    else:  # "inputs_and_noise"
-        averaging_axis = (0, 1)
-
-    avg_node_features = jnp.mean(node_features, axis=averaging_axis)
-    avg_processed_edge_features = jnp.mean(processed_edge_features, axis=averaging_axis)
-
-    return (
-        avg_node_features,
-        avg_processed_edge_features,
-        neighbor_indices,
-        mask,
-        ar_mask,
+        residue_ix,
+        chain_ix,
+      ),
+      noise_arr,
+      batch_size=noise_batch_size,
     )
+
+  vmap_encode_structures = jax.vmap(
+    mapped_encode_noise,
+    in_axes=(None, 0, 0, 0, 0, None),
+  )
+
+  encoded_features_per_noise = vmap_encode_structures(
+    jax.random.key(random_seed),
+    batched_ensemble.coordinates,
+    batched_ensemble.mask,
+    batched_ensemble.residue_index,
+    batched_ensemble.chain_index,
+    noise_array,
+  )
+
+  (
+    node_features,
+    processed_edge_features,
+    neighbor_indices,
+    mask,
+    ar_mask,
+  ) = encoded_features_per_noise
+
+  if average_encoding_mode == "inputs":
+    averaging_axis = 0
+  elif average_encoding_mode == "noise_levels":
+    averaging_axis = 1
+  else:  # "inputs_and_noise"
+    averaging_axis = (0, 1)
+
+  avg_node_features = jnp.mean(node_features, axis=averaging_axis)
+  avg_processed_edge_features = jnp.mean(processed_edge_features, axis=averaging_axis)
+
+  return (
+    avg_node_features,
+    avg_processed_edge_features,
+    neighbor_indices,
+    mask,
+    ar_mask,
+  )
 
 
 def make_encoding_sampling_split_fn(

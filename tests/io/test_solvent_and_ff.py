@@ -5,8 +5,8 @@ from pathlib import Path
 
 import numpy as np
 
-from prxteinmpnn.io.parsing.biotite import load_structure_with_hydride
-from prxteinmpnn.io.parsing.physics_utils import populate_physics_parameters
+from priox.io.parsing.biotite import load_structure_with_hydride
+from priox.io.parsing.physics_utils import populate_physics_parameters
 
 
 def test_solvent_removal():

@@ -1,7 +1,7 @@
 
 import numpy as np
 
-from prxteinmpnn.io.parsing.dispatch import parse_input
+from priox.io.parsing.dispatch import parse_input
 from prxteinmpnn.utils.data_structures import ProteinTuple
 
 

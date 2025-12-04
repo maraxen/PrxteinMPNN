@@ -13,8 +13,9 @@ from conftest import (
     PDB_1UBQ_STRING as PDB_STRING,
 )
 
-from prxteinmpnn.io.parsing.dispatch import (
+from priox.io.parsing.dispatch import (
     _determine_h5_structure,
+    load_structure,
     parse_input,
 )
 from prxteinmpnn.utils.data_structures import ProteinTuple

@@ -12,6 +12,11 @@ dist/
 build/
 *.log
 ignored/
+*_output*.txt
+*debug*.txt
+*traceback*.txt
+*error*.txt
+*failure*.txt
 
 *.pkl
 *.eqx

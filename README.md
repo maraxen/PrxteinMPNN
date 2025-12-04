@@ -66,13 +66,20 @@ uv run pytest tests/model/test_colabdesign_equivalence.py -v
 
 ### Installation
 
+PrxteinMPNN depends on two companion libraries:
+
+- **[priox](https://github.com/maraxen/priox)**: Protein I/O and physics primitives for JAX
+- **[prolix](https://github.com/maraxen/prolix)**: Molecular dynamics and force field integration  
+
+These will be installed automatically as git+ dependencies:
+
 ```bash
-# Basic installation
+# Clone and install
 git clone https://github.com/maraxen/PrxteinMPNN.git
 cd PrxteinMPNN
 uv pip install -e .
 
-# Development installation
+# Development installation with all test dependencies
 uv pip install -e ".[dev]"
 ```
 
@@ -128,9 +135,12 @@ sampled_sequence, logits, decoding_order = sample_sequence(key)
 ## 🛠️ Requirements
 
 - **Python >= 3.11**
-- **JAX ecosystem**: jax, jaxlib, flax
+- **JAX ecosystem**: jax, jaxlib, flax, equinox
+- **Companion libraries**:
+  - **priox**: Protein I/O and physics primitives
+  - **prolix**: MD simulation and force fields
 - **Core dependencies**: NumPy, joblib, jaxtyping
-- **Protein handling**: foldcomp, biotite
+- **Protein handling**: foldcomp, biotite, mdtraj
 - **Testing**: chex, pytest, pytest-cov
 
 ## 🏗️ Development

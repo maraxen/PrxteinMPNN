@@ -9,8 +9,8 @@ import logging
 import numpy as np
 from biotite.structure import AtomArray
 
-from prxteinmpnn.physics.constants import DEFAULT_EPSILON, DEFAULT_SIGMA
-from prxteinmpnn.physics.force_fields import FullForceField, load_force_field_from_hub
+from prolix.physics import DEFAULT_EPSILON, DEFAULT_SIGMA
+from prolix.physics import FullForceField, load_force_field_from_hub
 
 logger = logging.getLogger(__name__)
 

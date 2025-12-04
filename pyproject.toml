@@ -21,7 +21,6 @@ dependencies = [
     "h5py",
     "grain",
     "pcax>=0.1.0",
-    "tables>=3.10.2",
     "array-record>=0.8.1",
     "equinox>=0.13.2",
     "huggingface-hub>=1.0.1",

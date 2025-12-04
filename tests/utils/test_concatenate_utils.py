@@ -3,6 +3,7 @@
 import chex
 import jax
 import jax.numpy as jnp
+
 from prxteinmpnn.utils.concatenate import concatenate_neighbor_nodes
 
 
@@ -11,6 +12,7 @@ def test_concatenate_neighbor_nodes():
 
     Raises:
         AssertionError: If the output does not match the expected value.
+
     """
     L, K, C_V, C_E = 5, 4, 3, 2
     key = jax.random.PRNGKey(0)

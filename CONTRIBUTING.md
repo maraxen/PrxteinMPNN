@@ -37,13 +37,13 @@ The pre-commit hooks will run automatically when you commit your changes. To run
 pre-commit run --all-files
 ```
 
-This will run `ruff` for linting and formatting, and `pyright` for type checking. Please ensure that all hooks pass before submitting a pull request.
+This will run `ruff` for linting and formatting, and `ty` for type checking. Please ensure that all hooks pass before submitting a pull request.
 
 ## A Note on Type Checking
 
-We use `pyright` for static type checking. Currently, the `pyright` pre-commit hook is configured to skip the `tests/` directory due to a number of existing type errors.
+We use `astral ty` for static type checking. Currently, the `ty` pre-commit hook is configured to skip the `tests/` directory due to a number of existing type errors.
 
-We welcome contributions to help make our test suite fully type-compliant! If you'd like to help, you can run `pyright` on the `tests/` directory and submit a pull request with your fixes.
+We welcome contributions to help make our test suite fully type-compliant! If you'd like to help, you can run `ty` on the `tests/` directory and submit a pull request with your fixes.
 
 ## Submitting a Pull Request
 

@@ -131,6 +131,7 @@ def make_optimize_sequence_fn(
           When provided, positions in the same group are constrained to have
           identical logits during optimization.
       num_groups: Number of unique groups when using tied positions.
+      structure_mapping: Optional (N,) array mapping each residue to a structure ID.
 
     Returns:
       Tuple of (optimized sequence, final output logits, optimized logits).
@@ -219,7 +220,7 @@ def make_optimize_sequence_fn(
       _, grads = jax.value_and_grad(loss_fn)(current_logits)
 
       updates, next_opt_state = optimizer.update(grads, current_opt_state)
-      next_logits: Logits = optax.apply_updates(current_logits, updates)  # type: ignore[assignment]
+      next_logits: Logits = optax.apply_updates(current_logits, updates)  # type: ignore[invalid-assignment]
 
       if tie_group_map is not None and num_groups is not None:
         group_one_hot = jax.nn.one_hot(

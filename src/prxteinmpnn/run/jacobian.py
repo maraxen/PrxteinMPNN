@@ -9,6 +9,7 @@ from functools import partial
 from hashlib import sha256
 from typing import TYPE_CHECKING, Any, cast
 
+import equinox as eqx
 import h5py
 import jax
 import jax.numpy as jnp
@@ -17,8 +18,9 @@ if TYPE_CHECKING:
   from collections.abc import Callable, Generator
 
   from grain.python import IterDataset
-  from jaxtyping import Float, Int, PyTree
+  from jaxtyping import Float, Int
 
+  from prxteinmpnn.utils.data_structures import Protein
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
     AutoRegressiveMask,
@@ -77,15 +79,7 @@ def _compute_jacobian_from_logit_fn(
 def categorical_jacobian(
   spec: JacobianSpecification | None = None,
   **kwargs: Any,  # noqa: ANN401
-) -> dict[
-  str,
-  jax.Array
-  | dict[
-    str,
-    JacobianSpecification,
-  ]
-  | None,
-]:
+) -> dict[str, Any]:
   """Compute the Jacobian of the model's logits with respect to the input sequence.
 
   Args:
@@ -101,6 +95,8 @@ def categorical_jacobian(
     spec = JacobianSpecification(**kwargs)
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
+  model = eqx.nn.inference_mode(model, value=True)
+
   if spec.average_encodings:
     encode_fn, decode_fn = make_encoding_conditional_logits_split_fn(
       model=model,
@@ -131,6 +127,130 @@ def categorical_jacobian(
   )
 
 
+def _compute_jacobians_for_batch(
+  ensemble: Protein,
+  spec: JacobianSpecification,
+  conditional_logits_fn: ConditionalLogitsFn,
+) -> jax.Array:
+  """Compute Jacobians for a batch of structures."""
+
+  def compute_jacobian_for_structure(
+    coords: StructureAtomicCoordinates,
+    mask: AlphaCarbonMask,
+    residue_ix: ResidueIndex,
+    chain_ix: ChainIndex,
+    one_hot_sequence: OneHotProteinSequence,
+    noise: Float,
+    struct_mapping: jax.Array | None,
+  ) -> Logits:
+    def logit_fn(one_hot_flat: jax.Array) -> jax.Array:
+      one_hot_2d = one_hot_flat.reshape(one_hot_sequence.shape)
+      logits = conditional_logits_fn(
+        jax.random.key(spec.random_seed),
+        coords,
+        mask,
+        residue_ix,
+        chain_ix,
+        one_hot_2d,
+        None,  # ar_mask
+        noise,  # backbone_noise
+        struct_mapping,  # structure_mapping
+      )
+      return logits.flatten()
+
+    return _compute_jacobian_from_logit_fn(
+      logit_fn,
+      one_hot_sequence,
+      spec.jacobian_batch_size,
+    )
+
+  def mapped_fn1(
+    coords: StructureAtomicCoordinates,
+    mask: AlphaCarbonMask,
+    residue_ix: ResidueIndex,
+    chain_ix: ChainIndex,
+    one_hot_sequence: OneHotProteinSequence,
+    struct_mapping: jax.Array | None,
+  ) -> jax.Array:
+    """Compute Jacobians for a single structure across multiple noise levels."""
+    return jax.lax.map(
+      partial(
+        compute_jacobian_for_structure,
+        coords,
+        mask,
+        residue_ix,
+        chain_ix,
+        one_hot_sequence,
+        struct_mapping=struct_mapping,
+      ),
+      jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
+      batch_size=spec.noise_batch_size,
+    )
+
+  return jax.vmap(mapped_fn1)(
+    ensemble.coordinates,
+    ensemble.mask,
+    ensemble.residue_index,
+    ensemble.chain_index,
+    ensemble.one_hot_sequence,
+    ensemble.mapping,
+  )
+
+
+def _compute_encodings_for_batch(
+  ensemble: Protein,
+  spec: JacobianSpecification,
+  encode_fn: Callable,
+) -> Any:  # noqa: ANN401
+  """Compute encodings for a batch of structures."""
+
+  def compute_encodings_for_structure(
+    coords: StructureAtomicCoordinates,
+    mask: AlphaCarbonMask,
+    residue_ix: ResidueIndex,
+    chain_ix: ChainIndex,
+    noise: Float,
+    struct_mapping: jax.Array | None,
+  ) -> tuple[NodeFeatures, EdgeFeatures, NeighborIndices, AlphaCarbonMask, AutoRegressiveMask]:
+    return encode_fn(
+      coords,
+      mask,
+      residue_ix,
+      chain_ix,
+      backbone_noise=noise,
+      structure_mapping=struct_mapping,
+    )
+
+  def mapped_fn(
+    coords: StructureAtomicCoordinates,
+    mask: AlphaCarbonMask,
+    residue_ix: ResidueIndex,
+    chain_ix: ChainIndex,
+    struct_mapping: jax.Array | None,
+  ) -> jax.Array:
+    """Compute encodings for a single structure across multiple noise levels."""
+    return jax.lax.map(
+      partial(
+        compute_encodings_for_structure,
+        coords,
+        mask,
+        residue_ix,
+        chain_ix,
+        struct_mapping=struct_mapping,
+      ),
+      jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
+      batch_size=spec.noise_batch_size,
+    )
+
+  return jax.vmap(mapped_fn)(
+    ensemble.coordinates,
+    ensemble.mask,
+    ensemble.residue_index,
+    ensemble.chain_index,
+    ensemble.mapping,
+  )
+
+
 def _compute_batch_outputs(
   spec: JacobianSpecification,
   protein_iterator: IterDataset,
@@ -144,115 +264,15 @@ def _compute_batch_outputs(
         msg = "conditional_logits_fn must be provided when not using average_encodings"
         raise ValueError(msg)
 
-      def compute_jacobian_for_structure(
-        coords: StructureAtomicCoordinates,
-        mask: AlphaCarbonMask,
-        residue_ix: ResidueIndex,
-        chain_ix: ChainIndex,
-        one_hot_sequence: OneHotProteinSequence,
-        noise: Float,
-        struct_mapping: jax.Array | None,
-      ) -> Logits:
-        def logit_fn(one_hot_flat: jax.Array) -> jax.Array:
-          one_hot_2d = one_hot_flat.reshape(one_hot_sequence.shape)
-          logits = conditional_logits_fn(
-            jax.random.key(spec.random_seed),
-            coords,
-            mask,
-            residue_ix,
-            chain_ix,
-            one_hot_2d,
-            None,  # ar_mask
-            noise,  # backbone_noise
-            struct_mapping,  # structure_mapping
-          )
-          return logits.flatten()
-
-        return _compute_jacobian_from_logit_fn(
-          logit_fn,
-          one_hot_sequence,
-          spec.jacobian_batch_size,
-        )
-
-      def mapped_fn1(
-        coords: StructureAtomicCoordinates,
-        mask: AlphaCarbonMask,
-        residue_ix: ResidueIndex,
-        chain_ix: ChainIndex,
-        one_hot_sequence: OneHotProteinSequence,
-        struct_mapping: jax.Array | None,
-      ) -> jax.Array:
-        """Compute Jacobians for a single structure across multiple noise levels."""
-        return jax.lax.map(
-          partial(
-            compute_jacobian_for_structure,
-            coords,
-            mask,
-            residue_ix,
-            chain_ix,
-            one_hot_sequence,
-            struct_mapping=struct_mapping,
-          ),
-          jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
-          batch_size=spec.noise_batch_size,
-        )
-
-      jacobians_batch = jax.vmap(mapped_fn1)(
-        batched_ensemble.coordinates,
-        batched_ensemble.mask,
-        batched_ensemble.residue_index,
-        batched_ensemble.chain_index,
-        batched_ensemble.one_hot_sequence,
-        batched_ensemble.mapping,
+      jacobians_batch = _compute_jacobians_for_batch(
+        batched_ensemble,
+        spec,
+        conditional_logits_fn,
       )
+
       yield jacobians_batch, batched_ensemble.one_hot_sequence
     if spec.average_encodings and encode_fn is not None:
-
-      def compute_encodings_for_structure(
-        coords: StructureAtomicCoordinates,
-        mask: AlphaCarbonMask,
-        residue_ix: ResidueIndex,
-        chain_ix: ChainIndex,
-        noise: Float,
-        struct_mapping: jax.Array | None,
-      ) -> tuple[NodeFeatures, EdgeFeatures, NeighborIndices, AlphaCarbonMask, AutoRegressiveMask]:
-        return encode_fn(
-          coords,
-          mask,
-          residue_ix,
-          chain_ix,
-          backbone_noise=noise,
-          structure_mapping=struct_mapping,
-        )
-
-      def mapped_fn(
-        coords: StructureAtomicCoordinates,
-        mask: AlphaCarbonMask,
-        residue_ix: ResidueIndex,
-        chain_ix: ChainIndex,
-        struct_mapping: jax.Array | None,
-      ) -> jax.Array:
-        """Compute encodings for a single structure across multiple noise levels."""
-        return jax.lax.map(
-          partial(
-            compute_encodings_for_structure,
-            coords,
-            mask,
-            residue_ix,
-            chain_ix,
-            struct_mapping=struct_mapping,
-          ),
-          jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
-          batch_size=spec.noise_batch_size,
-        )
-
-      encodings_batch = jax.vmap(mapped_fn)(
-        batched_ensemble.coordinates,
-        batched_ensemble.mask,
-        batched_ensemble.residue_index,
-        batched_ensemble.chain_index,
-        batched_ensemble.mapping,
-      )
+      encodings_batch = _compute_encodings_for_batch(batched_ensemble, spec, encode_fn)
       yield encodings_batch, batched_ensemble.one_hot_sequence
 
 
@@ -261,20 +281,20 @@ def _get_initial_rolling_average_state(
 ) -> tuple[list, list, list, list, list]:
   """Get the initial state for the rolling average of encodings."""
   node_features, edge_features, neighbor_indices, mask, ar_mask = initial_encodings
-  
+
   # Flatten batch and noise dimensions
-  flat_node = node_features.reshape((-1,) + node_features.shape[2:])
-  flat_edge = edge_features.reshape((-1,) + edge_features.shape[2:])
-  flat_neighbors = neighbor_indices.reshape((-1,) + neighbor_indices.shape[2:])
-  flat_mask = mask.reshape((-1,) + mask.shape[2:])
-  flat_ar_mask = ar_mask.reshape((-1,) + ar_mask.shape[2:])
-  
+  flat_node = node_features.reshape((-1, *node_features.shape[2:]))
+  flat_edge = edge_features.reshape((-1, *edge_features.shape[2:]))
+  flat_neighbors = neighbor_indices.reshape((-1, *neighbor_indices.shape[2:]))
+  flat_mask = mask.reshape((-1, *mask.shape[2:]))
+  flat_ar_mask = ar_mask.reshape((-1, *ar_mask.shape[2:]))
+
   return (
-      [flat_node], 
-      [flat_edge], 
-      [flat_neighbors], 
-      [flat_mask], 
-      [flat_ar_mask]
+    [flat_node],
+    [flat_edge],
+    [flat_neighbors],
+    [flat_mask],
+    [flat_ar_mask],
   )
 
 
@@ -285,26 +305,26 @@ def _update_rolling_average(
   """Update the rolling average of encodings with a new batch."""
   nodes, edges, neighbors_list, masks, ar_masks = state
   node_features, edge_features, neighbor_indices, mask, ar_mask = new_encodings
-  
+
   # Flatten and append
-  nodes.append(node_features.reshape((-1,) + node_features.shape[2:]))
-  edges.append(edge_features.reshape((-1,) + edge_features.shape[2:]))
-  neighbors_list.append(neighbor_indices.reshape((-1,) + neighbor_indices.shape[2:]))
-  masks.append(mask.reshape((-1,) + mask.shape[2:]))
-  ar_masks.append(ar_mask.reshape((-1,) + ar_mask.shape[2:]))
-  
+  nodes.append(node_features.reshape((-1, *node_features.shape[2:])))
+  edges.append(edge_features.reshape((-1, *edge_features.shape[2:])))
+  neighbors_list.append(neighbor_indices.reshape((-1, *neighbor_indices.shape[2:])))
+  masks.append(mask.reshape((-1, *mask.shape[2:])))
+  ar_masks.append(ar_mask.reshape((-1, *ar_mask.shape[2:])))
+
   return nodes, edges, neighbors_list, masks, ar_masks
 
 
 def _pad_and_concatenate_features(
-    nodes_list: list[jax.Array],
-    edges_list: list[jax.Array],
-    neighbors_list: list[jax.Array],
-    masks_list: list[jax.Array],
-    ar_masks_list: list[jax.Array],
-    sequences_list: list[jax.Array],
+  nodes_list: list[jax.Array],
+  edges_list: list[jax.Array],
+  neighbors_list: list[jax.Array],
+  masks_list: list[jax.Array],
+  ar_masks_list: list[jax.Array],
+  sequences_list: list[jax.Array],
 ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
-  """Pads and concatenates feature lists along the batch dimension."""
+  """Pad and concatenate feature lists along the batch dimension."""
   max_len = max(x.shape[1] for x in nodes_list)
 
   def _pad_list(arrays: list[jax.Array], pad_dims: tuple[int, ...]) -> jax.Array:
@@ -321,12 +341,12 @@ def _pad_and_concatenate_features(
     return jnp.concatenate(padded, axis=0)
 
   return (
-      _pad_list(nodes_list, (1,)),
-      _pad_list(edges_list, (1,)),
-      _pad_list(neighbors_list, (1,)),
-      _pad_list(masks_list, (1,)),
-      _pad_list(ar_masks_list, (1, 2)),
-      _pad_list(sequences_list, (1,)),
+    _pad_list(nodes_list, (1,)),
+    _pad_list(edges_list, (1,)),
+    _pad_list(neighbors_list, (1,)),
+    _pad_list(masks_list, (1,)),
+    _pad_list(ar_masks_list, (1, 2)),
+    _pad_list(sequences_list, (1,)),
   )
 
 
@@ -336,7 +356,7 @@ def _categorical_jacobian_in_memory(
   conditional_logits_fn: Any,  # noqa: ANN401
   encode_fn: Callable | None,
   decode_fn: Callable | None,
-) -> dict[str, jax.Array | dict[str, JacobianSpecification] | None]:
+) -> dict[str, Any]:
   """Compute Jacobians and store them in memory."""
   output_generator = _compute_batch_outputs(
     spec,
@@ -358,31 +378,29 @@ def _categorical_jacobian_in_memory(
     all_sequences = [item[1] for item in all_encodings_and_sequences]
 
     nodes_list, edges_list, neighbors_list, masks_list, ar_masks_list = (
-        _get_initial_rolling_average_state(all_encodings[0])
+      _get_initial_rolling_average_state(all_encodings[0])
     )
 
     for encodings_batch in all_encodings[1:]:
-      nodes_list, edges_list, neighbors_list, masks_list, ar_masks_list = (
-          _update_rolling_average(
-              (nodes_list, edges_list, neighbors_list, masks_list, ar_masks_list),
-              encodings_batch,
-          )
+      nodes_list, edges_list, neighbors_list, masks_list, ar_masks_list = _update_rolling_average(
+        (nodes_list, edges_list, neighbors_list, masks_list, ar_masks_list),
+        encodings_batch,
       )
 
     (
-        all_nodes,
-        all_edges,
-        all_neighbors,
-        all_mask,
-        all_ar_mask,
-        all_sequences_concat,
+      all_nodes,
+      all_edges,
+      all_neighbors,
+      all_mask,
+      all_ar_mask,
+      all_sequences_concat,
     ) = _pad_and_concatenate_features(
-        nodes_list,
-        edges_list,
-        neighbors_list,
-        masks_list,
-        ar_masks_list,
-        all_sequences,
+      nodes_list,
+      edges_list,
+      neighbors_list,
+      masks_list,
+      ar_masks_list,
+      all_sequences,
     )
 
     # Compute averaged node and edge features using mask
@@ -393,26 +411,28 @@ def _categorical_jacobian_in_memory(
     averaged_node = jnp.sum(all_nodes * mask_expanded, axis=0) / mask_sum
 
     mask_expanded_edge = all_mask[..., None, None]
-    averaged_edge = (
-        jnp.sum(all_edges * mask_expanded_edge, axis=0) / mask_sum[..., None]
-    )
+    averaged_edge = jnp.sum(all_edges * mask_expanded_edge, axis=0) / mask_sum[..., None]
 
     def compute_jacobian_for_sequence(
       one_hot_sequence: OneHotProteinSequence,
     ) -> jax.Array:
       """Compute jacobian for a single sequence using averaged encodings."""
       # one_hot_sequence is (L_max, 21) (from all_sequences_concat)
-      
+
       def logit_fn(one_hot_flat: jax.Array) -> jax.Array:
         one_hot_2d = one_hot_flat.reshape(one_hot_sequence.shape)
-        
-        def decode_single(n_idx, m, ar_m):
-            return decode_fn(
-                (averaged_node, averaged_edge, n_idx, m, ar_m), 
-                one_hot_2d, 
-                None
-            )
-            
+
+        def decode_single(
+          n_idx: jax.Array,
+          m: jax.Array,
+          ar_m: jax.Array,
+        ) -> jax.Array:
+          return decode_fn(
+            (averaged_node, averaged_edge, n_idx, m, ar_m),
+            one_hot_2d,
+            None,
+          )
+
         logits_batch = jax.vmap(decode_single)(all_neighbors, all_mask, all_ar_mask)
         logits = jnp.mean(logits_batch, axis=0)
         return logits.flatten()
@@ -452,12 +472,16 @@ def _categorical_jacobian_in_memory(
       "mapping": mapping,
       "metadata": {
         "spec": spec,
+        "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
       },
     }
 
   all_outputs_and_sequences = list(output_generator)
   if not all_outputs_and_sequences:
-    return {"categorical_jacobians": None, "metadata": None}
+    return {
+      "categorical_jacobians": None,
+      "metadata": {"spec": spec, "skipped_inputs": getattr(protein_iterator, "skipped_frames", [])},
+    }
 
   all_outputs = [item[0] for item in all_outputs_and_sequences]
   all_sequences = [item[1] for item in all_outputs_and_sequences]
@@ -490,6 +514,7 @@ def _categorical_jacobian_in_memory(
     "mapping": mapping,
     "metadata": {
       "spec": spec,
+      "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
     },
   }
 
@@ -608,5 +633,6 @@ def _categorical_jacobian_streaming(
     "spec_hash": spec_hash,
     "metadata": {
       "spec": spec,
+      "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
     },
   }

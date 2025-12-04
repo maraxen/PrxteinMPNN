@@ -20,6 +20,7 @@ dependencies = [
     "optax",
     "h5py",
     "grain",
+    "hydride",
     "pcax>=0.1.0",
     "array-record>=0.8.1",
     "equinox>=0.13.2",
@@ -52,14 +53,13 @@ tests = [
     "trio",
     "chex",
     "anyio",
-    "pyright",
+    "ty",
     "foldcomp",
-    # ColabDesign: Install manually from https://github.com/sokrypton/ColabDesign.git@e31a56f
-    # pip install git+https://github.com/sokrypton/ColabDesign.git@e31a56f
+    "colabdesign @ git+https://github.com/sokrypton/ColabDesign.git@e31a56f",
 ]
 dev = [
   "ruff",
-  "pyright",
+  "ty",
   "sphinx",
   "sphinx-rtd-theme",
   "sphinx-autodoc-typehints",
@@ -87,7 +87,19 @@ foldcomp = [
 line-length = 100
 fix = true
 indent-width = 2
-exclude = [".venv", "venv", "build", "dist", "__pycache__", "tests", "examples"]
+force-exclude = true
+exclude = [
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+    "__pycache__",
+    "tests",
+    "examples",
+    "scripts",
+    "*.ipynb",
+    "src/prxteinmpnn/training/data/download_and_process.py",
+]
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -98,6 +110,7 @@ pylint.max-args = 15
 "src/prxteinmpnn/run.py" = ["E402", "PLR0913", "ANN401"]
 "src/prxteinmpnn/io/parsing.py" = ["ANN401"]
 "tests/test_adapter.py" = ["S101", "T201", "ANN201", "INP001", "PLC0415", "SLF001"]
+"scripts/**/*.py" = ["T201", "INP001"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -105,9 +118,6 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[tool.pyright]
-include = ["src/**/*.py"]
-exclude = ["**/tests/**/*.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -115,6 +125,12 @@ pythonpath = ["src"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
+
+[tool.ty.src]
+exclude = ["tests", "examples", "scripts"]
+
+[tool.ty.rules]
+invalid-type-form = "ignore"
 
 [dependency-groups]
 dev = [

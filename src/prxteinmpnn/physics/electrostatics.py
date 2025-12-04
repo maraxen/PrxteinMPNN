@@ -242,7 +242,8 @@ def compute_coulomb_forces_at_backbone(
 
   if noise_scale > 0.0:
     if key is None:
-      raise ValueError("Must provide key when noise_scale > 0")
+      msg = "Must provide key when noise_scale > 0"
+      raise ValueError(msg)
     noise = jax.random.normal(key, forces_flat.shape)
     forces_flat = forces_flat + noise * noise_scale
 

@@ -1,9 +1,5 @@
-from collections.abc import Generator
-from typing import Any
 import jax
 import pytest
-import chex
-import numpy as np
 from gmmx import GaussianMixtureModelJax
 from jax import numpy as jnp
 
@@ -13,9 +9,6 @@ from jax import numpy as jnp
 
 from prxteinmpnn.ensemble.em_fit import (
   EMFitterResult,
-  _e_step,
-  _m_step_from_responsibilities,
-  GMM,
 )
 
 
@@ -64,7 +57,7 @@ class TestEMFitterResult:
       log_likelihood_diff=jnp.array(0.001),
       converged=jnp.bool_(True),
     )
-    
+
     assert result.gmm is initial_gmm
     assert result.n_iter == 10
     assert result.log_likelihood == -100.0
@@ -85,7 +78,7 @@ class TestEMFitterResult:
       log_likelihood_diff=jnp.array(0.01),
       converged=jnp.bool_(False),
     )
-    
+
     assert isinstance(result.gmm, GaussianMixtureModelJax)
     assert isinstance(result.n_iter, int)
     assert isinstance(result.log_likelihood, jax.Array)

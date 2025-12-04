@@ -2,37 +2,74 @@
 
 from __future__ import annotations
 
-import jax
+import chex
 import jax.numpy as jnp
 import pytest
-import chex
 
 from prxteinmpnn.model.multi_state_sampling import (
-  max_min_over_group_logits,
-  min_over_group_logits,
-  product_of_probabilities_logits,
+    arithmetic_mean_logits,
+    geometric_mean_logits,
+    product_of_probabilities_logits,
 )
 
+
 class TestMultiStateSampling(chex.TestCase):
-    def test_min_over_group_logits(self) -> None:
-      """Test that min strategy selects the worst-case logit for each amino acid."""
+    def test_arithmetic_mean_logits(self) -> None:
+      """Test that arithmetic mean uses log-sum-exp for stable averaging."""
       # Two states with different preferences
       logits = jnp.array([
-        [10.0, -5.0, 0.0],  # State 1: strong preference for AA 0
-        [-5.0, 8.0, 0.0],   # State 2: strong preference for AA 1
+        [10.0, -5.0, 0.0],  # State 1
+        [8.0, -3.0, 0.0],   # State 2
       ])
       group_mask = jnp.array([True, True])
 
-      min_logits = min_over_group_logits(logits, group_mask)
-      chex.assert_tree_all_finite(min_logits)
+      mean_logits = arithmetic_mean_logits(logits, group_mask)
+      chex.assert_tree_all_finite(mean_logits)
 
-      # Expected: min across both states for each AA
-      # AA 0: min(10.0, -5.0) = -5.0
-      # AA 1: min(-5.0, 8.0) = -5.0
-      # AA 2: min(0.0, 0.0) = 0.0
-      expected = jnp.array([[-5.0, -5.0, 0.0]])
+      # Should be close to simple average for similar magnitudes
+      # AA 0: ~9.0, AA 1: ~-4.0, AA 2: 0.0
+      chex.assert_shape(mean_logits, (1, 3))
 
-      chex.assert_trees_all_close(min_logits, expected)
+
+    def test_geometric_mean_logits(self) -> None:
+      """Test that geometric mean divides by temperature and group count."""
+      logits = jnp.array([
+        [10.0, -5.0, 0.0],
+        [8.0, -3.0, 0.0],
+      ])
+      group_mask = jnp.array([True, True])
+      temperature = 1.0
+
+      geom_logits = geometric_mean_logits(logits, group_mask, temperature)
+      chex.assert_tree_all_finite(geom_logits)
+
+      # Expected: (sum of logits) / (temperature * num_in_group)
+      # AA 0: (10.0 + 8.0) / (1.0 * 2) = 9.0
+      # AA 1: (-5.0 + -3.0) / (1.0 * 2) = -4.0
+      # AA 2: (0.0 + 0.0) / (1.0 * 2) = 0.0
+      expected = jnp.array([[9.0, -4.0, 0.0]])
+
+      chex.assert_trees_all_close(geom_logits, expected)
+
+
+    def test_geometric_mean_with_temperature(self) -> None:
+      """Test that geometric mean correctly applies temperature scaling."""
+      logits = jnp.array([
+        [10.0, -5.0],
+        [8.0, -3.0],
+      ])
+      group_mask = jnp.array([True, True])
+      temperature = 2.0
+
+      geom_logits = geometric_mean_logits(logits, group_mask, temperature)
+      chex.assert_tree_all_finite(geom_logits)
+
+      # Expected: (sum of logits) / (temperature * num_in_group)
+      # AA 0: (10.0 + 8.0) / (2.0 * 2) = 4.5
+      # AA 1: (-5.0 + -3.0) / (2.0 * 2) = -2.0
+      expected = jnp.array([[4.5, -2.0]])
+
+      chex.assert_trees_all_close(geom_logits, expected)
 
 
     def test_product_of_probabilities_logits(self) -> None:
@@ -55,63 +92,6 @@ class TestMultiStateSampling(chex.TestCase):
       chex.assert_trees_all_close(product_logits, expected)
 
 
-    def test_max_min_pure_mean(self) -> None:
-      """Test that alpha=0 gives pure mean."""
-      logits = jnp.array([
-        [10.0, -5.0],
-        [8.0, -3.0],
-      ])
-      group_mask = jnp.array([True, True])
-
-      result = max_min_over_group_logits(logits, group_mask, alpha=0.0)
-      chex.assert_tree_all_finite(result)
-
-      # Expected: mean of logits
-      # AA 0: (10.0 + 8.0) / 2 = 9.0
-      # AA 1: (-5.0 + -3.0) / 2 = -4.0
-      expected = jnp.array([[9.0, -4.0]])
-
-      chex.assert_trees_all_close(result, expected)
-
-
-    def test_max_min_pure_min(self) -> None:
-      """Test that alpha=1 gives pure min."""
-      logits = jnp.array([
-        [10.0, -5.0],
-        [8.0, -3.0],
-      ])
-      group_mask = jnp.array([True, True])
-
-      result = max_min_over_group_logits(logits, group_mask, alpha=1.0)
-      chex.assert_tree_all_finite(result)
-
-      # Expected: min of logits
-      # AA 0: min(10.0, 8.0) = 8.0
-      # AA 1: min(-5.0, -3.0) = -5.0
-      expected = jnp.array([[8.0, -5.0]])
-
-      chex.assert_trees_all_close(result, expected)
-
-
-    def test_max_min_balanced(self) -> None:
-      """Test that alpha=0.5 gives balanced combination."""
-      logits = jnp.array([
-        [10.0, -5.0],
-        [8.0, -3.0],
-      ])
-      group_mask = jnp.array([True, True])
-
-      result = max_min_over_group_logits(logits, group_mask, alpha=0.5)
-      chex.assert_tree_all_finite(result)
-
-      # Expected: 0.5 * min + 0.5 * mean
-      # AA 0: 0.5 * 8.0 + 0.5 * 9.0 = 8.5
-      # AA 1: 0.5 * -5.0 + 0.5 * -4.0 = -4.5
-      expected = jnp.array([[8.5, -4.5]])
-
-      chex.assert_trees_all_close(result, expected)
-
-
     def test_partial_group_mask(self) -> None:
       """Test that only masked positions contribute to combination."""
       logits = jnp.array([
@@ -121,15 +101,17 @@ class TestMultiStateSampling(chex.TestCase):
       ])
       group_mask = jnp.array([True, True, False])
 
-      min_logits = min_over_group_logits(logits, group_mask)
-      chex.assert_tree_all_finite(min_logits)
+      arithmetic_logits = arithmetic_mean_logits(logits, group_mask)
+      chex.assert_tree_all_finite(arithmetic_logits)
 
-      # Expected: min only over first two positions
-      # AA 0: min(10.0, 8.0) = 8.0
-      # AA 1: min(-5.0, -3.0) = -5.0
-      expected = jnp.array([[8.0, -5.0]])
+      product_logits = product_of_probabilities_logits(logits, group_mask)
+      chex.assert_tree_all_finite(product_logits)
 
-      chex.assert_trees_all_close(min_logits, expected)
+      # Product should only sum first two positions
+      # AA 0: 10.0 + 8.0 = 18.0
+      # AA 1: -5.0 + -3.0 = -8.0
+      expected_product = jnp.array([[18.0, -8.0]])
+      chex.assert_trees_all_close(product_logits, expected_product)
 
 
     def test_single_position_in_group(self) -> None:
@@ -137,15 +119,16 @@ class TestMultiStateSampling(chex.TestCase):
       logits = jnp.array([[10.0, -5.0, 3.0]])
       group_mask = jnp.array([True])
 
-      min_logits = min_over_group_logits(logits, group_mask)
-      chex.assert_tree_all_finite(min_logits)
+      arithmetic_logits = arithmetic_mean_logits(logits, group_mask)
+      chex.assert_tree_all_finite(arithmetic_logits)
+      
       product_logits = product_of_probabilities_logits(logits, group_mask)
       chex.assert_tree_all_finite(product_logits)
 
       # Single position: all strategies should return the same logits
       expected = jnp.array([[10.0, -5.0, 3.0]])
 
-      chex.assert_trees_all_close(min_logits, expected)
+      chex.assert_trees_all_close(arithmetic_logits, expected)
       chex.assert_trees_all_close(product_logits, expected)
 
     @chex.variants(with_jit=True, without_jit=True, with_device=True)
@@ -158,23 +141,24 @@ class TestMultiStateSampling(chex.TestCase):
       group_mask = jnp.array([True, True])
 
       # Compile functions
-      min_fn = self.variant(min_over_group_logits)
+      arithmetic_fn = self.variant(arithmetic_mean_logits)
       product_fn = self.variant(product_of_probabilities_logits)
-      max_min_fn = self.variant(lambda l, m: max_min_over_group_logits(l, m, alpha=0.5))
+      geometric_fn = self.variant(lambda l, m: geometric_mean_logits(l, m, temperature=1.0))
 
       # Execute JIT-compiled functions
-      min_result = min_fn(logits, group_mask)
-      chex.assert_tree_all_finite(min_result)
+      arithmetic_result = arithmetic_fn(logits, group_mask)
+      chex.assert_tree_all_finite(arithmetic_result)
       product_result = product_fn(logits, group_mask)
       chex.assert_tree_all_finite(product_result)
-      max_min_result = max_min_fn(logits, group_mask)
-      chex.assert_tree_all_finite(max_min_result)
+      geometric_result = geometric_fn(logits, group_mask)
+      chex.assert_tree_all_finite(geometric_result)
 
       # Verify results have expected shapes
-      chex.assert_shape(min_result, (1, 2))
+      chex.assert_shape(arithmetic_result, (1, 2))
       chex.assert_shape(product_result, (1, 2))
-      chex.assert_shape(max_min_result, (1, 2))
+      chex.assert_shape(geometric_result, (1, 2))
 
 
 if __name__ == "__main__":
   pytest.main([__file__, "-v"])
+

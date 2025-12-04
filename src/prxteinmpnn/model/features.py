@@ -12,6 +12,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
+from prxteinmpnn.physics.constants import BOLTZMANN_KCAL
 from prxteinmpnn.utils.coordinates import (
   apply_noise_to_coordinates,
   compute_backbone_coordinates,
@@ -33,16 +34,18 @@ if TYPE_CHECKING:
   )
 
 
-# Type alias for PRNG keys
 PRNGKeyArray = jax.Array
 
-# Layer normalization
 LayerNorm = eqx.nn.LayerNorm
 
 # Feature extraction constants
 MAXIMUM_RELATIVE_FEATURES = 32
 POS_EMBED_DIM = 16
-def top_k(x, k): return jax.lax.top_k(x, k)
+
+
+def top_k(x: jax.Array, k: int) -> tuple[jax.Array, jax.Array]:
+  """Wrap jax.lax.top_k."""
+  return jax.lax.top_k(x, k)
 
 
 class ProteinFeatures(eqx.Module):
@@ -62,7 +65,7 @@ class ProteinFeatures(eqx.Module):
 
   def __init__(
     self,
-    node_features: int,  # noqa: ARG002
+    node_features: int,
     edge_features: int,
     k_neighbors: int,
     *,
@@ -77,13 +80,15 @@ class ProteinFeatures(eqx.Module):
       key: PRNG key for initialization.
 
     """
+    del node_features  # Unused, kept for API compatibility
+
     keys = jax.random.split(key, 3)
 
     self.k_neighbors = k_neighbors
     self.rbf_dim = 16
     self.pos_embed_dim = POS_EMBED_DIM
 
-    pos_one_hot_dim = 2 * MAXIMUM_RELATIVE_FEATURES + 2  # 66
+    pos_one_hot_dim = 2 * MAXIMUM_RELATIVE_FEATURES + 2
     edge_embed_in_dim = 416  # Match original model's edge embedding input size
 
     self.w_pos = eqx.nn.Linear(pos_one_hot_dim, POS_EMBED_DIM, key=keys[0])
@@ -99,6 +104,7 @@ class ProteinFeatures(eqx.Module):
     residue_index: ResidueIndex,
     chain_index: ChainIndex,
     backbone_noise: BackboneNoise | None,
+    backbone_noise_mode: str = "direct",
     structure_mapping: jnp.ndarray | None = None,
     initial_node_features: jnp.ndarray | None = None,
   ) -> tuple[EdgeFeatures, NeighborIndices, NodeFeatures | None, PRNGKeyArray]:
@@ -111,11 +117,11 @@ class ProteinFeatures(eqx.Module):
       residue_index: Residue indices.
       chain_index: Chain indices.
       backbone_noise: Noise to add to backbone coordinates.
+      backbone_noise_mode: Mode for backbone noise ("direct" or "thermal").
       structure_mapping: Optional (N,) array mapping each residue to a structure ID.
                         When provided (multi-state mode), prevents cross-structure
                         neighbors to avoid information leakage between conformational states.
       initial_node_features: Optional initial node features.
-      debug_mode: If True, enables debug prints.
 
     Returns:
       Tuple of (edge_features, neighbor_indices, updated_prng_key).
@@ -126,17 +132,25 @@ class ProteinFeatures(eqx.Module):
     if backbone_noise is None:
       backbone_noise = jnp.array(0.0, dtype=jnp.float32)
 
+    # Resolve Sigma
+    if backbone_noise_mode == "thermal":
+      # Apply 0.5 factor here as well for consistency
+      thermal_energy = jnp.maximum(0.5 * BOLTZMANN_KCAL * backbone_noise, 0.0)
+      final_sigma = jnp.sqrt(thermal_energy)
+    else:
+      final_sigma = backbone_noise
+
     noised_coordinates, prng_key = apply_noise_to_coordinates(
       prng_key,
       structure_coordinates,
-      backbone_noise=backbone_noise,
+      backbone_noise=final_sigma,
     )
     backbone_atom_coordinates = compute_backbone_coordinates(noised_coordinates)
     distances = compute_backbone_distance(backbone_atom_coordinates)
 
     distances_masked = jnp.array(
       jnp.where(
-        (mask[:, None] * mask[None, :]).astype(bool),
+        (mask[:, None] * mask[None, :]).astype(jnp.bool_),
         distances,
         jnp.inf,
       ),
@@ -146,7 +160,7 @@ class ProteinFeatures(eqx.Module):
       same_structure = structure_mapping[:, jnp.newaxis] == structure_mapping[jnp.newaxis, :]
       distances_masked = jnp.array(
         jnp.where(
-          same_structure.astype(bool),
+          same_structure.astype(jnp.bool_),
           distances_masked,
           jnp.inf,
         ),
@@ -159,7 +173,7 @@ class ProteinFeatures(eqx.Module):
     rbf = compute_radial_basis(backbone_atom_coordinates, neighbor_indices)
     neighbor_offsets = compute_neighbor_offsets(residue_index, neighbor_indices)
 
-    edge_chains = (chain_index[:, None] == chain_index[None, :]).astype(int)
+    edge_chains = (chain_index[:, None] == chain_index[None, :]).astype(jnp.int32)
     edge_chains_neighbors = jnp.take_along_axis(
       edge_chains,
       neighbor_indices,

@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+  from collections.abc import Sequence
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -72,6 +77,8 @@ class TrainingSpecification(RunSpecification):
 
   """
 
+  model_weights: str | Path | None = None
+  model_version: str | None = None
   # Data paths
   validation_data: str | Path | None = None
   cache_preprocessed: bool = True
@@ -96,16 +103,28 @@ class TrainingSpecification(RunSpecification):
   checkpoint_every: int = 1000
   keep_last_n_checkpoints: int = 3
   resume_from_checkpoint: str | Path | None = None
+  save_at_epochs: Sequence[int] | None = None
 
   # Physics features (Phase 1)
-  use_electrostatics: bool = False
-  use_vdw: bool = False
   physics_feature_weight: float = 1.0
+
+  # Data Augmentation & Truncation
+  max_length: int | None = None
+  truncation_strategy: Literal["random_crop", "center_crop", "none"] = "none"
 
   # Regularization
   label_smoothing: float = 0.0
   mask_strategy: Literal["random_order", "bert"] = "random_order"
   mask_prob: float = 0.15
+
+  # Training Mode
+  training_mode: Literal["autoregressive", "diffusion"] = "autoregressive"
+
+  # Diffusion parameters
+  diffusion_num_steps: int = 1000
+  diffusion_schedule_type: Literal["cosine", "linear"] = "cosine"
+  diffusion_beta_start: float = 1e-4
+  diffusion_beta_end: float = 0.02
 
   # Early stopping
   early_stopping_patience: int | None = None
@@ -146,4 +165,4 @@ class TrainingSpecification(RunSpecification):
       raise ValueError(msg)
 
     # Create checkpoint directory if it doesn't exist
-    self.checkpoint_dir.mkdir(parents=True, exist_ok=True)  # pyright: ignore[reportAttributeAccessIssue]
+    self.checkpoint_dir.mkdir(parents=True, exist_ok=True)  # type: ignore[possibly-missing-attribute]

@@ -21,11 +21,11 @@ import mdtraj as md
 
 from prxteinmpnn.utils.data_structures import ProteinStream
 
-from .biotite import _parse_biotite, processed_structure_to_protein_tuples, load_structure_with_hydride
+from .biotite import _parse_biotite
 from .mdcath import parse_mdcath_to_processed_structure
 from .mdtraj import parse_mdtraj_to_processed_structure
 from .pqr import parse_pqr_to_processed_structure
-from prxteinmpnn.io.parsing.structures import ProcessedStructure
+from .utils import processed_structure_to_protein_tuples
 
 logger = logging.getLogger(__name__)
 
@@ -107,34 +107,40 @@ def parse_input(  # noqa: C901, PLR0912, PLR0915
         logger.info("Dispatching to PQR parser.")
         processed = parse_pqr_to_processed_structure(path, chain_id)
         yield from processed_structure_to_protein_tuples(
-            processed, 
-            str(path), 
-            extract_dihedrals=extract_dihedrals
+          processed,
+          str(path),
+          extract_dihedrals=extract_dihedrals,
         )
         return
       if path.suffix.lower() in {".h5", ".hdf5"}:
         h5_structure = _determine_h5_structure(path)
+        add_hydrogens = kwargs.get("add_hydrogens", True)
 
         if h5_structure == "mdcath":
           logger.info("Dispatching to mdCATH HDF5 parser.")
-          for processed in parse_mdcath_to_processed_structure(path, chain_id):
-              yield from processed_structure_to_protein_tuples(
-                  processed,
-                  str(path),
-                  extract_dihedrals=extract_dihedrals
-              )
+          for processed in parse_mdcath_to_processed_structure(
+            path,
+            chain_id,
+            add_hydrogens=add_hydrogens,
+          ):
+            yield from processed_structure_to_protein_tuples(
+              processed,
+              str(path),
+              extract_dihedrals=extract_dihedrals,
+            )
         elif h5_structure == "mdtraj":
           logger.info("Dispatching to MDTraj HDF5 parser.")
           for processed in parse_mdtraj_to_processed_structure(
             path,
             chain_id,
             topology=topology,
+            add_hydrogens=add_hydrogens,
           ):
-              yield from processed_structure_to_protein_tuples(
-                  processed,
-                  str(path),
-                  extract_dihedrals=extract_dihedrals
-              )
+            yield from processed_structure_to_protein_tuples(
+              processed,
+              str(path),
+              extract_dihedrals=extract_dihedrals,
+            )
         else:
           logger.warning("Unknown HDF5 structure, returning early.")
         return

@@ -23,7 +23,7 @@ def deep_tuple(x):
 
 @pytest.mark.parametrize("jit_compile", [True, False], ids=["jit", "eager"])
 def test_compute_electrostatic_node_features_shape(
-    pqr_protein_tuple: ProteinTuple, jit_compile
+    pqr_protein_tuple: ProteinTuple, jit_compile,
 ):
     """Test that the computed features have the correct shape."""
     data_dict = pqr_protein_tuple._asdict()
@@ -63,7 +63,7 @@ def test_compute_electrostatic_node_features_no_full_coordinates(
 
 @pytest.mark.parametrize("jit_compile", [True, False], ids=["jit", "eager"])
 def test_compute_electrostatic_node_features_jittable(
-    pqr_protein_tuple: ProteinTuple, jit_compile
+    pqr_protein_tuple: ProteinTuple, jit_compile,
 ):
     """Test that the feature computation can be JIT compiled."""
     # Convert numpy arrays in the ProteinTuple to nested tuples to make it hashable
@@ -84,7 +84,7 @@ def test_compute_electrostatic_node_features_jittable(
 
 @pytest.mark.parametrize("jit_compile", [True, False], ids=["jit", "eager"])
 def test_compute_electrostatic_features_batch_shape(
-    pqr_protein_tuple: ProteinTuple, jit_compile
+    pqr_protein_tuple: ProteinTuple, jit_compile,
 ):
     """Test that the batched features have the correct shape."""
     data_dict = pqr_protein_tuple._asdict()
@@ -108,7 +108,7 @@ def test_compute_electrostatic_features_batch_shape(
 
 @pytest.mark.parametrize("jit_compile", [True, False], ids=["jit", "eager"])
 def test_compute_electrostatic_features_batch_padding(
-    pqr_protein_tuple: ProteinTuple, jit_compile
+    pqr_protein_tuple: ProteinTuple, jit_compile,
 ):
     """Test that padding is applied correctly."""
     data_dict = pqr_protein_tuple._asdict()
@@ -146,3 +146,37 @@ def test_compute_electrostatic_features_batch_max_length_too_small(
     max_length = pqr_protein_tuple.coordinates.shape[0] - 1
     with pytest.raises(ValueError, match="is less than longest sequence"):
         compute_electrostatic_features_batch(proteins, max_length=max_length)
+
+
+def test_compute_electrostatic_node_features_thermal_mode(
+    pqr_protein_tuple: ProteinTuple,
+):
+    """Test that thermal mode works correctly."""
+    # Use a dummy key for noise
+    key = jax.random.key(0)
+
+    # Mode: direct
+    sigma_direct = 1.0
+    features_direct = compute_electrostatic_node_features(
+        pqr_protein_tuple,
+        noise_scale=sigma_direct,
+        noise_mode="direct",
+        key=key,
+    )
+
+    # Mode: thermal
+    # Calculate T such that sigma is roughly 1.0
+    # sigma = sqrt(0.5 * R * T) => sigma^2 = 0.5 * R * T => T = sigma^2 / (0.5 * R)
+    from prxteinmpnn.physics.constants import BOLTZMANN_KCAL
+
+    t = 1.0 / (0.5 * BOLTZMANN_KCAL)
+
+    features_temp = compute_electrostatic_node_features(
+        pqr_protein_tuple,
+        noise_scale=t,
+        noise_mode="thermal",
+        key=key,
+    )
+
+    # The values should be close (floating point differences)
+    chex.assert_trees_all_close(features_direct, features_temp, atol=1e-5)

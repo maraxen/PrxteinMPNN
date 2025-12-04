@@ -9,11 +9,73 @@ from collections.abc import Sequence
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
-from prxteinmpnn.physics.features import compute_electrostatic_features_batch
+from prxteinmpnn.physics.features import compute_electrostatic_node_features
 from prxteinmpnn.utils.data_structures import Protein, ProteinTuple
 
 _MAX_TRIES = 5
+
+
+def truncate_protein(
+  protein: ProteinTuple,
+  max_length: int | None,
+  strategy: str = "none",
+) -> ProteinTuple:
+  """Truncate a protein to a maximum length.
+
+  Args:
+    protein: The protein tuple to truncate.
+    max_length: The maximum length. If None, no truncation is performed.
+    strategy: The truncation strategy ("random_crop", "center_crop", "none").
+
+  Returns:
+    The truncated protein tuple.
+
+  """
+  if max_length is None or strategy == "none":
+    return protein
+
+  length = protein.coordinates.shape[0]
+  if length <= max_length:
+    return protein
+
+  if strategy == "center_crop":
+    start = (length - max_length) // 2
+  elif strategy == "random_crop":
+    start = np.random.default_rng().integers(0, length - max_length + 1)
+  else:
+    msg = f"Unknown truncation strategy: {strategy}"
+    raise ValueError(msg)
+
+  end = start + max_length
+
+  def slice_array(arr: np.ndarray | None) -> np.ndarray | None:
+    if arr is None:
+      return None
+    # Assuming the first dimension is always the residue dimension for arrays that need slicing
+    if hasattr(arr, "shape") and arr.shape[0] == length:
+      return arr[start:end]
+    return arr
+
+  return protein._replace(
+    coordinates=slice_array(protein.coordinates),
+    aatype=slice_array(protein.aatype),
+    atom_mask=slice_array(protein.atom_mask),
+    residue_index=slice_array(protein.residue_index),
+    chain_index=slice_array(protein.chain_index),
+    full_coordinates=slice_array(protein.full_coordinates),
+    dihedrals=slice_array(protein.dihedrals),
+    mapping=slice_array(protein.mapping),
+    charges=slice_array(protein.charges),
+    radii=slice_array(protein.radii),
+    sigmas=slice_array(protein.sigmas),
+    epsilons=slice_array(protein.epsilons),
+    estat_backbone_mask=slice_array(protein.estat_backbone_mask),
+    estat_resid=slice_array(protein.estat_resid),
+    estat_chain_index=slice_array(protein.estat_chain_index),
+    physics_features=slice_array(protein.physics_features),
+  )
 
 
 def concatenate_proteins_for_inter_mode(elements: Sequence[ProteinTuple]) -> Protein:
@@ -53,7 +115,7 @@ def concatenate_proteins_for_inter_mode(elements: Sequence[ProteinTuple]) -> Pro
   tries = 0
   while not all(isinstance(p, ProteinTuple) for p in elements):
     if any(isinstance(p, Sequence) for p in elements):
-      elements = [p[0] if isinstance(p, Sequence) else p for p in elements]  # type: ignore[index]
+      elements = [p[0] if isinstance(p, Sequence) else p for p in elements]  # type: ignore[invalid-assignment]
       tries += 1
     if tries > _MAX_TRIES:
       msg = "Too many nested sequences in elements; cannot collate."
@@ -106,7 +168,7 @@ def _validate_and_flatten_elements(
   tries = 0
   while not all(isinstance(p, ProteinTuple) for p in elements):
     if any(isinstance(p, Sequence) for p in elements):
-      elements = [p[0] if isinstance(p, Sequence) else p for p in elements]  # type: ignore[index]
+      elements = [p[0] if isinstance(p, Sequence) else p for p in elements]  # type: ignore[invalid-assignment]
       tries += 1
     if tries > _MAX_TRIES:
       msg = "Too many nested sequences in elements; cannot collate."
@@ -119,12 +181,16 @@ def _apply_electrostatics_if_needed(
   elements: list[ProteinTuple],
   *,
   use_electrostatics: bool,
+  estat_noise: Sequence[float] | float | None = None,
+  estat_noise_mode: str = "direct",
 ) -> list[ProteinTuple]:
   """Apply electrostatic features if requested.
 
   Args:
     elements (list[ProteinTuple]): List of protein tuples.
     use_electrostatics (bool): Whether to compute and add electrostatic features.
+    estat_noise: Noise level(s) for electrostatics.
+    estat_noise_mode: Mode for electrostatic noise ("direct" or "thermal").
 
   Returns:
     list[ProteinTuple]: Updated list with electrostatic features if requested.
@@ -132,7 +198,25 @@ def _apply_electrostatics_if_needed(
   """
   if not use_electrostatics:
     return elements
-  phys_feats, _ = compute_electrostatic_features_batch(elements)
+
+  # Handle noise broadcasting if needed, or just pass single value if uniform
+  # For now, assuming uniform noise for the batch or handling inside feature computation
+  # compute_electrostatic_features_batch doesn't take noise yet, we need to update
+  # it or call node features directly.
+  # Actually compute_electrostatic_features_batch calls compute_electrostatic_node_features
+  # per protein. We can pass the noise value there.
+
+  noise_val = estat_noise
+  if isinstance(noise_val, Sequence):
+    noise_val = noise_val[0]  # Simple handling for now
+
+  phys_feats = []
+  for p in elements:
+    feat = compute_electrostatic_node_features(
+      p, noise_scale=noise_val, noise_mode=estat_noise_mode,
+    )
+    phys_feats.append(feat)
+
   return [p._replace(physics_features=feat) for p, feat in zip(elements, phys_feats, strict=False)]
 
 
@@ -216,16 +300,27 @@ def pad_and_collate_proteins(
   *,
   use_electrostatics: bool = False,
   use_vdw: bool = False,  # noqa: ARG001
+  estat_noise: Sequence[float] | float | None = None,
+  estat_noise_mode: str = "direct",
+  vdw_noise: Sequence[float] | float | None = None,  # noqa: ARG001
+  vdw_noise_mode: str = "direct",  # noqa: ARG001
+  max_length: int | None = None,
 ) -> Protein:
   """Batch and pad a list of ProteinTuples into a ProteinBatch.
 
   Take a list of individual `ProteinTuple`s and batch them together into a
-  single `ProteinBatch`, padding them to the maximum length in the batch.
+  single `ProteinBatch`, padding them to a fixed length.
 
   Args:
     elements (list[ProteinTuple]): List of protein tuples to collate.
     use_electrostatics (bool): Whether to compute and add electrostatic features.
     use_vdw (bool): Placeholder for van der Waals features (not implemented).
+    estat_noise: Noise level(s) for electrostatics.
+    estat_noise_mode: Mode for electrostatic noise.
+    vdw_noise: Noise level(s) for vdW.
+    vdw_noise_mode: Mode for vdW noise.
+    max_length (int | None): Fixed length to pad all proteins to. If None, pads to
+      the maximum length in the batch (variable per batch).
 
   Returns:
     Protein: Batched and padded protein ensemble.
@@ -235,12 +330,20 @@ def pad_and_collate_proteins(
 
   Example:
     >>> ensemble = pad_and_collate_proteins([protein_tuple1, protein_tuple2],
-    use_electrostatics=True)
+    use_electrostatics=True, max_length=512)
 
   """
   elements = _validate_and_flatten_elements(elements)
-  elements = _apply_electrostatics_if_needed(elements, use_electrostatics=use_electrostatics)
+  elements = _apply_electrostatics_if_needed(
+    elements,
+    use_electrostatics=use_electrostatics,
+    estat_noise=estat_noise,
+    estat_noise_mode=estat_noise_mode,
+  )
   proteins = [Protein.from_tuple(p) for p in elements]
-  max_len = max(p.coordinates.shape[0] for p in proteins)
-  padded_proteins = [_pad_protein(p, max_len) for p in proteins]
+
+  # Use fixed max_length if provided, otherwise use max in batch
+  pad_len = max_length if max_length is not None else max(p.coordinates.shape[0] for p in proteins)
+
+  padded_proteins = [_pad_protein(p, pad_len) for p in proteins]
   return _stack_padded_proteins(padded_proteins)

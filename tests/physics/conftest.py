@@ -36,7 +36,7 @@ def backbone_positions_single_residue() -> jax.Array:
         [2.5, 2.0, 0.0],      # O
         [1.5, 0.0, 1.5],      # CB (perpendicular to backbone plane)
     ]])
-    
+
 @pytest.fixture
 def backbone_charges_single_residue() -> jax.Array:
     """Backbone charges for a single residue [N, CA, C, O, CB]."""
@@ -54,7 +54,7 @@ def backbone_positions_multi_residue() -> jax.Array:
         [2.5, 2.0, 0.0],
         [1.5, 0.0, 1.5],
     ])
-    
+
     residue2 = jnp.array([
         [3.8, 1.5, 0.0],
         [5.3, 1.5, 0.0],
@@ -62,7 +62,7 @@ def backbone_positions_multi_residue() -> jax.Array:
         [6.3, 3.5, 0.0],
         [5.3, 1.5, 1.5],
     ])
-    
+
     residue3 = jnp.array([
         [7.6, 3.0, 0.0],
         [9.1, 3.0, 0.0],
@@ -70,9 +70,9 @@ def backbone_positions_multi_residue() -> jax.Array:
         [10.1, 5.0, 0.0],
         [9.1, 3.0, 1.5],
     ])
-    
+
     return jnp.stack([residue1, residue2, residue3])
-  
+
 @pytest.fixture
 def backbone_charges_multi_residue() -> jax.Array:
     """Backbone charges for multiple residues."""

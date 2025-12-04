@@ -6,7 +6,7 @@ import pytest
 import equinox as eqx
 from prxteinmpnn.model.features import ProteinFeatures
 from prxteinmpnn.utils.data_structures import Protein, ProteinTuple
-from prxteinmpnn.io.operations import _apply_md_parameterization
+from priox.ops.transforms import _apply_md_parameterization
 
 def test_md_integration_features():
     """Test that ProteinFeatures runs MD simulation when configured."""

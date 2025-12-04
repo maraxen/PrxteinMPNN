@@ -12,12 +12,13 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.physics import simulate
-from prxteinmpnn.physics.constants import BOLTZMANN_KCAL
+from prolix.physics import simulate
 
 # Feature extraction constants
 MAXIMUM_RELATIVE_FEATURES = 32
 POS_EMBED_DIM = 16
+# Boltzmann constant in kcal/(mol·K)
+BOLTZMANN_KCAL = 0.001987204
 top_k = jax.jit(jax.lax.top_k, static_argnames=("k",))
 
 

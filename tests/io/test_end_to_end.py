@@ -5,8 +5,8 @@ from pathlib import Path
 
 import numpy as np
 
-from prxteinmpnn.io.parsing.dispatch import parse_input
-from prxteinmpnn.physics.features import compute_electrostatic_node_features
+from priox.io.parsing.dispatch import parse_input
+from priox.physics.features import compute_electrostatic_node_features
 
 
 def test_pdb_to_features_pipeline():

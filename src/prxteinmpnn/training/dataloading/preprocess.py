@@ -33,10 +33,10 @@ from array_record.python.array_record_module import (  # type: ignore[unresolved
   ArrayRecordWriter,
 )
 
-from prxteinmpnn.io.parsing.biotite import processed_structure_to_protein_tuples
+from priox.io.parsing.utils import processed_structure_to_protein_tuples
 from prxteinmpnn.io.parsing.pqr import parse_pqr_to_processed_structure
-from prxteinmpnn.physics.features import compute_electrostatic_node_features
-from prxteinmpnn.physics.force_fields import load_force_field_from_hub
+from priox.physics.features import compute_electrostatic_node_features
+from prolix.physics import load_force_field_from_hub
 
 # Patch msgpack to handle numpy arrays
 m.patch()

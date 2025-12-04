@@ -10,8 +10,8 @@ import grain
 
 from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase
 
-from . import dataset, operations, prefetch_autotune
-from .array_record_source import ArrayRecordDataSource  # NEW
+from priox.ops import dataset, prefetch as prefetch_autotune, transforms as operations
+from priox.io.streaming.array_record import ArrayRecordDataSource
 
 
 def create_protein_dataset(  # noqa: PLR0913

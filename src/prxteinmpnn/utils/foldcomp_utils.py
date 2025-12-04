@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
-from prxteinmpnn.io.parsing.mappings import string_to_protein_sequence
+from priox.chem.conversion import string_to_protein_sequence
 from prxteinmpnn.utils.data_structures import ProteinStream, ProteinTuple
 
 if TYPE_CHECKING:

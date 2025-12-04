@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 from colabdesign.mpnn import mk_mpnn_model
 
-from prxteinmpnn.io.parsing import parse_input
+from priox.io.parsing.dispatch import parse_input
 from prxteinmpnn.io.weights import load_model
 from prxteinmpnn.utils.data_structures import Protein
 

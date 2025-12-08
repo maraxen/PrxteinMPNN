@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import logging
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
-
+import numpy as np
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -38,7 +39,7 @@ if TYPE_CHECKING:
   from prxteinmpnn.utils.types import BackboneCoordinates, Logits
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, stream=logging.StreamHandler(sys.stdout))
 
 
 def create_optimizer(
@@ -118,33 +119,32 @@ def _init_checkpoint_and_model(
     permanent_checkpoint_dir,
     options=permanent_options,
   )
-
-  opt_state: ArrayTree | None = None
+  optimizer_obj, _ = create_optimizer(spec)
+  model = load_model(
+    spec.model_version, 
+    spec.model_weights, 
+    use_electrostatics=spec.use_electrostatics,
+    use_vdw=spec.use_vdw,
+    training_mode=spec.training_mode,
+  )
+  params = eqx.filter(model, eqx.is_inexact_array)
+  opt_state = optimizer_obj.init(params)
+  
+  start_step = 0
+  
   if spec.resume_from_checkpoint:
-    model_template = load_model(
-      spec.model_version,  # type: ignore[invalid-argument-type]
-      spec.model_weights,  # type: ignore[invalid-argument-type]
-      use_electrostatics=spec.use_electrostatics,
-      use_vdw=spec.use_vdw,
-    )
-    model, opt_state, _, start_step = restore_checkpoint(
-      checkpoint_manager,
-      model_template,
-      step=None,  # Load latest
-    )
-    logger.info("Resumed from checkpoint at step %d", start_step)
-  else:
-    model = load_model(
-      spec.model_version,  # type: ignore[invalid-argument-type]
-      spec.model_weights,  # type: ignore[invalid-argument-type]
-      use_electrostatics=spec.use_electrostatics,
-      use_vdw=spec.use_vdw,
-      training_mode=spec.training_mode,
-    )
-    start_step = 0
-    optimizer_obj, _ = create_optimizer(spec)
-    opt_state = optimizer_obj.init(eqx.filter(model, eqx.is_inexact_array))
-
+    latest_step = checkpoint_manager.latest_step()
+    if latest_step is not None:
+      model, opt_state, _, start_step = restore_checkpoint(
+        checkpoint_manager,
+        model_template=model,
+        abstract_opt_state=opt_state,
+        step=None, 
+      )
+      logger.info("Resumed from checkpoint at step %d", start_step)
+    else:
+      logger.info("No checkpoint found, starting fresh training")
+    
   return model, opt_state, start_step, checkpoint_manager, permanent_manager
 
 
@@ -225,7 +225,7 @@ def train_step(  # noqa: PLR0913
   sequence: jax.Array,
   prng_key: jax.Array,
   label_smoothing: float,
-  current_step: int,
+  current_step: jax.Array,
   lr_schedule: optax.Schedule,
   physics_features: jax.Array | None = None,
   backbone_noise_std: float = 0.0,
@@ -519,7 +519,7 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
 
   train_loader, val_loader = _create_dataloaders(spec)
 
-  step = start_step
+  step = np.array(start_step)
   best_val_metric = float("inf")
   patience_counter = 0
 
@@ -534,20 +534,21 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
     )
 
   logger.info("Starting training loop...")
-
+  logger.info("Total training steps: %s", spec.total_steps or "unlimited")
+  loss_float = 1e4
+  if isinstance(spec.backbone_noise, (float, int)):
+    backbone_noise_std = float(spec.backbone_noise)
+  else:
+    backbone_noise_std = float(spec.backbone_noise[0])
+  filter_jitted_train_step = eqx.filter_jit(train_step)
   for epoch in range(spec.num_epochs):
     logger.info("Epoch %d/%d", epoch + 1, spec.num_epochs)
-    pbar = tqdm.tqdm(train_loader, desc=f"Epoch {epoch + 1}/{spec.num_epochs}")
-
-    for batch in train_loader:
+    train_iter = iter(train_loader)
+    pbar = tqdm.tqdm(train_iter, desc=f"Epoch {epoch + 1}/{spec.num_epochs}")
+    for batch in train_iter:
       prng_key, subkey = jax.random.split(prng_key)
 
-      if isinstance(spec.backbone_noise, (float, int)):
-        backbone_noise_std = float(spec.backbone_noise)
-      else:
-        backbone_noise_std = float(spec.backbone_noise[0])
-
-      model, opt_state, train_metrics = eqx.filter_jit(train_step)(
+      model, opt_state, train_metrics = filter_jitted_train_step(
         model,
         opt_state,
         optimizer,
@@ -569,12 +570,14 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
       )
 
       step += 1
-      loss_float = jax.device_get(train_metrics.loss).item()
-      pbar.set_postfix({"loss": loss_float})
+      if step % 250 == 0:
+        loss_float = jax.device_get(train_metrics.loss).item()
+      pbar.set_postfix({"loss": loss_float, "step": step})
 
       if val_loader and step % spec.eval_every == 0:
         val_metrics_list = []
-        for val_batch in val_loader:
+        val_iter = iter(val_loader)
+        for val_batch in val_iter:
           prng_key, subkey = jax.random.split(prng_key)
 
           val_metrics = eqx.filter_jit(eval_step)(
@@ -670,38 +673,39 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
       preprocessed_index_path=test_index_path,
       split="test",
     )
+    if test_loader:
+      test_iter = iter(test_loader)
+      test_metrics_list = []
+      for test_batch in tqdm.tqdm(test_iter, desc="Testing"):
+        prng_key, subkey = jax.random.split(prng_key)
 
-    test_metrics_list = []
-    for test_batch in tqdm.tqdm(test_loader, desc="Testing"):
-      prng_key, subkey = jax.random.split(prng_key)
+        test_metrics = eqx.filter_jit(eval_step)(
+          model,
+          test_batch.coordinates,
+          test_batch.mask,
+          test_batch.residue_index,
+          test_batch.chain_index,
+          test_batch.aatype,
+          subkey,
+          test_batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
+          spec.training_mode,
+          noise_schedule,
+        )
+        test_metrics_list.append(test_metrics)
 
-      test_metrics = eqx.filter_jit(eval_step)(
-        model,
-        test_batch.coordinates,
-        test_batch.mask,
-        test_batch.residue_index,
-        test_batch.chain_index,
-        test_batch.aatype,
-        subkey,
-        test_batch.physics_features if (spec.use_electrostatics or spec.use_vdw) else None,
-        spec.training_mode,
-        noise_schedule,
-      )
-      test_metrics_list.append(test_metrics)
+      if test_metrics_list:
+        avg_test_loss = jnp.mean(jnp.array([m.val_loss for m in test_metrics_list]))
+        avg_test_acc = jnp.mean(jnp.array([m.val_accuracy for m in test_metrics_list]))
+        avg_test_ppl = jnp.mean(jnp.array([m.val_perplexity for m in test_metrics_list]))
 
-    if test_metrics_list:
-      avg_test_loss = jnp.mean(jnp.array([m.val_loss for m in test_metrics_list]))
-      avg_test_acc = jnp.mean(jnp.array([m.val_accuracy for m in test_metrics_list]))
-      avg_test_ppl = jnp.mean(jnp.array([m.val_perplexity for m in test_metrics_list]))
-
-      logger.info("=" * 40)
-      logger.info("Final Test Results:")
-      logger.info("  Loss: %.4f", jax.device_get(avg_test_loss).item())
-      logger.info("  Accuracy: %.4f", jax.device_get(avg_test_acc).item())
-      logger.info("  Perplexity: %.4f", jax.device_get(avg_test_ppl).item())
-      logger.info("=" * 40)
-    else:
-      logger.warning("Test loader was empty. No test metrics computed.")
+        logger.info("=" * 40)
+        logger.info("Final Test Results:")
+        logger.info("  Loss: %.4f", jax.device_get(avg_test_loss).item())
+        logger.info("  Accuracy: %.4f", jax.device_get(avg_test_acc).item())
+        logger.info("  Perplexity: %.4f", jax.device_get(avg_test_ppl).item())
+        logger.info("=" * 40)
+      else:
+        logger.warning("Test loader was empty. No test metrics computed.")
 
   except Exception:  # noqa: BLE001
     logger.warning(

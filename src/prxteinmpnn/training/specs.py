@@ -102,7 +102,7 @@ class TrainingSpecification(RunSpecification):
   checkpoint_dir: str | Path = Path("checkpoints/")
   checkpoint_every: int = 1000
   keep_last_n_checkpoints: int = 3
-  resume_from_checkpoint: str | Path | None = None
+  resume_from_checkpoint: bool = None
   save_at_epochs: Sequence[int] | None = None
 
   # Physics features (Phase 1)

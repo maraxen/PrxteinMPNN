@@ -7,10 +7,11 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
-import numpy as np
+
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+import numpy as np
 import optax
 import orbax.checkpoint as ocp
 import tqdm
@@ -31,8 +32,6 @@ from prxteinmpnn.training.metrics import (
 )
 
 if TYPE_CHECKING:
-  from chex import ArrayTree
-
   from prxteinmpnn.model.diffusion_mpnn import DiffusionPrxteinMPNN
   from prxteinmpnn.model.mpnn import PrxteinMPNN
   from prxteinmpnn.training.specs import TrainingSpecification
@@ -121,17 +120,17 @@ def _init_checkpoint_and_model(
   )
   optimizer_obj, _ = create_optimizer(spec)
   model = load_model(
-    spec.model_version, 
-    spec.model_weights, 
+    spec.model_version,
+    spec.model_weights,
     use_electrostatics=spec.use_electrostatics,
     use_vdw=spec.use_vdw,
     training_mode=spec.training_mode,
   )
   params = eqx.filter(model, eqx.is_inexact_array)
   opt_state = optimizer_obj.init(params)
-  
+
   start_step = 0
-  
+
   if spec.resume_from_checkpoint:
     latest_step = checkpoint_manager.latest_step()
     if latest_step is not None:
@@ -139,12 +138,12 @@ def _init_checkpoint_and_model(
         checkpoint_manager,
         model_template=model,
         abstract_opt_state=opt_state,
-        step=None, 
+        step=None,
       )
       logger.info("Resumed from checkpoint at step %d", start_step)
     else:
       logger.info("No checkpoint found, starting fresh training")
-    
+
   return model, opt_state, start_step, checkpoint_manager, permanent_manager
 
 
@@ -619,7 +618,7 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
             logger.info("Early stopping triggered at step %d", step)
             break
 
-      if step % spec.checkpoint_every == 0:
+      if int(step) % spec.checkpoint_every == 0:
         save_checkpoint(
           checkpoint_manager,
           step,

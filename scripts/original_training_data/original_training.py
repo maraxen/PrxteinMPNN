@@ -39,7 +39,7 @@ spec = TrainingSpecification(
     # --- Other required/recommended parameters ---
     batch_size=16,  # 128 first 50k steps, then 64 with 384 len until 100k steps, then 32 with 512 len until 150k, then 16 with 1024 len
     num_epochs=500,
-    learning_rate=1e-3,
+    learning_rate=5e-4, # decreased from 1e-3 to 5e-4 at 200k steps
     checkpoint_dir=CHECKPOINT_DIR,
     total_steps=1e9,
     resume_from_checkpoint=True,
@@ -53,7 +53,7 @@ spec = TrainingSpecification(
     
     eval_every=50000,
     log_every=1000,
-    checkpoint_every=50000,
+    checkpoint_every=200000, # changed to 200k at 200k steps
     
     max_length=1024, # changed to 384 at 50k steps, then to 512 at 100k steps
     truncation_strategy="random_crop",
@@ -69,7 +69,7 @@ print(f"Using index file: {spec.preprocessed_index_path}")
 print(f"Checkpoint directory: {spec.checkpoint_dir}")
 
 try:
-    results = train(spec)  #
+    results = train(spec)
     print(f"\nTraining completed successfully! Final step: {results.final_step}")
     
 

@@ -12,7 +12,7 @@ from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase
 
 from . import dataset, operations, prefetch_autotune
 from .array_record_source import ArrayRecordDataSource  # NEW
-
+grain.config.update("py_debug_mode", True)
 
 def create_protein_dataset(  # noqa: PLR0913
   inputs: str | Path | Sequence[str | Path | IO[str]],
@@ -116,8 +116,8 @@ def create_protein_dataset(  # noqa: PLR0913
 
   performance_config = prefetch_autotune.pick_performance_config(
     ds=ds,
-    ram_budget_mb=1024,
-    max_workers=None,
+    ram_budget_mb=65536,  # 64 GB
+    max_workers=64,
     max_buffer_size=None,
   )
 
@@ -133,6 +133,7 @@ def create_protein_dataset(  # noqa: PLR0913
       vdw_noise=vdw_noise,
       vdw_noise_mode=vdw_noise_mode,
       max_length=max_length,
+      override=use_preprocessed,
     )
   )
 

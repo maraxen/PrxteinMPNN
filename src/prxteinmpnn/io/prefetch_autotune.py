@@ -88,7 +88,8 @@ def _get_num_workers(
 
   if average_elem_size_mb <= 0:
     logging.warning(
-      "Warning: Average element size is zero. Defaulting to max workers.",
+      "Warning: Average element size is zero. Defaulting to max workers %d.",
+      max_workers,
     )
     return max_workers
   num_workers = int(ram_budget_mb / average_elem_size_mb)
@@ -111,7 +112,7 @@ def _get_buffer_size(
     samples_to_check=samples_to_check,
   )
   if max_buffer_size is None:
-    max_buffer_size = 1000
+    max_buffer_size = 4096
 
   if average_elem_size_mb <= 0:
     logging.warning(

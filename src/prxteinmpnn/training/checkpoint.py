@@ -80,6 +80,7 @@ def save_checkpoint(
 def restore_checkpoint(
   manager: ocp.CheckpointManager,
   model_template: PrxteinMPNN,
+  abstract_opt_state: optax.OptState | None = None,
   step: int | None = None,
 ) -> tuple[PrxteinMPNN, optax.OptState, TrainingMetrics, int]:
   """Restore Equinox model and optimizer state from Orbax checkpoint.
@@ -111,12 +112,17 @@ def restore_checkpoint(
       msg = f"No checkpoints found in {manager.directory}"
       raise ValueError(msg)
 
+  if abstract_opt_state is None:
+    msg = "abstract_opt_state must be provided to restore optimizer state correctly"
+    raise ValueError(msg)
+
   abstract_model = eqx.filter(model_template, eqx.is_inexact_array)
+
   restored = manager.restore(
     step,
     args=ocp.args.Composite(
       model=ocp.args.StandardRestore(abstract_model),
-      opt_state=ocp.args.StandardRestore(None),
+      opt_state=ocp.args.StandardRestore(abstract_opt_state),
       metrics=ocp.args.JsonRestore(),
     ),
   )

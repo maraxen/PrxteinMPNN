@@ -1,38 +1,24 @@
-"""Data operations for processing protein structures within a Grain pipeline.
-
-This module implements `grain.transforms.Map` and `grain.IterOperation` classes
-for parsing, transforming, and batching protein data.
-"""
+"""Data operations for processing protein structures within a Grain pipeline."""
 
 import warnings
 from collections.abc import Sequence
+from functools import partial
 
 import jax
-import jax.numpy as jnp
-import numpy as np
+import jax.numpy as jnp  # Keep for tree_map util
+import numpy as np       # Using NumPy for CPU-based data loading
 
 from prxteinmpnn.physics.features import compute_electrostatic_node_features
 from prxteinmpnn.utils.data_structures import Protein, ProteinTuple
 
 _MAX_TRIES = 5
 
-
 def truncate_protein(
   protein: ProteinTuple,
   max_length: int | None,
   strategy: str = "none",
 ) -> ProteinTuple:
-  """Truncate a protein to a maximum length.
-
-  Args:
-    protein: The protein tuple to truncate.
-    max_length: The maximum length. If None, no truncation is performed.
-    strategy: The truncation strategy ("random_crop", "center_crop", "none").
-
-  Returns:
-    The truncated protein tuple.
-
-  """
+  """Truncate a protein to a maximum length."""
   if max_length is None or strategy == "none":
     return protein
 
@@ -53,7 +39,6 @@ def truncate_protein(
   def slice_array(arr: np.ndarray | None) -> np.ndarray | None:
     if arr is None:
       return None
-    # Assuming the first dimension is always the residue dimension for arrays that need slicing
     if hasattr(arr, "shape") and arr.shape[0] == length:
       return arr[start:end]
     return arr
@@ -79,57 +64,29 @@ def truncate_protein(
 
 
 def concatenate_proteins_for_inter_mode(elements: Sequence[ProteinTuple]) -> Protein:
-  """Concatenate proteins for inter-chain mode (pass_mode='inter').
-
-  Instead of padding and stacking, concatenate all structures along the residue dimension
-  and remap chain IDs to ensure global uniqueness across all structures.
-
-  Each structure's chain IDs are offset by the maximum chain ID from all previous structures,
-  preserving the original chain relationships within each structure while ensuring no
-  collisions across structures.
-
-  The structure boundaries are stored in the `mapping` field as [0,0,0..., 1,1,1..., 2,2,2...]
-  to enable "direct" tied_positions mode.
-
-  Args:
-    elements: List of protein tuples to concatenate.
-
-  Returns:
-    Protein: Single concatenated protein with globally unique chain IDs and structure mapping.
-
-  Raises:
-    ValueError: If the input list is empty.
-
-  Example:
-    >>> # Structure 1: chains [0,0,1,1], Structure 2: chains [0,0,2,2]
-    >>> combined = concatenate_proteins_for_inter_mode([protein1, protein2])
-    >>> # Result chains: [0,0,1,1,2,2,4,4] - each structure's chains are offset
-    >>> # Result mapping: [0,0,0,0,1,1,1,1] - tracks which structure each residue came from
-
-  """
+  """Concatenate proteins for inter-chain mode using NumPy."""
   if not elements:
     msg = "Cannot concatenate an empty list of proteins."
-    warnings.warn(msg, stacklevel=2)
     raise ValueError(msg)
 
   tries = 0
   while not all(isinstance(p, ProteinTuple) for p in elements):
     if any(isinstance(p, Sequence) for p in elements):
-      elements = [p[0] if isinstance(p, Sequence) else p for p in elements]  # type: ignore[invalid-assignment]
+      elements = [p[0] if isinstance(p, Sequence) else p for p in elements]
       tries += 1
     if tries > _MAX_TRIES:
-      msg = "Too many nested sequences in elements; cannot collate."
-      warnings.warn(msg, stacklevel=2)
-      raise ValueError(msg)
+      raise ValueError("Too many nested sequences.")
 
-  proteins = [Protein.from_tuple(p) for p in elements]
+  # Convert to Protein objects using NumPy method
+  proteins = [Protein.from_tuple_numpy(p) for p in elements]
 
   structure_indices = []
   for i, protein in enumerate(proteins):
     length = protein.coordinates.shape[0]
-    structure_indices.append(jnp.full(length, i, dtype=jnp.int32))
+    structure_indices.append(np.full(length, i, dtype=np.int32))
 
-  structure_mapping = jnp.concatenate(structure_indices, axis=0)
+  structure_mapping = np.concatenate(structure_indices, axis=0)
+  
   remapped_chain_ids = []
   chain_offset = 0
 
@@ -137,100 +94,51 @@ def concatenate_proteins_for_inter_mode(elements: Sequence[ProteinTuple]) -> Pro
     original_chains = protein.chain_index
     remapped_chains = original_chains + chain_offset
     remapped_chain_ids.append(remapped_chains)
-    chain_offset = int(jnp.max(remapped_chains)) + 1
+    chain_offset = int(np.max(remapped_chains)) + 1
 
-  chain_ids = jnp.concatenate(remapped_chain_ids, axis=0)
-  concatenated = jax.tree_util.tree_map(lambda *x: jnp.concatenate(x, axis=0), *proteins)
+  chain_ids = np.concatenate(remapped_chain_ids, axis=0)
+  
+  concatenated = jax.tree_util.tree_map(lambda *x: np.concatenate(x, axis=0) if x[0] is not None else None, *proteins)
   concatenated = concatenated.replace(chain_index=chain_ids, mapping=structure_mapping)
-  return jax.tree_util.tree_map(lambda x: x[None, ...], concatenated)
+  return jax.tree_util.tree_map(lambda x: x[None, ...] if x is not None else None, concatenated)
 
 
-def _validate_and_flatten_elements(
-  elements: Sequence[ProteinTuple],
-) -> list[ProteinTuple]:
-  """Ensure all elements are ProteinTuple and flatten nested sequences.
-
-  Args:
-    elements (Sequence[ProteinTuple]): List of protein tuples to validate.
-
-  Returns:
-    list[ProteinTuple]: Validated and flattened list of ProteinTuple.
-
-  Raises:
-    ValueError: If the input list is empty or too deeply nested.
-
-  """
+def _validate_and_flatten_elements(elements, override=False):
+  if override:
+    return list(elements)
   if not elements:
-    msg = "Cannot collate an empty list of proteins."
-    warnings.warn(msg, stacklevel=2)
-    raise ValueError(msg)
-
+    raise ValueError("Cannot collate empty list.")
+  
   tries = 0
   while not all(isinstance(p, ProteinTuple) for p in elements):
     if any(isinstance(p, Sequence) for p in elements):
-      elements = [p[0] if isinstance(p, Sequence) else p for p in elements]  # type: ignore[invalid-assignment]
+      elements = [p[0] if isinstance(p, Sequence) else p for p in elements]
       tries += 1
     if tries > _MAX_TRIES:
-      msg = "Too many nested sequences in elements; cannot collate."
-      warnings.warn(msg, stacklevel=2)
-      raise ValueError(msg)
+      raise ValueError("Too many nested sequences.")
   return list(elements)
 
 
-def _apply_electrostatics_if_needed(
-  elements: list[ProteinTuple],
-  *,
-  use_electrostatics: bool,
-  estat_noise: Sequence[float] | float | None = None,
-  estat_noise_mode: str = "direct",
-) -> list[ProteinTuple]:
-  """Apply electrostatic features if requested.
-
-  Args:
-    elements (list[ProteinTuple]): List of protein tuples.
-    use_electrostatics (bool): Whether to compute and add electrostatic features.
-    estat_noise: Noise level(s) for electrostatics.
-    estat_noise_mode: Mode for electrostatic noise ("direct" or "thermal").
-
-  Returns:
-    list[ProteinTuple]: Updated list with electrostatic features if requested.
-
-  """
+def _apply_electrostatics_if_needed(elements, *, use_electrostatics, estat_noise, estat_noise_mode):
   if not use_electrostatics:
     return elements
 
-  # Handle noise broadcasting if needed, or just pass single value if uniform
-  # For now, assuming uniform noise for the batch or handling inside feature computation
-  # compute_electrostatic_features_batch doesn't take noise yet, we need to update
-  # it or call node features directly.
-  # Actually compute_electrostatic_features_batch calls compute_electrostatic_node_features
-  # per protein. We can pass the noise value there.
-
-  noise_val = estat_noise
-  if isinstance(noise_val, Sequence):
-    noise_val = noise_val[0]  # Simple handling for now
-
-  phys_feats = []
+  noise_val = estat_noise[0] if isinstance(estat_noise, Sequence) else estat_noise
+  
+  new_elements = []
   for p in elements:
     feat = compute_electrostatic_node_features(
       p, noise_scale=noise_val, noise_mode=estat_noise_mode,
     )
-    phys_feats.append(feat)
-
-  return [p._replace(physics_features=feat) for p, feat in zip(elements, phys_feats, strict=False)]
+    if hasattr(feat, "device"): 
+        feat = np.array(feat) # Convert JAX/Torch tensors to numpy
+        
+    new_elements.append(p._replace(physics_features=feat))
+  return new_elements
 
 
 def _pad_protein(protein: Protein, max_len: int) -> Protein:
-  """Pad a single Protein to max_len.
-
-  Args:
-    protein (Protein): Protein to pad.
-    max_len (int): Maximum length to pad to.
-
-  Returns:
-    Protein: Padded protein.
-
-  """
+  """Pad a single Protein using NumPy."""
   pad_len = max_len - protein.coordinates.shape[0]
   protein_len = protein.coordinates.shape[0]
   full_coords_len = (
@@ -238,59 +146,35 @@ def _pad_protein(protein: Protein, max_len: int) -> Protein:
   )
   full_coords_pad_len = max_len - full_coords_len if full_coords_len is not None else 0
 
-  def pad_fn(
-    x: jnp.ndarray | None,
-    *,
-    pad_len: int = pad_len,
-    protein_len: int = protein_len,
-    full_coords_len: int | None = full_coords_len,
-    full_coords_pad_len: int = full_coords_pad_len,
-  ) -> jnp.ndarray | None:
-    """Pad array along first dimension if it matches the protein residue count."""
-    if x is None:
-      return None
-    if not hasattr(x, "shape") or not hasattr(x, "ndim"):
-      return x
-    if hasattr(x, "__array__"):
-      x = jnp.asarray(x)
+  def pad_fn(x):
+    if x is None: 
+        return None
+    x = np.asarray(x)
     if x.ndim == 0:
-      return x
+        return x
 
     if full_coords_len is not None and x.shape[0] == full_coords_len:
-      return jnp.pad(x, ((0, full_coords_pad_len),) + ((0, 0),) * (x.ndim - 1))
+      return np.pad(x, ((0, full_coords_pad_len),) + ((0, 0),) * (x.ndim - 1))
 
     if x.shape[0] == protein_len:
-      return jnp.pad(x, ((0, pad_len),) + ((0, 0),) * (x.ndim - 1))
+      return np.pad(x, ((0, pad_len),) + ((0, 0),) * (x.ndim - 1))
 
     return x
 
   return jax.tree_util.tree_map(pad_fn, protein)
 
 
-def _stack_padded_proteins(
-  padded_proteins: list[Protein],
-) -> Protein:
-  """Stack a list of padded Proteins into a batch.
-
-  Args:
-    padded_proteins (list[Protein]): List of padded proteins.
-
-  Returns:
-    Protein: Batched protein.
-
-  """
-
-  def stack_fn(*arrays: jnp.ndarray | None) -> jnp.ndarray | None:
-    """Stack arrays, handling None values and scalars."""
+def _stack_padded_proteins(padded_proteins: list[Protein]) -> Protein:
+  """Stack using NumPy."""
+  def stack_fn(*arrays):
     non_none = [a for a in arrays if a is not None]
     if not non_none:
       return None
+    non_none = [np.asarray(a) for a in non_none]
+    
     first = non_none[0]
-    if not hasattr(first, "shape") or first.ndim == 0:
-      return first
-    if not all(hasattr(a, "shape") and a.shape == first.shape for a in non_none):
-      return None
-    return jnp.stack(non_none, axis=0)
+    # For scalars or 0-dim arrays, stack works fine in numpy
+    return np.stack(non_none, axis=0)
 
   return jax.tree_util.tree_map(stack_fn, *padded_proteins)
 
@@ -299,50 +183,27 @@ def pad_and_collate_proteins(
   elements: Sequence[ProteinTuple],
   *,
   use_electrostatics: bool = False,
-  use_vdw: bool = False,  # noqa: ARG001
+  use_vdw: bool = False, 
   estat_noise: Sequence[float] | float | None = None,
   estat_noise_mode: str = "direct",
-  vdw_noise: Sequence[float] | float | None = None,  # noqa: ARG001
-  vdw_noise_mode: str = "direct",  # noqa: ARG001
+  vdw_noise: Sequence[float] | float | None = None, 
+  vdw_noise_mode: str = "direct", 
   max_length: int | None = None,
+  override: bool = False,
 ) -> Protein:
-  """Batch and pad a list of ProteinTuples into a ProteinBatch.
-
-  Take a list of individual `ProteinTuple`s and batch them together into a
-  single `ProteinBatch`, padding them to a fixed length.
-
-  Args:
-    elements (list[ProteinTuple]): List of protein tuples to collate.
-    use_electrostatics (bool): Whether to compute and add electrostatic features.
-    use_vdw (bool): Placeholder for van der Waals features (not implemented).
-    estat_noise: Noise level(s) for electrostatics.
-    estat_noise_mode: Mode for electrostatic noise.
-    vdw_noise: Noise level(s) for vdW.
-    vdw_noise_mode: Mode for vdW noise.
-    max_length (int | None): Fixed length to pad all proteins to. If None, pads to
-      the maximum length in the batch (variable per batch).
-
-  Returns:
-    Protein: Batched and padded protein ensemble.
-
-  Raises:
-    ValueError: If the input list is empty.
-
-  Example:
-    >>> ensemble = pad_and_collate_proteins([protein_tuple1, protein_tuple2],
-    use_electrostatics=True, max_length=512)
-
-  """
-  elements = _validate_and_flatten_elements(elements)
+  """Batch and pad a list of ProteinTuples using NumPy backend."""
+  
+  elements = _validate_and_flatten_elements(elements, override=override)
   elements = _apply_electrostatics_if_needed(
     elements,
     use_electrostatics=use_electrostatics,
     estat_noise=estat_noise,
     estat_noise_mode=estat_noise_mode,
   )
-  proteins = [Protein.from_tuple(p) for p in elements]
+  
+  # IMPORTANT: Use from_tuple_numpy to avoid early JAX conversion
+  proteins = [Protein.from_tuple_numpy(p) for p in elements]
 
-  # Use fixed max_length if provided, otherwise use max in batch
   pad_len = max_length if max_length is not None else max(p.coordinates.shape[0] for p in proteins)
 
   padded_proteins = [_pad_protein(p, pad_len) for p in proteins]

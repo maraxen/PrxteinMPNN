@@ -77,8 +77,6 @@ class TrainingSpecification(RunSpecification):
 
   """
 
-  model_weights: str | Path | None = None
-  model_version: str | None = None
   # Data paths
   validation_data: str | Path | None = None
   cache_preprocessed: bool = True
@@ -97,12 +95,13 @@ class TrainingSpecification(RunSpecification):
 
   # Precision
   precision: Literal["fp32", "fp16", "bf16"] = "bf16"
+  accum_steps: int = 1
 
   # Checkpointing
   checkpoint_dir: str | Path = Path("checkpoints/")
   checkpoint_every: int = 1000
   keep_last_n_checkpoints: int = 3
-  resume_from_checkpoint: bool = None
+  resume_from_checkpoint: str | Path | None = None
   save_at_epochs: Sequence[int] | None = None
 
   # Physics features (Phase 1)
@@ -134,9 +133,6 @@ class TrainingSpecification(RunSpecification):
   use_preprocessed: bool = False
   """If True, load from preprocessed array_record files instead of parsing on-the-fly."""
 
-  preprocessed_index_path: Path | None = None
-  """Path to index file for preprocessed data (required if use_preprocessed=True)."""
-
   validation_preprocessed_path: Path | None = None
   """Path to validation array_record file (if using preprocessed validation data)."""
 
@@ -157,6 +153,10 @@ class TrainingSpecification(RunSpecification):
     # Validate precision
     if self.precision not in ("fp32", "fp16", "bf16"):
       msg = f"precision must be one of ['fp32', 'fp16', 'bf16'], got {self.precision}"
+      raise ValueError(msg)
+
+    if self.accum_steps < 1:
+      msg = "accum_steps must be >= 1"
       raise ValueError(msg)
 
     # Validate that either total_steps or num_epochs is provided

@@ -13,17 +13,17 @@ import biotite.database.rcsb as rcsb
 import argparse
 
 from prxteinmpnn.model.mpnn import PrxteinMPNN
-from priox.io.weights import load_weights, NODE_FEATURES, EDGE_FEATURES, HIDDEN_FEATURES, NUM_ENCODER_LAYERS, NUM_DECODER_LAYERS, K_NEIGHBORS, VOCAB_SIZE
+from proxide.io.weights import load_weights, NODE_FEATURES, EDGE_FEATURES, HIDDEN_FEATURES, NUM_ENCODER_LAYERS, NUM_DECODER_LAYERS, K_NEIGHBORS, VOCAB_SIZE
 from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.scoring.score import make_score_sequence, score_sequence_with_encoding
 from prxteinmpnn.run.averaging import make_encoding_sampling_split_fn
-from priox.chem import residues as residue_constants
+from proxide.chem import residues as residue_constants
 from prxteinmpnn.utils.decoding_order import random_decoding_order
 from prolix.physics import simulate, force_fields, jax_md_bridge
 from jax_md import space
 
-from priox.io.process import frame_iterator_from_inputs
-from priox.core.containers import ProteinTuple
+from proxide.io.process import frame_iterator_from_inputs
+from proxide.core.containers import ProteinTuple
 
 # Dev Set PDB IDs
 DEV_SET = ["1UBQ", "1CRN", "2GB1", "1L2Y"]
@@ -163,7 +163,7 @@ def run_benchmark(pdb_set=DEV_SET):
             pdb_paths.append(pdb_path)
 
     # Use unified data loader
-    from priox.io import process
+    from proxide.io import process
     
     for pdb_path in pdb_paths:
         pdb_id = os.path.basename(pdb_path).split(".")[0].upper()

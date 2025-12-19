@@ -21,11 +21,11 @@ import mdtraj as md
 
 from prxteinmpnn.utils.data_structures import ProteinStream
 
-from priox.io.parsing.biotite import _parse_biotite
-from priox.io.streaming.mdcath import parse_mdcath_to_processed_structure
-from priox.io.parsing.mdtraj import parse_mdtraj_to_processed_structure
-from priox.io.parsing.pqr import parse_pqr_to_processed_structure
-from priox.io.parsing.utils import processed_structure_to_protein_tuples
+from proxide.io.parsing.biotite import _parse_biotite
+from proxide.io.streaming.mdcath import parse_mdcath_to_processed_structure
+from proxide.io.parsing.mdtraj import parse_mdtraj_to_processed_structure
+from proxide.io.parsing.pqr import parse_pqr_to_processed_structure
+from proxide.io.parsing.utils import processed_structure_to_protein_tuples
 
 logger = logging.getLogger(__name__)
 

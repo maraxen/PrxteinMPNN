@@ -13,7 +13,7 @@ from conftest import (
     PDB_1UBQ_STRING as PDB_STRING,
 )
 
-from priox.io.parsing.dispatch import (
+from proxide.io.parsing.dispatch import (
     _determine_h5_structure,
     load_structure,
     parse_input,

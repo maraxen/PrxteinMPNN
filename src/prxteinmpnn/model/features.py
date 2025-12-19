@@ -130,7 +130,7 @@ class ProteinFeatures(eqx.Module):
     node_features = None if initial_node_features is None else initial_node_features
 
     if backbone_noise is None:
-      backbone_noise = jnp.array(0.0, dtype=jnp.float32)
+      backbone_noise = jnp.array(0.0)
 
     # Resolve Sigma
     if backbone_noise_mode == "thermal":

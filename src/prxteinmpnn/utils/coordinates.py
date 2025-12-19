@@ -42,8 +42,9 @@ def apply_noise_to_coordinates(
   key, coord_key = jax.random.split(key)
 
   def add_noise(coords: StructureAtomicCoordinates) -> StructureAtomicCoordinates:
-    noise = jax.random.normal(coord_key, coords.shape)
-    return coords + backbone_noise * noise
+    noise = jax.random.normal(coord_key, coords.shape, dtype=coords.dtype)
+    scaled_noise = (backbone_noise * noise).astype(coords.dtype)
+    return coords + scaled_noise
 
   def no_noise(coords: StructureAtomicCoordinates) -> StructureAtomicCoordinates:
     return coords

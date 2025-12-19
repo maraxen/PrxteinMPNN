@@ -311,17 +311,17 @@ def train_step(  # noqa: PLR0913
 
         diff_model = cast("DiffusionPrxteinMPNN", model)
         _, logits = diff_model(
-            coords,
-            mask,
-            res_idx,
-            chain_idx,
-            decoding_approach="diffusion",
-            timestep=t,
-            noisy_sequence=noisy_seq,
-            physics_features=phys_feat,
-            full_coordinates=full_coords,
-            md_params=md_p,
-            md_config=md_config,
+          coords,
+          mask,
+          res_idx,
+          chain_idx,
+          decoding_approach="diffusion",
+          timestep=t,
+          noisy_sequence=noisy_seq,
+          physics_features=phys_feat,
+          full_coordinates=full_coords,
+          md_params=md_p,
+          md_config=md_config,
         )
         return logits
 
@@ -450,17 +450,17 @@ def eval_step(
 
       diff_model = cast("DiffusionPrxteinMPNN", inference_model)
       _, logits = diff_model(
-          coords,
-          msk,
-          res_idx,
-          chain_idx,
-          decoding_approach="diffusion",
-          timestep=t,
-          noisy_sequence=noisy_seq,
-          physics_features=phys_feat,
-          full_coordinates=full_coords,
-          md_params=md_p,
-          md_config=md_config,
+        coords,
+        msk,
+        res_idx,
+        chain_idx,
+        decoding_approach="diffusion",
+        timestep=t,
+        noisy_sequence=noisy_seq,
+        physics_features=phys_feat,
+        full_coordinates=full_coords,
+        md_params=md_p,
+        md_config=md_config,
       )
       return logits
 
@@ -567,26 +567,27 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
     mesh = create_mesh()
 
   def _get_md_args(batch):
-      md_params = None
-      md_config = None
-      if spec.backbone_noise_mode == "md":
-          md_params = {
-              "bonds": batch.md_bonds,
-              "bond_params": batch.md_bond_params,
-              "angles": batch.md_angles,
-              "angle_params": batch.md_angle_params,
-              "backbone_indices": batch.md_backbone_indices,
-              "exclusion_mask": batch.md_exclusion_mask,
-              "charges": batch.charges,
-              "sigmas": batch.sigmas,
-              "epsilons": batch.epsilons,
-          }
-          md_config = {
-              "temperature": spec.md_temperature,
-              "min_steps": spec.md_min_steps,
-              "therm_steps": spec.md_therm_steps,
-          }
-      return batch.full_coordinates, md_params, md_config
+    md_params = None
+    md_config = None
+    if spec.backbone_noise_mode == "md":
+      md_params = {
+        "bonds": batch.md_bonds,
+        "bond_params": batch.md_bond_params,
+        "angles": batch.md_angles,
+        "angle_params": batch.md_angle_params,
+        "backbone_indices": batch.md_backbone_indices,
+        "exclusion_mask": batch.md_exclusion_mask,
+        "charges": batch.charges,
+        "sigmas": batch.sigmas,
+        "epsilons": batch.epsilons,
+      }
+      md_config = {
+        "temperature": spec.md_temperature,
+        "min_steps": spec.md_min_steps,
+        "therm_steps": spec.md_therm_steps,
+      }
+    return batch.full_coordinates, md_params, md_config
+
   for epoch in range(spec.num_epochs):
     logger.info("Epoch %d/%d", epoch + 1, spec.num_epochs)
     pbar = tqdm.tqdm(train_loader, desc=f"Epoch {epoch + 1}/{spec.num_epochs}")
@@ -662,9 +663,6 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
         val_metrics_list = []
         for val_batch in val_loader:
           prng_key, subkey = jax.random.split(prng_key)
-
-          if mesh is not None and spec.shard_batch:
-            val_batch = shard_pytree(val_batch, mesh)  # noqa: PLW2901
 
           val_full_coords, val_md_p, val_md_c = _get_md_args(val_batch)
 

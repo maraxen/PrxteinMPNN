@@ -33,9 +33,9 @@ from array_record.python.array_record_module import (  # type: ignore[unresolved
   ArrayRecordWriter,
 )
 
-from priox.io.parsing.utils import processed_structure_to_protein_tuples
+from proxide.io.parsing.utils import processed_structure_to_protein_tuples
 from prxteinmpnn.io.parsing.pqr import parse_pqr_to_processed_structure
-from priox.physics.features import compute_electrostatic_node_features
+from proxide.physics.features import compute_electrostatic_node_features
 from prolix.physics import load_force_field_from_hub
 
 # Patch msgpack to handle numpy arrays

@@ -14,9 +14,9 @@ import argparse
 
 # PrxteinMPNN imports
 from prolix.physics import simulate, force_fields, jax_md_bridge, system
-from priox.chem import residues as residue_constants
-from priox.core.containers import Protein, ProteinTuple
-from priox.io.weights import load_model
+from proxide.chem import residues as residue_constants
+from proxide.core.containers import Protein, ProteinTuple
+from proxide.io.weights import load_model
 from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.run.specs import SamplingSpecification
 from prxteinmpnn.run.sampling import _sample_batch

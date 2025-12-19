@@ -28,7 +28,7 @@ dependencies = [
     "huggingface-hub>=1.0.1",
     "jax-md>=0.2.26",
     "msgpack-numpy>=0.4.8",
-    "priox @ git+https://github.com/maraxen/priox.git@main",
+    "proxide @ git+https://github.com/maraxen/proxide.git@main",
     "prolix @ git+https://github.com/maraxen/prolix.git@main",
 ]
 classifiers = [

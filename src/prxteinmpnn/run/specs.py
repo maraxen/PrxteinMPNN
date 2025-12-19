@@ -64,6 +64,9 @@ class RunSpecification:
                   reduce memory but may cause recompilation for different sequence lengths.
       truncation_strategy: Strategy for handling sequences longer than max_length.
                           Options: "none" (default, no truncation), "random_crop", "center_crop".
+      host_resource_allocation_strategy: Strategy for host resource allocation (default is "auto").
+      ram_budget_mb: Optional RAM budget for data loading in megabytes.
+      max_workers: Optional maximum number of data loading workers.
 
   """
 
@@ -93,6 +96,35 @@ class RunSpecification:
   output_path: str | Path | None = None
   max_length: int | None = 512
   truncation_strategy: Literal["none", "random_crop", "center_crop"] = "none"
+
+  # Host Resource Allocation
+  host_resource_allocation_strategy: Literal["auto", "full"] = "auto"
+  """Strategy for host resource allocation.
+
+  - "auto": Use defaults based on context (90% RAM for training, 50% for inference)
+  - "full": Use maximum available resources as detected by automatic inspection
+
+  When manually specified values are provided (ram_budget_mb, max_workers),
+  they take precedence over inferred defaults.
+  """
+
+  ram_budget_mb: int | None = None
+  """RAM budget for data loading in megabytes.
+
+  Priority order:
+  1. If "full" strategy: Use maximum available RAM
+  2. If explicitly set: Use this value
+  3. If None with "auto": 90% of host RAM for training, 50% for inference
+  """
+
+  max_workers: int | None = None
+  """Maximum number of data loading workers.
+
+  Priority order:
+  1. If "full" strategy: Use all CPU cores
+  2. If explicitly set: Use this value
+  3. If None with "auto": All cores for training, 50% for inference
+  """
 
   # Data/Sharding
   use_preprocessed: bool = False

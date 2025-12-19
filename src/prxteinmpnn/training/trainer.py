@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -39,6 +40,23 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+
+
+def get_compute_dtype(precision: str) -> jnp.dtype:
+  """Get JAX dtype from precision string.
+
+  Args:
+      precision: One of "fp32", "fp16", "bf16"
+
+  Returns:
+      JAX dtype
+
+  """
+  if precision == "bf16":
+    return jnp.bfloat16
+  if precision == "fp16":
+    return jnp.float16
+  return jnp.float32
 
 
 def create_optimizer(
@@ -120,6 +138,8 @@ def _init_checkpoint_and_model(
   )
 
   opt_state: ArrayTree | None = None
+  compute_dtype = get_compute_dtype(spec.precision)
+
   if spec.resume_from_checkpoint:
     model_template = load_model(
       spec.model_version,  # type: ignore[invalid-argument-type]
@@ -127,9 +147,18 @@ def _init_checkpoint_and_model(
       use_electrostatics=spec.use_electrostatics,
       use_vdw=spec.use_vdw,
     )
+
+    # Compute abstract opt state for restoration
+    optimizer_obj, _ = create_optimizer(spec)
+    abstract_opt_state = jax.eval_shape(
+      optimizer_obj.init,
+      eqx.filter(model_template, eqx.is_inexact_array),
+    )
+
     model, opt_state, _, start_step = restore_checkpoint(
       checkpoint_manager,
       model_template,
+      abstract_opt_state=abstract_opt_state,
       step=None,  # Load latest
     )
     logger.info("Resumed from checkpoint at step %d", start_step)
@@ -144,6 +173,16 @@ def _init_checkpoint_and_model(
     start_step = 0
     optimizer_obj, _ = create_optimizer(spec)
     opt_state = optimizer_obj.init(eqx.filter(model, eqx.is_inexact_array))
+
+  # Cast model to target precision
+  if compute_dtype != jnp.float32:
+    logger.info("Casting model parameters to %s", compute_dtype)
+
+    def _cast_fn(x: jax.Array) -> jax.Array:
+      return x.astype(compute_dtype) if eqx.is_inexact_array(x) else x
+
+    model = jax.tree_util.tree_map(_cast_fn, model)
+    opt_state = jax.tree_util.tree_map(_cast_fn, opt_state)
 
   return model, opt_state, start_step, checkpoint_manager, permanent_manager
 
@@ -233,6 +272,8 @@ def train_step(  # noqa: PLR0913
   mask_prob: float = 0.15,
   training_mode: str = "autoregressive",
   noise_schedule: NoiseSchedule | None = None,
+  accum_steps: int = 1,
+  compute_dtype: jnp.dtype = jnp.float32,
 ) -> tuple[PrxteinMPNN, optax.OptState, TrainingMetrics]:
   """Single training step.
 
@@ -255,80 +296,87 @@ def train_step(  # noqa: PLR0913
       mask_prob: Probability of masking a token if using "bert" strategy
       training_mode: "autoregressive" or "diffusion"
       noise_schedule: Noise schedule for diffusion training
+      accum_steps: Number of gradient accumulation steps (effective batch_size = batch_size).
+      compute_dtype: JAX dtype for computation (e.g., jnp.bfloat16).
 
   Returns:
       Tuple of (updated_model, updated_opt_state, metrics)
 
   """
+
+  def single_forward(
+    m: PrxteinMPNN,
+    coords: BackboneCoordinates,
+    mask: jax.Array,
+    res_idx: jax.Array,
+    chain_idx: jax.Array,
+    seq: jax.Array,
+    key: jax.Array,
+    phys_feat: jax.Array | None = None,
+  ) -> Logits:
+    """Forward pass for a single protein."""
+    key, subkey = jax.random.split(key)
+
+    n_nodes = mask.shape[0]
+    if mask_strategy == "random_order":
+      decoding_order = jax.random.permutation(subkey, jnp.arange(n_nodes))
+      ranks = jnp.argsort(decoding_order)
+      ar_mask = ranks[None, :] < ranks[:, None]
+    elif mask_strategy == "bert":
+      mask_prob_mask = jax.random.bernoulli(subkey, mask_prob, shape=(n_nodes,))
+      can_see = 1.0 - mask_prob_mask
+      ar_mask = jnp.tile(can_see[None, :], (n_nodes, 1))
+    else:
+      ar_mask = jnp.ones((n_nodes, n_nodes))
+
+    one_hot_seq = jax.nn.one_hot(seq, 21)
+
+    if training_mode == "diffusion":
+      if noise_schedule is None:
+        msg = "noise_schedule required for diffusion training"
+        raise ValueError(msg)
+
+      t = jax.random.randint(subkey, (), 0, noise_schedule.num_steps)
+      noise = jax.random.normal(subkey, one_hot_seq.shape)
+      noisy_seq, _ = noise_schedule.sample_forward(one_hot_seq, t, noise)
+
+      diff_model = cast("DiffusionPrxteinMPNN", m)
+      _, logits = diff_model(
+        coords,
+        mask,
+        res_idx,
+        chain_idx,
+        decoding_approach="diffusion",
+        timestep=t,
+        noisy_sequence=noisy_seq,
+        physics_features=phys_feat,
+      )
+      return logits
+
+    _, logits = m(
+      coords,
+      mask,
+      res_idx,
+      chain_idx,
+      decoding_approach="conditional",
+      prng_key=key,
+      ar_mask=ar_mask,
+      one_hot_sequence=one_hot_seq,
+      backbone_noise=jnp.array(backbone_noise_std),
+      initial_node_features=phys_feat,
+    )
+    return logits
+
+  def batch_loss(logits: Logits, seq: jax.Array, msk: jax.Array) -> jax.Array:
+    return cross_entropy_loss(logits, seq, msk, label_smoothing)
+
   batch_size = coordinates.shape[0]
 
   def loss_fn(model: PrxteinMPNN) -> tuple[jax.Array, jax.Array]:
     """Compute loss for current batch."""
     batch_keys = jax.random.split(prng_key, batch_size)
 
-    def single_forward(
-      coords: BackboneCoordinates,
-      mask: jax.Array,
-      res_idx: jax.Array,
-      chain_idx: jax.Array,
-      seq: jax.Array,
-      key: jax.Array,
-      phys_feat: jax.Array | None = None,
-    ) -> Logits:
-      """Forward pass for a single protein."""
-      key, subkey = jax.random.split(key)
-
-      n_nodes = mask.shape[0]
-      if mask_strategy == "random_order":
-        decoding_order = jax.random.permutation(subkey, jnp.arange(n_nodes))
-        ranks = jnp.argsort(decoding_order)
-        ar_mask = ranks[None, :] < ranks[:, None]
-      elif mask_strategy == "bert":
-        mask_prob_mask = jax.random.bernoulli(subkey, mask_prob, shape=(n_nodes,))
-        can_see = 1.0 - mask_prob_mask
-        ar_mask = jnp.tile(can_see[None, :], (n_nodes, 1))
-      else:
-        ar_mask = jnp.ones((n_nodes, n_nodes))
-
-      one_hot_seq = jax.nn.one_hot(seq, 21)
-
-      if training_mode == "diffusion":
-        if noise_schedule is None:
-          msg = "noise_schedule required for diffusion training"
-          raise ValueError(msg)
-
-        t = jax.random.randint(subkey, (), 0, noise_schedule.num_steps)
-        noise = jax.random.normal(subkey, one_hot_seq.shape)
-        noisy_seq, _ = noise_schedule.sample_forward(one_hot_seq, t, noise)
-
-        diff_model = cast("DiffusionPrxteinMPNN", model)
-        _, logits = diff_model(
-          coords,
-          mask,
-          res_idx,
-          chain_idx,
-          decoding_approach="diffusion",
-          timestep=t,
-          noisy_sequence=noisy_seq,
-          physics_features=phys_feat,
-        )
-        return logits
-
-      _, logits = model(
-        coords,
-        mask,
-        res_idx,
-        chain_idx,
-        decoding_approach="conditional",
-        prng_key=key,
-        ar_mask=ar_mask,
-        one_hot_sequence=one_hot_seq,
-        backbone_noise=jnp.array(backbone_noise_std),
-        initial_node_features=phys_feat,
-      )
-      return logits
-
-    logits_batch = jax.vmap(single_forward)(
+    logits_batch = jax.vmap(partial(single_forward, model))(
       coordinates,
       mask,
       residue_index,
@@ -338,15 +386,85 @@ def train_step(  # noqa: PLR0913
       physics_features,
     )
 
-    def batch_loss(logits: Logits, seq: jax.Array, msk: jax.Array) -> jax.Array:
-      return cross_entropy_loss(logits, seq, msk, label_smoothing)
-
     losses = jax.vmap(batch_loss)(logits_batch, sequence, mask)
     loss = jnp.mean(losses)
 
     return loss, logits_batch
 
-  (loss, logits_batch), grads = eqx.filter_value_and_grad(loss_fn, has_aux=True)(model)
+  # Gradient accumulation support
+  if accum_steps > 1:
+    # Reshape features to [accum_steps, batch_size // accum_steps, ...]
+    micro_batch_size = batch_size // accum_steps
+
+    def _reshape(x: jax.Array) -> jax.Array:
+      return x.reshape((accum_steps, micro_batch_size, *x.shape[1:]))
+
+    def _reshape_opt(x: jax.Array | None) -> jax.Array | None:
+      return _reshape(x) if x is not None else None
+
+    # Reshape all inputs
+    coords_reshaped = _reshape(coordinates)
+    mask_reshaped = _reshape(mask)
+    res_idx_reshaped = _reshape(residue_index)
+    chain_idx_reshaped = _reshape(chain_index)
+    seq_reshaped = _reshape(sequence)
+    phys_reshaped = _reshape_opt(physics_features)
+
+    # Split PRNG key for each micro-batch
+    accum_keys = jax.random.split(prng_key, accum_steps)
+
+    def accum_grad_step(
+      carry: tuple[jax.Array, Logits],
+      inputs: tuple[
+        jax.Array,
+        jax.Array,
+        jax.Array,
+        jax.Array,
+        jax.Array,
+        jax.Array,
+        jax.Array | None,
+      ],
+    ) -> tuple[tuple[jax.Array, Logits], Any]:
+      (accum_loss, accum_logits) = carry
+      (c, m, ri, ci, s, k, p) = inputs
+
+      # We need a different loss_fn that takes specific micro-batch inputs
+      def micro_loss_fn(m_model: PrxteinMPNN) -> tuple[jax.Array, Logits]:
+        micro_keys = jax.random.split(k, micro_batch_size)
+        micro_logits = jax.vmap(partial(single_forward, m_model))(
+          c,
+          m,
+          ri,
+          ci,
+          s,
+          micro_keys,
+          p,
+        )
+        micro_loss_val = jnp.mean(jax.vmap(batch_loss)(micro_logits, s, m))
+        return micro_loss_val, micro_logits
+
+      (loss_val, logit), g = eqx.filter_value_and_grad(micro_loss_fn, has_aux=True)(model)
+      return (accum_loss + loss_val / accum_steps, jnp.concatenate([accum_logits, logit])), g
+
+    # Initialize carry
+    init_logits = jnp.zeros((0, sequence.shape[1], 21), dtype=compute_dtype)
+    (loss, logits_batch), grads_list = jax.lax.scan(
+      accum_grad_step,
+      (jnp.array(0.0), init_logits),
+      (
+        coords_reshaped,
+        mask_reshaped,
+        res_idx_reshaped,
+        chain_idx_reshaped,
+        seq_reshaped,
+        accum_keys,
+        phys_reshaped,
+      ),
+    )
+    # Sum gradients
+    grads = jax.tree_util.tree_map(lambda *x: jnp.sum(jnp.stack(x)), *grads_list)
+  else:
+    (loss, logits_batch), grads = eqx.filter_value_and_grad(loss_fn, has_aux=True)(model)
 
   def batch_metrics(logits: Logits, seq: jax.Array, msk: jax.Array) -> tuple[jax.Array, jax.Array]:
     acc = sequence_recovery_accuracy(logits, seq, msk)
@@ -539,6 +657,11 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
     logger.info("Epoch %d/%d", epoch + 1, spec.num_epochs)
     pbar = tqdm.tqdm(train_loader, desc=f"Epoch {epoch + 1}/{spec.num_epochs}")
 
+    # JIT the step functions
+    compute_dtype = get_compute_dtype(spec.precision)
+    filter_jitted_train_step = eqx.filter_jit(train_step)
+    filter_jitted_eval_step = eqx.filter_jit(eval_step)
+
     for batch in train_loader:
       prng_key, subkey = jax.random.split(prng_key)
 
@@ -547,7 +670,7 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
       else:
         backbone_noise_std = float(spec.backbone_noise[0])
 
-      model, opt_state, train_metrics = eqx.filter_jit(train_step)(
+      model, opt_state, train_metrics = filter_jitted_train_step(
         model,
         opt_state,
         optimizer,
@@ -566,6 +689,8 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
         spec.mask_prob,
         spec.training_mode,
         noise_schedule,
+        spec.accum_steps,
+        compute_dtype,
       )
 
       step += 1
@@ -577,7 +702,7 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912
         for val_batch in val_loader:
           prng_key, subkey = jax.random.split(prng_key)
 
-          val_metrics = eqx.filter_jit(eval_step)(
+          val_metrics = filter_jitted_eval_step(
             model,
             val_batch.coordinates,
             val_batch.mask,

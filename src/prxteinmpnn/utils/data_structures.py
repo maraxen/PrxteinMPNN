@@ -9,12 +9,12 @@ from collections.abc import Generator, Sequence
 from typing import TYPE_CHECKING, Literal, NamedTuple
 
 import jax.numpy as jnp
+import numpy as np
 from flax.struct import dataclass
 
 from prxteinmpnn.utils.residue_constants import atom_order
 
 if TYPE_CHECKING:
-  import numpy as np
   from jaxtyping import Int
 
   from prxteinmpnn.utils.types import (
@@ -150,6 +150,21 @@ def none_or_jnp(array: np.ndarray | None) -> jnp.ndarray | None:
   return jnp.asarray(array)
 
 
+def none_or_numpy(array: np.ndarray | None) -> np.ndarray | None:
+  """Convert array to numpy array, or return None if input is None.
+
+  Args:
+      array: Input numpy array or None.
+
+  Returns:
+      Converted numpy array or None.
+
+  """
+  if array is None:
+    return None
+  return np.asarray(array)
+
+
 @dataclass(frozen=True)
 class Protein:
   """Protein structure or ensemble representation.
@@ -263,6 +278,67 @@ class Protein:
       estat_resid=none_or_jnp(protein_tuple.estat_resid),
       estat_chain_index=none_or_jnp(protein_tuple.estat_chain_index),
       physics_features=none_or_jnp(protein_tuple.physics_features),
+    )
+
+  @classmethod
+  def from_tuple_numpy(
+    cls,
+    protein_tuple: ProteinTuple,
+    *,
+    include_extras: Sequence[
+      Literal["dihedrals", "mapping", "full_coordinates", "full_atom_mask", "all"]
+    ]
+    | None = None,
+  ) -> Protein:
+    """Create a Protein instance from a ProteinTuple using NumPy backend.
+
+    This is useful for CPU-side data preprocessing before JAX conversion.
+
+    Args:
+        protein_tuple: The input protein tuple.
+        include_extras: Optional list of extra fields to include.
+
+    Returns:
+        Protein with NumPy arrays.
+
+    """
+    return cls(
+      coordinates=none_or_numpy(protein_tuple.coordinates).astype(np.float32),
+      aatype=none_or_numpy(protein_tuple.aatype).astype(np.int8),
+      one_hot_sequence=np.eye(21)[protein_tuple.aatype],
+      mask=none_or_numpy(protein_tuple.atom_mask[:, atom_order["CA"]]).astype(np.float32),
+      residue_index=none_or_numpy(protein_tuple.residue_index).astype(np.int32),
+      chain_index=none_or_numpy(protein_tuple.chain_index).astype(np.int32),
+      dihedrals=(
+        none_or_numpy(protein_tuple.dihedrals)
+        if protein_tuple.dihedrals is not None and include_feature("dihedrals", include_extras)
+        else None
+      ),
+      mapping=(
+        none_or_numpy(protein_tuple.mapping)
+        if protein_tuple.mapping is not None and include_feature("mapping", include_extras)
+        else None
+      ),
+      full_coordinates=(
+        none_or_numpy(protein_tuple.full_coordinates)
+        if protein_tuple.full_coordinates is not None
+        and include_feature("full_coordinates", include_extras)
+        else None
+      ),
+      full_atom_mask=(
+        none_or_numpy(protein_tuple.atom_mask)
+        if protein_tuple.full_coordinates is not None
+        and include_feature("full_atom_mask", include_extras)
+        else None
+      ),
+      charges=none_or_numpy(protein_tuple.charges),
+      radii=none_or_numpy(protein_tuple.radii),
+      sigmas=none_or_numpy(protein_tuple.sigmas),
+      epsilons=none_or_numpy(protein_tuple.epsilons),
+      estat_backbone_mask=none_or_numpy(protein_tuple.estat_backbone_mask),
+      estat_resid=none_or_numpy(protein_tuple.estat_resid),
+      estat_chain_index=none_or_numpy(protein_tuple.estat_chain_index),
+      physics_features=none_or_numpy(protein_tuple.physics_features),
     )
 
 

@@ -12,6 +12,7 @@ dependencies = [
     "jaxtyping",
     "jaxlib",
     "joblib",
+    "psutil",
     "flax",
     "biotite",
     "gmmx",
@@ -22,7 +23,6 @@ dependencies = [
     "grain",
     "hydride",
     "pcax>=0.1.0",
-    "tables>=3.10.2",
     "array-record>=0.8.1",
     "equinox>=0.13.2",
     "huggingface-hub>=1.0.1",
@@ -136,6 +136,8 @@ invalid-type-form = "ignore"
 [dependency-groups]
 dev = [
     "torch>=2.9.1",
+    "pytest>=8.0.0",
+    "pytest-xdist>=3.5.0",
 ]
 
 [tool.setuptools.package-data]

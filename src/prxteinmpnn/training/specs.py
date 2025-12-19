@@ -77,8 +77,6 @@ class TrainingSpecification(RunSpecification):
 
   """
 
-  model_weights: str | Path | None = None
-  model_version: str | None = None
   # Data paths
   validation_data: str | Path | None = None
   cache_preprocessed: bool = True
@@ -95,6 +93,13 @@ class TrainingSpecification(RunSpecification):
   eval_every: int = 500
   log_every: int = 100
 
+  # Gradient Accumulation
+  accum_steps: int = 1
+  """Number of gradient accumulation steps.
+
+  Effective batch size = batch_size (which must be divisible by accum_steps).
+  """
+
   # Precision
   precision: Literal["fp32", "fp16", "bf16"] = "bf16"
 
@@ -107,10 +112,6 @@ class TrainingSpecification(RunSpecification):
 
   # Physics features (Phase 1)
   physics_feature_weight: float = 1.0
-
-  # Data Augmentation & Truncation
-  max_length: int | None = None
-  truncation_strategy: Literal["random_crop", "center_crop", "none"] = "none"
 
   # Regularization
   label_smoothing: float = 0.0
@@ -129,13 +130,6 @@ class TrainingSpecification(RunSpecification):
   # Early stopping
   early_stopping_patience: int | None = None
   early_stopping_metric: Literal["val_loss", "val_accuracy", "val_perplexity"] = "val_loss"
-
-  # Preprocessed data support
-  use_preprocessed: bool = False
-  """If True, load from preprocessed array_record files instead of parsing on-the-fly."""
-
-  preprocessed_index_path: Path | None = None
-  """Path to index file for preprocessed data (required if use_preprocessed=True)."""
 
   validation_preprocessed_path: Path | None = None
   """Path to validation array_record file (if using preprocessed validation data)."""
@@ -157,6 +151,14 @@ class TrainingSpecification(RunSpecification):
     # Validate precision
     if self.precision not in ("fp32", "fp16", "bf16"):
       msg = f"precision must be one of ['fp32', 'fp16', 'bf16'], got {self.precision}"
+      raise ValueError(msg)
+
+    if self.accum_steps < 1:
+      msg = "accum_steps must be >= 1"
+      raise ValueError(msg)
+
+    if self.batch_size % self.accum_steps != 0:
+      msg = f"batch_size ({self.batch_size}) must be divisible by accum_steps ({self.accum_steps})"
       raise ValueError(msg)
 
     # Validate that either total_steps or num_epochs is provided

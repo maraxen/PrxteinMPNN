@@ -36,7 +36,7 @@ class DecoderLayer(eqx.Module):
 
   message_mlp: eqx.nn.MLP
   norm1: LayerNorm
-  dense: eqx.nn.MLP  # Use eqx.nn.MLP directly
+  dense: eqx.nn.MLP
   norm2: LayerNorm
   dropout1: eqx.nn.Dropout
   dropout2: eqx.nn.Dropout
@@ -50,26 +50,6 @@ class DecoderLayer(eqx.Module):
     *,
     key: PRNGKeyArray,
   ) -> None:
-    """Initialize the decoder layer.
-
-    Args:
-      node_features: Dimension of node features (e.g., 128).
-      edge_context_features: Dimension of edge context (e.g., 384).
-      hidden_features: Dimension of hidden layer in dense MLP.
-      dropout_rate: Dropout rate (default: 0.1).
-      key: PRNG key for initialization.
-
-    Returns:
-      None
-
-    Raises:
-      None
-
-    Example:
-      >>> key = jax.random.PRNGKey(0)
-      >>> layer = DecoderLayer(128, 384, 128, key=key)
-
-    """
     keys = jax.random.split(key, 4)
 
     self.dropout1 = eqx.nn.Dropout(dropout_rate)
@@ -100,72 +80,50 @@ class DecoderLayer(eqx.Module):
   def __call__(
     self,
     node_features: NodeFeatures,
-    layer_edge_features: EdgeFeatures,  # This is the (N, K, 384) context
+    layer_edge_features: EdgeFeatures,
     mask: AlphaCarbonMask,
     scale: float = 30.0,
-    attention_mask: Array | None = None,  # Optional attention mask for conditional decoding
+    attention_mask: Array | None = None,
     *,
     key: PRNGKeyArray | None = None,
   ) -> NodeFeatures:
-    """Forward pass for the decoder layer.
-
-    Works for both N-batch (N, C) and single-node (1, C) inputs.
-
-    Args:
-      node_features: Node features tensor of shape (N, C).
-      layer_edge_features: Edge context features of shape (N, K, 384).
-      mask: Alpha carbon mask of shape (N,).
-      scale: Scaling factor for message aggregation (default: 30.0).
-      attention_mask: Optional attention mask for conditional decoding.
-      key: PRNG key for dropout (optional).
-
-    Returns:
-      Updated node features of shape (N, C).
-
-    Raises:
-      None
-
-    Example:
-      >>> key = jax.random.PRNGKey(0)
-      >>> layer = DecoderLayer(128, 384, 128, key=key)
-      >>> node_feats = jnp.ones((10, 128))
-      >>> edge_feats = jnp.ones((10, 30, 384))
-      >>> mask = jnp.ones((10,))
-      >>> output = layer(node_feats, edge_feats, mask)
-
-    """
+    """Forward pass with Mixed Precision Stability (FP32 Accumulation)."""
     keys = jax.random.split(key, 2) if key is not None else (None, None)
+
+    compute_dtype = node_features.dtype
+
+    # FIX: Ensure mask matches compute_dtype to prevent upcasting output
+    mask = mask.astype(compute_dtype)
 
     node_features_expand = jnp.tile(
       jnp.expand_dims(node_features, -2),
       [1, layer_edge_features.shape[1], 1],
     )
 
-    # Concat with context [h_i, e_context]
     mlp_input = jnp.concatenate([node_features_expand, layer_edge_features], -1)
-
-    # Apply MLP to each (atom, neighbor) pair: vmap over atoms, then over neighbors
     message = jax.vmap(jax.vmap(self.message_mlp))(mlp_input)
 
-    # Apply attention mask if provided (for conditional decoding)
     if attention_mask is not None:
-      message = jnp.expand_dims(attention_mask, -1) * message
+      # FIX: Cast attention_mask to avoid upcasting
+      mask_cast = attention_mask.astype(compute_dtype)
+      message = jnp.expand_dims(mask_cast, -1) * message
 
-    aggregated_message = jnp.sum(message, -2) / scale
+    # --- STABILITY FIX: Accumulate in Float32 ---
+    message_f32 = message.astype(jnp.float32)
+    aggregated_message_f32 = jnp.sum(message_f32, -2) / scale
+    aggregated_message = aggregated_message_f32.astype(compute_dtype)
+    # --------------------------------------------
 
     aggregated_message = self.dropout1(aggregated_message, key=keys[0])
-
     node_features = node_features + aggregated_message
 
     node_features_norm1 = jax.vmap(self.norm1)(node_features)
     dense_output = jax.vmap(self.dense)(node_features_norm1)
-
     dense_output = self.dropout2(dense_output, key=keys[1])
 
     node_features = node_features_norm1 + dense_output
     node_features_norm2 = jax.vmap(self.norm2)(node_features)
 
-    # Handle both batched (N,) mask and scalar mask
     if jnp.ndim(mask) == 0:
       return mask * node_features_norm2
     return mask[:, None] * node_features_norm2
@@ -181,40 +139,18 @@ class Decoder(eqx.Module):
   def __init__(
     self,
     node_features: int,
-    edge_features: int,  # This is the raw edge_features dim (128)
+    edge_features: int,
     hidden_features: int,
     num_layers: int = 3,
     dropout_rate: float = 0.1,
     *,
     key: PRNGKeyArray,
   ) -> None:
-    """Initialize the decoder.
-
-    Args:
-      node_features: Dimension of node features (e.g., 128).
-      edge_features: Dimension of edge features (e.g., 128).
-      hidden_features: Dimension of hidden layer in decoder layers.
-      num_layers: Number of decoder layers (default: 3).
-      dropout_rate: Dropout rate (default: 0.1).
-      key: PRNG key for initialization.
-
-    Returns:
-      None
-
-    Raises:
-      None
-
-    Example:
-      >>> key = jax.random.PRNGKey(0)
-      >>> decoder = Decoder(128, 128, 128, num_layers=3, key=key)
-
-    """
     self.node_features_dim = node_features
     self.edge_features_dim = edge_features
 
     keys = jax.random.split(key, num_layers)
 
-    # The context dim is [h_i, e_ij, h_j]
     edge_context_features = 2 * node_features + edge_features
 
     self.layers = tuple(
@@ -231,49 +167,24 @@ class Decoder(eqx.Module):
   def __call__(
     self,
     node_features: NodeFeatures,
-    edge_features: EdgeFeatures,  # Raw 128-dim edges
+    edge_features: EdgeFeatures,
     neighbor_indices: NeighborIndices,
     mask: AlphaCarbonMask,
     *,
     key: PRNGKeyArray | None = None,
   ) -> NodeFeatures:
-    """Forward pass for UNCONDITIONAL decoding.
-
-    Args:
-      node_features: Node features from encoder of shape (N, 128).
-      edge_features: Edge features from encoder of shape (N, K, 128).
-      neighbor_indices: Indices of neighbors for each node.
-      mask: Alpha carbon mask of shape (N,).
-      key: PRNG key for dropout (optional).
-
-    Returns:
-      Decoded node features of shape (N, 128).
-
-    Raises:
-      None
-
-    Example:
-      >>> key = jax.random.PRNGKey(0)
-      >>> decoder = Decoder(128, 128, 128, num_layers=3, key=key)
-      >>> node_feats = jnp.ones((10, 128))
-      >>> edge_feats = jnp.ones((10, 30, 128))
-      >>> neighbor_idx = jnp.arange(300).reshape(10, 30)
-      >>> mask = jnp.ones((10,))
-      >>> output = decoder(node_feats, edge_feats, neighbor_idx, mask)
-
-    """
+    """Forward pass for UNCONDITIONAL decoding."""
     keys = jax.random.split(key, len(self.layers)) if key is not None else [None] * len(self.layers)
 
-    # Prepare context tensor *once*
-    # For unconditional: [0, h_E_ij, h_V_j] where j is the neighbor
-    # First concatenate zeros with edge features
+    # FIX: Ensure mask is cast to prevent upcasting at output
+    mask = mask.astype(node_features.dtype)
+
     zeros_with_edges = concatenate_neighbor_nodes(
       jnp.zeros_like(node_features),
       edge_features,
       neighbor_indices,
     )
 
-    # Then concatenate node features with the above
     layer_edge_features = concatenate_neighbor_nodes(
       node_features,
       zeros_with_edges,
@@ -292,50 +203,24 @@ class Decoder(eqx.Module):
 
   def call_conditional(
     self,
-    node_features: NodeFeatures,  # h_i from encoder
-    edge_features: EdgeFeatures,  # e_ij from encoder
+    node_features: NodeFeatures,
+    edge_features: EdgeFeatures,
     neighbor_indices: NeighborIndices,
     mask: AlphaCarbonMask,
     ar_mask: AutoRegressiveMask,
     one_hot_sequence: OneHotProteinSequence,
-    w_s_weight: Array,  # Sequence embedding weight
+    w_s_weight: Array,
     *,
     key: PRNGKeyArray | None = None,
   ) -> NodeFeatures:
-    """Forward pass for CONDITIONAL decoding (scoring).
-
-    Args:
-      node_features: Node features from encoder of shape (N, 128).
-      edge_features: Edge features from encoder of shape (N, K, 128).
-      neighbor_indices: Indices of neighbors for each node.
-      mask: Alpha carbon mask of shape (N,).
-      ar_mask: Autoregressive mask for conditional decoding.
-      one_hot_sequence: One-hot encoded protein sequence.
-      w_s_weight: Sequence embedding weight matrix.
-      key: PRNG key for dropout (optional).
-
-    Returns:
-      Decoded node features of shape (N, 128).
-
-    Raises:
-      None
-
-    Example:
-      >>> key = jax.random.PRNGKey(0)
-      >>> decoder = Decoder(128, 128, 128, num_layers=3, key=key)
-      >>> node_feats = jnp.ones((10, 128))
-      >>> edge_feats = jnp.ones((10, 30, 128))
-      >>> neighbor_indices = jnp.arange(300).reshape(10, 30)
-      >>> mask = jnp.ones((10,))
-      >>> ar_mask = jnp.ones((10, 10))
-      >>> seq = jax.nn.one_hot(jnp.arange(10), 21)
-      >>> w_s = jnp.ones((21, 128))
-      >>> output = decoder.call_conditional(
-      ...     node_feats, edge_feats, neighbor_indices, mask, ar_mask, seq, w_s
-      ... )
-
-    """
+    """Forward pass for CONDITIONAL decoding (scoring)."""
     keys = jax.random.split(key, len(self.layers)) if key is not None else [None] * len(self.layers)
+
+    # FIX: Explicitly cast masks to compute_dtype (bfloat16)
+    # This prevents 'float32 * bfloat16 -> float32' promotion
+    compute_dtype = node_features.dtype
+    mask = mask.astype(compute_dtype)
+    ar_mask = ar_mask.astype(compute_dtype)
 
     embedded_sequence = jnp.atleast_2d(one_hot_sequence) @ w_s_weight
 
@@ -343,29 +228,31 @@ class Decoder(eqx.Module):
       jnp.zeros_like(node_features),
       edge_features,
       neighbor_indices,
-    )  # [0, e_ij, h_j]
+    )
 
     node_edge_features = concatenate_neighbor_nodes(
       node_features,
       temp_node_edge,
       neighbor_indices,
-    )  # [h_i, [0, e_ij, h_j]]
+    )
 
     sequence_edge_features = concatenate_neighbor_nodes(
       embedded_sequence,
       edge_features,
       neighbor_indices,
-    )  # [e_ij, s_j]
+    )
 
+    # Masking logic
     attention_mask = jnp.take_along_axis(ar_mask, neighbor_indices, axis=1)
+
+    # Now these operations are (bf16 * bf16), staying in bf16
     mask_bw = mask[:, None] * attention_mask
     mask_fw = mask[:, None] * (1 - attention_mask)
+
     masked_node_edge_features = mask_fw[..., None] * node_edge_features
 
     loop_node_features = node_features
     for i, layer in enumerate(self.layers):
-      # Construct the decoder context for this layer by gathering neighbor features
-      # and concatenating with sequence edge features
       current_features = concatenate_neighbor_nodes(
         loop_node_features,
         sequence_edge_features,
@@ -374,7 +261,6 @@ class Decoder(eqx.Module):
 
       layer_edge_features = (mask_bw[..., None] * current_features) + masked_node_edge_features
 
-      # Run the layer (masking already applied to layer_edge_features)
       loop_node_features = layer(
         loop_node_features,
         layer_edge_features,

@@ -162,53 +162,26 @@ class PrxteinMPNN(eqx.Module):
     _multi_state_temperature: Float,
     _initial_node_features: NodeFeatures | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
-    """Run the unconditional (scoring) path.
-
-    Args:
-      node_features: Node features from encoding.
-      edge_features: Edge features from encoding.
-      neighbor_indices: Indices of neighbors for each node.
-      mask: Alpha carbon mask.
-      _ar_mask: Unused, required for jax.lax.switch signature.
-      _one_hot_sequence: Unused, required for jax.lax.switch signature.
-      _prng_key: Unused, required for jax.lax.switch signature.
-      _temperature: Unused, required for jax.lax.switch signature.
-      _bias: Unused, required for jax.lax.switch signature.
-      _tie_group_map: Unused, required for jax.lax.switch signature.
-      _multi_state_strategy_idx: Unused, required for jax.lax.switch signature.
-      _multi_state_temperature: Unused, required for jax.lax.switch signature.
-      _initial_node_features: Unused.
-
-    Returns:
-      Tuple of (dummy sequence, logits).
-
-    Raises:
-      None
-
-    Example:
-      >>> key = jax.random.PRNGKey(0)
-      >>> model = PrxteinMPNN(128, 128, 128, 3, 3, 30, key=key)
-      >>> edge_feats = jnp.ones((10, 30, 128))
-      >>> neighbor_idx = jnp.arange(300).reshape(10, 30)
-      >>> mask = jnp.ones((10,))
-      >>> seq, logits = model._call_unconditional(edge_feats, neighbor_idx, mask)
-
-    """
+    """Run the unconditional (scoring) path."""
     decoded_node_features = self.decoder(
       node_features,
       edge_features,
-      neighbor_indices,  # Pass neighbor indices for correct context
+      neighbor_indices,
       mask,
       key=_prng_key,
     )
 
     logits = jax.vmap(self.w_out)(decoded_node_features)
 
-    # Return dummy sequence to match PyTree shape
-    dummy_seq = jnp.zeros(
-      (logits.shape[0], self.w_s_embed.num_embeddings),
-      dtype=logits.dtype,
-    )
+    # FIX: Use _one_hot_sequence (bfloat16) as the source of truth for dtype.
+    # This guarantees path [0] matches the conditional branch perfectly.
+    target_dtype = _one_hot_sequence.dtype
+
+    dummy_seq = jnp.zeros_like(_one_hot_sequence, dtype=target_dtype)
+
+    # Also ensure logits match to prevent path [1] mismatch
+    logits = logits.astype(target_dtype)
+
     return dummy_seq, logits
 
   def _call_conditional(
@@ -227,42 +200,7 @@ class PrxteinMPNN(eqx.Module):
     _multi_state_temperature: Float,
     _initial_node_features: NodeFeatures | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
-    """Run the conditional (scoring) path.
-
-    Args:
-      node_features: Node features from encoding.
-      edge_features: Edge features from encoding.
-      neighbor_indices: Indices of neighbors for each node.
-      mask: Alpha carbon mask.
-      ar_mask: Autoregressive mask for conditional decoding.
-      one_hot_sequence: One-hot encoded protein sequence.
-      prng_key: PRNG Key.
-      _temperature: Unused, required for jax.lax.switch signature.
-      _bias: Unused, required for jax.lax.switch signature.
-      _tie_group_map: Unused, required for jax.lax.switch signature.
-      _multi_state_strategy_idx: Unused, required for jax.lax.switch signature.
-      _multi_state_temperature: Unused, required for jax.lax.switch signature.
-      _initial_node_features: Unused.
-
-    Returns:
-      Tuple of (input sequence, logits).
-
-    Raises:
-      None
-
-    Example:
-      >>> key = jax.random.PRNGKey(0)
-      >>> model = PrxteinMPNN(128, 128, 128, 3, 3, 30, key=key)
-      >>> edge_feats = jnp.ones((10, 30, 128))
-      >>> neighbor_idx = jnp.arange(300).reshape(10, 30)
-      >>> mask = jnp.ones((10,))
-      >>> ar_mask = jnp.ones((10, 10))
-      >>> seq = jax.nn.one_hot(jnp.arange(10), 21)
-      >>> out_seq, logits = model._call_conditional(
-      ...     edge_feats, neighbor_idx, mask, ar_mask, seq
-      ... )
-
-    """
+    """Run the conditional (scoring) path."""
     decoded_node_features = self.decoder.call_conditional(
       node_features,
       edge_features,
@@ -275,7 +213,10 @@ class PrxteinMPNN(eqx.Module):
     )
     logits = jax.vmap(self.w_out)(decoded_node_features)
 
-    # Return input sequence to match PyTree shape
+    # FIX: Ensure logits match the input sequence dtype (bfloat16)
+    target_dtype = one_hot_sequence.dtype
+    logits = logits.astype(target_dtype)
+
     return one_hot_sequence, logits
 
   def _call_autoregressive(
@@ -345,9 +286,9 @@ class PrxteinMPNN(eqx.Module):
       multi_state_strategy_idx,
       multi_state_temperature,
     )
+    seq = seq.astype(_one_hot_sequence.dtype)
+    logits = logits.astype(_one_hot_sequence.dtype)
     return seq, logits
-
-
 
   @staticmethod
   def _combine_logits_multistate(
@@ -673,6 +614,7 @@ class PrxteinMPNN(eqx.Module):
     sampled_logits = (logits_with_bias / temperature) + jax.random.gumbel(
       key,
       logits_with_bias.shape,
+      dtype=logits_with_bias.dtype,
     )
     sampled_logits_no_pad = sampled_logits[..., :20]
     one_hot_sample = straight_through_estimator(sampled_logits_no_pad)
@@ -837,6 +779,7 @@ class PrxteinMPNN(eqx.Module):
       sampled_logits = (logits_with_bias / temperature) + jax.random.gumbel(
         key,
         logits_with_bias.shape,
+        dtype=logits_with_bias.dtype,
       )
       sampled_logits_no_pad = sampled_logits[..., :20]  # Exclude padding
 
@@ -903,7 +846,7 @@ class PrxteinMPNN(eqx.Module):
       multi_state_temperature,
     )
 
-  def __call__(  # noqa: PLR0913
+  def __call__(
     self,
     structure_coordinates: StructureAtomicCoordinates,
     mask: AlphaCarbonMask,
@@ -918,7 +861,11 @@ class PrxteinMPNN(eqx.Module):
     bias: Logits | None = None,
     backbone_noise: BackboneNoise | None = None,
     tie_group_map: jnp.ndarray | None = None,
-    multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
+    multi_state_strategy: Literal[
+      "arithmetic_mean",
+      "geometric_mean",
+      "product",
+    ] = "arithmetic_mean",
     structure_mapping: jnp.ndarray | None = None,
     initial_node_features: jnp.ndarray | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
@@ -945,7 +892,7 @@ class PrxteinMPNN(eqx.Module):
           When provided, positions in the same group sample identical amino acids
           using logit combining. Only used in "autoregressive" mode (optional).
       multi_state_strategy: Strategy for combining logits across tied positions.
-          Options: "arithmetic_mean" (default, log-sum-exp average), 
+          Options: "arithmetic_mean" (default, log-sum-exp average),
           "geometric_mean" (geometric mean with temperature scaling),
           "product" (multiply probabilities).
           Only used in "autoregressive" mode with tied positions (optional).

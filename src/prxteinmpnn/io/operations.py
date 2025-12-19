@@ -213,7 +213,9 @@ def _apply_electrostatics_if_needed(
   phys_feats = []
   for p in elements:
     feat = compute_electrostatic_node_features(
-      p, noise_scale=noise_val, noise_mode=estat_noise_mode,
+      p,
+      noise_scale=noise_val,
+      noise_mode=estat_noise_mode,
     )
     phys_feats.append(feat)
 
@@ -239,31 +241,32 @@ def _pad_protein(protein: Protein, max_len: int) -> Protein:
   full_coords_pad_len = max_len - full_coords_len if full_coords_len is not None else 0
 
   def pad_fn(
-    x: jnp.ndarray | None,
+    x: np.ndarray | None,
     *,
     pad_len: int = pad_len,
     protein_len: int = protein_len,
     full_coords_len: int | None = full_coords_len,
     full_coords_pad_len: int = full_coords_pad_len,
-  ) -> jnp.ndarray | None:
+  ) -> np.ndarray | None:
     """Pad array along first dimension if it matches the protein residue count."""
     if x is None:
       return None
     if not hasattr(x, "shape") or not hasattr(x, "ndim"):
       return x
-    if hasattr(x, "__array__"):
-      x = jnp.asarray(x)
     if x.ndim == 0:
       return x
 
     if full_coords_len is not None and x.shape[0] == full_coords_len:
-      return jnp.pad(x, ((0, full_coords_pad_len),) + ((0, 0),) * (x.ndim - 1))
+      return np.pad(x, ((0, full_coords_pad_len),) + ((0, 0),) * (x.ndim - 1))
 
     if x.shape[0] == protein_len:
-      return jnp.pad(x, ((0, pad_len),) + ((0, 0),) * (x.ndim - 1))
+      return np.pad(x, ((0, pad_len),) + ((0, 0),) * (x.ndim - 1))
 
     return x
 
+  # For Protein, we can use jax.tree_util.tree_map if we are careful,
+  # but Protein is a dataclass, so we can just use a simple map if needed.
+  # Actually jax.tree_util.tree_map works fine with dataclasses and numpy.
   return jax.tree_util.tree_map(pad_fn, protein)
 
 
@@ -280,7 +283,7 @@ def _stack_padded_proteins(
 
   """
 
-  def stack_fn(*arrays: jnp.ndarray | None) -> jnp.ndarray | None:
+  def stack_fn(*arrays: np.ndarray | None) -> np.ndarray | None:
     """Stack arrays, handling None values and scalars."""
     non_none = [a for a in arrays if a is not None]
     if not non_none:
@@ -290,7 +293,7 @@ def _stack_padded_proteins(
       return first
     if not all(hasattr(a, "shape") and a.shape == first.shape for a in non_none):
       return None
-    return jnp.stack(non_none, axis=0)
+    return np.stack(non_none, axis=0)
 
   return jax.tree_util.tree_map(stack_fn, *padded_proteins)
 
@@ -305,6 +308,7 @@ def pad_and_collate_proteins(
   vdw_noise: Sequence[float] | float | None = None,  # noqa: ARG001
   vdw_noise_mode: str = "direct",  # noqa: ARG001
   max_length: int | None = None,
+  override: bool = False,
 ) -> Protein:
   """Batch and pad a list of ProteinTuples into a ProteinBatch.
 
@@ -321,6 +325,8 @@ def pad_and_collate_proteins(
     vdw_noise_mode: Mode for vdW noise.
     max_length (int | None): Fixed length to pad all proteins to. If None, pads to
       the maximum length in the batch (variable per batch).
+    override (bool): If True, use pre-extracted features from the input and skip
+      recomputation of physics features.
 
   Returns:
     Protein: Batched and padded protein ensemble.
@@ -334,13 +340,18 @@ def pad_and_collate_proteins(
 
   """
   elements = _validate_and_flatten_elements(elements)
-  elements = _apply_electrostatics_if_needed(
-    elements,
-    use_electrostatics=use_electrostatics,
-    estat_noise=estat_noise,
-    estat_noise_mode=estat_noise_mode,
-  )
-  proteins = [Protein.from_tuple(p) for p in elements]
+  if not override:
+    elements = _apply_electrostatics_if_needed(
+      elements,
+      use_electrostatics=use_electrostatics,
+      estat_noise=estat_noise,
+      estat_noise_mode=estat_noise_mode,
+    )
+
+  if override:
+    proteins = [Protein.from_tuple_numpy(p) for p in elements]
+  else:
+    proteins = [Protein.from_tuple(p) for p in elements]
 
   # Use fixed max_length if provided, otherwise use max in batch
   pad_len = max_length if max_length is not None else max(p.coordinates.shape[0] for p in proteins)

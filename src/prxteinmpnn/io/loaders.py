@@ -1,17 +1,22 @@
 """Provides a high-level API for creating Grain-based data loaders."""
 
+import os
 import pathlib
 from collections.abc import Sequence
 from functools import partial
 from pathlib import Path
-from typing import IO, Any
+from typing import IO, Any, Literal
 
 import grain
 
+if os.environ.get("PRXTEINMPNN_GRAIN_DEBUG", "0") == "1":
+  grain.config.update("py_debug_mode", True)
+
+from prxteinmpnn.run.resources import compute_resource_allocation
 from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase
 
 from . import dataset, operations, prefetch_autotune
-from .array_record_source import ArrayRecordDataSource  # NEW
+from .array_record_source import ArrayRecordDataSource
 
 
 def create_protein_dataset(  # noqa: PLR0913
@@ -32,6 +37,10 @@ def create_protein_dataset(  # noqa: PLR0913
   split: str = "train",
   max_length: int | None = 512,
   truncation_strategy: str = "none",
+  host_resource_allocation_strategy: Literal["auto", "full"] = "auto",
+  ram_budget_mb: int | None = None,
+  max_workers: int | None = None,
+  context: Literal["training", "inference"] = "inference",
 ) -> grain.IterDataset:
   """Construct a high-performance protein data pipeline using Grain.
 
@@ -53,6 +62,10 @@ def create_protein_dataset(  # noqa: PLR0913
       split: Data split to load ("train", "valid", "test")
       max_length: Maximum length for truncation/padding.
       truncation_strategy: Strategy for truncation ("none", "random_crop", "center_crop").
+      host_resource_allocation_strategy: Strategy for host resource allocation ("auto" or "full").
+      ram_budget_mb: Optional RAM budget for data loading in megabytes.
+      max_workers: Optional maximum number of data loading workers.
+      context: Context for resource allocation ("training" or "inference").
 
   Returns:
       A Grain IterDataset that yields batches of padded `Protein` objects.
@@ -73,6 +86,13 @@ def create_protein_dataset(  # noqa: PLR0913
       ... )
 
   """
+  effective_ram, effective_workers = compute_resource_allocation(
+    strategy=host_resource_allocation_strategy,
+    ram_budget_mb=ram_budget_mb,
+    max_workers=max_workers,
+    context=context,
+  )
+
   parse_kwargs = parse_kwargs or {}
   # Only add hydrogens/relax if we need physics features
   if "add_hydrogens" not in parse_kwargs:
@@ -116,8 +136,8 @@ def create_protein_dataset(  # noqa: PLR0913
 
   performance_config = prefetch_autotune.pick_performance_config(
     ds=ds,
-    ram_budget_mb=1024,
-    max_workers=None,
+    ram_budget_mb=effective_ram,
+    max_workers=effective_workers,
     max_buffer_size=None,
   )
 
@@ -133,6 +153,7 @@ def create_protein_dataset(  # noqa: PLR0913
       vdw_noise=vdw_noise,
       vdw_noise_mode=vdw_noise_mode,
       max_length=max_length,
+      override=use_preprocessed,
     )
   )
 

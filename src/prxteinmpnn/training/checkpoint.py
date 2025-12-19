@@ -58,15 +58,7 @@ def save_checkpoint(
   model_params = eqx.filter(model, eqx.is_inexact_array)
   metrics_dict: dict[str, float | None] = {}
   if metrics is not None:
-    metrics_dict = {
-      "loss": float(jax.device_get(metrics.loss)),
-      "accuracy": float(jax.device_get(metrics.accuracy)),
-      "perplexity": float(jax.device_get(metrics.perplexity)),
-      "learning_rate": float(metrics.learning_rate),
-      "grad_norm": float(jax.device_get(metrics.grad_norm))
-      if metrics.grad_norm is not None
-      else None,
-    }
+    metrics_dict = metrics.to_dict()
   return manager.save(
     step,
     args=ocp.args.Composite(
@@ -81,6 +73,7 @@ def restore_checkpoint(
   manager: ocp.CheckpointManager,
   model_template: PrxteinMPNN,
   step: int | None = None,
+  abstract_opt_state: optax.OptState | None = None,
 ) -> tuple[PrxteinMPNN, optax.OptState, TrainingMetrics, int]:
   """Restore Equinox model and optimizer state from Orbax checkpoint.
 
@@ -91,6 +84,7 @@ def restore_checkpoint(
       manager: Orbax CheckpointManager instance
       model_template: Template model for structure reconstruction
       step: Specific step to load (if None, loads latest checkpoint)
+      abstract_opt_state: Optional abstract optimizer state for better restoration
 
   Returns:
       Tuple of (model, opt_state, metrics, step)
@@ -116,7 +110,7 @@ def restore_checkpoint(
     step,
     args=ocp.args.Composite(
       model=ocp.args.StandardRestore(abstract_model),
-      opt_state=ocp.args.StandardRestore(None),
+      opt_state=ocp.args.StandardRestore(abstract_opt_state),
       metrics=ocp.args.JsonRestore(),
     ),
   )

@@ -149,9 +149,13 @@ class DecoderLayer(eqx.Module):
 
     # Apply attention mask if provided (for conditional decoding)
     if attention_mask is not None:
-      message = jnp.expand_dims(attention_mask, -1) * message
+      mask_cast = attention_mask.astype(message.dtype)
+      message = jnp.expand_dims(mask_cast, -1) * message
 
-    aggregated_message = jnp.sum(message, -2) / scale
+    # Stability fix: Accumulate message sums in float32
+    message_f32 = message.astype(jnp.float32)
+    aggregated_message_f32 = jnp.sum(message_f32, -2) / scale
+    aggregated_message = aggregated_message_f32.astype(message.dtype)
 
     aggregated_message = self.dropout1(aggregated_message, key=keys[0])
 

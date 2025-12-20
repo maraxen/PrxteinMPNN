@@ -9,8 +9,8 @@ import logging
 import numpy as np
 from biotite.structure import AtomArray
 
-from prxteinmpnn.physics.constants import DEFAULT_EPSILON, DEFAULT_SIGMA
-from prxteinmpnn.physics.force_fields import FullForceField, load_force_field_from_hub
+from proxide.physics.constants import DEFAULT_EPSILON, DEFAULT_SIGMA
+from proxide.physics.force_fields import FullForceField, load_force_field
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ def populate_physics_parameters(
   if force_field is None:
     try:
       logger.info("Loading force field: %s", force_field_name)
-      force_field = load_force_field_from_hub(force_field_name)
+      force_field = load_force_field(force_field_name)
     except Exception as e:  # noqa: BLE001
       logger.warning("Failed to load force field %s: %s. Using defaults.", force_field_name, e)
       return _get_default_parameters(atom_array)

@@ -5,6 +5,10 @@ import pytest
 import pathlib
 from prxteinmpnn.io.parsing.mdtraj import parse_mdtraj_to_processed_structure
 
+# Skip entire module if tables is not available (MDTraj HDF5 requires PyTables)
+pytest.importorskip("tables")
+
+
 def create_mock_mdtraj_file(path: pathlib.Path):
     # Create a topology with 2 chains
     top = md.Topology()

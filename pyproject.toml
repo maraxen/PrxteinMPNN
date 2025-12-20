@@ -10,7 +10,6 @@ requires-python = ">=3.11"
 dependencies = [
     "jax",
     "jaxtyping",
-    "jaxlib",
     "joblib",
     "psutil",
     "flax",
@@ -26,8 +25,8 @@ dependencies = [
     "array-record>=0.8.1",
     "equinox>=0.13.2",
     "huggingface-hub>=1.0.1",
-    "jax-md>=0.2.26",
     "msgpack-numpy>=0.4.8",
+    "proxide @ git+https://github.com/maraxen/proxide.git@main",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -35,6 +34,12 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
+cuda = [
+    "jax[cuda13]",
+]
+tpu = [
+    "jax[tpu]",
+]
 docs = [
     "sphinx",
     "sphinx-rtd-theme",

@@ -12,7 +12,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.physics.constants import BOLTZMANN_KCAL
+from proxide.physics.constants import BOLTZMANN_KCAL
 from prxteinmpnn.utils.coordinates import (
   apply_noise_to_coordinates,
   compute_backbone_coordinates,

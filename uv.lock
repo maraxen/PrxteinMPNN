@@ -2631,6 +2631,23 @@ wheels = [
 ]
 
 [[package]]
+name = "proxide"
+version = "0.1.0"
+source = { git = "https://github.com/maraxen/proxide.git?rev=main#9ece7925355e52ac0b0762e0377f5c3c2f8b63ee" }
+dependencies = [
+    { name = "array-record" },
+    { name = "equinox" },
+    { name = "grain" },
+    { name = "hydride" },
+    { name = "jax" },
+    { name = "jax-md" },
+    { name = "jaxtyping" },
+    { name = "msgpack" },
+    { name = "msgpack-numpy" },
+    { name = "numpy" },
+]
+
+[[package]]
 name = "prxteinmpnn"
 version = "0.1.0"
 source = { editable = "." }
@@ -2645,7 +2662,6 @@ dependencies = [
     { name = "huggingface-hub" },
     { name = "hydride" },
     { name = "jax" },
-    { name = "jax-md" },
     { name = "jaxlib" },
     { name = "jaxtyping" },
     { name = "joblib" },
@@ -2654,6 +2670,7 @@ dependencies = [
     { name = "numpy" },
     { name = "optax" },
     { name = "pcax" },
+    { name = "proxide" },
     { name = "psutil" },
 ]
 
@@ -2735,7 +2752,6 @@ requires-dist = [
     { name = "huggingface-hub", specifier = ">=1.0.1" },
     { name = "hydride" },
     { name = "jax" },
-    { name = "jax-md", specifier = ">=0.2.26" },
     { name = "jaxlib" },
     { name = "jaxtyping" },
     { name = "joblib" },
@@ -2748,6 +2764,7 @@ requires-dist = [
     { name = "numpy" },
     { name = "optax" },
     { name = "pcax", specifier = ">=0.1.0" },
+    { name = "proxide", git = "https://github.com/maraxen/proxide.git?rev=main" },
     { name = "psutil" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pytest", marker = "extra == 'tests'" },

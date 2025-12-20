@@ -6,12 +6,16 @@ for parsing, transforming, and batching protein data.
 
 import warnings
 from collections.abc import Sequence
+from typing import Any
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 
-from prxteinmpnn.physics.features import compute_electrostatic_node_features
+from proxide.physics.features import (
+  compute_electrostatic_node_features,
+  compute_vdw_node_features,
+)
 from prxteinmpnn.utils.data_structures import Protein, ProteinTuple
 
 _MAX_TRIES = 5
@@ -177,49 +181,70 @@ def _validate_and_flatten_elements(
   return list(elements)
 
 
-def _apply_electrostatics_if_needed(
+def _apply_physics_if_needed(
   elements: list[ProteinTuple],
   *,
   use_electrostatics: bool,
+  use_vdw: bool,
   estat_noise: Sequence[float] | float | None = None,
   estat_noise_mode: str = "direct",
+  vdw_noise: Sequence[float] | float | None = None,
+  vdw_noise_mode: str = "direct",
 ) -> list[ProteinTuple]:
-  """Apply electrostatic features if requested.
+  """Apply electrostatic and/or vdV features if requested.
 
   Args:
     elements (list[ProteinTuple]): List of protein tuples.
     use_electrostatics (bool): Whether to compute and add electrostatic features.
+    use_vdw (bool): Whether to compute and add vdW features.
     estat_noise: Noise level(s) for electrostatics.
     estat_noise_mode: Mode for electrostatic noise ("direct" or "thermal").
+    vdw_noise: Noise level(s) for vdW.
+    vdw_noise_mode: Mode for vdW noise ("direct" or "thermal").
 
   Returns:
-    list[ProteinTuple]: Updated list with electrostatic features if requested.
+    list[ProteinTuple]: Updated list with physics features if requested.
 
   """
-  if not use_electrostatics:
+  if not use_electrostatics and not use_vdw:
     return elements
 
-  # Handle noise broadcasting if needed, or just pass single value if uniform
-  # For now, assuming uniform noise for the batch or handling inside feature computation
-  # compute_electrostatic_features_batch doesn't take noise yet, we need to update
-  # it or call node features directly.
-  # Actually compute_electrostatic_features_batch calls compute_electrostatic_node_features
-  # per protein. We can pass the noise value there.
+  e_noise = estat_noise
+  if isinstance(e_noise, Sequence):
+    e_noise = e_noise[0]
 
-  noise_val = estat_noise
-  if isinstance(noise_val, Sequence):
-    noise_val = noise_val[0]  # Simple handling for now
+  v_noise = vdw_noise
+  if isinstance(v_noise, Sequence):
+    v_noise = v_noise[0]
 
-  phys_feats = []
+  updated_elements = []
   for p in elements:
-    feat = compute_electrostatic_node_features(
-      p,
-      noise_scale=noise_val,
-      noise_mode=estat_noise_mode,
-    )
-    phys_feats.append(feat)
+    feats = []
 
-  return [p._replace(physics_features=feat) for p, feat in zip(elements, phys_feats, strict=False)]
+    if use_vdw:
+      # VdW features usually come first in concatenated representation if both present
+      v_feat = compute_vdw_node_features(
+        p,
+        noise_scale=v_noise,
+        noise_mode=vdw_noise_mode,
+      )
+      feats.append(v_feat)
+
+    if use_electrostatics:
+      e_feat = compute_electrostatic_node_features(
+        p,
+        noise_scale=e_noise,
+        noise_mode=estat_noise_mode,
+      )
+      feats.append(e_feat)
+
+    if feats:
+      physics_features = jnp.concatenate(feats, axis=-1)
+      updated_elements.append(p._replace(physics_features=physics_features))
+    else:
+      updated_elements.append(p)
+
+  return updated_elements
 
 
 def _pad_protein(protein: Protein, max_len: int) -> Protein:
@@ -302,11 +327,11 @@ def pad_and_collate_proteins(
   elements: Sequence[ProteinTuple],
   *,
   use_electrostatics: bool = False,
-  use_vdw: bool = False,  # noqa: ARG001
+  use_vdw: bool = False,
   estat_noise: Sequence[float] | float | None = None,
   estat_noise_mode: str = "direct",
-  vdw_noise: Sequence[float] | float | None = None,  # noqa: ARG001
-  vdw_noise_mode: str = "direct",  # noqa: ARG001
+  vdw_noise: Sequence[float] | float | None = None,
+  vdw_noise_mode: str = "direct",
   max_length: int | None = None,
   override: bool = False,
 ) -> Protein:
@@ -318,7 +343,7 @@ def pad_and_collate_proteins(
   Args:
     elements (list[ProteinTuple]): List of protein tuples to collate.
     use_electrostatics (bool): Whether to compute and add electrostatic features.
-    use_vdw (bool): Placeholder for van der Waals features (not implemented).
+    use_vdw (bool): Whether to compute and add vdW features.
     estat_noise: Noise level(s) for electrostatics.
     estat_noise_mode: Mode for electrostatic noise.
     vdw_noise: Noise level(s) for vdW.
@@ -341,11 +366,14 @@ def pad_and_collate_proteins(
   """
   elements = _validate_and_flatten_elements(elements)
   if not override:
-    elements = _apply_electrostatics_if_needed(
+    elements = _apply_physics_if_needed(
       elements,
       use_electrostatics=use_electrostatics,
+      use_vdw=use_vdw,
       estat_noise=estat_noise,
       estat_noise_mode=estat_noise_mode,
+      vdw_noise=vdw_noise,
+      vdw_noise_mode=vdw_noise_mode,
     )
 
   if override:

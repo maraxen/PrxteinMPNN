@@ -79,6 +79,10 @@ ATOM 1 N N GLY A 1 -6.778 -1.424 4.200 1.00 0.00 1 ?
 @pytest.fixture
 def hdf5_file(pdb_file):
     """Create a temporary HDF5 file."""
+    try:
+        import tables  # noqa: F401
+    except ImportError:
+        pytest.skip("tables (PyTables) not installed, skipping HDF5 tests")
     with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as tmp:
         filepath = tmp.name
     traj = md.load_pdb(pdb_file)
@@ -100,6 +104,10 @@ def single_model_pdb_file():
 @pytest.fixture
 def single_model_hdf5_file(single_model_pdb_file):
     """Create a temporary HDF5 file."""
+    try:
+        import tables  # noqa: F401
+    except ImportError:
+        pytest.skip("tables (PyTables) not installed, skipping HDF5 tests")
     with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as tmp:
         filepath = tmp.name
     traj = md.load_pdb(single_model_pdb_file)

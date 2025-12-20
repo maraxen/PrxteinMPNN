@@ -145,6 +145,7 @@ class TestParseInput:
 
     def test_parse_mdtraj_trajectory(self, pdb_file):
         """Test parsing an mdtraj.Trajectory object."""
+        pytest.importorskip("tables")
         traj = md.load_pdb(pdb_file)
         with tempfile.NamedTemporaryFile(mode="w", suffix=".h5", delete=False) as tmp:
             traj.save_hdf5(tmp.name)

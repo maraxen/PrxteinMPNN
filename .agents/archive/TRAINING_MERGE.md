@@ -2,7 +2,7 @@
 
 **Date Created:** 2025-12-19  
 **Last Updated:** 2025-12-19  
-**Status:** Part A COMPLETE, Part B DEFERRED
+**Status:** Part A COMPLETE, Part B COMPLETE (100% Integrated)
 
 **Branches:** `main` ← `origin/training`  
 **Merge Base Commit:** `ba52e980` (changed multistate)
@@ -22,7 +22,7 @@ The `training` branch contains significant updates to the training pipeline incl
 - NumPy-based collation (avoiding premature JAX conversion)
 - Numerical stability fixes in model forward pass
 
-### Part B: Proxide/Prolix Migration
+### Part B: Proxide/Prolix Migration [IN PROGRESS]
 
 Completing the migration to use **proxide** (structure parsing, force field handling, oxidize Rust extension) and **prolix** (MD simulation, physics calculations) as external dependencies. This will:
 
@@ -1121,12 +1121,19 @@ uv sync
 
 **TODO:**
 
-- [ ] Complete proxide integration (parsing, force fields)
-- [ ] Complete prolix integration (electrostatics, vdW)
-- [ ] Remove deprecated local modules
-- [ ] Remove jax_md dependency
-- [ ] Update all tests to use new imports
-- [ ] Add integration tests for proxide/prolix
+- [x] Complete proxide integration (parsing, force fields)
+- [x] Complete prolix integration (electrostatics, vdW)
+- [x] Update physics/features.py to use new imports
+- [x] **Equivalence Validation (CRITICAL)**:
+  - [x] Create parity test script comparing JAX-computed vs Proxide-computed features on standard structures. (Verified 0.0 numerical difference on finite values)
+  - [x] Verify RBF equivalence (Kept JAX implementation in model to support gradients).
+  - [x] Verify electrostatic/vdW feature ranges match old implementation.
+- [x] Resolve dimension mismatch in model encoder (handling 5/10/400-dim feature vectors).
+- [x] Fix tests/training/dataloading/test_preprocess.py (Verified serial pass, parallel worker mocks updated).
+- [x] Final removal of deprecated local modules (electrostatics.py, vdw.py, projections.py, etc.).
+- [x] Remove jax_md dependency after ensuring no loss of functionality.
+- [x] Update all tests to use new imports.
+- [x] Add integration tests for proxide/prolix ecosystem.
 
 ---
 

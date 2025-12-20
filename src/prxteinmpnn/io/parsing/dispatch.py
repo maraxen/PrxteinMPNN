@@ -19,12 +19,13 @@ from typing import IO, Any
 import h5py
 import mdtraj as md
 
-from prxteinmpnn.utils.data_structures import ProteinStream
+from prxteinmpnn.utils.data_structures import ProteinStream, ProteinTuple
 
 from .biotite import _parse_biotite
 from .mdcath import parse_mdcath_to_processed_structure
 from .mdtraj import parse_mdtraj_to_processed_structure
 from .pqr import parse_pqr_to_processed_structure
+from .proxide import is_proxide_available, parse_with_proxide
 from .utils import processed_structure_to_protein_tuples
 
 logger = logging.getLogger(__name__)
@@ -193,3 +194,47 @@ def parse_input(  # noqa: C901, PLR0912, PLR0915
         logger.debug("Cleaned up temporary topology file: %s", tmp_top_path)
       except OSError as e:
         logger.warning("Could not delete temporary topology file %s: %s", tmp_top_path, e)
+
+
+def parse_protein(
+  path: str | pathlib.Path,
+  *,
+  use_proxide: bool = True,
+  compute_physics: bool = False,
+  compute_rbf: bool = False,
+  **kwargs: Any,
+) -> ProteinTuple | None:
+  """Parse a single protein structure file.
+
+  This is a convenience function that returns a single ProteinTuple.
+  It prefers proxide when available for faster parsing and physics features.
+
+  Args:
+      path: Path to structure file (PDB, PQR, CIF, etc.)
+      use_proxide: Whether to use proxide if available (default: True)
+      compute_physics: Whether to compute physics features (proxide only)
+      compute_rbf: Whether to compute RBF features (proxide only)
+      **kwargs: Additional arguments passed to the parser
+
+  Returns:
+      ProteinTuple or None if parsing fails.
+  """
+  path = pathlib.Path(path)
+
+  # Try proxide first if available and requested
+  if use_proxide and is_proxide_available():
+    try:
+      for protein in parse_with_proxide(
+        path,
+        compute_physics=compute_physics,
+        compute_rbf=compute_rbf,
+      ):
+        return protein
+    except Exception as e:
+      logger.warning("Proxide parsing failed, falling back to biotite: %s", e)
+
+  # Fall back to original parsing
+  for protein in parse_input(path, **kwargs):
+    return protein
+
+  return None

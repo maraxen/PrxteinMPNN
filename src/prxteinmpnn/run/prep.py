@@ -13,9 +13,10 @@ if TYPE_CHECKING:
   from prxteinmpnn.run.specs import Specs
   from prxteinmpnn.utils.types import Model
 
-from prxteinmpnn.io import loaders
-from prxteinmpnn.io.weights import load_model
 import equinox as eqx
+from proxide.ops.dataset import create_protein_dataset
+
+from prxteinmpnn.io.weights import load_model
 
 
 def _loader_inputs(inputs: Sequence[str | StringIO] | str | StringIO) -> Sequence[str | StringIO]:
@@ -40,7 +41,7 @@ def prep_protein_stream_and_model(
     "altloc": spec.altloc,
     "topology": spec.topology,
   }
-  protein_iterator = loaders.create_protein_dataset(
+  protein_iterator = create_protein_dataset(
     _loader_inputs(spec.inputs),
     batch_size=spec.batch_size,
     foldcomp_database=spec.foldcomp_database,
@@ -62,8 +63,8 @@ def prep_protein_stream_and_model(
     model_version=spec.model_version,
     model_weights=spec.model_weights,
   )
-  
+
   # Set model to inference mode (disables dropout, etc.)
   model = eqx.nn.inference_mode(model, value=True)
-  
+
   return protein_iterator, model

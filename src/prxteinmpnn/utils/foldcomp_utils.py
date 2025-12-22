@@ -11,9 +11,9 @@ from functools import cache
 from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
+from proxide.chem.conversion import string_to_protein_sequence
 
-from prxteinmpnn.io.parsing.mappings import string_to_protein_sequence
-from prxteinmpnn.utils.data_structures import ProteinStream, ProteinTuple
+from prxteinmpnn.utils.data_structures import Protein, ProteinStream
 
 if TYPE_CHECKING:
   from collections.abc import Sequence
@@ -116,14 +116,25 @@ def get_protein_structures(
         sequence = string_to_protein_sequence(fcz_data["residues"])
         num_res = len(sequence)
 
-        yield ProteinTuple(
-          coordinates=coordinates,
+        yield Protein(
+          coordinates=coordinates.astype(np.float32),
           aatype=sequence,
-          atom_mask=np.ones((coordinates.shape[0], 37), dtype=np.bool_),
-          residue_index=np.arange(num_res),
+          one_hot_sequence=np.eye(21)[sequence.astype(np.int32)].astype(np.float32),
+          mask=np.ones(num_res, dtype=np.float32),
+          residue_index=np.arange(num_res, dtype=np.int32),
           chain_index=np.zeros(num_res, dtype=np.int32),
           dihedrals=dihedrals,
-          source=str(name),
+          mapping=None,
+          full_coordinates=None,
+          full_atom_mask=np.ones((num_res, 37), dtype=np.float32),
+          charges=None,
+          radii=None,
+          sigmas=None,
+          epsilons=None,
+          estat_backbone_mask=None,
+          estat_resid=None,
+          estat_chain_index=None,
+          physics_features=None,
         )
       except Exception as e:  # noqa: BLE001
         msg = f"Failed to process a FoldComp entry. Error: {e}"

@@ -7,8 +7,8 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import optax
+from proxide.ops.dataset import create_protein_dataset
 
-from prxteinmpnn.io.loaders import create_protein_dataset
 from prxteinmpnn.model.diffusion_mpnn import DiffusionPrxteinMPNN
 from prxteinmpnn.training.diffusion import NoiseSchedule
 from prxteinmpnn.training.train_diffusion import train_step

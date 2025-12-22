@@ -51,7 +51,7 @@ def create_multistate_test_batch(
 
   import numpy as np
 
-  from prxteinmpnn.utils.data_structures import ProteinTuple
+  from proxide.core.containers import Protein
 
   total_residues = n_structures * n_residues_each
 
@@ -94,7 +94,7 @@ def create_multistate_test_batch(
   aatype = np.asarray(jnp.concatenate(all_sequences, axis=0))
   mapping = np.array(structure_mapping, dtype=np.int32)
 
-  return ProteinTuple(
+  return Protein(
     coordinates=coordinates,
     aatype=aatype,
     atom_mask=atom_mask,

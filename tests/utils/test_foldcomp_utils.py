@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from prxteinmpnn.utils.data_structures import ProteinTuple
+from proxide.core.containers import Protein
 from prxteinmpnn.utils.foldcomp_utils import (
     _setup_foldcomp_database,
     get_protein_structures,
@@ -38,7 +38,7 @@ def test_get_protein_structures_yields_structures(
     mock_setup: MagicMock,
     mock_foldcomp_open: MagicMock,
 ):
-    """Test get_protein_structures yields ProteinTuple objects."""
+    """Test get_protein_structures yields Protein objects."""
     protein_ids = ["P12345", "Q67890"]
     db = "afdb_rep_v4"
 
@@ -60,4 +60,4 @@ def test_get_protein_structures_yields_structures(
     mock_foldcomp_open.assert_called_once_with(db, ids=protein_ids, decompress=False)
     assert mock_get_data.call_count == 2
     assert len(result) == 2
-    assert all(isinstance(s, ProteinTuple) for s in result)
+    assert all(isinstance(s, Protein) for s in result)

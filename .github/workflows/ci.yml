@@ -32,6 +32,8 @@ jobs:
 
   unit-tests:
     runs-on: ubuntu-latest
+    env:
+      PYTHONDONTWRITEBYTECODE: 1
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -48,7 +50,17 @@ jobs:
         run: |
           source .venv/bin/activate
           uv pip install .[dev,tests]
-          python -m pytest --cov=src --cov-report=xml --cov-report=term
+          
+          # Determine pytest arguments based on event type
+          PYTEST_ARGS="-n auto --cov=src --cov-report=xml --cov-report=term"
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "Pull Request Request: Skipping slow tests."
+            PYTEST_ARGS="$PYTEST_ARGS -m 'not slow'"
+          else
+            echo "Push to Main: Running all tests."
+          fi
+          
+          python -m pytest $PYTEST_ARGS
       - name: Upload coverage to Codecov
         if: github.ref == 'refs/heads/main'
         uses: codecov/codecov-action@v4

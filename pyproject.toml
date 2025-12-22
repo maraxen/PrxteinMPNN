@@ -13,14 +13,11 @@ dependencies = [
     "joblib",
     "psutil",
     "flax",
-    "biotite",
     "gmmx",
     "numpy",
-    "mdtraj",
     "optax",
     "h5py",
     "grain",
-    "hydride",
     "pcax>=0.1.0",
     "array-record>=0.8.1",
     "equinox>=0.13.2",
@@ -63,6 +60,7 @@ tests = [
     "foldcomp",
     "colabdesign @ git+https://github.com/sokrypton/ColabDesign.git@e31a56f",
     "pytest-xdist",
+    "mdtraj",
 ]
 dev = [
   "ruff",
@@ -84,7 +82,8 @@ dev = [
   "chex",
   "anyio",
   "foldcomp",
-  "colabdesign @ git+https://github.com/sokrypton/ColabDesign.git@e31a56f"
+  "colabdesign @ git+https://github.com/sokrypton/ColabDesign.git@e31a56f",
+  "mdtraj",
 ]
 foldcomp = [
     "foldcomp",

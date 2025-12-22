@@ -94,7 +94,9 @@ def make_sample_sequences(
       temperature: Float | None = None,
       tie_group_map: jnp.ndarray | None = None,
       num_groups: int | None = None,
-      multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
+      multi_state_strategy: Literal[
+        "arithmetic_mean", "geometric_mean", "product",
+      ] = "arithmetic_mean",
       structure_mapping: jax.Array | None = None,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """Optimize a sequence using straight-through estimation.
@@ -183,7 +185,9 @@ def make_sample_sequences(
       temperature: Float | None = None,
       tie_group_map: jnp.ndarray | None = None,
       num_groups: int | None = None,
-      multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
+      multi_state_strategy: Literal[
+        "arithmetic_mean", "geometric_mean", "product",
+      ] = "arithmetic_mean",
       structure_mapping: jax.Array | None = None,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """Sample a sequence from a structure using the ProteinMPNN model.
@@ -219,7 +223,7 @@ def make_sample_sequences(
         ... )
 
       """
-      del fixed_positions
+      del fixed_positions, iterations, learning_rate, _k_neighbors
 
       if temperature is None:
         temperature = jnp.array(1.0, dtype=jnp.float32)

@@ -14,8 +14,8 @@ import jax.numpy as jnp
 import optax
 import orbax.checkpoint as ocp
 import tqdm
+from proxide.ops.dataset import create_protein_dataset
 
-from prxteinmpnn.io.loaders import create_protein_dataset
 from prxteinmpnn.io.weights import load_model
 from prxteinmpnn.training.checkpoint import restore_checkpoint, save_checkpoint
 from prxteinmpnn.training.diffusion import NoiseSchedule
@@ -253,7 +253,7 @@ def setup_mixed_precision(precision: str) -> None:
     logger.info("Using FP32 (full precision)")
 
 
-def train_step(  # noqa: PLR0913
+def train_step(  # noqa: PLR0913, C901, PLR0915
   model: PrxteinMPNN,
   opt_state: optax.OptState,
   optimizer: optax.GradientTransformation,

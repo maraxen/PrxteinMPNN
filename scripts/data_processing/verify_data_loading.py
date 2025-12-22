@@ -5,13 +5,13 @@ from pathlib import Path
 
 import jax
 import numpy as np
-from prxteinmpnn.io.loaders import create_protein_dataset
+from proxide.ops.dataset import create_protein_dataset
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def verify_loading():
-    data_dir = Path("src/prxteinmpnn/training/data")
+    data_dir = Path("data")
     array_record_path = data_dir / "pdb_sample.array_record"
     index_path = data_dir / "pdb_sample.index.json"
     

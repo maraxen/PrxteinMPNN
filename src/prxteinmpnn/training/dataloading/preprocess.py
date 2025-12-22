@@ -17,13 +17,12 @@ import logging
 import multiprocessing as mp
 import uuid
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
   from collections.abc import Sequence
+  from pathlib import Path
 
-import jax.numpy as jnp
 import msgpack
 import msgpack_numpy as m
 import numpy as np
@@ -33,16 +32,12 @@ from array_record.python.array_record_module import (  # type: ignore[unresolved
   ArrayRecordWriter,
 )
 
-from prxteinmpnn.io.parsing.biotite import processed_structure_to_protein_tuples
-from prxteinmpnn.io.parsing.pqr import parse_pqr_to_processed_structure
-from prxteinmpnn.physics.features import compute_electrostatic_node_features
-from prxteinmpnn.physics.force_fields import load_force_field_from_hub
+from prxteinmpnn.io.parsing import parse_structure
 
 # Patch msgpack to handle numpy arrays
 m.patch()
 
 logger = logging.getLogger(__name__)
-FORCE_FIELD_REPO: str = "maraxen/eqx-ff"
 
 
 @dataclass(frozen=True)
@@ -54,345 +49,159 @@ class PreprocessingSpecification:
   num_workers: int = 8
   force_field: str = "ff14SB"
   resume_from_checkpoint: bool = True
-  compute_lj: bool = False  # Not implemented yet
+  compute_lj: bool = True
+  compute_estat: bool = True
   compression: str = "zstd:9"
   validate_features: bool = True
   group_size: int = 1
-
-  estat_noise: Sequence[float] | float | None = None
+  metadata_file: Path = field(init=False)
+  index_file: Path = field(init=False)
+  temp_dir: Path = field(init=False)
+  estat_noise: float | Sequence[float] | None = None
   estat_noise_mode: Literal["direct", "thermal"] = "direct"
-  vdw_noise: Sequence[float] | float | None = None
+  vdw_noise: float | Sequence[float] | None = None
   vdw_noise_mode: Literal["direct", "thermal"] = "direct"
 
-  # Derived paths
-  index_file: Path = field(init=False)
-  metadata_file: Path = field(init=False)
-  temp_dir: Path = field(init=False)
-
   def __post_init__(self) -> None:
-    """Initialize derived fields."""
-    object.__setattr__(
-      self,
-      "index_file",
-      self.output_file.with_suffix(".index.json"),
-    )
-    object.__setattr__(
-      self,
-      "metadata_file",
-      self.output_file.with_suffix(".metadata.jsonl"),
-    )
-    object.__setattr__(
-      self,
-      "temp_dir",
-      self.output_file.with_suffix(f"._temp_{uuid.uuid4().hex}"),
-    )
+    """Set dependent paths."""
+    object.__setattr__(self, "metadata_file", self.output_file.with_suffix(".jsonl"))
+    object.__setattr__(self, "index_file", self.output_file.with_suffix(".index"))
+    object.__setattr__(self, "temp_dir", self.output_file.parent / f"tmp_{self.output_file.stem}")
 
 
-def _worker_process_protein(args: tuple) -> tuple[str, Path | None]:
-  """Worker function: Process one PQR file and write to temporary shard.
+def _worker_process_protein(
+  args: tuple[Path, PreprocessingSpecification, Path],
+) -> tuple[str, Path | None]:
+  """Worker function to process a single protein structure.
 
   Args:
-      args: Tuple of (pqr_path, spec, temp_dir_path, force_field)
+      args: Tuple containing (pqr_path, spec, temp_dir_path).
 
   Returns:
-      Tuple of (protein_id, Path_to_temp_shard | None)
-      Returns None for path if processing failed.
+      A tuple of (protein_id, shard_path). shard_path is None if processing failed.
 
   """
-  pqr_path, spec, temp_dir_path, _force_field_data = args
-  protein_id = pqr_path.stem
+  structure_path, spec, temp_dir_path = args
+  protein_id = structure_path.stem
 
   try:
-    # Use new pipeline: parse PQR directly to ProcessedStructure
-    processed_structure = parse_pqr_to_processed_structure(pqr_path, chain_id=None)
-
-    # Convert to ProteinTuple
-    protein_generator = processed_structure_to_protein_tuples(
-      processed_structure,
-      source_name=str(pqr_path),
-      extract_dihedrals=False,
-      populate_physics=False,  # PQR already has physics params
+    # Use proxide-based parsing with physics computed via OutputSpec
+    # compute_physics flag in dispatch handles setting spec.compute_vdw/estat
+    # but we pass specific flags for clarity and dispatch handling
+    protein = parse_structure(
+      structure_path,
+      compute_vdw=spec.compute_lj,
+      compute_electrostatics=spec.compute_estat,
+      force_field=spec.force_field,
     )
-    protein_tuple = next(protein_generator)
-    assert protein_tuple.full_coordinates is not None  # noqa: S101
 
-    # Compute physics features
-    estat_val = spec.estat_noise
-    if isinstance(estat_val, (list, tuple)):
-      estat_val = estat_val[0] if estat_val else 0.0
-    elif estat_val is None:
-      estat_val = 0.0
+    # Physics features are computed by proxide separately
+    # We need to concatenate them based on spec
+    feats_list = []
+    if spec.compute_lj:
+      if protein.vdw_features is not None:
+        feats_list.append(np.array(protein.vdw_features))
+      else:
+        feats_list.append(np.zeros((protein.coordinates.shape[0], 5), dtype=np.float32))
 
-    physics_features = compute_electrostatic_node_features(
-      protein_tuple,
-      noise_scale=estat_val,
-      noise_mode=spec.estat_noise_mode,
-    )
+    if spec.compute_estat:
+      if protein.electrostatic_features is not None:
+        feats_list.append(np.array(protein.electrostatic_features))
+      else:
+        feats_list.append(np.zeros((protein.coordinates.shape[0], 5), dtype=np.float32))
+
+    if feats_list:
+      physics_features = np.concatenate(feats_list, axis=-1)
+    else:
+      # Default fallback if nothing requested but array expected?
+      # Maintain 5 dim for backward compat if needed, or 0?
+      # Logic below defaults to empty if physics_features is None?
+      # Original code defaulted to (N, 5).
+      physics_features = np.zeros((protein.coordinates.shape[0], 5), dtype=np.float32)
 
     record_data = {
-      # Basic structure info
       "protein_id": protein_id,
-      "source_file": str(pqr_path),
-      # Coordinates and sequence
-      "coordinates": np.array(protein_tuple.coordinates),  # (N, 37, 3) backbone
-      "aatype": np.array(protein_tuple.aatype),  # (N,)
-      "atom_mask": np.array(protein_tuple.atom_mask),  # (N, 37)
-      # Indexing
-      "residue_index": np.array(protein_tuple.residue_index),  # (N,)
-      "chain_index": np.array(protein_tuple.chain_index),  # (N,)
-      "mask": np.array(protein_tuple.atom_mask[:, 1]),  # (N,) CA mask
-      # Physics features (the main output)
-      "physics_features": np.array(physics_features),  # (N, 5)
-      # Full atomic data (for verification/debugging)
-      "full_coordinates": np.array(protein_tuple.full_coordinates),  # (n_atoms, 3)
-      "charges": np.array(protein_tuple.charges),  # (n_atoms,)
-      "radii": np.array(protein_tuple.radii),  # (n_atoms,)
-      # Estat metadata
-      "estat_backbone_mask": (
-        np.array(protein_tuple.estat_backbone_mask)
-        if protein_tuple.estat_backbone_mask is not None
-        else np.zeros(
-          len(protein_tuple.full_coordinates) if protein_tuple.full_coordinates is not None else 0,
-          dtype=bool,
-        )
-      ),
-      "estat_resid": (
-        np.array(protein_tuple.estat_resid)
-        if protein_tuple.estat_resid is not None
-        else np.zeros(
-          len(protein_tuple.full_coordinates) if protein_tuple.full_coordinates is not None else 0,
-          dtype=np.int32,
-        )
-      ),
-      "estat_chain_index": (
-        np.array(protein_tuple.estat_chain_index)
-        if protein_tuple.estat_chain_index is not None
-        else np.zeros(
-          len(protein_tuple.full_coordinates) if protein_tuple.full_coordinates is not None else 0,
-          dtype=np.int32,
-        )
-      ),
+      "source_file": str(structure_path),
+      "coordinates": np.array(protein.coordinates),
+      "aatype": np.array(protein.aatype),
+      "atom_mask": np.array(protein.full_atom_mask)
+      if protein.full_atom_mask is not None
+      else np.array([]),
+      "residue_index": np.array(protein.residue_index),
+      "chain_index": np.array(protein.chain_index),
+      "mask": np.array(protein.mask),
+      "physics_features": np.array(physics_features),
+      "full_coordinates": np.array(protein.full_coordinates)
+      if protein.full_coordinates is not None
+      else np.array([]),
+      "charges": np.array(protein.charges) if protein.charges is not None else np.array([]),
+      "radii": np.array(protein.radii) if protein.radii is not None else np.array([]),
     }
 
     # Validate features if requested
     if spec.validate_features:
       for key, value in record_data.items():
-        if isinstance(value, np.ndarray | jnp.ndarray) and not np.all(
-          np.isfinite(value),
-        ):
-          logger.warning("Non-finite values in %s for %s", key, pqr_path)
+        if isinstance(value, np.ndarray) and value.size > 0 and not np.all(np.isfinite(value)):
+          logger.warning("Non-finite values in %s for %s", key, structure_path)
           return (protein_id, None)
-
-      # Check that physics features are reasonable
-      physics_mag = physics_features[:, -1]  # Force magnitude
-      max_reasonable_force = 1e6  # Use a named constant for clarity
-      if np.any(physics_mag > max_reasonable_force):
-        logger.warning(
-          "Unusually large forces (max=%.2e) in %s",
-          np.max(physics_mag),
-          pqr_path,
-        )
 
     shard_path = temp_dir_path / f"shard-{uuid.uuid4().hex}.array_record"
     writer = ArrayRecordWriter(
       str(shard_path),
       f"{spec.compression},group_size:{spec.group_size}",
     )
+    writer.write(msgpack.packb(record_data))
+    writer.close()
 
-    try:
-      writer.write(msgpack.packb(record_data, use_bin_type=True))
-    finally:
-      writer.close()
-
-  except StopIteration:
-    logger.exception("No frames found in %s", pqr_path)
-    return (protein_id, None)
   except Exception:
-    logger.exception("Failed to process %s", pqr_path)
+    logger.exception("Failed to process %s", structure_path)
     return (protein_id, None)
+
   else:
     return (protein_id, shard_path)
 
 
+def _raise_no_features_error() -> None:
+  """Raise ValueError if no features were requested."""
+  msg = "No physics features requested in preprocessing"
+  raise ValueError(msg)
+
+
 def _load_checkpoint_metadata(metadata_file: Path) -> dict[str, Any]:
-  """Load processing checkpoint from JSONL metadata file."""
+  """Load existing progress from the metadata JSONL file."""
   if not metadata_file.exists():
-    return {
-      "processed_files": set(),
-      "total_records": 0,
-      "failed_files": set(),
-    }
+    return {"processed_files": set(), "failed_files": set(), "total_records": 0}
 
-  processed_files = set()
-  failed_files = set()
-  total_records = 0
+  processed = set()
+  failed = set()
+  count = 0
 
-  try:
-    with metadata_file.open("r") as f:
-      for line in f:
-        try:
-          entry = json.loads(line.strip())
-          if entry.get("status") == "success":
-            processed_files.add(entry["protein_id"])
-            total_records += 1
-          elif entry.get("status") == "failed":
-            failed_files.add(entry["protein_id"])
-        except json.JSONDecodeError:
-          logger.warning("Skipping malformed line in metadata file: %s", line)
-  except OSError:
-    logger.exception("Could not read metadata file %s", metadata_file)
-    return {
-      "processed_files": set(),
-      "total_records": 0,
-      "failed_files": set(),
-    }
-
-  return {
-    "processed_files": processed_files,
-    "total_records": total_records,
-    "failed_files": failed_files,
-  }
-
-
-def _append_metadata(
-  metadata_file: Path,
-  protein_id: str,
-  status: str,
-  error_message: str | None = None,
-) -> None:
-  """Append entry to JSONL metadata file."""
-  entry = {
-    "protein_id": protein_id,
-    "status": status,
-    "timestamp": str(Path(__file__).stat().st_mtime),  # Placeholder
-  }
-  if error_message:
-    entry["error"] = error_message
-
-  try:
-    with metadata_file.open("a") as f:
-      f.write(json.dumps(entry) + "\n")
-  except OSError:
-    logger.exception("Could not append to metadata file %s", metadata_file)
-
-
-def _merge_shards_to_final(
-  shard_paths: list[Path],
-  output_file: Path,
-  metadata_file: Path,
-  index_file: Path,
-  compression: str,
-  group_size: int,
-) -> dict[str, int]:
-  """Merge temporary shards into final array_record file."""
-  logger.info("Merging %d shards into %s", len(shard_paths), output_file)
-
-  final_writer = ArrayRecordWriter(
-    str(output_file),
-    f"{compression},group_size:{group_size}",
-  )
-
-  protein_index = {}
-  global_record_index = 0
-
-  try:
-    for shard_path in tqdm.tqdm(sorted(shard_paths), desc="Merging shards"):
-      if not shard_path.exists():
-        logger.warning("Shard file not found, skipping: %s", shard_path)
+  with metadata_file.open("r") as f:
+    for line in f:
+      if not line.strip():
+        continue
+      try:
+        entry = json.loads(line)
+        p_id = entry["id"]
+        if entry["status"] == "success":
+          processed.add(p_id)
+          count += 1
+        else:
+          failed.add(p_id)
+      except (json.JSONDecodeError, KeyError):
+        logger.warning("Skipping invalid metadata line: %s", line.strip())
         continue
 
-      shard_reader = ArrayRecordReader(str(shard_path))
-
-      try:
-        num_shard_records = shard_reader.num_records()
-        if num_shard_records > 0:
-          records_from_shard = shard_reader.read(0, num_shard_records)
-
-          for record_bytes in records_from_shard:
-            # Write to final file
-            final_writer.write(record_bytes)
-
-            # Update index
-            try:
-              unpacked = msgpack.unpackb(record_bytes, raw=False)
-              protein_id = unpacked["protein_id"]
-              protein_index[protein_id] = {"idx": [global_record_index], "set": "train"}
-
-              # Append to metadata
-              _append_metadata(metadata_file, protein_id, "success")
-
-              global_record_index += 1
-            except (msgpack.exceptions.UnpackException, KeyError):
-              logger.exception("Failed to read record from shard %s", shard_path)
-
-      except Exception:
-        logger.exception("Failed to read shard %s", shard_path)
-      finally:
-        shard_reader.close()
-
-  finally:
-    final_writer.close()
-
-  # Write index to JSON
-  logger.info("Writing index with %d entries to %s", len(protein_index), index_file)
-  try:
-    with index_file.open("w") as f:
-      json.dump(protein_index, f, indent=2)
-  except OSError:
-    logger.exception("Could not write index file %s", index_file)
-
-  return protein_index
+  return {"processed_files": processed, "failed_files": failed, "total_records": count}
 
 
-def _log_spec(spec: PreprocessingSpecification) -> None:
-  """Log the preprocessing specification."""
-  logger.info("Starting preprocessing with spec:")
-  logger.info("  Input: %s", spec.input_dir)
-  logger.info("  Output: %s", spec.output_file)
-  logger.info("  Index: %s", spec.index_file)
-  logger.info("  Metadata: %s", spec.metadata_file)
-  logger.info("  Temp dir: %s", spec.temp_dir)
-  logger.info("  Workers: %d", spec.num_workers)
+def _append_metadata(metadata_file: Path, protein_id: str, status: str) -> None:
+  """Append a single result entry to the metadata file."""
+  with metadata_file.open("a") as f:
+    f.write(json.dumps({"id": protein_id, "status": status}) + "\n")
 
 
-def _setup_multiprocessing() -> None:
-  """Set the multiprocessing start method."""
-  try:
-    mp.set_start_method("spawn", force=True)
-  except (RuntimeError, ValueError):
-    logger.warning("Could not set multiprocessing start method to 'spawn'.")
-
-
-def _load_and_serialize_force_field(
-  force_field_name: str,
-  repo_id: str,
-) -> dict[str, Any] | None:
-  """Load force field and serialize it for workers."""
-  logger.info("Loading force field: %s", force_field_name)
-  try:
-    force_field = load_force_field_from_hub(
-      force_field_name,
-      repo_id=repo_id,
-    )
-    return {
-      "charges": np.array(force_field.charges_by_id),
-      "sigmas": np.array(force_field.sigmas_by_id),
-      "epsilons": np.array(force_field.epsilons_by_id),
-      "atom_key_to_id": force_field.atom_key_to_id,
-    }
-  except Exception:
-    logger.exception("Failed to load force field. Aborting.")
-    return None
-
-
-def _discover_pqr_files(input_dir: Path) -> list[Path]:
-  """Find all .pqr files in the input directory."""
-  pqr_files = sorted(input_dir.glob("*.pqr"))
-  logger.info("Found %d PQR files", len(pqr_files))
-  return pqr_files
-
-
-def _filter_files_by_checkpoint(
+def _filter_files(
   pqr_files: list[Path],
   metadata_file: Path,
   *,
@@ -421,7 +230,6 @@ def _filter_files_by_checkpoint(
 def _run_scatter_phase(
   files_to_process: list[Path],
   spec: PreprocessingSpecification,
-  force_field_data: dict[str, Any],
 ) -> list[Path]:
   """Run the parallel processing 'scatter' phase.
 
@@ -432,7 +240,7 @@ def _run_scatter_phase(
   """
   logger.info("Starting scatter phase: parallel processing to temporary shards")
   spec.temp_dir.mkdir(parents=True, exist_ok=True)
-  worker_args = [(pqr_file, spec, spec.temp_dir, force_field_data) for pqr_file in files_to_process]
+  worker_args = [(pqr_file, spec, spec.temp_dir) for pqr_file in files_to_process]
 
   shard_paths = []
 
@@ -499,89 +307,66 @@ def _log_summary_and_get_results(
     "output_file": spec.output_file,
     "index_file": spec.index_file,
     "metadata_file": spec.metadata_file,
-    "num_proteins": total_success,
-    "num_failed": total_failed,
+    "success_count": total_success,
+    "failure_count": total_failed,
   }
 
 
-def preprocess_dataset(spec: PreprocessingSpecification) -> dict[str, Any]:
-  """Run the main preprocessing pipeline.
-
-  Implements efficient parallel preprocessing with:
-  1. Load force field (once, shared across workers)
-  2. Discover PQR files
-  3. Check checkpoint (skip already-processed files)
-  4. Scatter: Parallel processing to temporary shards
-  5. Gather: Merge shards into final array_record
-  6. Build index for fast lookup
+def run_preprocessing_pipeline(spec: PreprocessingSpecification) -> dict[str, Any]:
+  """Execute the full preprocessing pipeline.
 
   Args:
-      spec: Preprocessing specification
+      spec: PreprocessingSpecification object.
 
   Returns:
-      Dictionary with:
-      - output_file: Path to generated array_record
-      - index_file: Path to generated index
-      - metadata_file: Path to metadata JSONL
-      - num_proteins: Number of proteins processed
-      - num_failed: Number of failed proteins
+      A dictionary with execution statistics and paths.
 
   """
-  _log_spec(spec)
-  _setup_multiprocessing()
+  logger.info("Starting PrxteinMPNN preprocessing pipeline")
+  logger.info("Input dir: %s", spec.input_dir)
+  logger.info("Output file: %s", spec.output_file)
 
-  force_field_data = _load_and_serialize_force_field(
-    spec.force_field,
-    FORCE_FIELD_REPO,
-  )
-  if force_field_data is None:
-    return {
-      "output_file": spec.output_file,
-      "index_file": spec.index_file,
-      "metadata_file": spec.metadata_file,
-      "num_proteins": 0,
-      "num_failed": 0,
-    }
-
-  pqr_files = _discover_pqr_files(spec.input_dir)
+  # 1. Discover files
+  pqr_files = sorted(spec.input_dir.glob("*.pqr"))
   if not pqr_files:
-    logger.warning("No PQR files found in %s. Exiting.", spec.input_dir)
-    return {
-      "output_file": spec.output_file,
-      "index_file": spec.index_file,
-      "metadata_file": spec.metadata_file,
-      "num_proteins": 0,
-      "num_failed": 0,
-    }
+    msg = f"No PQR files found in {spec.input_dir}"
+    raise FileNotFoundError(msg)
 
-  files_to_process, processed_files, failed_files = _filter_files_by_checkpoint(
+  # 2. Filter based on checkpoint
+  files_to_process, initial_processed, initial_failed = _filter_files(
     pqr_files,
     spec.metadata_file,
     resume=spec.resume_from_checkpoint,
   )
 
   if not files_to_process:
-    logger.info("All files already processed!")
-    return _log_summary_and_get_results(spec, processed_files, failed_files)
+    logger.info("All files already processed according to checkpoint. Exiting.")
+    return _log_summary_and_get_results(spec, initial_processed, initial_failed)
 
-  shard_paths = _run_scatter_phase(files_to_process, spec, force_field_data)
+  # 3. Run scatter phase (parallel processing)
+  # Physics features are computed by proxide via OutputSpec
+  shard_paths = _run_scatter_phase(files_to_process, spec)
 
   if not shard_paths:
-    logger.error(
-      "No shards were created! All %d submitted proteins failed processing.",
-      len(files_to_process),
-    )
-    return _log_summary_and_get_results(spec, processed_files, failed_files)
+    logger.error("No shards were successfully created. Exiting.")
+    return _log_summary_and_get_results(spec, initial_processed, initial_failed)
 
-  logger.info("Starting gather phase: merging shards into final array_record")
-  _ = _merge_shards_to_final(
-    shard_paths,
-    spec.output_file,
-    spec.metadata_file,
-    spec.index_file,
-    spec.compression,
-    spec.group_size,
-  )
+  # 5. Run gather phase (merge shards into final array_record)
+  logger.info("Starting gather phase: merging %d shards", len(shard_paths))
+  writer = ArrayRecordWriter(str(spec.output_file), spec.compression)
 
+  for shard_path in tqdm.tqdm(shard_paths, desc="Merging shards"):
+    reader = ArrayRecordReader(str(shard_path))
+    for record in reader:
+      writer.write(record)
+      # Log success to metadata
+      record_data = msgpack.unpackb(record)
+      _append_metadata(spec.metadata_file, record_data["protein_id"], "success")
+
+  writer.close()
+
+  # 6. Cleanup
   _cleanup_temp_files(shard_paths, spec.temp_dir)
-  return _log_summary_and_get_results(spec, processed_files, failed_files)
+
+  # 7. Final summary
+  return _log_summary_and_get_results(spec, initial_processed, initial_failed)

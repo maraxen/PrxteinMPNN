@@ -276,7 +276,7 @@ class PrxteinMPNN(eqx.Module):
     logits = jax.vmap(self.w_out)(decoded_node_features)
 
     # Return input sequence to match PyTree shape
-    return one_hot_sequence, logits
+    return one_hot_sequence.astype(logits.dtype), logits
 
   def _call_autoregressive(
     self,
@@ -308,7 +308,8 @@ class PrxteinMPNN(eqx.Module):
       bias: Bias to add to logits before sampling (N, 21).
       tie_group_map: Optional (N,) array mapping each position to a group ID.
           When provided, positions in the same group sample identical amino acids.
-      multi_state_strategy_idx: Integer index for strategy (0=arithmetic_mean, 1=geometric_mean, 2=product).
+      multi_state_strategy_idx: Integer index for strategy
+          (0=arithmetic_mean, 1=geometric_mean, 2=product).
       multi_state_temperature: Temperature for geometric_mean strategy.
       _initial_node_features: Unused.
 
@@ -346,8 +347,6 @@ class PrxteinMPNN(eqx.Module):
       multi_state_temperature,
     )
     return seq, logits
-
-
 
   @staticmethod
   def _combine_logits_multistate(
@@ -543,7 +542,8 @@ class PrxteinMPNN(eqx.Module):
       bias: Logits array (N, 21).
       tie_group_map: Group mapping (N,).
       decoding_order: Position decoding order (N,).
-      multi_state_strategy_idx: Integer strategy index (0=arithmetic_mean, 1=geometric_mean, 2=product).
+      multi_state_strategy_idx: Integer strategy index
+          (0=arithmetic_mean, 1=geometric_mean, 2=product).
       multi_state_temperature: Temperature for geometric_mean strategy.
 
     Returns:
@@ -673,6 +673,7 @@ class PrxteinMPNN(eqx.Module):
     sampled_logits = (logits_with_bias / temperature) + jax.random.gumbel(
       key,
       logits_with_bias.shape,
+      dtype=logits_with_bias.dtype,
     )
     sampled_logits_no_pad = sampled_logits[..., :20]
     one_hot_sample = straight_through_estimator(sampled_logits_no_pad)
@@ -722,7 +723,8 @@ class PrxteinMPNN(eqx.Module):
       tie_group_map: Optional (N,) array mapping each position to a group ID.
           When provided, positions in the same group are sampled together
           using combined logits.
-      multi_state_strategy_idx: Integer strategy index (0=arithmetic_mean, 1=geometric_mean, 2=product).
+      multi_state_strategy_idx: Integer strategy index
+          (0=arithmetic_mean, 1=geometric_mean, 2=product).
       multi_state_temperature: Temperature for geometric_mean strategy.
 
     Returns:
@@ -837,6 +839,7 @@ class PrxteinMPNN(eqx.Module):
       sampled_logits = (logits_with_bias / temperature) + jax.random.gumbel(
         key,
         logits_with_bias.shape,
+        dtype=logits_with_bias.dtype,
       )
       sampled_logits_no_pad = sampled_logits[..., :20]  # Exclude padding
 
@@ -903,7 +906,7 @@ class PrxteinMPNN(eqx.Module):
       multi_state_temperature,
     )
 
-  def __call__(  # noqa: PLR0913
+  def __call__(
     self,
     structure_coordinates: StructureAtomicCoordinates,
     mask: AlphaCarbonMask,
@@ -918,9 +921,15 @@ class PrxteinMPNN(eqx.Module):
     bias: Logits | None = None,
     backbone_noise: BackboneNoise | None = None,
     tie_group_map: jnp.ndarray | None = None,
-    multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
+    multi_state_strategy: Literal[
+      "arithmetic_mean",
+      "geometric_mean",
+      "product",
+    ] = "arithmetic_mean",
     structure_mapping: jnp.ndarray | None = None,
     initial_node_features: jnp.ndarray | None = None,
+    rbf_features: jnp.ndarray | None = None,
+    neighbor_indices: jnp.ndarray | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Forward pass for the complete model.
 
@@ -945,7 +954,7 @@ class PrxteinMPNN(eqx.Module):
           When provided, positions in the same group sample identical amino acids
           using logit combining. Only used in "autoregressive" mode (optional).
       multi_state_strategy: Strategy for combining logits across tied positions.
-          Options: "arithmetic_mean" (default, log-sum-exp average), 
+          Options: "arithmetic_mean" (default, log-sum-exp average),
           "geometric_mean" (geometric mean with temperature scaling),
           "product" (multiply probabilities).
           Only used in "autoregressive" mode with tied positions (optional).
@@ -996,6 +1005,8 @@ class PrxteinMPNN(eqx.Module):
       backbone_noise,
       structure_mapping=structure_mapping,
       initial_node_features=initial_node_features,
+      rbf_features=rbf_features,
+      neighbor_indices=neighbor_indices,
     )
 
     node_features, edge_features = self.encoder(

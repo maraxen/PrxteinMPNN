@@ -150,23 +150,23 @@ def _sample_batch(
   # tie_group_map comes from resolve_tie_groups with shape (n_residues,)
   # but vmap expects (batch_size, n_residues) when in_axes=0
   batch_size = batched_ensemble.coordinates.shape[0]
-  
+
   tie_map_for_vmap = None
   if tie_group_map is not None:
     # Add batch dimension and broadcast: (n,) -> (1, n) -> (batch_size, n)
     tie_map_for_vmap = jnp.broadcast_to(
-      jnp.atleast_2d(tie_group_map), 
-      (batch_size, tie_group_map.shape[0])
+      jnp.atleast_2d(tie_group_map),
+      (batch_size, tie_group_map.shape[0]),
     )
-  
+
   mapping_for_vmap = batched_ensemble.mapping
   if batched_ensemble.mapping is not None and batched_ensemble.mapping.ndim == 1:
     # Add batch dimension and broadcast if needed: (n,) -> (1, n) -> (batch_size, n)
     mapping_for_vmap = jnp.broadcast_to(
       jnp.atleast_2d(batched_ensemble.mapping),
-      (batch_size, batched_ensemble.mapping.shape[0])
+      (batch_size, batched_ensemble.mapping.shape[0]),
     )
-  
+
   tie_map_in_axis = 0 if tie_map_for_vmap is not None else None
   mapping_in_axis = 0 if mapping_for_vmap is not None else None
 

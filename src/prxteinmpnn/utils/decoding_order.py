@@ -8,14 +8,14 @@ from functools import partial
 
 import jax
 import jax.numpy as jnp
-from jaxtyping import Int, PRNGKeyArray
+from jaxtyping import PRNGKeyArray
 
 from .autoregression import get_decoding_step_map
 from .types import (
   DecodingOrder,
 )
 
-DecodingOrderInputs = tuple[PRNGKeyArray, Int, jnp.ndarray | None]  # Added tie_group_map
+DecodingOrderInputs = tuple[PRNGKeyArray, int, jnp.ndarray | None]  # Added tie_group_map
 DecodingOrderOutputs = tuple[DecodingOrder, PRNGKeyArray]
 DecodingOrderFn = Callable[
   [PRNGKeyArray, int, jnp.ndarray | None, int | None],

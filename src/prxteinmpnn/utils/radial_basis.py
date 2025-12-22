@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
-from .types import AtomIndexPair, BackboneCoordinates, NeighborIndices
+from .types import AtomIndexPair, NeighborIndices, StructureAtomicCoordinates
 
 AllAtomRBF = Float[Array, "L K R D"]
 AtomPairRBF = Float[Array, "K R D"]
@@ -52,7 +52,7 @@ DISTANCE_EPSILON = 1e-6
 
 @jax.jit
 def compute_radial_basis(
-  backbone_coordinates: BackboneCoordinates,
+  backbone_coordinates: StructureAtomicCoordinates,
   neighbor_indices: NeighborIndices,
 ) -> AllAtomRBF:
   """Compute the radial basis functions for backbone coordinates."""

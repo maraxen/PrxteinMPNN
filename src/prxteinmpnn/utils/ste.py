@@ -68,4 +68,4 @@ def ste_loss(
   seq_one_hot = straight_through_estimator(logits_to_optimize)
   target_log_probs = jax.nn.log_softmax(target_logits)
   loss_per_position = -(seq_one_hot * target_log_probs).sum(axis=-1)
-  return (loss_per_position * mask).sum() / (mask.sum() + eps)
+  return jnp.sum(loss_per_position * mask) / (jnp.sum(mask) + eps)

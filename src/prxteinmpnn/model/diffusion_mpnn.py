@@ -154,7 +154,9 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
     bias: Logits | None = None,
     backbone_noise: jax.Array | None = None,
     tie_group_map: jnp.ndarray | None = None,
-    multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
+    multi_state_strategy: Literal[
+      "arithmetic_mean", "geometric_mean", "product",
+    ] = "arithmetic_mean",
     structure_mapping: jnp.ndarray | None = None,
     initial_node_features: jnp.ndarray | None = None,
     # Diffusion specific args

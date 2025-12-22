@@ -22,6 +22,8 @@ from typing import NamedTuple
 
 import jax
 import numpy as np
+from proxide.chem.residues import restypes
+from proxide.core.containers import atom_order
 
 # Internal import (35fd).
 
@@ -537,46 +539,7 @@ between_res_cos_angles_ca_c_n = [-0.4473, 0.0311]  # degrees: 116.568 +- 1.995
 
 # This mapping is used when we need to store atom data in a format that requires
 # fixed atom data size for every residue (e.g. a numpy array).
-atom_types = [
-  "N",
-  "CA",
-  "C",
-  "CB",
-  "O",
-  "CG",
-  "CG1",
-  "CG2",
-  "OG",
-  "OG1",
-  "SG",
-  "CD",
-  "CD1",
-  "CD2",
-  "ND1",
-  "ND2",
-  "OD1",
-  "OD2",
-  "SD",
-  "CE",
-  "CE1",
-  "CE2",
-  "CE3",
-  "NE",
-  "NE1",
-  "NE2",
-  "OE1",
-  "OE2",
-  "CH2",
-  "NH1",
-  "NH2",
-  "OH",
-  "CZ",
-  "CZ2",
-  "CZ3",
-  "NZ",
-  "OXT",
-]
-atom_order = {atom_type: i for i, atom_type in enumerate(atom_types)}
+atom_types = list(atom_order.keys())
 atom_type_num = len(atom_types)  # := 37.
 
 # A compact atom encoding with 14 columns
@@ -609,30 +572,6 @@ restype_name_to_atom14_names = {
 # pylint: enable=bad-whitespace
 
 
-# This is the standard residue order when coding AA type as a number.
-# Reproduce it by taking 3-letter AA codes and sorting them alphabetically.
-restypes = [
-  "A",
-  "R",
-  "N",
-  "D",
-  "C",
-  "Q",
-  "E",
-  "G",
-  "H",
-  "I",
-  "L",
-  "K",
-  "M",
-  "F",
-  "P",
-  "S",
-  "T",
-  "W",
-  "Y",
-  "V",
-]
 restype_order = {restype: i for i, restype in enumerate(restypes)}
 restype_num = len(restypes)  # := 20.
 unk_restype_index = restype_num  # Catch-all index for unknown restypes.

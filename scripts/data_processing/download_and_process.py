@@ -16,7 +16,7 @@ import torch
 import tqdm
 from array_record.python.array_record_module import ArrayRecordWriter  # type: ignore[unresolved-import]
 
-from prxteinmpnn.io.parsing.mappings import string_to_protein_sequence
+from proxide.chem.conversion import string_to_protein_sequence
 from proxide.physics.force_fields import load_force_field
 from prxteinmpnn.utils.residue_constants import (
     atom_types,

@@ -94,7 +94,7 @@ def geometric_mean_logits(
   masked_logits = jnp.where(group_mask[:, None], logits, 0.0)
   sum_logits = jnp.sum(masked_logits, axis=0, keepdims=True)
   num_in_group = jnp.sum(group_mask)
-  
+
   return sum_logits / (temperature * num_in_group)
 
 

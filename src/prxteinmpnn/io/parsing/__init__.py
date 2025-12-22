@@ -1,11 +1,29 @@
-"""Utilities for processing structure and trajectory files."""
+"""Parsing module - all parsing handled by proxide.
 
-from .dispatch import parse_input, parse_protein
-from .proxide import is_proxide_available, parse_with_proxide
+The proxide library provides unified parsing for:
+- Structure files: PDB, mmCIF, PQR
+- Trajectory files: XTC, TRR, DCD
+- Dataset files: MD-CATH H5, MDTraj H5
+
+Legacy biotite/mdtraj-based parsers have been removed.
+"""
+
+from prxteinmpnn.io.parsing.dispatch import (
+  is_proxide_available,
+  parse_input,
+  parse_mdcath,
+  parse_mdtraj_h5,
+  parse_protein,
+  parse_structure,
+  parse_trajectory,
+)
 
 __all__ = [
-  "parse_input",
-  "parse_protein",
-  "parse_with_proxide",
   "is_proxide_available",
+  "parse_input",
+  "parse_mdcath",
+  "parse_mdtraj_h5",
+  "parse_protein",
+  "parse_structure",
+  "parse_trajectory",
 ]

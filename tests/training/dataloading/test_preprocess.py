@@ -11,7 +11,7 @@ from prxteinmpnn.training.dataloading.preprocess import (
     run_preprocessing_pipeline,
     _load_checkpoint_metadata,
 )
-from prxteinmpnn.utils.data_structures import ProteinTuple
+from proxide.core.containers import Protein
 
 @pytest.fixture
 def mock_force_field():
@@ -33,24 +33,19 @@ END
 
 @pytest.fixture
 def dummy_protein_tuple():
-    return ProteinTuple(
+    return Protein(
         coordinates=np.zeros((4, 5, 3)),
         aatype=np.zeros(4, dtype=np.int8),
         atom_mask=np.ones((4, 37)),
         residue_index=np.arange(4),
         chain_index=np.zeros(4),
         full_coordinates=np.zeros((4, 3)),
-        dihedrals=None,
         source="test",
-        mapping=None,
-        charges=np.zeros(4),
-        radii=np.zeros(4),
-        sigmas=np.zeros(4),
-        epsilons=np.zeros(4),
-        estat_backbone_mask=None,
-        estat_resid=None,
-        estat_chain_index=None,
-        physics_features=None,
+        # Default/None for others
+        one_hot_sequence=None,
+        mask=None,
+        chain_ids=None,
+        dihedrals=None,
     )
 
 def test_worker_process_protein(tmp_path, dummy_pqr_content, dummy_protein_tuple):
@@ -69,22 +64,14 @@ def test_worker_process_protein(tmp_path, dummy_pqr_content, dummy_protein_tuple
     force_field_data = {}
 
     with patch("prxteinmpnn.training.dataloading.preprocess.ArrayRecordWriter") as MockWriter, \
-         patch("prxteinmpnn.training.dataloading.preprocess.compute_electrostatic_node_features") as mock_estat, \
-         patch("prxteinmpnn.training.dataloading.preprocess.compute_vdw_node_features") as mock_vdw, \
-         patch("prxteinmpnn.training.dataloading.preprocess.parse_pqr_to_processed_structure") as mock_parse_pqr, \
-         patch("prxteinmpnn.training.dataloading.preprocess.processed_structure_to_protein_tuples") as mock_to_tuples:
+         patch("prxteinmpnn.training.dataloading.preprocess.parse_structure") as mock_parse_structure:
 
         # Mock parsers
-        mock_parse_pqr.return_value = MagicMock()
-        mock_to_tuples.return_value = iter([dummy_protein_tuple])
-
-        # Mock features
-        mock_estat.return_value = np.zeros((4, 5))
-        mock_vdw.return_value = np.zeros((4, 5))
+        mock_parse_structure.return_value = dummy_protein_tuple
 
         mock_writer_instance = MockWriter.return_value
 
-        protein_id, shard_path = _worker_process_protein((pqr_path, spec, tmp_path, force_field_data))
+        protein_id, shard_path = _worker_process_protein((pqr_path, spec, tmp_path))
 
         assert protein_id == "test"
         assert shard_path is not None
@@ -92,10 +79,9 @@ def test_worker_process_protein(tmp_path, dummy_pqr_content, dummy_protein_tuple
 
         # Verify writer was called
         assert mock_writer_instance.write.called
-
-        # Verify feature computations were called
-        assert mock_estat.called
-        assert mock_vdw.called
+        
+        # Verify parse_structure was called
+        mock_parse_structure.assert_called_once()
 
 def test_preprocess_dataset_serial(tmp_path, mock_force_field, dummy_pqr_content, dummy_protein_tuple):
     input_dir = tmp_path / "input"
@@ -113,17 +99,12 @@ def test_preprocess_dataset_serial(tmp_path, mock_force_field, dummy_pqr_content
         compute_estat=True,
     )
 
-    with patch("prxteinmpnn.training.dataloading.preprocess.load_force_field", return_value=mock_force_field), \
-         patch("prxteinmpnn.training.dataloading.preprocess.ArrayRecordWriter") as MockWriter, \
+    with patch("prxteinmpnn.training.dataloading.preprocess.ArrayRecordWriter") as MockWriter, \
          patch("prxteinmpnn.training.dataloading.preprocess.ArrayRecordReader") as MockReader, \
-         patch("prxteinmpnn.training.dataloading.preprocess.compute_electrostatic_node_features", return_value=np.zeros((4, 5))), \
-         patch("prxteinmpnn.training.dataloading.preprocess.compute_vdw_node_features", return_value=np.zeros((4, 5))), \
-         patch("prxteinmpnn.training.dataloading.preprocess.parse_pqr_to_processed_structure") as mock_parse_pqr, \
-         patch("prxteinmpnn.training.dataloading.preprocess.processed_structure_to_protein_tuples") as mock_to_tuples, \
+         patch("prxteinmpnn.training.dataloading.preprocess.parse_structure") as mock_parse_structure, \
          patch("prxteinmpnn.training.dataloading.preprocess.msgpack.unpackb") as mock_unpack:
 
-        mock_parse_pqr.return_value = MagicMock()
-        mock_to_tuples.return_value = iter([dummy_protein_tuple])
+        mock_parse_structure.return_value = dummy_protein_tuple
 
         # Ensure the shard file is created when writer is instantiated
         def create_dummy_shard(path, *args, **kwargs):
@@ -189,9 +170,9 @@ def test_worker_process_protein_error(tmp_path):
 
     force_field_data = {}
 
-    with patch("prxteinmpnn.training.dataloading.preprocess.parse_pqr_to_processed_structure") as mock_parse:
+    with patch("prxteinmpnn.training.dataloading.preprocess.parse_structure") as mock_parse:
         mock_parse.side_effect = Exception("Parsing failed")
-        protein_id, shard_path = _worker_process_protein((pqr_path, spec, tmp_path, force_field_data))
+        protein_id, shard_path = _worker_process_protein((pqr_path, spec, tmp_path))
 
     assert protein_id == "bad"
     assert shard_path is None

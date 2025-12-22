@@ -16,12 +16,11 @@ from prxteinmpnn.utils.types import ModelParameters
 def protein_structure() -> Protein:
     """Load a sample protein structure from a PDB file."""
     pdb_path = Path(__file__).parent / "data" / "1ubq.pdb"
-    protein_tuple = next(parse_input(str(pdb_path)))
-    return Protein.from_tuple(protein_tuple)
+    return next(parse_input(str(pdb_path)))
 
 
 @pytest.fixture(scope="session")
-def pqr_protein_tuple() -> "ProteinTuple":
+def pqr_protein_tuple() -> Protein:
     """Load a sample protein structure from a PQR file."""
     pqr_path = Path(__file__).parent / "data" / "1a00.pqr"
     return next(parse_input(str(pqr_path)))

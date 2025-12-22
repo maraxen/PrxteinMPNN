@@ -19,11 +19,11 @@ if TYPE_CHECKING:
   from io import StringIO
 
   from jaxtyping import ArrayLike
+  from proxide.io.parsing.foldcomp import FoldCompDatabase
 
   from prxteinmpnn.ensemble.dbscan import ConformationalStates
   from prxteinmpnn.utils.catjac import CombineCatJacPairFn
   from prxteinmpnn.utils.decoding_order import DecodingOrderFn
-  from prxteinmpnn.utils.foldcomp_utils import FoldCompDatabase
 
 # Type aliases for convenience
 ModelWeights = MODEL_WEIGHTS

@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-
 from proxide.physics.constants import BOLTZMANN_KCAL
+
 from prxteinmpnn.utils.coordinates import (
   apply_noise_to_coordinates,
   compute_backbone_coordinates,
@@ -107,6 +107,8 @@ class ProteinFeatures(eqx.Module):
     backbone_noise_mode: str = "direct",
     structure_mapping: jnp.ndarray | None = None,
     initial_node_features: jnp.ndarray | None = None,
+    rbf_features: jnp.ndarray | None = None,
+    neighbor_indices: jnp.ndarray | None = None,
   ) -> tuple[EdgeFeatures, NeighborIndices, NodeFeatures | None, PRNGKeyArray]:
     """Extract and project features from protein structure.
 
@@ -122,6 +124,10 @@ class ProteinFeatures(eqx.Module):
                         When provided (multi-state mode), prevents cross-structure
                         neighbors to avoid information leakage between conformational states.
       initial_node_features: Optional initial node features.
+      rbf_features: Optional precomputed RBF features from proxide (N, K, 400).
+                    If provided, dynamic graph building/noise is skipped for edges.
+      neighbor_indices: Optional precomputed neighbor indices from proxide (N, K).
+                        Must be provided if rbf_features is provided to ensure consistency.
 
     Returns:
       Tuple of (edge_features, neighbor_indices, updated_prng_key).
@@ -132,45 +138,67 @@ class ProteinFeatures(eqx.Module):
     if backbone_noise is None:
       backbone_noise = jnp.array(0.0)
 
-    # Resolve Sigma
-    if backbone_noise_mode == "thermal":
-      # Apply 0.5 factor here as well for consistency
-      thermal_energy = jnp.maximum(0.5 * BOLTZMANN_KCAL * backbone_noise, 0.0)
-      final_sigma = jnp.sqrt(thermal_energy)
+    # Use precomputed RBF if available (skips noise augmentation on graph)
+    if rbf_features is not None:
+      if neighbor_indices is None:
+        # We still need neighbor indices to align sequence features
+        # We compute them on the static coordinates (assuming they match proxide's implicit indices)
+        backbone_atom_coordinates = compute_backbone_coordinates(structure_coordinates)
+        distances = compute_backbone_distance(backbone_atom_coordinates)
+      else:
+        # If neighbors provided, we just need coordinates for other ops, no distance calc needed
+        backbone_atom_coordinates = compute_backbone_coordinates(structure_coordinates)
+        # We set distances to None or dummy as we won't use them for K-NN
+        distances = None
+
+      # Logic for masking structure_mapping/mask is shared
     else:
-      final_sigma = backbone_noise
+      # Resolve Sigma and apply noise
+      if backbone_noise_mode == "thermal":
+        # Apply 0.5 factor here as well for consistency
+        thermal_energy = jnp.maximum(0.5 * BOLTZMANN_KCAL * backbone_noise, 0.0)
+        final_sigma = jnp.sqrt(thermal_energy)
+      else:
+        final_sigma = backbone_noise
 
-    noised_coordinates, prng_key = apply_noise_to_coordinates(
-      prng_key,
-      structure_coordinates,
-      backbone_noise=final_sigma,
-    )
-    backbone_atom_coordinates = compute_backbone_coordinates(noised_coordinates)
-    distances = compute_backbone_distance(backbone_atom_coordinates)
+      noised_coordinates, prng_key = apply_noise_to_coordinates(
+        prng_key,
+        structure_coordinates,
+        backbone_noise=final_sigma,
+      )
+      backbone_atom_coordinates = compute_backbone_coordinates(noised_coordinates)
+      distances = compute_backbone_distance(backbone_atom_coordinates)
 
-    distances_masked = jnp.array(
-      jnp.where(
-        (mask[:, None] * mask[None, :]).astype(jnp.bool_),
-        distances,
-        jnp.inf,
-      ),
-    )
-
-    if structure_mapping is not None:
-      same_structure = structure_mapping[:, jnp.newaxis] == structure_mapping[jnp.newaxis, :]
+    if distances is not None:
       distances_masked = jnp.array(
         jnp.where(
-          same_structure.astype(jnp.bool_),
-          distances_masked,
+          (mask[:, None] * mask[None, :]).astype(jnp.bool_),
+          distances,
           jnp.inf,
         ),
-      ).squeeze()
+      )
 
-    k = min(self.k_neighbors, structure_coordinates.shape[0])
-    _, neighbor_indices = top_k(-distances_masked, k)
+      if structure_mapping is not None:
+        same_structure = structure_mapping[:, jnp.newaxis] == structure_mapping[jnp.newaxis, :]
+        distances_masked = jnp.array(
+          jnp.where(
+            same_structure.astype(jnp.bool_),
+            distances_masked,
+            jnp.inf,
+          ),
+        ).squeeze()
+
+      k = min(self.k_neighbors, structure_coordinates.shape[0])
+      _, neighbor_indices = top_k(-distances_masked, k)
+      neighbor_indices = jnp.array(neighbor_indices, dtype=jnp.int32)
+
+    # At this point neighbor_indices must be populated (either passed in or computed)
     neighbor_indices = jnp.array(neighbor_indices, dtype=jnp.int32)
 
-    rbf = compute_radial_basis(backbone_atom_coordinates, neighbor_indices)
+    if rbf_features is not None:
+      rbf = rbf_features
+    else:
+      rbf = compute_radial_basis(backbone_atom_coordinates, neighbor_indices)
     neighbor_offsets = compute_neighbor_offsets(residue_index, neighbor_indices)
 
     edge_chains = (chain_index[:, None] == chain_index[None, :]).astype(jnp.int32)

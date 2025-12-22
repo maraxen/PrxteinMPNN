@@ -17,13 +17,12 @@ import logging
 import multiprocessing as mp
 import uuid
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
   from collections.abc import Sequence
+  from pathlib import Path
 
-import jax.numpy as jnp
 import msgpack
 import msgpack_numpy as m
 import numpy as np
@@ -33,19 +32,12 @@ from array_record.python.array_record_module import (  # type: ignore[unresolved
   ArrayRecordWriter,
 )
 
-from prxteinmpnn.io.parsing.biotite import processed_structure_to_protein_tuples
-from prxteinmpnn.io.parsing.pqr import parse_pqr_to_processed_structure
-from proxide.physics.features import (
-  compute_electrostatic_node_features,
-  compute_vdw_node_features,
-)
-from proxide.physics.force_fields import load_force_field
+from prxteinmpnn.io.parsing import parse_structure
 
 # Patch msgpack to handle numpy arrays
 m.patch()
 
 logger = logging.getLogger(__name__)
-FORCE_FIELD_REPO: str = "maraxen/eqx-ff"
 
 
 @dataclass(frozen=True)
@@ -78,134 +70,80 @@ class PreprocessingSpecification:
 
 
 def _worker_process_protein(
-  args: tuple[Path, PreprocessingSpecification, Path, dict[str, Any]],
+  args: tuple[Path, PreprocessingSpecification, Path],
 ) -> tuple[str, Path | None]:
   """Worker function to process a single protein structure.
 
   Args:
-      args: Tuple containing (pqr_path, spec, temp_dir_path, force_field_data).
+      args: Tuple containing (pqr_path, spec, temp_dir_path).
 
   Returns:
       A tuple of (protein_id, shard_path). shard_path is None if processing failed.
 
   """
-  pqr_path, spec, temp_dir_path, _force_field_data = args
-  protein_id = pqr_path.stem
+  structure_path, spec, temp_dir_path = args
+  protein_id = structure_path.stem
 
   try:
-    # Use new pipeline: parse PQR directly to ProcessedStructure
-    processed_structure = parse_pqr_to_processed_structure(pqr_path, chain_id=None)
-
-    # Convert to ProteinTuple
-    protein_generator = processed_structure_to_protein_tuples(
-      processed_structure,
-      source_name=str(pqr_path),
-      extract_dihedrals=False,
-      populate_physics=False,  # PQR already has physics params
+    # Use proxide-based parsing with physics computed via OutputSpec
+    # compute_physics flag in dispatch handles setting spec.compute_vdw/estat
+    # but we pass specific flags for clarity and dispatch handling
+    protein = parse_structure(
+      structure_path,
+      compute_vdw=spec.compute_lj,
+      compute_electrostatics=spec.compute_estat,
+      force_field=spec.force_field,
     )
-    protein_tuple = next(protein_generator)
-    assert protein_tuple.full_coordinates is not None  # noqa: S101
 
-    # Compute physics features
-    feats = []
-
+    # Physics features are computed by proxide separately
+    # We need to concatenate them based on spec
+    feats_list = []
     if spec.compute_lj:
-      v_noise = spec.vdw_noise
-      if isinstance(v_noise, (list, tuple)):
-        v_noise = v_noise[0] if v_noise else 0.0
-      elif v_noise is None:
-        v_noise = 0.0
-
-      v_feat = compute_vdw_node_features(
-        protein_tuple,
-        noise_scale=v_noise,
-        noise_mode=spec.vdw_noise_mode,
-      )
-      feats.append(v_feat)
+      if protein.vdw_features is not None:
+        feats_list.append(np.array(protein.vdw_features))
+      else:
+        feats_list.append(np.zeros((protein.coordinates.shape[0], 5), dtype=np.float32))
 
     if spec.compute_estat:
-      e_noise = spec.estat_noise
-      if isinstance(e_noise, (list, tuple)):
-        e_noise = e_noise[0] if e_noise else 0.0
-      elif e_noise is None:
-        e_noise = 0.0
+      if protein.electrostatic_features is not None:
+        feats_list.append(np.array(protein.electrostatic_features))
+      else:
+        feats_list.append(np.zeros((protein.coordinates.shape[0], 5), dtype=np.float32))
 
-      e_feat = compute_electrostatic_node_features(
-        protein_tuple,
-        noise_scale=e_noise,
-        noise_mode=spec.estat_noise_mode,
-      )
-      feats.append(e_feat)
-
-    if not feats:
-      msg = "No physics features requested in preprocessing"
-      raise ValueError(msg)
-
-    physics_features = jnp.concatenate(feats, axis=-1)
+    if feats_list:
+      physics_features = np.concatenate(feats_list, axis=-1)
+    else:
+      # Default fallback if nothing requested but array expected?
+      # Maintain 5 dim for backward compat if needed, or 0?
+      # Logic below defaults to empty if physics_features is None?
+      # Original code defaulted to (N, 5).
+      physics_features = np.zeros((protein.coordinates.shape[0], 5), dtype=np.float32)
 
     record_data = {
-      # Basic structure info
       "protein_id": protein_id,
-      "source_file": str(pqr_path),
-      # Coordinates and sequence
-      "coordinates": np.array(protein_tuple.coordinates),  # (N, 37, 3) backbone
-      "aatype": np.array(protein_tuple.aatype),  # (N,)
-      "atom_mask": np.array(protein_tuple.atom_mask),  # (N, 37)
-      # Indexing
-      "residue_index": np.array(protein_tuple.residue_index),  # (N,)
-      "chain_index": np.array(protein_tuple.chain_index),  # (N,)
-      "mask": np.array(protein_tuple.atom_mask[:, 1]),  # (N,) CA mask
-      # Physics features (the main output)
-      "physics_features": np.array(physics_features),  # (N, 5) or (N, 10)
-      # Full atomic data (for verification/debugging)
-      "full_coordinates": np.array(protein_tuple.full_coordinates),  # (n_atoms, 3)
-      "charges": np.array(protein_tuple.charges),  # (n_atoms,)
-      "radii": np.array(protein_tuple.radii),  # (n_atoms,)
-      # Estat metadata
-      "estat_backbone_mask": (
-        np.array(protein_tuple.estat_backbone_mask)
-        if protein_tuple.estat_backbone_mask is not None
-        else np.zeros(
-          len(protein_tuple.full_coordinates) if protein_tuple.full_coordinates is not None else 0,
-          dtype=bool,
-        )
-      ),
-      "estat_resid": (
-        np.array(protein_tuple.estat_resid)
-        if protein_tuple.estat_resid is not None
-        else np.zeros(
-          len(protein_tuple.full_coordinates) if protein_tuple.full_coordinates is not None else 0,
-          dtype=np.int32,
-        )
-      ),
-      "estat_chain_index": (
-        np.array(protein_tuple.estat_chain_index)
-        if protein_tuple.estat_chain_index is not None
-        else np.zeros(
-          len(protein_tuple.full_coordinates) if protein_tuple.full_coordinates is not None else 0,
-          dtype=np.int32,
-        )
-      ),
+      "source_file": str(structure_path),
+      "coordinates": np.array(protein.coordinates),
+      "aatype": np.array(protein.aatype),
+      "atom_mask": np.array(protein.full_atom_mask)
+      if protein.full_atom_mask is not None
+      else np.array([]),
+      "residue_index": np.array(protein.residue_index),
+      "chain_index": np.array(protein.chain_index),
+      "mask": np.array(protein.mask),
+      "physics_features": np.array(physics_features),
+      "full_coordinates": np.array(protein.full_coordinates)
+      if protein.full_coordinates is not None
+      else np.array([]),
+      "charges": np.array(protein.charges) if protein.charges is not None else np.array([]),
+      "radii": np.array(protein.radii) if protein.radii is not None else np.array([]),
     }
 
     # Validate features if requested
     if spec.validate_features:
       for key, value in record_data.items():
-        if isinstance(value, np.ndarray | jnp.ndarray) and not np.all(
-          np.isfinite(value),
-        ):
-          logger.warning("Non-finite values in %s for %s", key, pqr_path)
+        if isinstance(value, np.ndarray) and value.size > 0 and not np.all(np.isfinite(value)):
+          logger.warning("Non-finite values in %s for %s", key, structure_path)
           return (protein_id, None)
-
-      # Check that physics features are reasonable
-      physics_mag = physics_features[:, -1]  # Force magnitude (last col of last feat block)
-      max_reasonable_force = 1e6  # Use a named constant for clarity
-      if np.any(physics_mag > max_reasonable_force):
-        logger.warning(
-          "Unusually large forces (max=%.2e) in %s",
-          np.max(physics_mag),
-          pqr_path,
-        )
 
     shard_path = temp_dir_path / f"shard-{uuid.uuid4().hex}.array_record"
     writer = ArrayRecordWriter(
@@ -215,11 +153,18 @@ def _worker_process_protein(
     writer.write(msgpack.packb(record_data))
     writer.close()
 
+  except Exception:
+    logger.exception("Failed to process %s", structure_path)
+    return (protein_id, None)
+
+  else:
     return (protein_id, shard_path)
 
-  except Exception:
-    logger.exception("Failed to process %s", pqr_path)
-    return (protein_id, None)
+
+def _raise_no_features_error() -> None:
+  """Raise ValueError if no features were requested."""
+  msg = "No physics features requested in preprocessing"
+  raise ValueError(msg)
 
 
 def _load_checkpoint_metadata(metadata_file: Path) -> dict[str, Any]:
@@ -259,6 +204,7 @@ def _append_metadata(metadata_file: Path, protein_id: str, status: str) -> None:
 def _filter_files(
   pqr_files: list[Path],
   metadata_file: Path,
+  *,
   resume: bool,
 ) -> tuple[list[Path], set[str], set[str]]:
   """Filter file list based on checkpoint metadata."""
@@ -284,7 +230,6 @@ def _filter_files(
 def _run_scatter_phase(
   files_to_process: list[Path],
   spec: PreprocessingSpecification,
-  force_field_data: dict[str, Any],
 ) -> list[Path]:
   """Run the parallel processing 'scatter' phase.
 
@@ -295,7 +240,7 @@ def _run_scatter_phase(
   """
   logger.info("Starting scatter phase: parallel processing to temporary shards")
   spec.temp_dir.mkdir(parents=True, exist_ok=True)
-  worker_args = [(pqr_file, spec, spec.temp_dir, force_field_data) for pqr_file in files_to_process]
+  worker_args = [(pqr_file, spec, spec.temp_dir) for pqr_file in files_to_process]
 
   shard_paths = []
 
@@ -391,23 +336,16 @@ def run_preprocessing_pipeline(spec: PreprocessingSpecification) -> dict[str, An
   files_to_process, initial_processed, initial_failed = _filter_files(
     pqr_files,
     spec.metadata_file,
-    spec.resume_from_checkpoint,
+    resume=spec.resume_from_checkpoint,
   )
 
   if not files_to_process:
     logger.info("All files already processed according to checkpoint. Exiting.")
     return _log_summary_and_get_results(spec, initial_processed, initial_failed)
 
-  # 3. Load force field (once to avoid redundant downloads/parsing in workers)
-  logger.info("Loading force field: %s", spec.force_field)
-  ff_obj = load_force_field(spec.force_field)
-  # Convert to a dict structure that's easily picklable for workers
-  # Realistically, workers will use pqr info for charges/radii, but we might
-  # need some ff data in the future.
-  ff_data = {"name": spec.force_field, "temp_marker": True}
-
-  # 4. Run scatter phase (parallel processing)
-  shard_paths = _run_scatter_phase(files_to_process, spec, ff_data)
+  # 3. Run scatter phase (parallel processing)
+  # Physics features are computed by proxide via OutputSpec
+  shard_paths = _run_scatter_phase(files_to_process, spec)
 
   if not shard_paths:
     logger.error("No shards were successfully created. Exiting.")

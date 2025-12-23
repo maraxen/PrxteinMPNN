@@ -23,7 +23,7 @@ dependencies = [
     "equinox>=0.13.2",
     "huggingface-hub>=1.0.1",
     "msgpack-numpy>=0.4.8",
-    "proxide @ git+https://github.com/maraxen/proxide.git@bd2488a0e0148dd6a262c37a4d92165b5078499c",
+    "proxide",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -132,8 +132,8 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
 
-[tool.ty.src]
-exclude = ["tests", "examples", "scripts"]
+[tool.ty.environment]
+root = ["src/prxteinmpnn"]
 
 [tool.ty.rules]
 invalid-type-form = "ignore"

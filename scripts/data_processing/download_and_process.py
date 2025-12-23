@@ -156,8 +156,11 @@ def _extract_and_validate_data(
     if isinstance(seq, torch.Tensor):
         seq = seq.numpy()
     elif isinstance(seq, str):
-        seq = string_to_protein_sequence(seq)
+        # string_to_protein_sequence returns JAX array, convert to numpy
+        seq = np.asarray(string_to_protein_sequence(seq))
 
+    # Ensure numpy array
+    seq = np.asarray(seq)
     if seq.dtype in (np.float32, np.float64):
         seq = seq.astype(np.int32)
 
@@ -202,9 +205,10 @@ def _compute_physics_features(
             res_name = restype_1to3.get(res_letter, "UNK")
 
         for j, atom_name in enumerate(atom_types):
-            # Physics params from Force Field
-            q = force_field.get_charge(res_name, atom_name)
+            # Physics params from Force Field (convert from JAX scalars to Python floats)
+            q = float(force_field.get_charge(res_name, atom_name))
             sig, eps = force_field.get_lj_params(res_name, atom_name)
+            sig, eps = float(sig), float(eps)
 
             # Radius from constants (element based)
             element = atom_name[0]
@@ -252,12 +256,12 @@ def _process_protein_dict(
     return {
         "protein_id": name,
         "source_file": str(pt_file),
-        "coordinates": coords.astype(np.float32),
-        "aatype": seq.astype(np.int8),
-        "atom_mask": full_atom_mask,
-        "residue_index": res_idx.astype(np.int32),
-        "chain_index": chain_idx.astype(np.int32),
-        "mask": mask.astype(bool),
+        "coordinates": np.asarray(coords).astype(np.float32),
+        "aatype": np.asarray(seq).astype(np.int8),
+        "atom_mask": np.asarray(full_atom_mask),
+        "residue_index": np.asarray(res_idx).astype(np.int32),
+        "chain_index": np.asarray(chain_idx).astype(np.int32),
+        "mask": np.asarray(mask).astype(bool),
         "physics_features": np.zeros((len(seq), 5), dtype=np.float32),
         "full_coordinates": np.zeros((len(seq) * 37, 3), dtype=np.float32),
         "charges": charges,

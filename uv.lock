@@ -2851,7 +2851,7 @@ wheels = [
 [[package]]
 name = "proxide"
 version = "0.1.0"
-source = { git = "https://github.com/maraxen/proxide.git?rev=bd2488a0e0148dd6a262c37a4d92165b5078499c#bd2488a0e0148dd6a262c37a4d92165b5078499c" }
+source = { git = "https://github.com/maraxen/proxide.git#d4d7b28163242db760faf0cbf2640d4c9c482ab6" }
 dependencies = [
     { name = "array-record" },
     { name = "equinox" },
@@ -2987,7 +2987,7 @@ requires-dist = [
     { name = "numpy" },
     { name = "optax" },
     { name = "pcax", specifier = ">=0.1.0" },
-    { name = "proxide", git = "https://github.com/maraxen/proxide.git?rev=bd2488a0e0148dd6a262c37a4d92165b5078499c" },
+    { name = "proxide", git = "https://github.com/maraxen/proxide.git" },
     { name = "psutil" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pytest", marker = "extra == 'tests'" },

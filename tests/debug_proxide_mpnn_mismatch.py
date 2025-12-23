@@ -14,11 +14,13 @@ def run_debug(pdb_path: str):
     k_neighbors = 48
 
     # 1. Rust/Proxide Implementation (Target)
-    spec_rust = OutputSpec()
-    spec_rust.compute_rbf = True
-    spec_rust.rbf_num_neighbors = k_neighbors
-    spec_rust.output_format_target = "mpnn"
-    spec_rust.remove_solvent = True
+
+    spec_rust = OutputSpec(
+        compute_rbf=True,
+        rbf_num_neighbors=k_neighbors,
+        output_format_target="mpnn",
+        remove_solvent=True,
+    )
     
     print("Parsing with Proxide (MPNN Target)...")
     rust_dict = parse_rust(pdb_path, spec=spec_rust)
@@ -28,10 +30,12 @@ def run_debug(pdb_path: str):
     rust_neighbors = np.array(protein_rust.neighbor_indices)
 
     # 2. Python Implementation (Reference)
-    spec_py = OutputSpec()
-    spec_py.compute_rbf = False # We will compute in Py
-    spec_py.output_format_target = "general" # Atom37
-    spec_py.remove_solvent = True
+
+    spec_py = OutputSpec(
+        compute_rbf=False,  # We will compute in Py
+        output_format_target="general",  # Atom37
+        remove_solvent=True,
+    )
 
     print("Parsing with Proxide (Atom37 Baseline)...")
     py_dict = parse_rust(pdb_path, spec=spec_py)
@@ -89,5 +93,9 @@ def run_debug(pdb_path: str):
         print(f"  Rust[0,0,:5]: {rust_rbf[0,0,:5]}")
         print(f"  Py[0,0,:5]:   {py_rbf[0,0,:5]}")
 
+from pathlib import Path
+
 if __name__ == "__main__":
-    run_debug("tests/data/1ubq.pdb")
+    base_dir = Path(__file__).resolve().parent
+    pdb_path = base_dir / "data" / "1ubq.pdb"
+    run_debug(str(pdb_path))

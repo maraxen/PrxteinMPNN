@@ -231,3 +231,7 @@ For development spanning proxide, prolix, and PrxteinMPNN, use git submodules wi
 - 🔴 Blocked - Cannot proceed without external input
 - 🔵 Reference - Documentation/process, not code work
 - ✅ Complete
+
+## User notes
+
+- We will need to have proxide actually on PyPi in the stable release. Right now we will just use the latest from GitHub.

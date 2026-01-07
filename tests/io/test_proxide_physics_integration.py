@@ -4,9 +4,9 @@ import pytest
 from pathlib import Path
 import numpy as np
 
-from prxteinmpnn.io.parsing import parse_structure, is_proxide_available
+from prxteinmpnn.io.parsing import parse_structure
 
-@pytest.mark.skipif(not is_proxide_available(), reason="Proxide not available")
+
 def test_physics_feature_parsing():
     """Test that physics features are parsed correctly via dispatch."""
     # Use 1crn.pdb from proxide tests (relative to repo root)

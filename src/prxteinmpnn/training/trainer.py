@@ -274,6 +274,8 @@ def train_step(  # noqa: PLR0913, C901, PLR0915
   noise_schedule: NoiseSchedule | None = None,
   accum_steps: int = 1,
   compute_dtype: jnp.dtype = jnp.float32,
+  rbf_features: jax.Array | None = None,
+  neighbor_indices: jax.Array | None = None,
 ) -> tuple[PrxteinMPNN, optax.OptState, TrainingMetrics]:
   """Single training step.
 
@@ -298,6 +300,10 @@ def train_step(  # noqa: PLR0913, C901, PLR0915
       noise_schedule: Noise schedule for diffusion training
       accum_steps: Number of gradient accumulation steps (effective batch_size = batch_size).
       compute_dtype: JAX dtype for computation (e.g., jnp.bfloat16).
+      rbf_features: Optional precomputed RBF features from proxide (N, K, 400).
+          When provided, RBF computation is skipped in the feature module.
+      neighbor_indices: Optional precomputed neighbor indices from proxide (N, K).
+          Must be provided if rbf_features is provided.
 
   Returns:
       Tuple of (updated_model, updated_opt_state, metrics)
@@ -313,6 +319,8 @@ def train_step(  # noqa: PLR0913, C901, PLR0915
     seq: jax.Array,
     key: jax.Array,
     phys_feat: jax.Array | None = None,
+    rbf_feats: jax.Array | None = None,
+    neighbor_idx: jax.Array | None = None,
   ) -> Logits:
     """Forward pass for a single protein."""
     key, subkey = jax.random.split(key)
@@ -353,6 +361,8 @@ def train_step(  # noqa: PLR0913, C901, PLR0915
       )
       return logits
 
+    # Pass rbf_features and neighbor_indices if provided
+    # When rbf_features is provided, the model skips coordinate noising and RBF computation
     _, logits = m(
       coords,
       mask,
@@ -364,6 +374,8 @@ def train_step(  # noqa: PLR0913, C901, PLR0915
       one_hot_sequence=one_hot_seq,
       backbone_noise=jnp.array(backbone_noise_std),
       initial_node_features=phys_feat,
+      rbf_features=rbf_feats,
+      neighbor_indices=neighbor_idx,
     )
     return logits
 
@@ -384,6 +396,8 @@ def train_step(  # noqa: PLR0913, C901, PLR0915
       sequence,
       batch_keys,
       physics_features,
+      rbf_features,
+      neighbor_indices,
     )
 
     losses = jax.vmap(batch_loss)(logits_batch, sequence, mask)
@@ -409,6 +423,8 @@ def train_step(  # noqa: PLR0913, C901, PLR0915
     chain_idx_reshaped = _reshape(chain_index)
     seq_reshaped = _reshape(sequence)
     phys_reshaped = _reshape_opt(physics_features)
+    rbf_reshaped = _reshape_opt(rbf_features)
+    neighbor_reshaped = _reshape_opt(neighbor_indices)
 
     # Split PRNG key for each micro-batch
     accum_keys = jax.random.split(prng_key, accum_steps)
@@ -423,10 +439,12 @@ def train_step(  # noqa: PLR0913, C901, PLR0915
         jax.Array,
         jax.Array,
         jax.Array | None,
+        jax.Array | None,
+        jax.Array | None,
       ],
     ) -> tuple[tuple[jax.Array, Logits], Any]:
       (accum_loss, accum_logits) = carry
-      (c, m, ri, ci, s, k, p) = inputs
+      (c, m, ri, ci, s, k, p, rbf, nb) = inputs
 
       # We need a different loss_fn that takes specific micro-batch inputs
       def micro_loss_fn(m_model: PrxteinMPNN) -> tuple[jax.Array, Logits]:
@@ -439,6 +457,8 @@ def train_step(  # noqa: PLR0913, C901, PLR0915
           s,
           micro_keys,
           p,
+          rbf,
+          nb,
         )
         micro_loss_val = jnp.mean(jax.vmap(batch_loss)(micro_logits, s, m))
         return micro_loss_val, micro_logits
@@ -459,6 +479,8 @@ def train_step(  # noqa: PLR0913, C901, PLR0915
         seq_reshaped,
         accum_keys,
         phys_reshaped,
+        rbf_reshaped,
+        neighbor_reshaped,
       ),
     )
     # Sum gradients

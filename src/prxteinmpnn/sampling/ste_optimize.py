@@ -7,7 +7,7 @@ estimator (STE) to allow gradients through discrete sampling operations.
 from __future__ import annotations
 
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, cast
 
 import jax
 import jax.numpy as jnp
@@ -34,10 +34,12 @@ from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
 from prxteinmpnn.utils.ste import straight_through_estimator
 
+_DEFAULT_DECODING_ORDER_FN = cast(DecodingOrderFn, random_decoding_order)
+
 
 def make_optimize_sequence_fn(
   model: PrxteinMPNN,
-  decoding_order_fn: DecodingOrderFn = random_decoding_order,
+  decoding_order_fn: DecodingOrderFn = _DEFAULT_DECODING_ORDER_FN,
   batch_size: int = 4,
 ) -> Callable[
   [
@@ -250,7 +252,7 @@ def make_optimize_sequence_fn(
 
     # Get final output logits by running through decoder one more time
     final_decoding_order, _ = decoding_order_fn(final_key, num_residues, tie_group_map, num_groups)
-    final_ar_mask = generate_ar_mask(final_decoding_order, tie_group_map)
+    final_ar_mask = cast(Callable, generate_ar_mask)(final_decoding_order, tie_group_map)
 
     _, final_output_logits = model(
       structure_coordinates,
@@ -265,4 +267,4 @@ def make_optimize_sequence_fn(
 
     return final_sequence, final_output_logits, final_logits
 
-  return optimize_sequence
+  return cast(Callable, optimize_sequence)

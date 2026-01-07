@@ -14,7 +14,9 @@ import jax.numpy as jnp
 from prxteinmpnn.run.averaging import get_averaged_encodings, make_encoding_sampling_split_fn
 from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.utils.autoregression import resolve_tie_groups
-from prxteinmpnn.utils.decoding_order import random_decoding_order
+from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
+
+_DEFAULT_DECODING_ORDER_FN = cast(DecodingOrderFn, random_decoding_order)
 from prxteinmpnn.utils.safe_map import safe_map as _safe_map
 
 from .prep import prep_protein_stream_and_model
@@ -239,7 +241,7 @@ def sample(
 
   sampler_fn = make_sample_sequences(
     model=model,
-    decoding_order_fn=random_decoding_order,
+    decoding_order_fn=_DEFAULT_DECODING_ORDER_FN,
     sampling_strategy=spec.sampling_strategy,
   )
 
@@ -437,7 +439,7 @@ def _internal_sample_averaged(
   ) -> ProteinSequence:
     """Sample one sequence from averaged features."""
     seq_len = encoded_feat[0].shape[0]
-    decoding_order, _ = random_decoding_order(
+    decoding_order, _ = _DEFAULT_DECODING_ORDER_FN(
       decoding_order_key,
       seq_len,
       tie_group_map,

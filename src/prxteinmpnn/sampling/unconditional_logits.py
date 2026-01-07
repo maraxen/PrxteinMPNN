@@ -13,7 +13,7 @@ This is used for:
 from __future__ import annotations
 
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import jax
 
@@ -45,6 +45,12 @@ if TYPE_CHECKING:
     ],
     Logits,
   ]
+
+else:
+  from collections.abc import Callable
+  from typing import Any
+
+  UnconditionalLogitsFn = Callable[..., Any]
 
 
 def make_unconditional_logits_fn(
@@ -114,4 +120,4 @@ def make_unconditional_logits_fn(
 
     return logits
 
-  return unconditional_logits
+  return cast(UnconditionalLogitsFn, unconditional_logits)

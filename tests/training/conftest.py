@@ -16,8 +16,8 @@ from prxteinmpnn.utils.data_structures import Protein
 def protein_structure() -> Protein:
     """Load a sample protein structure from a PDB file."""
     pdb_path = Path(__file__).parent.parent / "data" / "1ubq.pdb"
-    protein_tuple = next(parse_input(str(pdb_path)))
-    return Protein.from_tuple(protein_tuple)
+    # parse_input returns Protein objects directly
+    return next(parse_input(str(pdb_path)))
 
 
 @pytest.fixture
@@ -37,8 +37,14 @@ def small_model() -> PrxteinMPNN:
 @pytest.fixture
 def mock_batch(protein_structure: Protein) -> Protein:
     """Create a mock batch of protein structures."""
+    import numpy as np
+    def _expand_if_array(x):
+        if isinstance(x, (jnp.ndarray, np.ndarray)):
+            return jnp.expand_dims(x, axis=0)
+        return x  # Keep non-array fields as-is
     return jax.tree_util.tree_map(
-        lambda x: jnp.expand_dims(x, axis=0), protein_structure,
+        _expand_if_array, protein_structure,
+        is_leaf=lambda x: isinstance(x, (str, type(None))),
     )
 
 

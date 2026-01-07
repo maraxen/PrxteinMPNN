@@ -9,7 +9,6 @@ Legacy biotite/mdtraj-based parsers have been removed.
 """
 
 from prxteinmpnn.io.parsing.dispatch import (
-  is_proxide_available,
   parse_input,
   parse_mdcath,
   parse_mdtraj_h5,
@@ -19,7 +18,6 @@ from prxteinmpnn.io.parsing.dispatch import (
 )
 
 __all__ = [
-  "is_proxide_available",
   "parse_input",
   "parse_mdcath",
   "parse_mdtraj_h5",

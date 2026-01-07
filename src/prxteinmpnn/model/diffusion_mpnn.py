@@ -139,7 +139,7 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
     self.t_embed_sin = SinusoidalEmbedding(node_features)
     self.t_embed_mlp = SwiGLU(node_features, node_features * 4, node_features, key=t_key)
 
-  def __call__(  # noqa: PLR0913
+  def __call__(  # type: ignore[override] # noqa: PLR0913
     self,
     structure_coordinates: StructureAtomicCoordinates,
     mask: AlphaCarbonMask,
@@ -155,7 +155,9 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
     backbone_noise: jax.Array | None = None,
     tie_group_map: jnp.ndarray | None = None,
     multi_state_strategy: Literal[
-      "arithmetic_mean", "geometric_mean", "product",
+      "arithmetic_mean",
+      "geometric_mean",
+      "product",
     ] = "arithmetic_mean",
     structure_mapping: jnp.ndarray | None = None,
     initial_node_features: jnp.ndarray | None = None,

@@ -156,7 +156,7 @@ def _compute_jacobians_for_batch(
         noise,  # backbone_noise
         struct_mapping,  # structure_mapping
       )
-      return logits.flatten()
+      return cast(jax.Array, logits.flatten())
 
     return _compute_jacobian_from_logit_fn(
       logit_fn,

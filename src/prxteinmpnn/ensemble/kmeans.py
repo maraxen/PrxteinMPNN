@@ -10,8 +10,9 @@ more stable results.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import jax
 import jax.numpy as jnp
@@ -57,7 +58,7 @@ def _kmeans_plusplus_init(
     probabilities = distances_sq / jnp.sum(distances_sq)
     current_key, subkey = random.split(current_key)
     next_idx = random.choice(subkey, n_samples, p=probabilities)
-    updated_centroids = current_centroids.at[i].set(data[next_idx])
+    updated_centroids = cast(jax.Array, current_centroids).at[i].set(data[next_idx])
     return updated_centroids, current_key
 
   final_centroids, _ = jax.lax.fori_loop(
@@ -77,7 +78,7 @@ def kmeans(
   max_iters: int = 100,
 ) -> Labels:
   """K-Means clustering algorithm with K-Means++ initialization."""
-  initial_centroids = _kmeans_plusplus_init(key, data, num_clusters)
+  initial_centroids = cast(Callable, _kmeans_plusplus_init)(key, data, num_clusters)
 
   def kmeans_iteration(_: Int, centroids: Centroids) -> Centroids:
     distances_sq = jnp.sum((data[:, None, :] - centroids[None, :, :]) ** 2, axis=-1)
@@ -91,7 +92,7 @@ def kmeans(
         jnp.sum(data * mask[:, None], axis=0) / count,
         centroids_state[j],
       )
-      return centroids_state.at[j].set(new_centroid)
+      return cast(jax.Array, centroids_state).at[j].set(new_centroid)
 
     return jax.lax.fori_loop(0, num_clusters, update_centroid, centroids)
 

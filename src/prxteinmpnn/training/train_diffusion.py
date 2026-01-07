@@ -92,7 +92,7 @@ def train_step(
         noisy_sequence=noisy_seq,
         physics_noise_scale=physics_noise_scale,
       )
-      return logits
+      return cast(jax.Array, logits)
 
     logits_batch = jax.vmap(single_forward)(
       coordinates,

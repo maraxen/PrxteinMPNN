@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from functools import partial
+from typing import cast
 
 import jax
 import jax.numpy as jnp
@@ -11,6 +12,8 @@ from prxteinmpnn.model import PrxteinMPNN
 from prxteinmpnn.run.averaging import make_encoding_sampling_split_fn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
+
+_DEFAULT_DECODING_ORDER_FN = cast(DecodingOrderFn, random_decoding_order)
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,
   AutoRegressiveMask,
@@ -71,7 +74,7 @@ def score_sequence_with_encoding(
 
 def make_score_fn(
   model: PrxteinMPNN,
-  decoding_order_fn: DecodingOrderFn = random_decoding_order,
+  decoding_order_fn: DecodingOrderFn = _DEFAULT_DECODING_ORDER_FN,
   _num_encoder_layers: int = 3,
   _num_decoder_layers: int = 3,
 ) -> ScoringFn:
@@ -134,7 +137,9 @@ def make_score_fn(
 
     """
     decoding_order, prng_key = decoding_order_fn(prng_key, sequence.shape[0], None, None)
-    autoregressive_mask = generate_ar_mask(decoding_order) if ar_mask is None else ar_mask
+    autoregressive_mask = (
+      cast(Callable, generate_ar_mask)(decoding_order) if ar_mask is None else ar_mask
+    )
 
     # Ensure sequence is one-hot encoded
     if sequence.ndim == 1:
@@ -164,5 +169,7 @@ def make_score_fn(
 
     return masked_score_sum / mask_sum, logits, decoding_order
 
-  return score_sequence
+  return cast(ScoringFn, score_sequence)
+
+
 make_score_sequence = make_score_fn

@@ -11,8 +11,9 @@ The core of the algorithm, `perform_dbscan_clustering`, is adapted from the
 matrix-based approach in github.com/justktln2/ciMIST.
 """
 
+from collections.abc import Callable
 from functools import partial
-from typing import Literal
+from typing import Literal, cast
 
 import jax
 import jax.numpy as jnp
@@ -302,16 +303,19 @@ def trace_entropy_across_eps(
   responsibility_matrix = gmm.predict_proba(logits)
 
   def _calculate_for_single_eps(eps: Float) -> tuple:
-    result = dbscan_cluster(
-      distance_matrix,
-      component_weights,
-      responsibility_matrix,
-      eps,
-      min_cluster_weight,
+    result = cast(
+      GMMClusteringResult,
+      cast(Callable, dbscan_cluster)(
+        distance_matrix,
+        component_weights,
+        responsibility_matrix,
+        eps,
+        min_cluster_weight,
+      ),
     )
     z_score_sq = (
-      (result.von_neumann_entropy - result.plug_in_entropy)
-      / (result.posterior_entropy_std_err + 1e-9)
+      (cast(jax.Array, result.von_neumann_entropy) - cast(jax.Array, result.plug_in_entropy))
+      / (cast(jax.Array, result.posterior_entropy_std_err) + 1e-9)
     ) ** 2
     return (
       result.plug_in_entropy,

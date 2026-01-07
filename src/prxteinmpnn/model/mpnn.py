@@ -5,7 +5,7 @@ This module contains the top-level PrxteinMPNN model that combines all component
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 import equinox as eqx
 import jax
@@ -821,13 +821,15 @@ class PrxteinMPNN(eqx.Module):
         )
 
         # Update the state for next layer
-        all_layers_h = all_layers_h.at[layer_idx + 1, position].set(jnp.squeeze(h_out_pos))
+        all_layers_h = (
+          cast(jax.Array, all_layers_h).at[layer_idx + 1, position].set(jnp.squeeze(h_out_pos))
+        )
 
       final_h_pos = all_layers_h[-1, position]
       logits_pos_vec = self.w_out(final_h_pos)
       logits_pos = jnp.expand_dims(logits_pos_vec, axis=0)
 
-      next_all_logits = all_logits.at[position, :].set(jnp.squeeze(logits_pos))
+      next_all_logits = cast(jax.Array, all_logits).at[position, :].set(jnp.squeeze(logits_pos))
 
       bias_pos = jax.lax.dynamic_slice(
         bias,
@@ -850,8 +852,8 @@ class PrxteinMPNN(eqx.Module):
 
       s_embed_pos = one_hot_seq_pos @ self.w_s_embed.weight
 
-      next_s_embed = s_embed.at[position, :].set(jnp.squeeze(s_embed_pos))
-      next_sequence = sequence.at[position, :].set(jnp.squeeze(one_hot_seq_pos))
+      next_s_embed = cast(jax.Array, s_embed).at[position, :].set(jnp.squeeze(s_embed_pos))
+      next_sequence = cast(jax.Array, sequence).at[position, :].set(jnp.squeeze(one_hot_seq_pos))
 
       return (
         all_layers_h,
@@ -897,7 +899,7 @@ class PrxteinMPNN(eqx.Module):
       neighbor_indices,
       mask,
       encoder_context,
-      mask_bw,
+      cast(jax.Array, mask_bw),
       temperature,
       bias,
       tie_group_map,
@@ -996,7 +998,7 @@ class PrxteinMPNN(eqx.Module):
     if backbone_noise is None:
       backbone_noise = jnp.array(0.0, dtype=jnp.float32)
 
-    edge_features, neighbor_indices, node_features, _ = self.features(
+    edge_features, new_neighbor_indices, node_features, _ = self.features(
       feat_key,
       structure_coordinates,
       mask,
@@ -1008,6 +1010,7 @@ class PrxteinMPNN(eqx.Module):
       rbf_features=rbf_features,
       neighbor_indices=neighbor_indices,
     )
+    neighbor_indices = cast(jax.Array, new_neighbor_indices)
 
     node_features, edge_features = self.encoder(
       edge_features,

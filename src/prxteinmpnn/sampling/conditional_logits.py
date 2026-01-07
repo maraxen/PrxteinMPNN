@@ -12,7 +12,7 @@ This is used for:
 from __future__ import annotations
 
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import equinox as eqx
 import jax
@@ -167,7 +167,7 @@ def make_conditional_logits_fn(
 
     return logits
 
-  return conditional_logits
+  return cast(ConditionalLogitsFn, conditional_logits)
 
 
 def make_encoding_conditional_logits_split_fn(

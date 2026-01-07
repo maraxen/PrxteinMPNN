@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import sys
 from dataclasses import asdict, fields
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import h5py
 import jax
@@ -20,8 +20,8 @@ from .specs import SamplingSpecification, ScoringSpecification
 
 if TYPE_CHECKING:
   from prxteinmpnn.model.mpnn import PrxteinMPNN
-  from prxteinmpnn.utils.data_structures import Protein, ProteinSequence
-  from prxteinmpnn.utils.types import Logits
+  from prxteinmpnn.utils.data_structures import Protein
+  from prxteinmpnn.utils.types import Logits, ProteinSequence
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
@@ -223,10 +223,13 @@ def _score_batch_averaged(
       ar_m: jnp.ndarray,
     ) -> tuple[jnp.ndarray, Logits, jnp.ndarray]:
       # score_sequence_with_encoding returns (score, logits, decoding_order)
-      return score_sequence_with_encoding(
-        model,
-        seq,
-        (avg_node, avg_edge, n_idx, m, ar_m),
+      return cast(
+        tuple[jnp.ndarray, Logits, jnp.ndarray],
+        score_sequence_with_encoding(
+          model,
+          seq,
+          (avg_node, avg_edge, n_idx, m, ar_m),
+        ),
       )
 
     scores_batch, logits_batch, _ = jax.vmap(score_one)(

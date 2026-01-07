@@ -21,3 +21,7 @@ build/
 
 # Local proxide development folder (installed via git dependency)
 proxide/
+
+# Training checkpoints
+checkpoints/
+checkpoints_test/

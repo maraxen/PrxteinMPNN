@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
+
+import jax
 
 from prxteinmpnn.sampling.conditional_logits import (
   make_conditional_logits_fn,
@@ -13,8 +15,6 @@ from prxteinmpnn.sampling.unconditional_logits import make_unconditional_logits_
 from prxteinmpnn.utils import ste
 
 if TYPE_CHECKING:
-  import jax
-
   from prxteinmpnn.model import PrxteinMPNN
 
 __all__ = [
@@ -54,11 +54,14 @@ def sample(
 
   """
   sampler = make_sample_sequences(model, sampling_strategy="temperature")
-  return sampler(
-    prng_key,
-    structure_coordinates,
-    mask,
-    residue_index,
-    chain_index,
-    **kwargs,
+  return cast(
+    tuple[jax.Array, jax.Array, jax.Array],
+    sampler(
+      prng_key,
+      structure_coordinates,
+      mask,
+      residue_index,
+      chain_index,
+      **kwargs,
+    ),
   )

@@ -95,7 +95,7 @@ class RunSpecification:
   overwrite_cache: bool = False
   output_path: str | Path | None = None
   max_length: int | None = 512
-  truncation_strategy: Literal["none", "random_crop", "center_crop"] = "none"
+  truncation_strategy: Literal["none", "random_crop", "center_crop"] = "random_crop"
 
   # Host Resource Allocation
   host_resource_allocation_strategy: Literal["auto", "full"] = "auto"

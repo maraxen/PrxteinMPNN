@@ -6,8 +6,8 @@ prxteinmpnn.utils.coordinates
 import jax
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
+from proxide.core.containers import atom_order
 
-from prxteinmpnn.utils.residue_constants import atom_order
 from prxteinmpnn.utils.types import (
   AlphaCarbonDistance,
   AtomicCoordinate,

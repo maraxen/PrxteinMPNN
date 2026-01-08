@@ -5,8 +5,9 @@ prxteinmpnn.utils.normalize
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import partial
-from typing import TYPE_CHECKING, Callable, cast
+from typing import TYPE_CHECKING, cast
 
 import jax
 from jax import numpy as jnp
@@ -43,7 +44,7 @@ def layer_normalization(
   """
   scale = layer_parameters["scale"]
   offset = layer_parameters["offset"]
-  return cast(Callable[..., Array], normalize)(
+  return cast("Callable[..., Array]", normalize)(
     x,
     scale,
     offset,

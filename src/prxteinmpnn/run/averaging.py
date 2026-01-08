@@ -269,9 +269,9 @@ def make_encoding_sampling_split_fn(
     if temperature is None:
       temperature = jnp.array(1.0, dtype=jnp.float32)
 
-    autoregressive_mask = cast(Callable, generate_ar_mask)(decoding_order, tie_group_map)
+    autoregressive_mask = cast("Callable", generate_ar_mask)(decoding_order, tie_group_map)
 
-    seq_length = cast(jax.Array, autoregressive_mask).shape[0]
+    seq_length = cast("jax.Array", autoregressive_mask).shape[0]
     _, prng_key = jax.random.split(prng_key)
     initial_seq = jax.random.randint(
       prng_key,
@@ -327,7 +327,7 @@ def make_encoding_sampling_split_fn(
         scaled_logits = logits[pos] / temperature
         key, subkey = jax.random.split(key)
         sampled_aa = jax.random.categorical(subkey, scaled_logits).astype(jnp.int8)
-        updated_seq = cast(jax.Array, sequence).at[pos].set(sampled_aa)
+        updated_seq = cast("jax.Array", sequence).at[pos].set(sampled_aa)
         return updated_seq, key
 
       final_seq, _ = jax.lax.fori_loop(

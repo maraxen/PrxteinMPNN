@@ -5,12 +5,12 @@ from collections.abc import Mapping
 import jax
 import jax.numpy as jnp
 import numpy as np
-
-from prxteinmpnn.utils.residue_constants import (
+from proxide.chem.residues import (
   restype_order,
   restype_order_with_x,
   unk_restype_index,
 )
+
 from prxteinmpnn.utils.types import ProteinSequence
 
 MPNN_ALPHABET = "ACDEFGHIKLMNPQRSTVWYX"

@@ -120,4 +120,4 @@ def make_unconditional_logits_fn(
 
     return logits
 
-  return cast(UnconditionalLogitsFn, unconditional_logits)
+  return cast("UnconditionalLogitsFn", unconditional_logits)

@@ -224,7 +224,7 @@ def _score_batch_averaged(
     ) -> tuple[jnp.ndarray, Logits, jnp.ndarray]:
       # score_sequence_with_encoding returns (score, logits, decoding_order)
       return cast(
-        tuple[jnp.ndarray, Logits, jnp.ndarray],
+        "tuple[jnp.ndarray, Logits, jnp.ndarray]",
         score_sequence_with_encoding(
           model,
           seq,

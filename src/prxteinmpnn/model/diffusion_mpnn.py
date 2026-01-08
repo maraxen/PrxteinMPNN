@@ -139,7 +139,7 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
     self.t_embed_sin = SinusoidalEmbedding(node_features)
     self.t_embed_mlp = SwiGLU(node_features, node_features * 4, node_features, key=t_key)
 
-  def __call__(  # type: ignore[override] # noqa: PLR0913
+  def __call__(  # type: ignore[override]
     self,
     structure_coordinates: StructureAtomicCoordinates,
     mask: AlphaCarbonMask,

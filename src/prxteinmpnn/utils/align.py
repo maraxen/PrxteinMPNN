@@ -219,7 +219,7 @@ def smith_waterman(unroll_factor: int = 2, ninf: float = -1e30, *, batch: bool =
   return jax.vmap(traceback_function, (0, 0, None, None)) if batch else traceback_function
 
 
-def smith_waterman_affine(  # noqa: C901
+def smith_waterman_affine(
   unroll: int = 2,
   ninf: float = -1e30,
   *,

@@ -287,7 +287,7 @@ class TestTiedAutoregressiveSampling:
     # Create group mask for positions 0, 2, 4 (3 positions)
     group_mask = jnp.array([True, False, True, False, True, False])
 
-    avg_logits = PrxteinMPNN._average_logits_over_group(logits, group_mask)  # noqa: SLF001    # Verify shape
+    avg_logits = PrxteinMPNN._combine_logits_multistate(logits, group_mask)  # noqa: SLF001    # Verify shape
     chex.assert_shape(avg_logits, (1, 21))
 
     # Verify manual calculation matches

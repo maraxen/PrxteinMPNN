@@ -253,7 +253,7 @@ def setup_mixed_precision(precision: str) -> None:
     logger.info("Using FP32 (full precision)")
 
 
-def train_step(  # noqa: PLR0913, C901, PLR0915
+def train_step(  # noqa: PLR0915
   model: PrxteinMPNN,
   opt_state: optax.OptState,
   optimizer: optax.GradientTransformation,
@@ -627,7 +627,7 @@ def eval_step(
   )
 
 
-def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: C901, PLR0912, PLR0915
+def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: PLR0915
   """Train PrxteinMPNN model.
 
   Args:

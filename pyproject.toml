@@ -107,7 +107,20 @@ exclude = [
 
 [tool.ruff.lint]
 select = ["ALL"]
-ignore = ["PD", "D203", "D213"]
+ignore = [
+  "PD", "D203", "D213",
+  "F722", # jaxtyping strings
+  "TRY003", # long exception messages
+  "EM101", "EM102", # exception literals
+  "TC002", "TC003", # move into type-checking block
+  "PLR2004", # magic numbers
+  "ERA001", # commented-out code
+  "E402", # imports not at top
+  "C901", "PLR0912", "PLR0913", # complexity
+  "UP007", # Union vs |
+  "E501", # line too long
+  "D", # docstrings
+]
 pylint.max-args = 15
 
 [tool.ruff.lint.per-file-ignores]

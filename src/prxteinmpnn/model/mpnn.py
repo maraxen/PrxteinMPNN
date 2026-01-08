@@ -25,10 +25,8 @@ from prxteinmpnn.utils.ste import straight_through_estimator
 if TYPE_CHECKING:
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
-    ArrayLike,
     AutoRegressiveMask,
     BackboneNoise,
-    Bool,
     ChainIndex,
     DecodingOrder,
     EdgeFeatures,

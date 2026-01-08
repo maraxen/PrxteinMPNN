@@ -57,6 +57,10 @@ def random_decoding_order(
   """
   current_key, next_key = jax.random.split(prng_key)
 
+  if num_residues < 0:
+    msg = f"num_residues must be non-negative, but got {num_residues}"
+    raise TypeError(msg)
+
   if tie_group_map is None:
     # Standard random order without ties
     decoding_order = jax.random.permutation(current_key, jnp.arange(0, num_residues))

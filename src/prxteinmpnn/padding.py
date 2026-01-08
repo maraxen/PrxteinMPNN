@@ -30,6 +30,7 @@ def get_length_bucket(n_residues: int) -> int:
 
   Raises:
       ValueError: If length exceeds all buckets.
+
   """
   for bucket in LENGTH_BUCKETS:
     if n_residues <= bucket:
@@ -53,6 +54,7 @@ def pad_to_bucket(
 
   Returns:
       Tuple of (padded_coordinates, padded_sequence, padded_mask).
+
   """
   real_n = coordinates.shape[0]
   n_pad = target_length - real_n
@@ -88,6 +90,7 @@ def create_residue_mask(real_n: int, padded_n: int) -> Bool[Array, " padded_n"]:
 
   Returns:
       Boolean mask of shape (padded_n,), True for valid positions.
+
   """
   return jnp.arange(padded_n) < real_n
 
@@ -101,5 +104,6 @@ def masked_mean(values: Array, mask: Array) -> Float[Array, ""]:
 
   Returns:
       Mean over valid elements.
+
   """
   return jnp.sum(values * mask) / jnp.sum(mask)

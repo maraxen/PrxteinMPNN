@@ -11,12 +11,14 @@ from typing import TYPE_CHECKING
 import jax.numpy as jnp
 
 if TYPE_CHECKING:
+  from jaxtyping import ArrayLike
+
   from prxteinmpnn.utils.types import Logits
 
 
 def arithmetic_mean_logits(
   logits: Logits,
-  group_mask: jnp.ndarray,
+  group_mask: ArrayLike,
 ) -> jnp.ndarray:
   """Average logits across positions in a tie group using log-sum-exp.
 
@@ -40,6 +42,7 @@ def arithmetic_mean_logits(
     >>> avg_logits = arithmetic_mean_logits(logits, group_mask)
 
   """
+  group_mask = jnp.asarray(group_mask)
   max_logits = jnp.max(
     logits,
     where=group_mask[:, None],
@@ -61,7 +64,7 @@ def arithmetic_mean_logits(
 
 def geometric_mean_logits(
   logits: Logits,
-  group_mask: jnp.ndarray,
+  group_mask: ArrayLike,
   temperature: float,
 ) -> jnp.ndarray:
   """Combine logits using geometric mean in probability space.
@@ -91,6 +94,7 @@ def geometric_mean_logits(
     >>> # geom_logits = (10.0 + 8.0) / (1.0 * 2) = 9.0 for AA0
 
   """
+  group_mask = jnp.asarray(group_mask)
   masked_logits = jnp.where(group_mask[:, None], logits, 0.0)
   sum_logits = jnp.sum(masked_logits, axis=0, keepdims=True)
   num_in_group = jnp.sum(group_mask)
@@ -100,7 +104,7 @@ def geometric_mean_logits(
 
 def product_of_probabilities_logits(
   logits: Logits,
-  group_mask: jnp.ndarray,
+  group_mask: ArrayLike,
 ) -> jnp.ndarray:
   """Combine states by multiplying probabilities (summing log-probabilities).
 
@@ -130,6 +134,7 @@ def product_of_probabilities_logits(
     >>> # AA0 has even higher combined probability, AA1 has even lower
 
   """
+  group_mask = jnp.asarray(group_mask)
   masked_logits = jnp.where(group_mask[:, None], logits, 0.0)
 
   return jnp.sum(masked_logits, axis=0, keepdims=True)

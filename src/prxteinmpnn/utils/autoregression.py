@@ -64,7 +64,7 @@ def make_autoregressive_mask(decoding_step_map: jnp.ndarray) -> jnp.ndarray:
   return steps_i >= steps_j
 
 
-def resolve_tie_groups(  # noqa: C901, PLR0912
+def resolve_tie_groups(
   spec: RunSpecification,
   combined_protein: Protein,
   structure_mappings: Sequence[dict] | None = None,

@@ -11,6 +11,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+
+colabdesign = pytest.importorskip("colabdesign")
 from colabdesign.mpnn import mk_mpnn_model
 
 from prxteinmpnn.io.parsing import parse_input

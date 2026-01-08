@@ -191,7 +191,10 @@ def _sample_batch(
     one_hot_sequences = jax.nn.one_hot(sampled_sequences, num_classes=21)
     log_probs = jax.nn.log_softmax(sampled_logits, axis=-1)
     nll = -jnp.sum(one_hot_sequences * log_probs, axis=(-1, -2))
-    pseudo_perplexity = jnp.exp(nll / jnp.sum(batched_ensemble.mask, axis=-1))
+    mask = batched_ensemble.mask
+    if mask is None:
+      mask = jnp.ones(batched_ensemble.coordinates.shape[:2], dtype=jnp.float32)
+    pseudo_perplexity = jnp.exp(nll / jnp.sum(mask, axis=-1))
     return sampled_sequences, sampled_logits, pseudo_perplexity
   return sampled_sequences, sampled_logits, None
 
@@ -580,7 +583,10 @@ def _sample_batch_averaged(
     one_hot_sequences = jax.nn.one_hot(sampled_sequences, num_classes=21)
     log_probs = jax.nn.log_softmax(logits, axis=-1)
     nll = -jnp.sum(one_hot_sequences * log_probs, axis=(-1, -2))
-    pseudo_perplexity = jnp.exp(nll / jnp.sum(batched_ensemble.mask, axis=-1))
+    mask = batched_ensemble.mask
+    if mask is None:
+      mask = jnp.ones(batched_ensemble.coordinates.shape[:2], dtype=jnp.float32)
+    pseudo_perplexity = jnp.exp(nll / jnp.sum(mask, axis=-1))
     return sampled_sequences, logits, pseudo_perplexity
   return sampled_sequences, logits, None
 

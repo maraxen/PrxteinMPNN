@@ -13,7 +13,7 @@ from prxteinmpnn.sampling.ste_optimize import make_optimize_sequence_fn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
 
-_DEFAULT_DECODING_ORDER_FN = cast(DecodingOrderFn, random_decoding_order)
+_DEFAULT_DECODING_ORDER_FN = cast("DecodingOrderFn", random_decoding_order)
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,
   BackboneNoise,
@@ -162,7 +162,7 @@ def make_sample_sequences(
 
       return optimized_sequence, final_logits, decoding_order
 
-    return cast(SamplerFn, sample_sequences)
+    return cast("SamplerFn", sample_sequences)
 
   if sampling_strategy == "temperature":
 
@@ -240,8 +240,8 @@ def make_sample_sequences(
         tie_group_map,
         num_groups,
       )
-      autoregressive_mask = cast(Callable, generate_ar_mask)(
-        decoding_order, None, tie_group_map, num_groups
+      autoregressive_mask = cast("Callable", generate_ar_mask)(
+        decoding_order, None, tie_group_map, num_groups,
       )
 
       sampled_sequence, logits = model(
@@ -266,7 +266,7 @@ def make_sample_sequences(
 
       return sampled_sequence, logits, decoding_order
 
-    return cast(SamplerFn, sample_sequences)
+    return cast("SamplerFn", sample_sequences)
 
   msg = f"Unknown sampling strategy: {sampling_strategy}"
   raise ValueError(msg)

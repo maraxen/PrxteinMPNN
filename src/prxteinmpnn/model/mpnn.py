@@ -25,19 +25,26 @@ from prxteinmpnn.utils.ste import straight_through_estimator
 if TYPE_CHECKING:
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
+    ArrayLike,
     AutoRegressiveMask,
     BackboneNoise,
+    Bool,
     ChainIndex,
+    DecodingOrder,
     EdgeFeatures,
     Float,
+    GroupMask,
     Int,
+    LinkMask,
     Logits,
     NeighborIndices,
+    NodeEdgeFeatures,
     NodeFeatures,
     OneHotProteinSequence,
     PRNGKeyArray,
     ResidueIndex,
     StructureAtomicCoordinates,
+    TieGroupMap,
   )
 
 DecodingApproach = Literal["unconditional", "conditional", "autoregressive"]
@@ -157,7 +164,7 @@ class PrxteinMPNN(eqx.Module):
     _prng_key: PRNGKeyArray,
     _temperature: Float,
     _bias: Logits,
-    _tie_group_map: jnp.ndarray | None,
+    _tie_group_map: TieGroupMap | None,
     _multi_state_strategy_idx: Int,
     _multi_state_temperature: Float,
     _initial_node_features: NodeFeatures | None = None,
@@ -222,7 +229,7 @@ class PrxteinMPNN(eqx.Module):
     prng_key: PRNGKeyArray,
     _temperature: Float,
     _bias: Logits,
-    _tie_group_map: jnp.ndarray | None,
+    _tie_group_map: TieGroupMap | None,
     _multi_state_strategy_idx: Int,
     _multi_state_temperature: Float,
     _initial_node_features: NodeFeatures | None = None,
@@ -289,7 +296,7 @@ class PrxteinMPNN(eqx.Module):
     prng_key: PRNGKeyArray,
     temperature: Float,
     bias: Logits,
-    tie_group_map: jnp.ndarray | None,
+    tie_group_map: TieGroupMap | None,
     multi_state_strategy_idx: Int,
     multi_state_temperature: Float = 1.0,
     _initial_node_features: NodeFeatures | None = None,
@@ -351,10 +358,10 @@ class PrxteinMPNN(eqx.Module):
   @staticmethod
   def _combine_logits_multistate(
     logits: Logits,
-    group_mask: jnp.ndarray,
+    group_mask: GroupMask,
     strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
     temperature: float = 1.0,
-  ) -> jnp.ndarray:
+  ) -> Logits:
     """Combine logits across tied positions using different multi-state strategies.
 
     Args:
@@ -390,10 +397,10 @@ class PrxteinMPNN(eqx.Module):
   @staticmethod
   def _combine_logits_multistate_idx(
     logits: Logits,
-    group_mask: jnp.ndarray,
+    group_mask: GroupMask,
     strategy_idx: Int,
     temperature: float = 1.0,
-  ) -> jnp.ndarray:
+  ) -> Logits:
     """Combine logits using strategy index (JAX-traceable version).
 
     This is a JAX-traceable wrapper around _combine_logits_multistate that
@@ -425,15 +432,15 @@ class PrxteinMPNN(eqx.Module):
 
   def _process_group_positions(
     self,
-    group_mask: jnp.ndarray,
+    group_mask: GroupMask,
     all_layers_h: NodeFeatures,
     s_embed: NodeFeatures,
-    encoder_context: jnp.ndarray,
+    encoder_context: NodeEdgeFeatures,
     edge_features: EdgeFeatures,
     neighbor_indices: NeighborIndices,
     mask: AlphaCarbonMask,
-    mask_bw: jnp.ndarray,
-  ) -> tuple[NodeFeatures, jnp.ndarray]:
+    mask_bw: LinkMask,
+  ) -> tuple[NodeFeatures, Logits]:
     """Process all positions in a group through decoder and collect logits.
 
     Args:
@@ -519,12 +526,12 @@ class PrxteinMPNN(eqx.Module):
     edge_features: EdgeFeatures,
     neighbor_indices: NeighborIndices,
     mask: AlphaCarbonMask,
-    encoder_context: jnp.ndarray,
-    mask_bw: jnp.ndarray,
+    encoder_context: NodeEdgeFeatures,
+    mask_bw: LinkMask,
     temperature: Float,
     bias: Logits,
-    tie_group_map: jnp.ndarray,
-    decoding_order: jnp.ndarray,
+    tie_group_map: TieGroupMap,
+    decoding_order: DecodingOrder,
     multi_state_strategy_idx: Int = 0,
     multi_state_temperature: Float = 1.0,
   ) -> tuple[OneHotProteinSequence, Logits]:
@@ -638,8 +645,8 @@ class PrxteinMPNN(eqx.Module):
 
   def _sample_and_broadcast_to_group(
     self,
-    avg_logits: jnp.ndarray,
-    group_mask: jnp.ndarray,
+    avg_logits: Logits,
+    group_mask: GroupMask,
     bias: Logits,
     temperature: Float,
     key: PRNGKeyArray,
@@ -697,7 +704,7 @@ class PrxteinMPNN(eqx.Module):
     autoregressive_mask: AutoRegressiveMask,
     temperature: Float,
     bias: Logits,
-    tie_group_map: jnp.ndarray | None = None,
+    tie_group_map: TieGroupMap | None = None,
     multi_state_strategy_idx: Int = 0,
     multi_state_temperature: Float = 1.0,
   ) -> tuple[OneHotProteinSequence, Logits]:
@@ -822,14 +829,14 @@ class PrxteinMPNN(eqx.Module):
 
         # Update the state for next layer
         all_layers_h = (
-          cast(jax.Array, all_layers_h).at[layer_idx + 1, position].set(jnp.squeeze(h_out_pos))
+          cast("jax.Array", all_layers_h).at[layer_idx + 1, position].set(jnp.squeeze(h_out_pos))
         )
 
       final_h_pos = all_layers_h[-1, position]
       logits_pos_vec = self.w_out(final_h_pos)
       logits_pos = jnp.expand_dims(logits_pos_vec, axis=0)
 
-      next_all_logits = cast(jax.Array, all_logits).at[position, :].set(jnp.squeeze(logits_pos))
+      next_all_logits = cast("jax.Array", all_logits).at[position, :].set(jnp.squeeze(logits_pos))
 
       bias_pos = jax.lax.dynamic_slice(
         bias,
@@ -852,8 +859,8 @@ class PrxteinMPNN(eqx.Module):
 
       s_embed_pos = one_hot_seq_pos @ self.w_s_embed.weight
 
-      next_s_embed = cast(jax.Array, s_embed).at[position, :].set(jnp.squeeze(s_embed_pos))
-      next_sequence = cast(jax.Array, sequence).at[position, :].set(jnp.squeeze(one_hot_seq_pos))
+      next_s_embed = cast("jax.Array", s_embed).at[position, :].set(jnp.squeeze(s_embed_pos))
+      next_sequence = cast("jax.Array", sequence).at[position, :].set(jnp.squeeze(one_hot_seq_pos))
 
       return (
         all_layers_h,
@@ -899,7 +906,7 @@ class PrxteinMPNN(eqx.Module):
       neighbor_indices,
       mask,
       encoder_context,
-      cast(jax.Array, mask_bw),
+      cast("jax.Array", mask_bw),
       temperature,
       bias,
       tie_group_map,
@@ -1010,7 +1017,7 @@ class PrxteinMPNN(eqx.Module):
       rbf_features=rbf_features,
       neighbor_indices=neighbor_indices,
     )
-    neighbor_indices = cast(jax.Array, new_neighbor_indices)
+    neighbor_indices = cast("jax.Array", new_neighbor_indices)
 
     node_features, edge_features = self.encoder(
       edge_features,

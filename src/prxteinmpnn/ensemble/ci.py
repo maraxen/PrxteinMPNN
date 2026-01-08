@@ -1,7 +1,8 @@
 """Conformational-inference from ProteinMPNN logits."""
 
+from collections.abc import Callable
 from functools import partial
-from typing import Callable, Literal, cast
+from typing import Literal, cast
 
 import jax
 import jax.numpy as jnp
@@ -68,15 +69,15 @@ def infer_states(
     ResidueConformationalStates containing clustering results and statistics.
 
   """
-  distance_matrix = cast(jax.Array, cast(Callable, compute_component_distances)(gmm.means))
+  distance_matrix = cast("jax.Array", cast("Callable", compute_component_distances)(gmm.means))
   component_weights = gmm.weights
-  responsibility_matrix = cast(Callable[..., jax.Array], predict_probability)(gmm, features)
+  responsibility_matrix = cast("Callable[..., jax.Array]", predict_probability)(gmm, features)
   triu_indices = jnp.triu_indices_from(distance_matrix, k=1)
   eps = 1.0 - eps_std_scale * jnp.std(distance_matrix[triu_indices])
 
   cluster_result = cast(
-    GMMClusteringResult,
-    cast(Callable, dbscan_cluster)(
+    "GMMClusteringResult",
+    cast("Callable", dbscan_cluster)(
       distance_matrix,
       component_weights,
       responsibility_matrix,

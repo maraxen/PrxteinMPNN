@@ -55,7 +55,7 @@ def sample(
   """
   sampler = make_sample_sequences(model, sampling_strategy="temperature")
   return cast(
-    tuple[jax.Array, jax.Array, jax.Array],
+    "tuple[jax.Array, jax.Array, jax.Array]",
     sampler(
       prng_key,
       structure_coordinates,

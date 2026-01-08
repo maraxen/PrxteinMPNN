@@ -16,7 +16,7 @@ from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.utils.autoregression import resolve_tie_groups
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
 
-_DEFAULT_DECODING_ORDER_FN = cast(DecodingOrderFn, random_decoding_order)
+_DEFAULT_DECODING_ORDER_FN = cast("DecodingOrderFn", random_decoding_order)
 from prxteinmpnn.utils.safe_map import safe_map as _safe_map
 
 from .prep import prep_protein_stream_and_model

@@ -47,13 +47,9 @@ uv run pytest tests/model/test_colabdesign_equivalence.py -v
 ### Installation
 
 ```bash
-# Basic installation
-git clone https://github.com/maraxen/PrxteinMPNN.git
-cd PrxteinMPNN
-uv pip install -e .
-
-# Development installation
-uv pip install -e ".[dev]"
+uv sync --extra cuda  # For GPU
+uv sync --extra tpu   # For TPU
+uv sync --extra cpu   # For CPU-only (default)
 ```
 
 ### Basic Usage

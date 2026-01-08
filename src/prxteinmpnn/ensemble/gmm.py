@@ -59,7 +59,7 @@ def make_fit_gmm(
 
   def fit_gmm(gmm_features: jax.Array, key: PRNGKeyArray) -> EMFitterResult:
     key, subkey, gumbel_key = random.split(key, 3)
-    labels = cast(Callable, kmeans)(subkey, gmm_features, n_components, max_iters=kmeans_max_iters)
+    labels = cast("Callable", kmeans)(subkey, gmm_features, n_components, max_iters=kmeans_max_iters)
     responsibilities = jax.nn.one_hot(labels, num_classes=n_components)
     gumbel_noise = random.gumbel(gumbel_key, shape=responsibilities.shape)
     noisy_responsibilities = responsibilities * 10.0 + gumbel_noise
@@ -72,7 +72,7 @@ def make_fit_gmm(
       covariances = jnp.tile(jnp.eye(gmm_features.shape[1]), (n_components, 1, 1))
     else:
       covariances = jnp.tile(jnp.eye(gmm_features.shape[1]), (n_components, 1))
-    weights, means, covariances = cast(Callable, _m_step_from_responsibilities)(
+    weights, means, covariances = cast("Callable", _m_step_from_responsibilities)(
       data=gmm_features,
       means=jax.vmap(cluster_means, in_axes=(None, None, 0))(
         gmm_features,
@@ -94,7 +94,7 @@ def make_fit_gmm(
       n_features=gmm_features.shape[1],
     )
 
-    return cast(Callable, fit_gmm_states)(
+    return cast("Callable", fit_gmm_states)(
       data=gmm_features,
       gmm=initial_gmm,
       max_iter=gmm_max_iters,
@@ -105,4 +105,4 @@ def make_fit_gmm(
       eps=eps,
     )
 
-  return cast(GMMFitFn, fit_gmm)
+  return cast("GMMFitFn", fit_gmm)

@@ -333,7 +333,7 @@ def infer_conformations(
   if not em_result.converged:
     logger.warning("GMM fitting did not converge.")
   result = em_result
-  return cast(Callable[..., tuple[ConformationalStates, GMMClusteringResult, GMM]], infer_states)(
+  return cast("Callable[..., tuple[ConformationalStates, GMMClusteringResult, GMM]]", infer_states)(
     gmm=result.gmm,
     features=jnp.array(result.features),
     n_components=spec.gmm_n_components,

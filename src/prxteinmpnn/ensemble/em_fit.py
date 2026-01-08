@@ -8,10 +8,10 @@ HDF5 datasets.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from enum import Enum
 from functools import partial
 from typing import TYPE_CHECKING, Literal, cast
-from collections.abc import Callable
 
 import jax
 from jax import numpy as jnp
@@ -276,8 +276,8 @@ def fit_gmm_states(
   @jax.jit
   def em_step_fn(state: EMLoopState) -> EMLoopState:
     """Run a single EM step."""
-    log_likelihood, log_resp = cast(Callable, _e_step)(data, state.gmm, covariance_type)
-    weights, means, covariances = cast(Callable, _m_step_from_responsibilities)(
+    log_likelihood, log_resp = cast("Callable", _e_step)(data, state.gmm, covariance_type)
+    weights, means, covariances = cast("Callable", _m_step_from_responsibilities)(
       data,
       state.gmm.means,
       state.gmm.covariances,
@@ -327,8 +327,8 @@ def fit_gmm_states(
   final_state = jax.lax.while_loop(em_cond_fn, em_step_fn, initial_state)
   final_state = jax.block_until_ready(final_state)
   bic = cast(
-    jax.Array,
-    cast(Callable, compute_bic)(
+    "jax.Array",
+    cast("Callable", compute_bic)(
       log_likelihood=final_state.log_likelihood,
       n_samples=data.shape[0],
       n_components=gmm.n_components,

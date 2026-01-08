@@ -14,6 +14,8 @@ if TYPE_CHECKING:
 ArrayLike = Union[Array, np.ndarray]
 
 NodeFeatures = Float[ArrayLike, "num_atoms num_features"]  # Node features
+Scalar = Int[ArrayLike, ""]
+ScalarFloat = Float[ArrayLike, ""]
 EdgeFeatures = Float[ArrayLike, "num_atoms num_neighbors num_features"]  # Edge features
 Message = Float[ArrayLike, "num_atoms num_neighbors num_features"]  # Message passing features
 AtomicCoordinate = Float[ArrayLike, "3"]  # Atomic coordinates (x, y, z)
@@ -32,7 +34,8 @@ ModelParameters = PyTree[str, "P"]
 # Using Union with string annotation to avoid runtime import
 Model = Union["PrxteinMPNN", ModelParameters]
 AlphaCarbonDistance = Float[
-  ArrayLike, "num_atoms num_atoms",
+  ArrayLike,
+  "num_atoms num_atoms",
 ]  # Distances between alpha carbon atoms
 Distances = Float[ArrayLike, "num_atoms num_neighbors"]  # Distances between nodes
 AtomIndexPair = Int[ArrayLike, "2"]  # Pairs of atom indices for edges
@@ -41,7 +44,8 @@ Logits = Float[ArrayLike, "num_residues num_classes"]  # Logits for classificati
 DecodingOrder = Int[ArrayLike, "num_residues"]  # Order of residues for autoregressive decoding
 ProteinSequence = Int[ArrayLike, "num_residues"]  # Sequence of residues
 OneHotProteinSequence = Float[
-  ArrayLike, "num_residues num_classes",
+  ArrayLike,
+  "num_residues num_classes",
 ]  # One-hot encoded protein sequence
 NodeEdgeFeatures = Float[
   ArrayLike,
@@ -52,7 +56,8 @@ SequenceEdgeFeatures = Float[
   "num_residues num_neighbors num_features",
 ]  # Sequence edge features
 AutoRegressiveMask = Bool[
-  ArrayLike, "num_residues num_residues",
+  ArrayLike,
+  "num_residues num_residues",
 ]  # Mask for autoregressive decoding
 InputBias = Float[ArrayLike, "num_residues num_classes"]  # Input bias for classification
 InputLengths = Int[ArrayLike, "num_sequences"]  # Lengths of input sequences
@@ -69,6 +74,9 @@ AlphaCarbonMask = Int[ArrayLike, "num_residues"]
 BackboneDihedrals = Float[ArrayLike, "num_residues 3"]  # Dihedral angles for backbone atoms
 BackboneNoise = Float[ArrayLike, "n"]  # Noise added to backbone coordinates
 BackboneAtomCoordinates = Float[ArrayLike, "num_residues 4 3"]  # Backbone atom coordinates
+GroupMask = Bool[ArrayLike, "num_residues"]
+LinkMask = Float[ArrayLike, "num_residues num_neighbors"]
+TieGroupMap = Int[ArrayLike, "num_residues"]
 
 Temperature = Float[ArrayLike, ""]  # Temperature for sampling
 CategoricalJacobian = Float[ArrayLike, "num_residues num_classes num_residues num_classes"]

@@ -5,7 +5,7 @@ prxteinmpnn.utils.data_structures
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
 from flax.struct import dataclass

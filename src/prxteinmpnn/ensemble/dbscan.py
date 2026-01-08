@@ -304,8 +304,8 @@ def trace_entropy_across_eps(
 
   def _calculate_for_single_eps(eps: Float) -> tuple:
     result = cast(
-      GMMClusteringResult,
-      cast(Callable, dbscan_cluster)(
+      "GMMClusteringResult",
+      cast("Callable", dbscan_cluster)(
         distance_matrix,
         component_weights,
         responsibility_matrix,
@@ -314,8 +314,8 @@ def trace_entropy_across_eps(
       ),
     )
     z_score_sq = (
-      (cast(jax.Array, result.von_neumann_entropy) - cast(jax.Array, result.plug_in_entropy))
-      / (cast(jax.Array, result.posterior_entropy_std_err) + 1e-9)
+      (cast("jax.Array", result.von_neumann_entropy) - cast("jax.Array", result.plug_in_entropy))
+      / (cast("jax.Array", result.posterior_entropy_std_err) + 1e-9)
     ) ** 2
     return (
       result.plug_in_entropy,

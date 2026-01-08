@@ -11,7 +11,6 @@ from . import (
   graph,
   normalize,
   radial_basis,
-  residue_constants,
   types,
 )
 
@@ -26,6 +25,5 @@ __all__ = [
   "graph",
   "normalize",
   "radial_basis",
-  "residue_constants",
   "types",
 ]

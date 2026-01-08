@@ -167,7 +167,7 @@ def make_conditional_logits_fn(
 
     return logits
 
-  return cast(ConditionalLogitsFn, conditional_logits)
+  return cast("ConditionalLogitsFn", conditional_logits)
 
 
 def make_encoding_conditional_logits_split_fn(

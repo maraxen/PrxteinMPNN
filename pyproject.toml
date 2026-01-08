@@ -23,7 +23,8 @@ dependencies = [
     "equinox>=0.13.2",
     "huggingface-hub>=1.0.1",
     "msgpack-numpy>=0.4.8",
-    "proxide", 
+    "proxide",
+    "prolix", 
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -31,12 +32,9 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-cuda = [
-    "jax[cuda13]",
-]
-tpu = [
-    "jax[tpu]",
-]
+cuda = ["jax[cuda12]"]
+tpu = ["jax[tpu]"]
+cpu = ["jax"]
 docs = [
     "sphinx",
     "sphinx-rtd-theme",

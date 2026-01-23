@@ -25,3 +25,5 @@ proxide/
 # Training checkpoints
 checkpoints/
 checkpoints_test/
+
+data/pdb_cache/.worktrees/

@@ -90,7 +90,7 @@ class DecoderLayer(eqx.Module):
     self.dense = eqx.nn.MLP(
       in_size=node_features,
       out_size=node_features,
-      width_size=mlp_input_dim,
+      width_size=node_features * 4,
       depth=1,
       activation=_gelu,
       key=keys[3],
@@ -103,37 +103,15 @@ class DecoderLayer(eqx.Module):
     layer_edge_features: EdgeFeatures,  # This is the (N, K, 384) context
     mask: AlphaCarbonMask,
     scale: float = 30.0,
-    attention_mask: Array | None = None,  # Optional attention mask for conditional decoding
+    attention_mask: Array | None = None,
+    inference: bool = False,
     *,
     key: PRNGKeyArray | None = None,
   ) -> NodeFeatures:
-    """Forward pass for the decoder layer.
-
-    Works for both N-batch (N, C) and single-node (1, C) inputs.
-
-    Args:
-      node_features: Node features tensor of shape (N, C).
-      layer_edge_features: Edge context features of shape (N, K, 384).
-      mask: Alpha carbon mask of shape (N,).
-      scale: Scaling factor for message aggregation (default: 30.0).
-      attention_mask: Optional attention mask for conditional decoding.
-      key: PRNG key for dropout (optional).
-
-    Returns:
-      Updated node features of shape (N, C).
-
-    Raises:
-      None
-
-    Example:
-      >>> key = jax.random.PRNGKey(0)
-      >>> layer = DecoderLayer(128, 384, 128, key=key)
-      >>> node_feats = jnp.ones((10, 128))
-      >>> edge_feats = jnp.ones((10, 30, 384))
-      >>> mask = jnp.ones((10,))
-      >>> output = layer(node_feats, edge_feats, mask)
-
-    """
+    """Forward pass for the decoder layer."""
+    # Pass the key to jax.random.split for potential dropout use
+    if key is None:
+      inference = True
     keys = jax.random.split(key, 2) if key is not None else (None, None)
 
     node_features_expand = jnp.tile(
@@ -157,22 +135,98 @@ class DecoderLayer(eqx.Module):
     aggregated_message_f32 = jnp.sum(message_f32, -2) / scale
     aggregated_message = aggregated_message_f32.astype(message.dtype)
 
-    aggregated_message = self.dropout1(aggregated_message, key=keys[0])
+    # Aggregate messages and apply dropout
+    h_V = node_features + self.dropout1(aggregated_message, key=keys[0], inference=inference)
+    h_V = jax.vmap(self.norm1)(h_V)
 
-    node_features = node_features + aggregated_message
-
-    node_features_norm1 = jax.vmap(self.norm1)(node_features)
-    dense_output = jax.vmap(self.dense)(node_features_norm1)
-
-    dense_output = self.dropout2(dense_output, key=keys[1])
-
-    node_features = node_features_norm1 + dense_output
-    node_features_norm2 = jax.vmap(self.norm2)(node_features)
+    # Dense layer and residue connection
+    h_dense = jax.vmap(self.dense)(h_V)
+    h_V = h_V + self.dropout2(h_dense, key=keys[1], inference=inference)
+    h_V = jax.vmap(self.norm2)(h_V)
 
     # Handle both batched (N,) mask and scalar mask
     if jnp.ndim(mask) == 0:
-      return mask * node_features_norm2
-    return mask[:, None] * node_features_norm2
+      return mask * h_V
+    return mask[:, None] * h_V
+
+
+class DecoderLayerJ(eqx.Module):
+    """Specialized decoder layer for LigandMPNN context atoms."""
+    w1: eqx.nn.Linear
+    w2: eqx.nn.Linear
+    w3: eqx.nn.Linear
+    dense: eqx.nn.MLP
+    norm1: eqx.nn.LayerNorm
+    norm2: eqx.nn.LayerNorm
+    dropout1: eqx.nn.Dropout
+    dropout2: eqx.nn.Dropout
+    scale: float = eqx.field(static=True)
+
+    def __init__(
+        self,
+        hidden_dim: int,
+        in_dim: int,
+        dropout: float = 0.1,
+        scale: float = 30.0,
+        *,
+        key: PRNGKeyArray,
+    ):
+        keys = jax.random.split(key, 5)
+        self.w1 = eqx.nn.Linear(hidden_dim + in_dim, hidden_dim, key=keys[0])
+        self.w2 = eqx.nn.Linear(hidden_dim, hidden_dim, key=keys[1])
+        self.w3 = eqx.nn.Linear(hidden_dim, hidden_dim, key=keys[2])
+        self.dense = eqx.nn.MLP(hidden_dim, hidden_dim, hidden_dim * 4, depth=1, activation=_gelu, key=keys[3])
+        self.norm1 = eqx.nn.LayerNorm(hidden_dim)
+        self.norm2 = eqx.nn.LayerNorm(hidden_dim)
+        self.dropout1 = eqx.nn.Dropout(dropout)
+        self.dropout2 = eqx.nn.Dropout(dropout)
+        self.scale = scale
+
+    def __call__(
+        self,
+        h_v: NodeFeatures,
+        h_e: EdgeFeatures,
+        mask_v: AlphaCarbonMask | None = None,
+        mask_attend: Array | None = None,
+        inference: bool = False,
+        *,
+        key: PRNGKeyArray | None = None,
+    ) -> NodeFeatures:
+        if key is None:
+            inference = True
+        keys = jax.random.split(key, 2) if key is not None else (None, None)
+        
+        # h_v: [L, M, D]
+        # h_e: [L, M, M, D]
+        
+        # Expand h_v to match h_e for local context
+        h_v_expand = jnp.expand_dims(h_v, axis=-2)
+        h_v_expand = jnp.broadcast_to(h_v_expand, h_v_expand.shape[:-2] + (h_e.shape[-2], h_v.shape[-1]))
+        
+        h_ev = jnp.concatenate([h_v_expand, h_e], axis=-1)
+        
+        # Message passing
+        h_message = jax.vmap(jax.vmap(jax.vmap(self.w1)))(h_ev)
+        h_message = _gelu(h_message)
+        h_message = jax.vmap(jax.vmap(jax.vmap(self.w2)))(h_message)
+        h_message = _gelu(h_message)
+        h_message = jax.vmap(jax.vmap(jax.vmap(self.w3)))(h_message)
+        
+        if mask_attend is not None:
+            h_message = jnp.expand_dims(mask_attend, axis=-1) * h_message
+            
+        dh = jnp.sum(h_message, axis=-2) / self.scale
+        
+        h_v = jax.vmap(jax.vmap(self.norm1))(h_v + self.dropout1(dh, key=keys[0], inference=inference))
+        
+        # MLP
+        dh_dense = jax.vmap(jax.vmap(self.dense))(h_v)
+        h_v = jax.vmap(jax.vmap(self.norm2))(h_v + self.dropout2(dh_dense, key=keys[1], inference=inference))
+        
+        if mask_v is not None:
+            h_v = jnp.expand_dims(mask_v, axis=-1) * h_v
+            
+        return h_v
 
 
 class Decoder(eqx.Module):
@@ -266,6 +320,8 @@ class Decoder(eqx.Module):
       >>> output = decoder(node_feats, edge_feats, neighbor_idx, mask)
 
     """
+    if key is None:
+      inference = True
     keys = jax.random.split(key, len(self.layers)) if key is not None else [None] * len(self.layers)
 
     # Prepare context tensor *once*
@@ -302,11 +358,12 @@ class Decoder(eqx.Module):
     mask: AlphaCarbonMask,
     ar_mask: AutoRegressiveMask,
     one_hot_sequence: OneHotProteinSequence,
-    w_s_weight: Array,  # Sequence embedding weight
+    w_s_weight: jnp.ndarray,  # Sequence embedding weight
+    inference: bool = False,
     *,
     key: PRNGKeyArray | None = None,
   ) -> NodeFeatures:
-    """Forward pass for CONDITIONAL decoding (scoring).
+    """Run conditional decoding (scoring).
 
     Args:
       node_features: Node features from encoder of shape (N, 128).
@@ -316,6 +373,7 @@ class Decoder(eqx.Module):
       ar_mask: Autoregressive mask for conditional decoding.
       one_hot_sequence: One-hot encoded protein sequence.
       w_s_weight: Sequence embedding weight matrix.
+      inference: Whether to run in inference mode (disables dropout).
       key: PRNG key for dropout (optional).
 
     Returns:
@@ -339,6 +397,8 @@ class Decoder(eqx.Module):
       ... )
 
     """
+    if key is None:
+      inference = True
     keys = jax.random.split(key, len(self.layers)) if key is not None else [None] * len(self.layers)
 
     embedded_sequence = jnp.atleast_2d(one_hot_sequence) @ w_s_weight
@@ -383,6 +443,7 @@ class Decoder(eqx.Module):
         loop_node_features,
         layer_edge_features,
         mask,
+        inference=inference,
         key=keys[i],
       )
 

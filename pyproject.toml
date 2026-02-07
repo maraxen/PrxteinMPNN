@@ -24,7 +24,7 @@ dependencies = [
     "huggingface-hub>=1.0.1",
     "msgpack-numpy>=0.4.8",
     "proxide",
-    "prolix", 
+    "prolix",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -158,3 +158,16 @@ dev = [
 
 [tool.setuptools.package-data]
 include = ["prxteinmpnn/model/original/*.pkl", "prxteinmpnn/model/soluble/*.pkl", "prxteinmpnn/examples/*.ipynb", "prxteinmpnn/examples/*.pdb",]
+
+[tool.uv]
+# Only resolve for platforms we actually target (including WSL which reports as linux)
+environments = [
+    "sys_platform == 'darwin' and python_version >= '3.11'",
+    "sys_platform == 'linux' and python_version >= '3.11'",
+]
+
+[tool.uv.sources]
+# Local workspace packages (not on PyPI)
+prolix = { path = "../prolix", editable = true }
+proxide = { path = "../proxide", editable = true }
+

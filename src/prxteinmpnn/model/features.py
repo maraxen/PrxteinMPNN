@@ -68,30 +68,23 @@ class ProteinFeatures(eqx.Module):
     node_features: int,
     edge_features: int,
     k_neighbors: int,
+    num_positional_embeddings: int = 16,
     *,
     key: PRNGKeyArray,
   ) -> None:
-    """Initialize feature extraction layers.
-
-    Args:
-      node_features: Dimension of node features (not directly used, kept for API compat).
-      edge_features: Dimension of edge features.
-      k_neighbors: Number of nearest neighbors to consider.
-      key: PRNG key for initialization.
-
-    """
+    """Initialize feature extraction layers."""
     del node_features  # Unused, kept for API compatibility
 
     keys = jax.random.split(key, 3)
 
     self.k_neighbors = k_neighbors
     self.rbf_dim = 16
-    self.pos_embed_dim = POS_EMBED_DIM
+    self.pos_embed_dim = 16 # Fixed output dim
 
-    pos_one_hot_dim = 2 * MAXIMUM_RELATIVE_FEATURES + 2
-    edge_embed_in_dim = 416  # Match original model's edge embedding input size
+    pos_one_hot_dim = 2 * num_positional_embeddings + 2
+    edge_embed_in_dim = 16 + 16 * 25  # Matches POS_EMBED_DIM + RBF_DIM * 25
 
-    self.w_pos = eqx.nn.Linear(pos_one_hot_dim, POS_EMBED_DIM, key=keys[0])
+    self.w_pos = eqx.nn.Linear(pos_one_hot_dim, 16, key=keys[0])
     self.w_e = eqx.nn.Linear(edge_embed_in_dim, edge_features, use_bias=False, key=keys[1])
     self.norm_edges = LayerNorm(edge_features)
     self.w_e_proj = eqx.nn.Linear(edge_features, edge_features, key=keys[2])
@@ -208,15 +201,16 @@ class ProteinFeatures(eqx.Module):
       axis=1,
     )
 
+    MAX_REL = (self.w_pos.weight.shape[1] - 2) // 2
     neighbor_offset_factor = jnp.minimum(
-      jnp.maximum(neighbor_offsets + MAXIMUM_RELATIVE_FEATURES, 0),
-      2 * MAXIMUM_RELATIVE_FEATURES,
+      jnp.maximum(neighbor_offsets + MAX_REL, 0),
+      2 * MAX_REL,
     )
-    edge_chain_factor = (1 - edge_chains_neighbors) * (2 * MAXIMUM_RELATIVE_FEATURES + 1)
+    edge_chain_factor = (1 - edge_chains_neighbors) * (2 * MAX_REL + 1)
     encoded_offset = neighbor_offset_factor * edge_chains_neighbors + edge_chain_factor
     encoded_offset_one_hot = jax.nn.one_hot(
       encoded_offset,
-      2 * MAXIMUM_RELATIVE_FEATURES + 2,
+      2 * MAX_REL + 2,
     )
 
     encoded_positions = jax.vmap(jax.vmap(self.w_pos))(encoded_offset_one_hot)

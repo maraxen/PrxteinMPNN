@@ -25,5 +25,5 @@
     - **Issue**: `proxide` excludes atomic self-loops (distance 0) from the neighbor list.
     - **Requirement**: `PrxteinMPNN` (and ColabDesign) **include** self-loops as the first neighbor.
     - **Effect**: The neighbor list is shifted (e.g., Rust `[1, 16, 62...]` vs Py `[0, 1, 16...]`), causing feature misalignment.
-2. **Physics Integration**: Proceed with moving VdW/Estats to Rust as planned in `.agents/PROXIDE_PHYSICS_INTEGRATION.md`.
+2. **Physics Integration**: Proceed with moving VdW/Estats to Rust as planned in `.agent/PROXIDE_PHYSICS_INTEGRATION.md`.
 3. **Prolix Integration**: The foundation is laid for dynamic feature updates in `prolix`.

@@ -77,6 +77,7 @@ def make_score_fn(
   decoding_order_fn: DecodingOrderFn = _DEFAULT_DECODING_ORDER_FN,
   _num_encoder_layers: int = 3,
   _num_decoder_layers: int = 3,
+  inference: bool = True,
 ) -> ScoringFn:
   """Create a function to score a sequence on a structure using PrxteinMPNN.
 
@@ -85,6 +86,9 @@ def make_score_fn(
     decoding_order_fn: Function to generate decoding order (default: random).
     _num_encoder_layers: Deprecated, ignored (kept for API compatibility).
     _num_decoder_layers: Deprecated, ignored (kept for API compatibility).
+    inference: If True (default), applies eqx.nn.inference_mode to disable
+        dropout for deterministic and faster scoring. Set to False only if
+        scoring during training where dropout regularization is desired.
 
   Returns:
     A function that scores sequences on structures.
@@ -96,6 +100,10 @@ def make_score_fn(
     >>> score, logits, order = score_fn(key, seq, coords, mask, res_idx, chain_idx)
 
   """
+
+  if inference:
+    import equinox as eqx
+    model = eqx.nn.inference_mode(model, value=True)
 
   @partial(jax.jit, static_argnames=("_k_neighbors",))
   def score_sequence(

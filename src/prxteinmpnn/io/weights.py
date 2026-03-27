@@ -183,7 +183,6 @@ def load_model(
         num_decoder_layers=NUM_DECODER_LAYERS,
         vocab_size=VOCAB_SIZE,
         k_neighbors=K_NEIGHBORS,
-        num_positional_embeddings=NUM_POSITIONAL_EMBEDDINGS,
         dropout_rate=dropout_rate,
         key=key,
       )
@@ -222,7 +221,6 @@ def load_model(
       num_decoder_layers=NUM_DECODER_LAYERS,
       vocab_size=VOCAB_SIZE,
       k_neighbors=K_NEIGHBORS,
-      num_positional_embeddings=NUM_POSITIONAL_EMBEDDINGS,
       dropout_rate=dropout_rate,
       key=key,
     )

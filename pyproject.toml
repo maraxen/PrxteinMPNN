@@ -24,8 +24,11 @@ dependencies = [
     "huggingface-hub>=1.0.1",
     "msgpack-numpy>=0.4.8",
     "proxide",
-    "prolix", 
+    "prolix",
 ]
+
+[tool.uv.sources]
+proxide = { git = "https://github.com/maraxen/proxide" }
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",

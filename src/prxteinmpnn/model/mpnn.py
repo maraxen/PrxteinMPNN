@@ -209,6 +209,15 @@ class PrxteinMPNN(eqx.Module):
 
     logits = jax.vmap(self.w_out)(decoded_node_features)
 
+    # Multi-state logit combining for unconditional mode (consensus likelihood)
+    if _tie_group_map is not None:
+      logits = self._apply_multistate_to_all_logits(
+        logits,
+        _tie_group_map,
+        _multi_state_strategy_idx,
+        _multi_state_temperature,
+      )
+
     # Return dummy sequence to match PyTree shape
     dummy_seq = jnp.zeros(
       (logits.shape[0], self.w_s_embed.num_embeddings),
@@ -227,9 +236,9 @@ class PrxteinMPNN(eqx.Module):
     prng_key: PRNGKeyArray,
     _temperature: Float,
     _bias: Logits,
-    _tie_group_map: TieGroupMap | None,
-    _multi_state_strategy_idx: Int,
-    _multi_state_temperature: Float,
+    tie_group_map: TieGroupMap | None,
+    multi_state_strategy_idx: Int,
+    multi_state_temperature: Float,
     _initial_node_features: NodeFeatures | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the conditional (scoring) path.
@@ -244,9 +253,9 @@ class PrxteinMPNN(eqx.Module):
       prng_key: PRNG Key.
       _temperature: Unused, required for jax.lax.switch signature.
       _bias: Unused, required for jax.lax.switch signature.
-      _tie_group_map: Unused, required for jax.lax.switch signature.
-      _multi_state_strategy_idx: Unused, required for jax.lax.switch signature.
-      _multi_state_temperature: Unused, required for jax.lax.switch signature.
+      tie_group_map: Group mapping for multi-state scoring (consensus).
+      multi_state_strategy_idx: Strategy index for combining logits.
+      multi_state_temperature: Temperature for geometric_mean strategy.
       _initial_node_features: Unused.
 
     Returns:
@@ -279,6 +288,15 @@ class PrxteinMPNN(eqx.Module):
       key=prng_key,
     )
     logits = jax.vmap(self.w_out)(decoded_node_features)
+
+    # Multi-state logit combining for consensus likelihood
+    if tie_group_map is not None:
+      logits = self._apply_multistate_to_all_logits(
+        logits,
+        tie_group_map,
+        multi_state_strategy_idx,
+        multi_state_temperature,
+      )
 
     # Return input sequence to match PyTree shape
     return one_hot_sequence.astype(logits.dtype), logits
@@ -393,6 +411,101 @@ class PrxteinMPNN(eqx.Module):
     raise ValueError(msg)
 
   @staticmethod
+  def _apply_multistate_to_all_logits(
+    logits: Logits,
+    tie_group_map: TieGroupMap,
+    strategy_idx: Int,
+    temperature: float = 1.0,
+  ) -> Logits:
+    """Apply multi-state combination strategies across ALL groups in parallel.
+
+    Args:
+      logits: Logits array of shape (N, 21).
+      tie_group_map: Group mapping of shape (N,).
+      strategy_idx: Integer strategy index.
+      temperature: Temperature for geometric_mean strategy.
+
+    Returns:
+      Combined logits of shape (N, 21). Each position in a group will contain
+      the SAME combined/consensus logit.
+    """
+    # 1. Identify unique groups. We assume the largest group ID defines the count.
+    # To keep it JIT-friendly, we don't use jnp.unique with dynamic sizes.
+    # Instead, we'll use a fixed-size approach based on the input size if needed,
+    # but for conditional scoring, we can just use jax.vmap over the mask of each group.
+    
+    # Efficient vectorized implementation for all groups:
+    def combine_group(group_id: int) -> jnp.ndarray:
+      group_mask = tie_group_map == group_id
+      combined = self._combine_logits_multistate_idx(
+        logits,
+        group_mask,
+        strategy_idx,
+        temperature,
+      )
+      return jnp.squeeze(combined)
+
+    # We need to know how many groups. In multi-state mode, this is usually 
+    # N_residues per protein state. We can infer it from the tie_group_map.
+    # For safety in JIT, we'll vmap over the entire N range but only valid groups.
+    # A better way is to see which group each residue belongs to.
+    
+    # Let's use a simpler approach: 
+    # For each residue i, find its group G = tie_group_map[i].
+    # Then compute the combined logit for group G.
+    # Broadcast that result to residue i.
+    
+    # To avoid N^2, we precompute all group logits.
+    num_total = tie_group_map.shape[0]
+    # We can't easily get unique groups without dynamic shapes, but we can
+    # use segment_sum style logic for simple strategies.
+    # For arithmetic_mean (LogSumExp), it's more complex.
+    
+    # Given the small number of groups (usually < 1000) and replicas (< 100),
+    # a loop or vmap over unique IDs is fine if we can bound it.
+    
+    # Actually, let's use a more robust JAX-native approach:
+    # We'll use segment_max and segment_sum.
+    
+    def apply_arithmetic(l: jnp.ndarray, g: jnp.ndarray) -> jnp.ndarray:
+      # Segment-wise LogSumExp
+      # 1. Max per group for stability
+      max_per_group = jax.ops.segment_max(l, g, num_segments=num_total)
+      l_shifted = l - max_per_group[g]
+      exp_l = jnp.exp(l_shifted)
+      # 2. Sum exp per group
+      sum_exp = jax.ops.segment_sum(exp_l, g, num_segments=num_total)
+      count = jax.ops.segment_sum(jnp.ones_like(g, dtype=jnp.float32), g, num_segments=num_total)
+      # 3. Log(Sum/Count) + Max
+      log_avg = jnp.log(sum_exp / jnp.where(count > 0, count, 1.0))
+      return (log_avg + max_per_group)[g]
+
+    def apply_geometric(l: jnp.ndarray, g: jnp.ndarray) -> jnp.ndarray:
+      # sum(logits) / (N * T)
+      sum_l = jax.ops.segment_sum(l, g, num_segments=num_total)
+      count = jax.ops.segment_sum(jnp.ones_like(g, dtype=jnp.float32), g, num_segments=num_total)
+      avg_l = sum_l / (jnp.where(count > 0, count, 1.0) * temperature)
+      return avg_l[g]
+
+    def apply_product(l: jnp.ndarray, g: jnp.ndarray) -> jnp.ndarray:
+      return jax.ops.segment_sum(l, g, num_segments=num_total)[g]
+
+    def switch_strategy(l, g, idx):
+      return jax.lax.switch(
+        idx,
+        [
+          lambda x: apply_arithmetic(x[0], x[1]),
+          lambda x: apply_geometric(x[0], x[1]),
+          lambda x: apply_product(x[0], x[1]),
+        ],
+        (l, g)
+      )
+
+    # vmap over the 21 classes
+    return jax.vmap(switch_strategy, in_axes=(1, None, None), out_axes=1)(
+      logits, tie_group_map, strategy_idx
+    )
+
   def _combine_logits_multistate_idx(
     logits: Logits,
     group_mask: GroupMask,

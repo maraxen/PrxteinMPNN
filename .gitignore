@@ -29,4 +29,4 @@ checkpoints_test/
 data/pdb_cache/.worktrees/
 .agent/skills
 data/pdb_cache/*
-.worktrees/
+.worktrees/uv.lock

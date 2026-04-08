@@ -1,0 +1,64 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Oracle Critique",
+    "type": "object",
+    "required": [
+        "verdict",
+        "confidence",
+        "strategic_assessment",
+        "concerns",
+        "approved_for_execution"
+    ],
+    "properties": {
+        "verdict": {
+            "enum": [
+                "APPROVE",
+                "REVISE",
+                "REJECT"
+            ]
+        },
+        "confidence": {
+            "enum": [
+                "high",
+                "medium",
+                "low"
+            ]
+        },
+        "strategic_assessment": {
+            "type": "string"
+        },
+        "concerns": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "area",
+                    "severity",
+                    "issue",
+                    "recommendation"
+                ],
+                "properties": {
+                    "area": {
+                        "type": "string"
+                    },
+                    "severity": {
+                        "enum": [
+                            "critical",
+                            "warning",
+                            "suggestion"
+                        ]
+                    },
+                    "issue": {
+                        "type": "string"
+                    },
+                    "recommendation": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "approved_for_execution": {
+            "type": "boolean"
+        }
+    }
+}

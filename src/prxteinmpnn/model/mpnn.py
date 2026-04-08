@@ -1390,5 +1390,100 @@ class PrxteinLigandMPNN(eqx.Module):
         
       return one_hot_sequence, all_logits
       
-    # TODO: Implement autoregressive sampling (_call_autoregressive)
+    if decoding_approach == "autoregressive":
+      if temperature is None:
+        temperature = 1.0
+      if bias is None:
+        bias = jnp.zeros((mask.shape[0], 21))
+      if ar_mask is None:
+        # Standard decoding order (sum of ar_mask rows defines order)
+        ar_mask = jnp.zeros((mask.shape[0], mask.shape[0]))
+
+      return self._run_autoregressive_scan(
+        keys[0], h_V, h_E, E_idx, mask, ar_mask, temperature, bias, inference=inference
+      )
+
     return None, None
+
+  def _run_autoregressive_scan(
+    self,
+    prng_key: PRNGKeyArray,
+    node_features: NodeFeatures,
+    edge_features: EdgeFeatures,
+    neighbor_indices: NeighborIndices,
+    mask: AlphaCarbonMask,
+    autoregressive_mask: AutoRegressiveMask,
+    temperature: float,
+    bias: Logits,
+    inference: bool = True,
+  ) -> tuple[OneHotProteinSequence, Logits]:
+    """Autoregressive scan for LigandMPNN."""
+    num_residues = node_features.shape[0]
+    
+    # Precompute masks and order
+    attention_mask = jnp.take_along_axis(autoregressive_mask, neighbor_indices.astype(jnp.int32), axis=1)
+    mask_1d = mask[:, None]
+    mask_bw = mask_1d * attention_mask
+    mask_fw = mask_1d * (1 - attention_mask)
+    decoding_order = jnp.argsort(jnp.sum(autoregressive_mask, axis=1))
+    
+    # Encoder context (pre-weighted by mask_fw)
+    # [E_ij, 0_j, h_j]
+    encoder_edge_neighbors = concatenate_neighbor_nodes(
+      jnp.zeros_like(node_features), edge_features, neighbor_indices
+    )
+    encoder_context = concatenate_neighbor_nodes(
+      node_features, encoder_edge_neighbors, neighbor_indices
+    )
+    encoder_context = encoder_context * mask_fw[..., None]
+
+    def autoregressive_step(carry, scan_inputs):
+      all_layers_h, s_embed, all_logits, sequence = carry
+      position, key = scan_inputs
+
+      # Similar to PrxteinMPNN implementation but within this class
+      edge_sequence_features = concatenate_neighbor_nodes(
+        s_embed, edge_features[position], neighbor_indices[position]
+      )
+
+      for layer_idx, layer in enumerate(self.decoder.layers):
+        h_in_pos = all_layers_h[layer_idx, position]
+        decoder_context_pos = concatenate_neighbor_nodes(
+          all_layers_h[layer_idx], edge_sequence_features, neighbor_indices[position]
+        )
+        decoding_context = mask_bw[position][..., None] * decoder_context_pos + encoder_context[position]
+
+        h_out_pos = layer(
+          h_in_pos[None], decoding_context[None], mask=mask[position], key=None, inference=inference
+        )
+        all_layers_h = all_layers_h.at[layer_idx + 1, position].set(jnp.squeeze(h_out_pos))
+
+      final_h_pos = all_layers_h[-1, position]
+      logits_pos = self.w_out(final_h_pos)
+      all_logits = all_logits.at[position].set(logits_pos)
+
+      # Sample
+      logits_with_bias = logits_pos + bias[position]
+      sampled_logits = (logits_with_bias / temperature) + jax.random.gumbel(key, logits_with_bias.shape)
+      one_hot_sample = straight_through_estimator(sampled_logits[:20])
+      one_hot_seq_pos = jnp.concatenate([one_hot_sample, jnp.zeros(1)], axis=-1)
+
+      s_embed_pos = one_hot_seq_pos @ self.w_s_embed.weight
+      s_embed = s_embed.at[position].set(s_embed_pos)
+      sequence = sequence.at[position].set(one_hot_seq_pos)
+
+      return (all_layers_h, s_embed, all_logits, sequence), None
+
+    initial_all_layers_h = jnp.zeros((len(self.decoder.layers) + 1, num_residues, self.node_features_dim))
+    initial_all_layers_h = initial_all_layers_h.at[0].set(node_features)
+    initial_carry = (
+      initial_all_layers_h,
+      jnp.zeros_like(node_features),
+      jnp.zeros((num_residues, 21)),
+      jnp.zeros((num_residues, 21))
+    )
+    
+    keys = jax.random.split(prng_key, num_residues)
+    final_carry, _ = jax.lax.scan(autoregressive_step, initial_carry, (decoding_order, keys))
+    
+    return final_carry[3], final_carry[2]

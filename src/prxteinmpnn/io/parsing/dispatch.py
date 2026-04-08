@@ -14,7 +14,7 @@ from typing import Any
 
 from proxide import OutputSpec
 from proxide.core.containers import Protein
-from proxide.io.parsing.rust import parse_structure as _parse_structure
+from proxide.io.parsing.backend import parse_structure as _parse_structure
 
 
 def parse_structure(

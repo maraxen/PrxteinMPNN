@@ -11,9 +11,10 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.model.decoder import Decoder
-from prxteinmpnn.model.encoder import Encoder, PhysicsEncoder
+from prxteinmpnn.model.decoder import DecoderLayer, Decoder
+from prxteinmpnn.model.encoder import EncoderLayer, Encoder, PhysicsEncoder
 from prxteinmpnn.model.features import ProteinFeatures
+from prxteinmpnn.model.ligand_features import ProteinFeaturesLigand
 from prxteinmpnn.model.multi_state_sampling import (
   arithmetic_mean_logits,
   geometric_mean_logits,
@@ -71,6 +72,7 @@ class PrxteinMPNN(eqx.Module):
     num_encoder_layers: int,
     num_decoder_layers: int,
     k_neighbors: int,
+    num_positional_embeddings: int = 16,
     physics_feature_dim: int | None = None,
     num_amino_acids: int = 21,
     vocab_size: int = 21,  # for w_s
@@ -114,6 +116,7 @@ class PrxteinMPNN(eqx.Module):
       node_features,
       edge_features,
       k_neighbors,
+      num_positional_embeddings=num_positional_embeddings,
       key=keys[0],
     )
     self.encoder = (
@@ -1050,6 +1053,8 @@ class PrxteinMPNN(eqx.Module):
     initial_node_features: jnp.ndarray | None = None,
     rbf_features: jnp.ndarray | None = None,
     neighbor_indices: jnp.ndarray | None = None,
+    membrane_per_residue_labels: jnp.ndarray | None = None,
+    inference: bool = True,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Forward pass for the complete model.
 
@@ -1111,6 +1116,11 @@ class PrxteinMPNN(eqx.Module):
     if prng_key is None:
       prng_key = jax.random.PRNGKey(0)
 
+    # Automatically handle membrane labels if provided
+    if membrane_per_residue_labels is not None:
+      # Assume 3 classes for standard membrane MPNN (0: unknown/rest, 1: interface, 2: buried)
+      initial_node_features = jax.nn.one_hot(membrane_per_residue_labels, 3)
+
     prng_key, feat_key = jax.random.split(prng_key)
 
     if backbone_noise is None:
@@ -1134,7 +1144,8 @@ class PrxteinMPNN(eqx.Module):
       edge_features,
       neighbor_indices,
       mask,
-      node_features,
+      initial_node_features=node_features,
+      inference=inference,
       key=prng_key,
     )
 
@@ -1187,3 +1198,197 @@ class PrxteinMPNN(eqx.Module):
       initial_node_features,
     )
     return jax.lax.switch(branch_index, branches, *operands)
+
+
+class PrxteinLigandMPNN(eqx.Module):
+  """Ligand-aware ProteinMPNN model."""
+
+  features: ProteinFeaturesLigand
+  encoder: Encoder
+  decoder: Decoder
+  
+  context_encoder: tuple[DecoderLayer, ...]
+  y_context_encoder: tuple[DecoderLayer, ...]
+
+  w_v: eqx.nn.Linear
+  w_c: eqx.nn.Linear
+  w_nodes_y: eqx.nn.Linear
+  w_edges_y: eqx.nn.Linear
+  v_c: eqx.nn.Linear
+  v_c_norm: eqx.nn.LayerNorm
+
+  w_s_embed: eqx.nn.Embedding
+  w_out: eqx.nn.Linear
+  dropout: eqx.nn.Dropout
+
+  node_features_dim: int = eqx.field(static=True)
+  edge_features_dim: int = eqx.field(static=True)
+  hidden_features_dim: int = eqx.field(static=True)
+  num_decoder_layers: int = eqx.field(static=True)
+
+  def __init__(
+    self,
+    node_features: int,
+    edge_features: int,
+    hidden_features: int,
+    num_encoder_layers: int,
+    num_decoder_layers: int,
+    k_neighbors: int,
+    num_context_layers: int = 1,
+    num_positional_embeddings: int = 16,
+    num_amino_acids: int = 21,
+    vocab_size: int = 21,
+    dropout_rate: float = 0.1,
+    *,
+    key: PRNGKeyArray,
+  ) -> None:
+    keys = jax.random.split(key, 5)
+    self.node_features_dim = node_features
+    self.edge_features_dim = edge_features
+    self.hidden_features_dim = hidden_features
+    self.num_decoder_layers = num_decoder_layers
+
+    self.features = ProteinFeaturesLigand(
+      node_features=node_features,
+      edge_features=edge_features,
+      k_neighbors=k_neighbors,
+      num_positional_embeddings=num_positional_embeddings,
+      key=keys[0],
+    )
+    
+    self.encoder = Encoder(
+      node_features=node_features,
+      edge_features=edge_features,
+      hidden_features=hidden_features,
+      num_layers=num_encoder_layers,
+      dropout_rate=dropout_rate,
+      key=keys[1],
+    )
+    
+    self.decoder = Decoder(
+      node_features=node_features,
+      edge_features=edge_features,
+      hidden_features=hidden_features,
+      num_layers=num_decoder_layers,
+      dropout_rate=dropout_rate,
+      key=keys[2],
+    )
+    
+    context_keys = jax.random.split(keys[3], num_context_layers)
+    y_context_keys = jax.random.split(keys[4], num_context_layers)
+    
+    # Extra keys for projections
+    proj_keys = jax.random.split(jax.random.fold_in(key, 100), 7)
+
+    self.context_encoder = tuple(
+      DecoderLayer(node_features, node_features * 2, hidden_features, dropout_rate=dropout_rate, key=k)
+      for k in context_keys
+    )
+    # y_context_encoder takes num_in = hidden_dim
+    self.y_context_encoder = tuple(
+      DecoderLayer(node_features, node_features, hidden_features, dropout_rate=dropout_rate, key=k)
+      for k in y_context_keys
+    )
+
+    self.w_v = eqx.nn.Linear(node_features, node_features, key=proj_keys[0])
+    self.w_c = eqx.nn.Linear(node_features, node_features, key=proj_keys[1])
+    self.w_nodes_y = eqx.nn.Linear(node_features, node_features, key=proj_keys[2])
+    self.w_edges_y = eqx.nn.Linear(node_features, node_features, key=proj_keys[3])
+    self.v_c = eqx.nn.Linear(node_features, node_features, key=proj_keys[4])
+    self.v_c_norm = eqx.nn.LayerNorm(node_features)
+    
+    self.dropout = eqx.nn.Dropout(dropout_rate)
+
+    self.w_s_embed = eqx.nn.Embedding(vocab_size, node_features, key=proj_keys[5])
+    self.w_out = eqx.nn.Linear(node_features, num_amino_acids, key=proj_keys[6])
+
+  def __call__(
+    self,
+    structure_coordinates: StructureAtomicCoordinates,
+    mask: AlphaCarbonMask,
+    residue_index: ResidueIndex,
+    chain_index: ChainIndex,
+    Y: jnp.ndarray,
+    Y_t: jnp.ndarray,
+    Y_m: jnp.ndarray,
+    decoding_approach: DecodingApproach = "conditional",
+    *,
+    prng_key: PRNGKeyArray | None = None,
+    ar_mask: AutoRegressiveMask | None = None,
+    one_hot_sequence: OneHotProteinSequence | None = None,
+    temperature: float | None = None,
+    bias: Logits | None = None,
+    backbone_noise: float = 0.0,
+    inference: bool = True,
+  ) -> tuple[OneHotProteinSequence, Logits]:
+    """Forward pass for LigandMPNN sequence scoring or sampling."""
+    if prng_key is None:
+      prng_key = jax.random.PRNGKey(0)
+    
+    keys = jax.random.split(prng_key, 2)
+    
+    # 1. Feature Extraction
+    # returns: V (protein nodes), E (protein/protein edges), E_idx, 
+    #          Y_nodes (ligand nodes), Y_edges (ligand/ligand edges), Y_m (mask)
+    V, E, E_idx, Y_nodes, Y_edges, Y_m = self.features(
+      keys[0], structure_coordinates, mask, residue_index, chain_index,
+      Y, Y_t, Y_m, backbone_noise
+    )
+    
+    # 2. Base Model Encoder (Protein internal communication)
+    h_V = jnp.zeros((E.shape[0], self.node_features_dim))
+    h_E = E
+    
+    mask_2d = mask[:, None] * mask[None, :]
+    mask_attend = jnp.take_along_axis(mask_2d, E_idx.astype(jnp.int32), axis=1)
+    
+    for layer in self.encoder.layers:
+      h_V, h_E = layer(h_V, h_E, E_idx, mask, mask_attend, inference=inference)
+      
+    # 3. Context Integration (Ligand-Protein communication)
+    h_V_C = jax.vmap(self.w_c)(h_V)
+    h_E_context = jax.vmap(self.w_v)(V)
+    
+    # Initial projections for ligand features
+    Y_nodes = jax.vmap(jax.vmap(self.w_nodes_y))(Y_nodes)
+    Y_edges = jax.vmap(jax.vmap(jax.vmap(self.w_edges_y)))(Y_edges)
+    
+    # Precompute ligand edge masks
+    Y_m_edges = Y_m[..., None] * Y_m[..., None, :]
+    
+    # Iterate through context integration layers
+    for i in range(len(self.context_encoder)):
+      # Ligand-Ligand communication (DecLayerJ in reference)
+      # We vmap over the protein residue dimension (L)
+      Y_nodes = jax.vmap(lambda node, edge, mask_l, mask_e: 
+                         self.y_context_encoder[i](node, edge, mask_l, attention_mask=mask_e, inference=inference)
+                        )(Y_nodes, Y_edges, Y_m, Y_m_edges)
+      
+      # Protein-Ligand communication
+      # h_E_context_cat combines protein-v-projections and projected ligand nodes
+      h_E_context_cat = jnp.concatenate([h_E_context, Y_nodes], axis=-1)
+      h_V_C = self.context_encoder[i](h_V_C, h_E_context_cat, mask, attention_mask=Y_m, inference=inference)
+      
+    # Final context combination
+    h_V_C = jax.vmap(self.v_c)(h_V_C)
+    h_V = h_V + jax.vmap(self.v_c_norm)(self.dropout(h_V_C, key=keys[1], inference=inference))
+    
+    # 4. Decoding (Sequence prediction)
+    if decoding_approach == "conditional":
+      if one_hot_sequence is None:
+        raise ValueError("one_hot_sequence MUST be provided for conditional decoding approach")
+      
+      # Scoring/Feedback
+      node_decoded = self.decoder.call_conditional(
+        h_V, h_E, E_idx, mask, ar_mask, one_hot_sequence, self.w_s_embed.weight, inference=inference
+      )
+      
+      all_logits = jax.vmap(self.w_out)(node_decoded)
+      
+      if bias is not None:
+        all_logits = all_logits + bias
+        
+      return one_hot_sequence, all_logits
+      
+    # TODO: Implement autoregressive sampling (_call_autoregressive)
+    return None, None

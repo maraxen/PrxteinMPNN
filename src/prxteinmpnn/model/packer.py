@@ -224,22 +224,22 @@ class PackerProteinFeatures(eqx.Module):
         a = jnp.cross(b, c_vec)
         cb = -0.58273431 * a + 0.56802827 * b - 0.54067466 * c_vec + ca
         
-        _, e_idx = self._dist(ca, mask)
+        _, E_idx = self._dist(ca, mask)
         
         backbone_coords = [n, ca, c, o, cb]
         rbf_all = []
         for atom1 in backbone_coords:
             for atom2 in backbone_coords:
-                dist = jnp.sqrt(jnp.sum(jnp.square(atom1[:, None, :] - atom2[e_idx]), axis=-1) + 1e-6)
+                dist = jnp.sqrt(jnp.sum(jnp.square(atom1[:, None, :] - atom2[E_idx]), axis=-1) + 1e-6)
                 rbf_all.append(compute_rbf(dist, self.lower_bound, self.upper_bound, self.num_rbf))
         
         rbf_all = jnp.concatenate(rbf_all, axis=-1) # [L, K, 25*num_rbf]
         
         offset = r_idx[:, None] - r_idx[None, :]
-        offset_gathered = gather_edges(offset[..., None], e_idx)[..., 0]
+        offset_gathered = gather_edges(offset[..., None], E_idx)[..., 0]
         
         d_chains = (chain_labels[:, None] == chain_labels[None, :]).astype(jnp.int32)
-        e_chains = gather_edges(d_chains[..., None], e_idx)[..., 0]
+        e_chains = gather_edges(d_chains[..., None], E_idx)[..., 0]
         
         e_positional = self.positional_embeddings(offset_gathered, e_chains)
         e = jnp.concatenate([e_positional, rbf_all], axis=-1)
@@ -292,14 +292,14 @@ class PackerProteinFeatures(eqx.Module):
         v_shape = v.shape
         v = jax.vmap(self.enc_norm_nodes)(v.reshape(-1, v_shape[-1])).reshape(v_shape)
         
-        return v, e, e_idx, y_nodes, y_edges, e_context, y_m
+        return v, e, E_idx, y_nodes, y_edges, e_context, y_m
 
     def features_decode(self, features: dict[str, Any]) -> tuple:
         s = features["S"]
         x = features["X"]
         x_m = features["X_m"]
         mask = features["mask"]
-        e_idx = features["E_idx"]
+        E_idx = features["E_idx"]
         
         y = features["Y"][:, :self.atom_context_num, :]
         y_m = features["Y_m"][:, :self.atom_context_num]
@@ -308,7 +308,7 @@ class PackerProteinFeatures(eqx.Module):
         x_m = x_m * mask[:, None]
         
         rbf_sidechain = []
-        x_m_gathered = gather_nodes(x_m, e_idx)  # [L, K, 14]
+        x_m_gathered = gather_nodes(x_m, E_idx)  # [L, K, 14]
         
         # Match PyTorch _get_rbf: compute full distance matrix then gather
         for i in range(14):
@@ -319,7 +319,7 @@ class PackerProteinFeatures(eqx.Module):
                 d_full = jnp.sqrt(jnp.sum(jnp.square(atom_i[:, None, :] - atom_j[None, :, :]), axis=-1) + 1e-6)  # [L, L]
                 
                 # Gather neighbor distances using E_idx
-                d_neighbors = gather_edges(d_full[..., None], e_idx)[..., 0]  # [L, K]
+                d_neighbors = gather_edges(d_full[..., None], E_idx)[..., 0]  # [L, K]
                 
                 rbf_features = compute_rbf(d_neighbors, self.lower_bound, self.upper_bound, self.num_rbf)  # [L, K, num_rbf]
                 rbf_features = rbf_features * x_m[:, i, None, None] * x_m_gathered[:, :, j, None]
@@ -347,8 +347,8 @@ class PackerProteinFeatures(eqx.Module):
         v = jax.vmap(self.dec_norm_nodes1)(v.reshape(-1, v_shape[-1])).reshape(v_shape)
         
         s_1h = jax.nn.one_hot(s, 21)
-        s_1h_gathered = gather_nodes(s_1h, e_idx)
-        s_features = jnp.concatenate([jnp.broadcast_to(s_1h[:, None, :], (s_1h.shape[0], e_idx.shape[1], 21)), s_1h_gathered], axis=-1)
+        s_1h_gathered = gather_nodes(s_1h, E_idx)
+        s_features = jnp.concatenate([jnp.broadcast_to(s_1h[:, None, :], (s_1h.shape[0], E_idx.shape[1], 21)), s_1h_gathered], axis=-1)
         
         f = jnp.concatenate([rbf_sidechain, s_features], axis=-1)
         f = jax.vmap(jax.vmap(self.dec_edge_embedding1))(f)
@@ -454,19 +454,21 @@ class Packer(eqx.Module):
 
     def encode(self, feature_dict: dict[str, Any], *, key: PRNGKeyArray | None = None, inference: bool = False) -> tuple:
         mask = feature_dict["mask"]
-        v, e, e_idx, y_nodes, y_edges, e_context, y_m = self.features.features_encode(feature_dict)
+        v, e, E_idx, y_nodes, y_edges, e_context, y_m = self.features.features_encode(feature_dict)
         
+        if key is None:
+            inference = True
         keys = jax.random.split(key, 10) if key is not None else [None] * 10
         
         h_e_context = jax.vmap(jax.vmap(self.w_e_context))(e_context)
         h_v = jax.vmap(self.w_v)(v)
         h_e = jax.vmap(jax.vmap(self.w_e))(e)
         
-        mask_attend = gather_nodes(mask[:, None], e_idx)[..., 0]
+        mask_attend = gather_nodes(mask[:, None], E_idx)[..., 0]
         mask_attend = mask[:, None] * mask_attend
         
         for i, layer in enumerate(self.encoder_layers):
-            h_v, h_e = layer(h_v, h_e, e_idx, mask, mask_attend, inference=inference, key=keys[i])
+            h_v, h_e = layer(h_v, h_e, E_idx, mask, mask_attend, inference=inference, key=keys[i])
             
         h_v_c = jax.vmap(self.w_c)(h_v)
         y_m_edges = y_m[:, :, None] * y_m[:, None, :]
@@ -481,12 +483,12 @@ class Packer(eqx.Module):
         h_v_c = jax.vmap(self.v_c)(h_v_c)
         h_v = h_v + jax.vmap(self.v_c_norm)(self.h_v_c_dropout(h_v_c, key=keys[9], inference=inference))
         
-        return h_v, h_e, e_idx
+        return h_v, h_e, E_idx
 
     def decode(self, feature_dict: dict[str, Any], *, key: PRNGKeyArray | None = None, inference: bool = False) -> tuple:
         h_v = feature_dict["h_v"]
         h_e = feature_dict["h_e"]
-        e_idx = feature_dict["e_idx"]
+        E_idx = feature_dict["E_idx"]
         mask = feature_dict["mask"]
         
         v, f = self.features.features_decode(feature_dict)
@@ -498,10 +500,12 @@ class Packer(eqx.Module):
         h_v_combined = jnp.concatenate([h_v, h_v_sc], axis=-1)
         h_v = jax.vmap(self.linear_down)(h_v_combined)
         
+        if key is None:
+            inference = True
         keys = jax.random.split(key, len(self.decoder_layers)) if key is not None else [None] * len(self.decoder_layers)
         
         for i, layer in enumerate(self.decoder_layers):
-            h_ev = concatenate_neighbor_nodes(h_v, h_ef, e_idx)
+            h_ev = concatenate_neighbor_nodes(h_v, h_ef, E_idx)
             h_v = layer(h_v, h_ev, mask, inference=inference, key=keys[i])
             
         torsions = jax.vmap(self.w_torsions)(h_v)
@@ -515,6 +519,6 @@ class Packer(eqx.Module):
 
     def __call__(self, feature_dict: dict[str, Any], *, key: PRNGKeyArray | None = None) -> tuple:
         keys = jax.random.split(key, 2) if key is not None else (None, None)
-        h_v, h_e, e_idx = self.encode(feature_dict, key=keys[0])
-        feature_dict.update({"h_v": h_v, "h_e": h_e, "e_idx": e_idx})
+        h_v, h_e, E_idx = self.encode(feature_dict, key=keys[0])
+        feature_dict.update({"h_v": h_v, "h_e": h_e, "E_idx": E_idx})
         return self.decode(feature_dict, key=keys[1])

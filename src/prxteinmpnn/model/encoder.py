@@ -121,10 +121,13 @@ class EncoderLayer(eqx.Module):
     mask: AlphaCarbonMask,
     mask_attend: jnp.ndarray | None = None,
     scale: float = 30.0,
+    inference: bool = False,
     *,
     key: PRNGKeyArray | None = None,
   ) -> tuple[NodeFeatures, EdgeFeatures]:
     """Forward pass for the encoder layer."""
+    if key is None:
+      inference = True
     keys = jax.random.split(key, 3) if key is not None else (None, None, None)
 
     mlp_input = self._get_mlp_input(node_features, edge_features, neighbor_indices)
@@ -136,14 +139,13 @@ class EncoderLayer(eqx.Module):
 
     aggregated_message = jnp.sum(message, -2) / scale
 
-    aggregated_message = self.dropout1(aggregated_message, key=keys[0])
+    aggregated_message = self.dropout1(aggregated_message, key=keys[0], inference=inference)
 
     node_features = node_features + aggregated_message
     node_features = jax.vmap(self.norm1)(node_features)
 
     dense_out = jax.vmap(self.dense)(node_features)
-
-    dense_out = self.dropout2(dense_out, key=keys[1])
+    dense_out = self.dropout2(dense_out, key=keys[1], inference=inference)
 
     node_features = node_features + dense_out
     node_features = jax.vmap(self.norm2)(node_features)
@@ -156,8 +158,7 @@ class EncoderLayer(eqx.Module):
     )
     mlp_input_edge_update = jnp.concatenate([node_features_expand, edge_features_cat], -1)
     edge_message = jax.vmap(jax.vmap(self.edge_update_mlp))(mlp_input_edge_update)
-
-    edge_message = self.dropout3(edge_message, key=keys[2])
+    edge_message = self.dropout3(edge_message, key=keys[2], inference=inference)
 
     edge_features = edge_features + edge_message
     edge_features = jax.vmap(jax.vmap(self.norm3))(edge_features)
@@ -213,18 +214,25 @@ class Encoder(eqx.Module):
     edge_features: EdgeFeatures,
     neighbor_indices: NeighborIndices,
     mask: AlphaCarbonMask,
-    node_features: NodeFeatures | None = None,
+    initial_node_features: jnp.ndarray | None = None,
+    scale: float = 30.0,
+    inference: bool = False,
     *,
     key: PRNGKeyArray | None = None,
   ) -> tuple[NodeFeatures, EdgeFeatures]:
     """Forward pass for the encoder."""
+    if key is None:
+      inference = True
     keys = jax.random.split(key, len(self.layers)) if key is not None else [None] * len(self.layers)
-
-    if node_features is None:
-      node_features = jnp.zeros((edge_features.shape[0], self.node_feature_dim))
 
     mask_2d = mask[:, None] * mask[None, :]
     mask_attend = jnp.take_along_axis(mask_2d, neighbor_indices.astype(jnp.int32), axis=1)
+
+    node_features = (
+      jnp.zeros((edge_features.shape[0], self.node_feature_dim))
+      if initial_node_features is None
+      else initial_node_features
+    )
 
     for i, layer in enumerate(self.layers):
       node_features, edge_features = layer(
@@ -232,7 +240,9 @@ class Encoder(eqx.Module):
         edge_features,
         neighbor_indices,
         mask,
-        mask_attend,
+        mask_attend=mask_attend,
+        scale=scale,
+        inference=inference,
         key=keys[i],
       )
     return node_features, edge_features
@@ -295,17 +305,21 @@ class PhysicsEncoder(eqx.Module):
     edge_features: EdgeFeatures,
     neighbor_indices: NeighborIndices,
     mask: AlphaCarbonMask,
-    node_features: NodeFeatures | None = None,
+    initial_node_features: NodeFeatures | None = None,
+    scale: float = 30.0,
+    inference: bool = False,
     *,
     key: PRNGKeyArray | None = None,
   ) -> tuple[NodeFeatures, EdgeFeatures]:
-    """Forward pass for the encoder."""
+    """Forward pass for the physics-augmented encoder."""
+    if key is None:
+      inference = True
     keys = jax.random.split(key, len(self.layers)) if key is not None else [None] * len(self.layers)
 
     node_features = (
       jnp.zeros((edge_features.shape[0], self.node_feature_dim))
-      if node_features is None
-      else jax.vmap(self.physics_projection)(node_features)
+      if initial_node_features is None
+      else jax.vmap(self.physics_projection)(initial_node_features)
     )
 
     mask_2d = mask[:, None] * mask[None, :]
@@ -317,7 +331,9 @@ class PhysicsEncoder(eqx.Module):
         edge_features,
         neighbor_indices,
         mask,
-        mask_attend,
+        mask_attend=mask_attend,
+        scale=scale,
+        inference=inference,
         key=keys[i],
       )
     return node_features, edge_features

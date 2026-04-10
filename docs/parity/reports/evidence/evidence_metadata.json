@@ -1,0 +1,48 @@
+{
+  "case_ids": [
+    "1ubq",
+    "5awl"
+  ],
+  "num_cases": 2,
+  "num_metric_rows": 275,
+  "num_point_rows": 39834,
+  "output_files": {
+    "metrics_csv": "docs/parity/reports/evidence/evidence_metrics.csv",
+    "metrics_json": "docs/parity/reports/evidence/evidence_metrics.json",
+    "points_csv": "docs/parity/reports/evidence/evidence_points.csv"
+  },
+  "overrides": {
+    "intrinsic_repeats": 3,
+    "macro_samples_per_case": 16,
+    "macro_sidechain_conditioned": "inherit",
+    "max_cases": 2
+  },
+  "runtime_config": {
+    "atom_context_num": 16,
+    "intrinsic_repeats": 3,
+    "intrinsic_seed_step": 97,
+    "macro_include_ligand": true,
+    "macro_include_no_ligand": true,
+    "macro_include_sidechain_conditioned": false,
+    "macro_samples_per_case": 16,
+    "mask_keep_probability": 0.8,
+    "tied_multistate_lanes": [
+      {
+        "comparison_api": "sampling",
+        "condition": "reference_weighted_sum__jax_product",
+        "is_primary": true,
+        "jax_multi_state_strategy": "product",
+        "reference_combiner": "weighted_sum",
+        "token_comparison_enabled": true
+      },
+      {
+        "comparison_api": "scoring",
+        "condition": "reference_arithmetic_mean__jax_arithmetic_mean",
+        "is_primary": false,
+        "jax_multi_state_strategy": "arithmetic_mean",
+        "reference_combiner": "arithmetic_mean",
+        "token_comparison_enabled": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,656 @@
+{
+  "version": 1,
+  "source": "Parity asset cache and checksum manifest",
+  "assets": [
+    {
+      "id": "golden-linear-layer-fixture",
+      "base": "project",
+      "path": "tests/golden/parity/linear_layer_fixture.npz",
+      "sha256": "c7d989d1bde2561d5b77b4810ed48a39fc7473eb921a1f9616525f6721c998b7",
+      "required_for": [
+        "parity_fast"
+      ],
+      "source": "Committed deterministic golden fixture"
+    },
+    {
+      "id": "golden-linear-layer-metadata",
+      "base": "project",
+      "path": "tests/golden/parity/metadata.json",
+      "sha256": "16cb5e097e3026192e69825ea3984a258e988b93ae5f43754be1f91d4d095981",
+      "required_for": [
+        "parity_fast"
+      ],
+      "source": "Committed deterministic golden fixture metadata"
+    },
+    {
+      "id": "converted-proteinmpnn-002",
+      "base": "project",
+      "path": "model_params/proteinmpnn_v_48_002_converted.eqx",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "Converted from dauparas/LigandMPNN@3870631 checkpoint",
+      "asset_kind": "converted_checkpoint",
+      "family": "protein",
+      "checkpoint_variant": "v_48_002",
+      "reference_asset_id": "reference-proteinmpnn-002",
+      "validation": {
+        "strategy": "checkpoint-family-load",
+        "model_class": "PrxteinMPNN",
+        "node_features": 128,
+        "edge_features": 128,
+        "hidden_features": 128,
+        "num_encoder_layers": 3,
+        "num_decoder_layers": 3,
+        "k_neighbors": 48,
+        "num_positional_embeddings_candidates": [
+          32,
+          16
+        ],
+        "physics_feature_dim": null
+      }
+    },
+    {
+      "id": "reference-proteinmpnn-002",
+      "base": "reference",
+      "path": "model_params/proteinmpnn_v_48_002.pt",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "dauparas/LigandMPNN@3870631",
+      "asset_kind": "reference_checkpoint",
+      "family": "protein",
+      "checkpoint_variant": "v_48_002"
+    },
+    {
+      "id": "converted-proteinmpnn-010",
+      "base": "project",
+      "path": "model_params/proteinmpnn_v_48_010_converted.eqx",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "Converted from dauparas/LigandMPNN@3870631 checkpoint",
+      "asset_kind": "converted_checkpoint",
+      "family": "protein",
+      "checkpoint_variant": "v_48_010",
+      "reference_asset_id": "reference-proteinmpnn-010",
+      "validation": {
+        "strategy": "checkpoint-family-load",
+        "model_class": "PrxteinMPNN",
+        "node_features": 128,
+        "edge_features": 128,
+        "hidden_features": 128,
+        "num_encoder_layers": 3,
+        "num_decoder_layers": 3,
+        "k_neighbors": 48,
+        "num_positional_embeddings_candidates": [
+          32,
+          16
+        ],
+        "physics_feature_dim": null
+      }
+    },
+    {
+      "id": "reference-proteinmpnn-010",
+      "base": "reference",
+      "path": "model_params/proteinmpnn_v_48_010.pt",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "dauparas/LigandMPNN@3870631",
+      "asset_kind": "reference_checkpoint",
+      "family": "protein",
+      "checkpoint_variant": "v_48_010"
+    },
+    {
+      "id": "converted-proteinmpnn-020",
+      "base": "project",
+      "path": "model_params/proteinmpnn_v_48_020_converted.eqx",
+      "sha256": "d5e303eaf08438ebb43a5ae9696c549656dea8a9c00dfa7bea644ae7775a5c9e",
+      "required_for": [
+        "parity_heavy",
+        "parity_audit"
+      ],
+      "source": "Converted from dauparas/LigandMPNN@3870631 checkpoint",
+      "asset_kind": "converted_checkpoint",
+      "family": "protein",
+      "checkpoint_variant": "v_48_020",
+      "reference_asset_id": "reference-proteinmpnn-020",
+      "validation": {
+        "strategy": "checkpoint-family-load",
+        "model_class": "PrxteinMPNN",
+        "node_features": 128,
+        "edge_features": 128,
+        "hidden_features": 128,
+        "num_encoder_layers": 3,
+        "num_decoder_layers": 3,
+        "k_neighbors": 48,
+        "num_positional_embeddings_candidates": [
+          32,
+          16
+        ],
+        "physics_feature_dim": null
+      }
+    },
+    {
+      "id": "reference-proteinmpnn-020",
+      "base": "reference",
+      "path": "model_params/proteinmpnn_v_48_020.pt",
+      "sha256": null,
+      "required_for": [
+        "parity_heavy",
+        "parity_audit"
+      ],
+      "source": "dauparas/LigandMPNN@3870631",
+      "asset_kind": "reference_checkpoint",
+      "family": "protein",
+      "checkpoint_variant": "v_48_020"
+    },
+    {
+      "id": "converted-proteinmpnn-030",
+      "base": "project",
+      "path": "model_params/proteinmpnn_v_48_030_converted.eqx",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "Converted from dauparas/LigandMPNN@3870631 checkpoint",
+      "asset_kind": "converted_checkpoint",
+      "family": "protein",
+      "checkpoint_variant": "v_48_030",
+      "reference_asset_id": "reference-proteinmpnn-030",
+      "validation": {
+        "strategy": "checkpoint-family-load",
+        "model_class": "PrxteinMPNN",
+        "node_features": 128,
+        "edge_features": 128,
+        "hidden_features": 128,
+        "num_encoder_layers": 3,
+        "num_decoder_layers": 3,
+        "k_neighbors": 48,
+        "num_positional_embeddings_candidates": [
+          32,
+          16
+        ],
+        "physics_feature_dim": null
+      }
+    },
+    {
+      "id": "reference-proteinmpnn-030",
+      "base": "reference",
+      "path": "model_params/proteinmpnn_v_48_030.pt",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "dauparas/LigandMPNN@3870631",
+      "asset_kind": "reference_checkpoint",
+      "family": "protein",
+      "checkpoint_variant": "v_48_030"
+    },
+    {
+      "id": "converted-solublempnn-002",
+      "base": "project",
+      "path": "model_params/solublempnn_v_48_002_converted.eqx",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "Converted from dauparas/LigandMPNN@3870631 checkpoint",
+      "asset_kind": "converted_checkpoint",
+      "family": "soluble",
+      "checkpoint_variant": "v_48_002",
+      "reference_asset_id": "reference-solublempnn-002",
+      "validation": {
+        "strategy": "checkpoint-family-load",
+        "model_class": "PrxteinMPNN",
+        "node_features": 128,
+        "edge_features": 128,
+        "hidden_features": 128,
+        "num_encoder_layers": 3,
+        "num_decoder_layers": 3,
+        "k_neighbors": 48,
+        "num_positional_embeddings_candidates": [
+          32,
+          16
+        ],
+        "physics_feature_dim": null
+      }
+    },
+    {
+      "id": "reference-solublempnn-002",
+      "base": "reference",
+      "path": "model_params/solublempnn_v_48_002.pt",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "dauparas/LigandMPNN@3870631",
+      "asset_kind": "reference_checkpoint",
+      "family": "soluble",
+      "checkpoint_variant": "v_48_002"
+    },
+    {
+      "id": "converted-solublempnn-010",
+      "base": "project",
+      "path": "model_params/solublempnn_v_48_010_converted.eqx",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "Converted from dauparas/LigandMPNN@3870631 checkpoint",
+      "asset_kind": "converted_checkpoint",
+      "family": "soluble",
+      "checkpoint_variant": "v_48_010",
+      "reference_asset_id": "reference-solublempnn-010",
+      "validation": {
+        "strategy": "checkpoint-family-load",
+        "model_class": "PrxteinMPNN",
+        "node_features": 128,
+        "edge_features": 128,
+        "hidden_features": 128,
+        "num_encoder_layers": 3,
+        "num_decoder_layers": 3,
+        "k_neighbors": 48,
+        "num_positional_embeddings_candidates": [
+          32,
+          16
+        ],
+        "physics_feature_dim": null
+      }
+    },
+    {
+      "id": "reference-solublempnn-010",
+      "base": "reference",
+      "path": "model_params/solublempnn_v_48_010.pt",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "dauparas/LigandMPNN@3870631",
+      "asset_kind": "reference_checkpoint",
+      "family": "soluble",
+      "checkpoint_variant": "v_48_010"
+    },
+    {
+      "id": "converted-solublempnn-020",
+      "base": "project",
+      "path": "model_params/solublempnn_v_48_020_converted.eqx",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "Converted from dauparas/LigandMPNN@3870631 checkpoint",
+      "asset_kind": "converted_checkpoint",
+      "family": "soluble",
+      "checkpoint_variant": "v_48_020",
+      "reference_asset_id": "reference-solublempnn-020",
+      "validation": {
+        "strategy": "checkpoint-family-load",
+        "model_class": "PrxteinMPNN",
+        "node_features": 128,
+        "edge_features": 128,
+        "hidden_features": 128,
+        "num_encoder_layers": 3,
+        "num_decoder_layers": 3,
+        "k_neighbors": 48,
+        "num_positional_embeddings_candidates": [
+          32,
+          16
+        ],
+        "physics_feature_dim": null
+      }
+    },
+    {
+      "id": "reference-solublempnn-020",
+      "base": "reference",
+      "path": "model_params/solublempnn_v_48_020.pt",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "dauparas/LigandMPNN@3870631",
+      "asset_kind": "reference_checkpoint",
+      "family": "soluble",
+      "checkpoint_variant": "v_48_020"
+    },
+    {
+      "id": "converted-solublempnn-030",
+      "base": "project",
+      "path": "model_params/solublempnn_v_48_030_converted.eqx",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "Converted from dauparas/LigandMPNN@3870631 checkpoint",
+      "asset_kind": "converted_checkpoint",
+      "family": "soluble",
+      "checkpoint_variant": "v_48_030",
+      "reference_asset_id": "reference-solublempnn-030",
+      "validation": {
+        "strategy": "checkpoint-family-load",
+        "model_class": "PrxteinMPNN",
+        "node_features": 128,
+        "edge_features": 128,
+        "hidden_features": 128,
+        "num_encoder_layers": 3,
+        "num_decoder_layers": 3,
+        "k_neighbors": 48,
+        "num_positional_embeddings_candidates": [
+          32,
+          16
+        ],
+        "physics_feature_dim": null
+      }
+    },
+    {
+      "id": "reference-solublempnn-030",
+      "base": "reference",
+      "path": "model_params/solublempnn_v_48_030.pt",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "dauparas/LigandMPNN@3870631",
+      "asset_kind": "reference_checkpoint",
+      "family": "soluble",
+      "checkpoint_variant": "v_48_030"
+    },
+    {
+      "id": "converted-membrane-global-020",
+      "base": "project",
+      "path": "model_params/global_label_membrane_mpnn_v_48_020_converted.eqx",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "Converted from dauparas/LigandMPNN@3870631 checkpoint",
+      "asset_kind": "converted_checkpoint",
+      "family": "membrane",
+      "checkpoint_variant": "global_v_48_020",
+      "reference_asset_id": "reference-membrane-global-020",
+      "validation": {
+        "strategy": "checkpoint-family-load",
+        "model_class": "PrxteinMPNN",
+        "node_features": 128,
+        "edge_features": 128,
+        "hidden_features": 128,
+        "num_encoder_layers": 3,
+        "num_decoder_layers": 3,
+        "k_neighbors": 48,
+        "num_positional_embeddings_candidates": [
+          32,
+          16
+        ],
+        "physics_feature_dim": 3
+      }
+    },
+    {
+      "id": "reference-membrane-global-020",
+      "base": "reference",
+      "path": "model_params/global_label_membrane_mpnn_v_48_020.pt",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "dauparas/LigandMPNN@3870631",
+      "asset_kind": "reference_checkpoint",
+      "family": "membrane",
+      "checkpoint_variant": "global_v_48_020"
+    },
+    {
+      "id": "converted-membrane-per-residue-020",
+      "base": "project",
+      "path": "model_params/per_residue_label_membrane_mpnn_v_48_020_converted.eqx",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "Converted from dauparas/LigandMPNN@3870631 checkpoint",
+      "asset_kind": "converted_checkpoint",
+      "family": "membrane",
+      "checkpoint_variant": "per_residue_v_48_020",
+      "reference_asset_id": "reference-membrane-per-residue-020",
+      "validation": {
+        "strategy": "checkpoint-family-load",
+        "model_class": "PrxteinMPNN",
+        "node_features": 128,
+        "edge_features": 128,
+        "hidden_features": 128,
+        "num_encoder_layers": 3,
+        "num_decoder_layers": 3,
+        "k_neighbors": 48,
+        "num_positional_embeddings_candidates": [
+          32,
+          16
+        ],
+        "physics_feature_dim": 3
+      }
+    },
+    {
+      "id": "reference-membrane-per-residue-020",
+      "base": "reference",
+      "path": "model_params/per_residue_label_membrane_mpnn_v_48_020.pt",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "dauparas/LigandMPNN@3870631",
+      "asset_kind": "reference_checkpoint",
+      "family": "membrane",
+      "checkpoint_variant": "per_residue_v_48_020"
+    },
+    {
+      "id": "converted-ligandmpnn-005-25",
+      "base": "project",
+      "path": "model_params/ligandmpnn_v_32_005_25_converted.eqx",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "Converted from dauparas/LigandMPNN@3870631 checkpoint",
+      "asset_kind": "converted_checkpoint",
+      "family": "ligand",
+      "checkpoint_variant": "v_32_005_25",
+      "reference_asset_id": "reference-ligandmpnn-005-25",
+      "validation": {
+        "strategy": "checkpoint-family-load",
+        "model_class": "PrxteinLigandMPNN",
+        "node_features": 128,
+        "edge_features": 128,
+        "hidden_features": 128,
+        "num_encoder_layers": 3,
+        "num_decoder_layers": 3,
+        "k_neighbors": 32,
+        "num_positional_embeddings_candidates": [
+          32,
+          16
+        ]
+      }
+    },
+    {
+      "id": "reference-ligandmpnn-005-25",
+      "base": "reference",
+      "path": "model_params/ligandmpnn_v_32_005_25.pt",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "dauparas/LigandMPNN@3870631",
+      "asset_kind": "reference_checkpoint",
+      "family": "ligand",
+      "checkpoint_variant": "v_32_005_25"
+    },
+    {
+      "id": "converted-ligandmpnn-010-25",
+      "base": "project",
+      "path": "model_params/ligandmpnn_v_32_010_25_converted.eqx",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "Converted from dauparas/LigandMPNN@3870631 checkpoint",
+      "asset_kind": "converted_checkpoint",
+      "family": "ligand",
+      "checkpoint_variant": "v_32_010_25",
+      "reference_asset_id": "reference-ligandmpnn-010-25",
+      "validation": {
+        "strategy": "checkpoint-family-load",
+        "model_class": "PrxteinLigandMPNN",
+        "node_features": 128,
+        "edge_features": 128,
+        "hidden_features": 128,
+        "num_encoder_layers": 3,
+        "num_decoder_layers": 3,
+        "k_neighbors": 32,
+        "num_positional_embeddings_candidates": [
+          32,
+          16
+        ]
+      }
+    },
+    {
+      "id": "reference-ligandmpnn-010-25",
+      "base": "reference",
+      "path": "model_params/ligandmpnn_v_32_010_25.pt",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "dauparas/LigandMPNN@3870631",
+      "asset_kind": "reference_checkpoint",
+      "family": "ligand",
+      "checkpoint_variant": "v_32_010_25"
+    },
+    {
+      "id": "converted-ligandmpnn-020-25",
+      "base": "project",
+      "path": "model_params/ligandmpnn_v_32_020_25_converted.eqx",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "Converted from dauparas/LigandMPNN@3870631 checkpoint",
+      "asset_kind": "converted_checkpoint",
+      "family": "ligand",
+      "checkpoint_variant": "v_32_020_25",
+      "reference_asset_id": "reference-ligandmpnn-020-25",
+      "validation": {
+        "strategy": "checkpoint-family-load",
+        "model_class": "PrxteinLigandMPNN",
+        "node_features": 128,
+        "edge_features": 128,
+        "hidden_features": 128,
+        "num_encoder_layers": 3,
+        "num_decoder_layers": 3,
+        "k_neighbors": 32,
+        "num_positional_embeddings_candidates": [
+          32,
+          16
+        ]
+      }
+    },
+    {
+      "id": "reference-ligandmpnn-020-25",
+      "base": "reference",
+      "path": "model_params/ligandmpnn_v_32_020_25.pt",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "dauparas/LigandMPNN@3870631",
+      "asset_kind": "reference_checkpoint",
+      "family": "ligand",
+      "checkpoint_variant": "v_32_020_25"
+    },
+    {
+      "id": "converted-ligandmpnn-030-25",
+      "base": "project",
+      "path": "model_params/ligandmpnn_v_32_030_25_converted.eqx",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "Converted from dauparas/LigandMPNN@3870631 checkpoint",
+      "asset_kind": "converted_checkpoint",
+      "family": "ligand",
+      "checkpoint_variant": "v_32_030_25",
+      "reference_asset_id": "reference-ligandmpnn-030-25",
+      "validation": {
+        "strategy": "checkpoint-family-load",
+        "model_class": "PrxteinLigandMPNN",
+        "node_features": 128,
+        "edge_features": 128,
+        "hidden_features": 128,
+        "num_encoder_layers": 3,
+        "num_decoder_layers": 3,
+        "k_neighbors": 32,
+        "num_positional_embeddings_candidates": [
+          32,
+          16
+        ]
+      }
+    },
+    {
+      "id": "reference-ligandmpnn-030-25",
+      "base": "reference",
+      "path": "model_params/ligandmpnn_v_32_030_25.pt",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "dauparas/LigandMPNN@3870631",
+      "asset_kind": "reference_checkpoint",
+      "family": "ligand",
+      "checkpoint_variant": "v_32_030_25"
+    },
+    {
+      "id": "converted-ligandmpnn-sc-002-16",
+      "base": "project",
+      "path": "model_params/ligandmpnn_sc_v_32_002_16_converted.eqx",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "Converted from dauparas/LigandMPNN@3870631 checkpoint",
+      "asset_kind": "converted_checkpoint",
+      "family": "sc",
+      "checkpoint_variant": "v_32_002_16",
+      "reference_asset_id": "reference-ligandmpnn-sc-002-16",
+      "validation": {
+        "strategy": "checkpoint-family-load",
+        "model_class": "Packer",
+        "node_features": 128,
+        "edge_features": 128,
+        "num_rbf": 16,
+        "top_k": 30,
+        "atom_context_num": 16,
+        "hidden_dim": 128,
+        "num_encoder_layers": 3,
+        "num_decoder_layers": 3,
+        "num_mix": 3,
+        "num_positional_embeddings_candidates": [
+          32,
+          16
+        ]
+      }
+    },
+    {
+      "id": "reference-ligandmpnn-sc-002-16",
+      "base": "reference",
+      "path": "model_params/ligandmpnn_sc_v_32_002_16.pt",
+      "sha256": null,
+      "required_for": [
+        "parity_audit"
+      ],
+      "source": "dauparas/LigandMPNN@3870631",
+      "asset_kind": "reference_checkpoint",
+      "family": "sc",
+      "checkpoint_variant": "v_32_002_16"
+    }
+  ]
+}

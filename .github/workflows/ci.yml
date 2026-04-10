@@ -26,9 +26,9 @@ jobs:
       - name: Install dependencies and run checks
         run: |
           source .venv/bin/activate
-          uv pip install .[dev]
+          uv sync --extra cpu --extra dev
           ruff check .
-          uv run ty check
+          ty check
 
   unit-tests:
     runs-on: ubuntu-latest
@@ -49,18 +49,19 @@ jobs:
       - name: Install dependencies and run tests
         run: |
           source .venv/bin/activate
-          uv pip install .[dev,tests]
+          uv sync --extra cpu --extra dev --extra tests
           
           # Determine pytest arguments based on event type
           PYTEST_ARGS="-n auto --cov=src --cov-report=xml --cov-report=term"
           if [ "${{ github.event_name }}" == "pull_request" ]; then
-            echo "Pull Request Request: Skipping slow tests."
-            PYTEST_ARGS="$PYTEST_ARGS -m 'not slow'"
+            echo "Pull request: running fast tests (excluding slow, parity_heavy, parity_audit)."
+            PYTEST_ARGS="$PYTEST_ARGS -m 'not slow and not parity_heavy and not parity_audit'"
           else
-            echo "Push to Main: Running all tests."
+            echo "Push to main: excluding parity_heavy and parity_audit (run in parity workflows)."
+            PYTEST_ARGS="$PYTEST_ARGS -m 'not parity_heavy and not parity_audit'"
           fi
           
-          python -m pytest $PYTEST_ARGS
+          pytest $PYTEST_ARGS
       - name: Upload coverage to Codecov
         if: github.ref == 'refs/heads/main'
         uses: codecov/codecov-action@v4

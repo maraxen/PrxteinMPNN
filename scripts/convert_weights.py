@@ -10,16 +10,17 @@ import argparse
 from pathlib import Path
 from typing import Any
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
-import equinox as eqx
 import numpy as np
+
 from prxteinmpnn.model.ligand_features import ProteinFeaturesLigand
 from prxteinmpnn.model.packer import Packer
 
 
 def convert_linear_layer(
-    pt_weight: np.ndarray, 
+    pt_weight: np.ndarray,
     pt_bias: np.ndarray | None,
     jax_layer: eqx.nn.Linear,
 ) -> eqx.nn.Linear:
@@ -31,12 +32,12 @@ def convert_linear_layer(
     # Use same weight shape: [out, in]
     jax_weight = jnp.array(pt_weight)
     jax_bias = jnp.array(pt_bias) if pt_bias is not None else jax_layer.bias
-    
+
     # Create new layer with converted weights using eqx.tree_at
     new_layer = eqx.tree_at(lambda l: l.weight, jax_layer, jax_weight)
     if pt_bias is not None and jax_layer.bias is not None:
         new_layer = eqx.tree_at(lambda l: l.bias, new_layer, jax_bias)
-    
+
     return new_layer
 
 
@@ -54,14 +55,14 @@ def convert_mlp(
         New MLP with converted weights.
     """
     new_layers = list(jax_mlp.layers)
-    
+
     pt_idx = 0
     for i, layer in enumerate(new_layers):
         if isinstance(layer, eqx.nn.Linear):
             pt_weight, pt_bias = pt_layers[pt_idx]
             new_layers[i] = convert_linear_layer(pt_weight, pt_bias, layer)
             pt_idx += 1
-    
+
     return eqx.tree_at(lambda m: m.layers, jax_mlp, tuple(new_layers))
 
 
@@ -82,6 +83,25 @@ def convert_embedding(
 ) -> eqx.nn.Embedding:
     """Convert PyTorch Embedding to JAX."""
     return eqx.tree_at(lambda e: e.weight, jax_embed, jnp.array(pt_weight))
+
+
+def resolve_ligand_side_chain_context(
+    mode: str,
+    *,
+    checkpoint_payload: dict[str, Any] | None = None,
+    input_path: str,
+) -> bool:
+    """Resolve side-chain context usage for LigandMPNN conversion."""
+    if mode == "on":
+        return True
+    if mode == "off":
+        return False
+
+    if checkpoint_payload is not None and "ligand_mpnn_use_side_chain_context" in checkpoint_payload:
+        return bool(checkpoint_payload["ligand_mpnn_use_side_chain_context"])
+
+    filename = Path(input_path).name.lower()
+    return "side_chain_context" in filename or "ligandmpnn_sc" in filename
 
 
 def get_pytorch_encoder_layer_weights(state_dict: dict, layer_idx: int) -> dict:
@@ -130,7 +150,7 @@ def convert_encoder_layer(
             jax_layer.edge_message_mlp,
         ),
     )
-    
+
     # edge_update_mlp: W11 -> W12 -> W13
     jax_layer = eqx.tree_at(
         lambda l: l.edge_update_mlp,
@@ -140,7 +160,7 @@ def convert_encoder_layer(
             jax_layer.edge_update_mlp,
         ),
     )
-    
+
     # dense: W_in -> W_out
     jax_layer = eqx.tree_at(
         lambda l: l.dense,
@@ -150,7 +170,7 @@ def convert_encoder_layer(
             jax_layer.dense,
         ),
     )
-    
+
     # LayerNorms
     jax_layer = eqx.tree_at(
         lambda l: l.norm1,
@@ -167,7 +187,7 @@ def convert_encoder_layer(
         jax_layer,
         convert_layer_norm(*pt_weights["norm3"], jax_layer.norm3),
     )
-    
+
     return jax_layer
 
 
@@ -185,7 +205,7 @@ def convert_decoder_layer(
             jax_layer.message_mlp,
         ),
     )
-    
+
     # dense: W_in -> W_out
     jax_layer = eqx.tree_at(
         lambda l: l.dense,
@@ -195,7 +215,7 @@ def convert_decoder_layer(
             jax_layer.dense,
         ),
     )
-    
+
     # LayerNorms
     jax_layer = eqx.tree_at(
         lambda l: l.norm1,
@@ -207,7 +227,7 @@ def convert_decoder_layer(
         jax_layer,
         convert_layer_norm(*pt_weights["norm2"], jax_layer.norm2),
     )
-    
+
     return jax_layer
 
 
@@ -232,7 +252,7 @@ def convert_decoder_layer_j(
         jax_layer,
         convert_linear_layer(*pt_weights["W3"], jax_layer.w3),
     )
-    
+
     # dense: W_in -> W_out
     jax_layer = eqx.tree_at(
         lambda l: l.dense,
@@ -242,7 +262,7 @@ def convert_decoder_layer_j(
             jax_layer.dense,
         ),
     )
-    
+
     # LayerNorms
     jax_layer = eqx.tree_at(
         lambda l: l.norm1,
@@ -254,7 +274,7 @@ def convert_decoder_layer_j(
         jax_layer,
         convert_layer_norm(*pt_weights["norm2"], jax_layer.norm2),
     )
-    
+
     return jax_layer
 
 
@@ -263,7 +283,7 @@ def convert_features(pt_state_dict: dict, jax_features: Any) -> Any:
     if isinstance(jax_features, ProteinFeaturesLigand):
         # Handle aliases: positional_embeddings vs embeddings
         pos_prefix = "features.embeddings." if "features.embeddings.linear.weight" in pt_state_dict else "features.positional_embeddings."
-        
+
         # features.embeddings.linear -> features.embeddings.w_pos
         jax_features = eqx.tree_at(
             lambda f: f.embeddings.w_pos,
@@ -274,12 +294,12 @@ def convert_features(pt_state_dict: dict, jax_features: Any) -> Any:
                 jax_features.embeddings.w_pos,
             ),
         )
-        
+
         # Handle enc_edge_embedding alias
         edge_weight_key = "features.edge_embedding.weight"
         if edge_weight_key not in pt_state_dict:
             edge_weight_key = "features.enc_edge_embedding.weight"
-            
+
         jax_features = eqx.tree_at(
             lambda f: f.edge_embedding,
             jax_features,
@@ -289,12 +309,12 @@ def convert_features(pt_state_dict: dict, jax_features: Any) -> Any:
                 jax_features.edge_embedding,
             ),
         )
-        
+
         # Handle norm_edges alias
         norm_edges_prefix = "features.norm_edges."
         if (norm_edges_prefix + "weight") not in pt_state_dict:
             norm_edges_prefix = "features.enc_norm_edges."
-            
+
         jax_features = eqx.tree_at(
             lambda f: f.norm_edges,
             jax_features,
@@ -304,7 +324,7 @@ def convert_features(pt_state_dict: dict, jax_features: Any) -> Any:
                 jax_features.norm_edges,
             ),
         )
-        
+
         # features.node_project_down
         jax_features = eqx.tree_at(
             lambda f: f.node_project_down,
@@ -315,7 +335,7 @@ def convert_features(pt_state_dict: dict, jax_features: Any) -> Any:
                 jax_features.node_project_down,
             ),
         )
-        
+
         # Handle norm_nodes alias
         norm_nodes_prefix = "features.norm_nodes."
         if (norm_nodes_prefix + "weight") not in pt_state_dict:
@@ -430,96 +450,96 @@ def convert_packer_model(
     print("Converting features...")
     # Packer features are embedded in the model differently
     pt_feat_dict = {k[len("features."):]: v for k, v in pt_state_dict.items() if k.startswith("features.")}
-    
+
     # enc_edge_embedding, enc_node_embedding, enc_norm_edges, enc_norm_nodes
     jax_model = eqx.tree_at(
         lambda m: m.features.enc_edge_embedding,
         jax_model,
-        convert_linear_layer(pt_feat_dict["enc_edge_embedding.weight"], None, jax_model.features.enc_edge_embedding)
+        convert_linear_layer(pt_feat_dict["enc_edge_embedding.weight"], None, jax_model.features.enc_edge_embedding),
     )
     jax_model = eqx.tree_at(
         lambda m: m.features.enc_node_embedding,
         jax_model,
-        convert_linear_layer(pt_feat_dict["enc_node_embedding.weight"], None, jax_model.features.enc_node_embedding)
+        convert_linear_layer(pt_feat_dict["enc_node_embedding.weight"], None, jax_model.features.enc_node_embedding),
     )
     jax_model = eqx.tree_at(
         lambda m: m.features.enc_norm_edges,
         jax_model,
-        convert_layer_norm(pt_feat_dict["enc_norm_edges.weight"], pt_feat_dict["enc_norm_edges.bias"], jax_model.features.enc_norm_edges)
+        convert_layer_norm(pt_feat_dict["enc_norm_edges.weight"], pt_feat_dict["enc_norm_edges.bias"], jax_model.features.enc_norm_edges),
     )
     jax_model = eqx.tree_at(
         lambda m: m.features.enc_norm_nodes,
         jax_model,
-        convert_layer_norm(pt_feat_dict["enc_norm_nodes.weight"], pt_feat_dict["enc_norm_nodes.bias"], jax_model.features.enc_norm_nodes)
+        convert_layer_norm(pt_feat_dict["enc_norm_nodes.weight"], pt_feat_dict["enc_norm_nodes.bias"], jax_model.features.enc_norm_nodes),
     )
-    
+
     # decode features
     jax_model = eqx.tree_at(
         lambda m: m.features.w_xy_project_down1,
         jax_model,
-        convert_linear_layer(pt_feat_dict["W_XY_project_down1.weight"], pt_feat_dict["W_XY_project_down1.bias"], jax_model.features.w_xy_project_down1)
+        convert_linear_layer(pt_feat_dict["W_XY_project_down1.weight"], pt_feat_dict["W_XY_project_down1.bias"], jax_model.features.w_xy_project_down1),
     )
     jax_model = eqx.tree_at(
         lambda m: m.features.dec_edge_embedding1,
         jax_model,
-        convert_linear_layer(pt_feat_dict["dec_edge_embedding1.weight"], None, jax_model.features.dec_edge_embedding1)
+        convert_linear_layer(pt_feat_dict["dec_edge_embedding1.weight"], None, jax_model.features.dec_edge_embedding1),
     )
     jax_model = eqx.tree_at(
         lambda m: m.features.dec_norm_edges1,
         jax_model,
-        convert_layer_norm(pt_feat_dict["dec_norm_edges1.weight"], pt_feat_dict["dec_norm_edges1.bias"], jax_model.features.dec_norm_edges1)
+        convert_layer_norm(pt_feat_dict["dec_norm_edges1.weight"], pt_feat_dict["dec_norm_edges1.bias"], jax_model.features.dec_norm_edges1),
     )
     jax_model = eqx.tree_at(
         lambda m: m.features.dec_node_embedding1,
         jax_model,
-        convert_linear_layer(pt_feat_dict["dec_node_embedding1.weight"], None, jax_model.features.dec_node_embedding1)
+        convert_linear_layer(pt_feat_dict["dec_node_embedding1.weight"], None, jax_model.features.dec_node_embedding1),
     )
     jax_model = eqx.tree_at(
         lambda m: m.features.dec_norm_nodes1,
         jax_model,
-        convert_layer_norm(pt_feat_dict["dec_norm_nodes1.weight"], pt_feat_dict["dec_norm_nodes1.bias"], jax_model.features.dec_norm_nodes1)
+        convert_layer_norm(pt_feat_dict["dec_norm_nodes1.weight"], pt_feat_dict["dec_norm_nodes1.bias"], jax_model.features.dec_norm_nodes1),
     )
-    
+
     # other feature weights
     jax_model = eqx.tree_at(
         lambda m: m.features.node_project_down,
         jax_model,
-        convert_linear_layer(pt_feat_dict["node_project_down.weight"], pt_feat_dict["node_project_down.bias"], jax_model.features.node_project_down)
+        convert_linear_layer(pt_feat_dict["node_project_down.weight"], pt_feat_dict["node_project_down.bias"], jax_model.features.node_project_down),
     )
     jax_model = eqx.tree_at(
         lambda m: m.features.norm_nodes,
         jax_model,
-        convert_layer_norm(pt_feat_dict["norm_nodes.weight"], pt_feat_dict["norm_nodes.bias"], jax_model.features.norm_nodes)
+        convert_layer_norm(pt_feat_dict["norm_nodes.weight"], pt_feat_dict["norm_nodes.bias"], jax_model.features.norm_nodes),
     )
     jax_model = eqx.tree_at(
         lambda m: m.features.type_linear,
         jax_model,
-        convert_linear_layer(pt_feat_dict["type_linear.weight"], pt_feat_dict["type_linear.bias"], jax_model.features.type_linear)
+        convert_linear_layer(pt_feat_dict["type_linear.weight"], pt_feat_dict["type_linear.bias"], jax_model.features.type_linear),
     )
     jax_model = eqx.tree_at(
         lambda m: m.features.y_nodes,
         jax_model,
-        convert_linear_layer(pt_feat_dict["y_nodes.weight"], None, jax_model.features.y_nodes)
+        convert_linear_layer(pt_feat_dict["y_nodes.weight"], None, jax_model.features.y_nodes),
     )
     jax_model = eqx.tree_at(
         lambda m: m.features.y_edges,
         jax_model,
-        convert_linear_layer(pt_feat_dict["y_edges.weight"], None, jax_model.features.y_edges)
+        convert_linear_layer(pt_feat_dict["y_edges.weight"], None, jax_model.features.y_edges),
     )
     jax_model = eqx.tree_at(
         lambda m: m.features.norm_y_edges,
         jax_model,
-        convert_layer_norm(pt_feat_dict["norm_y_edges.weight"], pt_feat_dict["norm_y_edges.bias"], jax_model.features.norm_y_edges)
+        convert_layer_norm(pt_feat_dict["norm_y_edges.weight"], pt_feat_dict["norm_y_edges.bias"], jax_model.features.norm_y_edges),
     )
     jax_model = eqx.tree_at(
         lambda m: m.features.norm_y_nodes,
         jax_model,
-        convert_layer_norm(pt_feat_dict["norm_y_nodes.weight"], pt_feat_dict["norm_y_nodes.bias"], jax_model.features.norm_y_nodes)
+        convert_layer_norm(pt_feat_dict["norm_y_nodes.weight"], pt_feat_dict["norm_y_nodes.bias"], jax_model.features.norm_y_nodes),
     )
     jax_model = eqx.tree_at(
         lambda m: m.features.positional_embeddings.linear,
         jax_model,
-        convert_linear_layer(pt_feat_dict["positional_embeddings.linear.weight"], pt_feat_dict["positional_embeddings.linear.bias"], jax_model.features.positional_embeddings.linear)
+        convert_linear_layer(pt_feat_dict["positional_embeddings.linear.weight"], pt_feat_dict["positional_embeddings.linear.bias"], jax_model.features.positional_embeddings.linear),
     )
 
     # Base model weights
@@ -529,11 +549,11 @@ def convert_packer_model(
         pt_b = pt_state_dict.get(f"{key}.bias")
         jax_layer = getattr(jax_model, key.lower())
         jax_model = eqx.tree_at(lambda m, k=key.lower(): getattr(m, k), jax_model, convert_linear_layer(pt_w, pt_b, jax_layer))
-        
+
     jax_model = eqx.tree_at(
         lambda m: m.v_c_norm,
         jax_model,
-        convert_layer_norm(pt_state_dict["V_C_norm.weight"], pt_state_dict["V_C_norm.bias"], jax_model.v_c_norm)
+        convert_layer_norm(pt_state_dict["V_C_norm.weight"], pt_state_dict["V_C_norm.bias"], jax_model.v_c_norm),
     )
 
     # Layers
@@ -588,13 +608,13 @@ def convert_full_model(
         print(f"  Encoder layer {i}")
         pt_weights = get_pytorch_encoder_layer_weights(pt_state_dict, i)
         new_encoder_layers.append(convert_encoder_layer(pt_weights, jax_layer))
-    
+
     jax_model = eqx.tree_at(
         lambda m: m.encoder.layers,
         jax_model,
         tuple(new_encoder_layers),
     )
-    
+
     # Convert decoder layers
     print("Converting decoder layers...")
     new_decoder_layers = []
@@ -602,13 +622,13 @@ def convert_full_model(
         print(f"  Decoder layer {i}")
         pt_weights = get_pytorch_decoder_layer_weights(pt_state_dict, i)
         new_decoder_layers.append(convert_decoder_layer(pt_weights, jax_layer))
-    
+
     jax_model = eqx.tree_at(
         lambda m: m.decoder.layers,
         jax_model,
         tuple(new_decoder_layers),
     )
-    
+
     if isinstance(jax_model, PrxteinLigandMPNN):
         print("Converting context encoders...")
         # context_encoder_layers are DecLayer in PT
@@ -651,20 +671,20 @@ def convert_full_model(
                 convert_linear_layer(
                     pt_state_dict[key + ".weight"],
                     pt_state_dict.get(key + ".bias"),
-                    getattr(jax_model, key.lower())
-                )
+                    getattr(jax_model, key.lower()),
+                ),
             )
-        
+
         jax_model = eqx.tree_at(
             lambda m: m.v_c_norm,
             jax_model,
             convert_layer_norm(
                 pt_state_dict["V_C_norm.weight"],
                 pt_state_dict["V_C_norm.bias"],
-                jax_model.v_c_norm
-            )
+                jax_model.v_c_norm,
+            ),
         )
-        
+
         # W_e mapping for Ligand features
         jax_model = eqx.tree_at(
             lambda m: m.features.w_e_proj,
@@ -672,8 +692,8 @@ def convert_full_model(
             convert_linear_layer(
                 pt_state_dict["W_e.weight"],
                 pt_state_dict["W_e.bias"],
-                jax_model.features.w_e_proj
-            )
+                jax_model.features.w_e_proj,
+            ),
         )
 
     # Convert W_s (sequence embedding)
@@ -683,7 +703,7 @@ def convert_full_model(
         jax_model,
         convert_embedding(pt_state_dict["W_s.weight"], jax_model.w_s_embed),
     )
-    
+
     # Convert W_out
     print("Converting output projection...")
     jax_model = eqx.tree_at(
@@ -695,7 +715,7 @@ def convert_full_model(
             jax_model.w_out,
         ),
     )
-    
+
     return jax_model
 
 
@@ -703,41 +723,50 @@ def main():
     parser = argparse.ArgumentParser(description="Convert PyTorch weights to JAX")
     parser.add_argument("--input", type=str, required=True, help="Input PyTorch .pt file")
     parser.add_argument("--output", type=str, required=True, help="Output JAX .eqx file")
+    parser.add_argument(
+        "--ligand-side-chain-context",
+        type=str,
+        choices=["auto", "on", "off"],
+        default="auto",
+        help="Side-chain context mode for LigandMPNN conversion (default: auto).",
+    )
     args = parser.parse_args()
-    
+
     print(f"Loading PyTorch weights from {args.input}")
-    
+    checkpoint_payload: dict[str, Any] | None = None
+
     try:
         import torch
         checkpoint = torch.load(args.input, map_location="cpu")
+        checkpoint_payload = checkpoint if isinstance(checkpoint, dict) else None
         if "model_state_dict" in checkpoint:
             pt_state_dict = checkpoint["model_state_dict"]
         else:
             pt_state_dict = checkpoint
-            
+
         pt_state_dict = {
-            k: v.numpy() if hasattr(v, "numpy") else v 
+            k: v.numpy() if hasattr(v, "numpy") else v
             for k, v in pt_state_dict.items()
         }
     except ImportError:
         print("PyTorch not available - loading from numpy")
         pt_state_dict = np.load(args.input, allow_pickle=True).item()
-    
+
     # Initialize JAX model with matching architecture
-    from prxteinmpnn.model.mpnn import PrxteinMPNN, PrxteinLigandMPNN
-    
+    from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
+
     key = jax.random.PRNGKey(0)
-    
+
     # Detect architecture type
     is_packer = "W_torsions.weight" in pt_state_dict
     is_ligand = "features.type_linear.weight" in pt_state_dict or "features.node_project_down.weight" in pt_state_dict
     is_membrane = "features.node_embedding.weight" in pt_state_dict
-    
+
     # Detect positional embedding size
     pos_weight = pt_state_dict.get("features.embeddings.linear.weight")
     if pos_weight is None:
         pos_weight = pt_state_dict.get("features.positional_embeddings.linear.weight")
-    
+
     if pos_weight is not None:
         num_pos = (pos_weight.shape[1] - 2) // 2
         print(f"Detected num_positional_embeddings: {num_pos}")
@@ -761,6 +790,12 @@ def main():
         jax_model = convert_packer_model(pt_state_dict, jax_model)
     elif is_ligand:
         print("Detected LigandMPNN architecture")
+        use_side_chain_context = resolve_ligand_side_chain_context(
+            args.ligand_side_chain_context,
+            checkpoint_payload=checkpoint_payload,
+            input_path=args.input,
+        )
+        print(f"  ligand_mpnn_use_side_chain_context={use_side_chain_context}")
         # Base config for LigandMPNN weights
         jax_model = PrxteinLigandMPNN(
             node_features=128,
@@ -770,6 +805,7 @@ def main():
             num_decoder_layers=3,
             k_neighbors=32 if "32" in args.input else 48,
             num_positional_embeddings=num_pos,
+            ligand_mpnn_use_side_chain_context=use_side_chain_context,
             key=key,
         )
         jax_model = convert_full_model(pt_state_dict, jax_model)
@@ -777,7 +813,7 @@ def main():
         print("Detected standard ProteinMPNN architecture")
         if is_membrane:
             print("  Special case: Membrane model detected (using PhysicsEncoder for node_embedding)")
-        
+
         jax_model = PrxteinMPNN(
             node_features=128,
             edge_features=128,
@@ -790,7 +826,7 @@ def main():
             key=key,
         )
         jax_model = convert_full_model(pt_state_dict, jax_model)
-        
+
         # Load physics projection if membrane
         if is_membrane:
             jax_model = eqx.tree_at(
@@ -799,10 +835,10 @@ def main():
                 convert_linear_layer(
                     pt_state_dict["features.node_embedding.weight"],
                     pt_state_dict.get("features.node_embedding.bias"),
-                    jax_model.encoder.physics_projection
-                )
+                    jax_model.encoder.physics_projection,
+                ),
             )
-    
+
     # Save
     print(f"Saving JAX weights to {args.output}")
     eqx.tree_serialise_leaves(args.output, jax_model)

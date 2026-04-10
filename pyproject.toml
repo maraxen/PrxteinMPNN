@@ -32,8 +32,10 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-cuda = ["jax[cuda12]"]
-tpu = ["jax[tpu]"]
+cuda = ["jax"]
+# Keep TPU extra resolver-safe; TPU-specific wheels should be installed explicitly
+# in TPU environments.
+tpu = ["jax"]
 cpu = ["jax"]
 docs = [
     "sphinx",
@@ -56,7 +58,6 @@ tests = [
     "anyio",
     "ty",
     "foldcomp",
-    "colabdesign @ git+https://github.com/sokrypton/ColabDesign.git@e31a56f",
     "pytest-xdist",
     "mdtraj",
 ]
@@ -80,7 +81,6 @@ dev = [
   "chex",
   "anyio",
   "foldcomp",
-  "colabdesign @ git+https://github.com/sokrypton/ColabDesign.git@e31a56f",
   "mdtraj",
 ]
 foldcomp = [
@@ -141,6 +141,9 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "parity_fast: deterministic fast parity fixtures and checks",
+    "parity_heavy: reference-backed parity tests that require external assets",
+    "parity_audit: checkpoint-family audit parity checks and conversion validation",
 ]
 
 [tool.ty.environment]
@@ -170,4 +173,3 @@ environments = [
 # Local workspace packages (not on PyPI)
 prolix = { path = "../prolix", editable = true }
 proxide = { path = "../proxide", editable = true }
-

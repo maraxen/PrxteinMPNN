@@ -1,0 +1,196 @@
+{
+  "version": 1,
+  "source": "Oracle-approved parity path inventory",
+  "tiers": {
+    "parity_fast": {
+      "description": "Deterministic golden checks that do not require the upstream checkout."
+    },
+    "parity_heavy": {
+      "description": "Reference-backed LigandMPNN parity checks requiring upstream assets."
+    },
+    "parity_audit": {
+      "description": "Expanded heavy parity audit over model families and checkpoint variants."
+    }
+  },
+  "paths": [
+    {
+      "id": "protein-feature-extraction",
+      "tier": "parity_heavy",
+      "code_paths": ["src/prxteinmpnn/model/features.py"],
+      "reference": "LigandMPNN ProteinMPNN feature extraction",
+      "method": "intermediate tensor parity",
+      "metrics": ["shape equality", "allclose", "max abs diff"],
+      "acceptance": {
+        "tensor_tolerance": {"atol": 1e-06, "rtol": 1e-06}
+      }
+    },
+    {
+      "id": "protein-encoder",
+      "tier": "parity_heavy",
+      "code_paths": ["src/prxteinmpnn/model/encoder.py"],
+      "reference": "LigandMPNN encoder stack",
+      "method": "layer-by-layer activation parity",
+      "metrics": ["correlation", "max abs diff", "per-layer trace"],
+      "acceptance": {
+        "correlation_min": 0.95
+      }
+    },
+    {
+      "id": "decoder-unconditional",
+      "tier": "parity_heavy",
+      "code_paths": ["src/prxteinmpnn/model/decoder.py", "src/prxteinmpnn/model/mpnn.py"],
+      "reference": "LigandMPNN unconditional decoding branch",
+      "method": "end-logit parity",
+      "metrics": ["pearson correlation", "per-position KL", "per-position CE"],
+      "acceptance": {
+        "correlation_min": 0.95
+      }
+    },
+    {
+      "id": "decoder-conditional-scoring",
+      "tier": "parity_heavy",
+      "code_paths": ["src/prxteinmpnn/model/decoder.py", "src/prxteinmpnn/scoring/score.py", "src/prxteinmpnn/run/scoring.py"],
+      "reference": "LigandMPNN conditional scoring branch",
+      "method": "logits and score parity",
+      "metrics": ["pearson correlation", "score delta", "nll drift"],
+      "acceptance": {
+        "correlation_min": 0.95
+      }
+    },
+    {
+      "id": "autoregressive-sampling",
+      "tier": "parity_heavy",
+      "code_paths": ["src/prxteinmpnn/sampling/sample.py", "src/prxteinmpnn/run/sampling.py", "src/prxteinmpnn/model/mpnn.py"],
+      "reference": "LigandMPNN autoregressive sample branch",
+      "method": "stepwise deterministic sample parity",
+      "metrics": ["stepwise logit drift", "token agreement", "sequence recovery"],
+      "acceptance": {
+        "correlation_min": 0.95
+      }
+    },
+    {
+      "id": "tied-positions-and-multi-state",
+      "tier": "parity_heavy",
+      "code_paths": ["src/prxteinmpnn/utils/autoregression.py", "src/prxteinmpnn/model/multi_state_sampling.py", "src/prxteinmpnn/sampling/sample.py"],
+      "reference": "LigandMPNN tie-group and multi-state sampling behavior",
+      "method": "group-combined branch parity with explicit apples-to-apples comparison lanes",
+      "metrics": ["group correlation", "strategy invariants"],
+      "acceptance": {
+        "correlation_min": 0.95,
+        "comparison_lanes": [
+          {
+            "condition": "reference_weighted_sum__jax_product",
+            "comparison_api": "sampling",
+            "reference_combiner": "weighted_sum",
+            "jax_multi_state_strategy": "product",
+            "token_comparison": "enabled",
+            "is_primary": true
+          },
+          {
+            "condition": "reference_arithmetic_mean__jax_arithmetic_mean",
+            "comparison_api": "scoring",
+            "reference_combiner": "arithmetic_mean",
+            "jax_multi_state_strategy": "arithmetic_mean",
+            "token_comparison": "disabled",
+            "is_primary": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "logits-helper-branches",
+      "tier": "parity_fast",
+      "code_paths": ["src/prxteinmpnn/sampling/unconditional_logits.py", "src/prxteinmpnn/sampling/conditional_logits.py"],
+      "reference": "Internal branch-to-helper consistency",
+      "method": "helper vs direct branch parity",
+      "metrics": ["allclose", "shape equality"],
+      "acceptance": {
+        "tensor_tolerance": {"atol": 1e-06, "rtol": 1e-06}
+      }
+    },
+    {
+      "id": "ligand-feature-extraction",
+      "tier": "parity_heavy",
+      "code_paths": ["src/prxteinmpnn/model/ligand_features.py"],
+      "reference": "LigandMPNN ligand-aware feature extraction",
+      "method": "ligand node/edge parity",
+      "metrics": ["shape equality", "masked behavior"],
+      "acceptance": {
+        "tensor_tolerance": {"atol": 1e-06, "rtol": 1e-06}
+      }
+    },
+    {
+      "id": "ligand-conditioning-context",
+      "tier": "parity_heavy",
+      "code_paths": ["src/prxteinmpnn/model/mpnn.py"],
+      "reference": "LigandMPNN ligand context integration",
+      "method": "context encoder parity",
+      "metrics": ["hidden-state correlation", "final logit correlation"],
+      "acceptance": {
+        "correlation_min": 0.95
+      }
+    },
+    {
+      "id": "ligand-autoregressive",
+      "tier": "parity_heavy",
+      "code_paths": ["src/prxteinmpnn/model/mpnn.py"],
+      "reference": "LigandMPNN ligand autoregressive decoding",
+      "method": "deterministic ligand sample parity",
+      "metrics": ["stepwise agreement", "final agreement"],
+      "acceptance": {
+        "correlation_min": 0.95,
+        "sidechain_conditioned_macro": {
+          "identity_wasserstein_max": 0.05,
+          "entropy_wasserstein_max": 0.08,
+          "composition_js_max": 0.05,
+          "identity_ks_pvalue_min": 0.05
+        }
+      }
+    },
+    {
+      "id": "side-chain-packer",
+      "tier": "parity_heavy",
+      "code_paths": ["src/prxteinmpnn/model/packer.py"],
+      "reference": "LigandMPNN side-chain packing model",
+      "method": "encode/decode torsion parity",
+      "metrics": ["mean allclose", "concentration allclose", "mix logits allclose", "output correlation"],
+      "acceptance": {
+        "tensor_tolerance": {"atol": 0.001, "rtol": 0.0001},
+        "correlation_min": 0.999
+      }
+    },
+    {
+      "id": "averaged-encoding",
+      "tier": "parity_fast",
+      "code_paths": ["src/prxteinmpnn/run/averaging.py"],
+      "reference": "Internal averaging contract",
+      "method": "deterministic averaged encoding parity",
+      "metrics": ["shape equality", "average drift"],
+      "acceptance": {
+        "tensor_tolerance": {"atol": 1e-06, "rtol": 1e-06}
+      }
+    },
+    {
+      "id": "end-to-end-run-apis",
+      "tier": "parity_fast",
+      "code_paths": ["src/prxteinmpnn/run/scoring.py", "src/prxteinmpnn/run/sampling.py"],
+      "reference": "Internal user-facing API contract",
+      "method": "fixture-driven API parity",
+      "metrics": ["output shape", "score contract", "pseudo-perplexity contract"],
+      "acceptance": {
+        "tensor_tolerance": {"atol": 1e-06, "rtol": 1e-06}
+      }
+    },
+    {
+      "id": "checkpoint-family-load",
+      "tier": "parity_audit",
+      "code_paths": ["src/prxteinmpnn/io/weights.py", "src/prxteinmpnn/model/*.py"],
+      "reference": "LigandMPNN checkpoint family load matrix",
+      "method": "load and smoke forward pass",
+      "metrics": ["load success", "smoke pass", "shape compatibility"],
+      "acceptance": {
+        "smoke_pass_required": true
+      }
+    }
+  ]
+}

@@ -1,309 +1,428 @@
-import sys
-import os
-from pathlib import Path
-import numpy as np
-import torch
+"""Core ProteinMPNN heavy parity checks against LigandMPNN reference."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+import equinox as eqx
 import jax
 import jax.numpy as jnp
-import equinox as eqx
-
-# Setup paths
-PRXTEIN_PATH = Path("/Users/mar/Projects/united_workspace/PrxteinMPNN/src")
-REFERENCE_PATH = Path("/Users/mar/Projects/united_workspace/reference_ligandmpnn_clone")
-sys.path.insert(0, str(PRXTEIN_PATH))
-sys.path.insert(0, str(REFERENCE_PATH))
+import numpy as np
+import pytest
+from scipy.stats import pearsonr
 
 from prxteinmpnn.model.mpnn import PrxteinMPNN
-import model_utils
+from tests.parity.reference_utils import require_heavy_parity_prereqs
 
-def test_full_model_parity():
-    print("=" * 60)
-    print("FULL MODEL LOGITS PARITY TEST")
-    print("=" * 60)
-    
-    # Config
-    hidden_dim = 128
-    num_layers = 3
-    
-    # 1. Load PyTorch model
-    print("Loading PyTorch model...")
-    pt_checkpoint_path = REFERENCE_PATH / "model_params/proteinmpnn_v_48_020.pt"
-    checkpoint = torch.load(pt_checkpoint_path, map_location="cpu")
-    
-    pt_model = model_utils.ProteinMPNN(
-        num_letters=21,
-        node_features=hidden_dim,
-        edge_features=hidden_dim,
-        hidden_dim=hidden_dim,
-        num_encoder_layers=num_layers,
-        num_decoder_layers=num_layers,
-        k_neighbors=48,
+
+@dataclass(frozen=True)
+class HeavyParityModels:
+  """Container for loaded heavy parity models and reference modules."""
+
+  torch: Any
+  model_utils: Any
+  pt_model: Any
+  jax_model: PrxteinMPNN
+
+
+@dataclass(frozen=True)
+class ParityBatch:
+  """Deterministic synthetic batch shared across heavy parity tests."""
+
+  x_pytorch: np.ndarray
+  x_jax_atom37: jax.Array
+  sequence: np.ndarray
+  mask: np.ndarray
+  chain_mask: np.ndarray
+  residue_index: np.ndarray
+  chain_index: np.ndarray
+  randn: np.ndarray
+  decoding_order: np.ndarray
+  ar_mask: np.ndarray
+  bias: np.ndarray
+
+
+def _pearson_correlation(lhs: np.ndarray, rhs: np.ndarray) -> float:
+  """Compute Pearson correlation on flattened arrays."""
+  return float(pearsonr(lhs.ravel(), rhs.ravel())[0])
+
+
+def _build_parity_batch(*, seq_len: int = 20, seed: int = 4) -> ParityBatch:
+  """Create deterministic synthetic inputs used by heavy parity tests."""
+  rng = np.random.default_rng(seed)
+  batch_size = 1
+
+  x_pytorch = rng.normal(size=(batch_size, seq_len, 4, 3)).astype(np.float32)
+  sequence = rng.integers(0, 21, size=(batch_size, seq_len), dtype=np.int64)
+  mask = np.ones((batch_size, seq_len), dtype=np.float32)
+  chain_mask = np.ones((batch_size, seq_len), dtype=np.float32)
+  residue_index = np.tile(np.arange(seq_len), (batch_size, 1)).astype(np.int64)
+  chain_index = np.zeros((batch_size, seq_len), dtype=np.int64)
+  randn = rng.normal(size=(batch_size, seq_len)).astype(np.float32)
+  decoding_order = np.argsort((chain_mask[0] + 0.0001) * np.abs(randn[0]))
+
+  ar_mask = np.zeros((seq_len, seq_len), dtype=np.int32)
+  order_position = {token: pos for pos, token in enumerate(decoding_order)}
+  for i in range(seq_len):
+    for j in range(seq_len):
+      if order_position[j] < order_position[i]:
+        ar_mask[i, j] = 1
+
+  x_jax_atom37 = jnp.zeros((seq_len, 37, 3), dtype=jnp.float32)
+  x_jax_atom37 = x_jax_atom37.at[:, 0, :].set(x_pytorch[0, :, 0, :])
+  x_jax_atom37 = x_jax_atom37.at[:, 1, :].set(x_pytorch[0, :, 1, :])
+  x_jax_atom37 = x_jax_atom37.at[:, 2, :].set(x_pytorch[0, :, 2, :])
+  x_jax_atom37 = x_jax_atom37.at[:, 4, :].set(x_pytorch[0, :, 3, :])
+
+  bias = np.zeros((batch_size, seq_len, 21), dtype=np.float32)
+  bias[..., 0] = 100.0
+
+  return ParityBatch(
+    x_pytorch=x_pytorch,
+    x_jax_atom37=x_jax_atom37,
+    sequence=sequence,
+    mask=mask,
+    chain_mask=chain_mask,
+    residue_index=residue_index,
+    chain_index=chain_index,
+    randn=randn,
+    decoding_order=decoding_order,
+    ar_mask=ar_mask,
+    bias=bias,
+  )
+
+
+def _build_torch_feature_dict(
+  torch: Any,
+  batch: ParityBatch,
+  *,
+  include_sampling_args: bool = False,
+  symmetry_residues: list[list[int]] | None = None,
+  symmetry_weights: list[list[float]] | None = None,
+) -> dict[str, Any]:
+  """Build reference feature dictionary expected by LigandMPNN torch paths."""
+  feature_dict: dict[str, Any] = {
+    "X": torch.from_numpy(batch.x_pytorch),
+    "S": torch.from_numpy(batch.sequence),
+    "mask": torch.from_numpy(batch.mask),
+    "chain_mask": torch.from_numpy(batch.chain_mask),
+    "R_idx": torch.from_numpy(batch.residue_index),
+    "chain_labels": torch.from_numpy(batch.chain_index),
+    "randn": torch.from_numpy(batch.randn),
+    "batch_size": 1,
+    "symmetry_residues": symmetry_residues if symmetry_residues is not None else [[]],
+    "symmetry_weights": symmetry_weights if symmetry_weights is not None else [[]],
+  }
+  if include_sampling_args:
+    feature_dict["bias"] = torch.from_numpy(batch.bias)
+    feature_dict["temperature"] = 1.0
+  return feature_dict
+
+
+def _build_tie_group_map(seq_len: int, tie_groups: list[list[int]]) -> np.ndarray:
+  """Build JAX tie-group map from LigandMPNN symmetry group lists."""
+  tie_group_map = np.arange(seq_len, dtype=np.int32)
+  for group in tie_groups:
+    anchor = group[0]
+    for residue_idx in group[1:]:
+      tie_group_map[residue_idx] = anchor
+  return tie_group_map
+
+
+def _row_log_softmax(logits: np.ndarray) -> np.ndarray:
+  shifted = logits - np.max(logits, axis=-1, keepdims=True)
+  return shifted - np.log(np.sum(np.exp(shifted), axis=-1, keepdims=True))
+
+
+def _combine_reference_tied_log_probs(
+  reference_log_probs: np.ndarray,
+  *,
+  tie_groups: list[list[int]],
+  tie_weights: list[list[float]],
+) -> np.ndarray:
+  combined = np.asarray(reference_log_probs, dtype=np.float64).copy()
+  for group, weights in zip(tie_groups, tie_weights, strict=True):
+    indices = np.asarray(group, dtype=np.int32)
+    weight_array = np.asarray(weights, dtype=np.float64)
+    combined_logits = np.sum(reference_log_probs[indices] * weight_array[:, None], axis=0, keepdims=True)
+    combined_log_probs = _row_log_softmax(combined_logits)
+    combined[indices] = combined_log_probs
+  return combined.astype(np.float32)
+
+
+@pytest.fixture(scope="module")
+def heavy_parity_models() -> HeavyParityModels:
+  """Load reference torch and converted JAX models for heavy parity checks."""
+  pytest.importorskip("torch")
+  reference_root, repo_root = require_heavy_parity_prereqs(
+    reference_rel_paths=["model_params/proteinmpnn_v_48_020.pt"],
+    converted_rel_paths=["model_params/proteinmpnn_v_48_020_converted.eqx"],
+  )
+  import model_utils
+  import torch
+
+  pt_checkpoint_path = reference_root / "model_params/proteinmpnn_v_48_020.pt"
+  jax_checkpoint_path = repo_root / "model_params/proteinmpnn_v_48_020_converted.eqx"
+  checkpoint = torch.load(pt_checkpoint_path, map_location="cpu")
+
+  pos_weight = checkpoint["model_state_dict"].get("features.embeddings.linear.weight")
+  if pos_weight is None:
+    pos_weight = checkpoint["model_state_dict"].get("features.positional_embeddings.linear.weight")
+  num_positional_embeddings = int((pos_weight.shape[1] - 2) // 2) if pos_weight is not None else 16
+
+  pt_model = model_utils.ProteinMPNN(
+    num_letters=21,
+    node_features=128,
+    edge_features=128,
+    hidden_dim=128,
+    num_encoder_layers=3,
+    num_decoder_layers=3,
+    k_neighbors=48,
+  )
+  pt_model.load_state_dict(checkpoint["model_state_dict"])
+  pt_model.eval()
+
+  jax_model = PrxteinMPNN(
+    node_features=128,
+    edge_features=128,
+    hidden_features=128,
+    num_encoder_layers=3,
+    num_decoder_layers=3,
+    k_neighbors=48,
+    num_positional_embeddings=num_positional_embeddings,
+    dropout_rate=0.0,
+    key=jax.random.PRNGKey(0),
+  )
+  jax_model = eqx.tree_deserialise_leaves(jax_checkpoint_path, jax_model)
+
+  return HeavyParityModels(
+    torch=torch,
+    model_utils=model_utils,
+    pt_model=pt_model,
+    jax_model=jax_model,
+  )
+
+
+@pytest.fixture(scope="module")
+def parity_batch() -> ParityBatch:
+  """Return deterministic synthetic parity inputs."""
+  return _build_parity_batch()
+
+
+@pytest.mark.parity_heavy
+def test_protein_feature_extraction_parity(
+  heavy_parity_models: HeavyParityModels,
+  parity_batch: ParityBatch,
+) -> None:
+  """protein-feature-extraction: projected edge features and neighbors match reference."""
+  feature_dict = _build_torch_feature_dict(heavy_parity_models.torch, parity_batch)
+  with heavy_parity_models.torch.no_grad():
+    pt_edges, pt_neighbor_indices = heavy_parity_models.pt_model.features(feature_dict)
+    pt_projected_edges = heavy_parity_models.pt_model.W_e(pt_edges).numpy()[0]
+
+  jax_edges, jax_neighbor_indices, _, _ = heavy_parity_models.jax_model.features(
+    jax.random.PRNGKey(0),
+    parity_batch.x_jax_atom37,
+    jnp.array(parity_batch.mask[0]),
+    jnp.array(parity_batch.residue_index[0]),
+    jnp.array(parity_batch.chain_index[0]),
+    jnp.array(0.0, dtype=jnp.float32),
+  )
+  jax_edges_np = np.asarray(jax_edges)
+
+  assert np.array_equal(pt_neighbor_indices.numpy()[0], np.asarray(jax_neighbor_indices))
+  np.testing.assert_allclose(pt_projected_edges, jax_edges_np, rtol=1e-5, atol=2e-5)
+  max_abs_diff = float(np.max(np.abs(pt_projected_edges - jax_edges_np)))
+  assert max_abs_diff <= 2e-5
+
+
+@pytest.mark.parity_heavy
+def test_protein_encoder_parity(
+  heavy_parity_models: HeavyParityModels,
+  parity_batch: ParityBatch,
+) -> None:
+  """protein-encoder: encoder node/edge activations maintain strong correlation."""
+  feature_dict = _build_torch_feature_dict(heavy_parity_models.torch, parity_batch)
+  with heavy_parity_models.torch.no_grad():
+    pt_node_features, pt_edge_features, pt_neighbor_indices = heavy_parity_models.pt_model.encode(feature_dict)
+
+  jax_edges, jax_neighbor_indices, jax_initial_node_features, _ = heavy_parity_models.jax_model.features(
+    jax.random.PRNGKey(0),
+    parity_batch.x_jax_atom37,
+    jnp.array(parity_batch.mask[0]),
+    jnp.array(parity_batch.residue_index[0]),
+    jnp.array(parity_batch.chain_index[0]),
+    jnp.array(0.0, dtype=jnp.float32),
+  )
+  jax_node_features, jax_edge_features = heavy_parity_models.jax_model.encoder(
+    jax_edges,
+    jax_neighbor_indices,
+    jnp.array(parity_batch.mask[0]),
+    initial_node_features=jax_initial_node_features,
+    key=jax.random.PRNGKey(1),
+  )
+
+  assert np.array_equal(pt_neighbor_indices.numpy()[0], np.asarray(jax_neighbor_indices))
+  node_corr = _pearson_correlation(pt_node_features.numpy()[0], np.asarray(jax_node_features))
+  edge_corr = _pearson_correlation(pt_edge_features.numpy()[0], np.asarray(jax_edge_features))
+  assert node_corr >= 0.95
+  assert edge_corr >= 0.95
+
+
+@pytest.mark.parity_heavy
+def test_decoder_unconditional_parity(
+  heavy_parity_models: HeavyParityModels,
+  parity_batch: ParityBatch,
+) -> None:
+  """decoder-unconditional: manual reference branch and JAX branch stay correlated."""
+  feature_dict = _build_torch_feature_dict(heavy_parity_models.torch, parity_batch)
+  with heavy_parity_models.torch.no_grad():
+    pt_node_features, pt_edge_features, pt_neighbor_indices = heavy_parity_models.pt_model.encode(feature_dict)
+    pt_sequence_embedding = heavy_parity_models.torch.zeros_like(pt_node_features)
+    pt_encoder_context = heavy_parity_models.model_utils.cat_neighbors_nodes(
+      pt_sequence_embedding,
+      pt_edge_features,
+      pt_neighbor_indices,
     )
-    pt_model.load_state_dict(checkpoint["model_state_dict"])
-    pt_model.eval()
-    
-    # 2. Load JAX model
-    print("Loading JAX model...")
-    jax_checkpoint_path = Path("/Users/mar/Projects/united_workspace/PrxteinMPNN/model_params/proteinmpnn_v_48_020_converted.eqx")
-    
-    key = jax.random.PRNGKey(0)
-    jax_model = PrxteinMPNN(
-        node_features=hidden_dim,
-        edge_features=hidden_dim,
-        hidden_features=hidden_dim,
-        num_encoder_layers=num_layers,
-        num_decoder_layers=num_layers,
-        k_neighbors=48,
-        dropout_rate=0.0,
-        key=key,
+    pt_decoder_context = heavy_parity_models.model_utils.cat_neighbors_nodes(
+      pt_node_features,
+      pt_encoder_context,
+      pt_neighbor_indices,
     )
-    jax_model = eqx.tree_deserialise_leaves(jax_checkpoint_path, jax_model)
-    
-    # Verify some weights
-    jax_w1 = jax_model.encoder.layers[0].edge_message_mlp.layers[0].weight
-    pt_w1 = pt_model.encoder_layers[0].W1.weight.detach().numpy()
-    print(f"JAX W1 weight shape: {jax_w1.shape}, sum: {np.sum(jax_w1):.4f}")
-    print(f"PT W1 weight shape: {pt_w1.shape}, sum: {np.sum(pt_w1):.4f}")
-    print(f"Weight diff: {np.max(np.abs(jax_w1 - pt_w1)):.2e}")
-    
-    # 3. Create identical inputs
-    print("Creating inputs...")
-    batch_size = 1
-    seq_len = 20
-    np.random.seed(42)
-    
-    # X: [B, L, 4, 3]
-    X_np = np.random.randn(batch_size, seq_len, 4, 3).astype(np.float32)
-    # S: [B, L]
-    S_np = np.random.randint(0, 21, (batch_size, seq_len)).astype(np.int64)
-    # mask: [B, L]
-    mask_np = np.ones((batch_size, seq_len), dtype=np.float32)
-    # chain_M: [B, L]
-    chain_M_np = np.ones((batch_size, seq_len), dtype=np.float32)
-    # residue_idx: [B, L]
-    residue_idx_np = np.tile(np.arange(seq_len), (batch_size, 1)).astype(np.int64)
-    # chain_encoding_all: [B, L]
-    chain_encoding_all_np = np.zeros((batch_size, seq_len), dtype=np.int64)
-    # randn: [B, L]
-    randn_np = np.random.randn(batch_size, seq_len).astype(np.float32)
-    
-    # Convert JAX inputs (no batch dim)
-    # PrxteinMPNN expects Atom37 format (N=0, CA=1, C=2, CB=3, O=4)
-    # PyTorch inputs are (N=0, CA=1, C=2, O=3)
-    X_jax_37 = jnp.zeros((seq_len, 37, 3))
-    # N, CA, C
-    X_jax_37 = X_jax_37.at[:, 0, :].set(X_np[0, :, 0, :])
-    X_jax_37 = X_jax_37.at[:, 1, :].set(X_np[0, :, 1, :])
-    X_jax_37 = X_jax_37.at[:, 2, :].set(X_np[0, :, 2, :])
-    # O is at index 4 in Atom37
-    X_jax_37 = X_jax_37.at[:, 4, :].set(X_np[0, :, 3, :])
-    
-    X_jax = X_jax_37
-    S_jax = jnp.array(S_np[0])
-    mask_jax = jnp.array(mask_np[0])
-    chain_M_jax = jnp.array(chain_M_np[0])
-    residue_idx_jax = jnp.array(residue_idx_np[0])
-    chain_encoding_all_jax = jnp.array(chain_encoding_all_np[0])
+    pt_decoded_nodes = pt_node_features
+    for layer in heavy_parity_models.pt_model.decoder_layers:
+      pt_decoded_nodes = layer(pt_decoded_nodes, pt_decoder_context, feature_dict["mask"])
+    pt_log_probs = heavy_parity_models.torch.log_softmax(
+      heavy_parity_models.pt_model.W_out(pt_decoded_nodes),
+      dim=-1,
+    ).numpy()[0]
 
-    # Convert PyTorch inputs
-    X_pt = torch.from_numpy(X_np)
-    S_pt = torch.from_numpy(S_np)
-    mask_pt = torch.from_numpy(mask_np)
-    chain_M_pt = torch.from_numpy(chain_M_np)
-    residue_idx_pt = torch.from_numpy(residue_idx_np)
-    chain_encoding_all_pt = torch.from_numpy(chain_encoding_all_np)
-    
-    # Compute decoding order and AR mask (for JAX parity)
-    # This must match PyTorch's decoding_order logic
-    # decoding_order = torch.argsort((chain_mask + 0.0001) * (torch.abs(randn)))
-    # We'll use a fixed order for parity simplicity: range(L)
-    decoding_order_np = np.argsort(np.abs(randn_np[0])) # [L]
-    
-    # order_mask_backward: [L, L] where [i, j] = 1 if j is before i in decoding_order
-    ar_mask_np = np.zeros((seq_len, seq_len), dtype=np.int32)
-    for i in range(seq_len):
-        for j in range(seq_len):
-            # i_idx and j_idx are positions in the sequence
-            # we want to know if j is before i in decoding_order
-            pos_i = np.where(decoding_order_np == i)[0][0]
-            pos_j = np.where(decoding_order_np == j)[0][0]
-            if pos_j < pos_i:
-                ar_mask_np[i, j] = 1
-    
-    ar_mask_jax = jnp.array(ar_mask_np)
+  _, jax_logits = heavy_parity_models.jax_model(
+    parity_batch.x_jax_atom37,
+    jnp.array(parity_batch.mask[0]),
+    jnp.array(parity_batch.residue_index[0]),
+    jnp.array(parity_batch.chain_index[0]),
+    "unconditional",
+  )
+  jax_log_probs = np.asarray(jax.nn.log_softmax(jax_logits, axis=-1))
 
-    # Convert PyTorch inputs in feature dict
-    # Re-use the same randn for PyTorch
-    randn_pt = torch.from_numpy(randn_np)
-    feature_dict = {
-        "X": X_pt,
-        "S": S_pt,
-        "mask": mask_pt,
-        "chain_mask": chain_M_pt,
-        "R_idx": residue_idx_pt,
-        "chain_labels": chain_encoding_all_pt,
-        "randn": randn_pt,
-        "batch_size": batch_size,
-        "symmetry_residues": [[]],
-        "symmetry_weights": [[]],
-    }
-    
-    # 4. Feature Parity
-    print("Checking Feature parity...")
-    # PT Features
-    with torch.no_grad():
-        pt_features_dict = pt_model.features(feature_dict)
-        if isinstance(pt_features_dict, tuple):
-            E_pt, E_idx_pt = pt_features_dict
-        else:
-            V_pt, E_pt, E_idx_pt = pt_features_dict
-        
-    # JAX Features
-    key, feat_key = jax.random.split(key)
-    
-    # 4a. RBF Check
-    from prxteinmpnn.utils.radial_basis import compute_radial_basis
-    from prxteinmpnn.utils.coordinates import compute_backbone_coordinates
-    
-    bb_jax = compute_backbone_coordinates(X_jax)
-    # PyTorch top_k picks different neighbors if distances are identical, but we used random coords so should be unique.
-    # We need to ensure E_idx matches for RBF comparison.
-    E_idx_jax_fix = jnp.array(E_idx_pt.numpy()[0], dtype=jnp.int32)
-    rbf_jax = compute_radial_basis(bb_jax, E_idx_jax_fix)
-    
-    # Need to get PT RBF
-    # ProteinFeatures.forward:
-    # rbf = self._rbf(D_neighbors, E_idx)
-    # distance = torch.sqrt(torch.sum((X[:,:,None,:] - X[:,None,:,:])**2,-1) + 1e-6)
-    
-    # Let's just run the full features and compare weights/outputs
-    jax_features_out = jax_model.features(
-        feat_key,
-        X_jax,
-        mask_jax,
-        residue_idx_jax,
-        chain_encoding_all_jax,
-        backbone_noise=0.0,
-        neighbor_indices=E_idx_jax_fix # Force neighbor match
-    )
-    E_jax_feat, E_idx_jax_feat, _, _ = jax_features_out
+  corr = _pearson_correlation(pt_log_probs, jax_log_probs)
+  assert corr >= 0.95
 
-    E_pt_np = E_pt.numpy()[0]
-    E_jax_np = np.array(E_jax_feat)
-    
-    print(f"Edge Features diff (forced indices): {np.max(np.abs(E_pt_np - E_jax_np)):.2e}")
-    
-    # Check intermediate linear outputs in features
-    # w_pos output
-    # w_e output
-    # norm_edges output
-    
-    # Let's check RBF directly if possible
-    # We'll need to reach into the PT model or replicate its RBF
-    def pt_rbf(D, num_rbf=16):
-        D_min, D_max, D_count = 0., 20., num_rbf
-        D_mu = torch.linspace(D_min, D_max, D_count)
-        D_mu = D_mu.view([1,1,1,-1])
-        D_sigma = (D_max - D_min) / D_count
-        return torch.exp(-((D.unsqueeze(-1) - D_mu) / D_sigma)**2)
 
-    # PT distances
-    X_pt_bb = X_pt[:,:,1,:] # CA only for ProteinMPNN
-    D_pt = torch.sqrt(torch.sum((X_pt_bb[:,:,None,:] - X_pt_bb[:,None,:,:])**2,-1) + 1e-6)
-    D_neighbors_pt = torch.gather(D_pt, 2, E_idx_pt)
-    rbf_pt = pt_rbf(D_neighbors_pt).numpy()[0]
-    
-    # PrxteinMPNN's 400 features = 25 pairs * 16 RBF
-    # The first 16 features in JAX rbf should correspond to CA-CA RBF (index [1,1] in BACKBONE_PAIRS)
-    # Let's verify BACKBONE_PAIRS[0] is [1,1]
-    from prxteinmpnn.utils.radial_basis import BACKBONE_PAIRS
-    print(f"First pair: {BACKBONE_PAIRS[0]}") # Should be [1,1]
-    
-    rbf_jax_caca = np.array(rbf_jax)[:, :, :16]
-    
-    print(f"CA-CA RBF diff: {np.max(np.abs(rbf_pt - rbf_jax_caca)):.2e}")
-    
-    # Check Positional Encodings
-    # self.w_pos(encoded_offset_one_hot)
-    # PyTorch: self.embeddings(E_idx)
-    # PositionalEncodings is a bit different
+@pytest.mark.parity_heavy
+def test_decoder_conditional_scoring_parity(
+  heavy_parity_models: HeavyParityModels,
+  parity_batch: ParityBatch,
+) -> None:
+  """decoder-conditional-scoring: conditional score logits remain highly correlated."""
+  feature_dict = _build_torch_feature_dict(heavy_parity_models.torch, parity_batch)
+  with heavy_parity_models.torch.no_grad():
+    pt_score = heavy_parity_models.pt_model.score(feature_dict, use_sequence=True)
+  pt_log_probs = pt_score["log_probs"].numpy()[0]
 
-    # 5. Forward pass
-    print("Running full forward passes...")
-    with torch.no_grad():
-        pt_out = pt_model.score(feature_dict, use_sequence=True)
-        log_probs_pt = pt_out["log_probs"]
-        
-        # Intermediate Encoder state
-        h_V_pt, h_E_pt, E_idx_pt_enc = pt_model.encode(feature_dict)
-    
-    # JAX intermediate
-    prng_key, encoder_key = jax.random.split(key)
-    edge_features_jax, neighbor_indices_jax, node_features_jax, _ = jax_model.features(
-      feat_key,
-      X_jax,
-      mask_jax,
-      residue_idx_jax,
-      chain_encoding_all_jax,
-      backbone_noise=0.0
-    )
-    h_V_jax_enc, h_E_jax_enc = jax_model.encoder(
-      edge_features_jax,
-      neighbor_indices_jax,
-      mask_jax,
-      node_features_jax,
-      key=encoder_key,
-    )
+  _, jax_logits = heavy_parity_models.jax_model(
+    parity_batch.x_jax_atom37,
+    jnp.array(parity_batch.mask[0]),
+    jnp.array(parity_batch.residue_index[0]),
+    jnp.array(parity_batch.chain_index[0]),
+    "conditional",
+    one_hot_sequence=jax.nn.one_hot(jnp.array(parity_batch.sequence[0]), 21),
+    ar_mask=jnp.array(parity_batch.ar_mask),
+  )
+  jax_log_probs = np.asarray(jax.nn.log_softmax(jax_logits, axis=-1))
 
-    print(f"Encoder h_V diff: {np.max(np.abs(h_V_pt.numpy()[0] - np.array(h_V_jax_enc))):.2e}")
-    print(f"Encoder h_E diff: {np.max(np.abs(h_E_pt.numpy()[0] - np.array(h_E_jax_enc))):.2e}")
+  assert np.array_equal(pt_score["decoding_order"].numpy()[0], parity_batch.decoding_order)
+  corr = _pearson_correlation(pt_log_probs, jax_log_probs)
+  assert corr >= 0.95
 
-    # JAX model expects: (coords, mask, residue_idx, chain_idx, approach, ...)
-    # and returns: (sequence, logits)
-    _, logits_jax = jax_model(
-        X_jax, 
-        mask_jax, 
-        residue_idx_jax, 
-        chain_encoding_all_jax, 
-        "conditional",
-        one_hot_sequence=jax.nn.one_hot(S_jax, 21),
-        ar_mask=ar_mask_jax,
-    )
-    
-    # Convert JAX logits to log_probs
-    import jax.nn as jnn
-    log_probs_jax = jnn.log_softmax(logits_jax, axis=-1)
-    
-    # 5. Compare
-    log_probs_pt_np = log_probs_pt.numpy()[0]
-    log_probs_jax_np = np.array(log_probs_jax)
-    
-    print(f"\nLogits shape: PyTorch {log_probs_pt_np.shape}, JAX {log_probs_jax_np.shape}")
-    
-    max_diff = np.max(np.abs(log_probs_pt_np - log_probs_jax_np))
-    mean_diff = np.mean(np.abs(log_probs_pt_np - log_probs_jax_np))
-    
-    print(f"Max difference: {max_diff:.2e}")
-    print(f"Mean difference: {mean_diff:.2e}")
-    
-    # Calculate Correlation
-    from scipy.stats import pearsonr
-    corr_logits, _ = pearsonr(log_probs_pt_np.flatten(), log_probs_jax_np.flatten())
-    
-    probs_pt = np.exp(log_probs_pt_np)
-    probs_jax = np.exp(log_probs_jax_np)
-    corr_probs, _ = pearsonr(probs_pt.flatten(), probs_jax.flatten())
-    
-    print(f"Logit Correlation: {corr_logits:.4f}")
-    print(f"Probability Correlation: {corr_probs:.4f}")
-    
-    if corr_logits >= 0.95:
-        print(f"\n\u2713 PASSED - Correlation is {corr_logits:.4f} (>= 0.95)")
-        return True
-    else:
-        print(f"\n\u2717 FAILED - Correlation is {corr_logits:.4f} (< 0.95)")
-        return False
 
-if __name__ == "__main__":
-    success = test_full_model_parity()
-    sys.exit(0 if success else 1)
+@pytest.mark.parity_heavy
+def test_autoregressive_sampling_parity(
+  heavy_parity_models: HeavyParityModels,
+  parity_batch: ParityBatch,
+) -> None:
+  """autoregressive-sampling: deterministic token agreement and log-prob correlation."""
+  feature_dict = _build_torch_feature_dict(
+    heavy_parity_models.torch,
+    parity_batch,
+    include_sampling_args=True,
+  )
+  with heavy_parity_models.torch.no_grad():
+    pt_sample = heavy_parity_models.pt_model.sample(feature_dict)
+
+  jax_sequence, jax_logits = heavy_parity_models.jax_model(
+    parity_batch.x_jax_atom37,
+    jnp.array(parity_batch.mask[0]),
+    jnp.array(parity_batch.residue_index[0]),
+    jnp.array(parity_batch.chain_index[0]),
+    "autoregressive",
+    prng_key=jax.random.PRNGKey(7),
+    ar_mask=jnp.array(parity_batch.ar_mask),
+    temperature=jnp.array(1.0),
+    bias=jnp.array(parity_batch.bias[0]),
+  )
+
+  pt_tokens = pt_sample["S"].numpy()[0]
+  jax_tokens = np.asarray(jnp.argmax(jax_sequence, axis=-1))
+  pt_log_probs = pt_sample["log_probs"].numpy()[0]
+  jax_log_probs = np.asarray(jax.nn.log_softmax(jax_logits, axis=-1))
+
+  assert np.array_equal(pt_sample["decoding_order"].numpy()[0], parity_batch.decoding_order)
+  token_agreement = float(np.mean(pt_tokens == jax_tokens))
+  corr = _pearson_correlation(pt_log_probs, jax_log_probs)
+  assert token_agreement >= 0.95
+  assert corr >= 0.95
+
+
+@pytest.mark.parity_heavy
+def test_tied_positions_and_multi_state_parity(
+  heavy_parity_models: HeavyParityModels,
+  parity_batch: ParityBatch,
+) -> None:
+  """tied-positions-and-multi-state: weighted-sum reference aligns with JAX product strategy."""
+  tie_groups = [[0, 1, 2], [6, 7]]
+  tie_weights = [[1.0, 1.0, 1.0], [1.0, 1.0]]
+  tie_group_map = _build_tie_group_map(parity_batch.mask.shape[1], tie_groups)
+
+  feature_dict = _build_torch_feature_dict(
+    heavy_parity_models.torch,
+    parity_batch,
+    include_sampling_args=True,
+    symmetry_residues=tie_groups,
+    symmetry_weights=tie_weights,
+  )
+  with heavy_parity_models.torch.no_grad():
+    pt_sample = heavy_parity_models.pt_model.sample(feature_dict)
+
+  jax_sequence, jax_logits = heavy_parity_models.jax_model(
+    parity_batch.x_jax_atom37,
+    jnp.array(parity_batch.mask[0]),
+    jnp.array(parity_batch.residue_index[0]),
+    jnp.array(parity_batch.chain_index[0]),
+    "autoregressive",
+    prng_key=jax.random.PRNGKey(7),
+    ar_mask=jnp.array(parity_batch.ar_mask),
+    temperature=jnp.array(1.0),
+    bias=jnp.array(parity_batch.bias[0]),
+    tie_group_map=jnp.array(tie_group_map),
+    multi_state_strategy="product",
+  )
+
+  pt_tokens = pt_sample["S"].numpy()[0]
+  jax_tokens = np.asarray(jnp.argmax(jax_sequence, axis=-1))
+  pt_log_probs = _combine_reference_tied_log_probs(
+    pt_sample["log_probs"].numpy()[0],
+    tie_groups=tie_groups,
+    tie_weights=tie_weights,
+  )
+  jax_log_probs = np.asarray(jax.nn.log_softmax(jax_logits, axis=-1))
+
+  token_agreement = float(np.mean(pt_tokens == jax_tokens))
+  corr = _pearson_correlation(pt_log_probs, jax_log_probs)
+  assert token_agreement >= 0.95
+  assert corr >= 0.95
+  for group in tie_groups:
+    assert np.all(pt_tokens[group] == pt_tokens[group[0]])
+    assert np.all(jax_tokens[group] == jax_tokens[group[0]])

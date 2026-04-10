@@ -1,0 +1,12 @@
+{
+  "dtype": "float32",
+  "fixture_name": "linear_layer_fixture",
+  "notes": "Fixture validates deterministic linear layer parity contract used by JAX/PyTorch conversions.",
+  "reference_commit": "3870631",
+  "reference_source": "LigandMPNN parity fast check",
+  "seed": 20260409,
+  "tolerances": {
+    "atol": 1e-06,
+    "rtol": 1e-06
+  }
+}

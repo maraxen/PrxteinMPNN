@@ -14,7 +14,6 @@ from typing import Any
 
 from proxide import OutputSpec
 from proxide.core.containers import Protein
-from proxide.io.parsing.rust import parse_structure as _parse_structure
 
 
 def parse_structure(
@@ -51,7 +50,19 @@ def parse_structure(
 
   spec = OutputSpec(**spec_args)
 
-  # Call proxide rust parser directly
+  # Prefer the rust parser when available; fall back to proxide's generic parser import path.
+  try:
+    from proxide.io.parsing.rust import parse_structure as _parse_structure
+  except ModuleNotFoundError:
+    try:
+      from proxide.io.parsing import parse_structure as _parse_structure
+    except ModuleNotFoundError as exc:
+      msg = (
+        "No proxide parsing backend available. Install proxide with parsing support "
+        "or provide a runtime that includes proxide.io.parsing.rust."
+      )
+      raise ModuleNotFoundError(msg) from exc
+
   return _parse_structure(file_path, spec=spec)
 
 

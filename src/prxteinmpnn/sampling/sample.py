@@ -1,5 +1,6 @@
 """Factory for creating sequence sampling functions for PrxteinMPNN."""
 
+import inspect
 from collections.abc import Callable
 from functools import partial
 from typing import Literal, cast
@@ -70,6 +71,10 @@ def make_sample_sequences(
     ... )
 
   """
+  supports_multi_state_temperature = (
+    "multi_state_temperature" in inspect.signature(model.__call__).parameters
+  )
+
   if sampling_strategy == "straight_through":
     optimize_fn = make_optimize_sequence_fn(model, decoding_order_fn)
 
@@ -102,6 +107,7 @@ def make_sample_sequences(
         "product",
       ] = "arithmetic_mean",
       structure_mapping: jax.Array | None = None,
+      multi_state_temperature: Float = 1.0,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """Optimize a sequence using straight-through estimation.
 
@@ -124,12 +130,14 @@ def make_sample_sequences(
         structure_mapping: Optional (N,) array mapping each residue to a structure ID.
                   When provided (multi-state mode), prevents cross-structure
                   neighbors to avoid information leakage between conformational states.
+        multi_state_temperature: Unused in straight_through mode
+          (kept for API compatibility).
 
       Returns:
         Tuple of (optimized sequence, final logits, decoding order).
 
       """
-      del bias, fixed_positions, _k_neighbors, multi_state_strategy
+      del bias, fixed_positions, _k_neighbors, multi_state_strategy, multi_state_temperature
 
       if iterations is None:
         iterations = jnp.array(100, dtype=jnp.int32)
@@ -195,6 +203,7 @@ def make_sample_sequences(
         "product",
       ] = "arithmetic_mean",
       structure_mapping: jax.Array | None = None,
+      multi_state_temperature: Float = 1.0,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """Sample a sequence from a structure using the ProteinMPNN model.
 
@@ -218,6 +227,7 @@ def make_sample_sequences(
         structure_mapping: Optional (N,) array mapping each residue to a structure ID.
                   When provided (multi-state mode), prevents cross-structure
                   neighbors to avoid information leakage between conformational states.
+        multi_state_temperature: Temperature for geometric_mean multi-state combining.
 
 
       Returns:
@@ -244,21 +254,39 @@ def make_sample_sequences(
         decoding_order, None, tie_group_map, num_groups,
       )
 
-      sampled_sequence, logits = model(
-        structure_coordinates,
-        mask,
-        residue_index,
-        chain_index,
-        decoding_approach="autoregressive",
-        prng_key=prng_key,
-        ar_mask=autoregressive_mask,
-        temperature=temperature,
-        bias=bias,
-        backbone_noise=backbone_noise,
-        tie_group_map=tie_group_map,
-        multi_state_strategy=multi_state_strategy,
-        structure_mapping=structure_mapping,
-      )
+      if supports_multi_state_temperature:
+        sampled_sequence, logits = model(
+          structure_coordinates,
+          mask,
+          residue_index,
+          chain_index,
+          decoding_approach="autoregressive",
+          prng_key=prng_key,
+          ar_mask=autoregressive_mask,
+          temperature=temperature,
+          bias=bias,
+          backbone_noise=backbone_noise,
+          tie_group_map=tie_group_map,
+          multi_state_strategy=multi_state_strategy,
+          structure_mapping=structure_mapping,
+          multi_state_temperature=multi_state_temperature,
+        )
+      else:
+        sampled_sequence, logits = model(
+          structure_coordinates,
+          mask,
+          residue_index,
+          chain_index,
+          decoding_approach="autoregressive",
+          prng_key=prng_key,
+          ar_mask=autoregressive_mask,
+          temperature=temperature,
+          bias=bias,
+          backbone_noise=backbone_noise,
+          tie_group_map=tie_group_map,
+          multi_state_strategy=multi_state_strategy,
+          structure_mapping=structure_mapping,
+        )
 
       one_hot_ndim = 2
       if sampled_sequence.ndim == one_hot_ndim:

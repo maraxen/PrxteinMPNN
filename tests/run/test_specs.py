@@ -1,6 +1,6 @@
 import pytest
 
-from prxteinmpnn.run.specs import RunSpecification
+from prxteinmpnn.run.specs import RunSpecification, ScoringSpecification
 
 
 def test_run_spec_instantiation_tied_modes():
@@ -52,3 +52,17 @@ def test_run_spec_default_noise_modes():
     assert spec.backbone_noise_mode == "direct"
     assert spec.estat_noise_mode == "direct"
     assert spec.vdw_noise_mode == "direct"
+
+
+def test_run_spec_multistate_controls_defaults():
+    """Test default multistate controls on run specs."""
+    spec = RunSpecification(inputs=["dummy.pdb"])
+    assert spec.tie_group_map is None
+    assert spec.structure_mapping is None
+    assert spec.multi_state_temperature == 1.0
+
+
+def test_scoring_spec_multistate_strategy_default():
+    """Test scoring spec exposes multistate strategy with safe default."""
+    spec = ScoringSpecification(inputs=["dummy.pdb"], sequences_to_score=["A"])
+    assert spec.multi_state_strategy == "arithmetic_mean"

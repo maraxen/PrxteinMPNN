@@ -69,6 +69,7 @@ uv run pytest tests/parity -m parity_fast -v
 
 # Run reference-backed heavy parity checks
 REFERENCE_PATH=./reference_ligandmpnn_clone \
+  PRXTEIN_PARITY_TIER=parity_heavy \
   uv run pytest tests/parity tests/model/test_ligandmpnn_equivalence.py -m parity_heavy -v
 
 # Convert full checkpoint families and run parity_audit checks
@@ -79,7 +80,8 @@ REFERENCE_PATH=./reference_ligandmpnn_clone \
     --tier parity_audit \
     --skip-existing
 REFERENCE_PATH=./reference_ligandmpnn_clone \
-  uv run pytest tests/parity -m parity_audit -v
+  PRXTEIN_PARITY_TIER=parity_audit \
+  uv run pytest tests/parity tests/model/test_ligandmpnn_equivalence.py -m parity_audit -v
 
 # Collect expanded parity evidence (multi-backbone + synthetic random cases)
 REFERENCE_PATH=./reference_ligandmpnn_clone \
@@ -96,6 +98,8 @@ CI tier routing:
 - pull_request/main CI excludes `parity_heavy` and `parity_audit` from the default pytest matrix.
 - `parity.yml` runs heavy reference-backed checks on `main` push and manual dispatch.
 - `parity-audit.yml` runs full-family audit checks on weekly schedule and manual dispatch.
+- `ligand-tied-positions-and-multi-state` is staged as warn-only in `parity_heavy` and fail in
+  `parity_audit`.
 
 ## 🚀 Quick Start
 

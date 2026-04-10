@@ -75,19 +75,27 @@ def test_arithmetic_mean_lane_combiner_matches_probability_mean() -> None:
 def test_tied_multistate_lanes_have_unique_primary_lane() -> None:
   """Manifest-backed tied lane config has one primary apples-to-apples lane."""
   lanes = extract_tied_multistate_lanes()
-  assert len(lanes) == 2
-  conditions = {lane.condition for lane in lanes}
-  assert conditions == {
+  core_lanes = [lane for lane in lanes if lane.path_id == "tied-positions-and-multi-state"]
+  ligand_lanes = [lane for lane in lanes if lane.path_id == "ligand-tied-positions-and-multi-state"]
+
+  assert len(core_lanes) == 2
+  core_conditions = {lane.condition for lane in core_lanes}
+  assert core_conditions == {
     "reference_weighted_sum__jax_product",
     "reference_arithmetic_mean__jax_arithmetic_mean",
   }
-  primary_lanes = [lane for lane in lanes if lane.is_primary]
-  assert len(primary_lanes) == 1
-  assert primary_lanes[0].condition == "reference_weighted_sum__jax_product"
-  assert primary_lanes[0].comparison_api == "sampling"
-  assert primary_lanes[0].token_comparison_enabled
-  by_condition = {lane.condition: lane for lane in lanes}
-  assert by_condition["reference_arithmetic_mean__jax_arithmetic_mean"].comparison_api == "scoring"
+  core_primary_lanes = [lane for lane in core_lanes if lane.is_primary]
+  assert len(core_primary_lanes) == 1
+  assert core_primary_lanes[0].condition == "reference_weighted_sum__jax_product"
+  assert core_primary_lanes[0].comparison_api == "sampling"
+  assert core_primary_lanes[0].token_comparison_enabled
+
+  assert len(ligand_lanes) == 4
+  ligand_primary_lanes = [lane for lane in ligand_lanes if lane.is_primary]
+  assert len(ligand_primary_lanes) == 1
+  assert ligand_primary_lanes[0].input_context == "ligand_context"
+  assert ligand_primary_lanes[0].comparison_api == "sampling"
+  assert any(lane.input_context == "side_chain_conditioned" for lane in ligand_lanes)
 
 
 def test_tied_multistate_lanes_reject_non_equivalent_mapping(monkeypatch: pytest.MonkeyPatch) -> None:

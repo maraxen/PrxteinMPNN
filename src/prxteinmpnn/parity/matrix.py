@@ -5,6 +5,15 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal, cast
+
+_LIGAND_TIED_PATH_ID = "ligand-tied-positions-and-multi-state"
+_ROLLOUT_POLICY_KEY = "rollout_policy"
+_VALID_ROLLOUT_ACTIONS = {"warn", "fail"}
+_REQUIRED_ROLLOUT_TIERS = {"parity_heavy", "parity_audit"}
+
+RolloutAction = Literal["warn", "fail"]
+RolloutOutcome = Literal["pass", "warn", "fail"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,3 +79,63 @@ def load_parity_matrix(path: Path | None = None) -> tuple[ParityPath, ...]:
     )
 
   return tuple(parsed)
+
+
+def ligand_tied_multistate_rollout_policy(
+  matrix: tuple[ParityPath, ...] | None = None,
+) -> dict[str, RolloutAction]:
+  """Return staged rollout policy for the ligand tied/multistate parity path."""
+  paths = matrix or load_parity_matrix()
+  ligand_path = next((path for path in paths if path.id == _LIGAND_TIED_PATH_ID), None)
+  if ligand_path is None:
+    msg = f"{_LIGAND_TIED_PATH_ID} is missing from the parity matrix."
+    raise RuntimeError(msg)
+
+  payload = ligand_path.acceptance.get(_ROLLOUT_POLICY_KEY)
+  if not isinstance(payload, dict):
+    msg = f"{_LIGAND_TIED_PATH_ID}.acceptance.{_ROLLOUT_POLICY_KEY} must be a mapping."
+    raise TypeError(msg)
+
+  parsed: dict[str, RolloutAction] = {}
+  for tier, action in payload.items():
+    if not isinstance(tier, str):
+      msg = f"{_LIGAND_TIED_PATH_ID}.acceptance.{_ROLLOUT_POLICY_KEY} tier keys must be strings."
+      raise TypeError(msg)
+    if action not in _VALID_ROLLOUT_ACTIONS:
+      msg = (
+        f"{_LIGAND_TIED_PATH_ID}.acceptance.{_ROLLOUT_POLICY_KEY}.{tier} must be one of "
+        f"{sorted(_VALID_ROLLOUT_ACTIONS)}."
+      )
+      raise TypeError(msg)
+    parsed[tier] = cast("RolloutAction", action)
+
+  missing_tiers = _REQUIRED_ROLLOUT_TIERS - set(parsed)
+  if missing_tiers:
+    msg = (
+      f"{_LIGAND_TIED_PATH_ID}.acceptance.{_ROLLOUT_POLICY_KEY} is missing required tier(s): "
+      f"{sorted(missing_tiers)}."
+    )
+    raise ValueError(msg)
+  return parsed
+
+
+def ligand_tied_multistate_enforcement_for_tier(
+  tier: str,
+  *,
+  matrix: tuple[ParityPath, ...] | None = None,
+) -> RolloutAction:
+  """Resolve rollout enforcement for a tier; unknown tiers default to fail."""
+  policy = ligand_tied_multistate_rollout_policy(matrix)
+  return cast("RolloutAction", policy.get(tier, "fail"))
+
+
+def ligand_tied_multistate_rollout_outcome(
+  *,
+  condition_passed: bool,
+  tier: str,
+  matrix: tuple[ParityPath, ...] | None = None,
+) -> RolloutOutcome:
+  """Classify tied/multistate rollout outcome for a single check under tier policy."""
+  if condition_passed:
+    return "pass"
+  return cast("RolloutOutcome", ligand_tied_multistate_enforcement_for_tier(tier, matrix=matrix))

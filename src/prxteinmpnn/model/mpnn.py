@@ -1332,6 +1332,14 @@ class PrxteinLigandMPNN(eqx.Module):
     xyz_37: jnp.ndarray | None = None,
     xyz_37_m: jnp.ndarray | None = None,
     chain_mask: jnp.ndarray | None = None,
+    tie_group_map: jnp.ndarray | None = None,
+    multi_state_strategy: Literal[
+      "arithmetic_mean",
+      "geometric_mean",
+      "product",
+    ] = "arithmetic_mean",
+    structure_mapping: jnp.ndarray | None = None,
+    multi_state_temperature: float = 1.0,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Forward pass for LigandMPNN sequence scoring or sampling."""
     if prng_key is None:
@@ -1352,6 +1360,7 @@ class PrxteinLigandMPNN(eqx.Module):
       Y_t,
       Y_m,
       backbone_noise,
+      structure_mapping=structure_mapping,
       xyz_37=xyz_37,
       xyz_37_m=xyz_37_m,
       chain_mask=chain_mask,
@@ -1421,6 +1430,16 @@ class PrxteinLigandMPNN(eqx.Module):
       if bias is not None:
         all_logits = all_logits + bias
 
+      if tie_group_map is not None:
+        strategy_map = {"arithmetic_mean": 0, "geometric_mean": 1, "product": 2}
+        strategy_idx = jnp.asarray(strategy_map[multi_state_strategy], dtype=jnp.int32)
+        all_logits = PrxteinMPNN._apply_multistate_to_all_logits(
+          all_logits,
+          tie_group_map,
+          strategy_idx,
+          multi_state_temperature,
+        )
+
       return one_hot_sequence, all_logits
 
     if decoding_approach == "autoregressive":
@@ -1441,6 +1460,12 @@ class PrxteinLigandMPNN(eqx.Module):
         ar_mask,
         temperature,
         bias,
+        tie_group_map=tie_group_map,
+        multi_state_strategy_idx=jnp.asarray(
+          {"arithmetic_mean": 0, "geometric_mean": 1, "product": 2}[multi_state_strategy],
+          dtype=jnp.int32,
+        ),
+        multi_state_temperature=multi_state_temperature,
         inference=inference,
       )
 
@@ -1456,9 +1481,12 @@ class PrxteinLigandMPNN(eqx.Module):
     autoregressive_mask: AutoRegressiveMask,
     temperature: float,
     bias: Logits,
+    tie_group_map: TieGroupMap | None = None,
+    multi_state_strategy_idx: Int = 0,
+    multi_state_temperature: Float = 1.0,
     inference: bool = True,
   ) -> tuple[OneHotProteinSequence, Logits]:
-    """Autoregressive scan for LigandMPNN."""
+    """Autoregressive scan for LigandMPNN with optional tied-position decoding."""
     num_residues = node_features.shape[0]
 
     # Precompute masks and order
@@ -1484,11 +1512,12 @@ class PrxteinLigandMPNN(eqx.Module):
     )
     encoder_context = encoder_context * mask_fw[..., None]
 
-    def autoregressive_step(carry, scan_inputs):
-      all_layers_h, s_embed, all_logits, sequence = carry
-      position, key = scan_inputs
-
-      # Similar to PrxteinMPNN implementation but within this class
+    def _decode_position(
+      position_all_layers_h: jax.Array,
+      s_embed: jax.Array,
+      position: Int,
+    ) -> tuple[jax.Array, jax.Array]:
+      """Decode one position and return updated hidden state + logits."""
       edge_sequence_features = concatenate_neighbor_nodes(
         s_embed,
         edge_features[position],
@@ -1496,15 +1525,13 @@ class PrxteinLigandMPNN(eqx.Module):
       )
 
       for layer_idx, layer in enumerate(self.decoder.layers):
-        h_in_pos = all_layers_h[layer_idx, position]
+        h_in_pos = position_all_layers_h[layer_idx, position]
         decoder_context_pos = concatenate_neighbor_nodes(
-          all_layers_h[layer_idx],
+          position_all_layers_h[layer_idx],
           edge_sequence_features,
           neighbor_indices[position],
         )
-        decoding_context = (
-          mask_bw[position][..., None] * decoder_context_pos + encoder_context[position]
-        )
+        decoding_context = mask_bw[position][..., None] * decoder_context_pos + encoder_context[position]
 
         h_out_pos = layer(
           h_in_pos[None],
@@ -1513,38 +1540,146 @@ class PrxteinLigandMPNN(eqx.Module):
           key=None,
           inference=inference,
         )
-        all_layers_h = all_layers_h.at[layer_idx + 1, position].set(jnp.squeeze(h_out_pos))
+        position_all_layers_h = position_all_layers_h.at[layer_idx + 1, position].set(
+          jnp.squeeze(h_out_pos),
+        )
 
-      final_h_pos = all_layers_h[-1, position]
+      final_h_pos = position_all_layers_h[-1, position]
       logits_pos = self.w_out(final_h_pos)
-      all_logits = all_logits.at[position].set(logits_pos)
+      return position_all_layers_h, logits_pos
 
-      # Sample
-      logits_with_bias = logits_pos + bias[position]
+    def _sample_and_broadcast_to_group(
+      avg_logits: jax.Array,
+      group_mask: jax.Array,
+      key: jax.Array,
+      all_logits: jax.Array,
+      s_embed: jax.Array,
+      sequence: jax.Array,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
+      """Sample one token from group-combined logits and broadcast to all group positions."""
+      group_count = jnp.maximum(jnp.sum(group_mask.astype(jnp.float32)), 1.0)
+      group_bias = jnp.sum(
+        jnp.where(group_mask[:, None], bias, 0.0),
+        axis=0,
+        keepdims=True,
+      ) / group_count
+      logits_with_bias = avg_logits + group_bias
       sampled_logits = (logits_with_bias / temperature) + jax.random.gumbel(
-        key, logits_with_bias.shape,
+        key,
+        logits_with_bias.shape,
+        dtype=logits_with_bias.dtype,
       )
-      one_hot_sample = straight_through_estimator(sampled_logits[:20])
-      one_hot_seq_pos = jnp.concatenate([one_hot_sample, jnp.zeros(1)], axis=-1)
+      one_hot_sample = straight_through_estimator(sampled_logits[..., :20])
+      one_hot_seq = jnp.concatenate([one_hot_sample, jnp.zeros_like(one_hot_sample[..., :1])], axis=-1)
+      s_embed_new = one_hot_seq @ self.w_s_embed.weight
+      all_logits = jnp.where(group_mask[:, None], jnp.squeeze(avg_logits), all_logits)
+      s_embed = jnp.where(group_mask[:, None], jnp.squeeze(s_embed_new), s_embed)
+      sequence = jnp.where(group_mask[:, None], jnp.squeeze(one_hot_seq), sequence)
+      return all_logits, s_embed, sequence
 
-      s_embed_pos = one_hot_seq_pos @ self.w_s_embed.weight
-      s_embed = s_embed.at[position].set(s_embed_pos)
-      sequence = sequence.at[position].set(one_hot_seq_pos)
+    def _initial_carry() -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+      initial_all_layers_h = jnp.zeros(
+        (len(self.decoder.layers) + 1, num_residues, self.node_features_dim),
+      )
+      initial_all_layers_h = initial_all_layers_h.at[0].set(node_features)
+      return (
+        initial_all_layers_h,
+        jnp.zeros_like(node_features),
+        jnp.zeros((num_residues, 21)),
+        jnp.zeros((num_residues, 21)),
+      )
 
-      return (all_layers_h, s_embed, all_logits, sequence), None
+    if tie_group_map is None:
+      def autoregressive_step(carry, scan_inputs):
+        all_layers_h, s_embed, all_logits, sequence = carry
+        position, key = scan_inputs
+        all_layers_h, logits_pos = _decode_position(all_layers_h, s_embed, position)
+        all_logits = all_logits.at[position].set(logits_pos)
+        logits_with_bias = logits_pos + bias[position]
+        sampled_logits = (logits_with_bias / temperature) + jax.random.gumbel(
+          key,
+          logits_with_bias.shape,
+          dtype=logits_with_bias.dtype,
+        )
+        one_hot_sample = straight_through_estimator(sampled_logits[:20])
+        one_hot_seq_pos = jnp.concatenate([one_hot_sample, jnp.zeros(1, dtype=one_hot_sample.dtype)], axis=-1)
+        s_embed_pos = one_hot_seq_pos @ self.w_s_embed.weight
+        s_embed = s_embed.at[position].set(s_embed_pos)
+        sequence = sequence.at[position].set(one_hot_seq_pos)
+        return (all_layers_h, s_embed, all_logits, sequence), None
 
-    initial_all_layers_h = jnp.zeros(
-      (len(self.decoder.layers) + 1, num_residues, self.node_features_dim),
+      final_carry, _ = jax.lax.scan(
+        autoregressive_step,
+        _initial_carry(),
+        (decoding_order, jax.random.split(prng_key, num_residues)),
+      )
+      return final_carry[3], final_carry[2]
+
+    groups_in_order = tie_group_map[decoding_order]
+    position_indices = jnp.arange(num_residues)
+    is_before_mask = position_indices[:, None] > position_indices[None, :]
+    group_matches = groups_in_order[:, None] == groups_in_order[None, :]
+    appeared_before = jnp.any(group_matches & is_before_mask, axis=1)
+    is_first_occurrence = ~appeared_before
+    group_decoding_order = jnp.compress(
+      is_first_occurrence,
+      groups_in_order,
+      size=num_residues,
+      fill_value=-1,
     )
-    initial_all_layers_h = initial_all_layers_h.at[0].set(node_features)
-    initial_carry = (
-      initial_all_layers_h,
-      jnp.zeros_like(node_features),
-      jnp.zeros((num_residues, 21)),
-      jnp.zeros((num_residues, 21)),
+
+    def group_autoregressive_step(carry, scan_inputs):
+      all_layers_h, s_embed, all_logits, sequence = carry
+      group_id, key = scan_inputs
+
+      def _skip_group(_: None) -> tuple[tuple[jax.Array, jax.Array, jax.Array, jax.Array], None]:
+        return (all_layers_h, s_embed, all_logits, sequence), None
+
+      def _decode_group(_: None) -> tuple[tuple[jax.Array, jax.Array, jax.Array, jax.Array], None]:
+        group_mask = tie_group_map == group_id
+        computed_logits = jnp.zeros((num_residues, 21), dtype=all_logits.dtype)
+
+        def process_one_position(idx: Int, state: tuple[jax.Array, jax.Array]) -> tuple[jax.Array, jax.Array]:
+          position_all_layers_h, position_logits = state
+
+          def _process(_: None) -> tuple[jax.Array, jax.Array]:
+            updated_h, logits_pos = _decode_position(position_all_layers_h, s_embed, idx)
+            return updated_h, position_logits.at[idx].set(logits_pos)
+
+          return jax.lax.cond(
+            group_mask[idx],
+            _process,
+            lambda _: (position_all_layers_h, position_logits),
+            operand=None,
+          )
+
+        all_layers_h_updated, computed_logits = jax.lax.fori_loop(
+          0,
+          num_residues,
+          process_one_position,
+          (all_layers_h, computed_logits),
+        )
+        combined_logits = PrxteinMPNN._combine_logits_multistate_idx(
+          computed_logits,
+          group_mask,
+          multi_state_strategy_idx,
+          multi_state_temperature,
+        )
+        all_logits_updated, s_embed_updated, sequence_updated = _sample_and_broadcast_to_group(
+          combined_logits,
+          group_mask,
+          key,
+          all_logits,
+          s_embed,
+          sequence,
+        )
+        return (all_layers_h_updated, s_embed_updated, all_logits_updated, sequence_updated), None
+
+      return jax.lax.cond(group_id < 0, _skip_group, _decode_group, operand=None)
+
+    final_carry, _ = jax.lax.scan(
+      group_autoregressive_step,
+      _initial_carry(),
+      (group_decoding_order, jax.random.split(prng_key, num_residues)),
     )
-
-    keys = jax.random.split(prng_key, num_residues)
-    final_carry, _ = jax.lax.scan(autoregressive_step, initial_carry, (decoding_order, keys))
-
     return final_carry[3], final_carry[2]

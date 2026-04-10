@@ -98,6 +98,59 @@
       }
     },
     {
+      "id": "ligand-tied-positions-and-multi-state",
+      "tier": "parity_heavy",
+      "code_paths": ["src/prxteinmpnn/model/mpnn.py", "src/prxteinmpnn/model/ligand_features.py", "scripts/collect_parity_evidence.py"],
+      "reference": "LigandMPNN ligand tied-position and multi-state behavior (including side-chain-conditioned context lane)",
+      "method": "group-combined ligand branch parity with explicit apples-to-apples comparison lanes",
+      "metrics": ["group correlation", "strategy invariants", "group consistency"],
+      "acceptance": {
+        "correlation_min": 0.95,
+        "rollout_policy": {
+          "parity_heavy": "warn",
+          "parity_audit": "fail"
+        },
+        "comparison_lanes": [
+          {
+            "condition": "ligand_context_reference_weighted_sum__jax_product",
+            "input_context": "ligand_context",
+            "comparison_api": "sampling",
+            "reference_combiner": "weighted_sum",
+            "jax_multi_state_strategy": "product",
+            "token_comparison": "enabled",
+            "is_primary": true
+          },
+          {
+            "condition": "ligand_context_reference_arithmetic_mean__jax_arithmetic_mean",
+            "input_context": "ligand_context",
+            "comparison_api": "scoring",
+            "reference_combiner": "arithmetic_mean",
+            "jax_multi_state_strategy": "arithmetic_mean",
+            "token_comparison": "disabled",
+            "is_primary": false
+          },
+          {
+            "condition": "side_chain_conditioned_reference_weighted_sum__jax_product",
+            "input_context": "side_chain_conditioned",
+            "comparison_api": "sampling",
+            "reference_combiner": "weighted_sum",
+            "jax_multi_state_strategy": "product",
+            "token_comparison": "enabled",
+            "is_primary": false
+          },
+          {
+            "condition": "side_chain_conditioned_reference_arithmetic_mean__jax_arithmetic_mean",
+            "input_context": "side_chain_conditioned",
+            "comparison_api": "scoring",
+            "reference_combiner": "arithmetic_mean",
+            "jax_multi_state_strategy": "arithmetic_mean",
+            "token_comparison": "disabled",
+            "is_primary": false
+          }
+        ]
+      }
+    },
+    {
       "id": "logits-helper-branches",
       "tier": "parity_fast",
       "code_paths": ["src/prxteinmpnn/sampling/unconditional_logits.py", "src/prxteinmpnn/sampling/conditional_logits.py"],

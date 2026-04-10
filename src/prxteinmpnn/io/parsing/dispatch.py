@@ -50,16 +50,28 @@ def parse_structure(
 
   spec = OutputSpec(**spec_args)
 
-  # Prefer the rust parser when available; fall back to proxide's generic parser import path.
+  # Prefer legacy rust module when present, then proxide's current backend path,
+  # then older top-level parsing export.
+  _parse_structure = None
   try:
     from proxide.io.parsing.rust import parse_structure as _parse_structure
-  except ModuleNotFoundError:
+  except (ModuleNotFoundError, ImportError):
+    pass
+
+  if _parse_structure is None:
+    try:
+      from proxide.io.parsing.backend import parse_structure as _parse_structure
+    except (ModuleNotFoundError, ImportError):
+      pass
+
+  if _parse_structure is None:
     try:
       from proxide.io.parsing import parse_structure as _parse_structure
-    except ModuleNotFoundError as exc:
+    except (ModuleNotFoundError, ImportError) as exc:
       msg = (
         "No proxide parsing backend available. Install proxide with parsing support "
-        "or provide a runtime that includes proxide.io.parsing.rust."
+        "or provide a runtime that includes either proxide.io.parsing.backend "
+        "(preferred) or proxide.io.parsing.rust."
       )
       raise ModuleNotFoundError(msg) from exc
 

@@ -7,7 +7,12 @@ import json
 
 import pytest
 
-from prxteinmpnn.parity.matrix import load_parity_matrix
+from prxteinmpnn.parity.matrix import (
+  ligand_tied_multistate_enforcement_for_tier,
+  ligand_tied_multistate_rollout_outcome,
+  ligand_tied_multistate_rollout_policy,
+  load_parity_matrix,
+)
 
 
 def test_parity_matrix_contains_required_paths() -> None:
@@ -21,6 +26,7 @@ def test_parity_matrix_contains_required_paths() -> None:
     "decoder-conditional-scoring",
     "autoregressive-sampling",
     "tied-positions-and-multi-state",
+    "ligand-tied-positions-and-multi-state",
     "logits-helper-branches",
     "ligand-feature-extraction",
     "ligand-conditioning-context",
@@ -56,9 +62,13 @@ def test_ligand_sidechain_macro_acceptance_is_explicit() -> None:
     assert isinstance(acceptance[key], (int, float))
 
 
-def test_tied_multistate_comparison_lanes_are_explicit() -> None:
+@pytest.mark.parametrize(
+  "path_id",
+  ["tied-positions-and-multi-state", "ligand-tied-positions-and-multi-state"],
+)
+def test_tied_multistate_comparison_lanes_are_explicit(path_id: str) -> None:
   """Ensure tied/multistate parity lanes are explicit and uniquely primary."""
-  path = next(item for item in load_parity_matrix() if item.id == "tied-positions-and-multi-state")
+  path = next(item for item in load_parity_matrix() if item.id == path_id)
   lanes = path.acceptance["comparison_lanes"]
   assert isinstance(lanes, list)
   assert len(lanes) >= 1
@@ -73,12 +83,33 @@ def test_tied_multistate_comparison_lanes_are_explicit() -> None:
     assert lane["comparison_api"] in {"sampling", "scoring"}
     assert lane["reference_combiner"] in {"weighted_sum", "arithmetic_mean", "geometric_mean"}
     assert lane["jax_multi_state_strategy"] in {"arithmetic_mean", "geometric_mean", "product"}
+    assert lane.get("input_context", "ligand_context") in {
+      "ligand_context",
+      "side_chain_conditioned",
+    }
     assert lane["token_comparison"] in {"enabled", "disabled"}
     assert isinstance(lane["is_primary"], bool)
     if lane["is_primary"]:
       primary_count += 1
 
   assert primary_count == 1
+
+
+def test_ligand_tied_multistate_rollout_policy_is_staged() -> None:
+  """Ensure ligand tied/multistate rollout policy is warn-heavy and fail-audit."""
+  policy = ligand_tied_multistate_rollout_policy()
+  assert policy["parity_heavy"] == "warn"
+  assert policy["parity_audit"] == "fail"
+  assert ligand_tied_multistate_enforcement_for_tier("parity_heavy") == "warn"
+  assert ligand_tied_multistate_enforcement_for_tier("parity_audit") == "fail"
+  assert ligand_tied_multistate_enforcement_for_tier("unknown-tier") == "fail"
+  assert ligand_tied_multistate_rollout_outcome(condition_passed=True, tier="parity_heavy") == "pass"
+  assert (
+    ligand_tied_multistate_rollout_outcome(condition_passed=False, tier="parity_heavy") == "warn"
+  )
+  assert (
+    ligand_tied_multistate_rollout_outcome(condition_passed=False, tier="parity_audit") == "fail"
+  )
 
 
 def test_parity_matrix_manifest_is_valid_json() -> None:

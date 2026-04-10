@@ -183,6 +183,7 @@ class ProteinFeaturesLigand(eqx.Module):
         Y_t: jnp.ndarray,  # Ligand types [L, M]
         Y_m: jnp.ndarray,  # Ligand mask [L, M]
         backbone_noise: float = 0.0,
+        structure_mapping: jnp.ndarray | None = None,
         *,
         xyz_37: jnp.ndarray | None = None,
         xyz_37_m: jnp.ndarray | None = None,
@@ -205,6 +206,9 @@ class ProteinFeaturesLigand(eqx.Module):
         dist_ca = jnp.sqrt(jnp.sum((Ca[:, None, :] - Ca[None, :, :])**2, axis=-1) + 1e-6)
         mask_2d = mask[:, None] * mask[None, :]
         dist_ca = dist_ca * mask_2d + (1.0 - mask_2d) * 1e4
+        if structure_mapping is not None:
+            same_structure = structure_mapping[:, None] == structure_mapping[None, :]
+            dist_ca = jnp.where(same_structure, dist_ca, 1e4)
 
         k = jnp.minimum(self.k_neighbors, Ca.shape[0])
         _, E_idx = jax.lax.top_k(-dist_ca, k)

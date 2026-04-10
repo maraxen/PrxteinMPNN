@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PYTHONDONTWRITEBYTECODE: 1
+      PRXTEIN_PARITY_TIER: parity_heavy
     steps:
       - name: Checkout PrxteinMPNN repository
         uses: actions/checkout@v4
@@ -124,6 +125,7 @@ jobs:
             "",
             "Reference source: dauparas/LigandMPNN @ 3870631",
             f"Heavy paths covered: {len(heavy_paths)}",
+            "Ligand tied/multistate rollout policy: warn in parity_heavy, fail in parity_audit.",
             "",
             "- Test report: `parity-heavy-report.xml`",
             "- Matrix JSON: `parity-matrix-heavy.json`",

@@ -35,6 +35,7 @@ def _build_model(
   *,
   key: jax.Array,
   ligand_mpnn_use_side_chain_context: bool,
+  k_neighbors: int = 8,
 ) -> PrxteinLigandMPNN:
   """Construct a small deterministic ligand model for context-lane tests."""
   return PrxteinLigandMPNN(
@@ -43,12 +44,23 @@ def _build_model(
     hidden_features=32,
     num_encoder_layers=2,
     num_decoder_layers=2,
-    k_neighbors=8,
+    k_neighbors=k_neighbors,
     num_context_layers=2,
     dropout_rate=0.0,
     ligand_mpnn_use_side_chain_context=ligand_mpnn_use_side_chain_context,
     key=key,
   )
+
+
+def _build_tie_group_map(seq_len: int, groups: list[list[int]]) -> jax.Array:
+  """Build a dense tie-group map from grouped residue indices."""
+  tie_group_map = np.arange(seq_len, dtype=np.int32)
+  for positions in groups:
+    representative = positions[0]
+    for position in positions[1:]:
+      tie_group_map[position] = representative
+  _, compact_tie_group_map = np.unique(tie_group_map, return_inverse=True)
+  return jnp.asarray(compact_tie_group_map.astype(np.int32, copy=False))
 
 
 def _run_conditional(
@@ -151,6 +163,186 @@ def test_ligand_side_chain_gate_on_executes_context_lane() -> None:
   assert sequence.shape == inputs["one_hot_sequence"].shape
   assert logits.shape == inputs["one_hot_sequence"].shape
   assert bool(jnp.all(jnp.isfinite(logits)))
+
+
+def test_ligand_tied_autoregressive_support_without_sidechain_context() -> None:
+  """Ensure ligand autoregressive tied decoding enforces per-group token consistency."""
+  inputs = _synthetic_inputs(seq_len=10, ligand_atoms=8)
+  model = _build_model(
+    key=jax.random.PRNGKey(11),
+    ligand_mpnn_use_side_chain_context=False,
+  )
+  tie_groups = [[0, 1, 2], [3, 4]]
+  tie_group_map = _build_tie_group_map(seq_len=10, groups=tie_groups)
+
+  forced_tokens = np.arange(10, dtype=np.int32) % 20
+  bias = np.zeros((10, 21), dtype=np.float32)
+  bias[np.arange(10), forced_tokens] = 45.0
+
+  no_tie_sequence, _ = model(
+    inputs["structure_coordinates"],
+    inputs["mask"],
+    inputs["residue_index"],
+    inputs["chain_index"],
+    inputs["y"],
+    inputs["y_t"],
+    inputs["y_m"],
+    "autoregressive",
+    prng_key=jax.random.PRNGKey(13),
+    ar_mask=inputs["ar_mask"],
+    temperature=1.0,
+    bias=jnp.asarray(bias),
+    inference=True,
+  )
+  no_tie_tokens = np.asarray(no_tie_sequence).argmax(axis=-1)
+  for group in tie_groups:
+    assert len(np.unique(no_tie_tokens[group])) > 1
+
+  tied_sequence, _ = model(
+    inputs["structure_coordinates"],
+    inputs["mask"],
+    inputs["residue_index"],
+    inputs["chain_index"],
+    inputs["y"],
+    inputs["y_t"],
+    inputs["y_m"],
+    "autoregressive",
+    prng_key=jax.random.PRNGKey(13),
+    ar_mask=inputs["ar_mask"],
+    temperature=1.0,
+    bias=jnp.asarray(bias),
+    tie_group_map=tie_group_map,
+    multi_state_strategy="product",
+    inference=True,
+  )
+  tied_tokens = np.asarray(tied_sequence).argmax(axis=-1)
+  for group in tie_groups:
+    assert np.all(tied_tokens[group] == tied_tokens[group[0]])
+
+
+def test_ligand_tied_autoregressive_support_with_sidechain_context() -> None:
+  """Ensure side-chain-conditioned ligand tied decoding remains group-consistent."""
+  inputs = _synthetic_inputs(seq_len=10, ligand_atoms=8)
+  model = _build_model(
+    key=jax.random.PRNGKey(17),
+    ligand_mpnn_use_side_chain_context=True,
+  )
+  tie_groups = [[0, 1, 2], [3, 4]]
+  tie_group_map = _build_tie_group_map(seq_len=10, groups=tie_groups)
+  forced_tokens = np.arange(10, dtype=np.int32) % 20
+  bias = np.zeros((10, 21), dtype=np.float32)
+  bias[np.arange(10), forced_tokens] = 45.0
+
+  tied_sequence, logits = model(
+    inputs["structure_coordinates"],
+    inputs["mask"],
+    inputs["residue_index"],
+    inputs["chain_index"],
+    inputs["y"],
+    inputs["y_t"],
+    inputs["y_m"],
+    "autoregressive",
+    prng_key=jax.random.PRNGKey(19),
+    ar_mask=inputs["ar_mask"],
+    temperature=1.0,
+    bias=jnp.asarray(bias),
+    tie_group_map=tie_group_map,
+    multi_state_strategy="product",
+    xyz_37=inputs["xyz_37"],
+    xyz_37_m=inputs["xyz_37_m"],
+    chain_mask=inputs["chain_mask"],
+    inference=True,
+  )
+  tied_tokens = np.asarray(tied_sequence).argmax(axis=-1)
+  for group in tie_groups:
+    assert np.all(tied_tokens[group] == tied_tokens[group[0]])
+  assert bool(jnp.all(jnp.isfinite(logits)))
+
+
+def test_ligand_conditional_multistate_logits_are_group_shared() -> None:
+  """Ensure conditional multistate strategy combines logits identically per tied group."""
+  inputs = _synthetic_inputs(seq_len=10, ligand_atoms=8)
+  model = _build_model(
+    key=jax.random.PRNGKey(23),
+    ligand_mpnn_use_side_chain_context=False,
+  )
+  tie_groups = [[0, 1, 2], [3, 4]]
+  tie_group_map = _build_tie_group_map(seq_len=10, groups=tie_groups)
+
+  _, tied_logits = model(
+    inputs["structure_coordinates"],
+    inputs["mask"],
+    inputs["residue_index"],
+    inputs["chain_index"],
+    inputs["y"],
+    inputs["y_t"],
+    inputs["y_m"],
+    "conditional",
+    prng_key=jax.random.PRNGKey(29),
+    ar_mask=inputs["ar_mask"],
+    one_hot_sequence=inputs["one_hot_sequence"],
+    tie_group_map=tie_group_map,
+    multi_state_strategy="product",
+    inference=True,
+  )
+  tied_logits_np = np.asarray(tied_logits)
+  for group in tie_groups:
+    np.testing.assert_allclose(
+      tied_logits_np[group],
+      np.repeat(tied_logits_np[group[0]][None, :], repeats=len(group), axis=0),
+      rtol=1e-5,
+      atol=1e-5,
+    )
+
+
+def test_ligand_features_structure_mapping_masks_cross_state_neighbors() -> None:
+  """Ensure ligand feature KNN never crosses structure boundaries when mapping is provided."""
+  model = _build_model(
+    key=jax.random.PRNGKey(31),
+    ligand_mpnn_use_side_chain_context=False,
+    k_neighbors=3,
+  )
+  seq_len = 8
+  ligand_atoms = 6
+  base_inputs = _synthetic_inputs(seq_len=seq_len, ligand_atoms=ligand_atoms)
+  coords = np.array(base_inputs["structure_coordinates"], copy=True)
+  coords[4:] = coords[:4]
+
+  _, _, e_idx_nomap, *_ = model.features(
+    jax.random.PRNGKey(37),
+    jnp.asarray(coords),
+    base_inputs["mask"],
+    base_inputs["residue_index"],
+    base_inputs["chain_index"],
+    base_inputs["y"],
+    base_inputs["y_t"],
+    base_inputs["y_m"],
+  )
+  no_map_crossing = any(
+    (int(i) < 4 and np.any(np.asarray(e_idx_nomap)[int(i)] >= 4))
+    or (int(i) >= 4 and np.any(np.asarray(e_idx_nomap)[int(i)] < 4))
+    for i in range(seq_len)
+  )
+  assert no_map_crossing
+
+  structure_mapping = jnp.asarray([0, 0, 0, 0, 1, 1, 1, 1], dtype=jnp.int32)
+  _, _, e_idx_mapped, *_ = model.features(
+    jax.random.PRNGKey(37),
+    jnp.asarray(coords),
+    base_inputs["mask"],
+    base_inputs["residue_index"],
+    base_inputs["chain_index"],
+    base_inputs["y"],
+    base_inputs["y_t"],
+    base_inputs["y_m"],
+    structure_mapping=structure_mapping,
+  )
+  e_idx_mapped_np = np.asarray(e_idx_mapped)
+  for i in range(seq_len):
+    if i < 4:
+      assert np.all(e_idx_mapped_np[i] < 4)
+    else:
+      assert np.all(e_idx_mapped_np[i] >= 4)
 
 
 @pytest.mark.parametrize(

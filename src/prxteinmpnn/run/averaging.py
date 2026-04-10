@@ -32,6 +32,7 @@ def get_averaged_encodings(
   noise_batch_size: int,
   random_seed: int,
   average_encoding_mode: Literal["inputs", "noise_levels", "inputs_and_noise"],
+  structure_mapping: jax.Array | None = None,
 ) -> tuple:
   """Compute averaged node and edge features from an ensemble of protein structures.
 
@@ -65,6 +66,7 @@ def get_averaged_encodings(
     residue_ix: ResidueIndex,
     chain_ix: ChainIndex,
     noise: BackboneNoise,
+    mapping: jax.Array | None = None,
     _encoder: Callable = encode_fn,
   ) -> tuple:
     """Encode one structure at one noise level."""
@@ -75,6 +77,7 @@ def get_averaged_encodings(
       residue_ix,
       chain_ix,
       backbone_noise=noise,
+      structure_mapping=mapping,
     )
 
   def mapped_encode_noise(
@@ -84,6 +87,7 @@ def get_averaged_encodings(
     residue_ix: ResidueIndex,
     chain_ix: ChainIndex,
     noise_arr: BackboneNoise,
+    mapping: jax.Array | None = None,
   ) -> tuple:
     """Compute encodings across all noise levels for a single structure."""
     return jax.lax.map(
@@ -94,14 +98,24 @@ def get_averaged_encodings(
         mask,
         residue_ix,
         chain_ix,
+        mapping=mapping,
       ),
       noise_arr,
       batch_size=noise_batch_size,
     )
 
+  mapping_for_vmap = structure_mapping
+  if mapping_for_vmap is not None and mapping_for_vmap.ndim == 1:
+    batch_size = batched_ensemble.coordinates.shape[0]
+    mapping_for_vmap = jnp.broadcast_to(
+      jnp.atleast_2d(mapping_for_vmap),
+      (batch_size, mapping_for_vmap.shape[0]),
+    )
+  mapping_in_axis = 0 if mapping_for_vmap is not None else None
+
   vmap_encode_structures = jax.vmap(
     mapped_encode_noise,
-    in_axes=(None, 0, 0, 0, 0, None),
+    in_axes=(None, 0, 0, 0, 0, None, mapping_in_axis),
   )
 
   encoded_features_per_noise = vmap_encode_structures(
@@ -111,6 +125,7 @@ def get_averaged_encodings(
     batched_ensemble.residue_index,
     batched_ensemble.chain_index,
     noise_array,
+    mapping_for_vmap,
   )
 
   (
@@ -206,6 +221,7 @@ def make_encoding_sampling_split_fn(
     chain_index: ChainIndex,
     k_neighbors: int = 48,
     backbone_noise: BackboneNoise | None = None,
+    structure_mapping: jax.Array | None = None,
   ) -> tuple:
     """Encode structure to get encoder features.
 
@@ -217,6 +233,7 @@ def make_encoding_sampling_split_fn(
       chain_index: Chain indices.
       k_neighbors: Number of nearest neighbors (currently not used, for API compat).
       backbone_noise: Optional noise for backbone coordinates.
+      structure_mapping: Optional (N,) array mapping each residue to a structure ID.
 
     Returns:
       Encoder features tuple that can be passed to sample_fn.
@@ -231,9 +248,10 @@ def make_encoding_sampling_split_fn(
       chain_index,
       backbone_noise=backbone_noise,
       prng_key=prng_key,
+      structure_mapping=structure_mapping,
     )
 
-  @partial(jax.jit, static_argnames=("num_groups",))
+  @partial(jax.jit, static_argnames=("num_groups", "multi_state_strategy"))
   def sample_fn(
     prng_key: PRNGKeyArray,
     encoded_features: tuple,
@@ -245,6 +263,12 @@ def make_encoding_sampling_split_fn(
     sampling_strategy: Literal["temperature", "straight_through"] = "temperature",
     tie_group_map: jnp.ndarray | None = None,
     num_groups: int | None = None,
+    multi_state_strategy: Literal[
+      "arithmetic_mean",
+      "geometric_mean",
+      "product",
+    ] = "arithmetic_mean",
+    multi_state_temperature: float = 1.0,
   ) -> ProteinSequence:
     """Sample a sequence from cached encoder features.
 
@@ -259,6 +283,8 @@ def make_encoding_sampling_split_fn(
       sampling_strategy: "temperature" or "straight_through" (currently only temperature).
       tie_group_map: Optional (N,) array mapping positions to group IDs for tied sampling.
       num_groups: Number of unique groups when using tied positions.
+      multi_state_strategy: Strategy for combining logits across tied positions.
+      multi_state_temperature: Temperature for geometric_mean strategy.
 
     Returns:
       Sampled sequence as integer array (N,).
@@ -291,17 +317,25 @@ def make_encoding_sampling_split_fn(
         sequence, key = state
 
         logits = decode_logits_fn(encoded_features, sequence, autoregressive_mask)
-        group_mask = (tie_group_map == group_idx).astype(jnp.float32)[:, None]  # (N, 1)
-        group_count = group_mask.sum(axis=0, keepdims=True)  # (1, 1)
-        group_logit_sum = (logits * group_mask).sum(axis=0)  # (21,)
-        avg_logits = group_logit_sum / (group_count.squeeze() + 1e-8)  # (21,)
+        group_member_mask = tie_group_map == group_idx  # (N,) boolean
+        strategy_idx = jnp.asarray(
+          {"arithmetic_mean": 0, "geometric_mean": 1, "product": 2}[multi_state_strategy],
+          dtype=jnp.int32,
+        )
+        avg_logits = PrxteinMPNN._combine_logits_multistate_idx(  # noqa: SLF001
+          logits,
+          group_member_mask,
+          strategy_idx,
+          multi_state_temperature,
+        ).squeeze(0)
         if bias is not None:
+          group_mask = group_member_mask.astype(jnp.float32)[:, None]  # (N, 1)
+          group_count = group_mask.sum(axis=0, keepdims=True)  # (1, 1)
           group_bias = (bias * group_mask).sum(axis=0) / (group_count.squeeze() + 1e-8)
           avg_logits = avg_logits + group_bias
         scaled_logits = avg_logits / temperature
         key, subkey = jax.random.split(key)
         sampled_aa = jax.random.categorical(subkey, scaled_logits).astype(jnp.int8)
-        group_member_mask = tie_group_map == group_idx  # (N,) boolean
         updated_seq = jnp.where(group_member_mask, sampled_aa, sequence)
         return updated_seq, key
 

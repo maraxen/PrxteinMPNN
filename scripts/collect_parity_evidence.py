@@ -141,6 +141,8 @@ class SidechainMacroAcceptance:
 class TiedMultistateComparisonLane:
   """One explicit tied/multistate comparison lane."""
 
+  path_id: str
+  input_context: Literal["ligand_context", "side_chain_conditioned"]
   condition: str
   comparison_api: Literal["sampling", "scoring"]
   reference_combiner: Literal["weighted_sum", "arithmetic_mean", "geometric_mean"]
@@ -148,6 +150,9 @@ class TiedMultistateComparisonLane:
   token_comparison_enabled: bool
   is_primary: bool
   note: str
+
+
+_TIED_PATH_IDS = {"tied-positions-and-multi-state", "ligand-tied-positions-and-multi-state"}
 
 
 def _project_root() -> Path:
@@ -790,7 +795,8 @@ def _build_tie_groups(seq_len: int) -> tuple[list[list[int]], list[list[float]],
     anchor = group[0]
     for residue_idx in group[1:]:
       tie_group_map[residue_idx] = anchor
-  return tie_groups, tie_weights, tie_group_map
+  _, compact_tie_group_map = np.unique(tie_group_map, return_inverse=True)
+  return tie_groups, tie_weights, compact_tie_group_map.astype(np.int32, copy=False)
 
 
 def _row_log_softmax(logits: np.ndarray) -> np.ndarray:
@@ -1256,6 +1262,167 @@ def _ligand_autoregressive_outputs(
   pt_log_probs = pt_sample["log_probs"].numpy()[0]
   jax_log_probs = np.asarray(jax.nn.log_softmax(logits_jax, axis=-1))
   return pt_tokens, jax_tokens, pt_log_probs, jax_log_probs
+
+
+def _ligand_tied_sampling_outputs(
+  models: LigandModels,
+  inputs: CoreCaseInputs,
+  y: np.ndarray,
+  y_t: np.ndarray,
+  y_m: np.ndarray,
+  *,
+  sample_seed: int,
+  lane: TiedMultistateComparisonLane,
+  xyz_37: np.ndarray | None = None,
+  xyz_37_m: np.ndarray | None = None,
+  chain_mask: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[list[int]]]:
+  if lane.comparison_api != "sampling":
+    msg = f"{lane.path_id}/{lane.condition}: expected sampling lane."
+    raise ValueError(msg)
+
+  seq_len = int(inputs.sequence.shape[0])
+  tie_groups, tie_weights, tie_group_map = _build_tie_groups(seq_len)
+  bias = np.zeros((inputs.sequence.shape[0], 21), dtype=np.float32)
+  bias[np.arange(inputs.sequence.shape[0]), inputs.sequence] = 30.0
+
+  feature_dict = {
+    "X": models.torch.from_numpy(inputs.atom4_coordinates[None]),
+    "S": models.torch.from_numpy(inputs.sequence[None]),
+    "mask": models.torch.from_numpy(inputs.mask[None]),
+    "chain_mask": models.torch.from_numpy(inputs.chain_mask[None]),
+    "R_idx": models.torch.from_numpy(inputs.residue_index[None]),
+    "chain_labels": models.torch.from_numpy(inputs.chain_index[None]),
+    "randn": models.torch.from_numpy(inputs.randn[None]),
+    "batch_size": 1,
+    "symmetry_residues": tie_groups,
+    "symmetry_weights": tie_weights,
+    "Y": models.torch.from_numpy(y[None]),
+    "Y_t": models.torch.from_numpy(y_t[None]),
+    "Y_m": models.torch.from_numpy(y_m[None]),
+    "temperature": 1.0,
+    "bias": models.torch.from_numpy(bias[None]),
+  }
+  if xyz_37 is not None:
+    feature_dict["xyz_37"] = models.torch.from_numpy(xyz_37[None])
+  if xyz_37_m is not None:
+    feature_dict["xyz_37_m"] = models.torch.from_numpy(xyz_37_m[None])
+  if chain_mask is not None:
+    feature_dict["chain_mask"] = models.torch.from_numpy(chain_mask[None])
+
+  with models.torch.no_grad():
+    models.torch.manual_seed(sample_seed)
+    pt_sample = models.pt_model.sample(feature_dict)
+
+  jax_sequence, logits_jax = models.jax_model(
+    jnp.asarray(inputs.atom4_coordinates),
+    jnp.asarray(inputs.mask),
+    jnp.asarray(inputs.residue_index),
+    jnp.asarray(inputs.chain_index),
+    jnp.asarray(y),
+    jnp.asarray(y_t),
+    jnp.asarray(y_m),
+    "autoregressive",
+    prng_key=jax.random.PRNGKey(sample_seed + 21),
+    ar_mask=jnp.asarray(inputs.ar_mask),
+    temperature=1.0,
+    bias=jnp.asarray(bias),
+    inference=True,
+    xyz_37=None if xyz_37 is None else jnp.asarray(xyz_37),
+    xyz_37_m=None if xyz_37_m is None else jnp.asarray(xyz_37_m),
+    chain_mask=None if chain_mask is None else jnp.asarray(chain_mask),
+    tie_group_map=jnp.asarray(tie_group_map),
+    multi_state_strategy=lane.jax_multi_state_strategy,
+  )
+  pt_tokens = pt_sample["S"].numpy()[0]
+  jax_tokens = np.asarray(jnp.argmax(jax_sequence, axis=-1))
+  pt_log_probs = _combine_reference_tied_log_probs(
+    pt_sample["log_probs"].numpy()[0],
+    tie_groups=tie_groups,
+    tie_weights=tie_weights,
+    combiner=lane.reference_combiner,
+    temperature=1.0,
+  )
+  jax_log_probs = np.asarray(jax.nn.log_softmax(logits_jax, axis=-1))
+  return pt_tokens, jax_tokens, pt_log_probs, jax_log_probs, tie_groups
+
+
+def _ligand_tied_scoring_outputs(
+  models: LigandModels,
+  inputs: CoreCaseInputs,
+  y: np.ndarray,
+  y_t: np.ndarray,
+  y_m: np.ndarray,
+  *,
+  lane: TiedMultistateComparisonLane,
+  xyz_37: np.ndarray | None = None,
+  xyz_37_m: np.ndarray | None = None,
+  chain_mask: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[list[int]]]:
+  if lane.comparison_api != "scoring":
+    msg = f"{lane.path_id}/{lane.condition}: expected scoring lane."
+    raise ValueError(msg)
+
+  seq_len = int(inputs.sequence.shape[0])
+  tie_groups, tie_weights, tie_group_map = _build_tie_groups(seq_len)
+
+  feature_dict = {
+    "X": models.torch.from_numpy(inputs.atom4_coordinates[None]),
+    "S": models.torch.from_numpy(inputs.sequence[None]),
+    "mask": models.torch.from_numpy(inputs.mask[None]),
+    "chain_mask": models.torch.from_numpy(inputs.chain_mask[None]),
+    "R_idx": models.torch.from_numpy(inputs.residue_index[None]),
+    "chain_labels": models.torch.from_numpy(inputs.chain_index[None]),
+    "randn": models.torch.from_numpy(inputs.randn[None]),
+    "batch_size": 1,
+    "symmetry_residues": tie_groups,
+    "symmetry_weights": tie_weights,
+    "Y": models.torch.from_numpy(y[None]),
+    "Y_t": models.torch.from_numpy(y_t[None]),
+    "Y_m": models.torch.from_numpy(y_m[None]),
+  }
+  if xyz_37 is not None:
+    feature_dict["xyz_37"] = models.torch.from_numpy(xyz_37[None])
+  if xyz_37_m is not None:
+    feature_dict["xyz_37_m"] = models.torch.from_numpy(xyz_37_m[None])
+  if chain_mask is not None:
+    feature_dict["chain_mask"] = models.torch.from_numpy(chain_mask[None])
+
+  with models.torch.no_grad():
+    pt_score = models.pt_model.score(feature_dict, use_sequence=True)
+
+  pt_combined_logits = _combine_reference_tied_logits(
+    pt_score["logits"].numpy()[0],
+    tie_groups=tie_groups,
+    tie_weights=tie_weights,
+    combiner=lane.reference_combiner,
+    temperature=1.0,
+  )
+  pt_log_probs = _row_log_softmax(pt_combined_logits)
+  pt_tokens = np.asarray(np.argmax(pt_log_probs, axis=-1), dtype=np.int32)
+
+  _, jax_logits = models.jax_model(
+    jnp.asarray(inputs.atom4_coordinates),
+    jnp.asarray(inputs.mask),
+    jnp.asarray(inputs.residue_index),
+    jnp.asarray(inputs.chain_index),
+    jnp.asarray(y),
+    jnp.asarray(y_t),
+    jnp.asarray(y_m),
+    "conditional",
+    prng_key=jax.random.PRNGKey(int(np.sum(inputs.residue_index)) + 23),
+    ar_mask=jnp.asarray(inputs.ar_mask),
+    one_hot_sequence=jax.nn.one_hot(jnp.asarray(inputs.sequence), 21),
+    inference=True,
+    xyz_37=None if xyz_37 is None else jnp.asarray(xyz_37),
+    xyz_37_m=None if xyz_37_m is None else jnp.asarray(xyz_37_m),
+    chain_mask=None if chain_mask is None else jnp.asarray(chain_mask),
+    tie_group_map=jnp.asarray(tie_group_map),
+    multi_state_strategy=lane.jax_multi_state_strategy,
+  )
+  jax_log_probs = np.asarray(jax.nn.log_softmax(jax_logits, axis=-1))
+  jax_tokens = np.asarray(jnp.argmax(jax_log_probs, axis=-1), dtype=np.int32)
+  return pt_tokens, jax_tokens, pt_log_probs, jax_log_probs, tie_groups
 
 
 def _packer_outputs(models: PackerModels, case: BackboneCase, atom_context_num: int) -> tuple[np.ndarray, np.ndarray]:
@@ -2309,9 +2476,16 @@ def _collect_for_case(
     kl=mean_kl_divergence(pt_log_probs, jax_log_probs),
   )
 
-  primary_tied_lane = next(lane for lane in tied_lanes if lane.is_primary)
+  core_tied_lanes = tuple(lane for lane in tied_lanes if lane.path_id == "tied-positions-and-multi-state")
+  ligand_tied_lanes = tuple(
+    lane for lane in tied_lanes if lane.path_id == "ligand-tied-positions-and-multi-state"
+  )
+  if not core_tied_lanes:
+    msg = "No core tied/multistate lanes found for path 'tied-positions-and-multi-state'."
+    raise RuntimeError(msg)
+  primary_core_tied_lane = next(lane for lane in core_tied_lanes if lane.is_primary)
   tied_threshold = correlation_thresholds["tied-positions-and-multi-state"]
-  for lane in tied_lanes:
+  for lane in core_tied_lanes:
     if lane.comparison_api == "sampling":
       tie_pt_tokens, tie_jax_tokens, tie_pt_log_probs, tie_jax_log_probs, tie_groups = (
         _core_tied_sampling_outputs(
@@ -2346,7 +2520,7 @@ def _collect_for_case(
     )
     _append_scalar_metrics(
       metric_rows,
-      path_id="tied-positions-and-multi-state",
+      path_id=lane.path_id,
       tier="parity_heavy",
       case=case,
       checkpoint_id=core_models.checkpoint_id,
@@ -2363,7 +2537,7 @@ def _collect_for_case(
     group_consistency = min(group_consistent_pt, group_consistent_jax)
     metric_rows.append(
       EvidenceMetricRecord(
-        path_id="tied-positions-and-multi-state",
+        path_id=lane.path_id,
         tier="parity_heavy",
         case_id=case.id,
         case_kind=case.kind,
@@ -2486,6 +2660,156 @@ def _collect_for_case(
     kl=mean_kl_divergence(lig_pt_log_probs, lig_jax_log_probs),
   )
 
+  xyz_37 = np.asarray(core_inputs.atom37_coordinates, dtype=np.float32)
+  xyz_37_m = _build_xyz37_mask(xyz_37, core_inputs.mask)
+  has_sidechain_atoms = _has_sidechain_atoms(xyz_37_m)
+  sidechain_chain_mask = np.zeros_like(core_inputs.mask, dtype=np.float32)
+  sidechain_y_m = np.zeros_like(y_m, dtype=np.float32)
+  for lane in ligand_tied_lanes:
+    lane_threshold = correlation_thresholds[lane.path_id]
+    current_models = ligand_models
+    current_y_m = y_m
+    current_xyz_37: np.ndarray | None = None
+    current_xyz_37_m: np.ndarray | None = None
+    current_chain_mask: np.ndarray | None = None
+    if lane.input_context == "side_chain_conditioned":
+      if ligand_sidechain_models is None:
+        reason = (
+          sidechain_model_error
+          if sidechain_model_error is not None
+          else "Requested side-chain-conditioned lane but side-chain model is unavailable."
+        )
+        metric_rows.append(
+          EvidenceMetricRecord(
+            path_id=lane.path_id,
+            tier="parity_heavy",
+            case_id=case.id,
+            case_kind=case.kind,
+            backbone_id=case.id if case.kind == "real_backbone" else "synthetic",
+            seed=case.seed,
+            sequence_length=int(case.sequence.shape[0]),
+            checkpoint_id=ligand_models.checkpoint_id,
+            metric_name="lane_infeasible",
+            metric_value=1.0,
+            metric_group="coverage",
+            condition=lane.condition,
+            note=reason,
+          ),
+        )
+        continue
+      if not has_sidechain_atoms:
+        metric_rows.append(
+          EvidenceMetricRecord(
+            path_id=lane.path_id,
+            tier="parity_heavy",
+            case_id=case.id,
+            case_kind=case.kind,
+            backbone_id=case.id if case.kind == "real_backbone" else "synthetic",
+            seed=case.seed,
+            sequence_length=int(case.sequence.shape[0]),
+            checkpoint_id=ligand_sidechain_models.checkpoint_id,
+            metric_name="lane_infeasible",
+            metric_value=1.0,
+            metric_group="coverage",
+            condition=lane.condition,
+            note="Case has no side-chain atoms available.",
+          ),
+        )
+        continue
+      current_models = ligand_sidechain_models
+      current_y_m = sidechain_y_m
+      current_xyz_37 = xyz_37
+      current_xyz_37_m = xyz_37_m
+      current_chain_mask = sidechain_chain_mask
+
+    if lane.comparison_api == "sampling":
+      (
+        lig_tie_pt_tokens,
+        lig_tie_jax_tokens,
+        lig_tie_pt_log_probs,
+        lig_tie_jax_log_probs,
+        lig_tie_groups,
+      ) = _ligand_tied_sampling_outputs(
+        current_models,
+        core_inputs,
+        y,
+        y_t,
+        current_y_m,
+        sample_seed=case.seed + 23,
+        lane=lane,
+        xyz_37=current_xyz_37,
+        xyz_37_m=current_xyz_37_m,
+        chain_mask=current_chain_mask,
+      )
+    elif lane.comparison_api == "scoring":
+      (
+        lig_tie_pt_tokens,
+        lig_tie_jax_tokens,
+        lig_tie_pt_log_probs,
+        lig_tie_jax_log_probs,
+        lig_tie_groups,
+      ) = _ligand_tied_scoring_outputs(
+        current_models,
+        core_inputs,
+        y,
+        y_t,
+        current_y_m,
+        lane=lane,
+        xyz_37=current_xyz_37,
+        xyz_37_m=current_xyz_37_m,
+        chain_mask=current_chain_mask,
+      )
+    else:
+      msg = f"{lane.path_id}/{lane.condition}: unsupported comparison_api {lane.comparison_api!r}."
+      raise ValueError(msg)
+
+    lig_group_consistent_pt = float(
+      all(np.all(lig_tie_pt_tokens[group] == lig_tie_pt_tokens[group[0]]) for group in lig_tie_groups),
+    )
+    lig_group_consistent_jax = float(
+      all(np.all(lig_tie_jax_tokens[group] == lig_tie_jax_tokens[group[0]]) for group in lig_tie_groups),
+    )
+    lig_token_acc = (
+      token_agreement(lig_tie_pt_tokens, lig_tie_jax_tokens, core_inputs.mask > 0.5)
+      if lane.token_comparison_enabled
+      else None
+    )
+    _append_scalar_metrics(
+      metric_rows,
+      path_id=lane.path_id,
+      tier="parity_heavy",
+      case=case,
+      checkpoint_id=current_models.checkpoint_id,
+      correlation=safe_pearson(lig_tie_pt_log_probs, lig_tie_jax_log_probs),
+      correlation_threshold=lane_threshold,
+      mae=mean_abs_error(lig_tie_pt_log_probs, lig_tie_jax_log_probs),
+      rmse=root_mean_square_error(lig_tie_pt_log_probs, lig_tie_jax_log_probs),
+      max_abs=max_abs_error(lig_tie_pt_log_probs, lig_tie_jax_log_probs),
+      token_acc=lig_token_acc,
+      token_threshold=lane_threshold if lane.token_comparison_enabled else None,
+      condition=lane.condition,
+      note=lane.note,
+    )
+    lig_group_consistency = min(lig_group_consistent_pt, lig_group_consistent_jax)
+    metric_rows.append(
+      EvidenceMetricRecord(
+        path_id=lane.path_id,
+        tier="parity_heavy",
+        case_id=case.id,
+        case_kind=case.kind,
+        backbone_id=case.id if case.kind == "real_backbone" else "synthetic",
+        seed=case.seed,
+        sequence_length=int(case.sequence.shape[0]),
+        checkpoint_id=current_models.checkpoint_id,
+        metric_name="group_consistency",
+        metric_value=lig_group_consistency,
+        threshold=1.0,
+        passed=lig_group_consistency >= 1.0,
+        condition=lane.condition,
+        note=lane.note,
+      ),
+    )
+
   packer_ref, packer_obs = _packer_outputs(
     packer_models,
     case,
@@ -2514,11 +2838,14 @@ def _collect_for_case(
     max_points=point_sample_size,
   )
 
+  primary_ligand_tied_lane = next((lane for lane in ligand_tied_lanes if lane.is_primary), None)
+
   if runtime_config.intrinsic_repeats > 1:
-    if primary_tied_lane.comparison_api != "sampling":
+    if primary_core_tied_lane.comparison_api != "sampling":
       msg = (
         "Intrinsic tied baseline metrics require the primary tied lane to use the sampling API. "
-        f"Got comparison_api={primary_tied_lane.comparison_api!r} for {primary_tied_lane.condition!r}."
+        f"Got comparison_api={primary_core_tied_lane.comparison_api!r} for "
+        f"{primary_core_tied_lane.condition!r}."
       )
       raise ValueError(msg)
 
@@ -2528,6 +2855,8 @@ def _collect_for_case(
     tie_observed_runs: list[np.ndarray] = []
     ligand_reference_runs: list[np.ndarray] = []
     ligand_observed_runs: list[np.ndarray] = []
+    ligand_tied_reference_runs: list[np.ndarray] = []
+    ligand_tied_observed_runs: list[np.ndarray] = []
     for repeat_index in range(runtime_config.intrinsic_repeats):
       repeat_seed = case.seed + repeat_index * runtime_config.intrinsic_seed_step
       _, _, pt_lp_rep, jax_lp_rep = _core_autoregressive_outputs(
@@ -2542,7 +2871,7 @@ def _collect_for_case(
         core_models,
         core_inputs,
         sample_seed=repeat_seed + 13,
-        lane=primary_tied_lane,
+        lane=primary_core_tied_lane,
       )
       tie_reference_runs.append(tie_pt_lp_rep)
       tie_observed_runs.append(tie_jax_lp_rep)
@@ -2557,6 +2886,23 @@ def _collect_for_case(
       )
       ligand_reference_runs.append(lig_pt_lp_rep)
       ligand_observed_runs.append(lig_jax_lp_rep)
+
+      if (
+        primary_ligand_tied_lane is not None
+        and primary_ligand_tied_lane.comparison_api == "sampling"
+        and primary_ligand_tied_lane.input_context == "ligand_context"
+      ):
+        _, _, lig_tie_pt_lp_rep, lig_tie_jax_lp_rep, _ = _ligand_tied_sampling_outputs(
+          ligand_models,
+          core_inputs,
+          y,
+          y_t,
+          y_m,
+          sample_seed=repeat_seed + 27,
+          lane=primary_ligand_tied_lane,
+        )
+        ligand_tied_reference_runs.append(lig_tie_pt_lp_rep)
+        ligand_tied_observed_runs.append(lig_tie_jax_lp_rep)
 
     _append_intrinsic_baseline_metrics(
       metric_rows,
@@ -2575,8 +2921,8 @@ def _collect_for_case(
       checkpoint_id=core_models.checkpoint_id,
       reference_runs=tie_reference_runs,
       observed_runs=tie_observed_runs,
-      condition=primary_tied_lane.condition,
-      note=primary_tied_lane.note,
+      condition=primary_core_tied_lane.condition,
+      note=primary_core_tied_lane.note,
     )
     _append_intrinsic_baseline_metrics(
       metric_rows,
@@ -2587,6 +2933,18 @@ def _collect_for_case(
       reference_runs=ligand_reference_runs,
       observed_runs=ligand_observed_runs,
     )
+    if ligand_tied_reference_runs and ligand_tied_observed_runs and primary_ligand_tied_lane is not None:
+      _append_intrinsic_baseline_metrics(
+        metric_rows,
+        path_id=primary_ligand_tied_lane.path_id,
+        tier="parity_heavy",
+        case=case,
+        checkpoint_id=ligand_models.checkpoint_id,
+        reference_runs=ligand_tied_reference_runs,
+        observed_runs=ligand_tied_observed_runs,
+        condition=primary_ligand_tied_lane.condition,
+        note=primary_ligand_tied_lane.note,
+      )
 
   if runtime_config.macro_include_no_ligand:
     (
@@ -2791,17 +3149,10 @@ def _collect_for_case(
 
 def _extract_tied_multistate_lanes() -> tuple[TiedMultistateComparisonLane, ...]:
   matrix = load_parity_matrix()
-  tied_path = next((path for path in matrix if path.id == "tied-positions-and-multi-state"), None)
-  if tied_path is None:
-    msg = "tied-positions-and-multi-state path is missing from parity matrix."
+  tied_paths = [path for path in matrix if path.id in _TIED_PATH_IDS]
+  if not tied_paths:
+    msg = "No tied/multistate paths were found in the parity matrix."
     raise RuntimeError(msg)
-
-  lane_payloads = tied_path.acceptance.get("comparison_lanes")
-  if not isinstance(lane_payloads, list) or not lane_payloads:
-    msg = (
-      "tied-positions-and-multi-state.acceptance.comparison_lanes must be a non-empty list."
-    )
-    raise TypeError(msg)
 
   valid_reference = {"weighted_sum", "arithmetic_mean", "geometric_mean"}
   valid_jax = {"arithmetic_mean", "geometric_mean", "product"}
@@ -2813,82 +3164,101 @@ def _extract_tied_multistate_lanes() -> tuple[TiedMultistateComparisonLane, ...]
     ("scoring", "geometric_mean", "geometric_mean"),
   }
   lanes: list[TiedMultistateComparisonLane] = []
-  seen_conditions: set[str] = set()
-  for lane in lane_payloads:
-    if not isinstance(lane, dict):
-      msg = "Each tied multistate lane must be an object."
-      raise TypeError(msg)
-    condition = lane.get("condition")
-    if not isinstance(condition, str) or not condition:
-      msg = "Each tied multistate lane must define a non-empty condition string."
-      raise TypeError(msg)
-    if condition in seen_conditions:
-      msg = f"Duplicate tied multistate condition {condition!r}."
-      raise ValueError(msg)
-    seen_conditions.add(condition)
-
-    reference_combiner = lane.get("reference_combiner")
-    if reference_combiner not in valid_reference:
-      msg = f"{condition}: unsupported reference_combiner {reference_combiner!r}."
-      raise TypeError(msg)
-    jax_strategy = lane.get("jax_multi_state_strategy")
-    if jax_strategy not in valid_jax:
-      msg = f"{condition}: unsupported jax_multi_state_strategy {jax_strategy!r}."
+  for tied_path in tied_paths:
+    lane_payloads = tied_path.acceptance.get("comparison_lanes")
+    if not isinstance(lane_payloads, list) or not lane_payloads:
+      msg = f"{tied_path.id}.acceptance.comparison_lanes must be a non-empty list."
       raise TypeError(msg)
 
-    comparison_api = lane.get("comparison_api", "sampling")
-    if comparison_api not in valid_api:
-      msg = f"{condition}: comparison_api must be one of {sorted(valid_api)}."
-      raise TypeError(msg)
+    seen_conditions: set[str] = set()
+    primary_count = 0
+    for lane in lane_payloads:
+      if not isinstance(lane, dict):
+        msg = "Each tied multistate lane must be an object."
+        raise TypeError(msg)
+      condition = lane.get("condition")
+      if not isinstance(condition, str) or not condition:
+        msg = "Each tied multistate lane must define a non-empty condition string."
+        raise TypeError(msg)
+      if condition in seen_conditions:
+        msg = f"{tied_path.id}: duplicate tied multistate condition {condition!r}."
+        raise ValueError(msg)
+      seen_conditions.add(condition)
 
-    token_comparison = lane.get("token_comparison")
-    if token_comparison not in {"enabled", "disabled"}:
-      msg = f"{condition}: token_comparison must be 'enabled' or 'disabled'."
-      raise TypeError(msg)
-    if comparison_api != "sampling" and token_comparison == "enabled":
-      msg = (
-        f"{condition}: token_comparison='enabled' is only valid for sampling lanes, "
-        f"got comparison_api={comparison_api!r}."
+      reference_combiner = lane.get("reference_combiner")
+      if reference_combiner not in valid_reference:
+        msg = f"{tied_path.id}/{condition}: unsupported reference_combiner {reference_combiner!r}."
+        raise TypeError(msg)
+      jax_strategy = lane.get("jax_multi_state_strategy")
+      if jax_strategy not in valid_jax:
+        msg = f"{tied_path.id}/{condition}: unsupported jax_multi_state_strategy {jax_strategy!r}."
+        raise TypeError(msg)
+
+      comparison_api = lane.get("comparison_api", "sampling")
+      if comparison_api not in valid_api:
+        msg = f"{tied_path.id}/{condition}: comparison_api must be one of {sorted(valid_api)}."
+        raise TypeError(msg)
+
+      token_comparison = lane.get("token_comparison")
+      if token_comparison not in {"enabled", "disabled"}:
+        msg = f"{tied_path.id}/{condition}: token_comparison must be 'enabled' or 'disabled'."
+        raise TypeError(msg)
+      if comparison_api != "sampling" and token_comparison == "enabled":
+        msg = (
+          f"{tied_path.id}/{condition}: token_comparison='enabled' is only valid for sampling "
+          f"lanes, got comparison_api={comparison_api!r}."
+        )
+        raise ValueError(msg)
+      is_primary = lane.get("is_primary")
+      if not isinstance(is_primary, bool):
+        msg = f"{tied_path.id}/{condition}: is_primary must be boolean."
+        raise TypeError(msg)
+      if is_primary:
+        primary_count += 1
+
+      lane_key = (comparison_api, reference_combiner, jax_strategy)
+      if lane_key not in equivalent_lane_pairs:
+        msg = (
+          f"{tied_path.id}/{condition}: non-equivalent tied lane mapping {lane_key!r}. "
+          "Allowed mappings are "
+          f"{sorted(equivalent_lane_pairs)}."
+        )
+        raise ValueError(msg)
+
+      input_context = lane.get("input_context", "ligand_context")
+      if input_context not in {"ligand_context", "side_chain_conditioned"}:
+        msg = (
+          f"{tied_path.id}/{condition}: input_context must be one of "
+          "['ligand_context', 'side_chain_conditioned']."
+        )
+        raise TypeError(msg)
+
+      note = lane.get("note")
+      lane_note = (
+        str(note)
+        if isinstance(note, str) and note
+        else (
+          "Reference and JAX tied outputs are compared with matching "
+          f"{comparison_api} APIs using '{reference_combiner}' vs '{jax_strategy}'."
+        )
       )
-      raise ValueError(msg)
-    is_primary = lane.get("is_primary")
-    if not isinstance(is_primary, bool):
-      msg = f"{condition}: is_primary must be boolean."
-      raise TypeError(msg)
-
-    lane_key = (comparison_api, reference_combiner, jax_strategy)
-    if lane_key not in equivalent_lane_pairs:
-      msg = (
-        f"{condition}: non-equivalent tied lane mapping {lane_key!r}. "
-        "Allowed mappings are "
-        f"{sorted(equivalent_lane_pairs)}."
+      lanes.append(
+        TiedMultistateComparisonLane(
+          path_id=tied_path.id,
+          input_context=input_context,
+          condition=condition,
+          comparison_api=comparison_api,
+          reference_combiner=reference_combiner,
+          jax_multi_state_strategy=jax_strategy,
+          token_comparison_enabled=token_comparison == "enabled",
+          is_primary=is_primary,
+          note=lane_note,
+        ),
       )
+
+    if primary_count != 1:
+      msg = f"{tied_path.id}: exactly one tied comparison lane must set is_primary=true."
       raise ValueError(msg)
-
-    note = lane.get("note")
-    lane_note = (
-      str(note)
-      if isinstance(note, str) and note
-      else (
-        "Reference and JAX tied outputs are compared with matching "
-        f"{comparison_api} APIs using '{reference_combiner}' vs '{jax_strategy}'."
-      )
-    )
-    lanes.append(
-      TiedMultistateComparisonLane(
-        condition=condition,
-        comparison_api=comparison_api,
-        reference_combiner=reference_combiner,
-        jax_multi_state_strategy=jax_strategy,
-        token_comparison_enabled=token_comparison == "enabled",
-        is_primary=is_primary,
-        note=lane_note,
-      ),
-    )
-
-  if sum(int(lane.is_primary) for lane in lanes) != 1:
-    msg = "Exactly one tied multistate comparison lane must set is_primary=true."
-    raise ValueError(msg)
   return tuple(lanes)
 
 
@@ -3098,7 +3468,12 @@ def main() -> int:
   ligand_models = _load_ligand_models(reference_root, use_side_chain_context=False)
   ligand_sidechain_models: LigandModels | None = None
   sidechain_model_error: str | None = None
-  if runtime_config.macro_include_sidechain_conditioned:
+  needs_sidechain_lanes = any(
+    lane.path_id == "ligand-tied-positions-and-multi-state"
+    and lane.input_context == "side_chain_conditioned"
+    for lane in tied_lanes
+  )
+  if runtime_config.macro_include_sidechain_conditioned or needs_sidechain_lanes:
     try:
       ligand_sidechain_models = _load_ligand_models(
         reference_root,
@@ -3167,6 +3542,8 @@ def main() -> int:
       "macro_include_sidechain_conditioned": runtime_config.macro_include_sidechain_conditioned,
       "tied_multistate_lanes": [
         {
+          "path_id": lane.path_id,
+          "input_context": lane.input_context,
           "condition": lane.condition,
           "comparison_api": lane.comparison_api,
           "reference_combiner": lane.reference_combiner,

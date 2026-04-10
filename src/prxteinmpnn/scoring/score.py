@@ -1,9 +1,11 @@
 """Score a given sequence on a structure using the ProteinMPNN model."""
 
+import inspect
 from collections.abc import Callable
 from functools import partial
-from typing import cast
+from typing import Literal, cast
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxtyping import Float, PRNGKeyArray
@@ -39,6 +41,9 @@ ScoringFn = Callable[
     BackboneNoise | None,
     AutoRegressiveMask | None,
     jax.Array | None,
+    jax.Array | None,
+    Literal["arithmetic_mean", "geometric_mean", "product"],
+    Float,
   ],
   tuple[Float, Logits, DecodingOrder],
 ]
@@ -51,6 +56,9 @@ def score_sequence_with_encoding(
   model: PrxteinMPNN,
   sequence: ProteinSequence,
   encoding: tuple,
+  tie_group_map: jax.Array | None = None,
+  multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
+  multi_state_temperature: float = 1.0,
 ) -> tuple[Float, Logits, DecodingOrder]:
   """Score a sequence on a structure using pre-computed encodings."""
   _, _, decode_fn = make_encoding_sampling_split_fn(model)
@@ -62,6 +70,15 @@ def score_sequence_with_encoding(
   ar_mask = jnp.zeros((seq_len, seq_len), dtype=jnp.int32)
 
   logits = decode_fn(encoding, sequence, ar_mask)
+  if tie_group_map is not None:
+    strategy_map = {"arithmetic_mean": 0, "geometric_mean": 1, "product": 2}
+    strategy_idx = jnp.asarray(strategy_map[multi_state_strategy], dtype=jnp.int32)
+    logits = PrxteinMPNN._apply_multistate_to_all_logits(  # noqa: SLF001
+      logits,
+      tie_group_map,
+      strategy_idx,
+      multi_state_temperature,
+    )
 
   log_probability = jax.nn.log_softmax(logits, axis=-1)[..., :20]
   score = -(sequence[..., :20] * log_probability).sum(-1)
@@ -77,7 +94,7 @@ def make_score_fn(
   decoding_order_fn: DecodingOrderFn = _DEFAULT_DECODING_ORDER_FN,
   _num_encoder_layers: int = 3,
   _num_decoder_layers: int = 3,
-  inference: bool = True,
+  inference: bool = True,  # noqa: FBT001, FBT002
 ) -> ScoringFn:
   """Create a function to score a sequence on a structure using PrxteinMPNN.
 
@@ -102,10 +119,13 @@ def make_score_fn(
   """
 
   if inference:
-    import equinox as eqx
     model = eqx.nn.inference_mode(model, value=True)
 
-  @partial(jax.jit, static_argnames=("_k_neighbors",))
+  supports_multi_state_temperature = (
+    "multi_state_temperature" in inspect.signature(model.__call__).parameters
+  )
+
+  @partial(jax.jit, static_argnames=("_k_neighbors", "multi_state_strategy"))
   def score_sequence(
     prng_key: PRNGKeyArray,
     sequence: ProteinSequence | OneHotProteinSequence,
@@ -117,6 +137,9 @@ def make_score_fn(
     backbone_noise: BackboneNoise | None = None,
     ar_mask: AutoRegressiveMask | None = None,
     structure_mapping: jax.Array | None = None,
+    tie_group_map: jax.Array | None = None,
+    multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
+    multi_state_temperature: Float = 1.0,
   ) -> tuple[Float, Logits, DecodingOrder]:
     """Score a sequence on a structure using the ProteinMPNN model.
 
@@ -131,8 +154,12 @@ def make_score_fn(
       backbone_noise: Optional noise for backbone coordinates.
       ar_mask: Optional custom autoregressive mask.
       structure_mapping: Optional (N,) array mapping each residue to a structure ID.
-                  When provided (multi-state mode), prevents cross-structure
-                  neighbors to avoid information leakage between conformational states.
+                   When provided (multi-state mode), prevents cross-structure
+                   neighbors to avoid information leakage between conformational states.
+      tie_group_map: Optional (N,) array mapping each position to tied groups.
+                    When provided, logits are combined within groups before scoring.
+      multi_state_strategy: Strategy for combining logits across tied positions.
+      multi_state_temperature: Temperature for geometric_mean strategy.
 
 
     Returns:
@@ -154,20 +181,41 @@ def make_score_fn(
       sequence = jax.nn.one_hot(sequence, num_classes=21)
 
     # Run model in conditional mode (scoring a given sequence)
-    _, logits = model(
-      structure_coordinates,
-      mask,
-      residue_index,
-      chain_index,
-      decoding_approach="conditional",
-      prng_key=prng_key,
-      ar_mask=autoregressive_mask,
-      one_hot_sequence=sequence,
-      temperature=0.0,  # Not used in conditional mode
-      bias=None,  # No bias in scoring
-      backbone_noise=backbone_noise,
-      structure_mapping=structure_mapping,
-    )
+    if supports_multi_state_temperature:
+      _, logits = model(
+        structure_coordinates,
+        mask,
+        residue_index,
+        chain_index,
+        decoding_approach="conditional",
+        prng_key=prng_key,
+        ar_mask=autoregressive_mask,
+        one_hot_sequence=sequence,
+        temperature=0.0,  # Not used in conditional mode
+        bias=None,  # No bias in scoring
+        backbone_noise=backbone_noise,
+        structure_mapping=structure_mapping,
+        tie_group_map=tie_group_map,
+        multi_state_strategy=multi_state_strategy,
+        multi_state_temperature=multi_state_temperature,
+      )
+    else:
+      _, logits = model(
+        structure_coordinates,
+        mask,
+        residue_index,
+        chain_index,
+        decoding_approach="conditional",
+        prng_key=prng_key,
+        ar_mask=autoregressive_mask,
+        one_hot_sequence=sequence,
+        temperature=0.0,  # Not used in conditional mode
+        bias=None,  # No bias in scoring
+        backbone_noise=backbone_noise,
+        structure_mapping=structure_mapping,
+        tie_group_map=tie_group_map,
+        multi_state_strategy=multi_state_strategy,
+      )
 
     # Compute score from logits
     log_probability = jax.nn.log_softmax(logits, axis=-1)[..., :20]

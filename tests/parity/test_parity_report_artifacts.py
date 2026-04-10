@@ -131,19 +131,25 @@ def test_render_markdown_includes_tied_lane_alignment_section() -> None:
     evidence_metrics_present=False,
     tied_lane_descriptors=[
       TiedLaneDescriptor(
+        path_id="tied-positions-and-multi-state",
+        input_context="ligand_context",
         condition="reference_weighted_sum__jax_product",
         comparison_api="sampling",
         reference_combiner="weighted_sum",
         jax_multi_state_strategy="product",
         token_comparison_enabled=True,
         is_primary=True,
+        rollout_policy="parity_heavy=warn; parity_audit=fail",
       ),
     ],
   )
   assert "### Tied/multistate apples-to-apples lanes" in markdown
+  assert "`tied-positions-and-multi-state`" in markdown
+  assert "`ligand_context`" in markdown
   assert "`reference_weighted_sum__jax_product`" in markdown
   assert "`sampling`" in markdown
   assert "`product`" in markdown
+  assert "`parity_heavy=warn; parity_audit=fail`" in markdown
   tied_index = markdown.index("### Tied/multistate apples-to-apples lanes")
   assert tied_index > markdown.index("## Expanded evidence summary")
   assert tied_index < markdown.index("## Appendix: path inventory and definitions")

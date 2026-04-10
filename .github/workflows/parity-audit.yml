@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PYTHONDONTWRITEBYTECODE: 1
+      PRXTEIN_PARITY_TIER: parity_audit
     steps:
       - name: Checkout PrxteinMPNN repository
         uses: actions/checkout@v4
@@ -70,7 +71,8 @@ jobs:
           cd prxteinmpnn
           source .venv/bin/activate
           python scripts/check_parity_assets.py --tier parity_audit
-          pytest tests/parity -m parity_audit --tb=short -v --junitxml=parity-audit-report.xml
+          pytest tests/parity tests/model/test_ligandmpnn_equivalence.py \
+            -m parity_audit --tb=short -v --junitxml=parity-audit-report.xml
 
       - name: Generate parity-audit reports
         if: always()
@@ -140,6 +142,7 @@ jobs:
             "Reference source: dauparas/LigandMPNN @ 3870631",
             f"Audit paths covered: {len(audit_paths)}",
             f"Converted checkpoints available: {existing_converted}/{expected_converted}",
+            "Ligand tied/multistate rollout policy: warn in parity_heavy, fail in parity_audit.",
             "",
             "- Test report: `parity-audit-report.xml`",
             "- Conversion log: `parity-conversion.log`",

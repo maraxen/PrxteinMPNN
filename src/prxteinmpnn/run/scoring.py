@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import sys
 from dataclasses import asdict, fields
+from functools import partial
 from typing import TYPE_CHECKING, Any, cast
 
 import h5py
@@ -14,6 +15,7 @@ import jax.numpy as jnp
 from prxteinmpnn.run.averaging import get_averaged_encodings
 from prxteinmpnn.scoring.score import make_score_fn, score_sequence_with_encoding
 from prxteinmpnn.utils.aa_convert import string_to_protein_sequence
+from prxteinmpnn.utils.autoregression import resolve_tie_groups
 
 from .prep import prep_protein_stream_and_model
 from .specs import SamplingSpecification, ScoringSpecification
@@ -136,29 +138,65 @@ def _score_standard_mode(
   batched_sequences: jax.Array,
 ) -> tuple[list[jnp.ndarray], list[Logits]]:
   """Run scoring in standard mode."""
-  score_single_pair = make_score_fn(model=model)
+  score_single_pair = partial(
+    make_score_fn(model=model),
+    multi_state_strategy=spec.multi_state_strategy,
+    multi_state_temperature=spec.multi_state_temperature,
+  )
   all_scores, all_logits = [], []
 
   for batched_ensemble in protein_iterator:
+    tie_group_map = None
+    if spec.tie_group_map is not None:
+      tie_group_map = jnp.asarray(spec.tie_group_map, dtype=jnp.int32)
+    elif spec.pass_mode == "inter" and spec.tied_positions is not None:  # noqa: S105
+      tie_group_map = resolve_tie_groups(spec, batched_ensemble)
+
     max_len = batched_ensemble.coordinates.shape[1]
     if spec.ar_mask is None:
       current_ar_mask = 1 - jnp.eye(max_len, dtype=jnp.bool_)
     else:
       current_ar_mask = jnp.asarray(spec.ar_mask)
 
+    batch_size = batched_ensemble.coordinates.shape[0]
+
+    tie_map_for_vmap = None
+    if tie_group_map is not None:
+      if tie_group_map.ndim == 1:
+        tie_map_for_vmap = jnp.broadcast_to(
+          jnp.atleast_2d(tie_group_map),
+          (batch_size, tie_group_map.shape[0]),
+        )
+      else:
+        tie_map_for_vmap = tie_group_map
+
+    mapping_for_vmap = (
+      jnp.asarray(spec.structure_mapping, dtype=jnp.int32)
+      if spec.structure_mapping is not None
+      else batched_ensemble.mapping
+    )
+    if mapping_for_vmap is not None and mapping_for_vmap.ndim == 1:
+      mapping_for_vmap = jnp.broadcast_to(
+        jnp.atleast_2d(mapping_for_vmap),
+        (batch_size, mapping_for_vmap.shape[0]),
+      )
+
+    tie_map_in_axis = 0 if tie_map_for_vmap is not None else None
+    mapping_in_axis = 0 if mapping_for_vmap is not None else None
+
     vmap_sequences = jax.vmap(
       score_single_pair,
-      in_axes=(None, 0, None, None, None, None, None, None, None, None),
+      in_axes=(None, 0, None, None, None, None, None, None, None, None, None),
       out_axes=0,
     )
     vmap_noises = jax.vmap(
       vmap_sequences,
-      in_axes=(None, None, None, None, None, None, None, 0, None, None),
+      in_axes=(None, None, None, None, None, None, None, 0, None, None, None),
       out_axes=0,
     )
     vmap_structures = jax.vmap(
       vmap_noises,
-      in_axes=(None, None, 0, 0, 0, 0, None, None, None, None),
+      in_axes=(None, None, 0, 0, 0, 0, None, None, None, mapping_in_axis, tie_map_in_axis),
       out_axes=0,
     )
 
@@ -166,6 +204,8 @@ def _score_standard_mode(
       ensemble: Protein,
       vs: Any = vmap_structures,  # noqa: ANN401
       cam: jax.Array = current_ar_mask,
+      mapping_value: jax.Array | None = mapping_for_vmap,
+      tie_map_value: jax.Array | None = tie_map_for_vmap,
     ) -> tuple[jnp.ndarray, Logits, jnp.ndarray]:
       return vs(
         jax.random.key(spec.random_seed),
@@ -177,7 +217,8 @@ def _score_standard_mode(
         48,
         jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
         cam,
-        ensemble.mapping,
+        mapping_value,
+        tie_map_value,
       )
 
     scores, logits, _decoding_orders = _compute(batched_ensemble)
@@ -195,6 +236,18 @@ def _score_batch_averaged(
   sequences: ProteinSequence,
 ) -> tuple[jnp.ndarray, Logits]:
   """Score sequences for a batched ensemble of proteins using averaged encodings."""
+  tie_group_map = None
+  if spec.tie_group_map is not None:
+    tie_group_map = jnp.asarray(spec.tie_group_map, dtype=jnp.int32)
+  elif spec.pass_mode == "inter" and spec.tied_positions is not None:  # noqa: S105
+    tie_group_map = resolve_tie_groups(spec, batched_ensemble)
+
+  structure_mapping = (
+    jnp.asarray(spec.structure_mapping, dtype=jnp.int32)
+    if spec.structure_mapping is not None
+    else batched_ensemble.mapping
+  )
+
   averaged_encodings = get_averaged_encodings(
     batched_ensemble,
     model,
@@ -202,6 +255,7 @@ def _score_batch_averaged(
     spec.noise_batch_size,
     spec.random_seed,
     spec.average_encoding_mode,
+    structure_mapping=structure_mapping,
   )
 
   def score_single_sequence(seq: ProteinSequence, enc: tuple) -> tuple[jnp.ndarray, Logits]:
@@ -229,6 +283,9 @@ def _score_batch_averaged(
           model,
           seq,
           (avg_node, avg_edge, n_idx, m, ar_m),
+          tie_group_map=tie_group_map,
+          multi_state_strategy=spec.multi_state_strategy,
+          multi_state_temperature=spec.multi_state_temperature,
         ),
       )
 
@@ -274,7 +331,11 @@ def _score_streaming(
     batched_sequences = jnp.expand_dims(batched_sequences, 0)
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
-  score_single_pair = make_score_fn(model=model)
+  score_single_pair = partial(
+    make_score_fn(model=model),
+    multi_state_strategy=spec.multi_state_strategy,
+    multi_state_temperature=spec.multi_state_temperature,
+  )
 
   with h5py.File(spec.output_h5_path, "w") as f:
     scores_ds = f.create_dataset(
@@ -293,25 +354,57 @@ def _score_streaming(
     )
 
     for batched_ensemble in protein_iterator:
-      max_len = batched_ensemble.coordinates.shape[0]
+      tie_group_map = None
+      if spec.tie_group_map is not None:
+        tie_group_map = jnp.asarray(spec.tie_group_map, dtype=jnp.int32)
+      elif spec.pass_mode == "inter" and spec.tied_positions is not None:  # noqa: S105
+        tie_group_map = resolve_tie_groups(spec, batched_ensemble)
+
+      max_len = batched_ensemble.coordinates.shape[1]
       if spec.ar_mask is None:
         current_ar_mask = 1 - jnp.eye(max_len, dtype=jnp.bool_)
       else:
         current_ar_mask = jnp.asarray(spec.ar_mask)
 
+      batch_size = batched_ensemble.coordinates.shape[0]
+
+      tie_map_for_vmap = None
+      if tie_group_map is not None:
+        if tie_group_map.ndim == 1:
+          tie_map_for_vmap = jnp.broadcast_to(
+            jnp.atleast_2d(tie_group_map),
+            (batch_size, tie_group_map.shape[0]),
+          )
+        else:
+          tie_map_for_vmap = tie_group_map
+
+      mapping_for_vmap = (
+        jnp.asarray(spec.structure_mapping, dtype=jnp.int32)
+        if spec.structure_mapping is not None
+        else batched_ensemble.mapping
+      )
+      if mapping_for_vmap is not None and mapping_for_vmap.ndim == 1:
+        mapping_for_vmap = jnp.broadcast_to(
+          jnp.atleast_2d(mapping_for_vmap),
+          (batch_size, mapping_for_vmap.shape[0]),
+        )
+
+      tie_map_in_axis = 0 if tie_map_for_vmap is not None else None
+      mapping_in_axis = 0 if mapping_for_vmap is not None else None
+
       vmap_sequences = jax.vmap(
         score_single_pair,
-        in_axes=(None, 0, None, None, None, None, None, None, None, None),
+        in_axes=(None, 0, None, None, None, None, None, None, None, None, None),
         out_axes=0,
       )
       vmap_noises = jax.vmap(
         vmap_sequences,
-        in_axes=(None, None, None, None, None, None, None, 0, None, None),
+        in_axes=(None, None, None, None, None, None, None, 0, None, None, None),
         out_axes=0,
       )
       vmap_structures = jax.vmap(
         vmap_noises,
-        in_axes=(None, None, 0, 0, 0, 0, None, None, None, None),
+        in_axes=(None, None, 0, 0, 0, 0, None, None, None, mapping_in_axis, tie_map_in_axis),
         out_axes=0,
       )
 
@@ -319,6 +412,8 @@ def _score_streaming(
         ensemble: Protein,
         vs: Any = vmap_structures,  # noqa: ANN401
         cam: jax.Array = current_ar_mask,
+        mapping_value: jax.Array | None = mapping_for_vmap,
+        tie_map_value: jax.Array | None = tie_map_for_vmap,
       ) -> tuple[jnp.ndarray, Logits, jnp.ndarray]:
         return vs(
           jax.random.key(spec.random_seed),
@@ -330,7 +425,8 @@ def _score_streaming(
           48,
           jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
           cam,
-          ensemble.mapping,
+          mapping_value,
+          tie_map_value,
         )
 
       scores, logits, _ = _compute(batched_ensemble)

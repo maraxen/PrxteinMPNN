@@ -58,8 +58,11 @@ def _sample_batch(
   tie_group_map = None
   num_groups = None
 
-  if spec.pass_mode == "inter" and spec.tied_positions is not None:  # noqa: S105
+  if spec.tie_group_map is not None:
+    tie_group_map = jnp.asarray(spec.tie_group_map, dtype=jnp.int32)
+  elif spec.pass_mode == "inter" and spec.tied_positions is not None:  # noqa: S105
     tie_group_map = resolve_tie_groups(spec, batched_ensemble)
+  if tie_group_map is not None:
     num_groups = int(jnp.max(tie_group_map)) + 1
 
   noise_array = (
@@ -82,6 +85,7 @@ def _sample_batch(
     iterations=spec.iterations,
     learning_rate=spec.learning_rate,
     multi_state_strategy=spec.multi_state_strategy,
+    multi_state_temperature=spec.multi_state_temperature,
     num_groups=num_groups,
   )
 
@@ -155,18 +159,25 @@ def _sample_batch(
 
   tie_map_for_vmap = None
   if tie_group_map is not None:
-    # Add batch dimension and broadcast: (n,) -> (1, n) -> (batch_size, n)
-    tie_map_for_vmap = jnp.broadcast_to(
-      jnp.atleast_2d(tie_group_map),
-      (batch_size, tie_group_map.shape[0]),
-    )
+    if tie_group_map.ndim == 1:
+      # Add batch dimension and broadcast: (n,) -> (1, n) -> (batch_size, n)
+      tie_map_for_vmap = jnp.broadcast_to(
+        jnp.atleast_2d(tie_group_map),
+        (batch_size, tie_group_map.shape[0]),
+      )
+    else:
+      tie_map_for_vmap = tie_group_map
 
-  mapping_for_vmap = batched_ensemble.mapping
-  if batched_ensemble.mapping is not None and batched_ensemble.mapping.ndim == 1:
+  mapping_for_vmap = (
+    jnp.asarray(spec.structure_mapping, dtype=jnp.int32)
+    if spec.structure_mapping is not None
+    else batched_ensemble.mapping
+  )
+  if mapping_for_vmap is not None and mapping_for_vmap.ndim == 1:
     # Add batch dimension and broadcast if needed: (n,) -> (1, n) -> (batch_size, n)
     mapping_for_vmap = jnp.broadcast_to(
-      jnp.atleast_2d(batched_ensemble.mapping),
-      (batch_size, batched_ensemble.mapping.shape[0]),
+      jnp.atleast_2d(mapping_for_vmap),
+      (batch_size, mapping_for_vmap.shape[0]),
     )
 
   tie_map_in_axis = 0 if tie_map_for_vmap is not None else None
@@ -510,9 +521,18 @@ def _sample_batch_averaged(
   tie_group_map = None
   num_groups = None
 
-  if spec.pass_mode == "inter" and spec.tied_positions is not None:  # noqa: S105
+  if spec.tie_group_map is not None:
+    tie_group_map = jnp.asarray(spec.tie_group_map, dtype=jnp.int32)
+  elif spec.pass_mode == "inter" and spec.tied_positions is not None:  # noqa: S105
     tie_group_map = resolve_tie_groups(spec, batched_ensemble)
+  if tie_group_map is not None:
     num_groups = int(jnp.max(tie_group_map)) + 1
+
+  structure_mapping = (
+    jnp.asarray(spec.structure_mapping, dtype=jnp.int32)
+    if spec.structure_mapping is not None
+    else batched_ensemble.mapping
+  )
 
   averaged_encodings = get_averaged_encodings(
     batched_ensemble,
@@ -521,6 +541,7 @@ def _sample_batch_averaged(
     spec.noise_batch_size,
     spec.random_seed,
     spec.average_encoding_mode,
+    structure_mapping=structure_mapping,
   )
 
   # Create a new sample_fn with the wrapper
@@ -534,6 +555,8 @@ def _sample_batch_averaged(
     bias=jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
     tie_group_map=tie_group_map,
     num_groups=num_groups,
+    multi_state_strategy=spec.multi_state_strategy,
+    multi_state_temperature=spec.multi_state_temperature,
   )
 
   if spec.average_encoding_mode == "inputs_and_noise":

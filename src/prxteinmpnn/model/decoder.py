@@ -195,37 +195,37 @@ class DecoderLayerJ(eqx.Module):
         if key is None:
             inference = True
         keys = jax.random.split(key, 2) if key is not None else (None, None)
-        
+
         # h_v: [L, M, D]
         # h_e: [L, M, M, D]
-        
+
         # Expand h_v to match h_e for local context
         h_v_expand = jnp.expand_dims(h_v, axis=-2)
         h_v_expand = jnp.broadcast_to(h_v_expand, h_v_expand.shape[:-2] + (h_e.shape[-2], h_v.shape[-1]))
-        
+
         h_ev = jnp.concatenate([h_v_expand, h_e], axis=-1)
-        
+
         # Message passing
         h_message = jax.vmap(jax.vmap(jax.vmap(self.w1)))(h_ev)
         h_message = _gelu(h_message)
         h_message = jax.vmap(jax.vmap(jax.vmap(self.w2)))(h_message)
         h_message = _gelu(h_message)
         h_message = jax.vmap(jax.vmap(jax.vmap(self.w3)))(h_message)
-        
+
         if mask_attend is not None:
             h_message = jnp.expand_dims(mask_attend, axis=-1) * h_message
-            
+
         dh = jnp.sum(h_message, axis=-2) / self.scale
-        
+
         h_v = jax.vmap(jax.vmap(self.norm1))(h_v + self.dropout1(dh, key=keys[0], inference=inference))
-        
+
         # MLP
         dh_dense = jax.vmap(jax.vmap(self.dense))(h_v)
         h_v = jax.vmap(jax.vmap(self.norm2))(h_v + self.dropout2(dh_dense, key=keys[1], inference=inference))
-        
+
         if mask_v is not None:
             h_v = jnp.expand_dims(mask_v, axis=-1) * h_v
-            
+
         return h_v
 
 

@@ -8,13 +8,8 @@ in a single backward pass.
 """
 
 import jax
-import jax.numpy as jnp
-from jaxtyping import Float, Array
+from jaxtyping import Array, Float
 
-from prxteinmpnn.utils.types import (
-    ProteinSequence,
-    AlphaCarbonMask,
-)
 from prxteinmpnn.sampling.conditional_logits import (
     make_encoding_conditional_logits_split_fn,
 )

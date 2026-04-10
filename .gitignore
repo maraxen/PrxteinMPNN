@@ -22,6 +22,9 @@ build/
 # Local proxide development folder (installed via git dependency)
 proxide/
 
+# Local reference LigandMPNN checkout (default scripts path)
+reference_ligandmpnn_clone/
+
 # Training checkpoints
 checkpoints/
 checkpoints_test/

@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Parity Assessment Report</title>
+  <style>body{font-family:system-ui,Arial,sans-serif;max-width:1180px;margin:2rem auto;padding:0 1rem;line-height:1.45}code{background:#f4f4f5;padding:.1rem .3rem;border-radius:4px}table{border-collapse:collapse;margin:1rem 0;width:100%}th,td{border:1px solid #ddd;padding:.45rem;text-align:left}th{background:#f8f8f8}figure{margin:0.8rem 0}img{max-width:100%;height:auto;margin:0.25rem 0}figcaption{font-size:.92rem;color:#3f3f46}</style>
+</head>
+<body>
+  <h1>Parity Assessment Report</h1>
+  <p>Generated: <strong>2026-04-09T23:54:48+00:00</strong> (UTC)</p>
+  <h2>Executive parity snapshot</h2>
+  <p><strong>Status:</strong> Tier checks and collected lane evidence currently support parity on this corpus.</p>
+  <h3>Key outcomes</h3>
+  <ul>
+    <li>Tier outcomes: 26/26 passed, 0 failed, 0 skipped.</li>
+    <li>Coverage map: 14 instrumented, 0 pending, 0 excluded.</li>
+    <li>Scalar evidence spans 15 path/condition lanes; Pearson metrics are present in 15 lanes.</li>
+  </ul>
+  <h3>Caveats</h3>
+  <ul>
+    <li>Intrinsic ratios use pooled intrinsic MAE in the denominator; near-zero baselines can inflate ratios for ligand-autoregressive, tied-positions-and-multi-state [reference_weighted_sum__jax_product].</li>
+    <li>Side-chain-conditioned integration gate reports 2 warning verdict(s), driven by excluded corpus lanes.</li>
+  </ul>
+  <h2>How parity is assessed</h2>
+  <ol>
+    <li><code>parity_fast</code>: deterministic fixture and helper-branch parity checks (no upstream checkout required).</li>
+    <li><code>parity_heavy</code>: reference-backed numerical parity checks against pinned LigandMPNN.</li>
+    <li><code>parity_audit</code>: converted checkpoint-family load/audit checks across model families.</li>
+  </ol>
+  <h2>Terminology / interpretation legend</h2>
+  <table><thead><tr><th>Term</th><th>Interpretation</th></tr></thead><tbody>
+    <tr><td>Mean r / Min r</td><td>Pearson correlation summaries per path/condition lane; values nearer 1 indicate tighter parity.</td></tr>
+    <tr><td>Pearson pass rate</td><td>Fraction of per-case Pearson checks passing policy thresholds for that lane.</td></tr>
+    <tr><td>n/a(categorical | pending | excluded)</td><td>Metric intentionally absent because the path is categorical, not instrumented, or excluded.</td></tr>
+    <tr><td>Cross/intrinsic ratio</td><td>Cross-model MAE divided by pooled intrinsic MAE; near-zero denominators can inflate ratios.</td></tr>
+    <tr><td>Coverage heatmap values</td><td>Binary semantics only: 1 means at least one evidence row is present; 0 means absent.</td></tr>
+  </tbody></table>
+  <h2>Tier test outcomes (from JUnit)</h2>
+  <table><thead><tr><th>Tier</th><th>Tests</th><th>Passed</th><th>Skipped</th><th>Failed</th><th>Notes</th></tr></thead><tbody>
+<tr><td><code>parity_fast</code></td><td>10</td><td>10</td><td>0</td><td>0</td><td></td></tr>
+<tr><td><code>parity_heavy</code></td><td>10</td><td>10</td><td>0</td><td>0</td><td></td></tr>
+<tr><td><code>parity_audit</code></td><td>6</td><td>6</td><td>0</td><td>0</td><td></td></tr>
+  </tbody></table>
+<figure>
+  <img alt="Tier-level JUnit pass skip fail outcomes" src="assets/parity_test_outcomes_by_tier.png">
+  <figcaption>Stacked JUnit pass/skip/fail totals per tier; this is the first release gate for triage.</figcaption>
+</figure>
+  <h2>Converted family checkpoint coverage</h2>
+  <table><thead><tr><th>Family</th><th>Expected converted</th><th>Available locally</th></tr></thead><tbody>
+<tr><td><code>ligand</code></td><td>4</td><td>4</td></tr>
+<tr><td><code>membrane</code></td><td>2</td><td>2</td></tr>
+<tr><td><code>protein</code></td><td>4</td><td>4</td></tr>
+<tr><td><code>sc</code></td><td>1</td><td>1</td></tr>
+<tr><td><code>soluble</code></td><td>4</td><td>4</td></tr>
+  </tbody></table>
+<figure>
+  <img alt="Converted checkpoint availability by family" src="assets/parity_family_checkpoint_coverage.png">
+  <figcaption>Expected vs locally present converted checkpoints for parity_audit; missing assets block audit evidence collection.</figcaption>
+</figure>
+  <h2>Expanded evidence summary</h2>
+  <h3>Evaluated protein systems and cases</h3>
+  <p>Case metadata below is extracted directly from collected evidence rows.</p>
+  <table><thead><tr><th>Case ID</th><th>Kind</th><th>Length(s)</th><th>Seed(s)</th><th>Backbone ID(s)</th><th>Checkpoint ID(s)</th><th>Tier(s)</th><th>Paths</th></tr></thead><tbody>
+<tr><td><code>1ubq</code></td><td><code>real_backbone</code></td><td>76</td><td>388</td><td>1ubq</td><td>ligandmpnn_sc_v_32_002_16, ligandmpnn_v_32_020_25, proteinmpnn_v_48_020</td><td>parity_heavy</td><td>10</td></tr>
+<tr><td><code>5awl</code></td><td><code>real_backbone</code></td><td>10</td><td>388</td><td>5awl</td><td>ligandmpnn_sc_v_32_002_16, ligandmpnn_v_32_020_25, proteinmpnn_v_48_020</td><td>parity_heavy</td><td>10</td></tr>
+<tr><td><code>ligand</code></td><td><code>audit_family</code></td><td>n/a</td><td>n/a</td><td>ligand</td><td>converted_checkpoints</td><td>parity_audit</td><td>1</td></tr>
+<tr><td><code>membrane</code></td><td><code>audit_family</code></td><td>n/a</td><td>n/a</td><td>membrane</td><td>converted_checkpoints</td><td>parity_audit</td><td>1</td></tr>
+<tr><td><code>parity-fast-contract</code></td><td><code>synthetic</code></td><td>76</td><td>489</td><td>synthetic</td><td>proteinmpnn_v_48_020</td><td>parity_fast</td><td>3</td></tr>
+<tr><td><code>protein</code></td><td><code>audit_family</code></td><td>n/a</td><td>n/a</td><td>protein</td><td>converted_checkpoints</td><td>parity_audit</td><td>1</td></tr>
+<tr><td><code>sc</code></td><td><code>audit_family</code></td><td>n/a</td><td>n/a</td><td>sc</td><td>converted_checkpoints</td><td>parity_audit</td><td>1</td></tr>
+<tr><td><code>soluble</code></td><td><code>audit_family</code></td><td>n/a</td><td>n/a</td><td>soluble</td><td>converted_checkpoints</td><td>parity_audit</td><td>1</td></tr>
+  </tbody></table>
+  <h3>Tied/multistate apples-to-apples lanes</h3>
+  <p>Configured tied/multistate lanes are listed beside evidence tables so unlike strategies never merge.</p>
+  <table><thead><tr><th>Condition</th><th>Comparison API</th><th>Reference combiner</th><th>JAX strategy</th><th>Token comparison</th><th>Primary</th></tr></thead><tbody>
+<tr><td><code>reference_weighted_sum__jax_product</code></td><td><code>sampling</code></td><td><code>weighted_sum</code></td><td><code>product</code></td><td><code>enabled</code></td><td><code>yes</code></td></tr>
+<tr><td><code>reference_arithmetic_mean__jax_arithmetic_mean</code></td><td><code>scoring</code></td><td><code>arithmetic_mean</code></td><td><code>arithmetic_mean</code></td><td><code>disabled</code></td><td><code>no</code></td></tr>
+  </tbody></table>
+  <p>Evidence metrics: <code>docs/parity/reports/evidence/evidence_metrics.csv</code><br>Point samples: <code>docs/parity/reports/evidence/evidence_points.csv</code></p>
+  <p>Condition labels isolate strategy lanes (for example, tied/multistate apples-to-apples comparisons).</p>
+  <table><thead><tr><th>Path</th><th>Condition</th><th>Cases</th><th>Mean r</th><th>Min r</th><th>Pearson pass rate</th><th>Mean MAE</th><th>Mean RMSE</th><th>Mean token agreement</th></tr></thead><tbody>
+<tr><td><code>protein-feature-extraction</code></td><td><code>default</code></td><td>2</td><td>1.0000</td><td>1.0000</td><td>n/a</td><td>0.0000</td><td>0.0000</td><td>n/a</td></tr>
+<tr><td><code>protein-encoder</code></td><td><code>default</code></td><td>2</td><td>0.9863</td><td>0.9794</td><td>1.0000</td><td>0.0407</td><td>0.0623</td><td>n/a</td></tr>
+<tr><td><code>decoder-unconditional</code></td><td><code>default</code></td><td>2</td><td>0.9937</td><td>0.9927</td><td>1.0000</td><td>0.1046</td><td>0.1536</td><td>n/a</td></tr>
+<tr><td><code>decoder-conditional-scoring</code></td><td><code>default</code></td><td>2</td><td>0.9938</td><td>0.9933</td><td>1.0000</td><td>0.1082</td><td>0.1558</td><td>n/a</td></tr>
+<tr><td><code>autoregressive-sampling</code></td><td><code>default</code></td><td>2</td><td>0.9950</td><td>0.9948</td><td>1.0000</td><td>0.1037</td><td>0.1417</td><td>1.0000</td></tr>
+<tr><td><code>autoregressive-sampling</code></td><td><code>no_ligand</code></td><td>2</td><td>n/a</td><td>n/a</td><td>n/a</td><td>n/a</td><td>n/a</td><td>n/a</td></tr>
+<tr><td><code>tied-positions-and-multi-state</code></td><td><code>reference_arithmetic_mean__jax_arithmetic_mean</code></td><td>2</td><td>0.9928</td><td>0.9920</td><td>1.0000</td><td>0.1161</td><td>0.1555</td><td>n/a</td></tr>
+<tr><td><code>tied-positions-and-multi-state</code></td><td><code>reference_weighted_sum__jax_product</code></td><td>2</td><td>0.9897</td><td>0.9831</td><td>1.0000</td><td>0.1194</td><td>0.2225</td><td>0.7171</td></tr>
+<tr><td><code>logits-helper-branches</code></td><td><code>default</code></td><td>1</td><td>0.9888</td><td>0.9888</td><td>n/a</td><td>0.0920</td><td>0.1854</td><td>n/a</td></tr>
+<tr><td><code>ligand-feature-extraction</code></td><td><code>default</code></td><td>2</td><td>1.0000</td><td>1.0000</td><td>n/a</td><td>0.0012</td><td>0.0060</td><td>n/a</td></tr>
+<tr><td><code>ligand-conditioning-context</code></td><td><code>default</code></td><td>2</td><td>0.9991</td><td>0.9988</td><td>1.0000</td><td>0.0350</td><td>0.0515</td><td>n/a</td></tr>
+<tr><td><code>ligand-autoregressive</code></td><td><code>default</code></td><td>2</td><td>0.9993</td><td>0.9991</td><td>1.0000</td><td>0.0350</td><td>0.0515</td><td>1.0000</td></tr>
+<tr><td><code>ligand-autoregressive</code></td><td><code>ligand_context</code></td><td>2</td><td>n/a</td><td>n/a</td><td>n/a</td><td>n/a</td><td>n/a</td><td>n/a</td></tr>
+<tr><td><code>ligand-autoregressive</code></td><td><code>side_chain_conditioned</code></td><td>2</td><td>n/a</td><td>n/a</td><td>n/a</td><td>n/a</td><td>n/a</td><td>n/a</td></tr>
+<tr><td><code>side-chain-packer</code></td><td><code>default</code></td><td>2</td><td>1.0000</td><td>1.0000</td><td>1.0000</td><td>0.0000</td><td>0.0000</td><td>n/a</td></tr>
+<tr><td><code>averaged-encoding</code></td><td><code>default</code></td><td>1</td><td>1.0000</td><td>1.0000</td><td>n/a</td><td>0.0000</td><td>0.0000</td><td>n/a</td></tr>
+<tr><td><code>end-to-end-run-apis</code></td><td><code>sampling_api</code></td><td>1</td><td>1.0000</td><td>1.0000</td><td>n/a</td><td>0.0000</td><td>0.0000</td><td>1.0000</td></tr>
+<tr><td><code>end-to-end-run-apis</code></td><td><code>scoring_api</code></td><td>1</td><td>1.0000</td><td>1.0000</td><td>n/a</td><td>0.0000</td><td>0.0000</td><td>n/a</td></tr>
+<tr><td><code>checkpoint-family-load</code></td><td><code>ligand</code></td><td>1</td><td>n/a(categorical)</td><td>n/a(categorical)</td><td>n/a(categorical)</td><td>n/a(categorical)</td><td>n/a(categorical)</td><td>n/a(categorical)</td></tr>
+<tr><td><code>checkpoint-family-load</code></td><td><code>membrane</code></td><td>1</td><td>n/a(categorical)</td><td>n/a(categorical)</td><td>n/a(categorical)</td><td>n/a(categorical)</td><td>n/a(categorical)</td><td>n/a(categorical)</td></tr>
+<tr><td><code>checkpoint-family-load</code></td><td><code>protein</code></td><td>1</td><td>n/a(categorical)</td><td>n/a(categorical)</td><td>n/a(categorical)</td><td>n/a(categorical)</td><td>n/a(categorical)</td><td>n/a(categorical)</td></tr>
+<tr><td><code>checkpoint-family-load</code></td><td><code>sc</code></td><td>1</td><td>n/a(categorical)</td><td>n/a(categorical)</td><td>n/a(categorical)</td><td>n/a(categorical)</td><td>n/a(categorical)</td><td>n/a(categorical)</td></tr>
+<tr><td><code>checkpoint-family-load</code></td><td><code>soluble</code></td><td>1</td><td>n/a(categorical)</td><td>n/a(categorical)</td><td>n/a(categorical)</td><td>n/a(categorical)</td><td>n/a(categorical)</td><td>n/a(categorical)</td></tr>
+  </tbody></table>
+<figure>
+  <img alt="Pearson swarm by path and condition lanes" src="assets/parity_correlation_by_path.png">
+  <figcaption>Pearson swarm across lane-level case rows (n=26). Each point is one path/condition/case/seed value, black ticks mark medians, and the dashed line marks the r=0.95 policy floor.</figcaption>
+</figure>
+<figure>
+  <img alt="Mean MAE and RMSE by parity lane" src="assets/parity_error_by_path.png">
+  <figcaption>Mean MAE and RMSE across 15 scalar-metric lanes. Rows shown as n/a(...) are pending, excluded, or categorical by design.</figcaption>
+</figure>
+<figure>
+  <img alt="Reference versus JAX scatter diagnostics for core parity paths" src="assets/parity_scatter_core_paths.png">
+  <figcaption>Reference vs JAX scatter samples for core paths; tighter diagonal alignment indicates stronger parity. Dense clouds may be downsampled for readability.</figcaption>
+</figure>
+<figure>
+  <img alt="Bland Altman drift diagnostics for decoder conditional scoring" src="assets/parity_bland_altman_decoder_conditional.png">
+  <figcaption>Bland-Altman view for decoder-conditional-scoring. The center line is mean drift and dotted lines show ±1.96 SD.</figcaption>
+</figure>
+<figure>
+  <img alt="Binary evidence coverage heatmap with present versus absent semantics" src="assets/parity_case_coverage_heatmap.png">
+  <figcaption>Binary coverage matrix (14 paths × 8 cases): green=present (>=1 evidence row), gray=absent. Color intensity does not encode magnitude.</figcaption>
+</figure>
+  <h3>Baseline-aware intrinsic parity</h3>
+  <table><thead><tr><th>Path</th><th>Condition</th><th>Cases</th><th>Mean cross/intrinsic ratio</th><th>Max ratio</th><th>Pass@95 envelope</th><th>Pass@99 envelope</th></tr></thead><tbody>
+<tr><td><code>autoregressive-sampling</code></td><td><code>default</code></td><td>2</td><td>1.5317</td><td>1.5414</td><td>1.0000</td><td>1.0000</td></tr>
+<tr><td><code>ligand-autoregressive</code></td><td><code>default</code></td><td>2</td><td>3502778.8255</td><td>4022871.0279</td><td>0.0000</td><td>0.0000</td></tr>
+<tr><td><code>tied-positions-and-multi-state</code></td><td><code>reference_weighted_sum__jax_product</code></td><td>2</td><td>9363044.0153</td><td>18726084.4878</td><td>0.0000</td><td>0.0000</td></tr>
+  </tbody></table>
+<figure>
+  <img alt="Log scale intrinsic ratio by path and condition lanes" src="assets/parity_intrinsic_ratio_by_path.png">
+  <figcaption>Log-scale cross/intrinsic ratio chart across 3 lane(s). The denominator is pooled intrinsic MAE, so near-zero baselines can inflate ratios.</figcaption>
+</figure>
+  <h3>Macro distribution parity</h3>
+  <table><thead><tr><th>Path</th><th>Condition</th><th>Cases</th><th>Mean identity Wasserstein</th><th>Mean entropy Wasserstein</th><th>Mean composition JS</th><th>Median identity KS p-value</th></tr></thead><tbody>
+<tr><td><code>autoregressive-sampling</code></td><td><code>no_ligand</code></td><td>2</td><td>0.0000</td><td>0.0261</td><td>0.0000</td><td>1.0000</td></tr>
+<tr><td><code>ligand-autoregressive</code></td><td><code>ligand_context</code></td><td>2</td><td>0.0000</td><td>0.0187</td><td>0.0000</td><td>1.0000</td></tr>
+<tr><td><code>ligand-autoregressive</code></td><td><code>side_chain_conditioned</code></td><td>2</td><td>n/a(Excluded by parity case corpus configuration.)</td><td>n/a(Excluded by parity case corpus configuration.)</td><td>n/a(Excluded by parity case corpus configuration.)</td><td>n/a(Excluded by parity case corpus configuration.)</td></tr>
+  </tbody></table>
+  <h3>Side-chain-conditioned integration gate</h3>
+  <table><thead><tr><th>Path</th><th>Condition</th><th>Cases</th><th>Pass</th><th>Warn</th><th>Fail</th><th>Outcome</th><th>Reason</th></tr></thead><tbody>
+<tr><td><code>ligand-autoregressive</code></td><td><code>side_chain_conditioned</code></td><td>2</td><td>0</td><td>2</td><td>0</td><td><code>warn</code></td><td>Excluded by parity case corpus configuration.</td></tr>
+  </tbody></table>
+<figure>
+  <img alt="Macro distribution swarm comparing reference and JAX" src="assets/parity_macro_swarm.png">
+  <figcaption>Macro swarm compares reference vs JAX identity/entropy points by condition. Overlap implies better distributional parity; excluded lanes remain n/a(...).</figcaption>
+</figure>
+  <h3>Coverage and exclusions</h3>
+  <table><thead><tr><th>Path</th><th>Tier</th><th>Status</th><th>Reason</th></tr></thead><tbody>
+<tr><td><code>protein-feature-extraction</code></td><td><code>parity_heavy</code></td><td><code>instrumented</code></td><td>Path has collected evidence rows.</td></tr>
+<tr><td><code>protein-encoder</code></td><td><code>parity_heavy</code></td><td><code>instrumented</code></td><td>Path has collected evidence rows.</td></tr>
+<tr><td><code>decoder-unconditional</code></td><td><code>parity_heavy</code></td><td><code>instrumented</code></td><td>Path has collected evidence rows.</td></tr>
+<tr><td><code>decoder-conditional-scoring</code></td><td><code>parity_heavy</code></td><td><code>instrumented</code></td><td>Path has collected evidence rows.</td></tr>
+<tr><td><code>autoregressive-sampling</code></td><td><code>parity_heavy</code></td><td><code>instrumented</code></td><td>Path has collected evidence rows.</td></tr>
+<tr><td><code>tied-positions-and-multi-state</code></td><td><code>parity_heavy</code></td><td><code>instrumented</code></td><td>Path has collected evidence rows.</td></tr>
+<tr><td><code>logits-helper-branches</code></td><td><code>parity_fast</code></td><td><code>instrumented</code></td><td>Path has collected evidence rows.</td></tr>
+<tr><td><code>ligand-feature-extraction</code></td><td><code>parity_heavy</code></td><td><code>instrumented</code></td><td>Path has collected evidence rows.</td></tr>
+<tr><td><code>ligand-conditioning-context</code></td><td><code>parity_heavy</code></td><td><code>instrumented</code></td><td>Path has collected evidence rows.</td></tr>
+<tr><td><code>ligand-autoregressive</code></td><td><code>parity_heavy</code></td><td><code>instrumented</code></td><td>Path has collected evidence rows.</td></tr>
+<tr><td><code>side-chain-packer</code></td><td><code>parity_heavy</code></td><td><code>instrumented</code></td><td>Path has collected evidence rows.</td></tr>
+<tr><td><code>averaged-encoding</code></td><td><code>parity_fast</code></td><td><code>instrumented</code></td><td>Path has collected evidence rows.</td></tr>
+<tr><td><code>end-to-end-run-apis</code></td><td><code>parity_fast</code></td><td><code>instrumented</code></td><td>Path has collected evidence rows.</td></tr>
+<tr><td><code>checkpoint-family-load</code></td><td><code>parity_audit</code></td><td><code>instrumented</code></td><td>Audit path is categorical; correlation and error columns are intentionally n/a.</td></tr>
+  </tbody></table>
+  <h2>Appendix: path inventory and definitions</h2>
+  <h3>Parity path definitions</h3>
+  <table><thead><tr><th>Path</th><th>Tier</th><th>Method</th><th>Metrics</th><th>Code paths</th></tr></thead><tbody>
+<tr><td><code>protein-feature-extraction</code></td><td><code>parity_heavy</code></td><td>intermediate tensor parity</td><td>shape equality, allclose, max abs diff</td><td><code>src/prxteinmpnn/model/features.py</code></td></tr>
+<tr><td><code>protein-encoder</code></td><td><code>parity_heavy</code></td><td>layer-by-layer activation parity</td><td>correlation, max abs diff, per-layer trace</td><td><code>src/prxteinmpnn/model/encoder.py</code></td></tr>
+<tr><td><code>decoder-unconditional</code></td><td><code>parity_heavy</code></td><td>end-logit parity</td><td>pearson correlation, per-position KL, per-position CE</td><td><code>src/prxteinmpnn/model/decoder.py, src/prxteinmpnn/model/mpnn.py</code></td></tr>
+<tr><td><code>decoder-conditional-scoring</code></td><td><code>parity_heavy</code></td><td>logits and score parity</td><td>pearson correlation, score delta, nll drift</td><td><code>src/prxteinmpnn/model/decoder.py, src/prxteinmpnn/scoring/score.py, src/prxteinmpnn/run/scoring.py</code></td></tr>
+<tr><td><code>autoregressive-sampling</code></td><td><code>parity_heavy</code></td><td>stepwise deterministic sample parity</td><td>stepwise logit drift, token agreement, sequence recovery</td><td><code>src/prxteinmpnn/sampling/sample.py, src/prxteinmpnn/run/sampling.py, src/prxteinmpnn/model/mpnn.py</code></td></tr>
+<tr><td><code>tied-positions-and-multi-state</code></td><td><code>parity_heavy</code></td><td>group-combined branch parity with explicit apples-to-apples comparison lanes</td><td>group correlation, strategy invariants</td><td><code>src/prxteinmpnn/utils/autoregression.py, src/prxteinmpnn/model/multi_state_sampling.py, src/prxteinmpnn/sampling/sample.py</code></td></tr>
+<tr><td><code>logits-helper-branches</code></td><td><code>parity_fast</code></td><td>helper vs direct branch parity</td><td>allclose, shape equality</td><td><code>src/prxteinmpnn/sampling/unconditional_logits.py, src/prxteinmpnn/sampling/conditional_logits.py</code></td></tr>
+<tr><td><code>ligand-feature-extraction</code></td><td><code>parity_heavy</code></td><td>ligand node/edge parity</td><td>shape equality, masked behavior</td><td><code>src/prxteinmpnn/model/ligand_features.py</code></td></tr>
+<tr><td><code>ligand-conditioning-context</code></td><td><code>parity_heavy</code></td><td>context encoder parity</td><td>hidden-state correlation, final logit correlation</td><td><code>src/prxteinmpnn/model/mpnn.py</code></td></tr>
+<tr><td><code>ligand-autoregressive</code></td><td><code>parity_heavy</code></td><td>deterministic ligand sample parity</td><td>stepwise agreement, final agreement</td><td><code>src/prxteinmpnn/model/mpnn.py</code></td></tr>
+<tr><td><code>side-chain-packer</code></td><td><code>parity_heavy</code></td><td>encode/decode torsion parity</td><td>mean allclose, concentration allclose, mix logits allclose, output correlation</td><td><code>src/prxteinmpnn/model/packer.py</code></td></tr>
+<tr><td><code>averaged-encoding</code></td><td><code>parity_fast</code></td><td>deterministic averaged encoding parity</td><td>shape equality, average drift</td><td><code>src/prxteinmpnn/run/averaging.py</code></td></tr>
+<tr><td><code>end-to-end-run-apis</code></td><td><code>parity_fast</code></td><td>fixture-driven API parity</td><td>output shape, score contract, pseudo-perplexity contract</td><td><code>src/prxteinmpnn/run/scoring.py, src/prxteinmpnn/run/sampling.py</code></td></tr>
+<tr><td><code>checkpoint-family-load</code></td><td><code>parity_audit</code></td><td>load and smoke forward pass</td><td>load success, smoke pass, shape compatibility</td><td><code>src/prxteinmpnn/io/weights.py, src/prxteinmpnn/model/*.py</code></td></tr>
+  </tbody></table>
+  <h3>Tier path inventory</h3>
+  <table><thead><tr><th>Tier</th><th>Path count</th></tr></thead><tbody>
+<tr><td><code>parity_fast</code></td><td>3</td></tr>
+<tr><td><code>parity_heavy</code></td><td>10</td></tr>
+<tr><td><code>parity_audit</code></td><td>1</td></tr>
+  </tbody></table>
+<figure>
+  <img alt="Configured parity path counts by tier" src="assets/parity_paths_by_tier.png">
+  <figcaption>Inventory-only path counts by tier. Larger bars indicate broader instrumentation, not stronger parity.</figcaption>
+</figure>
+  <p>Checkpoint checksum snapshot: <code>reports/converted_checkpoint_checksums.txt</code></p>
+</body>
+</html>

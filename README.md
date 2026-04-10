@@ -115,49 +115,48 @@ uv sync --extra cpu   # For CPU-only (default)
 
 ```python
 import jax
-import jax.numpy as jnp
-from prxteinmpnn.mpnn import get_mpnn_model
-from prxteinmpnn.io import from_structure_file, protein_structure_to_model_inputs
-from prxteinmpnn.scoring.score import make_score_sequence
-from prxteinmpnn.sampling import make_sample_sequences, SamplingConfig
-from prxteinmpnn.utils.decoding_order import random_decoding_order
+from prxteinmpnn.io.weights import load_model
+from prxteinmpnn.run.sampling import sample
+from prxteinmpnn.run.specs import SamplingSpecification
 
-# Load a protein structure
-protein_structure = from_structure_file(filename="path/to/structure.pdb")
-
-# Get the MPNN model
-model = get_mpnn_model(
+# 1. Load the pre-trained model (Equinox module)
+model = load_model(
     model_version="v_48_020",
     model_weights="original"
 )
 
-# Get model inputs for the structure
-model_inputs = protein_structure_to_model_inputs(protein_structure)
-
-# Score sequences
-key = jax.random.PRNGKey(0)
-score_sequence = make_score_sequence(
-    model, 
-    random_decoding_order, 
-    model_inputs=model_inputs
+# 2. Configure sampling specification
+spec = SamplingSpecification(
+    inputs="path/to/structure.pdb",
+    num_samples=10,
+    temperature=0.1,
+    random_seed=42,
+    # Multi-state support (optional)
+    # multi_state_strategy="product" 
 )
 
-# Score original sequence
-original_score, original_logits, decoding_order = score_sequence(
-    key, 
-    model_inputs.sequence
+# 3. Sample new sequences
+results = sample(spec)
+
+# 4. Access results
+sequences = results["sequences"]  # (num_samples, seq_len)
+logits = results["logits"]        # (num_samples, seq_len, 21)
+```
+
+### Scoring Sequences
+
+```python
+from prxteinmpnn.run.scoring import score
+from prxteinmpnn.run.specs import ScoringSpecification
+
+spec = ScoringSpecification(
+    inputs="path/to/structure.pdb",
+    sequences_to_score=["MV..."],
+    temperature=1.0
 )
 
-# Sample new sequences
-config = SamplingConfig(sampling_strategy="temperature", temperature=0.1)
-sample_sequence = make_sample_sequences(
-    model,
-    random_decoding_order,
-    config=config,
-    model_inputs=model_inputs
-)
-
-sampled_sequence, logits, decoding_order = sample_sequence(key)
+results = score(spec)
+average_scores = results["scores"]  # Negative log-likelihood
 ```
 
 ## 🛠️ Requirements

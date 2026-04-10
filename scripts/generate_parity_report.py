@@ -131,12 +131,18 @@ class CoverageEntry:
 class TiedLaneDescriptor:
   """One configured tied/multistate apples-to-apples comparison lane."""
 
+  path_id: str
+  input_context: str
   condition: str
   comparison_api: str
   reference_combiner: str
   jax_multi_state_strategy: str
   token_comparison_enabled: bool
   is_primary: bool
+  rollout_policy: str = "n/a"
+
+
+_TIED_PATH_IDS = {"tied-positions-and-multi-state", "ligand-tied-positions-and-multi-state"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -264,80 +270,99 @@ def _load_evidence_points(path: Path) -> list[dict[str, Any]]:
 
 def _extract_tied_lane_descriptors(matrix_paths: list[dict[str, Any]]) -> list[TiedLaneDescriptor]:
   """Extract tied/multistate lane metadata from the parity matrix manifest."""
-  tied_path = next(
-    (
-      path
-      for path in matrix_paths
-      if isinstance(path, dict) and path.get("id") == "tied-positions-and-multi-state"
-    ),
-    None,
-  )
-  if tied_path is None:
+  tied_paths = [
+    path
+    for path in matrix_paths
+    if isinstance(path, dict) and isinstance(path.get("id"), str) and path.get("id") in _TIED_PATH_IDS
+  ]
+  if not tied_paths:
     return []
-
-  acceptance = tied_path.get("acceptance")
-  if not isinstance(acceptance, dict):
-    msg = "tied-positions-and-multi-state acceptance payload must be an object."
-    raise TypeError(msg)
-  lane_payloads = acceptance.get("comparison_lanes")
-  if lane_payloads is None:
-    return []
-  if not isinstance(lane_payloads, list):
-    msg = "tied-positions-and-multi-state.acceptance.comparison_lanes must be a list."
-    raise TypeError(msg)
 
   lanes: list[TiedLaneDescriptor] = []
-  seen_conditions: set[str] = set()
-  for payload in lane_payloads:
-    if not isinstance(payload, dict):
-      msg = "Each tied comparison lane must be an object."
+  for tied_path in tied_paths:
+    path_id = str(tied_path.get("id"))
+    acceptance = tied_path.get("acceptance")
+    if not isinstance(acceptance, dict):
+      msg = f"{path_id} acceptance payload must be an object."
       raise TypeError(msg)
-    condition = payload.get("condition")
-    if not isinstance(condition, str) or not condition:
-      msg = "Each tied comparison lane must define a non-empty condition."
+    rollout_policy = "n/a"
+    rollout_payload = acceptance.get("rollout_policy")
+    if isinstance(rollout_payload, dict):
+      rollout_pairs = []
+      for tier_name in ("parity_heavy", "parity_audit"):
+        action = rollout_payload.get(tier_name)
+        if isinstance(action, str) and action:
+          rollout_pairs.append(f"{tier_name}={action}")
+      if rollout_pairs:
+        rollout_policy = "; ".join(rollout_pairs)
+    lane_payloads = acceptance.get("comparison_lanes")
+    if lane_payloads is None:
+      continue
+    if not isinstance(lane_payloads, list):
+      msg = f"{path_id}.acceptance.comparison_lanes must be a list."
       raise TypeError(msg)
-    if condition in seen_conditions:
-      msg = f"Duplicate tied comparison condition {condition!r} in parity matrix."
+
+    seen_conditions: set[str] = set()
+    primary_count = 0
+    for payload in lane_payloads:
+      if not isinstance(payload, dict):
+        msg = "Each tied comparison lane must be an object."
+        raise TypeError(msg)
+      condition = payload.get("condition")
+      if not isinstance(condition, str) or not condition:
+        msg = "Each tied comparison lane must define a non-empty condition."
+        raise TypeError(msg)
+      if condition in seen_conditions:
+        msg = f"{path_id}: duplicate tied comparison condition {condition!r} in parity matrix."
+        raise ValueError(msg)
+      seen_conditions.add(condition)
+
+      comparison_api = payload.get("comparison_api", "sampling")
+      if comparison_api not in {"sampling", "scoring"}:
+        msg = f"{path_id}/{condition}: invalid comparison_api {comparison_api!r}."
+        raise TypeError(msg)
+      reference_combiner = payload.get("reference_combiner")
+      if reference_combiner not in {"weighted_sum", "arithmetic_mean", "geometric_mean"}:
+        msg = f"{path_id}/{condition}: invalid reference_combiner {reference_combiner!r}."
+        raise TypeError(msg)
+      jax_strategy = payload.get("jax_multi_state_strategy")
+      if jax_strategy not in {"arithmetic_mean", "geometric_mean", "product"}:
+        msg = f"{path_id}/{condition}: invalid jax_multi_state_strategy {jax_strategy!r}."
+        raise TypeError(msg)
+      token_comparison = payload.get("token_comparison")
+      if token_comparison not in {"enabled", "disabled"}:
+        msg = f"{path_id}/{condition}: token_comparison must be 'enabled' or 'disabled'."
+        raise TypeError(msg)
+      is_primary = payload.get("is_primary")
+      if not isinstance(is_primary, bool):
+        msg = f"{path_id}/{condition}: is_primary must be boolean."
+        raise TypeError(msg)
+      if is_primary:
+        primary_count += 1
+      input_context = payload.get("input_context", "ligand_context")
+      if input_context not in {"ligand_context", "side_chain_conditioned"}:
+        msg = f"{path_id}/{condition}: invalid input_context {input_context!r}."
+        raise TypeError(msg)
+
+      lanes.append(
+        TiedLaneDescriptor(
+          path_id=path_id,
+          input_context=str(input_context),
+          condition=condition,
+          comparison_api=str(comparison_api),
+          reference_combiner=str(reference_combiner),
+          jax_multi_state_strategy=str(jax_strategy),
+          token_comparison_enabled=token_comparison == "enabled",
+          is_primary=is_primary,
+          rollout_policy=rollout_policy,
+        ),
+      )
+
+    if primary_count != 1:
+      msg = f"{path_id}: exactly one tied/multistate comparison lane must be marked primary."
       raise ValueError(msg)
-    seen_conditions.add(condition)
 
-    comparison_api = payload.get("comparison_api", "sampling")
-    if comparison_api not in {"sampling", "scoring"}:
-      msg = f"{condition}: invalid comparison_api {comparison_api!r}."
-      raise TypeError(msg)
-    reference_combiner = payload.get("reference_combiner")
-    if reference_combiner not in {"weighted_sum", "arithmetic_mean", "geometric_mean"}:
-      msg = f"{condition}: invalid reference_combiner {reference_combiner!r}."
-      raise TypeError(msg)
-    jax_strategy = payload.get("jax_multi_state_strategy")
-    if jax_strategy not in {"arithmetic_mean", "geometric_mean", "product"}:
-      msg = f"{condition}: invalid jax_multi_state_strategy {jax_strategy!r}."
-      raise TypeError(msg)
-    token_comparison = payload.get("token_comparison")
-    if token_comparison not in {"enabled", "disabled"}:
-      msg = f"{condition}: token_comparison must be 'enabled' or 'disabled'."
-      raise TypeError(msg)
-    is_primary = payload.get("is_primary")
-    if not isinstance(is_primary, bool):
-      msg = f"{condition}: is_primary must be boolean."
-      raise TypeError(msg)
-
-    lanes.append(
-      TiedLaneDescriptor(
-        condition=condition,
-        comparison_api=str(comparison_api),
-        reference_combiner=str(reference_combiner),
-        jax_multi_state_strategy=str(jax_strategy),
-        token_comparison_enabled=token_comparison == "enabled",
-        is_primary=is_primary,
-      ),
-    )
-
-  if sum(int(lane.is_primary) for lane in lanes) != 1:
-    msg = "Exactly one tied/multistate comparison lane must be marked primary."
-    raise ValueError(msg)
-
-  return sorted(lanes, key=lambda lane: (not lane.is_primary, lane.condition))
+  return sorted(lanes, key=lambda lane: (lane.path_id, not lane.is_primary, lane.condition))
 
 
 def _aggregate_evidence(
@@ -1504,17 +1529,19 @@ def _render_markdown(
         "",
         "Configured tied/multistate lanes are listed beside evidence tables so unlike strategies never merge.",
         "",
-        "| Condition | Comparison API | Reference combiner | JAX strategy | Token comparison | Primary |",
-        "| --- | --- | --- | --- | --- | --- |",
+        "| Path | Input context | Condition | Comparison API | Reference combiner | JAX strategy | Token comparison | Primary | Rollout policy |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
       ],
     )
     for lane in tied_lanes:
       lines.append(
         "| "
-        f"`{lane.condition}` | `{lane.comparison_api}` | `{lane.reference_combiner}` | "
+        f"`{lane.path_id}` | `{lane.input_context}` | `{lane.condition}` | "
+        f"`{lane.comparison_api}` | `{lane.reference_combiner}` | "
         f"`{lane.jax_multi_state_strategy}` | "
         f"`{'enabled' if lane.token_comparison_enabled else 'disabled'}` | "
-        f"`{'yes' if lane.is_primary else 'no'}` |"
+        f"`{'yes' if lane.is_primary else 'no'}` | "
+        f"`{lane.rollout_policy}` |"
       )
     lines.append("")
 
@@ -1838,12 +1865,15 @@ def _render_html(
   tied_lane_rows = "\n".join(
     (
       "<tr>"
+      f"<td><code>{lane.path_id}</code></td>"
+      f"<td><code>{lane.input_context}</code></td>"
       f"<td><code>{lane.condition}</code></td>"
       f"<td><code>{lane.comparison_api}</code></td>"
       f"<td><code>{lane.reference_combiner}</code></td>"
       f"<td><code>{lane.jax_multi_state_strategy}</code></td>"
       f"<td><code>{'enabled' if lane.token_comparison_enabled else 'disabled'}</code></td>"
       f"<td><code>{'yes' if lane.is_primary else 'no'}</code></td>"
+      f"<td><code>{lane.rollout_policy}</code></td>"
       "</tr>"
     )
     for lane in tied_lanes
@@ -1923,7 +1953,9 @@ def _render_html(
   )
 
   case_rows_html = case_rows if case_rows else "<tr><td colspan='8'>No evaluated case metadata rows</td></tr>"
-  tied_lane_rows_html = tied_lane_rows if tied_lane_rows else "<tr><td colspan='6'>No tied lanes declared</td></tr>"
+  tied_lane_rows_html = (
+    tied_lane_rows if tied_lane_rows else "<tr><td colspan='9'>No tied lanes declared</td></tr>"
+  )
   evidence_rows_html = evidence_rows if evidence_rows else "<tr><td colspan='9'>No scalar evidence rows</td></tr>"
   intrinsic_rows_html = intrinsic_rows if intrinsic_rows else "<tr><td colspan='7'>No intrinsic rows</td></tr>"
   macro_rows_html = macro_rows if macro_rows else "<tr><td colspan='7'>No macro rows</td></tr>"
@@ -2008,7 +2040,7 @@ def _render_html(
       [
         "  <h3>Tied/multistate apples-to-apples lanes</h3>",
         "  <p>Configured tied/multistate lanes are listed beside evidence tables so unlike strategies never merge.</p>",
-        "  <table><thead><tr><th>Condition</th><th>Comparison API</th><th>Reference combiner</th><th>JAX strategy</th><th>Token comparison</th><th>Primary</th></tr></thead><tbody>",
+        "  <table><thead><tr><th>Path</th><th>Input context</th><th>Condition</th><th>Comparison API</th><th>Reference combiner</th><th>JAX strategy</th><th>Token comparison</th><th>Primary</th><th>Rollout policy</th></tr></thead><tbody>",
         f"{tied_lane_rows_html}",
         "  </tbody></table>",
       ],

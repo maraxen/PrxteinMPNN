@@ -30,7 +30,26 @@ def mock_model() -> PrxteinMPNN:
         bias=None,
         backbone_noise=None,
         structure_mapping=None,
+        tie_group_map=None,
+        multi_state_strategy="arithmetic_mean",
+        multi_state_temperature=1.0,
     ):
+        del (
+            structure_coordinates,
+            mask,
+            residue_index,
+            chain_index,
+            decoding_approach,
+            ar_mask,
+            one_hot_sequence,
+            temperature,
+            bias,
+            backbone_noise,
+            structure_mapping,
+            tie_group_map,
+            multi_state_strategy,
+            multi_state_temperature,
+        )
         # Using a dynamic shape from the input tracer (structure_coordinates.shape[0])
         # inside the mock's side_effect causes a ConcretizationTypeError during JIT.
         # We hardcode the residue count because the '1ubq.pdb' fixture is static.

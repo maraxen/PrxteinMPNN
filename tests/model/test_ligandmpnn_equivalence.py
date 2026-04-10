@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from typing import Any
+import warnings
 
 import jax
 import jax.numpy as jnp
@@ -12,9 +14,13 @@ import pytest
 from scipy.stats import pearsonr
 
 from prxteinmpnn.model.mpnn import PrxteinLigandMPNN
+from prxteinmpnn.parity.matrix import ligand_tied_multistate_rollout_outcome
 from tests.parity.reference_utils import require_heavy_parity_prereqs
 
 pytestmark = pytest.mark.parity_heavy
+_LIGAND_TIED_PATH_ID = "ligand-tied-positions-and-multi-state"
+_LIGAND_TIED_SAMPLING_LANE = "ligand_context_reference_weighted_sum__jax_product"
+_LIGAND_TIED_SCORING_LANE = "ligand_context_reference_arithmetic_mean__jax_arithmetic_mean"
 
 
 @dataclass(frozen=True)
@@ -38,6 +44,27 @@ def _pearson_correlation(lhs: np.ndarray, rhs: np.ndarray) -> float:
   return float(pearsonr(lhs.ravel(), rhs.ravel())[0])
 
 
+def _enforce_ligand_tied_rollout(
+  condition: bool,
+  *,
+  lane_condition: str,
+  requirement: str,
+) -> None:
+  """Apply staged rollout policy for ligand tied/multistate parity checks."""
+  if condition:
+    return
+  tier = os.environ.get("PRXTEIN_PARITY_TIER", "parity_heavy")
+  outcome = ligand_tied_multistate_rollout_outcome(condition_passed=False, tier=tier)
+  message = (
+    f"{_LIGAND_TIED_PATH_ID}/{lane_condition}: {requirement}. "
+    f"tier={tier} outcome={outcome}"
+  )
+  if outcome == "warn":
+    warnings.warn(message, RuntimeWarning, stacklevel=2)
+    return
+  pytest.fail(message)
+
+
 def _build_ar_mask(randn: np.ndarray) -> np.ndarray:
   """Build deterministic autoregressive mask from random-order logits."""
   decoding_order = np.argsort(np.abs(randn))
@@ -50,8 +77,75 @@ def _build_ar_mask(randn: np.ndarray) -> np.ndarray:
   return ar_mask
 
 
-def _to_torch_feature_dict(batch: LigandBatch, torch_module: Any) -> dict[str, Any]:
+def _build_tie_group_map(seq_len: int, tie_groups: list[list[int]]) -> np.ndarray:
+  """Build a dense residue-to-group mapping for tied-position runs."""
+  tie_group_map = np.arange(seq_len, dtype=np.int32)
+  for group in tie_groups:
+    representative = group[0]
+    for position in group[1:]:
+      tie_group_map[position] = representative
+  _, compact_tie_group_map = np.unique(tie_group_map, return_inverse=True)
+  return compact_tie_group_map.astype(np.int32, copy=False)
+
+
+def _row_log_softmax(logits: np.ndarray) -> np.ndarray:
+  """Compute row-wise log-softmax in NumPy."""
+  shifted = logits - np.max(logits, axis=-1, keepdims=True)
+  logsumexp = np.log(np.sum(np.exp(shifted), axis=-1, keepdims=True))
+  return shifted - logsumexp
+
+
+def _combine_reference_tied_log_probs(
+  log_probs: np.ndarray,
+  *,
+  tie_groups: list[list[int]],
+  tie_weights: list[list[float]],
+) -> np.ndarray:
+  """Match reference weighted-sum tied combiner on log-probabilities."""
+  combined = np.array(log_probs, copy=True)
+  for group, weights in zip(tie_groups, tie_weights, strict=True):
+    group_probs = np.exp(log_probs[group, :])
+    weight_arr = np.asarray(weights, dtype=np.float64)
+    weight_arr = weight_arr / max(float(np.sum(weight_arr)), 1e-8)
+    combined_probs = np.sum(group_probs * weight_arr[:, None], axis=0)
+    combined[group, :] = np.log(np.clip(combined_probs, a_min=1e-8, a_max=None))
+  return combined
+
+
+def _combine_reference_tied_logits(
+  logits: np.ndarray,
+  *,
+  tie_groups: list[list[int]],
+  tie_weights: list[list[float]],
+  combiner: str,
+) -> np.ndarray:
+  """Combine reference tied logits to match configured lane semantics."""
+  combined = np.array(logits, copy=True)
+  for group, weights in zip(tie_groups, tie_weights, strict=True):
+    group_logits = logits[group, :]
+    if combiner == "weighted_sum":
+      weight_arr = np.asarray(weights, dtype=np.float64)
+      weight_arr = weight_arr / max(float(np.sum(weight_arr)), 1e-8)
+      combined_logits = np.sum(group_logits * weight_arr[:, None], axis=0)
+    elif combiner == "arithmetic_mean":
+      combined_logits = np.mean(group_logits, axis=0)
+    else:
+      msg = f"Unsupported combiner {combiner!r}."
+      raise ValueError(msg)
+    combined[group, :] = combined_logits
+  return combined
+
+
+def _to_torch_feature_dict(
+  batch: LigandBatch,
+  torch_module: Any,
+  *,
+  symmetry_residues: list[list[int]] | None = None,
+  symmetry_weights: list[list[float]] | None = None,
+) -> dict[str, Any]:
   """Convert deterministic payload to reference-model feature dictionary."""
+  resolved_symmetry_residues = symmetry_residues if symmetry_residues is not None else [[]]
+  resolved_symmetry_weights = symmetry_weights if symmetry_weights is not None else [[]]
   return {
     "X": torch_module.from_numpy(batch.x),
     "S": torch_module.from_numpy(batch.s),
@@ -61,8 +155,8 @@ def _to_torch_feature_dict(batch: LigandBatch, torch_module: Any) -> dict[str, A
     "chain_labels": torch_module.from_numpy(batch.chain_index),
     "randn": torch_module.from_numpy(batch.randn),
     "batch_size": int(batch.x.shape[0]),
-    "symmetry_residues": [[]],
-    "symmetry_weights": [[]],
+    "symmetry_residues": resolved_symmetry_residues,
+    "symmetry_weights": resolved_symmetry_weights,
     "Y": torch_module.from_numpy(batch.y),
     "Y_t": torch_module.from_numpy(batch.y_t),
     "Y_m": torch_module.from_numpy(batch.y_m),
@@ -335,3 +429,165 @@ def test_ligand_autoregressive_reference_alignment(
   assert np.array_equal(sampled_tokens_jax, forced_tokens)
   assert np.array_equal(sampled_seq_pt, sampled_tokens_jax)
   assert _pearson_correlation(sampled_log_probs_pt, sampled_log_probs_jax) > 0.9
+
+
+@pytest.mark.parity_audit
+def test_ligand_tied_sampling_weighted_sum_product_alignment(
+  ligand_models: tuple[Any, PrxteinLigandMPNN],
+  ligand_batch: LigandBatch,
+) -> None:
+  """Validate ligand tied sampling lane parity for weighted-sum vs product mapping."""
+  import torch
+
+  pt_model, jax_model = ligand_models
+  tie_groups = [[0, 1, 2], [6, 7]]
+  tie_weights = [[1.0, 1.0, 1.0], [1.0, 1.0]]
+  tie_group_map = _build_tie_group_map(ligand_batch.x.shape[1], tie_groups)
+  feature_dict = _to_torch_feature_dict(
+    ligand_batch,
+    torch,
+    symmetry_residues=tie_groups,
+    symmetry_weights=tie_weights,
+  )
+  ar_mask = _build_ar_mask(ligand_batch.randn[0])
+
+  forced_tokens = np.arange(ligand_batch.x.shape[1], dtype=np.int64) % 20
+  forced_tokens[tie_groups[0]] = 3
+  forced_tokens[tie_groups[1]] = 11
+  bias = np.zeros((1, ligand_batch.x.shape[1], 21), dtype=np.float32)
+  bias[0, np.arange(ligand_batch.x.shape[1]), forced_tokens] = 50.0
+
+  feature_dict["bias"] = torch.from_numpy(bias)
+  feature_dict["temperature"] = 1.0
+  feature_dict["chain_mask"] = torch.ones_like(feature_dict["chain_mask"])
+  torch.manual_seed(0)
+  with torch.no_grad():
+    sampled_pt = pt_model.sample(feature_dict)
+
+  sampled_seq_jax, logits_jax = jax_model(
+    jnp.array(ligand_batch.x[0]),
+    jnp.array(ligand_batch.mask[0]),
+    jnp.array(ligand_batch.residue_index[0]),
+    jnp.array(ligand_batch.chain_index[0]),
+    jnp.array(ligand_batch.y[0]),
+    jnp.array(ligand_batch.y_t[0]),
+    jnp.array(ligand_batch.y_m[0]),
+    "autoregressive",
+    prng_key=jax.random.PRNGKey(43),
+    ar_mask=jnp.array(ar_mask),
+    temperature=1.0,
+    bias=jnp.array(bias[0]),
+    tie_group_map=jnp.array(tie_group_map),
+    multi_state_strategy="product",
+    inference=True,
+  )
+
+  sampled_tokens_pt = sampled_pt["S"].numpy()[0]
+  sampled_tokens_jax = np.asarray(sampled_seq_jax).argmax(axis=-1)
+  sampled_log_probs_pt = _combine_reference_tied_log_probs(
+    sampled_pt["log_probs"].numpy()[0],
+    tie_groups=tie_groups,
+    tie_weights=tie_weights,
+  )
+  sampled_log_probs_jax = np.asarray(jax.nn.log_softmax(logits_jax, axis=-1))
+
+  tokens_match = np.array_equal(sampled_tokens_pt, sampled_tokens_jax)
+  _enforce_ligand_tied_rollout(
+    tokens_match,
+    lane_condition=_LIGAND_TIED_SAMPLING_LANE,
+    requirement="sampled tokens diverged between reference and JAX",
+  )
+
+  correlation = _pearson_correlation(sampled_log_probs_pt, sampled_log_probs_jax)
+  _enforce_ligand_tied_rollout(
+    correlation > 0.6,
+    lane_condition=_LIGAND_TIED_SAMPLING_LANE,
+    requirement=f"pearson correlation {correlation:.6f} was below 0.6",
+  )
+
+  for group in tie_groups:
+    reference_group_consistent = bool(np.all(sampled_tokens_pt[group] == sampled_tokens_pt[group[0]]))
+    jax_group_consistent = bool(np.all(sampled_tokens_jax[group] == sampled_tokens_jax[group[0]]))
+    _enforce_ligand_tied_rollout(
+      reference_group_consistent,
+      lane_condition=_LIGAND_TIED_SAMPLING_LANE,
+      requirement=f"reference tie group {group} broke tied-position invariants",
+    )
+    _enforce_ligand_tied_rollout(
+      jax_group_consistent,
+      lane_condition=_LIGAND_TIED_SAMPLING_LANE,
+      requirement=f"JAX tie group {group} broke tied-position invariants",
+    )
+
+
+@pytest.mark.parity_audit
+def test_ligand_tied_scoring_arithmetic_mean_alignment(
+  ligand_models: tuple[Any, PrxteinLigandMPNN],
+  ligand_batch: LigandBatch,
+) -> None:
+  """Validate ligand tied scoring lane parity for arithmetic-mean mapping."""
+  import torch
+
+  pt_model, jax_model = ligand_models
+  tie_groups = [[0, 1, 2], [6, 7]]
+  tie_weights = [[1.0, 1.0, 1.0], [1.0, 1.0]]
+  tie_group_map = _build_tie_group_map(ligand_batch.x.shape[1], tie_groups)
+  feature_dict = _to_torch_feature_dict(
+    ligand_batch,
+    torch,
+    symmetry_residues=tie_groups,
+    symmetry_weights=tie_weights,
+  )
+  ar_mask = _build_ar_mask(ligand_batch.randn[0])
+
+  with torch.no_grad():
+    scored_pt = pt_model.score(feature_dict, use_sequence=True)
+
+  combined_logits_pt = _combine_reference_tied_logits(
+    scored_pt["logits"].numpy()[0],
+    tie_groups=tie_groups,
+    tie_weights=tie_weights,
+    combiner="arithmetic_mean",
+  )
+  scored_log_probs_pt = _row_log_softmax(combined_logits_pt)
+  scored_tokens_pt = np.asarray(np.argmax(scored_log_probs_pt, axis=-1), dtype=np.int32)
+
+  _, logits_jax = jax_model(
+    jnp.array(ligand_batch.x[0]),
+    jnp.array(ligand_batch.mask[0]),
+    jnp.array(ligand_batch.residue_index[0]),
+    jnp.array(ligand_batch.chain_index[0]),
+    jnp.array(ligand_batch.y[0]),
+    jnp.array(ligand_batch.y_t[0]),
+    jnp.array(ligand_batch.y_m[0]),
+    "conditional",
+    prng_key=jax.random.PRNGKey(47),
+    ar_mask=jnp.array(ar_mask),
+    one_hot_sequence=jax.nn.one_hot(jnp.array(ligand_batch.s[0]), 21),
+    tie_group_map=jnp.array(tie_group_map),
+    multi_state_strategy="arithmetic_mean",
+    inference=True,
+  )
+  scored_log_probs_jax = np.asarray(jax.nn.log_softmax(logits_jax, axis=-1))
+  scored_tokens_jax = np.asarray(np.argmax(scored_log_probs_jax, axis=-1), dtype=np.int32)
+
+  scoring_correlation = _pearson_correlation(scored_log_probs_pt, scored_log_probs_jax)
+  _enforce_ligand_tied_rollout(
+    scoring_correlation > 0.9,
+    lane_condition=_LIGAND_TIED_SCORING_LANE,
+    requirement=f"pearson correlation {scoring_correlation:.6f} was below 0.9",
+  )
+
+  for group in tie_groups:
+    reference_group_consistent = bool(np.all(scored_tokens_pt[group] == scored_tokens_pt[group[0]]))
+    jax_group_consistent = bool(np.all(scored_tokens_jax[group] == scored_tokens_jax[group[0]]))
+    _enforce_ligand_tied_rollout(
+      reference_group_consistent,
+      lane_condition=_LIGAND_TIED_SCORING_LANE,
+      requirement=f"reference tie group {group} broke tied-position invariants",
+    )
+    _enforce_ligand_tied_rollout(
+      jax_group_consistent,
+      lane_condition=_LIGAND_TIED_SCORING_LANE,
+      requirement=f"JAX tie group {group} broke tied-position invariants",
+    )

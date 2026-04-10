@@ -134,6 +134,9 @@ class RunSpecification:
   # Tied-position logit averaging fields
   tied_positions: Sequence[tuple[int, int]] | Literal["auto", "direct"] | None = None
   pass_mode: Literal["inter", "intra"] = "intra"  # noqa: S105
+  tie_group_map: ArrayLike | None = None
+  structure_mapping: ArrayLike | None = None
+  multi_state_temperature: float = 1.0
 
   def __post_init__(self) -> None:
     """Post-initialization processing and validation for tied-position logit averaging."""
@@ -187,6 +190,7 @@ class ScoringSpecification(RunSpecification):
   average_node_features: bool = False
   average_encoding_mode: Literal["inputs", "noise_levels", "inputs_and_noise"] = "inputs_and_noise"
   noise_batch_size: int = 4
+  multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean"
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""

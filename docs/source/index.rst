@@ -24,12 +24,13 @@ Key Features
 * **JAX Compatibility:** Efficient computation with JAX's functional programming paradigm
 * **Modular Design:** Easy updates and extensions
 * **Performance Optimization:** Utilizes JAX's JIT compilation and vectorization
-* **Validated Implementation:** >0.95 correlation with ColabDesign across all decoding paths
+* **Validated Implementation:** >0.95 correlation with LigandMPNN reference across decoding paths
 
 Validation
 ----------
 
-PrxteinMPNN has been rigorously validated against the original `ColabDesign ProteinMPNN <https://github.com/sokrypton/ColabDesign>`_ implementation:
+PrxteinMPNN has been rigorously validated against the upstream
+`LigandMPNN <https://github.com/dauparas/LigandMPNN>`_ reference implementation:
 
 .. list-table:: Equivalence Test Results
    :widths: 40 30 30
@@ -48,9 +49,18 @@ PrxteinMPNN has been rigorously validated against the original `ColabDesign Prot
      - 0.953-0.970
      - ✅ Validated
 
-All three decoding paths achieve **>0.95 Pearson correlation** with ColabDesign outputs, ensuring faithful reproduction of the original model's behavior.
+All three decoding paths achieve **>0.95 Pearson correlation** with reference outputs, ensuring
+faithful reproduction of the original model's behavior.
 
-For detailed validation results and testing procedures, see `FINAL_VALIDATION_RESULTS.md <https://github.com/maraxen/PrxteinMPNN/blob/main/docs/FINAL_VALIDATION_RESULTS.md>`_.
+Canonical parity/equivalence reports (aligned with README):
+
+* `docs/FINAL_VALIDATION_RESULTS.md <https://github.com/maraxen/PrxteinMPNN/blob/main/docs/FINAL_VALIDATION_RESULTS.md>`_
+* `docs/parity/parity_report.md <https://github.com/maraxen/PrxteinMPNN/blob/main/docs/parity/parity_report.md>`_
+
+Rendered parity artifacts are also available as
+`docs/parity/parity_report.html <https://github.com/maraxen/PrxteinMPNN/blob/main/docs/parity/parity_report.html>`_
+and
+`docs/parity/parity_report.pdf <https://github.com/maraxen/PrxteinMPNN/blob/main/docs/parity/parity_report.pdf>`_.
 
 Installation
 ------------

@@ -20,7 +20,8 @@ PrxteinMPNN provides a **functional interface for ProteinMPNN**, leveraging the 
 
 ## ✅ Validation
 
-PrxteinMPNN has been **rigorously validated** against the original [ColabDesign ProteinMPNN](https://github.com/sokrypton/ColabDesign) implementation:
+PrxteinMPNN is validated against the upstream [LigandMPNN](https://github.com/dauparas/LigandMPNN)
+reference implementation (including ProteinMPNN behavior):
 
 | Decoding Path | Correlation | Status |
 |---------------|-------------|---------|
@@ -28,19 +29,73 @@ PrxteinMPNN has been **rigorously validated** against the original [ColabDesign 
 | **Conditional** | 0.958-0.984 | ✅ **Validated** |
 | **Autoregressive** | 0.953-0.970 | ✅ **Validated** |
 
-All three decoding paths achieve **>0.95 Pearson correlation** with ColabDesign outputs, ensuring faithful reproduction of the original model's behavior.
+All three decoding paths achieve **>0.95 Pearson correlation** with reference outputs, ensuring
+faithful reproduction of the original model's behavior.
 
-**[View Full Validation Report →](docs/FINAL_VALIDATION_RESULTS.md)**
+**Canonical parity/equivalence docs (source of truth):**
+- [Final validation summary (Markdown)](docs/FINAL_VALIDATION_RESULTS.md)
+- [Parity report (Markdown)](docs/parity/parity_report.md)
+- [Parity report (HTML)](docs/parity/parity_report.html)
+- [Parity report (PDF)](docs/parity/parity_report.pdf)
+
+Legacy root-level parity stubs are non-canonical; use the links above.
 
 ### Running Equivalence Tests
 
 ```bash
-# Install ColabDesign for validation tests
-pip install git+https://github.com/sokrypton/ColabDesign.git@e31a56f
+# Install project dependencies (CPU/dev/tests path)
+uv sync --extra cpu --extra dev --extra tests --group dev
+source .venv/bin/activate
 
-# Run equivalence tests
-uv run pytest tests/model/test_colabdesign_equivalence.py -v
+# Checkout reference implementation (pinned commit used in CI)
+git clone https://github.com/dauparas/LigandMPNN.git reference_ligandmpnn_clone
+cd reference_ligandmpnn_clone && git checkout 3870631 && cd ..
+
+# Optional strict preflight per parity tier
+REFERENCE_PATH=./reference_ligandmpnn_clone \
+  uv run python scripts/check_parity_prereqs.py --reference-path "$REFERENCE_PATH" --project-root . --tier parity_heavy
+REFERENCE_PATH=./reference_ligandmpnn_clone \
+  uv run python scripts/check_parity_prereqs.py --reference-path "$REFERENCE_PATH" --project-root . --tier parity_audit
+
+# Validate parity asset cache/checksums
+uv run python scripts/check_parity_assets.py --tier parity_fast
+REFERENCE_PATH=./reference_ligandmpnn_clone \
+  uv run python scripts/check_parity_assets.py --tier parity_heavy
+REFERENCE_PATH=./reference_ligandmpnn_clone \
+  uv run python scripts/check_parity_assets.py --tier parity_audit
+
+# Run fast deterministic parity checks
+uv run pytest tests/parity -m parity_fast -v
+
+# Run reference-backed heavy parity checks
+REFERENCE_PATH=./reference_ligandmpnn_clone \
+  uv run pytest tests/parity tests/model/test_ligandmpnn_equivalence.py -m parity_heavy -v
+
+# Convert full checkpoint families and run parity_audit checks
+REFERENCE_PATH=./reference_ligandmpnn_clone \
+  uv run python scripts/convert_parity_family_weights.py \
+    --project-root . \
+    --reference-path "$REFERENCE_PATH" \
+    --tier parity_audit \
+    --skip-existing
+REFERENCE_PATH=./reference_ligandmpnn_clone \
+  uv run pytest tests/parity -m parity_audit -v
+
+# Collect expanded parity evidence (multi-backbone + synthetic random cases)
+REFERENCE_PATH=./reference_ligandmpnn_clone \
+  uv run python scripts/collect_parity_evidence.py \
+    --project-root . \
+    --case-corpus tests/parity/parity_case_corpus.json \
+    --output-dir docs/parity/reports/evidence
+
+# Render Markdown/HTML report and export PDF with embedded plots/tables
+uv run python scripts/generate_parity_report.py --project-root . --output-dir docs/parity --pdf
 ```
+
+CI tier routing:
+- pull_request/main CI excludes `parity_heavy` and `parity_audit` from the default pytest matrix.
+- `parity.yml` runs heavy reference-backed checks on `main` push and manual dispatch.
+- `parity-audit.yml` runs full-family audit checks on weekly schedule and manual dispatch.
 
 ## 🚀 Quick Start
 

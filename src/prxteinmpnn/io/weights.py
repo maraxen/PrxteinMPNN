@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 import equinox as eqx
@@ -9,7 +11,7 @@ import jax
 import jax.nn.initializers as init
 from huggingface_hub import hf_hub_download
 
-from prxteinmpnn.model import PrxteinMPNN
+from prxteinmpnn.model import PrxteinLigandMPNN, PrxteinMPNN
 
 if TYPE_CHECKING:
   from jaxtyping import PyTree
@@ -33,6 +35,47 @@ NUM_DECODER_LAYERS = 3
 K_NEIGHBORS = 48
 VOCAB_SIZE = 21
 NUM_POSITIONAL_EMBEDDINGS = 32  # HuggingFace weights use 32 (input dim 66 = 2*32+2)
+LIGAND_DEFAULT_CHECKPOINT = "ligandmpnn_v_32_020_25"
+LIGAND_POSITIONAL_EMBEDDING_CANDIDATES = (32, 16)
+
+
+def _infer_ligand_k_neighbors(checkpoint_id: str) -> int:
+  if "_v_48_" in checkpoint_id:
+    return 48
+  if "_v_32_" in checkpoint_id:
+    return 32
+  return 32
+
+
+def _infer_ligand_sidechain_context(
+  checkpoint_id: str,
+  override: bool | None,
+) -> bool:
+  if override is not None:
+    return override
+  return "_sc_" in checkpoint_id or "sidechain" in checkpoint_id
+
+
+def _load_eqx_with_positional_fallback(
+  *,
+  weights_file_path: str,
+  build_skeleton: Callable[[int], eqx.Module],
+):
+  errors: list[str] = []
+  for num_positional_embeddings in LIGAND_POSITIONAL_EMBEDDING_CANDIDATES:
+    try:
+      skeleton = build_skeleton(num_positional_embeddings)
+      return eqx.tree_deserialise_leaves(weights_file_path, skeleton)
+    except RuntimeError as exc:
+      errors.append(
+        f"num_positional_embeddings={num_positional_embeddings}: {exc}",
+      )
+  msg = (
+    f"Could not deserialize ligand checkpoint '{weights_file_path}' using any "
+    f"positional embedding candidates {LIGAND_POSITIONAL_EMBEDDING_CANDIDATES}. "
+    f"Errors: {' | '.join(errors)}"
+  )
+  raise RuntimeError(msg)
 
 
 def load_weights(
@@ -163,6 +206,7 @@ def load_model(
       node_features=NODE_FEATURES,
       edge_features=EDGE_FEATURES,
       hidden_features=HIDDEN_FEATURES,
+      num_positional_embeddings=NUM_POSITIONAL_EMBEDDINGS,
       physics_feature_dim=physics_feature_dim if physics_feature_dim > 0 else None,
       num_encoder_layers=NUM_ENCODER_LAYERS,
       num_decoder_layers=NUM_DECODER_LAYERS,
@@ -178,6 +222,7 @@ def load_model(
         node_features=NODE_FEATURES,
         edge_features=EDGE_FEATURES,
         hidden_features=HIDDEN_FEATURES,
+        num_positional_embeddings=NUM_POSITIONAL_EMBEDDINGS,
         physics_feature_dim=physics_feature_dim if physics_feature_dim > 0 else None,
         num_encoder_layers=NUM_ENCODER_LAYERS,
         num_decoder_layers=NUM_DECODER_LAYERS,
@@ -216,6 +261,7 @@ def load_model(
       node_features=NODE_FEATURES,
       edge_features=EDGE_FEATURES,
       hidden_features=HIDDEN_FEATURES,
+      num_positional_embeddings=NUM_POSITIONAL_EMBEDDINGS,
       physics_feature_dim=physics_feature_dim if physics_feature_dim > 0 else None,
       num_encoder_layers=NUM_ENCODER_LAYERS,
       num_decoder_layers=NUM_DECODER_LAYERS,
@@ -234,5 +280,71 @@ def load_model(
 
   if not isinstance(loaded, PrxteinMPNN):
     msg = f"Expected PrxteinMPNN, got {type(loaded)}"
+    raise TypeError(msg)
+  return loaded
+
+
+def load_ligand_model(
+  checkpoint_id: str = LIGAND_DEFAULT_CHECKPOINT,
+  local_path: str | Path | None = None,
+  key: jax.Array | None = None,
+  *,
+  ligand_mpnn_use_side_chain_context: bool | None = None,
+  dropout_rate: float = 0.1,
+) -> PrxteinLigandMPNN:
+  """Load a PrxteinLigandMPNN sequence model checkpoint.
+
+  Notes:
+      - This loader is for sequence sampling LigandMPNN checkpoints.
+      - Packer checkpoints (e.g. ``ligandmpnn_sc_*`` from parity manifests)
+        are not supported by this API.
+  """
+  if checkpoint_id.startswith("ligandmpnn_sc_"):
+    msg = (
+      "Checkpoint family 'ligandmpnn_sc_*' is a Packer-family checkpoint, "
+      "not a LigandMPNN sequence-sampling model."
+    )
+    raise ValueError(msg)
+
+  if key is None:
+    key = jax.random.PRNGKey(0)
+
+  if local_path is not None:
+    weights_file_path = str(local_path)
+  else:
+    filename = checkpoint_id if checkpoint_id.endswith(".eqx") else f"{checkpoint_id}.eqx"
+    weights_file_path = hf_hub_download(
+      repo_id=HF_REPO_ID,
+      filename=f"eqx/{filename}",
+      repo_type="model",
+    )
+
+  k_neighbors = _infer_ligand_k_neighbors(checkpoint_id)
+  use_side_chain_context = _infer_ligand_sidechain_context(
+    checkpoint_id,
+    ligand_mpnn_use_side_chain_context,
+  )
+
+  def build_skeleton(num_positional_embeddings: int) -> PrxteinLigandMPNN:
+    return PrxteinLigandMPNN(
+      node_features=NODE_FEATURES,
+      edge_features=EDGE_FEATURES,
+      hidden_features=HIDDEN_FEATURES,
+      num_encoder_layers=NUM_ENCODER_LAYERS,
+      num_decoder_layers=NUM_DECODER_LAYERS,
+      vocab_size=VOCAB_SIZE,
+      k_neighbors=k_neighbors,
+      num_positional_embeddings=num_positional_embeddings,
+      ligand_mpnn_use_side_chain_context=use_side_chain_context,
+      dropout_rate=dropout_rate,
+      key=key,
+    )
+
+  loaded = _load_eqx_with_positional_fallback(
+    weights_file_path=weights_file_path,
+    build_skeleton=build_skeleton,
+  )
+  if not isinstance(loaded, PrxteinLigandMPNN):
+    msg = f"Expected PrxteinLigandMPNN, got {type(loaded)}"
     raise TypeError(msg)
   return loaded

@@ -1,5 +1,6 @@
 """Contains the logic for averaging node features over multiple structures and/or noise levels."""
 
+import inspect
 from collections.abc import Callable, Sequence
 from functools import partial
 from typing import Literal, cast
@@ -54,6 +55,7 @@ def get_averaged_encodings(
 
   """
   encode_fn, _, _ = make_encoding_sampling_split_fn(model)
+  supports_structure_mapping = "structure_mapping" in inspect.signature(encode_fn).parameters
 
   noise_array = (
     jnp.asarray(backbone_noise, dtype=jnp.float32) if backbone_noise is not None else jnp.zeros(1)
@@ -70,6 +72,16 @@ def get_averaged_encodings(
     _encoder: Callable = encode_fn,
   ) -> tuple:
     """Encode one structure at one noise level."""
+    if supports_structure_mapping:
+      return _encoder(
+        key,
+        coords,
+        mask,
+        residue_ix,
+        chain_ix,
+        backbone_noise=noise,
+        structure_mapping=mapping,
+      )
     return _encoder(
       key,
       coords,
@@ -77,7 +89,6 @@ def get_averaged_encodings(
       residue_ix,
       chain_ix,
       backbone_noise=noise,
-      structure_mapping=mapping,
     )
 
   def mapped_encode_noise(

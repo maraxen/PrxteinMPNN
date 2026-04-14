@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, cast
 import h5py
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from prxteinmpnn.run.averaging import get_averaged_encodings
 from prxteinmpnn.scoring.score import make_score_fn, score_sequence_with_encoding
@@ -345,13 +346,7 @@ def _score_streaming(
       chunks=True,
       dtype="f4",
     )
-    logits_ds = f.create_dataset(
-      "logits",
-      (0, 0, 0),
-      maxshape=(None, None, None),
-      chunks=True,
-      dtype="f4",
-    )
+    logits_ds: h5py.Dataset | None = None
 
     for batched_ensemble in protein_iterator:
       tie_group_map = None
@@ -434,10 +429,29 @@ def _score_streaming(
       scores_ds.resize(scores_ds.shape[0] + scores.size, axis=0)
       scores_ds[-scores.size :] = scores.flatten()
 
-      logits_ds.resize(logits_ds.shape[0] + logits.shape[0], axis=0)
-      logits_ds[-logits.shape[0] :, :, :] = logits
+      logits_np = np.asarray(logits, dtype=np.float32)
+      if logits_ds is None:
+        logits_ds = f.create_dataset(
+          "logits",
+          (0, *logits_np.shape[1:]),
+          maxshape=(None, *logits_np.shape[1:]),
+          chunks=True,
+          dtype="f4",
+        )
+      elif tuple(logits_ds.shape[1:]) != tuple(logits_np.shape[1:]):
+        msg = (
+          "Inconsistent logits shape across scoring batches: "
+          f"expected trailing shape {tuple(logits_ds.shape[1:])}, "
+          f"got {tuple(logits_np.shape[1:])}."
+        )
+        raise ValueError(msg)
+      logits_ds.resize(logits_ds.shape[0] + logits_np.shape[0], axis=0)
+      logits_ds[-logits_np.shape[0] :, ...] = logits_np
 
       f.flush()
+
+    if logits_ds is None:
+      f.create_dataset("logits", (0,), maxshape=(None,), chunks=True, dtype="f4")
 
   return {
     "output_h5_path": str(spec.output_h5_path),

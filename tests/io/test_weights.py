@@ -5,7 +5,9 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.io.weights import load_weights
+from prxteinmpnn.io import weights as weights_mod
+from prxteinmpnn.io.weights import load_ligand_model, load_weights
+from prxteinmpnn.model import PrxteinLigandMPNN
 
 
 def test_load_weights_with_none_initializes_glorot_normal():
@@ -149,3 +151,34 @@ def test_load_weights_preserves_structure():
   # Check arrays were initialized
   assert not jnp.allclose(initialized.inner.weight, jnp.zeros_like(initialized.inner.weight))
   assert not jnp.allclose(initialized.bias, jnp.zeros_like(initialized.bias))
+
+
+def test_load_ligand_model_rejects_packer_checkpoint_family():
+  """Packer-family checkpoint IDs should be rejected by sequence LigandMPNN loader."""
+  with pytest.raises(ValueError, match="Packer-family checkpoint"):
+    load_ligand_model(
+      checkpoint_id="ligandmpnn_sc_v_32_002_16",
+      local_path="/tmp/does_not_matter.eqx",
+    )
+
+
+def test_load_ligand_model_uses_local_path(monkeypatch):
+  """Loader should bypass hub download when local_path is provided."""
+  observed: dict[str, str] = {}
+
+  def fake_deserialize(*, weights_file_path, build_skeleton):
+    observed["weights_file_path"] = weights_file_path
+    return build_skeleton(32)
+
+  monkeypatch.setattr(weights_mod, "_load_eqx_with_positional_fallback", fake_deserialize)
+
+  model = load_ligand_model(
+    checkpoint_id="ligandmpnn_v_48_020_25",
+    local_path="/tmp/ligand.eqx",
+    ligand_mpnn_use_side_chain_context=True,
+  )
+
+  assert isinstance(model, PrxteinLigandMPNN)
+  assert observed["weights_file_path"] == "/tmp/ligand.eqx"
+  assert model.features.k_neighbors == 48
+  assert model.features.use_side_chains is True

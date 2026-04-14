@@ -74,6 +74,11 @@ class RunSpecification:
   topology: str | Path | None = None
   model_weights: ModelWeights = "original"
   model_version: ModelVersion = "v_48_020"
+  model_family: Literal["proteinmpnn", "ligandmpnn"] = "proteinmpnn"
+  checkpoint_id: str | None = None
+  model_local_path: str | Path | None = None
+  checkpoint_registry_path: str | Path | None = None
+  ligand_mpnn_use_side_chain_context: bool | None = None
   batch_size: int = 32
   backbone_noise: Sequence[float] | float = (0.0,)
   backbone_noise_mode: Literal["direct", "thermal"] = "direct"
@@ -153,6 +158,10 @@ class RunSpecification:
       object.__setattr__(self, "use_vdw", True)
     if self.cache_path and isinstance(self.cache_path, str):
       object.__setattr__(self, "cache_path", Path(self.cache_path))
+    if self.model_local_path and isinstance(self.model_local_path, str):
+      object.__setattr__(self, "model_local_path", Path(self.model_local_path))
+    if self.checkpoint_registry_path and isinstance(self.checkpoint_registry_path, str):
+      object.__setattr__(self, "checkpoint_registry_path", Path(self.checkpoint_registry_path))
     # Validation for tied_positions and pass_mode
     if self.tied_positions in ("auto", "direct") and self.pass_mode != "inter":  # noqa: S105
       msg = (
@@ -214,10 +223,14 @@ class SamplingSpecification(RunSpecification):
   temperature: Sequence[float] | float = 0.1
   bias: ArrayLike | None = None
   fixed_positions: ArrayLike | None = None
+  fixed_mask: ArrayLike | None = None
+  fixed_tokens: ArrayLike | None = None
   iterations: int | None = None
   learning_rate: float | None = None
   output_h5_path: str | Path | None = None
+  return_logits: bool = True
   samples_batch_size: int = 16
+  samples_chunk_size: int | None = None
   noise_batch_size: int = 1
   temperature_batch_size: int = 1
   average_node_features: bool = False
@@ -225,6 +238,18 @@ class SamplingSpecification(RunSpecification):
   average_logits: None | Literal["structures", "noise", "both"] = None
   multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean"
   compute_pseudo_perplexity: bool = False
+  state_weights: ArrayLike | None = None
+  ligand_conditioning: bool = False
+  sidechain_conditioning: bool = False
+  campaign_mode: bool = False
+  allow_logits_in_campaign: bool = False
+  logits_memory_budget_mb: int | None = None
+  ligand_context_path: str | Path | None = None
+  grid_mode: bool = False
+  job_id: str | None = None
+  chunk_id: int | None = None
+  sample_start: int | None = None
+  sample_count: int | None = None
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""
@@ -236,8 +261,62 @@ class SamplingSpecification(RunSpecification):
     ):
       msg = "For 'straight_through' sampling, 'iterations' and 'learning_rate' must be provided."
       raise ValueError(msg)
+    if self.grid_mode and self.sampling_strategy != "temperature":
+      msg = "Grid mode only supports 'temperature' sampling."
+      raise ValueError(msg)
+    if self.grid_mode and self.average_node_features:
+      msg = "Grid mode does not support average_node_features=True."
+      raise ValueError(msg)
+    if not self.return_logits and self.compute_pseudo_perplexity:
+      msg = "compute_pseudo_perplexity requires return_logits=True."
+      raise ValueError(msg)
+    if self.logits_memory_budget_mb is not None:
+      logits_budget = int(self.logits_memory_budget_mb)
+      if logits_budget <= 0:
+        msg = "logits_memory_budget_mb must be positive when provided."
+        raise ValueError(msg)
+      object.__setattr__(self, "logits_memory_budget_mb", logits_budget)
+    if self.campaign_mode and self.return_logits:
+      if not self.allow_logits_in_campaign:
+        msg = (
+          "campaign_mode requires return_logits=False unless "
+          "allow_logits_in_campaign=True."
+        )
+        raise ValueError(msg)
+      if self.logits_memory_budget_mb is None:
+        msg = (
+          "campaign_mode with return_logits=True requires logits_memory_budget_mb "
+          "to be explicitly set."
+        )
+        raise ValueError(msg)
+    if self.job_id is not None:
+      normalized_job_id = str(self.job_id).strip()
+      if self.grid_mode and not normalized_job_id:
+        msg = "job_id cannot be empty when grid_mode=True."
+        raise ValueError(msg)
+      object.__setattr__(self, "job_id", normalized_job_id or None)
+    if self.chunk_id is not None:
+      chunk_id = int(self.chunk_id)
+      if self.grid_mode and chunk_id < 0:
+        msg = "chunk_id must be non-negative when grid_mode=True."
+        raise ValueError(msg)
+      object.__setattr__(self, "chunk_id", chunk_id)
+    if self.sample_start is not None:
+      sample_start = int(self.sample_start)
+      if self.grid_mode and sample_start < 0:
+        msg = "sample_start must be non-negative when grid_mode=True."
+        raise ValueError(msg)
+      object.__setattr__(self, "sample_start", sample_start)
+    if self.sample_count is not None:
+      sample_count = int(self.sample_count)
+      if self.grid_mode and sample_count <= 0:
+        msg = "sample_count must be positive when grid_mode=True."
+        raise ValueError(msg)
+      object.__setattr__(self, "sample_count", sample_count)
     if self.output_h5_path and isinstance(self.output_h5_path, str):
       object.__setattr__(self, "output_h5_path", Path(self.output_h5_path))
+    if self.ligand_context_path and isinstance(self.ligand_context_path, str):
+      object.__setattr__(self, "ligand_context_path", Path(self.ligand_context_path))
 
 
 @dataclass

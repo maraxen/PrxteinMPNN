@@ -118,7 +118,7 @@ def make_score_fn(
 
   """
 
-  if inference:
+  if inference and isinstance(model, eqx.Module):
     model = eqx.nn.inference_mode(model, value=True)
 
   supports_multi_state_temperature = (

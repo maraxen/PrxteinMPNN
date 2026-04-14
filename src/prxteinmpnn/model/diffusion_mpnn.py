@@ -98,6 +98,7 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
     num_encoder_layers: int,
     num_decoder_layers: int,
     k_neighbors: int,
+    num_positional_embeddings: int = 16,
     physics_feature_dim: int | None = None,
     num_amino_acids: int = 21,
     vocab_size: int = 21,
@@ -113,6 +114,7 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
         num_encoder_layers: Number of encoder layers.
         num_decoder_layers: Number of decoder layers.
         k_neighbors: Number of neighbors for graph construction.
+        num_positional_embeddings: Number of positional embeddings.
         physics_feature_dim: Dimension of additional physics features.
         num_amino_acids: Number of amino acid types.
         vocab_size: Vocabulary size.
@@ -122,15 +124,16 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
     key, t_key = jax.random.split(key)
 
     super().__init__(
-      node_features,
-      edge_features,
-      hidden_features,
-      num_encoder_layers,
-      num_decoder_layers,
-      k_neighbors,
-      physics_feature_dim,
-      num_amino_acids,
-      vocab_size,
+      node_features=node_features,
+      edge_features=edge_features,
+      hidden_features=hidden_features,
+      num_encoder_layers=num_encoder_layers,
+      num_decoder_layers=num_decoder_layers,
+      k_neighbors=k_neighbors,
+      num_positional_embeddings=num_positional_embeddings,
+      physics_feature_dim=physics_feature_dim,
+      num_amino_acids=num_amino_acids,
+      vocab_size=vocab_size,
       key=key,
     )
 

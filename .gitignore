@@ -33,3 +33,9 @@ data/pdb_cache/.worktrees/
 .agent/skills
 data/pdb_cache/*
 .worktrees/uv.lock
+
+# Campaign worker/runtime artifacts
+*.h5.lock
+*.h5.partial.*
+*.h5.done.json
+tests/run/_grid_artifacts/

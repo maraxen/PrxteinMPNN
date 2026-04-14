@@ -231,6 +231,37 @@ def test_make_sample_sequences_straight_through_no_jit(
     chex.assert_tree_all_finite((seq, logits, order))
 
 
+def test_make_sample_sequences_straight_through_rejects_fixed_controls(
+    model_inputs, rng_key,
+):
+    """Straight-through sampling should reject fixed_mask/fixed_tokens inputs."""
+    model = PrxteinMPNN(
+        node_features=128,
+        edge_features=128,
+        hidden_features=128,
+        num_encoder_layers=3,
+        num_decoder_layers=3,
+        k_neighbors=48,
+        key=rng_key,
+    )
+    sample_fn = make_sample_sequences(model, sampling_strategy="straight_through")
+    n_res = model_inputs["mask"].shape[0]
+    fixed_mask = jnp.zeros((n_res,), dtype=jnp.bool_).at[0].set(True)
+    fixed_tokens = jnp.zeros((n_res,), dtype=jnp.int32).at[0].set(5)
+
+    with pytest.raises(ValueError, match="fixed_mask/fixed_tokens"):
+        sample_fn(
+            rng_key,
+            model_inputs["structure_coordinates"],
+            model_inputs["mask"],
+            model_inputs["residue_index"],
+            model_inputs["chain_index"],
+            iterations=10,
+            fixed_mask=fixed_mask,
+            fixed_tokens=fixed_tokens,
+        )
+
+
 def test_sample_convenience_function_jit(
     mock_model_parameters, model_inputs, rng_key,
 ):

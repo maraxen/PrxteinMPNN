@@ -3,13 +3,13 @@
 import inspect
 from collections.abc import Callable
 from functools import partial
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 import jax
 import jax.numpy as jnp
 from jaxtyping import Float, Int, PRNGKeyArray
 
-from prxteinmpnn.model import PrxteinMPNN
+from prxteinmpnn.model import PrxteinLigandMPNN, PrxteinMPNN
 from prxteinmpnn.sampling.ste_optimize import make_optimize_sequence_fn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
@@ -31,7 +31,7 @@ SamplerFn = Callable[..., tuple[ProteinSequence, Logits, DecodingOrder]]
 
 
 def make_sample_sequences(
-  model: PrxteinMPNN,
+  model: PrxteinMPNN | PrxteinLigandMPNN,
   decoding_order_fn: DecodingOrderFn = _DEFAULT_DECODING_ORDER_FN,
   sampling_strategy: Literal["temperature", "straight_through"] = "temperature",
   _num_encoder_layers: int = 3,
@@ -71,9 +71,11 @@ def make_sample_sequences(
     ... )
 
   """
-  supports_multi_state_temperature = (
-    "multi_state_temperature" in inspect.signature(model.__call__).parameters
-  )
+  model_params = inspect.signature(model.__call__).parameters
+  supports_multi_state_temperature = "multi_state_temperature" in model_params
+  supports_state_weights = "state_weights" in model_params
+  supports_fixed_controls = "fixed_mask" in model_params and "fixed_tokens" in model_params
+  is_ligand_mpnn = "Y" in model_params
 
   if sampling_strategy == "straight_through":
     optimize_fn = make_optimize_sequence_fn(model, decoding_order_fn)
@@ -95,6 +97,8 @@ def make_sample_sequences(
       _k_neighbors: int = 48,
       bias: InputBias | None = None,
       fixed_positions: jnp.ndarray | None = None,
+      fixed_mask: jnp.ndarray | None = None,
+      fixed_tokens: jnp.ndarray | None = None,
       backbone_noise: BackboneNoise | None = None,
       iterations: Int | None = None,
       learning_rate: Float | None = None,
@@ -108,6 +112,7 @@ def make_sample_sequences(
       ] = "arithmetic_mean",
       structure_mapping: jax.Array | None = None,
       multi_state_temperature: Float = 1.0,
+      **kwargs: Any,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """Optimize a sequence using straight-through estimation.
 
@@ -132,12 +137,16 @@ def make_sample_sequences(
                   neighbors to avoid information leakage between conformational states.
         multi_state_temperature: Unused in straight_through mode
           (kept for API compatibility).
+        **kwargs: Additional arguments for LigandMPNN (Y, Y_t, Y_m) or weighting.
 
       Returns:
         Tuple of (optimized sequence, final logits, decoding order).
 
       """
       del bias, fixed_positions, _k_neighbors, multi_state_strategy, multi_state_temperature
+      if fixed_mask is not None or fixed_tokens is not None:
+        msg = "fixed_mask/fixed_tokens are only supported with temperature sampling."
+        raise ValueError(msg)
 
       if iterations is None:
         iterations = jnp.array(100, dtype=jnp.int32)
@@ -153,6 +162,8 @@ def make_sample_sequences(
         num_groups,
       )
 
+      # Note: STE optimize might need updates for LigandMPNN extra inputs
+      # For now we'll pass structure_mapping which it supports.
       optimized_sequence, final_logits, _ = optimize_fn(
         prng_key,
         structure_coordinates,
@@ -191,6 +202,8 @@ def make_sample_sequences(
       _k_neighbors: int = 48,
       bias: InputBias | None = None,
       fixed_positions: jnp.ndarray | None = None,
+      fixed_mask: jnp.ndarray | None = None,
+      fixed_tokens: jnp.ndarray | None = None,
       backbone_noise: BackboneNoise | None = None,
       iterations: Int | None = None,
       learning_rate: Float | None = None,
@@ -204,6 +217,7 @@ def make_sample_sequences(
       ] = "arithmetic_mean",
       structure_mapping: jax.Array | None = None,
       multi_state_temperature: Float = 1.0,
+      **kwargs: Any,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """Sample a sequence from a structure using the ProteinMPNN model.
 
@@ -228,6 +242,7 @@ def make_sample_sequences(
                   When provided (multi-state mode), prevents cross-structure
                   neighbors to avoid information leakage between conformational states.
         multi_state_temperature: Temperature for geometric_mean multi-state combining.
+        **kwargs: Additional arguments for LigandMPNN (Y, Y_t, Y_m) or weighting.
 
 
       Returns:
@@ -239,7 +254,9 @@ def make_sample_sequences(
         ... )
 
       """
-      del fixed_positions, iterations, learning_rate, _k_neighbors
+      del iterations, learning_rate, _k_neighbors
+      if fixed_mask is None and fixed_positions is not None:
+        fixed_mask = fixed_positions
 
       if temperature is None:
         temperature = jnp.array(1.0, dtype=jnp.float32)
@@ -254,39 +271,44 @@ def make_sample_sequences(
         decoding_order, None, tie_group_map, num_groups,
       )
 
+      call_kwargs = {
+        "decoding_approach": "autoregressive",
+        "prng_key": prng_key,
+        "ar_mask": autoregressive_mask,
+        "temperature": temperature,
+        "bias": bias,
+        "backbone_noise": backbone_noise,
+        "tie_group_map": tie_group_map,
+        "multi_state_strategy": multi_state_strategy,
+        "structure_mapping": structure_mapping,
+      }
+
       if supports_multi_state_temperature:
-        sampled_sequence, logits = model(
-          structure_coordinates,
-          mask,
-          residue_index,
-          chain_index,
-          decoding_approach="autoregressive",
-          prng_key=prng_key,
-          ar_mask=autoregressive_mask,
-          temperature=temperature,
-          bias=bias,
-          backbone_noise=backbone_noise,
-          tie_group_map=tie_group_map,
-          multi_state_strategy=multi_state_strategy,
-          structure_mapping=structure_mapping,
-          multi_state_temperature=multi_state_temperature,
-        )
-      else:
-        sampled_sequence, logits = model(
-          structure_coordinates,
-          mask,
-          residue_index,
-          chain_index,
-          decoding_approach="autoregressive",
-          prng_key=prng_key,
-          ar_mask=autoregressive_mask,
-          temperature=temperature,
-          bias=bias,
-          backbone_noise=backbone_noise,
-          tie_group_map=tie_group_map,
-          multi_state_strategy=multi_state_strategy,
-          structure_mapping=structure_mapping,
-        )
+        call_kwargs["multi_state_temperature"] = multi_state_temperature
+
+      if supports_state_weights:
+        call_kwargs["state_weights"] = kwargs.get("state_weights")
+        call_kwargs["state_mapping"] = kwargs.get("state_mapping")
+
+      if supports_fixed_controls:
+        call_kwargs["fixed_mask"] = fixed_mask
+        call_kwargs["fixed_tokens"] = fixed_tokens
+
+      if is_ligand_mpnn:
+        call_kwargs["Y"] = kwargs.get("Y")
+        call_kwargs["Y_t"] = kwargs.get("Y_t")
+        call_kwargs["Y_m"] = kwargs.get("Y_m")
+        call_kwargs["xyz_37"] = kwargs.get("xyz_37")
+        call_kwargs["xyz_37_m"] = kwargs.get("xyz_37_m")
+        call_kwargs["chain_mask"] = kwargs.get("chain_mask")
+
+      sampled_sequence, logits = model(
+        structure_coordinates,
+        mask,
+        residue_index,
+        chain_index,
+        **call_kwargs,
+      )
 
       one_hot_ndim = 2
       if sampled_sequence.ndim == one_hot_ndim:

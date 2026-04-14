@@ -8,7 +8,7 @@ from __future__ import annotations
 from .decoder import Decoder, DecoderLayer
 from .encoder import Encoder, EncoderLayer
 from .features import ProteinFeatures
-from .mpnn import PrxteinMPNN
+from .mpnn import PrxteinLigandMPNN, PrxteinMPNN
 
 __all__ = [
   "Decoder",
@@ -16,5 +16,6 @@ __all__ = [
   "Encoder",
   "EncoderLayer",
   "ProteinFeatures",
+  "PrxteinLigandMPNN",
   "PrxteinMPNN",
 ]

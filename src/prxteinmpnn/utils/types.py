@@ -9,7 +9,7 @@ from jaxtyping import Array, Bool, Float, Int, PRNGKeyArray, PyTree
 from optax import GradientTransformation
 
 if TYPE_CHECKING:
-  from prxteinmpnn.model.mpnn import PrxteinMPNN
+  from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
 
 ArrayLike = Union[Array, np.ndarray]
 
@@ -32,7 +32,7 @@ Parameters = Float[ArrayLike, "num_parameters"]  # Model parameters
 ModelParameters = PyTree[str, "P"]
 # Type union for migration: supports both legacy PyTree and new Equinox model
 # Using Union with string annotation to avoid runtime import
-Model = Union["PrxteinMPNN", ModelParameters]
+Model = Union["PrxteinMPNN", "PrxteinLigandMPNN", ModelParameters]
 AlphaCarbonDistance = Float[
   ArrayLike,
   "num_atoms num_atoms",

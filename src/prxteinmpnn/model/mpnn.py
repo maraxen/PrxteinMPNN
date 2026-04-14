@@ -169,6 +169,10 @@ class PrxteinMPNN(eqx.Module):
     _multi_state_strategy_idx: Int,
     _multi_state_temperature: Float,
     _initial_node_features: NodeFeatures | None = None,
+    _state_weights: jnp.ndarray | None = None,
+    _state_mapping: jnp.ndarray | None = None,
+    _fixed_mask: jnp.ndarray | None = None,
+    _fixed_tokens: jnp.ndarray | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the unconditional (scoring) path.
 
@@ -186,6 +190,8 @@ class PrxteinMPNN(eqx.Module):
       _multi_state_strategy_idx: Unused, required for jax.lax.switch signature.
       _multi_state_temperature: Unused, required for jax.lax.switch signature.
       _initial_node_features: Unused.
+      _state_weights: Weights for each structural state.
+      _state_mapping: Mapping of each residue to its state index.
 
     Returns:
       Tuple of (dummy sequence, logits).
@@ -219,6 +225,8 @@ class PrxteinMPNN(eqx.Module):
         _tie_group_map,
         _multi_state_strategy_idx,
         _multi_state_temperature,
+        _state_weights,
+        _state_mapping,
       )
 
     # Return dummy sequence to match PyTree shape
@@ -243,6 +251,10 @@ class PrxteinMPNN(eqx.Module):
     multi_state_strategy_idx: Int,
     multi_state_temperature: Float,
     _initial_node_features: NodeFeatures | None = None,
+    state_weights: jnp.ndarray | None = None,
+    state_mapping: jnp.ndarray | None = None,
+    _fixed_mask: jnp.ndarray | None = None,
+    _fixed_tokens: jnp.ndarray | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the conditional (scoring) path.
 
@@ -260,6 +272,8 @@ class PrxteinMPNN(eqx.Module):
       multi_state_strategy_idx: Strategy index for combining logits.
       multi_state_temperature: Temperature for geometric_mean strategy.
       _initial_node_features: Unused.
+      state_weights: Weights for each structural state.
+      state_mapping: Mapping of each residue to its state index.
 
     Returns:
       Tuple of (input sequence, logits).
@@ -299,6 +313,8 @@ class PrxteinMPNN(eqx.Module):
         tie_group_map,
         multi_state_strategy_idx,
         multi_state_temperature,
+        state_weights,
+        state_mapping,
       )
 
     # Return input sequence to match PyTree shape
@@ -319,6 +335,10 @@ class PrxteinMPNN(eqx.Module):
     multi_state_strategy_idx: Int,
     multi_state_temperature: Float = 1.0,
     _initial_node_features: NodeFeatures | None = None,
+    state_weights: jnp.ndarray | None = None,
+    state_mapping: jnp.ndarray | None = None,
+    fixed_mask: jnp.ndarray | None = None,
+    fixed_tokens: jnp.ndarray | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the autoregressive (sampling) path.
 
@@ -338,6 +358,8 @@ class PrxteinMPNN(eqx.Module):
           (0=arithmetic_mean, 1=geometric_mean, 2=product).
       multi_state_temperature: Temperature for geometric_mean strategy.
       _initial_node_features: Unused.
+      state_weights: Weights for each structural state.
+      state_mapping: Mapping of each residue to its state index.
 
     Returns:
       Tuple of (sampled sequence, logits).
@@ -371,6 +393,10 @@ class PrxteinMPNN(eqx.Module):
       tie_group_map,
       multi_state_strategy_idx,
       multi_state_temperature,
+      state_weights,
+      state_mapping,
+      fixed_mask,
+      fixed_tokens,
     )
     return seq, logits
 
@@ -380,6 +406,8 @@ class PrxteinMPNN(eqx.Module):
     group_mask: GroupMask,
     strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
     temperature: float = 1.0,
+    state_weights: jnp.ndarray | None = None,
+    state_mapping: jnp.ndarray | None = None,
   ) -> Logits:
     """Combine logits across tied positions using different multi-state strategies.
 
@@ -391,6 +419,8 @@ class PrxteinMPNN(eqx.Module):
         - "geometric_mean": Geometric mean of probabilities with temperature scaling
         - "product": Sum of logits (multiply probabilities)
       temperature: Temperature for geometric_mean strategy.
+      state_weights: Weights for each structural state.
+      state_mapping: Mapping of each residue to its state index.
 
     Returns:
       Combined logits of shape (1, 21).
@@ -405,11 +435,11 @@ class PrxteinMPNN(eqx.Module):
 
     """
     if strategy == "arithmetic_mean":
-      return arithmetic_mean_logits(logits, group_mask)
+      return arithmetic_mean_logits(logits, group_mask, state_weights, state_mapping)
     if strategy == "geometric_mean":
-      return geometric_mean_logits(logits, group_mask, temperature)
+      return geometric_mean_logits(logits, group_mask, temperature, state_weights, state_mapping)
     if strategy == "product":
-      return product_of_probabilities_logits(logits, group_mask)
+      return product_of_probabilities_logits(logits, group_mask, state_weights, state_mapping)
     msg = f"Unknown multi-state strategy: {strategy}"
     raise ValueError(msg)
 
@@ -419,6 +449,8 @@ class PrxteinMPNN(eqx.Module):
     tie_group_map: TieGroupMap,
     strategy_idx: Int,
     temperature: float = 1.0,
+    state_weights: jnp.ndarray | None = None,
+    state_mapping: jnp.ndarray | None = None,
   ) -> Logits:
     """Apply multi-state combination strategies across ALL groups in parallel.
 
@@ -427,70 +459,55 @@ class PrxteinMPNN(eqx.Module):
       tie_group_map: Group mapping of shape (N,).
       strategy_idx: Integer strategy index.
       temperature: Temperature for geometric_mean strategy.
+      state_weights: Weights for each structural state.
+      state_mapping: Mapping of each residue to its state index.
 
     Returns:
       Combined logits of shape (N, 21). Each position in a group will contain
       the SAME combined/consensus logit.
     """
-    # 1. Identify unique groups. We assume the largest group ID defines the count.
-    # To keep it JIT-friendly, we don't use jnp.unique with dynamic sizes.
-    # Instead, we'll use a fixed-size approach based on the input size if needed,
-    # but for conditional scoring, we can just use jax.vmap over the mask of each group.
-
-    # Efficient vectorized implementation for all groups:
-    def combine_group(group_id: int) -> jnp.ndarray:
-      group_mask = tie_group_map == group_id
-      combined = PrxteinMPNN._combine_logits_multistate_idx(
-        logits,
-        group_mask,
-        strategy_idx,
-        temperature,
-      )
-      return jnp.squeeze(combined)
-
-    # We need to know how many groups. In multi-state mode, this is usually
-    # N_residues per protein state. We can infer it from the tie_group_map.
-    # For safety in JIT, we'll vmap over the entire N range but only valid groups.
-    # A better way is to see which group each residue belongs to.
-
-    # Let's use a simpler approach:
-    # For each residue i, find its group G = tie_group_map[i].
-    # Then compute the combined logit for group G.
-    # Broadcast that result to residue i.
-
-    # To avoid N^2, we precompute all group logits.
     num_total = tie_group_map.shape[0]
-    # We can't easily get unique groups without dynamic shapes, but we can
-    # use segment_sum style logic for simple strategies.
-    # For arithmetic_mean (LogSumExp), it's more complex.
-
-    # Given the small number of groups (usually < 1000) and replicas (< 100),
-    # a loop or vmap over unique IDs is fine if we can bound it.
-
-    # Actually, let's use a more robust JAX-native approach:
-    # We'll use segment_max and segment_sum.
 
     def apply_arithmetic(l: jnp.ndarray, g: jnp.ndarray) -> jnp.ndarray:
       # Segment-wise LogSumExp
-      # 1. Max per group for stability
+      if state_weights is not None and state_mapping is not None:
+        w = state_weights[state_mapping]
+        log_w = jnp.log(jnp.where(w > 0, w, 1e-9))
+        weighted_l = l + log_w
+
+        max_per_group = jax.ops.segment_max(weighted_l, g, num_segments=num_total)
+        l_shifted = weighted_l - max_per_group[g]
+        exp_l = jnp.exp(l_shifted)
+        sum_exp = jax.ops.segment_sum(exp_l, g, num_segments=num_total)
+        sum_w = jax.ops.segment_sum(w, g, num_segments=num_total)
+        log_avg = jnp.log(sum_exp / jnp.where(sum_w > 0, sum_w, 1.0))
+        return (log_avg + max_per_group)[g]
+
       max_per_group = jax.ops.segment_max(l, g, num_segments=num_total)
       l_shifted = l - max_per_group[g]
       exp_l = jnp.exp(l_shifted)
-      # 2. Sum exp per group
       sum_exp = jax.ops.segment_sum(exp_l, g, num_segments=num_total)
       count = jax.ops.segment_sum(jnp.ones_like(g, dtype=jnp.float32), g, num_segments=num_total)
-      # 3. Log(Sum/Count) + Max
       log_avg = jnp.log(sum_exp / jnp.where(count > 0, count, 1.0))
       return (log_avg + max_per_group)[g]
 
     def apply_geometric(l: jnp.ndarray, g: jnp.ndarray) -> jnp.ndarray:
-      # sum(logits) / (N * T)
+      if state_weights is not None and state_mapping is not None:
+        w = state_weights[state_mapping]
+        sum_wl = jax.ops.segment_sum(l * w, g, num_segments=num_total)
+        sum_w = jax.ops.segment_sum(w, g, num_segments=num_total)
+        avg_l = sum_wl / (jnp.where(sum_w > 0, sum_w, 1.0) * temperature)
+        return avg_l[g]
+
       sum_l = jax.ops.segment_sum(l, g, num_segments=num_total)
       count = jax.ops.segment_sum(jnp.ones_like(g, dtype=jnp.float32), g, num_segments=num_total)
       avg_l = sum_l / (jnp.where(count > 0, count, 1.0) * temperature)
       return avg_l[g]
 
     def apply_product(l: jnp.ndarray, g: jnp.ndarray) -> jnp.ndarray:
+      if state_weights is not None and state_mapping is not None:
+        w = state_weights[state_mapping]
+        return jax.ops.segment_sum(l * w, g, num_segments=num_total)[g]
       return jax.ops.segment_sum(l, g, num_segments=num_total)[g]
 
     def switch_strategy(l, g, idx):
@@ -517,6 +534,8 @@ class PrxteinMPNN(eqx.Module):
     group_mask: GroupMask,
     strategy_idx: Int,
     temperature: float = 1.0,
+    state_weights: jnp.ndarray | None = None,
+    state_mapping: jnp.ndarray | None = None,
   ) -> Logits:
     """Combine logits using strategy index (JAX-traceable version).
 
@@ -529,6 +548,8 @@ class PrxteinMPNN(eqx.Module):
       group_mask: Boolean mask of shape (N,) indicating group membership.
       strategy_idx: Integer strategy index (0=arithmetic_mean, 1=geometric_mean, 2=product).
       temperature: Temperature for geometric_mean strategy.
+      state_weights: Weights for each structural state.
+      state_mapping: Mapping of each residue to its state index.
 
     Returns:
       Combined logits of shape (1, 21).
@@ -536,13 +557,13 @@ class PrxteinMPNN(eqx.Module):
     """
 
     def arithmetic_mean_fn(_: tuple) -> jnp.ndarray:
-      return arithmetic_mean_logits(logits, group_mask)
+      return arithmetic_mean_logits(logits, group_mask, state_weights, state_mapping)
 
     def geometric_mean_fn(_: tuple) -> jnp.ndarray:
-      return geometric_mean_logits(logits, group_mask, temperature)
+      return geometric_mean_logits(logits, group_mask, temperature, state_weights, state_mapping)
 
     def product_fn(_: tuple) -> jnp.ndarray:
-      return product_of_probabilities_logits(logits, group_mask)
+      return product_of_probabilities_logits(logits, group_mask, state_weights, state_mapping)
 
     branches = [arithmetic_mean_fn, geometric_mean_fn, product_fn]
     return jax.lax.switch(strategy_idx, branches, ())
@@ -651,6 +672,10 @@ class PrxteinMPNN(eqx.Module):
     decoding_order: DecodingOrder,
     multi_state_strategy_idx: Int = 0,
     multi_state_temperature: Float = 1.0,
+    state_weights: jnp.ndarray | None = None,
+    state_mapping: jnp.ndarray | None = None,
+    fixed_mask: jnp.ndarray | None = None,
+    fixed_tokens: jnp.ndarray | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run group-based autoregressive scan with logit combining.
 
@@ -669,6 +694,8 @@ class PrxteinMPNN(eqx.Module):
       multi_state_strategy_idx: Integer strategy index
           (0=arithmetic_mean, 1=geometric_mean, 2=product).
       multi_state_temperature: Temperature for geometric_mean strategy.
+      state_weights: Weights for each structural state.
+      state_mapping: Mapping of each residue to its state index.
 
     Returns:
       Tuple of (final sequence, final logits).
@@ -719,6 +746,8 @@ class PrxteinMPNN(eqx.Module):
         group_mask,
         multi_state_strategy_idx,
         multi_state_temperature,
+        state_weights,
+        state_mapping,
       )
       all_logits, s_embed, sequence = self._sample_and_broadcast_to_group(
         combined_logits,
@@ -729,6 +758,10 @@ class PrxteinMPNN(eqx.Module):
         all_logits,
         s_embed,
         sequence,
+        state_weights,
+        state_mapping,
+        fixed_mask,
+        fixed_tokens,
       )
 
       return (all_layers_h, s_embed, all_logits, sequence), None
@@ -770,6 +803,10 @@ class PrxteinMPNN(eqx.Module):
     all_logits: Logits,
     s_embed: NodeFeatures,
     sequence: OneHotProteinSequence,
+    state_weights: jnp.ndarray | None = None,
+    state_mapping: jnp.ndarray | None = None,
+    fixed_mask: jnp.ndarray | None = None,
+    fixed_tokens: jnp.ndarray | None = None,
   ) -> tuple[Logits, NodeFeatures, OneHotProteinSequence]:
     """Sample once and broadcast token to all positions in a group.
 
@@ -782,27 +819,62 @@ class PrxteinMPNN(eqx.Module):
       all_logits: Current logits array (N, 21).
       s_embed: Current sequence embeddings (N, C).
       sequence: Current sequence (N, 21).
+      state_weights: Weights for each structural state.
+      state_mapping: Mapping of each residue to its state index.
 
     Returns:
       Tuple of (updated all_logits, updated s_embed, updated sequence).
 
     """
-    group_bias = jnp.sum(
-      jnp.where(group_mask[:, None], bias, 0.0),
-      axis=0,
-      keepdims=True,
-    ) / jnp.sum(group_mask)
+    if state_weights is not None and state_mapping is not None:
+      w = state_weights[state_mapping]
+      group_bias = jnp.sum(
+        jnp.where(group_mask[:, None], bias * w[:, None], 0.0),
+        axis=0,
+        keepdims=True,
+      ) / jnp.sum(jnp.where(group_mask, w, 0.0))
+    else:
+      group_bias = jnp.sum(
+        jnp.where(group_mask[:, None], bias, 0.0),
+        axis=0,
+        keepdims=True,
+      ) / jnp.sum(group_mask)
+
     logits_with_bias = avg_logits + group_bias
 
-    sampled_logits = (logits_with_bias / temperature) + jax.random.gumbel(
-      key,
-      logits_with_bias.shape,
-      dtype=logits_with_bias.dtype,
+    fixed_mask_array = (
+      jnp.zeros_like(group_mask, dtype=jnp.bool_)
+      if fixed_mask is None
+      else fixed_mask.astype(jnp.bool_)
     )
-    sampled_logits_no_pad = sampled_logits[..., :20]
-    one_hot_sample = straight_through_estimator(sampled_logits_no_pad)
-    padding = jnp.zeros_like(one_hot_sample[..., :1])
-    one_hot_seq = jnp.concatenate([one_hot_sample, padding], axis=-1)
+    fixed_tokens_array = (
+      jnp.zeros_like(group_mask, dtype=jnp.int32)
+      if fixed_tokens is None
+      else fixed_tokens.astype(jnp.int32)
+    )
+    group_fixed_mask = group_mask & fixed_mask_array
+    has_fixed_token = jnp.any(group_fixed_mask)
+
+    def _sample_group(_: None) -> jnp.ndarray:
+      sampled_logits = (logits_with_bias / temperature) + jax.random.gumbel(
+        key,
+        logits_with_bias.shape,
+        dtype=logits_with_bias.dtype,
+      )
+      sampled_logits_no_pad = sampled_logits[..., :20]
+      one_hot_sample = straight_through_estimator(sampled_logits_no_pad)
+      padding = jnp.zeros_like(one_hot_sample[..., :1])
+      return jnp.concatenate([one_hot_sample, padding], axis=-1)
+
+    def _fixed_group(_: None) -> jnp.ndarray:
+      fixed_token = jnp.max(jnp.where(group_fixed_mask, fixed_tokens_array, -1))
+      return jax.nn.one_hot(
+        fixed_token,
+        self.w_s_embed.num_embeddings,
+        dtype=logits_with_bias.dtype,
+      )[None, :]
+
+    one_hot_seq = jax.lax.cond(has_fixed_token, _fixed_group, _sample_group, operand=None)
 
     s_embed_new = one_hot_seq @ self.w_s_embed.weight
     all_logits = jnp.where(group_mask[:, None], jnp.squeeze(avg_logits), all_logits)
@@ -824,6 +896,10 @@ class PrxteinMPNN(eqx.Module):
     tie_group_map: TieGroupMap | None = None,
     multi_state_strategy_idx: Int = 0,
     multi_state_temperature: Float = 1.0,
+    state_weights: jnp.ndarray | None = None,
+    state_mapping: jnp.ndarray | None = None,
+    fixed_mask: jnp.ndarray | None = None,
+    fixed_tokens: jnp.ndarray | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run JAX scan loop for autoregressive sampling with optional tied positions.
 
@@ -850,6 +926,8 @@ class PrxteinMPNN(eqx.Module):
       multi_state_strategy_idx: Integer strategy index
           (0=arithmetic_mean, 1=geometric_mean, 2=product).
       multi_state_temperature: Temperature for geometric_mean strategy.
+      state_weights: Weights for each structural state.
+      state_mapping: Mapping of each residue to its state index.
 
     Returns:
       Tuple of (sampled sequence, final logits).
@@ -873,6 +951,16 @@ class PrxteinMPNN(eqx.Module):
 
     """
     num_residues = node_features.shape[0]
+    fixed_mask_array = (
+      jnp.zeros((num_residues,), dtype=jnp.bool_)
+      if fixed_mask is None
+      else fixed_mask.astype(jnp.bool_)
+    )
+    fixed_tokens_array = (
+      jnp.zeros((num_residues,), dtype=jnp.int32)
+      if fixed_tokens is None
+      else fixed_tokens.astype(jnp.int32)
+    )
 
     attention_mask = jnp.take_along_axis(
       autoregressive_mask,
@@ -962,17 +1050,30 @@ class PrxteinMPNN(eqx.Module):
       )
       logits_with_bias = logits_pos + bias_pos
 
-      sampled_logits = (logits_with_bias / temperature) + jax.random.gumbel(
-        key,
-        logits_with_bias.shape,
-        dtype=logits_with_bias.dtype,
+      def _sample_position(_: None) -> jax.Array:
+        sampled_logits = (logits_with_bias / temperature) + jax.random.gumbel(
+          key,
+          logits_with_bias.shape,
+          dtype=logits_with_bias.dtype,
+        )
+        sampled_logits_no_pad = sampled_logits[..., :20]  # Exclude padding
+        one_hot_sample = straight_through_estimator(sampled_logits_no_pad)
+        padding = jnp.zeros_like(one_hot_sample[..., :1])
+        return jnp.concatenate([one_hot_sample, padding], axis=-1)
+
+      def _fixed_position(_: None) -> jax.Array:
+        return jax.nn.one_hot(
+          fixed_tokens_array[position],
+          self.w_s_embed.num_embeddings,
+          dtype=logits_with_bias.dtype,
+        )[None, :]
+
+      one_hot_seq_pos = jax.lax.cond(
+        fixed_mask_array[position],
+        _fixed_position,
+        _sample_position,
+        operand=None,
       )
-      sampled_logits_no_pad = sampled_logits[..., :20]  # Exclude padding
-
-      one_hot_sample = straight_through_estimator(sampled_logits_no_pad)
-      padding = jnp.zeros_like(one_hot_sample[..., :1])
-
-      one_hot_seq_pos = jnp.concatenate([one_hot_sample, padding], axis=-1)
 
       s_embed_pos = one_hot_seq_pos @ self.w_s_embed.weight
 
@@ -1030,6 +1131,10 @@ class PrxteinMPNN(eqx.Module):
       decoding_order,
       multi_state_strategy_idx,
       multi_state_temperature,
+      state_weights,
+      state_mapping,
+      fixed_mask_array,
+      fixed_tokens_array,
     )
 
   def __call__(
@@ -1045,6 +1150,8 @@ class PrxteinMPNN(eqx.Module):
     one_hot_sequence: OneHotProteinSequence | None = None,
     temperature: Float | None = None,
     bias: Logits | None = None,
+    fixed_mask: jnp.ndarray | None = None,
+    fixed_tokens: jnp.ndarray | None = None,
     backbone_noise: BackboneNoise | None = None,
     tie_group_map: jnp.ndarray | None = None,
     multi_state_strategy: Literal[
@@ -1052,11 +1159,14 @@ class PrxteinMPNN(eqx.Module):
       "geometric_mean",
       "product",
     ] = "arithmetic_mean",
+    multi_state_temperature: Float = 1.0,
     structure_mapping: jnp.ndarray | None = None,
     initial_node_features: jnp.ndarray | None = None,
     rbf_features: jnp.ndarray | None = None,
     neighbor_indices: jnp.ndarray | None = None,
     membrane_per_residue_labels: jnp.ndarray | None = None,
+    state_weights: jnp.ndarray | None = None,
+    state_mapping: jnp.ndarray | None = None,
     inference: bool = True,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Forward pass for the complete model.
@@ -1094,6 +1204,8 @@ class PrxteinMPNN(eqx.Module):
                 is a PhysicsEncoder with use_initial_features=True, these will be
                 used instead of zeros. Typically contains electrostatic features
                 with shape (n_residues, 5).
+      state_weights: Weights for each structural state.
+      state_mapping: Mapping of each residue to its state index.
 
     Returns:
       A tuple of (OneHotProteinSequence, Logits).
@@ -1197,8 +1309,12 @@ class PrxteinMPNN(eqx.Module):
       bias,
       tie_group_map,
       multi_state_strategy_idx,
-      temperature,
+      multi_state_temperature,
       initial_node_features,
+      state_weights,
+      state_mapping,
+      fixed_mask,
+      fixed_tokens,
     )
     return jax.lax.switch(branch_index, branches, *operands)
 
@@ -1327,6 +1443,8 @@ class PrxteinLigandMPNN(eqx.Module):
     one_hot_sequence: OneHotProteinSequence | None = None,
     temperature: float | None = None,
     bias: Logits | None = None,
+    fixed_mask: jnp.ndarray | None = None,
+    fixed_tokens: jnp.ndarray | None = None,
     backbone_noise: float = 0.0,
     inference: bool = True,
     xyz_37: jnp.ndarray | None = None,
@@ -1340,6 +1458,8 @@ class PrxteinLigandMPNN(eqx.Module):
     ] = "arithmetic_mean",
     structure_mapping: jnp.ndarray | None = None,
     multi_state_temperature: float = 1.0,
+    state_weights: jnp.ndarray | None = None,
+    state_mapping: jnp.ndarray | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Forward pass for LigandMPNN sequence scoring or sampling."""
     if prng_key is None:
@@ -1438,6 +1558,8 @@ class PrxteinLigandMPNN(eqx.Module):
           tie_group_map,
           strategy_idx,
           multi_state_temperature,
+          state_weights,
+          state_mapping,
         )
 
       return one_hot_sequence, all_logits
@@ -1466,6 +1588,10 @@ class PrxteinLigandMPNN(eqx.Module):
           dtype=jnp.int32,
         ),
         multi_state_temperature=multi_state_temperature,
+        state_weights=state_weights,
+        state_mapping=state_mapping,
+        fixed_mask=fixed_mask,
+        fixed_tokens=fixed_tokens,
         inference=inference,
       )
 
@@ -1484,10 +1610,24 @@ class PrxteinLigandMPNN(eqx.Module):
     tie_group_map: TieGroupMap | None = None,
     multi_state_strategy_idx: Int = 0,
     multi_state_temperature: Float = 1.0,
+    state_weights: jnp.ndarray | None = None,
+    state_mapping: jnp.ndarray | None = None,
+    fixed_mask: jnp.ndarray | None = None,
+    fixed_tokens: jnp.ndarray | None = None,
     inference: bool = True,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Autoregressive scan for LigandMPNN with optional tied-position decoding."""
     num_residues = node_features.shape[0]
+    fixed_mask_array = (
+      jnp.zeros((num_residues,), dtype=jnp.bool_)
+      if fixed_mask is None
+      else fixed_mask.astype(jnp.bool_)
+    )
+    fixed_tokens_array = (
+      jnp.zeros((num_residues,), dtype=jnp.int32)
+      if fixed_tokens is None
+      else fixed_tokens.astype(jnp.int32)
+    )
 
     # Precompute masks and order
     attention_mask = jnp.take_along_axis(
@@ -1555,22 +1695,47 @@ class PrxteinLigandMPNN(eqx.Module):
       all_logits: jax.Array,
       s_embed: jax.Array,
       sequence: jax.Array,
+      fixed_mask_local: jax.Array,
+      fixed_tokens_local: jax.Array,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
       """Sample one token from group-combined logits and broadcast to all group positions."""
-      group_count = jnp.maximum(jnp.sum(group_mask.astype(jnp.float32)), 1.0)
-      group_bias = jnp.sum(
-        jnp.where(group_mask[:, None], bias, 0.0),
-        axis=0,
-        keepdims=True,
-      ) / group_count
+      if state_weights is not None and state_mapping is not None:
+        w = state_weights[state_mapping]
+        group_bias = jnp.sum(
+          jnp.where(group_mask[:, None], bias * w[:, None], 0.0),
+          axis=0,
+          keepdims=True,
+        ) / jnp.sum(jnp.where(group_mask, w, 0.0))
+      else:
+        group_count = jnp.maximum(jnp.sum(group_mask.astype(jnp.float32)), 1.0)
+        group_bias = jnp.sum(
+          jnp.where(group_mask[:, None], bias, 0.0),
+          axis=0,
+          keepdims=True,
+        ) / group_count
+
       logits_with_bias = avg_logits + group_bias
-      sampled_logits = (logits_with_bias / temperature) + jax.random.gumbel(
-        key,
-        logits_with_bias.shape,
-        dtype=logits_with_bias.dtype,
-      )
-      one_hot_sample = straight_through_estimator(sampled_logits[..., :20])
-      one_hot_seq = jnp.concatenate([one_hot_sample, jnp.zeros_like(one_hot_sample[..., :1])], axis=-1)
+      group_fixed_mask = group_mask & fixed_mask_local
+      has_fixed_token = jnp.any(group_fixed_mask)
+
+      def _sample_group(_: None) -> jax.Array:
+        sampled_logits = (logits_with_bias / temperature) + jax.random.gumbel(
+          key,
+          logits_with_bias.shape,
+          dtype=logits_with_bias.dtype,
+        )
+        one_hot_sample = straight_through_estimator(sampled_logits[..., :20])
+        return jnp.concatenate([one_hot_sample, jnp.zeros_like(one_hot_sample[..., :1])], axis=-1)
+
+      def _fixed_group(_: None) -> jax.Array:
+        fixed_token = jnp.max(jnp.where(group_fixed_mask, fixed_tokens_local, -1))
+        return jax.nn.one_hot(
+          fixed_token,
+          self.w_s_embed.num_embeddings,
+          dtype=logits_with_bias.dtype,
+        )[None, :]
+
+      one_hot_seq = jax.lax.cond(has_fixed_token, _fixed_group, _sample_group, operand=None)
       s_embed_new = one_hot_seq @ self.w_s_embed.weight
       all_logits = jnp.where(group_mask[:, None], jnp.squeeze(avg_logits), all_logits)
       s_embed = jnp.where(group_mask[:, None], jnp.squeeze(s_embed_new), s_embed)
@@ -1596,13 +1761,32 @@ class PrxteinLigandMPNN(eqx.Module):
         all_layers_h, logits_pos = _decode_position(all_layers_h, s_embed, position)
         all_logits = all_logits.at[position].set(logits_pos)
         logits_with_bias = logits_pos + bias[position]
-        sampled_logits = (logits_with_bias / temperature) + jax.random.gumbel(
-          key,
-          logits_with_bias.shape,
-          dtype=logits_with_bias.dtype,
+
+        def _sample_position(_: None) -> jax.Array:
+          sampled_logits = (logits_with_bias / temperature) + jax.random.gumbel(
+            key,
+            logits_with_bias.shape,
+            dtype=logits_with_bias.dtype,
+          )
+          one_hot_sample = straight_through_estimator(sampled_logits[:20])
+          return jnp.concatenate(
+            [one_hot_sample, jnp.zeros(1, dtype=one_hot_sample.dtype)],
+            axis=-1,
+          )
+
+        def _fixed_position(_: None) -> jax.Array:
+          return jax.nn.one_hot(
+            fixed_tokens_array[position],
+            self.w_s_embed.num_embeddings,
+            dtype=logits_with_bias.dtype,
+          )
+
+        one_hot_seq_pos = jax.lax.cond(
+          fixed_mask_array[position],
+          _fixed_position,
+          _sample_position,
+          operand=None,
         )
-        one_hot_sample = straight_through_estimator(sampled_logits[:20])
-        one_hot_seq_pos = jnp.concatenate([one_hot_sample, jnp.zeros(1, dtype=one_hot_sample.dtype)], axis=-1)
         s_embed_pos = one_hot_seq_pos @ self.w_s_embed.weight
         s_embed = s_embed.at[position].set(s_embed_pos)
         sequence = sequence.at[position].set(one_hot_seq_pos)
@@ -1664,6 +1848,8 @@ class PrxteinLigandMPNN(eqx.Module):
           group_mask,
           multi_state_strategy_idx,
           multi_state_temperature,
+          state_weights,
+          state_mapping,
         )
         all_logits_updated, s_embed_updated, sequence_updated = _sample_and_broadcast_to_group(
           combined_logits,
@@ -1672,6 +1858,8 @@ class PrxteinLigandMPNN(eqx.Module):
           all_logits,
           s_embed,
           sequence,
+          fixed_mask_array,
+          fixed_tokens_array,
         )
         return (all_layers_h_updated, s_embed_updated, all_logits_updated, sequence_updated), None
 

@@ -111,6 +111,54 @@ class TestTiedAutoregressiveSampling:
     assert seq.dtype == jnp.int8
     assert jnp.all((seq >= 0) & (seq < 21))
 
+  def test_fixed_tokens_are_respected_without_ties(self, simple_model, simple_structure, rng_key):
+    """Fixed tokens should override stochastic sampling at selected positions."""
+    n_residues = simple_structure["mask"].shape[0]
+    fixed_token = 7
+    fixed_position = 3
+    fixed_mask = jnp.zeros((n_residues,), dtype=jnp.bool_).at[fixed_position].set(True)
+    fixed_tokens = jnp.zeros((n_residues,), dtype=jnp.int32).at[fixed_position].set(fixed_token)
+
+    sample_fn = make_sample_sequences(simple_model, sampling_strategy="temperature")
+    seq, _, _ = sample_fn(
+      rng_key,
+      simple_structure["structure_coordinates"],
+      simple_structure["mask"],
+      simple_structure["residue_index"],
+      simple_structure["chain_index"],
+      temperature=jnp.array(0.8, dtype=jnp.float32),
+      fixed_mask=fixed_mask,
+      fixed_tokens=fixed_tokens,
+    )
+
+    assert int(seq[fixed_position]) == fixed_token
+
+  def test_fixed_tokens_are_respected_for_tied_group(self, simple_model, simple_structure, rng_key):
+    """If any residue in a tie group is fixed, the whole group should use that token."""
+    n_residues = simple_structure["mask"].shape[0]
+    tie_group_map = jnp.arange(n_residues, dtype=jnp.int32).at[1].set(0)
+    num_groups = jnp.unique(tie_group_map).shape[0]
+    fixed_token = 11
+    fixed_mask = jnp.zeros((n_residues,), dtype=jnp.bool_).at[1].set(True)
+    fixed_tokens = jnp.zeros((n_residues,), dtype=jnp.int32).at[1].set(fixed_token)
+
+    sample_fn = make_sample_sequences(simple_model, sampling_strategy="temperature")
+    seq, _, _ = sample_fn(
+      rng_key,
+      simple_structure["structure_coordinates"],
+      simple_structure["mask"],
+      simple_structure["residue_index"],
+      simple_structure["chain_index"],
+      temperature=jnp.array(0.8, dtype=jnp.float32),
+      tie_group_map=tie_group_map,
+      num_groups=num_groups,
+      fixed_mask=fixed_mask,
+      fixed_tokens=fixed_tokens,
+    )
+
+    assert int(seq[0]) == fixed_token
+    assert int(seq[1]) == fixed_token
+
   def test_multiple_tie_groups(self, simple_model, simple_structure, rng_key):
     """Test multiple independent tie groups."""
     n_residues = simple_structure["mask"].shape[0]

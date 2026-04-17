@@ -21,7 +21,7 @@ dependencies = [
     "pcax>=0.1.0",
     "array-record>=0.8.1",
     "equinox>=0.13.2",
-    "huggingface-hub>=1.0.1",
+    "zstandard>=0.21.0",
     "msgpack-numpy>=0.4.8",
     "proxide",
     "prolix",
@@ -160,7 +160,13 @@ dev = [
 ]
 
 [tool.setuptools.package-data]
-include = ["prxteinmpnn/model/original/*.pkl", "prxteinmpnn/model/soluble/*.pkl", "prxteinmpnn/examples/*.ipynb", "prxteinmpnn/examples/*.pdb",]
+include = [
+    "prxteinmpnn/model_params/*.eqx.zst",
+    "prxteinmpnn/model/original/*.pkl",
+    "prxteinmpnn/model/soluble/*.pkl",
+    "prxteinmpnn/examples/*.ipynb",
+    "prxteinmpnn/examples/*.pdb",
+]
 
 [tool.uv]
 # Only resolve for platforms we actually target (including WSL which reports as linux)

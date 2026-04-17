@@ -20,7 +20,6 @@ from pathlib import Path
 
 # Data Configuration
 use_example_data = True
-huggingface_repo_id = "maraxen/pdb-2021aug02"
 
 # Training Mode
 training_mode = "autoregressive"  # Options: "autoregressive", "diffusion"
@@ -122,39 +121,8 @@ def get_data_paths(use_example: bool, hf_repo: str) -> tuple[Path, Path]:
         return p, p.with_suffix(".index.json")
     
     else:
-        # Download from HuggingFace
-        from huggingface_hub import hf_hub_download
-        
-        logger.info(f"Downloading full dataset from HuggingFace: {hf_repo}")
-        logger.info("This may take several minutes...")
-        
-        cache_dir = Path("./hf_cache")
-        cache_dir.mkdir(exist_ok=True)
-        
-        try:
-            record_path = hf_hub_download(
-                repo_id=hf_repo,
-                filename="pdb_2021aug02.array_record",
-                repo_type="dataset",
-                local_dir=cache_dir,
-                local_dir_use_symlinks=False,
-            )
-            
-            index_path = hf_hub_download(
-                repo_id=hf_repo,
-                filename="index.json",
-                repo_type="dataset",
-                local_dir=cache_dir,
-                local_dir_use_symlinks=False,
-            )
-            
-            logger.info(f"✓ Downloaded dataset to: {cache_dir}")
-            return Path(record_path), Path(index_path)
-            
-        except Exception as e:
-            logger.warning(f"⚠ Failed to download from HuggingFace: {e}")
-            logger.info("Falling back to example data...")
-            return get_data_paths(True, hf_repo)
+        logger.error("use_example_data=False is no longer supported with remote HuggingFace hosting.")
+        raise ValueError("Please provide a local ArrayRecord dataset path instead of fetching remotely.")
 
 
 def main():
@@ -163,7 +131,7 @@ def main():
     from prxteinmpnn.training.trainer import train
     
     # Load data
-    array_record_path, index_path = get_data_paths(use_example_data, huggingface_repo_id)
+    array_record_path, index_path = get_data_paths(use_example_data, "")
     
     logger.info(f"Data configuration:")
     logger.info(f"  ArrayRecord: {array_record_path}")

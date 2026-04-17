@@ -160,13 +160,7 @@ dev = [
 ]
 
 [tool.setuptools.package-data]
-include = [
-    "prxteinmpnn/model_params/*.eqx.zst",
-    "prxteinmpnn/model/original/*.pkl",
-    "prxteinmpnn/model/soluble/*.pkl",
-    "prxteinmpnn/examples/*.ipynb",
-    "prxteinmpnn/examples/*.pdb",
-]
+prxteinmpnn = ["model_params/*.eqx.zst"]
 
 [tool.uv]
 # Only resolve for platforms we actually target (including WSL which reports as linux)

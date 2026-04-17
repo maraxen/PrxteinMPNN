@@ -140,7 +140,7 @@ def make_sample_sequences(
         Tuple of (optimized sequence, final logits, decoding order).
 
       """
-      del bias, fixed_positions, multi_state_strategy, multi_state_temperature, _k_neighbors
+      del bias, fixed_positions, multi_state_strategy, multi_state_temperature
       if fixed_mask is not None or fixed_tokens is not None:
         msg = "fixed_mask/fixed_tokens are only supported with temperature sampling."
         raise ValueError(msg)
@@ -251,7 +251,7 @@ def make_sample_sequences(
         ... )
 
       """
-      del iterations, learning_rate, fixed_positions, _k_neighbors
+      del iterations, learning_rate, fixed_positions
       if fixed_mask is None and fixed_positions is not None:
         fixed_mask = fixed_positions
 

@@ -125,7 +125,7 @@ def make_score_fn(
     "multi_state_temperature" in inspect.signature(model.__call__).parameters
   )
 
-  @partial(jax.jit, static_argnames=("_k_neighbors", "multi_state_strategy"))
+  @partial(jax.jit, static_argnames=("multi_state_strategy",))
   def score_sequence(
     prng_key: PRNGKeyArray,
     sequence: ProteinSequence | OneHotProteinSequence,
@@ -133,7 +133,6 @@ def make_score_fn(
     mask: AlphaCarbonMask,
     residue_index: ResidueIndex,
     chain_index: ChainIndex,
-    _k_neighbors: int = 48,
     backbone_noise: BackboneNoise | None = None,
     ar_mask: AutoRegressiveMask | None = None,
     structure_mapping: jax.Array | None = None,
@@ -150,7 +149,6 @@ def make_score_fn(
       mask: Alpha carbon mask indicating valid residues.
       residue_index: Residue indices.
       chain_index: Chain indices.
-      _k_neighbors: Deprecated, model handles internally (kept for API compatibility).
       backbone_noise: Optional noise for backbone coordinates.
       ar_mask: Optional custom autoregressive mask.
       structure_mapping: Optional (N,) array mapping each residue to a structure ID.

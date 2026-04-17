@@ -90,7 +90,7 @@ def _compute_states_batches(
 ]:
   """Generate and yield batches of computed residue states using in_axes for vmap."""
   get_logits, is_conditional = _get_logits_fn(spec, model)
-  static_args = (None, 48, None)
+  static_args = (None, None)
 
   logger.info("Iterating through frames/proteins...")
   for batched_ensemble in protein_iterator:

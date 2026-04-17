@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from functools import partial
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import jax
 import jax.numpy as jnp
@@ -42,23 +42,7 @@ def make_optimize_sequence_fn(
   model: PrxteinMPNN,
   decoding_order_fn: DecodingOrderFn = _DEFAULT_DECODING_ORDER_FN,
   batch_size: int = 4,
-) -> Callable[
-  [
-    PRNGKeyArray,
-    StructureAtomicCoordinates,
-    AlphaCarbonMask,
-    ResidueIndex,
-    ChainIndex,
-    Int,
-    Float,
-    Float,
-    BackboneNoise | None,
-    jnp.ndarray | None,
-    int | None,
-    jax.Array | None,
-  ],
-  tuple[ProteinSequence, Logits, Logits],
-]:
+) -> Callable[..., tuple[ProteinSequence, Logits, Logits]]:
   """Create a function to optimize sequences using straight-through estimation.
 
   This matches the original implementation which:
@@ -96,7 +80,7 @@ def make_optimize_sequence_fn(
 
   """
 
-  @partial(jax.jit, static_argnames=("num_groups",))
+  @partial(jax.jit, static_argnames=("num_groups", "multi_state_strategy"))
   def optimize_sequence(
     prng_key: PRNGKeyArray,
     structure_coordinates: StructureAtomicCoordinates,
@@ -110,6 +94,9 @@ def make_optimize_sequence_fn(
     tie_group_map: jnp.ndarray | None = None,
     num_groups: int | None = None,
     structure_mapping: jax.Array | None = None,
+    multi_state_strategy: str = "arithmetic_mean",
+    multi_state_temperature: Float = 1.0,
+    **kwargs: Any,
   ) -> tuple[ProteinSequence, Logits, Logits]:
     """Optimize a sequence by finding self-consistent logits via autoregressive decoder.
 
@@ -135,6 +122,10 @@ def make_optimize_sequence_fn(
           identical logits during optimization.
       num_groups: Number of unique groups when using tied positions.
       structure_mapping: Optional (N,) array mapping each residue to a structure ID.
+      multi_state_strategy: Strategy for combining logits across tied positions
+          ("arithmetic_mean", "geometric_mean", "product").
+      multi_state_temperature: Temperature for geometric_mean multi-state combining.
+      **kwargs: Additional arguments for LigandMPNN (Y, Y_t, Y_m) or weighting.
 
     Returns:
       Tuple of (optimized sequence, final output logits, optimized logits).
@@ -197,6 +188,11 @@ def make_optimize_sequence_fn(
         one_hot_sequence = straight_through_estimator(logits / temperature)
 
         def eval_with_mask(ar_mask: AutoRegressiveMask) -> Logits:
+          call_kwargs = {}
+          for k in ["Y", "Y_t", "Y_m", "xyz_37", "xyz_37_m", "chain_mask", "state_weights"]:
+            if k in kwargs:
+              call_kwargs[k] = kwargs[k]
+
           _, output_logits = model(
             structure_coordinates,
             mask,
@@ -207,6 +203,10 @@ def make_optimize_sequence_fn(
             ar_mask=ar_mask,
             backbone_noise=backbone_noise,
             structure_mapping=structure_mapping,
+            tie_group_map=tie_group_map,
+            multi_state_strategy=multi_state_strategy,
+            multi_state_temperature=multi_state_temperature,
+            **call_kwargs,
           )
           return output_logits
 
@@ -255,6 +255,11 @@ def make_optimize_sequence_fn(
     final_decoding_order, _ = decoding_order_fn(final_key, num_residues, tie_group_map, num_groups)
     final_ar_mask = cast("Callable", generate_ar_mask)(final_decoding_order, tie_group_map)
 
+    final_call_kwargs = {}
+    for k in ["Y", "Y_t", "Y_m", "xyz_37", "xyz_37_m", "chain_mask", "state_weights"]:
+      if k in kwargs:
+        final_call_kwargs[k] = kwargs[k]
+
     _, final_output_logits = model(
       structure_coordinates,
       mask,
@@ -264,6 +269,11 @@ def make_optimize_sequence_fn(
       one_hot_sequence=final_one_hot,
       ar_mask=final_ar_mask,
       backbone_noise=backbone_noise,
+      structure_mapping=structure_mapping,
+      tie_group_map=tie_group_map,
+      multi_state_strategy=multi_state_strategy,
+      multi_state_temperature=multi_state_temperature,
+      **final_call_kwargs,
     )
 
     return final_sequence, final_output_logits, final_logits

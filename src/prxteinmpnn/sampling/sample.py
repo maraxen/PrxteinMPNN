@@ -83,7 +83,6 @@ def make_sample_sequences(
     @partial(
       jax.jit,
       static_argnames=(
-        "_k_neighbors",
         "num_groups",
         "multi_state_strategy",
       ),
@@ -94,7 +93,6 @@ def make_sample_sequences(
       mask: AlphaCarbonMask,
       residue_index: ResidueIndex,
       chain_index: ChainIndex,
-      _k_neighbors: int = 48,
       bias: InputBias | None = None,
       fixed_positions: jnp.ndarray | None = None,
       fixed_mask: jnp.ndarray | None = None,
@@ -122,7 +120,6 @@ def make_sample_sequences(
         mask: Alpha carbon mask indicating valid residues.
         residue_index: Residue indices.
         chain_index: Chain indices.
-        _k_neighbors: Deprecated (kept for API compatibility).
         bias: Not used in straight_through mode.
         fixed_positions: Not implemented yet.
         backbone_noise: Optional noise for backbone coordinates.
@@ -143,7 +140,7 @@ def make_sample_sequences(
         Tuple of (optimized sequence, final logits, decoding order).
 
       """
-      del bias, fixed_positions, _k_neighbors
+      del bias, fixed_positions, multi_state_strategy, multi_state_temperature, _k_neighbors
       if fixed_mask is not None or fixed_tokens is not None:
         msg = "fixed_mask/fixed_tokens are only supported with temperature sampling."
         raise ValueError(msg)
@@ -191,7 +188,6 @@ def make_sample_sequences(
     @partial(
       jax.jit,
       static_argnames=(
-        "_k_neighbors",
         "num_groups",
         "multi_state_strategy",
       ),
@@ -202,7 +198,6 @@ def make_sample_sequences(
       mask: AlphaCarbonMask,
       residue_index: ResidueIndex,
       chain_index: ChainIndex,
-      _k_neighbors: int = 48,
       bias: InputBias | None = None,
       fixed_positions: jnp.ndarray | None = None,
       fixed_mask: jnp.ndarray | None = None,
@@ -230,7 +225,6 @@ def make_sample_sequences(
         mask: Alpha carbon mask indicating valid residues.
         residue_index: Residue indices.
         chain_index: Chain indices.
-        _k_neighbors: Deprecated, model handles internally (kept for API compatibility).
         bias: Optional bias to add to logits (N, 21).
         fixed_positions: Optional mask for positions to keep fixed (not implemented yet).
         backbone_noise: Optional noise for backbone coordinates.
@@ -257,7 +251,7 @@ def make_sample_sequences(
         ... )
 
       """
-      del iterations, learning_rate, _k_neighbors
+      del iterations, learning_rate, fixed_positions, _k_neighbors
       if fixed_mask is None and fixed_positions is not None:
         fixed_mask = fixed_positions
 

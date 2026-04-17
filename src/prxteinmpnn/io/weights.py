@@ -35,6 +35,7 @@ HIDDEN_FEATURES = 128
 NUM_ENCODER_LAYERS = 3
 NUM_DECODER_LAYERS = 3
 VOCAB_SIZE = 21
+LIGAND_DEFAULT_CHECKPOINT = "ligandmpnn_v_32_020_25"
 
 LEGACY_ALIAS_MAP = {
   ("original", "v_48_002"): "proteinmpnn_v_48_002.eqx.zst",

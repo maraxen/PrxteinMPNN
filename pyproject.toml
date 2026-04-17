@@ -172,4 +172,3 @@ environments = [
 [tool.uv.sources]
 # Local workspace packages
 prolix = { workspace = true }
-proxide = { workspace = true }

@@ -685,7 +685,6 @@ def _sample_batch(
 
   sample_fn_with_params = partial(
     sampler_fn,
-    _k_neighbors=48,
     bias=jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
     iterations=spec.iterations,
     learning_rate=spec.learning_rate,

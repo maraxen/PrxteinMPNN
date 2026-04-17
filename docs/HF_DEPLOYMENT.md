@@ -1,143 +1,70 @@
-# Milestone 4 Complete: HuggingFace Model Deployment
+# Refactoring Milestone: Internalized PyPI Weights & Smart Factory
 
 ## Summary
 
-Successfully completed the deployment of PrxteinMPNN models to HuggingFace Hub using the new unified Equinox architecture. All models are now available in `.eqx` format and can be easily downloaded and used.
+Successfully completed the transition from external HuggingFace Hub weight hosting to **internal package bundling** using Zstandard compression. This pivot ensures zero-dependency offline loading, eliminates network concurrency bugs, and introduces a Smart Factory loader that automatically detects model topology from bundled assets.
 
 ## What Was Accomplished
 
-### 1. Model Upload to HuggingFace ✅
+### 1. Internal Weight Bundling ✅
 
-- Created `scripts/upload_to_huggingface.py` to automate model uploads
-- Deleted 16 old files (8 `.eqx` + 8 `.pkl` from legacy format)
-- Uploaded 8 new `.eqx` models to `maraxen/prxteinmpnn` repository:
-  - `original_v_48_002`, `original_v_48_010`, `original_v_48_020`, `original_v_48_030`
-  - `soluble_v_48_002`, `soluble_v_48_010`, `soluble_v_48_020`, `soluble_v_48_030`
-- All models are ~6.66MB each and stored in the `eqx/` folder
+- **Compression**: All `.eqx` model weights are now compressed using Zstandard (level 19) to `.eqx.zst`.
+- **Packaging**: Bundled weights directly into `src/prxteinmpnn/model_params/`.
+- **Resource Loading**: Implemented memory-efficient streaming access using `importlib.resources`.
 
-### 2. Download Verification ✅
+### 2. Smart Factory Loader ✅
 
-- Created `scripts/test_hf_download.py` to verify download functionality
-- Confirmed all 8 models can be downloaded from HuggingFace
-- Verified deserialization works correctly
-- Confirmed forward pass produces valid outputs
-- Validated save/load roundtrip is bit-perfect
+- Refactored `src/prxteinmpnn/io/weights.py` into a unified `load_model()` dispatcher.
+- Automatic detection of:
+    - **Model Types**: Standard PrxteinMPNN, LigandMPNN (`v_32`), and Packer (`_sc_`).
+    - **Topology**: Infers `k_neighbors`, `atom_context_num`, and `num_positional_embeddings` from checkpoint filenames.
+    - **Physics**: Detects Membrane/Soluble specific parameters (e.g., `physics_feature_dim=3`).
 
-### 3. HuggingFace Model Card ✅
+### 3. Systematic Runtime Decoupling ✅
 
-- Created comprehensive `HUGGINGFACE_README.md` with:
-  - Model description and architecture details
-  - Installation instructions
-  - Usage examples (basic and high-level API)
-  - Citation information
-  - Technical specifications
-- Created `scripts/update_hf_readme.py` to upload README
-- Successfully uploaded README to HuggingFace repository
+- Stripped out all deprecated `_k_neighbors=48` hardcoded constants from `src/prxteinmpnn/run/` and downstream pipelines.
+- Recalculated `jax.vmap` positional `in_axes` mapping to account for removed function arguments, ensuring stable vectorization across different model architectures.
 
-### 4. Updated IO Module ✅
+### 4. Infrastructure Cleanup ✅
 
-- Updated `src/prxteinmpnn/io/weights.py`:
-  - Added `load_model()` high-level API for easy model loading
-  - Updated `load_weights()` to support `.eqx` format by default
-  - Added backward compatibility for legacy `.pkl` files
-  - Proper type hints and error handling
-  - Documented hyperparameters:
-    - `NODE_FEATURES = 128`
-    - `EDGE_FEATURES = 128`
-    - `HIDDEN_FEATURES = 512`
-    - `NUM_ENCODER_LAYERS = 3`
-    - `NUM_DECODER_LAYERS = 3`
-    - `K_NEIGHBORS = 48`
-    - `VOCAB_SIZE = 21`
-
-### 5. Comprehensive Test Suite ✅
-
-- Created `tests/io/test_hf_loading.py` with 16 tests:
-  - `TestLoadModel`: 4 tests for high-level API
-  - `TestLoadWeights`: 2 tests for low-level API
-  - `TestSaveLoadRoundtrip`: 1 test for bit-perfect preservation
-  - `TestAllModels`: 8 tests (parametrized) for all model variants
-  - `TestDownloadPerformance`: 1 slow test for caching
-- Added `slow` marker to pytest configuration
-- All 15 non-slow tests passing
+- Deleted obsolete HuggingFace automation:
+    - `scripts/push_all_to_hub.py`
+    - `scripts/fetch_test_data.py`
+- Updated `pyproject.toml`:
+    - Removed `huggingface-hub`.
+    - Added `zstandard`.
+    - Included `model_params/*.eqx.zst` in package distribution.
 
 ## Key Features
 
-### High-Level API
+### Unified Loading API
 
 ```python
 from prxteinmpnn.io.weights import load_model
 
-# Simple one-liner to load models
-model = load_model(model_version="v_48_020", model_weights="original")
+# Load Standard MPNN
+model = load_model("proteinmpnn_v_48_020")
+
+# Load Ligand-aware MPNN (automatically detects v_32 topology)
+ligand_model = load_model("ligandmpnn_v_32_010_25")
+
+# Load Side-chain Packer
+packer = load_model("ligandmpnn_sc_v_32_002_16")
 ```
 
-### No More .pkl Dependency
+### Zero Runtime Network Dependency
 
-- Old workflow: Download `.pkl` → Extract functional params → Create model → Load weights
-- New workflow: Create model structure → Download `.eqx` → Load weights
-- Cleaner, more maintainable, fully Equinox-native
-
-### Backward Compatibility
-
-- Legacy `.pkl` files still supported via `use_eqx_format=False` flag
-- Smooth migration path for existing code
-
-## Files Created/Modified
-
-### Created
-
-1. `scripts/upload_to_huggingface.py` - Upload automation
-2. `scripts/test_hf_download.py` - Download verification
-3. `scripts/update_hf_readme.py` - README upload script
-4. `HUGGINGFACE_README.md` - Model card
-5. `tests/io/test_hf_loading.py` - Comprehensive test suite
-6. `docs/HF_DEPLOYMENT.md` - This document
-
-### Modified
-
-1. `src/prxteinmpnn/io/weights.py` - Added `load_model()` and updated `load_weights()`
-2. `pyproject.toml` - Added `slow` marker for pytest
+- All assets are included in the `.whl` or `.tar.gz` distribution.
+- No more `hf_hub_download` latency or file-locking crashes in multi-process environments.
 
 ## Testing Results
 
-```bash
-# All tests pass
-uv run pytest tests/io/test_hf_loading.py -v -m "not slow"
-# 15 passed, 1 deselected, 1 warning in 12.58s
-```
-
-```bash
-# Quick API test
-uv run python -c "from prxteinmpnn.io.weights import load_model; model = load_model('v_48_020', 'original'); print(f'✅ Model loaded successfully: {type(model).__name__}')"
-# ✅ Model loaded successfully: PrxteinMPNN
-```
-
-## Links
-
-- **HuggingFace Repository**: <https://huggingface.co/maraxen/prxteinmpnn>
-- **Model Card**: <https://huggingface.co/maraxen/prxteinmpnn/blob/main/README.md>
-- **Model Files**: <https://huggingface.co/maraxen/prxteinmpnn/tree/main/eqx>
-
-## Next Steps
-
-From `NEXT_STEPS.md`:
-
-1. ✅ Milestone 4.1: Weight conversion to .eqx format
-2. ✅ Milestone 4.2: HuggingFace deployment
-3. ⏳ Milestone 4.3: Save/load preservation tests (partially complete)
-4. ⏳ Milestone 4.4: Variable sequence length tests
-5. Next: Milestone 5 - API Integration
-
-## Notes
-
-- All models use the same architecture with different training regimes
-- `v_48_020` (20 epochs) is recommended for both original and soluble variants
-- Models are cached by HuggingFace Hub, so subsequent downloads are very fast
-- File format is compact (~6.66MB per model) and preserves full precision
+- Verified all 3 skeleton types (Standard, Ligand, Packer) instantiate and load bit-perfect from bundled Zstd streams.
+- Confirmed `jax.vmap` pipelines run end-to-end without shape mismatches.
+- All offline tests in `tests/io/test_weights.py` are passing.
 
 ---
 
-**Date**: November 3, 2025
+**Date**: April 17, 2026
 **Status**: ✅ Complete
-**Branch**: `eqx_migration`
+**Migration Path**: Remote (HF) ➡️ Internal (PyPI Bundling)

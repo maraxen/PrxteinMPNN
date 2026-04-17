@@ -187,17 +187,17 @@ def _score_standard_mode(
 
     vmap_sequences = jax.vmap(
       score_single_pair,
-      in_axes=(None, 0, None, None, None, None, None, None, None, None, None),
+      in_axes=(None, 0, None, None, None, None, None, None, None, None),
       out_axes=0,
     )
     vmap_noises = jax.vmap(
       vmap_sequences,
-      in_axes=(None, None, None, None, None, None, None, 0, None, None, None),
+      in_axes=(None, None, None, None, None, None, 0, None, None, None),
       out_axes=0,
     )
     vmap_structures = jax.vmap(
       vmap_noises,
-      in_axes=(None, None, 0, 0, 0, 0, None, None, None, mapping_in_axis, tie_map_in_axis),
+      in_axes=(None, None, 0, 0, 0, 0, None, None, mapping_in_axis, tie_map_in_axis),
       out_axes=0,
     )
 
@@ -215,7 +215,6 @@ def _score_standard_mode(
         ensemble.mask,
         ensemble.residue_index,
         ensemble.chain_index,
-        48,
         jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
         cam,
         mapping_value,
@@ -389,17 +388,17 @@ def _score_streaming(
 
       vmap_sequences = jax.vmap(
         score_single_pair,
-        in_axes=(None, 0, None, None, None, None, None, None, None, None, None),
+        in_axes=(None, 0, None, None, None, None, None, None, None, None),
         out_axes=0,
       )
       vmap_noises = jax.vmap(
         vmap_sequences,
-        in_axes=(None, None, None, None, None, None, None, 0, None, None, None),
+        in_axes=(None, None, None, None, None, None, 0, None, None, None),
         out_axes=0,
       )
       vmap_structures = jax.vmap(
         vmap_noises,
-        in_axes=(None, None, 0, 0, 0, 0, None, None, None, mapping_in_axis, tie_map_in_axis),
+        in_axes=(None, None, 0, 0, 0, 0, None, None, mapping_in_axis, tie_map_in_axis),
         out_axes=0,
       )
 
@@ -417,7 +416,6 @@ def _score_streaming(
           ensemble.mask,
           ensemble.residue_index,
           ensemble.chain_index,
-          48,
           jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
           cam,
           mapping_value,

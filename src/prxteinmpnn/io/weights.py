@@ -1,156 +1,150 @@
-"""Unified loader for PrxteinMPNN weights from Hugging Face Hub or local path."""
+"""Unified loader for PrxteinMPNN weights from internal package resources."""
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from pathlib import Path
+import io
 from typing import TYPE_CHECKING, Literal
 
 import equinox as eqx
 import jax
 import jax.nn.initializers as init
-from huggingface_hub import hf_hub_download
+import zstandard as zstd
+from importlib.resources import files
 
-from prxteinmpnn.model import PrxteinLigandMPNN, PrxteinMPNN
+from prxteinmpnn.model import PrxteinMPNN, PrxteinLigandMPNN
+from prxteinmpnn.model.packer import Packer
 
 if TYPE_CHECKING:
   from jaxtyping import PyTree
 
-MODEL_WEIGHTS = Literal["original", "soluble"]
-MODEL_VERSION = Literal["v_48_002", "v_48_010", "v_48_020", "v_48_030"]
-HF_REPO_ID = "maraxen/prxteinmpnn"
-ALL_MODEL_WEIGHTS: list[MODEL_WEIGHTS] = ["original", "soluble"]
-ALL_MODEL_VERSIONS: list[MODEL_VERSION] = [
+MODEL_WEIGHTS = Literal["original", "soluble", "ligand", "sc", "membrane"]
+MODEL_VERSION = Literal[
   "v_48_002",
   "v_48_010",
   "v_48_020",
   "v_48_030",
+  "v_48_v2",
+  "v_32_010_25",
+  "v_32_002_16",
 ]
+HF_REPO_ID = "maraxen/prxteinmpnn"  # Legacy reference
 
 NODE_FEATURES = 128
 EDGE_FEATURES = 128
 HIDDEN_FEATURES = 128
 NUM_ENCODER_LAYERS = 3
 NUM_DECODER_LAYERS = 3
-K_NEIGHBORS = 48
 VOCAB_SIZE = 21
-NUM_POSITIONAL_EMBEDDINGS = 32  # HuggingFace weights use 32 (input dim 66 = 2*32+2)
-LIGAND_DEFAULT_CHECKPOINT = "ligandmpnn_v_32_020_25"
-LIGAND_POSITIONAL_EMBEDDING_CANDIDATES = (32, 16)
 
+LEGACY_ALIAS_MAP = {
+  ("original", "v_48_002"): "proteinmpnn_v_48_002.eqx.zst",
+  ("original", "v_48_010"): "proteinmpnn_v_48_010.eqx.zst",
+  ("original", "v_48_020"): "proteinmpnn_v_48_020.eqx.zst",
+  ("original", "v_48_030"): "proteinmpnn_v_48_030.eqx.zst",
+  ("soluble", "v_48_002"): "solublempnn_v_48_002.eqx.zst",
+  ("soluble", "v_48_010"): "solublempnn_v_48_010.eqx.zst",
+  ("soluble", "v_48_020"): "solublempnn_v_48_020.eqx.zst",
+  ("soluble", "v_48_030"): "solublempnn_v_48_030.eqx.zst",
+}
 
-def _infer_ligand_k_neighbors(checkpoint_id: str) -> int:
-  if "_v_48_" in checkpoint_id:
-    return 48
-  if "_v_32_" in checkpoint_id:
-    return 32
-  return 32
+def get_topology_for_checkpoint(checkpoint_id: str) -> dict[str, int | bool | str]:
+  """Infer model topology and type from the checkpoint filename/id."""
+  topology = {
+    "k_neighbors": 48,
+    "num_positional_embeddings": 32,
+    "atom_context_num": 16,
+    "physics_feature_dim": 0,
+    "model_type": "protein",
+  }
 
+  name = checkpoint_id.lower()
 
-def _infer_ligand_sidechain_context(
-  checkpoint_id: str,
-  override: bool | None,
-) -> bool:
-  if override is not None:
-    return override
-  return "_sc_" in checkpoint_id or "sidechain" in checkpoint_id
+  if "v_32" in name:
+    topology["k_neighbors"] = 32
+    topology["num_positional_embeddings"] = 16
+  elif "v_30" in name:
+    topology["k_neighbors"] = 30
+    topology["num_positional_embeddings"] = 16
+  elif "v_48" in name:
+    topology["k_neighbors"] = 48
+    topology["num_positional_embeddings"] = 32
 
+  if "ligandmpnn_sc" in name or "_sc_" in name:
+    topology["model_type"] = "packer"
+    topology["num_positional_embeddings"] = 16
+  elif "ligandmpnn" in name:
+    topology["model_type"] = "ligand"
+    topology["num_positional_embeddings"] = 32
+  elif "membrane" in name:
+    topology["physics_feature_dim"] = 3
 
-def _load_eqx_with_positional_fallback(
-  *,
-  weights_file_path: str,
-  build_skeleton: Callable[[int], eqx.Module],
-):
-  errors: list[str] = []
-  for num_positional_embeddings in LIGAND_POSITIONAL_EMBEDDING_CANDIDATES:
+  parts = name.split("_")
+  if len(parts) >= 2:
     try:
-      skeleton = build_skeleton(num_positional_embeddings)
-      return eqx.tree_deserialise_leaves(weights_file_path, skeleton)
-    except RuntimeError as exc:
-      errors.append(
-        f"num_positional_embeddings={num_positional_embeddings}: {exc}",
-      )
-  msg = (
-    f"Could not deserialize ligand checkpoint '{weights_file_path}' using any "
-    f"positional embedding candidates {LIGAND_POSITIONAL_EMBEDDING_CANDIDATES}. "
-    f"Errors: {' | '.join(errors)}"
-  )
-  raise RuntimeError(msg)
+      last_part = parts[-1].replace(".eqx", "").replace(".zst", "")
+      if last_part.isdigit() and int(last_part) not in [32, 48, 30]:
+        topology["atom_context_num"] = int(last_part)
+    except ValueError:
+      pass
+
+  return topology
 
 
 def load_weights(
-  model_version: MODEL_VERSION = "v_48_020",
-  model_weights: MODEL_WEIGHTS | None = "original",
-  local_path: str | None = None,
+  checkpoint_id: str | None = None,
   skeleton: eqx.Module | None = None,
   key: jax.Array | None = None,
-) -> PyTree | eqx.Module:
-  """Load PrxteinMPNN weights from Hugging Face Hub or a local path.
-
-  Args:
-      model_version: The model version (e.g., "v_48_020").
-      model_weights: The weight type ("original" or "soluble").
-                     If None, reinitializes skeleton with Glorot normal.
-      local_path: Optional. If provided, loads from this local file.
-      skeleton: Optional. If provided, loads weights *into* this
-                eqx.Module skeleton. Required for .eqx format.
-      key: Optional JAX random key for reinitialization when model_weights is None.
-
-  Returns:
-      The loaded model (as a raw PyTree or populated eqx.Module).
-
-  Example:
-      >>> # Load from HuggingFace (.eqx format, recommended)
-      >>> model = load_model(model_version="v_48_020", model_weights="original")
-      >>> # Or reinitialize with Glorot normal
-      >>> key = jax.random.PRNGKey(42)
-      >>> model = load_model(model_version="v_48_020", model_weights=None, key=key)
-
-  """
-  if model_weights is None:
+  local_path: str | None = None,
+) -> eqx.Module:
+  """Load weights into a skeleton from internal resources or local path."""
+  if checkpoint_id is None and local_path is None:
     if skeleton is None:
-      msg = "skeleton is required when model_weights is None"
+      msg = "skeleton is required for reinitialization"
       raise ValueError(msg)
     if key is None:
       key = jax.random.PRNGKey(0)
 
     params, static = eqx.partition(skeleton, eqx.is_inexact_array)
-
     param_leaves = jax.tree_util.tree_leaves(params)
     keys = jax.random.split(key, len(param_leaves))
 
-    min_weight_dims = 2
-
     def initialize_param(param: jax.Array, key: jax.Array) -> jax.Array:
-      """Initialize parameter with appropriate distribution based on shape."""
       shape = param.shape
-      if len(shape) >= min_weight_dims:
+      if len(shape) >= 2:
         return init.glorot_normal()(key, shape, param.dtype)
       return init.normal(stddev=0.01)(key, shape, param.dtype)
 
     initialized_leaves = [initialize_param(p, k) for p, k in zip(param_leaves, keys, strict=True)]
-    new_params = jax.tree_util.tree_unflatten(
-      jax.tree_util.tree_structure(params),
-      initialized_leaves,
-    )
-
+    new_params = jax.tree_util.tree_unflatten(jax.tree_util.tree_structure(params), initialized_leaves)
     return eqx.combine(new_params, static)
 
   if local_path:
-    weights_file_path = local_path
+    if local_path.endswith(".zst"):
+      with open(local_path, "rb") as f:
+        data = f.read()
+        dctx = zstd.ZstdDecompressor()
+        stream = io.BytesIO(dctx.decompress(data))
+        return eqx.tree_deserialise_leaves(stream, skeleton)
+    return eqx.tree_deserialise_leaves(local_path, skeleton)
   else:
-    filename = f"{model_weights}_{model_version}.eqx"
-    weights_file_path = hf_hub_download(
-      repo_id=HF_REPO_ID,
-      filename=f"eqx/{filename}",
-      repo_type="model",
-    )
-  return eqx.tree_deserialise_leaves(weights_file_path, skeleton)
+    filename = checkpoint_id
+    if not filename.endswith(".zst"):
+      filename = f"{filename}.eqx.zst"
+    
+    resource_path = files("prxteinmpnn.model_params").joinpath(filename)
+    if not resource_path.exists():
+      msg = f"Weight file {filename} not found in package resources."
+      raise FileNotFoundError(msg)
+    
+    data = resource_path.read_bytes()
+    dctx = zstd.ZstdDecompressor()
+    stream = io.BytesIO(dctx.decompress(data))
+    return eqx.tree_deserialise_leaves(stream, skeleton)
 
 
 def load_model(
-  model_version: MODEL_VERSION = "v_48_020",
-  model_weights: MODEL_WEIGHTS = "original",
+  checkpoint_id: str | None = None,
+  model_weights: str | None = "original",
   local_path: str | None = None,
   key: jax.Array | None = None,
   *,
@@ -158,193 +152,99 @@ def load_model(
   use_vdw: bool = False,
   dropout_rate: float = 0.1,
   training_mode: Literal["autoregressive", "diffusion"] = "autoregressive",
-) -> PrxteinMPNN:
-  """Load a fully instantiated PrxteinMPNN model with pre-trained weights.
-
-  This is the recommended high-level API for loading models.
-
-  Args:
-      model_version: The model version (e.g., "v_48_020") or full name
-                     (e.g., "original_v_48_020"). If full name is provided,
-                     it will be parsed to extract weights and version.
-      model_weights: The weight type ("original" or "soluble").
-                     Ignored if model_version contains the full name.
-      local_path: Optional. If provided, loads from this local .eqx file.
-      key: Optional JAX random key. If None, uses default PRNGKey(0).
-      use_electrostatics: bool = False, Whether to include electrostatic features.
-      use_vdw: bool = False, Whether to include van der Waals features.
-      dropout_rate: Dropout rate (default: 0.1).
-      training_mode: "autoregressive" or "diffusion" (default: "autoregressive").
-
-  Returns:
-      A fully loaded PrxteinMPNN model ready for inference.
-
-  Example:
-      >>> from prxteinmpnn.io.weights import load_model
-      >>> # Either specify separately:
-      >>> model = load_model(model_version="v_48_020", model_weights="original")
-      >>> # Or use combined name:
-      >>> model = load_model("original_v_48_020")
-      >>> # Model is ready for inference
-      >>> seq, logits = model(coords, mask, res_idx, chain_idx, "unconditional")
-
-  """
+  # legacy parameter for backwards compatibility
+  model_version: str | None = None,
+) -> eqx.Module:
+  """Load a fully instantiated PrxteinMPNN model with pre-trained weights."""
   if key is None:
     key = jax.random.PRNGKey(0)
 
-  if "_v_" in model_version:
-    parts = model_version.split("_v_", 1)
-    model_weights = parts[0]
-    model_version = f"v_{parts[1]}"
+  # Support legacy API usage where checkpoint_id was named model_version
+  if checkpoint_id and ("_v_" in checkpoint_id or "mpnn" in checkpoint_id):
+    # Valid checkpoint id
+    pass
+  elif checkpoint_id and not model_version:
+    # They passed 'v_48_020' into checkpoint_id
+    model_version = checkpoint_id
+    checkpoint_id = None
+    
+  if not checkpoint_id:
+    if model_weights and model_version:
+      filename = LEGACY_ALIAS_MAP.get((model_weights, model_version))
+      if filename:
+        checkpoint_id = filename
+      else:
+        checkpoint_id = f"{model_weights}_{model_version}.eqx.zst"
+    else:
+      checkpoint_id = "proteinmpnn_v_48_020.eqx.zst"
 
-  physics_feature_dim = 0 + (5 if use_electrostatics else 0) + (0 if not use_vdw else 5)
+  if not checkpoint_id.endswith(".zst") and not local_path:
+    checkpoint_id = f"{checkpoint_id}.eqx.zst"
 
-  if training_mode == "diffusion":
-    from prxteinmpnn.model.diffusion_mpnn import DiffusionPrxteinMPNN  # noqa: PLC0415
+  topo = get_topology_for_checkpoint(checkpoint_id if not local_path else local_path)
 
-    skeleton = DiffusionPrxteinMPNN(
+  physics_feature_dim = topo["physics_feature_dim"]
+  if use_electrostatics or use_vdw:
+    physics_feature_dim = (5 if use_electrostatics else 0) + (5 if use_vdw else 0)
+
+  model_type = topo["model_type"]
+  if model_type == "ligand":
+    skeleton = PrxteinLigandMPNN(
       node_features=NODE_FEATURES,
       edge_features=EDGE_FEATURES,
       hidden_features=HIDDEN_FEATURES,
-      num_positional_embeddings=NUM_POSITIONAL_EMBEDDINGS,
-      physics_feature_dim=physics_feature_dim if physics_feature_dim > 0 else None,
       num_encoder_layers=NUM_ENCODER_LAYERS,
       num_decoder_layers=NUM_DECODER_LAYERS,
-      vocab_size=VOCAB_SIZE,
-      k_neighbors=K_NEIGHBORS,
+      k_neighbors=topo["k_neighbors"],
+      num_positional_embeddings=topo["num_positional_embeddings"],
       key=key,
     )
-
-    # If loading standard weights into diffusion model, we need to load into a standard
-    # skeleton first and then transfer the weights, as the structures don't match exactly.
-    if model_weights in ["original", "soluble"]:
-      temp_skeleton = PrxteinMPNN(
+  elif model_type == "packer":
+    skeleton = Packer(
+      node_features=NODE_FEATURES,
+      edge_features=EDGE_FEATURES,
+      hidden_dim=HIDDEN_FEATURES,
+      num_encoder_layers=NUM_ENCODER_LAYERS,
+      num_decoder_layers=NUM_DECODER_LAYERS,
+      top_k=topo["k_neighbors"],
+      atom_context_num=topo["atom_context_num"],
+      num_positional_embeddings=topo["num_positional_embeddings"],
+      key=key,
+    )
+  else:
+    if training_mode == "diffusion":
+      from prxteinmpnn.model.diffusion_mpnn import DiffusionPrxteinMPNN
+      skeleton = DiffusionPrxteinMPNN(
         node_features=NODE_FEATURES,
         edge_features=EDGE_FEATURES,
         hidden_features=HIDDEN_FEATURES,
-        num_positional_embeddings=NUM_POSITIONAL_EMBEDDINGS,
         physics_feature_dim=physics_feature_dim if physics_feature_dim > 0 else None,
         num_encoder_layers=NUM_ENCODER_LAYERS,
         num_decoder_layers=NUM_DECODER_LAYERS,
         vocab_size=VOCAB_SIZE,
-        k_neighbors=K_NEIGHBORS,
+        k_neighbors=topo["k_neighbors"],
+        num_positional_embeddings=topo["num_positional_embeddings"],
+        key=key,
+      )
+    else:
+      skeleton = PrxteinMPNN(
+        node_features=NODE_FEATURES,
+        edge_features=EDGE_FEATURES,
+        hidden_features=HIDDEN_FEATURES,
+        physics_feature_dim=physics_feature_dim if physics_feature_dim > 0 else None,
+        num_encoder_layers=NUM_ENCODER_LAYERS,
+        num_decoder_layers=NUM_DECODER_LAYERS,
+        vocab_size=VOCAB_SIZE,
+        k_neighbors=topo["k_neighbors"],
+        num_positional_embeddings=topo["num_positional_embeddings"],
         dropout_rate=dropout_rate,
         key=key,
       )
 
-      loaded_temp = load_weights(
-        model_version=model_version,
-        model_weights=model_weights,
-        local_path=local_path,
-        skeleton=temp_skeleton,
-      )
-      if not isinstance(loaded_temp, PrxteinMPNN):
-        msg = f"Expected PrxteinMPNN, got {type(loaded_temp)}"
-        raise TypeError(msg)
-
-      # Transfer weights to diffusion skeleton
-      # We replace the common components
-      return eqx.tree_at(
-        lambda m: (m.features, m.encoder, m.decoder, m.w_s_embed, m.w_out),
-        skeleton,
-        (
-          loaded_temp.features,
-          loaded_temp.encoder,
-          loaded_temp.decoder,
-          loaded_temp.w_s_embed,
-          loaded_temp.w_out,
-        ),
-      )
-
-  else:
-    skeleton = PrxteinMPNN(
-      node_features=NODE_FEATURES,
-      edge_features=EDGE_FEATURES,
-      hidden_features=HIDDEN_FEATURES,
-      num_positional_embeddings=NUM_POSITIONAL_EMBEDDINGS,
-      physics_feature_dim=physics_feature_dim if physics_feature_dim > 0 else None,
-      num_encoder_layers=NUM_ENCODER_LAYERS,
-      num_decoder_layers=NUM_DECODER_LAYERS,
-      vocab_size=VOCAB_SIZE,
-      k_neighbors=K_NEIGHBORS,
-      dropout_rate=dropout_rate,
-      key=key,
-    )
-
   loaded = load_weights(
-    model_version=model_version,
-    model_weights=model_weights,
+    checkpoint_id=checkpoint_id,
     local_path=local_path,
     skeleton=skeleton,
   )
 
-  if not isinstance(loaded, PrxteinMPNN):
-    msg = f"Expected PrxteinMPNN, got {type(loaded)}"
-    raise TypeError(msg)
-  return loaded
-
-
-def load_ligand_model(
-  checkpoint_id: str = LIGAND_DEFAULT_CHECKPOINT,
-  local_path: str | Path | None = None,
-  key: jax.Array | None = None,
-  *,
-  ligand_mpnn_use_side_chain_context: bool | None = None,
-  dropout_rate: float = 0.1,
-) -> PrxteinLigandMPNN:
-  """Load a PrxteinLigandMPNN sequence model checkpoint.
-
-  Notes:
-      - This loader is for sequence sampling LigandMPNN checkpoints.
-      - Packer checkpoints (e.g. ``ligandmpnn_sc_*`` from parity manifests)
-        are not supported by this API.
-  """
-  if checkpoint_id.startswith("ligandmpnn_sc_"):
-    msg = (
-      "Checkpoint family 'ligandmpnn_sc_*' is a Packer-family checkpoint, "
-      "not a LigandMPNN sequence-sampling model."
-    )
-    raise ValueError(msg)
-
-  if key is None:
-    key = jax.random.PRNGKey(0)
-
-  if local_path is not None:
-    weights_file_path = str(local_path)
-  else:
-    filename = checkpoint_id if checkpoint_id.endswith(".eqx") else f"{checkpoint_id}.eqx"
-    weights_file_path = hf_hub_download(
-      repo_id=HF_REPO_ID,
-      filename=f"eqx/{filename}",
-      repo_type="model",
-    )
-
-  k_neighbors = _infer_ligand_k_neighbors(checkpoint_id)
-  use_side_chain_context = _infer_ligand_sidechain_context(
-    checkpoint_id,
-    ligand_mpnn_use_side_chain_context,
-  )
-
-  def build_skeleton(num_positional_embeddings: int) -> PrxteinLigandMPNN:
-    return PrxteinLigandMPNN(
-      node_features=NODE_FEATURES,
-      edge_features=EDGE_FEATURES,
-      hidden_features=HIDDEN_FEATURES,
-      num_encoder_layers=NUM_ENCODER_LAYERS,
-      num_decoder_layers=NUM_DECODER_LAYERS,
-      vocab_size=VOCAB_SIZE,
-      k_neighbors=k_neighbors,
-      num_positional_embeddings=num_positional_embeddings,
-      ligand_mpnn_use_side_chain_context=use_side_chain_context,
-      dropout_rate=dropout_rate,
-      key=key,
-    )
-
-  loaded = _load_eqx_with_positional_fallback(
-    weights_file_path=weights_file_path,
-    build_skeleton=build_skeleton,
-  )
-  if not isinstance(loaded, PrxteinLigandMPNN):
-    msg = f"Expected PrxteinLigandMPNN, got {type(loaded)}"
-    raise TypeError(msg)
   return loaded

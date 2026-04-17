@@ -30,6 +30,11 @@ def mock_model():
     model.return_value = (None, jnp.zeros((10, 21)))
     return model
 
+@pytest.fixture(autouse=True)
+def mock_inference_mode():
+    with patch("equinox.nn.inference_mode", side_effect=lambda x, **kwargs: x):
+        yield
+
 @patch("prxteinmpnn.run.scoring.prep_protein_stream_and_model")
 def test_score_without_streaming(mock_prep, mock_protein, mock_model):
     """Test the score function without streaming to an H5 file."""

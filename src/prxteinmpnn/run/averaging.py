@@ -223,14 +223,13 @@ def make_encoding_sampling_split_fn(
   if decode_fn_wrapper is not None:
     decode_logits_fn = decode_fn_wrapper(decode_logits_fn)
 
-  @partial(jax.jit, static_argnames=("k_neighbors",))
+  @partial(jax.jit)
   def encode_fn(
     prng_key: PRNGKeyArray,
     structure_coordinates: StructureAtomicCoordinates,
     mask: AlphaCarbonMask,
     residue_index: ResidueIndex,
     chain_index: ChainIndex,
-    k_neighbors: int = 48,
     backbone_noise: BackboneNoise | None = None,
     structure_mapping: jax.Array | None = None,
   ) -> tuple:
@@ -250,8 +249,6 @@ def make_encoding_sampling_split_fn(
       Encoder features tuple that can be passed to sample_fn.
 
     """
-    del k_neighbors
-
     return encode_logits_fn(
       structure_coordinates,
       mask,

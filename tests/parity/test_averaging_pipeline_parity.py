@@ -85,10 +85,10 @@ def _fake_make_encoding_sampling_split_fn(_model: PrxteinMPNN | None) -> tuple[C
     mask: jax.Array,
     _residue_index: jax.Array,
     _chain_index: jax.Array,
-    k_neighbors: int = 48,
     backbone_noise: float | jax.Array | None = None,
+    structure_mapping: jax.Array | None = None,
   ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
-    del _prng_key, _residue_index, _chain_index, k_neighbors
+    del _prng_key, _residue_index, _chain_index, structure_mapping
     noise = jnp.asarray(0.0 if backbone_noise is None else backbone_noise, dtype=jnp.float32)
     structure_scale = structure_coordinates[0, 0, 0]
     seq_len = structure_coordinates.shape[0]

@@ -877,11 +877,19 @@ def _sample_batch(
   default_sample_offset = int(grid_lineage["sample_start"]) if grid_lineage is not None else 0
   sample_offset = int(chunk_sample_start) if chunk_sample_start is not None else default_sample_offset
 
+  # Pre-compute all keys at once using vmap to avoid tracer leakage in Python loop.
+  # This ensures fold_in is fully untraced and vectorized, then chunked deterministically by slicing.
+  # Uses eager numpy indices to prevent tracer escape during vmap.
+  all_sample_indices = np.arange(
+    sample_offset, sample_offset + target_num_samples, dtype=np.int32
+  )
+  all_keys = jax.vmap(lambda idx: jax.random.fold_in(base_key, idx))(all_sample_indices)
+
   for chunk_iter in range(total_chunks):
     chunk_start = chunk_iter * chunk_size
     chunk_count = min(chunk_size, target_num_samples - chunk_start)
-    sample_indices = range(sample_offset + chunk_start, sample_offset + chunk_start + chunk_count)
-    keys = jnp.stack([jax.random.fold_in(base_key, sample_idx) for sample_idx in sample_indices], axis=0)
+    # Slice pre-computed keys instead of generating them in the loop.
+    keys = all_keys[chunk_start : chunk_start + chunk_count]
 
     chunk_sequences, chunk_logits, _ = vmap_structures(
       batched_ensemble.coordinates,

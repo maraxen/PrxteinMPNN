@@ -231,10 +231,10 @@ def test_make_sample_sequences_straight_through_no_jit(
     chex.assert_tree_all_finite((seq, logits, order))
 
 
-def test_make_sample_sequences_straight_through_rejects_fixed_controls(
+def test_make_sample_sequences_straight_through_accepts_fixed_controls(
     model_inputs, rng_key,
 ):
-    """Straight-through sampling should reject fixed_mask/fixed_tokens inputs."""
+    """Straight-through sampling should accept fixed_mask/fixed_tokens and enforce them."""
     model = PrxteinMPNN(
         node_features=128,
         edge_features=128,
@@ -246,20 +246,24 @@ def test_make_sample_sequences_straight_through_rejects_fixed_controls(
     )
     sample_fn = make_sample_sequences(model, sampling_strategy="straight_through")
     n_res = model_inputs["mask"].shape[0]
-    fixed_mask = jnp.zeros((n_res,), dtype=jnp.bool_).at[0].set(True)
-    fixed_tokens = jnp.zeros((n_res,), dtype=jnp.int32).at[0].set(5)
+    # Fix position 0 to token 5
+    fixed_mask = jnp.zeros((n_res,), dtype=jnp.float32).at[0].set(1.0)
+    fixed_tokens = jnp.zeros((n_res,), dtype=jnp.int8).at[0].set(5)
 
-    with pytest.raises(ValueError, match="fixed_mask/fixed_tokens"):
-        sample_fn(
-            rng_key,
-            model_inputs["structure_coordinates"],
-            model_inputs["mask"],
-            model_inputs["residue_index"],
-            model_inputs["chain_index"],
-            iterations=10,
-            fixed_mask=fixed_mask,
-            fixed_tokens=fixed_tokens,
-        )
+    seq, logits, _ = sample_fn(
+        rng_key,
+        model_inputs["structure_coordinates"],
+        model_inputs["mask"],
+        model_inputs["residue_index"],
+        model_inputs["chain_index"],
+        iterations=jnp.array(5),
+        fixed_mask=fixed_mask,
+        fixed_tokens=fixed_tokens,
+    )
+
+    assert int(seq[0]) == 5, f"Position 0 should be fixed to token 5, got {int(seq[0])}"
+    chex.assert_shape(seq, (n_res,))
+    chex.assert_shape(logits, (n_res, 21))
 
 
 def test_sample_convenience_function_jit(

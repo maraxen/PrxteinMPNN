@@ -96,6 +96,8 @@ def make_optimize_sequence_fn(
     structure_mapping: jax.Array | None = None,
     multi_state_strategy: str = "arithmetic_mean",
     multi_state_temperature: Float = 1.0,
+    fixed_mask: jnp.ndarray | None = None,
+    fixed_tokens: jnp.ndarray | None = None,
     **kwargs: Any,
   ) -> tuple[ProteinSequence, Logits, Logits]:
     """Optimize a sequence by finding self-consistent logits via autoregressive decoder.
@@ -139,6 +141,19 @@ def make_optimize_sequence_fn(
     """
     num_residues = structure_coordinates.shape[0]
     num_classes = 21
+
+    # Build clamping bias for fixed positions: large positive logit forces argmax
+    # to the correct token, propagating the right embedding through optimization.
+    CLAMP_LOGIT = 1e4
+    if fixed_mask is not None and fixed_tokens is not None:
+      fixed_mask_bool = fixed_mask.astype(jnp.bool_)
+      fixed_one_hot = jax.nn.one_hot(fixed_tokens, num_classes, dtype=jnp.float32)
+      fixed_bias = fixed_mask_bool[:, None] * (
+        CLAMP_LOGIT * fixed_one_hot - CLAMP_LOGIT * (1.0 - fixed_one_hot)
+      )
+    else:
+      fixed_bias = jnp.zeros((num_residues, num_classes), dtype=jnp.float32)
+      fixed_mask_bool = jnp.zeros(num_residues, dtype=jnp.bool_)
 
     sequence_logits = jnp.zeros((num_residues, num_classes), dtype=jnp.float32)
 
@@ -224,6 +239,7 @@ def make_optimize_sequence_fn(
 
       updates, next_opt_state = optimizer.update(grads, current_opt_state)
       next_logits: Logits = optax.apply_updates(current_logits, updates)  # type: ignore[invalid-assignment]
+      next_logits = jnp.where(fixed_mask_bool[:, None], fixed_bias, next_logits)
 
       if tie_group_map is not None and num_groups is not None:
         group_one_hot = jax.nn.one_hot(
@@ -246,6 +262,9 @@ def make_optimize_sequence_fn(
       update_step,
       (sequence_logits, opt_state, prng_key),
     )
+
+    # Clamp fixed positions one final time before deriving the output sequence
+    final_logits = jnp.where(fixed_mask_bool[:, None], fixed_bias, final_logits)
 
     # Get final sequence from optimized logits
     final_one_hot = straight_through_estimator(final_logits / temperature)

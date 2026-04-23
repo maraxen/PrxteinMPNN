@@ -85,6 +85,7 @@ def make_sample_sequences(
       static_argnames=(
         "num_groups",
         "multi_state_strategy",
+        "max_group_size",
       ),
     )
     def sample_sequences(
@@ -110,6 +111,7 @@ def make_sample_sequences(
       ] = "arithmetic_mean",
       structure_mapping: jax.Array | None = None,
       multi_state_temperature: Float = 1.0,
+      max_group_size: int = 16,
       **kwargs: Any,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """Optimize a sequence using straight-through estimation.
@@ -140,10 +142,7 @@ def make_sample_sequences(
         Tuple of (optimized sequence, final logits, decoding order).
 
       """
-      del bias, fixed_positions, multi_state_strategy, multi_state_temperature
-      if fixed_mask is not None or fixed_tokens is not None:
-        msg = "fixed_mask/fixed_tokens are only supported with temperature sampling."
-        raise ValueError(msg)
+      del bias, fixed_positions
 
       if iterations is None:
         iterations = jnp.array(100, dtype=jnp.int32)
@@ -159,8 +158,6 @@ def make_sample_sequences(
         num_groups,
       )
 
-      # Note: STE optimize might need updates for LigandMPNN extra inputs
-      # For now we'll pass structure_mapping which it supports.
       optimized_sequence, final_logits, _ = optimize_fn(
         prng_key,
         structure_coordinates,
@@ -176,6 +173,8 @@ def make_sample_sequences(
         structure_mapping,
         multi_state_strategy=multi_state_strategy,
         multi_state_temperature=multi_state_temperature,
+        fixed_mask=fixed_mask,
+        fixed_tokens=fixed_tokens,
         **kwargs,
       )
 
@@ -190,6 +189,7 @@ def make_sample_sequences(
       static_argnames=(
         "num_groups",
         "multi_state_strategy",
+        "max_group_size",
       ),
     )
     def sample_sequences(
@@ -215,6 +215,7 @@ def make_sample_sequences(
       ] = "arithmetic_mean",
       structure_mapping: jax.Array | None = None,
       multi_state_temperature: Float = 1.0,
+      max_group_size: int = 16,
       **kwargs: Any,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """Sample a sequence from a structure using the ProteinMPNN model.
@@ -251,7 +252,7 @@ def make_sample_sequences(
         ... )
 
       """
-      del iterations, learning_rate, fixed_positions
+      del iterations, learning_rate
       if fixed_mask is None and fixed_positions is not None:
         fixed_mask = fixed_positions
 
@@ -278,6 +279,8 @@ def make_sample_sequences(
         "tie_group_map": tie_group_map,
         "multi_state_strategy": multi_state_strategy,
         "structure_mapping": structure_mapping,
+        "group_indices_table": kwargs.get("group_indices_table"),
+        "group_valid_table": kwargs.get("group_valid_table"),
       }
 
       if supports_multi_state_temperature:

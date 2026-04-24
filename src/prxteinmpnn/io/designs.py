@@ -22,8 +22,8 @@ class DesignMetadata(TypedDict):
 
 class DesignPayload(TypedDict):
   """Serialized design payload."""
-  sequence: Any  # jnp.ndarray (int8)
-  logits: Any    # jnp.ndarray (float16, shape (n_canonical, 21))
+  sequence: Any  # jnp.ndarray (uint8), shape (n_canonical,)
+  logits: Any    # jnp.ndarray (float32), shape (n_canonical, 21)
   scores: Any    # jnp.ndarray (float32)
   state_weights: Any  # jnp.ndarray (float32)
   metadata: DesignMetadata
@@ -49,8 +49,8 @@ class DesignArrayRecordWriter:
     # Binary schema: field_name -> (shape, dtype)
     # Flattens individual designs to fixed-size records
     self.schema = {
-        "sequence": (n_canonical,),      # int8
-        "logits": (n_canonical, 21),     # float16
+        "sequence": (n_canonical,),      # uint8
+        "logits": (n_canonical, 21),     # float32
         "scores": (1,),                  # float32
         "state_weights": (n_states,)     # float32
         # metadata (task_id, model, etc) stored as suffix of logits
@@ -60,13 +60,13 @@ class DesignArrayRecordWriter:
     """Serialize and write a design payload using zero-copy binary format."""
     record_bytes = bytearray()
 
-    # 1. Write sequence (int8)
-    seq = np.asarray(jax.device_get(payload["sequence"]), dtype=np.int8)
+    # 1. Write sequence (uint8)
+    seq = np.asarray(jax.device_get(payload["sequence"]), dtype=np.uint8)
     assert seq.shape == (self.n_canonical,), f"sequence shape {seq.shape} != {(self.n_canonical,)}"
     record_bytes.extend(seq.tobytes())
 
-    # 2. Write logits (float16)
-    logits = np.asarray(jax.device_get(payload["logits"]), dtype=np.float16)
+    # 2. Write logits (float32)
+    logits = np.asarray(jax.device_get(payload["logits"]), dtype=np.float32)
     assert logits.shape == (self.n_canonical, 21), f"logits shape {logits.shape} != {(self.n_canonical, 21)}"
     record_bytes.extend(logits.tobytes())
 

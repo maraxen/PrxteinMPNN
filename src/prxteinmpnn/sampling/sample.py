@@ -277,6 +277,7 @@ def make_sample_sequences(
         "bias": bias,
         "backbone_noise": backbone_noise,
         "tie_group_map": tie_group_map,
+        "num_groups": num_groups,
         "multi_state_strategy": multi_state_strategy,
         "structure_mapping": structure_mapping,
         "group_indices_table": kwargs.get("group_indices_table"),

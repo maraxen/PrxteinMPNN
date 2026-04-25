@@ -1,3 +1,4 @@
+# TODO: Explore internal state-batching (K, N, ...) instead of super-sequence concatenation to optimize attention complexity.
 """Main ProteinMPNN model implementation.
 
 This module contains the top-level PrxteinMPNN model that combines all components.
@@ -5,6 +6,7 @@ This module contains the top-level PrxteinMPNN model that combines all component
 
 from __future__ import annotations
 
+from functools import partial
 from typing import TYPE_CHECKING, Literal, cast
 
 import equinox as eqx
@@ -20,6 +22,7 @@ from prxteinmpnn.model.multi_state_sampling import (
   geometric_mean_logits,
   product_of_probabilities_logits,
 )
+from prxteinmpnn.padding import LENGTH_BUCKETS
 from prxteinmpnn.utils.concatenate import concatenate_neighbor_nodes
 from prxteinmpnn.utils.ste import straight_through_estimator
 
@@ -47,6 +50,38 @@ if TYPE_CHECKING:
   )
 
 DecodingApproach = Literal["unconditional", "conditional", "autoregressive"]
+
+def _create_group_index_table(
+  tie_group_map: jnp.ndarray,
+  max_group_size: int,
+) -> tuple[jnp.ndarray, jnp.ndarray]:
+  """Create a table of indices belonging to each group.
+
+  Args:
+    tie_group_map: (N,) array of group IDs.
+    max_group_size: Static maximum number of residues per group.
+
+  Returns:
+    group_indices: (N, max_group_size) table of member indices.
+    valid_mask: (N, max_group_size) boolean mask for valid indices.
+  """
+  num_residues = tie_group_map.shape[0]
+  # mask_matrix[g, i] = i if tie_group_map[i] == g else -1
+  mask_matrix = jnp.where(
+    tie_group_map[None, :] == jnp.arange(num_residues)[:, None],
+    jnp.arange(num_residues)[None, :],
+    -1,
+  )
+
+  def sort_row(row):
+    is_valid = row >= 0
+    return jnp.sort(jnp.where(is_valid, row, num_residues + 1))
+
+  sorted_indices = jax.vmap(sort_row)(mask_matrix)
+  group_indices = sorted_indices[:, :max_group_size]
+  valid_mask = group_indices < num_residues
+
+  return group_indices, valid_mask
 
 
 class PrxteinMPNN(eqx.Module):
@@ -168,11 +203,13 @@ class PrxteinMPNN(eqx.Module):
     _tie_group_map: TieGroupMap | None,
     _multi_state_strategy_idx: Int,
     _multi_state_temperature: Float,
-    _initial_node_features: NodeFeatures | None = None,
-    _state_weights: jnp.ndarray | None = None,
-    _state_mapping: jnp.ndarray | None = None,
-    _fixed_mask: jnp.ndarray | None = None,
-    _fixed_tokens: jnp.ndarray | None = None,
+    _initial_node_features: NodeFeatures | None,
+    _state_weights: jnp.ndarray | None,
+    _state_mapping: jnp.ndarray | None,
+    _fixed_mask: jnp.ndarray | None,
+    _fixed_tokens: jnp.ndarray | None,
+    group_indices_table: jnp.ndarray | None,
+    group_valid_table: jnp.ndarray | None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the unconditional (scoring) path.
 
@@ -250,11 +287,13 @@ class PrxteinMPNN(eqx.Module):
     tie_group_map: TieGroupMap | None,
     multi_state_strategy_idx: Int,
     multi_state_temperature: Float,
-    _initial_node_features: NodeFeatures | None = None,
-    state_weights: jnp.ndarray | None = None,
-    state_mapping: jnp.ndarray | None = None,
-    _fixed_mask: jnp.ndarray | None = None,
-    _fixed_tokens: jnp.ndarray | None = None,
+    _initial_node_features: NodeFeatures | None,
+    state_weights: jnp.ndarray | None,
+    state_mapping: jnp.ndarray | None,
+    _fixed_mask: jnp.ndarray | None,
+    _fixed_tokens: jnp.ndarray | None,
+    group_indices_table: jnp.ndarray | None,
+    group_valid_table: jnp.ndarray | None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the conditional (scoring) path.
 
@@ -333,12 +372,16 @@ class PrxteinMPNN(eqx.Module):
     bias: Logits,
     tie_group_map: TieGroupMap | None,
     multi_state_strategy_idx: Int,
-    multi_state_temperature: Float = 1.0,
-    _initial_node_features: NodeFeatures | None = None,
-    state_weights: jnp.ndarray | None = None,
-    state_mapping: jnp.ndarray | None = None,
-    fixed_mask: jnp.ndarray | None = None,
-    fixed_tokens: jnp.ndarray | None = None,
+    multi_state_temperature: Float,
+    _initial_node_features: NodeFeatures | None,
+    state_weights: jnp.ndarray | None,
+    state_mapping: jnp.ndarray | None,
+    fixed_mask: jnp.ndarray | None,
+    fixed_tokens: jnp.ndarray | None,
+    group_indices_table: jnp.ndarray | None,
+    group_valid_table: jnp.ndarray | None,
+    *,
+    num_groups: int | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the autoregressive (sampling) path.
 
@@ -360,12 +403,21 @@ class PrxteinMPNN(eqx.Module):
       _initial_node_features: Unused.
       state_weights: Weights for each structural state.
       state_mapping: Mapping of each residue to its state index.
+      group_indices_table: Pre-calculated table of group indices.
+      group_valid_table: Pre-calculated boolean valid mask for group indices.
 
     Returns:
       Tuple of (sampled sequence, logits).
 
     Raises:
       None
+
+    Warning:
+      This path is NOT differentiable. Sequence sampling uses Gumbel-max noise +
+      straight-through estimator (STE), creating a hard gradient barrier. Do not
+      wrap calls with jax.grad / jax.value_and_grad / eqx.filter_grad — gradients
+      will be zero or incorrect. For differentiable sequence optimization, use
+      decoding_approach="conditional" (teacher-forced parallel decode).
 
     Example:
       >>> key = jax.random.PRNGKey(0)
@@ -397,6 +449,9 @@ class PrxteinMPNN(eqx.Module):
       state_mapping,
       fixed_mask,
       fixed_tokens,
+      group_indices_table,
+      group_valid_table,
+      num_groups=num_groups,
     )
     return seq, logits
 
@@ -570,7 +625,8 @@ class PrxteinMPNN(eqx.Module):
 
   def _process_group_positions(
     self,
-    group_mask: GroupMask,
+    group_indices: jnp.ndarray,
+    valid_mask: jnp.ndarray,
     all_layers_h: NodeFeatures,
     s_embed: NodeFeatures,
     encoder_context: NodeEdgeFeatures,
@@ -579,10 +635,11 @@ class PrxteinMPNN(eqx.Module):
     mask: AlphaCarbonMask,
     mask_bw: LinkMask,
   ) -> tuple[NodeFeatures, Logits]:
-    """Process all positions in a group through decoder and collect logits.
+    """Process only positions belonging to the current group through decoder.
 
     Args:
-      group_mask: Boolean mask (N,) for positions in current group.
+      group_indices: (S,) array of indices in the current tie group.
+      valid_mask: (S,) boolean mask indicating valid indices.
       all_layers_h: Hidden states (num_layers+1, N, C).
       s_embed: Sequence embeddings (N, C).
       encoder_context: Precomputed encoder context (N, K, features).
@@ -596,13 +653,14 @@ class PrxteinMPNN(eqx.Module):
 
     """
     num_residues = all_layers_h.shape[1]
+    max_group_size = group_indices.shape[0]
     computed_logits = jnp.zeros((num_residues, 21))
 
-    def process_one_position(idx: Int, state: tuple) -> tuple:
-      """Process one position through decoder layers."""
-      position_all_layers_h, position_logits = state
-      is_in_group = group_mask[idx]
-
+    def _decode_position(
+      position_all_layers_h: jax.Array,
+      idx: Int,
+    ) -> tuple[jax.Array, jax.Array]:
+      """Decode one position and return updated hidden state + logits."""
       encoder_context_pos = encoder_context[idx]
       neighbor_indices_pos = neighbor_indices[idx]
       mask_pos = mask[idx]
@@ -641,19 +699,29 @@ class PrxteinMPNN(eqx.Module):
 
       final_h_pos = position_all_layers_h[-1, idx]
       logits_pos = self.w_out(final_h_pos)
+      return position_all_layers_h, logits_pos
 
-      position_logits = jnp.where(
-        is_in_group,
-        position_logits.at[idx].set(logits_pos),
-        position_logits,
+    def process_one_member(i: Int, state: tuple) -> tuple:
+      """Process i-th member of the group if valid."""
+      position_all_layers_h, position_logits = state
+      idx = group_indices[i]
+      is_valid = valid_mask[i]
+
+      def _process(_: None) -> tuple:
+        updated_h, logits_pos = _decode_position(position_all_layers_h, idx)
+        return updated_h, position_logits.at[idx].set(logits_pos)
+
+      return jax.lax.cond(
+        is_valid,
+        _process,
+        lambda _: (position_all_layers_h, position_logits),
+        operand=None,
       )
-
-      return position_all_layers_h, position_logits
 
     return jax.lax.fori_loop(
       0,
-      num_residues,
-      process_one_position,
+      max_group_size,
+      process_one_member,
       (all_layers_h, computed_logits),
     )
 
@@ -676,6 +744,9 @@ class PrxteinMPNN(eqx.Module):
     state_mapping: jnp.ndarray | None = None,
     fixed_mask: jnp.ndarray | None = None,
     fixed_tokens: jnp.ndarray | None = None,
+    group_indices_table: jnp.ndarray | None = None,
+    group_valid_table: jnp.ndarray | None = None,
+    n_canonical: int | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run group-based autoregressive scan with logit combining.
 
@@ -696,6 +767,9 @@ class PrxteinMPNN(eqx.Module):
       multi_state_temperature: Temperature for geometric_mean strategy.
       state_weights: Weights for each structural state.
       state_mapping: Mapping of each residue to its state index.
+      max_group_size: Static maximum number of residues per group.
+      n_canonical: Static number of unique canonical groups. Must be provided
+          for multistate designs to avoid iterating over padded positions.
 
     Returns:
       Tuple of (final sequence, final logits).
@@ -704,16 +778,32 @@ class PrxteinMPNN(eqx.Module):
     num_residues = node_features.shape[0]
     if tie_group_map is None:
       tie_group_map = jnp.arange(num_residues)
+
+    # If tables aren't provided (e.g. from standard ProteinMPNN path), compute them.
+    # Note: This might still trigger tracing issues if not careful,
+    # but for design grid we ensure they are passed.
+    if group_indices_table is None or group_valid_table is None:
+        # Fallback to O(N) internal computation if tables not passed
+        # We need a static max_group_size here.
+        # For simplicity and to avoid tracing issues in general use,
+        # we can just use a large enough static size if not in design grid.
+        # But here we assume they ARE passed in the performance critical path.
+        msg = "group_indices_table and group_valid_table must be provided for tied decoding."
+        raise ValueError(msg)
+
+    max_group_size = group_indices_table.shape[1]
+
     groups_in_order = tie_group_map[decoding_order]
     position_indices = jnp.arange(num_residues)
     is_before_mask = position_indices[:, None] > position_indices[None, :]
     group_matches = groups_in_order[:, None] == groups_in_order[None, :]
     appeared_before = jnp.any(group_matches & is_before_mask, axis=1)
     is_first_occurrence = ~appeared_before
+    compress_size = n_canonical if n_canonical is not None else num_residues
     group_decoding_order = jnp.compress(
       is_first_occurrence,
       groups_in_order,
-      size=num_residues,
+      size=compress_size,
       fill_value=-1,
     )
 
@@ -728,43 +818,56 @@ class PrxteinMPNN(eqx.Module):
       all_layers_h, s_embed, all_logits, sequence = carry
       group_id, key = scan_inputs
 
-      group_mask = tie_group_map == group_id
+      def _skip_group(_: None) -> tuple:
+        return (all_layers_h, s_embed, all_logits, sequence), None
 
-      all_layers_h, computed_logits = self._process_group_positions(
-        group_mask,
-        all_layers_h,
-        s_embed,
-        encoder_context,
-        edge_features,
-        neighbor_indices,
-        mask,
-        mask_bw,
-      )
+      def _decode_group(_: None) -> tuple:
+        group_indices = group_indices_table[group_id]
+        valid_mask = group_valid_table[group_id]
 
-      combined_logits = self._combine_logits_multistate_idx(
-        computed_logits,
-        group_mask,
-        multi_state_strategy_idx,
-        multi_state_temperature,
-        state_weights,
-        state_mapping,
-      )
-      all_logits, s_embed, sequence = self._sample_and_broadcast_to_group(
-        combined_logits,
-        group_mask,
-        bias,
-        temperature,
-        key,
-        all_logits,
-        s_embed,
-        sequence,
-        state_weights,
-        state_mapping,
-        fixed_mask,
-        fixed_tokens,
-      )
+        all_layers_h_updated, computed_logits = self._process_group_positions(
+          group_indices,
+          valid_mask,
+          all_layers_h,
+          s_embed,
+          encoder_context,
+          edge_features,
+          neighbor_indices,
+          mask,
+          mask_bw,
+        )
 
-      return (all_layers_h, s_embed, all_logits, sequence), None
+        group_mask = tie_group_map == group_id
+        combined_logits = self._combine_logits_multistate_idx(
+          computed_logits,
+          group_mask,
+          multi_state_strategy_idx,
+          multi_state_temperature,
+          state_weights,
+          state_mapping,
+        )
+        all_logits_updated, s_embed_updated, sequence_updated = self._sample_and_broadcast_to_group(
+          combined_logits,
+          group_mask,
+          bias,
+          temperature,
+          key,
+          all_logits,
+          s_embed,
+          sequence,
+          state_weights,
+          state_mapping,
+          fixed_mask,
+          fixed_tokens,
+        )
+        return (
+          all_layers_h_updated,
+          s_embed_updated,
+          all_logits_updated,
+          sequence_updated,
+        ), None
+
+      return jax.lax.cond(group_id < 0, _skip_group, _decode_group, operand=None)
 
     initial_all_layers_h = jnp.zeros(
       (self.num_decoder_layers + 1, num_residues, self.node_features_dim),
@@ -789,6 +892,7 @@ class PrxteinMPNN(eqx.Module):
       group_autoregressive_step,
       initial_carry,
       scan_inputs,
+      unroll=1,
     )
 
     return final_carry[3], final_carry[2]
@@ -900,6 +1004,9 @@ class PrxteinMPNN(eqx.Module):
     state_mapping: jnp.ndarray | None = None,
     fixed_mask: jnp.ndarray | None = None,
     fixed_tokens: jnp.ndarray | None = None,
+    group_indices_table: jnp.ndarray | None = None,
+    group_valid_table: jnp.ndarray | None = None,
+    num_groups: int | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run JAX scan loop for autoregressive sampling with optional tied positions.
 
@@ -934,6 +1041,10 @@ class PrxteinMPNN(eqx.Module):
 
     Raises:
       None
+
+    Note:
+      Non-differentiable: Gumbel sampling + STE blocks gradient flow. See
+      _call_autoregressive for details.
 
     Example:
       >>> key = jax.random.PRNGKey(0)
@@ -1110,13 +1221,25 @@ class PrxteinMPNN(eqx.Module):
         autoregressive_step,
         initial_carry,
         scan_inputs,
+        unroll=1,
       )
-
+      # all_logits is returned as final_carry[2]; caller reads it on the host and
+      # writes to disk in one bulk call after the scan returns. No io_callback needed.
       final_sequence = final_carry[3]
       final_all_logits = final_carry[2]
 
       return final_sequence, final_all_logits
 
+    if tie_group_map is not None and (group_indices_table is None or group_valid_table is None):
+        # We need a static max_group_size for the table shape.
+        # Use LENGTH_BUCKETS ceiling to avoid recompilation across different protein lengths.
+        max_bucket_size = max(LENGTH_BUCKETS)
+        group_indices_table, group_valid_table = _create_group_index_table(
+            tie_group_map, max_bucket_size
+        )
+
+    # all_logits is returned as final_carry[2]; caller reads it on the host and
+    # writes to disk in one bulk call after the scan returns. No io_callback needed.
     return self._run_tied_position_scan(
       prng_key,
       node_features,
@@ -1133,8 +1256,11 @@ class PrxteinMPNN(eqx.Module):
       multi_state_temperature,
       state_weights,
       state_mapping,
-      fixed_mask_array,
-      fixed_tokens_array,
+      fixed_mask,
+      fixed_tokens,
+      group_indices_table,
+      group_valid_table,
+      n_canonical=num_groups,
     )
 
   def __call__(
@@ -1154,6 +1280,8 @@ class PrxteinMPNN(eqx.Module):
     fixed_tokens: jnp.ndarray | None = None,
     backbone_noise: BackboneNoise | None = None,
     tie_group_map: jnp.ndarray | None = None,
+    group_indices_table: jnp.ndarray | None = None,
+    group_valid_table: jnp.ndarray | None = None,
     multi_state_strategy: Literal[
       "arithmetic_mean",
       "geometric_mean",
@@ -1167,6 +1295,7 @@ class PrxteinMPNN(eqx.Module):
     membrane_per_residue_labels: jnp.ndarray | None = None,
     state_weights: jnp.ndarray | None = None,
     state_mapping: jnp.ndarray | None = None,
+    num_groups: int | None = None,
     inference: bool = True,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Forward pass for the complete model.
@@ -1291,10 +1420,15 @@ class PrxteinMPNN(eqx.Module):
       dtype=jnp.int32,
     )
 
+    ar_fn = (
+      partial(self._call_autoregressive, num_groups=num_groups)
+      if num_groups is not None
+      else self._call_autoregressive
+    )
     branches = [
       self._call_unconditional,
       self._call_conditional,
-      self._call_autoregressive,
+      ar_fn,
     ]
 
     operands = (
@@ -1315,6 +1449,8 @@ class PrxteinMPNN(eqx.Module):
       state_mapping,
       fixed_mask,
       fixed_tokens,
+      group_indices_table,
+      group_valid_table,
     )
     return jax.lax.switch(branch_index, branches, *operands)
 
@@ -1451,6 +1587,8 @@ class PrxteinLigandMPNN(eqx.Module):
     xyz_37_m: jnp.ndarray | None = None,
     chain_mask: jnp.ndarray | None = None,
     tie_group_map: jnp.ndarray | None = None,
+    group_indices_table: jnp.ndarray | None = None,
+    group_valid_table: jnp.ndarray | None = None,
     multi_state_strategy: Literal[
       "arithmetic_mean",
       "geometric_mean",
@@ -1460,6 +1598,10 @@ class PrxteinLigandMPNN(eqx.Module):
     multi_state_temperature: float = 1.0,
     state_weights: jnp.ndarray | None = None,
     state_mapping: jnp.ndarray | None = None,
+    precomputed_Y_nodes: jnp.ndarray | None = None,
+    precomputed_Y_edges: jnp.ndarray | None = None,
+    precomputed_Y_m: jnp.ndarray | None = None,
+    num_groups: int | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Forward pass for LigandMPNN sequence scoring or sampling."""
     if prng_key is None:
@@ -1468,23 +1610,46 @@ class PrxteinLigandMPNN(eqx.Module):
     keys = jax.random.split(prng_key, 2)
 
     # 1. Feature Extraction
-    # returns: V (protein nodes), E (protein/protein edges), E_idx,
-    #          Y_nodes (ligand nodes), Y_edges (ligand/ligand edges), Y_m (mask)
-    V, E, E_idx, Y_nodes, Y_edges, Y_m = self.features(
-      keys[0],
-      structure_coordinates,
-      mask,
-      residue_index,
-      chain_index,
-      Y,
-      Y_t,
-      Y_m,
-      backbone_noise,
-      structure_mapping=structure_mapping,
-      xyz_37=xyz_37,
-      xyz_37_m=xyz_37_m,
-      chain_mask=chain_mask,
-    )
+    # When precomputed ligand features are provided, skip the expensive ligand feature computation.
+    # Protein features (V, E, E_idx) are always computed since they depend on the current sequence.
+    if precomputed_Y_nodes is not None and precomputed_Y_edges is not None and precomputed_Y_m is not None:
+      # Use cached ligand features; still compute protein features
+      V, E, E_idx, _, _, _ = self.features(
+        keys[0],
+        structure_coordinates,
+        mask,
+        residue_index,
+        chain_index,
+        Y,
+        Y_t,
+        Y_m,
+        backbone_noise,
+        structure_mapping=structure_mapping,
+        xyz_37=xyz_37,
+        xyz_37_m=xyz_37_m,
+        chain_mask=chain_mask,
+      )
+      Y_nodes = precomputed_Y_nodes
+      Y_edges = precomputed_Y_edges
+      Y_m = precomputed_Y_m
+    else:
+      # returns: V (protein nodes), E (protein/protein edges), E_idx,
+      #          Y_nodes (ligand nodes), Y_edges (ligand/ligand edges), Y_m (mask)
+      V, E, E_idx, Y_nodes, Y_edges, Y_m = self.features(
+        keys[0],
+        structure_coordinates,
+        mask,
+        residue_index,
+        chain_index,
+        Y,
+        Y_t,
+        Y_m,
+        backbone_noise,
+        structure_mapping=structure_mapping,
+        xyz_37=xyz_37,
+        xyz_37_m=xyz_37_m,
+        chain_mask=chain_mask,
+      )
 
     # 2. Base Model Encoder (Protein internal communication)
     h_V = jnp.zeros((E.shape[0], self.node_features_dim))
@@ -1592,6 +1757,9 @@ class PrxteinLigandMPNN(eqx.Module):
         state_mapping=state_mapping,
         fixed_mask=fixed_mask,
         fixed_tokens=fixed_tokens,
+        group_indices_table=group_indices_table,
+        group_valid_table=group_valid_table,
+        num_groups=num_groups,
         inference=inference,
       )
 
@@ -1614,6 +1782,9 @@ class PrxteinLigandMPNN(eqx.Module):
     state_mapping: jnp.ndarray | None = None,
     fixed_mask: jnp.ndarray | None = None,
     fixed_tokens: jnp.ndarray | None = None,
+    group_indices_table: jnp.ndarray | None = None,
+    group_valid_table: jnp.ndarray | None = None,
+    num_groups: int | None = None,
     inference: bool = True,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Autoregressive scan for LigandMPNN with optional tied-position decoding."""
@@ -1799,16 +1970,30 @@ class PrxteinLigandMPNN(eqx.Module):
       )
       return final_carry[3], final_carry[2]
 
+    # Use pre-computed group tables if provided, else compute them
+    if group_indices_table is None or group_valid_table is None:
+      # Compute max group size from tie_group_map
+      unique_groups, counts = jnp.unique(tie_group_map[tie_group_map >= 0], return_counts=True)
+      max_group_size = int(counts.max()) if len(counts) > 0 else 1
+      group_indices_table, group_valid_table = _create_group_index_table(
+        tie_group_map,
+        max_group_size,
+      )
+    else:
+      # Infer max_group_size from the shape of the pre-computed tables
+      max_group_size = group_indices_table.shape[1]
+
     groups_in_order = tie_group_map[decoding_order]
     position_indices = jnp.arange(num_residues)
     is_before_mask = position_indices[:, None] > position_indices[None, :]
     group_matches = groups_in_order[:, None] == groups_in_order[None, :]
     appeared_before = jnp.any(group_matches & is_before_mask, axis=1)
     is_first_occurrence = ~appeared_before
+    compress_size = num_groups if num_groups is not None else num_residues
     group_decoding_order = jnp.compress(
       is_first_occurrence,
       groups_in_order,
-      size=num_residues,
+      size=compress_size,
       fill_value=-1,
     )
 
@@ -1820,18 +2005,21 @@ class PrxteinLigandMPNN(eqx.Module):
         return (all_layers_h, s_embed, all_logits, sequence), None
 
       def _decode_group(_: None) -> tuple[tuple[jax.Array, jax.Array, jax.Array, jax.Array], None]:
-        group_mask = tie_group_map == group_id
+        group_indices = group_indices_table[group_id]
+        valid_mask = group_valid_table[group_id]
         computed_logits = jnp.zeros((num_residues, 21), dtype=all_logits.dtype)
 
-        def process_one_position(idx: Int, state: tuple[jax.Array, jax.Array]) -> tuple[jax.Array, jax.Array]:
+        def process_one_member(i: Int, state: tuple[jax.Array, jax.Array]) -> tuple[jax.Array, jax.Array]:
           position_all_layers_h, position_logits = state
+          idx = group_indices[i]
+          is_valid = valid_mask[i]
 
           def _process(_: None) -> tuple[jax.Array, jax.Array]:
             updated_h, logits_pos = _decode_position(position_all_layers_h, s_embed, idx)
             return updated_h, position_logits.at[idx].set(logits_pos)
 
           return jax.lax.cond(
-            group_mask[idx],
+            is_valid,
             _process,
             lambda _: (position_all_layers_h, position_logits),
             operand=None,
@@ -1839,10 +2027,11 @@ class PrxteinLigandMPNN(eqx.Module):
 
         all_layers_h_updated, computed_logits = jax.lax.fori_loop(
           0,
-          num_residues,
-          process_one_position,
+          max_group_size,
+          process_one_member,
           (all_layers_h, computed_logits),
         )
+        group_mask = tie_group_map == group_id
         combined_logits = PrxteinMPNN._combine_logits_multistate_idx(
           computed_logits,
           group_mask,
@@ -1865,9 +2054,11 @@ class PrxteinLigandMPNN(eqx.Module):
 
       return jax.lax.cond(group_id < 0, _skip_group, _decode_group, operand=None)
 
+    n_groups = group_decoding_order.shape[0]
     final_carry, _ = jax.lax.scan(
       group_autoregressive_step,
       _initial_carry(),
-      (group_decoding_order, jax.random.split(prng_key, num_residues)),
+      (group_decoding_order, jax.random.split(prng_key, n_groups)),
+      unroll=1,
     )
     return final_carry[3], final_carry[2]

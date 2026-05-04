@@ -1288,6 +1288,7 @@ class PrxteinMPNN(eqx.Module):
       "product",
     ] = "arithmetic_mean",
     multi_state_temperature: Float = 1.0,
+    multistate_mode: Literal["flat", "state_vmap", "state_vmap_exact"] = "flat",
     structure_mapping: jnp.ndarray | None = None,
     initial_node_features: jnp.ndarray | None = None,
     rbf_features: jnp.ndarray | None = None,
@@ -1296,6 +1297,10 @@ class PrxteinMPNN(eqx.Module):
     state_weights: jnp.ndarray | None = None,
     state_mapping: jnp.ndarray | None = None,
     num_groups: int | None = None,
+    wave_group_ids: jnp.ndarray | None = None,
+    wave_group_positions: jnp.ndarray | None = None,
+    wave_group_valid: jnp.ndarray | None = None,
+    wave_position_valid: jnp.ndarray | None = None,
     inference: bool = True,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Forward pass for the complete model.
@@ -1694,6 +1699,29 @@ class PrxteinLigandMPNN(eqx.Module):
     h_V = h_V + jax.vmap(self.v_c_norm)(self.dropout(h_V_C, key=keys[1], inference=inference))
 
     # 4. Decoding (Sequence prediction)
+    if decoding_approach == "unconditional":
+      return self._call_unconditional(
+        h_V,
+        h_E,
+        E_idx,
+        mask,
+        None,
+        None,
+        None,
+        None,
+        None,
+        tie_group_map,
+        jnp.asarray({"arithmetic_mean": 0, "geometric_mean": 1, "product": 2}[multi_state_strategy], dtype=jnp.int32),
+        multi_state_temperature,
+        None,
+        state_weights,
+        state_mapping,
+        None,
+        None,
+        group_indices_table,
+        group_valid_table,
+      )
+
     if decoding_approach == "conditional":
       if one_hot_sequence is None:
         raise ValueError("one_hot_sequence MUST be provided for conditional decoding approach")
@@ -1764,6 +1792,87 @@ class PrxteinLigandMPNN(eqx.Module):
       )
 
     return None, None
+
+  def _call_unconditional(
+    self,
+    node_features: NodeFeatures,
+    edge_features: EdgeFeatures,
+    neighbor_indices: NeighborIndices,
+    mask: AlphaCarbonMask,
+    _ar_mask: AutoRegressiveMask,
+    _one_hot_sequence: OneHotProteinSequence,
+    _prng_key: PRNGKeyArray,
+    _temperature: Float,
+    _bias: Logits,
+    _tie_group_map: TieGroupMap | None,
+    _multi_state_strategy_idx: Int,
+    _multi_state_temperature: Float,
+    _initial_node_features: NodeFeatures | None,
+    _state_weights: jnp.ndarray | None,
+    _state_mapping: jnp.ndarray | None,
+    _fixed_mask: jnp.ndarray | None,
+    _fixed_tokens: jnp.ndarray | None,
+    group_indices_table: jnp.ndarray | None,
+    group_valid_table: jnp.ndarray | None,
+  ) -> tuple[OneHotProteinSequence, Logits]:
+    """Run the unconditional (scoring) path for LigandMPNN.
+
+    The ligand context is already baked into the encoded node/edge features.
+    This method runs the decoder without sequence conditioning and projects
+    through w_out, mirroring PrxteinMPNN._call_unconditional.
+
+    Args:
+      node_features: Node features from encoding (with ligand context).
+      edge_features: Edge features from encoding (with ligand context).
+      neighbor_indices: Indices of neighbors for each node.
+      mask: Alpha carbon mask.
+      _ar_mask: Unused, required for signature uniformity.
+      _one_hot_sequence: Unused, required for signature uniformity.
+      _prng_key: Unused, required for signature uniformity.
+      _temperature: Unused, required for signature uniformity.
+      _bias: Unused, required for signature uniformity.
+      _tie_group_map: Unused, required for signature uniformity.
+      _multi_state_strategy_idx: Unused, required for signature uniformity.
+      _multi_state_temperature: Unused, required for signature uniformity.
+      _initial_node_features: Unused.
+      _state_weights: Unused.
+      _state_mapping: Unused.
+      _fixed_mask: Unused.
+      _fixed_tokens: Unused.
+      group_indices_table: Unused.
+      group_valid_table: Unused.
+
+    Returns:
+      Tuple of (dummy sequence, logits).
+    """
+    decoded_node_features = self.decoder(
+      node_features,
+      edge_features,
+      neighbor_indices,
+      mask,
+      key=_prng_key,
+    )
+
+    logits = jax.vmap(self.w_out)(decoded_node_features)
+
+    # Multi-state logit combining — mirrors PrxteinMPNN._call_unconditional.
+    # LigandMPNN's conditional path already uses this static call (line 1744).
+    if _tie_group_map is not None:
+      logits = PrxteinMPNN._apply_multistate_to_all_logits(
+        logits,
+        _tie_group_map,
+        _multi_state_strategy_idx,
+        _multi_state_temperature,
+        _state_weights,
+        _state_mapping,
+      )
+
+    # Return dummy sequence to match PyTree shape
+    dummy_seq = jnp.zeros(
+      (logits.shape[0], self.w_s_embed.num_embeddings),
+      dtype=logits.dtype,
+    )
+    return dummy_seq, logits
 
   def _run_autoregressive_scan(
     self,

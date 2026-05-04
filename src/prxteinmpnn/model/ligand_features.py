@@ -162,15 +162,15 @@ class ProteinFeaturesLigand(eqx.Module):
         # 1: Group (19 categories)
         # 2: Period (8 categories)
         import numpy as np
-        self.periodic_table_features = np.array([
+        self.periodic_table_features = jnp.array(np.array([
             np.arange(119),
             np.array([0, 1, 18, 1, 2, 13, 14, 15, 16, 17, 18, 1, 2, 13, 14, 15, 16, 17, 18, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]),
             np.array([0, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7]),
-        ])
-        self.side_chain_atom_types = np.array([
+        ]))
+        self.side_chain_atom_types = jnp.array(np.array([
             6, 6, 6, 8, 8, 16, 6, 6, 6, 7, 7, 8, 8, 16, 6, 6,
             6, 6, 7, 7, 7, 8, 8, 6, 7, 7, 8, 6, 6, 6, 7, 8,
-        ])
+        ]))
 
     def __call__(
         self,
@@ -210,7 +210,7 @@ class ProteinFeaturesLigand(eqx.Module):
             same_structure = structure_mapping[:, None] == structure_mapping[None, :]
             dist_ca = jnp.where(same_structure, dist_ca, 1e4)
 
-        k = jnp.minimum(self.k_neighbors, Ca.shape[0])
+        k = min(self.k_neighbors, Ca.shape[0])
         _, E_idx = jax.lax.top_k(-dist_ca, k)
 
         RBF_all = []
@@ -306,9 +306,23 @@ class ProteinFeaturesLigand(eqx.Module):
 
         # ligand-ligand edges
         Y_edges = self._rbf(jnp.sqrt(jnp.sum((Y[:, :, None, :] - Y[:, None, :, :])**2, axis=-1) + 1e-6))
-        Y_edges = jax.vmap(jax.vmap(jax.vmap(self.y_edges)))(Y_edges)
-        Y_nodes = jax.vmap(jax.vmap(self.y_nodes))(Y_t_1hot_)
+        # Replace triple vmap with reshape+GEMM for efficiency: (L, M, M, 16) → linear → (L, M, M, F_out)
+        L, M, _, F_in = Y_edges.shape
+        F_out = self.y_edges.weight.shape[0]
+        Y_edges = Y_edges.reshape(L * M * M, F_in) @ self.y_edges.weight.T
+        if self.y_edges.bias is not None:
+          Y_edges = Y_edges + self.y_edges.bias
+        Y_edges = Y_edges.reshape(L, M, M, F_out)
 
+        # Replace double vmap with reshape+GEMM for efficiency: (L, M, 147) → linear → (L, M, F_out)
+        L, M, F_in = Y_t_1hot_.shape
+        F_out = self.y_nodes.weight.shape[0]
+        Y_nodes = Y_t_1hot_.reshape(L * M, F_in) @ self.y_nodes.weight.T
+        if self.y_nodes.bias is not None:
+          Y_nodes = Y_nodes + self.y_nodes.bias
+        Y_nodes = Y_nodes.reshape(L, M, F_out)
+
+        # Apply layer normalization via vmap (still needed to preserve batch normalization semantics)
         Y_edges = jax.vmap(jax.vmap(jax.vmap(self.norm_y_edges)))(Y_edges)
         Y_nodes = jax.vmap(jax.vmap(self.norm_y_nodes))(Y_nodes)
 

@@ -1,5 +1,6 @@
 """Tests for the ste_optimize module."""
 from collections.abc import Callable
+from typing import Any
 
 import chex
 import equinox as eqx
@@ -37,6 +38,7 @@ class MockPrxteinMPNN(eqx.Module):
         ar_mask: AutoRegressiveMask,
         backbone_noise: BackboneNoise | None = None,
         structure_mapping: Array | None = None,
+        **kwargs: Any,
     ) -> tuple[None, Logits]:
         """Return mock logits."""
         chex.assert_shape(

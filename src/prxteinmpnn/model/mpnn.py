@@ -1295,6 +1295,7 @@ class PrxteinMPNN(eqx.Module):
     neighbor_indices: jnp.ndarray | None = None,
     precomputed_node_features: jnp.ndarray | None = None,
     precomputed_edge_features: jnp.ndarray | None = None,
+    precomputed_neighbor_indices: jnp.ndarray | None = None,
     membrane_per_residue_labels: jnp.ndarray | None = None,
     state_weights: jnp.ndarray | None = None,
     state_mapping: jnp.ndarray | None = None,

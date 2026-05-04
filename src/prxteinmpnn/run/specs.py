@@ -227,7 +227,11 @@ class SamplingSpecification(RunSpecification):
   fixed_tokens: ArrayLike | None = None
   iterations: int | None = None
   learning_rate: float | None = None
+  use_concrete: bool = False
+  concrete_tau_start: float = 1.0
+  concrete_tau_end: float = 0.1
   output_h5_path: str | Path | None = None
+  use_arrayrecord: bool = False
   return_logits: bool = True
   samples_batch_size: int = 16
   samples_chunk_size: int | None = None

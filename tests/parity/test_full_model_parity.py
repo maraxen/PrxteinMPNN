@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 import equinox as eqx
 import jax
@@ -16,6 +17,13 @@ from prxteinmpnn.model.mpnn import PrxteinMPNN
 from tests.parity.reference_utils import require_heavy_parity_prereqs
 
 
+JaxHeavyWeightSource = Literal["eqx", "pt_convert"]
+
+
+def _jax_protein_for_source(models: HeavyParityModels, source: JaxHeavyWeightSource) -> PrxteinMPNN:
+  return models.jax_model_eqx if source == "eqx" else models.jax_model_pt_convert
+
+
 @dataclass(frozen=True)
 class HeavyParityModels:
   """Container for loaded heavy parity models and reference modules."""
@@ -23,7 +31,8 @@ class HeavyParityModels:
   torch: Any
   model_utils: Any
   pt_model: Any
-  jax_model: PrxteinMPNN
+  jax_model_eqx: PrxteinMPNN
+  jax_model_pt_convert: PrxteinMPNN
 
 
 @dataclass(frozen=True)
@@ -183,7 +192,8 @@ def heavy_parity_models() -> HeavyParityModels:
   pt_model.load_state_dict(checkpoint["model_state_dict"])
   pt_model.eval()
 
-  jax_model = PrxteinMPNN(
+  jax_key = jax.random.PRNGKey(0)
+  jax_skeleton = PrxteinMPNN(
     node_features=128,
     edge_features=128,
     hidden_features=128,
@@ -192,15 +202,42 @@ def heavy_parity_models() -> HeavyParityModels:
     k_neighbors=48,
     num_positional_embeddings=num_positional_embeddings,
     dropout_rate=0.0,
-    key=jax.random.PRNGKey(0),
+    key=jax_key,
   )
-  jax_model = eqx.tree_deserialise_leaves(jax_checkpoint_path, jax_model)
+  jax_model_eqx = eqx.tree_deserialise_leaves(jax_checkpoint_path, jax_skeleton)
+
+  pt_state_dict_numpy: dict[str, np.ndarray] = {}
+  for k, v in checkpoint["model_state_dict"].items():
+    if hasattr(v, "detach"):
+      v = v.detach()
+    arr = v.cpu().numpy() if hasattr(v, "cpu") else np.asarray(v)
+    pt_state_dict_numpy[str(k)] = arr
+
+  repo_rt_str = str(repo_root.resolve())
+  if repo_rt_str not in sys.path:
+    sys.path.insert(0, repo_rt_str)
+
+  from scripts.convert_weights import convert_full_model
+
+  jax_model_pt_skeleton = PrxteinMPNN(
+    node_features=128,
+    edge_features=128,
+    hidden_features=128,
+    num_encoder_layers=3,
+    num_decoder_layers=3,
+    k_neighbors=48,
+    num_positional_embeddings=num_positional_embeddings,
+    dropout_rate=0.0,
+    key=jax_key,
+  )
+  jax_model_pt_convert = convert_full_model(pt_state_dict_numpy, jax_model_pt_skeleton)
 
   return HeavyParityModels(
     torch=torch,
     model_utils=model_utils,
     pt_model=pt_model,
-    jax_model=jax_model,
+    jax_model_eqx=jax_model_eqx,
+    jax_model_pt_convert=jax_model_pt_convert,
   )
 
 
@@ -211,9 +248,11 @@ def parity_batch() -> ParityBatch:
 
 
 @pytest.mark.parity_heavy
+@pytest.mark.parametrize("weight_source", ("eqx", "pt_convert"))
 def test_protein_feature_extraction_parity(
   heavy_parity_models: HeavyParityModels,
   parity_batch: ParityBatch,
+  weight_source: JaxHeavyWeightSource,
 ) -> None:
   """protein-feature-extraction: projected edge features and neighbors match reference."""
   feature_dict = _build_torch_feature_dict(heavy_parity_models.torch, parity_batch)
@@ -221,7 +260,8 @@ def test_protein_feature_extraction_parity(
     pt_edges, pt_neighbor_indices = heavy_parity_models.pt_model.features(feature_dict)
     pt_projected_edges = heavy_parity_models.pt_model.W_e(pt_edges).numpy()[0]
 
-  jax_edges, jax_neighbor_indices, _, _ = heavy_parity_models.jax_model.features(
+  jax_model = _jax_protein_for_source(heavy_parity_models, weight_source)
+  jax_edges, jax_neighbor_indices, _, _ = jax_model.features(
     jax.random.PRNGKey(0),
     parity_batch.x_jax_atom37,
     jnp.array(parity_batch.mask[0]),
@@ -238,16 +278,19 @@ def test_protein_feature_extraction_parity(
 
 
 @pytest.mark.parity_heavy
+@pytest.mark.parametrize("weight_source", ("eqx", "pt_convert"))
 def test_protein_encoder_parity(
   heavy_parity_models: HeavyParityModels,
   parity_batch: ParityBatch,
+  weight_source: JaxHeavyWeightSource,
 ) -> None:
   """protein-encoder: encoder node/edge activations maintain strong correlation."""
   feature_dict = _build_torch_feature_dict(heavy_parity_models.torch, parity_batch)
   with heavy_parity_models.torch.no_grad():
     pt_node_features, pt_edge_features, pt_neighbor_indices = heavy_parity_models.pt_model.encode(feature_dict)
 
-  jax_edges, jax_neighbor_indices, jax_initial_node_features, _ = heavy_parity_models.jax_model.features(
+  jax_model = _jax_protein_for_source(heavy_parity_models, weight_source)
+  jax_edges, jax_neighbor_indices, jax_initial_node_features, _ = jax_model.features(
     jax.random.PRNGKey(0),
     parity_batch.x_jax_atom37,
     jnp.array(parity_batch.mask[0]),
@@ -255,7 +298,7 @@ def test_protein_encoder_parity(
     jnp.array(parity_batch.chain_index[0]),
     jnp.array(0.0, dtype=jnp.float32),
   )
-  jax_node_features, jax_edge_features = heavy_parity_models.jax_model.encoder(
+  jax_node_features, jax_edge_features = jax_model.encoder(
     jax_edges,
     jax_neighbor_indices,
     jnp.array(parity_batch.mask[0]),
@@ -271,9 +314,11 @@ def test_protein_encoder_parity(
 
 
 @pytest.mark.parity_heavy
+@pytest.mark.parametrize("weight_source", ("eqx", "pt_convert"))
 def test_decoder_unconditional_parity(
   heavy_parity_models: HeavyParityModels,
   parity_batch: ParityBatch,
+  weight_source: JaxHeavyWeightSource,
 ) -> None:
   """decoder-unconditional: manual reference branch and JAX branch stay correlated."""
   feature_dict = _build_torch_feature_dict(heavy_parity_models.torch, parity_batch)
@@ -298,7 +343,8 @@ def test_decoder_unconditional_parity(
       dim=-1,
     ).numpy()[0]
 
-  _, jax_logits = heavy_parity_models.jax_model(
+  jax_model = _jax_protein_for_source(heavy_parity_models, weight_source)
+  _, jax_logits = jax_model(
     parity_batch.x_jax_atom37,
     jnp.array(parity_batch.mask[0]),
     jnp.array(parity_batch.residue_index[0]),
@@ -312,9 +358,11 @@ def test_decoder_unconditional_parity(
 
 
 @pytest.mark.parity_heavy
+@pytest.mark.parametrize("weight_source", ("eqx", "pt_convert"))
 def test_decoder_conditional_scoring_parity(
   heavy_parity_models: HeavyParityModels,
   parity_batch: ParityBatch,
+  weight_source: JaxHeavyWeightSource,
 ) -> None:
   """decoder-conditional-scoring: conditional score logits remain highly correlated."""
   feature_dict = _build_torch_feature_dict(heavy_parity_models.torch, parity_batch)
@@ -322,7 +370,8 @@ def test_decoder_conditional_scoring_parity(
     pt_score = heavy_parity_models.pt_model.score(feature_dict, use_sequence=True)
   pt_log_probs = pt_score["log_probs"].numpy()[0]
 
-  _, jax_logits = heavy_parity_models.jax_model(
+  jax_model = _jax_protein_for_source(heavy_parity_models, weight_source)
+  _, jax_logits = jax_model(
     parity_batch.x_jax_atom37,
     jnp.array(parity_batch.mask[0]),
     jnp.array(parity_batch.residue_index[0]),
@@ -339,9 +388,11 @@ def test_decoder_conditional_scoring_parity(
 
 
 @pytest.mark.parity_heavy
+@pytest.mark.parametrize("weight_source", ("eqx", "pt_convert"))
 def test_autoregressive_sampling_parity(
   heavy_parity_models: HeavyParityModels,
   parity_batch: ParityBatch,
+  weight_source: JaxHeavyWeightSource,
 ) -> None:
   """autoregressive-sampling: deterministic token agreement and log-prob correlation."""
   feature_dict = _build_torch_feature_dict(
@@ -352,7 +403,8 @@ def test_autoregressive_sampling_parity(
   with heavy_parity_models.torch.no_grad():
     pt_sample = heavy_parity_models.pt_model.sample(feature_dict)
 
-  jax_sequence, jax_logits = heavy_parity_models.jax_model(
+  jax_model = _jax_protein_for_source(heavy_parity_models, weight_source)
+  jax_sequence, jax_logits = jax_model(
     parity_batch.x_jax_atom37,
     jnp.array(parity_batch.mask[0]),
     jnp.array(parity_batch.residue_index[0]),
@@ -377,9 +429,11 @@ def test_autoregressive_sampling_parity(
 
 
 @pytest.mark.parity_heavy
+@pytest.mark.parametrize("weight_source", ("eqx", "pt_convert"))
 def test_tied_positions_and_multi_state_parity(
   heavy_parity_models: HeavyParityModels,
   parity_batch: ParityBatch,
+  weight_source: JaxHeavyWeightSource,
 ) -> None:
   """tied-positions-and-multi-state: weighted-sum reference aligns with JAX product strategy."""
   tie_groups = [[0, 1, 2], [6, 7]]
@@ -396,7 +450,8 @@ def test_tied_positions_and_multi_state_parity(
   with heavy_parity_models.torch.no_grad():
     pt_sample = heavy_parity_models.pt_model.sample(feature_dict)
 
-  jax_sequence, jax_logits = heavy_parity_models.jax_model(
+  jax_model = _jax_protein_for_source(heavy_parity_models, weight_source)
+  jax_sequence, jax_logits = jax_model(
     parity_batch.x_jax_atom37,
     jnp.array(parity_batch.mask[0]),
     jnp.array(parity_batch.residue_index[0]),

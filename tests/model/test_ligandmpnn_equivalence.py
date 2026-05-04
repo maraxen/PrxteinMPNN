@@ -15,12 +15,22 @@ from scipy.stats import pearsonr
 
 from prxteinmpnn.model.mpnn import PrxteinLigandMPNN
 from prxteinmpnn.parity.matrix import ligand_tied_multistate_rollout_outcome
+from tests.model.sampling_dist_parity_helpers import mean_positionwise_js
 from tests.parity.reference_utils import require_heavy_parity_prereqs
 
 pytestmark = pytest.mark.parity_heavy
 _LIGAND_TIED_PATH_ID = "ligand-tied-positions-and-multi-state"
 _LIGAND_TIED_SAMPLING_LANE = "ligand_context_reference_weighted_sum__jax_product"
 _LIGAND_TIED_SCORING_LANE = "ligand_context_reference_arithmetic_mean__jax_arithmetic_mean"
+
+
+@dataclass(frozen=True)
+class LigandParityBundle:
+  """Dauparas PyTorch checkpoint plus two JAX hydrations: runtime ``.eqx.zst`` vs ``convert_full_model``."""
+
+  pt_model: Any
+  jax_from_pt_convert: PrxteinLigandMPNN
+  jax_from_eqx_package: PrxteinLigandMPNN
 
 
 @dataclass(frozen=True)
@@ -230,8 +240,8 @@ def _jax_ligand_context_state(
 
 
 @pytest.fixture(scope="module")
-def ligand_models() -> tuple[Any, PrxteinLigandMPNN]:
-  """Load reference + JAX ligand models from the same checkpoint for parity checks."""
+def ligand_parity_bundle() -> LigandParityBundle:
+  """PyTorch reference plus JAX from ``convert_full_model`` *and* packaged ``.eqx.zst`` (production path)."""
   pytest.importorskip("torch")
   reference_root, _ = require_heavy_parity_prereqs(
     reference_rel_paths=["model_params/ligandmpnn_v_32_020_25.pt"],
@@ -239,6 +249,7 @@ def ligand_models() -> tuple[Any, PrxteinLigandMPNN]:
   import model_utils
   import torch
 
+  from prxteinmpnn.io.weights import load_model
   from scripts.convert_weights import convert_full_model
 
   checkpoint = torch.load(
@@ -267,7 +278,7 @@ def ligand_models() -> tuple[Any, PrxteinLigandMPNN]:
   pt_model.load_state_dict(state_dict)
   pt_model.eval()
 
-  jax_model = PrxteinLigandMPNN(
+  jax_from_pt = PrxteinLigandMPNN(
     node_features=128,
     edge_features=128,
     hidden_features=128,
@@ -279,8 +290,28 @@ def ligand_models() -> tuple[Any, PrxteinLigandMPNN]:
     dropout_rate=0.0,
     key=jax.random.PRNGKey(0),
   )
-  jax_model = convert_full_model(state_dict_np, jax_model)
-  return pt_model, jax_model
+  jax_from_pt = convert_full_model(state_dict_np, jax_from_pt)
+
+  try:
+    jax_eqx = load_model(checkpoint_id="ligandmpnn_v_32_020_25", key=jax.random.PRNGKey(1))
+  except FileNotFoundError as exc:
+    pytest.fail(
+      "Bundled LigandMPNN ``ligandmpnn_v_32_020_25.eqx.zst`` is required for end-to-end parity. "
+      "Install ``prxteinmpnn`` with packaged ``model_params`` assets. "
+      f"Details: {exc}",
+    )
+
+  return LigandParityBundle(
+    pt_model=pt_model,
+    jax_from_pt_convert=jax_from_pt,
+    jax_from_eqx_package=jax_eqx,
+  )
+
+
+@pytest.fixture(scope="module")
+def ligand_models(ligand_parity_bundle: LigandParityBundle) -> tuple[Any, PrxteinLigandMPNN]:
+  """Backward-compatible ``(pt, jax)`` pair using the PyTorch-state-dict convert path."""
+  return ligand_parity_bundle.pt_model, ligand_parity_bundle.jax_from_pt_convert
 
 
 @pytest.fixture(scope="module")
@@ -381,14 +412,25 @@ def test_ligand_conditioning_context_reference_correlation(
   assert _pearson_correlation(log_probs_pt, log_probs_jax) > 0.9
 
 
+@pytest.mark.parametrize(
+  "jax_weight_source",
+  ["pt_convert", "eqx_package"],
+  ids=["jax_pt_convert", "jax_eqx_package"],
+)
 def test_ligand_autoregressive_reference_alignment(
-  ligand_models: tuple[Any, PrxteinLigandMPNN],
+  ligand_parity_bundle: LigandParityBundle,
   ligand_batch: LigandBatch,
+  jax_weight_source: str,
 ) -> None:
   """Check deterministic autoregressive ligand sampling parity under forced-token bias."""
   import torch
 
-  pt_model, jax_model = ligand_models
+  pt_model = ligand_parity_bundle.pt_model
+  jax_model = (
+    ligand_parity_bundle.jax_from_pt_convert
+    if jax_weight_source == "pt_convert"
+    else ligand_parity_bundle.jax_from_eqx_package
+  )
   feature_dict = _to_torch_feature_dict(ligand_batch, torch)
   ar_mask = _build_ar_mask(ligand_batch.randn[0])
 
@@ -428,7 +470,127 @@ def test_ligand_autoregressive_reference_alignment(
 
   assert np.array_equal(sampled_tokens_jax, forced_tokens)
   assert np.array_equal(sampled_seq_pt, sampled_tokens_jax)
-  assert _pearson_correlation(sampled_log_probs_pt, sampled_log_probs_jax) > 0.9
+  assert _pearson_correlation(sampled_log_probs_pt, sampled_log_probs_jax) > 0.9, jax_weight_source
+
+
+def test_ligand_jax_package_and_pt_convert_produce_identical_forced_samples(
+  ligand_parity_bundle: LigandParityBundle,
+  ligand_batch: LigandBatch,
+) -> None:
+  """End-to-end checksum: packaged ``.eqx`` vs in-test ``convert_full_model`` (no PyTorch RNG)."""
+  ar_mask = _build_ar_mask(ligand_batch.randn[0])
+  forcing_rng = np.random.default_rng(23)
+  forced_tokens = forcing_rng.integers(0, 20, size=(ligand_batch.x.shape[1],), dtype=np.int64)
+  bias = np.zeros((ligand_batch.x.shape[1], 21), dtype=np.float32)
+  bias[np.arange(ligand_batch.x.shape[1]), forced_tokens] = 50.0
+
+  key = jax.random.PRNGKey(37)
+
+  def _sample(m: PrxteinLigandMPNN) -> np.ndarray:
+    seq, _ = m(
+      jnp.array(ligand_batch.x[0]),
+      jnp.array(ligand_batch.mask[0]),
+      jnp.array(ligand_batch.residue_index[0]),
+      jnp.array(ligand_batch.chain_index[0]),
+      jnp.array(ligand_batch.y[0]),
+      jnp.array(ligand_batch.y_t[0]),
+      jnp.array(ligand_batch.y_m[0]),
+      "autoregressive",
+      prng_key=key,
+      ar_mask=jnp.array(ar_mask),
+      temperature=1.0,
+      bias=jnp.array(bias),
+      inference=True,
+    )
+    return np.asarray(seq).argmax(axis=-1)
+
+  a = _sample(ligand_parity_bundle.jax_from_pt_convert)
+  b = _sample(ligand_parity_bundle.jax_from_eqx_package)
+  assert np.array_equal(a, b), "eqx.zst and convert_full_model diverged on identical JAX sampling inputs"
+
+
+@pytest.mark.parametrize(
+  "jax_weight_source",
+  ["pt_convert", "eqx_package"],
+  ids=["jax_pt_convert", "jax_eqx_package"],
+)
+@pytest.mark.parametrize("temperature", [1.0, 0.1], ids=lambda t: f"T={t}")
+def test_ligand_stochastic_sampling_per_position_distribution_near_reference(
+  ligand_parity_bundle: LigandParityBundle,
+  ligand_batch: LigandBatch,
+  jax_weight_source: str,
+  temperature: float,
+) -> None:
+  """Marginal sampling law: many i.i.d. draws should match Dauparas PT per-residue AA histograms.
+
+  Bitwise sequence identity between PyTorch and JAX is not expected here (different RNG);
+  instead we compare empirical categorical distributions at each position via mean
+  Jensen–Shannon divergence over the 20 standard amino acids.
+
+  Tight forced-bias token identity is covered by
+  :func:`test_ligand_autoregressive_reference_alignment`.
+  """
+  import torch
+
+  pt_model = ligand_parity_bundle.pt_model
+  jax_model = (
+    ligand_parity_bundle.jax_from_pt_convert
+    if jax_weight_source == "pt_convert"
+    else ligand_parity_bundle.jax_from_eqx_package
+  )
+  seq_len = ligand_batch.x.shape[1]
+  n_samples = 96
+  temperature_jax = jnp.array(temperature, dtype=jnp.float32)
+  abs_floor = 0.12 if temperature >= 0.5 else 0.16
+
+  ar_mask = _build_ar_mask(ligand_batch.randn[0])
+  bias_np = np.zeros((1, seq_len, 21), dtype=np.float32)
+
+  pt_sequences: list[np.ndarray] = []
+  jax_sequences: list[np.ndarray] = []
+
+  for i in range(n_samples):
+    feature_dict = _to_torch_feature_dict(ligand_batch, torch)
+    feature_dict["bias"] = torch.from_numpy(bias_np)
+    feature_dict["temperature"] = temperature
+    feature_dict["chain_mask"] = torch.ones_like(feature_dict["chain_mask"])
+    torch.manual_seed(10_000 + i)
+
+    with torch.no_grad():
+      sampled_pt = pt_model.sample(feature_dict)
+    pt_sequences.append(sampled_pt["S"].numpy()[0].astype(np.int64))
+
+    key = jax.random.PRNGKey(20_000 + i)
+    sampled_seq_jax, _ = jax_model(
+      jnp.array(ligand_batch.x[0]),
+      jnp.array(ligand_batch.mask[0]),
+      jnp.array(ligand_batch.residue_index[0]),
+      jnp.array(ligand_batch.chain_index[0]),
+      jnp.array(ligand_batch.y[0]),
+      jnp.array(ligand_batch.y_t[0]),
+      jnp.array(ligand_batch.y_m[0]),
+      "autoregressive",
+      prng_key=key,
+      ar_mask=jnp.array(ar_mask),
+      temperature=temperature_jax,
+      bias=jnp.array(bias_np[0]),
+      inference=True,
+    )
+    jax_sequences.append(np.asarray(sampled_seq_jax).argmax(axis=-1).astype(np.int64))
+
+  stacked_pt = np.stack(pt_sequences, axis=0)
+  stacked_jax = np.stack(jax_sequences, axis=0)
+
+  control_pt = mean_positionwise_js(stacked_pt[:48], stacked_pt[48:])
+  control_jax = mean_positionwise_js(stacked_jax[:48], stacked_jax[48:])
+  control_floor = max(control_pt, control_jax, 1e-6)
+
+  divergence = mean_positionwise_js(stacked_pt, stacked_jax)
+  assert divergence <= max(abs_floor, 1.85 * control_floor), (
+    f"mean JS divergence PT vs JAX {divergence:.4f} exceeded tolerance "
+    f"(abs_floor={abs_floor}, control split floor {control_floor:.4f}, T={temperature}) "
+    "— sampling marginals drifted vs reference."
+  )
 
 
 @pytest.mark.parity_audit

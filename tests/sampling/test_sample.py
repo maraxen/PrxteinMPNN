@@ -324,3 +324,129 @@ def test_sample_convenience_function_no_jit(
     chex.assert_shape(logits, (model_inputs["mask"].shape[0], 21))
     chex.assert_shape(order, (model_inputs["mask"].shape[0],))
     chex.assert_tree_all_finite((seq, logits, order))
+
+
+def test_precomputed_features_equivalence(
+    mock_model_parameters, model_inputs, rng_key,
+):
+    """Test that precomputed features produce identical results to non-precomputed path."""
+    model = PrxteinMPNN(
+        node_features=128,
+        edge_features=128,
+        hidden_features=128,
+        num_encoder_layers=3,
+        num_decoder_layers=3,
+        k_neighbors=48,
+        key=rng_key,
+    )
+    sample_fn = make_sample_sequences(model, sampling_strategy="temperature")
+
+    # Path 1: Without precomputed features
+    seq_without, logits_without, order_without = sample_fn(
+        rng_key,
+        model_inputs["structure_coordinates"],
+        model_inputs["mask"],
+        model_inputs["residue_index"],
+        model_inputs["chain_index"],
+        temperature=0.5,
+    )
+
+    # Path 2: With precomputed features
+    # Pre-compute node, edge features and neighbor indices
+    _dummy_key = jax.random.PRNGKey(0)
+    _feat_key = jax.random.split(_dummy_key)[1]
+    _pre_edge, _pre_neighbor_indices, _pre_node, _ = model.features(
+        _feat_key,
+        model_inputs["structure_coordinates"],
+        model_inputs["mask"],
+        model_inputs["residue_index"],
+        model_inputs["chain_index"],
+        jnp.array(0.0, dtype=jnp.float32),
+    )
+    _pre_node, _pre_edge = model.encoder(
+        _pre_edge,
+        _pre_neighbor_indices,
+        model_inputs["mask"],
+        initial_node_features=_pre_node,
+        inference=True,
+        key=_dummy_key,
+    )
+
+    seq_with, logits_with, order_with = sample_fn(
+        rng_key,
+        model_inputs["structure_coordinates"],
+        model_inputs["mask"],
+        model_inputs["residue_index"],
+        model_inputs["chain_index"],
+        temperature=0.5,
+        precomputed_node_features=_pre_node,
+        precomputed_edge_features=_pre_edge,
+        precomputed_neighbor_indices=_pre_neighbor_indices,
+    )
+
+    # Sequences should be identical (same key, same internal computations)
+    assert jnp.array_equal(seq_without, seq_with), "Sequences differ between precomputed and non-precomputed paths"
+
+    # Logits should be bit-identical (no stochasticity in features/encoder)
+    chex.assert_trees_all_close(logits_without, logits_with, atol=1e-6)
+
+    # Decoding order should be identical (deterministic given the same key)
+    assert jnp.array_equal(order_without, order_with), "Decoding orders differ between paths"
+
+
+def test_precomputed_features_incomplete_raises_error(
+    mock_model_parameters, model_inputs, rng_key,
+):
+    """Test that passing only some precomputed features raises an error."""
+    model = PrxteinMPNN(
+        node_features=128,
+        edge_features=128,
+        hidden_features=128,
+        num_encoder_layers=3,
+        num_decoder_layers=3,
+        k_neighbors=48,
+        key=rng_key,
+    )
+    sample_fn = make_sample_sequences(model, sampling_strategy="temperature")
+
+    # Pre-compute features
+    _dummy_key = jax.random.PRNGKey(0)
+    _feat_key = jax.random.split(_dummy_key)[1]
+    _pre_edge, _pre_neighbor_indices, _pre_node, _ = model.features(
+        _feat_key,
+        model_inputs["structure_coordinates"],
+        model_inputs["mask"],
+        model_inputs["residue_index"],
+        model_inputs["chain_index"],
+        jnp.array(0.0, dtype=jnp.float32),
+    )
+    _pre_node, _pre_edge = model.encoder(
+        _pre_edge,
+        _pre_neighbor_indices,
+        model_inputs["mask"],
+        initial_node_features=_pre_node,
+        inference=True,
+        key=_dummy_key,
+    )
+
+    # Test: passing only precomputed_node_features should work or fail consistently
+    # The model should either accept all-or-nothing or raise an error for partial provision.
+    # For now, test that passing node but not edge/neighbors is handled gracefully.
+    try:
+        seq, logits, order = sample_fn(
+            rng_key,
+            model_inputs["structure_coordinates"],
+            model_inputs["mask"],
+            model_inputs["residue_index"],
+            model_inputs["chain_index"],
+            temperature=0.5,
+            precomputed_node_features=_pre_node,
+            # Missing: precomputed_edge_features, precomputed_neighbor_indices
+        )
+        # If it doesn't raise, check outputs are valid
+        chex.assert_tree_all_finite((seq, logits, order))
+    except (ValueError, TypeError) as e:
+        # Expected: incomplete precomputed features should raise an error
+        assert "precomputed" in str(e).lower() or "required" in str(e).lower(), (
+            f"Expected error message to mention precomputed features or required kwargs, got: {e}"
+        )

@@ -19,6 +19,8 @@ import jax
 import jax.numpy as jnp
 
 if TYPE_CHECKING:
+  from jaxtyping import PRNGKeyArray
+
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
     CEELoss,
@@ -36,6 +38,29 @@ def straight_through_estimator(logits: Logits) -> Logits:
   probs = jax.nn.softmax(logits, axis=-1)
   one_hot = jax.nn.one_hot(jnp.argmax(probs, axis=-1), num_classes=probs.shape[-1])
   return jax.lax.stop_gradient(one_hot - probs) + probs
+
+
+def gumbel_softmax(
+  logits: Logits,
+  tau: jnp.ndarray,
+  key: PRNGKeyArray,
+  hard: bool = True,
+) -> jnp.ndarray:
+  """Concrete distribution relaxation of argmax (Gumbel-softmax).
+
+  At tau→0 approaches one-hot argmax; at tau=1 samples proportionally to logits.
+  When hard=True, uses straight-through: forward is one-hot, backward flows through
+  the soft Gumbel-softmax, giving meaningful per-AA gradients at every step.
+
+  Use the SAME key for both seq_repr and labels so the model sees the exact
+  sequence its loss is evaluated against.
+  """
+  gumbel = -jnp.log(-jnp.log(jax.random.uniform(key, logits.shape) + 1e-20) + 1e-20)
+  y_soft = jax.nn.softmax((logits + gumbel) / tau, axis=-1)
+  if hard:
+    y_hard = jax.nn.one_hot(jnp.argmax(y_soft, axis=-1), num_classes=y_soft.shape[-1])
+    return jax.lax.stop_gradient(y_hard - y_soft) + y_soft
+  return y_soft
 
 
 def ste_loss(

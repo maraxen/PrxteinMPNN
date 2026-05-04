@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import sys
+import warnings
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -15,6 +16,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from prxteinmpnn.io.designs import DesignArrayRecordWriter, DesignPayload, DesignMetadata
 from prxteinmpnn.run.averaging import get_averaged_encodings, make_encoding_sampling_split_fn
 from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.utils.autoregression import resolve_tie_groups
@@ -973,6 +975,9 @@ def sample(
     model=model,
     decoding_order_fn=_DEFAULT_DECODING_ORDER_FN,
     sampling_strategy=spec.sampling_strategy,
+    use_concrete=getattr(spec, "use_concrete", False),
+    tau_start=getattr(spec, "concrete_tau_start", 1.0),
+    tau_end=getattr(spec, "concrete_tau_end", 0.1),
   )
 
   if spec.output_h5_path:
@@ -1074,7 +1079,7 @@ def _sample_streaming(
   protein_iterator: IterDataset,
   sampler_fn: Callable,
 ) -> dict[str, Any]:
-  """Sample new sequences and stream results to an HDF5 file."""
+  """Sample new sequences and stream results to an HDF5 or ArrayRecord file."""
   grid_lineage = _resolve_grid_lineage(spec)
   canonical_structure_ids = _canonical_structure_ids_for_spec(spec)
   resolved_structure_ids: list[str] = []
@@ -1083,6 +1088,24 @@ def _sample_streaming(
   )
   chunk_size = int(spec.samples_chunk_size or total_num_samples)
   sample_start = int(grid_lineage["sample_start"]) if grid_lineage is not None else 0
+
+  # Validate ArrayRecord and HDF5 parameter combinations
+  if spec.use_arrayrecord and not spec.campaign_mode:
+    msg = "use_arrayrecord=True requires campaign_mode=True."
+    raise ValueError(msg)
+
+  # Use ArrayRecord path for campaign mode if requested
+  if spec.use_arrayrecord and spec.campaign_mode:
+    return _sample_streaming_arrayrecord(spec, protein_iterator, sampler_fn, grid_lineage, canonical_structure_ids)
+
+  # Deprecation warning for HDF5 path
+  warnings.warn(
+    "HDF5 output path is deprecated and will be removed in a future release. "
+    "Use use_arrayrecord=True for async ArrayRecord output.",
+    DeprecationWarning,
+    stacklevel=2,
+  )
+
   with h5py.File(spec.output_h5_path, "w") as f:
     f.attrs["schema_version"] = GRID_SCHEMA_VERSION if spec.grid_mode else SAMPLING_SCHEMA_VERSION
     f.attrs["model_family"] = spec.model_family
@@ -1217,10 +1240,143 @@ def _sample_streaming(
               perplexity_ds.resize(perplexity_ds.shape[0] + perplexity_chunk.shape[0], axis=0)
               perplexity_ds[-perplexity_chunk.shape[0] :] = perplexity_chunk
 
-      f.flush()
+    # Flush only once at the end of sampling, not per batch, to reduce blocking I/O
+    f.flush()
 
   results = {
     "output_h5_path": str(spec.output_h5_path),
+    "schema_version": GRID_SCHEMA_VERSION if spec.grid_mode else SAMPLING_SCHEMA_VERSION,
+    "metadata": {
+      "specification": spec,
+      "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
+      "structure_ids": resolved_structure_ids,
+    },
+  }
+  if grid_lineage is not None:
+    manifest_row_hash = _grid_manifest_row_hash(spec, grid_lineage)
+    iteration_ids, iteration_starts, iteration_counts = _grid_iteration_arrays(
+      grid_lineage,
+      chunk_size=chunk_size,
+    )
+    results["metadata"]["lineage"] = {
+      **grid_lineage,
+      "manifest_row_hash": manifest_row_hash,
+      "sample_indices": _grid_sample_indices(grid_lineage).tolist(),
+      "grid_iteration_ids": iteration_ids.tolist(),
+      "grid_iteration_sample_start": iteration_starts.tolist(),
+      "grid_iteration_sample_count": iteration_counts.tolist(),
+    }
+  return results
+
+
+def _sample_streaming_arrayrecord(
+  spec: SamplingSpecification,
+  protein_iterator: IterDataset,
+  sampler_fn: Callable,
+  grid_lineage: dict[str, int | str] | None,
+  canonical_structure_ids: list[str],
+) -> dict[str, Any]:
+  """Sample new sequences and stream results to ArrayRecord files (async path for campaign mode).
+
+  Creates one .arrayrecord file per structure, using async thread-pool writes
+  to avoid blocking the device on disk I/O.
+  """
+  resolved_structure_ids: list[str] = []
+  total_num_samples = (
+    int(grid_lineage["sample_count"]) if grid_lineage is not None else int(spec.num_samples)
+  )
+  chunk_size = int(spec.samples_chunk_size or total_num_samples)
+  sample_start = int(grid_lineage["sample_start"]) if grid_lineage is not None else 0
+  structure_idx = 0
+
+  # Generate output base path (strip .h5 if present, use .arrayrecord)
+  output_base = spec.output_h5_path
+  if str(output_base).endswith(".h5"):
+    output_base = Path(str(output_base)[:-3])
+
+  structure_writers: list[tuple[int, DesignArrayRecordWriter]] = []
+  try:
+    for batched_ensemble in protein_iterator:
+      batch_size = batched_ensemble.coordinates.shape[0]
+      batch_structure_ids = _structure_ids_for_batch(
+        canonical_structure_ids,
+        structure_offset=structure_idx,
+        batch_size=batch_size,
+      )
+
+      # Create one ArrayRecord writer per structure in batch
+      for i in range(batch_size):
+        writer_path = Path(str(output_base) + f"_structure_{structure_idx}.arrayrecord")
+        writer = DesignArrayRecordWriter(str(writer_path))
+        structure_writers.append((i, writer))
+        resolved_structure_ids.append(batch_structure_ids[i])
+        structure_idx += 1
+
+      # Process samples in chunks
+      for chunk_start in range(0, total_num_samples, chunk_size):
+        chunk_count = min(chunk_size, total_num_samples - chunk_start)
+        chunk_sample_start = sample_start + chunk_start
+        sampled_sequences, sampled_logits, pseudo_perplexity = _sample_batch(
+          spec,
+          batched_ensemble,
+          sampler_fn,
+          canonical_structure_ids=canonical_structure_ids,
+          batch_structure_ids=batch_structure_ids,
+          chunk_sample_start=chunk_sample_start,
+          chunk_sample_count=chunk_count,
+        )
+
+        # Stream each sample to the corresponding structure's ArrayRecord writer
+        for structure_batch_idx, writer in structure_writers:
+          seq_chunk = np.asarray(sampled_sequences[structure_batch_idx], dtype=np.uint8)
+          logits_chunk = (
+            np.asarray(sampled_logits[structure_batch_idx], dtype=np.float32)
+            if spec.return_logits
+            else None
+          )
+          pseudo_perp_chunk = (
+            np.asarray(pseudo_perplexity[structure_batch_idx], dtype=np.float32)
+            if pseudo_perplexity is not None
+            else None
+          )
+
+          # Flatten samples-noise-temperature dimensions and write each design
+          for sample_idx in range(seq_chunk.shape[0]):
+            for noise_idx in range(seq_chunk.shape[1]):
+              for temp_idx in range(seq_chunk.shape[2]):
+                sequence = seq_chunk[sample_idx, noise_idx, temp_idx, :]
+                logits = logits_chunk[sample_idx, noise_idx, temp_idx, :, :] if logits_chunk is not None else None
+                score = np.array([0.0], dtype=np.float32)  # Placeholder; adjust as needed
+                state_weights = np.ones(9, dtype=np.float32)  # Placeholder; adjust as needed
+
+                metadata: DesignMetadata = {
+                  "pool_type": "BackboneOnly",
+                  "state_mapping": list(range(9)),
+                  "weight_strategy": "uniform",
+                  "combination_algorithm": "none",
+                  "structure_ids": [batch_structure_ids[structure_batch_idx]],
+                  "parent_structure_idx": structure_idx - 1,
+                }
+
+                payload: DesignPayload = {
+                  "sequence": sequence,
+                  "logits": logits if logits is not None else np.zeros((214, 21), dtype=np.float32),
+                  "scores": score,
+                  "state_weights": state_weights,
+                  "metadata": metadata,
+                }
+                writer.write(payload)
+
+  finally:
+    # Close all writers (context manager will wait for pending async writes)
+    for _, writer in structure_writers:
+      writer.close()
+
+  results = {
+    "output_arrayrecord_paths": [
+      str(Path(str(output_base) + f"_structure_{idx}.arrayrecord"))
+      for idx in range(structure_idx)
+    ],
     "schema_version": GRID_SCHEMA_VERSION if spec.grid_mode else SAMPLING_SCHEMA_VERSION,
     "metadata": {
       "specification": spec,

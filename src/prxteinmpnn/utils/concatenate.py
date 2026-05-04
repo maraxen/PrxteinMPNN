@@ -3,13 +3,11 @@
 prxteinmpnn.utils.concatenate
 """
 
-import jax
 import jax.numpy as jnp
 
 from .types import EdgeFeatures, NeighborIndices, NodeFeatures
 
 
-@jax.jit
 def concatenate_neighbor_nodes(
   node_features: NodeFeatures,
   edge_features: EdgeFeatures,

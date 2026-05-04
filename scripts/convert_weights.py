@@ -18,6 +18,9 @@ import numpy as np
 from prxteinmpnn.model.ligand_features import ProteinFeaturesLigand
 from prxteinmpnn.model.packer import Packer
 
+# Must match dauparas/LigandMPNN `model_utils.ProteinMPNN` (`ligand_mpnn` branch).
+NUM_LIGAND_CONTEXT_LAYERS = 2
+
 
 def convert_linear_layer(
     pt_weight: np.ndarray,
@@ -805,6 +808,7 @@ def main():
             num_decoder_layers=3,
             k_neighbors=32 if "32" in args.input else 48,
             num_positional_embeddings=num_pos,
+            num_context_layers=NUM_LIGAND_CONTEXT_LAYERS,
             ligand_mpnn_use_side_chain_context=use_side_chain_context,
             key=key,
         )

@@ -3,19 +3,16 @@
 from __future__ import annotations
 
 import io
-from typing import TYPE_CHECKING, Literal
+from importlib.resources import files
+from typing import Literal
 
 import equinox as eqx
 import jax
 import jax.nn.initializers as init
 import zstandard as zstd
-from importlib.resources import files
 
-from prxteinmpnn.model import PrxteinMPNN, PrxteinLigandMPNN
+from prxteinmpnn.model import PrxteinLigandMPNN, PrxteinMPNN
 from prxteinmpnn.model.packer import Packer
-
-if TYPE_CHECKING:
-  from jaxtyping import PyTree
 
 MODEL_WEIGHTS = Literal["original", "soluble", "ligand", "sc", "membrane"]
 MODEL_VERSION = Literal[
@@ -36,6 +33,9 @@ NUM_ENCODER_LAYERS = 3
 NUM_DECODER_LAYERS = 3
 VOCAB_SIZE = 21
 LIGAND_DEFAULT_CHECKPOINT = "ligandmpnn_v_32_020_25"
+# Dauparas reference LigandMPNN uses two alternating ligand-side / protein-side context blocks.
+NUM_LIGAND_CONTEXT_LAYERS = 2
+# Rebuild ``model_params/*.eqx.zst`` from ``.pt``: ``scripts/regenerate_packaged_eqx_zst.py``.
 
 LEGACY_ALIAS_MAP = {
   ("original", "v_48_002"): "proteinmpnn_v_48_002.eqx.zst",
@@ -127,20 +127,19 @@ def load_weights(
         stream = io.BytesIO(dctx.decompress(data))
         return eqx.tree_deserialise_leaves(stream, skeleton)
     return eqx.tree_deserialise_leaves(local_path, skeleton)
-  else:
-    filename = checkpoint_id
-    if not filename.endswith(".zst"):
-      filename = f"{filename}.eqx.zst"
-    
-    resource_path = files("prxteinmpnn.model_params").joinpath(filename)
-    if not resource_path.exists():
-      msg = f"Weight file {filename} not found in package resources."
-      raise FileNotFoundError(msg)
-    
-    data = resource_path.read_bytes()
-    dctx = zstd.ZstdDecompressor()
-    stream = io.BytesIO(dctx.decompress(data))
-    return eqx.tree_deserialise_leaves(stream, skeleton)
+  filename = checkpoint_id
+  if not filename.endswith(".zst"):
+    filename = f"{filename}.eqx.zst"
+
+  resource_path = files("prxteinmpnn.model_params").joinpath(filename)
+  if not resource_path.exists():
+    msg = f"Weight file {filename} not found in package resources."
+    raise FileNotFoundError(msg)
+
+  data = resource_path.read_bytes()
+  dctx = zstd.ZstdDecompressor()
+  stream = io.BytesIO(dctx.decompress(data))
+  return eqx.tree_deserialise_leaves(stream, skeleton)
 
 
 def load_model(
@@ -168,7 +167,7 @@ def load_model(
     # They passed 'v_48_020' into checkpoint_id
     model_version = checkpoint_id
     checkpoint_id = None
-    
+
   if not checkpoint_id:
     if model_weights and model_version:
       filename = LEGACY_ALIAS_MAP.get((model_weights, model_version))
@@ -198,6 +197,7 @@ def load_model(
       num_decoder_layers=NUM_DECODER_LAYERS,
       k_neighbors=topo["k_neighbors"],
       num_positional_embeddings=topo["num_positional_embeddings"],
+      num_context_layers=NUM_LIGAND_CONTEXT_LAYERS,
       key=key,
     )
   elif model_type == "packer":
@@ -212,35 +212,34 @@ def load_model(
       num_positional_embeddings=topo["num_positional_embeddings"],
       key=key,
     )
+  elif training_mode == "diffusion":
+    from prxteinmpnn.model.diffusion_mpnn import DiffusionPrxteinMPNN
+    skeleton = DiffusionPrxteinMPNN(
+      node_features=NODE_FEATURES,
+      edge_features=EDGE_FEATURES,
+      hidden_features=HIDDEN_FEATURES,
+      physics_feature_dim=physics_feature_dim if physics_feature_dim > 0 else None,
+      num_encoder_layers=NUM_ENCODER_LAYERS,
+      num_decoder_layers=NUM_DECODER_LAYERS,
+      vocab_size=VOCAB_SIZE,
+      k_neighbors=topo["k_neighbors"],
+      num_positional_embeddings=topo["num_positional_embeddings"],
+      key=key,
+    )
   else:
-    if training_mode == "diffusion":
-      from prxteinmpnn.model.diffusion_mpnn import DiffusionPrxteinMPNN
-      skeleton = DiffusionPrxteinMPNN(
-        node_features=NODE_FEATURES,
-        edge_features=EDGE_FEATURES,
-        hidden_features=HIDDEN_FEATURES,
-        physics_feature_dim=physics_feature_dim if physics_feature_dim > 0 else None,
-        num_encoder_layers=NUM_ENCODER_LAYERS,
-        num_decoder_layers=NUM_DECODER_LAYERS,
-        vocab_size=VOCAB_SIZE,
-        k_neighbors=topo["k_neighbors"],
-        num_positional_embeddings=topo["num_positional_embeddings"],
-        key=key,
-      )
-    else:
-      skeleton = PrxteinMPNN(
-        node_features=NODE_FEATURES,
-        edge_features=EDGE_FEATURES,
-        hidden_features=HIDDEN_FEATURES,
-        physics_feature_dim=physics_feature_dim if physics_feature_dim > 0 else None,
-        num_encoder_layers=NUM_ENCODER_LAYERS,
-        num_decoder_layers=NUM_DECODER_LAYERS,
-        vocab_size=VOCAB_SIZE,
-        k_neighbors=topo["k_neighbors"],
-        num_positional_embeddings=topo["num_positional_embeddings"],
-        dropout_rate=dropout_rate,
-        key=key,
-      )
+    skeleton = PrxteinMPNN(
+      node_features=NODE_FEATURES,
+      edge_features=EDGE_FEATURES,
+      hidden_features=HIDDEN_FEATURES,
+      physics_feature_dim=physics_feature_dim if physics_feature_dim > 0 else None,
+      num_encoder_layers=NUM_ENCODER_LAYERS,
+      num_decoder_layers=NUM_DECODER_LAYERS,
+      vocab_size=VOCAB_SIZE,
+      k_neighbors=topo["k_neighbors"],
+      num_positional_embeddings=topo["num_positional_embeddings"],
+      dropout_rate=dropout_rate,
+      key=key,
+    )
 
   loaded = load_weights(
     checkpoint_id=checkpoint_id,

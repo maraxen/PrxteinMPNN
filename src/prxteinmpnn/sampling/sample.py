@@ -36,6 +36,9 @@ def make_sample_sequences(
   sampling_strategy: Literal["temperature", "straight_through"] = "temperature",
   _num_encoder_layers: int = 3,
   _num_decoder_layers: int = 3,
+  use_concrete: bool = False,
+  tau_start: float = 1.0,
+  tau_end: float = 0.1,
 ) -> SamplerFn:
   """Create a function to sample sequences from a structure using PrxteinMPNN.
 
@@ -78,13 +81,16 @@ def make_sample_sequences(
   is_ligand_mpnn = "Y" in model_params
 
   if sampling_strategy == "straight_through":
-    optimize_fn = make_optimize_sequence_fn(model, decoding_order_fn)
+    optimize_fn = make_optimize_sequence_fn(
+      model, decoding_order_fn, use_concrete=use_concrete, tau_start=tau_start, tau_end=tau_end
+    )
 
     @partial(
       jax.jit,
       static_argnames=(
         "num_groups",
         "multi_state_strategy",
+        "multistate_mode",
         "max_group_size",
       ),
     )
@@ -109,6 +115,7 @@ def make_sample_sequences(
         "geometric_mean",
         "product",
       ] = "arithmetic_mean",
+      multistate_mode: Literal["flat", "state_vmap", "state_vmap_exact"] = "flat",
       structure_mapping: jax.Array | None = None,
       multi_state_temperature: Float = 1.0,
       max_group_size: int = 16,
@@ -172,6 +179,7 @@ def make_sample_sequences(
         num_groups,
         structure_mapping,
         multi_state_strategy=multi_state_strategy,
+        multistate_mode=multistate_mode,
         multi_state_temperature=multi_state_temperature,
         fixed_mask=fixed_mask,
         fixed_tokens=fixed_tokens,
@@ -189,7 +197,9 @@ def make_sample_sequences(
       static_argnames=(
         "num_groups",
         "multi_state_strategy",
+        "multistate_mode",
         "max_group_size",
+        "state_vmap_n_canonical",
       ),
     )
     def sample_sequences(
@@ -213,9 +223,30 @@ def make_sample_sequences(
         "geometric_mean",
         "product",
       ] = "arithmetic_mean",
+      multistate_mode: Literal["flat", "state_vmap", "state_vmap_exact"] = "flat",
       structure_mapping: jax.Array | None = None,
       multi_state_temperature: Float = 1.0,
       max_group_size: int = 16,
+      precomputed_node_features: jnp.ndarray | None = None,
+      precomputed_edge_features: jnp.ndarray | None = None,
+      precomputed_neighbor_indices: jnp.ndarray | None = None,
+      state_vmap_n_canonical: int = 0,
+      coords_stack: jnp.ndarray | None = None,
+      mask_stack: jnp.ndarray | None = None,
+      residue_index_stack: jnp.ndarray | None = None,
+      chain_index_stack: jnp.ndarray | None = None,
+      tie_group_map_stack: jnp.ndarray | None = None,
+      fixed_mask_stack: jnp.ndarray | None = None,
+      fixed_tokens_stack: jnp.ndarray | None = None,
+      bias_stack: jnp.ndarray | None = None,
+      state_flat_rows: jnp.ndarray | None = None,
+      wave_group_ids_local: jnp.ndarray | None = None,
+      wave_group_positions_local: jnp.ndarray | None = None,
+      wave_group_valid_local: jnp.ndarray | None = None,
+      wave_position_valid_local: jnp.ndarray | None = None,
+      y_stack: jnp.ndarray | None = None,
+      y_t_stack: jnp.ndarray | None = None,
+      y_m_stack: jnp.ndarray | None = None,
       **kwargs: Any,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """Sample a sequence from a structure using the ProteinMPNN model.
@@ -269,6 +300,112 @@ def make_sample_sequences(
         decoding_order, None, tie_group_map, num_groups,
       )
 
+      if multistate_mode == "state_vmap_exact":
+        if is_ligand_mpnn and (y_stack is None or y_t_stack is None or y_m_stack is None):
+          msg = (
+            "state_vmap_exact for PrxteinLigandMPNN requires y_stack, y_t_stack, and y_m_stack "
+            "(stacked from flat ligand tensors via slice_flat_tensor_to_stack)."
+          )
+          raise ValueError(msg)
+        if (
+          coords_stack is None
+          or mask_stack is None
+          or residue_index_stack is None
+          or chain_index_stack is None
+          or tie_group_map_stack is None
+          or fixed_mask_stack is None
+          or fixed_tokens_stack is None
+          or state_flat_rows is None
+          or wave_group_ids_local is None
+          or wave_group_positions_local is None
+          or wave_group_valid_local is None
+          or wave_position_valid_local is None
+        ):
+          msg = (
+            "state_vmap_exact requires coords_stack, mask_stack, residue_index_stack, "
+            "chain_index_stack, tie_group_map_stack, fixed_mask_stack, fixed_tokens_stack, "
+            "state_flat_rows, and local wave_group_* tensors."
+          )
+          raise ValueError(msg)
+
+        def _ar_submatrix(rows: jnp.ndarray) -> jnp.ndarray:
+          g = jnp.where(rows >= 0, rows, 0)
+          sub = autoregressive_mask[g[:, None], g[None, :]]
+          valid = rows >= 0
+          vm = valid[:, None] & valid[None, :]
+          return jnp.where(vm, sub, jnp.zeros_like(sub))
+
+        autoregressive_mask_stack = jax.vmap(_ar_submatrix)(state_flat_rows)
+
+        strategy_map = {"arithmetic_mean": 0, "geometric_mean": 1, "product": 2}
+        multi_state_strategy_idx = jnp.asarray(strategy_map[multi_state_strategy], dtype=jnp.int32)
+
+        bias_s = (
+          bias_stack
+          if bias_stack is not None
+          else jnp.zeros(
+            (coords_stack.shape[0], coords_stack.shape[1], 21),
+            dtype=jnp.float32,
+          )
+        )
+        state_weights = kwargs.get("state_weights")
+        if state_weights is None:
+          n_s = int(coords_stack.shape[0])
+          state_weights = jnp.ones((n_s,), dtype=jnp.float32) / jnp.float32(n_s)
+
+        if is_ligand_mpnn:
+          sampled_sequence, logits = model.sample_autoregressive_state_vmap_exact(
+            prng_key,
+            coords_stack,
+            mask_stack,
+            residue_index_stack,
+            chain_index_stack,
+            autoregressive_mask_stack,
+            tie_group_map_stack,
+            bias_s,
+            temperature,
+            multi_state_strategy_idx,
+            jnp.asarray(multi_state_temperature, dtype=jnp.float32),
+            state_weights,
+            fixed_mask_stack,
+            fixed_tokens_stack,
+            y_stack,
+            y_t_stack,
+            y_m_stack,
+            wave_group_ids_local,
+            wave_group_positions_local,
+            wave_group_valid_local,
+            wave_position_valid_local,
+          )
+        else:
+          sampled_sequence, logits = model.sample_autoregressive_state_vmap_exact(
+            prng_key,
+            coords_stack,
+            mask_stack,
+            residue_index_stack,
+            chain_index_stack,
+            autoregressive_mask_stack,
+            tie_group_map_stack,
+            bias_s,
+            temperature,
+            multi_state_strategy_idx,
+            jnp.asarray(multi_state_temperature, dtype=jnp.float32),
+            state_weights,
+            fixed_mask_stack,
+            fixed_tokens_stack,
+            wave_group_ids_local,
+            wave_group_positions_local,
+            wave_group_valid_local,
+            wave_position_valid_local,
+          )
+        nc = state_vmap_n_canonical
+        sampled_sequence = sampled_sequence[0, :nc, :]
+        logits = logits[0, :nc, :]
+        one_hot_ndim = 2
+        if sampled_sequence.ndim == one_hot_ndim:
+          sampled_sequence = sampled_sequence.argmax(axis=-1).astype(jnp.int8)
+        return sampled_sequence, logits, decoding_order
+
       call_kwargs = {
         "decoding_approach": "autoregressive",
         "prng_key": prng_key,
@@ -279,10 +416,20 @@ def make_sample_sequences(
         "tie_group_map": tie_group_map,
         "num_groups": num_groups,
         "multi_state_strategy": multi_state_strategy,
+        "multistate_mode": multistate_mode,
         "structure_mapping": structure_mapping,
         "group_indices_table": kwargs.get("group_indices_table"),
         "group_valid_table": kwargs.get("group_valid_table"),
+        "wave_group_ids": kwargs.get("wave_group_ids"),
+        "wave_group_positions": kwargs.get("wave_group_positions"),
+        "wave_group_valid": kwargs.get("wave_group_valid"),
+        "wave_position_valid": kwargs.get("wave_position_valid"),
       }
+
+      if not is_ligand_mpnn:
+        call_kwargs["precomputed_node_features"] = precomputed_node_features
+        call_kwargs["precomputed_edge_features"] = precomputed_edge_features
+        call_kwargs["precomputed_neighbor_indices"] = precomputed_neighbor_indices
 
       if supports_multi_state_temperature:
         call_kwargs["multi_state_temperature"] = multi_state_temperature

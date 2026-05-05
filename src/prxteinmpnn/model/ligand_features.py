@@ -12,6 +12,8 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
+from prxteinmpnn.model.ligand_tiling import map_chunks_axis0
+
 if TYPE_CHECKING:
     from prxteinmpnn.utils.types import (
         AlphaCarbonMask,
@@ -82,6 +84,10 @@ class ProteinFeaturesLigand(eqx.Module):
     k_neighbors: int = eqx.field(static=True)
     atom_context_num: int = eqx.field(static=True)
     use_side_chains: bool = eqx.field(static=True)
+    # Chunk axis-0 ligand pairwise edges / node projections for bounded GPU peak memory (>0 tiles).
+    # <=0 restores legacy monolithic (L*M*M,) GEMMs (fine for small L / debugging parity).
+    ligand_l_chunk: int = eqx.field(static=True)
+    ligand_chunk_checkpoint: bool = eqx.field(static=True)
 
     def _make_angle_features(self, A: jax.Array, B: jax.Array, C: jax.Array, Y: jax.Array) -> jax.Array:
         """Port of _make_angle_features from PyTorch."""
@@ -122,6 +128,26 @@ class ProteinFeaturesLigand(eqx.Module):
         D_neighbors = jnp.take_along_axis(D_A_B, E_idx, axis=1)
         return self._rbf(D_neighbors)
 
+    def _y_edges_coords_to_embed(self, Y: jax.Array) -> jax.Array:
+        """Dense ligand-ligand pairwise RBF + y_edges projection for residue slab Y [* , M , 3]."""
+        raw = jnp.sqrt(jnp.sum((Y[:, :, None, :] - Y[:, None, :, :]) ** 2, axis=-1) + 1e-6)
+        y_edges = self._rbf(raw)
+        l_, m_, m2_, f_in = y_edges.shape
+        f_out = self.y_edges.weight.shape[0]
+        flat = y_edges.reshape(l_ * m_ * m2_, f_in) @ self.y_edges.weight.T
+        if self.y_edges.bias is not None:
+            flat = flat + self.y_edges.bias
+        return flat.reshape(l_, m_, m2_, f_out)
+
+    def _y_nodes_proj(self, Y_t_1hot_: jax.Array) -> jax.Array:
+        """Apply y_nodes to ligand atom one-hots [* , M , 147]."""
+        l_, m_, f_in = Y_t_1hot_.shape
+        f_out = self.y_nodes.weight.shape[0]
+        flat = Y_t_1hot_.reshape(l_ * m_, f_in) @ self.y_nodes.weight.T
+        if self.y_nodes.bias is not None:
+            flat = flat + self.y_nodes.bias
+        return flat.reshape(l_, m_, f_out)
+
     def __init__(
         self,
         node_features: int,
@@ -130,6 +156,8 @@ class ProteinFeaturesLigand(eqx.Module):
         atom_context_num: int = 16,
         num_positional_embeddings: int = 16,
         use_side_chains: bool = False,
+        ligand_l_chunk: int = 16,
+        ligand_chunk_checkpoint: bool = False,
         *,
         key: PRNGKeyArray,
     ) -> None:
@@ -138,6 +166,8 @@ class ProteinFeaturesLigand(eqx.Module):
         self.k_neighbors = k_neighbors
         self.atom_context_num = atom_context_num
         self.use_side_chains = use_side_chains
+        self.ligand_l_chunk = ligand_l_chunk
+        self.ligand_chunk_checkpoint = ligand_chunk_checkpoint
 
         self.embeddings = PositionalEncodings(num_positional_embeddings, key=keys[0])
         # edge_in = 16 + 16 * 25 = 416
@@ -304,23 +334,26 @@ class ProteinFeaturesLigand(eqx.Module):
         V = jax.vmap(jax.vmap(self.node_project_down))(D_all)
         V = jax.vmap(jax.vmap(self.norm_nodes))(V)
 
-        # ligand-ligand edges
-        Y_edges = self._rbf(jnp.sqrt(jnp.sum((Y[:, :, None, :] - Y[:, None, :, :])**2, axis=-1) + 1e-6))
-        # Replace triple vmap with reshape+GEMM for efficiency: (L, M, M, 16) → linear → (L, M, M, F_out)
-        L, M, _, F_in = Y_edges.shape
-        F_out = self.y_edges.weight.shape[0]
-        Y_edges = Y_edges.reshape(L * M * M, F_in) @ self.y_edges.weight.T
-        if self.y_edges.bias is not None:
-          Y_edges = Y_edges + self.y_edges.bias
-        Y_edges = Y_edges.reshape(L, M, M, F_out)
+        # Ligand–ligand edges: O(L·M²); chunk axis L when ligand_l_chunk > 0
+        if self.ligand_l_chunk <= 0:
+            Y_edges = self._y_edges_coords_to_embed(Y)
+        else:
+            Y_edges = map_chunks_axis0(
+                Y,
+                chunk_size=self.ligand_l_chunk,
+                fn=self._y_edges_coords_to_embed,
+                use_checkpoint=self.ligand_chunk_checkpoint,
+            )
 
-        # Replace double vmap with reshape+GEMM for efficiency: (L, M, 147) → linear → (L, M, F_out)
-        L, M, F_in = Y_t_1hot_.shape
-        F_out = self.y_nodes.weight.shape[0]
-        Y_nodes = Y_t_1hot_.reshape(L * M, F_in) @ self.y_nodes.weight.T
-        if self.y_nodes.bias is not None:
-          Y_nodes = Y_nodes + self.y_nodes.bias
-        Y_nodes = Y_nodes.reshape(L, M, F_out)
+        if self.ligand_l_chunk <= 0:
+            Y_nodes = self._y_nodes_proj(Y_t_1hot_)
+        else:
+            Y_nodes = map_chunks_axis0(
+                Y_t_1hot_,
+                chunk_size=self.ligand_l_chunk,
+                fn=self._y_nodes_proj,
+                use_checkpoint=self.ligand_chunk_checkpoint,
+            )
 
         # Apply layer normalization via vmap (still needed to preserve batch normalization semantics)
         Y_edges = jax.vmap(jax.vmap(jax.vmap(self.norm_y_edges)))(Y_edges)

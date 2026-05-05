@@ -94,6 +94,13 @@ REFERENCE_PATH=./reference_ligandmpnn_clone \
 uv run python scripts/generate_parity_report.py --project-root . --output-dir docs/parity --pdf
 ```
 
+**`PRXTEINMPNN_VERIFY` (runtime jaxtyping + beartype):** tests under `tests/parity/` set
+`PRXTEINMPNN_VERIFY=1` via `tests/parity/conftest.py` (refactor roadmap §13 Q5). Elsewhere, opt in with:
+
+```bash
+PRXTEINMPNN_VERIFY=1 uv run pytest path/to/test.py -v
+```
+
 CI tier routing:
 - pull_request/main CI excludes `parity_heavy` and `parity_audit` from the default pytest matrix.
 - `parity.yml` runs heavy reference-backed checks on `main` push and manual dispatch.

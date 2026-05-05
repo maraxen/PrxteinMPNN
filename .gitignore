@@ -39,3 +39,8 @@ data/pdb_cache/*
 *.h5.partial.*
 *.h5.done.json
 tests/run/_grid_artifacts/
+
+# Local pytest-json-report / coverage blobs (keep scripts under .praxia/)
+.praxia/pytest_errors/
+.praxia/*_console*.log
+.praxia/fast_pytest*.log

@@ -28,7 +28,6 @@ def test_map_chunks_matches_dense_y_edges() -> None:
     y,
     chunk_size=5,
     fn=feat._y_edges_coords_to_embed,
-    use_checkpoint=False,
   )
 
   np.testing.assert_allclose(dense, tiled, rtol=1e-5, atol=1e-5)
@@ -52,30 +51,6 @@ def test_map_chunks_matches_dense_y_nodes() -> None:
     h,
     chunk_size=4,
     fn=feat._y_nodes_proj,
-    use_checkpoint=False,
-  )
-
-  np.testing.assert_allclose(dense, tiled, rtol=1e-5, atol=1e-5)
-
-
-def test_checkpointed_chunk_path_matches_dense_edges() -> None:
-  key = jax.random.PRNGKey(99)
-  feat = ProteinFeaturesLigand(
-    node_features=128,
-    edge_features=128,
-    k_neighbors=8,
-    ligand_l_chunk=-1,
-    key=key,
-  )
-  rng = np.random.default_rng(2)
-  y = jnp.asarray(rng.standard_normal(size=(26, 8, 3)), dtype=jnp.float32)
-
-  dense = feat._y_edges_coords_to_embed(y)
-  tiled = map_chunks_axis0(
-    y,
-    chunk_size=6,
-    fn=feat._y_edges_coords_to_embed,
-    use_checkpoint=True,
   )
 
   np.testing.assert_allclose(dense, tiled, rtol=1e-5, atol=1e-5)

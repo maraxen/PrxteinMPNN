@@ -1,4 +1,8 @@
-"""Training and evaluation metrics."""
+"""Training and evaluation metrics.
+
+TODO(io_callback integration): ``to_dict`` uses ``device_get`` for small scalars (OK for logs).
+Revisit only if emitting large telemetry from traced steps (see prxteinmpnn/TODO_io_callback.txt).
+"""
 
 from __future__ import annotations
 

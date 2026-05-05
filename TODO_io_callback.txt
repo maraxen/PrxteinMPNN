@@ -1,0 +1,36 @@
+Roadmap: jax.experimental.io_callback + jax.effects_barrier
+============================================================
+Pattern: host I/O and large device→host transfers happen inside (or immediately
+after) traced code via io_callback(..., ordered=False), then jax.effects_barrier()
+to cap in-flight GPU state (see run_design_grid / multistate pools / STE).
+
+Reference implementations in this repo:
+  - prxteinmpnn/run/multistate_pools.py — vmap + lax.map + io_callback
+  - prxteinmpnn/sampling/ste_optimize.py — logits save + effects_barrier
+  - prxteinmpnn/io/designs.py — DesignArrayRecordWriter + get_io_callback_fn; write() still uses device_get
+
+External reference (streaming / tiling idioms):
+  - jaxbeans (if available in sibling checkout) — match io_callback + effects_barrier usage to local patterns.
+
+Multistate ``state_vmap_exact`` logits/scoring (preferred when many states — avoids one huge flat encoder graph):
+  - Model: ``score_*_state_vmap_exact`` on ``PrxteinMPNN`` / ``PrxteinLigandMPNN`` (scatter + fuse).
+  - Factories: ``make_unconditional_logits_state_vmap_fn``, ``make_conditional_logits_state_vmap_fn``;
+    ``make_score_fn(..., multistate_mode="state_vmap_exact")`` (pass stack arrays as keywords).
+  - Host stacks: ``prxteinmpnn/sampling/state_vmap_prep.py`` (``build_state_vmap_exact_stacks``, ``slice_flat_tensor_to_stack``).
+  - Grid runner: ``scripts/run_unconditional_logits_grid.py --multistate-mode state_vmap_exact`` (LigandMPNN).
+
+Outstanding integration targets (add/adjust inline TODOs as work lands):
+  [ ] run/sampling.py — _sample_batch chunked vmap: sequence_chunks / logit_chunks + concat
+  [ ] run/sampling.py — sample(): non-streaming path appends device arrays per batch
+  [ ] run/sampling.py — _sample_streaming (HDF5): Python loop + h5 writes after full batch mat
+  [ ] run/sampling.py — _sample_streaming_arrayrecord: np.asarray(...) materialization
+  [ ] run/sampling.py — _sample_averaged_mode: all_* list + concat
+  [ ] run/scoring.py — _score_averaged_mode / _score_standard_mode batch lists
+  [ ] run/jacobian.py — batch feature list + pad (may stay pure JAX; review D2H separately)
+  [ ] io/designs.py — replace or narrow device_get in ``write()`` when producer is jit+io_callback-only
+  [ ] training/trainer.py + training/metrics.py — scalar device_get for logs (low priority vs streaming logits)
+  [ ] profiling/sampler_profile.py — results.append + block_until_ready (document interaction with barriers)
+
+Not applicable (keep as-is):
+  - model/*.py list appends for static graph construction (not I/O)
+  - training preprocess / campaign manifest (host metadata)

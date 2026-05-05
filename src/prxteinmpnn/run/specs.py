@@ -3,16 +3,39 @@
 from __future__ import annotations
 
 import logging
-import multiprocessing as mp
 import sys
-from collections.abc import Sequence
+import warnings
+from collections.abc import MutableMapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from prxteinmpnn.io.weights import MODEL_VERSION, MODEL_WEIGHTS
 
-mp.set_start_method("spawn", force=True)
+_DEPRECATED_SPEC_KWARGS = frozenset(
+  {
+    "output_path",
+    "score_batch_size",
+    "average_logits",
+    "combine_noise_batch_size",
+    "gmm_min_iters",
+  },
+)
+
+
+def pop_deprecated_spec_kwargs(kwargs: MutableMapping[str, Any]) -> None:
+  """Remove legacy serialized keys dropped from specification dataclasses.
+
+  Mutates ``kwargs`` in place. Emits :class:`DeprecationWarning` for each removed key.
+  """
+  for key in _DEPRECATED_SPEC_KWARGS:
+    if key in kwargs:
+      kwargs.pop(key)
+      warnings.warn(
+        f"Specification kwarg {key!r} is deprecated and ignored.",
+        DeprecationWarning,
+        stacklevel=3,
+      )
 
 
 if TYPE_CHECKING:
@@ -34,6 +57,8 @@ AlignmentStrategy = Literal["sequence", "structure"]
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
+
+# TODO(tech-debt): `.agents/TECHNICAL_DEBT.md` §10 — formalize contracts on `RunSpecification` and related public types.
 
 
 def _loader_inputs(inputs: Sequence[str | StringIO] | str | StringIO) -> Sequence[str | StringIO]:
@@ -68,6 +93,10 @@ class RunSpecification:
       ram_budget_mb: Optional RAM budget for data loading in megabytes.
       max_workers: Optional maximum number of data loading workers.
 
+  Note:
+      Use ``output_h5_path`` on task-specific subclasses for HDF5 output.
+      Legacy serialized ``output_path`` is ignored with a :class:`DeprecationWarning`.
+
   """
 
   inputs: Sequence[str | StringIO] | str | StringIO
@@ -98,7 +127,6 @@ class RunSpecification:
   conformational_states: ConformationalStates | None = None
   cache_path: str | Path | None = None
   overwrite_cache: bool = False
-  output_path: str | Path | None = None
   max_length: int | None = 512
   truncation_strategy: Literal["none", "random_crop", "center_crop"] = "random_crop"
 
@@ -181,7 +209,6 @@ class ScoringSpecification(RunSpecification):
       return_logits: Whether to return the raw logits (default is False).
       return_decoding_orders: Whether to return decoding orders (default is False).
       return_all_scores: Whether to return scores for all sequences (default is False).
-      score_batch_size: The batch size for scoring sequences (default is 16).
       output_h5_path: Optional path to an HDF5 file for streaming output.
       average_node_features: Whether to average node features (default is False).
       average_encoding_mode: Mode for averaging encodings (default is "inputs_and_noise").
@@ -194,7 +221,6 @@ class ScoringSpecification(RunSpecification):
   return_logits: bool = False
   return_decoding_orders: bool = False
   return_all_scores: bool = False
-  score_batch_size: int = 16
   output_h5_path: str | Path | None = None
   average_node_features: bool = False
   average_encoding_mode: Literal["inputs", "noise_levels", "inputs_and_noise"] = "inputs_and_noise"
@@ -239,7 +265,6 @@ class SamplingSpecification(RunSpecification):
   temperature_batch_size: int = 1
   average_node_features: bool = False
   average_encoding_mode: Literal["inputs", "noise_levels", "inputs_and_noise"] = "inputs_and_noise"
-  average_logits: None | Literal["structures", "noise", "both"] = None
   multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean"
   compute_pseudo_perplexity: bool = False
   state_weights: ArrayLike | None = None
@@ -282,10 +307,7 @@ class SamplingSpecification(RunSpecification):
       object.__setattr__(self, "logits_memory_budget_mb", logits_budget)
     if self.campaign_mode and self.return_logits:
       if not self.allow_logits_in_campaign:
-        msg = (
-          "campaign_mode requires return_logits=False unless "
-          "allow_logits_in_campaign=True."
-        )
+        msg = "campaign_mode requires return_logits=False unless allow_logits_in_campaign=True."
         raise ValueError(msg)
       if self.logits_memory_budget_mb is None:
         msg = (
@@ -331,10 +353,8 @@ class JacobianSpecification(RunSpecification):
   jacobian_batch_size: int = 16
   average_encodings: bool = True
   average_encoding_mode: Literal["inputs", "noise_levels", "inputs_and_noise"] = "inputs_and_noise"
-  average_logits: None | Literal["structures", "noise", "both"] = None
   combine: bool = False
   combine_batch_size: int = 8
-  combine_noise_batch_size: int = 1
   combine_weights: ArrayLike | None = None
   combine_fn: CombineCatJacPairFn | None = None
   combine_fn_kwargs: dict[str, Any] | None = None
@@ -376,7 +396,6 @@ class ConformationalInferenceSpecification(RunSpecification):
   pca_n_components: int = 20
   pca_solver: Literal["full", "randomized"] = "full"
   pca_rng_seed: int = 0
-  gmm_min_iters: int = 10
   covariance_regularization: float = 1e-3
 
   reference_sequence: str | None = None

@@ -21,7 +21,7 @@ from prxteinmpnn.ensemble.gmm import make_fit_gmm
 from prxteinmpnn.ensemble.pca import pca_transform
 from prxteinmpnn.model import PrxteinMPNN
 from prxteinmpnn.run.prep import prep_protein_stream_and_model
-from prxteinmpnn.run.specs import ConformationalInferenceSpecification
+from prxteinmpnn.run.specs import ConformationalInferenceSpecification, pop_deprecated_spec_kwargs
 from prxteinmpnn.sampling.conditional_logits import make_conditional_logits_fn
 from prxteinmpnn.sampling.unconditional_logits import make_unconditional_logits_fn
 from prxteinmpnn.utils.data_structures import GMM
@@ -41,7 +41,9 @@ def derive_states(
 ) -> dict[str, Any]:
   """Derive conformational states from a protein ensemble using a specified model."""
   if spec is None:
-    spec = ConformationalInferenceSpecification(**kwargs)
+    kw = dict(kwargs)
+    pop_deprecated_spec_kwargs(kw)
+    spec = ConformationalInferenceSpecification(**kw)
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
 

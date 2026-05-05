@@ -45,7 +45,7 @@ from prxteinmpnn.utils.catjac import (
 )
 
 from .prep import prep_protein_stream_and_model
-from .specs import JacobianSpecification
+from .specs import JacobianSpecification, pop_deprecated_spec_kwargs
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
@@ -92,7 +92,9 @@ def categorical_jacobian(
 
   """
   if spec is None:
-    spec = JacobianSpecification(**kwargs)
+    kw = dict(kwargs)
+    pop_deprecated_spec_kwargs(kw)
+    spec = JacobianSpecification(**kw)
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
   model = eqx.nn.inference_mode(model, value=True)

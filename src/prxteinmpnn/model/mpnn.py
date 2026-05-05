@@ -2420,29 +2420,6 @@ class PrxteinLigandMPNN(eqx.Module):
     del wave_group_ids, wave_group_positions, wave_group_valid, wave_position_valid
 
     keys = jax.random.split(prng_key, 2)
-    # #region agent log
-    try:
-      import json as _json
-      import time as _time
-
-      _logp = "/home/marielle/projects/tev_design/.cursor/debug-5a01b7.log"
-      _rec = {
-        "sessionId": "5a01b7",
-        "hypothesisId": "H1",
-        "location": "PrxteinLigandMPNN.__call__",
-        "message": "flat unconditional key fingerprints",
-        "data": {
-          "prng_key_u32": jax.device_get(prng_key.reshape(-1)).tolist(),
-          "features_subkey_u32": jax.device_get(keys[0].reshape(-1)).tolist(),
-          "post_features_subkey_u32": jax.device_get(keys[1].reshape(-1)).tolist(),
-        },
-        "timestamp": int(_time.time() * 1000),
-      }
-      with open(_logp, "a") as _f:
-        _f.write(_json.dumps(_rec) + "\n")
-    except Exception:
-      pass
-    # #endregion
 
     # 1. Feature Extraction
     # When precomputed ligand features are provided, skip the expensive ligand feature computation.
@@ -3090,29 +3067,6 @@ class PrxteinLigandMPNN(eqx.Module):
     """LigandMPNN unconditional logits: per-row encode + decoder, scatter+fuse (``state_vmap_exact``)."""
     del _dropout_inference
     k_enc, k_feat = jax.random.split(prng_key)
-    # #region agent log
-    try:
-      import json as _json
-      import time as _time
-
-      _logp = "/home/marielle/projects/tev_design/.cursor/debug-5a01b7.log"
-      _rec = {
-        "sessionId": "5a01b7",
-        "hypothesisId": "H1",
-        "location": "PrxteinLigandMPNN.score_unconditional_state_vmap_exact",
-        "message": "stack scorer key fingerprints (k_feat feeds ligand_encode_stack_row)",
-        "data": {
-          "prng_key_u32": jax.device_get(prng_key.reshape(-1)).tolist(),
-          "k_enc_u32": jax.device_get(k_enc.reshape(-1)).tolist(),
-          "k_feat_u32": jax.device_get(k_feat.reshape(-1)).tolist(),
-        },
-        "timestamp": int(_time.time() * 1000),
-      }
-      with open(_logp, "a") as _f:
-        _f.write(_json.dumps(_rec) + "\n")
-    except Exception:
-      pass
-    # #endregion
     s_tot = int(coords_stack.shape[0])
     scs = int(states_chunk_size) if states_chunk_size is not None else 0
     log_dim = int(self.w_out.out_features)

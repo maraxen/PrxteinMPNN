@@ -214,6 +214,12 @@ PrxteinMPNN aims to provide:
 3. **Modularity**: Easy-to-extend components for custom protein design tasks
 4. **Compatibility**: Seamless integration with the broader JAX ecosystem
 
+## Multiprocessing
+
+Importing `prxteinmpnn` does **not** set the multiprocessing start method. If your notebook or script spawns worker processes, call `configure_multiprocessing()` once at startup (see `prxteinmpnn.runtime`); the campaign CLI does this for you.
+
+---
+
 ## 📄 License
 
 MIT License

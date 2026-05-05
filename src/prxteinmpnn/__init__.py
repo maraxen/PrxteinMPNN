@@ -1,7 +1,5 @@
 """PrxteinMPNN: A functional interface for ProteinMPNN."""
 
-import multiprocessing as mp
-
 from .run import (
   JacobianSpecification,
   RunSpecification,
@@ -10,19 +8,22 @@ from .run import (
   sample,
   score,
 )
-
-mp.set_start_method("spawn", force=True)
+from .runtime import configure_multiprocessing
 
 __version__ = "0.1.0"
 __author__ = "Marielle Russo"
 __description__ = "PrxteinMPNN: A functional interface for ProteinMPNN"
 __license__ = "MIT"
 __url__ = "https://github.com/maraxen/prxteinmpnn"
+
+# TODO(tech-debt): `.agents/TECHNICAL_DEBT.md` §13 — repository hygiene (stale docs, dead code, CI warning budget).
+
 __all__ = [
   "JacobianSpecification",
   "RunSpecification",
   "SamplingSpecification",
   "ScoringSpecification",
+  "configure_multiprocessing",
   "sample",
   "score",
 ]

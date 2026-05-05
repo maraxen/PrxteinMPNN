@@ -19,7 +19,7 @@ from prxteinmpnn.utils.aa_convert import string_to_protein_sequence
 from prxteinmpnn.utils.autoregression import resolve_tie_groups
 
 from .prep import prep_protein_stream_and_model
-from .specs import SamplingSpecification, ScoringSpecification
+from .specs import SamplingSpecification, ScoringSpecification, pop_deprecated_spec_kwargs
 
 if TYPE_CHECKING:
   from prxteinmpnn.model.mpnn import PrxteinMPNN
@@ -62,7 +62,9 @@ def score(
 
   """
   if spec is None:
-    spec = ScoringSpecification(**kwargs)
+    kw = dict(kwargs)
+    pop_deprecated_spec_kwargs(kw)
+    spec = ScoringSpecification(**kw)
 
   if spec.output_h5_path:
     return _score_streaming(spec)
@@ -116,6 +118,7 @@ def _score_averaged_mode(
   spec_dict = asdict(spec)
   sampling_fields = {f.name for f in fields(SamplingSpecification)}
   filtered_spec = {k: v for k, v in spec_dict.items() if k in sampling_fields}
+  pop_deprecated_spec_kwargs(filtered_spec)
   sampling_spec = SamplingSpecification(**filtered_spec)
   # TODO(io_callback integration): Batch list accumulation; stream scores/logits via io_callback where consumers support it.
   all_scores, all_logits = [], []

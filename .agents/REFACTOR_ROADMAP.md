@@ -220,7 +220,7 @@ Critic point accepted: not every jaxbeans utility justifies a hard dep. Matrix:
 
 **Tasks:**
 - Add `jaxbeans` to `pyproject.toml [tool.uv.sources]` as editable workspace dep (default per §13 Q1/Q2: workspace member during refactor; PyPI when jaxbeans hits 0.1.0).
-- Add `[tool.jaxlint] select = ["JL"]` to `pyproject.toml`; wire `uv run jaxlint .` into CI as **non-blocking** advisory (becomes blocking in Phase 2).
+- Add `[tool.jaxlint] select = ["JL"]` to `pyproject.toml` for **local** runs only. **jaxlint is not a PyPI package and is not expected to become one**; do not add CI jobs that `pip`/`uv` install jaxlint from PyPI. Optional pre-commit or monorepo-only hooks may run jaxlint where the tool is already on `PATH`.
 - Capture HLO baselines as **review artifacts** at `tests/profiling/baseline_hlo/{model_call,score,sample,logits}.txt` via `jax.jit(...).lower(...).compile().runtime_executable().hlo_modules()`. CI runs `assert_zero_copy_overhead` for **detection** only; threshold lives in a per-callable allowlist file with rationale strings.
 - Vendor `prxteinmpnn/utils/testing.py::get_tolerances` and `prxteinmpnn/utils/typing.py::PRXTEINMPNN_VERIFY` (5 + ~15 LoC, per §3.6).
 - Add `ty.toml` `[allowed-unresolved-imports]` for proxide / prolix / optional deps.
@@ -283,11 +283,11 @@ The spike is mandatory before Phase 4 PRs may merge. Until then, draft Phase 4 P
 - Add `ModelCapabilities(eqx.Module)` static field on `PrxteinMPNN` and `PrxteinLigandMPNN`. Concrete capability instances live next to each model class.
 - Migrate the **3 verified `inspect.signature` sites** (`sampling/sample.py:77`, `scoring/score.py:342`, `run/averaging.py:58`) to `model.capabilities.accepts_*`.
 - Fix the lying `cast(ScoringFn, ...)` at `score.py:302` to `cast(StateVmapExactScoreFn, ...)`.
-- Make `uv run jaxlint .` and `uv run ty check` blocking in CI.
+- Make `uv run ty check` blocking in CI. **jaxlint:** enforce `JL001` only in environments where jaxlint is available (local / optional pre-commit); **not** via PyPI-based CI (jaxlint is not and will not be published to PyPI for the foreseeable future).
 
 **Critic point partially accepted (rejected the descope to a 30-line PR):** the critic suggested replacing all 3 `inspect.signature` sites with one explicit `is_ligand_mpnn: bool` parameter. We reject the descope because (a) it doesn't solve the `Callable[..., Any]` problem and (b) `accepts_state_stack` and `accepts_tied_positions` are independent capability axes, not collapsible onto a single LigandMPNN/MPNN bit. We do however adopt the **trim**: `BiasHook` is out, `DesignSink` is deferred.
 
-**CI gates added:** `ty check` strict (no `Callable[..., Any]` in module API surface); `jaxlint JL001` blocking.
+**CI gates added:** `ty check` strict (no `Callable[..., Any]` in module API surface). **jaxlint JL001** is developer-local or optional hook only (same PyPI policy as Phase 0).
 **Tech-debt closed:** §10.
 **Migration cost:** see §6.
 
@@ -433,8 +433,8 @@ Estimates from `rg`-driven counts at HEAD; refine in each phase's first PR.
 These run alongside phases, not in serial.
 
 ### 7.1 jaxlint adoption
-- One PR, anytime after Phase 0. Wire `uv run jaxlint .` into pre-commit + CI.
-- **JL001** flags the scatter/gather anti-pattern documented in jaxbeans `docs/BEST_PRACTICES.md §7`. Apply to touched files only initially; full-repo enforcement after Phase 4.
+- **jaxlint is not on PyPI and is not planned for PyPI.** Adoption is **local or monorepo-only**: document how to run `uv run jaxlint .` when the jaxlint executable is available (e.g. alongside a jaxbeans checkout). Optional pre-commit is allowed; **do not** add CI steps that install jaxlint from PyPI.
+- **JL001** flags the scatter/gather anti-pattern documented in jaxbeans `docs/BEST_PRACTICES.md §7`. Apply to touched files only initially; broaden coverage in dev workflows after Phase 4.
 
 ### 7.2 Doc-drift cleanup (STANDALONE PRs, moved out of Phase 1)
 
@@ -524,7 +524,7 @@ The roadmap is complete when **all** of the following are measurably true:
 1. **`parity_fast` green at every commit on `main`.** **`parity_heavy` recorded green in each phase tag's release notes** (manual gate, not CI).
 2. **`src/prxteinmpnn/model/mpnn.py` ≤ 600 LoC**, with `PrxteinMPNN` and `PrxteinLigandMPNN` in separate files, no cross-class private static method calls.
 3. **Zero `Callable[..., Any]`** in module API surface (enforced by `ty check` strict). Zero `inspect.signature` calls. Zero hardcoded debug-log paths. Zero top-level `mp.set_start_method` calls.
-4. **`uv run jaxlint .`** passes repo-wide with `JL001` enabled.
+4. **`uv run jaxlint .`** passes repo-wide with `JL001` enabled **on maintainer / release machines** where jaxlint is installed (jaxlint is not a PyPI package; CI does not gate on it).
 5. **`assert_zero_copy_overhead`** runs for all four parity-pinned callables; any regressions sit in the allowlist with a rationale string.
 6. **StableHLO export** of `model.__call__` succeeds (validates §11 closure).
 7. **Cold-start wall-time benchmark** runs in CI (advisory); no regression in the mpnn-split benchmark exceeds 20% without an explanation in the PR.
@@ -576,10 +576,10 @@ Each Open Question now has a **default decision** that holds unless a triggering
 | **Sprint plan** | `.agents/SPRINT_refactor-sprint-phase0-20260505.md` |
 | **Sprint plan (Phase 0 closeout slice)** | `.agents/SPRINT_refactor-sprint-phase0-closeout-20260512.md` |
 | **Last update** | 2026-05-12 |
-| **Landed** | Vendored `get_tolerances` and `PRXTEINMPNN_VERIFY`; `profiling/hlo_tools.py` (jaxbeans `core/profiling` excerpt); `tests/profiling/` with Q8 allowlist + **captured** `baseline_hlo/*.txt` review IR + HLO export / zero-copy smoke tests; `tests/parity/conftest.py` (Q5); Phase 0a spike (`tests/sampling/spikes/`) with numeric gate + HLO summary warnings + `REFERENCE_PATH` directory–gated heavy stack; `[tool.ty.analysis].allowed-unresolved-imports`; `[tool.jaxlint]` in `pyproject.toml`; `tests/profiling/README.md`; advisory `.github/workflows/jaxlint-advisory.yml`. |
-| **Phase 0 closeout still** | **Jaxbeans PyPI / workspace dep:** still deferred — `pyproject.toml` documents vendored-only Phase 0 until jaxbeans ≥0.1.0 on PyPI or a documented monorepo layout (see `[tool.uv.sources]` comment). **Prolix isolated-clone / lockfile pain:** deferred until a concrete `uv sync` repro on a GitHub-only clone exists (open issue then). **Jaxlint as a hard signal:** deferred — `.github/workflows/jaxlint-advisory.yml` runs unpinned install + `jaxlint` with a never-fail job; promote to a gate only when the distribution stabilizes. |
+| **Landed** | Vendored `get_tolerances` and `PRXTEINMPNN_VERIFY`; `profiling/hlo_tools.py` (jaxbeans `core/profiling` excerpt); `tests/profiling/` with Q8 allowlist + **captured** `baseline_hlo/*.txt` review IR + HLO export / zero-copy smoke tests; `tests/parity/conftest.py` (Q5); Phase 0a spike (`tests/sampling/spikes/`) with numeric gate + HLO summary warnings + `REFERENCE_PATH` directory–gated heavy stack; `[tool.ty.analysis].allowed-unresolved-imports`; `[tool.jaxlint]` in `pyproject.toml` (local config only — jaxlint is not on PyPI); `tests/profiling/README.md`. |
+| **Phase 0 closeout still** | **Jaxbeans PyPI / workspace dep:** still deferred — `pyproject.toml` documents vendored-only Phase 0 until jaxbeans ≥0.1.0 on PyPI or a documented monorepo layout (see `[tool.uv.sources]` comment). **Prolix isolated-clone / lockfile pain:** deferred until a concrete `uv sync` repro on a GitHub-only clone exists (open issue then). **Jaxlint:** not a PyPI package and not planned as one; no PyPI-based CI install — use local/monorepo workflows only (see `[tool.jaxlint]` comment and §7.1). |
 
-Closeout slice completed in-repo: `tests/profiling/README.md` (Q8 + baseline policy + regeneration heredoc), real lowered IR text under `tests/profiling/baseline_hlo/*.txt` (minimal four-callable mapping), 0a spike HLO summary warnings + optional `REFERENCE_PATH` directory-gated heavy stack, jaxlint advisory workflow, roadmap §14 table row for the closeout sprint file.
+Closeout slice completed in-repo: `tests/profiling/README.md` (Q8 + baseline policy + regeneration heredoc), real lowered IR text under `tests/profiling/baseline_hlo/*.txt` (minimal four-callable mapping), 0a spike HLO summary warnings + optional `REFERENCE_PATH` directory-gated heavy stack, roadmap §14 table row for the closeout sprint file.
 
 ---
 

@@ -1,0 +1,19 @@
+task_id: refactor-phase1-sprint-20260505
+date: 2026-05-05
+
+Filtered verification evidence (Phase 1 refactor slice):
+
+parity_fast:
+  uv run pytest -m parity_fast -q
+  → 16 passed, 620 deselected (~68 s)
+
+HLO baseline smoke:
+  uv run pytest tests/profiling/test_hlo_baseline.py -q
+  → 3 passed (~4 s)
+
+spec constructors:
+  uv run pytest tests/run/test_specs.py -q
+  → 12 passed
+
+ty:
+  uv run ty check → exit 1, Found 898 diagnostics (workspace baseline; unchanged expectation for this slice).

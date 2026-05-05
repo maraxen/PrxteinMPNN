@@ -1,5 +1,7 @@
 """Core user interface for the PrxteinMPNN package."""
 
+# TODO(tech-debt): `.agents/TECHNICAL_DEBT.md` §14 + `TODO_io_callback.txt` (host-side I/O streaming).
+
 from __future__ import annotations
 
 import hashlib
@@ -16,7 +18,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from prxteinmpnn.io.designs import DesignArrayRecordWriter, DesignPayload, DesignMetadata
+from prxteinmpnn.io.designs import DesignArrayRecordWriter, DesignMetadata, DesignPayload
 from prxteinmpnn.run.averaging import get_averaged_encodings, make_encoding_sampling_split_fn
 from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.utils.autoregression import resolve_tie_groups
@@ -26,7 +28,7 @@ _DEFAULT_DECODING_ORDER_FN = cast("DecodingOrderFn", random_decoding_order)
 from prxteinmpnn.utils.safe_map import safe_map as _safe_map
 
 from .prep import prep_protein_stream_and_model
-from .specs import SamplingSpecification
+from .specs import SamplingSpecification, pop_deprecated_spec_kwargs
 
 if TYPE_CHECKING:
   from collections.abc import Callable, Sequence
@@ -430,7 +432,9 @@ def _load_ligand_context_file(
       raise ValueError(msg)
 
     id_to_index = {structure_id: idx for idx, structure_id in enumerate(payload_ids)}
-    gather_indices = np.asarray([id_to_index[structure_id] for structure_id in selected_ids], dtype=np.int32)
+    gather_indices = np.asarray(
+      [id_to_index[structure_id] for structure_id in selected_ids], dtype=np.int32,
+    )
     return (
       jnp.asarray(np.asarray(npz_data["Y"])[gather_indices]),
       jnp.asarray(np.asarray(npz_data["Y_t"])[gather_indices]),
@@ -737,9 +741,7 @@ def _sample_batch(
     batch_structure_ids=batch_structure_ids,
   )
   state_weights = (
-    jnp.asarray(spec.state_weights, dtype=jnp.float32)
-    if spec.state_weights is not None
-    else None
+    jnp.asarray(spec.state_weights, dtype=jnp.float32) if spec.state_weights is not None else None
   )
 
   def sample_single_config(
@@ -877,13 +879,17 @@ def _sample_batch(
   logit_chunks: list[jax.Array] = []
   total_chunks = (target_num_samples + chunk_size - 1) // chunk_size
   default_sample_offset = int(grid_lineage["sample_start"]) if grid_lineage is not None else 0
-  sample_offset = int(chunk_sample_start) if chunk_sample_start is not None else default_sample_offset
+  sample_offset = (
+    int(chunk_sample_start) if chunk_sample_start is not None else default_sample_offset
+  )
 
   # Pre-compute all keys at once using vmap to avoid tracer leakage in Python loop.
   # This ensures fold_in is fully untraced and vectorized, then chunked deterministically by slicing.
   # Uses eager numpy indices to prevent tracer escape during vmap.
   all_sample_indices = np.arange(
-    sample_offset, sample_offset + target_num_samples, dtype=np.int32
+    sample_offset,
+    sample_offset + target_num_samples,
+    dtype=np.int32,
   )
   all_keys = jax.vmap(lambda idx: jax.random.fold_in(base_key, idx))(all_sample_indices)
 
@@ -966,7 +972,9 @@ def sample(
 
   """
   if spec is None:
-    spec = SamplingSpecification(**kwargs)
+    kw = dict(kwargs)
+    pop_deprecated_spec_kwargs(kw)
+    spec = SamplingSpecification(**kw)
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
 
@@ -1100,7 +1108,9 @@ def _sample_streaming(
 
   # Use ArrayRecord path for campaign mode if requested
   if spec.use_arrayrecord and spec.campaign_mode:
-    return _sample_streaming_arrayrecord(spec, protein_iterator, sampler_fn, grid_lineage, canonical_structure_ids)
+    return _sample_streaming_arrayrecord(
+      spec, protein_iterator, sampler_fn, grid_lineage, canonical_structure_ids,
+    )
 
   # Deprecation warning for HDF5 path
   warnings.warn(
@@ -1352,7 +1362,11 @@ def _sample_streaming_arrayrecord(
             for noise_idx in range(seq_chunk.shape[1]):
               for temp_idx in range(seq_chunk.shape[2]):
                 sequence = seq_chunk[sample_idx, noise_idx, temp_idx, :]
-                logits = logits_chunk[sample_idx, noise_idx, temp_idx, :, :] if logits_chunk is not None else None
+                logits = (
+                  logits_chunk[sample_idx, noise_idx, temp_idx, :, :]
+                  if logits_chunk is not None
+                  else None
+                )
                 score = np.array([0.0], dtype=np.float32)  # Placeholder; adjust as needed
                 state_weights = np.ones(9, dtype=np.float32)  # Placeholder; adjust as needed
 
@@ -1381,8 +1395,7 @@ def _sample_streaming_arrayrecord(
 
   results = {
     "output_arrayrecord_paths": [
-      str(Path(str(output_base) + f"_structure_{idx}.arrayrecord"))
-      for idx in range(structure_idx)
+      str(Path(str(output_base) + f"_structure_{idx}.arrayrecord")) for idx in range(structure_idx)
     ],
     "schema_version": GRID_SCHEMA_VERSION if spec.grid_mode else SAMPLING_SCHEMA_VERSION,
     "metadata": {

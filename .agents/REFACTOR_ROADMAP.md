@@ -568,19 +568,17 @@ Each Open Question now has a **default decision** that holds unless a triggering
 
 ---
 
-## 14. Sprint status (Phase 0 execution)
+## 14. Sprint status (Phase 1 execution)
 
 | Field | Value |
 | :--- | :--- |
-| **task_id** | `refactor-sprint-phase0-20260505` |
-| **Sprint plan** | `.agents/SPRINT_refactor-sprint-phase0-20260505.md` |
-| **Sprint plan (Phase 0 closeout slice)** | `.agents/SPRINT_refactor-sprint-phase0-closeout-20260512.md` |
-| **Last update** | 2026-05-12 |
-| **Landed** | Vendored `get_tolerances` and `PRXTEINMPNN_VERIFY`; `profiling/hlo_tools.py` (jaxbeans `core/profiling` excerpt); `tests/profiling/` with Q8 allowlist + **captured** `baseline_hlo/*.txt` review IR + HLO export / zero-copy smoke tests; `tests/parity/conftest.py` (Q5); Phase 0a spike (`tests/sampling/spikes/`) with numeric gate + HLO summary warnings + `REFERENCE_PATH` directory–gated heavy stack; `[tool.ty.analysis].allowed-unresolved-imports`; `[tool.jaxlint]` in `pyproject.toml` (optional local config — jaxlint not on PyPI yet); `tests/profiling/README.md`. |
-| **Phase 0 closeout still** | **Jaxbeans PyPI / workspace dep:** still deferred — `pyproject.toml` documents vendored-only Phase 0 until jaxbeans ≥0.1.0 on PyPI or a documented monorepo layout (see `[tool.uv.sources]` comment). **Prolix isolated-clone / lockfile pain:** deferred until a concrete `uv sync` repro on a GitHub-only clone exists (open issue then). **Jaxlint:** PyPI release expected later; **default dev/CI stays non-gating** until then (see `[tool.jaxlint]` comment and §7.1). |
-
-Closeout slice completed in-repo: `tests/profiling/README.md` (Q8 + baseline policy + regeneration heredoc), real lowered IR text under `tests/profiling/baseline_hlo/*.txt` (minimal four-callable mapping), 0a spike HLO summary warnings + optional `REFERENCE_PATH` directory-gated heavy stack, roadmap §14 table row for the closeout sprint file.
+| **task_id** | `refactor-phase1-sprint-20260505` |
+| **Last update** | 2026-05-05 |
+| **Current phase** | **Phase 1 complete** — next: Phase 2 (protocols / typed boundaries). |
+| **Landed** | Removed hardcoded `model/mpnn.py` debug file-I/O blocks; added `runtime.configure_multiprocessing()` (opt-in); removed import-time `set_start_method` from `__init__.py` and `run/specs.py`; campaign CLI calls `configure_multiprocessing()` at startup; dropped dead spec fields (`output_path`, `score_batch_size`, `average_logits`, Jacobian `combine_noise_batch_size`, `gmm_min_iters`) with `pop_deprecated_spec_kwargs` + `DeprecationWarning` for legacy JSON keys. |
+| **Cold `import prxteinmpnn`** | ~5.46 s wall time (`uv run python -c "… perf_counter … import prxteinmpnn …"`, WSL2, CPU jaxlib; dominated by JAX import). |
+| **Prior phase** | Phase 0 closeout: `.agents/SPRINT_refactor-sprint-phase0-20260505.md`, `.agents/SPRINT_refactor-sprint-phase0-closeout-20260512.md` |
 
 ---
 
-*End of roadmap. Phase 0 is unblocked; defaults in §13 hold unless overturned by their trigger phase.*
+*End of roadmap. Phase 1 multiprocessing + dead-field cleanup is landed; Phase 2 is next.*

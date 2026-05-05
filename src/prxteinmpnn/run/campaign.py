@@ -29,7 +29,8 @@ from prxteinmpnn.run.campaign_manifest import (
   write_manifest,
 )
 from prxteinmpnn.run.sampling import sample
-from prxteinmpnn.run.specs import SamplingSpecification
+from prxteinmpnn.run.specs import SamplingSpecification, pop_deprecated_spec_kwargs
+from prxteinmpnn.runtime import configure_multiprocessing
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +131,9 @@ def _update_array_digest(digest: hashlib._Hash, array: np.ndarray) -> None:
   digest.update(canonical.tobytes(order="C"))
 
 
-def _update_h5_node_digest(digest: hashlib._Hash, node: h5py.Group | h5py.Dataset, path: str) -> None:
+def _update_h5_node_digest(
+  digest: hashlib._Hash, node: h5py.Group | h5py.Dataset, path: str,
+) -> None:
   digest.update(path.encode("utf-8"))
   digest.update(b"\n")
   attrs_payload = {
@@ -413,9 +416,7 @@ def _validate_done_marker(
     )
     raise ValueError(msg)
   if not output_h5_path.exists():
-    msg = (
-      f"Done marker exists at {marker_path} but output file is missing: {output_h5_path}."
-    )
+    msg = f"Done marker exists at {marker_path} but output file is missing: {output_h5_path}."
     raise ValueError(msg)
   observed_file_hash = _sha256_file(output_h5_path)
   expected_file_hash = marker.get("artifact_sha256")
@@ -714,6 +715,7 @@ def run_manifest_row(  # noqa: PLR0915
 
     worker_payload = dict(sampling_spec_payload)
     worker_payload["output_h5_path"] = str(partial_path)
+    pop_deprecated_spec_kwargs(worker_payload)
     sampling_spec = SamplingSpecification(**worker_payload)
     try:
       sample_result = sample(sampling_spec)
@@ -743,7 +745,9 @@ def run_manifest_row(  # noqa: PLR0915
     finally:
       partial_path.unlink(missing_ok=True)
 
-  result_payload = dict(sample_result) if isinstance(sample_result, dict) else {"sample_result": sample_result}
+  result_payload = (
+    dict(sample_result) if isinstance(sample_result, dict) else {"sample_result": sample_result}
+  )
   result_payload.update(
     {
       "status": str(result_payload.get("status", "completed")),
@@ -1367,6 +1371,7 @@ def _handle_ramp_eval_command(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
   """CLI entrypoint for campaign planner and worker operations."""
+  configure_multiprocessing()
   parser = argparse.ArgumentParser(description="Campaign planner/worker runner.")
   subparsers = parser.add_subparsers(dest="command", required=True)
   _add_plan_parser(subparsers)

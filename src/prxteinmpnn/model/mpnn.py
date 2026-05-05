@@ -1883,6 +1883,8 @@ class PrxteinLigandMPNN(eqx.Module):
     vocab_size: int = 21,
     dropout_rate: float = 0.1,
     ligand_mpnn_use_side_chain_context: bool = False,
+    ligand_l_chunk: int = 16,
+    ligand_chunk_checkpoint: bool = False,
     *,
     key: PRNGKeyArray,
   ) -> None:
@@ -1899,6 +1901,8 @@ class PrxteinLigandMPNN(eqx.Module):
       k_neighbors=k_neighbors,
       num_positional_embeddings=num_positional_embeddings,
       use_side_chains=ligand_mpnn_use_side_chain_context,
+      ligand_l_chunk=ligand_l_chunk,
+      ligand_chunk_checkpoint=ligand_chunk_checkpoint,
       key=keys[0],
     )
 

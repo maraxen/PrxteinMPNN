@@ -18,6 +18,7 @@ from prxteinmpnn.model.encoder import Encoder, PhysicsEncoder
 from prxteinmpnn.model.features import ProteinFeatures
 from prxteinmpnn.model.ligand_features import ProteinFeaturesLigand
 from prxteinmpnn.model.ligand_tiling import map_chunks_axis0, map_chunks_axis0_multi
+from prxteinmpnn.model.multistate_stack import gather_flat_to_stack, scatter_stack_to_flat
 from prxteinmpnn.model.multi_state_sampling import (
   arithmetic_mean_logits,
   geometric_mean_logits,
@@ -1338,6 +1339,13 @@ class PrxteinMPNN(eqx.Module):
     wave_group_valid: jnp.ndarray | None = None,
     wave_position_valid: jnp.ndarray | None = None,
     inference: bool = True,
+    coords_stack: jnp.ndarray | None = None,
+    mask_stack: jnp.ndarray | None = None,
+    residue_index_stack: jnp.ndarray | None = None,
+    chain_index_stack: jnp.ndarray | None = None,
+    state_flat_rows: jnp.ndarray | None = None,
+    n_flat: int | None = None,
+    ar_mask_stack: jnp.ndarray | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Forward pass for the complete model.
 
@@ -1345,6 +1353,12 @@ class PrxteinMPNN(eqx.Module):
     1. "unconditional": Scores all positions in parallel.
     2. "conditional": Scores a given sequence.
     3. "autoregressive": Samples a new sequence.
+
+    When ``multistate_mode='state_vmap_exact'`` and stacked tensors are provided
+    (``coords_stack``, ``mask_stack``, ``residue_index_stack``, ``chain_index_stack``,
+    ``state_flat_rows``, ``n_flat``), unconditional and conditional scoring run
+    :meth:`score_unconditional_state_vmap_exact` / :meth:`score_conditional_state_vmap_exact`.
+    Autoregressive requests must use :meth:`sample_autoregressive_state_vmap_exact` or the sampler façade.
 
     Args:
       structure_coordinates: Raw atomic coordinates of protein structure.
@@ -1400,6 +1414,115 @@ class PrxteinMPNN(eqx.Module):
     """
     if prng_key is None:
       prng_key = jax.random.PRNGKey(0)
+
+    if multistate_mode == "state_vmap_exact":
+      if decoding_approach == "autoregressive":
+        msg = (
+          "PrxteinMPNN.__call__ does not run state_vmap_exact autoregressive decoding; "
+          "use sample_autoregressive_state_vmap_exact or prxteinmpnn.sampling.sample.make_sample_sequences."
+        )
+        raise ValueError(msg)
+      if membrane_per_residue_labels is not None:
+        msg = "membrane_per_residue_labels is not supported with multistate_mode='state_vmap_exact'."
+        raise ValueError(msg)
+      if (
+        precomputed_node_features is not None
+        or precomputed_edge_features is not None
+        or precomputed_neighbor_indices is not None
+      ):
+        msg = (
+          "Encoder hoist kwargs (precomputed_node_features / edge / neighbor_indices) are not "
+          "supported with multistate_mode='state_vmap_exact'; pass stacked geometry only."
+        )
+        raise ValueError(msg)
+      need = {
+        "coords_stack": coords_stack,
+        "mask_stack": mask_stack,
+        "residue_index_stack": residue_index_stack,
+        "chain_index_stack": chain_index_stack,
+        "state_flat_rows": state_flat_rows,
+      }
+      missing = [k for k, v in need.items() if v is None]
+      if missing:
+        msg = (
+          "multistate_mode='state_vmap_exact' requires coords_stack, mask_stack, "
+          "residue_index_stack, chain_index_stack, state_flat_rows, and n_flat; "
+          f"missing: {', '.join(missing)}"
+        )
+        raise ValueError(msg)
+      if n_flat is None:
+        msg = "multistate_mode='state_vmap_exact' requires n_flat (flat logits length)."
+        raise ValueError(msg)
+
+      strategy_map = {"arithmetic_mean": 0, "geometric_mean": 1, "product": 2}
+      multi_state_strategy_idx_sv = jnp.array(
+        strategy_map[multi_state_strategy],
+        dtype=jnp.int32,
+      )
+      ms_temp_sv = jnp.asarray(multi_state_temperature, dtype=jnp.float32)
+
+      if decoding_approach == "unconditional":
+        logits_sv = self.score_unconditional_state_vmap_exact(
+          prng_key,
+          coords_stack,
+          mask_stack,
+          residue_index_stack,
+          chain_index_stack,
+          state_flat_rows,
+          n_flat,
+          tie_group_map=tie_group_map,
+          multi_state_strategy_idx=multi_state_strategy_idx_sv,
+          multi_state_temperature=ms_temp_sv,
+          state_weights=state_weights,
+          state_mapping=state_mapping,
+          inference=inference,
+        )
+        log_dtype = logits_sv.dtype
+        zseq = jnp.zeros((n_flat, self.w_s_embed.num_embeddings), dtype=log_dtype)
+        return zseq, logits_sv
+
+      if decoding_approach == "conditional":
+        if one_hot_sequence is None:
+          msg = (
+            "decoding_approach='conditional' with multistate_mode='state_vmap_exact' requires "
+            "one_hot_sequence as (n_flat, num_embeddings) one-hot or (n_flat,) aa indices."
+          )
+          raise ValueError(msg)
+        s_dim, p_dim = mask_stack.shape[0], mask_stack.shape[1]
+        arm_sv = (
+          jnp.zeros((s_dim, p_dim, p_dim), dtype=jnp.int32)
+          if ar_mask_stack is None
+          else ar_mask_stack
+        )
+        if one_hot_sequence.ndim == 1:
+          oh_in = jax.nn.one_hot(
+            one_hot_sequence.astype(jnp.int32),
+            self.w_s_embed.num_embeddings,
+          )
+        else:
+          oh_in = one_hot_sequence
+        seq_stack_sv = gather_flat_to_stack(oh_in, state_flat_rows)
+        logits_sv = self.score_conditional_state_vmap_exact(
+          prng_key,
+          coords_stack,
+          mask_stack,
+          residue_index_stack,
+          chain_index_stack,
+          seq_stack_sv,
+          arm_sv,
+          state_flat_rows,
+          n_flat,
+          tie_group_map=tie_group_map,
+          multi_state_strategy_idx=multi_state_strategy_idx_sv,
+          multi_state_temperature=ms_temp_sv,
+          state_weights=state_weights,
+          state_mapping=state_mapping,
+          bias_flat=bias,
+          inference=inference,
+        )
+        return oh_in, logits_sv
+
+      raise ValueError(f"Unsupported decoding_approach for PrxteinMPNN stacked path: {decoding_approach!r}")
 
     # Automatically handle membrane labels if provided
     if membrane_per_residue_labels is not None:
@@ -1841,6 +1964,150 @@ class PrxteinMPNN(eqx.Module):
     del _pk_out
     return seq_out.astype(log_dtype), log_out.astype(log_dtype)
 
+  def score_unconditional_state_vmap_exact(
+    self,
+    prng_key: PRNGKeyArray,
+    coords_stack: jax.Array,
+    mask_stack: jax.Array,
+    residue_index_stack: jax.Array,
+    chain_index_stack: jax.Array,
+    state_flat_rows: jax.Array,
+    n_flat: int,
+    *,
+    tie_group_map: TieGroupMap | None,
+    multi_state_strategy_idx: Int,
+    multi_state_temperature: Float | float,
+    state_weights: jnp.ndarray | None,
+    state_mapping: jnp.ndarray | None,
+    inference: bool = True,
+  ) -> Logits:
+    """Compute unconditional logits per stacked state then scatter+fuse (``state_vmap_exact``)."""
+    k_enc, k_feat = jax.random.split(prng_key)
+
+    def encode_one(coords, ma, ri, ci):
+      ef, nei, nf, _ = self.features(
+        k_feat,
+        coords,
+        ma,
+        ri,
+        ci,
+        jnp.asarray(0.0, jnp.float32),
+        structure_mapping=None,
+        initial_node_features=None,
+        rbf_features=None,
+        neighbor_indices=None,
+      )
+      nf2, ef2 = self.encoder(ef, nei, ma, initial_node_features=nf, inference=inference, key=k_enc)
+      return nf2, ef2, nei.astype(jnp.int32)
+
+    node_b, edge_b, nei_b = jax.vmap(encode_one)(
+      coords_stack,
+      mask_stack,
+      residue_index_stack,
+      chain_index_stack,
+    )
+
+    def decode_one(nb, eb, nei, mk):
+      return self.decoder(nb, eb, nei, mk, key=k_enc)
+
+    decoded = jax.vmap(decode_one)(node_b, edge_b, nei_b, mask_stack)
+    logits_s = jax.vmap(jax.vmap(self.w_out))(decoded)
+    logits_flat = scatter_stack_to_flat(logits_s, state_flat_rows, n_flat)
+
+    if tie_group_map is not None:
+      logits_flat = PrxteinMPNN._apply_multistate_to_all_logits(
+        logits_flat,
+        tie_group_map,
+        multi_state_strategy_idx,
+        jnp.asarray(multi_state_temperature, jnp.float32),
+        state_weights,
+        state_mapping,
+      )
+    return logits_flat
+
+  def score_conditional_state_vmap_exact(
+    self,
+    prng_key: PRNGKeyArray,
+    coords_stack: jax.Array,
+    mask_stack: jax.Array,
+    residue_index_stack: jax.Array,
+    chain_index_stack: jax.Array,
+    seq_oh_stack: jax.Array,
+    ar_mask_stack: jax.Array,
+    state_flat_rows: jax.Array,
+    n_flat: int,
+    *,
+    tie_group_map: TieGroupMap | None,
+    multi_state_strategy_idx: Int,
+    multi_state_temperature: Float | float,
+    state_weights: jnp.ndarray | None,
+    state_mapping: jnp.ndarray | None,
+    bias_flat: jax.Array | None = None,
+    inference: bool = True,
+  ) -> Logits:
+    """Teacher-forced conditional logits stacked then scatter+fused."""
+    k_enc, k_feat = jax.random.split(prng_key)
+
+    def encode_one(coords, ma, ri, ci):
+      ef, nei, nf, _ = self.features(
+        k_feat,
+        coords,
+        ma,
+        ri,
+        ci,
+        jnp.asarray(0.0, jnp.float32),
+        structure_mapping=None,
+        initial_node_features=None,
+        rbf_features=None,
+        neighbor_indices=None,
+      )
+      nf2, ef2 = self.encoder(ef, nei, ma, initial_node_features=nf, inference=inference, key=k_enc)
+      return nf2, ef2, nei.astype(jnp.int32)
+
+    node_b, edge_b, nei_b = jax.vmap(encode_one)(
+      coords_stack,
+      mask_stack,
+      residue_index_stack,
+      chain_index_stack,
+    )
+
+    def dec_one(nb, eb, nei, mk, arm, oh):
+      return self.decoder.call_conditional(
+        nb,
+        eb,
+        nei,
+        mk,
+        arm,
+        oh,
+        self.w_s_embed.weight,
+        inference=inference,
+        key=k_enc,
+      )
+
+    decoded = jax.vmap(dec_one)(
+      node_b,
+      edge_b,
+      nei_b,
+      mask_stack,
+      ar_mask_stack,
+      seq_oh_stack,
+    )
+
+    logits_s = jax.vmap(jax.vmap(self.w_out))(decoded)
+    if bias_flat is not None:
+      logits_s = logits_s + gather_flat_to_stack(bias_flat, state_flat_rows)
+
+    logits_flat = scatter_stack_to_flat(logits_s, state_flat_rows, n_flat)
+    if tie_group_map is not None:
+      logits_flat = PrxteinMPNN._apply_multistate_to_all_logits(
+        logits_flat,
+        tie_group_map,
+        multi_state_strategy_idx,
+        jnp.asarray(multi_state_temperature, jnp.float32),
+        state_weights,
+        state_mapping,
+      )
+    return logits_flat
 
 
 class PrxteinLigandMPNN(eqx.Module):
@@ -1997,20 +2264,185 @@ class PrxteinLigandMPNN(eqx.Module):
     wave_group_positions: jnp.ndarray | None = None,
     wave_group_valid: jnp.ndarray | None = None,
     wave_position_valid: jnp.ndarray | None = None,
+    coords_stack: jnp.ndarray | None = None,
+    mask_stack: jnp.ndarray | None = None,
+    residue_index_stack: jnp.ndarray | None = None,
+    chain_index_stack: jnp.ndarray | None = None,
+    y_stack: jnp.ndarray | None = None,
+    y_t_stack: jnp.ndarray | None = None,
+    y_m_stack: jnp.ndarray | None = None,
+    state_flat_rows: jnp.ndarray | None = None,
+    n_flat: int | None = None,
+    ar_mask_stack: jnp.ndarray | None = None,
+    states_chunk_size: int | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Forward pass for LigandMPNN sequence scoring or sampling."""
     if prng_key is None:
       prng_key = jax.random.PRNGKey(0)
 
+    if multistate_mode == "state_vmap_exact":
+      if decoding_approach == "autoregressive":
+        msg = (
+          "PrxteinLigandMPNN.__call__ does not run state_vmap_exact autoregressive decoding; "
+          "use sample_autoregressive_state_vmap_exact or prxteinmpnn.sampling.sample.make_sample_sequences."
+        )
+        raise ValueError(msg)
+      if (
+        precomputed_Y_nodes is not None
+        or precomputed_Y_edges is not None
+        or precomputed_Y_m is not None
+      ):
+        msg = (
+          "precomputed_Y_nodes / precomputed_Y_edges / precomputed_Y_m are not supported with "
+          "multistate_mode='state_vmap_exact' on __call__."
+        )
+        raise ValueError(msg)
+      need_lm = {
+        "coords_stack": coords_stack,
+        "mask_stack": mask_stack,
+        "residue_index_stack": residue_index_stack,
+        "chain_index_stack": chain_index_stack,
+        "y_stack": y_stack,
+        "y_t_stack": y_t_stack,
+        "y_m_stack": y_m_stack,
+        "state_flat_rows": state_flat_rows,
+      }
+      missing_lm = [k for k, v in need_lm.items() if v is None]
+      if missing_lm:
+        msg = (
+          "multistate_mode='state_vmap_exact' requires coords_stack, mask_stack, "
+          "residue_index_stack, chain_index_stack, y_stack, y_t_stack, y_m_stack, "
+          f"state_flat_rows, and n_flat; missing: {', '.join(missing_lm)}"
+        )
+        raise ValueError(msg)
+      if n_flat is None:
+        msg = "multistate_mode='state_vmap_exact' requires n_flat (flat logits length)."
+        raise ValueError(msg)
+
+      strategy_map_lm = {"arithmetic_mean": 0, "geometric_mean": 1, "product": 2}
+      multi_state_strategy_idx_lm = jnp.array(
+        strategy_map_lm[multi_state_strategy],
+        dtype=jnp.int32,
+      )
+      ms_temp_lm = jnp.asarray(multi_state_temperature, dtype=jnp.float32)
+      chunk_kw: dict[str, int] = {}
+      if states_chunk_size is not None:
+        chunk_kw["states_chunk_size"] = states_chunk_size
+
+      if decoding_approach == "unconditional":
+        logits_lm = self.score_unconditional_state_vmap_exact(
+          prng_key,
+          coords_stack,
+          mask_stack,
+          residue_index_stack,
+          chain_index_stack,
+          y_stack,
+          y_t_stack,
+          y_m_stack,
+          state_flat_rows,
+          n_flat,
+          tie_group_map=tie_group_map,
+          multi_state_strategy_idx=multi_state_strategy_idx_lm,
+          multi_state_temperature=ms_temp_lm,
+          state_weights=state_weights,
+          state_mapping=state_mapping,
+          **chunk_kw,
+        )
+        zseq_lm = jnp.zeros((n_flat, self.w_s_embed.num_embeddings), dtype=logits_lm.dtype)
+        return zseq_lm, logits_lm
+
+      if decoding_approach == "conditional":
+        if one_hot_sequence is None:
+          msg = (
+            "decoding_approach='conditional' with multistate_mode='state_vmap_exact' requires "
+            "one_hot_sequence as (n_flat, num_embeddings) one-hot or (n_flat,) aa indices."
+          )
+          raise ValueError(msg)
+        s_dim_lm, p_dim_lm = mask_stack.shape[0], mask_stack.shape[1]
+        arm_lm = (
+          jnp.zeros((s_dim_lm, p_dim_lm, p_dim_lm), dtype=jnp.int32)
+          if ar_mask_stack is None
+          else ar_mask_stack
+        )
+        if one_hot_sequence.ndim == 1:
+          oh_lm = jax.nn.one_hot(
+            one_hot_sequence.astype(jnp.int32),
+            self.w_s_embed.num_embeddings,
+          )
+        else:
+          oh_lm = one_hot_sequence
+        seq_stack_lm = gather_flat_to_stack(oh_lm, state_flat_rows)
+        logits_lm = self.score_conditional_state_vmap_exact(
+          prng_key,
+          coords_stack,
+          mask_stack,
+          residue_index_stack,
+          chain_index_stack,
+          y_stack,
+          y_t_stack,
+          y_m_stack,
+          seq_stack_lm,
+          arm_lm,
+          state_flat_rows,
+          n_flat,
+          tie_group_map=tie_group_map,
+          multi_state_strategy_idx=multi_state_strategy_idx_lm,
+          multi_state_temperature=ms_temp_lm,
+          state_weights=state_weights,
+          state_mapping=state_mapping,
+          bias_flat=bias,
+          inference=inference,
+          **chunk_kw,
+        )
+        return oh_lm, logits_lm
+
+      raise ValueError(f"Unsupported decoding_approach for PrxteinLigandMPNN stacked path: {decoding_approach!r}")
+
+    del (
+      coords_stack,
+      mask_stack,
+      residue_index_stack,
+      chain_index_stack,
+      y_stack,
+      y_t_stack,
+      y_m_stack,
+      state_flat_rows,
+      ar_mask_stack,
+    )
+
     if multistate_mode != "flat":
       msg = (
         f"{type(self).__name__}.__call__ only supports multistate_mode='flat' "
-        f"(got {multistate_mode!r}); use stacked multi-state sampling helpers otherwise."
+        f"(got {multistate_mode!r}); use multistate_mode='state_vmap_exact' with stacked inputs "
+        f"for logits scoring, or sampling helpers for autoregressive decoding."
       )
       raise ValueError(msg)
     del wave_group_ids, wave_group_positions, wave_group_valid, wave_position_valid
 
     keys = jax.random.split(prng_key, 2)
+    # #region agent log
+    try:
+      import json as _json
+      import time as _time
+
+      _logp = "/home/marielle/projects/tev_design/.cursor/debug-5a01b7.log"
+      _rec = {
+        "sessionId": "5a01b7",
+        "hypothesisId": "H1",
+        "location": "PrxteinLigandMPNN.__call__",
+        "message": "flat unconditional key fingerprints",
+        "data": {
+          "prng_key_u32": jax.device_get(prng_key.reshape(-1)).tolist(),
+          "features_subkey_u32": jax.device_get(keys[0].reshape(-1)).tolist(),
+          "post_features_subkey_u32": jax.device_get(keys[1].reshape(-1)).tolist(),
+        },
+        "timestamp": int(_time.time() * 1000),
+      }
+      with open(_logp, "a") as _f:
+        _f.write(_json.dumps(_rec) + "\n")
+    except Exception:
+      pass
+    # #endregion
 
     # 1. Feature Extraction
     # When precomputed ligand features are provided, skip the expensive ligand feature computation.
@@ -2620,6 +3052,261 @@ class PrxteinLigandMPNN(eqx.Module):
     )
     return final_carry[3], final_carry[2]
 
+  def _ligand_encode_stack_one(
+    self,
+    coords: jax.Array,
+    ma: jax.Array,
+    ri: jax.Array,
+    ci: jax.Array,
+    yy: jax.Array,
+    yt: jax.Array,
+    ym: jax.Array,
+    hk: PRNGKeyArray,
+  ) -> tuple[jax.Array, jax.Array, jax.Array]:
+    """Encode one stacked-structure row with ``structure_mapping`` zeros (LigandMPNN ``state_vmap_exact`` stacks)."""
+    return ligand_encode_stack_row(self, coords, ma, ri, ci, yy, yt, ym, hk)
+
+  def score_unconditional_state_vmap_exact(
+    self,
+    prng_key: PRNGKeyArray,
+    coords_stack: jax.Array,
+    mask_stack: jax.Array,
+    residue_index_stack: jax.Array,
+    chain_index_stack: jax.Array,
+    y_stack: jax.Array,
+    y_t_stack: jax.Array,
+    y_m_stack: jax.Array,
+    state_flat_rows: jax.Array,
+    n_flat: int,
+    *,
+    tie_group_map: TieGroupMap | None,
+    multi_state_strategy_idx: Int,
+    multi_state_temperature: Float | float,
+    state_weights: jnp.ndarray | None,
+    state_mapping: jnp.ndarray | None,
+    _dropout_inference: bool = True,
+    states_chunk_size: int | None = None,
+  ) -> Logits:
+    """LigandMPNN unconditional logits: per-row encode + decoder, scatter+fuse (``state_vmap_exact``)."""
+    del _dropout_inference
+    k_enc, k_feat = jax.random.split(prng_key)
+    # #region agent log
+    try:
+      import json as _json
+      import time as _time
+
+      _logp = "/home/marielle/projects/tev_design/.cursor/debug-5a01b7.log"
+      _rec = {
+        "sessionId": "5a01b7",
+        "hypothesisId": "H1",
+        "location": "PrxteinLigandMPNN.score_unconditional_state_vmap_exact",
+        "message": "stack scorer key fingerprints (k_feat feeds ligand_encode_stack_row)",
+        "data": {
+          "prng_key_u32": jax.device_get(prng_key.reshape(-1)).tolist(),
+          "k_enc_u32": jax.device_get(k_enc.reshape(-1)).tolist(),
+          "k_feat_u32": jax.device_get(k_feat.reshape(-1)).tolist(),
+        },
+        "timestamp": int(_time.time() * 1000),
+      }
+      with open(_logp, "a") as _f:
+        _f.write(_json.dumps(_rec) + "\n")
+    except Exception:
+      pass
+    # #endregion
+    s_tot = int(coords_stack.shape[0])
+    scs = int(states_chunk_size) if states_chunk_size is not None else 0
+    log_dim = int(self.w_out.out_features)
+    log_dtype = self.w_out.weight.dtype
+
+    def _one_shot() -> jax.Array:
+      def enc_one(coords, ma, ri, ci, yy, yt, ym):
+        return ligand_encode_stack_row(self, coords, ma, ri, ci, yy, yt, ym, k_feat)
+
+      node_b, edge_b, nei_b = jax.vmap(enc_one)(
+        coords_stack,
+        mask_stack,
+        residue_index_stack,
+        chain_index_stack,
+        y_stack,
+        y_t_stack,
+        y_m_stack,
+      )
+
+      def decode_one(nb, eb, nei, mk):
+        # Match :meth:`PrxteinLigandMPNN._call_unconditional`: ``key=None`` disables decoder dropout
+        # ( unconditional ``__call__`` passes ``None`` for the decoder PRNG slot ).
+        return self.decoder(nb, eb, nei, mk, key=None)
+
+      decoded = jax.vmap(decode_one)(node_b, edge_b, nei_b, mask_stack)
+      logits_s = jax.vmap(jax.vmap(self.w_out))(decoded)
+      return scatter_stack_to_flat(logits_s, state_flat_rows, n_flat)
+
+    if scs <= 0 or scs >= s_tot:
+      logits_flat = _one_shot()
+    else:
+      logits_flat = jnp.zeros((n_flat, log_dim), dtype=log_dtype)
+      for s0 in range(0, s_tot, scs):
+        c_coords, c_mask, c_ri, c_ci, c_y, c_yt, c_ym, c_rows = _ligand_slice_pad_state_batch(
+          s0,
+          scs,
+          s_tot,
+          coords_stack,
+          mask_stack,
+          residue_index_stack,
+          chain_index_stack,
+          y_stack,
+          y_t_stack,
+          y_m_stack,
+          state_flat_rows,
+        )
+        logits_flat = logits_flat + ligand_score_unconditional_state_vmap_one_chunk(
+          self,
+          k_enc,
+          k_feat,
+          c_coords,
+          c_mask,
+          c_ri,
+          c_ci,
+          c_y,
+          c_yt,
+          c_ym,
+          c_rows,
+          n_flat,
+        )
+
+    if tie_group_map is not None:
+      logits_flat = PrxteinMPNN._apply_multistate_to_all_logits(
+        logits_flat,
+        tie_group_map,
+        multi_state_strategy_idx,
+        jnp.asarray(multi_state_temperature, jnp.float32),
+        state_weights,
+        state_mapping,
+      )
+    return logits_flat
+
+  def score_conditional_state_vmap_exact(
+    self,
+    prng_key: PRNGKeyArray,
+    coords_stack: jax.Array,
+    mask_stack: jax.Array,
+    residue_index_stack: jax.Array,
+    chain_index_stack: jax.Array,
+    y_stack: jax.Array,
+    y_t_stack: jax.Array,
+    y_m_stack: jax.Array,
+    seq_oh_stack: jax.Array,
+    ar_mask_stack: jax.Array,
+    state_flat_rows: jax.Array,
+    n_flat: int,
+    *,
+    tie_group_map: TieGroupMap | None,
+    multi_state_strategy_idx: Int,
+    multi_state_temperature: Float | float,
+    state_weights: jnp.ndarray | None,
+    state_mapping: jnp.ndarray | None,
+    bias_flat: jax.Array | None = None,
+    inference: bool = True,
+    states_chunk_size: int | None = None,
+  ) -> Logits:
+    """LigandMPNN stacked conditional logits; optional ``bias_flat`` added before fuse."""
+    k_enc, k_feat = jax.random.split(prng_key)
+    s_tot = int(coords_stack.shape[0])
+    scs = int(states_chunk_size) if states_chunk_size is not None else 0
+    log_dim = int(self.w_out.out_features)
+    log_dtype = self.w_out.weight.dtype
+
+    def _one_shot() -> jax.Array:
+      def enc_row(coords, ma, ri, ci, yy, yt, ym):
+        return ligand_encode_stack_row(self, coords, ma, ri, ci, yy, yt, ym, k_feat)
+
+      node_b, edge_b, nei_b = jax.vmap(enc_row)(
+        coords_stack,
+        mask_stack,
+        residue_index_stack,
+        chain_index_stack,
+        y_stack,
+        y_t_stack,
+        y_m_stack,
+      )
+
+      def dec_one(nb, eb, nei, mk, arm, oh):
+        return self.decoder.call_conditional(
+          nb,
+          eb,
+          nei,
+          mk,
+          arm,
+          oh,
+          self.w_s_embed.weight,
+          inference=inference,
+          key=k_enc,
+        )
+
+      decoded = jax.vmap(dec_one)(
+        node_b,
+        edge_b,
+        nei_b,
+        mask_stack,
+        ar_mask_stack,
+        seq_oh_stack,
+      )
+
+      logits_s = jax.vmap(jax.vmap(self.w_out))(decoded)
+      if bias_flat is not None:
+        logits_s = logits_s + gather_flat_to_stack(bias_flat, state_flat_rows)
+
+      return scatter_stack_to_flat(logits_s, state_flat_rows, n_flat)
+
+    if scs <= 0 or scs >= s_tot:
+      logits_flat = _one_shot()
+    else:
+      logits_flat = jnp.zeros((n_flat, log_dim), dtype=log_dtype)
+      for s0 in range(0, s_tot, scs):
+        c_coords, c_mask, c_ri, c_ci, c_y, c_yt, c_ym, c_rows = _ligand_slice_pad_state_batch(
+          s0,
+          scs,
+          s_tot,
+          coords_stack,
+          mask_stack,
+          residue_index_stack,
+          chain_index_stack,
+          y_stack,
+          y_t_stack,
+          y_m_stack,
+          state_flat_rows,
+        )
+        c_oh, c_arm = _ligand_slice_pad_cond_batch(s0, scs, s_tot, seq_oh_stack, ar_mask_stack)
+        logits_flat = logits_flat + ligand_score_conditional_state_vmap_one_chunk(
+          self,
+          k_enc,
+          k_feat,
+          c_coords,
+          c_mask,
+          c_ri,
+          c_ci,
+          c_y,
+          c_yt,
+          c_ym,
+          c_oh,
+          c_arm,
+          c_rows,
+          n_flat,
+          bias_flat,
+          inference,
+        )
+
+    if tie_group_map is not None:
+      logits_flat = PrxteinMPNN._apply_multistate_to_all_logits(
+        logits_flat,
+        tie_group_map,
+        multi_state_strategy_idx,
+        jnp.asarray(multi_state_temperature, jnp.float32),
+        state_weights,
+        state_mapping,
+      )
+    return logits_flat
+
   def sample_autoregressive_state_vmap_exact(
     self,
     prng_key: PRNGKeyArray,
@@ -2651,94 +3338,7 @@ class PrxteinLigandMPNN(eqx.Module):
     feat_keys = jax.random.split(fk, coords_stack.shape[0])
 
     def lig_encode_one(coords, ma, ri, ci, yy, yt, ym, hk):
-      fe_k, dn_k = jax.random.split(hk)
-      zeros_map = jnp.zeros((coords.shape[0],), dtype=jnp.int32)
-      V, E, E_idx, Y_nodes, Y_edges, Y_m = self.features(
-        fe_k,
-        coords,
-        ma,
-        ri,
-        ci,
-        yy,
-        yt,
-        ym,
-        jnp.asarray(0.0, jnp.float32),
-        structure_mapping=zeros_map,
-        xyz_37=None,
-        xyz_37_m=None,
-        chain_mask=None,
-      )
-      h_V = jnp.zeros((E.shape[0], self.node_features_dim))
-      h_E = E
-      mask_2d = ma[:, None] * ma[None, :]
-      mask_attend = jnp.take_along_axis(mask_2d, E_idx.astype(jnp.int32), axis=1)
-      for enc in self.encoder.layers:
-        h_V, h_E = enc(h_V, h_E, E_idx, ma, mask_attend, inference=True)
-
-      h_V_C = jax.vmap(self.w_c)(h_V)
-      h_E_context = jax.vmap(jax.vmap(self.w_v))(V)
-      lc = self.features.ligand_l_chunk
-      Y_m_edges = Y_m[..., None] * Y_m[..., None, :]
-
-      if lc <= 0:
-        Y_proj = jax.vmap(jax.vmap(self.w_nodes_y))(Y_nodes)
-        Y_edges_p = jax.vmap(jax.vmap(jax.vmap(self.w_edges_y)))(Y_edges)
-
-        for ix in range(len(self.context_encoder)):
-          y_enc = self.y_context_encoder[ix]
-          ctx_enc = self.context_encoder[ix]
-
-          def y_layer(nd, eg, gm, ge):
-            return y_enc(nd, eg, gm, attention_mask=ge, inference=True)
-
-          Y_proj = jax.vmap(y_layer)(Y_proj, Y_edges_p, Y_m, Y_m_edges)
-          h_E_cat = jnp.concatenate([h_E_context, Y_proj], axis=-1)
-          h_V_C = ctx_enc(h_V_C, h_E_cat, ma, attention_mask=Y_m, inference=True)
-      else:
-        Y_proj = map_chunks_axis0(
-          Y_nodes,
-          chunk_size=lc,
-          fn=lambda s: jax.vmap(jax.vmap(self.w_nodes_y))(s),
-        )
-        Y_edges_p = map_chunks_axis0(
-          Y_edges,
-          chunk_size=lc,
-          fn=lambda s: jax.vmap(jax.vmap(jax.vmap(self.w_edges_y)))(s),
-        )
-
-        for ix in range(len(self.context_encoder)):
-          y_layer = self.y_context_encoder[ix]
-          ctx_layer = self.context_encoder[ix]
-
-          def slab_fn(
-            Yn: jax.Array,
-            Ye: jax.Array,
-            Ymm: jax.Array,
-            Yme: jax.Array,
-            hv: jax.Array,
-            hec: jax.Array,
-            msk: jax.Array,
-          ) -> tuple[jax.Array, jax.Array]:
-            Yn_out = jax.vmap(
-              lambda node, edge, mask_l, mask_e: y_layer(
-                node, edge, mask_l, attention_mask=mask_e, inference=True,
-              ),
-            )(Yn, Ye, Ymm, Yme)
-            he_cat = jnp.concatenate([hec, Yn_out], axis=-1)
-            hv_out = ctx_layer(hv, he_cat, msk, attention_mask=Ymm, inference=True)
-            return Yn_out, hv_out
-
-          Y_proj, h_V_C = map_chunks_axis0_multi(
-            slab_fn,
-            lc,
-            (Y_proj, Y_edges_p, Y_m, Y_m_edges, h_V_C, h_E_context, ma),
-          )
-
-      h_V_C = jax.vmap(self.v_c)(h_V_C)
-      h_fin = h_V + jax.vmap(self.v_c_norm)(
-        self.dropout(h_V_C, key=dn_k, inference=True),
-      )
-      return h_fin, h_E, E_idx.astype(jnp.int32)
+      return ligand_encode_stack_row(self, coords, ma, ri, ci, yy, yt, ym, hk)
 
     node_b, edge_b, nei_b = jax.vmap(lig_encode_one)(
       coords_stack,
@@ -3049,3 +3649,285 @@ class PrxteinLigandMPNN(eqx.Module):
     )
     del _pk_out
     return seq_out.astype(log_dtype), log_out.astype(log_dtype)
+
+
+def ligand_encode_stack_row(
+  model: PrxteinLigandMPNN,
+  coords: jax.Array,
+  ma: jax.Array,
+  ri: jax.Array,
+  ci: jax.Array,
+  yy: jax.Array,
+  yt: jax.Array,
+  ym: jax.Array,
+  hk: PRNGKeyArray,
+) -> tuple[jax.Array, jax.Array, jax.Array]:
+  """Module-level LigandMPNN stacked-row encoder (callable from ``jax.vmap`` closures; JAX-tracing-safe)."""
+  fe_k, dn_k = jax.random.split(hk)
+  zeros_map = jnp.zeros((coords.shape[0],), dtype=jnp.int32)
+  V, E, E_idx, Y_nodes, Y_edges, Y_m = model.features(
+    fe_k,
+    coords,
+    ma,
+    ri,
+    ci,
+    yy,
+    yt,
+    ym,
+    jnp.asarray(0.0, jnp.float32),
+    structure_mapping=zeros_map,
+    xyz_37=None,
+    xyz_37_m=None,
+    chain_mask=None,
+  )
+  h_V = jnp.zeros((E.shape[0], model.node_features_dim))
+  h_E = E
+  mask_2d = ma[:, None] * ma[None, :]
+  mask_attend = jnp.take_along_axis(mask_2d, E_idx.astype(jnp.int32), axis=1)
+  for enc in model.encoder.layers:
+    h_V, h_E = enc(h_V, h_E, E_idx, ma, mask_attend, inference=True)
+
+  h_V_C = jax.vmap(model.w_c)(h_V)
+  h_E_context = jax.vmap(jax.vmap(model.w_v))(V)
+  lc = model.features.ligand_l_chunk
+  Y_m_edges = Y_m[..., None] * Y_m[..., None, :]
+
+  if lc <= 0:
+    Y_proj = jax.vmap(jax.vmap(model.w_nodes_y))(Y_nodes)
+    Y_edges_p = jax.vmap(jax.vmap(jax.vmap(model.w_edges_y)))(Y_edges)
+
+    for ix in range(len(model.context_encoder)):
+      y_enc = model.y_context_encoder[ix]
+      ctx_enc = model.context_encoder[ix]
+
+      def y_layer(nd, eg, gm, ge):
+        return y_enc(nd, eg, gm, attention_mask=ge, inference=True)
+
+      Y_proj = jax.vmap(y_layer)(Y_proj, Y_edges_p, Y_m, Y_m_edges)
+      h_E_cat = jnp.concatenate([h_E_context, Y_proj], axis=-1)
+      h_V_C = ctx_enc(h_V_C, h_E_cat, ma, attention_mask=Y_m, inference=True)
+  else:
+    Y_proj = map_chunks_axis0(
+      Y_nodes,
+      chunk_size=lc,
+      fn=lambda s: jax.vmap(jax.vmap(model.w_nodes_y))(s),
+    )
+    Y_edges_p = map_chunks_axis0(
+      Y_edges,
+      chunk_size=lc,
+      fn=lambda s: jax.vmap(jax.vmap(jax.vmap(model.w_edges_y)))(s),
+    )
+
+    for ix in range(len(model.context_encoder)):
+      y_layer = model.y_context_encoder[ix]
+      ctx_layer = model.context_encoder[ix]
+
+      def slab_fn(
+        Yn: jax.Array,
+        Ye: jax.Array,
+        Ymm: jax.Array,
+        Yme: jax.Array,
+        hv: jax.Array,
+        hec: jax.Array,
+        msk: jax.Array,
+      ) -> tuple[jax.Array, jax.Array]:
+        Yn_out = jax.vmap(
+          lambda node, edge, mask_l, mask_e: y_layer(
+            node, edge, mask_l, attention_mask=mask_e, inference=True,
+          ),
+        )(Yn, Ye, Ymm, Yme)
+        he_cat = jnp.concatenate([hec, Yn_out], axis=-1)
+        hv_out = ctx_layer(hv, he_cat, msk, attention_mask=Ymm, inference=True)
+        return Yn_out, hv_out
+
+      Y_proj, h_V_C = map_chunks_axis0_multi(
+        slab_fn,
+        lc,
+        (Y_proj, Y_edges_p, Y_m, Y_m_edges, h_V_C, h_E_context, ma),
+      )
+
+  h_V_C = jax.vmap(model.v_c)(h_V_C)
+  h_fin = h_V + jax.vmap(model.v_c_norm)(
+    model.dropout(h_V_C, key=dn_k, inference=True),
+  )
+  return h_fin, h_E, E_idx.astype(jnp.int32)
+
+
+def _ligand_slice_pad_state_batch(
+  s0: int,
+  states_chunk_size: int,
+  s_tot: int,
+  coords_stack: jax.Array,
+  mask_stack: jax.Array,
+  residue_index_stack: jax.Array,
+  chain_index_stack: jax.Array,
+  y_stack: jax.Array,
+  y_t_stack: jax.Array,
+  y_m_stack: jax.Array,
+  state_flat_rows: jax.Array,
+) -> tuple[jax.Array, ...]:
+  """Slice ``[s0, s0+cs)`` along state axis and pad to length ``states_chunk_size``.
+
+  Padded rows: ``mask=0``, ``state_flat_rows=-1`` (scatter skips). Other tensors tile the
+  last real row so ligand feature shapes stay valid under ``ligand_l_chunk`` tiling.
+  """
+  cs = int(states_chunk_size)
+  s1 = min(s0 + cs, s_tot)
+  n_real = s1 - s0
+
+  def pad_first_axis(a: jax.Array) -> jax.Array:
+    slab = a[s0:s1]
+    if n_real >= cs:
+      return slab
+    pad_n = cs - n_real
+    last = slab[-1:]
+    tail = jnp.tile(last, (pad_n,) + (1,) * (slab.ndim - 1))
+    return jnp.concatenate([slab, tail], axis=0)
+
+  rows = state_flat_rows[s0:s1]
+  if n_real < cs:
+    rows = jnp.concatenate(
+      [rows, jnp.full((cs - n_real, rows.shape[1]), -1, dtype=rows.dtype)],
+      axis=0,
+    )
+  m = mask_stack[s0:s1]
+  if n_real < cs:
+    m = jnp.concatenate([m, jnp.zeros((cs - n_real, m.shape[1]), dtype=m.dtype)], axis=0)
+
+  return (
+    pad_first_axis(coords_stack),
+    m,
+    pad_first_axis(residue_index_stack),
+    pad_first_axis(chain_index_stack),
+    pad_first_axis(y_stack),
+    pad_first_axis(y_t_stack),
+    pad_first_axis(y_m_stack),
+    rows,
+  )
+
+
+def _ligand_slice_pad_cond_batch(
+  s0: int,
+  states_chunk_size: int,
+  s_tot: int,
+  seq_oh_stack: jax.Array,
+  ar_mask_stack: jax.Array,
+) -> tuple[jax.Array, jax.Array]:
+  cs = int(states_chunk_size)
+  s1 = min(s0 + cs, s_tot)
+  n_real = s1 - s0
+
+  def pad_first_axis(a: jax.Array) -> jax.Array:
+    slab = a[s0:s1]
+    if n_real >= cs:
+      return slab
+    pad_n = cs - n_real
+    last = slab[-1:]
+    tail = jnp.tile(last, (pad_n,) + (1,) * (slab.ndim - 1))
+    return jnp.concatenate([slab, tail], axis=0)
+
+  arm = ar_mask_stack[s0:s1]
+  if n_real < cs:
+    arm = jnp.concatenate(
+      [arm, jnp.zeros((cs - n_real,) + arm.shape[1:], dtype=arm.dtype)],
+      axis=0,
+    )
+  return pad_first_axis(seq_oh_stack), arm
+
+
+def ligand_score_unconditional_state_vmap_one_chunk(
+  model: PrxteinLigandMPNN,
+  k_enc: jax.Array,
+  k_feat: jax.Array,
+  coords_stack: jax.Array,
+  mask_stack: jax.Array,
+  residue_index_stack: jax.Array,
+  chain_index_stack: jax.Array,
+  y_stack: jax.Array,
+  y_t_stack: jax.Array,
+  y_m_stack: jax.Array,
+  state_flat_rows: jax.Array,
+  n_flat: int,
+) -> jax.Array:
+  """Single fixed-size state batch (padded to leading dim of ``coords_stack``); scatter only, no fuse."""
+
+  def enc_one(coords, ma, ri, ci, yy, yt, ym):
+    return ligand_encode_stack_row(model, coords, ma, ri, ci, yy, yt, ym, k_feat)
+
+  node_b, edge_b, nei_b = jax.vmap(enc_one)(
+    coords_stack,
+    mask_stack,
+    residue_index_stack,
+    chain_index_stack,
+    y_stack,
+    y_t_stack,
+    y_m_stack,
+  )
+
+  def decode_one(nb, eb, nei, mk):
+    return model.decoder(nb, eb, nei, mk, key=None)
+
+  decoded = jax.vmap(decode_one)(node_b, edge_b, nei_b, mask_stack)
+  logits_s = jax.vmap(jax.vmap(model.w_out))(decoded)
+  return scatter_stack_to_flat(logits_s, state_flat_rows, n_flat)
+
+
+def ligand_score_conditional_state_vmap_one_chunk(
+  model: PrxteinLigandMPNN,
+  k_enc: jax.Array,
+  k_feat: jax.Array,
+  coords_stack: jax.Array,
+  mask_stack: jax.Array,
+  residue_index_stack: jax.Array,
+  chain_index_stack: jax.Array,
+  y_stack: jax.Array,
+  y_t_stack: jax.Array,
+  y_m_stack: jax.Array,
+  seq_oh_stack: jax.Array,
+  ar_mask_stack: jax.Array,
+  state_flat_rows: jax.Array,
+  n_flat: int,
+  bias_flat: jax.Array | None,
+  inference: bool,
+) -> jax.Array:
+  """Conditional path for one fixed-size state batch; scatter only, no fuse."""
+
+  def enc_row(coords, ma, ri, ci, yy, yt, ym):
+    return ligand_encode_stack_row(model, coords, ma, ri, ci, yy, yt, ym, k_feat)
+
+  node_b, edge_b, nei_b = jax.vmap(enc_row)(
+    coords_stack,
+    mask_stack,
+    residue_index_stack,
+    chain_index_stack,
+    y_stack,
+    y_t_stack,
+    y_m_stack,
+  )
+
+  def dec_one(nb, eb, nei, mk, arm, oh):
+    return model.decoder.call_conditional(
+      nb,
+      eb,
+      nei,
+      mk,
+      arm,
+      oh,
+      model.w_s_embed.weight,
+      inference=inference,
+      key=k_enc,
+    )
+
+  decoded = jax.vmap(dec_one)(
+    node_b,
+    edge_b,
+    nei_b,
+    mask_stack,
+    ar_mask_stack,
+    seq_oh_stack,
+  )
+
+  logits_s = jax.vmap(jax.vmap(model.w_out))(decoded)
+  if bias_flat is not None:
+    logits_s = logits_s + gather_flat_to_stack(bias_flat, state_flat_rows)
+  return scatter_stack_to_flat(logits_s, state_flat_rows, n_flat)

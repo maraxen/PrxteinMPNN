@@ -75,6 +75,10 @@ class DesignArrayRecordWriter:
 
     Snapshot arrays from device immediately (device_get is fast), then enqueue
     the serialization and disk I/O to avoid blocking the device.
+
+    TODO(io_callback integration): Prefer producers that hand off host arrays strictly via
+    ``jax.experimental.io_callback`` (+     ``jax.effects_barrier`` at batch boundaries); then optionally
+    accept already-NumPy payloads here to skip redundant ``device_get`` (see prxteinmpnn/TODO_io_callback.txt).
     """
     # 1. Snapshot sequence (uint8) — device_get is fast
     seq = np.asarray(jax.device_get(payload["sequence"]), dtype=np.uint8)

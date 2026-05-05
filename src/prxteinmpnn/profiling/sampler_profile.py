@@ -82,6 +82,8 @@ class SamplingProfiler:
         """
         self.results = []
 
+        # TODO(io_callback integration): Benchmarks jax.block_until_ready; document interaction with io_callback+effects_barrier samplers.
+
         for i, setting in enumerate(self.settings):
             logger.info(f"\n{'='*60}")
             logger.info(f"Profiling {i+1}/{len(self.settings)}: {setting}")

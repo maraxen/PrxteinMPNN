@@ -716,6 +716,7 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: PLR0915
       )
 
       step += 1
+      # TODO(io_callback integration): Logging-only scalar device_get; optional io_callback metrics sink later.
       loss_float = jax.device_get(train_metrics.loss).item()
       pbar.set_postfix({"loss": loss_float})
 

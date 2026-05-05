@@ -8,6 +8,7 @@ from __future__ import annotations
 from .decoder import Decoder, DecoderLayer
 from .encoder import Encoder, EncoderLayer
 from .features import ProteinFeatures
+from .multistate_stack import gather_flat_to_stack, scatter_stack_to_flat
 from .mpnn import PrxteinLigandMPNN, PrxteinMPNN
 
 __all__ = [
@@ -18,4 +19,6 @@ __all__ = [
   "ProteinFeatures",
   "PrxteinLigandMPNN",
   "PrxteinMPNN",
+  "gather_flat_to_stack",
+  "scatter_stack_to_flat",
 ]

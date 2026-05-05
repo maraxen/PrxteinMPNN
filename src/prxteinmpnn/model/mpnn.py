@@ -17,6 +17,7 @@ from prxteinmpnn.model.decoder import Decoder, DecoderLayer
 from prxteinmpnn.model.encoder import Encoder, PhysicsEncoder
 from prxteinmpnn.model.features import ProteinFeatures
 from prxteinmpnn.model.ligand_features import ProteinFeaturesLigand
+from prxteinmpnn.model.ligand_tiling import map_chunks_axis0, map_chunks_axis0_multi
 from prxteinmpnn.model.multi_state_sampling import (
   arithmetic_mean_logits,
   geometric_mean_logits,
@@ -2067,29 +2068,67 @@ class PrxteinLigandMPNN(eqx.Module):
     h_V_C = jax.vmap(self.w_c)(h_V)
     h_E_context = jax.vmap(jax.vmap(self.w_v))(V)
 
-    # Initial projections for ligand features
-    Y_nodes = jax.vmap(jax.vmap(self.w_nodes_y))(Y_nodes)
-    Y_edges = jax.vmap(jax.vmap(jax.vmap(self.w_edges_y)))(Y_edges)
+    # Initial projections + context integration for ligand (DecLayerJ stack + protein context DecoderLayers).
+    lig_chunk = self.features.ligand_l_chunk
 
     # Precompute ligand edge masks
     Y_m_edges = Y_m[..., None] * Y_m[..., None, :]
 
-    # Iterate through context integration layers
-    for i in range(len(self.context_encoder)):
-      # Ligand-Ligand communication (DecLayerJ in reference)
-      # We vmap over the protein residue dimension (L)
-      Y_nodes = jax.vmap(
-        lambda node, edge, mask_l, mask_e: self.y_context_encoder[i](
-          node, edge, mask_l, attention_mask=mask_e, inference=inference,
-        ),
-      )(Y_nodes, Y_edges, Y_m, Y_m_edges)
+    if lig_chunk <= 0:
+      Y_nodes = jax.vmap(jax.vmap(self.w_nodes_y))(Y_nodes)
+      Y_edges = jax.vmap(jax.vmap(jax.vmap(self.w_edges_y)))(Y_edges)
 
-      # Protein-Ligand communication
-      # h_E_context_cat combines protein-v-projections and projected ligand nodes
-      h_E_context_cat = jnp.concatenate([h_E_context, Y_nodes], axis=-1)
-      h_V_C = self.context_encoder[i](
-        h_V_C, h_E_context_cat, mask, attention_mask=Y_m, inference=inference,
+      for i in range(len(self.context_encoder)):
+        # Ligand-Ligand communication (DecLayerJ in reference): vmap over residue axis L
+        Y_nodes = jax.vmap(
+          lambda node, edge, mask_l, mask_e: self.y_context_encoder[i](
+            node, edge, mask_l, attention_mask=mask_e, inference=inference,
+          ),
+        )(Y_nodes, Y_edges, Y_m, Y_m_edges)
+
+        h_E_context_cat = jnp.concatenate([h_E_context, Y_nodes], axis=-1)
+        h_V_C = self.context_encoder[i](
+          h_V_C, h_E_context_cat, mask, attention_mask=Y_m, inference=inference,
+        )
+    else:
+      Y_nodes = map_chunks_axis0(
+        Y_nodes,
+        chunk_size=lig_chunk,
+        fn=lambda s: jax.vmap(jax.vmap(self.w_nodes_y))(s),
       )
+      Y_edges = map_chunks_axis0(
+        Y_edges,
+        chunk_size=lig_chunk,
+        fn=lambda s: jax.vmap(jax.vmap(jax.vmap(self.w_edges_y)))(s),
+      )
+
+      for i in range(len(self.context_encoder)):
+        y_layer = self.y_context_encoder[i]
+        ctx_layer = self.context_encoder[i]
+
+        def slab_fn(
+          Yn: jax.Array,
+          Ye: jax.Array,
+          Ymm: jax.Array,
+          Yme: jax.Array,
+          hv: jax.Array,
+          hec: jax.Array,
+          msk: jax.Array,
+        ) -> tuple[jax.Array, jax.Array]:
+          Yn_out = jax.vmap(
+            lambda node, edge, mask_l, mask_e: y_layer(
+              node, edge, mask_l, attention_mask=mask_e, inference=inference,
+            ),
+          )(Yn, Ye, Ymm, Yme)
+          he_cat = jnp.concatenate([hec, Yn_out], axis=-1)
+          hv_out = ctx_layer(hv, he_cat, msk, attention_mask=Ymm, inference=inference)
+          return Yn_out, hv_out
+
+        Y_nodes, h_V_C = map_chunks_axis0_multi(
+          slab_fn,
+          lig_chunk,
+          (Y_nodes, Y_edges, Y_m, Y_m_edges, h_V_C, h_E_context, mask),
+        )
 
     # Final context combination
     h_V_C = jax.vmap(self.v_c)(h_V_C)
@@ -2638,20 +2677,62 @@ class PrxteinLigandMPNN(eqx.Module):
 
       h_V_C = jax.vmap(self.w_c)(h_V)
       h_E_context = jax.vmap(jax.vmap(self.w_v))(V)
-      Y_proj = jax.vmap(jax.vmap(self.w_nodes_y))(Y_nodes)
-      Y_edges_p = jax.vmap(jax.vmap(jax.vmap(self.w_edges_y)))(Y_edges)
+      lc = self.features.ligand_l_chunk
       Y_m_edges = Y_m[..., None] * Y_m[..., None, :]
 
-      for ix in range(len(self.context_encoder)):
-        y_enc = self.y_context_encoder[ix]
-        ctx_enc = self.context_encoder[ix]
+      if lc <= 0:
+        Y_proj = jax.vmap(jax.vmap(self.w_nodes_y))(Y_nodes)
+        Y_edges_p = jax.vmap(jax.vmap(jax.vmap(self.w_edges_y)))(Y_edges)
 
-        def y_layer(nd, eg, gm, ge):
-          return y_enc(nd, eg, gm, attention_mask=ge, inference=True)
+        for ix in range(len(self.context_encoder)):
+          y_enc = self.y_context_encoder[ix]
+          ctx_enc = self.context_encoder[ix]
 
-        Y_proj = jax.vmap(y_layer)(Y_proj, Y_edges_p, Y_m, Y_m_edges)
-        h_E_cat = jnp.concatenate([h_E_context, Y_proj], axis=-1)
-        h_V_C = ctx_enc(h_V_C, h_E_cat, ma, attention_mask=Y_m, inference=True)
+          def y_layer(nd, eg, gm, ge):
+            return y_enc(nd, eg, gm, attention_mask=ge, inference=True)
+
+          Y_proj = jax.vmap(y_layer)(Y_proj, Y_edges_p, Y_m, Y_m_edges)
+          h_E_cat = jnp.concatenate([h_E_context, Y_proj], axis=-1)
+          h_V_C = ctx_enc(h_V_C, h_E_cat, ma, attention_mask=Y_m, inference=True)
+      else:
+        Y_proj = map_chunks_axis0(
+          Y_nodes,
+          chunk_size=lc,
+          fn=lambda s: jax.vmap(jax.vmap(self.w_nodes_y))(s),
+        )
+        Y_edges_p = map_chunks_axis0(
+          Y_edges,
+          chunk_size=lc,
+          fn=lambda s: jax.vmap(jax.vmap(jax.vmap(self.w_edges_y)))(s),
+        )
+
+        for ix in range(len(self.context_encoder)):
+          y_layer = self.y_context_encoder[ix]
+          ctx_layer = self.context_encoder[ix]
+
+          def slab_fn(
+            Yn: jax.Array,
+            Ye: jax.Array,
+            Ymm: jax.Array,
+            Yme: jax.Array,
+            hv: jax.Array,
+            hec: jax.Array,
+            msk: jax.Array,
+          ) -> tuple[jax.Array, jax.Array]:
+            Yn_out = jax.vmap(
+              lambda node, edge, mask_l, mask_e: y_layer(
+                node, edge, mask_l, attention_mask=mask_e, inference=True,
+              ),
+            )(Yn, Ye, Ymm, Yme)
+            he_cat = jnp.concatenate([hec, Yn_out], axis=-1)
+            hv_out = ctx_layer(hv, he_cat, msk, attention_mask=Ymm, inference=True)
+            return Yn_out, hv_out
+
+          Y_proj, h_V_C = map_chunks_axis0_multi(
+            slab_fn,
+            lc,
+            (Y_proj, Y_edges_p, Y_m, Y_m_edges, h_V_C, h_E_context, ma),
+          )
 
       h_V_C = jax.vmap(self.v_c)(h_V_C)
       h_fin = h_V + jax.vmap(self.v_c_norm)(

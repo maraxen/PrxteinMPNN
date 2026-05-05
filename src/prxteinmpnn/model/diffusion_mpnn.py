@@ -294,4 +294,10 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
       0,  # strategy unused
       jnp.array(1.0),  # temperature unused
       initial_node_features,
+      None,
+      None,
+      None,
+      None,
+      None,
+      None,
     )

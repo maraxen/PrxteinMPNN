@@ -154,8 +154,27 @@ def load_model(
   training_mode: Literal["autoregressive", "diffusion"] = "autoregressive",
   # legacy parameter for backwards compatibility
   model_version: str | None = None,
+  ligand_l_chunk: int | None = None,
 ) -> eqx.Module:
-  """Load a fully instantiated PrxteinMPNN model with pre-trained weights."""
+  """Load a fully instantiated PrxteinMPNN-family model with weights.
+
+  Skeleton topology (ligand vs protein, ``k_neighbors``, etc.) is inferred from the
+  logical **checkpoint_id** string after legacy normalization — not from the basename
+  of ``local_path``. When using ``local_path`` for weight bytes, ``checkpoint_id``
+  must still name the intended checkpoint family (for example ``ligandmpnn_v_32_020_25``)
+  so the correct module class and hyperparameters are built before deserialization.
+
+  **Diffusion:** If ``training_mode`` is ``"diffusion"`` and ``local_path`` is
+  ``None``, bundled autoregressive ``.eqx.zst`` checkpoints are **not** loaded (their
+  PyTree does not match ``DiffusionPrxteinMPNN``). The returned model is
+  **random-initialized** via :func:`load_weights` with ``checkpoint_id=None``. Pass
+  ``local_path`` to a compatible diffusion checkpoint when pre-trained diffusion
+  weights are required.
+
+  **Keys:** ``key`` affects random initialization for skeleton creation and for the
+  diffusion random-init path above.
+
+  """
   if key is None:
     key = jax.random.PRNGKey(0)
 
@@ -181,7 +200,9 @@ def load_model(
   if not checkpoint_id.endswith(".zst") and not local_path:
     checkpoint_id = f"{checkpoint_id}.eqx.zst"
 
-  topo = get_topology_for_checkpoint(checkpoint_id if not local_path else local_path)
+  # Topology always follows the logical checkpoint id (ligand vs protein, kNN, ...).
+  # ``local_path`` may be a bare ``artifact.eqx`` filename with no family/version hints.
+  topo = get_topology_for_checkpoint(checkpoint_id)
 
   physics_feature_dim = topo["physics_feature_dim"]
   if use_electrostatics or use_vdw:
@@ -189,6 +210,9 @@ def load_model(
 
   model_type = topo["model_type"]
   if model_type == "ligand":
+    ligand_skeleton_kw: dict[str, int] = {}
+    if ligand_l_chunk is not None:
+      ligand_skeleton_kw["ligand_l_chunk"] = ligand_l_chunk
     skeleton = PrxteinLigandMPNN(
       node_features=NODE_FEATURES,
       edge_features=EDGE_FEATURES,
@@ -198,6 +222,7 @@ def load_model(
       k_neighbors=topo["k_neighbors"],
       num_positional_embeddings=topo["num_positional_embeddings"],
       num_context_layers=NUM_LIGAND_CONTEXT_LAYERS,
+      **ligand_skeleton_kw,
       key=key,
     )
   elif model_type == "packer":
@@ -240,6 +265,11 @@ def load_model(
       dropout_rate=dropout_rate,
       key=key,
     )
+
+  # Bundled autoregressive checkpoints are not PyTree-compatible with DiffusionPrxteinMPNN
+  # (extra time embeddings). Random-init unless a concrete ``local_path`` is provided.
+  if training_mode == "diffusion" and local_path is None:
+    return load_weights(checkpoint_id=None, skeleton=skeleton, key=key)
 
   loaded = load_weights(
     checkpoint_id=checkpoint_id,

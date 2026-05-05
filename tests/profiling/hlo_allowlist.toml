@@ -1,0 +1,18 @@
+# HLO byte-count slack for CI (§13 Q8). Raw StableHLO text under baseline_hlo/ is a
+# review artifact only; CI uses these ceilings, not byte-for-byte baseline equality.
+
+[model_call]
+max_hlo_bytes = 12_000_000
+rationale = "Tiny PrxteinMPNN unconditional lower; slack for JAX/XLA upgrades."
+
+[score]
+max_hlo_bytes = 12_000_000
+rationale = "Reserved for make_score_fn-style lowers; same slack as model_call until split."
+
+[sample]
+max_hlo_bytes = 20_000_000
+rationale = "Autoregressive sampling graph is larger; generous until dedicated capture."
+
+[logits]
+max_hlo_bytes = 12_000_000
+rationale = "Logits-factory lowers; aligned with model_call slack."

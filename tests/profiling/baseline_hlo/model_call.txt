@@ -1,0 +1,8 @@
+# StableHLO baseline (review artifact only).
+#
+# Phase 0 scaffold: placeholder file so the tree layout matches the roadmap.
+# CI gates use ``hlo_allowlist.toml`` byte ceilings + ``test_hlo_baseline.py`` export smoke,
+# not byte-for-byte equality against this file (plan-auditor: no blind HLO diff failures).
+#
+# Regenerate locally when needed:
+#   uv run python -c "..."  # see profiling README or sprint plan

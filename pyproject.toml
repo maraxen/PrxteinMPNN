@@ -60,6 +60,7 @@ tests = [
     "foldcomp",
     "pytest-xdist",
     "mdtraj",
+    "beartype>=0.18.0",
 ]
 dev = [
   "ruff",
@@ -124,6 +125,14 @@ ignore = [
 pylint.max-args = 15
 
 [tool.ruff.lint.per-file-ignores]
+"src/prxteinmpnn/profiling/hlo_tools.py" = [
+  "ANN201",
+  "ANN202",
+  "ANN002",
+  "ANN003",
+  "ANN401",
+  "S108",
+]
 "src/prxteinmpnn/run.py" = ["E402", "PLR0913", "ANN401"]
 "src/prxteinmpnn/io/parsing.py" = ["ANN401"]
 "tests/test_adapter.py" = ["S101", "T201", "ANN201", "INP001", "PLC0415", "SLF001"]
@@ -149,8 +158,16 @@ markers = [
 [tool.ty.environment]
 root = ["src/prxteinmpnn"]
 
+[tool.ty.analysis]
+# Third-party / workspace packages without full stubs (roadmap Phase 0).
+allowed-unresolved-imports = ["proxide.**", "prolix.**"]
+
 [tool.ty.rules]
 invalid-type-form = "ignore"
+
+[tool.jaxlint]
+# Advisory in CI until Phase 2 (roadmap); run locally when jaxlint is installed.
+select = ["JL"]
 
 [dependency-groups]
 dev = [

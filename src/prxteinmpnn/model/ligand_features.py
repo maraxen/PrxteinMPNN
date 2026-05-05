@@ -338,7 +338,9 @@ class ProteinFeaturesLigand(eqx.Module):
             Y_edges = map_chunks_axis0(
                 Y,
                 chunk_size=self.ligand_l_chunk,
-                fn=self._y_edges_coords_to_embed,
+                # Unbound callable avoids JAX 0.9.x WeakKeyDictionary cache keying BoundMethod(self=_)
+                # when outer JIT traces bool from autoregressive submatrices (TracerBoolConversionError).
+                fn=lambda slab, _self=self: ProteinFeaturesLigand._y_edges_coords_to_embed(_self, slab),
             )
 
         if self.ligand_l_chunk <= 0:
@@ -347,7 +349,7 @@ class ProteinFeaturesLigand(eqx.Module):
             Y_nodes = map_chunks_axis0(
                 Y_t_1hot_,
                 chunk_size=self.ligand_l_chunk,
-                fn=self._y_nodes_proj,
+                fn=lambda slab2, _self=self: ProteinFeaturesLigand._y_nodes_proj(_self, slab2),
             )
 
         # Apply layer normalization via vmap (still needed to preserve batch normalization semantics)

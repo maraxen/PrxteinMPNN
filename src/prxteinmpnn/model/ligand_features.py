@@ -87,7 +87,6 @@ class ProteinFeaturesLigand(eqx.Module):
     # Chunk axis-0 ligand pairwise edges / node projections for bounded GPU peak memory (>0 tiles).
     # <=0 restores legacy monolithic (L*M*M,) GEMMs (fine for small L / debugging parity).
     ligand_l_chunk: int = eqx.field(static=True)
-    ligand_chunk_checkpoint: bool = eqx.field(static=True)
 
     def _make_angle_features(self, A: jax.Array, B: jax.Array, C: jax.Array, Y: jax.Array) -> jax.Array:
         """Port of _make_angle_features from PyTorch."""
@@ -157,7 +156,6 @@ class ProteinFeaturesLigand(eqx.Module):
         num_positional_embeddings: int = 16,
         use_side_chains: bool = False,
         ligand_l_chunk: int = 16,
-        ligand_chunk_checkpoint: bool = False,
         *,
         key: PRNGKeyArray,
     ) -> None:
@@ -167,7 +165,6 @@ class ProteinFeaturesLigand(eqx.Module):
         self.atom_context_num = atom_context_num
         self.use_side_chains = use_side_chains
         self.ligand_l_chunk = ligand_l_chunk
-        self.ligand_chunk_checkpoint = ligand_chunk_checkpoint
 
         self.embeddings = PositionalEncodings(num_positional_embeddings, key=keys[0])
         # edge_in = 16 + 16 * 25 = 416
@@ -342,7 +339,6 @@ class ProteinFeaturesLigand(eqx.Module):
                 Y,
                 chunk_size=self.ligand_l_chunk,
                 fn=self._y_edges_coords_to_embed,
-                use_checkpoint=self.ligand_chunk_checkpoint,
             )
 
         if self.ligand_l_chunk <= 0:
@@ -352,7 +348,6 @@ class ProteinFeaturesLigand(eqx.Module):
                 Y_t_1hot_,
                 chunk_size=self.ligand_l_chunk,
                 fn=self._y_nodes_proj,
-                use_checkpoint=self.ligand_chunk_checkpoint,
             )
 
         # Apply layer normalization via vmap (still needed to preserve batch normalization semantics)

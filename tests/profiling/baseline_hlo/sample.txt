@@ -1,1 +1,3310 @@
-# StableHLO baseline (review artifact only) — see model_call.txt header.
+# StableHLO / HLO text (review artifact only; CI does not diff this file).
+# Callable key: sample — make_sample_sequences(tiny_model, temperature); first return (sequence); same n=4.
+# Capture date: 2026-05-05
+# JAX 0.9.2, jaxlib 0.9.2, Equinox 0.13.6
+# Same tiny unconditional path as tests/profiling/test_hlo_baseline.py::tiny_model (n=4 residues).
+# Regeneration: see tests/profiling/README.md
+
+HloModule jit_sample_path, entry_computation_layout={(u32[2]{0})->s8[4]{0}}
+
+closed_call.1 {
+  Arg_0.4 = s32[] parameter(0)
+  constant.118 = s32[] constant(1)
+  add.16 = s32[] add(Arg_0.4, constant.118)
+  Arg_1.2 = u32[2]{0} parameter(1)
+  Arg_2.2 = u32[2]{0} parameter(2)
+  add.17 = u32[2]{0} add(Arg_1.2, Arg_2.2)
+  Arg_6.1 = u32[4]{0} parameter(6)
+  slice.6 = u32[1]{0} slice(Arg_6.1), slice={[0:1]}
+  squeeze.6 = u32[] reshape(slice.6)
+  shift_left.8 = u32[2]{0} broadcast(squeeze.6), dimensions={}
+  shift_left.9 = u32[2]{0} shift-left(Arg_2.2, shift_left.8)
+  constant.117 = u32[] constant(32)
+  sub.4 = u32[] subtract(constant.117, squeeze.6)
+  shift_right_logical.8 = u32[2]{0} broadcast(sub.4), dimensions={}
+  shift_right_logical.9 = u32[2]{0} shift-right-logical(Arg_2.2, shift_right_logical.8)
+  or.4 = u32[2]{0} or(shift_left.9, shift_right_logical.9)
+  xor.6 = u32[2]{0} xor(add.17, or.4)
+  add.18 = u32[2]{0} add(add.17, xor.6)
+  slice.7 = u32[1]{0} slice(Arg_6.1), slice={[1:2]}
+  squeeze.7 = u32[] reshape(slice.7)
+  shift_left.10 = u32[2]{0} broadcast(squeeze.7), dimensions={}
+  shift_left.11 = u32[2]{0} shift-left(xor.6, shift_left.10)
+  sub.5 = u32[] subtract(constant.117, squeeze.7)
+  shift_right_logical.10 = u32[2]{0} broadcast(sub.5), dimensions={}
+  shift_right_logical.11 = u32[2]{0} shift-right-logical(xor.6, shift_right_logical.10)
+  or.5 = u32[2]{0} or(shift_left.11, shift_right_logical.11)
+  xor.7 = u32[2]{0} xor(add.18, or.5)
+  add.19 = u32[2]{0} add(add.18, xor.7)
+  slice.8 = u32[1]{0} slice(Arg_6.1), slice={[2:3]}
+  squeeze.8 = u32[] reshape(slice.8)
+  shift_left.12 = u32[2]{0} broadcast(squeeze.8), dimensions={}
+  shift_left.13 = u32[2]{0} shift-left(xor.7, shift_left.12)
+  sub.6 = u32[] subtract(constant.117, squeeze.8)
+  shift_right_logical.12 = u32[2]{0} broadcast(sub.6), dimensions={}
+  shift_right_logical.13 = u32[2]{0} shift-right-logical(xor.7, shift_right_logical.12)
+  or.6 = u32[2]{0} or(shift_left.13, shift_right_logical.13)
+  xor.8 = u32[2]{0} xor(add.19, or.6)
+  add.20 = u32[2]{0} add(add.19, xor.8)
+  Arg_3.2 = u32[] parameter(3)
+  add.21 = u32[2]{0} broadcast(Arg_3.2), dimensions={}
+  add.22 = u32[2]{0} add(add.20, add.21)
+  slice.9 = u32[1]{0} slice(Arg_6.1), slice={[3:4]}
+  squeeze.9 = u32[] reshape(slice.9)
+  shift_left.14 = u32[2]{0} broadcast(squeeze.9), dimensions={}
+  shift_left.15 = u32[2]{0} shift-left(xor.8, shift_left.14)
+  sub.7 = u32[] subtract(constant.117, squeeze.9)
+  shift_right_logical.14 = u32[2]{0} broadcast(sub.7), dimensions={}
+  shift_right_logical.15 = u32[2]{0} shift-right-logical(xor.8, shift_right_logical.14)
+  or.7 = u32[2]{0} or(shift_left.15, shift_right_logical.15)
+  xor.9 = u32[2]{0} xor(add.20, or.7)
+  Arg_4.2 = u32[] parameter(4)
+  add.23 = u32[2]{0} broadcast(Arg_4.2), dimensions={}
+  add.24 = u32[2]{0} add(xor.9, add.23)
+  add.25 = s32[] add(Arg_0.4, constant.118)
+  convert_element_type.1 = u32[] convert(add.25)
+  add.26 = u32[2]{0} broadcast(convert_element_type.1), dimensions={}
+  add.27 = u32[2]{0} add(add.24, add.26)
+  Arg_5.1 = u32[] parameter(5)
+  Arg_7.1 = u32[4]{0} parameter(7)
+  ROOT tuple.1 = (s32[], u32[2]{0}, u32[2]{0}, u32[], u32[], /*index=5*/u32[], u32[4]{0}, u32[4]{0}) tuple(add.16, add.22, add.27, Arg_4.2, Arg_5.1, Arg_3.2, Arg_7.1, Arg_6.1)
+}
+
+region_0.2 {
+  arg_tuple.1 = (s32[], s32[], u32[2]{0}, u32[2]{0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) parameter(0)
+  get-tuple-element.9 = s32[] get-tuple-element(arg_tuple.1), index=0
+  constant.119 = s32[] constant(1)
+  add.29 = s32[] add(get-tuple-element.9, constant.119)
+  get-tuple-element.10 = s32[] get-tuple-element(arg_tuple.1), index=1
+  get-tuple-element.11 = u32[2]{0} get-tuple-element(arg_tuple.1), index=2
+  get-tuple-element.12 = u32[2]{0} get-tuple-element(arg_tuple.1), index=3
+  get-tuple-element.13 = u32[] get-tuple-element(arg_tuple.1), index=4
+  get-tuple-element.14 = u32[] get-tuple-element(arg_tuple.1), index=5
+  get-tuple-element.15 = u32[] get-tuple-element(arg_tuple.1), index=6
+  get-tuple-element.16 = u32[4]{0} get-tuple-element(arg_tuple.1), index=7
+  get-tuple-element.17 = u32[4]{0} get-tuple-element(arg_tuple.1), index=8
+  closed_call.9 = (s32[], u32[2]{0}, u32[2]{0}, u32[], u32[], /*index=5*/u32[], u32[4]{0}, u32[4]{0}) call(get-tuple-element.10, get-tuple-element.11, get-tuple-element.12, get-tuple-element.13, get-tuple-element.14, get-tuple-element.15, get-tuple-element.16, get-tuple-element.17), to_apply=closed_call.1
+  closed_call.10 = s32[] get-tuple-element(closed_call.9), index=0
+  closed_call.11 = u32[2]{0} get-tuple-element(closed_call.9), index=1
+  closed_call.12 = u32[2]{0} get-tuple-element(closed_call.9), index=2
+  closed_call.13 = u32[] get-tuple-element(closed_call.9), index=3
+  closed_call.14 = u32[] get-tuple-element(closed_call.9), index=4
+  closed_call.15 = u32[] get-tuple-element(closed_call.9), index=5
+  closed_call.16 = u32[4]{0} get-tuple-element(closed_call.9), index=6
+  closed_call.17 = u32[4]{0} get-tuple-element(closed_call.9), index=7
+  ROOT tuple.3 = (s32[], s32[], u32[2]{0}, u32[2]{0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) tuple(add.29, closed_call.10, closed_call.11, closed_call.12, closed_call.13, closed_call.14, closed_call.15, closed_call.16, closed_call.17)
+}
+
+region_1.3 {
+  arg_tuple.3 = (s32[], s32[], u32[2]{0}, u32[2]{0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) parameter(0)
+  get-tuple-element.28 = s32[] get-tuple-element(arg_tuple.3), index=1
+  get-tuple-element.29 = u32[2]{0} get-tuple-element(arg_tuple.3), index=2
+  get-tuple-element.30 = u32[2]{0} get-tuple-element(arg_tuple.3), index=3
+  get-tuple-element.31 = u32[] get-tuple-element(arg_tuple.3), index=4
+  get-tuple-element.32 = u32[] get-tuple-element(arg_tuple.3), index=5
+  get-tuple-element.33 = u32[] get-tuple-element(arg_tuple.3), index=6
+  get-tuple-element.34 = u32[4]{0} get-tuple-element(arg_tuple.3), index=7
+  get-tuple-element.35 = u32[4]{0} get-tuple-element(arg_tuple.3), index=8
+  get-tuple-element.27 = s32[] get-tuple-element(arg_tuple.3), index=0
+  constant.121 = s32[] constant(5)
+  ROOT lt.1 = pred[] compare(get-tuple-element.27, constant.121), direction=LT
+}
+
+threefry2x32.4 {
+  constant.122 = s32[] constant(0)
+  PrxteinMPNN___call__.6 = u32[2]{0} parameter(2)
+  PrxteinMPNN___call__.4 = u32[] parameter(0)
+  add.30 = u32[2]{0} broadcast(PrxteinMPNN___call__.4), dimensions={}
+  add.31 = u32[2]{0} add(PrxteinMPNN___call__.6, add.30)
+  PrxteinMPNN___call__.7 = u32[2]{0} parameter(3)
+  PrxteinMPNN___call__.5 = u32[] parameter(1)
+  add.32 = u32[2]{0} broadcast(PrxteinMPNN___call__.5), dimensions={}
+  add.33 = u32[2]{0} add(PrxteinMPNN___call__.7, add.32)
+  xor.10 = u32[] xor(PrxteinMPNN___call__.4, PrxteinMPNN___call__.5)
+  constant.123 = u32[] constant(466688986)
+  xor.11 = u32[] xor(xor.10, constant.123)
+  constant.124 = u32[4]{0} constant({13, 15, 26, 6})
+  constant.125 = u32[4]{0} constant({17, 29, 16, 24})
+  while.11 = (s32[], s32[], u32[2]{0}, u32[2]{0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) tuple(constant.122, constant.122, add.31, add.33, PrxteinMPNN___call__.5, xor.11, PrxteinMPNN___call__.4, constant.124, constant.125)
+  while.12 = (s32[], s32[], u32[2]{0}, u32[2]{0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) while(while.11), condition=region_1.3, body=region_0.2
+  while.13 = s32[] get-tuple-element(while.12), index=0
+  while.14 = s32[] get-tuple-element(while.12), index=1
+  while.17 = u32[] get-tuple-element(while.12), index=4
+  while.18 = u32[] get-tuple-element(while.12), index=5
+  while.19 = u32[] get-tuple-element(while.12), index=6
+  while.20 = u32[4]{0} get-tuple-element(while.12), index=7
+  while.21 = u32[4]{0} get-tuple-element(while.12), index=8
+  while.15 = u32[2]{0} get-tuple-element(while.12), index=2
+  while.16 = u32[2]{0} get-tuple-element(while.12), index=3
+  ROOT tuple.5 = (u32[2]{0}, u32[2]{0}) tuple(while.15, while.16)
+}
+
+_threefry_split.5 {
+  Arg_0.5 = u32[2]{0} parameter(0)
+  slice.10 = u32[1]{0} slice(Arg_0.5), slice={[0:1]}
+  squeeze.10 = u32[] reshape(slice.10)
+  slice.11 = u32[1]{0} slice(Arg_0.5), slice={[1:2]}
+  squeeze.11 = u32[] reshape(slice.11)
+  iota_2x32_shape.4 = u64[2]{0} iota(), iota_dimension=0
+  constant.126 = u64[] constant(32)
+  broadcast.52 = u64[2]{0} broadcast(constant.126), dimensions={}
+  iota_2x32_shape.5 = u64[2]{0} shift-right-logical(iota_2x32_shape.4, broadcast.52)
+  iota_2x32_shape.7 = u32[2]{0} convert(iota_2x32_shape.5)
+  iota_2x32_shape.6 = u32[2]{0} convert(iota_2x32_shape.4)
+  PrxteinMPNN___call__.11 = (u32[2]{0}, u32[2]{0}) call(squeeze.10, squeeze.11, iota_2x32_shape.7, iota_2x32_shape.6), to_apply=threefry2x32.4
+  PrxteinMPNN___call__.12 = u32[2]{0} get-tuple-element(PrxteinMPNN___call__.11), index=0
+  broadcast_in_dim.3 = u32[2,1]{1,0} reshape(PrxteinMPNN___call__.12)
+  PrxteinMPNN___call__.13 = u32[2]{0} get-tuple-element(PrxteinMPNN___call__.11), index=1
+  broadcast_in_dim.4 = u32[2,1]{1,0} reshape(PrxteinMPNN___call__.13)
+  ROOT concatenate.1 = u32[2,2]{1,0} concatenate(broadcast_in_dim.3, broadcast_in_dim.4), dimensions={1}
+}
+
+closed_call_18.6 {
+  Arg_0.9 = s32[] parameter(0)
+  constant.136 = s32[] constant(1)
+  add.50 = s32[] add(Arg_0.9, constant.136)
+  Arg_1.6 = u32[4]{0} parameter(1)
+  Arg_2.5 = u32[4]{0} parameter(2)
+  add.51 = u32[4]{0} add(Arg_1.6, Arg_2.5)
+  Arg_6.3 = u32[4]{0} parameter(6)
+  slice.21 = u32[1]{0} slice(Arg_6.3), slice={[0:1]}
+  squeeze.21 = u32[] reshape(slice.21)
+  shift_left.24 = u32[4]{0} broadcast(squeeze.21), dimensions={}
+  shift_left.25 = u32[4]{0} shift-left(Arg_2.5, shift_left.24)
+  constant.135 = u32[] constant(32)
+  sub.12 = u32[] subtract(constant.135, squeeze.21)
+  shift_right_logical.24 = u32[4]{0} broadcast(sub.12), dimensions={}
+  shift_right_logical.25 = u32[4]{0} shift-right-logical(Arg_2.5, shift_right_logical.24)
+  or.12 = u32[4]{0} or(shift_left.25, shift_right_logical.25)
+  xor.18 = u32[4]{0} xor(add.51, or.12)
+  add.52 = u32[4]{0} add(add.51, xor.18)
+  slice.22 = u32[1]{0} slice(Arg_6.3), slice={[1:2]}
+  squeeze.22 = u32[] reshape(slice.22)
+  shift_left.26 = u32[4]{0} broadcast(squeeze.22), dimensions={}
+  shift_left.27 = u32[4]{0} shift-left(xor.18, shift_left.26)
+  sub.13 = u32[] subtract(constant.135, squeeze.22)
+  shift_right_logical.26 = u32[4]{0} broadcast(sub.13), dimensions={}
+  shift_right_logical.27 = u32[4]{0} shift-right-logical(xor.18, shift_right_logical.26)
+  or.13 = u32[4]{0} or(shift_left.27, shift_right_logical.27)
+  xor.19 = u32[4]{0} xor(add.52, or.13)
+  add.53 = u32[4]{0} add(add.52, xor.19)
+  slice.23 = u32[1]{0} slice(Arg_6.3), slice={[2:3]}
+  squeeze.23 = u32[] reshape(slice.23)
+  shift_left.28 = u32[4]{0} broadcast(squeeze.23), dimensions={}
+  shift_left.29 = u32[4]{0} shift-left(xor.19, shift_left.28)
+  sub.14 = u32[] subtract(constant.135, squeeze.23)
+  shift_right_logical.28 = u32[4]{0} broadcast(sub.14), dimensions={}
+  shift_right_logical.29 = u32[4]{0} shift-right-logical(xor.19, shift_right_logical.28)
+  or.14 = u32[4]{0} or(shift_left.29, shift_right_logical.29)
+  xor.20 = u32[4]{0} xor(add.53, or.14)
+  add.54 = u32[4]{0} add(add.53, xor.20)
+  Arg_3.5 = u32[] parameter(3)
+  add.55 = u32[4]{0} broadcast(Arg_3.5), dimensions={}
+  add.56 = u32[4]{0} add(add.54, add.55)
+  slice.24 = u32[1]{0} slice(Arg_6.3), slice={[3:4]}
+  squeeze.24 = u32[] reshape(slice.24)
+  shift_left.30 = u32[4]{0} broadcast(squeeze.24), dimensions={}
+  shift_left.31 = u32[4]{0} shift-left(xor.20, shift_left.30)
+  sub.15 = u32[] subtract(constant.135, squeeze.24)
+  shift_right_logical.30 = u32[4]{0} broadcast(sub.15), dimensions={}
+  shift_right_logical.31 = u32[4]{0} shift-right-logical(xor.20, shift_right_logical.30)
+  or.15 = u32[4]{0} or(shift_left.31, shift_right_logical.31)
+  xor.21 = u32[4]{0} xor(add.54, or.15)
+  Arg_4.4 = u32[] parameter(4)
+  add.57 = u32[4]{0} broadcast(Arg_4.4), dimensions={}
+  add.58 = u32[4]{0} add(xor.21, add.57)
+  add.59 = s32[] add(Arg_0.9, constant.136)
+  convert_element_type.3 = u32[] convert(add.59)
+  add.60 = u32[4]{0} broadcast(convert_element_type.3), dimensions={}
+  add.61 = u32[4]{0} add(add.58, add.60)
+  Arg_5.3 = u32[] parameter(5)
+  Arg_7.3 = u32[4]{0} parameter(7)
+  ROOT tuple.7 = (s32[], u32[4]{0}, u32[4]{0}, u32[], u32[], /*index=5*/u32[], u32[4]{0}, u32[4]{0}) tuple(add.50, add.56, add.61, Arg_4.4, Arg_5.3, Arg_3.5, Arg_7.3, Arg_6.3)
+}
+
+region_2.7 {
+  arg_tuple.5 = (s32[], s32[], u32[4]{0}, u32[4]{0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) parameter(0)
+  get-tuple-element.45 = s32[] get-tuple-element(arg_tuple.5), index=0
+  constant.137 = s32[] constant(1)
+  add.63 = s32[] add(get-tuple-element.45, constant.137)
+  get-tuple-element.46 = s32[] get-tuple-element(arg_tuple.5), index=1
+  get-tuple-element.47 = u32[4]{0} get-tuple-element(arg_tuple.5), index=2
+  get-tuple-element.48 = u32[4]{0} get-tuple-element(arg_tuple.5), index=3
+  get-tuple-element.49 = u32[] get-tuple-element(arg_tuple.5), index=4
+  get-tuple-element.50 = u32[] get-tuple-element(arg_tuple.5), index=5
+  get-tuple-element.51 = u32[] get-tuple-element(arg_tuple.5), index=6
+  get-tuple-element.52 = u32[4]{0} get-tuple-element(arg_tuple.5), index=7
+  get-tuple-element.53 = u32[4]{0} get-tuple-element(arg_tuple.5), index=8
+  closed_call.27 = (s32[], u32[4]{0}, u32[4]{0}, u32[], u32[], /*index=5*/u32[], u32[4]{0}, u32[4]{0}) call(get-tuple-element.46, get-tuple-element.47, get-tuple-element.48, get-tuple-element.49, get-tuple-element.50, get-tuple-element.51, get-tuple-element.52, get-tuple-element.53), to_apply=closed_call_18.6
+  closed_call.28 = s32[] get-tuple-element(closed_call.27), index=0
+  closed_call.29 = u32[4]{0} get-tuple-element(closed_call.27), index=1
+  closed_call.30 = u32[4]{0} get-tuple-element(closed_call.27), index=2
+  closed_call.31 = u32[] get-tuple-element(closed_call.27), index=3
+  closed_call.32 = u32[] get-tuple-element(closed_call.27), index=4
+  closed_call.33 = u32[] get-tuple-element(closed_call.27), index=5
+  closed_call.34 = u32[4]{0} get-tuple-element(closed_call.27), index=6
+  closed_call.35 = u32[4]{0} get-tuple-element(closed_call.27), index=7
+  ROOT tuple.9 = (s32[], s32[], u32[4]{0}, u32[4]{0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) tuple(add.63, closed_call.28, closed_call.29, closed_call.30, closed_call.31, closed_call.32, closed_call.33, closed_call.34, closed_call.35)
+}
+
+region_3.8 {
+  arg_tuple.7 = (s32[], s32[], u32[4]{0}, u32[4]{0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) parameter(0)
+  get-tuple-element.64 = s32[] get-tuple-element(arg_tuple.7), index=1
+  get-tuple-element.65 = u32[4]{0} get-tuple-element(arg_tuple.7), index=2
+  get-tuple-element.66 = u32[4]{0} get-tuple-element(arg_tuple.7), index=3
+  get-tuple-element.67 = u32[] get-tuple-element(arg_tuple.7), index=4
+  get-tuple-element.68 = u32[] get-tuple-element(arg_tuple.7), index=5
+  get-tuple-element.69 = u32[] get-tuple-element(arg_tuple.7), index=6
+  get-tuple-element.70 = u32[4]{0} get-tuple-element(arg_tuple.7), index=7
+  get-tuple-element.71 = u32[4]{0} get-tuple-element(arg_tuple.7), index=8
+  get-tuple-element.63 = s32[] get-tuple-element(arg_tuple.7), index=0
+  constant.139 = s32[] constant(5)
+  ROOT lt.3 = pred[] compare(get-tuple-element.63, constant.139), direction=LT
+}
+
+threefry2x32_14.9 {
+  constant.140 = s32[] constant(0)
+  Arg_2.6 = u32[4]{0} parameter(2)
+  Arg_0.10 = u32[] parameter(0)
+  add.64 = u32[4]{0} broadcast(Arg_0.10), dimensions={}
+  add.65 = u32[4]{0} add(Arg_2.6, add.64)
+  Arg_3.6 = u32[4]{0} parameter(3)
+  Arg_1.7 = u32[] parameter(1)
+  add.66 = u32[4]{0} broadcast(Arg_1.7), dimensions={}
+  add.67 = u32[4]{0} add(Arg_3.6, add.66)
+  xor.22 = u32[] xor(Arg_0.10, Arg_1.7)
+  constant.141 = u32[] constant(466688986)
+  xor.23 = u32[] xor(xor.22, constant.141)
+  constant.142 = u32[4]{0} constant({13, 15, 26, 6})
+  constant.143 = u32[4]{0} constant({17, 29, 16, 24})
+  while.33 = (s32[], s32[], u32[4]{0}, u32[4]{0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) tuple(constant.140, constant.140, add.65, add.67, Arg_1.7, xor.23, Arg_0.10, constant.142, constant.143)
+  while.34 = (s32[], s32[], u32[4]{0}, u32[4]{0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) while(while.33), condition=region_3.8, body=region_2.7
+  while.35 = s32[] get-tuple-element(while.34), index=0
+  while.36 = s32[] get-tuple-element(while.34), index=1
+  while.39 = u32[] get-tuple-element(while.34), index=4
+  while.40 = u32[] get-tuple-element(while.34), index=5
+  while.41 = u32[] get-tuple-element(while.34), index=6
+  while.42 = u32[4]{0} get-tuple-element(while.34), index=7
+  while.43 = u32[4]{0} get-tuple-element(while.34), index=8
+  while.37 = u32[4]{0} get-tuple-element(while.34), index=2
+  while.38 = u32[4]{0} get-tuple-element(while.34), index=3
+  ROOT tuple.11 = (u32[4]{0}, u32[4]{0}) tuple(while.37, while.38)
+}
+
+region_4.10 {
+  sort.6 = s32[] parameter(2)
+  sort.7 = s32[] parameter(3)
+  sort.4 = u32[] parameter(0)
+  sort.5 = u32[] parameter(1)
+  ROOT lt_to.1 = pred[] compare(sort.4, sort.5), direction=LT
+}
+
+_shuffle.11 {
+  Arg_0.11 = u32[2]{0} parameter(0)
+  jit__threefry_split_.2 = u32[2,2]{1,0} call(Arg_0.11), to_apply=_threefry_split.5
+  slice.25 = u32[1,2]{1,0} slice(jit__threefry_split_.2), slice={[1:2], [0:2]}
+  squeeze.25 = u32[2]{0} reshape(slice.25)
+  slice.26 = u32[1]{0} slice(squeeze.25), slice={[0:1]}
+  squeeze.26 = u32[] reshape(slice.26)
+  slice.27 = u32[1]{0} slice(squeeze.25), slice={[1:2]}
+  squeeze.27 = u32[] reshape(slice.27)
+  iota_2x32_shape.12 = u64[4]{0} iota(), iota_dimension=0
+  constant.144 = u64[] constant(32)
+  broadcast.54 = u64[4]{0} broadcast(constant.144), dimensions={}
+  iota_2x32_shape.13 = u64[4]{0} shift-right-logical(iota_2x32_shape.12, broadcast.54)
+  iota_2x32_shape.15 = u32[4]{0} convert(iota_2x32_shape.13)
+  iota_2x32_shape.14 = u32[4]{0} convert(iota_2x32_shape.12)
+  call.1 = (u32[4]{0}, u32[4]{0}) call(squeeze.26, squeeze.27, iota_2x32_shape.15, iota_2x32_shape.14), to_apply=threefry2x32_14.9
+  get-tuple-element.74 = u32[4]{0} get-tuple-element(call.1), index=0
+  get-tuple-element.75 = u32[4]{0} get-tuple-element(call.1), index=1
+  xor.25 = u32[4]{0} xor(get-tuple-element.74, get-tuple-element.75)
+  Arg_1.8 = s32[4]{0} parameter(1)
+  sort.11 = (u32[4]{0}, s32[4]{0}) sort(xor.25, Arg_1.8), dimensions={0}, is_stable=true, to_apply=region_4.10
+  sort.12 = u32[4]{0} get-tuple-element(sort.11), index=0
+  ROOT sort.13 = s32[4]{0} get-tuple-element(sort.11), index=1
+}
+
+random_decoding_order.12 {
+  Arg_0.12 = u32[2]{0} parameter(0)
+  jit__threefry_split_.3 = u32[2,2]{1,0} call(Arg_0.12), to_apply=_threefry_split.5
+  slice.28 = u32[1,2]{1,0} slice(jit__threefry_split_.3), slice={[0:1], [0:2]}
+  squeeze.28 = u32[2]{0} reshape(slice.28)
+  iota.1 = s32[4]{0} iota(), iota_dimension=0
+  jit__shuffle_.1 = s32[4]{0} call(squeeze.28, iota.1), to_apply=_shuffle.11
+  slice.29 = u32[1,2]{1,0} slice(jit__threefry_split_.3), slice={[1:2], [0:2]}
+  squeeze.29 = u32[2]{0} reshape(slice.29)
+  ROOT tuple.13 = (s32[4]{0}, u32[2]{0}) tuple(jit__shuffle_.1, squeeze.29)
+}
+
+generate_ar_mask.13 {
+  Arg_0.14 = s32[4]{0} parameter(0)
+  broadcast_in_dim.7 = s32[4,1]{1,0} reshape(Arg_0.14)
+  ge.7 = s32[4,1]{1,0} broadcast(broadcast_in_dim.7), dimensions={0,1}
+  ge.8 = s32[4]{0} reshape(ge.7)
+  ge.9 = s32[4,4]{1,0} broadcast(ge.8), dimensions={0}
+  broadcast_in_dim.8 = s32[1,4]{1,0} reshape(Arg_0.14)
+  ge.10 = s32[1,4]{1,0} broadcast(broadcast_in_dim.8), dimensions={0,1}
+  ge.11 = s32[4]{0} reshape(ge.10)
+  ge.12 = s32[4,4]{1,0} broadcast(ge.11), dimensions={1}
+  ge.13 = pred[4,4]{1,0} compare(ge.9, ge.12), direction=GE
+  ROOT convert_element_type.5 = s32[4,4]{1,0} convert(ge.13)
+}
+
+region_5.14 {
+  ROOT Arg_.1 = f32[4,4,3]{2,1,0} parameter(0)
+}
+
+closed_call_35.15 {
+  Arg_0.21 = s32[] parameter(0)
+  constant.186 = s32[] constant(1)
+  add.84 = s32[] add(Arg_0.21, constant.186)
+  Arg_1.13 = u32[4,4,3]{2,1,0} parameter(1)
+  Arg_2.11 = u32[4,4,3]{2,1,0} parameter(2)
+  add.85 = u32[4,4,3]{2,1,0} add(Arg_1.13, Arg_2.11)
+  Arg_6.5 = u32[4]{0} parameter(6)
+  slice.39 = u32[1]{0} slice(Arg_6.5), slice={[0:1]}
+  squeeze.39 = u32[] reshape(slice.39)
+  shift_left.40 = u32[4,4,3]{2,1,0} broadcast(squeeze.39), dimensions={}
+  shift_left.41 = u32[4,4,3]{2,1,0} shift-left(Arg_2.11, shift_left.40)
+  constant.185 = u32[] constant(32)
+  sub.21 = u32[] subtract(constant.185, squeeze.39)
+  shift_right_logical.41 = u32[4,4,3]{2,1,0} broadcast(sub.21), dimensions={}
+  shift_right_logical.42 = u32[4,4,3]{2,1,0} shift-right-logical(Arg_2.11, shift_right_logical.41)
+  or.21 = u32[4,4,3]{2,1,0} or(shift_left.41, shift_right_logical.42)
+  xor.32 = u32[4,4,3]{2,1,0} xor(add.85, or.21)
+  add.86 = u32[4,4,3]{2,1,0} add(add.85, xor.32)
+  slice.40 = u32[1]{0} slice(Arg_6.5), slice={[1:2]}
+  squeeze.40 = u32[] reshape(slice.40)
+  shift_left.42 = u32[4,4,3]{2,1,0} broadcast(squeeze.40), dimensions={}
+  shift_left.43 = u32[4,4,3]{2,1,0} shift-left(xor.32, shift_left.42)
+  sub.22 = u32[] subtract(constant.185, squeeze.40)
+  shift_right_logical.43 = u32[4,4,3]{2,1,0} broadcast(sub.22), dimensions={}
+  shift_right_logical.44 = u32[4,4,3]{2,1,0} shift-right-logical(xor.32, shift_right_logical.43)
+  or.22 = u32[4,4,3]{2,1,0} or(shift_left.43, shift_right_logical.44)
+  xor.33 = u32[4,4,3]{2,1,0} xor(add.86, or.22)
+  add.87 = u32[4,4,3]{2,1,0} add(add.86, xor.33)
+  slice.41 = u32[1]{0} slice(Arg_6.5), slice={[2:3]}
+  squeeze.41 = u32[] reshape(slice.41)
+  shift_left.44 = u32[4,4,3]{2,1,0} broadcast(squeeze.41), dimensions={}
+  shift_left.45 = u32[4,4,3]{2,1,0} shift-left(xor.33, shift_left.44)
+  sub.23 = u32[] subtract(constant.185, squeeze.41)
+  shift_right_logical.45 = u32[4,4,3]{2,1,0} broadcast(sub.23), dimensions={}
+  shift_right_logical.46 = u32[4,4,3]{2,1,0} shift-right-logical(xor.33, shift_right_logical.45)
+  or.23 = u32[4,4,3]{2,1,0} or(shift_left.45, shift_right_logical.46)
+  xor.34 = u32[4,4,3]{2,1,0} xor(add.87, or.23)
+  add.88 = u32[4,4,3]{2,1,0} add(add.87, xor.34)
+  Arg_3.9 = u32[] parameter(3)
+  add.89 = u32[4,4,3]{2,1,0} broadcast(Arg_3.9), dimensions={}
+  add.90 = u32[4,4,3]{2,1,0} add(add.88, add.89)
+  slice.42 = u32[1]{0} slice(Arg_6.5), slice={[3:4]}
+  squeeze.42 = u32[] reshape(slice.42)
+  shift_left.46 = u32[4,4,3]{2,1,0} broadcast(squeeze.42), dimensions={}
+  shift_left.47 = u32[4,4,3]{2,1,0} shift-left(xor.34, shift_left.46)
+  sub.24 = u32[] subtract(constant.185, squeeze.42)
+  shift_right_logical.47 = u32[4,4,3]{2,1,0} broadcast(sub.24), dimensions={}
+  shift_right_logical.48 = u32[4,4,3]{2,1,0} shift-right-logical(xor.34, shift_right_logical.47)
+  or.24 = u32[4,4,3]{2,1,0} or(shift_left.47, shift_right_logical.48)
+  xor.35 = u32[4,4,3]{2,1,0} xor(add.88, or.24)
+  Arg_4.6 = u32[] parameter(4)
+  add.91 = u32[4,4,3]{2,1,0} broadcast(Arg_4.6), dimensions={}
+  add.92 = u32[4,4,3]{2,1,0} add(xor.35, add.91)
+  add.93 = s32[] add(Arg_0.21, constant.186)
+  convert_element_type.8 = u32[] convert(add.93)
+  add.94 = u32[4,4,3]{2,1,0} broadcast(convert_element_type.8), dimensions={}
+  add.95 = u32[4,4,3]{2,1,0} add(add.92, add.94)
+  Arg_5.5 = u32[] parameter(5)
+  Arg_7.5 = u32[4]{0} parameter(7)
+  ROOT tuple.15 = (s32[], u32[4,4,3]{2,1,0}, u32[4,4,3]{2,1,0}, u32[], u32[], /*index=5*/u32[], u32[4]{0}, u32[4]{0}) tuple(add.84, add.90, add.95, Arg_4.6, Arg_5.5, Arg_3.9, Arg_7.5, Arg_6.5)
+}
+
+region_7.16 {
+  arg_tuple.10 = (s32[], s32[], u32[4,4,3]{2,1,0}, u32[4,4,3]{2,1,0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) parameter(0)
+  get-tuple-element.88 = s32[] get-tuple-element(arg_tuple.10), index=0
+  constant.187 = s32[] constant(1)
+  add.97 = s32[] add(get-tuple-element.88, constant.187)
+  get-tuple-element.89 = s32[] get-tuple-element(arg_tuple.10), index=1
+  get-tuple-element.90 = u32[4,4,3]{2,1,0} get-tuple-element(arg_tuple.10), index=2
+  get-tuple-element.91 = u32[4,4,3]{2,1,0} get-tuple-element(arg_tuple.10), index=3
+  get-tuple-element.92 = u32[] get-tuple-element(arg_tuple.10), index=4
+  get-tuple-element.93 = u32[] get-tuple-element(arg_tuple.10), index=5
+  get-tuple-element.94 = u32[] get-tuple-element(arg_tuple.10), index=6
+  get-tuple-element.95 = u32[4]{0} get-tuple-element(arg_tuple.10), index=7
+  get-tuple-element.96 = u32[4]{0} get-tuple-element(arg_tuple.10), index=8
+  closed_call.45 = (s32[], u32[4,4,3]{2,1,0}, u32[4,4,3]{2,1,0}, u32[], u32[], /*index=5*/u32[], u32[4]{0}, u32[4]{0}) call(get-tuple-element.89, get-tuple-element.90, get-tuple-element.91, get-tuple-element.92, get-tuple-element.93, get-tuple-element.94, get-tuple-element.95, get-tuple-element.96), to_apply=closed_call_35.15
+  closed_call.46 = s32[] get-tuple-element(closed_call.45), index=0
+  closed_call.47 = u32[4,4,3]{2,1,0} get-tuple-element(closed_call.45), index=1
+  closed_call.48 = u32[4,4,3]{2,1,0} get-tuple-element(closed_call.45), index=2
+  closed_call.49 = u32[] get-tuple-element(closed_call.45), index=3
+  closed_call.50 = u32[] get-tuple-element(closed_call.45), index=4
+  closed_call.51 = u32[] get-tuple-element(closed_call.45), index=5
+  closed_call.52 = u32[4]{0} get-tuple-element(closed_call.45), index=6
+  closed_call.53 = u32[4]{0} get-tuple-element(closed_call.45), index=7
+  ROOT tuple.17 = (s32[], s32[], u32[4,4,3]{2,1,0}, u32[4,4,3]{2,1,0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) tuple(add.97, closed_call.46, closed_call.47, closed_call.48, closed_call.49, closed_call.50, closed_call.51, closed_call.52, closed_call.53)
+}
+
+region_8.17 {
+  arg_tuple.12 = (s32[], s32[], u32[4,4,3]{2,1,0}, u32[4,4,3]{2,1,0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) parameter(0)
+  get-tuple-element.107 = s32[] get-tuple-element(arg_tuple.12), index=1
+  get-tuple-element.108 = u32[4,4,3]{2,1,0} get-tuple-element(arg_tuple.12), index=2
+  get-tuple-element.109 = u32[4,4,3]{2,1,0} get-tuple-element(arg_tuple.12), index=3
+  get-tuple-element.110 = u32[] get-tuple-element(arg_tuple.12), index=4
+  get-tuple-element.111 = u32[] get-tuple-element(arg_tuple.12), index=5
+  get-tuple-element.112 = u32[] get-tuple-element(arg_tuple.12), index=6
+  get-tuple-element.113 = u32[4]{0} get-tuple-element(arg_tuple.12), index=7
+  get-tuple-element.114 = u32[4]{0} get-tuple-element(arg_tuple.12), index=8
+  get-tuple-element.106 = s32[] get-tuple-element(arg_tuple.12), index=0
+  constant.189 = s32[] constant(5)
+  ROOT lt.5 = pred[] compare(get-tuple-element.106, constant.189), direction=LT
+}
+
+threefry2x32_31.18 {
+  constant.190 = s32[] constant(0)
+  Arg_2.12 = u32[4,4,3]{2,1,0} parameter(2)
+  Arg_0.22 = u32[] parameter(0)
+  add.98 = u32[4,4,3]{2,1,0} broadcast(Arg_0.22), dimensions={}
+  add.99 = u32[4,4,3]{2,1,0} add(Arg_2.12, add.98)
+  Arg_3.10 = u32[4,4,3]{2,1,0} parameter(3)
+  Arg_1.14 = u32[] parameter(1)
+  add.100 = u32[4,4,3]{2,1,0} broadcast(Arg_1.14), dimensions={}
+  add.101 = u32[4,4,3]{2,1,0} add(Arg_3.10, add.100)
+  xor.36 = u32[] xor(Arg_0.22, Arg_1.14)
+  constant.191 = u32[] constant(466688986)
+  xor.37 = u32[] xor(xor.36, constant.191)
+  constant.192 = u32[4]{0} constant({13, 15, 26, 6})
+  constant.193 = u32[4]{0} constant({17, 29, 16, 24})
+  while.55 = (s32[], s32[], u32[4,4,3]{2,1,0}, u32[4,4,3]{2,1,0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) tuple(constant.190, constant.190, add.99, add.101, Arg_1.14, xor.37, Arg_0.22, constant.192, constant.193)
+  while.56 = (s32[], s32[], u32[4,4,3]{2,1,0}, u32[4,4,3]{2,1,0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) while(while.55), condition=region_8.17, body=region_7.16
+  while.57 = s32[] get-tuple-element(while.56), index=0
+  while.58 = s32[] get-tuple-element(while.56), index=1
+  while.61 = u32[] get-tuple-element(while.56), index=4
+  while.62 = u32[] get-tuple-element(while.56), index=5
+  while.63 = u32[] get-tuple-element(while.56), index=6
+  while.64 = u32[4]{0} get-tuple-element(while.56), index=7
+  while.65 = u32[4]{0} get-tuple-element(while.56), index=8
+  while.59 = u32[4,4,3]{2,1,0} get-tuple-element(while.56), index=2
+  while.60 = u32[4,4,3]{2,1,0} get-tuple-element(while.56), index=3
+  ROOT tuple.19 = (u32[4,4,3]{2,1,0}, u32[4,4,3]{2,1,0}) tuple(while.59, while.60)
+}
+
+_uniform.19 {
+  Arg_1.15 = f32[] parameter(1)
+  broadcast_in_dim.11 = f32[1,1,1]{2,1,0} reshape(Arg_1.15)
+  max.4 = f32[1,1,1]{2,1,0} broadcast(broadcast_in_dim.11), dimensions={0,1,2}
+  max.5 = f32[] reshape(max.4)
+  max.6 = f32[4,4,3]{2,1,0} broadcast(max.5), dimensions={}
+  Arg_0.23 = u32[2]{0} parameter(0)
+  slice.43 = u32[1]{0} slice(Arg_0.23), slice={[0:1]}
+  squeeze.43 = u32[] reshape(slice.43)
+  slice.44 = u32[1]{0} slice(Arg_0.23), slice={[1:2]}
+  squeeze.44 = u32[] reshape(slice.44)
+  iota_2x32_shape.35 = u64[4]{0} iota(), iota_dimension=0
+  iota_2x32_shape.36 = u64[4,4,3]{2,1,0} broadcast(iota_2x32_shape.35), dimensions={0}
+  constant.199 = u64[] constant(12)
+  iota_2x32_shape.34 = u64[4,4,3]{2,1,0} broadcast(constant.199), dimensions={}
+  iota_2x32_shape.41 = u64[4,4,3]{2,1,0} multiply(iota_2x32_shape.36, iota_2x32_shape.34)
+  iota_2x32_shape.37 = u64[4]{0} iota(), iota_dimension=0
+  iota_2x32_shape.38 = u64[4,4,3]{2,1,0} broadcast(iota_2x32_shape.37), dimensions={1}
+  constant.198 = u64[] constant(3)
+  iota_2x32_shape.33 = u64[4,4,3]{2,1,0} broadcast(constant.198), dimensions={}
+  iota_2x32_shape.42 = u64[4,4,3]{2,1,0} multiply(iota_2x32_shape.38, iota_2x32_shape.33)
+  iota_2x32_shape.43 = u64[4,4,3]{2,1,0} add(iota_2x32_shape.41, iota_2x32_shape.42)
+  iota_2x32_shape.39 = u64[3]{0} iota(), iota_dimension=0
+  iota_2x32_shape.40 = u64[4,4,3]{2,1,0} broadcast(iota_2x32_shape.39), dimensions={2}
+  iota_2x32_shape.44 = u64[4,4,3]{2,1,0} add(iota_2x32_shape.43, iota_2x32_shape.40)
+  constant.197 = u64[] constant(32)
+  iota_2x32_shape.32 = u64[4,4,3]{2,1,0} broadcast(constant.197), dimensions={}
+  iota_2x32_shape.45 = u64[4,4,3]{2,1,0} shift-right-logical(iota_2x32_shape.44, iota_2x32_shape.32)
+  iota_2x32_shape.47 = u32[4,4,3]{2,1,0} convert(iota_2x32_shape.45)
+  iota_2x32_shape.46 = u32[4,4,3]{2,1,0} convert(iota_2x32_shape.44)
+  call.3 = (u32[4,4,3]{2,1,0}, u32[4,4,3]{2,1,0}) call(squeeze.43, squeeze.44, iota_2x32_shape.47, iota_2x32_shape.46), to_apply=threefry2x32_31.18
+  get-tuple-element.117 = u32[4,4,3]{2,1,0} get-tuple-element(call.3), index=0
+  get-tuple-element.118 = u32[4,4,3]{2,1,0} get-tuple-element(call.3), index=1
+  xor.39 = u32[4,4,3]{2,1,0} xor(get-tuple-element.117, get-tuple-element.118)
+  constant.196 = u32[] constant(9)
+  shift_right_logical.50 = u32[4,4,3]{2,1,0} broadcast(constant.196), dimensions={}
+  shift_right_logical.51 = u32[4,4,3]{2,1,0} shift-right-logical(xor.39, shift_right_logical.50)
+  constant.195 = u32[] constant(1065353216)
+  or.26 = u32[4,4,3]{2,1,0} broadcast(constant.195), dimensions={}
+  or.27 = u32[4,4,3]{2,1,0} or(shift_right_logical.51, or.26)
+  bitcast_convert_type.1 = f32[4,4,3]{2,1,0} bitcast-convert(or.27)
+  constant.194 = f32[] constant(1)
+  sub.27 = f32[4,4,3]{2,1,0} broadcast(constant.194), dimensions={}
+  sub.28 = f32[4,4,3]{2,1,0} subtract(bitcast_convert_type.1, sub.27)
+  Arg_2.13 = f32[] parameter(2)
+  broadcast_in_dim.12 = f32[1,1,1]{2,1,0} reshape(Arg_2.13)
+  sub.29 = f32[1,1,1]{2,1,0} subtract(broadcast_in_dim.12, broadcast_in_dim.11)
+  mul.7 = f32[1,1,1]{2,1,0} broadcast(sub.29), dimensions={0,1,2}
+  mul.8 = f32[] reshape(mul.7)
+  mul.9 = f32[4,4,3]{2,1,0} broadcast(mul.8), dimensions={}
+  mul.10 = f32[4,4,3]{2,1,0} multiply(sub.28, mul.9)
+  add.106 = f32[1,1,1]{2,1,0} broadcast(broadcast_in_dim.11), dimensions={0,1,2}
+  add.107 = f32[] reshape(add.106)
+  add.108 = f32[4,4,3]{2,1,0} broadcast(add.107), dimensions={}
+  add.109 = f32[4,4,3]{2,1,0} add(mul.10, add.108)
+  ROOT max.7 = f32[4,4,3]{2,1,0} maximum(max.6, add.109)
+}
+
+_normal_real.20 {
+  Arg_0.24 = u32[2]{0} parameter(0)
+  constant.224 = f32[] constant(-0.99999994)
+  constant.225 = f32[] constant(1)
+  jit__uniform_.1 = f32[4,4,3]{2,1,0} call(Arg_0.24, constant.224, constant.225), to_apply=_uniform.19
+  erf_inv.120 = f32[4,4,3]{2,1,0} abs(jit__uniform_.1)
+  constant.202 = f32[] constant(1)
+  erf_inv.63 = f32[4,4,3]{2,1,0} broadcast(constant.202), dimensions={}
+  erf_inv.121 = pred[4,4,3]{2,1,0} compare(erf_inv.120, erf_inv.63), direction=EQ
+  constant.201 = f32[] constant(inf)
+  erf_inv.62 = f32[4,4,3]{2,1,0} broadcast(constant.201), dimensions={}
+  erf_inv.122 = f32[4,4,3]{2,1,0} multiply(jit__uniform_.1, erf_inv.62)
+  erf_inv.85 = f32[4,4,3]{2,1,0} negate(jit__uniform_.1)
+  erf_inv.86 = f32[4,4,3]{2,1,0} multiply(jit__uniform_.1, erf_inv.85)
+  erf_inv.87 = f32[4,4,3]{2,1,0} log-plus-one(erf_inv.86)
+  erf_inv.88 = f32[4,4,3]{2,1,0} negate(erf_inv.87)
+  constant.223 = f32[] constant(5)
+  erf_inv.84 = f32[4,4,3]{2,1,0} broadcast(constant.223), dimensions={}
+  erf_inv.89 = pred[4,4,3]{2,1,0} compare(erf_inv.88, erf_inv.84), direction=LT
+  constant.204 = f32[] constant(1.50140941)
+  erf_inv.65 = f32[4,4,3]{2,1,0} broadcast(constant.204), dimensions={}
+  constant.203 = f32[] constant(2.83297682)
+  erf_inv.64 = f32[4,4,3]{2,1,0} broadcast(constant.203), dimensions={}
+  erf_inv.116 = f32[4,4,3]{2,1,0} select(erf_inv.89, erf_inv.65, erf_inv.64)
+  constant.206 = f32[] constant(0.246640727)
+  erf_inv.67 = f32[4,4,3]{2,1,0} broadcast(constant.206), dimensions={}
+  constant.205 = f32[] constant(1.00167406)
+  erf_inv.66 = f32[4,4,3]{2,1,0} broadcast(constant.205), dimensions={}
+  erf_inv.113 = f32[4,4,3]{2,1,0} select(erf_inv.89, erf_inv.67, erf_inv.66)
+  constant.208 = f32[] constant(-0.00417768164)
+  erf_inv.69 = f32[4,4,3]{2,1,0} broadcast(constant.208), dimensions={}
+  constant.207 = f32[] constant(0.00943887047)
+  erf_inv.68 = f32[4,4,3]{2,1,0} broadcast(constant.207), dimensions={}
+  erf_inv.110 = f32[4,4,3]{2,1,0} select(erf_inv.89, erf_inv.69, erf_inv.68)
+  constant.210 = f32[] constant(-0.00125372503)
+  erf_inv.71 = f32[4,4,3]{2,1,0} broadcast(constant.210), dimensions={}
+  constant.209 = f32[] constant(-0.0076224613)
+  erf_inv.70 = f32[4,4,3]{2,1,0} broadcast(constant.209), dimensions={}
+  erf_inv.107 = f32[4,4,3]{2,1,0} select(erf_inv.89, erf_inv.71, erf_inv.70)
+  constant.212 = f32[] constant(0.00021858087)
+  erf_inv.73 = f32[4,4,3]{2,1,0} broadcast(constant.212), dimensions={}
+  constant.211 = f32[] constant(0.00573950773)
+  erf_inv.72 = f32[4,4,3]{2,1,0} broadcast(constant.211), dimensions={}
+  erf_inv.104 = f32[4,4,3]{2,1,0} select(erf_inv.89, erf_inv.73, erf_inv.72)
+  constant.214 = f32[] constant(-4.39150654e-06)
+  erf_inv.75 = f32[4,4,3]{2,1,0} broadcast(constant.214), dimensions={}
+  constant.213 = f32[] constant(-0.00367342844)
+  erf_inv.74 = f32[4,4,3]{2,1,0} broadcast(constant.213), dimensions={}
+  erf_inv.101 = f32[4,4,3]{2,1,0} select(erf_inv.89, erf_inv.75, erf_inv.74)
+  constant.216 = f32[] constant(-3.5233877e-06)
+  erf_inv.77 = f32[4,4,3]{2,1,0} broadcast(constant.216), dimensions={}
+  constant.215 = f32[] constant(0.00134934322)
+  erf_inv.76 = f32[4,4,3]{2,1,0} broadcast(constant.215), dimensions={}
+  erf_inv.98 = f32[4,4,3]{2,1,0} select(erf_inv.89, erf_inv.77, erf_inv.76)
+  constant.218 = f32[] constant(3.43273939e-07)
+  erf_inv.79 = f32[4,4,3]{2,1,0} broadcast(constant.218), dimensions={}
+  constant.217 = f32[] constant(0.000100950558)
+  erf_inv.78 = f32[4,4,3]{2,1,0} broadcast(constant.217), dimensions={}
+  erf_inv.95 = f32[4,4,3]{2,1,0} select(erf_inv.89, erf_inv.79, erf_inv.78)
+  constant.220 = f32[] constant(2.81022636e-08)
+  erf_inv.81 = f32[4,4,3]{2,1,0} broadcast(constant.220), dimensions={}
+  constant.219 = f32[] constant(-0.000200214257)
+  erf_inv.80 = f32[4,4,3]{2,1,0} broadcast(constant.219), dimensions={}
+  erf_inv.94 = f32[4,4,3]{2,1,0} select(erf_inv.89, erf_inv.81, erf_inv.80)
+  constant.222 = f32[] constant(2.5)
+  erf_inv.83 = f32[4,4,3]{2,1,0} broadcast(constant.222), dimensions={}
+  erf_inv.90 = f32[4,4,3]{2,1,0} subtract(erf_inv.88, erf_inv.83)
+  erf_inv.91 = f32[4,4,3]{2,1,0} sqrt(erf_inv.88)
+  constant.221 = f32[] constant(3)
+  erf_inv.82 = f32[4,4,3]{2,1,0} broadcast(constant.221), dimensions={}
+  erf_inv.92 = f32[4,4,3]{2,1,0} subtract(erf_inv.91, erf_inv.82)
+  erf_inv.93 = f32[4,4,3]{2,1,0} select(erf_inv.89, erf_inv.90, erf_inv.92)
+  erf_inv.96 = f32[4,4,3]{2,1,0} multiply(erf_inv.94, erf_inv.93)
+  erf_inv.97 = f32[4,4,3]{2,1,0} add(erf_inv.95, erf_inv.96)
+  erf_inv.99 = f32[4,4,3]{2,1,0} multiply(erf_inv.97, erf_inv.93)
+  erf_inv.100 = f32[4,4,3]{2,1,0} add(erf_inv.98, erf_inv.99)
+  erf_inv.102 = f32[4,4,3]{2,1,0} multiply(erf_inv.100, erf_inv.93)
+  erf_inv.103 = f32[4,4,3]{2,1,0} add(erf_inv.101, erf_inv.102)
+  erf_inv.105 = f32[4,4,3]{2,1,0} multiply(erf_inv.103, erf_inv.93)
+  erf_inv.106 = f32[4,4,3]{2,1,0} add(erf_inv.104, erf_inv.105)
+  erf_inv.108 = f32[4,4,3]{2,1,0} multiply(erf_inv.106, erf_inv.93)
+  erf_inv.109 = f32[4,4,3]{2,1,0} add(erf_inv.107, erf_inv.108)
+  erf_inv.111 = f32[4,4,3]{2,1,0} multiply(erf_inv.109, erf_inv.93)
+  erf_inv.112 = f32[4,4,3]{2,1,0} add(erf_inv.110, erf_inv.111)
+  erf_inv.114 = f32[4,4,3]{2,1,0} multiply(erf_inv.112, erf_inv.93)
+  erf_inv.115 = f32[4,4,3]{2,1,0} add(erf_inv.113, erf_inv.114)
+  erf_inv.117 = f32[4,4,3]{2,1,0} multiply(erf_inv.115, erf_inv.93)
+  erf_inv.118 = f32[4,4,3]{2,1,0} add(erf_inv.116, erf_inv.117)
+  erf_inv.119 = f32[4,4,3]{2,1,0} multiply(erf_inv.118, jit__uniform_.1)
+  erf_inv.123 = f32[4,4,3]{2,1,0} select(erf_inv.121, erf_inv.122, erf_inv.119)
+  constant.200 = f32[] constant(1.41421354)
+  mul.12 = f32[4,4,3]{2,1,0} broadcast(constant.200), dimensions={}
+  ROOT mul.13 = f32[4,4,3]{2,1,0} multiply(erf_inv.123, mul.12)
+}
+
+_normal.21 {
+  Arg_0.25 = u32[2]{0} parameter(0)
+  ROOT jit__normal_real_.1 = f32[4,4,3]{2,1,0} call(Arg_0.25), to_apply=_normal_real.20
+}
+
+region_6.22 {
+  arg_tuple.13 = (u32[2]{0}, f32[], f32[4,4,3]{2,1,0}) parameter(0)
+  get-tuple-element.121 = f32[4,4,3]{2,1,0} get-tuple-element(arg_tuple.13), index=2
+  get-tuple-element.120 = f32[] get-tuple-element(arg_tuple.13), index=1
+  mul.16 = f32[4,4,3]{2,1,0} broadcast(get-tuple-element.120), dimensions={}
+  get-tuple-element.119 = u32[2]{0} get-tuple-element(arg_tuple.13), index=0
+  jit__normal_.1 = f32[4,4,3]{2,1,0} call(get-tuple-element.119), to_apply=_normal.21
+  mul.17 = f32[4,4,3]{2,1,0} multiply(mul.16, jit__normal_.1)
+  ROOT add.111 = f32[4,4,3]{2,1,0} add(get-tuple-element.121, mul.17)
+}
+
+apply_noise_to_coordinates.23 {
+  Arg_2.14 = f32[] parameter(2)
+  constant.226 = f32[] constant(0)
+  gt.1 = pred[] compare(Arg_2.14, constant.226), direction=GT
+  convert_element_type.9 = s32[] convert(gt.1)
+  Arg_1.16 = f32[4,4,3]{2,1,0} parameter(1)
+  Arg_0.26 = u32[2]{0} parameter(0)
+  jit__threefry_split_.6 = u32[2,2]{1,0} call(Arg_0.26), to_apply=_threefry_split.5
+  slice.45 = u32[1,2]{1,0} slice(jit__threefry_split_.6), slice={[1:2], [0:2]}
+  squeeze.45 = u32[2]{0} reshape(slice.45)
+  cond.2 = (u32[2]{0}, f32[], f32[4,4,3]{2,1,0}) tuple(squeeze.45, Arg_2.14, Arg_1.16)
+  ROOT cond.3 = f32[4,4,3]{2,1,0} conditional(convert_element_type.9, Arg_1.16, cond.2), branch_computations={region_5.14, region_6.22}
+}
+
+cross.24 {
+  Arg_0.30 = f32[4,3]{1,0} parameter(0)
+  slice.56 = f32[4,1]{1,0} slice(Arg_0.30), slice={[0:4], [1:2]}
+  squeeze.56 = f32[4]{0} reshape(slice.56)
+  Arg_1.19 = f32[4,3]{1,0} parameter(1)
+  slice.60 = f32[4,1]{1,0} slice(Arg_1.19), slice={[0:4], [2:3]}
+  squeeze.60 = f32[4]{0} reshape(slice.60)
+  mul.24 = f32[4]{0} multiply(squeeze.56, squeeze.60)
+  slice.57 = f32[4,1]{1,0} slice(Arg_0.30), slice={[0:4], [2:3]}
+  squeeze.57 = f32[4]{0} reshape(slice.57)
+  slice.59 = f32[4,1]{1,0} slice(Arg_1.19), slice={[0:4], [1:2]}
+  squeeze.59 = f32[4]{0} reshape(slice.59)
+  mul.25 = f32[4]{0} multiply(squeeze.57, squeeze.59)
+  sub.35 = f32[4]{0} subtract(mul.24, mul.25)
+  broadcast_in_dim.16 = f32[1,4]{1,0} reshape(sub.35)
+  slice.58 = f32[4,1]{1,0} slice(Arg_1.19), slice={[0:4], [0:1]}
+  squeeze.58 = f32[4]{0} reshape(slice.58)
+  mul.26 = f32[4]{0} multiply(squeeze.57, squeeze.58)
+  slice.55 = f32[4,1]{1,0} slice(Arg_0.30), slice={[0:4], [0:1]}
+  squeeze.55 = f32[4]{0} reshape(slice.55)
+  mul.27 = f32[4]{0} multiply(squeeze.55, squeeze.60)
+  sub.36 = f32[4]{0} subtract(mul.26, mul.27)
+  broadcast_in_dim.17 = f32[1,4]{1,0} reshape(sub.36)
+  mul.28 = f32[4]{0} multiply(squeeze.55, squeeze.59)
+  mul.29 = f32[4]{0} multiply(squeeze.56, squeeze.58)
+  sub.37 = f32[4]{0} subtract(mul.28, mul.29)
+  broadcast_in_dim.18 = f32[1,4]{1,0} reshape(sub.37)
+  concatenate.3 = f32[3,4]{1,0} concatenate(broadcast_in_dim.16, broadcast_in_dim.17, broadcast_in_dim.18), dimensions={0}
+  ROOT transpose.1 = f32[4,3]{0,1} transpose(concatenate.3), dimensions={1,0}
+}
+
+compute_c_beta.25 {
+  Arg_0.31 = f32[4,3]{1,0} parameter(0)
+  Arg_1.20 = f32[4,3]{1,0} parameter(1)
+  jit_cross_.1 = f32[4,3]{0,1} call(Arg_0.31, Arg_1.20), to_apply=cross.24
+  constant.232 = f32[] constant(-0.582734287)
+  broadcast.60 = f32[4,3]{1,0} broadcast(constant.232), dimensions={}
+  mul.33 = f32[4,3]{0,1} multiply(jit_cross_.1, broadcast.60)
+  constant.231 = f32[] constant(0.568028271)
+  broadcast.59 = f32[4,3]{1,0} broadcast(constant.231), dimensions={}
+  mul.34 = f32[4,3]{1,0} multiply(Arg_0.31, broadcast.59)
+  add.115 = f32[4,3]{0,1} add(mul.33, mul.34)
+  constant.230 = f32[] constant(-0.540674686)
+  broadcast.58 = f32[4,3]{1,0} broadcast(constant.230), dimensions={}
+  mul.35 = f32[4,3]{1,0} multiply(Arg_1.20, broadcast.58)
+  add.116 = f32[4,3]{0,1} add(add.115, mul.35)
+  Arg_2.16 = f32[4,3]{1,0} parameter(2)
+  ROOT add.117 = f32[4,3]{0,1} add(add.116, Arg_2.16)
+}
+
+compute_backbone_coordinates.26 {
+  Arg_0.32 = f32[4,4,3]{2,1,0} parameter(0)
+  slice.61 = f32[4,1,3]{2,1,0} slice(Arg_0.32), slice={[0:4], [0:1], [0:3]}
+  slice.62 = f32[4,1,3]{2,1,0} slice(Arg_0.32), slice={[0:4], [1:2], [0:3]}
+  slice.63 = f32[4,1,3]{2,1,0} slice(Arg_0.32), slice={[0:4], [2:3], [0:3]}
+  dynamic_slice.1 = f32[4,1,3]{2,1,0} slice(Arg_0.32), slice={[0:4], [3:4], [0:3]}
+  squeeze.62 = f32[4,3]{1,0} reshape(slice.62)
+  squeeze.61 = f32[4,3]{1,0} reshape(slice.61)
+  sub.38 = f32[4,3]{1,0} subtract(squeeze.62, squeeze.61)
+  squeeze.63 = f32[4,3]{1,0} reshape(slice.63)
+  sub.39 = f32[4,3]{1,0} subtract(squeeze.63, squeeze.62)
+  jit_compute_c_beta_.1 = f32[4,3]{0,1} call(sub.38, sub.39, squeeze.62), to_apply=compute_c_beta.25
+  broadcast_in_dim.20 = f32[4,1,3]{2,1,0} reshape(jit_compute_c_beta_.1)
+  ROOT concatenate.5 = f32[4,5,3]{2,1,0} concatenate(slice.61, slice.62, slice.63, dynamic_slice.1, broadcast_in_dim.20), dimensions={1}
+}
+
+region_9.27 {
+  reduce_sum.3 = f32[] parameter(0)
+  reduce_sum.4 = f32[] parameter(1)
+  ROOT reduce_sum.5 = f32[] add(reduce_sum.3, reduce_sum.4)
+}
+
+compute_backbone_distance.28 {
+  Arg_0.34 = f32[4,5,3]{2,1,0} parameter(0)
+  slice.65 = f32[4,1,3]{2,1,0} slice(Arg_0.34), slice={[0:4], [1:2], [0:3]}
+  sub.47 = f32[4,1,3]{2,1,0} broadcast(slice.65), dimensions={0,1,2}
+  sub.48 = f32[4,3]{1,0} reshape(sub.47)
+  sub.49 = f32[4,4,3]{2,1,0} broadcast(sub.48), dimensions={0,2}
+  broadcast_in_dim_squeeze.1 = f32[1,4,3]{2,1,0} reshape(slice.65)
+  sub.50 = f32[1,4,3]{2,1,0} broadcast(broadcast_in_dim_squeeze.1), dimensions={0,1,2}
+  sub.51 = f32[4,3]{1,0} reshape(sub.50)
+  sub.52 = f32[4,4,3]{2,1,0} broadcast(sub.51), dimensions={1,2}
+  sub.53 = f32[4,4,3]{2,1,0} subtract(sub.49, sub.52)
+  square.1 = f32[4,4,3]{2,1,0} multiply(sub.53, sub.53)
+  constant.236 = f32[] constant(0)
+  reduce_sum.7 = f32[4,4]{1,0} reduce(square.1, constant.236), dimensions={2}, to_apply=region_9.27
+  constant.235 = f32[] constant(1e-06)
+  broadcast.62 = f32[4,4]{1,0} broadcast(constant.235), dimensions={}
+  add.119 = f32[4,4]{1,0} add(reduce_sum.7, broadcast.62)
+  ROOT sqrt.1 = f32[4,4]{1,0} sqrt(add.119)
+}
+
+_where.29 {
+  Arg_0.36 = pred[4,4]{1,0} parameter(0)
+  Arg_1.22 = f32[4,4]{1,0} parameter(1)
+  Arg_2.18 = f32[] parameter(2)
+  broadcast_in_dim.24 = f32[4,4]{1,0} broadcast(Arg_2.18), dimensions={}
+  ROOT select_n.1 = f32[4,4]{1,0} select(Arg_0.36, Arg_1.22, broadcast_in_dim.24)
+}
+
+region_10.30 {
+  reduce_sum.11 = f32[] parameter(0)
+  reduce_sum.12 = f32[] parameter(1)
+  ROOT reduce_sum.13 = f32[] add(reduce_sum.11, reduce_sum.12)
+}
+
+region_11.31 {
+  reduce_and.3 = pred[] parameter(0)
+  reduce_and.4 = pred[] parameter(1)
+  ROOT reduce_and.5 = pred[] and(reduce_and.3, reduce_and.4)
+}
+
+take_along_axis.32 {
+  Arg_1.25 = s32[4,4]{1,0} parameter(1)
+  constant.254 = s32[] constant(0)
+  broadcast.70 = s32[4,4]{1,0} broadcast(constant.254), dimensions={}
+  lt.7 = pred[4,4]{1,0} compare(Arg_1.25, broadcast.70), direction=LT
+  constant.252 = s32[] constant(4)
+  broadcast.69 = s32[4,4]{1,0} broadcast(constant.252), dimensions={}
+  add.123 = s32[4,4]{1,0} add(Arg_1.25, broadcast.69)
+  select_n.4 = s32[4,4]{1,0} select(lt.7, add.123, Arg_1.25)
+  reshape.1 = s32[4,4,1]{2,1,0} reshape(select_n.4)
+  constant.251 = s32[] constant(0)
+  broadcast.68 = s32[4,4,1]{2,1,0} broadcast(constant.251), dimensions={}
+  ge.15 = pred[4,4,1]{2,1,0} compare(reshape.1, broadcast.68), direction=GE
+  constant.250 = s32[] constant(3)
+  broadcast.67 = s32[4,4,1]{2,1,0} broadcast(constant.250), dimensions={}
+  le.1 = pred[4,4,1]{2,1,0} compare(reshape.1, broadcast.67), direction=LE
+  and.1 = pred[4,4,1]{2,1,0} and(ge.15, le.1)
+  constant.253 = pred[] constant(true)
+  reduce_and.7 = pred[4,4]{1,0} reduce(and.1, constant.253), dimensions={2}, to_apply=region_11.31
+  broadcast_in_dim.28 = pred[25,4,4]{2,1,0} broadcast(reduce_and.7), dimensions={1,2}
+  Arg_0.39 = f32[25,4,4]{2,1,0} parameter(0)
+  gather.3 = f32[25,4,4]{2,1,0} gather(Arg_0.39, reshape.1), offset_dims={0}, collapsed_slice_dims={2}, start_index_map={2}, operand_batching_dims={1}, start_indices_batching_dims={0}, index_vector_dim=2, slice_sizes={25,1,1}
+  constant.249 = f32[] constant(nan)
+  broadcast_in_dim.27 = f32[25,4,4]{2,1,0} broadcast(constant.249), dimensions={}
+  ROOT select_n.5 = f32[25,4,4]{2,1,0} select(broadcast_in_dim.28, gather.3, broadcast_in_dim.27)
+}
+
+compute_radial_basis.33 {
+  Arg_0.40 = f32[4,5,3]{2,1,0} parameter(0)
+  constant.260 = s32[25,3]{1,0} constant({...})
+  gather.4 = f32[25,4,1,3]{3,2,1,0} gather(Arg_0.40, constant.260), offset_dims={1,2,3}, collapsed_slice_dims={}, start_index_map={0,1,2}, index_vector_dim=1, slice_sizes={4,1,3}
+  sub.68 = f32[25,4,1,3]{3,2,1,0} broadcast(gather.4), dimensions={0,1,2,3}
+  sub.69 = f32[25,4,3]{2,1,0} reshape(sub.68)
+  sub.70 = f32[25,4,4,3]{3,2,1,0} broadcast(sub.69), dimensions={0,1,3}
+  constant.258 = s32[25,3]{1,0} constant({...})
+  gather.5 = f32[25,4,1,3]{3,2,1,0} gather(Arg_0.40, constant.258), offset_dims={1,2,3}, collapsed_slice_dims={}, start_index_map={0,1,2}, index_vector_dim=1, slice_sizes={4,1,3}
+  squeeze.65 = f32[25,1,4,3]{3,2,1,0} reshape(gather.5)
+  sub.71 = f32[25,1,4,3]{3,2,1,0} broadcast(squeeze.65), dimensions={0,1,2,3}
+  sub.72 = f32[25,4,3]{2,1,0} reshape(sub.71)
+  sub.73 = f32[25,4,4,3]{3,2,1,0} broadcast(sub.72), dimensions={0,2,3}
+  sub.74 = f32[25,4,4,3]{3,2,1,0} subtract(sub.70, sub.73)
+  square.4 = f32[25,4,4,3]{3,2,1,0} multiply(sub.74, sub.74)
+  constant.259 = f32[] constant(0)
+  reduce_sum.15 = f32[25,4,4]{2,1,0} reduce(square.4, constant.259), dimensions={3}, to_apply=region_10.30
+  constant.257 = f32[] constant(1e-06)
+  add.124 = f32[25,4,4]{2,1,0} broadcast(constant.257), dimensions={}
+  add.125 = f32[25,4,4]{2,1,0} add(reduce_sum.15, add.124)
+  sqrt.3 = f32[25,4,4]{2,1,0} sqrt(add.125)
+  Arg_1.26 = s32[4,4]{1,0} parameter(1)
+  vmap_jit_take_along_axis__.1 = f32[25,4,4]{2,1,0} call(sqrt.3, Arg_1.26), to_apply=take_along_axis.32
+  broadcast_in_dim.30 = f32[25,4,4,1]{3,2,1,0} reshape(vmap_jit_take_along_axis__.1)
+  sub.75 = f32[25,4,4,1]{3,2,1,0} broadcast(broadcast_in_dim.30), dimensions={0,1,2,3}
+  sub.76 = f32[25,4,4]{2,1,0} reshape(sub.75)
+  sub.77 = f32[25,4,4,16]{3,2,1,0} broadcast(sub.76), dimensions={0,1,2}
+  constant.256 = f32[1,1,1,16]{3,2,1,0} constant({...})
+  sub.78 = f32[1,1,1,16]{3,2,1,0} broadcast(constant.256), dimensions={0,1,2,3}
+  sub.79 = f32[16]{0} reshape(sub.78)
+  sub.80 = f32[25,4,4,16]{3,2,1,0} broadcast(sub.79), dimensions={3}
+  sub.81 = f32[25,4,4,16]{3,2,1,0} subtract(sub.77, sub.80)
+  constant.255 = f32[] constant(1.25)
+  div.3 = f32[25,4,4,16]{3,2,1,0} broadcast(constant.255), dimensions={}
+  div.4 = f32[25,4,4,16]{3,2,1,0} divide(sub.81, div.3)
+  square.5 = f32[25,4,4,16]{3,2,1,0} multiply(div.4, div.4)
+  neg.2 = f32[25,4,4,16]{3,2,1,0} negate(square.5)
+  exp.1 = f32[25,4,4,16]{3,2,1,0} exponential(neg.2)
+  transpose.3 = f32[4,4,25,16]{3,1,0,2} transpose(exp.1), dimensions={1,2,0,3}
+  ROOT reshape.3 = f32[4,4,400]{2,1,0} reshape(transpose.3)
+}
+
+region_12.34 {
+  reduce_and.11 = pred[] parameter(0)
+  reduce_and.12 = pred[] parameter(1)
+  ROOT reduce_and.13 = pred[] and(reduce_and.11, reduce_and.12)
+}
+
+take_along_axis_113.35 {
+  Arg_1.28 = s32[4,4]{1,0} parameter(1)
+  constant.272 = s32[] constant(0)
+  broadcast.80 = s32[4,4]{1,0} broadcast(constant.272), dimensions={}
+  lt.9 = pred[4,4]{1,0} compare(Arg_1.28, broadcast.80), direction=LT
+  constant.270 = s32[] constant(4)
+  broadcast.79 = s32[4,4]{1,0} broadcast(constant.270), dimensions={}
+  add.127 = s32[4,4]{1,0} add(Arg_1.28, broadcast.79)
+  select_n.8 = s32[4,4]{1,0} select(lt.9, add.127, Arg_1.28)
+  reshape.5 = s32[4,4,1]{2,1,0} reshape(select_n.8)
+  constant.269 = s32[] constant(0)
+  broadcast.78 = s32[4,4,1]{2,1,0} broadcast(constant.269), dimensions={}
+  ge.17 = pred[4,4,1]{2,1,0} compare(reshape.5, broadcast.78), direction=GE
+  constant.268 = s32[] constant(3)
+  broadcast.77 = s32[4,4,1]{2,1,0} broadcast(constant.268), dimensions={}
+  le.3 = pred[4,4,1]{2,1,0} compare(reshape.5, broadcast.77), direction=LE
+  and.3 = pred[4,4,1]{2,1,0} and(ge.17, le.3)
+  constant.271 = pred[] constant(true)
+  reduce_and.15 = pred[4,4]{1,0} reduce(and.3, constant.271), dimensions={2}, to_apply=region_12.34
+  Arg_0.42 = s32[4,4]{1,0} parameter(0)
+  gather.7 = s32[4,4]{1,0} gather(Arg_0.42, reshape.5), offset_dims={}, collapsed_slice_dims={1}, start_index_map={1}, operand_batching_dims={0}, start_indices_batching_dims={0}, index_vector_dim=2, slice_sizes={1,1}
+  constant.267 = s32[] constant(-2147483648)
+  broadcast.76 = s32[4,4]{1,0} broadcast(constant.267), dimensions={}
+  ROOT select_n.9 = s32[4,4]{1,0} select(reduce_and.15, gather.7, broadcast.76)
+}
+
+_one_hot.36 {
+  Arg_0.44 = s32[4,4]{1,0} parameter(0)
+  broadcast_in_dim.36 = s32[4,4,1]{2,1,0} reshape(Arg_0.44)
+  eq.14 = s32[4,4,1]{2,1,0} broadcast(broadcast_in_dim.36), dimensions={0,1,2}
+  eq.15 = s32[4,4]{1,0} reshape(eq.14)
+  eq.16 = s32[4,4,34]{2,1,0} broadcast(eq.15), dimensions={0,1}
+  iota.4 = s32[34]{0} iota(), iota_dimension=0
+  iota.5 = s32[1,1,34]{2,1,0} reshape(iota.4)
+  eq.17 = s32[1,1,34]{2,1,0} broadcast(iota.5), dimensions={0,1,2}
+  eq.18 = s32[34]{0} reshape(eq.17)
+  eq.19 = s32[4,4,34]{2,1,0} broadcast(eq.18), dimensions={2}
+  eq.20 = pred[4,4,34]{2,1,0} compare(eq.16, eq.19), direction=EQ
+  ROOT convert_element_type.13 = f32[4,4,34]{2,1,0} convert(eq.20)
+}
+
+region_13.37 {
+  reduce_sum.19 = f32[] parameter(0)
+  reduce_sum.20 = f32[] parameter(1)
+  ROOT reduce_sum.21 = f32[] add(reduce_sum.19, reduce_sum.20)
+}
+
+region_14.38 {
+  reduce_sum.26 = f32[] parameter(0)
+  reduce_sum.27 = f32[] parameter(1)
+  ROOT reduce_sum.28 = f32[] add(reduce_sum.26, reduce_sum.27)
+}
+
+region_15.39 {
+  reduce_sum.33 = f32[] parameter(0)
+  reduce_sum.34 = f32[] parameter(1)
+  ROOT reduce_sum.35 = f32[] add(reduce_sum.33, reduce_sum.34)
+}
+
+_where_139.40 {
+  Arg_0.47 = pred[] parameter(0)
+  select_n.12 = pred[4,4,1]{2,1,0} broadcast(Arg_0.47), dimensions={}
+  Arg_1.31 = f32[4,4,1]{2,1,0} parameter(1)
+  Arg_2.20 = f32[] parameter(2)
+  broadcast_in_dim.42 = f32[1]{0} reshape(Arg_2.20)
+  broadcast_in_dim.43 = f32[4,4,1]{2,1,0} broadcast(broadcast_in_dim.42), dimensions={2}
+  ROOT select_n.13 = f32[4,4,1]{2,1,0} select(select_n.12, Arg_1.31, broadcast_in_dim.43)
+}
+
+_var.41 {
+  constant.279 = f32[] constant(16)
+  Arg_1.32 = s32[] parameter(1)
+  convert_element_type.15 = f32[] convert(Arg_1.32)
+  sub.99 = f32[] subtract(constant.279, convert_element_type.15)
+  constant.280 = f32[] constant(0)
+  gt.3 = pred[] compare(sub.99, constant.280), direction=GT
+  Arg_0.48 = f32[4,4,16]{2,1,0} parameter(0)
+  reduce_sum.37 = f32[4,4]{1,0} reduce(Arg_0.48, constant.280), dimensions={2}, to_apply=region_14.38
+  broadcast_in_dim.44 = f32[4,4,1]{2,1,0} reshape(reduce_sum.37)
+  constant.277 = f32[] constant(16)
+  broadcast.82 = f32[4,4,1]{2,1,0} broadcast(constant.277), dimensions={}
+  div.9 = f32[4,4,1]{2,1,0} divide(broadcast_in_dim.44, broadcast.82)
+  sub.95 = f32[4,4,1]{2,1,0} broadcast(div.9), dimensions={0,1,2}
+  sub.96 = f32[4,4]{1,0} reshape(sub.95)
+  sub.97 = f32[4,4,16]{2,1,0} broadcast(sub.96), dimensions={0,1}
+  sub.98 = f32[4,4,16]{2,1,0} subtract(Arg_0.48, sub.97)
+  square.7 = f32[4,4,16]{2,1,0} multiply(sub.98, sub.98)
+  reduce_sum.38 = f32[4,4]{1,0} reduce(square.7, constant.280), dimensions={2}, to_apply=region_15.39
+  broadcast_in_dim.45 = f32[4,4,1]{2,1,0} reshape(reduce_sum.38)
+  div.10 = f32[4,4,1]{2,1,0} broadcast(sub.99), dimensions={}
+  div.11 = f32[4,4,1]{2,1,0} divide(broadcast_in_dim.45, div.10)
+  constant.278 = f32[] constant(nan)
+  ROOT jit__where_.2 = f32[4,4,1]{2,1,0} call(gt.3, div.11, constant.278), to_apply=_where_139.40
+}
+
+region_16.42 {
+  reduce_and.19 = pred[] parameter(0)
+  reduce_and.20 = pred[] parameter(1)
+  ROOT reduce_and.21 = pred[] and(reduce_and.19, reduce_and.20)
+}
+
+take_along_axis_149.43 {
+  Arg_1.34 = s32[4,4]{1,0} parameter(1)
+  constant.292 = s32[] constant(0)
+  broadcast.92 = s32[4,4]{1,0} broadcast(constant.292), dimensions={}
+  lt.11 = pred[4,4]{1,0} compare(Arg_1.34, broadcast.92), direction=LT
+  constant.290 = s32[] constant(4)
+  broadcast.91 = s32[4,4]{1,0} broadcast(constant.290), dimensions={}
+  add.140 = s32[4,4]{1,0} add(Arg_1.34, broadcast.91)
+  select_n.16 = s32[4,4]{1,0} select(lt.11, add.140, Arg_1.34)
+  reshape.7 = s32[4,4,1]{2,1,0} reshape(select_n.16)
+  constant.289 = s32[] constant(0)
+  broadcast.90 = s32[4,4,1]{2,1,0} broadcast(constant.289), dimensions={}
+  ge.19 = pred[4,4,1]{2,1,0} compare(reshape.7, broadcast.90), direction=GE
+  constant.288 = s32[] constant(3)
+  broadcast.89 = s32[4,4,1]{2,1,0} broadcast(constant.288), dimensions={}
+  le.5 = pred[4,4,1]{2,1,0} compare(reshape.7, broadcast.89), direction=LE
+  and.5 = pred[4,4,1]{2,1,0} and(ge.19, le.5)
+  constant.291 = pred[] constant(true)
+  reduce_and.23 = pred[4,4]{1,0} reduce(and.5, constant.291), dimensions={2}, to_apply=region_16.42
+  Arg_0.50 = f32[4,4]{1,0} parameter(0)
+  gather.9 = f32[4,4]{1,0} gather(Arg_0.50, reshape.7), offset_dims={}, collapsed_slice_dims={1}, start_index_map={1}, operand_batching_dims={0}, start_indices_batching_dims={0}, index_vector_dim=2, slice_sizes={1,1}
+  constant.287 = f32[] constant(nan)
+  broadcast.88 = f32[4,4]{1,0} broadcast(constant.287), dimensions={}
+  ROOT select_n.17 = f32[4,4]{1,0} select(reduce_and.23, gather.9, broadcast.88)
+}
+
+region_17.44 {
+  reduce_sum.42 = f32[] parameter(0)
+  reduce_sum.43 = f32[] parameter(1)
+  ROOT reduce_sum.44 = f32[] add(reduce_sum.42, reduce_sum.43)
+}
+
+region_18.45 {
+  reduce_sum.49 = f32[] parameter(0)
+  reduce_sum.50 = f32[] parameter(1)
+  ROOT reduce_sum.51 = f32[] add(reduce_sum.49, reduce_sum.50)
+}
+
+region_19.46 {
+  reduce_sum.56 = f32[] parameter(0)
+  reduce_sum.57 = f32[] parameter(1)
+  ROOT reduce_sum.58 = f32[] add(reduce_sum.56, reduce_sum.57)
+}
+
+region_20.47 {
+  reduce_sum.63 = f32[] parameter(0)
+  reduce_sum.64 = f32[] parameter(1)
+  ROOT reduce_sum.65 = f32[] add(reduce_sum.63, reduce_sum.64)
+}
+
+_where_171.48 {
+  Arg_0.53 = pred[] parameter(0)
+  select_n.21 = pred[4,1]{1,0} broadcast(Arg_0.53), dimensions={}
+  Arg_1.37 = f32[4,1]{1,0} parameter(1)
+  Arg_2.22 = f32[] parameter(2)
+  broadcast_in_dim.55 = f32[1]{0} reshape(Arg_2.22)
+  broadcast_in_dim.56 = f32[4,1]{1,0} broadcast(broadcast_in_dim.55), dimensions={1}
+  ROOT select_n.22 = f32[4,1]{1,0} select(select_n.21, Arg_1.37, broadcast_in_dim.56)
+}
+
+_var_168.49 {
+  constant.299 = f32[] constant(16)
+  Arg_1.38 = s32[] parameter(1)
+  convert_element_type.17 = f32[] convert(Arg_1.38)
+  sub.113 = f32[] subtract(constant.299, convert_element_type.17)
+  constant.300 = f32[] constant(0)
+  gt.5 = pred[] compare(sub.113, constant.300), direction=GT
+  Arg_0.54 = f32[4,16]{1,0} parameter(0)
+  reduce_sum.67 = f32[4]{0} reduce(Arg_0.54, constant.300), dimensions={1}, to_apply=region_19.46
+  broadcast_in_dim.57 = f32[4,1]{1,0} reshape(reduce_sum.67)
+  constant.297 = f32[] constant(16)
+  broadcast.94 = f32[4,1]{1,0} broadcast(constant.297), dimensions={}
+  div.17 = f32[4,1]{1,0} divide(broadcast_in_dim.57, broadcast.94)
+  sub.109 = f32[4,1]{1,0} broadcast(div.17), dimensions={0,1}
+  sub.110 = f32[4]{0} reshape(sub.109)
+  sub.111 = f32[4,16]{1,0} broadcast(sub.110), dimensions={0}
+  sub.112 = f32[4,16]{1,0} subtract(Arg_0.54, sub.111)
+  square.9 = f32[4,16]{1,0} multiply(sub.112, sub.112)
+  reduce_sum.68 = f32[4]{0} reduce(square.9, constant.300), dimensions={1}, to_apply=region_20.47
+  broadcast_in_dim.58 = f32[4,1]{1,0} reshape(reduce_sum.68)
+  div.18 = f32[4,1]{1,0} broadcast(sub.113), dimensions={}
+  div.19 = f32[4,1]{1,0} divide(broadcast_in_dim.58, div.18)
+  constant.298 = f32[] constant(nan)
+  ROOT jit__where_.4 = f32[4,1]{1,0} call(gt.5, div.19, constant.298), to_apply=_where_171.48
+}
+
+region_21.50 {
+  reduce_sum.72 = f32[] parameter(0)
+  reduce_sum.73 = f32[] parameter(1)
+  ROOT reduce_sum.74 = f32[] add(reduce_sum.72, reduce_sum.73)
+}
+
+region_22.51 {
+  reduce_sum.79 = f32[] parameter(0)
+  reduce_sum.80 = f32[] parameter(1)
+  ROOT reduce_sum.81 = f32[] add(reduce_sum.79, reduce_sum.80)
+}
+
+_one_hot_197.52 {
+  Arg_0.56 = s32[4]{0} parameter(0)
+  broadcast_in_dim.64 = s32[4,1]{1,0} reshape(Arg_0.56)
+  eq.28 = s32[4,1]{1,0} broadcast(broadcast_in_dim.64), dimensions={0,1}
+  eq.29 = s32[4]{0} reshape(eq.28)
+  eq.30 = s32[4,21]{1,0} broadcast(eq.29), dimensions={0}
+  iota.8 = s32[21]{0} iota(), iota_dimension=0
+  iota.9 = s32[1,21]{1,0} reshape(iota.8)
+  eq.31 = s32[1,21]{1,0} broadcast(iota.9), dimensions={0,1}
+  eq.32 = s32[21]{0} reshape(eq.31)
+  eq.33 = s32[4,21]{1,0} broadcast(eq.32), dimensions={1}
+  eq.34 = pred[4,21]{1,0} compare(eq.30, eq.33), direction=EQ
+  ROOT convert_element_type.19 = f32[4,21]{1,0} convert(eq.34)
+}
+
+_where_202.53 {
+  Arg_0.58 = pred[4,1]{1,0} parameter(0)
+  broadcast_in_dim.68 = pred[4,1]{1,0} broadcast(Arg_0.58), dimensions={0,1}
+  broadcast_in_dim.69 = pred[4]{0} reshape(broadcast_in_dim.68)
+  broadcast_in_dim.70 = pred[4,21]{1,0} broadcast(broadcast_in_dim.69), dimensions={0}
+  Arg_1.40 = f32[4,21]{1,0} parameter(1)
+  Arg_2.24 = f32[4,21]{1,0} parameter(2)
+  ROOT select_n.25 = f32[4,21]{1,0} select(broadcast_in_dim.70, Arg_1.40, Arg_2.24)
+}
+
+region_23.54 {
+  reduce_sum.86 = s32[] parameter(0)
+  reduce_sum.87 = s32[] parameter(1)
+  ROOT reduce_sum.88 = s32[] add(reduce_sum.86, reduce_sum.87)
+}
+
+region_24.55 {
+  sort.20 = s32[] parameter(2)
+  sort.21 = s32[] parameter(3)
+  sort.18 = s32[] parameter(0)
+  sort.19 = s32[] parameter(1)
+  ROOT lt_to.3 = pred[] compare(sort.18, sort.19), direction=LT
+}
+
+argsort.56 {
+  Arg_0.60 = s32[4]{0} parameter(0)
+  iota.11 = s32[4]{0} iota(), iota_dimension=0
+  sort.25 = (s32[4]{0}, s32[4]{0}) sort(Arg_0.60, iota.11), dimensions={0}, is_stable=true, to_apply=region_24.55
+  sort.26 = s32[4]{0} get-tuple-element(sort.25), index=0
+  ROOT sort.27 = s32[4]{0} get-tuple-element(sort.25), index=1
+}
+
+region_25.57 {
+  scatter.2 = f32[] parameter(0)
+  ROOT scatter.3 = f32[] parameter(1)
+}
+
+_threefry_split_216.58 {
+  Arg_0.62 = u32[2]{0} parameter(0)
+  slice.68 = u32[1]{0} slice(Arg_0.62), slice={[0:1]}
+  squeeze.68 = u32[] reshape(slice.68)
+  slice.69 = u32[1]{0} slice(Arg_0.62), slice={[1:2]}
+  squeeze.69 = u32[] reshape(slice.69)
+  iota_2x32_shape.52 = u64[4]{0} iota(), iota_dimension=0
+  constant.302 = u64[] constant(32)
+  broadcast.96 = u64[4]{0} broadcast(constant.302), dimensions={}
+  iota_2x32_shape.53 = u64[4]{0} shift-right-logical(iota_2x32_shape.52, broadcast.96)
+  iota_2x32_shape.55 = u32[4]{0} convert(iota_2x32_shape.53)
+  iota_2x32_shape.54 = u32[4]{0} convert(iota_2x32_shape.52)
+  PrxteinMPNN__run_autoregressive_scan.3 = (u32[4]{0}, u32[4]{0}) call(squeeze.68, squeeze.69, iota_2x32_shape.55, iota_2x32_shape.54), to_apply=threefry2x32_14.9
+  PrxteinMPNN__run_autoregressive_scan.4 = u32[4]{0} get-tuple-element(PrxteinMPNN__run_autoregressive_scan.3), index=0
+  broadcast_in_dim.77 = u32[4,1]{1,0} reshape(PrxteinMPNN__run_autoregressive_scan.4)
+  PrxteinMPNN__run_autoregressive_scan.5 = u32[4]{0} get-tuple-element(PrxteinMPNN__run_autoregressive_scan.3), index=1
+  broadcast_in_dim.78 = u32[4,1]{1,0} reshape(PrxteinMPNN__run_autoregressive_scan.5)
+  ROOT concatenate.11 = u32[4,2]{1,0} concatenate(broadcast_in_dim.77, broadcast_in_dim.78), dimensions={1}
+}
+
+closed_call_248.59 {
+  Arg_0.66 = s32[] parameter(0)
+  constant.408 = s32[] constant(1)
+  add.204 = s32[] add(Arg_0.66, constant.408)
+  Arg_1.43 = u32[1]{0} parameter(1)
+  Arg_2.27 = u32[1]{0} parameter(2)
+  add.205 = u32[1]{0} add(Arg_1.43, Arg_2.27)
+  Arg_6.8 = u32[4]{0} parameter(6)
+  slice.76 = u32[1]{0} slice(Arg_6.8), slice={[0:1]}
+  shift_left.52 = u32[1]{0} shift-left(Arg_2.27, slice.76)
+  constant.407 = u32[] constant(32)
+  squeeze.82 = u32[] reshape(slice.76)
+  sub.131 = u32[] subtract(constant.407, squeeze.82)
+  shift_right_logical.60 = u32[1]{0} reshape(sub.131)
+  shift_right_logical.61 = u32[1]{0} shift-right-logical(Arg_2.27, shift_right_logical.60)
+  or.32 = u32[1]{0} or(shift_left.52, shift_right_logical.61)
+  xor.46 = u32[1]{0} xor(add.205, or.32)
+  add.206 = u32[1]{0} add(add.205, xor.46)
+  slice.77 = u32[1]{0} slice(Arg_6.8), slice={[1:2]}
+  shift_left.53 = u32[1]{0} shift-left(xor.46, slice.77)
+  squeeze.83 = u32[] reshape(slice.77)
+  sub.132 = u32[] subtract(constant.407, squeeze.83)
+  shift_right_logical.62 = u32[1]{0} reshape(sub.132)
+  shift_right_logical.63 = u32[1]{0} shift-right-logical(xor.46, shift_right_logical.62)
+  or.33 = u32[1]{0} or(shift_left.53, shift_right_logical.63)
+  xor.47 = u32[1]{0} xor(add.206, or.33)
+  add.207 = u32[1]{0} add(add.206, xor.47)
+  slice.78 = u32[1]{0} slice(Arg_6.8), slice={[2:3]}
+  shift_left.54 = u32[1]{0} shift-left(xor.47, slice.78)
+  squeeze.84 = u32[] reshape(slice.78)
+  sub.133 = u32[] subtract(constant.407, squeeze.84)
+  shift_right_logical.64 = u32[1]{0} reshape(sub.133)
+  shift_right_logical.65 = u32[1]{0} shift-right-logical(xor.47, shift_right_logical.64)
+  or.34 = u32[1]{0} or(shift_left.54, shift_right_logical.65)
+  xor.48 = u32[1]{0} xor(add.207, or.34)
+  add.208 = u32[1]{0} add(add.207, xor.48)
+  Arg_3.13 = u32[] parameter(3)
+  add.209 = u32[1]{0} reshape(Arg_3.13)
+  add.210 = u32[1]{0} add(add.208, add.209)
+  slice.79 = u32[1]{0} slice(Arg_6.8), slice={[3:4]}
+  shift_left.55 = u32[1]{0} shift-left(xor.48, slice.79)
+  squeeze.85 = u32[] reshape(slice.79)
+  sub.134 = u32[] subtract(constant.407, squeeze.85)
+  shift_right_logical.66 = u32[1]{0} reshape(sub.134)
+  shift_right_logical.67 = u32[1]{0} shift-right-logical(xor.48, shift_right_logical.66)
+  or.35 = u32[1]{0} or(shift_left.55, shift_right_logical.67)
+  xor.49 = u32[1]{0} xor(add.208, or.35)
+  Arg_4.9 = u32[] parameter(4)
+  add.211 = u32[1]{0} reshape(Arg_4.9)
+  add.212 = u32[1]{0} add(xor.49, add.211)
+  add.213 = s32[] add(Arg_0.66, constant.408)
+  convert_element_type.23 = u32[] convert(add.213)
+  add.214 = u32[1]{0} reshape(convert_element_type.23)
+  add.215 = u32[1]{0} add(add.212, add.214)
+  Arg_5.8 = u32[] parameter(5)
+  Arg_7.8 = u32[4]{0} parameter(7)
+  ROOT tuple.21 = (s32[], u32[1]{0}, u32[1]{0}, u32[], u32[], /*index=5*/u32[], u32[4]{0}, u32[4]{0}) tuple(add.204, add.210, add.215, Arg_4.9, Arg_5.8, Arg_3.13, Arg_7.8, Arg_6.8)
+}
+
+region_27.60 {
+  arg_tuple.16 = (s32[], s32[], u32[1]{0}, u32[1]{0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) parameter(0)
+  get-tuple-element.142 = s32[] get-tuple-element(arg_tuple.16), index=0
+  constant.409 = s32[] constant(1)
+  add.217 = s32[] add(get-tuple-element.142, constant.409)
+  get-tuple-element.143 = s32[] get-tuple-element(arg_tuple.16), index=1
+  get-tuple-element.144 = u32[1]{0} get-tuple-element(arg_tuple.16), index=2
+  get-tuple-element.145 = u32[1]{0} get-tuple-element(arg_tuple.16), index=3
+  get-tuple-element.146 = u32[] get-tuple-element(arg_tuple.16), index=4
+  get-tuple-element.147 = u32[] get-tuple-element(arg_tuple.16), index=5
+  get-tuple-element.148 = u32[] get-tuple-element(arg_tuple.16), index=6
+  get-tuple-element.149 = u32[4]{0} get-tuple-element(arg_tuple.16), index=7
+  get-tuple-element.150 = u32[4]{0} get-tuple-element(arg_tuple.16), index=8
+  closed_call.63 = (s32[], u32[1]{0}, u32[1]{0}, u32[], u32[], /*index=5*/u32[], u32[4]{0}, u32[4]{0}) call(get-tuple-element.143, get-tuple-element.144, get-tuple-element.145, get-tuple-element.146, get-tuple-element.147, get-tuple-element.148, get-tuple-element.149, get-tuple-element.150), to_apply=closed_call_248.59
+  closed_call.64 = s32[] get-tuple-element(closed_call.63), index=0
+  closed_call.65 = u32[1]{0} get-tuple-element(closed_call.63), index=1
+  closed_call.66 = u32[1]{0} get-tuple-element(closed_call.63), index=2
+  closed_call.67 = u32[] get-tuple-element(closed_call.63), index=3
+  closed_call.68 = u32[] get-tuple-element(closed_call.63), index=4
+  closed_call.69 = u32[] get-tuple-element(closed_call.63), index=5
+  closed_call.70 = u32[4]{0} get-tuple-element(closed_call.63), index=6
+  closed_call.71 = u32[4]{0} get-tuple-element(closed_call.63), index=7
+  ROOT tuple.23 = (s32[], s32[], u32[1]{0}, u32[1]{0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) tuple(add.217, closed_call.64, closed_call.65, closed_call.66, closed_call.67, closed_call.68, closed_call.69, closed_call.70, closed_call.71)
+}
+
+region_28.61 {
+  arg_tuple.18 = (s32[], s32[], u32[1]{0}, u32[1]{0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) parameter(0)
+  get-tuple-element.161 = s32[] get-tuple-element(arg_tuple.18), index=1
+  get-tuple-element.162 = u32[1]{0} get-tuple-element(arg_tuple.18), index=2
+  get-tuple-element.163 = u32[1]{0} get-tuple-element(arg_tuple.18), index=3
+  get-tuple-element.164 = u32[] get-tuple-element(arg_tuple.18), index=4
+  get-tuple-element.165 = u32[] get-tuple-element(arg_tuple.18), index=5
+  get-tuple-element.166 = u32[] get-tuple-element(arg_tuple.18), index=6
+  get-tuple-element.167 = u32[4]{0} get-tuple-element(arg_tuple.18), index=7
+  get-tuple-element.168 = u32[4]{0} get-tuple-element(arg_tuple.18), index=8
+  get-tuple-element.160 = s32[] get-tuple-element(arg_tuple.18), index=0
+  constant.411 = s32[] constant(5)
+  ROOT lt.23 = pred[] compare(get-tuple-element.160, constant.411), direction=LT
+}
+
+threefry2x32_244.62 {
+  constant.412 = s32[] constant(0)
+  Decoder___call__.6 = u32[1]{0} parameter(2)
+  Decoder___call__.4 = u32[] parameter(0)
+  add.218 = u32[1]{0} reshape(Decoder___call__.4)
+  add.219 = u32[1]{0} add(Decoder___call__.6, add.218)
+  Decoder___call__.7 = u32[1]{0} parameter(3)
+  Decoder___call__.5 = u32[] parameter(1)
+  add.220 = u32[1]{0} reshape(Decoder___call__.5)
+  add.221 = u32[1]{0} add(Decoder___call__.7, add.220)
+  xor.50 = u32[] xor(Decoder___call__.4, Decoder___call__.5)
+  constant.413 = u32[] constant(466688986)
+  xor.51 = u32[] xor(xor.50, constant.413)
+  constant.414 = u32[4]{0} constant({13, 15, 26, 6})
+  constant.415 = u32[4]{0} constant({17, 29, 16, 24})
+  while.77 = (s32[], s32[], u32[1]{0}, u32[1]{0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) tuple(constant.412, constant.412, add.219, add.221, Decoder___call__.5, xor.51, Decoder___call__.4, constant.414, constant.415)
+  while.78 = (s32[], s32[], u32[1]{0}, u32[1]{0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) while(while.77), condition=region_28.61, body=region_27.60
+  while.79 = s32[] get-tuple-element(while.78), index=0
+  while.80 = s32[] get-tuple-element(while.78), index=1
+  while.83 = u32[] get-tuple-element(while.78), index=4
+  while.84 = u32[] get-tuple-element(while.78), index=5
+  while.85 = u32[] get-tuple-element(while.78), index=6
+  while.86 = u32[4]{0} get-tuple-element(while.78), index=7
+  while.87 = u32[4]{0} get-tuple-element(while.78), index=8
+  while.81 = u32[1]{0} get-tuple-element(while.78), index=2
+  while.82 = u32[1]{0} get-tuple-element(while.78), index=3
+  ROOT tuple.25 = (u32[1]{0}, u32[1]{0}) tuple(while.81, while.82)
+}
+
+_threefry_split_242.63 {
+  Arg_0.67 = u32[2]{0} parameter(0)
+  slice.80 = u32[1]{0} slice(Arg_0.67), slice={[0:1]}
+  squeeze.86 = u32[] reshape(slice.80)
+  slice.81 = u32[1]{0} slice(Arg_0.67), slice={[1:2]}
+  squeeze.87 = u32[] reshape(slice.81)
+  constant.418 = u64[1]{0} constant({0})
+  constant.417 = u64[1]{0} constant({32})
+  iota_2x32_shape.58 = u64[1]{0} shift-right-logical(constant.418, constant.417)
+  iota_2x32_shape.59 = u32[1]{0} convert(iota_2x32_shape.58)
+  constant.416 = u32[1]{0} constant({0})
+  Decoder___call__.11 = (u32[1]{0}, u32[1]{0}) call(squeeze.86, squeeze.87, iota_2x32_shape.59, constant.416), to_apply=threefry2x32_244.62
+  Decoder___call__.12 = u32[1]{0} get-tuple-element(Decoder___call__.11), index=0
+  broadcast_in_dim.82 = u32[1,1]{1,0} reshape(Decoder___call__.12)
+  Decoder___call__.13 = u32[1]{0} get-tuple-element(Decoder___call__.11), index=1
+  broadcast_in_dim.83 = u32[1,1]{1,0} reshape(Decoder___call__.13)
+  ROOT concatenate.13 = u32[1,2]{1,0} concatenate(broadcast_in_dim.82, broadcast_in_dim.83), dimensions={1}
+}
+
+region_29.64 {
+  reduce_sum.93 = f32[] parameter(0)
+  reduce_sum.94 = f32[] parameter(1)
+  ROOT reduce_sum.95 = f32[] add(reduce_sum.93, reduce_sum.94)
+}
+
+closed_call_289.65 {
+  Arg_0.72 = s32[] parameter(0)
+  constant.433 = s32[] constant(1)
+  add.253 = s32[] add(Arg_0.72, constant.433)
+  Arg_1.48 = u32[1,16]{1,0} parameter(1)
+  Arg_2.31 = u32[1,16]{1,0} parameter(2)
+  add.254 = u32[1,16]{1,0} add(Arg_1.48, Arg_2.31)
+  Arg_6.10 = u32[4]{0} parameter(6)
+  slice.90 = u32[1]{0} slice(Arg_6.10), slice={[0:1]}
+  squeeze.97 = u32[] reshape(slice.90)
+  shift_left.64 = u32[1,16]{1,0} broadcast(squeeze.97), dimensions={}
+  shift_left.65 = u32[1,16]{1,0} shift-left(Arg_2.31, shift_left.64)
+  constant.432 = u32[] constant(32)
+  sub.139 = u32[] subtract(constant.432, squeeze.97)
+  shift_right_logical.76 = u32[1,16]{1,0} broadcast(sub.139), dimensions={}
+  shift_right_logical.77 = u32[1,16]{1,0} shift-right-logical(Arg_2.31, shift_right_logical.76)
+  or.40 = u32[1,16]{1,0} or(shift_left.65, shift_right_logical.77)
+  xor.58 = u32[1,16]{1,0} xor(add.254, or.40)
+  add.255 = u32[1,16]{1,0} add(add.254, xor.58)
+  slice.91 = u32[1]{0} slice(Arg_6.10), slice={[1:2]}
+  squeeze.98 = u32[] reshape(slice.91)
+  shift_left.66 = u32[1,16]{1,0} broadcast(squeeze.98), dimensions={}
+  shift_left.67 = u32[1,16]{1,0} shift-left(xor.58, shift_left.66)
+  sub.140 = u32[] subtract(constant.432, squeeze.98)
+  shift_right_logical.78 = u32[1,16]{1,0} broadcast(sub.140), dimensions={}
+  shift_right_logical.79 = u32[1,16]{1,0} shift-right-logical(xor.58, shift_right_logical.78)
+  or.41 = u32[1,16]{1,0} or(shift_left.67, shift_right_logical.79)
+  xor.59 = u32[1,16]{1,0} xor(add.255, or.41)
+  add.256 = u32[1,16]{1,0} add(add.255, xor.59)
+  slice.92 = u32[1]{0} slice(Arg_6.10), slice={[2:3]}
+  squeeze.99 = u32[] reshape(slice.92)
+  shift_left.68 = u32[1,16]{1,0} broadcast(squeeze.99), dimensions={}
+  shift_left.69 = u32[1,16]{1,0} shift-left(xor.59, shift_left.68)
+  sub.141 = u32[] subtract(constant.432, squeeze.99)
+  shift_right_logical.80 = u32[1,16]{1,0} broadcast(sub.141), dimensions={}
+  shift_right_logical.81 = u32[1,16]{1,0} shift-right-logical(xor.59, shift_right_logical.80)
+  or.42 = u32[1,16]{1,0} or(shift_left.69, shift_right_logical.81)
+  xor.60 = u32[1,16]{1,0} xor(add.256, or.42)
+  add.257 = u32[1,16]{1,0} add(add.256, xor.60)
+  Arg_3.16 = u32[] parameter(3)
+  add.258 = u32[1,16]{1,0} broadcast(Arg_3.16), dimensions={}
+  add.259 = u32[1,16]{1,0} add(add.257, add.258)
+  slice.93 = u32[1]{0} slice(Arg_6.10), slice={[3:4]}
+  squeeze.100 = u32[] reshape(slice.93)
+  shift_left.70 = u32[1,16]{1,0} broadcast(squeeze.100), dimensions={}
+  shift_left.71 = u32[1,16]{1,0} shift-left(xor.60, shift_left.70)
+  sub.142 = u32[] subtract(constant.432, squeeze.100)
+  shift_right_logical.82 = u32[1,16]{1,0} broadcast(sub.142), dimensions={}
+  shift_right_logical.83 = u32[1,16]{1,0} shift-right-logical(xor.60, shift_right_logical.82)
+  or.43 = u32[1,16]{1,0} or(shift_left.71, shift_right_logical.83)
+  xor.61 = u32[1,16]{1,0} xor(add.257, or.43)
+  Arg_4.11 = u32[] parameter(4)
+  add.260 = u32[1,16]{1,0} broadcast(Arg_4.11), dimensions={}
+  add.261 = u32[1,16]{1,0} add(xor.61, add.260)
+  add.262 = s32[] add(Arg_0.72, constant.433)
+  convert_element_type.25 = u32[] convert(add.262)
+  add.263 = u32[1,16]{1,0} broadcast(convert_element_type.25), dimensions={}
+  add.264 = u32[1,16]{1,0} add(add.261, add.263)
+  Arg_5.10 = u32[] parameter(5)
+  Arg_7.10 = u32[4]{0} parameter(7)
+  ROOT tuple.27 = (s32[], u32[1,16]{1,0}, u32[1,16]{1,0}, u32[], u32[], /*index=5*/u32[], u32[4]{0}, u32[4]{0}) tuple(add.253, add.259, add.264, Arg_4.11, Arg_5.10, Arg_3.16, Arg_7.10, Arg_6.10)
+}
+
+region_30.66 {
+  arg_tuple.20 = (s32[], s32[], u32[1,16]{1,0}, u32[1,16]{1,0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) parameter(0)
+  get-tuple-element.178 = s32[] get-tuple-element(arg_tuple.20), index=0
+  constant.434 = s32[] constant(1)
+  add.266 = s32[] add(get-tuple-element.178, constant.434)
+  get-tuple-element.179 = s32[] get-tuple-element(arg_tuple.20), index=1
+  get-tuple-element.180 = u32[1,16]{1,0} get-tuple-element(arg_tuple.20), index=2
+  get-tuple-element.181 = u32[1,16]{1,0} get-tuple-element(arg_tuple.20), index=3
+  get-tuple-element.182 = u32[] get-tuple-element(arg_tuple.20), index=4
+  get-tuple-element.183 = u32[] get-tuple-element(arg_tuple.20), index=5
+  get-tuple-element.184 = u32[] get-tuple-element(arg_tuple.20), index=6
+  get-tuple-element.185 = u32[4]{0} get-tuple-element(arg_tuple.20), index=7
+  get-tuple-element.186 = u32[4]{0} get-tuple-element(arg_tuple.20), index=8
+  closed_call.81 = (s32[], u32[1,16]{1,0}, u32[1,16]{1,0}, u32[], u32[], /*index=5*/u32[], u32[4]{0}, u32[4]{0}) call(get-tuple-element.179, get-tuple-element.180, get-tuple-element.181, get-tuple-element.182, get-tuple-element.183, get-tuple-element.184, get-tuple-element.185, get-tuple-element.186), to_apply=closed_call_289.65
+  closed_call.82 = s32[] get-tuple-element(closed_call.81), index=0
+  closed_call.83 = u32[1,16]{1,0} get-tuple-element(closed_call.81), index=1
+  closed_call.84 = u32[1,16]{1,0} get-tuple-element(closed_call.81), index=2
+  closed_call.85 = u32[] get-tuple-element(closed_call.81), index=3
+  closed_call.86 = u32[] get-tuple-element(closed_call.81), index=4
+  closed_call.87 = u32[] get-tuple-element(closed_call.81), index=5
+  closed_call.88 = u32[4]{0} get-tuple-element(closed_call.81), index=6
+  closed_call.89 = u32[4]{0} get-tuple-element(closed_call.81), index=7
+  ROOT tuple.29 = (s32[], s32[], u32[1,16]{1,0}, u32[1,16]{1,0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) tuple(add.266, closed_call.82, closed_call.83, closed_call.84, closed_call.85, closed_call.86, closed_call.87, closed_call.88, closed_call.89)
+}
+
+region_31.67 {
+  arg_tuple.22 = (s32[], s32[], u32[1,16]{1,0}, u32[1,16]{1,0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) parameter(0)
+  get-tuple-element.197 = s32[] get-tuple-element(arg_tuple.22), index=1
+  get-tuple-element.198 = u32[1,16]{1,0} get-tuple-element(arg_tuple.22), index=2
+  get-tuple-element.199 = u32[1,16]{1,0} get-tuple-element(arg_tuple.22), index=3
+  get-tuple-element.200 = u32[] get-tuple-element(arg_tuple.22), index=4
+  get-tuple-element.201 = u32[] get-tuple-element(arg_tuple.22), index=5
+  get-tuple-element.202 = u32[] get-tuple-element(arg_tuple.22), index=6
+  get-tuple-element.203 = u32[4]{0} get-tuple-element(arg_tuple.22), index=7
+  get-tuple-element.204 = u32[4]{0} get-tuple-element(arg_tuple.22), index=8
+  get-tuple-element.196 = s32[] get-tuple-element(arg_tuple.22), index=0
+  constant.436 = s32[] constant(5)
+  ROOT lt.27 = pred[] compare(get-tuple-element.196, constant.436), direction=LT
+}
+
+threefry2x32_285.68 {
+  constant.437 = s32[] constant(0)
+  Arg_2.32 = u32[1,16]{1,0} parameter(2)
+  Arg_0.73 = u32[] parameter(0)
+  add.267 = u32[1,16]{1,0} broadcast(Arg_0.73), dimensions={}
+  add.268 = u32[1,16]{1,0} add(Arg_2.32, add.267)
+  Arg_3.17 = u32[1,16]{1,0} parameter(3)
+  Arg_1.49 = u32[] parameter(1)
+  add.269 = u32[1,16]{1,0} broadcast(Arg_1.49), dimensions={}
+  add.270 = u32[1,16]{1,0} add(Arg_3.17, add.269)
+  xor.62 = u32[] xor(Arg_0.73, Arg_1.49)
+  constant.438 = u32[] constant(466688986)
+  xor.63 = u32[] xor(xor.62, constant.438)
+  constant.439 = u32[4]{0} constant({13, 15, 26, 6})
+  constant.440 = u32[4]{0} constant({17, 29, 16, 24})
+  while.99 = (s32[], s32[], u32[1,16]{1,0}, u32[1,16]{1,0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) tuple(constant.437, constant.437, add.268, add.270, Arg_1.49, xor.63, Arg_0.73, constant.439, constant.440)
+  while.100 = (s32[], s32[], u32[1,16]{1,0}, u32[1,16]{1,0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) while(while.99), condition=region_31.67, body=region_30.66
+  while.101 = s32[] get-tuple-element(while.100), index=0
+  while.102 = s32[] get-tuple-element(while.100), index=1
+  while.105 = u32[] get-tuple-element(while.100), index=4
+  while.106 = u32[] get-tuple-element(while.100), index=5
+  while.107 = u32[] get-tuple-element(while.100), index=6
+  while.108 = u32[4]{0} get-tuple-element(while.100), index=7
+  while.109 = u32[4]{0} get-tuple-element(while.100), index=8
+  while.103 = u32[1,16]{1,0} get-tuple-element(while.100), index=2
+  while.104 = u32[1,16]{1,0} get-tuple-element(while.100), index=3
+  ROOT tuple.31 = (u32[1,16]{1,0}, u32[1,16]{1,0}) tuple(while.103, while.104)
+}
+
+_uniform_281.69 {
+  Arg_1.50 = f32[] parameter(1)
+  broadcast_in_dim.91 = f32[1,1]{1,0} reshape(Arg_1.50)
+  max.17 = f32[1,1]{1,0} broadcast(broadcast_in_dim.91), dimensions={0,1}
+  max.18 = f32[1]{0} reshape(max.17)
+  max.19 = f32[1,16]{1,0} broadcast(max.18), dimensions={0}
+  Arg_0.74 = u32[2]{0} parameter(0)
+  slice.94 = u32[1]{0} slice(Arg_0.74), slice={[0:1]}
+  squeeze.101 = u32[] reshape(slice.94)
+  slice.95 = u32[1]{0} slice(Arg_0.74), slice={[1:2]}
+  squeeze.102 = u32[] reshape(slice.95)
+  iota_2x32_shape.65 = u64[16]{0} iota(), iota_dimension=0
+  iota_2x32_shape.66 = u64[1,16]{1,0} reshape(iota_2x32_shape.65)
+  constant.444 = u64[] constant(32)
+  broadcast.144 = u64[1,16]{1,0} broadcast(constant.444), dimensions={}
+  iota_2x32_shape.67 = u64[1,16]{1,0} shift-right-logical(iota_2x32_shape.66, broadcast.144)
+  iota_2x32_shape.69 = u32[1,16]{1,0} convert(iota_2x32_shape.67)
+  iota_2x32_shape.68 = u32[1,16]{1,0} convert(iota_2x32_shape.66)
+  call.5 = (u32[1,16]{1,0}, u32[1,16]{1,0}) call(squeeze.101, squeeze.102, iota_2x32_shape.69, iota_2x32_shape.68), to_apply=threefry2x32_285.68
+  get-tuple-element.207 = u32[1,16]{1,0} get-tuple-element(call.5), index=0
+  get-tuple-element.208 = u32[1,16]{1,0} get-tuple-element(call.5), index=1
+  xor.65 = u32[1,16]{1,0} xor(get-tuple-element.207, get-tuple-element.208)
+  constant.443 = u32[] constant(9)
+  broadcast.143 = u32[1,16]{1,0} broadcast(constant.443), dimensions={}
+  shift_right_logical.85 = u32[1,16]{1,0} shift-right-logical(xor.65, broadcast.143)
+  constant.442 = u32[] constant(1065353216)
+  broadcast.142 = u32[1,16]{1,0} broadcast(constant.442), dimensions={}
+  or.45 = u32[1,16]{1,0} or(shift_right_logical.85, broadcast.142)
+  bitcast_convert_type.3 = f32[1,16]{1,0} bitcast-convert(or.45)
+  constant.441 = f32[] constant(1)
+  broadcast.141 = f32[1,16]{1,0} broadcast(constant.441), dimensions={}
+  sub.145 = f32[1,16]{1,0} subtract(bitcast_convert_type.3, broadcast.141)
+  Arg_2.33 = f32[] parameter(2)
+  broadcast_in_dim.92 = f32[1,1]{1,0} reshape(Arg_2.33)
+  sub.146 = f32[1,1]{1,0} subtract(broadcast_in_dim.92, broadcast_in_dim.91)
+  mul.119 = f32[1,1]{1,0} broadcast(sub.146), dimensions={0,1}
+  mul.120 = f32[1]{0} reshape(mul.119)
+  mul.121 = f32[1,16]{1,0} broadcast(mul.120), dimensions={0}
+  mul.122 = f32[1,16]{1,0} multiply(sub.145, mul.121)
+  add.275 = f32[1,1]{1,0} broadcast(broadcast_in_dim.91), dimensions={0,1}
+  add.276 = f32[1]{0} reshape(add.275)
+  add.277 = f32[1,16]{1,0} broadcast(add.276), dimensions={0}
+  add.278 = f32[1,16]{1,0} add(mul.122, add.277)
+  ROOT max.20 = f32[1,16]{1,0} maximum(max.19, add.278)
+}
+
+_bernoulli.70 {
+  Arg_0.75 = u32[2]{0} parameter(0)
+  constant.445 = f32[] constant(0)
+  constant.446 = f32[] constant(1)
+  jit__uniform_.3 = f32[1,16]{1,0} call(Arg_0.75, constant.445, constant.446), to_apply=_uniform_281.69
+  Arg_1.51 = f32[] parameter(1)
+  lt.30 = f32[1,16]{1,0} broadcast(Arg_1.51), dimensions={}
+  ROOT lt.31 = pred[1,16]{1,0} compare(jit__uniform_.3, lt.30), direction=LT
+}
+
+_where_303.71 {
+  Arg_0.77 = pred[1,16]{1,0} parameter(0)
+  Arg_1.53 = f32[1,16]{1,0} parameter(1)
+  Arg_2.35 = s32[] parameter(2)
+  convert_element_type.27 = f32[] convert(Arg_2.35)
+  broadcast_in_dim.94 = f32[1,16]{1,0} broadcast(convert_element_type.27), dimensions={}
+  ROOT select_n.37 = f32[1,16]{1,0} select(Arg_0.77, Arg_1.53, broadcast_in_dim.94)
+}
+
+region_32.72 {
+  reduce_sum.100 = f32[] parameter(0)
+  reduce_sum.101 = f32[] parameter(1)
+  ROOT reduce_sum.102 = f32[] add(reduce_sum.100, reduce_sum.101)
+}
+
+region_33.73 {
+  reduce_sum.107 = f32[] parameter(0)
+  reduce_sum.108 = f32[] parameter(1)
+  ROOT reduce_sum.109 = f32[] add(reduce_sum.107, reduce_sum.108)
+}
+
+region_34.74 {
+  reduce_sum.114 = f32[] parameter(0)
+  reduce_sum.115 = f32[] parameter(1)
+  ROOT reduce_sum.116 = f32[] add(reduce_sum.114, reduce_sum.115)
+}
+
+_where_313.75 {
+  Arg_0.80 = pred[] parameter(0)
+  select_n.40 = pred[1,1]{1,0} broadcast(Arg_0.80), dimensions={}
+  Arg_1.56 = f32[1,1]{1,0} parameter(1)
+  Arg_2.37 = f32[] parameter(2)
+  broadcast_in_dim.99 = f32[1,1]{1,0} reshape(Arg_2.37)
+  ROOT select_n.41 = f32[1,1]{1,0} select(select_n.40, Arg_1.56, broadcast_in_dim.99)
+}
+
+_var_310.76 {
+  constant.453 = f32[] constant(16)
+  Arg_1.57 = s32[] parameter(1)
+  convert_element_type.29 = f32[] convert(Arg_1.57)
+  sub.156 = f32[] subtract(constant.453, convert_element_type.29)
+  constant.454 = f32[] constant(0)
+  gt.7 = pred[] compare(sub.156, constant.454), direction=GT
+  Arg_0.81 = f32[1,16]{1,0} parameter(0)
+  reduce_sum.118 = f32[1]{0} reduce(Arg_0.81, constant.454), dimensions={1}, to_apply=region_33.73
+  broadcast_in_dim.100 = f32[1,1]{1,0} reshape(reduce_sum.118)
+  constant.451 = f32[1,1]{1,0} constant({ {16} })
+  div.28 = f32[1,1]{1,0} divide(broadcast_in_dim.100, constant.451)
+  sub.152 = f32[1,1]{1,0} broadcast(div.28), dimensions={0,1}
+  sub.153 = f32[1]{0} reshape(sub.152)
+  sub.154 = f32[1,16]{1,0} broadcast(sub.153), dimensions={0}
+  sub.155 = f32[1,16]{1,0} subtract(Arg_0.81, sub.154)
+  square.11 = f32[1,16]{1,0} multiply(sub.155, sub.155)
+  reduce_sum.119 = f32[1]{0} reduce(square.11, constant.454), dimensions={1}, to_apply=region_34.74
+  broadcast_in_dim.101 = f32[1,1]{1,0} reshape(reduce_sum.119)
+  div.29 = f32[1,1]{1,0} reshape(sub.156)
+  div.30 = f32[1,1]{1,0} divide(broadcast_in_dim.101, div.29)
+  constant.452 = f32[] constant(nan)
+  ROOT jit__where_.8 = f32[1,1]{1,0} call(gt.7, div.30, constant.452), to_apply=_where_313.75
+}
+
+region_35.77 {
+  reduce_sum.123 = f32[] parameter(0)
+  reduce_sum.124 = f32[] parameter(1)
+  ROOT reduce_sum.125 = f32[] add(reduce_sum.123, reduce_sum.124)
+}
+
+region_36.78 {
+  scatter.7 = f32[] parameter(0)
+  ROOT scatter.8 = f32[] parameter(1)
+}
+
+closed_call_352.79 {
+  Arg_0.86 = s32[] parameter(0)
+  constant.473 = s32[] constant(1)
+  add.309 = s32[] add(Arg_0.86, constant.473)
+  Arg_1.61 = u32[1,21]{1,0} parameter(1)
+  Arg_2.41 = u32[1,21]{1,0} parameter(2)
+  add.310 = u32[1,21]{1,0} add(Arg_1.61, Arg_2.41)
+  Arg_6.12 = u32[4]{0} parameter(6)
+  slice.103 = u32[1]{0} slice(Arg_6.12), slice={[0:1]}
+  squeeze.113 = u32[] reshape(slice.103)
+  shift_left.80 = u32[1,21]{1,0} broadcast(squeeze.113), dimensions={}
+  shift_left.81 = u32[1,21]{1,0} shift-left(Arg_2.41, shift_left.80)
+  constant.472 = u32[] constant(32)
+  sub.169 = u32[] subtract(constant.472, squeeze.113)
+  shift_right_logical.94 = u32[1,21]{1,0} broadcast(sub.169), dimensions={}
+  shift_right_logical.95 = u32[1,21]{1,0} shift-right-logical(Arg_2.41, shift_right_logical.94)
+  or.50 = u32[1,21]{1,0} or(shift_left.81, shift_right_logical.95)
+  xor.72 = u32[1,21]{1,0} xor(add.310, or.50)
+  add.311 = u32[1,21]{1,0} add(add.310, xor.72)
+  slice.104 = u32[1]{0} slice(Arg_6.12), slice={[1:2]}
+  squeeze.114 = u32[] reshape(slice.104)
+  shift_left.82 = u32[1,21]{1,0} broadcast(squeeze.114), dimensions={}
+  shift_left.83 = u32[1,21]{1,0} shift-left(xor.72, shift_left.82)
+  sub.170 = u32[] subtract(constant.472, squeeze.114)
+  shift_right_logical.96 = u32[1,21]{1,0} broadcast(sub.170), dimensions={}
+  shift_right_logical.97 = u32[1,21]{1,0} shift-right-logical(xor.72, shift_right_logical.96)
+  or.51 = u32[1,21]{1,0} or(shift_left.83, shift_right_logical.97)
+  xor.73 = u32[1,21]{1,0} xor(add.311, or.51)
+  add.312 = u32[1,21]{1,0} add(add.311, xor.73)
+  slice.105 = u32[1]{0} slice(Arg_6.12), slice={[2:3]}
+  squeeze.115 = u32[] reshape(slice.105)
+  shift_left.84 = u32[1,21]{1,0} broadcast(squeeze.115), dimensions={}
+  shift_left.85 = u32[1,21]{1,0} shift-left(xor.73, shift_left.84)
+  sub.171 = u32[] subtract(constant.472, squeeze.115)
+  shift_right_logical.98 = u32[1,21]{1,0} broadcast(sub.171), dimensions={}
+  shift_right_logical.99 = u32[1,21]{1,0} shift-right-logical(xor.73, shift_right_logical.98)
+  or.52 = u32[1,21]{1,0} or(shift_left.85, shift_right_logical.99)
+  xor.74 = u32[1,21]{1,0} xor(add.312, or.52)
+  add.313 = u32[1,21]{1,0} add(add.312, xor.74)
+  Arg_3.20 = u32[] parameter(3)
+  add.314 = u32[1,21]{1,0} broadcast(Arg_3.20), dimensions={}
+  add.315 = u32[1,21]{1,0} add(add.313, add.314)
+  slice.106 = u32[1]{0} slice(Arg_6.12), slice={[3:4]}
+  squeeze.116 = u32[] reshape(slice.106)
+  shift_left.86 = u32[1,21]{1,0} broadcast(squeeze.116), dimensions={}
+  shift_left.87 = u32[1,21]{1,0} shift-left(xor.74, shift_left.86)
+  sub.172 = u32[] subtract(constant.472, squeeze.116)
+  shift_right_logical.100 = u32[1,21]{1,0} broadcast(sub.172), dimensions={}
+  shift_right_logical.101 = u32[1,21]{1,0} shift-right-logical(xor.74, shift_right_logical.100)
+  or.53 = u32[1,21]{1,0} or(shift_left.87, shift_right_logical.101)
+  xor.75 = u32[1,21]{1,0} xor(add.313, or.53)
+  Arg_4.13 = u32[] parameter(4)
+  add.316 = u32[1,21]{1,0} broadcast(Arg_4.13), dimensions={}
+  add.317 = u32[1,21]{1,0} add(xor.75, add.316)
+  add.318 = s32[] add(Arg_0.86, constant.473)
+  convert_element_type.32 = u32[] convert(add.318)
+  add.319 = u32[1,21]{1,0} broadcast(convert_element_type.32), dimensions={}
+  add.320 = u32[1,21]{1,0} add(add.317, add.319)
+  Arg_5.12 = u32[] parameter(5)
+  Arg_7.12 = u32[4]{0} parameter(7)
+  ROOT tuple.33 = (s32[], u32[1,21]{1,0}, u32[1,21]{1,0}, u32[], u32[], /*index=5*/u32[], u32[4]{0}, u32[4]{0}) tuple(add.309, add.315, add.320, Arg_4.13, Arg_5.12, Arg_3.20, Arg_7.12, Arg_6.12)
+}
+
+region_38.80 {
+  arg_tuple.25 = (s32[], s32[], u32[1,21]{1,0}, u32[1,21]{1,0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) parameter(0)
+  get-tuple-element.221 = s32[] get-tuple-element(arg_tuple.25), index=0
+  constant.474 = s32[] constant(1)
+  add.322 = s32[] add(get-tuple-element.221, constant.474)
+  get-tuple-element.222 = s32[] get-tuple-element(arg_tuple.25), index=1
+  get-tuple-element.223 = u32[1,21]{1,0} get-tuple-element(arg_tuple.25), index=2
+  get-tuple-element.224 = u32[1,21]{1,0} get-tuple-element(arg_tuple.25), index=3
+  get-tuple-element.225 = u32[] get-tuple-element(arg_tuple.25), index=4
+  get-tuple-element.226 = u32[] get-tuple-element(arg_tuple.25), index=5
+  get-tuple-element.227 = u32[] get-tuple-element(arg_tuple.25), index=6
+  get-tuple-element.228 = u32[4]{0} get-tuple-element(arg_tuple.25), index=7
+  get-tuple-element.229 = u32[4]{0} get-tuple-element(arg_tuple.25), index=8
+  closed_call.99 = (s32[], u32[1,21]{1,0}, u32[1,21]{1,0}, u32[], u32[], /*index=5*/u32[], u32[4]{0}, u32[4]{0}) call(get-tuple-element.222, get-tuple-element.223, get-tuple-element.224, get-tuple-element.225, get-tuple-element.226, get-tuple-element.227, get-tuple-element.228, get-tuple-element.229), to_apply=closed_call_352.79
+  closed_call.100 = s32[] get-tuple-element(closed_call.99), index=0
+  closed_call.101 = u32[1,21]{1,0} get-tuple-element(closed_call.99), index=1
+  closed_call.102 = u32[1,21]{1,0} get-tuple-element(closed_call.99), index=2
+  closed_call.103 = u32[] get-tuple-element(closed_call.99), index=3
+  closed_call.104 = u32[] get-tuple-element(closed_call.99), index=4
+  closed_call.105 = u32[] get-tuple-element(closed_call.99), index=5
+  closed_call.106 = u32[4]{0} get-tuple-element(closed_call.99), index=6
+  closed_call.107 = u32[4]{0} get-tuple-element(closed_call.99), index=7
+  ROOT tuple.35 = (s32[], s32[], u32[1,21]{1,0}, u32[1,21]{1,0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) tuple(add.322, closed_call.100, closed_call.101, closed_call.102, closed_call.103, closed_call.104, closed_call.105, closed_call.106, closed_call.107)
+}
+
+region_39.81 {
+  arg_tuple.27 = (s32[], s32[], u32[1,21]{1,0}, u32[1,21]{1,0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) parameter(0)
+  get-tuple-element.240 = s32[] get-tuple-element(arg_tuple.27), index=1
+  get-tuple-element.241 = u32[1,21]{1,0} get-tuple-element(arg_tuple.27), index=2
+  get-tuple-element.242 = u32[1,21]{1,0} get-tuple-element(arg_tuple.27), index=3
+  get-tuple-element.243 = u32[] get-tuple-element(arg_tuple.27), index=4
+  get-tuple-element.244 = u32[] get-tuple-element(arg_tuple.27), index=5
+  get-tuple-element.245 = u32[] get-tuple-element(arg_tuple.27), index=6
+  get-tuple-element.246 = u32[4]{0} get-tuple-element(arg_tuple.27), index=7
+  get-tuple-element.247 = u32[4]{0} get-tuple-element(arg_tuple.27), index=8
+  get-tuple-element.239 = s32[] get-tuple-element(arg_tuple.27), index=0
+  constant.476 = s32[] constant(5)
+  ROOT lt.37 = pred[] compare(get-tuple-element.239, constant.476), direction=LT
+}
+
+threefry2x32_348.82 {
+  constant.477 = s32[] constant(0)
+  Arg_2.42 = u32[1,21]{1,0} parameter(2)
+  Arg_0.87 = u32[] parameter(0)
+  add.323 = u32[1,21]{1,0} broadcast(Arg_0.87), dimensions={}
+  add.324 = u32[1,21]{1,0} add(Arg_2.42, add.323)
+  Arg_3.21 = u32[1,21]{1,0} parameter(3)
+  Arg_1.62 = u32[] parameter(1)
+  add.325 = u32[1,21]{1,0} broadcast(Arg_1.62), dimensions={}
+  add.326 = u32[1,21]{1,0} add(Arg_3.21, add.325)
+  xor.76 = u32[] xor(Arg_0.87, Arg_1.62)
+  constant.478 = u32[] constant(466688986)
+  xor.77 = u32[] xor(xor.76, constant.478)
+  constant.479 = u32[4]{0} constant({13, 15, 26, 6})
+  constant.480 = u32[4]{0} constant({17, 29, 16, 24})
+  while.121 = (s32[], s32[], u32[1,21]{1,0}, u32[1,21]{1,0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) tuple(constant.477, constant.477, add.324, add.326, Arg_1.62, xor.77, Arg_0.87, constant.479, constant.480)
+  while.122 = (s32[], s32[], u32[1,21]{1,0}, u32[1,21]{1,0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) while(while.121), condition=region_39.81, body=region_38.80
+  while.123 = s32[] get-tuple-element(while.122), index=0
+  while.124 = s32[] get-tuple-element(while.122), index=1
+  while.127 = u32[] get-tuple-element(while.122), index=4
+  while.128 = u32[] get-tuple-element(while.122), index=5
+  while.129 = u32[] get-tuple-element(while.122), index=6
+  while.130 = u32[4]{0} get-tuple-element(while.122), index=7
+  while.131 = u32[4]{0} get-tuple-element(while.122), index=8
+  while.125 = u32[1,21]{1,0} get-tuple-element(while.122), index=2
+  while.126 = u32[1,21]{1,0} get-tuple-element(while.122), index=3
+  ROOT tuple.37 = (u32[1,21]{1,0}, u32[1,21]{1,0}) tuple(while.125, while.126)
+}
+
+_uniform_345.83 {
+  Arg_2.43 = f32[] parameter(2)
+  broadcast_in_dim.113 = f32[1,1]{1,0} reshape(Arg_2.43)
+  max.27 = f32[1,1]{1,0} broadcast(broadcast_in_dim.113), dimensions={0,1}
+  max.28 = f32[1]{0} reshape(max.27)
+  max.29 = f32[1,21]{1,0} broadcast(max.28), dimensions={0}
+  Arg_0.88 = u32[2]{0} parameter(0)
+  slice.107 = u32[1]{0} slice(Arg_0.88), slice={[0:1]}
+  squeeze.117 = u32[] reshape(slice.107)
+  slice.108 = u32[1]{0} slice(Arg_0.88), slice={[1:2]}
+  squeeze.118 = u32[] reshape(slice.108)
+  iota_2x32_shape.75 = u64[21]{0} iota(), iota_dimension=0
+  iota_2x32_shape.76 = u64[1,21]{1,0} reshape(iota_2x32_shape.75)
+  constant.484 = u64[] constant(32)
+  broadcast.152 = u64[1,21]{1,0} broadcast(constant.484), dimensions={}
+  iota_2x32_shape.77 = u64[1,21]{1,0} shift-right-logical(iota_2x32_shape.76, broadcast.152)
+  iota_2x32_shape.79 = u32[1,21]{1,0} convert(iota_2x32_shape.77)
+  iota_2x32_shape.78 = u32[1,21]{1,0} convert(iota_2x32_shape.76)
+  call.7 = (u32[1,21]{1,0}, u32[1,21]{1,0}) call(squeeze.117, squeeze.118, iota_2x32_shape.79, iota_2x32_shape.78), to_apply=threefry2x32_348.82
+  get-tuple-element.250 = u32[1,21]{1,0} get-tuple-element(call.7), index=0
+  get-tuple-element.251 = u32[1,21]{1,0} get-tuple-element(call.7), index=1
+  xor.79 = u32[1,21]{1,0} xor(get-tuple-element.250, get-tuple-element.251)
+  constant.483 = u32[] constant(9)
+  broadcast.151 = u32[1,21]{1,0} broadcast(constant.483), dimensions={}
+  shift_right_logical.103 = u32[1,21]{1,0} shift-right-logical(xor.79, broadcast.151)
+  constant.482 = u32[] constant(1065353216)
+  broadcast.150 = u32[1,21]{1,0} broadcast(constant.482), dimensions={}
+  or.55 = u32[1,21]{1,0} or(shift_right_logical.103, broadcast.150)
+  bitcast_convert_type.5 = f32[1,21]{1,0} bitcast-convert(or.55)
+  constant.481 = f32[] constant(1)
+  broadcast.149 = f32[1,21]{1,0} broadcast(constant.481), dimensions={}
+  sub.175 = f32[1,21]{1,0} subtract(bitcast_convert_type.5, broadcast.149)
+  Arg_1.63 = f32[] parameter(1)
+  broadcast_in_dim.114 = f32[1,1]{1,0} reshape(Arg_1.63)
+  sub.176 = f32[1,1]{1,0} subtract(broadcast_in_dim.114, broadcast_in_dim.113)
+  mul.142 = f32[1,1]{1,0} broadcast(sub.176), dimensions={0,1}
+  mul.143 = f32[1]{0} reshape(mul.142)
+  mul.144 = f32[1,21]{1,0} broadcast(mul.143), dimensions={0}
+  mul.145 = f32[1,21]{1,0} multiply(sub.175, mul.144)
+  add.331 = f32[1,1]{1,0} broadcast(broadcast_in_dim.113), dimensions={0,1}
+  add.332 = f32[1]{0} reshape(add.331)
+  add.333 = f32[1,21]{1,0} broadcast(add.332), dimensions={0}
+  add.334 = f32[1,21]{1,0} add(mul.145, add.333)
+  ROOT max.30 = f32[1,21]{1,0} maximum(max.29, add.334)
+}
+
+_gumbel.84 {
+  Arg_0.89 = u32[2]{0} parameter(0)
+  constant.485 = f32[] constant(1)
+  constant.486 = f32[] constant(1.17549435e-38)
+  jit__uniform_.5 = f32[1,21]{1,0} call(Arg_0.89, constant.485, constant.486), to_apply=_uniform_345.83
+  log.2 = f32[1,21]{1,0} log(jit__uniform_.5)
+  neg.13 = f32[1,21]{1,0} negate(log.2)
+  log.3 = f32[1,21]{1,0} log(neg.13)
+  ROOT neg.14 = f32[1,21]{1,0} negate(log.3)
+}
+
+region_40.85 {
+  reduce_max.3 = f32[] parameter(0)
+  reduce_max.4 = f32[] parameter(1)
+  ROOT reduce_max.5 = f32[] maximum(reduce_max.3, reduce_max.4)
+}
+
+region_41.86 {
+  reduce_sum.130 = f32[] parameter(0)
+  reduce_sum.131 = f32[] parameter(1)
+  ROOT reduce_sum.132 = f32[] add(reduce_sum.130, reduce_sum.131)
+}
+
+region_42.87 {
+  reduce.4 = f32[] parameter(0)
+  reduce.6 = f32[] parameter(2)
+  gt.9 = pred[] compare(reduce.4, reduce.6), direction=GT
+  ne.1 = pred[] compare(reduce.4, reduce.4), direction=NE
+  or.58 = pred[] or(gt.9, ne.1)
+  select_n.48 = f32[] select(or.58, reduce.4, reduce.6)
+  eq.36 = pred[] compare(reduce.4, reduce.6), direction=EQ
+  reduce.5 = s32[] parameter(1)
+  reduce.7 = s32[] parameter(3)
+  lt.39 = pred[] compare(reduce.5, reduce.7), direction=LT
+  and.7 = pred[] and(eq.36, lt.39)
+  or.59 = pred[] or(or.58, and.7)
+  select_n.49 = s32[] select(or.59, reduce.5, reduce.7)
+  ROOT tuple.39 = (f32[], s32[]) tuple(select_n.48, select_n.49)
+}
+
+argmax.88 {
+  branch_0_fun.1 = f32[1,20]{1,0} parameter(0)
+  iota.14 = s32[20]{0} iota(), iota_dimension=0
+  iota.15 = s32[1,20]{1,0} reshape(iota.14)
+  constant.490 = f32[] constant(-inf)
+  constant.489 = s32[] constant(0)
+  reduce.11 = (f32[1]{0}, s32[1]{0}) reduce(branch_0_fun.1, iota.15, constant.490, constant.489), dimensions={1}, to_apply=region_42.87
+  reduce.12 = f32[1]{0} get-tuple-element(reduce.11), index=0
+  ROOT reduce.13 = s32[1]{0} get-tuple-element(reduce.11), index=1
+}
+
+_one_hot_377.89 {
+  Arg_0.91 = s32[1]{0} parameter(0)
+  broadcast_in_dim.118 = s32[1,1]{1,0} reshape(Arg_0.91)
+  eq.41 = s32[1,1]{1,0} broadcast(broadcast_in_dim.118), dimensions={0,1}
+  eq.42 = s32[1]{0} reshape(eq.41)
+  eq.43 = s32[1,20]{1,0} broadcast(eq.42), dimensions={0}
+  iota.18 = s32[20]{0} iota(), iota_dimension=0
+  iota.19 = s32[1,20]{1,0} reshape(iota.18)
+  eq.44 = pred[1,20]{1,0} compare(eq.43, iota.19), direction=EQ
+  ROOT convert_element_type.34 = f32[1,20]{1,0} convert(eq.44)
+}
+
+region_37.90 {
+  arg_tuple.28 = (f32[], f32[1,21]{1,0}, u32[2]{0}) parameter(0)
+  get-tuple-element.253 = f32[1,21]{1,0} get-tuple-element(arg_tuple.28), index=1
+  get-tuple-element.252 = f32[] get-tuple-element(arg_tuple.28), index=0
+  div.39 = f32[1,21]{1,0} broadcast(get-tuple-element.252), dimensions={}
+  div.40 = f32[1,21]{1,0} divide(get-tuple-element.253, div.39)
+  get-tuple-element.254 = u32[2]{0} get-tuple-element(arg_tuple.28), index=2
+  jit__gumbel_.1 = f32[1,21]{1,0} call(get-tuple-element.254), to_apply=_gumbel.84
+  add.337 = f32[1,21]{1,0} add(div.40, jit__gumbel_.1)
+  slice.110 = f32[1,20]{1,0} slice(add.337), slice={[0:1], [0:20]}
+  constant.494 = f32[] constant(-inf)
+  reduce_max.7 = f32[1]{0} reduce(slice.110, constant.494), dimensions={1}, to_apply=region_40.85
+  constant.493 = f32[1]{0} constant({-inf})
+  max.32 = f32[1]{0} maximum(reduce_max.7, constant.493)
+  broadcast_in_dim.119 = f32[1,1]{1,0} reshape(max.32)
+  sub.182 = f32[1,1]{1,0} broadcast(broadcast_in_dim.119), dimensions={0,1}
+  sub.183 = f32[1]{0} reshape(sub.182)
+  sub.184 = f32[1,20]{1,0} broadcast(sub.183), dimensions={0}
+  sub.185 = f32[1,20]{1,0} subtract(slice.110, sub.184)
+  exp.3 = f32[1,20]{1,0} exponential(sub.185)
+  constant.492 = f32[] constant(0)
+  reduce_sum.134 = f32[1]{0} reduce(exp.3, constant.492), dimensions={1}, to_apply=region_41.86
+  broadcast_in_dim.120 = f32[1,1]{1,0} reshape(reduce_sum.134)
+  div.41 = f32[1,1]{1,0} broadcast(broadcast_in_dim.120), dimensions={0,1}
+  div.42 = f32[1]{0} reshape(div.41)
+  div.43 = f32[1,20]{1,0} broadcast(div.42), dimensions={0}
+  div.44 = f32[1,20]{1,0} divide(exp.3, div.43)
+  branch_0_fun.3 = s32[1]{0} call(div.44), to_apply=argmax.88
+  jit__one_hot_.3 = f32[1,20]{1,0} call(branch_0_fun.3), to_apply=_one_hot_377.89
+  sub.186 = f32[1,20]{1,0} subtract(jit__one_hot_.3, div.44)
+  add.338 = f32[1,20]{1,0} add(sub.186, div.44)
+  constant.491 = f32[1,1]{1,0} constant({ {0} })
+  ROOT concatenate.18 = f32[1,21]{1,0} concatenate(add.338, constant.491), dimensions={1}
+}
+
+_one_hot_386.91 {
+  Arg_0.93 = s32[] parameter(0)
+  broadcast_in_dim.122 = s32[1]{0} reshape(Arg_0.93)
+  eq.49 = s32[1]{0} broadcast(broadcast_in_dim.122), dimensions={0}
+  eq.50 = s32[] reshape(eq.49)
+  eq.51 = s32[21]{0} broadcast(eq.50), dimensions={}
+  iota.21 = s32[21]{0} iota(), iota_dimension=0
+  eq.52 = pred[21]{0} compare(eq.51, iota.21), direction=EQ
+  ROOT convert_element_type.36 = f32[21]{0} convert(eq.52)
+}
+
+region_43.92 {
+  arg_tuple.30 = (s32[], s32[4]{0}) parameter(0)
+  get-tuple-element.258 = s32[4]{0} get-tuple-element(arg_tuple.30), index=1
+  get-tuple-element.257 = s32[] get-tuple-element(arg_tuple.30), index=0
+  constant.498 = s32[] constant(0)
+  lt.41 = pred[] compare(get-tuple-element.257, constant.498), direction=LT
+  constant.497 = s32[] constant(4)
+  add.340 = s32[] add(get-tuple-element.257, constant.497)
+  select_n.51 = s32[] select(lt.41, add.340, get-tuple-element.257)
+  dynamic_slice.14 = s32[1]{0} dynamic-slice(get-tuple-element.258, select_n.51), dynamic_slice_sizes={1}
+  squeeze.120 = s32[] reshape(dynamic_slice.14)
+  jit__one_hot_.5 = f32[21]{0} call(squeeze.120), to_apply=_one_hot_386.91
+  ROOT broadcast_in_dim.124 = f32[1,21]{1,0} reshape(jit__one_hot_.5)
+}
+
+region_44.93 {
+  scatter.12 = f32[] parameter(0)
+  ROOT scatter.13 = f32[] parameter(1)
+}
+
+region_45.94 {
+  scatter.17 = f32[] parameter(0)
+  ROOT scatter.18 = f32[] parameter(1)
+}
+
+closed_call_225.95 {
+  Arg_26.1 = f32[2,4,16]{2,1,0} parameter(26)
+  constant.500 = s32[1]{0} constant({1})
+  Arg_29.1 = s32[] parameter(29)
+  constant.571 = s32[] constant(0)
+  lt.52 = pred[] compare(Arg_29.1, constant.571), direction=LT
+  constant.570 = s32[] constant(4)
+  add.372 = s32[] add(Arg_29.1, constant.570)
+  select_n.62 = s32[] select(lt.52, add.372, Arg_29.1)
+  broadcast_in_dim.141 = s32[1]{0} reshape(select_n.62)
+  concatenate.21 = s32[2]{0} concatenate(constant.500, broadcast_in_dim.141), dimensions={0}
+  Arg_2.44 = f32[4]{0} parameter(2)
+  lt.46 = pred[] compare(Arg_29.1, constant.571), direction=LT
+  add.345 = s32[] add(Arg_29.1, constant.570)
+  select_n.56 = s32[] select(lt.46, add.345, Arg_29.1)
+  dynamic_slice.17 = f32[1]{0} dynamic-slice(Arg_2.44, select_n.56), dynamic_slice_sizes={1}
+  squeeze.125 = f32[] reshape(dynamic_slice.17)
+  mul.171 = f32[1,16]{1,0} broadcast(squeeze.125), dimensions={}
+  Arg_17.1 = f32[16]{0} parameter(17)
+  broadcast_in_dim.139 = f32[1,16]{1,0} reshape(Arg_17.1)
+  Arg_11.1 = f32[16]{0} parameter(11)
+  broadcast_in_dim.134 = f32[1,16]{1,0} reshape(Arg_11.1)
+  lt.50 = pred[] compare(Arg_29.1, constant.571), direction=LT
+  add.349 = s32[] add(Arg_29.1, constant.570)
+  select_n.60 = s32[] select(lt.50, add.349, Arg_29.1)
+  dynamic_slice.20 = f32[1,1,16]{2,1,0} dynamic-slice(Arg_26.1, constant.571, select_n.60, constant.571), dynamic_slice_sizes={1,1,16}
+  broadcast_in_dim_squeeze.5 = f32[1,16]{1,0} reshape(dynamic_slice.20)
+  Arg_30.1 = u32[2]{0} parameter(30)
+  jit__threefry_split_.10 = u32[1,2]{1,0} call(Arg_30.1), to_apply=_threefry_split_242.63
+  squeeze.128 = u32[2]{0} reshape(jit__threefry_split_.10)
+  jit__threefry_split_.11 = u32[2,2]{1,0} call(squeeze.128), to_apply=_threefry_split.5
+  slice.112 = u32[1,2]{1,0} slice(jit__threefry_split_.11), slice={[0:1], [0:2]}
+  squeeze.129 = u32[2]{0} reshape(slice.112)
+  constant.507 = f32[] constant(0.9)
+  jit__bernoulli_.2 = pred[1,16]{1,0} call(squeeze.129, constant.507), to_apply=_bernoulli.70
+  Arg_9.1 = f32[16,16]{1,0} parameter(9)
+  Arg_7.13 = f32[16,16]{1,0} parameter(7)
+  Arg_5.13 = f32[16,64]{1,0} parameter(5)
+  tile_broadcast_in_dim_broadcast_in_dim_squeeze.1 = f32[1,1,1,1,1,16]{5,4,3,2,1,0} reshape(dynamic_slice.20)
+  tile.8 = f32[1,1,1,1,1,16]{5,4,3,2,1,0} broadcast(tile_broadcast_in_dim_broadcast_in_dim_squeeze.1), dimensions={0,1,2,3,4,5}
+  tile.9 = f32[1,1,1,1,16]{4,3,2,1,0} reshape(tile.8)
+  tile.10 = f32[1,1,4,1,1,16]{5,4,3,2,1,0} broadcast(tile.9), dimensions={0,1,3,4,5}
+  tile.11 = f32[1,4,16]{2,1,0} reshape(tile.10)
+  Arg_3.22 = f32[4,4]{1,0} parameter(3)
+  lt.47 = pred[] compare(Arg_29.1, constant.571), direction=LT
+  add.346 = s32[] add(Arg_29.1, constant.570)
+  select_n.57 = s32[] select(lt.47, add.346, Arg_29.1)
+  dynamic_slice.18 = f32[1,4]{1,0} dynamic-slice(Arg_3.22, select_n.57, constant.571), dynamic_slice_sizes={1,4}
+  broadcast_in_dim_squeeze.4 = f32[4,1]{1,0} reshape(dynamic_slice.18)
+  mul.148 = f32[4,1]{1,0} broadcast(broadcast_in_dim_squeeze.4), dimensions={0,1}
+  mul.149 = f32[4]{0} reshape(mul.148)
+  mul.150 = f32[4,48]{1,0} broadcast(mul.149), dimensions={0}
+  Arg_4.14 = f32[4,4,16]{2,1,0} parameter(4)
+  lt.48 = pred[] compare(Arg_29.1, constant.571), direction=LT
+  add.347 = s32[] add(Arg_29.1, constant.570)
+  select_n.58 = s32[] select(lt.48, add.347, Arg_29.1)
+  dynamic_slice.19 = f32[1,4,16]{2,1,0} dynamic-slice(Arg_4.14, select_n.58, constant.571, constant.571), dynamic_slice_sizes={1,4,16}
+  squeeze.126 = f32[4,16]{1,0} reshape(dynamic_slice.19)
+  Arg_27.1 = f32[4,16]{1,0} parameter(27)
+  Arg_1.64 = s32[4,4]{1,0} parameter(1)
+  lt.45 = pred[] compare(Arg_29.1, constant.571), direction=LT
+  add.344 = s32[] add(Arg_29.1, constant.570)
+  select_n.55 = s32[] select(lt.45, add.344, Arg_29.1)
+  dynamic_slice.16 = s32[1,4]{1,0} dynamic-slice(Arg_1.64, select_n.55, constant.571), dynamic_slice_sizes={1,4}
+  squeeze.124 = s32[4]{0} reshape(dynamic_slice.16)
+  constant.512 = s32[] constant(0)
+  broadcast.158 = s32[4]{0} broadcast(constant.512), dimensions={}
+  lt.49 = pred[4]{0} compare(squeeze.124, broadcast.158), direction=LT
+  constant.511 = s32[] constant(4)
+  broadcast.157 = s32[4]{0} broadcast(constant.511), dimensions={}
+  add.348 = s32[4]{0} add(squeeze.124, broadcast.157)
+  select_n.59 = s32[4]{0} select(lt.49, add.348, squeeze.124)
+  broadcast_in_dim.127 = s32[4,1]{1,0} reshape(select_n.59)
+  gather.16 = f32[4,16]{1,0} gather(Arg_27.1, broadcast_in_dim.127), offset_dims={1}, collapsed_slice_dims={0}, start_index_map={0}, index_vector_dim=1, slice_sizes={1,16}
+  slice.111 = f32[1,4,16]{2,1,0} slice(Arg_26.1), slice={[0:1], [0:4], [0:16]}
+  squeeze.127 = f32[4,16]{1,0} reshape(slice.111)
+  lt.51 = pred[4]{0} compare(squeeze.124, broadcast.158), direction=LT
+  add.350 = s32[4]{0} add(squeeze.124, broadcast.157)
+  select_n.61 = s32[4]{0} select(lt.51, add.350, squeeze.124)
+  broadcast_in_dim.128 = s32[4,1]{1,0} reshape(select_n.61)
+  gather.17 = f32[4,16]{1,0} gather(squeeze.127, broadcast_in_dim.128), offset_dims={1}, collapsed_slice_dims={0}, start_index_map={0}, index_vector_dim=1, slice_sizes={1,16}
+  concatenate.19 = f32[4,48]{1,0} concatenate(squeeze.126, gather.16, gather.17), dimensions={1}
+  mul.151 = f32[4,48]{1,0} multiply(mul.150, concatenate.19)
+  Arg_0.94 = f32[4,4,48]{2,1,0} parameter(0)
+  lt.44 = pred[] compare(Arg_29.1, constant.571), direction=LT
+  add.343 = s32[] add(Arg_29.1, constant.570)
+  select_n.54 = s32[] select(lt.44, add.343, Arg_29.1)
+  dynamic_slice.15 = f32[1,4,48]{2,1,0} dynamic-slice(Arg_0.94, select_n.54, constant.571, constant.571), dynamic_slice_sizes={1,4,48}
+  squeeze.123 = f32[4,48]{1,0} reshape(dynamic_slice.15)
+  add.351 = f32[4,48]{1,0} add(mul.151, squeeze.123)
+  broadcast_in_dim.129 = f32[1,4,48]{2,1,0} reshape(add.351)
+  concatenate.20 = f32[1,4,64]{2,1,0} concatenate(tile.11, broadcast_in_dim.129), dimensions={2}
+  dot_general.19 = f32[16,1,4]{2,1,0} dot(Arg_5.13, concatenate.20), lhs_contracting_dims={1}, rhs_contracting_dims={2}
+  transpose.20 = f32[1,4,16]{1,0,2} transpose(dot_general.19), dimensions={1,2,0}
+  Arg_6.13 = f32[16]{0} parameter(6)
+  broadcast_in_dim.130 = f32[1,1,16]{2,1,0} reshape(Arg_6.13)
+  add.352 = f32[1,1,16]{2,1,0} broadcast(broadcast_in_dim.130), dimensions={0,1,2}
+  add.353 = f32[1,16]{1,0} reshape(add.352)
+  add.354 = f32[1,4,16]{2,1,0} broadcast(add.353), dimensions={0,2}
+  add.355 = f32[1,4,16]{1,0,2} add(transpose.20, add.354)
+  constant.510 = f32[] constant(0.5)
+  broadcast.156 = f32[1,4,16]{2,1,0} broadcast(constant.510), dimensions={}
+  mul.152 = f32[1,4,16]{1,0,2} multiply(add.355, broadcast.156)
+  neg.15 = f32[1,4,16]{1,0,2} negate(add.355)
+  constant.509 = f32[] constant(0.707106769)
+  broadcast.155 = f32[1,4,16]{2,1,0} broadcast(constant.509), dimensions={}
+  mul.153 = f32[1,4,16]{1,0,2} multiply(neg.15, broadcast.155)
+  erfc.645 = f32[1,4,16]{1,0,2} abs(mul.153)
+  constant.569 = f32[] constant(1)
+  broadcast.187 = f32[1,4,16]{2,1,0} broadcast(constant.569), dimensions={}
+  erfc.646 = pred[1,4,16]{1,0,2} compare(erfc.645, broadcast.187), direction=LT
+  erfc.630 = f32[1,4,16]{1,0,2} multiply(mul.153, mul.153)
+  constant.548 = f32[] constant(7.85386146e-05)
+  broadcast.166 = f32[1,4,16]{2,1,0} broadcast(constant.548), dimensions={}
+  erfc.631 = f32[1,4,16]{1,0,2} multiply(erfc.630, broadcast.166)
+  constant.547 = f32[] constant(-0.000801019371)
+  broadcast.165 = f32[1,4,16]{2,1,0} broadcast(constant.547), dimensions={}
+  erfc.632 = f32[1,4,16]{1,0,2} add(erfc.631, broadcast.165)
+  erfc.633 = f32[1,4,16]{1,0,2} multiply(erfc.632, erfc.630)
+  constant.546 = f32[] constant(0.00518832775)
+  broadcast.164 = f32[1,4,16]{2,1,0} broadcast(constant.546), dimensions={}
+  erfc.634 = f32[1,4,16]{1,0,2} add(erfc.633, broadcast.164)
+  erfc.635 = f32[1,4,16]{1,0,2} multiply(erfc.634, erfc.630)
+  constant.545 = f32[] constant(-0.0268538129)
+  broadcast.163 = f32[1,4,16]{2,1,0} broadcast(constant.545), dimensions={}
+  erfc.636 = f32[1,4,16]{1,0,2} add(erfc.635, broadcast.163)
+  erfc.637 = f32[1,4,16]{1,0,2} multiply(erfc.636, erfc.630)
+  constant.544 = f32[] constant(0.112835854)
+  broadcast.162 = f32[1,4,16]{2,1,0} broadcast(constant.544), dimensions={}
+  erfc.638 = f32[1,4,16]{1,0,2} add(erfc.637, broadcast.162)
+  erfc.639 = f32[1,4,16]{1,0,2} multiply(erfc.638, erfc.630)
+  constant.543 = f32[] constant(-0.37612626)
+  broadcast.161 = f32[1,4,16]{2,1,0} broadcast(constant.543), dimensions={}
+  erfc.640 = f32[1,4,16]{1,0,2} add(erfc.639, broadcast.161)
+  erfc.641 = f32[1,4,16]{1,0,2} multiply(erfc.640, erfc.630)
+  constant.542 = f32[] constant(1.12837911)
+  broadcast.160 = f32[1,4,16]{2,1,0} broadcast(constant.542), dimensions={}
+  erfc.642 = f32[1,4,16]{1,0,2} add(erfc.641, broadcast.160)
+  erfc.643 = f32[1,4,16]{1,0,2} multiply(mul.153, erfc.642)
+  erfc.644 = f32[1,4,16]{2,1,0} subtract(broadcast.187, erfc.643)
+  constant.549 = f32[] constant(0)
+  broadcast.167 = f32[1,4,16]{2,1,0} broadcast(constant.549), dimensions={}
+  erfc.627 = pred[1,4,16]{1,0,2} compare(mul.153, broadcast.167), direction=LT
+  constant.568 = f32[] constant(2)
+  broadcast.186 = f32[1,4,16]{2,1,0} broadcast(constant.568), dimensions={}
+  erfc.585 = f32[1,4,16]{1,0,2} multiply(mul.153, mul.153)
+  erfc.586 = f32[1,4,16]{1,0,2} negate(erfc.585)
+  constant.550 = f32[] constant(-88.7228394)
+  broadcast.168 = f32[1,4,16]{2,1,0} broadcast(constant.550), dimensions={}
+  erfc.625 = pred[1,4,16]{1,0,2} compare(erfc.586, broadcast.168), direction=LT
+  erfc.589 = f32[1,4,16]{1,0,2} exponential(erfc.586)
+  erfc.587 = f32[1,4,16]{1,0,2} abs(mul.153)
+  erfc.590 = f32[1,4,16]{2,1,0} divide(broadcast.187, erfc.587)
+  erfc.591 = f32[1,4,16]{1,0,2} multiply(erfc.589, erfc.590)
+  erfc.592 = pred[1,4,16]{1,0,2} compare(erfc.587, broadcast.186), direction=LT
+  erfc.588 = f32[1,4,16]{2,1,0} divide(broadcast.187, erfc.585)
+  constant.567 = f32[] constant(0.0232682)
+  broadcast.185 = f32[1,4,16]{2,1,0} broadcast(constant.567), dimensions={}
+  erfc.593 = f32[1,4,16]{2,1,0} multiply(erfc.588, broadcast.185)
+  constant.566 = f32[] constant(-0.138703942)
+  broadcast.184 = f32[1,4,16]{2,1,0} broadcast(constant.566), dimensions={}
+  erfc.594 = f32[1,4,16]{2,1,0} add(erfc.593, broadcast.184)
+  erfc.595 = f32[1,4,16]{2,1,0} multiply(erfc.594, erfc.588)
+  constant.565 = f32[] constant(0.368742466)
+  broadcast.183 = f32[1,4,16]{2,1,0} broadcast(constant.565), dimensions={}
+  erfc.596 = f32[1,4,16]{2,1,0} add(erfc.595, broadcast.183)
+  erfc.597 = f32[1,4,16]{2,1,0} multiply(erfc.596, erfc.588)
+  constant.564 = f32[] constant(-0.582473278)
+  broadcast.182 = f32[1,4,16]{2,1,0} broadcast(constant.564), dimensions={}
+  erfc.598 = f32[1,4,16]{2,1,0} add(erfc.597, broadcast.182)
+  erfc.599 = f32[1,4,16]{2,1,0} multiply(erfc.598, erfc.588)
+  constant.563 = f32[] constant(0.621000469)
+  broadcast.181 = f32[1,4,16]{2,1,0} broadcast(constant.563), dimensions={}
+  erfc.600 = f32[1,4,16]{2,1,0} add(erfc.599, broadcast.181)
+  erfc.601 = f32[1,4,16]{2,1,0} multiply(erfc.600, erfc.588)
+  constant.562 = f32[] constant(-0.494451523)
+  broadcast.180 = f32[1,4,16]{2,1,0} broadcast(constant.562), dimensions={}
+  erfc.602 = f32[1,4,16]{2,1,0} add(erfc.601, broadcast.180)
+  erfc.603 = f32[1,4,16]{2,1,0} multiply(erfc.602, erfc.588)
+  constant.561 = f32[] constant(0.340488)
+  broadcast.179 = f32[1,4,16]{2,1,0} broadcast(constant.561), dimensions={}
+  erfc.604 = f32[1,4,16]{2,1,0} add(erfc.603, broadcast.179)
+  erfc.605 = f32[1,4,16]{2,1,0} multiply(erfc.604, erfc.588)
+  constant.560 = f32[] constant(-0.274112701)
+  broadcast.178 = f32[1,4,16]{2,1,0} broadcast(constant.560), dimensions={}
+  erfc.606 = f32[1,4,16]{2,1,0} add(erfc.605, broadcast.178)
+  erfc.607 = f32[1,4,16]{2,1,0} multiply(erfc.606, erfc.588)
+  constant.559 = f32[] constant(0.563825965)
+  broadcast.177 = f32[1,4,16]{2,1,0} broadcast(constant.559), dimensions={}
+  erfc.608 = f32[1,4,16]{2,1,0} add(erfc.607, broadcast.177)
+  constant.558 = f32[] constant(-10.477664)
+  broadcast.176 = f32[1,4,16]{2,1,0} broadcast(constant.558), dimensions={}
+  erfc.609 = f32[1,4,16]{2,1,0} multiply(erfc.588, broadcast.176)
+  constant.557 = f32[] constant(12.9772)
+  broadcast.175 = f32[1,4,16]{2,1,0} broadcast(constant.557), dimensions={}
+  erfc.610 = f32[1,4,16]{2,1,0} add(erfc.609, broadcast.175)
+  erfc.611 = f32[1,4,16]{2,1,0} multiply(erfc.610, erfc.588)
+  constant.556 = f32[] constant(-7.49551868)
+  broadcast.174 = f32[1,4,16]{2,1,0} broadcast(constant.556), dimensions={}
+  erfc.612 = f32[1,4,16]{2,1,0} add(erfc.611, broadcast.174)
+  erfc.613 = f32[1,4,16]{2,1,0} multiply(erfc.612, erfc.588)
+  constant.555 = f32[] constant(2.92101908)
+  broadcast.173 = f32[1,4,16]{2,1,0} broadcast(constant.555), dimensions={}
+  erfc.614 = f32[1,4,16]{2,1,0} add(erfc.613, broadcast.173)
+  erfc.615 = f32[1,4,16]{2,1,0} multiply(erfc.614, erfc.588)
+  constant.554 = f32[] constant(-1.01526523)
+  broadcast.172 = f32[1,4,16]{2,1,0} broadcast(constant.554), dimensions={}
+  erfc.616 = f32[1,4,16]{2,1,0} add(erfc.615, broadcast.172)
+  erfc.617 = f32[1,4,16]{2,1,0} multiply(erfc.616, erfc.588)
+  constant.553 = f32[] constant(0.42184633)
+  broadcast.171 = f32[1,4,16]{2,1,0} broadcast(constant.553), dimensions={}
+  erfc.618 = f32[1,4,16]{2,1,0} add(erfc.617, broadcast.171)
+  erfc.619 = f32[1,4,16]{2,1,0} multiply(erfc.618, erfc.588)
+  constant.552 = f32[] constant(-0.282076746)
+  broadcast.170 = f32[1,4,16]{2,1,0} broadcast(constant.552), dimensions={}
+  erfc.620 = f32[1,4,16]{2,1,0} add(erfc.619, broadcast.170)
+  erfc.621 = f32[1,4,16]{2,1,0} multiply(erfc.620, erfc.588)
+  constant.551 = f32[] constant(0.564189494)
+  broadcast.169 = f32[1,4,16]{2,1,0} broadcast(constant.551), dimensions={}
+  erfc.622 = f32[1,4,16]{2,1,0} add(erfc.621, broadcast.169)
+  erfc.623 = f32[1,4,16]{1,0,2} select(erfc.592, erfc.608, erfc.622)
+  erfc.624 = f32[1,4,16]{1,0,2} multiply(erfc.591, erfc.623)
+  erfc.626 = f32[1,4,16]{1,0,2} select(erfc.625, broadcast.167, erfc.624)
+  erfc.628 = f32[1,4,16]{2,1,0} subtract(broadcast.186, erfc.626)
+  erfc.629 = f32[1,4,16]{1,0,2} select(erfc.627, erfc.628, erfc.626)
+  erfc.647 = f32[1,4,16]{1,0,2} select(erfc.646, erfc.644, erfc.629)
+  mul.154 = f32[1,4,16]{1,0,2} multiply(mul.152, erfc.647)
+  dot_general.20 = f32[16,1,4]{2,1,0} dot(Arg_7.13, mul.154), lhs_contracting_dims={1}, rhs_contracting_dims={2}
+  transpose.21 = f32[1,4,16]{1,0,2} transpose(dot_general.20), dimensions={1,2,0}
+  Arg_8.1 = f32[16]{0} parameter(8)
+  broadcast_in_dim.131 = f32[1,1,16]{2,1,0} reshape(Arg_8.1)
+  add.356 = f32[1,1,16]{2,1,0} broadcast(broadcast_in_dim.131), dimensions={0,1,2}
+  add.357 = f32[1,16]{1,0} reshape(add.356)
+  add.358 = f32[1,4,16]{2,1,0} broadcast(add.357), dimensions={0,2}
+  add.359 = f32[1,4,16]{1,0,2} add(transpose.21, add.358)
+  mul.155 = f32[1,4,16]{1,0,2} multiply(add.359, broadcast.156)
+  neg.16 = f32[1,4,16]{1,0,2} negate(add.359)
+  mul.156 = f32[1,4,16]{1,0,2} multiply(neg.16, broadcast.155)
+  erfc.708 = f32[1,4,16]{1,0,2} abs(mul.156)
+  erfc.709 = pred[1,4,16]{1,0,2} compare(erfc.708, broadcast.187), direction=LT
+  erfc.693 = f32[1,4,16]{1,0,2} multiply(mul.156, mul.156)
+  erfc.694 = f32[1,4,16]{1,0,2} multiply(erfc.693, broadcast.166)
+  erfc.695 = f32[1,4,16]{1,0,2} add(erfc.694, broadcast.165)
+  erfc.696 = f32[1,4,16]{1,0,2} multiply(erfc.695, erfc.693)
+  erfc.697 = f32[1,4,16]{1,0,2} add(erfc.696, broadcast.164)
+  erfc.698 = f32[1,4,16]{1,0,2} multiply(erfc.697, erfc.693)
+  erfc.699 = f32[1,4,16]{1,0,2} add(erfc.698, broadcast.163)
+  erfc.700 = f32[1,4,16]{1,0,2} multiply(erfc.699, erfc.693)
+  erfc.701 = f32[1,4,16]{1,0,2} add(erfc.700, broadcast.162)
+  erfc.702 = f32[1,4,16]{1,0,2} multiply(erfc.701, erfc.693)
+  erfc.703 = f32[1,4,16]{1,0,2} add(erfc.702, broadcast.161)
+  erfc.704 = f32[1,4,16]{1,0,2} multiply(erfc.703, erfc.693)
+  erfc.705 = f32[1,4,16]{1,0,2} add(erfc.704, broadcast.160)
+  erfc.706 = f32[1,4,16]{1,0,2} multiply(mul.156, erfc.705)
+  erfc.707 = f32[1,4,16]{2,1,0} subtract(broadcast.187, erfc.706)
+  erfc.690 = pred[1,4,16]{1,0,2} compare(mul.156, broadcast.167), direction=LT
+  erfc.648 = f32[1,4,16]{1,0,2} multiply(mul.156, mul.156)
+  erfc.649 = f32[1,4,16]{1,0,2} negate(erfc.648)
+  erfc.688 = pred[1,4,16]{1,0,2} compare(erfc.649, broadcast.168), direction=LT
+  erfc.652 = f32[1,4,16]{1,0,2} exponential(erfc.649)
+  erfc.650 = f32[1,4,16]{1,0,2} abs(mul.156)
+  erfc.653 = f32[1,4,16]{2,1,0} divide(broadcast.187, erfc.650)
+  erfc.654 = f32[1,4,16]{1,0,2} multiply(erfc.652, erfc.653)
+  erfc.655 = pred[1,4,16]{1,0,2} compare(erfc.650, broadcast.186), direction=LT
+  erfc.651 = f32[1,4,16]{2,1,0} divide(broadcast.187, erfc.648)
+  erfc.656 = f32[1,4,16]{2,1,0} multiply(erfc.651, broadcast.185)
+  erfc.657 = f32[1,4,16]{2,1,0} add(erfc.656, broadcast.184)
+  erfc.658 = f32[1,4,16]{2,1,0} multiply(erfc.657, erfc.651)
+  erfc.659 = f32[1,4,16]{2,1,0} add(erfc.658, broadcast.183)
+  erfc.660 = f32[1,4,16]{2,1,0} multiply(erfc.659, erfc.651)
+  erfc.661 = f32[1,4,16]{2,1,0} add(erfc.660, broadcast.182)
+  erfc.662 = f32[1,4,16]{2,1,0} multiply(erfc.661, erfc.651)
+  erfc.663 = f32[1,4,16]{2,1,0} add(erfc.662, broadcast.181)
+  erfc.664 = f32[1,4,16]{2,1,0} multiply(erfc.663, erfc.651)
+  erfc.665 = f32[1,4,16]{2,1,0} add(erfc.664, broadcast.180)
+  erfc.666 = f32[1,4,16]{2,1,0} multiply(erfc.665, erfc.651)
+  erfc.667 = f32[1,4,16]{2,1,0} add(erfc.666, broadcast.179)
+  erfc.668 = f32[1,4,16]{2,1,0} multiply(erfc.667, erfc.651)
+  erfc.669 = f32[1,4,16]{2,1,0} add(erfc.668, broadcast.178)
+  erfc.670 = f32[1,4,16]{2,1,0} multiply(erfc.669, erfc.651)
+  erfc.671 = f32[1,4,16]{2,1,0} add(erfc.670, broadcast.177)
+  erfc.672 = f32[1,4,16]{2,1,0} multiply(erfc.651, broadcast.176)
+  erfc.673 = f32[1,4,16]{2,1,0} add(erfc.672, broadcast.175)
+  erfc.674 = f32[1,4,16]{2,1,0} multiply(erfc.673, erfc.651)
+  erfc.675 = f32[1,4,16]{2,1,0} add(erfc.674, broadcast.174)
+  erfc.676 = f32[1,4,16]{2,1,0} multiply(erfc.675, erfc.651)
+  erfc.677 = f32[1,4,16]{2,1,0} add(erfc.676, broadcast.173)
+  erfc.678 = f32[1,4,16]{2,1,0} multiply(erfc.677, erfc.651)
+  erfc.679 = f32[1,4,16]{2,1,0} add(erfc.678, broadcast.172)
+  erfc.680 = f32[1,4,16]{2,1,0} multiply(erfc.679, erfc.651)
+  erfc.681 = f32[1,4,16]{2,1,0} add(erfc.680, broadcast.171)
+  erfc.682 = f32[1,4,16]{2,1,0} multiply(erfc.681, erfc.651)
+  erfc.683 = f32[1,4,16]{2,1,0} add(erfc.682, broadcast.170)
+  erfc.684 = f32[1,4,16]{2,1,0} multiply(erfc.683, erfc.651)
+  erfc.685 = f32[1,4,16]{2,1,0} add(erfc.684, broadcast.169)
+  erfc.686 = f32[1,4,16]{1,0,2} select(erfc.655, erfc.671, erfc.685)
+  erfc.687 = f32[1,4,16]{1,0,2} multiply(erfc.654, erfc.686)
+  erfc.689 = f32[1,4,16]{1,0,2} select(erfc.688, broadcast.167, erfc.687)
+  erfc.691 = f32[1,4,16]{2,1,0} subtract(broadcast.186, erfc.689)
+  erfc.692 = f32[1,4,16]{1,0,2} select(erfc.690, erfc.691, erfc.689)
+  erfc.710 = f32[1,4,16]{1,0,2} select(erfc.709, erfc.707, erfc.692)
+  mul.157 = f32[1,4,16]{1,0,2} multiply(mul.155, erfc.710)
+  dot_general.21 = f32[16,1,4]{2,1,0} dot(Arg_9.1, mul.157), lhs_contracting_dims={1}, rhs_contracting_dims={2}
+  transpose.22 = f32[1,4,16]{1,0,2} transpose(dot_general.21), dimensions={1,2,0}
+  Arg_10.1 = f32[16]{0} parameter(10)
+  broadcast_in_dim.132 = f32[1,1,16]{2,1,0} reshape(Arg_10.1)
+  add.360 = f32[1,1,16]{2,1,0} broadcast(broadcast_in_dim.132), dimensions={0,1,2}
+  add.361 = f32[1,16]{1,0} reshape(add.360)
+  add.362 = f32[1,4,16]{2,1,0} broadcast(add.361), dimensions={0,2}
+  add.363 = f32[1,4,16]{1,0,2} add(transpose.22, add.362)
+  constant.541 = f32[] constant(0)
+  reduce_sum.135 = f32[1,16]{1,0} reduce(add.363, constant.541), dimensions={1}, to_apply=region_29.64
+  constant.508 = f32[] constant(30)
+  broadcast.154 = f32[1,16]{1,0} broadcast(constant.508), dimensions={}
+  div.45 = f32[1,16]{1,0} divide(reduce_sum.135, broadcast.154)
+  constant.506 = f32[] constant(0.9)
+  broadcast.153 = f32[1,16]{1,0} broadcast(constant.506), dimensions={}
+  div.46 = f32[1,16]{1,0} divide(div.45, broadcast.153)
+  jit__where_.10 = f32[1,16]{1,0} call(jit__bernoulli_.2, div.46, constant.571), to_apply=_where_303.71
+  add.364 = f32[1,16]{1,0} add(broadcast_in_dim_squeeze.5, jit__where_.10)
+  reduce_sum.136 = f32[1]{0} reduce(add.364, constant.541), dimensions={1}, to_apply=region_32.72
+  broadcast_in_dim.133 = f32[1,1]{1,0} reshape(reduce_sum.136)
+  constant.505 = f32[1,1]{1,0} constant({ {16} })
+  div.47 = f32[1,1]{1,0} divide(broadcast_in_dim.133, constant.505)
+  sub.187 = f32[1,1]{1,0} broadcast(div.47), dimensions={0,1}
+  sub.188 = f32[1]{0} reshape(sub.187)
+  sub.189 = f32[1,16]{1,0} broadcast(sub.188), dimensions={0}
+  sub.190 = f32[1,16]{1,0} subtract(add.364, sub.189)
+  jit__var_.6 = f32[1,1]{1,0} call(add.364, constant.571), to_apply=_var_310.76
+  constant.504 = f32[1,1]{1,0} constant({ {0} })
+  max.33 = f32[1,1]{1,0} maximum(jit__var_.6, constant.504)
+  constant.503 = f32[1,1]{1,0} constant({ {1e-05} })
+  add.365 = f32[1,1]{1,0} add(max.33, constant.503)
+  rsqrt.6 = f32[1,1]{1,0} rsqrt(add.365)
+  mul.158 = f32[1,1]{1,0} broadcast(rsqrt.6), dimensions={0,1}
+  mul.159 = f32[1]{0} reshape(mul.158)
+  mul.160 = f32[1,16]{1,0} broadcast(mul.159), dimensions={0}
+  mul.161 = f32[1,16]{1,0} multiply(sub.190, mul.160)
+  mul.162 = f32[1,16]{1,0} multiply(broadcast_in_dim.134, mul.161)
+  Arg_12.1 = f32[16]{0} parameter(12)
+  broadcast_in_dim.135 = f32[1,16]{1,0} reshape(Arg_12.1)
+  add.366 = f32[1,16]{1,0} add(mul.162, broadcast_in_dim.135)
+  slice.113 = u32[1,2]{1,0} slice(jit__threefry_split_.11), slice={[1:2], [0:2]}
+  squeeze.130 = u32[2]{0} reshape(slice.113)
+  jit__bernoulli_.3 = pred[1,16]{1,0} call(squeeze.130, constant.507), to_apply=_bernoulli.70
+  Arg_15.1 = f32[16,64]{1,0} parameter(15)
+  Arg_13.1 = f32[64,16]{1,0} parameter(13)
+  dot_general.22 = f32[64,1]{1,0} dot(Arg_13.1, add.366), lhs_contracting_dims={1}, rhs_contracting_dims={1}
+  transpose.23 = f32[1,64]{1,0} reshape(dot_general.22)
+  Arg_14.1 = f32[64]{0} parameter(14)
+  broadcast_in_dim.136 = f32[1,64]{1,0} reshape(Arg_14.1)
+  add.367 = f32[1,64]{1,0} add(transpose.23, broadcast_in_dim.136)
+  constant.502 = f32[] constant(0.5)
+  mul.147 = f32[1,64]{1,0} broadcast(constant.502), dimensions={}
+  mul.163 = f32[1,64]{1,0} multiply(add.367, mul.147)
+  neg.17 = f32[1,64]{1,0} negate(add.367)
+  constant.501 = f32[] constant(0.707106769)
+  mul.146 = f32[1,64]{1,0} broadcast(constant.501), dimensions={}
+  mul.164 = f32[1,64]{1,0} multiply(neg.17, mul.146)
+  erfc.771 = f32[1,64]{1,0} abs(mul.164)
+  constant.540 = f32[] constant(1)
+  broadcast.159 = f32[1,64]{1,0} broadcast(constant.540), dimensions={}
+  erfc.772 = pred[1,64]{1,0} compare(erfc.771, broadcast.159), direction=LT
+  erfc.756 = f32[1,64]{1,0} multiply(mul.164, mul.164)
+  constant.519 = f32[] constant(7.85386146e-05)
+  erfc.564 = f32[1,64]{1,0} broadcast(constant.519), dimensions={}
+  erfc.757 = f32[1,64]{1,0} multiply(erfc.756, erfc.564)
+  constant.518 = f32[] constant(-0.000801019371)
+  erfc.563 = f32[1,64]{1,0} broadcast(constant.518), dimensions={}
+  erfc.758 = f32[1,64]{1,0} add(erfc.757, erfc.563)
+  erfc.759 = f32[1,64]{1,0} multiply(erfc.758, erfc.756)
+  constant.517 = f32[] constant(0.00518832775)
+  erfc.562 = f32[1,64]{1,0} broadcast(constant.517), dimensions={}
+  erfc.760 = f32[1,64]{1,0} add(erfc.759, erfc.562)
+  erfc.761 = f32[1,64]{1,0} multiply(erfc.760, erfc.756)
+  constant.516 = f32[] constant(-0.0268538129)
+  erfc.561 = f32[1,64]{1,0} broadcast(constant.516), dimensions={}
+  erfc.762 = f32[1,64]{1,0} add(erfc.761, erfc.561)
+  erfc.763 = f32[1,64]{1,0} multiply(erfc.762, erfc.756)
+  constant.515 = f32[] constant(0.112835854)
+  erfc.560 = f32[1,64]{1,0} broadcast(constant.515), dimensions={}
+  erfc.764 = f32[1,64]{1,0} add(erfc.763, erfc.560)
+  erfc.765 = f32[1,64]{1,0} multiply(erfc.764, erfc.756)
+  constant.514 = f32[] constant(-0.37612626)
+  erfc.559 = f32[1,64]{1,0} broadcast(constant.514), dimensions={}
+  erfc.766 = f32[1,64]{1,0} add(erfc.765, erfc.559)
+  erfc.767 = f32[1,64]{1,0} multiply(erfc.766, erfc.756)
+  constant.513 = f32[] constant(1.12837911)
+  erfc.558 = f32[1,64]{1,0} broadcast(constant.513), dimensions={}
+  erfc.768 = f32[1,64]{1,0} add(erfc.767, erfc.558)
+  erfc.769 = f32[1,64]{1,0} multiply(mul.164, erfc.768)
+  erfc.770 = f32[1,64]{1,0} subtract(broadcast.159, erfc.769)
+  constant.520 = f32[] constant(0)
+  erfc.565 = f32[1,64]{1,0} broadcast(constant.520), dimensions={}
+  erfc.753 = pred[1,64]{1,0} compare(mul.164, erfc.565), direction=LT
+  constant.539 = f32[] constant(2)
+  erfc.584 = f32[1,64]{1,0} broadcast(constant.539), dimensions={}
+  erfc.711 = f32[1,64]{1,0} multiply(mul.164, mul.164)
+  erfc.712 = f32[1,64]{1,0} negate(erfc.711)
+  constant.521 = f32[] constant(-88.7228394)
+  erfc.566 = f32[1,64]{1,0} broadcast(constant.521), dimensions={}
+  erfc.751 = pred[1,64]{1,0} compare(erfc.712, erfc.566), direction=LT
+  erfc.715 = f32[1,64]{1,0} exponential(erfc.712)
+  erfc.713 = f32[1,64]{1,0} abs(mul.164)
+  erfc.716 = f32[1,64]{1,0} divide(broadcast.159, erfc.713)
+  erfc.717 = f32[1,64]{1,0} multiply(erfc.715, erfc.716)
+  erfc.718 = pred[1,64]{1,0} compare(erfc.713, erfc.584), direction=LT
+  erfc.714 = f32[1,64]{1,0} divide(broadcast.159, erfc.711)
+  constant.538 = f32[] constant(0.0232682)
+  erfc.583 = f32[1,64]{1,0} broadcast(constant.538), dimensions={}
+  erfc.719 = f32[1,64]{1,0} multiply(erfc.714, erfc.583)
+  constant.537 = f32[] constant(-0.138703942)
+  erfc.582 = f32[1,64]{1,0} broadcast(constant.537), dimensions={}
+  erfc.720 = f32[1,64]{1,0} add(erfc.719, erfc.582)
+  erfc.721 = f32[1,64]{1,0} multiply(erfc.720, erfc.714)
+  constant.536 = f32[] constant(0.368742466)
+  erfc.581 = f32[1,64]{1,0} broadcast(constant.536), dimensions={}
+  erfc.722 = f32[1,64]{1,0} add(erfc.721, erfc.581)
+  erfc.723 = f32[1,64]{1,0} multiply(erfc.722, erfc.714)
+  constant.535 = f32[] constant(-0.582473278)
+  erfc.580 = f32[1,64]{1,0} broadcast(constant.535), dimensions={}
+  erfc.724 = f32[1,64]{1,0} add(erfc.723, erfc.580)
+  erfc.725 = f32[1,64]{1,0} multiply(erfc.724, erfc.714)
+  constant.534 = f32[] constant(0.621000469)
+  erfc.579 = f32[1,64]{1,0} broadcast(constant.534), dimensions={}
+  erfc.726 = f32[1,64]{1,0} add(erfc.725, erfc.579)
+  erfc.727 = f32[1,64]{1,0} multiply(erfc.726, erfc.714)
+  constant.533 = f32[] constant(-0.494451523)
+  erfc.578 = f32[1,64]{1,0} broadcast(constant.533), dimensions={}
+  erfc.728 = f32[1,64]{1,0} add(erfc.727, erfc.578)
+  erfc.729 = f32[1,64]{1,0} multiply(erfc.728, erfc.714)
+  constant.532 = f32[] constant(0.340488)
+  erfc.577 = f32[1,64]{1,0} broadcast(constant.532), dimensions={}
+  erfc.730 = f32[1,64]{1,0} add(erfc.729, erfc.577)
+  erfc.731 = f32[1,64]{1,0} multiply(erfc.730, erfc.714)
+  constant.531 = f32[] constant(-0.274112701)
+  erfc.576 = f32[1,64]{1,0} broadcast(constant.531), dimensions={}
+  erfc.732 = f32[1,64]{1,0} add(erfc.731, erfc.576)
+  erfc.733 = f32[1,64]{1,0} multiply(erfc.732, erfc.714)
+  constant.530 = f32[] constant(0.563825965)
+  erfc.575 = f32[1,64]{1,0} broadcast(constant.530), dimensions={}
+  erfc.734 = f32[1,64]{1,0} add(erfc.733, erfc.575)
+  constant.529 = f32[] constant(-10.477664)
+  erfc.574 = f32[1,64]{1,0} broadcast(constant.529), dimensions={}
+  erfc.735 = f32[1,64]{1,0} multiply(erfc.714, erfc.574)
+  constant.528 = f32[] constant(12.9772)
+  erfc.573 = f32[1,64]{1,0} broadcast(constant.528), dimensions={}
+  erfc.736 = f32[1,64]{1,0} add(erfc.735, erfc.573)
+  erfc.737 = f32[1,64]{1,0} multiply(erfc.736, erfc.714)
+  constant.527 = f32[] constant(-7.49551868)
+  erfc.572 = f32[1,64]{1,0} broadcast(constant.527), dimensions={}
+  erfc.738 = f32[1,64]{1,0} add(erfc.737, erfc.572)
+  erfc.739 = f32[1,64]{1,0} multiply(erfc.738, erfc.714)
+  constant.526 = f32[] constant(2.92101908)
+  erfc.571 = f32[1,64]{1,0} broadcast(constant.526), dimensions={}
+  erfc.740 = f32[1,64]{1,0} add(erfc.739, erfc.571)
+  erfc.741 = f32[1,64]{1,0} multiply(erfc.740, erfc.714)
+  constant.525 = f32[] constant(-1.01526523)
+  erfc.570 = f32[1,64]{1,0} broadcast(constant.525), dimensions={}
+  erfc.742 = f32[1,64]{1,0} add(erfc.741, erfc.570)
+  erfc.743 = f32[1,64]{1,0} multiply(erfc.742, erfc.714)
+  constant.524 = f32[] constant(0.42184633)
+  erfc.569 = f32[1,64]{1,0} broadcast(constant.524), dimensions={}
+  erfc.744 = f32[1,64]{1,0} add(erfc.743, erfc.569)
+  erfc.745 = f32[1,64]{1,0} multiply(erfc.744, erfc.714)
+  constant.523 = f32[] constant(-0.282076746)
+  erfc.568 = f32[1,64]{1,0} broadcast(constant.523), dimensions={}
+  erfc.746 = f32[1,64]{1,0} add(erfc.745, erfc.568)
+  erfc.747 = f32[1,64]{1,0} multiply(erfc.746, erfc.714)
+  constant.522 = f32[] constant(0.564189494)
+  erfc.567 = f32[1,64]{1,0} broadcast(constant.522), dimensions={}
+  erfc.748 = f32[1,64]{1,0} add(erfc.747, erfc.567)
+  erfc.749 = f32[1,64]{1,0} select(erfc.718, erfc.734, erfc.748)
+  erfc.750 = f32[1,64]{1,0} multiply(erfc.717, erfc.749)
+  erfc.752 = f32[1,64]{1,0} select(erfc.751, erfc.565, erfc.750)
+  erfc.754 = f32[1,64]{1,0} subtract(erfc.584, erfc.752)
+  erfc.755 = f32[1,64]{1,0} select(erfc.753, erfc.754, erfc.752)
+  erfc.773 = f32[1,64]{1,0} select(erfc.772, erfc.770, erfc.755)
+  mul.165 = f32[1,64]{1,0} multiply(mul.163, erfc.773)
+  dot_general.23 = f32[16,1]{1,0} dot(Arg_15.1, mul.165), lhs_contracting_dims={1}, rhs_contracting_dims={1}
+  transpose.24 = f32[1,16]{1,0} reshape(dot_general.23)
+  Arg_16.1 = f32[16]{0} parameter(16)
+  broadcast_in_dim.137 = f32[1,16]{1,0} reshape(Arg_16.1)
+  add.368 = f32[1,16]{1,0} add(transpose.24, broadcast_in_dim.137)
+  div.48 = f32[1,16]{1,0} divide(add.368, broadcast.153)
+  jit__where_.11 = f32[1,16]{1,0} call(jit__bernoulli_.3, div.48, constant.571), to_apply=_where_303.71
+  add.369 = f32[1,16]{1,0} add(add.366, jit__where_.11)
+  reduce_sum.137 = f32[1]{0} reduce(add.369, constant.541), dimensions={1}, to_apply=region_35.77
+  broadcast_in_dim.138 = f32[1,1]{1,0} reshape(reduce_sum.137)
+  div.49 = f32[1,1]{1,0} divide(broadcast_in_dim.138, constant.505)
+  sub.191 = f32[1,1]{1,0} broadcast(div.49), dimensions={0,1}
+  sub.192 = f32[1]{0} reshape(sub.191)
+  sub.193 = f32[1,16]{1,0} broadcast(sub.192), dimensions={0}
+  sub.194 = f32[1,16]{1,0} subtract(add.369, sub.193)
+  jit__var_.7 = f32[1,1]{1,0} call(add.369, constant.571), to_apply=_var_310.76
+  max.34 = f32[1,1]{1,0} maximum(jit__var_.7, constant.504)
+  add.370 = f32[1,1]{1,0} add(max.34, constant.503)
+  rsqrt.7 = f32[1,1]{1,0} rsqrt(add.370)
+  mul.166 = f32[1,1]{1,0} broadcast(rsqrt.7), dimensions={0,1}
+  mul.167 = f32[1]{0} reshape(mul.166)
+  mul.168 = f32[1,16]{1,0} broadcast(mul.167), dimensions={0}
+  mul.169 = f32[1,16]{1,0} multiply(sub.194, mul.168)
+  mul.170 = f32[1,16]{1,0} multiply(broadcast_in_dim.139, mul.169)
+  Arg_18.1 = f32[16]{0} parameter(18)
+  broadcast_in_dim.140 = f32[1,16]{1,0} reshape(Arg_18.1)
+  add.371 = f32[1,16]{1,0} add(mul.170, broadcast_in_dim.140)
+  mul.172 = f32[1,16]{1,0} multiply(mul.171, add.371)
+  squeeze.131 = f32[16]{0} reshape(mul.172)
+  scatter.20 = f32[2,4,16]{2,1,0} scatter(Arg_26.1, concatenate.21, squeeze.131), update_window_dims={0}, inserted_window_dims={0,1}, scatter_dims_to_operand_dims={0,1}, index_vector_dim=0, indices_are_sorted=true, unique_indices=true, to_apply=region_36.78
+  lt.56 = pred[] compare(Arg_29.1, constant.571), direction=LT
+  add.378 = s32[] add(Arg_29.1, constant.570)
+  select_n.66 = s32[] select(lt.56, add.378, Arg_29.1)
+  broadcast_in_dim.143 = s32[1]{0} reshape(select_n.66)
+  Arg_22.1 = pred[4]{0} parameter(22)
+  lt.55 = pred[] compare(Arg_29.1, constant.571), direction=LT
+  add.377 = s32[] add(Arg_29.1, constant.570)
+  select_n.65 = s32[] select(lt.55, add.377, Arg_29.1)
+  dynamic_slice.23 = pred[1]{0} dynamic-slice(Arg_22.1, select_n.65), dynamic_slice_sizes={1}
+  squeeze.133 = pred[] reshape(dynamic_slice.23)
+  convert_element_type.37 = s32[] convert(squeeze.133)
+  Arg_24.1 = f32[] parameter(24)
+  Arg_19.1 = f32[21,16]{1,0} parameter(19)
+  constant.499 = s32[] constant(1)
+  lt.53 = pred[] compare(Arg_29.1, constant.571), direction=LT
+  add.373 = s32[] add(Arg_29.1, constant.570)
+  select_n.63 = s32[] select(lt.53, add.373, Arg_29.1)
+  dynamic_slice.21 = f32[1,1,16]{2,1,0} dynamic-slice(scatter.20, constant.499, select_n.63, constant.571), dynamic_slice_sizes={1,1,16}
+  squeeze.132 = f32[16]{0} reshape(dynamic_slice.21)
+  dot_general.24 = f32[21]{0} dot(Arg_19.1, squeeze.132), lhs_contracting_dims={1}, rhs_contracting_dims={0}
+  Arg_20.1 = f32[21]{0} parameter(20)
+  add.374 = f32[21]{0} add(dot_general.24, Arg_20.1)
+  broadcast_in_dim.142 = f32[1,21]{1,0} reshape(add.374)
+  Arg_21.1 = f32[4,21]{1,0} parameter(21)
+  lt.54 = pred[] compare(Arg_29.1, constant.571), direction=LT
+  add.375 = s32[] add(Arg_29.1, constant.570)
+  select_n.64 = s32[] select(lt.54, add.375, Arg_29.1)
+  dynamic_slice.22 = f32[1,21]{1,0} dynamic-slice(Arg_21.1, select_n.64, constant.571), dynamic_slice_sizes={1,21}
+  add.376 = f32[1,21]{1,0} add(broadcast_in_dim.142, dynamic_slice.22)
+  cond.7 = (f32[], f32[1,21]{1,0}, u32[2]{0}) tuple(Arg_24.1, add.376, Arg_30.1)
+  Arg_23.1 = s32[4]{0} parameter(23)
+  cond.8 = (s32[], s32[4]{0}) tuple(Arg_29.1, Arg_23.1)
+  cond.9 = f32[1,21]{1,0} conditional(convert_element_type.37, cond.7, cond.8), branch_computations={region_37.90, region_43.92}
+  Arg_25.1 = f32[21,16]{1,0} parameter(25)
+  dot_general.25 = f32[1,16]{1,0} dot(cond.9, Arg_25.1), lhs_contracting_dims={1}, rhs_contracting_dims={0}
+  squeeze.134 = f32[16]{0} reshape(dot_general.25)
+  scatter.21 = f32[4,16]{1,0} scatter(Arg_27.1, broadcast_in_dim.143, squeeze.134), update_window_dims={0}, inserted_window_dims={0}, scatter_dims_to_operand_dims={0}, index_vector_dim=0, indices_are_sorted=true, unique_indices=true, to_apply=region_44.93
+  Arg_28.1 = f32[4,21]{1,0} parameter(28)
+  lt.57 = pred[] compare(Arg_29.1, constant.571), direction=LT
+  add.379 = s32[] add(Arg_29.1, constant.570)
+  select_n.67 = s32[] select(lt.57, add.379, Arg_29.1)
+  broadcast_in_dim.144 = s32[1]{0} reshape(select_n.67)
+  squeeze.135 = f32[21]{0} reshape(cond.9)
+  scatter.22 = f32[4,21]{1,0} scatter(Arg_28.1, broadcast_in_dim.144, squeeze.135), update_window_dims={0}, inserted_window_dims={0}, scatter_dims_to_operand_dims={0}, index_vector_dim=0, indices_are_sorted=true, unique_indices=true, to_apply=region_45.94
+  ROOT tuple.41 = (f32[2,4,16]{2,1,0}, f32[4,16]{1,0}, f32[4,21]{1,0}) tuple(scatter.20, scatter.21, scatter.22)
+}
+
+region_26.96 {
+  arg_tuple.31 = (s32[], f32[2,4,16]{2,1,0}, f32[4,16]{1,0}, f32[4,21]{1,0}, s32[4]{0}, /*index=5*/u32[4,2]{1,0}, f32[4,4,48]{2,1,0}, s32[4,4]{1,0}, f32[4]{0}, f32[4,4]{1,0}, /*index=10*/f32[4,4,16]{2,1,0}) parameter(0)
+  get-tuple-element.259 = s32[] get-tuple-element(arg_tuple.31), index=0
+  constant.572 = s32[] constant(1)
+  add.381 = s32[] add(get-tuple-element.259, constant.572)
+  get-tuple-element.265 = f32[4,4,48]{2,1,0} get-tuple-element(arg_tuple.31), index=6
+  get-tuple-element.266 = s32[4,4]{1,0} get-tuple-element(arg_tuple.31), index=7
+  get-tuple-element.267 = f32[4]{0} get-tuple-element(arg_tuple.31), index=8
+  get-tuple-element.268 = f32[4,4]{1,0} get-tuple-element(arg_tuple.31), index=9
+  get-tuple-element.269 = f32[4,4,16]{2,1,0} get-tuple-element(arg_tuple.31), index=10
+  constant.591 = f32[16,64]{1,0} constant({...})
+  constant.590 = f32[16]{0} constant({...})
+  constant.589 = f32[16,16]{1,0} constant({...})
+  constant.588 = f32[16]{0} constant({...})
+  constant.587 = f32[16,16]{1,0} constant({...})
+  constant.586 = f32[16]{0} constant({...})
+  constant.585 = f32[] constant(1)
+  broadcast.192 = f32[16]{0} broadcast(constant.585), dimensions={}
+  constant.584 = f32[] constant(0)
+  broadcast.191 = f32[16]{0} broadcast(constant.584), dimensions={}
+  constant.583 = f32[64,16]{1,0} constant({...})
+  constant.582 = f32[64]{0} constant({...})
+  constant.581 = f32[16,64]{1,0} constant({...})
+  constant.580 = f32[16]{0} constant({...})
+  constant.579 = f32[21,16]{1,0} constant({...})
+  constant.578 = f32[21]{0} constant({...})
+  constant.577 = f32[] constant(0)
+  broadcast.190 = f32[4,21]{1,0} broadcast(constant.577), dimensions={}
+  constant.576 = pred[] constant(false)
+  broadcast.189 = pred[4]{0} broadcast(constant.576), dimensions={}
+  constant.575 = s32[] constant(0)
+  broadcast.188 = s32[4]{0} broadcast(constant.575), dimensions={}
+  constant.574 = f32[] constant(1)
+  constant.573 = f32[21,16]{1,0} constant({...})
+  get-tuple-element.260 = f32[2,4,16]{2,1,0} get-tuple-element(arg_tuple.31), index=1
+  get-tuple-element.261 = f32[4,16]{1,0} get-tuple-element(arg_tuple.31), index=2
+  get-tuple-element.262 = f32[4,21]{1,0} get-tuple-element(arg_tuple.31), index=3
+  get-tuple-element.263 = s32[4]{0} get-tuple-element(arg_tuple.31), index=4
+  dynamic_slice.24 = s32[1]{0} dynamic-slice(get-tuple-element.263, get-tuple-element.259), dynamic_slice_sizes={1}
+  squeeze.136 = s32[] reshape(dynamic_slice.24)
+  get-tuple-element.264 = u32[4,2]{1,0} get-tuple-element(arg_tuple.31), index=5
+  constant.592 = s32[] constant(0)
+  dynamic_slice.25 = u32[1,2]{1,0} dynamic-slice(get-tuple-element.264, get-tuple-element.259, constant.592), dynamic_slice_sizes={1,2}
+  squeeze.137 = u32[2]{0} reshape(dynamic_slice.25)
+  closed_call.112 = (f32[2,4,16]{2,1,0}, f32[4,16]{1,0}, f32[4,21]{1,0}) call(get-tuple-element.265, get-tuple-element.266, get-tuple-element.267, get-tuple-element.268, get-tuple-element.269, constant.591, constant.590, constant.589, constant.588, constant.587, constant.586, broadcast.192, broadcast.191, constant.583, constant.582, constant.581, constant.580, broadcast.192, broadcast.191, constant.579, constant.578, broadcast.190, broadcast.189, broadcast.188, constant.574, constant.573, get-tuple-element.260, get-tuple-element.261, get-tuple-element.262, squeeze.136, squeeze.137), to_apply=closed_call_225.95
+  closed_call.113 = f32[2,4,16]{2,1,0} get-tuple-element(closed_call.112), index=0
+  closed_call.114 = f32[4,16]{1,0} get-tuple-element(closed_call.112), index=1
+  closed_call.115 = f32[4,21]{1,0} get-tuple-element(closed_call.112), index=2
+  ROOT tuple.43 = (s32[], f32[2,4,16]{2,1,0}, f32[4,16]{1,0}, f32[4,21]{1,0}, s32[4]{0}, /*index=5*/u32[4,2]{1,0}, f32[4,4,48]{2,1,0}, s32[4,4]{1,0}, f32[4]{0}, f32[4,4]{1,0}, /*index=10*/f32[4,4,16]{2,1,0}) tuple(add.381, closed_call.113, closed_call.114, closed_call.115, get-tuple-element.263, get-tuple-element.264, get-tuple-element.265, get-tuple-element.266, get-tuple-element.267, get-tuple-element.268, get-tuple-element.269)
+}
+
+region_46.97 {
+  arg_tuple.33 = (s32[], f32[2,4,16]{2,1,0}, f32[4,16]{1,0}, f32[4,21]{1,0}, s32[4]{0}, /*index=5*/u32[4,2]{1,0}, f32[4,4,48]{2,1,0}, s32[4,4]{1,0}, f32[4]{0}, f32[4,4]{1,0}, /*index=10*/f32[4,4,16]{2,1,0}) parameter(0)
+  get-tuple-element.282 = f32[2,4,16]{2,1,0} get-tuple-element(arg_tuple.33), index=1
+  get-tuple-element.283 = f32[4,16]{1,0} get-tuple-element(arg_tuple.33), index=2
+  get-tuple-element.284 = f32[4,21]{1,0} get-tuple-element(arg_tuple.33), index=3
+  get-tuple-element.285 = s32[4]{0} get-tuple-element(arg_tuple.33), index=4
+  get-tuple-element.286 = u32[4,2]{1,0} get-tuple-element(arg_tuple.33), index=5
+  get-tuple-element.287 = f32[4,4,48]{2,1,0} get-tuple-element(arg_tuple.33), index=6
+  get-tuple-element.288 = s32[4,4]{1,0} get-tuple-element(arg_tuple.33), index=7
+  get-tuple-element.289 = f32[4]{0} get-tuple-element(arg_tuple.33), index=8
+  get-tuple-element.290 = f32[4,4]{1,0} get-tuple-element(arg_tuple.33), index=9
+  get-tuple-element.291 = f32[4,4,16]{2,1,0} get-tuple-element(arg_tuple.33), index=10
+  get-tuple-element.281 = s32[] get-tuple-element(arg_tuple.33), index=0
+  constant.594 = s32[] constant(4)
+  ROOT lt.59 = pred[] compare(get-tuple-element.281, constant.594), direction=LT
+}
+
+region_47.98 {
+  reduce.18 = f32[] parameter(0)
+  reduce.20 = f32[] parameter(2)
+  gt.11 = pred[] compare(reduce.18, reduce.20), direction=GT
+  ne.3 = pred[] compare(reduce.18, reduce.18), direction=NE
+  or.62 = pred[] or(gt.11, ne.3)
+  select_n.70 = f32[] select(or.62, reduce.18, reduce.20)
+  eq.54 = pred[] compare(reduce.18, reduce.20), direction=EQ
+  reduce.19 = s32[] parameter(1)
+  reduce.21 = s32[] parameter(3)
+  lt.61 = pred[] compare(reduce.19, reduce.21), direction=LT
+  and.9 = pred[] and(eq.54, lt.61)
+  or.63 = pred[] or(or.62, and.9)
+  select_n.71 = s32[] select(or.63, reduce.19, reduce.21)
+  ROOT tuple.45 = (f32[], s32[]) tuple(select_n.70, select_n.71)
+}
+
+argmax_394.99 {
+  make_sample_sequences__locals__sample_sequences.1 = f32[4,21]{1,0} parameter(0)
+  iota.24 = s32[21]{0} iota(), iota_dimension=0
+  iota.25 = s32[4,21]{1,0} broadcast(iota.24), dimensions={1}
+  constant.598 = f32[] constant(-inf)
+  constant.597 = s32[] constant(0)
+  reduce.25 = (f32[4]{0}, s32[4]{0}) reduce(make_sample_sequences__locals__sample_sequences.1, iota.25, constant.598, constant.597), dimensions={1}, to_apply=region_47.98
+  reduce.26 = f32[4]{0} get-tuple-element(reduce.25), index=0
+  ROOT reduce.27 = s32[4]{0} get-tuple-element(reduce.25), index=1
+}
+
+sample_sequences.100 {
+  Arg_2.45 = f32[4]{0} parameter(2)
+  broadcast_in_dim.146 = f32[4,1]{1,0} reshape(Arg_2.45)
+  mul.175 = f32[4,1]{1,0} broadcast(broadcast_in_dim.146), dimensions={0,1}
+  mul.176 = f32[4]{0} reshape(mul.175)
+  mul.177 = f32[4,4]{1,0} broadcast(mul.176), dimensions={0}
+  broadcast_in_dim.147 = f32[1,4]{1,0} reshape(Arg_2.45)
+  mul.178 = f32[1,4]{1,0} broadcast(broadcast_in_dim.147), dimensions={0,1}
+  mul.179 = f32[4]{0} reshape(mul.178)
+  mul.180 = f32[4,4]{1,0} broadcast(mul.179), dimensions={1}
+  mul.181 = f32[4,4]{1,0} multiply(mul.177, mul.180)
+  constant.632 = f32[] constant(0)
+  broadcast.211 = f32[4,4]{1,0} broadcast(constant.632), dimensions={}
+  convert_element_type.39 = pred[4,4]{1,0} compare(mul.181, broadcast.211), direction=NE
+  Arg_0.95 = u32[2]{0} parameter(0)
+  jit_random_decoding_order_.3 = (s32[4]{0}, u32[2]{0}) call(Arg_0.95), to_apply=random_decoding_order.12
+  jit_random_decoding_order_.5 = u32[2]{0} get-tuple-element(jit_random_decoding_order_.3), index=1
+  jit__threefry_split_.12 = u32[2,2]{1,0} call(jit_random_decoding_order_.5), to_apply=_threefry_split.5
+  slice.115 = u32[1,2]{1,0} slice(jit__threefry_split_.12), slice={[1:2], [0:2]}
+  squeeze.139 = u32[2]{0} reshape(slice.115)
+  Arg_1.65 = f32[4,4,3]{2,1,0} parameter(1)
+  constant.692 = f32[] constant(0)
+  jit_apply_noise_to_coordinates_.1 = f32[4,4,3]{2,1,0} call(squeeze.139, Arg_1.65, constant.692), to_apply=apply_noise_to_coordinates.23
+  jit_compute_backbone_coordinates_.1 = f32[4,5,3]{2,1,0} call(jit_apply_noise_to_coordinates_.1), to_apply=compute_backbone_coordinates.26
+  jit_compute_backbone_distance_.1 = f32[4,4]{1,0} call(jit_compute_backbone_coordinates_.1), to_apply=compute_backbone_distance.28
+  constant.691 = f32[] constant(inf)
+  jit__where_.12 = f32[4,4]{1,0} call(convert_element_type.39, jit_compute_backbone_distance_.1, constant.691), to_apply=_where.29
+  neg.18 = f32[4,4]{1,0} negate(jit__where_.12)
+  top_k.3 = (f32[4,4]{1,0}, s32[4,4]{1,0}) topk(neg.18), k=4, largest=true
+  top_k.4 = f32[4,4]{1,0} get-tuple-element(top_k.3), index=0
+  constant.690 = s32[] constant(0)
+  constant.600 = f32[] constant(0)
+  broadcast_in_dim.145 = f32[2,4,16]{2,1,0} broadcast(constant.600), dimensions={}
+  constant.599 = s32[1]{0} constant({0})
+  broadcast_in_dim.159 = f32[4,1]{1,0} reshape(Arg_2.45)
+  mul.216 = f32[4,1]{1,0} broadcast(broadcast_in_dim.159), dimensions={0,1}
+  mul.217 = f32[4]{0} reshape(mul.216)
+  mul.218 = f32[4,16]{1,0} broadcast(mul.217), dimensions={0}
+  constant.698 = f32[16,16]{1,0} constant({...})
+  constant.697 = f32[16,16]{1,0} constant({...})
+  constant.696 = f32[16,48]{1,0} constant({...})
+  constant.669 = f32[] constant(0)
+  broadcast.220 = f32[4,4,16]{2,1,0} broadcast(constant.669), dimensions={}
+  constant.695 = f32[16,16]{1,0} constant({...})
+  constant.694 = f32[16,416]{1,0} constant({...})
+  constant.693 = f32[16,34]{1,0} constant({...})
+  Arg_3.23 = s32[4]{0} parameter(3)
+  broadcast_in_dim.148 = s32[4,1]{1,0} reshape(Arg_3.23)
+  sub.195 = s32[4,1]{1,0} broadcast(broadcast_in_dim.148), dimensions={0,1}
+  sub.196 = s32[4]{0} reshape(sub.195)
+  sub.197 = s32[4,4]{1,0} broadcast(sub.196), dimensions={0}
+  broadcast_in_dim.149 = s32[1,4]{1,0} reshape(Arg_3.23)
+  sub.198 = s32[1,4]{1,0} broadcast(broadcast_in_dim.149), dimensions={0,1}
+  sub.199 = s32[4]{0} reshape(sub.198)
+  sub.200 = s32[4,4]{1,0} broadcast(sub.199), dimensions={1}
+  sub.201 = s32[4,4]{1,0} subtract(sub.197, sub.200)
+  top_k.5 = s32[4,4]{1,0} get-tuple-element(top_k.3), index=1
+  jit_take_along_axis_.4 = s32[4,4]{1,0} call(sub.201, top_k.5), to_apply=take_along_axis_113.35
+  constant.631 = s32[] constant(16)
+  broadcast.210 = s32[4,4]{1,0} broadcast(constant.631), dimensions={}
+  add.382 = s32[4,4]{1,0} add(jit_take_along_axis_.4, broadcast.210)
+  constant.630 = s32[] constant(0)
+  broadcast.209 = s32[4,4]{1,0} broadcast(constant.630), dimensions={}
+  max.35 = s32[4,4]{1,0} maximum(add.382, broadcast.209)
+  constant.629 = s32[] constant(32)
+  broadcast.208 = s32[4,4]{1,0} broadcast(constant.629), dimensions={}
+  min.1 = s32[4,4]{1,0} minimum(max.35, broadcast.208)
+  Arg_4.15 = s32[4]{0} parameter(4)
+  broadcast_in_dim.150 = s32[4,1]{1,0} reshape(Arg_4.15)
+  eq.55 = s32[4,1]{1,0} broadcast(broadcast_in_dim.150), dimensions={0,1}
+  eq.56 = s32[4]{0} reshape(eq.55)
+  eq.57 = s32[4,4]{1,0} broadcast(eq.56), dimensions={0}
+  broadcast_in_dim.151 = s32[1,4]{1,0} reshape(Arg_4.15)
+  eq.58 = s32[1,4]{1,0} broadcast(broadcast_in_dim.151), dimensions={0,1}
+  eq.59 = s32[4]{0} reshape(eq.58)
+  eq.60 = s32[4,4]{1,0} broadcast(eq.59), dimensions={1}
+  eq.61 = pred[4,4]{1,0} compare(eq.57, eq.60), direction=EQ
+  convert_element_type.40 = s32[4,4]{1,0} convert(eq.61)
+  jit_take_along_axis_.5 = s32[4,4]{1,0} call(convert_element_type.40, top_k.5), to_apply=take_along_axis_113.35
+  mul.183 = s32[4,4]{1,0} multiply(min.1, jit_take_along_axis_.5)
+  constant.628 = s32[] constant(1)
+  broadcast.207 = s32[4,4]{1,0} broadcast(constant.628), dimensions={}
+  sub.202 = s32[4,4]{1,0} subtract(broadcast.207, jit_take_along_axis_.5)
+  constant.627 = s32[] constant(33)
+  broadcast.206 = s32[4,4]{1,0} broadcast(constant.627), dimensions={}
+  mul.182 = s32[4,4]{1,0} multiply(sub.202, broadcast.206)
+  add.383 = s32[4,4]{1,0} add(mul.183, mul.182)
+  jit__one_hot_.6 = f32[4,4,34]{2,1,0} call(add.383), to_apply=_one_hot.36
+  dot_general.26 = f32[16,4,4]{2,1,0} dot(constant.693, jit__one_hot_.6), lhs_contracting_dims={1}, rhs_contracting_dims={2}
+  transpose.25 = f32[4,4,16]{1,0,2} transpose(dot_general.26), dimensions={1,2,0}
+  constant.626 = f32[1,1,16]{2,1,0} constant({...})
+  add.384 = f32[1,1,16]{2,1,0} broadcast(constant.626), dimensions={0,1,2}
+  add.385 = f32[16]{0} reshape(add.384)
+  add.386 = f32[4,4,16]{2,1,0} broadcast(add.385), dimensions={2}
+  add.387 = f32[4,4,16]{1,0,2} add(transpose.25, add.386)
+  jit_compute_radial_basis_.1 = f32[4,4,400]{2,1,0} call(jit_compute_backbone_coordinates_.1, top_k.5), to_apply=compute_radial_basis.33
+  concatenate.22 = f32[4,4,416]{2,1,0} concatenate(add.387, jit_compute_radial_basis_.1), dimensions={2}
+  dot_general.27 = f32[16,4,4]{2,1,0} dot(constant.694, concatenate.22), lhs_contracting_dims={1}, rhs_contracting_dims={2}
+  transpose.26 = f32[4,4,16]{1,0,2} transpose(dot_general.27), dimensions={1,2,0}
+  reduce_sum.138 = f32[4,4]{1,0} reduce(transpose.26, constant.692), dimensions={2}, to_apply=region_13.37
+  broadcast_in_dim.152 = f32[4,4,1]{2,1,0} reshape(reduce_sum.138)
+  constant.625 = f32[] constant(16)
+  broadcast.205 = f32[4,4,1]{2,1,0} broadcast(constant.625), dimensions={}
+  div.51 = f32[4,4,1]{2,1,0} divide(broadcast_in_dim.152, broadcast.205)
+  sub.203 = f32[4,4,1]{2,1,0} broadcast(div.51), dimensions={0,1,2}
+  sub.204 = f32[4,4]{1,0} reshape(sub.203)
+  sub.205 = f32[4,4,16]{2,1,0} broadcast(sub.204), dimensions={0,1}
+  sub.206 = f32[4,4,16]{1,0,2} subtract(transpose.26, sub.205)
+  jit__var_.8 = f32[4,4,1]{2,1,0} call(transpose.26, constant.690), to_apply=_var.41
+  constant.624 = f32[] constant(0)
+  broadcast.204 = f32[4,4,1]{2,1,0} broadcast(constant.624), dimensions={}
+  max.36 = f32[4,4,1]{2,1,0} maximum(jit__var_.8, broadcast.204)
+  constant.623 = f32[] constant(1e-05)
+  broadcast.203 = f32[4,4,1]{2,1,0} broadcast(constant.623), dimensions={}
+  add.388 = f32[4,4,1]{2,1,0} add(max.36, broadcast.203)
+  rsqrt.8 = f32[4,4,1]{2,1,0} rsqrt(add.388)
+  mul.184 = f32[4,4,1]{2,1,0} broadcast(rsqrt.8), dimensions={0,1,2}
+  mul.185 = f32[4,4]{1,0} reshape(mul.184)
+  mul.186 = f32[4,4,16]{2,1,0} broadcast(mul.185), dimensions={0,1}
+  mul.187 = f32[4,4,16]{1,0,2} multiply(sub.206, mul.186)
+  dot_general.28 = f32[16,4,4]{2,1,0} dot(constant.695, mul.187), lhs_contracting_dims={1}, rhs_contracting_dims={2}
+  transpose.27 = f32[4,4,16]{1,0,2} transpose(dot_general.28), dimensions={1,2,0}
+  constant.622 = f32[1,1,16]{2,1,0} constant({...})
+  add.389 = f32[1,1,16]{2,1,0} broadcast(constant.622), dimensions={0,1,2}
+  add.390 = f32[16]{0} reshape(add.389)
+  add.391 = f32[4,4,16]{2,1,0} broadcast(add.390), dimensions={2}
+  add.392 = f32[4,4,16]{1,0,2} add(transpose.27, add.391)
+  constant.621 = f32[] constant(0)
+  broadcast.202 = f32[4,16]{1,0} broadcast(constant.621), dimensions={}
+  lt.62 = pred[4,4]{1,0} compare(top_k.5, broadcast.209), direction=LT
+  constant.620 = s32[] constant(4)
+  broadcast.201 = s32[4,4]{1,0} broadcast(constant.620), dimensions={}
+  add.393 = s32[4,4]{1,0} add(top_k.5, broadcast.201)
+  select_n.72 = s32[4,4]{1,0} select(lt.62, add.393, top_k.5)
+  broadcast_in_dim.155 = s32[4,4,1]{2,1,0} reshape(select_n.72)
+  gather.18 = f32[4,4,16]{2,1,0} gather(broadcast.202, broadcast_in_dim.155), offset_dims={2}, collapsed_slice_dims={0}, start_index_map={0}, index_vector_dim=2, slice_sizes={1,16}
+  concatenate.23 = f32[4,4,48]{2,1,0} concatenate(broadcast.220, add.392, gather.18), dimensions={2}
+  dot_general.29 = f32[16,4,4]{2,1,0} dot(constant.696, concatenate.23), lhs_contracting_dims={1}, rhs_contracting_dims={2}
+  transpose.28 = f32[4,4,16]{1,0,2} transpose(dot_general.29), dimensions={1,2,0}
+  constant.619 = f32[1,1,16]{2,1,0} constant({...})
+  add.394 = f32[1,1,16]{2,1,0} broadcast(constant.619), dimensions={0,1,2}
+  add.395 = f32[16]{0} reshape(add.394)
+  add.396 = f32[4,4,16]{2,1,0} broadcast(add.395), dimensions={2}
+  add.397 = f32[4,4,16]{1,0,2} add(transpose.28, add.396)
+  constant.618 = f32[] constant(0.5)
+  broadcast.200 = f32[4,4,16]{2,1,0} broadcast(constant.618), dimensions={}
+  mul.195 = f32[4,4,16]{1,0,2} multiply(add.397, broadcast.200)
+  neg.19 = f32[4,4,16]{1,0,2} negate(add.397)
+  constant.617 = f32[] constant(0.707106769)
+  broadcast.199 = f32[4,4,16]{2,1,0} broadcast(constant.617), dimensions={}
+  mul.196 = f32[4,4,16]{1,0,2} multiply(neg.19, broadcast.199)
+  erfc.861 = f32[4,4,16]{1,0,2} abs(mul.196)
+  constant.689 = f32[] constant(1)
+  broadcast.240 = f32[4,4,16]{2,1,0} broadcast(constant.689), dimensions={}
+  erfc.862 = pred[4,4,16]{1,0,2} compare(erfc.861, broadcast.240), direction=LT
+  erfc.846 = f32[4,4,16]{1,0,2} multiply(mul.196, mul.196)
+  constant.668 = f32[] constant(7.85386146e-05)
+  broadcast.219 = f32[4,4,16]{2,1,0} broadcast(constant.668), dimensions={}
+  erfc.847 = f32[4,4,16]{1,0,2} multiply(erfc.846, broadcast.219)
+  constant.667 = f32[] constant(-0.000801019371)
+  broadcast.218 = f32[4,4,16]{2,1,0} broadcast(constant.667), dimensions={}
+  erfc.848 = f32[4,4,16]{1,0,2} add(erfc.847, broadcast.218)
+  erfc.849 = f32[4,4,16]{1,0,2} multiply(erfc.848, erfc.846)
+  constant.666 = f32[] constant(0.00518832775)
+  broadcast.217 = f32[4,4,16]{2,1,0} broadcast(constant.666), dimensions={}
+  erfc.850 = f32[4,4,16]{1,0,2} add(erfc.849, broadcast.217)
+  erfc.851 = f32[4,4,16]{1,0,2} multiply(erfc.850, erfc.846)
+  constant.665 = f32[] constant(-0.0268538129)
+  broadcast.216 = f32[4,4,16]{2,1,0} broadcast(constant.665), dimensions={}
+  erfc.852 = f32[4,4,16]{1,0,2} add(erfc.851, broadcast.216)
+  erfc.853 = f32[4,4,16]{1,0,2} multiply(erfc.852, erfc.846)
+  constant.664 = f32[] constant(0.112835854)
+  broadcast.215 = f32[4,4,16]{2,1,0} broadcast(constant.664), dimensions={}
+  erfc.854 = f32[4,4,16]{1,0,2} add(erfc.853, broadcast.215)
+  erfc.855 = f32[4,4,16]{1,0,2} multiply(erfc.854, erfc.846)
+  constant.663 = f32[] constant(-0.37612626)
+  broadcast.214 = f32[4,4,16]{2,1,0} broadcast(constant.663), dimensions={}
+  erfc.856 = f32[4,4,16]{1,0,2} add(erfc.855, broadcast.214)
+  erfc.857 = f32[4,4,16]{1,0,2} multiply(erfc.856, erfc.846)
+  constant.662 = f32[] constant(1.12837911)
+  broadcast.213 = f32[4,4,16]{2,1,0} broadcast(constant.662), dimensions={}
+  erfc.858 = f32[4,4,16]{1,0,2} add(erfc.857, broadcast.213)
+  erfc.859 = f32[4,4,16]{1,0,2} multiply(mul.196, erfc.858)
+  erfc.860 = f32[4,4,16]{2,1,0} subtract(broadcast.240, erfc.859)
+  erfc.843 = pred[4,4,16]{1,0,2} compare(mul.196, broadcast.220), direction=LT
+  constant.688 = f32[] constant(2)
+  broadcast.239 = f32[4,4,16]{2,1,0} broadcast(constant.688), dimensions={}
+  erfc.801 = f32[4,4,16]{1,0,2} multiply(mul.196, mul.196)
+  erfc.802 = f32[4,4,16]{1,0,2} negate(erfc.801)
+  constant.670 = f32[] constant(-88.7228394)
+  broadcast.221 = f32[4,4,16]{2,1,0} broadcast(constant.670), dimensions={}
+  erfc.841 = pred[4,4,16]{1,0,2} compare(erfc.802, broadcast.221), direction=LT
+  erfc.805 = f32[4,4,16]{1,0,2} exponential(erfc.802)
+  erfc.803 = f32[4,4,16]{1,0,2} abs(mul.196)
+  erfc.806 = f32[4,4,16]{2,1,0} divide(broadcast.240, erfc.803)
+  erfc.807 = f32[4,4,16]{1,0,2} multiply(erfc.805, erfc.806)
+  erfc.808 = pred[4,4,16]{1,0,2} compare(erfc.803, broadcast.239), direction=LT
+  erfc.804 = f32[4,4,16]{2,1,0} divide(broadcast.240, erfc.801)
+  constant.687 = f32[] constant(0.0232682)
+  broadcast.238 = f32[4,4,16]{2,1,0} broadcast(constant.687), dimensions={}
+  erfc.809 = f32[4,4,16]{2,1,0} multiply(erfc.804, broadcast.238)
+  constant.686 = f32[] constant(-0.138703942)
+  broadcast.237 = f32[4,4,16]{2,1,0} broadcast(constant.686), dimensions={}
+  erfc.810 = f32[4,4,16]{2,1,0} add(erfc.809, broadcast.237)
+  erfc.811 = f32[4,4,16]{2,1,0} multiply(erfc.810, erfc.804)
+  constant.685 = f32[] constant(0.368742466)
+  broadcast.236 = f32[4,4,16]{2,1,0} broadcast(constant.685), dimensions={}
+  erfc.812 = f32[4,4,16]{2,1,0} add(erfc.811, broadcast.236)
+  erfc.813 = f32[4,4,16]{2,1,0} multiply(erfc.812, erfc.804)
+  constant.684 = f32[] constant(-0.582473278)
+  broadcast.235 = f32[4,4,16]{2,1,0} broadcast(constant.684), dimensions={}
+  erfc.814 = f32[4,4,16]{2,1,0} add(erfc.813, broadcast.235)
+  erfc.815 = f32[4,4,16]{2,1,0} multiply(erfc.814, erfc.804)
+  constant.683 = f32[] constant(0.621000469)
+  broadcast.234 = f32[4,4,16]{2,1,0} broadcast(constant.683), dimensions={}
+  erfc.816 = f32[4,4,16]{2,1,0} add(erfc.815, broadcast.234)
+  erfc.817 = f32[4,4,16]{2,1,0} multiply(erfc.816, erfc.804)
+  constant.682 = f32[] constant(-0.494451523)
+  broadcast.233 = f32[4,4,16]{2,1,0} broadcast(constant.682), dimensions={}
+  erfc.818 = f32[4,4,16]{2,1,0} add(erfc.817, broadcast.233)
+  erfc.819 = f32[4,4,16]{2,1,0} multiply(erfc.818, erfc.804)
+  constant.681 = f32[] constant(0.340488)
+  broadcast.232 = f32[4,4,16]{2,1,0} broadcast(constant.681), dimensions={}
+  erfc.820 = f32[4,4,16]{2,1,0} add(erfc.819, broadcast.232)
+  erfc.821 = f32[4,4,16]{2,1,0} multiply(erfc.820, erfc.804)
+  constant.680 = f32[] constant(-0.274112701)
+  broadcast.231 = f32[4,4,16]{2,1,0} broadcast(constant.680), dimensions={}
+  erfc.822 = f32[4,4,16]{2,1,0} add(erfc.821, broadcast.231)
+  erfc.823 = f32[4,4,16]{2,1,0} multiply(erfc.822, erfc.804)
+  constant.679 = f32[] constant(0.563825965)
+  broadcast.230 = f32[4,4,16]{2,1,0} broadcast(constant.679), dimensions={}
+  erfc.824 = f32[4,4,16]{2,1,0} add(erfc.823, broadcast.230)
+  constant.678 = f32[] constant(-10.477664)
+  broadcast.229 = f32[4,4,16]{2,1,0} broadcast(constant.678), dimensions={}
+  erfc.825 = f32[4,4,16]{2,1,0} multiply(erfc.804, broadcast.229)
+  constant.677 = f32[] constant(12.9772)
+  broadcast.228 = f32[4,4,16]{2,1,0} broadcast(constant.677), dimensions={}
+  erfc.826 = f32[4,4,16]{2,1,0} add(erfc.825, broadcast.228)
+  erfc.827 = f32[4,4,16]{2,1,0} multiply(erfc.826, erfc.804)
+  constant.676 = f32[] constant(-7.49551868)
+  broadcast.227 = f32[4,4,16]{2,1,0} broadcast(constant.676), dimensions={}
+  erfc.828 = f32[4,4,16]{2,1,0} add(erfc.827, broadcast.227)
+  erfc.829 = f32[4,4,16]{2,1,0} multiply(erfc.828, erfc.804)
+  constant.675 = f32[] constant(2.92101908)
+  broadcast.226 = f32[4,4,16]{2,1,0} broadcast(constant.675), dimensions={}
+  erfc.830 = f32[4,4,16]{2,1,0} add(erfc.829, broadcast.226)
+  erfc.831 = f32[4,4,16]{2,1,0} multiply(erfc.830, erfc.804)
+  constant.674 = f32[] constant(-1.01526523)
+  broadcast.225 = f32[4,4,16]{2,1,0} broadcast(constant.674), dimensions={}
+  erfc.832 = f32[4,4,16]{2,1,0} add(erfc.831, broadcast.225)
+  erfc.833 = f32[4,4,16]{2,1,0} multiply(erfc.832, erfc.804)
+  constant.673 = f32[] constant(0.42184633)
+  broadcast.224 = f32[4,4,16]{2,1,0} broadcast(constant.673), dimensions={}
+  erfc.834 = f32[4,4,16]{2,1,0} add(erfc.833, broadcast.224)
+  erfc.835 = f32[4,4,16]{2,1,0} multiply(erfc.834, erfc.804)
+  constant.672 = f32[] constant(-0.282076746)
+  broadcast.223 = f32[4,4,16]{2,1,0} broadcast(constant.672), dimensions={}
+  erfc.836 = f32[4,4,16]{2,1,0} add(erfc.835, broadcast.223)
+  erfc.837 = f32[4,4,16]{2,1,0} multiply(erfc.836, erfc.804)
+  constant.671 = f32[] constant(0.564189494)
+  broadcast.222 = f32[4,4,16]{2,1,0} broadcast(constant.671), dimensions={}
+  erfc.838 = f32[4,4,16]{2,1,0} add(erfc.837, broadcast.222)
+  erfc.839 = f32[4,4,16]{1,0,2} select(erfc.808, erfc.824, erfc.838)
+  erfc.840 = f32[4,4,16]{1,0,2} multiply(erfc.807, erfc.839)
+  erfc.842 = f32[4,4,16]{1,0,2} select(erfc.841, broadcast.220, erfc.840)
+  erfc.844 = f32[4,4,16]{2,1,0} subtract(broadcast.239, erfc.842)
+  erfc.845 = f32[4,4,16]{1,0,2} select(erfc.843, erfc.844, erfc.842)
+  erfc.863 = f32[4,4,16]{1,0,2} select(erfc.862, erfc.860, erfc.845)
+  mul.197 = f32[4,4,16]{1,0,2} multiply(mul.195, erfc.863)
+  dot_general.30 = f32[16,4,4]{2,1,0} dot(constant.697, mul.197), lhs_contracting_dims={1}, rhs_contracting_dims={2}
+  transpose.29 = f32[4,4,16]{1,0,2} transpose(dot_general.30), dimensions={1,2,0}
+  constant.616 = f32[1,1,16]{2,1,0} constant({...})
+  add.398 = f32[1,1,16]{2,1,0} broadcast(constant.616), dimensions={0,1,2}
+  add.399 = f32[16]{0} reshape(add.398)
+  add.400 = f32[4,4,16]{2,1,0} broadcast(add.399), dimensions={2}
+  add.401 = f32[4,4,16]{1,0,2} add(transpose.29, add.400)
+  mul.198 = f32[4,4,16]{1,0,2} multiply(add.401, broadcast.200)
+  neg.20 = f32[4,4,16]{1,0,2} negate(add.401)
+  mul.199 = f32[4,4,16]{1,0,2} multiply(neg.20, broadcast.199)
+  erfc.924 = f32[4,4,16]{1,0,2} abs(mul.199)
+  erfc.925 = pred[4,4,16]{1,0,2} compare(erfc.924, broadcast.240), direction=LT
+  erfc.909 = f32[4,4,16]{1,0,2} multiply(mul.199, mul.199)
+  erfc.910 = f32[4,4,16]{1,0,2} multiply(erfc.909, broadcast.219)
+  erfc.911 = f32[4,4,16]{1,0,2} add(erfc.910, broadcast.218)
+  erfc.912 = f32[4,4,16]{1,0,2} multiply(erfc.911, erfc.909)
+  erfc.913 = f32[4,4,16]{1,0,2} add(erfc.912, broadcast.217)
+  erfc.914 = f32[4,4,16]{1,0,2} multiply(erfc.913, erfc.909)
+  erfc.915 = f32[4,4,16]{1,0,2} add(erfc.914, broadcast.216)
+  erfc.916 = f32[4,4,16]{1,0,2} multiply(erfc.915, erfc.909)
+  erfc.917 = f32[4,4,16]{1,0,2} add(erfc.916, broadcast.215)
+  erfc.918 = f32[4,4,16]{1,0,2} multiply(erfc.917, erfc.909)
+  erfc.919 = f32[4,4,16]{1,0,2} add(erfc.918, broadcast.214)
+  erfc.920 = f32[4,4,16]{1,0,2} multiply(erfc.919, erfc.909)
+  erfc.921 = f32[4,4,16]{1,0,2} add(erfc.920, broadcast.213)
+  erfc.922 = f32[4,4,16]{1,0,2} multiply(mul.199, erfc.921)
+  erfc.923 = f32[4,4,16]{2,1,0} subtract(broadcast.240, erfc.922)
+  erfc.906 = pred[4,4,16]{1,0,2} compare(mul.199, broadcast.220), direction=LT
+  erfc.864 = f32[4,4,16]{1,0,2} multiply(mul.199, mul.199)
+  erfc.865 = f32[4,4,16]{1,0,2} negate(erfc.864)
+  erfc.904 = pred[4,4,16]{1,0,2} compare(erfc.865, broadcast.221), direction=LT
+  erfc.868 = f32[4,4,16]{1,0,2} exponential(erfc.865)
+  erfc.866 = f32[4,4,16]{1,0,2} abs(mul.199)
+  erfc.869 = f32[4,4,16]{2,1,0} divide(broadcast.240, erfc.866)
+  erfc.870 = f32[4,4,16]{1,0,2} multiply(erfc.868, erfc.869)
+  erfc.871 = pred[4,4,16]{1,0,2} compare(erfc.866, broadcast.239), direction=LT
+  erfc.867 = f32[4,4,16]{2,1,0} divide(broadcast.240, erfc.864)
+  erfc.872 = f32[4,4,16]{2,1,0} multiply(erfc.867, broadcast.238)
+  erfc.873 = f32[4,4,16]{2,1,0} add(erfc.872, broadcast.237)
+  erfc.874 = f32[4,4,16]{2,1,0} multiply(erfc.873, erfc.867)
+  erfc.875 = f32[4,4,16]{2,1,0} add(erfc.874, broadcast.236)
+  erfc.876 = f32[4,4,16]{2,1,0} multiply(erfc.875, erfc.867)
+  erfc.877 = f32[4,4,16]{2,1,0} add(erfc.876, broadcast.235)
+  erfc.878 = f32[4,4,16]{2,1,0} multiply(erfc.877, erfc.867)
+  erfc.879 = f32[4,4,16]{2,1,0} add(erfc.878, broadcast.234)
+  erfc.880 = f32[4,4,16]{2,1,0} multiply(erfc.879, erfc.867)
+  erfc.881 = f32[4,4,16]{2,1,0} add(erfc.880, broadcast.233)
+  erfc.882 = f32[4,4,16]{2,1,0} multiply(erfc.881, erfc.867)
+  erfc.883 = f32[4,4,16]{2,1,0} add(erfc.882, broadcast.232)
+  erfc.884 = f32[4,4,16]{2,1,0} multiply(erfc.883, erfc.867)
+  erfc.885 = f32[4,4,16]{2,1,0} add(erfc.884, broadcast.231)
+  erfc.886 = f32[4,4,16]{2,1,0} multiply(erfc.885, erfc.867)
+  erfc.887 = f32[4,4,16]{2,1,0} add(erfc.886, broadcast.230)
+  erfc.888 = f32[4,4,16]{2,1,0} multiply(erfc.867, broadcast.229)
+  erfc.889 = f32[4,4,16]{2,1,0} add(erfc.888, broadcast.228)
+  erfc.890 = f32[4,4,16]{2,1,0} multiply(erfc.889, erfc.867)
+  erfc.891 = f32[4,4,16]{2,1,0} add(erfc.890, broadcast.227)
+  erfc.892 = f32[4,4,16]{2,1,0} multiply(erfc.891, erfc.867)
+  erfc.893 = f32[4,4,16]{2,1,0} add(erfc.892, broadcast.226)
+  erfc.894 = f32[4,4,16]{2,1,0} multiply(erfc.893, erfc.867)
+  erfc.895 = f32[4,4,16]{2,1,0} add(erfc.894, broadcast.225)
+  erfc.896 = f32[4,4,16]{2,1,0} multiply(erfc.895, erfc.867)
+  erfc.897 = f32[4,4,16]{2,1,0} add(erfc.896, broadcast.224)
+  erfc.898 = f32[4,4,16]{2,1,0} multiply(erfc.897, erfc.867)
+  erfc.899 = f32[4,4,16]{2,1,0} add(erfc.898, broadcast.223)
+  erfc.900 = f32[4,4,16]{2,1,0} multiply(erfc.899, erfc.867)
+  erfc.901 = f32[4,4,16]{2,1,0} add(erfc.900, broadcast.222)
+  erfc.902 = f32[4,4,16]{1,0,2} select(erfc.871, erfc.887, erfc.901)
+  erfc.903 = f32[4,4,16]{1,0,2} multiply(erfc.870, erfc.902)
+  erfc.905 = f32[4,4,16]{1,0,2} select(erfc.904, broadcast.220, erfc.903)
+  erfc.907 = f32[4,4,16]{2,1,0} subtract(broadcast.239, erfc.905)
+  erfc.908 = f32[4,4,16]{1,0,2} select(erfc.906, erfc.907, erfc.905)
+  erfc.926 = f32[4,4,16]{1,0,2} select(erfc.925, erfc.923, erfc.908)
+  mul.200 = f32[4,4,16]{1,0,2} multiply(mul.198, erfc.926)
+  dot_general.31 = f32[16,4,4]{2,1,0} dot(constant.698, mul.200), lhs_contracting_dims={1}, rhs_contracting_dims={2}
+  transpose.30 = f32[4,4,16]{1,0,2} transpose(dot_general.31), dimensions={1,2,0}
+  constant.615 = f32[1,1,16]{2,1,0} constant({...})
+  add.402 = f32[1,1,16]{2,1,0} broadcast(constant.615), dimensions={0,1,2}
+  add.403 = f32[16]{0} reshape(add.402)
+  add.404 = f32[4,4,16]{2,1,0} broadcast(add.403), dimensions={2}
+  add.405 = f32[4,4,16]{1,0,2} add(transpose.30, add.404)
+  broadcast_in_dim.153 = f32[4,1]{1,0} reshape(Arg_2.45)
+  mul.188 = f32[4,1]{1,0} broadcast(broadcast_in_dim.153), dimensions={0,1}
+  mul.189 = f32[4]{0} reshape(mul.188)
+  mul.190 = f32[4,4]{1,0} broadcast(mul.189), dimensions={0}
+  broadcast_in_dim.154 = f32[1,4]{1,0} reshape(Arg_2.45)
+  mul.191 = f32[1,4]{1,0} broadcast(broadcast_in_dim.154), dimensions={0,1}
+  mul.192 = f32[4]{0} reshape(mul.191)
+  mul.193 = f32[4,4]{1,0} broadcast(mul.192), dimensions={1}
+  mul.194 = f32[4,4]{1,0} multiply(mul.190, mul.193)
+  jit_take_along_axis_.6 = f32[4,4]{1,0} call(mul.194, top_k.5), to_apply=take_along_axis_149.43
+  broadcast_in_dim.156 = f32[4,4,1]{2,1,0} reshape(jit_take_along_axis_.6)
+  mul.201 = f32[4,4,1]{2,1,0} broadcast(broadcast_in_dim.156), dimensions={0,1,2}
+  mul.202 = f32[4,4]{1,0} reshape(mul.201)
+  mul.203 = f32[4,4,16]{2,1,0} broadcast(mul.202), dimensions={0,1}
+  mul.204 = f32[4,4,16]{1,0,2} multiply(add.405, mul.203)
+  reduce_sum.139 = f32[4,16]{1,0} reduce(mul.204, constant.692), dimensions={1}, to_apply=region_17.44
+  constant.614 = f32[] constant(30)
+  div.50 = f32[4,16]{1,0} broadcast(constant.614), dimensions={}
+  div.52 = f32[4,16]{1,0} divide(reduce_sum.139, div.50)
+  reduce_sum.140 = f32[4]{0} reduce(div.52, constant.692), dimensions={1}, to_apply=region_18.45
+  broadcast_in_dim.157 = f32[4,1]{1,0} reshape(reduce_sum.140)
+  constant.613 = f32[] constant(16)
+  broadcast.198 = f32[4,1]{1,0} broadcast(constant.613), dimensions={}
+  div.53 = f32[4,1]{1,0} divide(broadcast_in_dim.157, broadcast.198)
+  sub.207 = f32[4,1]{1,0} broadcast(div.53), dimensions={0,1}
+  sub.208 = f32[4]{0} reshape(sub.207)
+  sub.209 = f32[4,16]{1,0} broadcast(sub.208), dimensions={0}
+  sub.210 = f32[4,16]{1,0} subtract(div.52, sub.209)
+  jit__var_.9 = f32[4,1]{1,0} call(div.52, constant.690), to_apply=_var_168.49
+  constant.612 = f32[] constant(0)
+  broadcast.197 = f32[4,1]{1,0} broadcast(constant.612), dimensions={}
+  max.37 = f32[4,1]{1,0} maximum(jit__var_.9, broadcast.197)
+  constant.611 = f32[] constant(1e-05)
+  broadcast.196 = f32[4,1]{1,0} broadcast(constant.611), dimensions={}
+  add.406 = f32[4,1]{1,0} add(max.37, broadcast.196)
+  rsqrt.9 = f32[4,1]{1,0} rsqrt(add.406)
+  mul.205 = f32[4,1]{1,0} broadcast(rsqrt.9), dimensions={0,1}
+  mul.206 = f32[4]{0} reshape(mul.205)
+  mul.207 = f32[4,16]{1,0} broadcast(mul.206), dimensions={0}
+  mul.208 = f32[4,16]{1,0} multiply(sub.210, mul.207)
+  constant.700 = f32[16,64]{1,0} constant({...})
+  constant.699 = f32[64,16]{1,0} constant({...})
+  dot_general.32 = f32[64,4]{1,0} dot(constant.699, mul.208), lhs_contracting_dims={1}, rhs_contracting_dims={1}
+  transpose.31 = f32[4,64]{0,1} transpose(dot_general.32), dimensions={1,0}
+  constant.610 = f32[1,64]{1,0} constant({...})
+  add.407 = f32[1,64]{1,0} broadcast(constant.610), dimensions={0,1}
+  add.408 = f32[64]{0} reshape(add.407)
+  add.409 = f32[4,64]{1,0} broadcast(add.408), dimensions={1}
+  add.410 = f32[4,64]{0,1} add(transpose.31, add.409)
+  constant.609 = f32[] constant(0.5)
+  mul.174 = f32[4,64]{1,0} broadcast(constant.609), dimensions={}
+  mul.209 = f32[4,64]{0,1} multiply(add.410, mul.174)
+  neg.21 = f32[4,64]{0,1} negate(add.410)
+  constant.608 = f32[] constant(0.707106769)
+  mul.173 = f32[4,64]{1,0} broadcast(constant.608), dimensions={}
+  mul.210 = f32[4,64]{0,1} multiply(neg.21, mul.173)
+  erfc.987 = f32[4,64]{0,1} abs(mul.210)
+  constant.661 = f32[] constant(1)
+  broadcast.212 = f32[4,64]{1,0} broadcast(constant.661), dimensions={}
+  erfc.988 = pred[4,64]{0,1} compare(erfc.987, broadcast.212), direction=LT
+  erfc.972 = f32[4,64]{0,1} multiply(mul.210, mul.210)
+  constant.640 = f32[] constant(7.85386146e-05)
+  erfc.780 = f32[4,64]{1,0} broadcast(constant.640), dimensions={}
+  erfc.973 = f32[4,64]{0,1} multiply(erfc.972, erfc.780)
+  constant.639 = f32[] constant(-0.000801019371)
+  erfc.779 = f32[4,64]{1,0} broadcast(constant.639), dimensions={}
+  erfc.974 = f32[4,64]{0,1} add(erfc.973, erfc.779)
+  erfc.975 = f32[4,64]{0,1} multiply(erfc.974, erfc.972)
+  constant.638 = f32[] constant(0.00518832775)
+  erfc.778 = f32[4,64]{1,0} broadcast(constant.638), dimensions={}
+  erfc.976 = f32[4,64]{0,1} add(erfc.975, erfc.778)
+  erfc.977 = f32[4,64]{0,1} multiply(erfc.976, erfc.972)
+  constant.637 = f32[] constant(-0.0268538129)
+  erfc.777 = f32[4,64]{1,0} broadcast(constant.637), dimensions={}
+  erfc.978 = f32[4,64]{0,1} add(erfc.977, erfc.777)
+  erfc.979 = f32[4,64]{0,1} multiply(erfc.978, erfc.972)
+  constant.636 = f32[] constant(0.112835854)
+  erfc.776 = f32[4,64]{1,0} broadcast(constant.636), dimensions={}
+  erfc.980 = f32[4,64]{0,1} add(erfc.979, erfc.776)
+  erfc.981 = f32[4,64]{0,1} multiply(erfc.980, erfc.972)
+  constant.635 = f32[] constant(-0.37612626)
+  erfc.775 = f32[4,64]{1,0} broadcast(constant.635), dimensions={}
+  erfc.982 = f32[4,64]{0,1} add(erfc.981, erfc.775)
+  erfc.983 = f32[4,64]{0,1} multiply(erfc.982, erfc.972)
+  constant.634 = f32[] constant(1.12837911)
+  erfc.774 = f32[4,64]{1,0} broadcast(constant.634), dimensions={}
+  erfc.984 = f32[4,64]{0,1} add(erfc.983, erfc.774)
+  erfc.985 = f32[4,64]{0,1} multiply(mul.210, erfc.984)
+  erfc.986 = f32[4,64]{1,0} subtract(broadcast.212, erfc.985)
+  constant.641 = f32[] constant(0)
+  erfc.781 = f32[4,64]{1,0} broadcast(constant.641), dimensions={}
+  erfc.969 = pred[4,64]{0,1} compare(mul.210, erfc.781), direction=LT
+  constant.660 = f32[] constant(2)
+  erfc.800 = f32[4,64]{1,0} broadcast(constant.660), dimensions={}
+  erfc.927 = f32[4,64]{0,1} multiply(mul.210, mul.210)
+  erfc.928 = f32[4,64]{0,1} negate(erfc.927)
+  constant.642 = f32[] constant(-88.7228394)
+  erfc.782 = f32[4,64]{1,0} broadcast(constant.642), dimensions={}
+  erfc.967 = pred[4,64]{0,1} compare(erfc.928, erfc.782), direction=LT
+  erfc.931 = f32[4,64]{0,1} exponential(erfc.928)
+  erfc.929 = f32[4,64]{0,1} abs(mul.210)
+  erfc.932 = f32[4,64]{1,0} divide(broadcast.212, erfc.929)
+  erfc.933 = f32[4,64]{0,1} multiply(erfc.931, erfc.932)
+  erfc.934 = pred[4,64]{0,1} compare(erfc.929, erfc.800), direction=LT
+  erfc.930 = f32[4,64]{1,0} divide(broadcast.212, erfc.927)
+  constant.659 = f32[] constant(0.0232682)
+  erfc.799 = f32[4,64]{1,0} broadcast(constant.659), dimensions={}
+  erfc.935 = f32[4,64]{1,0} multiply(erfc.930, erfc.799)
+  constant.658 = f32[] constant(-0.138703942)
+  erfc.798 = f32[4,64]{1,0} broadcast(constant.658), dimensions={}
+  erfc.936 = f32[4,64]{1,0} add(erfc.935, erfc.798)
+  erfc.937 = f32[4,64]{1,0} multiply(erfc.936, erfc.930)
+  constant.657 = f32[] constant(0.368742466)
+  erfc.797 = f32[4,64]{1,0} broadcast(constant.657), dimensions={}
+  erfc.938 = f32[4,64]{1,0} add(erfc.937, erfc.797)
+  erfc.939 = f32[4,64]{1,0} multiply(erfc.938, erfc.930)
+  constant.656 = f32[] constant(-0.582473278)
+  erfc.796 = f32[4,64]{1,0} broadcast(constant.656), dimensions={}
+  erfc.940 = f32[4,64]{1,0} add(erfc.939, erfc.796)
+  erfc.941 = f32[4,64]{1,0} multiply(erfc.940, erfc.930)
+  constant.655 = f32[] constant(0.621000469)
+  erfc.795 = f32[4,64]{1,0} broadcast(constant.655), dimensions={}
+  erfc.942 = f32[4,64]{1,0} add(erfc.941, erfc.795)
+  erfc.943 = f32[4,64]{1,0} multiply(erfc.942, erfc.930)
+  constant.654 = f32[] constant(-0.494451523)
+  erfc.794 = f32[4,64]{1,0} broadcast(constant.654), dimensions={}
+  erfc.944 = f32[4,64]{1,0} add(erfc.943, erfc.794)
+  erfc.945 = f32[4,64]{1,0} multiply(erfc.944, erfc.930)
+  constant.653 = f32[] constant(0.340488)
+  erfc.793 = f32[4,64]{1,0} broadcast(constant.653), dimensions={}
+  erfc.946 = f32[4,64]{1,0} add(erfc.945, erfc.793)
+  erfc.947 = f32[4,64]{1,0} multiply(erfc.946, erfc.930)
+  constant.652 = f32[] constant(-0.274112701)
+  erfc.792 = f32[4,64]{1,0} broadcast(constant.652), dimensions={}
+  erfc.948 = f32[4,64]{1,0} add(erfc.947, erfc.792)
+  erfc.949 = f32[4,64]{1,0} multiply(erfc.948, erfc.930)
+  constant.651 = f32[] constant(0.563825965)
+  erfc.791 = f32[4,64]{1,0} broadcast(constant.651), dimensions={}
+  erfc.950 = f32[4,64]{1,0} add(erfc.949, erfc.791)
+  constant.650 = f32[] constant(-10.477664)
+  erfc.790 = f32[4,64]{1,0} broadcast(constant.650), dimensions={}
+  erfc.951 = f32[4,64]{1,0} multiply(erfc.930, erfc.790)
+  constant.649 = f32[] constant(12.9772)
+  erfc.789 = f32[4,64]{1,0} broadcast(constant.649), dimensions={}
+  erfc.952 = f32[4,64]{1,0} add(erfc.951, erfc.789)
+  erfc.953 = f32[4,64]{1,0} multiply(erfc.952, erfc.930)
+  constant.648 = f32[] constant(-7.49551868)
+  erfc.788 = f32[4,64]{1,0} broadcast(constant.648), dimensions={}
+  erfc.954 = f32[4,64]{1,0} add(erfc.953, erfc.788)
+  erfc.955 = f32[4,64]{1,0} multiply(erfc.954, erfc.930)
+  constant.647 = f32[] constant(2.92101908)
+  erfc.787 = f32[4,64]{1,0} broadcast(constant.647), dimensions={}
+  erfc.956 = f32[4,64]{1,0} add(erfc.955, erfc.787)
+  erfc.957 = f32[4,64]{1,0} multiply(erfc.956, erfc.930)
+  constant.646 = f32[] constant(-1.01526523)
+  erfc.786 = f32[4,64]{1,0} broadcast(constant.646), dimensions={}
+  erfc.958 = f32[4,64]{1,0} add(erfc.957, erfc.786)
+  erfc.959 = f32[4,64]{1,0} multiply(erfc.958, erfc.930)
+  constant.645 = f32[] constant(0.42184633)
+  erfc.785 = f32[4,64]{1,0} broadcast(constant.645), dimensions={}
+  erfc.960 = f32[4,64]{1,0} add(erfc.959, erfc.785)
+  erfc.961 = f32[4,64]{1,0} multiply(erfc.960, erfc.930)
+  constant.644 = f32[] constant(-0.282076746)
+  erfc.784 = f32[4,64]{1,0} broadcast(constant.644), dimensions={}
+  erfc.962 = f32[4,64]{1,0} add(erfc.961, erfc.784)
+  erfc.963 = f32[4,64]{1,0} multiply(erfc.962, erfc.930)
+  constant.643 = f32[] constant(0.564189494)
+  erfc.783 = f32[4,64]{1,0} broadcast(constant.643), dimensions={}
+  erfc.964 = f32[4,64]{1,0} add(erfc.963, erfc.783)
+  erfc.965 = f32[4,64]{0,1} select(erfc.934, erfc.950, erfc.964)
+  erfc.966 = f32[4,64]{0,1} multiply(erfc.933, erfc.965)
+  erfc.968 = f32[4,64]{0,1} select(erfc.967, erfc.781, erfc.966)
+  erfc.970 = f32[4,64]{1,0} subtract(erfc.800, erfc.968)
+  erfc.971 = f32[4,64]{0,1} select(erfc.969, erfc.970, erfc.968)
+  erfc.989 = f32[4,64]{0,1} select(erfc.988, erfc.986, erfc.971)
+  mul.211 = f32[4,64]{0,1} multiply(mul.209, erfc.989)
+  dot_general.33 = f32[16,4]{1,0} dot(constant.700, mul.211), lhs_contracting_dims={1}, rhs_contracting_dims={1}
+  transpose.32 = f32[4,16]{0,1} transpose(dot_general.33), dimensions={1,0}
+  constant.607 = f32[1,16]{1,0} constant({...})
+  add.411 = f32[1,16]{1,0} broadcast(constant.607), dimensions={0,1}
+  add.412 = f32[16]{0} reshape(add.411)
+  add.413 = f32[4,16]{1,0} broadcast(add.412), dimensions={1}
+  add.414 = f32[4,16]{0,1} add(transpose.32, add.413)
+  add.415 = f32[4,16]{1,0} add(mul.208, add.414)
+  reduce_sum.141 = f32[4]{0} reduce(add.415, constant.692), dimensions={1}, to_apply=region_21.50
+  broadcast_in_dim.158 = f32[4,1]{1,0} reshape(reduce_sum.141)
+  div.54 = f32[4,1]{1,0} divide(broadcast_in_dim.158, broadcast.198)
+  sub.211 = f32[4,1]{1,0} broadcast(div.54), dimensions={0,1}
+  sub.212 = f32[4]{0} reshape(sub.211)
+  sub.213 = f32[4,16]{1,0} broadcast(sub.212), dimensions={0}
+  sub.214 = f32[4,16]{1,0} subtract(add.415, sub.213)
+  jit__var_.10 = f32[4,1]{1,0} call(add.415, constant.690), to_apply=_var_168.49
+  max.38 = f32[4,1]{1,0} maximum(jit__var_.10, broadcast.197)
+  add.416 = f32[4,1]{1,0} add(max.38, broadcast.196)
+  rsqrt.10 = f32[4,1]{1,0} rsqrt(add.416)
+  mul.212 = f32[4,1]{1,0} broadcast(rsqrt.10), dimensions={0,1}
+  mul.213 = f32[4]{0} reshape(mul.212)
+  mul.214 = f32[4,16]{1,0} broadcast(mul.213), dimensions={0}
+  mul.215 = f32[4,16]{1,0} multiply(sub.214, mul.214)
+  mul.219 = f32[4,16]{1,0} multiply(mul.218, mul.215)
+  scatter.23 = f32[2,4,16]{2,1,0} scatter(broadcast_in_dim.145, constant.599, mul.219), update_window_dims={0,1}, inserted_window_dims={0}, scatter_dims_to_operand_dims={0}, index_vector_dim=0, indices_are_sorted=true, unique_indices=true, to_apply=region_25.57
+  constant.601 = pred[] constant(false)
+  broadcast.193 = pred[4,1]{1,0} broadcast(constant.601), dimensions={}
+  constant.602 = s32[] constant(0)
+  broadcast.194 = s32[4]{0} broadcast(constant.602), dimensions={}
+  jit__one_hot_.7 = f32[4,21]{1,0} call(broadcast.194), to_apply=_one_hot_197.52
+  constant.603 = f32[] constant(0)
+  broadcast.195 = f32[4,21]{1,0} broadcast(constant.603), dimensions={}
+  jit__where_.13 = f32[4,21]{1,0} call(broadcast.193, jit__one_hot_.7, broadcast.195), to_apply=_where_202.53
+  constant.633 = f32[21,16]{1,0} constant({...})
+  dot_general.37 = f32[4,16]{1,0} dot(jit__where_.13, constant.633), lhs_contracting_dims={1}, rhs_contracting_dims={0}
+  jit_random_decoding_order_.4 = s32[4]{0} get-tuple-element(jit_random_decoding_order_.3), index=0
+  jit_generate_ar_mask_.1 = s32[4,4]{1,0} call(jit_random_decoding_order_.4), to_apply=generate_ar_mask.13
+  reduce_sum.143 = s32[4]{0} reduce(jit_generate_ar_mask_.1, constant.690), dimensions={1}, to_apply=region_23.54
+  jit_argsort_.1 = s32[4]{0} call(reduce_sum.143), to_apply=argsort.56
+  slice.114 = u32[1,2]{1,0} slice(jit__threefry_split_.12), slice={[0:1], [0:2]}
+  squeeze.138 = u32[2]{0} reshape(slice.114)
+  jit__threefry_split_.13 = u32[4,2]{1,0} call(squeeze.138), to_apply=_threefry_split_216.58
+  constant.703 = f32[16,16]{1,0} constant({...})
+  constant.702 = f32[16,16]{1,0} constant({...})
+  constant.701 = f32[16,48]{1,0} constant({...})
+  tile_broadcast_in_dim.1 = f32[1,4,1,1,1,16]{5,4,3,2,1,0} reshape(mul.219)
+  tile.12 = f32[1,4,1,1,1,16]{5,4,3,2,1,0} broadcast(tile_broadcast_in_dim.1), dimensions={0,1,2,3,4,5}
+  tile.13 = f32[1,4,1,1,16]{4,3,2,1,0} reshape(tile.12)
+  tile.14 = f32[1,4,4,1,1,16]{5,4,3,2,1,0} broadcast(tile.13), dimensions={0,1,3,4,5}
+  tile.15 = f32[4,4,16]{2,1,0} reshape(tile.14)
+  lt.63 = pred[4,4]{1,0} compare(top_k.5, broadcast.209), direction=LT
+  add.417 = s32[4,4]{1,0} add(top_k.5, broadcast.201)
+  select_n.73 = s32[4,4]{1,0} select(lt.63, add.417, top_k.5)
+  broadcast_in_dim.160 = s32[4,4,1]{2,1,0} reshape(select_n.73)
+  gather.19 = f32[4,4,16]{2,1,0} gather(mul.219, broadcast_in_dim.160), offset_dims={2}, collapsed_slice_dims={0}, start_index_map={0}, index_vector_dim=2, slice_sizes={1,16}
+  concatenate.24 = f32[4,4,48]{2,1,0} concatenate(tile.15, add.392, gather.19), dimensions={2}
+  dot_general.34 = f32[16,4,4]{2,1,0} dot(constant.701, concatenate.24), lhs_contracting_dims={1}, rhs_contracting_dims={2}
+  transpose.33 = f32[4,4,16]{1,0,2} transpose(dot_general.34), dimensions={1,2,0}
+  constant.606 = f32[1,1,16]{2,1,0} constant({...})
+  add.418 = f32[1,1,16]{2,1,0} broadcast(constant.606), dimensions={0,1,2}
+  add.419 = f32[16]{0} reshape(add.418)
+  add.420 = f32[4,4,16]{2,1,0} broadcast(add.419), dimensions={2}
+  add.421 = f32[4,4,16]{1,0,2} add(transpose.33, add.420)
+  mul.220 = f32[4,4,16]{1,0,2} multiply(add.421, broadcast.200)
+  neg.22 = f32[4,4,16]{1,0,2} negate(add.421)
+  mul.221 = f32[4,4,16]{1,0,2} multiply(neg.22, broadcast.199)
+  erfc.1050 = f32[4,4,16]{1,0,2} abs(mul.221)
+  erfc.1051 = pred[4,4,16]{1,0,2} compare(erfc.1050, broadcast.240), direction=LT
+  erfc.1035 = f32[4,4,16]{1,0,2} multiply(mul.221, mul.221)
+  erfc.1036 = f32[4,4,16]{1,0,2} multiply(erfc.1035, broadcast.219)
+  erfc.1037 = f32[4,4,16]{1,0,2} add(erfc.1036, broadcast.218)
+  erfc.1038 = f32[4,4,16]{1,0,2} multiply(erfc.1037, erfc.1035)
+  erfc.1039 = f32[4,4,16]{1,0,2} add(erfc.1038, broadcast.217)
+  erfc.1040 = f32[4,4,16]{1,0,2} multiply(erfc.1039, erfc.1035)
+  erfc.1041 = f32[4,4,16]{1,0,2} add(erfc.1040, broadcast.216)
+  erfc.1042 = f32[4,4,16]{1,0,2} multiply(erfc.1041, erfc.1035)
+  erfc.1043 = f32[4,4,16]{1,0,2} add(erfc.1042, broadcast.215)
+  erfc.1044 = f32[4,4,16]{1,0,2} multiply(erfc.1043, erfc.1035)
+  erfc.1045 = f32[4,4,16]{1,0,2} add(erfc.1044, broadcast.214)
+  erfc.1046 = f32[4,4,16]{1,0,2} multiply(erfc.1045, erfc.1035)
+  erfc.1047 = f32[4,4,16]{1,0,2} add(erfc.1046, broadcast.213)
+  erfc.1048 = f32[4,4,16]{1,0,2} multiply(mul.221, erfc.1047)
+  erfc.1049 = f32[4,4,16]{2,1,0} subtract(broadcast.240, erfc.1048)
+  erfc.1032 = pred[4,4,16]{1,0,2} compare(mul.221, broadcast.220), direction=LT
+  erfc.990 = f32[4,4,16]{1,0,2} multiply(mul.221, mul.221)
+  erfc.991 = f32[4,4,16]{1,0,2} negate(erfc.990)
+  erfc.1030 = pred[4,4,16]{1,0,2} compare(erfc.991, broadcast.221), direction=LT
+  erfc.994 = f32[4,4,16]{1,0,2} exponential(erfc.991)
+  erfc.992 = f32[4,4,16]{1,0,2} abs(mul.221)
+  erfc.995 = f32[4,4,16]{2,1,0} divide(broadcast.240, erfc.992)
+  erfc.996 = f32[4,4,16]{1,0,2} multiply(erfc.994, erfc.995)
+  erfc.997 = pred[4,4,16]{1,0,2} compare(erfc.992, broadcast.239), direction=LT
+  erfc.993 = f32[4,4,16]{2,1,0} divide(broadcast.240, erfc.990)
+  erfc.998 = f32[4,4,16]{2,1,0} multiply(erfc.993, broadcast.238)
+  erfc.999 = f32[4,4,16]{2,1,0} add(erfc.998, broadcast.237)
+  erfc.1000 = f32[4,4,16]{2,1,0} multiply(erfc.999, erfc.993)
+  erfc.1001 = f32[4,4,16]{2,1,0} add(erfc.1000, broadcast.236)
+  erfc.1002 = f32[4,4,16]{2,1,0} multiply(erfc.1001, erfc.993)
+  erfc.1003 = f32[4,4,16]{2,1,0} add(erfc.1002, broadcast.235)
+  erfc.1004 = f32[4,4,16]{2,1,0} multiply(erfc.1003, erfc.993)
+  erfc.1005 = f32[4,4,16]{2,1,0} add(erfc.1004, broadcast.234)
+  erfc.1006 = f32[4,4,16]{2,1,0} multiply(erfc.1005, erfc.993)
+  erfc.1007 = f32[4,4,16]{2,1,0} add(erfc.1006, broadcast.233)
+  erfc.1008 = f32[4,4,16]{2,1,0} multiply(erfc.1007, erfc.993)
+  erfc.1009 = f32[4,4,16]{2,1,0} add(erfc.1008, broadcast.232)
+  erfc.1010 = f32[4,4,16]{2,1,0} multiply(erfc.1009, erfc.993)
+  erfc.1011 = f32[4,4,16]{2,1,0} add(erfc.1010, broadcast.231)
+  erfc.1012 = f32[4,4,16]{2,1,0} multiply(erfc.1011, erfc.993)
+  erfc.1013 = f32[4,4,16]{2,1,0} add(erfc.1012, broadcast.230)
+  erfc.1014 = f32[4,4,16]{2,1,0} multiply(erfc.993, broadcast.229)
+  erfc.1015 = f32[4,4,16]{2,1,0} add(erfc.1014, broadcast.228)
+  erfc.1016 = f32[4,4,16]{2,1,0} multiply(erfc.1015, erfc.993)
+  erfc.1017 = f32[4,4,16]{2,1,0} add(erfc.1016, broadcast.227)
+  erfc.1018 = f32[4,4,16]{2,1,0} multiply(erfc.1017, erfc.993)
+  erfc.1019 = f32[4,4,16]{2,1,0} add(erfc.1018, broadcast.226)
+  erfc.1020 = f32[4,4,16]{2,1,0} multiply(erfc.1019, erfc.993)
+  erfc.1021 = f32[4,4,16]{2,1,0} add(erfc.1020, broadcast.225)
+  erfc.1022 = f32[4,4,16]{2,1,0} multiply(erfc.1021, erfc.993)
+  erfc.1023 = f32[4,4,16]{2,1,0} add(erfc.1022, broadcast.224)
+  erfc.1024 = f32[4,4,16]{2,1,0} multiply(erfc.1023, erfc.993)
+  erfc.1025 = f32[4,4,16]{2,1,0} add(erfc.1024, broadcast.223)
+  erfc.1026 = f32[4,4,16]{2,1,0} multiply(erfc.1025, erfc.993)
+  erfc.1027 = f32[4,4,16]{2,1,0} add(erfc.1026, broadcast.222)
+  erfc.1028 = f32[4,4,16]{1,0,2} select(erfc.997, erfc.1013, erfc.1027)
+  erfc.1029 = f32[4,4,16]{1,0,2} multiply(erfc.996, erfc.1028)
+  erfc.1031 = f32[4,4,16]{1,0,2} select(erfc.1030, broadcast.220, erfc.1029)
+  erfc.1033 = f32[4,4,16]{2,1,0} subtract(broadcast.239, erfc.1031)
+  erfc.1034 = f32[4,4,16]{1,0,2} select(erfc.1032, erfc.1033, erfc.1031)
+  erfc.1052 = f32[4,4,16]{1,0,2} select(erfc.1051, erfc.1049, erfc.1034)
+  mul.222 = f32[4,4,16]{1,0,2} multiply(mul.220, erfc.1052)
+  dot_general.35 = f32[16,4,4]{2,1,0} dot(constant.702, mul.222), lhs_contracting_dims={1}, rhs_contracting_dims={2}
+  transpose.34 = f32[4,4,16]{1,0,2} transpose(dot_general.35), dimensions={1,2,0}
+  constant.605 = f32[1,1,16]{2,1,0} constant({...})
+  add.422 = f32[1,1,16]{2,1,0} broadcast(constant.605), dimensions={0,1,2}
+  add.423 = f32[16]{0} reshape(add.422)
+  add.424 = f32[4,4,16]{2,1,0} broadcast(add.423), dimensions={2}
+  add.425 = f32[4,4,16]{1,0,2} add(transpose.34, add.424)
+  mul.223 = f32[4,4,16]{1,0,2} multiply(add.425, broadcast.200)
+  neg.23 = f32[4,4,16]{1,0,2} negate(add.425)
+  mul.224 = f32[4,4,16]{1,0,2} multiply(neg.23, broadcast.199)
+  erfc.1113 = f32[4,4,16]{1,0,2} abs(mul.224)
+  erfc.1114 = pred[4,4,16]{1,0,2} compare(erfc.1113, broadcast.240), direction=LT
+  erfc.1098 = f32[4,4,16]{1,0,2} multiply(mul.224, mul.224)
+  erfc.1099 = f32[4,4,16]{1,0,2} multiply(erfc.1098, broadcast.219)
+  erfc.1100 = f32[4,4,16]{1,0,2} add(erfc.1099, broadcast.218)
+  erfc.1101 = f32[4,4,16]{1,0,2} multiply(erfc.1100, erfc.1098)
+  erfc.1102 = f32[4,4,16]{1,0,2} add(erfc.1101, broadcast.217)
+  erfc.1103 = f32[4,4,16]{1,0,2} multiply(erfc.1102, erfc.1098)
+  erfc.1104 = f32[4,4,16]{1,0,2} add(erfc.1103, broadcast.216)
+  erfc.1105 = f32[4,4,16]{1,0,2} multiply(erfc.1104, erfc.1098)
+  erfc.1106 = f32[4,4,16]{1,0,2} add(erfc.1105, broadcast.215)
+  erfc.1107 = f32[4,4,16]{1,0,2} multiply(erfc.1106, erfc.1098)
+  erfc.1108 = f32[4,4,16]{1,0,2} add(erfc.1107, broadcast.214)
+  erfc.1109 = f32[4,4,16]{1,0,2} multiply(erfc.1108, erfc.1098)
+  erfc.1110 = f32[4,4,16]{1,0,2} add(erfc.1109, broadcast.213)
+  erfc.1111 = f32[4,4,16]{1,0,2} multiply(mul.224, erfc.1110)
+  erfc.1112 = f32[4,4,16]{2,1,0} subtract(broadcast.240, erfc.1111)
+  erfc.1095 = pred[4,4,16]{1,0,2} compare(mul.224, broadcast.220), direction=LT
+  erfc.1053 = f32[4,4,16]{1,0,2} multiply(mul.224, mul.224)
+  erfc.1054 = f32[4,4,16]{1,0,2} negate(erfc.1053)
+  erfc.1093 = pred[4,4,16]{1,0,2} compare(erfc.1054, broadcast.221), direction=LT
+  erfc.1057 = f32[4,4,16]{1,0,2} exponential(erfc.1054)
+  erfc.1055 = f32[4,4,16]{1,0,2} abs(mul.224)
+  erfc.1058 = f32[4,4,16]{2,1,0} divide(broadcast.240, erfc.1055)
+  erfc.1059 = f32[4,4,16]{1,0,2} multiply(erfc.1057, erfc.1058)
+  erfc.1060 = pred[4,4,16]{1,0,2} compare(erfc.1055, broadcast.239), direction=LT
+  erfc.1056 = f32[4,4,16]{2,1,0} divide(broadcast.240, erfc.1053)
+  erfc.1061 = f32[4,4,16]{2,1,0} multiply(erfc.1056, broadcast.238)
+  erfc.1062 = f32[4,4,16]{2,1,0} add(erfc.1061, broadcast.237)
+  erfc.1063 = f32[4,4,16]{2,1,0} multiply(erfc.1062, erfc.1056)
+  erfc.1064 = f32[4,4,16]{2,1,0} add(erfc.1063, broadcast.236)
+  erfc.1065 = f32[4,4,16]{2,1,0} multiply(erfc.1064, erfc.1056)
+  erfc.1066 = f32[4,4,16]{2,1,0} add(erfc.1065, broadcast.235)
+  erfc.1067 = f32[4,4,16]{2,1,0} multiply(erfc.1066, erfc.1056)
+  erfc.1068 = f32[4,4,16]{2,1,0} add(erfc.1067, broadcast.234)
+  erfc.1069 = f32[4,4,16]{2,1,0} multiply(erfc.1068, erfc.1056)
+  erfc.1070 = f32[4,4,16]{2,1,0} add(erfc.1069, broadcast.233)
+  erfc.1071 = f32[4,4,16]{2,1,0} multiply(erfc.1070, erfc.1056)
+  erfc.1072 = f32[4,4,16]{2,1,0} add(erfc.1071, broadcast.232)
+  erfc.1073 = f32[4,4,16]{2,1,0} multiply(erfc.1072, erfc.1056)
+  erfc.1074 = f32[4,4,16]{2,1,0} add(erfc.1073, broadcast.231)
+  erfc.1075 = f32[4,4,16]{2,1,0} multiply(erfc.1074, erfc.1056)
+  erfc.1076 = f32[4,4,16]{2,1,0} add(erfc.1075, broadcast.230)
+  erfc.1077 = f32[4,4,16]{2,1,0} multiply(erfc.1056, broadcast.229)
+  erfc.1078 = f32[4,4,16]{2,1,0} add(erfc.1077, broadcast.228)
+  erfc.1079 = f32[4,4,16]{2,1,0} multiply(erfc.1078, erfc.1056)
+  erfc.1080 = f32[4,4,16]{2,1,0} add(erfc.1079, broadcast.227)
+  erfc.1081 = f32[4,4,16]{2,1,0} multiply(erfc.1080, erfc.1056)
+  erfc.1082 = f32[4,4,16]{2,1,0} add(erfc.1081, broadcast.226)
+  erfc.1083 = f32[4,4,16]{2,1,0} multiply(erfc.1082, erfc.1056)
+  erfc.1084 = f32[4,4,16]{2,1,0} add(erfc.1083, broadcast.225)
+  erfc.1085 = f32[4,4,16]{2,1,0} multiply(erfc.1084, erfc.1056)
+  erfc.1086 = f32[4,4,16]{2,1,0} add(erfc.1085, broadcast.224)
+  erfc.1087 = f32[4,4,16]{2,1,0} multiply(erfc.1086, erfc.1056)
+  erfc.1088 = f32[4,4,16]{2,1,0} add(erfc.1087, broadcast.223)
+  erfc.1089 = f32[4,4,16]{2,1,0} multiply(erfc.1088, erfc.1056)
+  erfc.1090 = f32[4,4,16]{2,1,0} add(erfc.1089, broadcast.222)
+  erfc.1091 = f32[4,4,16]{1,0,2} select(erfc.1060, erfc.1076, erfc.1090)
+  erfc.1092 = f32[4,4,16]{1,0,2} multiply(erfc.1059, erfc.1091)
+  erfc.1094 = f32[4,4,16]{1,0,2} select(erfc.1093, broadcast.220, erfc.1092)
+  erfc.1096 = f32[4,4,16]{2,1,0} subtract(broadcast.239, erfc.1094)
+  erfc.1097 = f32[4,4,16]{1,0,2} select(erfc.1095, erfc.1096, erfc.1094)
+  erfc.1115 = f32[4,4,16]{1,0,2} select(erfc.1114, erfc.1112, erfc.1097)
+  mul.225 = f32[4,4,16]{1,0,2} multiply(mul.223, erfc.1115)
+  dot_general.36 = f32[16,4,4]{2,1,0} dot(constant.703, mul.225), lhs_contracting_dims={1}, rhs_contracting_dims={2}
+  transpose.35 = f32[4,4,16]{1,0,2} transpose(dot_general.36), dimensions={1,2,0}
+  constant.604 = f32[1,1,16]{2,1,0} constant({...})
+  add.426 = f32[1,1,16]{2,1,0} broadcast(constant.604), dimensions={0,1,2}
+  add.427 = f32[16]{0} reshape(add.426)
+  add.428 = f32[4,4,16]{2,1,0} broadcast(add.427), dimensions={2}
+  add.429 = f32[4,4,16]{1,0,2} add(transpose.35, add.428)
+  add.430 = f32[4,4,16]{1,0,2} add(add.392, add.429)
+  reduce_sum.142 = f32[4,4]{1,0} reduce(add.430, constant.692), dimensions={2}, to_apply=region_22.51
+  broadcast_in_dim.161 = f32[4,4,1]{2,1,0} reshape(reduce_sum.142)
+  div.55 = f32[4,4,1]{2,1,0} divide(broadcast_in_dim.161, broadcast.205)
+  sub.215 = f32[4,4,1]{2,1,0} broadcast(div.55), dimensions={0,1,2}
+  sub.216 = f32[4,4]{1,0} reshape(sub.215)
+  sub.217 = f32[4,4,16]{2,1,0} broadcast(sub.216), dimensions={0,1}
+  sub.218 = f32[4,4,16]{1,0,2} subtract(add.430, sub.217)
+  jit__var_.11 = f32[4,4,1]{2,1,0} call(add.430, constant.690), to_apply=_var.41
+  max.39 = f32[4,4,1]{2,1,0} maximum(jit__var_.11, broadcast.204)
+  add.431 = f32[4,4,1]{2,1,0} add(max.39, broadcast.203)
+  rsqrt.11 = f32[4,4,1]{2,1,0} rsqrt(add.431)
+  mul.226 = f32[4,4,1]{2,1,0} broadcast(rsqrt.11), dimensions={0,1,2}
+  mul.227 = f32[4,4]{1,0} reshape(mul.226)
+  mul.228 = f32[4,4,16]{2,1,0} broadcast(mul.227), dimensions={0,1}
+  mul.229 = f32[4,4,16]{1,0,2} multiply(sub.218, mul.228)
+  lt.64 = pred[4,4]{1,0} compare(top_k.5, broadcast.209), direction=LT
+  add.432 = s32[4,4]{1,0} add(top_k.5, broadcast.201)
+  select_n.74 = s32[4,4]{1,0} select(lt.64, add.432, top_k.5)
+  broadcast_in_dim.163 = s32[4,4,1]{2,1,0} reshape(select_n.74)
+  gather.20 = f32[4,4,16]{2,1,0} gather(broadcast.202, broadcast_in_dim.163), offset_dims={2}, collapsed_slice_dims={0}, start_index_map={0}, index_vector_dim=2, slice_sizes={1,16}
+  lt.65 = pred[4,4]{1,0} compare(top_k.5, broadcast.209), direction=LT
+  add.433 = s32[4,4]{1,0} add(top_k.5, broadcast.201)
+  select_n.75 = s32[4,4]{1,0} select(lt.65, add.433, top_k.5)
+  broadcast_in_dim.164 = s32[4,4,1]{2,1,0} reshape(select_n.75)
+  gather.21 = f32[4,4,16]{2,1,0} gather(mul.219, broadcast_in_dim.164), offset_dims={2}, collapsed_slice_dims={0}, start_index_map={0}, index_vector_dim=2, slice_sizes={1,16}
+  concatenate.25 = f32[4,4,48]{2,1,0} concatenate(mul.229, gather.20, gather.21), dimensions={2}
+  broadcast_in_dim.162 = f32[4,1]{1,0} reshape(Arg_2.45)
+  mul.234 = f32[4,1]{1,0} broadcast(broadcast_in_dim.162), dimensions={0,1}
+  mul.235 = f32[4]{0} reshape(mul.234)
+  mul.236 = f32[4,4]{1,0} broadcast(mul.235), dimensions={0}
+  jit_take_along_axis_.7 = s32[4,4]{1,0} call(jit_generate_ar_mask_.1, top_k.5), to_apply=take_along_axis_113.35
+  sub.219 = s32[4,4]{1,0} subtract(broadcast.207, jit_take_along_axis_.7)
+  convert_element_type.42 = f32[4,4]{1,0} convert(sub.219)
+  mul.237 = f32[4,4]{1,0} multiply(mul.236, convert_element_type.42)
+  broadcast_in_dim.165 = f32[4,4,1]{2,1,0} reshape(mul.237)
+  mul.238 = f32[4,4,1]{2,1,0} broadcast(broadcast_in_dim.165), dimensions={0,1,2}
+  mul.239 = f32[4,4]{1,0} reshape(mul.238)
+  mul.240 = f32[4,4,48]{2,1,0} broadcast(mul.239), dimensions={0,1}
+  mul.241 = f32[4,4,48]{2,1,0} multiply(concatenate.25, mul.240)
+  mul.230 = f32[4,1]{1,0} broadcast(broadcast_in_dim.162), dimensions={0,1}
+  mul.231 = f32[4]{0} reshape(mul.230)
+  mul.232 = f32[4,4]{1,0} broadcast(mul.231), dimensions={0}
+  convert_element_type.41 = f32[4,4]{1,0} convert(jit_take_along_axis_.7)
+  mul.233 = f32[4,4]{1,0} multiply(mul.232, convert_element_type.41)
+  while.138 = (s32[], f32[2,4,16]{2,1,0}, f32[4,16]{1,0}, f32[4,21]{1,0}, s32[4]{0}, /*index=5*/u32[4,2]{1,0}, f32[4,4,48]{2,1,0}, s32[4,4]{1,0}, f32[4]{0}, f32[4,4]{1,0}, /*index=10*/f32[4,4,16]{1,0,2}) tuple(constant.690, scatter.23, dot_general.37, jit__where_.13, jit_argsort_.1, jit__threefry_split_.13, mul.241, top_k.5, Arg_2.45, mul.233, mul.229)
+  while.139 = (s32[], f32[2,4,16]{2,1,0}, f32[4,16]{1,0}, f32[4,21]{1,0}, s32[4]{0}, /*index=5*/u32[4,2]{1,0}, f32[4,4,48]{2,1,0}, s32[4,4]{1,0}, f32[4]{0}, f32[4,4]{1,0}, /*index=10*/f32[4,4,16]{1,0,2}) while(while.138), condition=region_46.97, body=region_26.96
+  while.140 = s32[] get-tuple-element(while.139), index=0
+  while.141 = f32[2,4,16]{2,1,0} get-tuple-element(while.139), index=1
+  while.142 = f32[4,16]{1,0} get-tuple-element(while.139), index=2
+  while.143 = f32[4,21]{1,0} get-tuple-element(while.139), index=3
+  make_sample_sequences__locals__sample_sequences.3 = s32[4]{0} call(while.143), to_apply=argmax_394.99
+  ROOT convert_element_type.43 = s8[4]{0} convert(make_sample_sequences__locals__sample_sequences.3)
+}
+
+ENTRY main.101 {
+  pk.1 = u32[2]{0} parameter(0)
+  constant.704 = f32[] constant(0)
+  broadcast.241 = f32[4,4,3]{2,1,0} broadcast(constant.704), dimensions={}
+  constant.705 = f32[] constant(1)
+  broadcast.242 = f32[4]{0} broadcast(constant.705), dimensions={}
+  constant.706 = s32[4]{0} constant({0, 1, 2, 3})
+  constant.707 = s32[] constant(0)
+  broadcast.243 = s32[4]{0} broadcast(constant.707), dimensions={}
+  ROOT jit_sample_sequences_.1 = s8[4]{0} call(pk.1, broadcast.241, broadcast.242, constant.706, broadcast.243), to_apply=sample_sequences.100
+}
+

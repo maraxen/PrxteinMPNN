@@ -1,0 +1,47 @@
+name: jaxlint (advisory)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  jaxlint-advisory:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: Create virtual environment and sync
+        run: |
+          uv venv
+          source .venv/bin/activate
+          uv sync --extra cpu --extra dev
+      - name: jaxlint advisory (never fails workflow)
+        run: |
+          source .venv/bin/activate
+          set +e
+          echo "Attempting optional unpinned jaxlint install (advisory only)."
+          uv pip install jaxlint
+          install_rc=$?
+          if [ "$install_rc" -ne 0 ]; then
+            echo "jaxlint install failed; skipping. This job is advisory only."
+            exit 0
+          fi
+          echo "Running jaxlint (output advisory; failures do not fail the job)."
+          uv run jaxlint .
+          lint_rc=$?
+          if [ "$lint_rc" -ne 0 ]; then
+            echo "jaxlint exited with $lint_rc; advisory only — exiting 0."
+          fi
+          exit 0

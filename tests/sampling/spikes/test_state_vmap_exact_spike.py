@@ -3,14 +3,16 @@
 Records **go / no-go** for Phase 4 in the PR that merges substantive changes; this test is the
 numeric gate for the unconditional **ProteinMPNN** branch (``tie_group_map=None``).
 
-HLO byte counts for PR narrative: the test emits a ``UserWarning`` body
-``spike_hlo_bytes_state_vmap_exact=...`` (visible under ``pytest -W default``).
+HLO narrative for PR visibility: tests emit ``UserWarning`` bodies including UTF-8 byte length,
+newline count, and a case-insensitive count of the substring ``custom-call`` (cheap proxy for
+custom-call ops in the IR text). Use ``pytest -W default`` to surface them.
 """
 
 from __future__ import annotations
 
 import os
 import warnings
+from typing import NamedTuple
 
 import equinox as eqx
 import jax
@@ -29,11 +31,35 @@ def _identity_af_to_mpnn(x: np.ndarray) -> np.ndarray:
   return np.asarray(x, dtype=np.int32)
 
 
-@pytest.mark.parity_fast
-def test_state_vmap_exact_unconditional_matches_explicit_vmap_stack() -> None:
-  """``score_unconditional_state_vmap_exact`` matches a literal ``jax.vmap`` encode/decode."""
-  n_states, n_can = 2, 6
-  key = jax.random.PRNGKey(101)
+class _HloSummary(NamedTuple):
+  utf8_bytes: int
+  newline_count: int
+  custom_call_markers: int
+
+
+def _summarize_hlo_text(hlo: str) -> _HloSummary:
+  """Cheap IR stats: UTF-8 size, raw newline count, ``custom-call`` substring hits (lowered)."""
+  data = hlo.encode("utf-8")
+  lowered = hlo.lower()
+  return _HloSummary(
+    utf8_bytes=len(data),
+    newline_count=hlo.count("\n"),
+    custom_call_markers=lowered.count("custom-call"),
+  )
+
+
+def _emit_spike_hlo_warnings(hlo: str) -> None:
+  s = _summarize_hlo_text(hlo)
+  warnings.warn(
+    "spike_hlo_state_vmap_exact "
+    f"bytes={s.utf8_bytes} newlines={s.newline_count} custom_call_markers={s.custom_call_markers}",
+    UserWarning,
+    stacklevel=2,
+  )
+
+
+def _run_state_vmap_exact_unconditional_spike(*, n_states: int, n_can: int, key: jax.Array) -> None:
+  """Shared numeric + HLO export body for fast and heavy spike tests."""
   model = PrxteinMPNN(
     node_features=32,
     edge_features=32,
@@ -141,18 +167,22 @@ def test_state_vmap_exact_unconditional_matches_explicit_vmap_stack() -> None:
     )
 
   hlo_sv = export_hlo(run_sv, key)
-  warnings.warn(
-    f"spike_hlo_bytes_state_vmap_exact={len(hlo_sv.encode('utf-8'))}",
-    UserWarning,
-    stacklevel=1,
-  )
+  _emit_spike_hlo_warnings(hlo_sv)
+
+
+@pytest.mark.parity_fast
+def test_state_vmap_exact_unconditional_matches_explicit_vmap_stack() -> None:
+  """``score_unconditional_state_vmap_exact`` matches a literal ``jax.vmap`` encode/decode."""
+  key = jax.random.PRNGKey(101)
+  _run_state_vmap_exact_unconditional_spike(n_states=2, n_can=6, key=key)
 
 
 @pytest.mark.parity_heavy
-def test_state_vmap_exact_spike_placeholder_heavy_when_reference_assets() -> None:
-  """Optional parity_heavy segment when ``REFERENCE_PATH`` is set (roadmap §228)."""
-  if not os.environ.get("REFERENCE_PATH"):
-    pytest.skip("REFERENCE_PATH not set; run locally for parity_heavy segment.")
-  pytest.skip(
-    "Heavy spike extension: add reference-backed batch + HLO narrative when assets are wired."
-  )
+def test_state_vmap_exact_spike_extended_when_reference_assets() -> None:
+  """Larger synthetic stack when ``REFERENCE_PATH`` points at a real directory (local / CI opt-in)."""
+  ref = os.environ.get("REFERENCE_PATH")
+  if not ref or not os.path.isdir(ref):
+    pytest.skip("REFERENCE_PATH unset or not a directory; heavy spike is opt-in.")
+
+  key = jax.random.PRNGKey(707)
+  _run_state_vmap_exact_unconditional_spike(n_states=3, n_can=10, key=key)

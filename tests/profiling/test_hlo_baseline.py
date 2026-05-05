@@ -76,3 +76,4 @@ def test_baseline_hlo_review_artifacts_exist() -> None:
   for name in names:
     p = _ROOT / "baseline_hlo" / f"{name}.txt"
     assert p.is_file(), f"missing review artifact {p}"
+    assert p.stat().st_size > 0, f"empty review artifact {p}"

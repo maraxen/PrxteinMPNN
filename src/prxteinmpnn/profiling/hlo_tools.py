@@ -4,6 +4,8 @@ Vendored from jaxbeans ``core/profiling.py`` for Phase 0 CI (no jaxbeans package
 required on isolated checkouts). Upstream path:
 ``jaxbeans/src/jaxbeans/core/profiling.py`` (jaxbeans 0.1.0 tree).
 
+Upstream sync: unknown (path-only vendored excerpt).
+
 Behavior matches upstream; only docstrings/headers differ.
 """
 

@@ -117,6 +117,7 @@ def _score_averaged_mode(
   sampling_fields = {f.name for f in fields(SamplingSpecification)}
   filtered_spec = {k: v for k, v in spec_dict.items() if k in sampling_fields}
   sampling_spec = SamplingSpecification(**filtered_spec)
+  # TODO(io_callback integration): Batch list accumulation; stream scores/logits via io_callback where consumers support it.
   all_scores, all_logits = [], []
 
   for batched_ensemble in protein_iterator:
@@ -144,6 +145,7 @@ def _score_standard_mode(
     multi_state_strategy=spec.multi_state_strategy,
     multi_state_temperature=spec.multi_state_temperature,
   )
+  # TODO(io_callback integration): Same batched list pattern; see prxteinmpnn/TODO_io_callback.txt.
   all_scores, all_logits = [], []
 
   for batched_ensemble in protein_iterator:

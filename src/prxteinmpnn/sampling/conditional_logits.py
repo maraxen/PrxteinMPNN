@@ -3,6 +3,10 @@
 Conditional logits are computed given a specific sequence input,
 allowing the model to evaluate how well a sequence fits a structure.
 
+Stacked multistate (``state_vmap_exact``): :func:`make_conditional_logits_state_vmap_fn`,
+or ``model(..., decoding_approach=\"conditional\", multistate_mode=\"state_vmap_exact\", ...)``
+with stacked geometry tensors and a flat ``one_hot_sequence`` / aa indices.
+
 This is used for:
 - Jacobian computation (sensitivity analysis)
 - Sequence scoring and validation
@@ -16,6 +20,7 @@ from typing import TYPE_CHECKING, cast
 
 import equinox as eqx
 import jax
+import jax.numpy as jnp
 
 
 def _eqx_module_hash(self: object) -> int:  # pragma: no cover - safe shim
@@ -28,7 +33,7 @@ if TYPE_CHECKING:
 
   from jaxtyping import PRNGKeyArray
 
-  from prxteinmpnn.model import PrxteinMPNN
+  from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
     AutoRegressiveMask,
@@ -62,7 +67,7 @@ else:
 
 
 def make_conditional_logits_fn(
-  model: PrxteinMPNN,
+  model: PrxteinMPNN | PrxteinLigandMPNN,
 ) -> ConditionalLogitsFn:
   """Create a function to compute conditional logits for a given sequence.
 
@@ -163,11 +168,148 @@ def make_conditional_logits_fn(
       None,  # tie_group_map not used in jacobian computation
       _multi_state_strategy_idx,
       _multi_state_temperature,
+      None,  # _initial_node_features
+      None,  # state_weights
+      None,  # state_mapping
+      None,  # _fixed_mask
+      None,  # _fixed_tokens
+      None,  # group_indices_table
+      None,  # group_valid_table
     )
 
     return logits
 
   return cast("ConditionalLogitsFn", conditional_logits)
+
+
+def make_conditional_logits_state_vmap_fn(model: PrxteinMPNN | PrxteinLigandMPNN):
+  """JIT ``score_conditional_state_vmap_exact`` (teacher-forced parallel decode per state).
+
+  ``sequence`` is a **flat** `(n_flat,)` aa index tensor or `(n_flat, 21)` one-hot; it is gathered
+  into stack layout via :func:`~prxteinmpnn.model.multistate_stack.gather_flat_to_stack`.
+
+  Ligand checkpoints require stacked ``y_*`` tensors; omit them on ``PrxteinMPNN``.
+  ``ar_mask_stack`` defaults to zeros `(S,P,P)`, matching :func:`make_conditional_logits_fn`.
+  """
+  import jax.numpy as jnp
+
+  from prxteinmpnn.model.mpnn import PrxteinLigandMPNN as _LM
+  from prxteinmpnn.model.multistate_stack import gather_flat_to_stack
+
+  m = eqx.nn.inference_mode(model, value=True) if isinstance(model, eqx.Module) else model
+  is_lig = isinstance(model, _LM)
+  n_emb = int(m.w_s_embed.num_embeddings)
+
+  if is_lig:
+
+    def conditional_stack(
+      prng_key: jax.Array,
+      sequence: jax.Array,
+      coords_stack: jax.Array,
+      mask_stack: jax.Array,
+      residue_index_stack: jax.Array,
+      chain_index_stack: jax.Array,
+      y_stack: jax.Array,
+      y_t_stack: jax.Array,
+      y_m_stack: jax.Array,
+      state_flat_rows: jax.Array,
+      n_flat: int,
+      tie_group_map: jax.Array | None,
+      multi_state_strategy_idx: jax.Array,
+      multi_state_temperature: jax.Array | float,
+      state_weights: jax.Array | None,
+      state_mapping: jax.Array | None,
+      ar_mask_stack: jax.Array | None = None,
+      bias_flat: jax.Array | None = None,
+      states_chunk_size: int | None = None,
+    ) -> jax.Array:
+      oh = jax.nn.one_hot(sequence, n_emb) if sequence.ndim == 1 else sequence
+      seq_stack = gather_flat_to_stack(oh, state_flat_rows)
+      s_dim, p_dim = mask_stack.shape[0], mask_stack.shape[1]
+      arm = (
+        jnp.zeros((s_dim, p_dim, p_dim), dtype=jnp.int32)
+        if ar_mask_stack is None
+        else ar_mask_stack
+      )
+      extra: dict[str, object] = {}
+      if states_chunk_size is not None:
+        extra["states_chunk_size"] = states_chunk_size
+      return m.score_conditional_state_vmap_exact(  # type: ignore[union-attr]
+        prng_key,
+        coords_stack,
+        mask_stack,
+        residue_index_stack,
+        chain_index_stack,
+        y_stack,
+        y_t_stack,
+        y_m_stack,
+        seq_stack,
+        arm,
+        state_flat_rows,
+        n_flat,
+        tie_group_map=tie_group_map,
+        multi_state_strategy_idx=multi_state_strategy_idx,
+        multi_state_temperature=jnp.asarray(multi_state_temperature, jnp.float32),
+        state_weights=state_weights,
+        state_mapping=state_mapping,
+        bias_flat=bias_flat,
+        inference=True,
+        **extra,
+      )
+
+    return conditional_stack
+
+  from prxteinmpnn.model.mpnn import PrxteinMPNN as _PM
+
+  if not isinstance(model, _PM):
+    raise TypeError("Expected PrxteinMPNN or PrxteinLigandMPNN")
+
+  @partial(jax.jit, static_argnames=("n_flat",))
+  def conditional_stack_prot(
+    prng_key: jax.Array,
+    sequence: jax.Array,
+    coords_stack: jax.Array,
+    mask_stack: jax.Array,
+    residue_index_stack: jax.Array,
+    chain_index_stack: jax.Array,
+    state_flat_rows: jax.Array,
+    n_flat: int,
+    tie_group_map: jax.Array | None,
+    multi_state_strategy_idx: jax.Array,
+    multi_state_temperature: jax.Array | float,
+    state_weights: jax.Array | None,
+    state_mapping: jax.Array | None,
+    ar_mask_stack: jax.Array | None = None,
+    bias_flat: jax.Array | None = None,
+  ) -> jax.Array:
+    oh = jax.nn.one_hot(sequence, n_emb) if sequence.ndim == 1 else sequence
+    seq_stack = gather_flat_to_stack(oh, state_flat_rows)
+    s_dim, p_dim = mask_stack.shape[0], mask_stack.shape[1]
+    arm = (
+      jnp.zeros((s_dim, p_dim, p_dim), dtype=jnp.int32)
+      if ar_mask_stack is None
+      else ar_mask_stack
+    )
+    return m.score_conditional_state_vmap_exact(
+      prng_key,
+      coords_stack,
+      mask_stack,
+      residue_index_stack,
+      chain_index_stack,
+      seq_stack,
+      arm,
+      state_flat_rows,
+      n_flat,
+      tie_group_map=tie_group_map,
+      multi_state_strategy_idx=multi_state_strategy_idx,
+      multi_state_temperature=jnp.asarray(multi_state_temperature, jnp.float32),
+      state_weights=state_weights,
+      state_mapping=state_mapping,
+      bias_flat=bias_flat,
+      inference=True,
+    )
+
+  return conditional_stack_prot
 
 
 def make_encoding_conditional_logits_split_fn(

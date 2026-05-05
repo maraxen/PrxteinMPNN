@@ -53,7 +53,7 @@ def test_prep_resolves_registry_checkpoint_for_ligand(tmp_path: Path) -> None:
   fake_model = MagicMock()
 
   with patch("prxteinmpnn.run.prep.create_protein_dataset", return_value=[]):
-    with patch("prxteinmpnn.run.prep.load_ligand_model", return_value=fake_model) as mock_load:
+    with patch("prxteinmpnn.run.prep.load_model", return_value=fake_model) as mock_load:
       with patch(
         "prxteinmpnn.run.prep.eqx.nn.inference_mode",
         side_effect=lambda model, value=True: model,
@@ -61,7 +61,10 @@ def test_prep_resolves_registry_checkpoint_for_ligand(tmp_path: Path) -> None:
         _, model = prep_protein_stream_and_model(spec)
 
   assert model is fake_model
-  assert mock_load.call_args.kwargs["local_path"] == str(artifact_path.resolve())
+  assert mock_load.call_count == 1
+  kwargs = mock_load.call_args.kwargs
+  assert kwargs["checkpoint_id"] == "ligandmpnn_v_32_020_25"
+  assert kwargs["local_path"] == str(artifact_path.resolve())
 
 
 def test_prep_registry_checksum_mismatch_raises(tmp_path: Path) -> None:
@@ -107,3 +110,36 @@ def test_prep_registry_missing_entry_raises(tmp_path: Path) -> None:
   with patch("prxteinmpnn.run.prep.create_protein_dataset", return_value=[]):
     with pytest.raises(ValueError, match="No checkpoint registry entry found"):
       prep_protein_stream_and_model(spec)
+
+
+def test_prep_model_local_path_overrides_registry(tmp_path: Path) -> None:
+  """When both registry and model_local_path are set, weights load from model_local_path."""
+  reg_artifact = tmp_path / "from_registry.eqx"
+  reg_artifact.write_bytes(b"registry-bytes")
+  override_path = tmp_path / "override.eqx"
+  override_path.write_bytes(b"override-bytes")
+  registry_path = tmp_path / "checkpoint_registry.json"
+  _write_registry(
+    registry_path,
+    model_family="ligandmpnn",
+    checkpoint_id="ligandmpnn_v_32_020_25",
+    artifact_path="from_registry.eqx",
+    sha256=hashlib.sha256(reg_artifact.read_bytes()).hexdigest(),
+  )
+  spec = RunSpecification(
+    inputs=["dummy.pdb"],
+    model_family="ligandmpnn",
+    checkpoint_id="ligandmpnn_v_32_020_25",
+    checkpoint_registry_path=registry_path,
+    model_local_path=override_path,
+  )
+  fake_model = MagicMock()
+  with patch("prxteinmpnn.run.prep.create_protein_dataset", return_value=[]):
+    with patch("prxteinmpnn.run.prep.load_model", return_value=fake_model) as mock_load:
+      with patch(
+        "prxteinmpnn.run.prep.eqx.nn.inference_mode",
+        side_effect=lambda model, value=True: model,
+      ):
+        _, model = prep_protein_stream_and_model(spec)
+  assert model is fake_model
+  assert mock_load.call_args.kwargs["local_path"] == str(override_path.resolve())

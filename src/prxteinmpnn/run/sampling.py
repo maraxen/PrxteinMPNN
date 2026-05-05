@@ -893,6 +893,8 @@ def _sample_batch(
     # Slice pre-computed keys instead of generating them in the loop.
     keys = all_keys[chunk_start : chunk_start + chunk_count]
 
+    # TODO(io_callback integration): Stream each chunk to host via io_callback + jax.effects_barrier
+    # instead of retaining all chunk_* on device until concatenate (see prxteinmpnn/TODO_io_callback.txt).
     chunk_sequences, chunk_logits, _ = vmap_structures(
       batched_ensemble.coordinates,
       batched_ensemble.mask,
@@ -983,6 +985,8 @@ def sample(
   if spec.output_h5_path:
     return _sample_streaming(spec, protein_iterator, sampler_fn)
 
+  # TODO(io_callback integration): Non-streaming path appends per-batch device arrays then concats;
+  # prefer preallocated buffers or io_callback streaming (see prxteinmpnn/TODO_io_callback.txt).
   all_sequences, all_pseudo_perplexities = [], []
   all_logits = [] if spec.return_logits else None
   canonical_structure_ids = _canonical_structure_ids_for_spec(spec)
@@ -1106,6 +1110,8 @@ def _sample_streaming(
     stacklevel=2,
   )
 
+  # TODO(io_callback integration): HDF5 path materializes full batches on device then writes in a
+  # Python loop; use io_callback-driven writes + effects_barrier where feasible (prxteinmpnn/TODO_io_callback.txt).
   with h5py.File(spec.output_h5_path, "w") as f:
     f.attrs["schema_version"] = GRID_SCHEMA_VERSION if spec.grid_mode else SAMPLING_SCHEMA_VERSION
     f.attrs["model_family"] = spec.model_family
@@ -1326,7 +1332,8 @@ def _sample_streaming_arrayrecord(
           chunk_sample_count=chunk_count,
         )
 
-        # Stream each sample to the corresponding structure's ArrayRecord writer
+        # TODO(io_callback integration): np.asarray(...) forces device_get; prefer jit tail with
+        # io_callback(enqueue_payload/get_io_callback_fn) + jax.effects_barrier (prxteinmpnn/TODO_io_callback.txt).
         for structure_batch_idx, writer in structure_writers:
           seq_chunk = np.asarray(sampled_sequences[structure_batch_idx], dtype=np.uint8)
           logits_chunk = (
@@ -1447,6 +1454,7 @@ def _sample_averaged_mode(
     return _sample_streaming_averaged(spec, protein_iterator, model)
 
   _, sample_fn, decode_fn = make_encoding_sampling_split_fn(model)
+  # TODO(io_callback integration): List + concat of sequences/logits; mirror streaming sample() work.
   all_sequences, all_logits, all_pseudo_perplexities = [], [], []
 
   for batched_ensemble in protein_iterator:

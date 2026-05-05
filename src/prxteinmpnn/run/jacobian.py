@@ -306,7 +306,7 @@ def _update_rolling_average(
   nodes, edges, neighbors_list, masks, ar_masks = state
   node_features, edge_features, neighbor_indices, mask, ar_mask = new_encodings
 
-  # Flatten and append
+  # Flatten and append (TODO(io_callback integration): revisit if Jacobian export streams to host disks)
   nodes.append(node_features.reshape((-1, *node_features.shape[2:])))
   edges.append(edge_features.reshape((-1, *edge_features.shape[2:])))
   neighbors_list.append(neighbor_indices.reshape((-1, *neighbor_indices.shape[2:])))

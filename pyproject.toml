@@ -166,7 +166,9 @@ allowed-unresolved-imports = ["proxide.**", "prolix.**"]
 invalid-type-form = "ignore"
 
 [tool.jaxlint]
-# Advisory in CI until Phase 2 (roadmap); run locally when jaxlint is installed.
+# jaxlint is not published to PyPI and none is planned; configure it for local runs
+# only when the tool is on PATH (e.g. development checkout that vendors or ships it).
+# CI does not install jaxlint.
 select = ["JL"]
 
 [dependency-groups]

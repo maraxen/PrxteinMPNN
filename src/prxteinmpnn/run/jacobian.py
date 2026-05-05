@@ -34,8 +34,8 @@ if TYPE_CHECKING:
     StructureAtomicCoordinates,
   )
 
+from prxteinmpnn.protocols import ConditionalLogitsFn
 from prxteinmpnn.sampling.conditional_logits import (
-  ConditionalLogitsFn,
   make_conditional_logits_fn,
   make_encoding_conditional_logits_split_fn,
 )

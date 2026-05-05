@@ -1,6 +1,5 @@
 """Contains the logic for averaging node features over multiple structures and/or noise levels."""
 
-import inspect
 from collections.abc import Callable, Sequence
 from functools import partial
 from typing import Literal, cast
@@ -9,6 +8,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Float, Int, PRNGKeyArray
 
+from prxteinmpnn.model.capabilities import PRXTEIN_MPNN_CAPABILITIES
 from prxteinmpnn.model.mpnn import PrxteinMPNN
 from prxteinmpnn.sampling.conditional_logits import make_encoding_conditional_logits_split_fn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
@@ -55,7 +55,12 @@ def get_averaged_encodings(
 
   """
   encode_fn, _, _ = make_encoding_sampling_split_fn(model)
-  supports_structure_mapping = "structure_mapping" in inspect.signature(encode_fn).parameters
+  caps = getattr(model, "capabilities", None)
+  supports_structure_mapping = (
+    caps.encode_fn_supports_structure_mapping
+    if caps is not None
+    else PRXTEIN_MPNN_CAPABILITIES.encode_fn_supports_structure_mapping
+  )
 
   noise_array = (
     jnp.asarray(backbone_noise, dtype=jnp.float32) if backbone_noise is not None else jnp.zeros(1)

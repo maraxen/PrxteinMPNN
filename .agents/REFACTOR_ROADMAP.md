@@ -299,12 +299,12 @@ The spike is mandatory before Phase 4 PRs may merge. Until then, draft Phase 4 P
 |---|---|
 | **Goal** | Introduce 8 Equinox payloads + composed `RunSpec`; migrate call-sites; unblock §2 resource wiring. |
 | **Parity risk** | Low (tuple-unpacking → struct field is mechanical) |
-| **PRs** | 5 (payloads + RunSpec, sampling migration, scoring migration, run/prep migration with §2 fix, **`scripts/` audit + bulk-update**) |
+| **PRs** | **6** (replace harness tests; payloads + RunSpec; sampling/scoring/prep migrations split across PRs; **`scripts/` audit**; pickle migration) — see §14 sprint doc for ordered PR1–PR6; execution may still batch merges where safe. |
 | **Pre-conditions** | Phase 2 (Protocols typed). |
 
 **Tasks:**
 - Introduce `src/prxteinmpnn/payloads.py` with 8 Equinox modules (§3.2). Each carries a `replace()` via `eqx.tree_at`.
-- Replace ad-hoc tuple-passing with `MultistateStackPayload` at all `state_vmap_exact` call sites and at `DesignArrayRecordWriter`.
+- Replace ad-hoc tuple-passing with `MultistateStackPayload` at all `state_vmap_exact` call sites and at `DesignArrayRecordWriter`. **Execution split (§14):** land payloads + `RunSpec` shim first; complete tuple migration at writers / all hot paths in follow-on PRs once carriers are stable (same phase, ordered merges).
 - Compose `RunSpec` from the 9 sub-configs (§3.5). Migrate `RunSpecification` + 4 subclasses to thin shims that build a `RunSpec`.
 - Wire `compute_resource_allocation` into `run/prep.py` (currently exists but never called — **§2**).
 - Land `PrecisionConfig` and route training-time `dtype`/`policy` through it (closes **§1**).
@@ -568,17 +568,17 @@ Each Open Question now has a **default decision** that holds unless a triggering
 
 ---
 
-## 14. Sprint status (Phase 2 execution)
+## 14. Sprint status (Phase 3 planning)
 
 | Field | Value |
 | :--- | :--- |
-| **task_id** | `refactor-phase2-sprint-20260505` |
+| **task_id** | `refactor-phase3-sprint-20260505` |
 | **Last update** | 2026-05-05 |
-| **Current phase** | **Phase 2 complete** — next: Phase 3 (pytree payloads + composed `RunSpec`). |
-| **Landed** | Added `src/prxteinmpnn/protocols.py` (six `@runtime_checkable` boundary Protocols); `model/capabilities.py` with `ModelCapabilities` + defaults wired on `PrxteinMPNN` / `PrxteinLigandMPNN`; removed `TYPE_CHECKING` / `Callable[..., Any]` logits shims; migrated `inspect.signature` usage from `sampling/sample.py`, `scoring/score.py`, `run/averaging.py` to capabilities; `run/jacobian.py` imports `ConditionalLogitsFn` from `protocols`; score paths use `cast(ScoreFn, …)` / `cast(StateVmapExactScoreFn, …)`; tests updated (`test_sample_call_kw_contract.py`). Sprint plan: `.agents/SPRINT_refactor-phase2-20260505.md`. Outcome review: **APPROVE-with-nits** (encoding-split `Callable` return tuple; full-repo `ty` still has pre-existing diagnostics outside Phase-2 scope). |
-| **Verification (this sprint)** | `uv run pytest tests/parity -m parity_fast -q` — 10 passed; `PYTHONPATH=src uv run pytest tests/sampling/test_sample.py tests/model/test_ligand_wave_parallel.py tests/sampling/test_state_vmap_exact_jit.py tests/sampling/test_sample_call_kw_contract.py -q` — 23 passed (per fixer run); `uv run ty check src/prxteinmpnn/run/averaging.py` clean after capability constant annotations. |
+| **Current phase** | **Phase 3 planned** — execution next: pytree payloads + composed `RunSpec` (six PRs incl. scripts audit). |
+| **Plan** | `.agents/SPRINT_refactor-phase3-20260505.md` — ordered PR1–PR6: replace harness (tests-only) → `payloads.py` → `run/spec.py` + `RunSpecification` shim → `PrecisionConfig` + §2 Proxide spike (written go/no-go) → `migrate_run_spec.py` + corpus story → scripts `*Specification` audit with per-file disposition. Plan-auditor: **NEEDS_WORK** → **accepted with amendments** (explicit audit PR, narrow PR1, §2 spike, engaging corpus caveat). OODA: `recon_id` `260505_prxteinmpnn_phase3`, `plan_id` `plan-phase3-20260505`, `audit_id` `audit-plan-phase3-20260505` under task_id. |
+| **Prior landed (Phase 2)** | `protocols.py`, `model/capabilities.py`, introspection removal at sample/score/averaging, honest casts on score paths; sprint `refactor-phase2-sprint-20260505`, plan `.agents/SPRINT_refactor-phase2-20260505.md`. |
 | **Prior phase** | Phase 1: `task_id` `refactor-phase1-sprint-20260505` (§14 prior row archived in git history). |
 
 ---
 
-*End of roadmap. Phase 2 typed boundaries are landed; Phase 3 is next.*
+*End of roadmap. Phase 2 typed boundaries are landed; Phase 3 sprint is planned — see §14 and `.agents/SPRINT_refactor-phase3-20260505.md`.*

@@ -13,17 +13,22 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
+from prxteinmpnn.model.capabilities import (
+  PRXTEIN_LIGAND_MPNN_CAPABILITIES,
+  PRXTEIN_MPNN_CAPABILITIES,
+  ModelCapabilities,
+)
 from prxteinmpnn.model.decoder import Decoder, DecoderLayer
 from prxteinmpnn.model.encoder import Encoder, PhysicsEncoder
 from prxteinmpnn.model.features import ProteinFeatures
 from prxteinmpnn.model.ligand_features import ProteinFeaturesLigand
 from prxteinmpnn.model.ligand_tiling import map_chunks_axis0, map_chunks_axis0_multi
-from prxteinmpnn.model.multistate_stack import gather_flat_to_stack, scatter_stack_to_flat
 from prxteinmpnn.model.multi_state_sampling import (
   arithmetic_mean_logits,
   geometric_mean_logits,
   product_of_probabilities_logits,
 )
+from prxteinmpnn.model.multistate_stack import gather_flat_to_stack, scatter_stack_to_flat
 from prxteinmpnn.padding import LENGTH_BUCKETS
 from prxteinmpnn.utils.concatenate import concatenate_neighbor_nodes
 from prxteinmpnn.utils.ste import straight_through_estimator
@@ -100,6 +105,7 @@ class PrxteinMPNN(eqx.Module):
   node_features_dim: int = eqx.field(static=True)
   edge_features_dim: int = eqx.field(static=True)
   num_decoder_layers: int = eqx.field(static=True)
+  capabilities: ModelCapabilities = eqx.field(static=True, default=PRXTEIN_MPNN_CAPABILITIES)
 
   def __init__(
     self,
@@ -1269,7 +1275,7 @@ class PrxteinMPNN(eqx.Module):
         # Use LENGTH_BUCKETS ceiling to avoid recompilation across different protein lengths.
         max_bucket_size = max(LENGTH_BUCKETS)
         group_indices_table, group_valid_table = _create_group_index_table(
-            tie_group_map, max_bucket_size
+            tie_group_map, max_bucket_size,
         )
 
     # all_logits is returned as final_carry[2]; caller reads it on the host and
@@ -2136,6 +2142,7 @@ class PrxteinLigandMPNN(eqx.Module):
   hidden_features_dim: int = eqx.field(static=True)
   num_decoder_layers: int = eqx.field(static=True)
   ligand_mpnn_use_side_chain_context: bool = eqx.field(static=True)
+  capabilities: ModelCapabilities = eqx.field(static=True, default=PRXTEIN_LIGAND_MPNN_CAPABILITIES)
 
   def __init__(
     self,

@@ -1,6 +1,5 @@
 """Score a given sequence on a structure using the ProteinMPNN model."""
 
-import inspect
 from collections.abc import Callable
 from functools import partial
 from typing import Literal, cast
@@ -12,6 +11,7 @@ from jaxtyping import Float, PRNGKeyArray
 
 from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
 from prxteinmpnn.model.multistate_stack import gather_flat_to_stack, scatter_stack_to_flat
+from prxteinmpnn.protocols import ScoreFn, StateVmapExactScoreFn
 from prxteinmpnn.run.averaging import make_encoding_sampling_split_fn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
@@ -29,26 +29,6 @@ from prxteinmpnn.utils.types import (
   ResidueIndex,
   StructureAtomicCoordinates,
 )
-
-ScoringFn = Callable[
-  [
-    PRNGKeyArray,
-    ProteinSequence,
-    StructureAtomicCoordinates,
-    AlphaCarbonMask,
-    ResidueIndex,
-    ChainIndex,
-    int,
-    BackboneNoise | None,
-    AutoRegressiveMask | None,
-    jax.Array | None,
-    jax.Array | None,
-    Literal["arithmetic_mean", "geometric_mean", "product"],
-    Float,
-  ],
-  tuple[Float, Logits, DecodingOrder],
-]
-
 
 SCORE_EPS = 1e-8
 
@@ -94,7 +74,7 @@ def _make_score_fn_state_vmap_exact(
   model: PrxteinMPNN | PrxteinLigandMPNN,
   *,
   inference: bool,
-) -> ScoringFn:
+) -> StateVmapExactScoreFn:
   if inference and isinstance(model, eqx.Module):
     model = eqx.nn.inference_mode(model, value=True)
 
@@ -273,7 +253,7 @@ def _make_score_fn_state_vmap_exact(
     states_chunk_size: int = 0,
     **kwargs: object,
   ) -> tuple[Float, Logits, DecodingOrder]:
-    del kwargs, structure_coordinates, mask, backbone_noise, ar_mask
+    del kwargs, structure_coordinates, mask, residue_index, chain_index, backbone_noise, ar_mask
     if is_lig and (y_stack is None or y_t_stack is None or y_m_stack is None):
       msg = "PrxteinLigandMPNN state_vmap_exact scoring requires y_stack, y_t_stack, y_m_stack kwargs"
       raise ValueError(msg)
@@ -299,7 +279,7 @@ def _make_score_fn_state_vmap_exact(
       states_chunk_size=states_chunk_size,
     )
 
-  return cast("ScoringFn", score_sequence)
+  return cast("StateVmapExactScoreFn", score_sequence)
 
 
 def make_score_fn(
@@ -309,7 +289,7 @@ def make_score_fn(
   _num_decoder_layers: int = 3,
   inference: bool = True,  # noqa: FBT001, FBT002
   multistate_mode: Literal["flat", "state_vmap_exact"] = "flat",
-) -> ScoringFn:
+) -> ScoreFn | StateVmapExactScoreFn:
   """Create a function to score a sequence on a structure using PrxteinMPNN.
 
   Args:
@@ -329,7 +309,10 @@ def make_score_fn(
   del _num_encoder_layers, _num_decoder_layers
 
   if multistate_mode == "state_vmap_exact":
-    return _make_score_fn_state_vmap_exact(model, inference=inference)
+    return cast(
+      "StateVmapExactScoreFn",
+      _make_score_fn_state_vmap_exact(model, inference=inference),
+    )
 
   if inference and isinstance(model, eqx.Module):
     model = eqx.nn.inference_mode(model, value=True)
@@ -338,9 +321,7 @@ def make_score_fn(
     n_aa = int(model.w_s_embed.num_embeddings)
   except AttributeError:
     n_aa = 21
-  supports_multi_state_temperature = (
-    "multi_state_temperature" in inspect.signature(model.__call__).parameters
-  )
+  supports_multi_state_temperature = model.capabilities.accepts_multi_state_temperature
 
   @partial(jax.jit, static_argnames=("multi_state_strategy",))
   def score_sequence(
@@ -441,7 +422,7 @@ def make_score_fn(
 
     return masked_score_sum / mask_sum, logits, decoding_order
 
-  return cast("ScoringFn", score_sequence)
+  return cast("ScoreFn", score_sequence)
 
 
 make_score_sequence = make_score_fn

@@ -15,12 +15,27 @@ This is used for:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import partial
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from jaxtyping import PRNGKeyArray
+
+from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
+from prxteinmpnn.protocols import ConditionalLogitsFn, StateVmapExactLogitsFn
+from prxteinmpnn.utils.types import (
+  AlphaCarbonMask,
+  AutoRegressiveMask,
+  BackboneNoise,
+  ChainIndex,
+  Logits,
+  ProteinSequence,
+  ResidueIndex,
+  StructureAtomicCoordinates,
+)
 
 
 def _eqx_module_hash(self: object) -> int:  # pragma: no cover - safe shim
@@ -28,42 +43,6 @@ def _eqx_module_hash(self: object) -> int:  # pragma: no cover - safe shim
 
 
 eqx.Module.__hash__ = _eqx_module_hash  # type: ignore[invalid-assignment]
-if TYPE_CHECKING:
-  from collections.abc import Callable
-
-  from jaxtyping import PRNGKeyArray
-
-  from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
-  from prxteinmpnn.utils.types import (
-    AlphaCarbonMask,
-    AutoRegressiveMask,
-    BackboneNoise,
-    ChainIndex,
-    Logits,
-    ProteinSequence,
-    ResidueIndex,
-    StructureAtomicCoordinates,
-  )
-
-  ConditionalLogitsFn = Callable[
-    [
-      PRNGKeyArray,
-      StructureAtomicCoordinates,
-      AlphaCarbonMask,
-      ResidueIndex,
-      ChainIndex,
-      ProteinSequence,
-      AutoRegressiveMask | None,
-      BackboneNoise | None,
-      jax.Array | None,
-    ],
-    Logits,
-  ]
-else:
-  from collections.abc import Callable
-  from typing import Any
-
-  ConditionalLogitsFn = Callable[..., Any]
 
 
 def make_conditional_logits_fn(
@@ -182,7 +161,9 @@ def make_conditional_logits_fn(
   return cast("ConditionalLogitsFn", conditional_logits)
 
 
-def make_conditional_logits_state_vmap_fn(model: PrxteinMPNN | PrxteinLigandMPNN):
+def make_conditional_logits_state_vmap_fn(
+  model: PrxteinMPNN | PrxteinLigandMPNN,
+) -> StateVmapExactLogitsFn:
   """JIT ``score_conditional_state_vmap_exact`` (teacher-forced parallel decode per state).
 
   ``sequence`` is a **flat** `(n_flat,)` aa index tensor or `(n_flat, 21)` one-hot; it is gathered
@@ -191,7 +172,6 @@ def make_conditional_logits_state_vmap_fn(model: PrxteinMPNN | PrxteinLigandMPNN
   Ligand checkpoints require stacked ``y_*`` tensors; omit them on ``PrxteinMPNN``.
   ``ar_mask_stack`` defaults to zeros `(S,P,P)`, matching :func:`make_conditional_logits_fn`.
   """
-  import jax.numpy as jnp
 
   from prxteinmpnn.model.mpnn import PrxteinLigandMPNN as _LM
   from prxteinmpnn.model.multistate_stack import gather_flat_to_stack
@@ -257,7 +237,7 @@ def make_conditional_logits_state_vmap_fn(model: PrxteinMPNN | PrxteinLigandMPNN
         **extra,
       )
 
-    return conditional_stack
+    return cast("StateVmapExactLogitsFn", conditional_stack)
 
   from prxteinmpnn.model.mpnn import PrxteinMPNN as _PM
 
@@ -309,7 +289,7 @@ def make_conditional_logits_state_vmap_fn(model: PrxteinMPNN | PrxteinLigandMPNN
       inference=True,
     )
 
-  return conditional_stack_prot
+  return cast("StateVmapExactLogitsFn", conditional_stack_prot)
 
 
 def make_encoding_conditional_logits_split_fn(

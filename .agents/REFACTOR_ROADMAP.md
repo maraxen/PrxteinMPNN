@@ -568,17 +568,17 @@ Each Open Question now has a **default decision** that holds unless a triggering
 
 ---
 
-## 14. Sprint status (Phase 1 execution)
+## 14. Sprint status (Phase 2 execution)
 
 | Field | Value |
 | :--- | :--- |
-| **task_id** | `refactor-phase1-sprint-20260505` |
+| **task_id** | `refactor-phase2-sprint-20260505` |
 | **Last update** | 2026-05-05 |
-| **Current phase** | **Phase 1 complete** — next: Phase 2 (protocols / typed boundaries). |
-| **Landed** | Removed hardcoded `model/mpnn.py` debug file-I/O blocks; added `runtime.configure_multiprocessing()` (opt-in); removed import-time `set_start_method` from `__init__.py` and `run/specs.py`; campaign CLI calls `configure_multiprocessing()` at startup; dropped dead spec fields (`output_path`, `score_batch_size`, `average_logits`, Jacobian `combine_noise_batch_size`, `gmm_min_iters`) with `pop_deprecated_spec_kwargs` + `DeprecationWarning` for legacy JSON keys. |
-| **Cold `import prxteinmpnn`** | ~5.46 s wall time (`uv run python -c "… perf_counter … import prxteinmpnn …"`, WSL2, CPU jaxlib; dominated by JAX import). |
-| **Prior phase** | Phase 0 closeout: `.agents/SPRINT_refactor-sprint-phase0-20260505.md`, `.agents/SPRINT_refactor-sprint-phase0-closeout-20260512.md` |
+| **Current phase** | **Phase 2 complete** — next: Phase 3 (pytree payloads + composed `RunSpec`). |
+| **Landed** | Added `src/prxteinmpnn/protocols.py` (six `@runtime_checkable` boundary Protocols); `model/capabilities.py` with `ModelCapabilities` + defaults wired on `PrxteinMPNN` / `PrxteinLigandMPNN`; removed `TYPE_CHECKING` / `Callable[..., Any]` logits shims; migrated `inspect.signature` usage from `sampling/sample.py`, `scoring/score.py`, `run/averaging.py` to capabilities; `run/jacobian.py` imports `ConditionalLogitsFn` from `protocols`; score paths use `cast(ScoreFn, …)` / `cast(StateVmapExactScoreFn, …)`; tests updated (`test_sample_call_kw_contract.py`). Sprint plan: `.agents/SPRINT_refactor-phase2-20260505.md`. Outcome review: **APPROVE-with-nits** (encoding-split `Callable` return tuple; full-repo `ty` still has pre-existing diagnostics outside Phase-2 scope). |
+| **Verification (this sprint)** | `uv run pytest tests/parity -m parity_fast -q` — 10 passed; `PYTHONPATH=src uv run pytest tests/sampling/test_sample.py tests/model/test_ligand_wave_parallel.py tests/sampling/test_state_vmap_exact_jit.py tests/sampling/test_sample_call_kw_contract.py -q` — 23 passed (per fixer run); `uv run ty check src/prxteinmpnn/run/averaging.py` clean after capability constant annotations. |
+| **Prior phase** | Phase 1: `task_id` `refactor-phase1-sprint-20260505` (§14 prior row archived in git history). |
 
 ---
 
-*End of roadmap. Phase 1 multiprocessing + dead-field cleanup is landed; Phase 2 is next.*
+*End of roadmap. Phase 2 typed boundaries are landed; Phase 3 is next.*

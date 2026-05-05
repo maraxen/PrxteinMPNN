@@ -14,46 +14,14 @@ ligand ``y_*_stack`` when applicable).
 from __future__ import annotations
 
 from functools import partial
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-if TYPE_CHECKING:
-  from collections.abc import Callable
-
-  from jaxtyping import PRNGKeyArray
-
-  from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
-  from prxteinmpnn.utils.types import (
-    AlphaCarbonMask,
-    AutoRegressiveMask,
-    BackboneNoise,
-    ChainIndex,
-    Logits,
-    ResidueIndex,
-    StructureAtomicCoordinates,
-  )
-
-  UnconditionalLogitsFn = Callable[
-    [
-      PRNGKeyArray,
-      StructureAtomicCoordinates,
-      AlphaCarbonMask,
-      ResidueIndex,
-      ChainIndex,
-      AutoRegressiveMask | None,
-      BackboneNoise | None,
-    ],
-    Logits,
-  ]
-
-else:
-  from collections.abc import Callable
-  from typing import Any
-
-  UnconditionalLogitsFn = Callable[..., Any]
+from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
+from prxteinmpnn.protocols import StateVmapExactLogitsFn, UnconditionalLogitsFn
 
 
 def make_unconditional_logits_fn(
@@ -86,7 +54,9 @@ def make_unconditional_logits_fn(
   return cast("UnconditionalLogitsFn", unconditional_logits)
 
 
-def make_unconditional_logits_state_vmap_fn(model: PrxteinMPNN | PrxteinLigandMPNN):
+def make_unconditional_logits_state_vmap_fn(
+  model: PrxteinMPNN | PrxteinLigandMPNN,
+) -> StateVmapExactLogitsFn:
   """JIT ``score_unconditional_state_vmap_exact``: stacked encode → scattered flat logits + fuse."""
   from prxteinmpnn.model.mpnn import PrxteinLigandMPNN as _LM
   from prxteinmpnn.model.mpnn import PrxteinMPNN as _PM
@@ -141,7 +111,7 @@ def make_unconditional_logits_state_vmap_fn(model: PrxteinMPNN | PrxteinLigandMP
       )
 
     unconditional_stack.strategy_idx_from_str = strategy_idx  # type: ignore[attr-defined]
-    return unconditional_stack
+    return cast("StateVmapExactLogitsFn", unconditional_stack)
 
   if not isinstance(model, _PM):
     raise TypeError("Expected PrxteinMPNN or PrxteinLigandMPNN")
@@ -178,4 +148,4 @@ def make_unconditional_logits_state_vmap_fn(model: PrxteinMPNN | PrxteinLigandMP
     )
 
   unconditional_stack_prot.strategy_idx_from_str = strategy_idx  # type: ignore[attr-defined]
-  return unconditional_stack_prot
+  return cast("StateVmapExactLogitsFn", unconditional_stack_prot)

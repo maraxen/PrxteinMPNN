@@ -1,6 +1,5 @@
 """Factory for creating sequence sampling functions for PrxteinMPNN."""
 
-import inspect
 from collections.abc import Callable
 from functools import partial
 from typing import Any, Literal, cast
@@ -10,6 +9,7 @@ import jax.numpy as jnp
 from jaxtyping import Float, Int, PRNGKeyArray
 
 from prxteinmpnn.model import PrxteinLigandMPNN, PrxteinMPNN
+from prxteinmpnn.protocols import SamplerFn
 from prxteinmpnn.sampling.ste_optimize import make_optimize_sequence_fn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
@@ -26,8 +26,6 @@ from prxteinmpnn.utils.types import (
   ResidueIndex,
   StructureAtomicCoordinates,
 )
-
-SamplerFn = Callable[..., tuple[ProteinSequence, Logits, DecodingOrder]]
 
 
 def make_sample_sequences(
@@ -74,15 +72,19 @@ def make_sample_sequences(
     ... )
 
   """
-  model_params = inspect.signature(model.__call__).parameters
-  supports_multi_state_temperature = "multi_state_temperature" in model_params
-  supports_state_weights = "state_weights" in model_params
-  supports_fixed_controls = "fixed_mask" in model_params and "fixed_tokens" in model_params
-  is_ligand_mpnn = "Y" in model_params
+  caps = model.capabilities
+  supports_multi_state_temperature = caps.accepts_multi_state_temperature
+  supports_state_weights = caps.accepts_state_weights
+  supports_fixed_controls = caps.accepts_fixed_mask_and_tokens
+  is_ligand_mpnn = caps.is_ligand_model
 
   if sampling_strategy == "straight_through":
     optimize_fn = make_optimize_sequence_fn(
-      model, decoding_order_fn, use_concrete=use_concrete, tau_start=tau_start, tau_end=tau_end
+      cast("PrxteinMPNN", model),
+      decoding_order_fn,
+      use_concrete=use_concrete,
+      tau_start=tau_start,
+      tau_end=tau_end,
     )
 
     @partial(
@@ -296,7 +298,7 @@ def make_sample_sequences(
         tie_group_map,
         num_groups,
       )
-      autoregressive_mask = cast("Callable", generate_ar_mask)(
+      autoregressive_mask = cast("Callable[..., Any]", generate_ar_mask)(
         decoding_order, None, tie_group_map, num_groups,
       )
 
@@ -369,9 +371,9 @@ def make_sample_sequences(
             state_weights,
             fixed_mask_stack,
             fixed_tokens_stack,
-            y_stack,
-            y_t_stack,
-            y_m_stack,
+            cast("jax.Array", y_stack),
+            cast("jax.Array", y_t_stack),
+            cast("jax.Array", y_m_stack),
             wave_group_ids_local,
             wave_group_positions_local,
             wave_group_valid_local,

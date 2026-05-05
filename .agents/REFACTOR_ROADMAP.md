@@ -574,9 +574,12 @@ Each Open Question now has a **default decision** that holds unless a triggering
 | :--- | :--- |
 | **task_id** | `refactor-sprint-phase0-20260505` |
 | **Sprint plan** | `.agents/SPRINT_refactor-sprint-phase0-20260505.md` |
-| **Last update** | 2026-05-05 |
-| **Landed** | Vendored `get_tolerances` and `PRXTEINMPNN_VERIFY`; `profiling/hlo_tools.py` (jaxbeans `core/profiling` excerpt); `tests/profiling/` with Q8 allowlist + baseline placeholders + HLO export / zero-copy smoke tests; `tests/parity/conftest.py` (Q5); Phase 0a unconditional numeric spike under `tests/sampling/spikes/`; `[tool.ty.analysis].allowed-unresolved-imports`; `[tool.jaxlint]` in `pyproject.toml`. |
-| **Phase 0 closeout still** | Editable `jaxbeans` in `pyproject` + CI resolution for isolated clones; jaxlint advisory CI once `jaxlint` is installable without a sibling checkout; replace placeholder `baseline_hlo/*.txt` with captured StableHLO text for the four parity callables; extend 0a spike with HLO op-count summaries and parity_heavy-backed cases. |
+| **Sprint plan (Phase 0 closeout slice)** | `.agents/SPRINT_refactor-sprint-phase0-closeout-20260512.md` |
+| **Last update** | 2026-05-12 |
+| **Landed** | Vendored `get_tolerances` and `PRXTEINMPNN_VERIFY`; `profiling/hlo_tools.py` (jaxbeans `core/profiling` excerpt); `tests/profiling/` with Q8 allowlist + **captured** `baseline_hlo/*.txt` review IR + HLO export / zero-copy smoke tests; `tests/parity/conftest.py` (Q5); Phase 0a spike (`tests/sampling/spikes/`) with numeric gate + HLO summary warnings + `REFERENCE_PATH` directory–gated heavy stack; `[tool.ty.analysis].allowed-unresolved-imports`; `[tool.jaxlint]` in `pyproject.toml`; `tests/profiling/README.md`; advisory `.github/workflows/jaxlint-advisory.yml`. |
+| **Phase 0 closeout still** | **Jaxbeans PyPI / workspace dep:** still deferred — `pyproject.toml` documents vendored-only Phase 0 until jaxbeans ≥0.1.0 on PyPI or a documented monorepo layout (see `[tool.uv.sources]` comment). **Prolix isolated-clone / lockfile pain:** deferred until a concrete `uv sync` repro on a GitHub-only clone exists (open issue then). **Jaxlint as a hard signal:** deferred — `.github/workflows/jaxlint-advisory.yml` runs unpinned install + `jaxlint` with a never-fail job; promote to a gate only when the distribution stabilizes. |
+
+Closeout slice completed in-repo: `tests/profiling/README.md` (Q8 + baseline policy + regeneration heredoc), real lowered IR text under `tests/profiling/baseline_hlo/*.txt` (minimal four-callable mapping), 0a spike HLO summary warnings + optional `REFERENCE_PATH` directory-gated heavy stack, jaxlint advisory workflow, roadmap §14 table row for the closeout sprint file.
 
 ---
 

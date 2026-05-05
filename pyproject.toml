@@ -187,5 +187,8 @@ environments = [
 ]
 
 [tool.uv.sources]
+# Phase 0 uses vendored ``profiling/hlo_tools.py`` (jaxbeans excerpt). No ``jaxbeans``
+# workspace dependency here until jaxbeans >= 0.1.0 is on PyPI or an org-approved
+# monorepo layout is documented — see roadmap §14.
 # Local workspace packages
 prolix = { workspace = true }

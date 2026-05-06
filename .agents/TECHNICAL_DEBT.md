@@ -36,13 +36,13 @@ Patterns searched: `SamplingSpecification|ScoringSpecification|TrainingSpecifica
 | `scripts/260410/verify_massive_sampling.py` | `SamplingSpecification(...)` | **current** | Smoke / load-test script; same constructor surface as library. |
 | `scripts/overfit/overfit_check.py` | `TrainingSpecification(...)` | **current** | Training smoke path; mirrors `training/specs` API. |
 | `scripts/260410/verify_design_storage.py` | `DesignArrayRecordWriter(...)` only | **out of scope** | Exercises ArrayRecord I/O, not run specs. |
-| `scripts/engaging/` | — | **absent** | Not present in this checkout; engaging-cluster scripts (if any) must be re-audited when vendored here. |
+| `scripts/engaging/` | — | **shell-only** | `submit_phase0a_state_vmap_spike.sh` (Phase 0a smoke); **no** `*.py` spec constructors — re-audit if Python drivers land here. |
 
 **Policy:** New scripts should prefer `run_specification_from_json` / `prxteinmpnn spec validate` for saved configs (roadmap §13 Q4 JSON-first).
 
 ### Phase 3b PR5 — scripts pattern refresh (2026-05-06)
 
-Re-ran `rg -l 'RunSpecification\\(|SamplingSpecification\\(|ScoringSpecification\\(|TrainingSpecification\\(|build_run_spec\\(' scripts/` from repo root (parallel recon). **Hits:** same three Python files as the PR6 table; **`RunSpecification(`** and **`build_run_spec(`** under `scripts/`:** zero matches. **`scripts/engaging/`:** still absent. No script edits required until engaging paths exist in-tree.
+Re-ran `rg -l 'RunSpecification\\(|SamplingSpecification\\(|ScoringSpecification\\(|TrainingSpecification\\(|build_run_spec\\(' scripts/` from repo root. **Hits:** same three Python files as the PR6 table; **`RunSpecification(`** and **`build_run_spec(`** under `scripts/`:** zero matches. **`scripts/engaging/`:** Phase 0a `submit_phase0a_state_vmap_spike.sh` only (no Python hits for the patterns above).
 
 ---
 

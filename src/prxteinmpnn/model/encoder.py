@@ -1,6 +1,8 @@
 """Encoder module for PrxteinMPNN.
 
-This module contains the EncoderLayer and Encoder classes.
+Contains ``EncoderLayer``, ``Encoder``, ``PhysicsEncoder``, and small **orchestration
+helpers** (``pack_encoder_context``, ``encoder_forward_with_int_neighbors``) shared from
+``mpnn.PrxteinMPNN`` without importing the full model.
 """
 
 from __future__ import annotations
@@ -337,3 +339,57 @@ class PhysicsEncoder(eqx.Module):
         key=keys[i],
       )
     return node_features, edge_features
+
+
+def pack_encoder_context(
+  node_features: jax.Array,
+  edge_features: jax.Array,
+  neighbor_indices: jax.Array,
+  mask_fw: jax.Array,
+) -> jax.Array:
+  """Neighbor-packed encoder context for AR / wave scans (mask applied here).
+
+  Matches the legacy sequence: ``zeros‖edge`` gather, ``node‖that`` gather, then
+  ``result * mask_fw[..., None]``. Batched graphs: ``jax.vmap(pack_encoder_context)``.
+
+  LigandMPNN keeps inline duplicates today (`mpnn.py` ~2898 and ~3513); fold those in
+  Phase **5e** to avoid ``encoder`` → ``decoder`` coupling in this PR.
+  """
+  encoder_edge_neighbors = concatenate_neighbor_nodes(
+    jnp.zeros_like(node_features),
+    edge_features,
+    neighbor_indices,
+  )
+  encoder_context = concatenate_neighbor_nodes(
+    node_features,
+    encoder_edge_neighbors,
+    neighbor_indices,
+  )
+  return encoder_context * mask_fw[..., None]
+
+
+def encoder_forward_with_int_neighbors(
+  encoder: Encoder | PhysicsEncoder,
+  edge_features: jax.Array,
+  neighbor_indices: jax.Array,
+  mask: jax.Array,
+  initial_node_features: jax.Array,
+  *,
+  inference: bool,
+  key: PRNGKeyArray | None,
+) -> tuple[jax.Array, jax.Array, jax.Array]:
+  """Run ``encoder(...)`` and return int32 neighbor indices for downstream gathers.
+
+  Callers must pass the **same** ``key`` / ``inference`` pairing as the inlined path
+  (e.g. wave ``encode_one`` uses one ``k`` for both ``features`` and encoder; scoring
+  paths use ``k_feat`` vs ``k_enc`` separately — only the encoder tail is unified here).
+  """
+  nf2, ef2 = encoder(
+    edge_features,
+    neighbor_indices,
+    mask,
+    initial_node_features=initial_node_features,
+    inference=inference,
+    key=key,
+  )
+  return nf2, ef2, neighbor_indices.astype(jnp.int32)

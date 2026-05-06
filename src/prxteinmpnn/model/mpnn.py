@@ -19,7 +19,12 @@ from prxteinmpnn.model.capabilities import (
   ModelCapabilities,
 )
 from prxteinmpnn.model.decoder import Decoder, DecoderLayer
-from prxteinmpnn.model.encoder import Encoder, PhysicsEncoder
+from prxteinmpnn.model.encoder import (
+  Encoder,
+  PhysicsEncoder,
+  encoder_forward_with_int_neighbors,
+  pack_encoder_context,
+)
 from prxteinmpnn.model.features import ProteinFeatures
 from prxteinmpnn.model.ligand_features import ProteinFeaturesLigand
 from prxteinmpnn.model.ligand_tiling import map_chunks_axis0, map_chunks_axis0_multi
@@ -1124,17 +1129,12 @@ class PrxteinMPNN(eqx.Module):
     mask_bw = mask_1d * attention_mask
     mask_fw = mask_1d * (1 - attention_mask)
     decoding_order = jnp.argsort(jnp.sum(autoregressive_mask, axis=1))
-    encoder_edge_neighbors = concatenate_neighbor_nodes(
-      jnp.zeros_like(node_features),
+    encoder_context = pack_encoder_context(
+      node_features,
       edge_features,
       neighbor_indices,
-    )  # [e_ij, 0_j]
-    encoder_context = concatenate_neighbor_nodes(
-      node_features,
-      encoder_edge_neighbors,
-      neighbor_indices,
-    )  # [[e_ij, 0_j], h_j] = [e_ij, 0_j, h_j]
-    encoder_context = encoder_context * mask_fw[..., None]
+      mask_fw,
+    )
 
     def autoregressive_step(
       carry: tuple[NodeFeatures, NodeFeatures, Logits, OneHotProteinSequence],
@@ -1669,8 +1669,15 @@ class PrxteinMPNN(eqx.Module):
         rbf_features=None,
         neighbor_indices=None,
       )
-      nf2, ef2 = self.encoder(ef, nei, ma, initial_node_features=nf, inference=True, key=k)
-      return nf2, ef2, nei.astype(jnp.int32)
+      return encoder_forward_with_int_neighbors(
+        self.encoder,
+        ef,
+        nei,
+        ma,
+        nf,
+        inference=True,
+        key=k,
+      )
 
     node_b, edge_b, nei_b = jax.vmap(encode_one)(
       coords_stack,
@@ -1685,13 +1692,7 @@ class PrxteinMPNN(eqx.Module):
     )(autoregressive_mask_stack, nei_b)
     mask_bw = mask_stack[:, :, jnp.newaxis] * attn_b
     mask_fw = mask_stack[:, :, jnp.newaxis] * (jnp.float32(1.0) - jnp.asarray(attn_b, jnp.float32))
-    enc_neighbors = jax.vmap(concatenate_neighbor_nodes)(
-      jnp.zeros_like(node_b),
-      edge_b,
-      nei_b,
-    )
-    encoder_stack = jax.vmap(concatenate_neighbor_nodes)(node_b, enc_neighbors, nei_b)
-    encoder_stack *= mask_fw[..., jnp.newaxis]
+    encoder_stack = jax.vmap(pack_encoder_context)(node_b, edge_b, nei_b, mask_fw)
 
     log_dtype = self.w_out.weight.dtype
     num_dec = len(self.decoder.layers) + 1
@@ -2048,8 +2049,15 @@ class PrxteinMPNN(eqx.Module):
         rbf_features=None,
         neighbor_indices=None,
       )
-      nf2, ef2 = self.encoder(ef, nei, ma, initial_node_features=nf, inference=inference, key=k_enc)
-      return nf2, ef2, nei.astype(jnp.int32)
+      return encoder_forward_with_int_neighbors(
+        self.encoder,
+        ef,
+        nei,
+        ma,
+        nf,
+        inference=inference,
+        key=k_enc,
+      )
 
     node_b, edge_b, nei_b = jax.vmap(encode_one)(
       coords_stack,
@@ -2141,8 +2149,15 @@ class PrxteinMPNN(eqx.Module):
         rbf_features=None,
         neighbor_indices=None,
       )
-      nf2, ef2 = self.encoder(ef, nei, ma, initial_node_features=nf, inference=inference, key=k_enc)
-      return nf2, ef2, nei.astype(jnp.int32)
+      return encoder_forward_with_int_neighbors(
+        self.encoder,
+        ef,
+        nei,
+        ma,
+        nf,
+        inference=inference,
+        key=k_enc,
+      )
 
     node_b, edge_b, nei_b = jax.vmap(encode_one)(
       coords_stack,

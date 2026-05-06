@@ -6,7 +6,7 @@ features from raw protein coordinates.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 import equinox as eqx
 import jax
@@ -46,6 +46,20 @@ POS_EMBED_DIM = 16
 def top_k(x: jax.Array, k: int) -> tuple[jax.Array, jax.Array]:
   """Wrap jax.lax.top_k."""
   return jax.lax.top_k(x, k)
+
+
+class ProteinEdgeStageTensors(NamedTuple):
+  """Intermediate edge tensors for parity diagnosis (JAX protein feature path)."""
+
+  neighbor_indices: jax.Array
+  rbf: jax.Array
+  encoded_positions: jax.Array
+  edges_concat: jax.Array
+  after_w_e: jax.Array
+  after_norm: jax.Array
+  final: jax.Array
+  node_features_out: jax.Array | None
+  prng_key: jax.Array
 
 
 class ProteinFeatures(eqx.Module):
@@ -89,7 +103,7 @@ class ProteinFeatures(eqx.Module):
     self.norm_edges = LayerNorm(edge_features)
     self.w_e_proj = eqx.nn.Linear(edge_features, edge_features, key=keys[2])
 
-  def __call__(
+  def forward_edge_stages(
     self,
     prng_key: PRNGKeyArray,
     structure_coordinates: StructureAtomicCoordinates,
@@ -102,29 +116,11 @@ class ProteinFeatures(eqx.Module):
     initial_node_features: jnp.ndarray | None = None,
     rbf_features: jnp.ndarray | None = None,
     neighbor_indices: jnp.ndarray | None = None,
-  ) -> tuple[EdgeFeatures, NeighborIndices, NodeFeatures | None, PRNGKeyArray]:
-    """Extract and project features from protein structure.
+  ) -> ProteinEdgeStageTensors:
+    """Run the edge pipeline and return intermediates for JAX vs PyTorch diagnosis.
 
-    Args:
-      prng_key: PRNG key for coordinate noise.
-      structure_coordinates: Atomic coordinates (N, CA, C, O).
-      mask: Alpha carbon mask.
-      residue_index: Residue indices.
-      chain_index: Chain indices.
-      backbone_noise: Noise to add to backbone coordinates.
-      backbone_noise_mode: Mode for backbone noise ("direct" or "thermal").
-      structure_mapping: Optional (N,) array mapping each residue to a structure ID.
-                        When provided (multi-state mode), prevents cross-structure
-                        neighbors to avoid information leakage between conformational states.
-      initial_node_features: Optional initial node features.
-      rbf_features: Optional precomputed RBF features from proxide (N, K, 400).
-                    If provided, dynamic graph building/noise is skipped for edges.
-      neighbor_indices: Optional precomputed neighbor indices from proxide (N, K).
-                        Must be provided if rbf_features is provided to ensure consistency.
-
-    Returns:
-      Tuple of (edge_features, neighbor_indices, updated_prng_key).
-
+    Stages mirror the reference ordering: concat embeddings → ``w_e`` → layer norm
+    → ``w_e_proj`` (final edge features returned from ``__call__``).
     """
     node_features = None if initial_node_features is None else initial_node_features
 
@@ -215,12 +211,74 @@ class ProteinFeatures(eqx.Module):
 
     encoded_positions = jax.vmap(jax.vmap(self.w_pos))(encoded_offset_one_hot)
 
-    edges = jnp.concatenate([encoded_positions, rbf], axis=-1)
+    edges_concat = jnp.concatenate([encoded_positions, rbf], axis=-1)
 
-    edge_features = jax.vmap(jax.vmap(self.w_e))(edges)
+    after_w_e = jax.vmap(jax.vmap(self.w_e))(edges_concat)
 
-    edge_features = jax.vmap(jax.vmap(self.norm_edges))(edge_features)
+    after_norm = jax.vmap(jax.vmap(self.norm_edges))(after_w_e)
 
-    edge_features = jax.vmap(jax.vmap(self.w_e_proj))(edge_features)
+    final = jax.vmap(jax.vmap(self.w_e_proj))(after_norm)
 
-    return edge_features, neighbor_indices, node_features, prng_key
+    return ProteinEdgeStageTensors(
+      neighbor_indices=neighbor_indices,
+      rbf=rbf,
+      encoded_positions=encoded_positions,
+      edges_concat=edges_concat,
+      after_w_e=after_w_e,
+      after_norm=after_norm,
+      final=final,
+      node_features_out=node_features,
+      prng_key=prng_key,
+    )
+
+  def __call__(
+    self,
+    prng_key: PRNGKeyArray,
+    structure_coordinates: StructureAtomicCoordinates,
+    mask: AlphaCarbonMask,
+    residue_index: ResidueIndex,
+    chain_index: ChainIndex,
+    backbone_noise: BackboneNoise | None,
+    backbone_noise_mode: str = "direct",
+    structure_mapping: jnp.ndarray | None = None,
+    initial_node_features: jnp.ndarray | None = None,
+    rbf_features: jnp.ndarray | None = None,
+    neighbor_indices: jnp.ndarray | None = None,
+  ) -> tuple[EdgeFeatures, NeighborIndices, NodeFeatures | None, PRNGKeyArray]:
+    """Extract and project features from protein structure.
+
+    Args:
+      prng_key: PRNG key for coordinate noise.
+      structure_coordinates: Atomic coordinates (N, CA, C, O).
+      mask: Alpha carbon mask.
+      residue_index: Residue indices.
+      chain_index: Chain indices.
+      backbone_noise: Noise to add to backbone coordinates.
+      backbone_noise_mode: Mode for backbone noise ("direct" or "thermal").
+      structure_mapping: Optional (N,) array mapping each residue to a structure ID.
+                        When provided (multi-state mode), prevents cross-structure
+                        neighbors to avoid information leakage between conformational states.
+      initial_node_features: Optional initial node features.
+      rbf_features: Optional precomputed RBF features from proxide (N, K, 400).
+                    If provided, dynamic graph building/noise is skipped for edges.
+      neighbor_indices: Optional precomputed neighbor indices from proxide (N, K).
+                        Must be provided if rbf_features is provided to ensure consistency.
+
+    Returns:
+      Tuple of (edge_features, neighbor_indices, updated_prng_key).
+
+    """
+    stages = self.forward_edge_stages(
+      prng_key,
+      structure_coordinates,
+      mask,
+      residue_index,
+      chain_index,
+      backbone_noise,
+      backbone_noise_mode=backbone_noise_mode,
+      structure_mapping=structure_mapping,
+      initial_node_features=initial_node_features,
+      rbf_features=rbf_features,
+      neighbor_indices=neighbor_indices,
+    )
+    return stages.final, stages.neighbor_indices, stages.node_features_out, stages.prng_key

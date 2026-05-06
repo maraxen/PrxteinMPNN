@@ -161,9 +161,8 @@ def _combine_reference_tied_log_probs(
   return combined.astype(np.float32)
 
 
-@pytest.fixture(scope="module")
-def heavy_parity_models() -> HeavyParityModels:
-  """Load reference torch and converted JAX models for heavy parity checks."""
+def _load_heavy_parity_models_impl() -> HeavyParityModels:
+  """Load reference torch + JAX parity models (shared by fixture and diagnostic scripts)."""
   pytest.importorskip("torch")
   reference_root, repo_root = require_heavy_parity_prereqs(
     reference_rel_paths=["model_params/proteinmpnn_v_48_020.pt"],
@@ -240,6 +239,12 @@ def heavy_parity_models() -> HeavyParityModels:
     jax_model_eqx=jax_model_eqx,
     jax_model_pt_convert=jax_model_pt_convert,
   )
+
+
+@pytest.fixture(scope="module")
+def heavy_parity_models() -> HeavyParityModels:
+  """Load reference torch and converted JAX models for heavy parity checks."""
+  return _load_heavy_parity_models_impl()
 
 
 @pytest.fixture(scope="module")

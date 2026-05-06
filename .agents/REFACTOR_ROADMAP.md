@@ -566,6 +566,24 @@ Each Open Question now has a **default decision** that holds unless a triggering
 | Q7 | (NEW) Lazy `__init__.py` (PEP 562)? | **Deferred / opt-in experiment.** Revisit only if Phase 1 cold-import measurement is unacceptable. | Post-Phase-1 (optional) | Cold-import benchmark in PR |
 | Q8 | (NEW) HLO threshold per call site? | **Allowlist file at `tests/profiling/hlo_allowlist.toml`** with rationale strings. No blanket %. | Phase 0 | Allowlist file with rationale entries |
 
+### 13.1 `parity_heavy` targeted repro closure (Engaging, 2026-05-06)
+
+**Symptom:** On GPU (`JAX_PLATFORMS=cuda`), the full `parity_heavy` slice showed **four** failures—protein projected edge `allclose`, packer **mean** (then concentration/mix at risk), ligand **`y_edges`** `allclose`—while encoder/decoder/AR parity checks largely **passed**.
+
+**Diagnosis:** Reference PyTorch runs **`device='cpu'`** for packer and uses float32 GEMM semantics; JAX on an **A100** used default GPU matmul accumulation paths. Protein diag showed **Pearson 1.0** vs reference `W_e(features)` but **~1.1e-2 max_abs** under tight `rtol=1e-5`—consistent with **precision policy**, not wrong weights (`eqx` vs `pt_convert` finals were identical).
+
+**Fixes merged (tests + scripts):**
+
+- **`pytest.mark.parity_targeted`** on the four repro nodes; **`scripts/engaging/submit_parity_targeted.sh`** (~4 tests, short wall clock) vs the full heavy submit script.
+- **`scripts/diag_protein_feature_parity.py`**, **`diag_ligand_feature_parity.py`**, **`diag_packer_parity.py`** run before pytest in both Slurm scripts unless **`PRXTEIN_SKIP_DIAG=1`**.
+- **Protein / ligand** feature parity tests: **`jax.config.update("jax_default_matmul_precision", "highest")`** for the assertion block.
+- **Packer:** **`_forward_jax_packer_for_parity`** — same matmul setting, then **`jax.default_device(cpu)`** when a CPU device exists so JAX matches the CPU reference packer.
+- **Reference env:** `dm-tree` + `biopython` in `prxteinmpnn[tests]` and tev_design **`[dependency-groups] dev`** so `sc_utils` / `Bio` import on Engaging.
+
+**Recorded green (targeted gate):** Slurm job **`13440956`** — **`4 passed`**, pytest **~23 s**, Slurm **`COMPLETED` `ExitCode 0:0`**. Diag tail: packer **mean** max_abs **~1.7e-6**; ligand **`y_nodes` / `y_edges` / `y_m`** at **≤ ~1.6e-6** vs PyTorch on the fixed path.
+
+**Release posture:** Treat **`parity_targeted`** as a **fast GPU smoke** for the former red quartet. **`parity_heavy` full suite** (`submit_parity_heavy_ligand.sh`) remains the **manual release gate** per §11 / DoD—re-run it once per release or when JIT/feature code near these paths changes.
+
 ---
 
 ## 14. Sprint status (Phase 0a GO + PR2b; Phase 4 prep)
@@ -573,7 +591,7 @@ Each Open Question now has a **default decision** that holds unless a triggering
 | Field | Value |
 | :--- | :--- |
 | **task_id** | `refactor-sprint-20260507-phase0a-go-pr2-sample` (active sprint); OODA cycle `refactor-sprint-20260507-ooda`; prior `refactor-phase4-pr2-20260506`, `refactor-phase4-entry-20260505`, `refactor-phase3b-sprint-20260506`, `refactor-phase3-sprint-20260505` |
-| **Last update** | 2026-05-07 |
+| **Last update** | 2026-05-06 |
 | **Current phase** | **Phase 3b signed off** on `main`. **PR2a (unconditional logits factories → payload)** landed under `.agents/SPRINT_refactor-phase3c-0a-pr2-20260506.md`. **Active plan body:** `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md` — **WP1** Phase 0a GO closure (§230 HLO byte + op-summary in PR text; filtered logs); **PR2b** `sample.py` loose-stack → payload **subject to JIT / static `n_flat` note** in that sprint (no blind in-jit `int(jnp.max(state_flat_rows))`). **Phase 4** remains **blocked from merge on `main`** until Phase **0a** records explicit **GO** (§227–238, §11 #10 split acceptance). |
 | **Still open** | **Phase 4:** `registry.py`, frozen `_COMBINE_INDEX`, `MULTISTATE_MODES`, `state_vmap_exact` unify vs registry-route. **PR2b:** `sample.py` tuple branches when `multistate_stack is None` (strategy A/B/C in active sprint). **Defer:** STE / straight_through; portable RunSpec JSON v3 bundled with registry work. |
 | **Plan** | **Active:** `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md`. **Prior / superseded plan body:** `.agents/SPRINT_refactor-phase3c-0a-pr2-20260506.md` (retain for PR2a history). **Prior (retained):** `.agents/SPRINT_refactor-phase4-entry-20260505.md`. **Prior / closed (do not delete):** `.agents/SPRINT_refactor-phase3b-20260506.md`, `.agents/SPRINT_refactor-phase3-20260505.md`. |

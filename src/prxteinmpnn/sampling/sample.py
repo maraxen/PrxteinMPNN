@@ -11,7 +11,7 @@ from jaxtyping import Float, Int, PRNGKeyArray
 from prxteinmpnn.model import PrxteinLigandMPNN, PrxteinMPNN
 from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
 from prxteinmpnn.protocols import SamplerFn
-from prxteinmpnn.registry import combine_strategy_to_index, multistate_mode_descriptor
+from prxteinmpnn.registry import SAMPLERS, combine_strategy_to_index, multistate_mode_descriptor
 from prxteinmpnn.sampling.ste_optimize import make_optimize_sequence_fn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
@@ -535,3 +535,6 @@ def make_sample_sequences(
 
   msg = f"Unknown sampling strategy: {sampling_strategy}"
   raise ValueError(msg)
+
+
+SAMPLERS.register("make_sample_sequences")(make_sample_sequences)

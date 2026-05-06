@@ -1,0 +1,12 @@
+# Phase 0a spike — parity_fast (filtered excerpt) — 2026-05-07
+# Command: PYTHONPATH=src uv run pytest tests/sampling/spikes/test_state_vmap_exact_spike.py -m parity_fast -q
+# Full log: phase0a_spike_parity_fast_20260507.full.txt
+
+Result: 1 passed, 1 deselected (parity_heavy not run).
+
+HLO / IR proxy (UserWarning body from test_state_vmap_exact_unconditional_matches_explicit_vmap_stack):
+  spike_hlo_state_vmap_exact bytes=145368 newlines=2348 custom_call_markers=0
+
+Notes:
+- Roadmap §230 asks for byte counts + op-count summaries; this spike emits UTF-8 byte length, newline count, and substring count for "custom-call" in lowered HLO text (cheap op-count proxy).
+- LigandMPNN spike: not exercised in parity_fast subset (see test module markers / REFERENCE_PATH for parity_heavy).

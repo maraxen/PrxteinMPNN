@@ -5,6 +5,7 @@
 | **task_id** | `refactor-phase4-pr2-20260506` (OODA log) / `refactor-phase3c-0a-pr2-20260506` (sprint label) |
 | **Roadmap** | `.agents/REFACTOR_ROADMAP.md` §227–238 (Phase 0a), §296–316 (Phase 3 payloads), §320–345 (Phase 4 **blocked** until 0a **GO** on `main`), §571–579 (§14) |
 | **Prior sprint** | `.agents/SPRINT_refactor-phase4-entry-20260505.md` |
+| **Superseded as active plan** | **2026-05-07:** Active sprint body moved to `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md` (Phase 0a GO + **PR2b** `sample.py`, with JIT/`n_flat` static-field note). This file remains the record for **PR2a** (unconditional factories → payload). |
 | **Plan-auditor** | Verdict **NEEDS_WORK** → **PASS with amendments** (pinned DoD below; WP3 sequencing; canonical pytest one-liners). |
 
 ## Sprint intent
@@ -25,14 +26,13 @@ Land **parity-pinned** refactors and **documentation** so Phase 4 registry work 
 
 ---
 
-## WP2 — PR2: `make_unconditional_logits_state_vmap_fn` → payload delegation
+## WP2 — PR2a (complete on `main`): `make_unconditional_logits_state_vmap_fn` → payload delegation
 
 | Item | Detail |
 | :--- | :--- |
-| **Objective** | Replace internal calls to `score_unconditional_state_vmap_exact(...)` positional tuples with **`unconditional_state_vmap_logits_from_payload`** (or direct `score_unconditional_state_vmap_exact_from_payload`) so JIT factories align with the payload-first path; **numerical parity** vs pre-change tuple calls. |
-| **Files** | `src/prxteinmpnn/sampling/unconditional_logits.py`; tests: extend `tests/sampling/test_state_vmap_payload_logits.py` if new edge cases; existing parity tests remain the bar. |
-| **DoD** | Global commands below; **explicit** assertion that factory output matches `unconditional_state_vmap_logits_from_payload` on the same tensors (existing test already encodes this — keep green). |
-| **Deferred (separate PR)** | `multistate_stack is None` branches in `sampling/sample.py` (larger surface); **STE** (`ste_optimize.py`). |
+| **Status** | **Landed** (see `unconditional_logits.py` + verification log `sprint_phase3c_wp2_unconditional_payload_20260506.txt`). |
+| **Objective** | (Historical) Replace internal calls to `score_unconditional_state_vmap_exact(...)` positional tuples with **`unconditional_state_vmap_logits_from_payload`** so JIT factories align with the payload-first path; **numerical parity** vs pre-change tuple calls. |
+| **Follow-on** | **PR2b** — `sampling/sample.py` when `multistate_stack is None`: see **active** sprint `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md` (**JIT note**: static `n_flat` / `MultistateStackPayload` inside `jax.jit`). **STE** (`ste_optimize.py`) remains deferred. |
 
 ---
 
@@ -51,9 +51,9 @@ Backlog order (separate future PRs each with version/tests): **ligand** → **ti
 
 ---
 
-## WP5 — Roadmap §14 pointer
+## WP5 — Roadmap §14 pointer (**superseded 2026-05-07**)
 
-After WP1–WP3: update §14 **Last update**, **Still open** (Phase 4 still blocked until 0a **GO** on `main`; tuple/STE deferrals explicit), **Plan** row → this file as active sprint body.
+Originally: after WP1–WP3, point §14 **Plan** here. **Done elsewhere:** `.agents/REFACTOR_ROADMAP.md` §14 and **active** sprint `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md` now own the live pointer; this file is historical for PR2a + earlier WPs.
 
 ---
 

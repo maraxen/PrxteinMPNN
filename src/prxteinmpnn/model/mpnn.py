@@ -2026,7 +2026,13 @@ class PrxteinMPNN(eqx.Module):
     state_mapping: jnp.ndarray | None,
     inference: bool = True,
   ) -> Logits:
-    """Compute unconditional logits per stacked state then scatter+fuse (``state_vmap_exact``)."""
+    """Compute unconditional logits per stacked state then scatter+fuse (``state_vmap_exact``).
+
+    The ``tie_group_map is None`` encode/decode stack matches the explicit ``jax.vmap`` reference
+    in ``tests/sampling/spikes/test_state_vmap_exact_spike.py`` (roadmap §13.2 Phase 0a **GO**).
+    When ``tie_group_map`` is set, logits are post-processed via
+    :meth:`_apply_multistate_to_all_logits`.
+    """
     k_enc, k_feat = jax.random.split(prng_key)
 
     def encode_one(coords, ma, ri, ci):

@@ -18,6 +18,7 @@ from .spec_json import (
   run_specification_to_json,
   run_specification_to_json_dict,
 )
+from .sampling_driver import SamplingDriver
 from .specs import (
   JacobianSpecification,
   RunSpecification,
@@ -32,6 +33,7 @@ __all__ = [
   "RunSpecification",
   "SamplingSpecification",
   "ScoringSpecification",
+  "SamplingDriver",
   "SpecJSONDecodeError",
   "SpecJSONEncodeError",
   "build_run_spec",

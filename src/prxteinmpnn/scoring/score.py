@@ -13,7 +13,11 @@ from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
 from prxteinmpnn.model.multistate_stack import gather_flat_to_stack, scatter_stack_to_flat
 from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
 from prxteinmpnn.protocols import ScoreFn, StateVmapExactScoreFn
-from prxteinmpnn.registry import combine_strategy_to_index, multistate_mode_descriptor
+from prxteinmpnn.registry import (
+  assert_known_multistate_mode,
+  combine_strategy_to_index,
+  multistate_mode_descriptor,
+)
 from prxteinmpnn.run.averaging import make_encoding_sampling_split_fn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
@@ -333,6 +337,7 @@ def make_score_fn(
   """
   del _num_encoder_layers, _num_decoder_layers
 
+  assert_known_multistate_mode(multistate_mode)
   ms_route = multistate_mode_descriptor(multistate_mode)
 
   if ms_route.uses_stacked_exact_score_factory:

@@ -14,11 +14,11 @@
 
 `prxteinmpnn` ships a numerically-correct, parity-pinned LigandMPNN port in JAX/Equinox, but the surface area between the four parity-pinned callables has accreted faster than its structure. `src/prxteinmpnn/model/mpnn.py` is **3933 LoC** with two near-duplicate Equinox modules (`PrxteinMPNN`, `PrxteinLigandMPNN`) that reach into each other's private static methods. `src/prxteinmpnn/run/sampling.py` is **1718 LoC** with four near-duplicate streaming variants (`_sample_streaming`, `_sample_streaming_arrayrecord`, `_sample_streaming_averaged`, in-memory) and parallels in scoring/jacobian/conformational_inference. `RunSpecification` and four subclasses carry **50+ flat fields** with at least five provably dead (`output_path`, `average_logits`, `score_batch_size`, `gmm_min_iters`, `combine_noise_batch_size`).
 
-The **seven** legacy `strategy_map` literals are **routed** through `registry._COMBINE_INDEX` / `combine_strategy_to_index`. **Multistate** branching at the four roadmap call surfaces (`PrxteinMPNN` / `PrxteinLigandMPNN.__call__`, `make_sample_sequences`, `make_score_fn`) now reads **immutable** `MultistateModeDescriptor` rows from `registry.MULTISTATE_MODES` (Python / `static_argnames` only — no traced registry lookups). STE ``optimize_sequence`` validates ``multistate_mode`` via ``assert_known_multistate_mode`` at entry.
+The **seven** legacy `strategy_map` literals are **routed** through `registry._COMBINE_INDEX` / `combine_strategy_to_index`. **Multistate** branching at the four roadmap call surfaces (`PrxteinMPNN` / `PrxteinLigandMPNN.__call__`, `make_sample_sequences`, `make_score_fn`) now reads **immutable** `MultistateModeDescriptor` rows from `registry.MULTISTATE_MODES` (Python / `static_argnames` only — no traced registry lookups). STE ``optimize_sequence`` and ``make_score_fn`` validate ``multistate_mode`` via ``assert_known_multistate_mode`` at their **Python** factory entries (JIT inner paths still use ``multistate_mode_descriptor`` where applicable). **Phase 5 prep:** ``registry.SAMPLERS`` registers sampler **factories** (``SamplerFactoryFn`` → ``SamplerFn``); the default ``\"make_sample_sequences\"`` key registers when ``prxteinmpnn.sampling.sample`` is imported; :class:`~prxteinmpnn.run.sampling_driver.SamplingDriver` resolves a factory from a :class:`~prxteinmpnn.run.specs.SamplingSpecification``.
 
 Phase 1 **import-time** ``multiprocessing.set_start_method`` removal and **hardcoded debug-log** deletion from ``mpnn.py`` are **landed** on main; ``configure_multiprocessing()`` is the supported opt-in (``runtime.py``). Remaining §11 risk is **review-level** (HLO diffs, Equinox static-field warnings), not committed debug paths.
 
-We refactor now because (a) **TECHNICAL_DEBT §9** (mpnn.py split) and **§10** (Protocols/contracts) gate the typed-dispatch work that **§14** (io_callback streaming) requires; (b) **§11** (StableHLO) still needs disciplined HLO baselines and tracer-hygiene as ``mpnn.py`` evolves; (c) the parallel `state_vmap_exact` re-implementation is about to grow a third variant for grid lineage and will permanently fork the codebase if not unified now.
+We refactor now because (a) **TECHNICAL_DEBT §9** (mpnn.py split) and **§10** (Protocols/contracts) gate the typed-dispatch work that **§14** (io_callback streaming) requires; (b) **§11** (StableHLO) still needs disciplined HLO baselines and tracer-hygiene as ``mpnn.py`` evolves; (c) remaining ``state_vmap_exact`` surfaces (conditional, ligand, autoregressive wave) still risk a third fork for grid lineage unless they converge on the same ``jax.vmap`` discipline as the unconditional protein path (§13.2 **GO**, Phase 4 tasks).
 
 The guiding principle is **"parity is pinned at four callable boundaries; everything inside is fluid"**: we move dataclasses, dispatch tables, file boundaries, and registries freely while keeping the four callables within `get_tolerances("float32")` at every merge. We adopt patterns from the sibling `jaxbeans` repo selectively — see the **VENDOR vs DEPEND matrix (§3.6)** — because jaxbeans has already debugged the JAX-specific edges (jaxtyping cost, Equinox static fields, `stop_gradient` around `io_callback`).
 
@@ -102,6 +102,8 @@ Pattern source: jaxbeans `aprt/sensors.py:96-129` (strategy-by-instance registry
 
 ```python
 from typing import TypeVar, Callable
+from prxteinmpnn.protocols import SamplerFn  # runtime_checkable Protocol
+
 T = TypeVar("T")
 
 class Registry[T]:
@@ -116,7 +118,8 @@ class Registry[T]:
     def get(self, key: str) -> T: return self._items[key]
     def keys(self) -> list[str]: return list(self._items)
 
-SAMPLERS = Registry[SamplerFn]("samplers")
+SamplerFactoryFn = Callable[..., SamplerFn]
+SAMPLERS = Registry[SamplerFactoryFn]("samplers")
 MULTISTATE_MODES = Registry[MultistateModeDescriptor]("multistate_modes")
 OUTPUT_SINKS = Registry[DesignSink]("output_sinks")  # Phase 5
 ```
@@ -124,8 +127,8 @@ OUTPUT_SINKS = Registry[DesignSink]("output_sinks")  # Phase 5
 | Axis | Mechanism | Rationale |
 |---|---|---|
 | `combine_strategy` | **frozen `_COMBINE_INDEX = OrderedDict(...)` constant** | 3 stable values; no extension pressure; explicit ordering for `lax.switch` index |
-| `samplers` | `Registry[SamplerFn]` | Multiple variants, more expected (jacobian, ste, conformational) |
-| `multistate_modes` | `Registry[MultistateModeFn]` | Extension intent (`state_vmap_exact`, `averaging`, future grid variants) |
+| `samplers` | `Registry[SamplerFactoryFn]` (`Callable[..., SamplerFn]`) | Factories return JIT-pure ``SamplerFn``; default ``make_sample_sequences`` key registers on ``import prxteinmpnn.sampling.sample`` |
+| `multistate_modes` | `Registry[MultistateModeDescriptor]` | Extension intent; host-only descriptor rows (``MultistateModeFn`` deferred until per-mode callables land) |
 | `output_sinks` | `Registry[DesignSink]` (Phase 5) | UX goal: contributors add sinks by separate file |
 | `decoding_approach` | `lax.switch` over fixed-cardinality enum | Parity-pinned; not contributor-extensible |
 
@@ -334,9 +337,10 @@ The spike is mandatory before Phase 4 PRs may merge. Until then, draft Phase 4 P
   - `sampling/sample.py:340`
   - The `lax.switch` index is `_COMBINE_INDEX[spec.multistate.combine_strategy]` at trace time.
 - **Migrate the 4 `multistate_mode` if/elif ladders** (`model/mpnn.py` both `__call__`, `sampling/sample.py`, `scoring/score.py`) **→ done (descriptor registry, 2026-05):** host-side `MultistateModeDescriptor` rows in `MULTISTATE_MODES` + `multistate_mode_descriptor()` replace string equality while preserving JIT boundaries. **Still open:** optional `jax.vmap` unification of `state_vmap_exact` vs registry-only routing (Phase 0a **GO** recorded in §13.2).
-- **`state_vmap_exact` outcome (controlled by Phase 0a SPIKE):**
-  - **If go:** becomes `@MULTISTATE_MODES.register("state_vmap_exact")` calling `jax.vmap` over the existing single-state path; the parallel re-implementation is deleted.
-  - **If no-go:** `state_vmap_exact` becomes a registry entry that dispatches to the existing implementation. The duplication is preserved; the registry layer still unifies the dispatch surface (callers see a single `MULTISTATE_MODES.get(mode)` API).
+- **`state_vmap_exact` outcome (controlled by Phase 0a SPIKE — §13.2 GO):**
+  - **Protein unconditional logits:** :meth:`~prxteinmpnn.model.mpnn.PrxteinMPNN.score_unconditional_state_vmap_exact` already uses the same ``jax.vmap(encode_one)`` / ``jax.vmap(decode_one)`` / ``jax.vmap(jax.vmap(w_out))`` stack as the Phase 0a explicit reference (``tests/sampling/spikes/test_state_vmap_exact_spike.py``); only ``tie_group_map`` adds a post-scatter fusion step. **Remaining duplication** to collapse under a future PR: conditional ``state_vmap_exact``, ligand stacks, autoregressive wave sampler, and any paths still hand-rolled vs ``jax.vmap(single_state)``.
+  - **If further unify:** extend the spike pattern to those surfaces, then delete redundant bodies per roadmap default.
+  - **If no-go on a surface:** keep a **registry entry** dispatching to the preserved implementation (routing layer, not numeric unification).
 - Convert `decoding_approach` if/elif to a fixed-cardinality `lax.switch` (NOT a registry).
 - Migrate samplers (`sample`, `score`, etc.) to the `SAMPLERS` registry.
 
@@ -368,7 +372,7 @@ The spike is mandatory before Phase 4 PRs may merge. Until then, draft Phase 4 P
 Each sub-PR is parity-pinned and individually mergeable. Closes **§9**.
 
 **Other Phase 5 sub-PRs (3):**
-- 5f: `SamplingDriver` (host) parameterized by `DesignSink` Protocol (introduced here, deferred from Phase 2). Consumes JIT-pure registered samplers from §3.3. Replaces the 4 near-duplicate streaming functions in `run/sampling.py` and the parallels in `run/scoring.py`, `run/jacobian.py`, `run/conformational_inference.py`. **Does not** copy jaxbeans's in-place `datamodule.batch_size` mutation — batching flows via `RunSpec.batching`.
+- 5f: `SamplingDriver` (host) parameterized by `DesignSink` Protocol (introduced here, deferred from Phase 2). Consumes JIT-pure registered samplers from §3.3 (`SAMPLERS` **factories** → ``SamplerFn``; see ``run/sampling_driver.py`` prep). Replaces the 4 near-duplicate streaming functions in `run/sampling.py` and the parallels in `run/scoring.py`, `run/jacobian.py`, `run/conformational_inference.py`. **Does not** copy jaxbeans's in-place `datamodule.batch_size` mutation — batching flows via `RunSpec.batching`.
 - 5g: Plumb `async_indexed_stream` (vendored at `prxteinmpnn/utils/_vendored_callbacks.py`, per §3.6) using `stop_gradient` + `ordered=False` for hot paths; `ordered=True` only for debug. Wrap with `BoundedCallbackHandler` for backpressure. **Add `jax.effects_barrier()` at every sink boundary and at epoch end** — this is the customization that motivates vendoring (jaxbeans omits it; their I/O scale is smaller). `io_callback` lives **outside** any `checkify` region. Adopt `atomic_write` + `MultiPartWriter` (DEPEND), `safe_map` (DEPEND), `PreemptionHandler` (DEPEND), `BinaryDatasetWriter` schema-as-dict (DEPEND).
 - 5h: Relocate `ensemble/dbscan.py` and `ensemble/pca.py` to jaxbeans (separate jaxbeans-side PR; in this repo we add a shim that imports from jaxbeans). Closes **§12**.
 
@@ -608,14 +612,14 @@ Each Open Question now has a **default decision** that holds unless a triggering
 
 | Field | Value |
 | :--- | :--- |
-| **task_id** | `refactor-sprint-20260507-phase0a-go-pr2-sample` (active sprint); OODA cycle `refactor-sprint-20260507-ooda`; prior `refactor-phase4-pr2-20260506`, `refactor-phase4-entry-20260505`, `refactor-phase3b-sprint-20260506`, `refactor-phase3-sprint-20260505` |
-| **Last update** | 2026-05-05 — Phase 4 **multistate dispatch slice**: `MultistateModeDescriptor` rows + `multistate_mode_descriptor()` wired through `mpnn.__call__`, `make_sample_sequences`, `make_score_fn`; STE validates mode at entry; `logs/` gitignored. §13.2 Phase 0a **GO** unchanged. |
-| **Current phase** | **Phase 3b signed off** on `main`. **Phase 4 prep:** `_COMBINE_INDEX` + **multistate descriptor registry** landed; **`state_vmap_exact` jax.vmap unification** vs registry-only routing remains the next behavioral Phase 4 decision (§13.2). **PR2b** `sample.py` tuple branches when `multistate_stack is None` remain in the separate sprint doc. |
-| **Still open** | **Phase 4:** `state_vmap_exact` unify vs registry-route; `SAMPLERS` / `SamplingDriver` (Phase 5). **PR2b:** `sample.py` tuple branches when `multistate_stack is None`. **Defer:** portable RunSpec JSON v3 follow-ups (Jacobian / CIF / Inspection round-trips). |
-| **Plan** | **Active:** `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md`. **Prior / superseded plan body:** `.agents/SPRINT_refactor-phase3c-0a-pr2-20260506.md` (retain for PR2a history). **Prior (retained):** `.agents/SPRINT_refactor-phase4-entry-20260505.md`. **Prior / closed (do not delete):** `.agents/SPRINT_refactor-phase3b-20260506.md`, `.agents/SPRINT_refactor-phase3-20260505.md`. |
+| **task_id** | `sprint-20260507-samplers-json-p4doc` (this sprint); prior `refactor-sprint-20260507-phase0a-go-pr2-sample` |
+| **Last update** | **2026-05-07** — ``SAMPLERS`` + ``SamplingDriver`` prep; RunSpec JSON round-trips for ``JacobianSpecification``, ``ConformationalInferenceSpecification``, ``InspectionSpecification``; roadmap Phase 4 note that **Protein unconditional** ``score_unconditional_state_vmap_exact`` matches Phase 0a ``jax.vmap`` reference (``tie_group_map`` post-process only). ``make_score_fn`` calls ``assert_known_multistate_mode`` at factory entry. |
+| **Current phase** | Phase 4: multistate descriptors landed; **next behavioral chunk** = conditional / ligand / AR ``state_vmap_exact`` vs vmap reference or explicit registry routes. Phase 5: ``SamplingDriver`` skeleton + ``SAMPLERS`` default registration live. |
+| **Still open** | Full ``state_vmap_exact`` body dedup beyond unconditional protein logits; migrate ``run/sampling.py`` streaming to host driver; **PR2b** ``sample.py`` tuple branches when ``multistate_stack is None``. |
+| **Plan** | **Closed slice:** this sprint (OODA `sprint-20260506-phase4-p5-runspec`). **Active long-form:** `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md`. |
 | **Prior landed (Phase 2)** | `protocols.py`, `model/capabilities.py`, introspection removal at sample/score/averaging, honest casts on score paths; sprint `refactor-phase2-sprint-20260505`, plan `.agents/SPRINT_refactor-phase2-20260505.md`. |
 | **Prior phase** | Phase 1: `task_id` `refactor-phase1-sprint-20260505` (§14 prior row archived in git history). |
 
 ---
 
-*End of roadmap. Phase 2 typed boundaries are landed; Phase 3b portable RunSpec JSON v2 + hygiene signed off; active sprint — §14 and `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md` (prior Phase 3c / PR2a doc `.agents/SPRINT_refactor-phase3c-0a-pr2-20260506.md` retained; Phase 4 entry `.agents/SPRINT_refactor-phase4-entry-20260505.md` retained).*
+*End of roadmap. Phase 2 typed boundaries are landed; Phase 3b portable RunSpec JSON v2 + hygiene signed off; **2026-05-07** sprint closed ``SAMPLERS`` / ``SamplingDriver`` prep + Jacobian/CIF/Inspection JSON round-trips + Phase 4 unconditional-path documentation (§13.2 GO). Long-form sampling work remains under `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md`.*

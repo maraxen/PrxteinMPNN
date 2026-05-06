@@ -19,7 +19,14 @@ from prxteinmpnn.run.spec_json import (
   run_specification_to_json,
   run_specification_to_json_dict,
 )
-from prxteinmpnn.run.specs import RunSpecification, SamplingSpecification, ScoringSpecification
+from prxteinmpnn.run.specs import (
+  ConformationalInferenceSpecification,
+  InspectionSpecification,
+  JacobianSpecification,
+  RunSpecification,
+  SamplingSpecification,
+  ScoringSpecification,
+)
 from prxteinmpnn.training.specs import TrainingSpecification
 
 
@@ -120,7 +127,47 @@ def test_training_spec_json_dict_roundtrip(tmp_path: Path) -> None:
     assert getattr(again, f.name) == getattr(spec, f.name), f.name
 
 
-# TODO(JSON audit): add typed round-trip tests for remaining ``spec_json``-registered classes
-# that lack coverage here: ``JacobianSpecification`` (mind ``combine_fn`` JSON rules),
-# ``ConformationalInferenceSpecification``, ``InspectionSpecification``. Use minimal
-# instances with JSON-safe fields only; see ``_SPEC_CLASS_BY_NAME`` in ``run/spec_json.py``.
+def _assert_spec_json_roundtrip(spec: object, expected_cls: type) -> None:
+  """Assert stable dict + string JSON round-trip (``_NON_JSON_ROOT_FIELDS`` must stay JSON-clean)."""
+  d0 = run_specification_to_json_dict(spec)
+  again = run_specification_from_json_dict(d0)
+  assert isinstance(again, expected_cls)
+  d1 = run_specification_to_json_dict(again)
+  assert d0 == d1
+  blob = run_specification_to_json(spec, indent=None)
+  from_json = run_specification_from_json(blob)
+  assert isinstance(from_json, expected_cls)
+  assert run_specification_to_json_dict(from_json) == d0
+
+
+def test_jacobian_spec_json_roundtrip(tmp_path: Path) -> None:
+  spec = JacobianSpecification(
+    inputs=[str(tmp_path / "in.pdb")],
+    noise_batch_size=2,
+    jacobian_batch_size=8,
+    combine=False,
+    output_h5_path=str(tmp_path / "jac.h5"),
+  )
+  _assert_spec_json_roundtrip(spec, JacobianSpecification)
+
+
+def test_conformational_inference_spec_json_roundtrip(tmp_path: Path) -> None:
+  spec = ConformationalInferenceSpecification(
+    inputs=[str(tmp_path / "e1.pdb")],
+    output_h5_path=str(tmp_path / "cif.h5"),
+    batch_size=4,
+    inference_strategy="unconditional",
+    gmm_n_components=10,
+  )
+  _assert_spec_json_roundtrip(spec, ConformationalInferenceSpecification)
+
+
+def test_inspection_spec_json_roundtrip(tmp_path: Path) -> None:
+  spec = InspectionSpecification(
+    inputs=[str(tmp_path / "s.pdb")],
+    output_h5_path=str(tmp_path / "insp.h5"),
+    inspection_features=("unconditional_logits", "edge_features"),
+    distance_matrix=False,
+    cross_input_similarity=False,
+  )
+  _assert_spec_json_roundtrip(spec, InspectionSpecification)

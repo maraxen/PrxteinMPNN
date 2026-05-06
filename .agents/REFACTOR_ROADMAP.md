@@ -387,29 +387,37 @@ Each sub-PR is parity-pinned and individually mergeable. Closes **§9**.
 
 ---
 
-### Phase 6 — Proxide / Prolix migration + final cleanup
+### Phase 6 — Batch layout / memory efficiency + Proxide / Prolix + final cleanup
 
 | | |
 |---|---|
-| **Goal** | Migrate residual structure utilities to proxide; trajectory/MD wrappers to prolix; final docstring sweep; remove deprecation shims from Phases 1+3. |
-| **Parity risk** | Low |
-| **PRs** | 2–3 |
-| **Pre-conditions** | Phase 5 (`SamplingDriver` split — proxide consumers are now in the host orchestrator, not threaded through hot paths). |
+| **Goal** | After Phase 4–5 stabilize dispatch and host orchestration: (A) **bucketing** and explicit policies for **ragged vs padded** layouts and for **stacked (`vmap`) vs resource-bounded (`safe_map`)** execution where memory dominates; (B) migrate residual utilities to proxide/prolix; final docstring sweep; remove deprecation shims. |
+| **Parity risk** | **Medium** on track A (layout choices touch JIT shapes); **Low** on track B |
+| **PRs** | **4–8** (batch-layout spike + incremental migrations + proxide/prolix + cleanup — may split A/B across merge windows) |
+| **Pre-conditions** | Phase 5 complete: `SamplingDriver` and jaxbeans **`safe_map`** adoption paths are real so batch policy lives at a **single host boundary**, not scattered across pre-split call sites. |
 
-**Tasks:**
+**Track A — Bucketing, ragged vs padded, stacked vs `safe_map`**
+
+- **Problem:** Dense stacked tensors (pad-to-global-bucket multistate grids) are convenient for `jax.vmap` but can **inflate memory** when used as the default normalization for heterogeneous batches. Phase 3–5 may still rely on **compatibility shims** (e.g. host coercion into `MultistateStackPayload`) — Phase 6 **replaces “coerce everything to a stack” as the only story** with an explicit **layout decision matrix** documented in-repo (when padded stacks are required for parity-pinned paths vs when segmented/ragged or looped maps are preferred).
+- **Bucketing:** Align length / batch bucketing with existing prep conventions (e.g. `pad_length_bucket_128` lineage in `state_vmap_prep`) and extend where needed so host code chooses bucket policies **before** JIT, keeping static shape metadata on carriers (`eqx.field(static=True)`).
+- **`safe_map` vs `vmap`:** Use jaxbeans **`safe_map`** (§3.6 DEPEND, wired in Phase 5) where **`vmap` over padded stacks** would exceed resource targets; keep **`vmap`** where parity evidence and HLO discipline already pin the stacked path (e.g. `state_vmap_exact` references). Each PR that changes layout cites **memory / compile / parity** evidence.
+- **Signatures:** New **internal** surfaces avoid `*args` / `**kwargs`; use **frozen pytree structs** (Equinox modules / payloads) and **`runtime_checkable` Protocols** at boundaries once Phase 4–5 call shapes are settled — Phase 6 refactors carriers for layout efficiency, not for open-ended kwargs.
+
+**Track B — Proxide / Prolix / hygiene (existing scope)**
+
 - Migrate structure/IO utilities currently duplicated between `prxteinmpnn` and `proxide` to proxide (**§7**).
 - Migrate trajectory/MD wrappers to prolix.
 - Final docstring sweep across all parity-pinned callables and Protocol definitions (**§6**).
 - Remove deprecation shims for the dead `RunSpecification` fields from Phase 1 and the `RunSpec` shim from Phase 3 (after a one-minor-version window per §13 Q4).
 
-**CI gates added:** docstring coverage threshold (`interrogate --fail-under=80` on `src/prxteinmpnn/`).
-**Tech-debt closed:** §6, §7.
+**CI gates added:** docstring coverage threshold (`interrogate --fail-under=80` on `src/prxteinmpnn/`); **optional** advisory benchmark or peak-device-memory smoke on a representative multistate grid (document threshold in PR — no flaky CI hard gate unless stabilized).
+**Tech-debt closed:** §6, §7; **new closure:** implicit debt from “stack-only” multistate normalization without a documented ragged/padded/`safe_map` policy.
 
 ---
 
 ## 5. Phase ordering rationale
 
-The order is **additive-first, then mechanical extractions, then behavioral changes, finally external migrations**. Phase 0 is pure scaffolding plus the **0a SPIKE** that gates Phase 4's unification claim. Phase 1 is pure deletion of dead/debug code (zero parity risk, immediately unblocks §11 StableHLO; both `mp.set_start_method` sites — `__init__.py` and `run/specs.py:15` — are addressed together). Phase 2 introduces typed boundaries *additively* — old `Callable[..., Any]` aliases coexist with new Protocols during the migration window. Phase 3 introduces pytree payloads and the composed `RunSpec` *before* registries because the registries dispatch on those payloads' static fields (combine_strategy, multistate.mode); reversing would force a second migration of registry signatures. Phase 4 collapses duplication only after Phase 3 has unified the data shapes and after the spike has decided whether `state_vmap_exact` can be unified or merely routed. Phase 5 is the highest-risk phase (file split + `SamplingDriver` + io_callback) and depends on every prior phase; the mpnn split is decomposed into 5 sub-PRs (5a–5e) plus 3 more (5f–5h). Phase 6 (proxide/prolix) goes last because the host-orchestrator split clarifies which utilities belong outside the hot path.
+The order is **additive-first, then mechanical extractions, then behavioral changes, finally external migrations**. Phase 0 is pure scaffolding plus the **0a SPIKE** that gates Phase 4's unification claim. Phase 1 is pure deletion of dead/debug code (zero parity risk, immediately unblocks §11 StableHLO; both `mp.set_start_method` sites — `__init__.py` and `run/specs.py:15` — are addressed together). Phase 2 introduces typed boundaries *additively* — old `Callable[..., Any]` aliases coexist with new Protocols during the migration window. Phase 3 introduces pytree payloads and the composed `RunSpec` *before* registries because the registries dispatch on those payloads' static fields (combine_strategy, multistate.mode); reversing would force a second migration of registry signatures. Phase 4 collapses duplication only after Phase 3 has unified the data shapes and after the spike has decided whether `state_vmap_exact` can be unified or merely routed. Phase 5 is the highest-risk phase (file split + `SamplingDriver` + io_callback) and depends on every prior phase; the mpnn split is decomposed into 5 sub-PRs (5a–5e) plus 3 more (5f–5h). **Phase 6 goes last** so that (1) the host-orchestrator split clarifies which utilities belong outside the hot path, and (2) **batch layout and memory policy** (bucketing, ragged vs padded, `safe_map` vs stacked `vmap`) are decided **after** registries and `SamplingDriver` stabilize signatures — avoiding a second full migration of multistate carriers while Phase 4–5 are still churning.
 
 ---
 
@@ -426,7 +434,7 @@ Estimates from `rg`-driven counts at HEAD; refine in each phase's first PR.
 | 3   | ~12 (8 payload sites + 9 sub-config sites + `RunSpecification` shim) | **expected ~10–25** under `scripts/engaging/` and `scripts/`; full audit is its own PR | 2 (`payloads.py`, `run/spec.py`) + migration script | 0 (`RunSpecification` shimmed) | Pickle migration script must run on representative engaging pickles |
 | 4   | ~8 (the 7 strategy_map sites + 4 multistate_mode sites + `state_vmap_exact` route/unify) | 0 | 1 (`registry.py`) | 0 or 1 (depending on spike) | |
 | 5   | ~30+ (mpnn split touches every importer of `model.mpnn`; sampling/scoring/jacobian/conformational `run/*.py`) | likely some `scripts/` import path updates | 6 (`model/encoder.py`, `model/ligand_mpnn.py`, `model/mpnn_core.py`, `model/_shared.py`, `run/sampling_driver.py`, `utils/_vendored_callbacks.py`) | 0 (shim retains old paths) | Highest churn phase |
-| 6   | ~10 (proxide/prolix consumers) | 0 | 0 | several (deprecation shims removed) | |
+| 6   | ~12–20 (batch-layout helpers + multistate prep/sampling touchpoints; proxide/prolix consumers) | 0 – few | 1–2 (layout policy module / tests TBD) | several (deprecation shims; optional removal of stack-only shims) | Track A may split PRs: spike → carriers → hot-path swaps |
 
 **`scripts/engaging/` audit (Phase 3 PR description must include):** the output of `rg -l "RunSpecification\(" scripts/` with each file annotated as updated, deferred, or out-of-scope.
 
@@ -535,6 +543,7 @@ The roadmap is complete when **all** of the following are measurably true:
 8. **`scripts/engaging/` audit complete** (Phase 3): every `RunSpecification(...)` call-site updated or explicitly waived in writing.
 9. **Spec interchange:** JSON round-trip tests and `prxteinmpnn spec` CLI exercised in CI-relevant paths (pickle migration script **optional** / descoped if JSON-only policy holds).
 10. **Phase 0a SPIKE outcome documented** with go/no-go decision and matching Phase 4 implementation. **Split acceptance:** the spike (numeric + HLO evidence + recorded go/no-go in a PR) may complete **before** Phase 4; the clause *“matching Phase 4 implementation”* is satisfied only when Phase 4 registry/unification (or routing) PRs merge. Track the spike slice under sprint **Phase 3b PR1** (`.agents/SPRINT_refactor-phase3b-20260506.md`).
+11. **Phase 6 track A:** documented **batch layout policy** (bucketing; ragged vs padded; when stacked `vmap` vs `safe_map`) and **internal** carriers use frozen pytree structs + Protocols — **no new internal `*args` / `**kwargs` surfaces** introduced during Phase 6 refactors (existing public APIs may retain narrow compatibility kwargs until explicitly migrated).
 
 ---
 
@@ -552,6 +561,7 @@ The roadmap is complete when **all** of the following are measurably true:
 | §12 | ensemble → jaxbeans | Phase 5 (sub-PR 5h) | `ensemble/dbscan.py`, `ensemble/pca.py` relocated. |
 | §13 | Doc hygiene | Cross-cutting §7.2 (standalone) | No longer Phase-1-coupled. |
 | §14 | io_callback streaming | Phase 5 (sub-PR 5g) | `async_indexed_stream` (vendored) + `BoundedCallbackHandler` + `effects_barrier`. |
+| §15 | Multistate batch layout / memory policy (bucketing, ragged vs padded, `safe_map` vs stacked `vmap`) | Phase 6 (track A) | Defers deep layout work until after Phase 5 `SamplingDriver` + `safe_map` wiring; closes “stack-only normalization” debt. |
 
 ---
 
@@ -613,13 +623,13 @@ Each Open Question now has a **default decision** that holds unless a triggering
 | Field | Value |
 | :--- | :--- |
 | **task_id** | `refactor-roadmap-sprint-20260506` (OODA closure for PR2b host coercion); prior `sprint-20260507-samplers-json-p4doc` |
-| **Last update** | **2026-05-06** — **PR2b (strategy A):** outer ``sample_sequences`` calls ``_coerce_loose_to_multistate_stack_host`` before ``jax.jit``; ``state_vmap_exact`` AR wave uses ``multistate_stack`` payload only inside JIT (explicit error if missing). Verification log: ``.agents/verification_logs/pr2b_host_coercion_20260506.filtered.txt``. Prior **2026-05-07** row: ``SAMPLERS`` / ``SamplingDriver`` prep; RunSpec JSON round-trips; Phase 0a unconditional protein path documented in §13.2. |
+| **Last update** | **2026-05-06** — Roadmap **Phase 6** expanded: **track A** (bucketing, ragged vs padded, stacked `vmap` vs `safe_map`, frozen structs + Protocols on internal surfaces after Phase 4–5); tech-debt **§15**. Same date — **PR2b:** outer ``sample_sequences`` host coercion before ``jax.jit``; verification log ``pr2b_host_coercion_20260506.filtered.txt``. Prior **2026-05-07:** ``SAMPLERS`` / ``SamplingDriver`` prep; RunSpec JSON round-trips; §13.2 Phase 0a GO. |
 | **Current phase** | Phase 4: multistate descriptors landed; **next behavioral chunk** = conditional / ligand / AR ``state_vmap_exact`` vs vmap reference or explicit registry routes (beyond unconditional protein logits). Phase 5: ``SamplingDriver`` skeleton + ``SAMPLERS`` default registration live. |
-| **Still open** | Full ``state_vmap_exact`` body dedup beyond unconditional protein logits; migrate ``run/sampling.py`` streaming to host driver. |
+| **Still open** | Full ``state_vmap_exact`` body dedup beyond unconditional protein logits; migrate ``run/sampling.py`` streaming to host driver. **Deferred to Phase 6 §15:** systematic batch bucketing / ragged-vs-padded / ``safe_map`` vs stacked ``vmap`` policy (after Phase 5 boundaries). |
 | **Plan** | **Closed slice:** PR2b loose-stack → host ``MultistateStackPayload`` (this commit). **Reference sprint:** `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md` (WP2 narrative). |
 | **Prior landed (Phase 2)** | `protocols.py`, `model/capabilities.py`, introspection removal at sample/score/averaging, honest casts on score paths; sprint `refactor-phase2-sprint-20260505`, plan `.agents/SPRINT_refactor-phase2-20260505.md`. |
 | **Prior phase** | Phase 1: `task_id` `refactor-phase1-sprint-20260505` (§14 prior row archived in git history). |
 
 ---
 
-*End of roadmap. Phase 2 typed boundaries are landed; Phase 3b portable RunSpec JSON v2 + hygiene signed off; **2026-05-07** sprint closed ``SAMPLERS`` / ``SamplingDriver`` prep + Jacobian/CIF/Inspection JSON round-trips + Phase 4 unconditional-path documentation (§13.2 GO). **2026-05-06** closed PR2b host coercion for ``make_sample_sequences`` temperature path (loose stack kwargs). Long-form sampling notes remain under `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md`.*
+*End of roadmap. Phase 2 typed boundaries are landed; Phase 3b portable RunSpec JSON v2 + hygiene signed off; **2026-05-07** sprint closed ``SAMPLERS`` / ``SamplingDriver`` prep + Jacobian/CIF/Inspection JSON round-trips + Phase 4 unconditional-path documentation (§13.2 GO). **2026-05-06** closed PR2b host coercion for ``make_sample_sequences`` temperature path (loose stack kwargs). **Phase 6** now includes batch-layout / memory policy (**§15**) after Phase 5. Long-form sampling notes remain under `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md`.*

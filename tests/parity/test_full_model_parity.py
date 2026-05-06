@@ -254,6 +254,7 @@ def parity_batch() -> ParityBatch:
 
 
 @pytest.mark.parity_heavy
+@pytest.mark.parity_targeted
 @pytest.mark.parametrize("weight_source", ("eqx", "pt_convert"))
 def test_protein_feature_extraction_parity(
   heavy_parity_models: HeavyParityModels,

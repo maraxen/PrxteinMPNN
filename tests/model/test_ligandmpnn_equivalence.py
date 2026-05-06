@@ -335,6 +335,7 @@ def ligand_batch() -> LigandBatch:
   )
 
 
+@pytest.mark.parity_targeted
 def test_ligand_feature_extraction_reference_parity(
   ligand_models: tuple[Any, PrxteinLigandMPNN],
   ligand_batch: LigandBatch,

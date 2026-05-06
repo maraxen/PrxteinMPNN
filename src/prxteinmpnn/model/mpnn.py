@@ -31,6 +31,7 @@ from prxteinmpnn.model.multi_state_sampling import (
 from prxteinmpnn.model.multistate_stack import gather_flat_to_stack, scatter_stack_to_flat
 from prxteinmpnn.padding import LENGTH_BUCKETS
 from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
+from prxteinmpnn.registry import combine_strategy_to_index
 from prxteinmpnn.utils.concatenate import concatenate_neighbor_nodes
 from prxteinmpnn.utils.ste import straight_through_estimator
 
@@ -1461,9 +1462,8 @@ class PrxteinMPNN(eqx.Module):
         msg = "multistate_mode='state_vmap_exact' requires n_flat (flat logits length)."
         raise ValueError(msg)
 
-      strategy_map = {"arithmetic_mean": 0, "geometric_mean": 1, "product": 2}
       multi_state_strategy_idx_sv = jnp.array(
-        strategy_map[multi_state_strategy],
+        combine_strategy_to_index(multi_state_strategy),
         dtype=jnp.int32,
       )
       ms_temp_sv = jnp.asarray(multi_state_temperature, dtype=jnp.float32)
@@ -1585,9 +1585,8 @@ class PrxteinMPNN(eqx.Module):
     if bias is None:
       bias = jnp.zeros((mask.shape[0], 21), dtype=jnp.float32)
 
-    strategy_map = {"arithmetic_mean": 0, "geometric_mean": 1, "product": 2}
     multi_state_strategy_idx = jnp.array(
-      strategy_map[multi_state_strategy],
+      combine_strategy_to_index(multi_state_strategy),
       dtype=jnp.int32,
     )
 
@@ -2428,9 +2427,8 @@ class PrxteinLigandMPNN(eqx.Module):
         msg = "multistate_mode='state_vmap_exact' requires n_flat (flat logits length)."
         raise ValueError(msg)
 
-      strategy_map_lm = {"arithmetic_mean": 0, "geometric_mean": 1, "product": 2}
       multi_state_strategy_idx_lm = jnp.array(
-        strategy_map_lm[multi_state_strategy],
+        combine_strategy_to_index(multi_state_strategy),
         dtype=jnp.int32,
       )
       ms_temp_lm = jnp.asarray(multi_state_temperature, dtype=jnp.float32)
@@ -2698,8 +2696,10 @@ class PrxteinLigandMPNN(eqx.Module):
         all_logits = all_logits + bias
 
       if tie_group_map is not None:
-        strategy_map = {"arithmetic_mean": 0, "geometric_mean": 1, "product": 2}
-        strategy_idx = jnp.asarray(strategy_map[multi_state_strategy], dtype=jnp.int32)
+        strategy_idx = jnp.asarray(
+          combine_strategy_to_index(multi_state_strategy),
+          dtype=jnp.int32,
+        )
         all_logits = PrxteinMPNN._apply_multistate_to_all_logits(
           all_logits,
           tie_group_map,

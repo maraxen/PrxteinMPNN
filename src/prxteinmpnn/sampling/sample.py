@@ -11,6 +11,7 @@ from jaxtyping import Float, Int, PRNGKeyArray
 from prxteinmpnn.model import PrxteinLigandMPNN, PrxteinMPNN
 from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
 from prxteinmpnn.protocols import SamplerFn
+from prxteinmpnn.registry import combine_strategy_to_index
 from prxteinmpnn.sampling.ste_optimize import make_optimize_sequence_fn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
@@ -362,8 +363,10 @@ def make_sample_sequences(
 
         autoregressive_mask_stack = jax.vmap(_ar_submatrix)(state_flat_rows)
 
-        strategy_map = {"arithmetic_mean": 0, "geometric_mean": 1, "product": 2}
-        multi_state_strategy_idx = jnp.asarray(strategy_map[multi_state_strategy], dtype=jnp.int32)
+        multi_state_strategy_idx = jnp.asarray(
+          combine_strategy_to_index(multi_state_strategy),
+          dtype=jnp.int32,
+        )
 
         bias_s = (
           bias_stack

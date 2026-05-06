@@ -21,9 +21,10 @@
 #
 #SBATCH --job-name=prx_parity_heavy
 #SBATCH --partition=mit_preemptable,pi_so3
+#SBATCH --gres=gpu:1
 #SBATCH --time=04:00:00
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=48G
+#SBATCH --mem=64G
 #SBATCH --output=outputs/logs/slurm/parity_heavy_ligand_%j.out
 #SBATCH --error=outputs/logs/slurm/parity_heavy_ligand_%j.err
 
@@ -33,15 +34,25 @@ REPO_ROOT="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pw
 cd "$REPO_ROOT"
 mkdir -p outputs/logs/slurm
 
+# Monorepo uv.lock lives next to prxteinmpnn/ (tev_design workspace root).
+WORKSPACE_ROOT="${REPO_ROOT}"
+if [[ -f "${REPO_ROOT}/../uv.lock" && -f "${REPO_ROOT}/../pyproject.toml" ]]; then
+  WORKSPACE_ROOT="$(cd "${REPO_ROOT}/.." && pwd)"
+fi
+
 # Default Engaging layout (override with sbatch --export=ALL,REFERENCE_PATH=/other/path)
 export REFERENCE_PATH="${REFERENCE_PATH:-/home/maarxaru/repos/LigandMPNN}"
 export PYTHONPATH="${REPO_ROOT}/scripts:${REPO_ROOT}/src:${PYTHONPATH:-}"
 export PRXTEIN_PARITY_TIER="${PRXTEIN_PARITY_TIER:-parity_heavy}"
 export PYTEST_ADDOPTS="-W default${PYTEST_ADDOPTS:+ ${PYTEST_ADDOPTS}}"
+# Prefer GPU backend on CUDA nodes (jax[cuda12] from workspace sync).
+export JAX_PLATFORMS="${JAX_PLATFORMS:-cuda}"
+export XLA_PYTHON_CLIENT_PREALLOCATE="${XLA_PYTHON_CLIENT_PREALLOCATE:-false}"
 
-echo "===== parity_heavy (tests/parity + test_ligandmpnn_equivalence) ====="
+echo "===== parity_heavy (tests/parity + test_ligandmpnn_equivalence) GPU ====="
 echo "JOB=${SLURM_JOB_ID:-local} HOST=$(hostname)"
 echo "REPO_ROOT=${REPO_ROOT}"
+echo "WORKSPACE_ROOT=${WORKSPACE_ROOT}"
 echo "REFERENCE_PATH=${REFERENCE_PATH} (is_dir=$([[ -d "${REFERENCE_PATH}" ]] && echo yes || echo no))"
 
 if [[ ! -d "${REFERENCE_PATH}" ]]; then
@@ -50,7 +61,16 @@ if [[ ! -d "${REFERENCE_PATH}" ]]; then
   exit 1
 fi
 
-uv sync
+cd "${WORKSPACE_ROOT}"
+uv sync --extra cuda --group dev
+cd "${REPO_ROOT}"
+
+uv run python - <<'PY'
+import jax
+import jaxlib
+print("jax", jax.__version__, "jaxlib", jaxlib.__version__)
+print("devices", jax.devices())
+PY
 
 uv run pytest tests/parity tests/model/test_ligandmpnn_equivalence.py -m parity_heavy -v
 

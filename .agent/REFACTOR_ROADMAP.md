@@ -4,4 +4,4 @@ The maintained **prxteinmpnn refactor roadmap** (phases, DoD, resolution log) li
 
 **[`.agents/REFACTOR_ROADMAP.md`](../.agents/REFACTOR_ROADMAP.md)**
 
-**Recent parity outcome:** §**13.1** — targeted quartet **13440956** (4 passed); **full** `-m parity_heavy` **13441413** **`COMPLETED` `0:0`** (**24 passed**, ~18m pytest, **2026-05-06**).
+**Recent parity / spike:** §**13.1** parity gates (**13440956**, **13441413**). §**13.2** Phase 0a spike **GO** (numeric + dual HLO advisory) recorded **2026-05-07**.

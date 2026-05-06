@@ -588,6 +588,20 @@ Each Open Question now has a **default decision** that holds unless a triggering
 
 **Post-run notes (non-fatal):** log shows **DeprecationWarning** (Haiku, e3nn_jax) and a **Equinox `UserWarning`** (JAX array marked static in `mpnn.py` during ligand feature parity)—worth a follow-up issue/PR but **did not fail** the gate.
 
+### 13.2 Phase 0a spike — recorded **GO** (numeric + dual HLO advisory, 2026-05-07)
+
+**Verdict: GO** for Phase 4 *entry* on the **unconditional ProteinMPNN** `state_vmap_exact` vs explicit `jax.vmap` reference stack (synthetic payloads in `tests/sampling/spikes/test_state_vmap_exact_spike.py`; not wired to `tests/parity` LigandMPNN fixtures).
+
+| Gate | Result |
+| :--- | :--- |
+| **Numeric** | `jnp.allclose(logits_sv, logits_ref, rtol/atol=get_tolerances(float32))` — **PASS** (`parity_fast`: `n_states=2`, `n_can=6`, key 101). |
+| **HLO (advisory)** | Both paths lowered via `export_hlo`; `UserWarning` metrics logged per path. Example local run: **`state_vmap_exact`** — bytes **145368**, newlines **2348**, `custom_call_markers` **0**; **`explicit_vmap_ref`** — bytes **145369**, newlines **2348**, `custom_call_markers` **0** (byte delta **1**; no allowlist assertions—process evidence only). |
+| **`parity_heavy` slice** | Opt-in when **`REFERENCE_PATH`** is a directory (larger synthetic `n_states` / `n_can`); Engaging Slurm job **`13445172`** submitted **2026-05-07** with **`REFERENCE_PATH=/home/maarxaru/repos/LigandMPNN`** — tail **`outputs/logs/slurm/phase0a_state_vmap_spike_13445172.out`** when complete. |
+
+**NO-GO would apply if:** numeric `allclose` failed, or the team later mandates HLO ceilings in CI (then extend `tests/profiling/hlo_allowlist.toml` + assert).
+
+**Reference checkout:** Engaging default parity scripts use **`REFERENCE_PATH=/home/maarxaru/repos/LigandMPNN`** (LigandMPNN clone with `model_params/`). Locally that corresponds to **`~/repos/LigandMPNN`** when your home layout matches; export **`REFERENCE_PATH`** explicitly if paths differ.
+
 ---
 
 ## 14. Sprint status (Phase 0a GO + PR2b; Phase 4 prep)
@@ -595,7 +609,7 @@ Each Open Question now has a **default decision** that holds unless a triggering
 | Field | Value |
 | :--- | :--- |
 | **task_id** | `refactor-sprint-20260507-phase0a-go-pr2-sample` (active sprint); OODA cycle `refactor-sprint-20260507-ooda`; prior `refactor-phase4-pr2-20260506`, `refactor-phase4-entry-20260505`, `refactor-phase3b-sprint-20260506`, `refactor-phase3-sprint-20260505` |
-| **Last update** | 2026-05-06 — §**13.1**: full **`parity_heavy`** gate **13441413** **`COMPLETED` `0:0`** (**24 passed**); sprint rows unchanged (Phase 0a / PR2b / Phase 4 prep). |
+| **Last update** | 2026-05-07 — §**13.2** Phase 0a spike **GO** recorded (numeric + dual HLO advisory); §**13.1** parity gate history unchanged. |
 | **Current phase** | **Phase 3b signed off** on `main`. **PR2a (unconditional logits factories → payload)** landed under `.agents/SPRINT_refactor-phase3c-0a-pr2-20260506.md`. **Active plan body:** `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md` — **WP1** Phase 0a GO closure (§230 HLO byte + op-summary in PR text; filtered logs); **PR2b** `sample.py` loose-stack → payload **subject to JIT / static `n_flat` note** in that sprint (no blind in-jit `int(jnp.max(state_flat_rows))`). **Phase 4** remains **blocked from merge on `main`** until Phase **0a** records explicit **GO** (§227–238, §11 #10 split acceptance). |
 | **Still open** | **Phase 4:** `registry.py`, frozen `_COMBINE_INDEX`, `MULTISTATE_MODES`, `state_vmap_exact` unify vs registry-route. **PR2b:** `sample.py` tuple branches when `multistate_stack is None` (strategy A/B/C in active sprint). **Defer:** STE / straight_through; portable RunSpec JSON v3 bundled with registry work. |
 | **Plan** | **Active:** `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md`. **Prior / superseded plan body:** `.agents/SPRINT_refactor-phase3c-0a-pr2-20260506.md` (retain for PR2a history). **Prior (retained):** `.agents/SPRINT_refactor-phase4-entry-20260505.md`. **Prior / closed (do not delete):** `.agents/SPRINT_refactor-phase3b-20260506.md`, `.agents/SPRINT_refactor-phase3-20260505.md`. |

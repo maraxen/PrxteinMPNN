@@ -220,7 +220,7 @@ Critic point accepted: not every jaxbeans utility justifies a hard dep. Matrix:
 
 **Tasks:**
 - Add `jaxbeans` to `pyproject.toml [tool.uv.sources]` as editable workspace dep (default per §13 Q1/Q2: workspace member during refactor; PyPI when jaxbeans hits 0.1.0).
-- Add `[tool.jaxlint] select = ["JL"]` to `pyproject.toml` for **optional** local runs. **jaxlint is not on PyPI yet** (a future PyPI release is expected), but **local development and default CI must not be gated** on having jaxlint installed. Do not add CI jobs that fail the tree when `jaxlint` is missing. Optional pre-commit or monorepo hooks may run jaxlint where the executable is on `PATH`; a blocking CI gate may be added only once jaxlint is reliably installable from PyPI (or another agreed distribution path).
+- Add `[tool.jaxlint] select = ["JL"]` to `pyproject.toml` for **optional local runs**. **jaxlint** is on **PyPI** (`jaxlint>=0.1.0a1` in `prxteinmpnn[dev]`). **Default CI must not gate** on jaxlint: the checker is still maturing and may emit false positives; use it as an **advisory** signal only (local / optional pre-commit). Blocking merge on jaxlint clearance is **explicitly out of scope** until the project chooses a separate policy.
 - Capture HLO baselines as **review artifacts** at `tests/profiling/baseline_hlo/{model_call,score,sample,logits}.txt` via `jax.jit(...).lower(...).compile().runtime_executable().hlo_modules()`. CI runs `assert_zero_copy_overhead` for **detection** only; threshold lives in a per-callable allowlist file with rationale strings.
 - Vendor `prxteinmpnn/utils/testing.py::get_tolerances` and `prxteinmpnn/utils/typing.py::PRXTEINMPNN_VERIFY` (5 + ~15 LoC, per §3.6).
 - Add `ty.toml` `[allowed-unresolved-imports]` for proxide / prolix / optional deps.
@@ -283,11 +283,11 @@ The spike is mandatory before Phase 4 PRs may merge. Until then, draft Phase 4 P
 - Add `ModelCapabilities(eqx.Module)` static field on `PrxteinMPNN` and `PrxteinLigandMPNN`. Concrete capability instances live next to each model class.
 - Migrate the **3 verified `inspect.signature` sites** (`sampling/sample.py:77`, `scoring/score.py:342`, `run/averaging.py:58`) to `model.capabilities.accepts_*`.
 - Fix the lying `cast(ScoringFn, ...)` at `score.py:302` to `cast(StateVmapExactScoreFn, ...)`.
-- Make `uv run ty check` blocking in CI. **jaxlint:** enforce `JL001` only in environments where jaxlint is available (local / optional pre-commit). **Do not gate default CI** on jaxlint until it is reliably installable from PyPI (expected eventually); until then, treat jaxlint as optional for contributors.
+- Make `uv run ty check` blocking in CI. **jaxlint:** **advisory only** — install from PyPI via `prxteinmpnn[dev]`, run locally when useful; **do not add blocking CI** on jaxlint (false positives / tool bugs are expected during adoption).
 
 **Critic point partially accepted (rejected the descope to a 30-line PR):** the critic suggested replacing all 3 `inspect.signature` sites with one explicit `is_ligand_mpnn: bool` parameter. We reject the descope because (a) it doesn't solve the `Callable[..., Any]` problem and (b) `accepts_state_stack` and `accepts_tied_positions` are independent capability axes, not collapsible onto a single LigandMPNN/MPNN bit. We do however adopt the **trim**: `BiasHook` is out, `DesignSink` is deferred.
 
-**CI gates added:** `ty check` strict (no `Callable[..., Any]` in module API surface). **jaxlint JL001** remains optional for contributors (same non-gating policy as Phase 0) until jaxlint is on PyPI and CI opts in to a blocking job.
+**CI gates added:** `ty check` strict (no `Callable[..., Any]` in module API surface). **jaxlint** remains **non-blocking** (advisory local / optional hook only).
 **Tech-debt closed:** §10.
 **Migration cost:** see §6.
 
@@ -433,7 +433,7 @@ Estimates from `rg`-driven counts at HEAD; refine in each phase's first PR.
 These run alongside phases, not in serial.
 
 ### 7.1 jaxlint adoption
-- **jaxlint is not on PyPI yet**; a **future PyPI release is expected**, but **local development must not assume** jaxlint is installed (no `uv sync` / default CI hard dependency). Document how to run `uv run jaxlint .` when the executable is available (e.g. monorepo `PATH`). Optional pre-commit is allowed. **Blocking CI** that requires jaxlint should wait until PyPI (or another agreed) distribution is stable.
+- **jaxlint** ships on **PyPI** (`jaxlint`); list it under **`prxteinmpnn[dev]`** for convenient `uv run jaxlint check …`. **Policy:** treat jaxlint as **advisory** — **no default CI merge gate** on jaxlint clearance (the tool may still mis-fire while it matures). Optional pre-commit or maintainer workflows may run it locally. Revisit a stricter gate only if/when the team agrees false-positive rates are acceptable.
 - **JL001** flags the scatter/gather anti-pattern documented in jaxbeans `docs/BEST_PRACTICES.md §7`. Apply to touched files only initially; broaden coverage in dev workflows after Phase 4.
 
 ### 7.2 Doc-drift cleanup (STANDALONE PRs, moved out of Phase 1)
@@ -524,7 +524,7 @@ The roadmap is complete when **all** of the following are measurably true:
 1. **`parity_fast` green at every commit on `main`.** **`parity_heavy` recorded green in each phase tag's release notes** (manual gate, not CI).
 2. **`src/prxteinmpnn/model/mpnn.py` ≤ 600 LoC**, with `PrxteinMPNN` and `PrxteinLigandMPNN` in separate files, no cross-class private static method calls.
 3. **Zero `Callable[..., Any]`** in module API surface (enforced by `ty check` strict). Zero `inspect.signature` calls. Zero hardcoded debug-log paths. Zero top-level `mp.set_start_method` calls.
-4. **`uv run jaxlint .`** passes repo-wide with `JL001` enabled **on maintainer / release machines** where jaxlint is installed; **default CI does not require jaxlint** until a PyPI (or agreed) install path exists, so day-to-day development is never blocked on jaxlint availability.
+4. **`uv run jaxlint check src`** (or repo root) with `JL*` enabled is **recommended on maintainer machines** when touching JIT-heavy paths; **default CI does not require jaxlint** and must **not** block merges on jaxlint (advisory-only policy; see §7.1).
 5. **`assert_zero_copy_overhead`** runs for all four parity-pinned callables; any regressions sit in the allowlist with a rationale string.
 6. **StableHLO export** of `model.__call__` succeeds (validates §11 closure).
 7. **Cold-start wall-time benchmark** runs in CI (advisory); no regression in the mpnn-split benchmark exceeds 20% without an explanation in the PR.
@@ -584,7 +584,9 @@ Each Open Question now has a **default decision** that holds unless a triggering
 
 **Release posture:** Treat **`parity_targeted`** as a **fast GPU smoke** for the former red quartet. **`parity_heavy` full suite** (`submit_parity_heavy_ligand.sh`) remains the **manual release gate** per §11 / DoD—re-run it once per release or when JIT/feature code near these paths changes.
 
-**Full `parity_heavy` gate (in flight):** After **`just push`** to Engaging (**2026-05-05**), submitted **`submit_parity_heavy_ligand.sh`** as Slurm job **`13441413`**. When it finishes, record **`sacct -j 13441413`** state (`COMPLETED` / `FAILED`, `ExitCode`) and the pytest tail from **`outputs/logs/slurm/parity_heavy_ligand_13441413.out`** in this subsection (or the active sprint note) so the §11 manual gate is documented for the **whole** `-m parity_heavy` matrix, not only **`parity_targeted`**.
+**Full `parity_heavy` gate (closed):** Slurm job **`13441413`** — **`COMPLETED`**, **`ExitCode 0:0`**, wall **~19m 27s** (ended **2026-05-06** 14:46 cluster time). Pytest: **`24 passed`**, **`55 deselected`**, **`3 warnings`**, **`1067.40 s`** (~**17m 47s**) on **`tests/parity` + `tests/model/test_ligandmpnn_equivalence.py`** with **`-m parity_heavy`**. Stack tail in log: **JAX 0.10.0** / **jaxlib 0.10.0**, **torch 2.11.0+cu130**. This satisfies the §11 manual gate for the **whole** heavy matrix (not only **`parity_targeted`**).
+
+**Post-run notes (non-fatal):** log shows **DeprecationWarning** (Haiku, e3nn_jax) and a **Equinox `UserWarning`** (JAX array marked static in `mpnn.py` during ligand feature parity)—worth a follow-up issue/PR but **did not fail** the gate.
 
 ---
 
@@ -593,7 +595,7 @@ Each Open Question now has a **default decision** that holds unless a triggering
 | Field | Value |
 | :--- | :--- |
 | **task_id** | `refactor-sprint-20260507-phase0a-go-pr2-sample` (active sprint); OODA cycle `refactor-sprint-20260507-ooda`; prior `refactor-phase4-pr2-20260506`, `refactor-phase4-entry-20260505`, `refactor-phase3b-sprint-20260506`, `refactor-phase3-sprint-20260505` |
-| **Last update** | 2026-05-05 — full **`parity_heavy`** gate job **`13441413`** submitted (Engaging); outcome pending (see §13.1 tail). |
+| **Last update** | 2026-05-06 — §**13.1**: full **`parity_heavy`** gate **13441413** **`COMPLETED` `0:0`** (**24 passed**); sprint rows unchanged (Phase 0a / PR2b / Phase 4 prep). |
 | **Current phase** | **Phase 3b signed off** on `main`. **PR2a (unconditional logits factories → payload)** landed under `.agents/SPRINT_refactor-phase3c-0a-pr2-20260506.md`. **Active plan body:** `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md` — **WP1** Phase 0a GO closure (§230 HLO byte + op-summary in PR text; filtered logs); **PR2b** `sample.py` loose-stack → payload **subject to JIT / static `n_flat` note** in that sprint (no blind in-jit `int(jnp.max(state_flat_rows))`). **Phase 4** remains **blocked from merge on `main`** until Phase **0a** records explicit **GO** (§227–238, §11 #10 split acceptance). |
 | **Still open** | **Phase 4:** `registry.py`, frozen `_COMBINE_INDEX`, `MULTISTATE_MODES`, `state_vmap_exact` unify vs registry-route. **PR2b:** `sample.py` tuple branches when `multistate_stack is None` (strategy A/B/C in active sprint). **Defer:** STE / straight_through; portable RunSpec JSON v3 bundled with registry work. |
 | **Plan** | **Active:** `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md`. **Prior / superseded plan body:** `.agents/SPRINT_refactor-phase3c-0a-pr2-20260506.md` (retain for PR2a history). **Prior (retained):** `.agents/SPRINT_refactor-phase4-entry-20260505.md`. **Prior / closed (do not delete):** `.agents/SPRINT_refactor-phase3b-20260506.md`, `.agents/SPRINT_refactor-phase3-20260505.md`. |

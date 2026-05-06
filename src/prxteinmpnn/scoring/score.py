@@ -13,6 +13,7 @@ from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
 from prxteinmpnn.model.multistate_stack import gather_flat_to_stack, scatter_stack_to_flat
 from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
 from prxteinmpnn.protocols import ScoreFn, StateVmapExactScoreFn
+from prxteinmpnn.registry import combine_strategy_to_index
 from prxteinmpnn.run.averaging import make_encoding_sampling_split_fn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
@@ -53,8 +54,10 @@ def score_sequence_with_encoding(
 
   logits = decode_fn(encoding, sequence, ar_mask)
   if tie_group_map is not None:
-    strategy_map = {"arithmetic_mean": 0, "geometric_mean": 1, "product": 2}
-    strategy_idx = jnp.asarray(strategy_map[multi_state_strategy], dtype=jnp.int32)
+    strategy_idx = jnp.asarray(
+      combine_strategy_to_index(multi_state_strategy),
+      dtype=jnp.int32,
+    )
     logits = PrxteinMPNN._apply_multistate_to_all_logits(  # noqa: SLF001
       logits,
       tie_group_map,
@@ -105,8 +108,7 @@ def _make_score_fn_state_vmap_exact(
     states_chunk_size: int = 0,
   ) -> tuple[Float, Logits, DecodingOrder]:
 
-    strategy_map = {"arithmetic_mean": 0, "geometric_mean": 1, "product": 2}
-    strategy_idx = jnp.int32(strategy_map[multi_state_strategy])
+    strategy_idx = jnp.int32(combine_strategy_to_index(multi_state_strategy))
     oh = jax.nn.one_hot(sequence, n_emb) if sequence.ndim == 1 else sequence
     seq_stack = gather_flat_to_stack(oh, state_flat_rows)
     s_dim, p_dim = mask_stack.shape[0], mask_stack.shape[1]

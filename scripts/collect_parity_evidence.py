@@ -465,7 +465,7 @@ def _load_core_models(reference_root: Path, project_root: Path) -> CoreModels:
   import torch
 
   ref_checkpoint_path = reference_root / "model_params/proteinmpnn_v_48_020.pt"
-  converted_checkpoint_path = project_root / "model_params/proteinmpnn_v_48_020_converted.eqx"
+  converted_checkpoint_path = project_root / "src/prxteinmpnn/model_params/proteinmpnn_v_48_020.eqx.zst"
   checkpoint = torch.load(ref_checkpoint_path, map_location="cpu")
   pos_weight = checkpoint["model_state_dict"].get("features.embeddings.linear.weight")
   if pos_weight is None:

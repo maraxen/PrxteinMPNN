@@ -17,6 +17,7 @@ import tqdm
 from proxide.ops.dataset import create_protein_dataset
 
 from prxteinmpnn.io.weights import load_model
+from prxteinmpnn.run.resources import proxide_dataset_resource_kwargs
 from prxteinmpnn.training.checkpoint import restore_checkpoint, save_checkpoint
 from prxteinmpnn.training.diffusion import NoiseSchedule
 from prxteinmpnn.training.losses import (
@@ -40,6 +41,16 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+
+# See `.agents/TECHNICAL_DEBT.md` §1 (mixed-precision checkpoints), §5 (accum_steps validation).
+# Precision policy: read ``spec.run_spec.precision.compute`` (composed RunSpec). ``TrainingSpecification.precision``
+# remains the user-facing dataclass field and stays in sync when the spec is constructed; the trainer does not
+# consult it directly so RunSpec stays the single routing point for this PR.
+
+
+def _training_precision(spec: TrainingSpecification) -> str:
+  """Resolve training compute-precision label from the composed :class:`~prxteinmpnn.run.spec.RunSpec`."""
+  return spec.run_spec.precision.compute
 
 
 def get_compute_dtype(precision: str) -> jnp.dtype:
@@ -138,7 +149,7 @@ def _init_checkpoint_and_model(
   )
 
   opt_state: ArrayTree | None = None
-  compute_dtype = get_compute_dtype(spec.precision)
+  compute_dtype = get_compute_dtype(_training_precision(spec))
 
   if spec.resume_from_checkpoint:
     model_template = load_model(
@@ -189,8 +200,9 @@ def _init_checkpoint_and_model(
 
 def _create_dataloaders(spec: TrainingSpecification) -> tuple[Any, Any]:
   """Create training and validation data loaders based on the spec."""
+  ram_mb, workers, buf = proxide_dataset_resource_kwargs(spec, context="training")
   train_loader = create_protein_dataset(
-    spec.inputs,  # type: ignore[invalid-argument-type]
+    cast("Any", spec.inputs),
     batch_size=spec.batch_size,
     foldcomp_database=spec.foldcomp_database if not spec.use_preprocessed else None,
     use_electrostatics=spec.use_electrostatics,
@@ -204,6 +216,9 @@ def _create_dataloaders(spec: TrainingSpecification) -> tuple[Any, Any]:
     split="train",
     max_length=spec.max_length,
     truncation_strategy=spec.truncation_strategy,
+    ram_budget_mb=ram_mb,
+    max_workers=workers,
+    max_buffer_size=buf,
   )
 
   val_loader = None
@@ -219,7 +234,7 @@ def _create_dataloaders(spec: TrainingSpecification) -> tuple[Any, Any]:
         val_index_path = Path(val_inputs).with_suffix(".index.json")
 
     val_loader = create_protein_dataset(
-      val_inputs,
+      cast("Any", val_inputs),
       batch_size=spec.batch_size,
       foldcomp_database=spec.foldcomp_database if not val_use_preprocessed else None,
       use_preprocessed=val_use_preprocessed,
@@ -233,6 +248,9 @@ def _create_dataloaders(spec: TrainingSpecification) -> tuple[Any, Any]:
       split="valid",
       max_length=spec.max_length,
       truncation_strategy=spec.truncation_strategy,
+      ram_budget_mb=ram_mb,
+      max_workers=workers,
+      max_buffer_size=buf,
     )
 
   return train_loader, val_loader
@@ -648,7 +666,7 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: PLR0915
       >>> print(f"Final validation accuracy: {results['final_val_accuracy']}")
 
   """
-  setup_mixed_precision(spec.precision)
+  setup_mixed_precision(_training_precision(spec))
   logger.info("Starting training with spec: %s", spec)
 
   optimizer, lr_schedule = create_optimizer(spec)
@@ -680,7 +698,7 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: PLR0915
     pbar = tqdm.tqdm(train_loader, desc=f"Epoch {epoch + 1}/{spec.num_epochs}")
 
     # JIT the step functions
-    compute_dtype = get_compute_dtype(spec.precision)
+    compute_dtype = get_compute_dtype(_training_precision(spec))
     filter_jitted_train_step = eqx.filter_jit(train_step)
     filter_jitted_eval_step = eqx.filter_jit(eval_step)
 
@@ -716,7 +734,7 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: PLR0915
       )
 
       step += 1
-      # TODO(io_callback integration): Logging-only scalar device_get; optional io_callback metrics sink later.
+      # NOTE(io_callback): Logging-only scalar device_get; optional io_callback metrics sink later.
       loss_float = jax.device_get(train_metrics.loss).item()
       pbar.set_postfix({"loss": loss_float})
 
@@ -804,8 +822,9 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: PLR0915
     test_index_path = spec.validation_preprocessed_index_path or spec.preprocessed_index_path
 
   try:
+    t_ram, t_workers, t_buf = proxide_dataset_resource_kwargs(spec, context="training")
     test_loader = create_protein_dataset(
-      test_inputs,  # type: ignore[invalid-argument-type]
+      cast("Any", test_inputs),
       batch_size=spec.batch_size,
       foldcomp_database=spec.foldcomp_database if not test_use_preprocessed else None,
       use_preprocessed=test_use_preprocessed,
@@ -817,6 +836,9 @@ def train(spec: TrainingSpecification) -> TrainingResult:  # noqa: PLR0915
       vdw_noise_mode=spec.vdw_noise_mode,
       preprocessed_index_path=test_index_path,
       split="test",
+      ram_budget_mb=t_ram,
+      max_workers=t_workers,
+      max_buffer_size=t_buf,
     )
 
     test_metrics_list = []

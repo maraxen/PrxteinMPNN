@@ -127,6 +127,7 @@ def _compute_states_batches(
         *inference_args,
         *static_args,
       )
+      jax.effects_barrier()
 
       logits, node_features, edge_features = batch_states
     else:

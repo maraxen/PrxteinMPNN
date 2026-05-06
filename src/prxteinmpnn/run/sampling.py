@@ -1016,6 +1016,7 @@ def sample(
       canonical_structure_ids=canonical_structure_ids,
       batch_structure_ids=batch_structure_ids,
     )
+    jax.effects_barrier()
     all_sequences.append(sampled_sequences)
     if spec.return_logits and all_logits is not None:
       all_logits.append(logits)
@@ -1162,6 +1163,7 @@ def _sample_streaming(
           canonical_structure_ids=canonical_structure_ids,
           batch_structure_ids=batch_structure_ids,
         )
+        jax.effects_barrier()
         for i in range(sampled_sequences.shape[0]):
           grp = f.create_group(f"structure_{structure_idx}")
           grp.create_dataset("sequences", data=sampled_sequences[i], dtype="i4")
@@ -1214,6 +1216,7 @@ def _sample_streaming(
             chunk_sample_start=chunk_sample_start,
             chunk_sample_count=chunk_count,
           )
+          jax.effects_barrier()
 
           for i, grp in enumerate(structure_groups):
             seq_chunk = np.asarray(sampled_sequences[i], dtype=np.int32)
@@ -1348,6 +1351,7 @@ def _sample_streaming_arrayrecord(
           chunk_sample_start=chunk_sample_start,
           chunk_sample_count=chunk_count,
         )
+        jax.effects_barrier()
 
         # TODO(io_callback integration): np.asarray(...) forces device_get; prefer jit tail with
         # io_callback(enqueue_payload/get_io_callback_fn) + jax.effects_barrier (prxteinmpnn/TODO_io_callback.txt).
@@ -1487,6 +1491,7 @@ def _sample_averaged_mode(
       sample_fn,
       decode_fn,
     )
+    jax.effects_barrier()
     all_sequences.append(sampled_sequences)
     all_logits.append(logits)
     if pseudo_perplexity is not None:
@@ -1709,6 +1714,7 @@ def _sample_streaming_averaged(
         sample_fn,
         decode_fn,
       )
+      jax.effects_barrier()
       for i in range(sampled_sequences.shape[0]):
         grp = f.create_group(f"structure_{structure_idx}")
         grp.create_dataset("sequences", data=sampled_sequences[i], dtype="i4")

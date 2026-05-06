@@ -1,4 +1,9 @@
-"""Utility for safe mapping over arrays, avoiding XLA loop issues."""
+"""Utility for safe mapping over arrays, avoiding XLA loop issues.
+
+In-repo implementation mirrors jaxbeans ``utils/mapping.safe_map`` semantics (roadmap §3.6 **DEPEND**).
+Swapping to an explicit ``jaxbeans`` dependency is deferred until workspace packaging stabilizes;
+behavioral parity for JIT is gated by ``tests/utils/test_safe_map.py``.
+"""
 
 from __future__ import annotations
 

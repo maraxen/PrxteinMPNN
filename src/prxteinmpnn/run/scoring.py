@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import sys
 from dataclasses import asdict, fields
-from functools import partial
 from typing import TYPE_CHECKING, Any, cast
 
 import h5py
@@ -14,7 +13,8 @@ import jax.numpy as jnp
 import numpy as np
 
 from prxteinmpnn.run.averaging import get_averaged_encodings
-from prxteinmpnn.scoring.score import make_score_fn, score_sequence_with_encoding
+from prxteinmpnn.run.scoring_driver import ScoringDriver
+from prxteinmpnn.scoring.score import score_sequence_with_encoding
 from prxteinmpnn.utils.aa_convert import string_to_protein_sequence
 from prxteinmpnn.utils.autoregression import resolve_tie_groups
 
@@ -130,6 +130,7 @@ def _score_averaged_mode(
       model,
       batched_sequences,
     )
+    jax.effects_barrier()
     all_scores.append(scores)
     all_logits.append(logits)
 
@@ -143,11 +144,7 @@ def _score_standard_mode(
   batched_sequences: jax.Array,
 ) -> tuple[list[jnp.ndarray], list[Logits]]:
   """Run scoring in standard mode."""
-  score_single_pair = partial(
-    make_score_fn(model=model),
-    multi_state_strategy=spec.multi_state_strategy,
-    multi_state_temperature=spec.multi_state_temperature,
-  )
+  score_single_pair = ScoringDriver(spec).build_score_single_pair(model)
   # TODO(io_callback integration): Same batched list pattern; see prxteinmpnn/TODO_io_callback.txt.
   all_scores, all_logits = [], []
 
@@ -227,6 +224,7 @@ def _score_standard_mode(
       )
 
     scores, logits, _decoding_orders = _compute(batched_ensemble)
+    jax.effects_barrier()
 
     all_scores.append(scores)
     all_logits.append(logits)
@@ -336,11 +334,7 @@ def _score_streaming(
     batched_sequences = jnp.expand_dims(batched_sequences, 0)
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
-  score_single_pair = partial(
-    make_score_fn(model=model),
-    multi_state_strategy=spec.multi_state_strategy,
-    multi_state_temperature=spec.multi_state_temperature,
-  )
+  score_single_pair = ScoringDriver(spec).build_score_single_pair(model)
 
   with h5py.File(spec.output_h5_path, "w") as f:
     scores_ds = f.create_dataset(
@@ -428,6 +422,7 @@ def _score_streaming(
         )
 
       scores, logits, _ = _compute(batched_ensemble)
+      jax.effects_barrier()
 
       scores_ds.resize(scores_ds.shape[0] + scores.size, axis=0)
       scores_ds[-scores.size :] = scores.flatten()

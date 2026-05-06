@@ -9,6 +9,7 @@ from typing import Any
 
 from prxteinmpnn.io.weights import LIGAND_DEFAULT_CHECKPOINT
 from prxteinmpnn.run.specs import SamplingSpecification
+from prxteinmpnn.utils.atomic_write import atomic_write_text
 
 CAMPAIGN_MANIFEST_SCHEMA_VERSION = "campaign_manifest_v1"
 
@@ -210,7 +211,11 @@ def write_manifest(
     payload["metadata"] = metadata
 
   output_path = Path(path)
-  output_path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+  atomic_write_text(
+    output_path,
+    json.dumps(payload, sort_keys=True, indent=2) + "\n",
+    encoding="utf-8",
+  )
   return output_path
 
 

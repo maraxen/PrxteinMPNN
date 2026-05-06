@@ -2,8 +2,8 @@
 
 Full Equinox / PyTree serialization is out of scope. Only ``version``,
 ``multistate`` (``mode``, ``n_states``, ``combine_strategy``), ``resource``
-(``n_devices``, ``sample_batch_size``, ``structure_batch_size``), and
-``precision.compute`` are read from or written to JSON-native dicts. Other
+(``n_devices``, ``sample_batch_size``, ``structure_batch_size``, optional
+``max_buffer_size``), and ``precision.compute`` are read from or written to JSON-native dicts. Other
 sub-configs on :func:`run_spec_portable_from_dict` are **placeholders** aligned
 with :func:`build_run_spec` defaults for a minimal single-GPU
 :class:`~prxteinmpnn.run.specs.RunSpecification`-style inference stub.
@@ -38,6 +38,18 @@ def _as_int(path: str, value: object) -> int:
   if type(value) is not int:
     msg = f"[portable_run_spec] {path}: expected int, got {type(value).__name__}"
     raise TypeError(msg)
+  return value
+
+
+def _as_optional_positive_int(path: str, value: object) -> int | None:
+  if value is None:
+    return None
+  if type(value) is not int:
+    msg = f"[portable_run_spec] {path}: expected int or null, got {type(value).__name__}"
+    raise TypeError(msg)
+  if value <= 0:
+    msg = f"[portable_run_spec] {path}: expected positive int or null, got {value}"
+    raise ValueError(msg)
   return value
 
 
@@ -129,6 +141,7 @@ def run_spec_portable_to_dict(run_spec: RunSpec) -> dict[str, Any]:
       "n_devices": run_spec.resource.n_devices,
       "sample_batch_size": run_spec.resource.sample_batch_size,
       "structure_batch_size": run_spec.resource.structure_batch_size,
+      "max_buffer_size": run_spec.resource.max_buffer_size,
     },
     "precision": {"compute": run_spec.precision.compute},
   }
@@ -165,12 +178,14 @@ def run_spec_portable_from_dict(data: Mapping[str, Any]) -> RunSpec:
     if sub not in res:
       msg = f"[portable_run_spec] resource.{sub}: required key missing"
       raise ValueError(msg)
+  mbs_raw = res.get("max_buffer_size", None)
   resource = cast(
     "ResourceConfig",
     ResourceConfig(
       n_devices=_as_int("resource.n_devices", res["n_devices"]),
       sample_batch_size=_as_int("resource.sample_batch_size", res["sample_batch_size"]),
       structure_batch_size=_as_int("resource.structure_batch_size", res["structure_batch_size"]),
+      max_buffer_size=_as_optional_positive_int("resource.max_buffer_size", mbs_raw),
     ),
   )
 

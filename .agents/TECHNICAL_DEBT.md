@@ -1,6 +1,6 @@
 # Technical Debt & Future Work
 
-**Last Updated:** 2026-05-06 (Phase 3b sprint plan; Phase 0a / §11 #10 split)
+**Last Updated:** 2026-05-06 (Phase 3b sprint plan; Phase 0a / §11 #10 split; §2 proxide PyPI floor)
 
 This document tracks known technical debt, experimental features, and planned improvements.
 
@@ -99,7 +99,7 @@ The training pipeline now supports mixed precision (bf16/fp16/fp32) training via
 - [x] Implement `compute_resource_allocation()` helper (`run/resources.py`)
 - [x] Add `psutil` dependency (`pyproject.toml`)
 - [x] Call `compute_resource_allocation` from `prep_protein_stream_and_model` / training setup and thread limits into `create_protein_dataset` (or proxide equivalents)
-- [ ] Consider pinning `proxide` in `pyproject.toml` to a version range known to keep these kwargs stable
+- [x] **Proxide floor + PyPI resolution (2026-05-06):** `proxide>=0.1.0a3` in `pyproject.toml`, resolved from PyPI via explicit `[[tool.uv.index]]` and `[tool.uv.sources] proxide = { index = "pypi" }` in `prxteinmpnn`, `prolix`, and `tev_design` roots (updated `uv.lock`), so dataset kwargs track published prereleases instead of stray workspace pins.
 - [ ] Test on various hardware configurations
 
 ### Code pointers
@@ -430,4 +430,4 @@ Reduce device materialization and Python-side concat bottlenecks by standardizin
 
 ## User notes
 
-- We will need to have proxide actually on PyPi in the stable release. Right now we will just use the latest from GitHub.
+- `proxide` is on PyPI as a prerelease (`>=0.1.0a3`); workspace packages prefer **PyPI-first** resolution (uv index + `sources`) rather than pinning to ad-hoc GitHub checkouts unless actively developing proxide locally.

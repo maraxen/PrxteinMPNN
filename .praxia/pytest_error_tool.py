@@ -17,7 +17,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-
 META_FIELDS = frozenset({"resolution_strategy", "diff", "reasoning"})
 
 

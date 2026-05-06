@@ -6,11 +6,13 @@ import logging
 import sys
 import warnings
 from collections.abc import MutableMapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, TextIO, cast
 
 from prxteinmpnn.io.weights import MODEL_VERSION, MODEL_WEIGHTS
+
+from .spec import RunSpec, build_run_spec
 
 _DEPRECATED_SPEC_KWARGS = frozenset(
   {
@@ -39,8 +41,6 @@ def pop_deprecated_spec_kwargs(kwargs: MutableMapping[str, Any]) -> None:
 
 
 if TYPE_CHECKING:
-  from io import StringIO
-
   from jaxtyping import ArrayLike
   from proxide.io.parsing.foldcomp import FoldCompDatabase
 
@@ -61,8 +61,9 @@ logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
 # TODO(tech-debt): `.agents/TECHNICAL_DEBT.md` §10 — formalize contracts on `RunSpecification` and related public types.
 
 
-def _loader_inputs(inputs: Sequence[str | StringIO] | str | StringIO) -> Sequence[str | StringIO]:
-  return (inputs,) if not isinstance(inputs, Sequence) else inputs  # type: ignore[invalid-return-type]
+def _loader_inputs(inputs: Sequence[str | TextIO] | str | TextIO) -> Sequence[str | TextIO]:
+  out = (inputs,) if not isinstance(inputs, Sequence) else inputs
+  return cast("Sequence[str | TextIO]", out)
 
 
 @dataclass
@@ -70,7 +71,7 @@ class RunSpecification:
   """Configuration for running the model.
 
   Attributes:
-      inputs: A sequence of input file paths or StringIO objects, or a single input.
+      inputs: A sequence of input file paths or text streams, or a single input.
       model_weights: The model weights to use (default is "original").
       model_version: The model version to use (default is "v_48_020.pkl").
       batch_size: The batch size to use (default is 32).
@@ -99,7 +100,7 @@ class RunSpecification:
 
   """
 
-  inputs: Sequence[str | StringIO] | str | StringIO
+  inputs: Sequence[str | TextIO] | str | TextIO
   topology: str | Path | None = None
   model_weights: ModelWeights = "original"
   model_version: ModelVersion = "v_48_020"
@@ -171,6 +172,11 @@ class RunSpecification:
   structure_mapping: ArrayLike | None = None
   multi_state_temperature: float = 1.0
 
+  run_spec: RunSpec = field(init=False, repr=False)
+
+  def _sync_run_spec(self) -> None:
+    object.__setattr__(self, "run_spec", build_run_spec(self))
+
   def __post_init__(self) -> None:
     """Post-initialization processing and validation for tied-position logit averaging."""
     if isinstance(self.backbone_noise, float):
@@ -197,6 +203,7 @@ class RunSpecification:
         f"Got pass_mode='{self.pass_mode}'."
       )
       raise ValueError(msg)
+    self._sync_run_spec()
 
 
 @dataclass
@@ -238,6 +245,7 @@ class ScoringSpecification(RunSpecification):
       raise ValueError(msg)
     if self.output_h5_path and isinstance(self.output_h5_path, str):
       object.__setattr__(self, "output_h5_path", Path(self.output_h5_path))
+    self._sync_run_spec()
 
 
 @dataclass
@@ -343,6 +351,7 @@ class SamplingSpecification(RunSpecification):
       object.__setattr__(self, "output_h5_path", Path(self.output_h5_path))
     if self.ligand_context_path and isinstance(self.ligand_context_path, str):
       object.__setattr__(self, "ligand_context_path", Path(self.ligand_context_path))
+    self._sync_run_spec()
 
 
 @dataclass
@@ -368,6 +377,7 @@ class JacobianSpecification(RunSpecification):
     super().__post_init__()
     if self.output_h5_path and isinstance(self.output_h5_path, str):
       object.__setattr__(self, "output_h5_path", Path(self.output_h5_path))
+    self._sync_run_spec()
 
 
 @dataclass
@@ -405,6 +415,7 @@ class ConformationalInferenceSpecification(RunSpecification):
     super().__post_init__()
     if self.output_h5_path and isinstance(self.output_h5_path, str):
       object.__setattr__(self, "output_h5_path", Path(self.output_h5_path))
+    self._sync_run_spec()
 
 
 MIN_PAIR = 2
@@ -443,6 +454,7 @@ class InspectionSpecification(RunSpecification):
     if self.cross_input_similarity and len(_loader_inputs(self.inputs)) < MIN_PAIR:
       msg = f"Cross-input similarity requires at least {MIN_PAIR} input structures."
       raise ValueError(msg)
+    self._sync_run_spec()
 
 
 Specs = (
@@ -452,3 +464,47 @@ Specs = (
   | JacobianSpecification
   | InspectionSpecification
 )
+
+
+_WRAPPED_DEPRECATED_INIT: set[type] = set()
+
+
+def _wrap_spec_init_with_deprecated_kwarg_warnings(cls: type) -> None:
+  if cls in _WRAPPED_DEPRECATED_INIT:
+    return
+  _WRAPPED_DEPRECATED_INIT.add(cls)
+  original_init = cls.__init__
+
+  def patched_init(self: object, *args: object, **kwargs: object) -> None:
+    kwargs.pop("run_spec", None)
+    for key in list(kwargs):
+      if key in _DEPRECATED_SPEC_KWARGS:
+        kwargs.pop(key)
+        warnings.warn(
+          f"Specification kwarg {key!r} is deprecated and ignored.",
+          DeprecationWarning,
+          stacklevel=3,
+        )
+    original_init(self, *args, **kwargs)
+
+  setattr(cls, "__init__", patched_init)  # noqa: B010
+
+
+for _spec_cls in (
+  RunSpecification,
+  ScoringSpecification,
+  SamplingSpecification,
+  JacobianSpecification,
+  ConformationalInferenceSpecification,
+  InspectionSpecification,
+):
+  _wrap_spec_init_with_deprecated_kwarg_warnings(_spec_cls)
+
+
+def apply_deprecated_spec_init_warnings(cls: type) -> None:
+  """Wrap ``cls.__init__`` like task specs: strip deprecated kwargs and warn.
+
+  Call once per extra subclass (e.g. :class:`~prxteinmpnn.training.specs.TrainingSpecification`)
+  defined outside this module.
+  """
+  _wrap_spec_init_with_deprecated_kwarg_warnings(cls)

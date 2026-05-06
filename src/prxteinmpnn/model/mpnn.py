@@ -2909,18 +2909,12 @@ class PrxteinLigandMPNN(eqx.Module):
     decoding_order = jnp.argsort(jnp.sum(autoregressive_mask, axis=1))
 
     # Encoder context (pre-weighted by mask_fw)
-    # [E_ij, 0_j, h_j]
-    encoder_edge_neighbors = concatenate_neighbor_nodes(
-      jnp.zeros_like(node_features),
+    encoder_context = pack_encoder_context(
+      node_features,
       edge_features,
       neighbor_indices,
+      mask_fw,
     )
-    encoder_context = concatenate_neighbor_nodes(
-      node_features,
-      encoder_edge_neighbors,
-      neighbor_indices,
-    )
-    encoder_context = encoder_context * mask_fw[..., None]
 
     def _decode_position(
       position_all_layers_h: jax.Array,
@@ -3520,13 +3514,7 @@ class PrxteinLigandMPNN(eqx.Module):
     )(autoregressive_mask_stack, nei_b)
     mask_bw = mask_stack[:, :, jnp.newaxis] * attn_b
     mask_fw = mask_stack[:, :, jnp.newaxis] * (jnp.float32(1.0) - jnp.asarray(attn_b, jnp.float32))
-    enc_neighbors = jax.vmap(concatenate_neighbor_nodes)(
-      jnp.zeros_like(node_b),
-      edge_b,
-      nei_b,
-    )
-    encoder_stack = jax.vmap(concatenate_neighbor_nodes)(node_b, enc_neighbors, nei_b)
-    encoder_stack *= mask_fw[..., jnp.newaxis]
+    encoder_stack = jax.vmap(pack_encoder_context)(node_b, edge_b, nei_b, mask_fw)
 
     log_dtype = self.w_out.weight.dtype
     num_dec = len(self.decoder.layers) + 1

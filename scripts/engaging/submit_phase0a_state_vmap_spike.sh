@@ -1,6 +1,7 @@
 #!/bin/bash
 # Phase 0a spike (roadmap §227): state_vmap exact path vs vmap-of-single-state —
-# `tests/sampling/spikes/test_state_vmap_exact_spike.py` under `parity_fast`.
+# `tests/sampling/spikes/test_state_vmap_exact_spike.py` under `parity_fast`, and
+# optionally `parity_heavy` when `REFERENCE_PATH` is a directory (same sbatch script).
 #
 # Submit from this repository root (prxteinmpnn):
 #   sbatch scripts/engaging/submit_phase0a_state_vmap_spike.sh
@@ -42,5 +43,12 @@ echo "JOB=${SLURM_JOB_ID:-local} HOST=$(hostname)"
 echo "REPO_ROOT=${REPO_ROOT}"
 
 uv run pytest tests/sampling/spikes/test_state_vmap_exact_spike.py -m parity_fast -q
+
+if [[ -n "${REFERENCE_PATH:-}" && -d "${REFERENCE_PATH}" ]]; then
+  echo "===== Phase 0a state_vmap spike (parity_heavy, REFERENCE_PATH set) ====="
+  uv run pytest tests/sampling/spikes/test_state_vmap_exact_spike.py -m parity_heavy -q
+else
+  echo "REFERENCE_PATH unset or not a directory; skipping parity_heavy (opt-in)."
+fi
 
 echo "===== Done ====="

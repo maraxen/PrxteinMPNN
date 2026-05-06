@@ -87,7 +87,7 @@ Prefer merge order **PR2 → PR3** below. If **PR3** lands first and moves field
 
 ## PR5 — Governance: audit refresh + dependency stability + §14
 
-**Scope:** Refresh `rg` audit table in `.agents/TECHNICAL_DEBT.md`; update roadmap §14. **Proxide pin:** apply a **version pin** in `pyproject.toml` only when `proxide` is resolved from PyPI/registry; if the lockfile uses **editable workspace** `proxide`, document the workspace commit / path instead of a bogus `==` pin.
+**Scope:** Refresh `rg` audit table in `.agents/TECHNICAL_DEBT.md`; update roadmap §14. **Proxide / PyPI-first:** default is **`proxide>=0.1.0a3` from PyPI**, forced with explicit `[[tool.uv.index]]` and `[tool.uv.sources] proxide = { index = "pypi" }` so `uv.lock` tracks registry wheels; only when deliberately using an **editable local** proxide checkout should `[tool.uv.sources]` point at a path and the PR/sprint record that path or commit (avoid a misleading `==` pin that does not match resolution).
 
 **DoD:** `parity_fast`; filtered verification log for audit command if required by policy.
 
@@ -109,7 +109,7 @@ flowchart LR
   PR2[PR2 tuple to payload]
   PR3[PR3 RunSpec expand]
   PR4[PR4 JSON subset]
-  PR5[PR5 audit and pin]
+  PR5[PR5 audit + deps]
   PR1 --> PR2
   PR2 --> PR3
   PR3 --> PR4

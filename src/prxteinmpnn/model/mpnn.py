@@ -31,7 +31,11 @@ from prxteinmpnn.model.multi_state_sampling import (
 from prxteinmpnn.model.multistate_stack import gather_flat_to_stack, scatter_stack_to_flat
 from prxteinmpnn.padding import LENGTH_BUCKETS
 from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
-from prxteinmpnn.registry import combine_strategy_to_index
+from prxteinmpnn.registry import (
+  MULTISTATE_MODE_FLAT,
+  MULTISTATE_MODE_STATE_VMAP_EXACT,
+  combine_strategy_to_index,
+)
 from prxteinmpnn.utils.concatenate import concatenate_neighbor_nodes
 from prxteinmpnn.utils.ste import straight_through_estimator
 
@@ -1423,7 +1427,7 @@ class PrxteinMPNN(eqx.Module):
     if prng_key is None:
       prng_key = jax.random.PRNGKey(0)
 
-    if multistate_mode == "state_vmap_exact":
+    if multistate_mode == MULTISTATE_MODE_STATE_VMAP_EXACT:
       if decoding_approach == "autoregressive":
         msg = (
           "PrxteinMPNN.__call__ does not run state_vmap_exact autoregressive decoding; "
@@ -2388,7 +2392,7 @@ class PrxteinLigandMPNN(eqx.Module):
     if prng_key is None:
       prng_key = jax.random.PRNGKey(0)
 
-    if multistate_mode == "state_vmap_exact":
+    if multistate_mode == MULTISTATE_MODE_STATE_VMAP_EXACT:
       if decoding_approach == "autoregressive":
         msg = (
           "PrxteinLigandMPNN.__call__ does not run state_vmap_exact autoregressive decoding; "
@@ -2517,7 +2521,7 @@ class PrxteinLigandMPNN(eqx.Module):
       ar_mask_stack,
     )
 
-    if multistate_mode != "flat":
+    if multistate_mode != MULTISTATE_MODE_FLAT:
       msg = (
         f"{type(self).__name__}.__call__ only supports multistate_mode='flat' "
         f"(got {multistate_mode!r}); use multistate_mode='state_vmap_exact' with stacked inputs "
@@ -2663,7 +2667,7 @@ class PrxteinLigandMPNN(eqx.Module):
         None,
         None,
         tie_group_map,
-        jnp.asarray({"arithmetic_mean": 0, "geometric_mean": 1, "product": 2}[multi_state_strategy], dtype=jnp.int32),
+        jnp.asarray(combine_strategy_to_index(multi_state_strategy), dtype=jnp.int32),
         multi_state_temperature,
         None,
         state_weights,
@@ -2731,7 +2735,7 @@ class PrxteinLigandMPNN(eqx.Module):
         bias,
         tie_group_map=tie_group_map,
         multi_state_strategy_idx=jnp.asarray(
-          {"arithmetic_mean": 0, "geometric_mean": 1, "product": 2}[multi_state_strategy],
+          combine_strategy_to_index(multi_state_strategy),
           dtype=jnp.int32,
         ),
         multi_state_temperature=multi_state_temperature,

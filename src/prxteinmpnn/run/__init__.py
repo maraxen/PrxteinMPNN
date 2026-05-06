@@ -11,6 +11,14 @@ from .specs import (
   SamplingSpecification,
   ScoringSpecification,
 )
+from .spec_json import (
+  SpecJSONDecodeError,
+  SpecJSONEncodeError,
+  run_specification_from_json,
+  run_specification_from_json_dict,
+  run_specification_to_json,
+  run_specification_to_json_dict,
+)
 
 __all__ = [
   "JacobianSpecification",
@@ -18,7 +26,13 @@ __all__ = [
   "RunSpecification",
   "SamplingSpecification",
   "ScoringSpecification",
+  "SpecJSONDecodeError",
+  "SpecJSONEncodeError",
   "build_run_spec",
+  "run_specification_from_json",
+  "run_specification_from_json_dict",
+  "run_specification_to_json",
+  "run_specification_to_json_dict",
   "sample",
   "score",
 ]

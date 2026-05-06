@@ -9,6 +9,7 @@ import jax.numpy as jnp
 from jaxtyping import Float, Int, PRNGKeyArray
 
 from prxteinmpnn.model import PrxteinLigandMPNN, PrxteinMPNN
+from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
 from prxteinmpnn.protocols import SamplerFn
 from prxteinmpnn.sampling.ste_optimize import make_optimize_sequence_fn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
@@ -249,6 +250,8 @@ def make_sample_sequences(
       y_stack: jnp.ndarray | None = None,
       y_t_stack: jnp.ndarray | None = None,
       y_m_stack: jnp.ndarray | None = None,
+      multistate_stack: MultistateStackPayload | None = None,
+      ligand_stack: LigandStack | None = None,
       **kwargs: Any,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """Sample a sequence from a structure using the ProteinMPNN model.
@@ -303,12 +306,32 @@ def make_sample_sequences(
       )
 
       if multistate_mode == "state_vmap_exact":
-        if is_ligand_mpnn and (y_stack is None or y_t_stack is None or y_m_stack is None):
-          msg = (
-            "state_vmap_exact for PrxteinLigandMPNN requires y_stack, y_t_stack, and y_m_stack "
-            "(stacked from flat ligand tensors via slice_flat_tensor_to_stack)."
-          )
+        if multistate_stack is not None and coords_stack is not None:
+          msg = "state_vmap_exact: pass either multistate_stack= or coords_stack=..., not both"
           raise ValueError(msg)
+        if multistate_stack is not None:
+          coords_stack = multistate_stack.coords_stack
+          mask_stack = multistate_stack.mask_stack
+          residue_index_stack = multistate_stack.residue_index_stack
+          chain_index_stack = multistate_stack.chain_index_stack
+          tie_group_map_stack = multistate_stack.tie_group_map_stack
+          fixed_mask_stack = multistate_stack.fixed_mask_stack
+          fixed_tokens_stack = multistate_stack.fixed_tokens_stack
+          state_flat_rows = multistate_stack.state_flat_rows
+        if is_ligand_mpnn:
+          if ligand_stack is not None:
+            if y_stack is not None or y_t_stack is not None or y_m_stack is not None:
+              msg = "state_vmap_exact: pass either ligand_stack= or y_stack= / y_t_stack= / y_m_stack=, not both"
+              raise ValueError(msg)
+            y_stack = ligand_stack.y_stack
+            y_t_stack = ligand_stack.y_t_stack
+            y_m_stack = ligand_stack.y_m_stack
+          if y_stack is None or y_t_stack is None or y_m_stack is None:
+            msg = (
+              "state_vmap_exact for PrxteinLigandMPNN requires y_stack, y_t_stack, and y_m_stack "
+              "(or ligand_stack=), stacked from flat ligand tensors via slice_flat_tensor_to_stack."
+            )
+            raise ValueError(msg)
         if (
           coords_stack is None
           or mask_stack is None
@@ -326,7 +349,7 @@ def make_sample_sequences(
           msg = (
             "state_vmap_exact requires coords_stack, mask_stack, residue_index_stack, "
             "chain_index_stack, tie_group_map_stack, fixed_mask_stack, fixed_tokens_stack, "
-            "state_flat_rows, and local wave_group_* tensors."
+            "state_flat_rows, and local wave_group_* tensors (or multistate_stack= carrying them)."
           )
           raise ValueError(msg)
 
@@ -356,24 +379,61 @@ def make_sample_sequences(
           state_weights = jnp.ones((n_s,), dtype=jnp.float32) / jnp.float32(n_s)
 
         if is_ligand_mpnn:
-          sampled_sequence, logits = model.sample_autoregressive_state_vmap_exact(
+          ls = LigandStack(
+            y_stack=cast("jax.Array", y_stack),
+            y_t_stack=cast("jax.Array", y_t_stack),
+            y_m_stack=cast("jax.Array", y_m_stack),
+          )
+          if multistate_stack is not None:
+            sampled_sequence, logits = model.sample_autoregressive_state_vmap_exact_from_payload(
+              prng_key,
+              multistate_stack,
+              ls,
+              autoregressive_mask_stack,
+              bias_s,
+              temperature,
+              multi_state_strategy_idx,
+              jnp.asarray(multi_state_temperature, dtype=jnp.float32),
+              state_weights,
+              wave_group_ids_local,
+              wave_group_positions_local,
+              wave_group_valid_local,
+              wave_position_valid_local,
+            )
+          else:
+            sampled_sequence, logits = model.sample_autoregressive_state_vmap_exact(
+              prng_key,
+              coords_stack,
+              mask_stack,
+              residue_index_stack,
+              chain_index_stack,
+              autoregressive_mask_stack,
+              tie_group_map_stack,
+              bias_s,
+              temperature,
+              multi_state_strategy_idx,
+              jnp.asarray(multi_state_temperature, dtype=jnp.float32),
+              state_weights,
+              fixed_mask_stack,
+              fixed_tokens_stack,
+              ls.y_stack,
+              ls.y_t_stack,
+              ls.y_m_stack,
+              wave_group_ids_local,
+              wave_group_positions_local,
+              wave_group_valid_local,
+              wave_position_valid_local,
+            )
+        elif multistate_stack is not None:
+          sampled_sequence, logits = model.sample_autoregressive_state_vmap_exact_from_payload(
             prng_key,
-            coords_stack,
-            mask_stack,
-            residue_index_stack,
-            chain_index_stack,
+            multistate_stack,
             autoregressive_mask_stack,
-            tie_group_map_stack,
             bias_s,
             temperature,
             multi_state_strategy_idx,
             jnp.asarray(multi_state_temperature, dtype=jnp.float32),
             state_weights,
-            fixed_mask_stack,
-            fixed_tokens_stack,
-            cast("jax.Array", y_stack),
-            cast("jax.Array", y_t_stack),
-            cast("jax.Array", y_m_stack),
             wave_group_ids_local,
             wave_group_positions_local,
             wave_group_valid_local,

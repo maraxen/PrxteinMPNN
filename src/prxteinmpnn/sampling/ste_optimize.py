@@ -382,7 +382,7 @@ def make_optimize_sequence_fn(
         }
         writer.write(payload)
 
-      jax.experimental.io_callback(_save_logits, None, final_logits, ordered=False)
+      jax.experimental.io_callback(_save_logits, None, final_logits, ordered=False)  # never ordered=True — syncs host per JAX semantics
       jax.effects_barrier()  # Drain host writes before returning.
 
     # Get final output logits by running through decoder one more time

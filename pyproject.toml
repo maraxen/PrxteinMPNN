@@ -65,6 +65,8 @@ tests = [
     "pytest-xdist",
     "mdtraj",
     "beartype>=0.18.0",
+    # Heavy parity packer path (`find_spec("Bio")`); reference `sc_utils` / PDB IO.
+    "biopython>=1.83",
 ]
 dev = [
   "ruff",

@@ -67,6 +67,8 @@ tests = [
     "beartype>=0.18.0",
     # Heavy parity packer path (`find_spec("Bio")`); reference `sc_utils` / PDB IO.
     "biopython>=1.83",
+    # Reference LigandMPNN `sc_utils` does `import tree` (DeepMind `dm-tree`).
+    "dm-tree>=0.1.8",
 ]
 dev = [
   "ruff",

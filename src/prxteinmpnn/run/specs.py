@@ -160,6 +160,12 @@ class RunSpecification:
   3. If None with "auto": All cores for training, 50% for inference
   """
 
+  n_devices: int | None = None
+  """Optional JAX device count override for :class:`~prxteinmpnn.run.spec.ResourceConfig`.
+
+  When ``None``, :func:`build_run_spec` uses ``jax.local_device_count()`` when JAX is importable.
+  """
+
   # Data/Sharding
   use_preprocessed: bool = False
   preprocessed_index_path: str | Path | None = None

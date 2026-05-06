@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
 from prxteinmpnn.cli import app
+from prxteinmpnn.run.run_spec_portable_json import run_spec_portable_to_dict
+from prxteinmpnn.run.spec import build_run_spec
 from prxteinmpnn.run.spec_json import run_specification_to_json
 from prxteinmpnn.run.specs import RunSpecification
 
@@ -36,3 +39,14 @@ def test_spec_roundtrip_writes_file(runner: CliRunner, tmp_path: Path) -> None:
   assert dst.is_file()
   text = dst.read_text(encoding="utf-8")
   assert "_spec_class" in text
+
+
+def test_spec_portable_roundtrip_ok(runner: CliRunner, tmp_path: Path) -> None:
+  spec = RunSpecification(inputs=["z.pdb"], tied_positions=None)
+  blob = run_spec_portable_to_dict(build_run_spec(spec))
+  path = tmp_path / "portable.json"
+  path.write_text(json.dumps(blob), encoding="utf-8")
+  result = runner.invoke(app, ["spec", "portable-roundtrip", str(path)])
+  assert result.exit_code == 0
+  parsed = json.loads(result.stdout)
+  assert parsed == blob

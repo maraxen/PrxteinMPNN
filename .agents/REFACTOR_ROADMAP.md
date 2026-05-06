@@ -510,7 +510,7 @@ This section qualifies the parity contract and other claims in plain language.
 
 - **`parity_heavy` is NOT in CI.** Per `CLAUDE.md`, `parity_heavy` requires `REFERENCE_PATH` pointing at a local-only `ligandmpnn_reference_assets` directory. CI runs **`parity_fast` only**. `parity_heavy` is a **manual per-phase release gate**: the phase tag is not cut until `parity_heavy` is run locally and recorded in the PR description (output captured per the Verification Visibility Protocol in `AGENTS.md`).
 - **HLO byte counts are NOT a numeric pass/fail gate.** They are review artifacts captured at Phase 0. PRs touching JIT-relevant code surface a diff that reviewers inspect. CI `assert_zero_copy_overhead` runs per parity-pinned callable; allowlisted thresholds with rationale are checked into the repo. There is no blanket ±5% rule.
-- **Pickle stability of `RunSpec` is NOT promised across the Phase 3 boundary.** Old `RunSpecification` pickles must be migrated via `scripts/migrate_run_spec.py` before they can be loaded by Phase-3+ code. In-flight SLURM jobs that `pickle.dump(RunSpecification(...))` before Phase 3 and `pickle.load(...)` after Phase 3 will fail; the recommended pattern is finish-then-upgrade or run the migration script during the upgrade.
+- **Pickle stability of `RunSpec` is NOT promised across the Phase 3 boundary.** Prefer **JSON** (`prxteinmpnn.run.spec_json`, `prxteinmpnn spec validate`) for durable configs and CLI. Legacy pickle-based workflows are unsupported unless you maintain a private adapter.
 - **Cold `import prxteinmpnn` time is measured, not asserted.** Phase 1 records the number after `mp.set_start_method` removal. No hard ms threshold is in DoD; the lazy-import experiment is opt-in.
 - **`state_vmap_exact == vmap(single_state)` is NOT asserted unconditionally.** It is a hypothesis tested by the Phase 0a SPIKE. The roadmap's Phase 4 outcome adapts to the spike result.
 - **Specific shape numbers** like `n_canonical`, `n_states` are not pinned in this document. Payload static fields carry whatever the call-sites already compute.
@@ -529,7 +529,7 @@ The roadmap is complete when **all** of the following are measurably true:
 6. **StableHLO export** of `model.__call__` succeeds (validates §11 closure).
 7. **Cold-start wall-time benchmark** runs in CI (advisory); no regression in the mpnn-split benchmark exceeds 20% without an explanation in the PR.
 8. **`scripts/engaging/` audit complete** (Phase 3): every `RunSpecification(...)` call-site updated or explicitly waived in writing.
-9. **`RunSpec` pickle migration script** exercised against engaging pickle corpus, recorded green.
+9. **Spec interchange:** JSON round-trip tests and `prxteinmpnn spec` CLI exercised in CI-relevant paths (pickle migration script **optional** / descoped if JSON-only policy holds).
 10. **Phase 0a SPIKE outcome documented** with go/no-go decision and matching Phase 4 implementation.
 
 ---
@@ -560,7 +560,7 @@ Each Open Question now has a **default decision** that holds unless a triggering
 | Q1 | Vendor or depend on jaxbeans pieces? | **CONFIRMED 2026-05-05.** Mixed per §3.6 matrix. VENDOR for `utils/callbacks` (need `effects_barrier` customization), `utils/testing`, `utils/typing`. DEPEND for `core/profiling`, `utils/mapping`, `utils/io`, `core/safety`, `jax_io/sources`. | Phase 0 (vendor pieces); Phase 5 (depend pieces) | `pyproject.toml [tool.uv.sources]` and `prxteinmpnn/utils/_vendored_callbacks.py` header |
 | Q2 | jaxbeans distribution model? | **`uv` workspace member during refactor; PyPI release when jaxbeans hits 0.1.0.** | Phase 0 | `pyproject.toml` |
 | Q3 | Where do `ensemble/*` live in jaxbeans? | **Default: jaxbeans `ml/clustering/`** (new submodule). Confirm with jaxbeans maintainer before sub-PR 5h opens. | Phase 5 sub-PR 5h | jaxbeans-side PR link |
-| Q4 | `RunSpecification` deprecation window? | **Hard cutover for pickled instances** + one-minor-version kwarg shim with `DeprecationWarning` + `migrate_run_spec.py` script. | Phase 3 | Migration script + engaging pickle corpus test |
+| Q4 | `RunSpecification` deprecation window? | **Hard cutover for pickled instances** + one-minor-version kwarg shim with `DeprecationWarning`. **JSON** is the supported interchange for new tooling (Typer CLI: `prxteinmpnn spec`). | Phase 3 | JSON round-trip tests + `spec validate` |
 | Q5 | `PRXTEINMPNN_VERIFY` default? | **Off in CI fast tests; on in `tests/parity/` via fixture; configurable in `parity_heavy`.** | Phase 0 | README + fixture in `tests/parity/conftest.py` |
 | Q6 | (NEW) `state_vmap_exact` unification feasibility? | **CONFIRMED 2026-05-05: proceed with SPIKE; expectation upgraded to UNIFY.** Owner has prior informal evidence that `state_vmap_exact == jax.vmap(single_state_path)` numerically. SPIKE remains mandatory to formalize (capture HLO + parity fixtures + recorded PR decision). Phase 4 plans toward unification; only downgrades to routing if the formal SPIKE surfaces an unexpected divergence. | Phase 0a / Phase 4 | SPIKE PR records numeric + HLO comparison; Phase 4 unification PR (or routing PR on no-go) |
 | Q7 | (NEW) Lazy `__init__.py` (PEP 562)? | **Deferred / opt-in experiment.** Revisit only if Phase 1 cold-import measurement is unacceptable. | Post-Phase-1 (optional) | Cold-import benchmark in PR |
@@ -573,12 +573,13 @@ Each Open Question now has a **default decision** that holds unless a triggering
 | Field | Value |
 | :--- | :--- |
 | **task_id** | `refactor-phase3-sprint-20260505` |
-| **Last update** | 2026-05-05 |
-| **Current phase** | **Phase 3 planned** — execution next: pytree payloads + composed `RunSpec` (six PRs incl. scripts audit). |
-| **Plan** | `.agents/SPRINT_refactor-phase3-20260505.md` — ordered PR1–PR6: replace harness (tests-only) → `payloads.py` → `run/spec.py` + `RunSpecification` shim → `PrecisionConfig` + §2 Proxide spike (written go/no-go) → `migrate_run_spec.py` + corpus story → scripts `*Specification` audit with per-file disposition. Plan-auditor: **NEEDS_WORK** → **accepted with amendments** (explicit audit PR, narrow PR1, §2 spike, engaging corpus caveat). OODA: `recon_id` `260505_prxteinmpnn_phase3`, `plan_id` `plan-phase3-20260505`, `audit_id` `audit-plan-phase3-20260505` under task_id. |
+| **Last update** | 2026-05-06 |
+| **Current phase** | **Phase 3 in progress** — landed: payloads + replace tests (PR1–2); composed `RunSpec` + `RunSpecification.run_spec` + deprecated-kw init guard (PR3); `compute_resource_allocation` → Proxide datasets in prep + training (PR4 §2); `PrecisionConfig.compute` on `RunSpec` + trainer routing (PR4 §1); JSON `(de)serialize` + Typer `prxteinmpnn spec` CLI; parity asset path to bundled zst; assorted tech-debt TODOs. |
+| **Still open (Phase 3)** | **Tuple / payload migration** at `state_vmap_exact` + `DesignArrayRecordWriter`; **PR6** scripts `*Specification` audit table in a merge PR; **expand `RunSpec`/`build_run_spec`** so fewer fields live only on the dataclass façade; optional **`RunSpec` JSON** slice for tools. **Pickle migration** descoped in favor of JSON — update §10/§11 wording when editing those sections next. |
+| **Plan** | `.agents/SPRINT_refactor-phase3-20260505.md` — ordered PR1–PR6; pickle/PR5 replaced by JSON + CLI for new workflows. |
 | **Prior landed (Phase 2)** | `protocols.py`, `model/capabilities.py`, introspection removal at sample/score/averaging, honest casts on score paths; sprint `refactor-phase2-sprint-20260505`, plan `.agents/SPRINT_refactor-phase2-20260505.md`. |
 | **Prior phase** | Phase 1: `task_id` `refactor-phase1-sprint-20260505` (§14 prior row archived in git history). |
 
 ---
 
-*End of roadmap. Phase 2 typed boundaries are landed; Phase 3 sprint is planned — see §14 and `.agents/SPRINT_refactor-phase3-20260505.md`.*
+*End of roadmap. Phase 2 typed boundaries are landed; Phase 3 is executing — see §14 and `.agents/SPRINT_refactor-phase3-20260505.md`.*

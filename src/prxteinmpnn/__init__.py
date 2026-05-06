@@ -1,4 +1,10 @@
-"""PrxteinMPNN: A functional interface for ProteinMPNN."""
+"""PrxteinMPNN: a functional interface for ProteinMPNN.
+
+Importing this package does not configure the multiprocessing start method. Call
+``configure_multiprocessing()`` once at process start in notebooks, standalone scripts,
+or any entrypoint that uses ``multiprocessing`` worker pools (the campaign CLI already
+does this); see ``prxteinmpnn.runtime``.
+"""
 
 from .run import (
   JacobianSpecification,

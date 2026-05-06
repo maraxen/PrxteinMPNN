@@ -28,6 +28,11 @@ class SamplingDriver:
     self.spec = spec
     self.sampler_factory_key = sampler_factory_key
 
+  def sampler_factory_keys(self) -> tuple[str, ...]:
+    """Registered sampler factory keys after built-in modules self-register (imports ``sampling.sample``)."""
+    importlib.import_module("prxteinmpnn.sampling.sample")
+    return tuple(SAMPLERS.keys())
+
   def build_sampler_fn(self, model: object, **factory_kwargs: object) -> SamplerFn:
     """Return ``SAMPLERS[self.sampler_factory_key](model, **factory_kwargs)``.
 

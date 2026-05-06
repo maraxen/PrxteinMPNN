@@ -23,3 +23,10 @@ def test_sampling_driver_unknown_key_raises() -> None:
   driver = SamplingDriver(spec, sampler_factory_key="does_not_exist")
   with pytest.raises(KeyError, match="Unknown sampler factory"):
     driver.build_sampler_fn(object())
+
+
+def test_sampling_driver_sampler_factory_keys_includes_default() -> None:
+  spec = SamplingSpecification(inputs=["/tmp/x.pdb"], num_samples=1)
+  driver = SamplingDriver(spec)
+  keys = driver.sampler_factory_keys()
+  assert "make_sample_sequences" in keys

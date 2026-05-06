@@ -344,7 +344,7 @@ The spike is mandatory before Phase 4 PRs may merge. Until then, draft Phase 4 P
 - Convert `decoding_approach` if/elif to a fixed-cardinality `lax.switch` (NOT a registry).
 - Migrate samplers (`sample`, `score`, etc.) to the `SAMPLERS` registry.
 
-**CI gates added:** new `tests/sampling/test_state_vmap_exact_routing.py` asserting (a) numeric equivalence to pre-Phase-4 outputs and (b) **if go**: numeric equivalence to `jax.vmap(single_state)(stack)` element-wise; **if no-go**: equivalence to the preserved direct call (regression guard only).
+**CI gates added:** new `tests/sampling/test_state_vmap_exact_routing.py` asserting (a) numeric equivalence to pre-Phase-4 outputs and (b) **if go**: numeric equivalence to `jax.vmap(single_state)(stack)` element-wise; **if no-go**: equivalence to the preserved direct call (regression guard only). **Landed 2026-05-06:** file exercises **(a)** via ``__call__`` vs direct ``score_*_state_vmap_exact`` (Protein + Ligand, unconditional + conditional) and **(b)** unconditional ProteinMPNN vs explicit vmap reference under §13.2 **GO**; verification log ``.agents/verification_logs/phase45_routing_driver_20260506.filtered.txt``.
 **Tech-debt closed:** none new (sets up §9).
 **Migration cost:** see §6.
 
@@ -622,11 +622,11 @@ Each Open Question now has a **default decision** that holds unless a triggering
 
 | Field | Value |
 | :--- | :--- |
-| **task_id** | `refactor-roadmap-sprint-20260506` (OODA closure for PR2b host coercion); prior `sprint-20260507-samplers-json-p4doc` |
-| **Last update** | **2026-05-06** — Roadmap **Phase 6** expanded: **track A** (bucketing, ragged vs padded, stacked `vmap` vs `safe_map`, frozen structs + Protocols on internal surfaces after Phase 4–5); tech-debt **§15**. Same date — **PR2b:** outer ``sample_sequences`` host coercion before ``jax.jit``; verification log ``pr2b_host_coercion_20260506.filtered.txt``. Prior **2026-05-07:** ``SAMPLERS`` / ``SamplingDriver`` prep; RunSpec JSON round-trips; §13.2 Phase 0a GO. |
-| **Current phase** | Phase 4: multistate descriptors landed; **next behavioral chunk** = conditional / ligand / AR ``state_vmap_exact`` vs vmap reference or explicit registry routes (beyond unconditional protein logits). Phase 5: ``SamplingDriver`` skeleton + ``SAMPLERS`` default registration live. |
-| **Still open** | Full ``state_vmap_exact`` body dedup beyond unconditional protein logits; migrate ``run/sampling.py`` streaming to host driver. **Deferred to Phase 6 §15:** systematic batch bucketing / ragged-vs-padded / ``safe_map`` vs stacked ``vmap`` policy (after Phase 5 boundaries). |
-| **Plan** | **Closed slice:** PR2b loose-stack → host ``MultistateStackPayload`` (this commit). **Reference sprint:** `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md` (WP2 narrative). |
+| **task_id** | `refactor-roadmap-sprint-20260506` — Phase 4 routing tests + Phase 5 driver keys (2026-05-06); prior slices PR2b / samplers-json |
+| **Last update** | **2026-05-06** — **Phase 4 §347 gate:** ``tests/sampling/test_state_vmap_exact_routing.py`` + filtered log ``phase45_routing_driver_20260506.filtered.txt``. **Phase 5:** ``SamplingDriver.sampler_factory_keys()`` for observable registered factories. **Still not started:** mpnn split (5a–5e), io_callback streaming (5g), jaxbeans ``safe_map`` DEPEND swap. |
+| **Current phase** | Phase 4: routing regression tests landed; **remaining Phase 4 chunk** = optional ``state_vmap_exact`` **body** dedup / vmap reference extension for AR wave and deeper ligand paths (beyond routing parity). Phase 5: driver skeleton extended slightly; **major** deliverables (split, streaming, vendored callbacks) still open. |
+| **Still open** | ``state_vmap_exact`` implementation unification where desired; ``run/sampling.py`` → ``SamplingDriver`` streaming migration; ``utils/_vendored_callbacks.py`` + barriers. **Deferred to Phase 6 §15:** batch layout policy. |
+| **Plan** | **Closed slice (2026-05-06):** routing tests + driver factory-key introspection. **Reference sprint:** `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md` (WP2 narrative). |
 | **Prior landed (Phase 2)** | `protocols.py`, `model/capabilities.py`, introspection removal at sample/score/averaging, honest casts on score paths; sprint `refactor-phase2-sprint-20260505`, plan `.agents/SPRINT_refactor-phase2-20260505.md`. |
 | **Prior phase** | Phase 1: `task_id` `refactor-phase1-sprint-20260505` (§14 prior row archived in git history). |
 

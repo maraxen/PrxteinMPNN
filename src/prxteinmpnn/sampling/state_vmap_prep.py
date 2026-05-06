@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 
@@ -104,6 +105,52 @@ def build_state_vmap_exact_stacks(
     "state_flat_rows": rows,
     "flat_row_offsets": offsets.astype(np.int64),
   }
+
+
+def multistate_stack_payload_from_loose_ar_host(
+  *,
+  coords_stack: jnp.ndarray,
+  mask_stack: jnp.ndarray,
+  residue_index_stack: jnp.ndarray,
+  chain_index_stack: jnp.ndarray,
+  tie_group_map_stack: jnp.ndarray,
+  fixed_mask_stack: jnp.ndarray,
+  fixed_tokens_stack: jnp.ndarray,
+  state_flat_rows: jnp.ndarray,
+  n_canonical: int,
+) -> MultistateStackPayload:
+  """Build :class:`~prxteinmpnn.payloads.MultistateStackPayload` on host for AR ``state_vmap_exact``.
+
+  Callers that pass loose ``coords_stack`` / ``state_flat_rows=`` kwargs into the jitted sampler
+  should be normalized **before** ``jax.jit`` so static ``n_flat`` / ``flat_row_offsets`` match
+  :func:`build_state_vmap_exact_stacks` invariants (lengths from consecutive flat spans per
+  state row).
+
+  Uses ``jax.device_get`` on ``state_flat_rows`` only (small int32 metadata).
+  """
+  rows_np = np.asarray(jax.device_get(state_flat_rows))
+  n_states = int(rows_np.shape[0])
+  lengths: list[int] = []
+  for s in range(n_states):
+    row = rows_np[s]
+    v = row[row >= 0]
+    lengths.append(int(v.max() - v.min() + 1) if v.size > 0 else 0)
+  offsets = state_flat_row_offsets(lengths)
+  n_flat = int(offsets[-1])
+  return MultistateStackPayload(
+    coords_stack=coords_stack,
+    mask_stack=mask_stack,
+    residue_index_stack=residue_index_stack,
+    chain_index_stack=chain_index_stack,
+    tie_group_map_stack=tie_group_map_stack,
+    fixed_mask_stack=fixed_mask_stack,
+    fixed_tokens_stack=fixed_tokens_stack,
+    state_flat_rows=state_flat_rows,
+    flat_row_offsets=jnp.asarray(offsets, dtype=jnp.int32),
+    n_states=n_states,
+    n_canonical=n_canonical,
+    n_flat=n_flat,
+  )
 
 
 def multistate_stack_payload_from_prep_numpy(

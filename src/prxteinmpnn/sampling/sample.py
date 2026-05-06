@@ -11,7 +11,13 @@ from jaxtyping import Float, Int, PRNGKeyArray
 from prxteinmpnn.model import PrxteinLigandMPNN, PrxteinMPNN
 from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
 from prxteinmpnn.protocols import SamplerFn
-from prxteinmpnn.registry import SAMPLERS, combine_strategy_to_index, multistate_mode_descriptor
+from prxteinmpnn.registry import (
+  MULTISTATE_MODE_STATE_VMAP_EXACT,
+  SAMPLERS,
+  combine_strategy_to_index,
+  multistate_mode_descriptor,
+)
+from prxteinmpnn.sampling.state_vmap_prep import multistate_stack_payload_from_loose_ar_host
 from prxteinmpnn.sampling.ste_optimize import make_optimize_sequence_fn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
@@ -28,6 +34,101 @@ from prxteinmpnn.utils.types import (
   ResidueIndex,
   StructureAtomicCoordinates,
 )
+
+
+def _coerce_loose_to_multistate_stack_host(
+  multistate_mode: Literal["flat", "state_vmap", "state_vmap_exact"],
+  *,
+  multistate_stack: MultistateStackPayload | None,
+  coords_stack: jnp.ndarray | None,
+  mask_stack: jnp.ndarray | None,
+  residue_index_stack: jnp.ndarray | None,
+  chain_index_stack: jnp.ndarray | None,
+  tie_group_map_stack: jnp.ndarray | None,
+  fixed_mask_stack: jnp.ndarray | None,
+  fixed_tokens_stack: jnp.ndarray | None,
+  state_flat_rows: jnp.ndarray | None,
+  state_vmap_n_canonical: int,
+) -> tuple[
+  MultistateStackPayload | None,
+  jnp.ndarray | None,
+  jnp.ndarray | None,
+  jnp.ndarray | None,
+  jnp.ndarray | None,
+  jnp.ndarray | None,
+  jnp.ndarray | None,
+  jnp.ndarray | None,
+  jnp.ndarray | None,
+]:
+  """Host-only: loose ``state_vmap_exact`` stack kwargs → :class:`MultistateStackPayload` (PR2b)."""
+  if multistate_mode != MULTISTATE_MODE_STATE_VMAP_EXACT:
+    return (
+      multistate_stack,
+      coords_stack,
+      mask_stack,
+      residue_index_stack,
+      chain_index_stack,
+      tie_group_map_stack,
+      fixed_mask_stack,
+      fixed_tokens_stack,
+      state_flat_rows,
+    )
+  if multistate_stack is not None:
+    return (
+      multistate_stack,
+      coords_stack,
+      mask_stack,
+      residue_index_stack,
+      chain_index_stack,
+      tie_group_map_stack,
+      fixed_mask_stack,
+      fixed_tokens_stack,
+      state_flat_rows,
+    )
+  if coords_stack is None:
+    return (
+      multistate_stack,
+      coords_stack,
+      mask_stack,
+      residue_index_stack,
+      chain_index_stack,
+      tie_group_map_stack,
+      fixed_mask_stack,
+      fixed_tokens_stack,
+      state_flat_rows,
+    )
+  if (
+    mask_stack is None
+    or residue_index_stack is None
+    or chain_index_stack is None
+    or tie_group_map_stack is None
+    or fixed_mask_stack is None
+    or fixed_tokens_stack is None
+    or state_flat_rows is None
+  ):
+    return (
+      multistate_stack,
+      coords_stack,
+      mask_stack,
+      residue_index_stack,
+      chain_index_stack,
+      tie_group_map_stack,
+      fixed_mask_stack,
+      fixed_tokens_stack,
+      state_flat_rows,
+    )
+  built = multistate_stack_payload_from_loose_ar_host(
+    coords_stack=coords_stack,
+    mask_stack=mask_stack,
+    residue_index_stack=residue_index_stack,
+    chain_index_stack=chain_index_stack,
+    tie_group_map_stack=tie_group_map_stack,
+    fixed_mask_stack=fixed_mask_stack,
+    fixed_tokens_stack=fixed_tokens_stack,
+    state_flat_rows=state_flat_rows,
+    n_canonical=state_vmap_n_canonical,
+  )
+  return (built, None, None, None, None, None, None, None, None)
 
 
 def make_sample_sequences(
@@ -206,7 +307,7 @@ def make_sample_sequences(
         "state_vmap_n_canonical",
       ),
     )
-    def sample_sequences(
+    def _sample_sequences_jitted(
       prng_key: PRNGKeyArray,
       structure_coordinates: StructureAtomicCoordinates,
       mask: AlphaCarbonMask,
@@ -255,40 +356,7 @@ def make_sample_sequences(
       ligand_stack: LigandStack | None = None,
       **kwargs: Any,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
-      """Sample a sequence from a structure using the ProteinMPNN model.
-
-      Args:
-        prng_key: JAX random key.
-        structure_coordinates: Atomic coordinates (N, 4, 3).
-        mask: Alpha carbon mask indicating valid residues.
-        residue_index: Residue indices.
-        chain_index: Chain indices.
-        bias: Optional bias to add to logits (N, 21).
-        fixed_positions: Optional mask for positions to keep fixed (not implemented yet).
-        backbone_noise: Optional noise for backbone coordinates.
-        iterations: Unused in temperature mode (for API compatibility).
-        learning_rate: Unused in temperature mode (for API compatibility).
-        temperature: Temperature for sampling (default: 1.0).
-        tie_group_map: Optional (N,) array mapping positions to group IDs for tied sampling.
-        num_groups: Number of unique groups when using tied positions.
-        multi_state_strategy: Strategy for combining logits across tied positions
-          ("arithmetic_mean", "geometric_mean", "product").
-        structure_mapping: Optional (N,) array mapping each residue to a structure ID.
-                  When provided (multi-state mode), prevents cross-structure
-                  neighbors to avoid information leakage between conformational states.
-        multi_state_temperature: Temperature for geometric_mean multi-state combining.
-        **kwargs: Additional arguments for LigandMPNN (Y, Y_t, Y_m) or weighting.
-
-
-      Returns:
-        Tuple of (sampled sequence, logits, decoding order).
-
-      Example:
-        >>> seq, logits, order = sample_sequences(
-        ...     key, coords, mask, res_idx, chain_idx, temperature=0.1
-        ... )
-
-      """
+      """JIT core for temperature sampling (host coercion lives in outer ``sample_sequences``)."""
       del iterations, learning_rate
       if fixed_mask is None and fixed_positions is not None:
         fixed_mask = fixed_positions
@@ -383,56 +451,23 @@ def make_sample_sequences(
           n_s = int(coords_stack.shape[0])
           state_weights = jnp.ones((n_s,), dtype=jnp.float32) / jnp.float32(n_s)
 
+        if multistate_stack is None:
+          msg = (
+            "state_vmap_exact requires multistate_stack= (host-built via loose kwargs "
+            "normalization before jax.jit)."
+          )
+          raise ValueError(msg)
+        stack_sv = multistate_stack
         if is_ligand_mpnn:
           ls = LigandStack(
             y_stack=cast("jax.Array", y_stack),
             y_t_stack=cast("jax.Array", y_t_stack),
             y_m_stack=cast("jax.Array", y_m_stack),
           )
-          if multistate_stack is not None:
-            sampled_sequence, logits = model.sample_autoregressive_state_vmap_exact_from_payload(
-              prng_key,
-              multistate_stack,
-              ls,
-              autoregressive_mask_stack,
-              bias_s,
-              temperature,
-              multi_state_strategy_idx,
-              jnp.asarray(multi_state_temperature, dtype=jnp.float32),
-              state_weights,
-              wave_group_ids_local,
-              wave_group_positions_local,
-              wave_group_valid_local,
-              wave_position_valid_local,
-            )
-          else:
-            sampled_sequence, logits = model.sample_autoregressive_state_vmap_exact(
-              prng_key,
-              coords_stack,
-              mask_stack,
-              residue_index_stack,
-              chain_index_stack,
-              autoregressive_mask_stack,
-              tie_group_map_stack,
-              bias_s,
-              temperature,
-              multi_state_strategy_idx,
-              jnp.asarray(multi_state_temperature, dtype=jnp.float32),
-              state_weights,
-              fixed_mask_stack,
-              fixed_tokens_stack,
-              ls.y_stack,
-              ls.y_t_stack,
-              ls.y_m_stack,
-              wave_group_ids_local,
-              wave_group_positions_local,
-              wave_group_valid_local,
-              wave_position_valid_local,
-            )
-        elif multistate_stack is not None:
           sampled_sequence, logits = model.sample_autoregressive_state_vmap_exact_from_payload(
             prng_key,
-            multistate_stack,
+            stack_sv,
+            ls,
             autoregressive_mask_stack,
             bias_s,
             temperature,
@@ -445,21 +480,15 @@ def make_sample_sequences(
             wave_position_valid_local,
           )
         else:
-          sampled_sequence, logits = model.sample_autoregressive_state_vmap_exact(
+          sampled_sequence, logits = model.sample_autoregressive_state_vmap_exact_from_payload(
             prng_key,
-            coords_stack,
-            mask_stack,
-            residue_index_stack,
-            chain_index_stack,
+            stack_sv,
             autoregressive_mask_stack,
-            tie_group_map_stack,
             bias_s,
             temperature,
             multi_state_strategy_idx,
             jnp.asarray(multi_state_temperature, dtype=jnp.float32),
             state_weights,
-            fixed_mask_stack,
-            fixed_tokens_stack,
             wave_group_ids_local,
             wave_group_positions_local,
             wave_group_valid_local,
@@ -530,6 +559,158 @@ def make_sample_sequences(
         sampled_sequence = sampled_sequence.argmax(axis=-1).astype(jnp.int8)
 
       return sampled_sequence, logits, decoding_order
+
+    def sample_sequences(
+      prng_key: PRNGKeyArray,
+      structure_coordinates: StructureAtomicCoordinates,
+      mask: AlphaCarbonMask,
+      residue_index: ResidueIndex,
+      chain_index: ChainIndex,
+      bias: InputBias | None = None,
+      fixed_positions: jnp.ndarray | None = None,
+      fixed_mask: jnp.ndarray | None = None,
+      fixed_tokens: jnp.ndarray | None = None,
+      backbone_noise: BackboneNoise | None = None,
+      iterations: Int | None = None,
+      learning_rate: Float | None = None,
+      temperature: Float | None = None,
+      tie_group_map: jnp.ndarray | None = None,
+      num_groups: int | None = None,
+      multi_state_strategy: Literal[
+        "arithmetic_mean",
+        "geometric_mean",
+        "product",
+      ] = "arithmetic_mean",
+      multistate_mode: Literal["flat", "state_vmap", "state_vmap_exact"] = "flat",
+      structure_mapping: jax.Array | None = None,
+      multi_state_temperature: Float = 1.0,
+      max_group_size: int = 16,
+      precomputed_node_features: jnp.ndarray | None = None,
+      precomputed_edge_features: jnp.ndarray | None = None,
+      precomputed_neighbor_indices: jnp.ndarray | None = None,
+      state_vmap_n_canonical: int = 0,
+      coords_stack: jnp.ndarray | None = None,
+      mask_stack: jnp.ndarray | None = None,
+      residue_index_stack: jnp.ndarray | None = None,
+      chain_index_stack: jnp.ndarray | None = None,
+      tie_group_map_stack: jnp.ndarray | None = None,
+      fixed_mask_stack: jnp.ndarray | None = None,
+      fixed_tokens_stack: jnp.ndarray | None = None,
+      bias_stack: jnp.ndarray | None = None,
+      state_flat_rows: jnp.ndarray | None = None,
+      wave_group_ids_local: jnp.ndarray | None = None,
+      wave_group_positions_local: jnp.ndarray | None = None,
+      wave_group_valid_local: jnp.ndarray | None = None,
+      wave_position_valid_local: jnp.ndarray | None = None,
+      y_stack: jnp.ndarray | None = None,
+      y_t_stack: jnp.ndarray | None = None,
+      y_m_stack: jnp.ndarray | None = None,
+      multistate_stack: MultistateStackPayload | None = None,
+      ligand_stack: LigandStack | None = None,
+      **kwargs: Any,
+    ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
+      """Sample a sequence from a structure using the ProteinMPNN model.
+
+      Args:
+        prng_key: JAX random key.
+        structure_coordinates: Atomic coordinates (N, 4, 3).
+        mask: Alpha carbon mask indicating valid residues.
+        residue_index: Residue indices.
+        chain_index: Chain indices.
+        bias: Optional bias to add to logits (N, 21).
+        fixed_positions: Optional mask for positions to keep fixed (not implemented yet).
+        backbone_noise: Optional noise for backbone coordinates.
+        iterations: Unused in temperature mode (for API compatibility).
+        learning_rate: Unused in temperature mode (for API compatibility).
+        temperature: Temperature for sampling (default: 1.0).
+        tie_group_map: Optional (N,) array mapping positions to group IDs for tied sampling.
+        num_groups: Number of unique groups when using tied positions.
+        multi_state_strategy: Strategy for combining logits across tied positions
+          ("arithmetic_mean", "geometric_mean", "product").
+        structure_mapping: Optional (N,) array mapping each residue to a structure ID.
+                  When provided (multi-state mode), prevents cross-structure
+                  neighbors to avoid information leakage between conformational states.
+        multi_state_temperature: Temperature for geometric_mean multi-state combining.
+        **kwargs: Additional arguments for LigandMPNN (Y, Y_t, Y_m) or weighting.
+
+
+      Returns:
+        Tuple of (sampled sequence, logits, decoding order).
+
+      Example:
+        >>> seq, logits, order = sample_sequences(
+        ...     key, coords, mask, res_idx, chain_idx, temperature=0.1
+        ... )
+
+      """
+      (
+        multistate_stack_h,
+        coords_stack_h,
+        mask_stack_h,
+        residue_index_stack_h,
+        chain_index_stack_h,
+        tie_group_map_stack_h,
+        fixed_mask_stack_h,
+        fixed_tokens_stack_h,
+        state_flat_rows_h,
+      ) = _coerce_loose_to_multistate_stack_host(
+        multistate_mode,
+        multistate_stack=multistate_stack,
+        coords_stack=coords_stack,
+        mask_stack=mask_stack,
+        residue_index_stack=residue_index_stack,
+        chain_index_stack=chain_index_stack,
+        tie_group_map_stack=tie_group_map_stack,
+        fixed_mask_stack=fixed_mask_stack,
+        fixed_tokens_stack=fixed_tokens_stack,
+        state_flat_rows=state_flat_rows,
+        state_vmap_n_canonical=state_vmap_n_canonical,
+      )
+      return _sample_sequences_jitted(
+        prng_key,
+        structure_coordinates,
+        mask,
+        residue_index,
+        chain_index,
+        bias,
+        fixed_positions,
+        fixed_mask,
+        fixed_tokens,
+        backbone_noise,
+        iterations,
+        learning_rate,
+        temperature,
+        tie_group_map,
+        num_groups,
+        multi_state_strategy,
+        multistate_mode,
+        structure_mapping,
+        multi_state_temperature,
+        max_group_size,
+        precomputed_node_features,
+        precomputed_edge_features,
+        precomputed_neighbor_indices,
+        state_vmap_n_canonical,
+        coords_stack_h,
+        mask_stack_h,
+        residue_index_stack_h,
+        chain_index_stack_h,
+        tie_group_map_stack_h,
+        fixed_mask_stack_h,
+        fixed_tokens_stack_h,
+        bias_stack,
+        state_flat_rows_h,
+        wave_group_ids_local,
+        wave_group_positions_local,
+        wave_group_valid_local,
+        wave_position_valid_local,
+        y_stack,
+        y_t_stack,
+        y_m_stack,
+        multistate_stack_h,
+        ligand_stack,
+        **kwargs,
+      )
 
     return cast("SamplerFn", sample_sequences)
 

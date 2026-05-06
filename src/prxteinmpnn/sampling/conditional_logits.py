@@ -7,7 +7,9 @@ Stacked multistate (``state_vmap_exact``): :func:`make_conditional_logits_state_
 or ``model(..., decoding_approach=\"conditional\", multistate_mode=\"state_vmap_exact\", ...)``
 with stacked geometry tensors and a flat ``one_hot_sequence`` / aa indices.
 
-For a single carrier object, use :meth:`prxteinmpnn.model.mpnn.PrxteinMPNN.score_conditional_state_vmap_exact_from_payload`
+For a single carrier object, use
+:func:`prxteinmpnn.sampling.state_vmap_payload_logits.conditional_state_vmap_logits_from_payload`
+or :meth:`prxteinmpnn.model.mpnn.PrxteinMPNN.score_conditional_state_vmap_exact_from_payload`
 /:meth:`~prxteinmpnn.model.mpnn.PrxteinLigandMPNN.score_conditional_state_vmap_exact_from_payload`
 (geometry in :class:`~prxteinmpnn.payloads.MultistateStackPayload`; ligand tensors in :class:`~prxteinmpnn.payloads.LigandStack`).
 

@@ -19,6 +19,10 @@
 # Local dry-run (same pytest line; needs REFERENCE_PATH locally if not skipping):
 #   bash scripts/engaging/submit_parity_heavy_ligand.sh
 #
+# Diagnostics: runs ``scripts/diag_protein_feature_parity.py`` before pytest (stage
+# comparison + stack versions). Set ``PRXTEIN_SKIP_DIAG=1`` to skip. Unbuffered
+# Python is enabled so Slurm ``.out`` receives line-by-line pytest progress.
+#
 #SBATCH --job-name=prx_parity_heavy
 #SBATCH --partition=mit_preemptable,pi_so3
 #SBATCH --gres=gpu:1
@@ -43,6 +47,7 @@ fi
 # Default Engaging layout (override with sbatch --export=ALL,REFERENCE_PATH=/other/path)
 export REFERENCE_PATH="${REFERENCE_PATH:-/home/maarxaru/repos/LigandMPNN}"
 export PYTHONPATH="${REPO_ROOT}/scripts:${REPO_ROOT}/src:${PYTHONPATH:-}"
+export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
 export PRXTEIN_PARITY_TIER="${PRXTEIN_PARITY_TIER:-parity_heavy}"
 export PYTEST_ADDOPTS="-W default${PYTEST_ADDOPTS:+ ${PYTEST_ADDOPTS}}"
 # Prefer GPU backend on CUDA nodes (jax[cuda12] from workspace sync).
@@ -72,6 +77,12 @@ print("jax", jax.__version__, "jaxlib", jaxlib.__version__)
 print("devices", jax.devices())
 PY
 
-uv run pytest tests/parity tests/model/test_ligandmpnn_equivalence.py -m parity_heavy -v
+# Stage-level JAX vs PyTorch edge comparison (see scripts/diag_protein_feature_parity.py).
+if [[ "${PRXTEIN_SKIP_DIAG:-0}" != "1" ]]; then
+  echo "===== diag: protein feature edge stages (stdout, non-fatal on error) ====="
+  uv run python scripts/diag_protein_feature_parity.py 2>&1 || echo "WARNING: diag_protein_feature_parity.py exited non-zero"
+fi
+
+uv run pytest tests/parity tests/model/test_ligandmpnn_equivalence.py -m parity_heavy -v --tb=short -ra
 
 echo "===== Done ====="

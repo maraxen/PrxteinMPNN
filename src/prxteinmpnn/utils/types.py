@@ -1,5 +1,7 @@
 """Type definitions for the PrxteinMPNN project."""
 
+# TODO(tech-debt): `.agents/TECHNICAL_DEBT.md` §10 — tighten contracts (`Protocol`, aliases) at model/sampling boundaries.
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Union

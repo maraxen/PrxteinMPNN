@@ -3,6 +3,8 @@
 This module contains the Equinox-based decoder implementation for ProteinMPNN.
 """
 
+# TODO(tech-debt): `.agents/TECHNICAL_DEBT.md` §6 — docstring / public API audit.
+
 from __future__ import annotations
 
 from functools import partial

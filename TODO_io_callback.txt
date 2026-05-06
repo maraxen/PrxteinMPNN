@@ -1,3 +1,5 @@
+Tracked in `.agents/TECHNICAL_DEBT.md` §14 (host-side I/O streaming).
+
 Roadmap: jax.experimental.io_callback + jax.effects_barrier
 ============================================================
 Pattern: host I/O and large device→host transfers happen inside (or immediately

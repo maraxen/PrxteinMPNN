@@ -57,6 +57,9 @@ def _compute_jacobian_from_logit_fn(
   jacobian_batch_size: Int | None,
 ) -> jax.Array:
   """Compute the Jacobian of a logit function w.r.t. a one-hot sequence."""
+  # TODO(jacobian): Use Hutchinson's trace estimator (stochastic vjp/vjp or jvp/vjp) for
+  # trace / low-rank summaries where the full (L,21,L,21) Jacobian is not required, instead
+  # of one JVP per flattened one-hot coordinate below.
   length = one_hot_sequence.shape[0]
   one_hot_flat = one_hot_sequence.flatten()
   input_dim = one_hot_flat.shape[0]

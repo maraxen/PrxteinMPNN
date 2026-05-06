@@ -1,5 +1,7 @@
 """Principal Component Analysis (PCA) utilities."""
 
+# TODO(tech-debt): `.agents/TECHNICAL_DEBT.md` §12 — migrate PCA helpers to jaxbeans when that package is ready.
+
 from typing import Literal
 
 import jax

@@ -73,6 +73,8 @@ tests = [
 dev = [
   "ruff",
   "ty",
+  # Optional JAX static checks (PyPI). Not a merge gate — run locally when debugging perf/JIT.
+  "jaxlint>=0.1.0a1",
   "sphinx",
   "sphinx-rtd-theme",
   "sphinx-autodoc-typehints",
@@ -180,9 +182,8 @@ allowed-unresolved-imports = ["proxide.**", "prolix.**"]
 invalid-type-form = "ignore"
 
 [tool.jaxlint]
-# jaxlint will eventually ship on PyPI; until then, default workflows must not assume
-# it is installed. Use this section for optional local runs when jaxlint is on PATH.
-# CI does not gate on jaxlint today (contributors develop without it).
+# JAX-oriented static checks (JL*). Optional local runs: ``uv run jaxlint check src --no-doc``.
+# Default CI does not gate on jaxlint (upstream may emit false positives while the tool matures).
 select = ["JL"]
 
 [dependency-groups]

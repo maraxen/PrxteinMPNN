@@ -596,7 +596,7 @@ Each Open Question now has a **default decision** that holds unless a triggering
 | :--- | :--- |
 | **Numeric** | `jnp.allclose(logits_sv, logits_ref, rtol/atol=get_tolerances(float32))` — **PASS** (`parity_fast`: `n_states=2`, `n_can=6`, key 101). |
 | **HLO (advisory)** | Both paths lowered via `export_hlo`; `UserWarning` metrics logged per path. Example local run: **`state_vmap_exact`** — bytes **145368**, newlines **2348**, `custom_call_markers` **0**; **`explicit_vmap_ref`** — bytes **145369**, newlines **2348**, `custom_call_markers` **0** (byte delta **1**; no allowlist assertions—process evidence only). |
-| **`parity_heavy` slice** | Opt-in when **`REFERENCE_PATH`** is a directory (larger synthetic `n_states` / `n_can`); Engaging Slurm job **`13445172`** submitted **2026-05-07** with **`REFERENCE_PATH=/home/maarxaru/repos/LigandMPNN`** — tail **`outputs/logs/slurm/phase0a_state_vmap_spike_13445172.out`** when complete. |
+| **`parity_heavy` slice** | Engaging Slurm **`13445172`** (**2026-05-07**) with **`REFERENCE_PATH=/home/maarxaru/repos/LigandMPNN`**: **`COMPLETED` `ExitCode 0:0`**, wall **~65 s**. Pytest: **`parity_fast`** — `1 passed, 1 deselected`; **`parity_heavy`** — `1 passed, 1 deselected` (~5.5 s each); HLO advisory lines on heavy run: **`state_vmap_exact`** bytes **145368** / **`explicit_vmap_ref`** bytes **145369** (same pattern as §13.2 fast row). |
 
 **NO-GO would apply if:** numeric `allclose` failed, or the team later mandates HLO ceilings in CI (then extend `tests/profiling/hlo_allowlist.toml` + assert).
 

@@ -11,6 +11,8 @@ The core of the algorithm, `perform_dbscan_clustering`, is adapted from the
 matrix-based approach in github.com/justktln2/ciMIST.
 """
 
+# TODO(tech-debt): `.agents/TECHNICAL_DEBT.md` §12 — migrate generic DBSCAN utilities to jaxbeans when that package is ready.
+
 from collections.abc import Callable
 from functools import partial
 from typing import Literal, cast

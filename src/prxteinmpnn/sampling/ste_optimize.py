@@ -11,10 +11,10 @@ JAX_ENABLE_REMAT environment variable to trade CPU speed for memory efficiency.
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Callable
 from functools import partial
 from typing import TYPE_CHECKING, Any, cast
-import os
 
 import jax
 import jax.numpy as jnp
@@ -226,7 +226,7 @@ def make_optimize_sequence_fn(
         # Exponential annealing: tau_start → tau_end over all iterations.
         # Uses traced `iterations` and `_iteration` so no Python branching at step time.
         progress = jnp.float32(_iteration) / jnp.maximum(
-          jnp.float32(iterations) - 1.0, 1.0
+          jnp.float32(iterations) - 1.0, 1.0,
         )
         tau = jnp.float32(tau_start) * (jnp.float32(tau_end / tau_start) ** progress)
       else:
@@ -294,7 +294,7 @@ def make_optimize_sequence_fn(
         if remat_value not in remat_truthy and remat_value != "0":
           logger.warning(
             f"Unrecognized JAX_ENABLE_REMAT='{remat_value}', treating as disabled. "
-            f"Accepted values: {remat_truthy | {'0'}} (case-insensitive)."
+            f"Accepted values: {remat_truthy | {'0'}} (case-insensitive).",
           )
         enable_remat = remat_value in remat_truthy
         if enable_remat:

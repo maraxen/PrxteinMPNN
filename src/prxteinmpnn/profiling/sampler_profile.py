@@ -10,13 +10,15 @@ Usage:
     profiler.print_report()
 """
 
-import time
 import logging
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Any, Dict, List
-import numpy as np
+from typing import Any
+
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +51,7 @@ class ProfileResult:
 class SamplingProfiler:
     """Comprehensive profiler for sampling configurations."""
 
-    def __init__(self, settings: List[Dict[str, Any]]):
+    def __init__(self, settings: list[dict[str, Any]]):
         """
         Args:
             settings: List of config dicts with keys:
@@ -60,15 +62,15 @@ class SamplingProfiler:
                 - learning_rate: float (optional, default 0.01)
         """
         self.settings = settings
-        self.results: List[ProfileResult] = []
+        self.results: list[ProfileResult] = []
 
     def profile_sampler(
         self,
         sampler_fn: Callable,
-        inputs: Dict[str, Any],
+        inputs: dict[str, Any],
         num_samples: int = 32,
         num_trials: int = 3,
-    ) -> List[ProfileResult]:
+    ) -> list[ProfileResult]:
         """Profile sampler across all settings.
 
         Args:
@@ -90,7 +92,7 @@ class SamplingProfiler:
             logger.info(f"{'='*60}")
 
             result = self._profile_single_setting(
-                sampler_fn, inputs, setting, num_samples, num_trials
+                sampler_fn, inputs, setting, num_samples, num_trials,
             )
             self.results.append(result)
 
@@ -99,8 +101,8 @@ class SamplingProfiler:
     def _profile_single_setting(
         self,
         sampler_fn: Callable,
-        inputs: Dict[str, Any],
-        setting: Dict[str, Any],
+        inputs: dict[str, Any],
+        setting: dict[str, Any],
         num_samples: int,
         num_trials: int,
     ) -> ProfileResult:
@@ -115,7 +117,7 @@ class SamplingProfiler:
         try:
             # Create wrapped sampler with settings
             wrapped_sampler = self._wrap_sampler(
-                sampler_fn, precision, remat, iterations, learning_rate
+                sampler_fn, precision, remat, iterations, learning_rate,
             )
 
             # Prepare batched version
@@ -135,7 +137,7 @@ class SamplingProfiler:
 
             # Measure memory
             peak_memory_mb = self._measure_peak_memory(
-                batched_sampler, batch_size, inputs
+                batched_sampler, batch_size, inputs,
             )
 
             # Profile runtime
@@ -215,8 +217,8 @@ class SamplingProfiler:
             # Convert inputs to specified precision
             if precision == "bfloat16":
                 inputs_cast = jax.tree_util.tree_map(
-                    lambda x: x.astype(jnp.bfloat16) if hasattr(x, 'astype') else x,
-                    inputs
+                    lambda x: x.astype(jnp.bfloat16) if hasattr(x, "astype") else x,
+                    inputs,
                 )
             else:
                 inputs_cast = inputs
@@ -226,14 +228,14 @@ class SamplingProfiler:
                 key,
                 iterations=iterations,
                 learning_rate=learning_rate,
-                **inputs_cast
+                **inputs_cast,
             )
 
             # Convert back to float32 if needed
             if precision == "bfloat16":
                 result = jax.tree_util.tree_map(
-                    lambda x: x.astype(jnp.float32) if hasattr(x, 'astype') else x,
-                    result
+                    lambda x: x.astype(jnp.float32) if hasattr(x, "astype") else x,
+                    result,
                 )
 
             return result
@@ -247,11 +249,10 @@ class SamplingProfiler:
         self,
         batched_sampler: Callable,
         batch_size: int,
-        inputs: Dict[str, Any],
+        inputs: dict[str, Any],
     ) -> float:
         """Measure peak memory usage using JAX memory analysis."""
         try:
-            from jax._src import xla
 
             key = jax.random.PRNGKey(0)
             batch_keys = jax.random.split(key, batch_size)
@@ -278,7 +279,7 @@ class SamplingProfiler:
             return
 
         print(f"\n{'='*80}")
-        print(f"Sampling Profiler Report")
+        print("Sampling Profiler Report")
         print(f"{'='*80}\n")
 
         # Table header
@@ -305,7 +306,7 @@ class SamplingProfiler:
             best = min(
                 (r for r in self.results if not r.error),
                 key=lambda r: r.est_1024_minutes,
-                default=None
+                default=None,
             )
             if best:
                 print(f"Best config: batch_size={best.batch_size}, {best.precision}, remat={best.remat}")

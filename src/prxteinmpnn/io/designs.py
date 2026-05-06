@@ -62,7 +62,7 @@ class DesignArrayRecordWriter:
         "sequence": (n_canonical,),      # uint8
         "logits": (n_canonical, 21),     # float16 — upcast to float32 before softmax/logsumexp (see class docstring)
         "scores": (1,),                  # float32
-        "state_weights": (n_states,)     # float32
+        "state_weights": (n_states,),     # float32
         # metadata (task_id, model, etc) stored as suffix of logits
     }
 

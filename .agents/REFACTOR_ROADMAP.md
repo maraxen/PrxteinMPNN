@@ -584,6 +584,8 @@ Each Open Question now has a **default decision** that holds unless a triggering
 
 **Release posture:** Treat **`parity_targeted`** as a **fast GPU smoke** for the former red quartet. **`parity_heavy` full suite** (`submit_parity_heavy_ligand.sh`) remains the **manual release gate** per §11 / DoD—re-run it once per release or when JIT/feature code near these paths changes.
 
+**Full `parity_heavy` gate (in flight):** After **`just push`** to Engaging (**2026-05-05**), submitted **`submit_parity_heavy_ligand.sh`** as Slurm job **`13441413`**. When it finishes, record **`sacct -j 13441413`** state (`COMPLETED` / `FAILED`, `ExitCode`) and the pytest tail from **`outputs/logs/slurm/parity_heavy_ligand_13441413.out`** in this subsection (or the active sprint note) so the §11 manual gate is documented for the **whole** `-m parity_heavy` matrix, not only **`parity_targeted`**.
+
 ---
 
 ## 14. Sprint status (Phase 0a GO + PR2b; Phase 4 prep)
@@ -591,7 +593,7 @@ Each Open Question now has a **default decision** that holds unless a triggering
 | Field | Value |
 | :--- | :--- |
 | **task_id** | `refactor-sprint-20260507-phase0a-go-pr2-sample` (active sprint); OODA cycle `refactor-sprint-20260507-ooda`; prior `refactor-phase4-pr2-20260506`, `refactor-phase4-entry-20260505`, `refactor-phase3b-sprint-20260506`, `refactor-phase3-sprint-20260505` |
-| **Last update** | 2026-05-06 |
+| **Last update** | 2026-05-05 — full **`parity_heavy`** gate job **`13441413`** submitted (Engaging); outcome pending (see §13.1 tail). |
 | **Current phase** | **Phase 3b signed off** on `main`. **PR2a (unconditional logits factories → payload)** landed under `.agents/SPRINT_refactor-phase3c-0a-pr2-20260506.md`. **Active plan body:** `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md` — **WP1** Phase 0a GO closure (§230 HLO byte + op-summary in PR text; filtered logs); **PR2b** `sample.py` loose-stack → payload **subject to JIT / static `n_flat` note** in that sprint (no blind in-jit `int(jnp.max(state_flat_rows))`). **Phase 4** remains **blocked from merge on `main`** until Phase **0a** records explicit **GO** (§227–238, §11 #10 split acceptance). |
 | **Still open** | **Phase 4:** `registry.py`, frozen `_COMBINE_INDEX`, `MULTISTATE_MODES`, `state_vmap_exact` unify vs registry-route. **PR2b:** `sample.py` tuple branches when `multistate_stack is None` (strategy A/B/C in active sprint). **Defer:** STE / straight_through; portable RunSpec JSON v3 bundled with registry work. |
 | **Plan** | **Active:** `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md`. **Prior / superseded plan body:** `.agents/SPRINT_refactor-phase3c-0a-pr2-20260506.md` (retain for PR2a history). **Prior (retained):** `.agents/SPRINT_refactor-phase4-entry-20260505.md`. **Prior / closed (do not delete):** `.agents/SPRINT_refactor-phase3b-20260506.md`, `.agents/SPRINT_refactor-phase3-20260505.md`. |

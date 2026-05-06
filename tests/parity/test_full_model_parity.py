@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 from scipy.stats import pearsonr
 
+from prxteinmpnn.io.weights import load_weights
 from prxteinmpnn.model.mpnn import PrxteinMPNN
 from tests.parity.reference_utils import require_heavy_parity_prereqs
 
@@ -166,13 +167,13 @@ def heavy_parity_models() -> HeavyParityModels:
   pytest.importorskip("torch")
   reference_root, repo_root = require_heavy_parity_prereqs(
     reference_rel_paths=["model_params/proteinmpnn_v_48_020.pt"],
-    converted_rel_paths=["model_params/proteinmpnn_v_48_020_converted.eqx"],
+    converted_rel_paths=["src/prxteinmpnn/model_params/proteinmpnn_v_48_020.eqx.zst"],
   )
   import model_utils
   import torch
 
   pt_checkpoint_path = reference_root / "model_params/proteinmpnn_v_48_020.pt"
-  jax_checkpoint_path = repo_root / "model_params/proteinmpnn_v_48_020_converted.eqx"
+  jax_checkpoint_path = repo_root / "src/prxteinmpnn/model_params/proteinmpnn_v_48_020.eqx.zst"
   checkpoint = torch.load(pt_checkpoint_path, map_location="cpu")
 
   pos_weight = checkpoint["model_state_dict"].get("features.embeddings.linear.weight")
@@ -204,7 +205,7 @@ def heavy_parity_models() -> HeavyParityModels:
     dropout_rate=0.0,
     key=jax_key,
   )
-  jax_model_eqx = eqx.tree_deserialise_leaves(jax_checkpoint_path, jax_skeleton)
+  jax_model_eqx = load_weights(local_path=str(jax_checkpoint_path), skeleton=jax_skeleton)
 
   pt_state_dict_numpy: dict[str, np.ndarray] = {}
   for k, v in checkpoint["model_state_dict"].items():

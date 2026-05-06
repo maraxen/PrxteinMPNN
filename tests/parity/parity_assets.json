@@ -109,13 +109,13 @@
     {
       "id": "converted-proteinmpnn-020",
       "base": "project",
-      "path": "model_params/proteinmpnn_v_48_020_converted.eqx",
-      "sha256": "d5e303eaf08438ebb43a5ae9696c549656dea8a9c00dfa7bea644ae7775a5c9e",
+      "path": "src/prxteinmpnn/model_params/proteinmpnn_v_48_020.eqx.zst",
+      "sha256": null,
       "required_for": [
         "parity_heavy",
         "parity_audit"
       ],
-      "source": "Converted from dauparas/LigandMPNN@3870631 checkpoint",
+      "source": "Bundled compressed Equinox weights (same checkpoint family as dauparas/LigandMPNN .pt)",
       "asset_kind": "converted_checkpoint",
       "family": "protein",
       "checkpoint_variant": "v_48_020",

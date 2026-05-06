@@ -9,6 +9,10 @@ Multistate parallel encode (``state_vmap_exact``): use
 decoding_approach=\"unconditional\", multistate_mode=\"state_vmap_exact\", ...)``
 with ``coords_stack`` / ``mask_stack`` / ``state_flat_rows`` / ``n_flat`` (and
 ligand ``y_*_stack`` when applicable).
+
+For a :class:`~prxteinmpnn.payloads.MultistateStackPayload` carrier, prefer
+:meth:`prxteinmpnn.model.mpnn.PrxteinMPNN.score_unconditional_state_vmap_exact_from_payload`
+or :meth:`~prxteinmpnn.model.mpnn.PrxteinLigandMPNN.score_unconditional_state_vmap_exact_from_payload`.
 """
 
 from __future__ import annotations

@@ -11,6 +11,7 @@ from jaxtyping import Float, PRNGKeyArray
 
 from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
 from prxteinmpnn.model.multistate_stack import gather_flat_to_stack, scatter_stack_to_flat
+from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
 from prxteinmpnn.protocols import ScoreFn, StateVmapExactScoreFn
 from prxteinmpnn.run.averaging import make_encoding_sampling_split_fn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
@@ -238,24 +239,46 @@ def _make_score_fn_state_vmap_exact(
     multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
     multi_state_temperature: Float = 1.0,
     *,
-    coords_stack: jax.Array,
-    mask_stack: jax.Array,
-    residue_index_stack: jax.Array,
-    chain_index_stack: jax.Array,
-    state_flat_rows: jax.Array,
-    n_flat: int,
-    state_weights: jax.Array,
+    coords_stack: jax.Array | None = None,
+    mask_stack: jax.Array | None = None,
+    residue_index_stack: jax.Array | None = None,
+    chain_index_stack: jax.Array | None = None,
+    state_flat_rows: jax.Array | None = None,
+    n_flat: int | None = None,
+    state_weights: jax.Array | None = None,
     y_stack: jax.Array | None = None,
     y_t_stack: jax.Array | None = None,
     y_m_stack: jax.Array | None = None,
     ar_mask_stack: jax.Array | None = None,
     bias_flat: jax.Array | None = None,
     states_chunk_size: int = 0,
+    multistate_stack: MultistateStackPayload | None = None,
+    ligand_stack: LigandStack | None = None,
     **kwargs: object,
   ) -> tuple[Float, Logits, DecodingOrder]:
     del kwargs, structure_coordinates, mask, residue_index, chain_index, backbone_noise, ar_mask
+    if multistate_stack is not None:
+      coords_stack = multistate_stack.coords_stack
+      mask_stack = multistate_stack.mask_stack
+      residue_index_stack = multistate_stack.residue_index_stack
+      chain_index_stack = multistate_stack.chain_index_stack
+      state_flat_rows = multistate_stack.state_flat_rows
+      n_flat = int(multistate_stack.n_flat)
+    if ligand_stack is not None:
+      if y_stack is not None or y_t_stack is not None or y_m_stack is not None:
+        msg = "state_vmap_exact scoring: pass either ligand_stack= or y_stack= / y_t_stack= / y_m_stack=, not both"
+        raise ValueError(msg)
+      y_stack = ligand_stack.y_stack
+      y_t_stack = ligand_stack.y_t_stack
+      y_m_stack = ligand_stack.y_m_stack
+    if coords_stack is None or mask_stack is None or residue_index_stack is None or chain_index_stack is None:
+      msg = "state_vmap_exact scoring requires stack tensors or multistate_stack="
+      raise ValueError(msg)
+    if state_flat_rows is None or n_flat is None or state_weights is None:
+      msg = "state_vmap_exact scoring requires state_flat_rows=, n_flat=, state_weights="
+      raise ValueError(msg)
     if is_lig and (y_stack is None or y_t_stack is None or y_m_stack is None):
-      msg = "PrxteinLigandMPNN state_vmap_exact scoring requires y_stack, y_t_stack, y_m_stack kwargs"
+      msg = "PrxteinLigandMPNN state_vmap_exact scoring requires y_stack, y_t_stack, y_m_stack kwargs or ligand_stack="
       raise ValueError(msg)
     return score_sequence_core(
       prng_key,

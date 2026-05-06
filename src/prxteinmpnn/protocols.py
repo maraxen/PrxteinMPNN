@@ -8,6 +8,7 @@ import jax
 from jaxtyping import Float, Int, PRNGKeyArray
 
 if TYPE_CHECKING:
+  from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
     AutoRegressiveMask,
@@ -112,6 +113,8 @@ class SamplerFn(Protocol):
     y_stack: jax.Array | None = None,
     y_t_stack: jax.Array | None = None,
     y_m_stack: jax.Array | None = None,
+    multistate_stack: MultistateStackPayload | None = None,
+    ligand_stack: LigandStack | None = None,
     **kwargs: object,
   ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
     ...
@@ -142,7 +145,13 @@ class ScoreFn(Protocol):
 
 @runtime_checkable
 class StateVmapExactScoreFn(Protocol):
-  """Stacked ``state_vmap_exact`` scoring; stack kwargs are keyword-only."""
+  """Stacked ``state_vmap_exact`` scoring; stack kwargs are keyword-only.
+
+  Pass either individual ``coords_stack=`` … ``n_flat=`` tensors or a single
+  ``multistate_stack=`` :class:`~prxteinmpnn.payloads.MultistateStackPayload`` (and
+  ``ligand_stack=`` for ligand models); when ``multistate_stack`` is set it overrides
+  the unpacked stack keyword arguments.
+  """
 
   def __call__(
     self,
@@ -159,19 +168,21 @@ class StateVmapExactScoreFn(Protocol):
     multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
     multi_state_temperature: Float = 1.0,
     *,
-    coords_stack: jax.Array,
-    mask_stack: jax.Array,
-    residue_index_stack: jax.Array,
-    chain_index_stack: jax.Array,
-    state_flat_rows: jax.Array,
-    n_flat: int,
-    state_weights: jax.Array,
+    coords_stack: jax.Array | None = None,
+    mask_stack: jax.Array | None = None,
+    residue_index_stack: jax.Array | None = None,
+    chain_index_stack: jax.Array | None = None,
+    state_flat_rows: jax.Array | None = None,
+    n_flat: int | None = None,
+    state_weights: jax.Array | None = None,
     y_stack: jax.Array | None = None,
     y_t_stack: jax.Array | None = None,
     y_m_stack: jax.Array | None = None,
     ar_mask_stack: jax.Array | None = None,
     bias_flat: jax.Array | None = None,
     states_chunk_size: int = 0,
+    multistate_stack: MultistateStackPayload | None = None,
+    ligand_stack: LigandStack | None = None,
     **kwargs: object,
   ) -> tuple[Float, Logits, DecodingOrder]:
     ...

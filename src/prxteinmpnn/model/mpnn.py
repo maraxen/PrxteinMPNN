@@ -30,6 +30,7 @@ from prxteinmpnn.model.multi_state_sampling import (
 )
 from prxteinmpnn.model.multistate_stack import gather_flat_to_stack, scatter_stack_to_flat
 from prxteinmpnn.padding import LENGTH_BUCKETS
+from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
 from prxteinmpnn.utils.concatenate import concatenate_neighbor_nodes
 from prxteinmpnn.utils.ste import straight_through_estimator
 
@@ -1970,6 +1971,43 @@ class PrxteinMPNN(eqx.Module):
     del _pk_out
     return seq_out.astype(log_dtype), log_out.astype(log_dtype)
 
+  def sample_autoregressive_state_vmap_exact_from_payload(
+    self,
+    prng_key: PRNGKeyArray,
+    stack: MultistateStackPayload,
+    autoregressive_mask_stack: jax.Array,
+    bias_stack: jax.Array,
+    temperature: Float | float,
+    multi_state_strategy_idx: Int,
+    multi_state_temperature: Float,
+    state_weights: jnp.ndarray | None,
+    wave_group_ids_local: jax.Array,
+    wave_group_positions_local: jax.Array,
+    wave_group_valid_local: jax.Array,
+    wave_position_valid_local: jax.Array,
+  ) -> tuple[OneHotProteinSequence, Logits]:
+    """Same as :meth:`sample_autoregressive_state_vmap_exact` with geometry read from ``stack``."""
+    return self.sample_autoregressive_state_vmap_exact(
+      prng_key,
+      stack.coords_stack,
+      stack.mask_stack,
+      stack.residue_index_stack,
+      stack.chain_index_stack,
+      autoregressive_mask_stack,
+      stack.tie_group_map_stack,
+      bias_stack,
+      temperature,
+      multi_state_strategy_idx,
+      multi_state_temperature,
+      state_weights,
+      stack.fixed_mask_stack,
+      stack.fixed_tokens_stack,
+      wave_group_ids_local,
+      wave_group_positions_local,
+      wave_group_valid_local,
+      wave_position_valid_local,
+    )
+
   def score_unconditional_state_vmap_exact(
     self,
     prng_key: PRNGKeyArray,
@@ -2030,6 +2068,35 @@ class PrxteinMPNN(eqx.Module):
         state_mapping,
       )
     return logits_flat
+
+  def score_unconditional_state_vmap_exact_from_payload(
+    self,
+    prng_key: PRNGKeyArray,
+    stack: MultistateStackPayload,
+    *,
+    tie_group_map: TieGroupMap | None,
+    multi_state_strategy_idx: Int,
+    multi_state_temperature: Float | float,
+    state_weights: jnp.ndarray | None,
+    state_mapping: jnp.ndarray | None,
+    inference: bool = True,
+  ) -> Logits:
+    """Same as :meth:`score_unconditional_state_vmap_exact` with stacked geometry from ``stack``."""
+    return self.score_unconditional_state_vmap_exact(
+      prng_key,
+      stack.coords_stack,
+      stack.mask_stack,
+      stack.residue_index_stack,
+      stack.chain_index_stack,
+      stack.state_flat_rows,
+      stack.n_flat,
+      tie_group_map=tie_group_map,
+      multi_state_strategy_idx=multi_state_strategy_idx,
+      multi_state_temperature=multi_state_temperature,
+      state_weights=state_weights,
+      state_mapping=state_mapping,
+      inference=inference,
+    )
 
   def score_conditional_state_vmap_exact(
     self,
@@ -2114,6 +2181,41 @@ class PrxteinMPNN(eqx.Module):
         state_mapping,
       )
     return logits_flat
+
+  def score_conditional_state_vmap_exact_from_payload(
+    self,
+    prng_key: PRNGKeyArray,
+    stack: MultistateStackPayload,
+    seq_oh_stack: jax.Array,
+    ar_mask_stack: jax.Array,
+    *,
+    tie_group_map: TieGroupMap | None,
+    multi_state_strategy_idx: Int,
+    multi_state_temperature: Float | float,
+    state_weights: jnp.ndarray | None,
+    state_mapping: jnp.ndarray | None,
+    bias_flat: jax.Array | None = None,
+    inference: bool = True,
+  ) -> Logits:
+    """Same as :meth:`score_conditional_state_vmap_exact` with stacked geometry from ``stack``."""
+    return self.score_conditional_state_vmap_exact(
+      prng_key,
+      stack.coords_stack,
+      stack.mask_stack,
+      stack.residue_index_stack,
+      stack.chain_index_stack,
+      seq_oh_stack,
+      ar_mask_stack,
+      stack.state_flat_rows,
+      stack.n_flat,
+      tie_group_map=tie_group_map,
+      multi_state_strategy_idx=multi_state_strategy_idx,
+      multi_state_temperature=multi_state_temperature,
+      state_weights=state_weights,
+      state_mapping=state_mapping,
+      bias_flat=bias_flat,
+      inference=inference,
+    )
 
 
 class PrxteinLigandMPNN(eqx.Module):
@@ -3146,6 +3248,41 @@ class PrxteinLigandMPNN(eqx.Module):
       )
     return logits_flat
 
+  def score_unconditional_state_vmap_exact_from_payload(
+    self,
+    prng_key: PRNGKeyArray,
+    stack: MultistateStackPayload,
+    ligand: LigandStack,
+    *,
+    tie_group_map: TieGroupMap | None,
+    multi_state_strategy_idx: Int,
+    multi_state_temperature: Float | float,
+    state_weights: jnp.ndarray | None,
+    state_mapping: jnp.ndarray | None,
+    _dropout_inference: bool = True,
+    states_chunk_size: int | None = None,
+  ) -> Logits:
+    """Same as :meth:`score_unconditional_state_vmap_exact` with ``stack`` + :class:`~prxteinmpnn.payloads.LigandStack`."""
+    return self.score_unconditional_state_vmap_exact(
+      prng_key,
+      stack.coords_stack,
+      stack.mask_stack,
+      stack.residue_index_stack,
+      stack.chain_index_stack,
+      ligand.y_stack,
+      ligand.y_t_stack,
+      ligand.y_m_stack,
+      stack.state_flat_rows,
+      stack.n_flat,
+      tie_group_map=tie_group_map,
+      multi_state_strategy_idx=multi_state_strategy_idx,
+      multi_state_temperature=multi_state_temperature,
+      state_weights=state_weights,
+      state_mapping=state_mapping,
+      _dropout_inference=_dropout_inference,
+      states_chunk_size=states_chunk_size,
+    )
+
   def score_conditional_state_vmap_exact(
     self,
     prng_key: PRNGKeyArray,
@@ -3267,6 +3404,47 @@ class PrxteinLigandMPNN(eqx.Module):
         state_mapping,
       )
     return logits_flat
+
+  def score_conditional_state_vmap_exact_from_payload(
+    self,
+    prng_key: PRNGKeyArray,
+    stack: MultistateStackPayload,
+    ligand: LigandStack,
+    seq_oh_stack: jax.Array,
+    ar_mask_stack: jax.Array,
+    *,
+    tie_group_map: TieGroupMap | None,
+    multi_state_strategy_idx: Int,
+    multi_state_temperature: Float | float,
+    state_weights: jnp.ndarray | None,
+    state_mapping: jnp.ndarray | None,
+    bias_flat: jax.Array | None = None,
+    inference: bool = True,
+    states_chunk_size: int | None = None,
+  ) -> Logits:
+    """Same as :meth:`score_conditional_state_vmap_exact` with ``stack`` + :class:`~prxteinmpnn.payloads.LigandStack`."""
+    return self.score_conditional_state_vmap_exact(
+      prng_key,
+      stack.coords_stack,
+      stack.mask_stack,
+      stack.residue_index_stack,
+      stack.chain_index_stack,
+      ligand.y_stack,
+      ligand.y_t_stack,
+      ligand.y_m_stack,
+      seq_oh_stack,
+      ar_mask_stack,
+      stack.state_flat_rows,
+      stack.n_flat,
+      tie_group_map=tie_group_map,
+      multi_state_strategy_idx=multi_state_strategy_idx,
+      multi_state_temperature=multi_state_temperature,
+      state_weights=state_weights,
+      state_mapping=state_mapping,
+      bias_flat=bias_flat,
+      inference=inference,
+      states_chunk_size=states_chunk_size,
+    )
 
   def sample_autoregressive_state_vmap_exact(
     self,
@@ -3610,6 +3788,47 @@ class PrxteinLigandMPNN(eqx.Module):
     )
     del _pk_out
     return seq_out.astype(log_dtype), log_out.astype(log_dtype)
+
+  def sample_autoregressive_state_vmap_exact_from_payload(
+    self,
+    prng_key: PRNGKeyArray,
+    stack: MultistateStackPayload,
+    ligand: LigandStack,
+    autoregressive_mask_stack: jax.Array,
+    bias_stack: jax.Array,
+    temperature: Float | float,
+    multi_state_strategy_idx: Int,
+    multi_state_temperature: Float,
+    state_weights: jnp.ndarray | None,
+    wave_group_ids_local: jax.Array,
+    wave_group_positions_local: jax.Array,
+    wave_group_valid_local: jax.Array,
+    wave_position_valid_local: jax.Array,
+  ) -> tuple[OneHotProteinSequence, Logits]:
+    """Same as :meth:`sample_autoregressive_state_vmap_exact` with ``stack`` + :class:`~prxteinmpnn.payloads.LigandStack`."""
+    return self.sample_autoregressive_state_vmap_exact(
+      prng_key,
+      stack.coords_stack,
+      stack.mask_stack,
+      stack.residue_index_stack,
+      stack.chain_index_stack,
+      autoregressive_mask_stack,
+      stack.tie_group_map_stack,
+      bias_stack,
+      temperature,
+      multi_state_strategy_idx,
+      multi_state_temperature,
+      state_weights,
+      stack.fixed_mask_stack,
+      stack.fixed_tokens_stack,
+      ligand.y_stack,
+      ligand.y_t_stack,
+      ligand.y_m_stack,
+      wave_group_ids_local,
+      wave_group_positions_local,
+      wave_group_valid_local,
+      wave_position_valid_local,
+    )
 
 
 def ligand_encode_stack_row(

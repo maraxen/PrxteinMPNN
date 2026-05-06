@@ -1,17 +1,21 @@
 """JSON-safe round-trip for a **subset** of :class:`RunSpec` static fields.
 
-Full Equinox / PyTree serialization is out of scope. Only ``version``,
-``multistate`` (``mode``, ``n_states``, ``combine_strategy``), ``resource``
-(``n_devices``, ``sample_batch_size``, ``structure_batch_size``, optional
-``max_buffer_size``), and ``precision.compute`` are read from or written to JSON-native dicts. Other
-sub-configs on :func:`run_spec_portable_from_dict` are **placeholders** aligned
-with :func:`build_run_spec` defaults for a minimal single-GPU
-:class:`~prxteinmpnn.run.specs.RunSpecification`-style inference stub.
+Full Equinox / PyTree serialization is out of scope. Wire format versions:
+
+- **v1** (legacy): ``multistate``, ``resource``, ``precision`` only; ``io`` is a
+  placeholder on deserialize.
+- **v2** (current): adds ``io`` (``sink_kind``, optional ``output_dir`` / ``manifest_path``
+  as POSIX strings or null). Other sub-configs remain **placeholders** aligned with
+  :func:`build_run_spec` defaults for a minimal single-GPU
+  :class:`~prxteinmpnn.run.specs.RunSpecification`-style inference stub.
+
+:func:`run_spec_portable_to_dict` always emits **v2**.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any, Literal, cast
 
 from .spec import (
@@ -27,7 +31,9 @@ from .spec import (
   TiedPositionsConfig,
 )
 
-PORTABLE_RUN_SPEC_VERSION = 1
+PORTABLE_RUN_SPEC_VERSION = 2
+PORTABLE_RUN_SPEC_LEGACY_VERSION = 1
+_SUPPORTED_PORTABLE_VERSIONS = frozenset({PORTABLE_RUN_SPEC_VERSION, PORTABLE_RUN_SPEC_LEGACY_VERSION})
 
 _PrecisionLabel = Literal["fp32", "fp16", "bf16"]
 
@@ -39,6 +45,21 @@ def _as_int(path: str, value: object) -> int:
     msg = f"[portable_run_spec] {path}: expected int, got {type(value).__name__}"
     raise TypeError(msg)
   return value
+
+
+def _optional_path_str(path: str, value: object) -> Path | None:
+  if value is None:
+    return None
+  if type(value) is not str:
+    msg = f"[portable_run_spec] {path}: expected str or null, got {type(value).__name__}"
+    raise TypeError(msg)
+  return Path(value)
+
+
+def _path_to_json_str(p: Path | None) -> str | None:
+  if p is None:
+    return None
+  return p.as_posix()
 
 
 def _as_optional_positive_int(path: str, value: object) -> int | None:
@@ -72,9 +93,10 @@ def _placeholder_run_spec(
   multistate: MultistateConfig,
   resource: ResourceConfig,
   precision: PrecisionConfig,
+  io: IOConfig | None = None,
 ) -> RunSpec:
   """Defaults mirror :func:`build_run_spec` for a bare ``RunSpecification``-like spec."""
-  io = IOConfig(output_dir=None, sink_kind="none", manifest_path=None)
+  io_final = io if io is not None else IOConfig(output_dir=None, sink_kind="none", manifest_path=None)
   ligand = LigandConfig(
     model_family="proteinmpnn",
     use_side_chain_context=None,
@@ -115,7 +137,7 @@ def _placeholder_run_spec(
     state_weights=None,
   )
   tree = RunSpec(
-    io=io,
+    io=io_final,
     resource=resource,
     multistate=multistate,
     ligand=ligand,
@@ -132,6 +154,11 @@ def run_spec_portable_to_dict(run_spec: RunSpec) -> dict[str, Any]:
   """Export JSON-native fields from ``run_spec`` (static scalar subset only)."""
   return {
     "version": PORTABLE_RUN_SPEC_VERSION,
+    "io": {
+      "sink_kind": run_spec.io.sink_kind,
+      "output_dir": _path_to_json_str(run_spec.io.output_dir),
+      "manifest_path": _path_to_json_str(run_spec.io.manifest_path),
+    },
     "multistate": {
       "mode": run_spec.multistate.mode,
       "n_states": run_spec.multistate.n_states,
@@ -150,9 +177,12 @@ def run_spec_portable_to_dict(run_spec: RunSpec) -> dict[str, Any]:
 def run_spec_portable_from_dict(data: Mapping[str, Any]) -> RunSpec:
   """Parse portable dict; unknown top-level keys are ignored."""
   raw_ver = data.get("version", None)
-  if type(raw_ver) is not int or raw_ver != PORTABLE_RUN_SPEC_VERSION:
-    msg = f"[portable_run_spec] version: expected int {PORTABLE_RUN_SPEC_VERSION}, got {raw_ver!r}"
+  if type(raw_ver) is not int or raw_ver not in _SUPPORTED_PORTABLE_VERSIONS:
+    msg = (
+      f"[portable_run_spec] version: expected int in {_SUPPORTED_PORTABLE_VERSIONS!r}, got {raw_ver!r}"
+    )
     raise ValueError(msg)
+  wire_ver = raw_ver
 
   for key in ("multistate", "resource", "precision"):
     if key not in data:
@@ -200,8 +230,27 @@ def run_spec_portable_from_dict(data: Mapping[str, Any]) -> RunSpec:
     raise ValueError(msg)
   precision = cast("PrecisionConfig", PrecisionConfig(compute=cast("_PrecisionLabel", compute)))
 
+  io_cfg: IOConfig | None = None
+  if wire_ver == PORTABLE_RUN_SPEC_VERSION:
+    if "io" not in data:
+      msg = "[portable_run_spec] missing required key 'io' (required for wire format v2)"
+      raise ValueError(msg)
+    iom = _as_mapping("io", data["io"])
+    if "sink_kind" not in iom:
+      msg = "[portable_run_spec] io.sink_kind: required key missing"
+      raise ValueError(msg)
+    io_cfg = cast(
+      "IOConfig",
+      IOConfig(
+        output_dir=_optional_path_str("io.output_dir", iom.get("output_dir", None)),
+        sink_kind=_as_str("io.sink_kind", iom["sink_kind"]),
+        manifest_path=_optional_path_str("io.manifest_path", iom.get("manifest_path", None)),
+      ),
+    )
+
   return _placeholder_run_spec(
     multistate=multistate,
     resource=resource,
     precision=precision,
+    io=io_cfg,
   )

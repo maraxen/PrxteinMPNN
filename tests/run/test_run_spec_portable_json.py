@@ -106,8 +106,7 @@ def test_portable_dict_roundtrip_preserves_subset_only() -> None:
   assert rs2.resource == rs.resource
   assert rs2.precision == rs.precision
 
-  assert rs2.io.sink_kind == "none"
-  assert rs2.io.output_dir is None
+  assert rs2.io == rs.io
   assert rs2.ligand.model_family == "proteinmpnn"
   assert rs2.ligand.ligand_conditioning is False
   assert rs2.tied.pass_mode == "intra"
@@ -150,6 +149,7 @@ def test_build_run_spec_max_buffer_size_from_spec() -> None:
 
 _MIN_RES = {"n_devices": 1, "sample_batch_size": 1, "structure_batch_size": 1}
 _MIN_PREC = {"compute": "fp32"}
+_MIN_IO = {"sink_kind": "none", "output_dir": None, "manifest_path": None}
 
 
 @pytest.mark.parametrize(
@@ -157,12 +157,22 @@ _MIN_PREC = {"compute": "fp32"}
   [
     (
       {
-        "version": 2,
+        "version": 99,
+        "io": _MIN_IO,
         "multistate": {"mode": "a", "n_states": 1, "combine_strategy": "x"},
         "resource": _MIN_RES,
         "precision": _MIN_PREC,
       },
       "version",
+    ),
+    (
+      {
+        "version": PORTABLE_RUN_SPEC_VERSION,
+        "multistate": {"mode": "a", "n_states": 1, "combine_strategy": "x"},
+        "resource": _MIN_RES,
+        "precision": _MIN_PREC,
+      },
+      "io",
     ),
     (
       {"version": 1, "resource": _MIN_RES, "precision": _MIN_PREC},

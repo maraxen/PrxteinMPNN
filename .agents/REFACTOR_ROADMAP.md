@@ -568,18 +568,18 @@ Each Open Question now has a **default decision** that holds unless a triggering
 
 ---
 
-## 14. Sprint status (Phase 3c + 0a GO / PR2; Phase 4 prep)
+## 14. Sprint status (Phase 0a GO + PR2b; Phase 4 prep)
 
 | Field | Value |
 | :--- | :--- |
-| **task_id** | `refactor-phase4-pr2-20260506` (OODA); prior `refactor-phase4-entry-20260505`, `refactor-phase3b-sprint-20260506`, `refactor-phase3-sprint-20260505` |
-| **Last update** | 2026-05-06 |
-| **Current phase** | **Phase 3b signed off** (portable RunSpec JSON v2 + `spec.py` hygiene on `main`). **Active sprint:** Phase **0a GO** checklist + **PR2** tuple→payload follow-on (see `.agents/SPRINT_refactor-phase3c-0a-pr2-20260506.md`) — unconditional logits factories and docs/audit refresh; **`multistate_stack is None`** sampling tuple paths remain a **scoped follow-up** in that sprint doc. **Phase 4** (registry collapse, `_COMBINE_INDEX`, multistate registry, `state_vmap_exact` unify vs route) remains **blocked from merge on `main`** until Phase **0a** records an explicit **GO** (per §227–238, §11 #10 split acceptance). |
-| **Still open** | **Phase 4:** `registry.py`, frozen `_COMBINE_INDEX`, `MULTISTATE_MODES` registry, `state_vmap_exact` **unify vs registry-route** after Phase 0a GO lands. **Defer:** tuple→payload on **STE / straight_through**; **`multistate_stack is None`** in `sample.py` until the dedicated PR2 slice merges. |
-| **Plan** | **Active:** `.agents/SPRINT_refactor-phase3c-0a-pr2-20260506.md`. **Prior (retained):** `.agents/SPRINT_refactor-phase4-entry-20260505.md` (Phase 4 entry + cluster WP1). **Prior / closed (do not delete):** `.agents/SPRINT_refactor-phase3b-20260506.md`, `.agents/SPRINT_refactor-phase3-20260505.md`. |
+| **task_id** | `refactor-sprint-20260507-phase0a-go-pr2-sample` (active sprint); OODA cycle `refactor-sprint-20260507-ooda`; prior `refactor-phase4-pr2-20260506`, `refactor-phase4-entry-20260505`, `refactor-phase3b-sprint-20260506`, `refactor-phase3-sprint-20260505` |
+| **Last update** | 2026-05-07 |
+| **Current phase** | **Phase 3b signed off** on `main`. **PR2a (unconditional logits factories → payload)** landed under `.agents/SPRINT_refactor-phase3c-0a-pr2-20260506.md`. **Active plan body:** `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md` — **WP1** Phase 0a GO closure (§230 HLO byte + op-summary in PR text; filtered logs); **PR2b** `sample.py` loose-stack → payload **subject to JIT / static `n_flat` note** in that sprint (no blind in-jit `int(jnp.max(state_flat_rows))`). **Phase 4** remains **blocked from merge on `main`** until Phase **0a** records explicit **GO** (§227–238, §11 #10 split acceptance). |
+| **Still open** | **Phase 4:** `registry.py`, frozen `_COMBINE_INDEX`, `MULTISTATE_MODES`, `state_vmap_exact` unify vs registry-route. **PR2b:** `sample.py` tuple branches when `multistate_stack is None` (strategy A/B/C in active sprint). **Defer:** STE / straight_through; portable RunSpec JSON v3 bundled with registry work. |
+| **Plan** | **Active:** `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md`. **Prior / superseded plan body:** `.agents/SPRINT_refactor-phase3c-0a-pr2-20260506.md` (retain for PR2a history). **Prior (retained):** `.agents/SPRINT_refactor-phase4-entry-20260505.md`. **Prior / closed (do not delete):** `.agents/SPRINT_refactor-phase3b-20260506.md`, `.agents/SPRINT_refactor-phase3-20260505.md`. |
 | **Prior landed (Phase 2)** | `protocols.py`, `model/capabilities.py`, introspection removal at sample/score/averaging, honest casts on score paths; sprint `refactor-phase2-sprint-20260505`, plan `.agents/SPRINT_refactor-phase2-20260505.md`. |
 | **Prior phase** | Phase 1: `task_id` `refactor-phase1-sprint-20260505` (§14 prior row archived in git history). |
 
 ---
 
-*End of roadmap. Phase 2 typed boundaries are landed; Phase 3b portable RunSpec JSON v2 + hygiene signed off; Phase 3c / 0a + PR2 sprint — see §14 and `.agents/SPRINT_refactor-phase3c-0a-pr2-20260506.md` (Phase 4 entry doc `.agents/SPRINT_refactor-phase4-entry-20260505.md` retained).*
+*End of roadmap. Phase 2 typed boundaries are landed; Phase 3b portable RunSpec JSON v2 + hygiene signed off; active sprint — §14 and `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md` (prior Phase 3c / PR2a doc `.agents/SPRINT_refactor-phase3c-0a-pr2-20260506.md` retained; Phase 4 entry `.agents/SPRINT_refactor-phase4-entry-20260505.md` retained).*

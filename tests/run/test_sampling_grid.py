@@ -56,7 +56,7 @@ def _run_with_mocked_pipeline(spec: SamplingSpecification) -> dict[str, object]:
         return_value=([protein], MagicMock()),
     ):
         with patch(
-            "prxteinmpnn.run.sampling.make_sample_sequences",
+            "prxteinmpnn.run.sampling.SamplingDriver.build_sampler_fn",
             return_value=_sampler_with_key_identity,
         ):
             return sample(spec)
@@ -99,7 +99,7 @@ def test_ligand_context_keys_must_exactly_match_structure_ids(
             return_value=([_mock_protein(seq_len=seq_len)], MagicMock()),
         ):
             with patch(
-                "prxteinmpnn.run.sampling.make_sample_sequences",
+                "prxteinmpnn.run.sampling.SamplingDriver.build_sampler_fn",
                 return_value=_sampler_with_key_identity,
             ):
                 with pytest.raises(ValueError, match="exactly match canonical structure IDs") as exc_info:
@@ -339,7 +339,7 @@ def test_bitwise_equivalence_sampled_sequences():
         return_value=([protein], MagicMock()),
     ):
         with patch(
-            "prxteinmpnn.run.sampling.make_sample_sequences",
+            "prxteinmpnn.run.sampling.SamplingDriver.build_sampler_fn",
             return_value=deterministic_sampler,
         ):
             # Run with refactored code (already in place)
@@ -366,7 +366,7 @@ def test_sampling_with_various_chunk_sizes():
             return_value=([protein], MagicMock()),
         ):
             with patch(
-                "prxteinmpnn.run.sampling.make_sample_sequences",
+                "prxteinmpnn.run.sampling.SamplingDriver.build_sampler_fn",
                 return_value=_sampler_with_key_identity,
             ):
                 result = sample(spec)
@@ -401,7 +401,7 @@ def test_campaign_mode_with_chunk_sample_start():
             return_value=([protein], MagicMock()),
         ):
             with patch(
-                "prxteinmpnn.run.sampling.make_sample_sequences",
+                "prxteinmpnn.run.sampling.SamplingDriver.build_sampler_fn",
                 return_value=_sampler_with_key_identity,
             ):
                 sample(spec)

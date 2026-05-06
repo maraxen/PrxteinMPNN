@@ -57,7 +57,10 @@ def test_sampling_multistate_controls_are_forwarded() -> None:
     "prxteinmpnn.run.sampling.prep_protein_stream_and_model",
     return_value=([protein], object()),
   ):
-    with patch("prxteinmpnn.run.sampling.make_sample_sequences", return_value=fake_sampler):
+    with patch(
+      "prxteinmpnn.run.sampling.SamplingDriver.build_sampler_fn",
+      return_value=fake_sampler,
+    ):
       spec = SamplingSpecification(
         inputs=["dummy.pdb"],
         num_samples=1,

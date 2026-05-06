@@ -20,7 +20,7 @@ import numpy as np
 
 from prxteinmpnn.io.designs import DesignArrayRecordWriter, DesignMetadata, DesignPayload
 from prxteinmpnn.run.averaging import get_averaged_encodings, make_encoding_sampling_split_fn
-from prxteinmpnn.sampling.sample import make_sample_sequences
+from prxteinmpnn.run.sampling_driver import SamplingDriver
 from prxteinmpnn.utils.autoregression import resolve_tie_groups
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
 
@@ -982,8 +982,8 @@ def sample(
   if spec.average_node_features:
     return _sample_averaged_mode(spec, protein_iterator, model)
 
-  sampler_fn = make_sample_sequences(
-    model=model,
+  sampler_fn = SamplingDriver(spec).build_sampler_fn(
+    model,
     decoding_order_fn=_DEFAULT_DECODING_ORDER_FN,
     sampling_strategy=spec.sampling_strategy,
     use_concrete=getattr(spec, "use_concrete", False),

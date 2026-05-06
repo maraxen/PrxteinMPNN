@@ -8,9 +8,16 @@ See ``.agents/TECHNICAL_DEBT.md`` (Phase 0a spike vs §11 #10) and sprint
 
 This test is the numeric gate for the unconditional **ProteinMPNN** branch (``tie_group_map=None``).
 
-HLO narrative for PR visibility: tests emit ``UserWarning`` bodies including UTF-8 byte length,
-newline count, and a case-insensitive count of the substring ``custom-call`` (cheap proxy for
-custom-call ops in the IR text). Use ``pytest -W default`` to surface them.
+**Payloads:** markers ``parity_fast`` / ``parity_heavy`` exercise **synthetic** multi-state stacks
+built in-process (``jax.random`` CA coords, zero masks). They are **not** wired to
+``tests/parity`` LigandMPNN fixtures; ``parity_heavy`` only enlarges ``n_states`` / ``n_can`` when
+``REFERENCE_PATH`` is set so cluster/local opt-in jobs can pay the cost without skipping in CI.
+
+HLO narrative for PR visibility: both code paths emit ``UserWarning`` bodies including UTF-8 byte
+length, newline count, and a case-insensitive count of the substring ``custom-call`` (cheap proxy
+for custom-call ops in the IR text). This is **advisory** evidence for PR go/no-go; CI does not
+assert on HLO text (see ``tests/profiling/hlo_allowlist.toml`` for unrelated callable thresholds).
+Use ``pytest -W default`` to surface warnings.
 """
 
 from __future__ import annotations
@@ -53,10 +60,11 @@ def _summarize_hlo_text(hlo: str) -> _HloSummary:
   )
 
 
-def _emit_spike_hlo_warnings(hlo: str) -> None:
+def _emit_spike_hlo_warnings(hlo: str, *, path_tag: str) -> None:
+  """Emit one advisory ``UserWarning`` per lowered path (tag disambiguates PR logs)."""
   s = _summarize_hlo_text(hlo)
   warnings.warn(
-    "spike_hlo_state_vmap_exact "
+    f"spike_hlo_{path_tag} "
     f"bytes={s.utf8_bytes} newlines={s.newline_count} custom_call_markers={s.custom_call_markers}",
     UserWarning,
     stacklevel=2,
@@ -122,34 +130,38 @@ def _run_state_vmap_exact_unconditional_spike(*, n_states: int, n_can: int, key:
     inference=True,
   )
 
-  k_enc, k_feat = jax.random.split(key)
+  def run_ref(pk: jax.Array) -> jax.Array:
+    """Explicit ``jax.vmap`` encode → decode → ``w_out`` stack; ``pk`` feeds feature/encoder keys."""
+    k_enc, k_feat = jax.random.split(pk)
 
-  def encode_one(coords: jax.Array, ma: jax.Array, ri: jax.Array, ci: jax.Array):
-    ef, nei, nf, _ = model.features(
-      k_feat,
-      coords,
-      ma,
-      ri,
-      ci,
-      jnp.asarray(0.0, jnp.float32),
-      structure_mapping=None,
-      initial_node_features=None,
-      rbf_features=None,
-      neighbor_indices=None,
-    )
-    nf2, ef2 = model.encoder(
-      ef, nei, ma, initial_node_features=nf, inference=True, key=k_enc
-    )
-    return nf2, ef2, nei.astype(jnp.int32)
+    def encode_one(coords: jax.Array, ma: jax.Array, ri: jax.Array, ci: jax.Array):
+      ef, nei, nf, _ = model.features(
+        k_feat,
+        coords,
+        ma,
+        ri,
+        ci,
+        jnp.asarray(0.0, jnp.float32),
+        structure_mapping=None,
+        initial_node_features=None,
+        rbf_features=None,
+        neighbor_indices=None,
+      )
+      nf2, ef2 = model.encoder(
+        ef, nei, ma, initial_node_features=nf, inference=True, key=k_enc
+      )
+      return nf2, ef2, nei.astype(jnp.int32)
 
-  node_b, edge_b, nei_b = jax.vmap(encode_one)(cs, ms, ris, cis)
+    node_b, edge_b, nei_b = jax.vmap(encode_one)(cs, ms, ris, cis)
 
-  def decode_one(nb: jax.Array, eb: jax.Array, nei: jax.Array, mk: jax.Array):
-    return model.decoder(nb, eb, nei, mk, key=k_enc)
+    def decode_one(nb: jax.Array, eb: jax.Array, nei: jax.Array, mk: jax.Array):
+      return model.decoder(nb, eb, nei, mk, key=k_enc)
 
-  decoded = jax.vmap(decode_one)(node_b, edge_b, nei_b, ms)
-  logits_s = jax.vmap(jax.vmap(model.w_out))(decoded)
-  logits_ref = scatter_stack_to_flat(logits_s, rows, n_flat)
+    decoded = jax.vmap(decode_one)(node_b, edge_b, nei_b, ms)
+    logits_s = jax.vmap(jax.vmap(model.w_out))(decoded)
+    return scatter_stack_to_flat(logits_s, rows, n_flat)
+
+  logits_ref = run_ref(key)
 
   rtol, atol = get_tolerances(jnp.float32)
   assert jnp.allclose(
@@ -180,7 +192,9 @@ def _run_state_vmap_exact_unconditional_spike(*, n_states: int, n_can: int, key:
     )
 
   hlo_sv = export_hlo(run_sv, key)
-  _emit_spike_hlo_warnings(hlo_sv)
+  hlo_ref = export_hlo(run_ref, key)
+  _emit_spike_hlo_warnings(hlo_sv, path_tag="state_vmap_exact")
+  _emit_spike_hlo_warnings(hlo_ref, path_tag="explicit_vmap_ref")
 
 
 @pytest.mark.phase0a_spike

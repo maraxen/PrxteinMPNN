@@ -40,6 +40,9 @@ data/pdb_cache/*
 *.h5.done.json
 tests/run/_grid_artifacts/
 
+# Local verification / agent slice logs (use `.agents/verification_logs/` for committed evidence)
+logs/
+
 # Local pytest-json-report / coverage blobs (keep scripts under .praxia/)
 .praxia/pytest_errors/
 .praxia/*_console*.log

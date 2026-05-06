@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     StructureAtomicCoordinates,
   )
 
+from prxteinmpnn.registry import assert_known_multistate_mode
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
 from prxteinmpnn.utils.ste import gumbel_softmax, straight_through_estimator
@@ -184,6 +185,7 @@ def make_optimize_sequence_fn(
       ... )
 
     """
+    assert_known_multistate_mode(multistate_mode)
     num_residues = structure_coordinates.shape[0]
     num_classes = 21
 

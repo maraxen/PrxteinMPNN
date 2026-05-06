@@ -8,7 +8,9 @@ from .run_spec_portable_json import (
   run_spec_portable_to_dict,
 )
 from .sampling import sample
+from .sampling_driver import SamplingDriver
 from .scoring import score
+from .scoring_driver import ScoringDriver
 from .spec import RunSpec, build_run_spec
 from .spec_json import (
   SpecJSONDecodeError,
@@ -18,7 +20,6 @@ from .spec_json import (
   run_specification_to_json,
   run_specification_to_json_dict,
 )
-from .sampling_driver import SamplingDriver
 from .specs import (
   JacobianSpecification,
   RunSpecification,
@@ -31,9 +32,10 @@ __all__ = [
   "JacobianSpecification",
   "RunSpec",
   "RunSpecification",
-  "SamplingSpecification",
-  "ScoringSpecification",
   "SamplingDriver",
+  "SamplingSpecification",
+  "ScoringDriver",
+  "ScoringSpecification",
   "SpecJSONDecodeError",
   "SpecJSONEncodeError",
   "build_run_spec",

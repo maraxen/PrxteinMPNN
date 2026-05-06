@@ -274,10 +274,12 @@ def _compute_batch_outputs(
         spec,
         conditional_logits_fn,
       )
+      jax.effects_barrier()
 
       yield jacobians_batch, batched_ensemble.one_hot_sequence
     if spec.average_encodings and encode_fn is not None:
       encodings_batch = _compute_encodings_for_batch(batched_ensemble, spec, encode_fn)
+      jax.effects_barrier()
       yield encodings_batch, batched_ensemble.one_hot_sequence
 
 

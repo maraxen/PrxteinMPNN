@@ -1,6 +1,6 @@
 # Technical Debt & Future Work
 
-**Last Updated:** 2026-05-06 (Phase 3b sprint plan; Phase 0a / §11 #10 split; §2 proxide PyPI floor)
+**Last Updated:** 2026-05-06 (Phase 3b PR2 logits helpers; PR5 scripts rg refresh; §2 proxide PyPI floor)
 
 This document tracks known technical debt, experimental features, and planned improvements.
 
@@ -37,6 +37,10 @@ Patterns searched: `SamplingSpecification|ScoringSpecification|TrainingSpecifica
 | `scripts/engaging/` | — | **absent** | Not present in this checkout; engaging-cluster scripts (if any) must be re-audited when vendored here. |
 
 **Policy:** New scripts should prefer `run_specification_from_json` / `prxteinmpnn spec validate` for saved configs (roadmap §13 Q4 JSON-first).
+
+### Phase 3b PR5 — scripts pattern refresh (2026-05-06)
+
+Re-ran `rg -l 'RunSpecification\\(|SamplingSpecification\\(|ScoringSpecification\\(|TrainingSpecification\\(|build_run_spec\\(' scripts/` from repo root (parallel recon). **Hits:** same three Python files as the PR6 table; **`RunSpecification(`** and **`build_run_spec(`** under `scripts/`:** zero matches. **`scripts/engaging/`:** still absent. No script edits required until engaging paths exist in-tree.
 
 ---
 

@@ -136,6 +136,8 @@ pylint.max-args = 15
 "src/prxteinmpnn/run.py" = ["E402", "PLR0913", "ANN401"]
 "src/prxteinmpnn/io/parsing.py" = ["ANN401"]
 "src/prxteinmpnn/payloads.py" = ["ANN401"]
+"src/prxteinmpnn/run/spec.py" = ["TD003", "FIX002"]
+"src/prxteinmpnn/run/specs.py" = ["ANN401", "PLR0915", "TD003", "FIX002"]
 "tests/test_adapter.py" = ["S101", "T201", "ANN201", "INP001", "PLC0415", "SLF001"]
 "scripts/**/*.py" = ["T201", "INP001"]
 

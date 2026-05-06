@@ -608,18 +608,18 @@ Each Open Question now has a **default decision** that holds unless a triggering
 
 ---
 
-## 14. Sprint status (Phase 0a GO + PR2b; Phase 4 prep)
+## 14. Sprint status (Phase 0a GO; PR2b closed on loose-stack path; Phase 4 prep)
 
 | Field | Value |
 | :--- | :--- |
-| **task_id** | `sprint-20260507-samplers-json-p4doc` (this sprint); prior `refactor-sprint-20260507-phase0a-go-pr2-sample` |
-| **Last update** | **2026-05-07** — ``SAMPLERS`` + ``SamplingDriver`` prep; RunSpec JSON round-trips for ``JacobianSpecification``, ``ConformationalInferenceSpecification``, ``InspectionSpecification``; roadmap Phase 4 note that **Protein unconditional** ``score_unconditional_state_vmap_exact`` matches Phase 0a ``jax.vmap`` reference (``tie_group_map`` post-process only). ``make_score_fn`` calls ``assert_known_multistate_mode`` at factory entry. |
-| **Current phase** | Phase 4: multistate descriptors landed; **next behavioral chunk** = conditional / ligand / AR ``state_vmap_exact`` vs vmap reference or explicit registry routes. Phase 5: ``SamplingDriver`` skeleton + ``SAMPLERS`` default registration live. |
-| **Still open** | Full ``state_vmap_exact`` body dedup beyond unconditional protein logits; migrate ``run/sampling.py`` streaming to host driver; **PR2b** ``sample.py`` tuple branches when ``multistate_stack is None``. |
-| **Plan** | **Closed slice:** this sprint (OODA `sprint-20260506-phase4-p5-runspec`). **Active long-form:** `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md`. |
+| **task_id** | `refactor-roadmap-sprint-20260506` (OODA closure for PR2b host coercion); prior `sprint-20260507-samplers-json-p4doc` |
+| **Last update** | **2026-05-06** — **PR2b (strategy A):** outer ``sample_sequences`` calls ``_coerce_loose_to_multistate_stack_host`` before ``jax.jit``; ``state_vmap_exact`` AR wave uses ``multistate_stack`` payload only inside JIT (explicit error if missing). Verification log: ``.agents/verification_logs/pr2b_host_coercion_20260506.filtered.txt``. Prior **2026-05-07** row: ``SAMPLERS`` / ``SamplingDriver`` prep; RunSpec JSON round-trips; Phase 0a unconditional protein path documented in §13.2. |
+| **Current phase** | Phase 4: multistate descriptors landed; **next behavioral chunk** = conditional / ligand / AR ``state_vmap_exact`` vs vmap reference or explicit registry routes (beyond unconditional protein logits). Phase 5: ``SamplingDriver`` skeleton + ``SAMPLERS`` default registration live. |
+| **Still open** | Full ``state_vmap_exact`` body dedup beyond unconditional protein logits; migrate ``run/sampling.py`` streaming to host driver. |
+| **Plan** | **Closed slice:** PR2b loose-stack → host ``MultistateStackPayload`` (this commit). **Reference sprint:** `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md` (WP2 narrative). |
 | **Prior landed (Phase 2)** | `protocols.py`, `model/capabilities.py`, introspection removal at sample/score/averaging, honest casts on score paths; sprint `refactor-phase2-sprint-20260505`, plan `.agents/SPRINT_refactor-phase2-20260505.md`. |
 | **Prior phase** | Phase 1: `task_id` `refactor-phase1-sprint-20260505` (§14 prior row archived in git history). |
 
 ---
 
-*End of roadmap. Phase 2 typed boundaries are landed; Phase 3b portable RunSpec JSON v2 + hygiene signed off; **2026-05-07** sprint closed ``SAMPLERS`` / ``SamplingDriver`` prep + Jacobian/CIF/Inspection JSON round-trips + Phase 4 unconditional-path documentation (§13.2 GO). Long-form sampling work remains under `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md`.*
+*End of roadmap. Phase 2 typed boundaries are landed; Phase 3b portable RunSpec JSON v2 + hygiene signed off; **2026-05-07** sprint closed ``SAMPLERS`` / ``SamplingDriver`` prep + Jacobian/CIF/Inspection JSON round-trips + Phase 4 unconditional-path documentation (§13.2 GO). **2026-05-06** closed PR2b host coercion for ``make_sample_sequences`` temperature path (loose stack kwargs). Long-form sampling notes remain under `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md`.*

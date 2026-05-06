@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 import equinox as eqx
@@ -94,7 +95,7 @@ def test_unconditional_logits_helper_forwards_optional_arguments() -> None:
   num_residues = 5
   mock_model = MagicMock(return_value=(None, jnp.ones((num_residues, 21), dtype=jnp.float32)))
   with patch("prxteinmpnn.sampling.unconditional_logits.jax.jit", new=lambda fn, *args, **kwargs: fn):
-    logits_helper = make_unconditional_logits_fn(mock_model)
+    logits_helper = make_unconditional_logits_fn(cast(PrxteinMPNN, mock_model))
 
     coordinates, mask, residue_index, chain_index = _synthetic_structure(num_residues=num_residues)
     ar_mask = jnp.tril(jnp.ones((num_residues, num_residues), dtype=jnp.int32), k=-1)

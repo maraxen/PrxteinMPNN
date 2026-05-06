@@ -4,6 +4,10 @@ Unconditional logits are computed without providing a sequence input,
 allowing the model to predict the most likely amino acids at each position
 based solely on the structure.
 
+Dense single-graph unconditional logits: :func:`make_unconditional_logits_fn` accepts
+:class:`~prxteinmpnn.model.mpnn.PrxteinMPNN` only (backbone); ligand single-graph paths use the
+ligand ``model.__call__`` API directly.
+
 Multistate parallel encode (``state_vmap_exact``): use
 :func:`make_unconditional_logits_state_vmap_fn`, or call ``model(...,
 decoding_approach=\"unconditional\", multistate_mode=\"state_vmap_exact\", ...)``
@@ -26,11 +30,51 @@ import jax
 import jax.numpy as jnp
 
 from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
-from prxteinmpnn.protocols import StateVmapExactLogitsFn, UnconditionalLogitsFn
+from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
+from prxteinmpnn.protocols import StateVmapExactLogitsFn, UnconditionalLogitsFn  # noqa: TC001
+from prxteinmpnn.sampling.state_vmap_payload_logits import (
+  unconditional_state_vmap_logits_from_payload,
+)
+
+
+def _multistate_payload_for_unconditional_vmap(
+  coords_stack: jax.Array,
+  mask_stack: jax.Array,
+  residue_index_stack: jax.Array,
+  chain_index_stack: jax.Array,
+  state_flat_rows: jax.Array,
+  n_flat: int,
+) -> MultistateStackPayload:
+  """Build a :class:`~prxteinmpnn.payloads.MultistateStackPayload` for unconditional vmap scoring.
+
+  Fields not read by :meth:`~prxteinmpnn.model.mpnn.PrxteinMPNN.score_unconditional_state_vmap_exact_from_payload`
+  are zero-filled with broadcastable shapes; ``n_canonical`` is set to the padded width for static typing.
+  """
+  s_dim, p_dim = coords_stack.shape[0], coords_stack.shape[1]
+  zeros_i = jnp.zeros((s_dim, p_dim), dtype=jnp.int32)
+  zeros_f = jnp.zeros((s_dim, p_dim), dtype=jnp.float32)
+  offs = jnp.zeros((s_dim + 1,), dtype=jnp.int32)
+  return cast(
+    "MultistateStackPayload",
+    MultistateStackPayload(
+      coords_stack=coords_stack,
+      mask_stack=mask_stack,
+      residue_index_stack=residue_index_stack,
+      chain_index_stack=chain_index_stack,
+      tie_group_map_stack=zeros_i,
+      fixed_mask_stack=zeros_f,
+      fixed_tokens_stack=zeros_i,
+      state_flat_rows=state_flat_rows,
+      flat_row_offsets=offs,
+      n_states=int(s_dim),
+      n_canonical=int(p_dim),
+      n_flat=int(n_flat),
+    ),
+  )
 
 
 def make_unconditional_logits_fn(
-  model: PrxteinMPNN | PrxteinLigandMPNN,
+  model: PrxteinMPNN,
 ) -> UnconditionalLogitsFn:
   """Return a JIT function for dense single-graph unconditional logits."""
 
@@ -45,6 +89,7 @@ def make_unconditional_logits_fn(
     backbone_noise: jax.Array | None = None,
   ) -> jax.Array:
     del prng_key
+    bn = jnp.asarray(0.0, dtype=jnp.float32) if backbone_noise is None else backbone_noise
     _, logits = model(
       structure_coordinates,
       mask,
@@ -52,9 +97,9 @@ def make_unconditional_logits_fn(
       chain_index,
       decoding_approach="unconditional",
       ar_mask=ar_mask,
-      backbone_noise=backbone_noise,
+      backbone_noise=bn,
     )
-    return logits
+    return cast("jax.Array", logits)
 
   return cast("UnconditionalLogitsFn", unconditional_logits)
 
@@ -63,14 +108,8 @@ def make_unconditional_logits_state_vmap_fn(
   model: PrxteinMPNN | PrxteinLigandMPNN,
 ) -> StateVmapExactLogitsFn:
   """JIT ``score_unconditional_state_vmap_exact``: stacked encode → scattered flat logits + fuse."""
-  from prxteinmpnn.model.mpnn import PrxteinLigandMPNN as _LM
-  from prxteinmpnn.model.mpnn import PrxteinMPNN as _PM
-
   m = eqx.nn.inference_mode(model, value=True) if isinstance(model, eqx.Module) else model
-  is_lig = isinstance(model, _LM)
-
-  def strategy_idx(strategy: str) -> jax.Array:
-    return jnp.int32({"arithmetic_mean": 0, "geometric_mean": 1, "product": 2}[strategy])
+  is_lig = isinstance(model, PrxteinLigandMPNN)
 
   if is_lig:
 
@@ -93,32 +132,34 @@ def make_unconditional_logits_state_vmap_fn(
       states_chunk_size: int | None = None,
     ) -> jax.Array:
       """No outer ``jax.jit``: host state-chunk loop inside ``score_unconditional_state_vmap_exact``."""
-      kwargs: dict[str, object] = {}
-      if states_chunk_size is not None:
-        kwargs["states_chunk_size"] = states_chunk_size
-      return m.score_unconditional_state_vmap_exact(  # type: ignore[union-attr]
-        prng_key,
+      stack = _multistate_payload_for_unconditional_vmap(
         coords_stack,
         mask_stack,
         residue_index_stack,
         chain_index_stack,
-        y_stack,
-        y_t_stack,
-        y_m_stack,
         state_flat_rows,
         n_flat,
+      )
+      lig = cast(
+        "LigandStack",
+        LigandStack(y_stack=y_stack, y_t_stack=y_t_stack, y_m_stack=y_m_stack),
+      )
+      return unconditional_state_vmap_logits_from_payload(
+        m,
+        prng_key,
+        stack,
+        lig,
         tie_group_map=tie_group_map,
         multi_state_strategy_idx=multi_state_strategy_idx,
         multi_state_temperature=jnp.asarray(multi_state_temperature, jnp.float32),
         state_weights=state_weights,
         state_mapping=state_mapping,
-        **kwargs,
+        states_chunk_size=states_chunk_size,
       )
 
-    unconditional_stack.strategy_idx_from_str = strategy_idx  # type: ignore[attr-defined]
     return cast("StateVmapExactLogitsFn", unconditional_stack)
 
-  if not isinstance(model, _PM):
+  if not isinstance(model, PrxteinMPNN):
     raise TypeError("Expected PrxteinMPNN or PrxteinLigandMPNN")
 
   @partial(jax.jit, static_argnames=("n_flat",))
@@ -136,21 +177,24 @@ def make_unconditional_logits_state_vmap_fn(
     state_weights: jax.Array | None,
     state_mapping: jax.Array | None,
   ) -> jax.Array:
-    return m.score_unconditional_state_vmap_exact(
-      prng_key,
+    stack = _multistate_payload_for_unconditional_vmap(
       coords_stack,
       mask_stack,
       residue_index_stack,
       chain_index_stack,
       state_flat_rows,
       n_flat,
+    )
+    return unconditional_state_vmap_logits_from_payload(
+      m,
+      prng_key,
+      stack,
+      None,
       tie_group_map=tie_group_map,
       multi_state_strategy_idx=multi_state_strategy_idx,
       multi_state_temperature=jnp.asarray(multi_state_temperature, jnp.float32),
       state_weights=state_weights,
       state_mapping=state_mapping,
-      inference=True,
     )
 
-  unconditional_stack_prot.strategy_idx_from_str = strategy_idx  # type: ignore[attr-defined]
   return cast("StateVmapExactLogitsFn", unconditional_stack_prot)

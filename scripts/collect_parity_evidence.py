@@ -10,7 +10,7 @@ import os
 import sys
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from unittest.mock import patch
 
 import equinox as eqx
@@ -2037,7 +2037,7 @@ def _collect_fast_logit_helper_metrics(
   metric_rows: list[EvidenceMetricRecord] = []
   point_rows: list[EvidencePointRecord] = []
   model = eqx.nn.inference_mode(core_models.jax_model, value=True)
-  unconditional_helper = make_unconditional_logits_fn(model)
+  unconditional_helper = make_unconditional_logits_fn(cast(PrxteinMPNN, model))
   conditional_helper = make_conditional_logits_fn(model)
 
   coordinates = jnp.asarray(case.atom37_coordinates)

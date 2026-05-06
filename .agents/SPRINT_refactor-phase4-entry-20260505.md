@@ -4,6 +4,7 @@
 | :--- | :--- |
 | **task_id** | `refactor-phase4-entry-20260505` |
 | **Roadmap** | `.agents/REFACTOR_ROADMAP.md` §14, §227–238 (Phase 0a), §320–345 (Phase 4), §11 checklist #10 (split acceptance) |
+| **Superseded plan body** | Active sprint work packages live in `.agents/SPRINT_refactor-phase3c-0a-pr2-20260506.md`; this file remains the Phase 0a cluster WP1 pointer + GO checklist. |
 | **Prior sprint (closed, retained)** | `.agents/SPRINT_refactor-phase3b-20260506.md` — Phase 3b PR1–PR5; portable RunSpec JSON v2 + `spec.py` import/exception hygiene signed off in §14 (2026-05-05) |
 | **Plan audit carryover** | Plan-auditor amendments below apply to **this** slice; Phase 4 implementation PRs still require a fresh audit pass when code lands. |
 

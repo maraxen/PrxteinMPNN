@@ -11,7 +11,11 @@ from jaxtyping import Float, Int, PRNGKeyArray
 from prxteinmpnn.model import PrxteinLigandMPNN, PrxteinMPNN
 from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
 from prxteinmpnn.protocols import SamplerFn
-from prxteinmpnn.registry import combine_strategy_to_index
+from prxteinmpnn.registry import (
+  MULTISTATE_MODE_STATE_VMAP_EXACT,
+  assert_known_multistate_mode,
+  combine_strategy_to_index,
+)
 from prxteinmpnn.sampling.ste_optimize import make_optimize_sequence_fn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
@@ -306,7 +310,9 @@ def make_sample_sequences(
         decoding_order, None, tie_group_map, num_groups,
       )
 
-      if multistate_mode == "state_vmap_exact":
+      assert_known_multistate_mode(multistate_mode)
+
+      if multistate_mode == MULTISTATE_MODE_STATE_VMAP_EXACT:
         if multistate_stack is not None and coords_stack is not None:
           msg = "state_vmap_exact: pass either multistate_stack= or coords_stack=..., not both"
           raise ValueError(msg)

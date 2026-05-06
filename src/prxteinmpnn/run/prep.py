@@ -20,6 +20,7 @@ import equinox as eqx
 from proxide.ops.dataset import create_protein_dataset
 
 from prxteinmpnn.io.weights import load_model
+from prxteinmpnn.run.resources import proxide_dataset_resource_kwargs
 
 
 def _loader_inputs(inputs: Sequence[str | StringIO] | str | StringIO) -> Sequence[str | StringIO]:
@@ -93,6 +94,7 @@ def prep_protein_stream_and_model(
     "altloc": spec.altloc,
     "topology": spec.topology,
   }
+  ram_mb, workers, buf = proxide_dataset_resource_kwargs(spec, context="inference")
   protein_iterator = create_protein_dataset(
     _loader_inputs(spec.inputs),
     batch_size=spec.batch_size,
@@ -110,6 +112,9 @@ def prep_protein_stream_and_model(
     vdw_noise_mode=spec.vdw_noise_mode,
     max_length=spec.max_length,
     truncation_strategy=spec.truncation_strategy,
+    ram_budget_mb=ram_mb,
+    max_workers=workers,
+    max_buffer_size=buf,
   )
   local_ckpt = None
   if spec.model_local_path is not None:

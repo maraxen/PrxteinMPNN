@@ -1,7 +1,7 @@
 """Resource allocation utilities for PrxteinMPNN."""
 
 import os
-from typing import Literal
+from typing import Literal, cast
 
 import psutil
 
@@ -44,3 +44,29 @@ def compute_resource_allocation(
     effective_workers = max_workers
 
   return effective_ram, effective_workers
+
+
+def proxide_dataset_resource_kwargs(
+  spec: object,
+  *,
+  context: Literal["training", "inference"],
+) -> tuple[int, int, int | None]:
+  """Resolve :func:`compute_resource_allocation` for :func:`proxide.ops.dataset.create_protein_dataset`.
+
+  Returns:
+      ``(ram_budget_mb, max_workers, max_buffer_size)``. The buffer size is ``None`` unless ``spec``
+      defines ``max_buffer_size``.
+
+  """
+  raw_strategy = getattr(spec, "host_resource_allocation_strategy", "auto")
+  strategy: Literal["auto", "full"] = "full" if raw_strategy == "full" else "auto"
+  ram_budget_mb = cast("int | None", getattr(spec, "ram_budget_mb", None))
+  max_workers = cast("int | None", getattr(spec, "max_workers", None))
+  effective_ram, effective_workers = compute_resource_allocation(
+    strategy,
+    ram_budget_mb,
+    max_workers,
+    context=context,
+  )
+  max_buffer_size = cast("int | None", getattr(spec, "max_buffer_size", None))
+  return effective_ram, effective_workers, max_buffer_size

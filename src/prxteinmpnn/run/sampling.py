@@ -1321,9 +1321,15 @@ def _sample_streaming_arrayrecord(
       )
 
       # Create one ArrayRecord writer per structure in batch
+      seq_len = int(batched_ensemble.coordinates.shape[1])
+      n_states_rec = max(1, int(spec.run_spec.multistate.n_states))
       for i in range(batch_size):
         writer_path = Path(str(output_base) + f"_structure_{structure_idx}.arrayrecord")
-        writer = DesignArrayRecordWriter(str(writer_path))
+        writer = DesignArrayRecordWriter.from_multistate_shapes(
+          str(writer_path),
+          n_canonical=seq_len,
+          n_states=n_states_rec,
+        )
         structure_writers.append((i, writer))
         resolved_structure_ids.append(batch_structure_ids[i])
         structure_idx += 1
@@ -1368,11 +1374,11 @@ def _sample_streaming_arrayrecord(
                   else None
                 )
                 score = np.array([0.0], dtype=np.float32)  # Placeholder; adjust as needed
-                state_weights = np.ones(9, dtype=np.float32)  # Placeholder; adjust as needed
+                state_weights = np.ones(n_states_rec, dtype=np.float32) / float(n_states_rec)
 
                 metadata: DesignMetadata = {
                   "pool_type": "BackboneOnly",
-                  "state_mapping": list(range(9)),
+                  "state_mapping": list(range(n_states_rec)),
                   "weight_strategy": "uniform",
                   "combination_algorithm": "none",
                   "structure_ids": [batch_structure_ids[structure_batch_idx]],
@@ -1381,7 +1387,9 @@ def _sample_streaming_arrayrecord(
 
                 payload: DesignPayload = {
                   "sequence": sequence,
-                  "logits": logits if logits is not None else np.zeros((214, 21), dtype=np.float32),
+                  "logits": logits
+                  if logits is not None
+                  else np.zeros((writer.n_canonical, 21), dtype=np.float32),
                   "scores": score,
                   "state_weights": state_weights,
                   "metadata": metadata,

@@ -63,7 +63,8 @@ class DesignPoolRunner:
   def __init__(self, spec: SamplingSpecification, output_path: str):
     self.spec = spec
     self.protein_iterator, self.model = prep_protein_stream_and_model(spec)
-    self.writer = DesignArrayRecordWriter(output_path)
+    self._writer_path = output_path
+    self.writer: DesignArrayRecordWriter | None = None
     self.sampler_fn = make_sample_sequences(
       model=self.model,
       sampling_strategy=spec.sampling_strategy,
@@ -116,10 +117,22 @@ class DesignPoolRunner:
           protein, Y, Y_t, Y_m, weights, comb_alg, pool_type, w_name,
         )
 
+  def _ensure_writer(self, protein: Protein) -> None:
+    """Lazily open the ArrayRecord writer sized to this batch's multistate axes."""
+    if self.writer is None:
+      self.writer = DesignArrayRecordWriter.from_multistate_shapes(
+        self._writer_path,
+        n_canonical=int(protein.coordinates.shape[1]),
+        n_states=int(protein.coordinates.shape[0]),
+      )
+
   def _sample_massively(
     self, protein: Protein, Y, Y_t, Y_m, weights, comb_alg, pool_type, weight_strategy,
   ):
     """Execute massively parallel sampling using vmap + lax.map + io_callback."""
+    self._ensure_writer(protein)
+    assert self.writer is not None
+
     num_samples = self.spec.num_samples
     batch_size = self.spec.samples_batch_size  # Usually 16-64 to saturate GPU
     num_batches = (num_samples + batch_size - 1) // batch_size
@@ -187,4 +200,5 @@ class DesignPoolRunner:
     jax.lax.map(run_batch, batch_keys)
 
   def close(self):
-    self.writer.close()
+    if self.writer is not None:
+      self.writer.close()

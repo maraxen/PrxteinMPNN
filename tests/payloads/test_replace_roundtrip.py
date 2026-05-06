@@ -205,3 +205,31 @@ def test_encoded_features_and_sample_result_replace() -> None:
     sr = SampleResult(sequence=seq, logits=logits)
     sr2 = sr.replace(logits=logits + 2.0)
     np.testing.assert_array_equal(np.asarray(sr2.logits), np.full((5, 21), 2.0, dtype=np.float32))
+
+
+def test_multistate_stack_payload_from_prep_numpy() -> None:
+  from prxteinmpnn.sampling.state_vmap_prep import (
+    build_state_vmap_exact_stacks,
+    multistate_stack_payload_from_prep_numpy,
+  )
+
+  n_states, n_can = 2, 5
+  key = jax.random.PRNGKey(0)
+  ca = jax.random.normal(key, (n_states, n_can, 4, 3)).astype(jnp.float32)
+  peptide_lengths = np.zeros(n_states, dtype=np.int32)
+  sv = build_state_vmap_exact_stacks(
+    n_states=n_states,
+    n_canonical=n_can,
+    peptide_lengths=peptide_lengths,
+    with_ligand=False,
+    ca_states_4=np.asarray(ca),
+    peptide_bb=None,
+    base_fixed_mask=np.zeros(n_can, dtype=np.float32),
+    aatype_states=np.zeros((n_states, n_can), dtype=np.int32),
+    af_to_mpnn=lambda x: x.astype(np.int32),
+  )
+  pay = multistate_stack_payload_from_prep_numpy(sv, n_states=n_states, n_canonical=n_can)
+  assert pay.n_states == n_states
+  assert pay.n_canonical == n_can
+  assert pay.n_flat == int(sv["flat_row_offsets"][-1])
+  np.testing.assert_array_equal(np.asarray(pay.coords_stack), np.asarray(sv["coords_stack"]))

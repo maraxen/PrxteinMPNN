@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
-from typing import TYPE_CHECKING, Any, Literal, TypedDict
+from typing import TYPE_CHECKING, Any, Literal, Self, TypedDict
 
 import jax
 import numpy as np
@@ -69,6 +69,22 @@ class DesignArrayRecordWriter:
     # Async I/O: single-threaded executor to avoid blocking device on disk writes
     self._executor = ThreadPoolExecutor(max_workers=1)
     self._futures: list = []
+
+  @classmethod
+  def from_multistate_shapes(
+    cls,
+    path: str,
+    *,
+    n_canonical: int,
+    n_states: int,
+    options: str = "zstd:9,group_size:1",
+  ) -> Self:
+    """Writer sized like :class:`prxteinmpnn.payloads.MultistateStackPayload` static axes.
+
+    ``n_canonical`` and ``n_states`` match the stack payload's ``n_canonical`` /
+    ``n_states`` (roadmap §3.2) so ArrayRecord rows align with multistate campaigns.
+    """
+    return cls(path, options=options, n_canonical=n_canonical, n_states=n_states)
 
   def write(self, payload: DesignPayload) -> None:
     """Enqueue a design payload for async serialization and writing.

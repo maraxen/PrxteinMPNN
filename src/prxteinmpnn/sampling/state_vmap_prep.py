@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
+import jax.numpy as jnp
 import numpy as np
+
+from prxteinmpnn.payloads import MultistateStackPayload
 
 MPNN_UNK_TOKEN = 20
 
@@ -101,6 +104,30 @@ def build_state_vmap_exact_stacks(
     "state_flat_rows": rows,
     "flat_row_offsets": offsets.astype(np.int64),
   }
+
+
+def multistate_stack_payload_from_prep_numpy(
+  sv: Mapping[str, np.ndarray],
+  *,
+  n_states: int,
+  n_canonical: int,
+) -> MultistateStackPayload:
+  """Convert :func:`build_state_vmap_exact_stacks` numpy output to a JAX :class:`MultistateStackPayload`."""
+  n_flat = int(np.asarray(sv["flat_row_offsets"])[-1])
+  return MultistateStackPayload(
+    coords_stack=jnp.asarray(sv["coords_stack"], dtype=jnp.float32),
+    mask_stack=jnp.asarray(sv["mask_stack"], dtype=jnp.float32),
+    residue_index_stack=jnp.asarray(sv["residue_index_stack"], dtype=jnp.int32),
+    chain_index_stack=jnp.asarray(sv["chain_index_stack"], dtype=jnp.int32),
+    tie_group_map_stack=jnp.asarray(sv["tie_group_map_stack"], dtype=jnp.int32),
+    fixed_mask_stack=jnp.asarray(sv["fixed_mask_stack"], dtype=jnp.float32),
+    fixed_tokens_stack=jnp.asarray(sv["fixed_tokens_stack"], dtype=jnp.int32),
+    state_flat_rows=jnp.asarray(sv["state_flat_rows"], dtype=jnp.int32),
+    flat_row_offsets=jnp.asarray(sv["flat_row_offsets"], dtype=jnp.int32),
+    n_states=n_states,
+    n_canonical=n_canonical,
+    n_flat=n_flat,
+  )
 
 
 def slice_flat_bias_to_stack(

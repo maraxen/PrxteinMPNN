@@ -4,7 +4,14 @@
 # Prerequisites on Engaging:
 #   - Sync: from tev_design repo root, `just push` (see parent `Justfile`; default
 #     remote is engaging:/home/maarxaru/projects/tev_design).
-#   - Reference PyTorch LigandMPNN checkout: set REFERENCE_PATH or rely on default below.
+#   - Reference PyTorch LigandMPNN checkout on sys.path (default below).
+#   - Heavy parity requires this file (see tests.parity.reference_utils):
+#       ${REFERENCE_PATH}/model_params/ligandmpnn_v_32_020_25.pt
+#     It is gitignored locally; copy once to the cluster, e.g. from a laptop that
+#     already has reference_ligandmpnn_clone populated:
+#       ssh engaging 'mkdir -p /home/maarxaru/repos/LigandMPNN/model_params'
+#       rsync -avz ./reference_ligandmpnn_clone/model_params/ligandmpnn_v_32_020_25.pt \
+#         engaging:/home/maarxaru/repos/LigandMPNN/model_params/
 #
 # Submit (from prxteinmpnn repo root on cluster, after sync):
 #   export REFERENCE_PATH=/home/maarxaru/repos/LigandMPNN   # optional if default matches

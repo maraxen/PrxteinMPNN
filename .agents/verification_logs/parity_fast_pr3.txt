@@ -1,0 +1,51 @@
+....................                                                     [100%]
+=============================== warnings summary ===============================
+../.venv/lib/python3.13/site-packages/e3nn_jax/_src/irreps.py:654
+  /home/marielle/projects/tev_design/.venv/lib/python3.13/site-packages/e3nn_jax/_src/irreps.py:654: DeprecationWarning: Creating NamedTuple classes using keyword arguments is deprecated and will be disallowed in Python 3.15. Use the class-based or functional syntax instead.
+    ) -> NamedTuple("Sort", irreps="Irreps", p=Tuple[int, ...], inv=Tuple[int, ...]):
+
+tests/sampling/test_ste_optimize.py:27
+  /home/marielle/projects/tev_design/prxteinmpnn/tests/sampling/test_ste_optimize.py:27: UserWarning: `equinox.static_field` is deprecated in favour of `equinox.field(static=True)`
+    num_residues: int = eqx.static_field()
+
+tests/sampling/test_ste_optimize.py:28
+  /home/marielle/projects/tev_design/prxteinmpnn/tests/sampling/test_ste_optimize.py:28: UserWarning: `equinox.static_field` is deprecated in favour of `equinox.field(static=True)`
+    num_classes: int = eqx.static_field()
+
+tests/scoring/test_score.py:67
+  /home/marielle/projects/tev_design/prxteinmpnn/tests/scoring/test_score.py:67: UserWarning: As of jaxtyping version 0.2.24, jaxtyping now prefers the syntax
+  ```
+  from jaxtyping import jaxtyped
+  # Use your favourite typechecker: usually one of the two lines below.
+  from typeguard import typechecked as typechecker
+  from beartype import beartype as typechecker
+  
+  @jaxtyped(typechecker=typechecker)
+  def foo(...):
+  ```
+  and the old double-decorator syntax
+  ```
+  @jaxtyped
+  @typechecker
+  def foo(...):
+  ```
+  should no longer be used. (It will continue to work as it did before, but the new approach will produce more readable error messages.)
+  In particular note that `typechecker` must be passed via keyword argument; the following is not valid:
+  ```
+  @jaxtyped(typechecker)
+  def foo(...):
+  ```
+  
+    @jaxtyped
+
+tests/sampling/spikes/test_state_vmap_exact_spike.py::test_state_vmap_exact_unconditional_matches_explicit_vmap_stack
+  /home/marielle/projects/tev_design/prxteinmpnn/tests/sampling/spikes/test_state_vmap_exact_spike.py:183: UserWarning: spike_hlo_state_vmap_exact bytes=146014 newlines=2348 custom_call_markers=0
+    _emit_spike_hlo_warnings(hlo_sv)
+
+tests/sampling/test_state_vmap_payload_logits.py::test_ligand_payload_logits_matches_factory[unconditional]
+tests/sampling/test_state_vmap_payload_logits.py::test_ligand_payload_logits_matches_factory[conditional]
+  /home/marielle/projects/tev_design/prxteinmpnn/src/prxteinmpnn/model/mpnn.py:2274: UserWarning: A JAX array is being set as static! This can result in unexpected behavior and is usually a mistake to do.
+    self.features = ProteinFeaturesLigand(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+20 passed, 658 deselected, 7 warnings in 91.09s (0:01:31)

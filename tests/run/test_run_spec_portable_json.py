@@ -36,7 +36,7 @@ def _full_run_spec(**portable: object) -> RunSpec:
   )
   res = portable.get(
     "resource",
-    ResourceConfig(n_devices=2, sample_batch_size=16, structure_batch_size=8),
+    ResourceConfig(n_devices=2, sample_batch_size=16, structure_batch_size=8, max_buffer_size=2048),
   )
   prec = portable.get("precision", PrecisionConfig(compute="bf16"))
   assert isinstance(ms, MultistateConfig)
@@ -96,6 +96,7 @@ def test_portable_dict_roundtrip_preserves_subset_only() -> None:
   assert d["version"] == PORTABLE_RUN_SPEC_VERSION
   assert d["multistate"]["mode"] == "multi_state"
   assert d["resource"]["n_devices"] == 2
+  assert d["resource"]["max_buffer_size"] == 2048
   assert d["precision"]["compute"] == "bf16"
 
   rs2 = run_spec_portable_from_dict(d)
@@ -132,6 +133,19 @@ def test_portable_roundtrip_from_build_run_spec_run_specification() -> None:
   d = run_spec_portable_to_dict(rs)
   rs2 = run_spec_portable_from_dict(d)
   assert run_spec_portable_to_dict(rs2) == d
+
+
+def test_build_run_spec_prefers_explicit_output_dir(tmp_path: Path) -> None:
+  cache = tmp_path / "cache" / "blob.h5"
+  out = tmp_path / "explicit_out"
+  spec = RunSpecification(inputs=["x.pdb"], tied_positions=None, cache_path=cache, output_dir=out)
+  rs = build_run_spec(spec)
+  assert rs.io.output_dir == out
+
+
+def test_build_run_spec_max_buffer_size_from_spec() -> None:
+  spec = RunSpecification(inputs=["x.pdb"], tied_positions=None, max_buffer_size=8192)
+  assert build_run_spec(spec).resource.max_buffer_size == 8192
 
 
 _MIN_RES = {"n_devices": 1, "sample_batch_size": 1, "structure_batch_size": 1}
@@ -189,6 +203,15 @@ _MIN_PREC = {"compute": "fp32"}
         "precision": {"compute": "fp128"},
       },
       "precision.compute",
+    ),
+    (
+      {
+        "version": 1,
+        "multistate": {"mode": "a", "n_states": 1, "combine_strategy": "x"},
+        "resource": {**_MIN_RES, "max_buffer_size": -1},
+        "precision": _MIN_PREC,
+      },
+      "max_buffer_size",
     ),
   ],
 )

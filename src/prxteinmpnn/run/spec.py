@@ -27,6 +27,7 @@ class ResourceConfig(eqx.Module):
   n_devices: int = eqx.field(static=True)
   sample_batch_size: int = eqx.field(static=True)
   structure_batch_size: int = eqx.field(static=True)
+  max_buffer_size: int | None = eqx.field(static=True)
 
 
 class MultistateConfig(eqx.Module):
@@ -127,6 +128,9 @@ def _output_h5_path(spec: object) -> Path | None:
 
 
 def _infer_output_dir(spec: object) -> Path | None:
+  explicit = getattr(spec, "output_dir", None)
+  if explicit is not None:
+    return _optional_path(explicit)
   h5 = _output_h5_path(spec)
   if h5 is not None:
     return h5.parent
@@ -144,6 +148,18 @@ def _run_spec_precision_compute(spec: object) -> Literal["fp32", "fp16", "bf16"]
   if raw in ("fp32", "fp16", "bf16"):
     return cast("Literal['fp32', 'fp16', 'bf16']", raw)
   return "fp32"
+
+
+def _coerce_max_buffer_size(spec: object) -> int | None:
+  """Optional positive buffer cap (bytes); ``None`` when unset or invalid."""
+  raw = getattr(spec, "max_buffer_size", None)
+  if raw is None:
+    return None
+  try:
+    v = int(raw.item()) if hasattr(raw, "item") else int(raw)
+  except (TypeError, ValueError):
+    return None
+  return v if v > 0 else None
 
 
 def _infer_sink_kind(spec: object) -> str:
@@ -214,6 +230,7 @@ def build_run_spec(spec: object) -> RunSpec:
     n_devices=_infer_n_devices(spec),
     sample_batch_size=int(samples_batch) if samples_batch is not None else batch_size,
     structure_batch_size=batch_size,
+    max_buffer_size=_coerce_max_buffer_size(spec),
   )
 
   combine = getattr(spec, "multi_state_strategy", "arithmetic_mean")

@@ -148,6 +148,7 @@ def _coerce_field_value(_cls: type[Any], field_name: str, value: Any) -> Any:
   if field_name.endswith("_path") or field_name in {
     "topology",
     "cache_path",
+    "output_dir",
     "model_local_path",
     "checkpoint_registry_path",
     "preprocessed_index_path",

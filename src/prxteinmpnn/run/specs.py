@@ -96,6 +96,8 @@ class RunSpecification:
 
   Note:
       Use ``output_h5_path`` on task-specific subclasses for HDF5 output.
+      ``output_dir`` (when set) overrides inferred output roots from ``cache_path`` / HDF5 parents
+      in :func:`~prxteinmpnn.run.spec.build_run_spec`.
       Legacy serialized ``output_path`` is ignored with a :class:`DeprecationWarning`.
 
   """
@@ -127,6 +129,10 @@ class RunSpecification:
   decoding_order_fn: DecodingOrderFn | None = None
   conformational_states: ConformationalStates | None = None
   cache_path: str | Path | None = None
+  output_dir: str | Path | None = None
+  """Explicit host output root; preferred over ``cache_path`` / ``output_h5_path`` inference."""
+  max_buffer_size: int | None = None
+  """Optional dataset buffer cap (bytes); forwarded to proxide-style loaders when set."""
   overwrite_cache: bool = False
   max_length: int | None = 512
   truncation_strategy: Literal["none", "random_crop", "center_crop"] = "random_crop"
@@ -198,6 +204,8 @@ class RunSpecification:
       object.__setattr__(self, "use_vdw", True)
     if self.cache_path and isinstance(self.cache_path, str):
       object.__setattr__(self, "cache_path", Path(self.cache_path))
+    if self.output_dir and isinstance(self.output_dir, str):
+      object.__setattr__(self, "output_dir", Path(self.output_dir))
     if self.model_local_path and isinstance(self.model_local_path, str):
       object.__setattr__(self, "model_local_path", Path(self.model_local_path))
     if self.checkpoint_registry_path and isinstance(self.checkpoint_registry_path, str):

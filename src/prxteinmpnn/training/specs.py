@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from prxteinmpnn.run.specs import RunSpecification
+from prxteinmpnn.run.specs import RunSpecification, apply_deprecated_spec_init_warnings
 
 
 @dataclass
@@ -100,7 +100,7 @@ class TrainingSpecification(RunSpecification):
   Effective batch size = batch_size (which must be divisible by accum_steps).
   """
 
-  # Precision
+  # Precision (mirrors ``run_spec.precision.compute`` after :meth:`RunSpecification._sync_run_spec`)
   precision: Literal["fp32", "fp16", "bf16"] = "bf16"
 
   # Checkpointing
@@ -141,8 +141,8 @@ class TrainingSpecification(RunSpecification):
     """Validate training specification."""
     super().__post_init__()
 
-    # Ensure checkpoint_dir is Path
-    object.__setattr__(self, "checkpoint_dir", Path(self.checkpoint_dir))
+    checkpoint_dir = Path(self.checkpoint_dir)
+    object.__setattr__(self, "checkpoint_dir", checkpoint_dir)
 
     # Ensure validation_data is Path if provided
     if self.validation_data and isinstance(self.validation_data, str):
@@ -167,4 +167,7 @@ class TrainingSpecification(RunSpecification):
       raise ValueError(msg)
 
     # Create checkpoint directory if it doesn't exist
-    self.checkpoint_dir.mkdir(parents=True, exist_ok=True)  # type: ignore[possibly-missing-attribute]
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+
+apply_deprecated_spec_init_warnings(TrainingSpecification)

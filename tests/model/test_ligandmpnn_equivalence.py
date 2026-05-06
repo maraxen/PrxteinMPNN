@@ -239,9 +239,8 @@ def _jax_ligand_context_state(
   return h_V, h_E, E_idx
 
 
-@pytest.fixture(scope="module")
-def ligand_parity_bundle() -> LigandParityBundle:
-  """PyTorch reference plus JAX from ``convert_full_model`` *and* packaged ``.eqx.zst`` (production path)."""
+def load_ligand_parity_bundle() -> LigandParityBundle:
+  """Load PyTorch reference plus JAX convert + packaged ``.eqx`` (shared by fixture and diag scripts)."""
   pytest.importorskip("torch")
   reference_root, _ = require_heavy_parity_prereqs(
     reference_rel_paths=["model_params/ligandmpnn_v_32_020_25.pt"],
@@ -309,14 +308,19 @@ def ligand_parity_bundle() -> LigandParityBundle:
 
 
 @pytest.fixture(scope="module")
+def ligand_parity_bundle() -> LigandParityBundle:
+  """PyTorch reference plus JAX from ``convert_full_model`` *and* packaged ``.eqx.zst`` (production path)."""
+  return load_ligand_parity_bundle()
+
+
+@pytest.fixture(scope="module")
 def ligand_models(ligand_parity_bundle: LigandParityBundle) -> tuple[Any, PrxteinLigandMPNN]:
   """Backward-compatible ``(pt, jax)`` pair using the PyTorch-state-dict convert path."""
   return ligand_parity_bundle.pt_model, ligand_parity_bundle.jax_from_pt_convert
 
 
-@pytest.fixture(scope="module")
-def ligand_batch() -> LigandBatch:
-  """Create deterministic ligand test payload."""
+def build_ligand_batch() -> LigandBatch:
+  """Deterministic ligand test payload (shared by fixture and diag scripts)."""
   rng = np.random.default_rng(1)
   seq_len = 12
   atom_context_num = 16
@@ -335,6 +339,12 @@ def ligand_batch() -> LigandBatch:
   )
 
 
+@pytest.fixture(scope="module")
+def ligand_batch() -> LigandBatch:
+  """Create deterministic ligand test payload."""
+  return build_ligand_batch()
+
+
 @pytest.mark.parity_targeted
 def test_ligand_feature_extraction_reference_parity(
   ligand_models: tuple[Any, PrxteinLigandMPNN],
@@ -342,6 +352,8 @@ def test_ligand_feature_extraction_reference_parity(
 ) -> None:
   """Check ligand feature tensors against reference extraction."""
   import torch
+
+  jax.config.update("jax_default_matmul_precision", "highest")
 
   pt_model, jax_model = ligand_models
   feature_dict = _to_torch_feature_dict(ligand_batch, torch)

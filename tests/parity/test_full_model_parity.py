@@ -262,6 +262,8 @@ def test_protein_feature_extraction_parity(
   weight_source: JaxHeavyWeightSource,
 ) -> None:
   """protein-feature-extraction: projected edge features and neighbors match reference."""
+  jax.config.update("jax_default_matmul_precision", "highest")
+
   feature_dict = _build_torch_feature_dict(heavy_parity_models.torch, parity_batch)
   with heavy_parity_models.torch.no_grad():
     pt_edges, pt_neighbor_indices = heavy_parity_models.pt_model.features(feature_dict)

@@ -14,6 +14,22 @@ from tests.parity.reference_utils import import_reference_module, require_heavy_
 torch = pytest.importorskip("torch")
 
 
+def _forward_jax_packer_for_parity(
+  jax_packer: JAXPacker,
+  feature_dict_jax: dict[str, jnp.ndarray],
+) -> tuple[jax.Array, jax.Array, jax.Array]:
+  """Run JAX packer on CPU when available to align with reference ``device='cpu'`` numerics."""
+  jax.config.update("jax_default_matmul_precision", "highest")
+  cpu_devices = [d for d in jax.devices() if d.platform == "cpu"]
+  if not cpu_devices:
+    return jax_packer(feature_dict_jax)
+  try:
+    with jax.default_device(cpu_devices[0]):
+      return jax_packer(feature_dict_jax)
+  except (AttributeError, RuntimeError, TypeError, ValueError):
+    return jax_packer(feature_dict_jax)
+
+
 def _build_synthetic_features(
   *,
   seq_len: int,
@@ -145,7 +161,7 @@ def test_packer_forward_numeric_parity() -> None:
     num_context_atoms=num_context_atoms,
   )
 
-  mean_jax, conc_jax, mix_jax = jax_packer(feature_dict_jax)
+  mean_jax, conc_jax, mix_jax = _forward_jax_packer_for_parity(jax_packer, feature_dict_jax)
   with torch.no_grad():
     h_v_pt, h_e_pt, e_idx_pt = pt_packer.encode(feature_dict_pt)
     feature_dict_pt.update({"h_V": h_v_pt, "h_E": h_e_pt, "E_idx": e_idx_pt})

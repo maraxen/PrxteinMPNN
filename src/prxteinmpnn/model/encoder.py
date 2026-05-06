@@ -352,8 +352,7 @@ def pack_encoder_context(
   Matches the legacy sequence: ``zeros‖edge`` gather, ``node‖that`` gather, then
   ``result * mask_fw[..., None]``. Batched graphs: ``jax.vmap(pack_encoder_context)``.
 
-  LigandMPNN keeps inline duplicates today (`mpnn.py` ~2898 and ~3513); fold those in
-  Phase **5e** to avoid ``encoder`` → ``decoder`` coupling in this PR.
+  LigandMPNN AR scan and ligand ``state_vmap_exact`` call sites mirror this via the same helper.
   """
   encoder_edge_neighbors = concatenate_neighbor_nodes(
     jnp.zeros_like(node_features),

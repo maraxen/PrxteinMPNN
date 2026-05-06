@@ -3,7 +3,9 @@ Tracked in `.agents/TECHNICAL_DEBT.md` §14 (host-side I/O streaming).
 Roadmap: jax.experimental.io_callback + jax.effects_barrier
 ============================================================
 Pattern: host I/O and large device→host transfers happen inside (or immediately
-after) traced code via io_callback(..., ordered=False), then jax.effects_barrier()
+after) traced code via io_callback(..., ordered=False), then jax.effects_barrier().
+Policy: **do not use ordered=True** — it forces sequential host sync per callback;
+stay on ordered=False and use barriers / bounded sinks for staging.
 to cap in-flight GPU state (see run_design_grid / multistate pools / STE).
 
 Reference implementations in this repo:

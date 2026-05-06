@@ -2,7 +2,7 @@
 
 Roadmap §3.6 / Phase **5g** calls for vendored jaxbeans-style streaming with:
 
-- ``ordered=False`` on hot-path callbacks where permitted
+- **Never** ``ordered=True`` on ``io_callback``: it pins callbacks to program order on the host and forces extra synchronization; keep ``ordered=False`` explicitly at call sites and rely on :func:`jax.effects_barrier` where you need drain / staging semantics.
 - :func:`jax.effects_barrier` at sink boundaries to drain host effects deterministically
 - bounded queues / backpressure when host sinks fall behind
 

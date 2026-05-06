@@ -1,4 +1,8 @@
-"""Phase 5g — ordering / barrier smoke tests for ``io_callback`` streaming."""
+"""Phase 5g — ordering / barrier smoke tests for ``io_callback`` streaming.
+
+Repository policy: ``io_callback(..., ordered=False)`` only — ``ordered=True`` is avoided
+because it forces extra host-side synchronization.
+"""
 
 from __future__ import annotations
 

@@ -188,7 +188,7 @@ class DesignPoolRunner:
       scores = jnp.zeros((batch_size, 1))
       weights_broadcast = jnp.broadcast_to(weights, (batch_size, weights.shape[0]))
 
-      # Use io_callback to stream out of the JIT loop
+      # ordered=False: ordered=True would force sequential host sync for callbacks.
       jax.experimental.io_callback(
         host_callback,
         None, # Returns None

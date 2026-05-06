@@ -588,7 +588,8 @@ def _prepare_fixed_controls(
       if int(jnp.min(positions)) < 0 or int(jnp.max(positions)) >= seq_len:
         msg = f"fixed_positions must be in [0, {seq_len - 1}]"
         raise ValueError(msg)
-      legacy_mask = jnp.zeros((seq_len,), dtype=jnp.bool_).at[positions].set(True)
+      idx = jnp.arange(seq_len, dtype=positions.dtype)
+      legacy_mask = jnp.isin(idx, positions)
       legacy_mask = jnp.broadcast_to(legacy_mask[None, :], (batch_size, seq_len))
     else:
       legacy_mask = jnp.zeros((batch_size, seq_len), dtype=jnp.bool_)

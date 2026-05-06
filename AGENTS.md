@@ -46,6 +46,7 @@ Load the mode from your dispatch: `.agent/agents/{mode}.md`
 | **Lint** | `uv run ruff check .` |
 | **Format** | `uv run ruff format .` |
 | **Tests** | `uv run pytest` |
+| **JAX advisory** | `uv run jaxlint check src --no-doc` (optional; not a CI gate) |
 | **Remote GPU** | `just sync && just remote-run <script>` |
 
 ---
@@ -56,7 +57,7 @@ Load the mode from your dispatch: `.agent/agents/{mode}.md`
 - **ML Framework**: JAX + Equinox
 - **Package Manager**: uv
 - **Type Checking**: ty (strict)
-- **Linting**: ruff
+- **Linting**: ruff; optional **jaxlint** on JIT-heavy edits (advisory only — not a CI gate).
 - **Testing**: pytest
 
 ---

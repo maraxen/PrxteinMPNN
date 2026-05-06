@@ -16,6 +16,9 @@
 #   export REFERENCE_PATH=/home/maarxaru/repos/LigandMPNN   # optional if default matches
 #   sbatch scripts/engaging/submit_parity_heavy_ligand.sh
 #
+# For a short repro of the current red tests only, use instead:
+#   sbatch scripts/engaging/submit_parity_targeted.sh
+#
 # Local dry-run (same pytest line; needs REFERENCE_PATH locally if not skipping):
 #   bash scripts/engaging/submit_parity_heavy_ligand.sh
 #

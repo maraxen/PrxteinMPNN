@@ -164,6 +164,7 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "parity_fast: deterministic fast parity fixtures and checks",
     "parity_heavy: reference-backed parity tests that require external assets",
+    "parity_targeted: small subset of parity_heavy failures for fast GPU repro (cluster)",
     "parity_audit: checkpoint-family audit parity checks and conversion validation",
     "phase0a_spike: Phase 0a state_vmap_exact vs explicit vmap stack (roadmap REFACTOR_ROADMAP §227)",
 ]

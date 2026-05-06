@@ -81,6 +81,7 @@ def _assert_numeric_parity(
 
 
 @pytest.mark.parity_heavy
+@pytest.mark.parity_targeted
 def test_packer_forward_numeric_parity() -> None:
   """Validate numerical parity for packer torsion outputs on shared deterministic inputs."""
   reference_root, _ = require_heavy_parity_prereqs(

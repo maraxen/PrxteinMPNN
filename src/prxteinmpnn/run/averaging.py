@@ -10,6 +10,7 @@ from jaxtyping import Float, Int, PRNGKeyArray
 
 from prxteinmpnn.model.capabilities import PRXTEIN_MPNN_CAPABILITIES
 from prxteinmpnn.model.mpnn import PrxteinMPNN
+from prxteinmpnn.registry import combine_strategy_to_index
 from prxteinmpnn.sampling.conditional_logits import make_encoding_conditional_logits_split_fn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.data_structures import Protein
@@ -332,7 +333,7 @@ def make_encoding_sampling_split_fn(
         logits = decode_logits_fn(encoded_features, sequence, autoregressive_mask)
         group_member_mask = tie_group_map == group_idx  # (N,) boolean
         strategy_idx = jnp.asarray(
-          {"arithmetic_mean": 0, "geometric_mean": 1, "product": 2}[multi_state_strategy],
+          combine_strategy_to_index(multi_state_strategy),
           dtype=jnp.int32,
         )
         avg_logits = PrxteinMPNN._combine_logits_multistate_idx(  # noqa: SLF001

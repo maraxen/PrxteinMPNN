@@ -11,9 +11,13 @@ Multi-state sampling allows ProteinMPNN to design protein sequences that work we
 **Critical Fix**: The `multi_state_strategy` parameter is a Python string, but JAX's JIT compilation cannot trace string values through transformations. The solution is to convert the strategy string to an integer index at the model's `__call__` entry point, pass the integer through JAX transformations, then convert back to a string literal or use `jax.lax.switch` with the index.
 
 ```python
-# In model.__call__()
-strategy_map = {"arithmetic_mean": 0, "geometric_mean": 1, "product": 2}
-multi_state_strategy_idx = jnp.array(strategy_map[multi_state_strategy], dtype=jnp.int32)
+from prxteinmpnn.registry import combine_strategy_to_index
+
+# In model.__call__() — indices match prxteinmpnn.registry._COMBINE_INDEX order
+multi_state_strategy_idx = jnp.asarray(
+  combine_strategy_to_index(multi_state_strategy),
+  dtype=jnp.int32,
+)
 
 # In _run_autoregressive_scan() and other methods
 # The strategy_idx is passed through and used with jax.lax.switch
@@ -96,14 +100,18 @@ def sample_sequences(
 The model's `__call__` method receives the parameters, converts the strategy to an index, and passes it through the autoregressive or conditional call chain:
 
 ```python
+from prxteinmpnn.registry import combine_strategy_to_index
+
 def __call__(
   # ...
   multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
   multi_state_temperature: float = 1.0,
 ) -> tuple[OneHotProteinSequence, Logits]:
   # ...
-  strategy_map = {"arithmetic_mean": 0, "geometric_mean": 1, "product": 2}
-  multi_state_strategy_idx = jnp.array(strategy_map[multi_state_strategy], dtype=jnp.int32)
+  multi_state_strategy_idx = jnp.asarray(
+    combine_strategy_to_index(multi_state_strategy),
+    dtype=jnp.int32,
+  )
   # ...
   return jax.lax.switch(branch_index, branches, *operands)
 ```

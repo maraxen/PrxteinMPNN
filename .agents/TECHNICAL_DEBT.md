@@ -1,8 +1,27 @@
 # Technical Debt & Future Work
 
-**Last Updated:** 2026-05-05 (audit: resource fields, HDF5 stack, parsing layout)
+**Last Updated:** 2026-05-06 (Phase 3 PR6 scripts audit; multistate prep → payload bridge)
 
 This document tracks known technical debt, experimental features, and planned improvements.
+
+---
+
+## Phase 3 PR6 — `scripts/` specification constructors (audit)
+
+**Status:** complete for this checkout (2026-05-06)  
+**Roadmap:** `.agents/REFACTOR_ROADMAP.md` §11 checklist #8, §14 sprint status
+
+Patterns searched: `SamplingSpecification|ScoringSpecification|TrainingSpecification|RunSpecification\(` under `scripts/**/*.py`.
+
+| File | Constructor / import | Verdict | Notes |
+|------|------------------------|---------|-------|
+| `scripts/collect_parity_evidence.py` | `SamplingSpecification(...)`, `ScoringSpecification(...)` | **current** | Uses public subclass ctors; compatible with `RunSpecification` façade + `run_spec` sync. No JSON migration required for this offline tool. |
+| `scripts/260410/verify_massive_sampling.py` | `SamplingSpecification(...)` | **current** | Smoke / load-test script; same constructor surface as library. |
+| `scripts/overfit/overfit_check.py` | `TrainingSpecification(...)` | **current** | Training smoke path; mirrors `training/specs` API. |
+| `scripts/260410/verify_design_storage.py` | `DesignArrayRecordWriter(...)` only | **out of scope** | Exercises ArrayRecord I/O, not run specs. |
+| `scripts/engaging/` | — | **absent** | Not present in this checkout; engaging-cluster scripts (if any) must be re-audited when vendored here. |
+
+**Policy:** New scripts should prefer `run_specification_from_json` / `prxteinmpnn spec validate` for saved configs (roadmap §13 Q4 JSON-first).
 
 ---
 

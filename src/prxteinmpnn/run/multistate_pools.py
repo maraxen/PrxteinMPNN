@@ -193,11 +193,13 @@ class DesignPoolRunner:
         host_callback,
         None, # Returns None
         seqs, logits, scores, weights_broadcast,
+        ordered=False,
       )
 
     # Loop over batches using lax.map for memory efficiency
     batch_keys = jax.random.split(key, num_batches)
     jax.lax.map(run_batch, batch_keys)
+    jax.effects_barrier()
 
   def close(self):
     if self.writer is not None:

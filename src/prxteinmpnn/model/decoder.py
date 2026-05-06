@@ -1,6 +1,8 @@
 """Decoder module for PrxteinMPNN.
 
-This module contains the Equinox-based decoder implementation for ProteinMPNN.
+Contains ``DecoderLayer``, ``DecoderLayerJ``, ``Decoder``, and **orchestration helpers**
+(``pack_decoder_unconditional_layer_edge_features``, conditional packing helpers) split out in
+Phase **5b** so ``mpnn.py`` stays focused on model wiring.
 """
 
 # TODO(tech-debt): `.agents/TECHNICAL_DEBT.md` §6 — docstring / public API audit.
@@ -31,6 +33,77 @@ if TYPE_CHECKING:
 # Layer normalization with a standard epsilon
 LayerNorm = eqx.nn.LayerNorm
 _gelu = partial(jax.nn.gelu, approximate=False)
+
+
+def pack_decoder_unconditional_layer_edge_features(
+  node_features: jax.Array,
+  edge_features: jax.Array,
+  neighbor_indices: jax.Array,
+) -> jax.Array:
+  """Neighbor tensor ``[0, e_ij, h_j]`` then ``[h_i, …]`` for unconditional decode (matches legacy)."""
+  zeros_with_edges = concatenate_neighbor_nodes(
+    jnp.zeros_like(node_features),
+    edge_features,
+    neighbor_indices,
+  )
+  return concatenate_neighbor_nodes(
+    node_features,
+    zeros_with_edges,
+    neighbor_indices,
+  )
+
+
+def pack_conditional_decoder_static_edges(
+  node_features: jax.Array,
+  edge_features: jax.Array,
+  neighbor_indices: jax.Array,
+  one_hot_sequence: jax.Array,
+  w_s_weight: jax.Array,
+  ar_mask: jax.Array,
+  mask: jax.Array,
+) -> tuple[jax.Array, jax.Array, jax.Array]:
+  """Build masks and neighbor-packed tensors that are constant across conditional decoder layers."""
+  embedded_sequence = jnp.atleast_2d(one_hot_sequence) @ w_s_weight
+
+  temp_node_edge = concatenate_neighbor_nodes(
+    jnp.zeros_like(node_features),
+    edge_features,
+    neighbor_indices,
+  )
+
+  node_edge_features = concatenate_neighbor_nodes(
+    node_features,
+    temp_node_edge,
+    neighbor_indices,
+  )
+
+  sequence_edge_features = concatenate_neighbor_nodes(
+    embedded_sequence,
+    edge_features,
+    neighbor_indices,
+  )
+
+  attention_mask = jnp.take_along_axis(ar_mask, neighbor_indices, axis=1)
+  mask_bw = mask[:, None] * attention_mask
+  mask_fw = mask[:, None] * (1 - attention_mask)
+  masked_node_edge_features = mask_fw[..., None] * node_edge_features
+  return sequence_edge_features, mask_bw, masked_node_edge_features
+
+
+def conditional_decoder_layer_edge_features(
+  loop_node_features: jax.Array,
+  sequence_edge_features: jax.Array,
+  neighbor_indices: jax.Array,
+  mask_bw: jax.Array,
+  masked_node_edge_features: jax.Array,
+) -> jax.Array:
+  """Per-layer edge context for :meth:`Decoder.call_conditional`."""
+  current_features = concatenate_neighbor_nodes(
+    loop_node_features,
+    sequence_edge_features,
+    neighbor_indices,
+  )
+  return (mask_bw[..., None] * current_features) + masked_node_edge_features
 
 
 class DecoderLayer(eqx.Module):
@@ -326,19 +399,9 @@ class Decoder(eqx.Module):
       inference = True
     keys = jax.random.split(key, len(self.layers)) if key is not None else [None] * len(self.layers)
 
-    # Prepare context tensor *once*
-    # For unconditional: [0, h_E_ij, h_V_j] where j is the neighbor
-    # First concatenate zeros with edge features
-    zeros_with_edges = concatenate_neighbor_nodes(
-      jnp.zeros_like(node_features),
-      edge_features,
-      neighbor_indices,
-    )
-
-    # Then concatenate node features with the above
-    layer_edge_features = concatenate_neighbor_nodes(
+    layer_edge_features = pack_decoder_unconditional_layer_edge_features(
       node_features,
-      zeros_with_edges,
+      edge_features,
       neighbor_indices,
     )
 
@@ -403,42 +466,25 @@ class Decoder(eqx.Module):
       inference = True
     keys = jax.random.split(key, len(self.layers)) if key is not None else [None] * len(self.layers)
 
-    embedded_sequence = jnp.atleast_2d(one_hot_sequence) @ w_s_weight
-
-    temp_node_edge = concatenate_neighbor_nodes(
-      jnp.zeros_like(node_features),
-      edge_features,
-      neighbor_indices,
-    )  # [0, e_ij, h_j]
-
-    node_edge_features = concatenate_neighbor_nodes(
+    sequence_edge_features, mask_bw, masked_node_edge_features = pack_conditional_decoder_static_edges(
       node_features,
-      temp_node_edge,
-      neighbor_indices,
-    )  # [h_i, [0, e_ij, h_j]]
-
-    sequence_edge_features = concatenate_neighbor_nodes(
-      embedded_sequence,
       edge_features,
       neighbor_indices,
-    )  # [e_ij, s_j]
-
-    attention_mask = jnp.take_along_axis(ar_mask, neighbor_indices, axis=1)
-    mask_bw = mask[:, None] * attention_mask
-    mask_fw = mask[:, None] * (1 - attention_mask)
-    masked_node_edge_features = mask_fw[..., None] * node_edge_features
+      one_hot_sequence,
+      w_s_weight,
+      ar_mask,
+      mask,
+    )
 
     loop_node_features = node_features
     for i, layer in enumerate(self.layers):
-      # Construct the decoder context for this layer by gathering neighbor features
-      # and concatenating with sequence edge features
-      current_features = concatenate_neighbor_nodes(
+      layer_edge_features = conditional_decoder_layer_edge_features(
         loop_node_features,
         sequence_edge_features,
         neighbor_indices,
+        mask_bw,
+        masked_node_edge_features,
       )
-
-      layer_edge_features = (mask_bw[..., None] * current_features) + masked_node_edge_features
 
       # Run the layer (masking already applied to layer_edge_features)
       loop_node_features = layer(

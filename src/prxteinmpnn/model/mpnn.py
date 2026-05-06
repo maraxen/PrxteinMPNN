@@ -18,6 +18,12 @@ from prxteinmpnn.model.capabilities import (
   PRXTEIN_MPNN_CAPABILITIES,
   ModelCapabilities,
 )
+from prxteinmpnn.model._shared import (
+  apply_multistate_to_all_logits,
+  combine_logits_multistate,
+  combine_logits_multistate_idx,
+  create_group_index_table,
+)
 from prxteinmpnn.model.decoder import Decoder, DecoderLayer
 from prxteinmpnn.model.encoder import (
   Encoder,
@@ -25,14 +31,13 @@ from prxteinmpnn.model.encoder import (
   encoder_forward_with_int_neighbors,
   pack_encoder_context,
 )
+from prxteinmpnn.model.mpnn_core import (
+  autoregressive_decoding_context,
+  edge_sequence_features_autoregressive,
+)
 from prxteinmpnn.model.features import ProteinFeatures
 from prxteinmpnn.model.ligand_features import ProteinFeaturesLigand
 from prxteinmpnn.model.ligand_tiling import map_chunks_axis0, map_chunks_axis0_multi
-from prxteinmpnn.model.multi_state_sampling import (
-  arithmetic_mean_logits,
-  geometric_mean_logits,
-  product_of_probabilities_logits,
-)
 from prxteinmpnn.model.multistate_stack import gather_flat_to_stack, scatter_stack_to_flat
 from prxteinmpnn.padding import LENGTH_BUCKETS
 from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
@@ -64,38 +69,6 @@ if TYPE_CHECKING:
   )
 
 DecodingApproach = Literal["unconditional", "conditional", "autoregressive"]
-
-def _create_group_index_table(
-  tie_group_map: jnp.ndarray,
-  max_group_size: int,
-) -> tuple[jnp.ndarray, jnp.ndarray]:
-  """Create a table of indices belonging to each group.
-
-  Args:
-    tie_group_map: (N,) array of group IDs.
-    max_group_size: Static maximum number of residues per group.
-
-  Returns:
-    group_indices: (N, max_group_size) table of member indices.
-    valid_mask: (N, max_group_size) boolean mask for valid indices.
-  """
-  num_residues = tie_group_map.shape[0]
-  # mask_matrix[g, i] = i if tie_group_map[i] == g else -1
-  mask_matrix = jnp.where(
-    tie_group_map[None, :] == jnp.arange(num_residues)[:, None],
-    jnp.arange(num_residues)[None, :],
-    -1,
-  )
-
-  def sort_row(row):
-    is_valid = row >= 0
-    return jnp.sort(jnp.where(is_valid, row, num_residues + 1))
-
-  sorted_indices = jax.vmap(sort_row)(mask_matrix)
-  group_indices = sorted_indices[:, :max_group_size]
-  valid_mask = group_indices < num_residues
-
-  return group_indices, valid_mask
 
 
 class PrxteinMPNN(eqx.Module):
@@ -479,39 +452,15 @@ class PrxteinMPNN(eqx.Module):
     state_weights: jnp.ndarray | None = None,
     state_mapping: jnp.ndarray | None = None,
   ) -> Logits:
-    """Combine logits across tied positions using different multi-state strategies.
-
-    Args:
-      logits: Logits array of shape (N, 21).
-      group_mask: Boolean mask of shape (N,) indicating group membership.
-      strategy: Strategy for combining logits:
-        - "arithmetic_mean": Average logits using log-sum-exp (consensus prediction, default)
-        - "geometric_mean": Geometric mean of probabilities with temperature scaling
-        - "product": Sum of logits (multiply probabilities)
-      temperature: Temperature for geometric_mean strategy.
-      state_weights: Weights for each structural state.
-      state_mapping: Mapping of each residue to its state index.
-
-    Returns:
-      Combined logits of shape (1, 21).
-
-    Example:
-      >>> logits = jnp.array([[10.0, -5.0], [8.0, -3.0]])
-      >>> group_mask = jnp.array([True, True])
-      >>> # Arithmetic mean strategy (compromise)
-      >>> avg = PrxteinMPNN._combine_logits_multistate(logits, group_mask, "arithmetic_mean")
-      >>> # Product strategy (multiply probabilities)
-      >>> prod = PrxteinMPNN._combine_logits_multistate(logits, group_mask, "product")
-
-    """
-    if strategy == "arithmetic_mean":
-      return arithmetic_mean_logits(logits, group_mask, state_weights, state_mapping)
-    if strategy == "geometric_mean":
-      return geometric_mean_logits(logits, group_mask, temperature, state_weights, state_mapping)
-    if strategy == "product":
-      return product_of_probabilities_logits(logits, group_mask, state_weights, state_mapping)
-    msg = f"Unknown multi-state strategy: {strategy}"
-    raise ValueError(msg)
+    """Combine logits across tied positions (:mod:`prxteinmpnn.model._shared`)."""
+    return combine_logits_multistate(
+      logits,
+      group_mask,
+      strategy,
+      temperature,
+      state_weights,
+      state_mapping,
+    )
 
   @staticmethod
   def _apply_multistate_to_all_logits(
@@ -522,80 +471,14 @@ class PrxteinMPNN(eqx.Module):
     state_weights: jnp.ndarray | None = None,
     state_mapping: jnp.ndarray | None = None,
   ) -> Logits:
-    """Apply multi-state combination strategies across ALL groups in parallel.
-
-    Args:
-      logits: Logits array of shape (N, 21).
-      tie_group_map: Group mapping of shape (N,).
-      strategy_idx: Integer strategy index.
-      temperature: Temperature for geometric_mean strategy.
-      state_weights: Weights for each structural state.
-      state_mapping: Mapping of each residue to its state index.
-
-    Returns:
-      Combined logits of shape (N, 21). Each position in a group will contain
-      the SAME combined/consensus logit.
-    """
-    num_total = tie_group_map.shape[0]
-
-    def apply_arithmetic(l: jnp.ndarray, g: jnp.ndarray) -> jnp.ndarray:
-      # Segment-wise LogSumExp
-      if state_weights is not None and state_mapping is not None:
-        w = state_weights[state_mapping]
-        log_w = jnp.log(jnp.where(w > 0, w, 1e-9))
-        weighted_l = l + log_w
-
-        max_per_group = jax.ops.segment_max(weighted_l, g, num_segments=num_total)
-        l_shifted = weighted_l - max_per_group[g]
-        exp_l = jnp.exp(l_shifted)
-        sum_exp = jax.ops.segment_sum(exp_l, g, num_segments=num_total)
-        sum_w = jax.ops.segment_sum(w, g, num_segments=num_total)
-        log_avg = jnp.log(sum_exp / jnp.where(sum_w > 0, sum_w, 1.0))
-        return (log_avg + max_per_group)[g]
-
-      max_per_group = jax.ops.segment_max(l, g, num_segments=num_total)
-      l_shifted = l - max_per_group[g]
-      exp_l = jnp.exp(l_shifted)
-      sum_exp = jax.ops.segment_sum(exp_l, g, num_segments=num_total)
-      count = jax.ops.segment_sum(jnp.ones_like(g, dtype=jnp.float32), g, num_segments=num_total)
-      log_avg = jnp.log(sum_exp / jnp.where(count > 0, count, 1.0))
-      return (log_avg + max_per_group)[g]
-
-    def apply_geometric(l: jnp.ndarray, g: jnp.ndarray) -> jnp.ndarray:
-      if state_weights is not None and state_mapping is not None:
-        w = state_weights[state_mapping]
-        sum_wl = jax.ops.segment_sum(l * w, g, num_segments=num_total)
-        sum_w = jax.ops.segment_sum(w, g, num_segments=num_total)
-        avg_l = sum_wl / (jnp.where(sum_w > 0, sum_w, 1.0) * temperature)
-        return avg_l[g]
-
-      sum_l = jax.ops.segment_sum(l, g, num_segments=num_total)
-      count = jax.ops.segment_sum(jnp.ones_like(g, dtype=jnp.float32), g, num_segments=num_total)
-      avg_l = sum_l / (jnp.where(count > 0, count, 1.0) * temperature)
-      return avg_l[g]
-
-    def apply_product(l: jnp.ndarray, g: jnp.ndarray) -> jnp.ndarray:
-      if state_weights is not None and state_mapping is not None:
-        w = state_weights[state_mapping]
-        return jax.ops.segment_sum(l * w, g, num_segments=num_total)[g]
-      return jax.ops.segment_sum(l, g, num_segments=num_total)[g]
-
-    def switch_strategy(l, g, idx):
-      return jax.lax.switch(
-        idx,
-        [
-          lambda x: apply_arithmetic(x[0], x[1]),
-          lambda x: apply_geometric(x[0], x[1]),
-          lambda x: apply_product(x[0], x[1]),
-        ],
-        (l, g),
-      )
-
-    # vmap over the 21 classes
-    return jax.vmap(switch_strategy, in_axes=(1, None, None), out_axes=1)(
+    """Apply multi-state strategies in parallel (:mod:`prxteinmpnn.model._shared`)."""
+    return apply_multistate_to_all_logits(
       logits,
       tie_group_map,
       strategy_idx,
+      temperature,
+      state_weights,
+      state_mapping,
     )
 
   @staticmethod
@@ -607,36 +490,15 @@ class PrxteinMPNN(eqx.Module):
     state_weights: jnp.ndarray | None = None,
     state_mapping: jnp.ndarray | None = None,
   ) -> Logits:
-    """Combine logits using strategy index (JAX-traceable version).
-
-    This is a JAX-traceable wrapper around _combine_logits_multistate that
-    accepts an integer strategy index instead of a string. Used internally
-    when the function needs to be JIT-compiled.
-
-    Args:
-      logits: Logits array of shape (N, 21).
-      group_mask: Boolean mask of shape (N,) indicating group membership.
-      strategy_idx: Integer strategy index (0=arithmetic_mean, 1=geometric_mean, 2=product).
-      temperature: Temperature for geometric_mean strategy.
-      state_weights: Weights for each structural state.
-      state_mapping: Mapping of each residue to its state index.
-
-    Returns:
-      Combined logits of shape (1, 21).
-
-    """
-
-    def arithmetic_mean_fn(_: tuple) -> jnp.ndarray:
-      return arithmetic_mean_logits(logits, group_mask, state_weights, state_mapping)
-
-    def geometric_mean_fn(_: tuple) -> jnp.ndarray:
-      return geometric_mean_logits(logits, group_mask, temperature, state_weights, state_mapping)
-
-    def product_fn(_: tuple) -> jnp.ndarray:
-      return product_of_probabilities_logits(logits, group_mask, state_weights, state_mapping)
-
-    branches = [arithmetic_mean_fn, geometric_mean_fn, product_fn]
-    return jax.lax.switch(strategy_idx, branches, ())
+    """JAX-traceable ``lax.switch`` combination (:mod:`prxteinmpnn.model._shared`)."""
+    return combine_logits_multistate_idx(
+      logits,
+      group_mask,
+      strategy_idx,
+      temperature,
+      state_weights,
+      state_mapping,
+    )
 
   def _process_group_positions(
     self,
@@ -681,22 +543,23 @@ class PrxteinMPNN(eqx.Module):
       mask_pos = mask[idx]
       mask_bw_pos = mask_bw[idx]
 
-      edge_sequence_features = concatenate_neighbor_nodes(
+      edge_sequence_features = edge_sequence_features_autoregressive(
         s_embed,
-        edge_features[idx],
-        neighbor_indices_pos,
+        edge_features,
+        neighbor_indices,
+        idx,
       )
 
       for layer_idx, layer in enumerate(self.decoder.layers):
         h_in_pos = position_all_layers_h[layer_idx, idx]
 
-        decoder_context_pos = concatenate_neighbor_nodes(
+        decoding_context = autoregressive_decoding_context(
           position_all_layers_h[layer_idx],
           edge_sequence_features,
           neighbor_indices_pos,
+          encoder_context_pos,
+          mask_bw_pos,
         )
-
-        decoding_context = mask_bw_pos[..., None] * decoder_context_pos + encoder_context_pos
 
         h_in_expanded = jnp.expand_dims(h_in_pos, axis=0)
         decoding_context_expanded = jnp.expand_dims(decoding_context, axis=0)
@@ -1151,10 +1014,11 @@ class PrxteinMPNN(eqx.Module):
       mask_pos = mask[position]
       mask_bw_pos = mask_bw[position]
 
-      edge_sequence_features = concatenate_neighbor_nodes(
+      edge_sequence_features = edge_sequence_features_autoregressive(
         s_embed,
-        edge_features[position],
-        neighbor_indices_pos,
+        edge_features,
+        neighbor_indices,
+        position,
       )
 
       layer_keys = jax.random.split(key, len(self.decoder.layers))
@@ -1163,15 +1027,13 @@ class PrxteinMPNN(eqx.Module):
         # Get node features for this layer at current position
         h_in_pos = all_layers_h[layer_idx, position]
 
-        # Compute decoder context for this position
-        decoder_context_pos = concatenate_neighbor_nodes(
+        decoding_context = autoregressive_decoding_context(
           all_layers_h[layer_idx],
           edge_sequence_features,
           neighbor_indices_pos,
+          encoder_context_pos,
+          mask_bw_pos,
         )
-
-        # Combine with encoder context using backward mask
-        decoding_context = mask_bw_pos[..., None] * decoder_context_pos + encoder_context_pos
 
         # Expand dims for layer forward pass
         h_in_expanded = jnp.expand_dims(h_in_pos, axis=0)
@@ -1276,7 +1138,7 @@ class PrxteinMPNN(eqx.Module):
         # We need a static max_group_size for the table shape.
         # Use LENGTH_BUCKETS ceiling to avoid recompilation across different protein lengths.
         max_bucket_size = max(LENGTH_BUCKETS)
-        group_indices_table, group_valid_table = _create_group_index_table(
+        group_indices_table, group_valid_table = create_group_index_table(
             tie_group_map, max_bucket_size,
         )
 
@@ -2922,20 +2784,22 @@ class PrxteinLigandMPNN(eqx.Module):
       position: Int,
     ) -> tuple[jax.Array, jax.Array]:
       """Decode one position and return updated hidden state + logits."""
-      edge_sequence_features = concatenate_neighbor_nodes(
+      edge_sequence_features = edge_sequence_features_autoregressive(
         s_embed,
-        edge_features[position],
-        neighbor_indices[position],
+        edge_features,
+        neighbor_indices,
+        position,
       )
 
       for layer_idx, layer in enumerate(self.decoder.layers):
         h_in_pos = position_all_layers_h[layer_idx, position]
-        decoder_context_pos = concatenate_neighbor_nodes(
+        decoding_context = autoregressive_decoding_context(
           position_all_layers_h[layer_idx],
           edge_sequence_features,
           neighbor_indices[position],
+          encoder_context[position],
+          mask_bw[position],
         )
-        decoding_context = mask_bw[position][..., None] * decoder_context_pos + encoder_context[position]
 
         h_out_pos = layer(
           h_in_pos[None],
@@ -3069,7 +2933,7 @@ class PrxteinLigandMPNN(eqx.Module):
       # Compute max group size from tie_group_map
       unique_groups, counts = jnp.unique(tie_group_map[tie_group_map >= 0], return_counts=True)
       max_group_size = int(counts.max()) if len(counts) > 0 else 1
-      group_indices_table, group_valid_table = _create_group_index_table(
+      group_indices_table, group_valid_table = create_group_index_table(
         tie_group_map,
         max_group_size,
       )

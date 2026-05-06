@@ -21,6 +21,8 @@ Multistate ``state_vmap_exact`` logits/scoring (preferred when many states — a
   - Host stacks: ``prxteinmpnn/sampling/state_vmap_prep.py`` (``build_state_vmap_exact_stacks``, ``slice_flat_tensor_to_stack``).
   - Grid runner: ``scripts/run_unconditional_logits_grid.py --multistate-mode state_vmap_exact`` (LigandMPNN).
 
+**Update (Phase 5g slice, 2026-05-06):** ``run/multistate_pools.py`` uses ``io_callback(..., ordered=False)`` and ``jax.effects_barrier()`` after ``lax.map``; host helpers live in ``prxteinmpnn/utils/_vendored_callbacks.py``; CI smoke: ``tests/streaming/test_io_callback_ordering.py``.
+
 Outstanding integration targets (add/adjust inline TODOs as work lands):
   [ ] run/sampling.py — _sample_batch chunked vmap: sequence_chunks / logit_chunks + concat
   [ ] run/sampling.py — sample(): non-streaming path appends device arrays per batch

@@ -58,6 +58,8 @@ def main() -> None:
   import jaxlib
   import torch
 
+  jax.config.update("jax_default_matmul_precision", "highest")
+
   from tests.parity.test_full_model_parity import (
     JaxHeavyWeightSource,
     _build_parity_batch,

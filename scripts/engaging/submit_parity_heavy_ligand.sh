@@ -22,9 +22,9 @@
 # Local dry-run (same pytest line; needs REFERENCE_PATH locally if not skipping):
 #   bash scripts/engaging/submit_parity_heavy_ligand.sh
 #
-# Diagnostics: runs ``scripts/diag_protein_feature_parity.py`` before pytest (stage
-# comparison + stack versions). Set ``PRXTEIN_SKIP_DIAG=1`` to skip. Unbuffered
-# Python is enabled so Slurm ``.out`` receives line-by-line pytest progress.
+# Diagnostics: runs protein / ligand / packer ``scripts/diag_*`` before pytest.
+# Set ``PRXTEIN_SKIP_DIAG=1`` to skip. Unbuffered Python is enabled so Slurm ``.out``
+# receives line-by-line pytest progress.
 #
 #SBATCH --job-name=prx_parity_heavy
 #SBATCH --partition=mit_preemptable,pi_so3
@@ -82,8 +82,12 @@ PY
 
 # Stage-level JAX vs PyTorch edge comparison (see scripts/diag_protein_feature_parity.py).
 if [[ "${PRXTEIN_SKIP_DIAG:-0}" != "1" ]]; then
-  echo "===== diag: protein feature edge stages (stdout, non-fatal on error) ====="
+  echo "===== diag: protein feature edge stages ====="
   uv run python scripts/diag_protein_feature_parity.py 2>&1 || echo "WARNING: diag_protein_feature_parity.py exited non-zero"
+  echo "===== diag: ligand features ====="
+  uv run python scripts/diag_ligand_feature_parity.py 2>&1 || echo "WARNING: diag_ligand_feature_parity.py exited non-zero"
+  echo "===== diag: packer ====="
+  uv run python scripts/diag_packer_parity.py 2>&1 || echo "WARNING: diag_packer_parity.py exited non-zero"
 fi
 
 uv run pytest tests/parity tests/model/test_ligandmpnn_equivalence.py -m parity_heavy -v --tb=short -ra

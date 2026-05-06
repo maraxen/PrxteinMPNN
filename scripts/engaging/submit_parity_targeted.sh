@@ -10,6 +10,9 @@
 # Local (needs REFERENCE_PATH + assets):
 #   bash scripts/engaging/submit_parity_targeted.sh
 #
+# Diagnostics: same ``scripts/diag_*`` trio as ``submit_parity_heavy_ligand.sh``.
+# Set ``PRXTEIN_SKIP_DIAG=1`` to skip.
+#
 #SBATCH --job-name=prx_parity_tgt
 #SBATCH --partition=mit_preemptable,pi_so3
 #SBATCH --gres=gpu:1
@@ -63,6 +66,10 @@ PY
 if [[ "${PRXTEIN_SKIP_DIAG:-0}" != "1" ]]; then
   echo "===== diag: protein feature edge stages ====="
   uv run python scripts/diag_protein_feature_parity.py 2>&1 || echo "WARNING: diag_protein_feature_parity.py exited non-zero"
+  echo "===== diag: ligand features ====="
+  uv run python scripts/diag_ligand_feature_parity.py 2>&1 || echo "WARNING: diag_ligand_feature_parity.py exited non-zero"
+  echo "===== diag: packer ====="
+  uv run python scripts/diag_packer_parity.py 2>&1 || echo "WARNING: diag_packer_parity.py exited non-zero"
 fi
 
 uv run pytest tests/parity tests/model/test_ligandmpnn_equivalence.py -m parity_targeted -v --tb=short -ra

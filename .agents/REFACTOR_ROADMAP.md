@@ -530,7 +530,7 @@ The roadmap is complete when **all** of the following are measurably true:
 7. **Cold-start wall-time benchmark** runs in CI (advisory); no regression in the mpnn-split benchmark exceeds 20% without an explanation in the PR.
 8. **`scripts/engaging/` audit complete** (Phase 3): every `RunSpecification(...)` call-site updated or explicitly waived in writing.
 9. **Spec interchange:** JSON round-trip tests and `prxteinmpnn spec` CLI exercised in CI-relevant paths (pickle migration script **optional** / descoped if JSON-only policy holds).
-10. **Phase 0a SPIKE outcome documented** with go/no-go decision and matching Phase 4 implementation.
+10. **Phase 0a SPIKE outcome documented** with go/no-go decision and matching Phase 4 implementation. **Split acceptance:** the spike (numeric + HLO evidence + recorded go/no-go in a PR) may complete **before** Phase 4; the clause *“matching Phase 4 implementation”* is satisfied only when Phase 4 registry/unification (or routing) PRs merge. Track the spike slice under sprint **Phase 3b PR1** (`.agents/SPRINT_refactor-phase3b-20260506.md`).
 
 ---
 
@@ -572,14 +572,14 @@ Each Open Question now has a **default decision** that holds unless a triggering
 
 | Field | Value |
 | :--- | :--- |
-| **task_id** | `refactor-phase3-sprint-20260505` |
+| **task_id** | `refactor-phase3b-sprint-20260506` (active); prior `refactor-phase3-sprint-20260505` |
 | **Last update** | 2026-05-06 |
-| **Current phase** | **Phase 3 in progress** — landed: payloads + replace tests (PR1–2); composed `RunSpec` + `RunSpecification.run_spec` + deprecated-kw init guard (PR3); `compute_resource_allocation` → Proxide datasets in prep + training (PR4 §2); `PrecisionConfig.compute` on `RunSpec` + trainer routing (PR4 §1); JSON `(de)serialize` + Typer `prxteinmpnn spec` CLI; parity asset path to bundled zst; assorted tech-debt TODOs. |
-| **Still open (Phase 3)** | **Tuple / payload migration** inside JIT-tight `make_sample_sequences` / `mpnn` call chains (host prep now has `multistate_stack_payload_from_prep_numpy`); **expand `RunSpec`/`build_run_spec`** so fewer fields live only on the dataclass façade; optional **`RunSpec` JSON** slice for tools. **PR6 scripts audit** table lives in `.agents/TECHNICAL_DEBT.md` (Phase 3 PR6 section). **Pickle migration** descoped in favor of JSON — update §10/§11 wording when editing those sections next. |
-| **Plan** | `.agents/SPRINT_refactor-phase3-20260505.md` — ordered PR1–PR6; pickle/PR5 replaced by JSON + CLI for new workflows. |
+| **Current phase** | **Phase 3 in progress** — landed: payloads + replace tests (PR1–2); composed `RunSpec` + `RunSpecification.run_spec` + deprecated-kw init guard (PR3); `compute_resource_allocation` → Proxide datasets in prep + training (PR4 §2); `PrecisionConfig.compute` on `RunSpec` + trainer routing (PR4 §1); JSON `(de)serialize` + Typer `prxteinmpnn spec` CLI; parity asset path to bundled zst; JIT paths accept optional `multistate_stack` / `ligand_stack` + `*_from_payload` on models (host prep: `multistate_stack_payload_from_prep_numpy`); multistate-sized `DesignArrayRecordWriter.from_multistate_shapes`; PR6 scripts audit in `TECHNICAL_DEBT.md`. |
+| **Still open (Phase 3 / 3b)** | **PR2 (3b):** any remaining tuple-first hot paths vs payload-first (verify against `make_sample_sequences` / score closures after PR3b PR2). **PR3 (3b):** expand `RunSpec`/`build_run_spec` so fewer fields live only on the dataclass façade. **PR4 (3b):** optional **`RunSpec` JSON** subset (after PR3). **PR5 (3b):** scripts audit refresh + Proxide stability (pin when not workspace-only). **PR1 (3b):** Phase 0a spike hardening + **§11 #10 spike slice** only (full #10 needs Phase 4) — see `.agents/SPRINT_refactor-phase3b-20260506.md`. **Pickle migration** remains descoped; JSON is the interchange. |
+| **Plan** | **Active:** `.agents/SPRINT_refactor-phase3b-20260506.md` (PR1–PR5, Phase 3b + Phase 0a entry). **Prior:** `.agents/SPRINT_refactor-phase3-20260505.md` (Phase 3 PR1–PR6; JSON replaced pickle PR5). |
 | **Prior landed (Phase 2)** | `protocols.py`, `model/capabilities.py`, introspection removal at sample/score/averaging, honest casts on score paths; sprint `refactor-phase2-sprint-20260505`, plan `.agents/SPRINT_refactor-phase2-20260505.md`. |
 | **Prior phase** | Phase 1: `task_id` `refactor-phase1-sprint-20260505` (§14 prior row archived in git history). |
 
 ---
 
-*End of roadmap. Phase 2 typed boundaries are landed; Phase 3 is executing — see §14 and `.agents/SPRINT_refactor-phase3-20260505.md`.*
+*End of roadmap. Phase 2 typed boundaries are landed; Phase 3 continues with Phase 3b sprint — see §14 and `.agents/SPRINT_refactor-phase3b-20260506.md`.*

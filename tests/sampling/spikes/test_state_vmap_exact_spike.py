@@ -1,7 +1,12 @@
 """Phase 0a spike: ``state_vmap_exact`` unconditional path vs explicit ``jax.vmap`` stack (roadmap §227).
 
-Records **go / no-go** for Phase 4 in the PR that merges substantive changes; this test is the
-numeric gate for the unconditional **ProteinMPNN** branch (``tie_group_map=None``).
+**Roadmap §11 item 10 (split):** this module satisfies the **spike evidence** slice (numeric
+agreement + HLO stats + recorded go/no-go for Phase 4 *entry*). The clause *matching Phase 4
+implementation* in §11 #10 is **not** claimed here — that belongs to Phase 4 registry/unify PRs.
+See ``.agents/TECHNICAL_DEBT.md`` (Phase 0a spike vs §11 #10) and sprint
+``.agents/SPRINT_refactor-phase3b-20260506.md`` PR1.
+
+This test is the numeric gate for the unconditional **ProteinMPNN** branch (``tie_group_map=None``).
 
 HLO narrative for PR visibility: tests emit ``UserWarning`` bodies including UTF-8 byte length,
 newline count, and a case-insensitive count of the substring ``custom-call`` (cheap proxy for
@@ -147,7 +152,15 @@ def _run_state_vmap_exact_unconditional_spike(*, n_states: int, n_can: int, key:
   logits_ref = scatter_stack_to_flat(logits_s, rows, n_flat)
 
   rtol, atol = get_tolerances(jnp.float32)
-  assert jnp.allclose(logits_sv, logits_ref, rtol=rtol, atol=atol)
+  assert jnp.allclose(
+    logits_sv,
+    logits_ref,
+    rtol=rtol,
+    atol=atol,
+  ), (
+    "Phase 0a: score_unconditional_state_vmap_exact logits differ from explicit jax.vmap stack "
+    f"(rtol={rtol}, atol={atol}). See roadmap Phase 0a / Q6."
+  )
 
   def run_sv(pk: jax.Array) -> jax.Array:
     return model.score_unconditional_state_vmap_exact(
@@ -170,6 +183,7 @@ def _run_state_vmap_exact_unconditional_spike(*, n_states: int, n_can: int, key:
   _emit_spike_hlo_warnings(hlo_sv)
 
 
+@pytest.mark.phase0a_spike
 @pytest.mark.parity_fast
 def test_state_vmap_exact_unconditional_matches_explicit_vmap_stack() -> None:
   """``score_unconditional_state_vmap_exact`` matches a literal ``jax.vmap`` encode/decode."""
@@ -177,6 +191,7 @@ def test_state_vmap_exact_unconditional_matches_explicit_vmap_stack() -> None:
   _run_state_vmap_exact_unconditional_spike(n_states=2, n_can=6, key=key)
 
 
+@pytest.mark.phase0a_spike
 @pytest.mark.parity_heavy
 def test_state_vmap_exact_spike_extended_when_reference_assets() -> None:
   """Larger synthetic stack when ``REFERENCE_PATH`` points at a real directory (local / CI opt-in)."""

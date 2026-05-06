@@ -161,6 +161,7 @@ markers = [
     "parity_fast: deterministic fast parity fixtures and checks",
     "parity_heavy: reference-backed parity tests that require external assets",
     "parity_audit: checkpoint-family audit parity checks and conversion validation",
+    "phase0a_spike: Phase 0a state_vmap_exact vs explicit vmap stack (roadmap REFACTOR_ROADMAP §227)",
 ]
 
 [tool.ty.environment]

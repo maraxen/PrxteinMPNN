@@ -1,8 +1,23 @@
 # Technical Debt & Future Work
 
-**Last Updated:** 2026-05-06 (Phase 3 PR6 scripts audit; multistate prep → payload bridge)
+**Last Updated:** 2026-05-06 (Phase 3b sprint plan; Phase 0a / §11 #10 split)
 
 This document tracks known technical debt, experimental features, and planned improvements.
+
+---
+
+## Phase 0a spike vs roadmap §11 item 10
+
+**Roadmap:** `.agents/REFACTOR_ROADMAP.md` §227–238 (Phase 0a), §11 checklist #10 (amended 2026-05-06).
+
+| Slice | Meaning |
+| :--- | :--- |
+| **Spike slice (Phase 3b PR1)** | `tests/sampling/spikes/test_state_vmap_exact_spike.py`: numeric match `state_vmap_exact` vs explicit `jax.vmap` stack at `get_tolerances("float32")`; HLO text stats via `UserWarning` (`pytest -W default`); go/no-go for **entering** Phase 4 recorded in the PR that lands PR1+ |
+| **§11 #10 full item** | Above **plus** “matching Phase 4 implementation” — satisfied only when Phase 4 registry/unification (or routing-on-no-go) merges |
+
+**Q6 artifact:** SPIKE PR / sprint notes must record numeric result and HLO narrative; Phase 4 PR references that record.
+
+**Recorded verdict (local CI agent, 2026-05-06):** fast spike test **GO** — `score_unconditional_state_vmap_exact` matches explicit `jax.vmap` stack at `get_tolerances(float32)`; HLO warning emitted (`spike_hlo_state_vmap_exact bytes=...`). Heavy arm not run (`REFERENCE_PATH` unset). Formal PR should restate after human review.
 
 ---
 

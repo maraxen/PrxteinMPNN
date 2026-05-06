@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import shutil
 from pathlib import Path
 
 RAW = Path(__file__).resolve().parent / "pytest_errors" / "260505_1ead0b39_pytest_raw.json"

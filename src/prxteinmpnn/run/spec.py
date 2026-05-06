@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 import equinox as eqx
+import jax
 
 
 class IOConfig(eqx.Module):
@@ -208,10 +209,8 @@ def _infer_n_devices(spec: object) -> int:
     except (TypeError, ValueError):
       pass
   try:
-    import jax
-
     return int(jax.local_device_count())
-  except Exception:
+  except (RuntimeError, OSError, AttributeError, ImportError, ValueError):
     return 1
 
 

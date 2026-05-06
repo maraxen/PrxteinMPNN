@@ -1,6 +1,6 @@
 # Technical Debt & Future Work
 
-**Last Updated:** 2026-05-06 (Phase 3b PR2 logits helpers; PR5 scripts rg refresh; §2 proxide PyPI floor)
+**Last Updated:** 2026-05-06 (Phase 3b PR2 logits helpers; PR5 scripts rg refresh; §2 proxide PyPI floor) — *doc touch 2026-05-05:* Phase 4 entry sprint + Phase 0a cluster smoke pointer (Phase 0a section).
 
 This document tracks known technical debt, experimental features, and planned improvements.
 
@@ -16,6 +16,8 @@ This document tracks known technical debt, experimental features, and planned im
 | **§11 #10 full item** | Above **plus** “matching Phase 4 implementation” — satisfied only when Phase 4 registry/unification (or routing-on-no-go) merges |
 
 **Q6 artifact:** SPIKE PR / sprint notes must record numeric result and HLO narrative; Phase 4 PR references that record.
+
+- **Cluster smoke (Phase 0a):** when `scripts/engaging/submit_phase0a_state_vmap_spike.sh` lands, use it as the Engaging `sbatch` entrypoint for spike + `parity_fast` smoke; checklist and DoD live in `.agents/SPRINT_refactor-phase4-entry-20260505.md`.
 
 **Recorded verdict (local CI agent, 2026-05-06):** fast spike test **GO** — `score_unconditional_state_vmap_exact` matches explicit `jax.vmap` stack at `get_tolerances(float32)`; HLO warning emitted (`spike_hlo_state_vmap_exact bytes=...`). Heavy arm not run (`REFERENCE_PATH` unset). Formal PR should restate after human review.
 

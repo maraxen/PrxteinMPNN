@@ -118,3 +118,9 @@ def test_training_spec_json_dict_roundtrip(tmp_path: Path) -> None:
     if f.name == "run_spec":
       continue
     assert getattr(again, f.name) == getattr(spec, f.name), f.name
+
+
+# TODO(JSON audit): add typed round-trip tests for remaining ``spec_json``-registered classes
+# that lack coverage here: ``JacobianSpecification`` (mind ``combine_fn`` JSON rules),
+# ``ConformationalInferenceSpecification``, ``InspectionSpecification``. Use minimal
+# instances with JSON-safe fields only; see ``_SPEC_CLASS_BY_NAME`` in ``run/spec_json.py``.

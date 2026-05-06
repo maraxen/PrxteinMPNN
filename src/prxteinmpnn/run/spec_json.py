@@ -26,6 +26,9 @@ from prxteinmpnn.run.specs import (
   ScoringSpecification,
 )
 
+# TODO(JSON audit): when adding new RunSpecification subclasses, register below and add a
+# minimal round-trip test in ``tests/run/test_spec_json.py`` (TrainingSpecification added;
+# Jacobian / ConformationalInference / Inspection still need tests).
 _SPEC_CLASS_BY_NAME: dict[str, type[RunSpecification]] = {
   "RunSpecification": RunSpecification,
   "ScoringSpecification": ScoringSpecification,

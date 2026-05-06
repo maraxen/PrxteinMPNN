@@ -38,7 +38,7 @@ def test_sample_with_tied_positions(tied_mode):
         return_value=([mock_protein], mock_model),
     ):
         with patch(
-            "prxteinmpnn.run.sampling.make_sample_sequences",
+            "prxteinmpnn.run.sampling.SamplingDriver.build_sampler_fn",
             return_value=mock_sampler_fn,
         ):
             spec = SamplingSpecification(
@@ -93,7 +93,7 @@ def test_sample_with_tied_positions_batch_size_1():
         return_value=([mock_protein], mock_model),
     ):
         with patch(
-            "prxteinmpnn.run.sampling.make_sample_sequences",
+            "prxteinmpnn.run.sampling.SamplingDriver.build_sampler_fn",
             return_value=mock_sampler_fn,
         ):
             # Use "direct" mode which triggers resolve_tie_groups
@@ -144,7 +144,7 @@ def test_sample_with_tied_positions_and_mapping():
         return_value=([mock_protein], mock_model),
     ):
         with patch(
-            "prxteinmpnn.run.sampling.make_sample_sequences",
+            "prxteinmpnn.run.sampling.SamplingDriver.build_sampler_fn",
             return_value=mock_sampler_fn,
         ):
             spec = SamplingSpecification(
@@ -195,7 +195,7 @@ def test_sample_tied_positions_various_batch_sizes(batch_size):
         return_value=([mock_protein], mock_model),
     ):
         with patch(
-            "prxteinmpnn.run.sampling.make_sample_sequences",
+            "prxteinmpnn.run.sampling.SamplingDriver.build_sampler_fn",
             return_value=mock_sampler_fn,
         ):
             spec = SamplingSpecification(

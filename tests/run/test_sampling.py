@@ -37,7 +37,10 @@ def test_sample_non_streaming(use_spec):
 
     # prep_protein_stream_and_model returns an iterator and the model
     with patch("prxteinmpnn.run.sampling.prep_protein_stream_and_model", return_value=([mock_protein], mock_model)):
-        with patch("prxteinmpnn.run.sampling.make_sample_sequences", return_value=mock_sampler_fn):
+        with patch(
+            "prxteinmpnn.run.sampling.SamplingDriver.build_sampler_fn",
+            return_value=mock_sampler_fn,
+        ):
             if use_spec:
                 spec = SamplingSpecification(
                     inputs=["1ubq.pdb"],
@@ -77,7 +80,10 @@ def test_sample_non_streaming_without_logits():
     mock_sampler_fn.return_value = (jnp.ones((10,), dtype=jnp.int8), jnp.ones((10, 21)), jnp.arange(10))
 
     with patch("prxteinmpnn.run.sampling.prep_protein_stream_and_model", return_value=([mock_protein], mock_model)):
-        with patch("prxteinmpnn.run.sampling.make_sample_sequences", return_value=mock_sampler_fn):
+        with patch(
+            "prxteinmpnn.run.sampling.SamplingDriver.build_sampler_fn",
+            return_value=mock_sampler_fn,
+        ):
             result = sample(
                 inputs=["1ubq.pdb"],
                 num_samples=2,
@@ -109,7 +115,10 @@ def test_sample_streaming():
     with tempfile.TemporaryDirectory() as tempdir:
         output_h5_path = Path(tempdir) / "output.h5"
         with patch("prxteinmpnn.run.sampling.prep_protein_stream_and_model", return_value=([mock_protein], mock_model)):
-            with patch("prxteinmpnn.run.sampling.make_sample_sequences", return_value=mock_sampler_fn):
+            with patch(
+            "prxteinmpnn.run.sampling.SamplingDriver.build_sampler_fn",
+            return_value=mock_sampler_fn,
+        ):
                 spec = SamplingSpecification(
                     inputs=["1ubq.pdb"],
                     num_samples=2,
@@ -149,7 +158,10 @@ def test_sample_streaming_campaign_mode_chunk_append():
     with tempfile.TemporaryDirectory() as tempdir:
         output_h5_path = Path(tempdir) / "campaign_output.h5"
         with patch("prxteinmpnn.run.sampling.prep_protein_stream_and_model", return_value=([mock_protein], mock_model)):
-            with patch("prxteinmpnn.run.sampling.make_sample_sequences", return_value=mock_sampler_fn):
+            with patch(
+            "prxteinmpnn.run.sampling.SamplingDriver.build_sampler_fn",
+            return_value=mock_sampler_fn,
+        ):
                 spec = SamplingSpecification(
                     inputs=["1ubq.pdb"],
                     num_samples=5,
@@ -189,7 +201,10 @@ def test_sample_multiple_temperatures():
     mock_sampler_fn.return_value = (jnp.ones((10,), dtype=jnp.int8), jnp.ones((10, 21)), jnp.arange(10))
 
     with patch("prxteinmpnn.run.sampling.prep_protein_stream_and_model", return_value=([mock_protein], mock_model)):
-        with patch("prxteinmpnn.run.sampling.make_sample_sequences", return_value=mock_sampler_fn):
+        with patch(
+            "prxteinmpnn.run.sampling.SamplingDriver.build_sampler_fn",
+            return_value=mock_sampler_fn,
+        ):
             spec = SamplingSpecification(
                 inputs=["1ubq.pdb"],
             num_samples=2,
@@ -271,7 +286,10 @@ def test_sampling_with_pseudo_perplexity():
     mock_sampler_fn.return_value = (jnp.ones((10,), dtype=jnp.int8), jnp.ones((10, 21)), jnp.arange(10))
 
     with patch("prxteinmpnn.run.sampling.prep_protein_stream_and_model", return_value=([mock_protein], mock_model)):
-        with patch("prxteinmpnn.run.sampling.make_sample_sequences", return_value=mock_sampler_fn):
+        with patch(
+            "prxteinmpnn.run.sampling.SamplingDriver.build_sampler_fn",
+            return_value=mock_sampler_fn,
+        ):
             spec = SamplingSpecification(
                 inputs=["1ubq.pdb"],
                 num_samples=2,

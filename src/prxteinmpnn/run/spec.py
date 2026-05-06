@@ -181,6 +181,24 @@ def _infer_multistate_mode(spec: object) -> str:
   return "single"
 
 
+def _infer_n_devices(spec: object) -> int:
+  """Prefer explicit ``n_devices`` on the spec; else ``jax.local_device_count()``; else ``1``."""
+  raw = getattr(spec, "n_devices", None)
+  if raw is not None:
+    try:
+      if hasattr(raw, "item"):
+        return int(raw.item())
+      return int(raw)
+    except (TypeError, ValueError):
+      pass
+  try:
+    import jax
+
+    return int(jax.local_device_count())
+  except Exception:
+    return 1
+
+
 def build_run_spec(spec: object) -> RunSpec:
   """Build a :class:`RunSpec` view from a :class:`RunSpecification` (or subclass) instance."""
   pre_idx = getattr(spec, "preprocessed_index_path", None)
@@ -193,8 +211,7 @@ def build_run_spec(spec: object) -> RunSpec:
   batch_size = int(getattr(spec, "batch_size", 32))
   samples_batch = getattr(spec, "samples_batch_size", None)
   resource = ResourceConfig(
-    # TODO(REFACTOR_ROADMAP Phase 4): thread `jax.local_device_count()` / user override.
-    n_devices=1,
+    n_devices=_infer_n_devices(spec),
     sample_batch_size=int(samples_batch) if samples_batch is not None else batch_size,
     structure_batch_size=batch_size,
   )

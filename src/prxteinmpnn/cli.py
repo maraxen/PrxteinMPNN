@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any, cast
 
 import typer
 
+from prxteinmpnn.run.run_spec_portable_json import (
+  run_spec_portable_from_dict,
+  run_spec_portable_to_dict,
+)
 from prxteinmpnn.run.spec_json import run_specification_from_json, run_specification_to_json
 
 app = typer.Typer(
@@ -48,6 +53,25 @@ def spec_roundtrip(
     typer.secho(f"Wrote {out}", fg=typer.colors.GREEN)
   else:
     typer.echo(blob)
+
+
+@spec_app.command("portable-roundtrip")
+def spec_portable_roundtrip(
+  path: Annotated[
+    Path,
+    typer.Argument(exists=True, readable=True, help="JSON dict: portable RunSpec subset"),
+  ],
+  *,
+  compact: Annotated[bool, typer.Option(help="Single-line JSON")] = False,
+) -> None:
+  """Load portable subset JSON, rebuild :class:`~prxteinmpnn.run.spec.RunSpec`, re-encode subset."""
+  raw = json.loads(path.read_text(encoding="utf-8"))
+  if not isinstance(raw, dict):
+    typer.secho("Top-level JSON must be an object", fg=typer.colors.RED)
+    raise typer.Exit(code=1)
+  rs = run_spec_portable_from_dict(cast("dict[str, Any]", raw))
+  out = run_spec_portable_to_dict(rs)
+  typer.echo(json.dumps(out, indent=None if compact else 2))
 
 
 def main() -> None:

@@ -14,11 +14,11 @@
 
 `prxteinmpnn` ships a numerically-correct, parity-pinned LigandMPNN port in JAX/Equinox, but the surface area between the four parity-pinned callables has accreted faster than its structure. `src/prxteinmpnn/model/mpnn.py` is **3933 LoC** with two near-duplicate Equinox modules (`PrxteinMPNN`, `PrxteinLigandMPNN`) that reach into each other's private static methods. `src/prxteinmpnn/run/sampling.py` is **1718 LoC** with four near-duplicate streaming variants (`_sample_streaming`, `_sample_streaming_arrayrecord`, `_sample_streaming_averaged`, in-memory) and parallels in scoring/jacobian/conformational_inference. `RunSpecification` and four subclasses carry **50+ flat fields** with at least five provably dead (`output_path`, `average_logits`, `score_batch_size`, `gmm_min_iters`, `combine_noise_batch_size`).
 
-The same `strategy_map = {"arithmetic_mean": 0, "geometric_mean": 1, "product": 2}` literal appears at **7 verified sites** (one is the `_lm` variant on line 2322, identical values): `model/mpnn.py:1457, 1581, 2322, 2615`; `scoring/score.py:75, 127`; `sampling/sample.py:340`. The same `multistate_mode` if/elif ladder appears at **4 sites**. `inspect.signature(...)` introspection appears at **3 verified sites**: `sampling/sample.py:77`, `scoring/score.py:342`, `run/averaging.py:58`.
+The **seven** legacy `strategy_map` literals are **routed** through `registry._COMBINE_INDEX` / `combine_strategy_to_index`. **Multistate** branching at the four roadmap call surfaces (`PrxteinMPNN` / `PrxteinLigandMPNN.__call__`, `make_sample_sequences`, `make_score_fn`) now reads **immutable** `MultistateModeDescriptor` rows from `registry.MULTISTATE_MODES` (Python / `static_argnames` only — no traced registry lookups). STE ``optimize_sequence`` validates ``multistate_mode`` via ``assert_known_multistate_mode`` at entry.
 
-Type-system escape hatches (`if TYPE_CHECKING: precise else: Callable[..., Any]` in `conditional_logits.py:48-66` and `unconditional_logits.py:39-56`; the lying `cast(ScoringFn, ...)` at `score.py:302`) defeat `ty` strict and force runtime branching where typed dispatch would suffice. Two hardcoded debug-log blocks at `model/mpnn.py:2428` and `:3098` (`_logp = "/home/marielle/projects/tev_design/.cursor/debug-5a01b7.log"`) remain in tree and block StableHLO export. `prxteinmpnn/__init__.py` (no line — top-level statement) **and** `run/specs.py:15` both call `mp.set_start_method("spawn", force=True)` at import time; both must be cleaned up in Phase 1.
+Phase 1 **import-time** ``multiprocessing.set_start_method`` removal and **hardcoded debug-log** deletion from ``mpnn.py`` are **landed** on main; ``configure_multiprocessing()`` is the supported opt-in (``runtime.py``). Remaining §11 risk is **review-level** (HLO diffs, Equinox static-field warnings), not committed debug paths.
 
-We refactor now because (a) **TECHNICAL_DEBT §9** (mpnn.py split) and **§10** (Protocols/contracts) gate the typed-dispatch work that **§14** (io_callback streaming) requires; (b) **§11** (StableHLO export) is blocked by the two debug-log blocks and by the `strategy_map`/`multistate_mode` host-side string keys that must become traced ints; (c) the parallel `state_vmap_exact` re-implementation is about to grow a third variant for grid lineage and will permanently fork the codebase if not unified now.
+We refactor now because (a) **TECHNICAL_DEBT §9** (mpnn.py split) and **§10** (Protocols/contracts) gate the typed-dispatch work that **§14** (io_callback streaming) requires; (b) **§11** (StableHLO) still needs disciplined HLO baselines and tracer-hygiene as ``mpnn.py`` evolves; (c) the parallel `state_vmap_exact` re-implementation is about to grow a third variant for grid lineage and will permanently fork the codebase if not unified now.
 
 The guiding principle is **"parity is pinned at four callable boundaries; everything inside is fluid"**: we move dataclasses, dispatch tables, file boundaries, and registries freely while keeping the four callables within `get_tolerances("float32")` at every merge. We adopt patterns from the sibling `jaxbeans` repo selectively — see the **VENDOR vs DEPEND matrix (§3.6)** — because jaxbeans has already debugged the JAX-specific edges (jaxtyping cost, Equinox static fields, `stop_gradient` around `io_callback`).
 
@@ -117,7 +117,7 @@ class Registry[T]:
     def keys(self) -> list[str]: return list(self._items)
 
 SAMPLERS = Registry[SamplerFn]("samplers")
-MULTISTATE_MODES = Registry[MultistateModeFn]("multistate_modes")
+MULTISTATE_MODES = Registry[MultistateModeDescriptor]("multistate_modes")
 OUTPUT_SINKS = Registry[DesignSink]("output_sinks")  # Phase 5
 ```
 
@@ -129,7 +129,7 @@ OUTPUT_SINKS = Registry[DesignSink]("output_sinks")  # Phase 5
 | `output_sinks` | `Registry[DesignSink]` (Phase 5) | UX goal: contributors add sinks by separate file |
 | `decoding_approach` | `lax.switch` over fixed-cardinality enum | Parity-pinned; not contributor-extensible |
 
-Replaces the **7 duplicated `strategy_map` literals** (above) and the **4 `multistate_mode` if/elif ladders** (`model/mpnn.py:1418, :2283`, `sampling/sample.py:303`, `scoring/score.py:331`).
+Replaces the **7 duplicated `strategy_map` literals** (above) and the **4 `multistate_mode` dispatch surfaces** (`model/mpnn.py` both `__call__`, `sampling/sample.py`, `scoring/score.py`) with **`multistate_mode_descriptor()` → `MultistateModeDescriptor`** (host-only flags; JIT boundaries unchanged).
 
 ### 3.4 `ModelCapabilities(eqx.Module)` static field
 
@@ -333,7 +333,7 @@ The spike is mandatory before Phase 4 PRs may merge. Until then, draft Phase 4 P
   - `scoring/score.py:75, 127`
   - `sampling/sample.py:340`
   - The `lax.switch` index is `_COMBINE_INDEX[spec.multistate.combine_strategy]` at trace time.
-- Migrate the 4 `multistate_mode` if/elif ladders (`model/mpnn.py:1418, :2283`, `sampling/sample.py:303`, `scoring/score.py:331`) to `MULTISTATE_MODES` registry.
+- **Migrate the 4 `multistate_mode` if/elif ladders** (`model/mpnn.py` both `__call__`, `sampling/sample.py`, `scoring/score.py`) **→ done (descriptor registry, 2026-05):** host-side `MultistateModeDescriptor` rows in `MULTISTATE_MODES` + `multistate_mode_descriptor()` replace string equality while preserving JIT boundaries. **Still open:** optional `jax.vmap` unification of `state_vmap_exact` vs registry-only routing (Phase 0a **GO** recorded in §13.2).
 - **`state_vmap_exact` outcome (controlled by Phase 0a SPIKE):**
   - **If go:** becomes `@MULTISTATE_MODES.register("state_vmap_exact")` calling `jax.vmap` over the existing single-state path; the parallel re-implementation is deleted.
   - **If no-go:** `state_vmap_exact` becomes a registry entry that dispatches to the existing implementation. The duplication is preserved; the registry layer still unifies the dispatch surface (callers see a single `MULTISTATE_MODES.get(mode)` API).
@@ -447,9 +447,9 @@ Critic point #9 accepted: doc-drift PRs ship independently, not as part of any p
 
 Each is its own PR; collectively ~3–5 PRs over the refactor window.
 
-### 7.3 Hardcoded debug-log block deletion (Phase 1, mandatory)
-- `model/mpnn.py:2428` and `:3098` (`_logp = "/home/marielle/projects/tev_design/.cursor/debug-5a01b7.log"`) — DELETE.
-- These block StableHLO export per **§11**; cannot be deferred.
+### 7.3 Hardcoded debug-log block deletion (Phase 1, mandatory) — **completed on main**
+
+- Former `model/mpnn.py` debug-log paths and import-time `mp.set_start_method` on the package surface were removed per Phase 1; see §1 executive summary. Retain this subsection as historical rationale for §11.
 
 ### 7.4 jaxbeans dependency adoption
 
@@ -609,9 +609,9 @@ Each Open Question now has a **default decision** that holds unless a triggering
 | Field | Value |
 | :--- | :--- |
 | **task_id** | `refactor-sprint-20260507-phase0a-go-pr2-sample` (active sprint); OODA cycle `refactor-sprint-20260507-ooda`; prior `refactor-phase4-pr2-20260506`, `refactor-phase4-entry-20260505`, `refactor-phase3b-sprint-20260506`, `refactor-phase3-sprint-20260505` |
-| **Last update** | 2026-05-07 — §**13.2** Phase 0a spike **GO** recorded (numeric + dual HLO advisory); §**13.1** parity gate history unchanged. |
-| **Current phase** | **Phase 3b signed off** on `main`. **PR2a (unconditional logits factories → payload)** landed under `.agents/SPRINT_refactor-phase3c-0a-pr2-20260506.md`. **Active plan body:** `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md` — **WP1** Phase 0a GO closure (§230 HLO byte + op-summary in PR text; filtered logs); **PR2b** `sample.py` loose-stack → payload **subject to JIT / static `n_flat` note** in that sprint (no blind in-jit `int(jnp.max(state_flat_rows))`). **Phase 4** remains **blocked from merge on `main`** until Phase **0a** records explicit **GO** (§227–238, §11 #10 split acceptance). |
-| **Still open** | **Phase 4:** `registry.py`, frozen `_COMBINE_INDEX`, `MULTISTATE_MODES`, `state_vmap_exact` unify vs registry-route. **PR2b:** `sample.py` tuple branches when `multistate_stack is None` (strategy A/B/C in active sprint). **Defer:** STE / straight_through; portable RunSpec JSON v3 bundled with registry work. |
+| **Last update** | 2026-05-05 — Phase 4 **multistate dispatch slice**: `MultistateModeDescriptor` rows + `multistate_mode_descriptor()` wired through `mpnn.__call__`, `make_sample_sequences`, `make_score_fn`; STE validates mode at entry; `logs/` gitignored. §13.2 Phase 0a **GO** unchanged. |
+| **Current phase** | **Phase 3b signed off** on `main`. **Phase 4 prep:** `_COMBINE_INDEX` + **multistate descriptor registry** landed; **`state_vmap_exact` jax.vmap unification** vs registry-only routing remains the next behavioral Phase 4 decision (§13.2). **PR2b** `sample.py` tuple branches when `multistate_stack is None` remain in the separate sprint doc. |
+| **Still open** | **Phase 4:** `state_vmap_exact` unify vs registry-route; `SAMPLERS` / `SamplingDriver` (Phase 5). **PR2b:** `sample.py` tuple branches when `multistate_stack is None`. **Defer:** portable RunSpec JSON v3 follow-ups (Jacobian / CIF / Inspection round-trips). |
 | **Plan** | **Active:** `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md`. **Prior / superseded plan body:** `.agents/SPRINT_refactor-phase3c-0a-pr2-20260506.md` (retain for PR2a history). **Prior (retained):** `.agents/SPRINT_refactor-phase4-entry-20260505.md`. **Prior / closed (do not delete):** `.agents/SPRINT_refactor-phase3b-20260506.md`, `.agents/SPRINT_refactor-phase3-20260505.md`. |
 | **Prior landed (Phase 2)** | `protocols.py`, `model/capabilities.py`, introspection removal at sample/score/averaging, honest casts on score paths; sprint `refactor-phase2-sprint-20260505`, plan `.agents/SPRINT_refactor-phase2-20260505.md`. |
 | **Prior phase** | Phase 1: `task_id` `refactor-phase1-sprint-20260505` (§14 prior row archived in git history). |

@@ -1,4 +1,4 @@
-"""Multistate mode string constants and registry scaffold."""
+"""Multistate mode string constants and ``MULTISTATE_MODES`` registry."""
 
 import pytest
 
@@ -8,7 +8,9 @@ from prxteinmpnn.registry import (
   MULTISTATE_MODE_STATE_VMAP,
   MULTISTATE_MODE_STATE_VMAP_EXACT,
   MULTISTATE_MODES,
+  MultistateModeDescriptor,
   assert_known_multistate_mode,
+  multistate_mode_descriptor,
 )
 
 
@@ -52,5 +54,27 @@ def test_assert_known_multistate_mode_rejects_garbage() -> None:
     assert_known_multistate_mode("not_a_supported_mode")
 
 
-def test_multistate_modes_registry_empty_scaffold() -> None:
-  assert MULTISTATE_MODES.keys() == []
+def test_multistate_modes_registry_default_keys() -> None:
+  assert MULTISTATE_MODES.keys() == [
+    MULTISTATE_MODE_FLAT,
+    MULTISTATE_MODE_STATE_VMAP,
+    MULTISTATE_MODE_STATE_VMAP_EXACT,
+  ]
+
+
+def test_multistate_mode_descriptor_routing_flags() -> None:
+  flat = multistate_mode_descriptor(MULTISTATE_MODE_FLAT)
+  assert flat == MultistateModeDescriptor(
+    uses_stacked_exact_model_call=False,
+    uses_stacked_exact_sample_wave=False,
+    uses_stacked_exact_score_factory=False,
+    allows_ligand_flat_encoder_path=True,
+  )
+  sv = multistate_mode_descriptor(MULTISTATE_MODE_STATE_VMAP)
+  assert sv.allows_ligand_flat_encoder_path is False
+  assert sv.uses_stacked_exact_model_call is False
+  exact = multistate_mode_descriptor(MULTISTATE_MODE_STATE_VMAP_EXACT)
+  assert exact.uses_stacked_exact_model_call
+  assert exact.uses_stacked_exact_sample_wave
+  assert exact.uses_stacked_exact_score_factory
+  assert exact.allows_ligand_flat_encoder_path is False

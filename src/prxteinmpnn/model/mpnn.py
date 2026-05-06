@@ -31,11 +31,7 @@ from prxteinmpnn.model.multi_state_sampling import (
 from prxteinmpnn.model.multistate_stack import gather_flat_to_stack, scatter_stack_to_flat
 from prxteinmpnn.padding import LENGTH_BUCKETS
 from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
-from prxteinmpnn.registry import (
-  MULTISTATE_MODE_FLAT,
-  MULTISTATE_MODE_STATE_VMAP_EXACT,
-  combine_strategy_to_index,
-)
+from prxteinmpnn.registry import combine_strategy_to_index, multistate_mode_descriptor
 from prxteinmpnn.utils.concatenate import concatenate_neighbor_nodes
 from prxteinmpnn.utils.ste import straight_through_estimator
 
@@ -1427,7 +1423,9 @@ class PrxteinMPNN(eqx.Module):
     if prng_key is None:
       prng_key = jax.random.PRNGKey(0)
 
-    if multistate_mode == MULTISTATE_MODE_STATE_VMAP_EXACT:
+    ms_route = multistate_mode_descriptor(multistate_mode)
+
+    if ms_route.uses_stacked_exact_model_call:
       if decoding_approach == "autoregressive":
         msg = (
           "PrxteinMPNN.__call__ does not run state_vmap_exact autoregressive decoding; "
@@ -2392,7 +2390,9 @@ class PrxteinLigandMPNN(eqx.Module):
     if prng_key is None:
       prng_key = jax.random.PRNGKey(0)
 
-    if multistate_mode == MULTISTATE_MODE_STATE_VMAP_EXACT:
+    ms_route = multistate_mode_descriptor(multistate_mode)
+
+    if ms_route.uses_stacked_exact_model_call:
       if decoding_approach == "autoregressive":
         msg = (
           "PrxteinLigandMPNN.__call__ does not run state_vmap_exact autoregressive decoding; "
@@ -2521,7 +2521,7 @@ class PrxteinLigandMPNN(eqx.Module):
       ar_mask_stack,
     )
 
-    if multistate_mode != MULTISTATE_MODE_FLAT:
+    if not ms_route.allows_ligand_flat_encoder_path:
       msg = (
         f"{type(self).__name__}.__call__ only supports multistate_mode='flat' "
         f"(got {multistate_mode!r}); use multistate_mode='state_vmap_exact' with stacked inputs "

@@ -1,2 +1,0 @@
-pytest tests/test_multistate_mode_constants.py tests/sampling/test_sample.py tests/scoring/ -m "not parity_heavy"
-19 passed, 19 warnings in 93.40s (0:01:33)

@@ -209,7 +209,11 @@ url = "https://pypi.org/simple"
 explicit = true
 
 [tool.uv.sources]
-# Local workspace packages
+# Local workspace packages (parent `tev_design/pyproject.toml` workspace members:
+# `prxteinmpnn`, `prolix` only — jaxbeans is NOT a member today).
+# Roadmap §3.6 **DEPEND** (`safe_map`, `atomic_write`, …): swap imports to jaxbeans only
+# after an explicit packaging decision (add jaxbeans to workspace, path dep, or PyPI ≥0.1.0).
+# Until then, use `prxteinmpnn.utils.safe_map` / `prxteinmpnn.utils.atomic_write` mirrors.
 prolix = { workspace = true }
 # Resolve proxide from PyPI (not sibling-folder discovery) when ../proxide exists.
 proxide = { index = "pypi" }

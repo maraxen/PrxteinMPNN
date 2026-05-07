@@ -1,0 +1,18 @@
+=============================== warnings summary ===============================
+28 passed, 6 warnings in 65.09s (0:01:05)
+--- tail ---
+    DropVar: TypeAlias = jax.core.DropVar
+
+../.venv/lib/python3.13/site-packages/e3nn_jax/_src/irreps.py:654
+  /home/marielle/projects/tev_design/.venv/lib/python3.13/site-packages/e3nn_jax/_src/irreps.py:654: DeprecationWarning: Creating NamedTuple classes using keyword arguments is deprecated and will be disallowed in Python 3.15. Use the class-based or functional syntax instead.
+    ) -> NamedTuple("Sort", irreps="Irreps", p=Tuple[int, ...], inv=Tuple[int, ...]):
+
+tests/sampling/test_state_vmap_exact_jit.py::test_sample_fn_state_vmap_exact_ligand_stack_payload_path
+tests/sampling/test_state_vmap_exact_jit.py::test_ligand_state_vmap_exact_smoke
+tests/sampling/test_state_vmap_exact_routing.py::test_prxtein_ligand_mpnn_call_matches_direct_score[unconditional]
+tests/sampling/test_state_vmap_exact_routing.py::test_prxtein_ligand_mpnn_call_matches_direct_score[conditional]
+  /home/marielle/projects/tev_design/prxteinmpnn/src/prxteinmpnn/model/ligand_mpnn.py:113: UserWarning: A JAX array is being set as static! This can result in unexpected behavior and is usually a mistake to do.
+    self.features = ProteinFeaturesLigand(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+28 passed, 6 warnings in 65.09s (0:01:05)

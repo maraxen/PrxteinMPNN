@@ -655,6 +655,34 @@ def _noop_sampling_chunk_io(chunk_idx: object, chunk_count: object) -> None:
   del chunk_idx, chunk_count
 
 
+def _noop_sampling_structure_batch_io(batch_idx: object, batch_count: object) -> None:
+  """Host structure-batch boundary hook for sampling (Phase **5g** PR3a).
+
+  ``jax.experimental.io_callback`` invokes this on the host with ``ordered=False``;
+  completion order is **not** guaranteed to match program order. Only lightweight
+  scalar markers cross here — sequences / logits stay on device until list concat or
+  HDF5 / ArrayRecord materialization (see ``TODO_io_callback.txt``).
+
+  Emitted **once per protein-iterator batch** when ``emit_structure_batch_io=True``
+  (campaign paths chunk ``_sample_batch`` multiple times per ensemble — only the
+  **last** chunk sets ``emit_structure_batch_io=True``).
+
+  ``batch_count`` is ``-1`` when the protein iterator does not expose ``__len__``.
+
+  Default implementation is a no-op so production pays minimal overhead; tests may
+  monkeypatch this symbol **before** the first traced ``_sample_batch`` call.
+  """
+  del batch_idx, batch_count
+
+
+def _structure_batch_count_for_io(protein_iterator: Any) -> int:  # noqa: ANN401
+  """Return protein-iterator batch count for io markers, or ``-1`` if not sized."""
+  try:
+    return len(protein_iterator)
+  except TypeError:
+    return -1
+
+
 def _sample_batch(
   spec: SamplingSpecification,
   batched_ensemble: Protein,
@@ -664,6 +692,9 @@ def _sample_batch(
   batch_structure_ids: Sequence[str] | None = None,
   chunk_sample_start: int | None = None,
   chunk_sample_count: int | None = None,
+  batch_idx: int = 0,
+  structure_batch_count: int = -1,
+  emit_structure_batch_io: bool = True,
 ) -> tuple[ProteinSequence, Logits, jax.Array | None]:
   """Sample sequences for a batched ensemble of proteins."""
   grid_lineage = _resolve_grid_lineage(spec)
@@ -962,7 +993,27 @@ def _sample_batch(
     if mask is None:
       mask = jnp.ones(batched_ensemble.coordinates.shape[:2], dtype=jnp.float32)
     pseudo_perplexity = jnp.exp(nll / jnp.sum(mask, axis=-1))
+    if emit_structure_batch_io:
+      batch_idx_j = jnp.asarray(batch_idx, dtype=jnp.int32)
+      batch_cnt_j = jnp.asarray(structure_batch_count, dtype=jnp.int32)
+      jax.experimental.io_callback(
+        _noop_sampling_structure_batch_io,
+        None,
+        jax.lax.stop_gradient(batch_idx_j),
+        jax.lax.stop_gradient(batch_cnt_j),
+        ordered=False,
+      )
     return sampled_sequences, sampled_logits, pseudo_perplexity
+  if emit_structure_batch_io:
+    batch_idx_j = jnp.asarray(batch_idx, dtype=jnp.int32)
+    batch_cnt_j = jnp.asarray(structure_batch_count, dtype=jnp.int32)
+    jax.experimental.io_callback(
+      _noop_sampling_structure_batch_io,
+      None,
+      jax.lax.stop_gradient(batch_idx_j),
+      jax.lax.stop_gradient(batch_cnt_j),
+      ordered=False,
+    )
   return sampled_sequences, sampled_logits, None
 
 
@@ -1030,8 +1081,9 @@ def sample(
   canonical_structure_ids = _canonical_structure_ids_for_spec(spec)
   resolved_structure_ids: list[str] = []
   structure_offset = 0
+  structure_batch_count = _structure_batch_count_for_io(protein_iterator)
 
-  for batched_ensemble in protein_iterator:
+  for batch_idx, batched_ensemble in enumerate(protein_iterator):
     batch_size = batched_ensemble.coordinates.shape[0]
     batch_structure_ids = _structure_ids_for_batch(
       canonical_structure_ids,
@@ -1044,8 +1096,9 @@ def sample(
       sampler_fn,
       canonical_structure_ids=canonical_structure_ids,
       batch_structure_ids=batch_structure_ids,
+      batch_idx=batch_idx,
+      structure_batch_count=structure_batch_count,
     )
-    jax.effects_barrier()
     all_sequences.append(sampled_sequences)
     if spec.return_logits and all_logits is not None:
       all_logits.append(logits)
@@ -1054,6 +1107,7 @@ def sample(
     resolved_structure_ids.extend(batch_structure_ids)
     structure_offset += batch_size
 
+  jax.effects_barrier()
   max_len = max(arr.shape[-1] for arr in all_sequences)
 
   def pad_to_max(arr: jax.Array, target_len: int, axis: int = -1, pad_value: int = 0) -> jax.Array:
@@ -1131,6 +1185,7 @@ def _sample_streaming(
   )
   chunk_size = int(spec.samples_chunk_size or total_num_samples)
   sample_start = int(grid_lineage["sample_start"]) if grid_lineage is not None else 0
+  structure_batch_count_stream = _structure_batch_count_for_io(protein_iterator)
 
   # Validate ArrayRecord and HDF5 parameter combinations
   if spec.use_arrayrecord and not spec.campaign_mode:
@@ -1177,7 +1232,7 @@ def _sample_streaming(
       f.create_dataset("grid_iteration_sample_count", data=iteration_counts, dtype="i8")
     structure_idx = 0
 
-    for batched_ensemble in protein_iterator:
+    for batch_idx, batched_ensemble in enumerate(protein_iterator):
       batch_size = batched_ensemble.coordinates.shape[0]
       batch_structure_ids = _structure_ids_for_batch(
         canonical_structure_ids,
@@ -1191,6 +1246,8 @@ def _sample_streaming(
           sampler_fn,
           canonical_structure_ids=canonical_structure_ids,
           batch_structure_ids=batch_structure_ids,
+          batch_idx=batch_idx,
+          structure_batch_count=structure_batch_count_stream,
         )
         jax.effects_barrier()
         for i in range(sampled_sequences.shape[0]):
@@ -1236,6 +1293,7 @@ def _sample_streaming(
         for chunk_start in range(0, total_num_samples, chunk_size):
           chunk_count = min(chunk_size, total_num_samples - chunk_start)
           chunk_sample_start = sample_start + chunk_start
+          last_chunk = chunk_start + chunk_count >= total_num_samples
           sampled_sequences, sampled_logits, pseudo_perplexity = _sample_batch(
             spec,
             batched_ensemble,
@@ -1244,6 +1302,9 @@ def _sample_streaming(
             batch_structure_ids=batch_structure_ids,
             chunk_sample_start=chunk_sample_start,
             chunk_sample_count=chunk_count,
+            batch_idx=batch_idx,
+            structure_batch_count=structure_batch_count_stream,
+            emit_structure_batch_io=last_chunk,
           )
           jax.effects_barrier()
 
@@ -1337,6 +1398,7 @@ def _sample_streaming_arrayrecord(
   chunk_size = int(spec.samples_chunk_size or total_num_samples)
   sample_start = int(grid_lineage["sample_start"]) if grid_lineage is not None else 0
   structure_idx = 0
+  structure_batch_count_ar = _structure_batch_count_for_io(protein_iterator)
 
   # Generate output base path (strip .h5 if present, use .arrayrecord)
   output_base = spec.output_h5_path
@@ -1345,7 +1407,7 @@ def _sample_streaming_arrayrecord(
 
   structure_writers: list[tuple[int, DesignArrayRecordWriter]] = []
   try:
-    for batched_ensemble in protein_iterator:
+    for batch_idx, batched_ensemble in enumerate(protein_iterator):
       batch_size = batched_ensemble.coordinates.shape[0]
       batch_structure_ids = _structure_ids_for_batch(
         canonical_structure_ids,
@@ -1371,6 +1433,7 @@ def _sample_streaming_arrayrecord(
       for chunk_start in range(0, total_num_samples, chunk_size):
         chunk_count = min(chunk_size, total_num_samples - chunk_start)
         chunk_sample_start = sample_start + chunk_start
+        last_chunk = chunk_start + chunk_count >= total_num_samples
         sampled_sequences, sampled_logits, pseudo_perplexity = _sample_batch(
           spec,
           batched_ensemble,
@@ -1379,6 +1442,9 @@ def _sample_streaming_arrayrecord(
           batch_structure_ids=batch_structure_ids,
           chunk_sample_start=chunk_sample_start,
           chunk_sample_count=chunk_count,
+          batch_idx=batch_idx,
+          structure_batch_count=structure_batch_count_ar,
+          emit_structure_batch_io=last_chunk,
         )
         jax.effects_barrier()
 
@@ -1511,21 +1577,24 @@ def _sample_averaged_mode(
   _, sample_fn, decode_fn = make_encoding_sampling_split_fn(model)
   # TODO(io_callback integration): List + concat of sequences/logits; mirror streaming sample() work.
   all_sequences, all_logits, all_pseudo_perplexities = [], [], []
+  structure_batch_count = _structure_batch_count_for_io(protein_iterator)
 
-  for batched_ensemble in protein_iterator:
+  for batch_idx, batched_ensemble in enumerate(protein_iterator):
     sampled_sequences, logits, pseudo_perplexity = _sample_batch_averaged(
       spec,
       batched_ensemble,
       model,
       sample_fn,
       decode_fn,
+      batch_idx,
+      structure_batch_count,
     )
-    jax.effects_barrier()
     all_sequences.append(sampled_sequences)
     all_logits.append(logits)
     if pseudo_perplexity is not None:
       all_pseudo_perplexities.append(pseudo_perplexity)
 
+  jax.effects_barrier()
   results = {
     "sequences": jnp.concatenate(all_sequences, axis=0),
     "logits": jnp.concatenate(all_logits, axis=0),
@@ -1622,6 +1691,8 @@ def _sample_batch_averaged(
   model: PrxteinMPNN,
   sample_fn: Callable,  # noqa: ARG001
   decode_fn: Callable,  # noqa: ARG001
+  batch_idx: int,
+  structure_batch_count: int,
 ) -> tuple[ProteinSequence, Logits, jax.Array | None]:
   """Sample sequences for a batched ensemble of proteins using averaged encodings."""
   keys = jax.random.split(jax.random.key(spec.random_seed), spec.num_samples)
@@ -1718,7 +1789,25 @@ def _sample_batch_averaged(
     if mask is None:
       mask = jnp.ones(batched_ensemble.coordinates.shape[:2], dtype=jnp.float32)
     pseudo_perplexity = jnp.exp(nll / jnp.sum(mask, axis=-1))
+    batch_idx_j = jnp.asarray(batch_idx, dtype=jnp.int32)
+    batch_cnt_j = jnp.asarray(structure_batch_count, dtype=jnp.int32)
+    jax.experimental.io_callback(
+      _noop_sampling_structure_batch_io,
+      None,
+      jax.lax.stop_gradient(batch_idx_j),
+      jax.lax.stop_gradient(batch_cnt_j),
+      ordered=False,
+    )
     return sampled_sequences, logits, pseudo_perplexity
+  batch_idx_j = jnp.asarray(batch_idx, dtype=jnp.int32)
+  batch_cnt_j = jnp.asarray(structure_batch_count, dtype=jnp.int32)
+  jax.experimental.io_callback(
+    _noop_sampling_structure_batch_io,
+    None,
+    jax.lax.stop_gradient(batch_idx_j),
+    jax.lax.stop_gradient(batch_cnt_j),
+    ordered=False,
+  )
   return sampled_sequences, logits, None
 
 
@@ -1734,14 +1823,17 @@ def _sample_streaming_averaged(
     f.attrs["schema_version"] = "sampling_averaged_v1"
     f.attrs["model_family"] = spec.model_family
     structure_idx = 0
+    structure_batch_count_avg = _structure_batch_count_for_io(protein_iterator)
 
-    for batched_ensemble in protein_iterator:
+    for batch_idx, batched_ensemble in enumerate(protein_iterator):
       sampled_sequences, sampled_logits, pseudo_perplexity = _sample_batch_averaged(
         spec,
         batched_ensemble,
         model,
         sample_fn,
         decode_fn,
+        batch_idx,
+        structure_batch_count_avg,
       )
       jax.effects_barrier()
       for i in range(sampled_sequences.shape[0]):

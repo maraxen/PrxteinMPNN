@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import partial
 from unittest.mock import patch
 
 import jax
@@ -116,7 +117,17 @@ def test_scoring_multistate_controls_are_forwarded() -> None:
     "prxteinmpnn.run.scoring.prep_protein_stream_and_model",
     return_value=([protein], object()),
   ):
-    with patch("prxteinmpnn.run.scoring.make_score_fn", return_value=fake_score_fn):
+    def build_fake(self, model):  # noqa: ARG001
+      return partial(
+        fake_score_fn,
+        multi_state_strategy=self.spec.multi_state_strategy,
+        multi_state_temperature=self.spec.multi_state_temperature,
+      )
+
+    with patch(
+      "prxteinmpnn.run.scoring.ScoringDriver.build_score_single_pair",
+      build_fake,
+    ):
       spec = ScoringSpecification(
         inputs=["dummy.pdb"],
         sequences_to_score=["AAAAAA"],
@@ -163,7 +174,17 @@ def test_scoring_defaults_use_dataset_structure_mapping() -> None:
     "prxteinmpnn.run.scoring.prep_protein_stream_and_model",
     return_value=([protein], object()),
   ):
-    with patch("prxteinmpnn.run.scoring.make_score_fn", return_value=fake_score_fn):
+    def build_fake(self, model):  # noqa: ARG001
+      return partial(
+        fake_score_fn,
+        multi_state_strategy=self.spec.multi_state_strategy,
+        multi_state_temperature=self.spec.multi_state_temperature,
+      )
+
+    with patch(
+      "prxteinmpnn.run.scoring.ScoringDriver.build_score_single_pair",
+      build_fake,
+    ):
       spec = ScoringSpecification(
         inputs=["dummy.pdb"],
         sequences_to_score=["AAAAAA"],

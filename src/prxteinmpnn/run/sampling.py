@@ -900,8 +900,12 @@ def _sample_batch(
     # Slice pre-computed keys instead of generating them in the loop.
     keys = all_keys[chunk_start : chunk_start + chunk_count]
 
-    # TODO(io_callback integration): Stream each chunk to host via io_callback + jax.effects_barrier
-    # instead of retaining all chunk_* on device until concatenate (see prxteinmpnn/TODO_io_callback.txt).
+    # TODO(io_callback integration): Stream each chunk to host via ``io_callback(..., ordered=False)``
+    # + ``jax.effects_barrier`` instead of retaining all chunk_* on device until ``concatenate``
+    # (see ``TODO_io_callback.txt``). Contract: ``compute_pseudo_perplexity`` needs full-sample logits
+    # on device (``jnp.concatenate`` then ``log_softmax``); any JIT-tail streaming must either keep
+    # that stage unchanged or compute perplexity per chunk and aggregate on host. ``return_logits`` /
+    # non-streaming callers expect the same concatenated ``[structures, samples, ...]`` axes as today.
     chunk_sequences, chunk_logits, _ = vmap_structures(
       batched_ensemble.coordinates,
       batched_ensemble.mask,

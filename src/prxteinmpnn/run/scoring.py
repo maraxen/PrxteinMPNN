@@ -216,6 +216,7 @@ def score(
       protein_iterator,
       model,
       batched_sequences,
+      _plan,
     )
 
   if not all_scores:
@@ -268,6 +269,7 @@ def _score_standard_mode(
   protein_iterator: Any,  # noqa: ANN401
   model: PrxteinMPNN,
   batched_sequences: jax.Array,
+  plan: BatchPlan,
 ) -> tuple[list[jnp.ndarray], list[Logits]]:
   """Run scoring in standard mode."""
   score_single_pair = ScoringDriver(spec).build_score_single_pair(model)
@@ -356,8 +358,7 @@ def _score_standard_mode(
         tie_map_for_vmap,
     )
 
-    # safe_map dispatches with batch_size=1 for heterogeneous structures
-    _structures_bs = 1
+    _structures_bs = plan.decision_for("n_structures").batch_size
     scores, logits, decoding_orders = safe_map(
         _score_one_structure,
         batched_structure_args,

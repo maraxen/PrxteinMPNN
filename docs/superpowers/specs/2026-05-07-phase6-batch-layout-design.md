@@ -20,7 +20,7 @@ No general-purpose JAX library addresses this. The ecosystem's standard answer i
 
 ## Constraints
 
-1. **Parity-pinned paths stay `vmap`**: `state_vmap_exact` against the ligandmpnn reference and the ligand-atom dimension (triple-vmapped in `ligand_mpnn.py:437`) must never be demoted to `safe_map`. The planner routes around them unconditionally.
+1. **`vmap` and `safe_map` are equivalent for all axes**: every mapped function in this model operates independently on each element — no cross-element communication, no collectives. `jax.vmap(f)(xs)` and `jax.lax.map(f, xs)` produce identical floating-point results. The planner may freely choose either for any axis. The parity gate validates this.
 2. **`plan()` is pure Python before JIT**: no JAX calls, no tracing, runnable on the host before any compilation.
 3. **`utils/batching.py` has zero prxteinmpnn-specific imports**: pure utility module, designed for jaxbeans extraction.
 4. **`BatchingConfig` stays unchanged**: 9 existing static fields untouched. BatchPlanner is constructed alongside at host entry points, not embedded in the config.
@@ -41,8 +41,7 @@ class AxisSpec:
     name: str
     axis_index: int               # canonical ordering for innermost-first algorithm
     cardinality: int              # typical/max size of this axis
-    parity_pinned: bool           # if True, planner never demotes to safe_map
-    default_mode: Literal["vmap", "safe_map"]
+    default_mode: Literal["vmap", "safe_map"]   # preference when budget is unconstrained
     doc: str
 
 @dataclass(frozen=True)
@@ -78,7 +77,7 @@ estimate = base_shape_bytes
          × activation_multiplier
 ```
 
-Safe-mapped axes contribute O(1) memory (one slice at a time) and are excluded from the product. Parity-pinned axes are always `vmap`; always included. `activation_multiplier` is **required, no default** — the caller must supply it based on their execution context:
+Safe-mapped axes contribute O(1) memory (one slice at a time) and are excluded from the product. `activation_multiplier` is **required, no default** — the caller must supply it based on their execution context:
 
 | Context | Typical multiplier |
 |---------|-------------------|
@@ -88,7 +87,7 @@ Safe-mapped axes contribute O(1) memory (one slice at a time) and are excluded f
 
 These are starting points, not calibrated values. The StableHLO profiling path (deferred) is how you get the right number for a specific model and device. Until then, when in doubt use the inference multiplier for sampling/scoring runs and the training range for any gradient path.
 
-**By-hand example:** `base=1 MB`, `n_states=4` (vmap, pinned), `n_samples=8` (vmap), `n_temperatures=4` (safe_map), inference context → `1MB × (4 × 8) × 2.5 = 80 MB`.
+**By-hand example:** `base=1 MB`, `n_states=4` (vmap), `n_samples=8` (vmap), `n_temperatures=4` (safe_map), inference context → `1MB × (4 × 8) × 2.5 = 80 MB`.
 
 The budget is computed by the caller as `device_ceiling × headroom_fraction − param_bytes`. Headroom default: 0.80. The planner never queries the device directly.
 
@@ -96,7 +95,7 @@ The budget is computed by the caller as `device_ceiling × headroom_fraction −
 
 ### Greedy algorithm
 
-Fixed innermost-first ordering (axis_index ascending = innermost first). Greedy: assign `vmap` to each axis until cumulative estimate exceeds budget, then demote to `safe_map`. Parity-pinned axes are never demoted regardless of budget. `exceeded_budget()` returns `True` when the final plan still exceeds budget (e.g., because parity-pinned axes alone fill it) — dispatcher logs a WARNING; no exception.
+Fixed innermost-first ordering (axis_index ascending = innermost first). Greedy: assign `vmap` to each axis until the cumulative estimate exceeds budget, then demote to `safe_map`. Any axis can be demoted — there are no locked axes. `exceeded_budget()` returns `True` when the plan still exceeds budget even with all non-default axes demoted — dispatcher logs a WARNING; no exception.
 
 ---
 
@@ -104,20 +103,20 @@ Fixed innermost-first ordering (axis_index ascending = innermost first). Greedy:
 
 Ten canonical `AxisSpec` instances covering all 9 `BatchingConfig` fields:
 
-| Axis | BatchingConfig field(s) | parity_pinned | default_mode |
-|------|------------------------|---------------|--------------|
-| `n_residues` | (length bucket, via `LENGTH_BUCKETS`) | True | vmap |
-| `n_states` | — (MultistateStackPayload.n_states) | True | vmap |
-| `n_structures` | `batch_size` | False | safe_map |
-| `n_samples` | `samples_batch_size`, `samples_chunk_size` | False | safe_map |
-| `n_temperatures` | `temperature_batch_size` | False | safe_map |
-| `n_noises` | `noise_batch_size` | False | safe_map |
-| `n_ligand_atoms` | — (triple vmap at `ligand_mpnn.py:437`) | True | vmap |
-| `n_jacobian_pairs` | `jacobian_batch_size` | False | safe_map |
-| `n_combine` | `combine_batch_size` | False | safe_map |
-| `n_apc_pairs` | `apc_batch_size`, `apc_residue_batch_size` | False | safe_map |
+| Axis | BatchingConfig field(s) | default_mode | rationale |
+|------|------------------------|--------------|-----------|
+| `n_residues` | (length bucket, via `LENGTH_BUCKETS`) | vmap | innermost axis; vectorisation is the primary benefit |
+| `n_states` | — (MultistateStackPayload.n_states) | vmap | multistate core; typically small (2–64), parallelism is cheap |
+| `n_ligand_atoms` | — (atom dim, `ligand_mpnn.py:437`) | vmap | per-residue atom count is small and fixed |
+| `n_structures` | `batch_size` | safe_map | can be large; iterating over structures is the memory-safe default |
+| `n_samples` | `samples_batch_size`, `samples_chunk_size` | safe_map | output accumulates; iterating avoids tiling sample axis into memory |
+| `n_temperatures` | `temperature_batch_size` | safe_map | sweep axis; safe_map with no cost if sweep is small |
+| `n_noises` | `noise_batch_size` | safe_map | sweep axis |
+| `n_jacobian_pairs` | `jacobian_batch_size` | safe_map | residue-pair product can be very large |
+| `n_combine` | `combine_batch_size` | safe_map | multistate combine step |
+| `n_apc_pairs` | `apc_batch_size`, `apc_residue_batch_size` | safe_map | all-pair contact scoring |
 
-`n_residues` and `n_ligand_atoms` and `n_states` are parity-pinned because their vmap paths are validated against the ligandmpnn reference and must not be rerouted. All other axes default to `safe_map` and can be promoted to `vmap` if budget allows.
+`default_mode` expresses the performance preference when budget is unconstrained. The planner may override any axis in either direction. All axes can be safely demoted to `safe_map` or promoted to `vmap` — there are no locked axes.
 
 ---
 

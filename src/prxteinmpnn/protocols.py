@@ -186,3 +186,33 @@ class StateVmapExactScoreFn(Protocol):
     **kwargs: object,
   ) -> tuple[Float, Logits, DecodingOrder]:
     ...
+
+
+@runtime_checkable
+class DesignSink(Protocol):
+  """Host-side consumer for design tensor payloads emitted via ``io_callback`` (Phase 5).
+
+  Implementations are registered under :data:`~prxteinmpnn.registry.OUTPUT_SINKS` and
+  selected by host sessions (e.g. streaming HDF5 / ArrayRecord). Traced code calls these
+  only through ``jax.experimental.io_callback`` host targets with ``ordered=False``.
+  """
+
+  def on_sampling_sequences_logits(
+    self,
+    batch_idx: object,
+    batch_count: object,
+    chunk_start: object,
+    chunk_count: object,
+    sequences_host: object,
+    logits_host: object,
+  ) -> None:
+    """Record per-``_sample_batch`` sequences/logits host tensors (streaming sampling)."""
+
+  def on_scoring_scores_logits(
+    self,
+    batch_idx: object,
+    batch_count: object,
+    scores_host: object,
+    logits_host: object,
+  ) -> None:
+    """Record per-batch scores/logits host tensors (streaming scoring)."""

@@ -15,6 +15,7 @@ import importlib
 from typing import TYPE_CHECKING
 
 from prxteinmpnn.registry import SAMPLERS
+from prxteinmpnn.run.streaming_host import StreamingBatchHost
 
 if TYPE_CHECKING:
   from prxteinmpnn.protocols import SamplerFn
@@ -23,6 +24,11 @@ if TYPE_CHECKING:
 
 class SamplingDriver:
   """Resolve a registered sampler factory from a :class:`~prxteinmpnn.run.specs.SamplingSpecification`."""
+
+  @staticmethod
+  def host_effects_barrier() -> None:
+    """Barrier at host/sink boundaries for ``ordered=False`` ``io_callback`` (delegates to :class:`StreamingBatchHost`)."""
+    StreamingBatchHost.sink_barrier()
 
   def __init__(self, spec: SamplingSpecification, *, sampler_factory_key: str = "make_sample_sequences") -> None:
     self.spec = spec

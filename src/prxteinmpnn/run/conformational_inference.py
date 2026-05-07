@@ -22,6 +22,7 @@ from prxteinmpnn.ensemble.pca import pca_transform
 from prxteinmpnn.model import PrxteinMPNN
 from prxteinmpnn.run.prep import prep_protein_stream_and_model
 from prxteinmpnn.run.specs import ConformationalInferenceSpecification, pop_deprecated_spec_kwargs
+from prxteinmpnn.run.streaming_host import StreamingBatchHost
 from prxteinmpnn.sampling.conditional_logits import make_conditional_logits_fn
 from prxteinmpnn.sampling.unconditional_logits import make_unconditional_logits_fn
 from prxteinmpnn.utils.data_structures import GMM
@@ -127,7 +128,7 @@ def _compute_states_batches(
         *inference_args,
         *static_args,
       )
-      jax.effects_barrier()
+      StreamingBatchHost.sink_barrier()
 
       logits, node_features, edge_features = batch_states
     else:

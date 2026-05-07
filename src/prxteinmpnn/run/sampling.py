@@ -9,9 +9,6 @@ import json
 import logging
 import sys
 import warnings
-from collections.abc import Iterator
-from contextlib import contextmanager
-from contextvars import ContextVar
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -23,7 +20,13 @@ import numpy as np
 
 from prxteinmpnn.io.designs import DesignArrayRecordWriter, DesignMetadata, DesignPayload
 from prxteinmpnn.run.averaging import get_averaged_encodings, make_encoding_sampling_split_fn
+from prxteinmpnn.run.output_sinks import (
+  active_sampling_staging_sink,
+  streaming_tensor_sink_session,
+  take_staging_sequences_logits,
+)
 from prxteinmpnn.run.sampling_driver import SamplingDriver
+from prxteinmpnn.run.streaming_host import StreamingBatchHost
 from prxteinmpnn.utils.autoregression import resolve_tie_groups
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
 
@@ -61,71 +64,6 @@ LIGAND_PLACEHOLDER_ATOMS = 1
 GRID_SCHEMA_VERSION = "grid_v1"
 SAMPLING_SCHEMA_VERSION = "sampling_v1"
 LIGAND_CONTEXT_KEYS = ("Y", "Y_t", "Y_m")
-
-_streaming_tensor_sink_ctx: ContextVar[_StreamingTensorSink | None] = ContextVar(
-  "_streaming_tensor_sink_ctx",
-  default=None,
-)
-
-
-class _StreamingTensorSink:
-  """Host staging for PR4 tensor ``io_callback`` payloads (streaming write paths only)."""
-
-  def __init__(self) -> None:
-    self._pending: dict[tuple[int, int, int], tuple[np.ndarray, np.ndarray]] = {}
-
-  def record(
-    self,
-    batch_idx: object,
-    chunk_start: object,
-    chunk_count: object,
-    sequences_host: object,
-    logits_host: object,
-  ) -> None:
-    key = (
-      int(np.asarray(batch_idx)),
-      int(np.asarray(chunk_start)),
-      int(np.asarray(chunk_count)),
-    )
-    self._pending[key] = (np.asarray(sequences_host), np.asarray(logits_host))
-
-  def take_sequences_logits(
-    self,
-    batch_idx: int,
-    chunk_start: int,
-    chunk_count: int,
-  ) -> tuple[np.ndarray, np.ndarray]:
-    key = (batch_idx, chunk_start, chunk_count)
-    try:
-      return self._pending.pop(key)
-    except KeyError as e:
-      pending = list(self._pending.keys())
-      msg = f"Streaming tensor sink missing entry for {key=}; pending={pending}"
-      raise RuntimeError(msg) from e
-
-
-@contextmanager
-def _streaming_tensor_host_sink() -> Iterator[_StreamingTensorSink]:
-  sink = _StreamingTensorSink()
-  token = _streaming_tensor_sink_ctx.set(sink)
-  try:
-    yield sink
-  finally:
-    _streaming_tensor_sink_ctx.reset(token)
-
-
-def _take_streaming_sequences_logits(
-  batch_idx: int,
-  chunk_start: int,
-  chunk_count: int,
-) -> tuple[np.ndarray, np.ndarray]:
-  """Drain tensor ``io_callback`` payloads recorded for this streaming batch/chunk key."""
-  sink = _streaming_tensor_sink_ctx.get()
-  if sink is None:
-    msg = "Streaming tensor sink is not active."
-    raise RuntimeError(msg)
-  return sink.take_sequences_logits(batch_idx, chunk_start, chunk_count)
-
 
 def _canonical_structure_id(input_item: Any, index: int) -> str:  # noqa: ANN401
   if isinstance(input_item, Path):
@@ -782,9 +720,16 @@ def _dispatch_sampling_tensor_batch_io(
   logits_host: object,
 ) -> None:
   """Trace-stable entry point for the tensor ``io_callback`` (delegates to sink or noop)."""
-  sink = _streaming_tensor_sink_ctx.get()
+  sink = active_sampling_staging_sink()
   if sink is not None:
-    sink.record(batch_idx, chunk_start, chunk_count, sequences_host, logits_host)
+    sink.on_sampling_sequences_logits(
+      batch_idx,
+      batch_count,
+      chunk_start,
+      chunk_count,
+      sequences_host,
+      logits_host,
+    )
     return
   _noop_sampling_tensor_batch_io(
     batch_idx,
@@ -794,14 +739,6 @@ def _dispatch_sampling_tensor_batch_io(
     sequences_host,
     logits_host,
   )
-
-
-def _structure_batch_count_for_io(protein_iterator: Any) -> int:  # noqa: ANN401
-  """Return protein-iterator batch count for io markers, or ``-1`` if not sized."""
-  try:
-    return len(protein_iterator)
-  except TypeError:
-    return -1
 
 
 def _sample_batch(
@@ -1102,7 +1039,7 @@ def _sample_batch(
     sequence_chunks.append(chunk_sequences)
     logit_chunks.append(chunk_logits)
 
-  jax.effects_barrier()
+  StreamingBatchHost.sink_barrier()
   sampled_sequences = jnp.concatenate(sequence_chunks, axis=1)
   sampled_logits = jnp.concatenate(logit_chunks, axis=1)
 
@@ -1206,7 +1143,7 @@ def sample(
   canonical_structure_ids = _canonical_structure_ids_for_spec(spec)
   resolved_structure_ids: list[str] = []
   structure_offset = 0
-  structure_batch_count = _structure_batch_count_for_io(protein_iterator)
+  structure_batch_count = StreamingBatchHost.structure_batch_count(protein_iterator)
 
   for batch_idx, batched_ensemble in enumerate(protein_iterator):
     batch_size = batched_ensemble.coordinates.shape[0]
@@ -1232,7 +1169,7 @@ def sample(
     resolved_structure_ids.extend(batch_structure_ids)
     structure_offset += batch_size
 
-  jax.effects_barrier()
+  StreamingBatchHost.sink_barrier()
   max_len = max(arr.shape[-1] for arr in all_sequences)
 
   def pad_to_max(arr: jax.Array, target_len: int, axis: int = -1, pad_value: int = 0) -> jax.Array:
@@ -1310,7 +1247,7 @@ def _sample_streaming(
   )
   chunk_size = int(spec.samples_chunk_size or total_num_samples)
   sample_start = int(grid_lineage["sample_start"]) if grid_lineage is not None else 0
-  structure_batch_count_stream = _structure_batch_count_for_io(protein_iterator)
+  structure_batch_count_stream = StreamingBatchHost.structure_batch_count(protein_iterator)
 
   # Validate ArrayRecord and HDF5 parameter combinations
   if spec.use_arrayrecord and not spec.campaign_mode:
@@ -1336,9 +1273,9 @@ def _sample_streaming(
   )
 
   # Phase 5g PR4 tensor hook + streaming sink: ``_dispatch_sampling_tensor_batch_io`` stages host
-  # sequences/logits under ``(batch_idx, chunk_start, chunk_count)``; ``_take_streaming_sequences_logits``
+  # sequences/logits under ``(batch_idx, chunk_start, chunk_count)``; ``take_staging_sequences_logits``
   # drains after ``jax.effects_barrier()`` (``TODO_io_callback.txt`` — perplexity stays return-path).
-  with _streaming_tensor_host_sink(), h5py.File(spec.output_h5_path, "w") as f:
+  with streaming_tensor_sink_session(), h5py.File(spec.output_h5_path, "w") as f:
     f.attrs["schema_version"] = GRID_SCHEMA_VERSION if spec.grid_mode else SAMPLING_SCHEMA_VERSION
     f.attrs["model_family"] = spec.model_family
     f.attrs["ligand_conditioning"] = int(spec.ligand_conditioning)
@@ -1381,8 +1318,8 @@ def _sample_streaming(
           batch_idx=batch_idx,
           structure_batch_count=structure_batch_count_stream,
         )
-        jax.effects_barrier()
-        sampled_sequences_np, sampled_logits_np = _take_streaming_sequences_logits(
+        StreamingBatchHost.sink_barrier()
+        sampled_sequences_np, sampled_logits_np = take_staging_sequences_logits(
           batch_idx,
           key_chunk_start,
           key_chunk_count,
@@ -1427,8 +1364,7 @@ def _sample_streaming(
           resolved_structure_ids.append(batch_structure_ids[i])
           structure_idx += 1
 
-        for chunk_start in range(0, total_num_samples, chunk_size):
-          chunk_count = min(chunk_size, total_num_samples - chunk_start)
+        for chunk_start, chunk_count in StreamingBatchHost.iter_chunks(total_num_samples, chunk_size):
           chunk_sample_start = sample_start + chunk_start
           last_chunk = chunk_start + chunk_count >= total_num_samples
           _, _, pseudo_perplexity = _sample_batch(
@@ -1443,8 +1379,8 @@ def _sample_streaming(
             structure_batch_count=structure_batch_count_stream,
             emit_structure_batch_io=last_chunk,
           )
-          jax.effects_barrier()
-          sampled_sequences_np, sampled_logits_np = _take_streaming_sequences_logits(
+          StreamingBatchHost.sink_barrier()
+          sampled_sequences_np, sampled_logits_np = take_staging_sequences_logits(
             batch_idx,
             chunk_sample_start,
             chunk_count,
@@ -1540,7 +1476,7 @@ def _sample_streaming_arrayrecord(
   chunk_size = int(spec.samples_chunk_size or total_num_samples)
   sample_start = int(grid_lineage["sample_start"]) if grid_lineage is not None else 0
   structure_idx = 0
-  structure_batch_count_ar = _structure_batch_count_for_io(protein_iterator)
+  structure_batch_count_ar = StreamingBatchHost.structure_batch_count(protein_iterator)
 
   # Generate output base path (strip .h5 if present, use .arrayrecord)
   output_base = spec.output_h5_path
@@ -1549,7 +1485,7 @@ def _sample_streaming_arrayrecord(
 
   structure_writers: list[tuple[int, DesignArrayRecordWriter]] = []
   try:
-    with _streaming_tensor_host_sink():
+    with streaming_tensor_sink_session():
       for batch_idx, batched_ensemble in enumerate(protein_iterator):
         batch_size = batched_ensemble.coordinates.shape[0]
         batch_structure_ids = _structure_ids_for_batch(
@@ -1573,8 +1509,7 @@ def _sample_streaming_arrayrecord(
           structure_idx += 1
 
         # Process samples in chunks
-        for chunk_start in range(0, total_num_samples, chunk_size):
-          chunk_count = min(chunk_size, total_num_samples - chunk_start)
+        for chunk_start, chunk_count in StreamingBatchHost.iter_chunks(total_num_samples, chunk_size):
           chunk_sample_start = sample_start + chunk_start
           last_chunk = chunk_start + chunk_count >= total_num_samples
           _, _, _ = _sample_batch(
@@ -1589,9 +1524,9 @@ def _sample_streaming_arrayrecord(
             structure_batch_count=structure_batch_count_ar,
             emit_structure_batch_io=last_chunk,
           )
-          jax.effects_barrier()
+          StreamingBatchHost.sink_barrier()
 
-          sampled_sequences_np, sampled_logits_np = _take_streaming_sequences_logits(
+          sampled_sequences_np, sampled_logits_np = take_staging_sequences_logits(
             batch_idx,
             chunk_sample_start,
             chunk_count,
@@ -1720,7 +1655,7 @@ def _sample_averaged_mode(
   _, sample_fn, decode_fn = make_encoding_sampling_split_fn(model)
   # TODO(io_callback integration): List + concat of sequences/logits; mirror streaming sample() work.
   all_sequences, all_logits, all_pseudo_perplexities = [], [], []
-  structure_batch_count = _structure_batch_count_for_io(protein_iterator)
+  structure_batch_count = StreamingBatchHost.structure_batch_count(protein_iterator)
 
   for batch_idx, batched_ensemble in enumerate(protein_iterator):
     sampled_sequences, logits, pseudo_perplexity = _sample_batch_averaged(
@@ -1737,7 +1672,7 @@ def _sample_averaged_mode(
     if pseudo_perplexity is not None:
       all_pseudo_perplexities.append(pseudo_perplexity)
 
-  jax.effects_barrier()
+  StreamingBatchHost.sink_barrier()
   results = {
     "sequences": jnp.concatenate(all_sequences, axis=0),
     "logits": jnp.concatenate(all_logits, axis=0),
@@ -1966,7 +1901,7 @@ def _sample_streaming_averaged(
     f.attrs["schema_version"] = "sampling_averaged_v1"
     f.attrs["model_family"] = spec.model_family
     structure_idx = 0
-    structure_batch_count_avg = _structure_batch_count_for_io(protein_iterator)
+    structure_batch_count_avg = StreamingBatchHost.structure_batch_count(protein_iterator)
 
     for batch_idx, batched_ensemble in enumerate(protein_iterator):
       sampled_sequences, sampled_logits, pseudo_perplexity = _sample_batch_averaged(
@@ -1978,7 +1913,7 @@ def _sample_streaming_averaged(
         batch_idx,
         structure_batch_count_avg,
       )
-      jax.effects_barrier()
+      StreamingBatchHost.sink_barrier()
       for i in range(sampled_sequences.shape[0]):
         grp = f.create_group(f"structure_{structure_idx}")
         grp.create_dataset("sequences", data=sampled_sequences[i], dtype="i4")

@@ -3,7 +3,9 @@
 ``MULTISTATE_MODES`` holds immutable :class:`MultistateModeDescriptor` rows for
 host-side routing only (Python ``str`` ``multistate_mode`` arguments and
 ``static_argnames``). ``SAMPLERS`` holds sampler **factories** (``model, …`` →
-:class:`~prxteinmpnn.protocols.SamplerFn`). JIT-traced code must not depend on registry lookups for
+:class:`~prxteinmpnn.protocols.SamplerFn`). ``OUTPUT_SINKS`` holds **builders**
+(``()`` → :class:`~prxteinmpnn.protocols.DesignSink`) for host tensor staging.
+JIT-traced code must not depend on registry lookups for
 shape/math — descriptors only steer which pre-JIT factory or ``__call__`` branch
 runs, matching roadmap §3.3.
 """
@@ -15,11 +17,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Generic, TypeVar
 
-from prxteinmpnn.protocols import SamplerFn
+from prxteinmpnn.protocols import DesignSink, SamplerFn
 
 T = TypeVar("T")
 
 SamplerFactoryFn = Callable[..., SamplerFn]
+DesignSinkFactory = Callable[[], DesignSink]
 
 # --- Multistate mode strings (runtime API; keep in sync with type Literals) ---
 
@@ -133,3 +136,7 @@ def multistate_mode_descriptor(mode: str) -> MultistateModeDescriptor:
 
 
 SAMPLERS: Registry[SamplerFactoryFn] = Registry[SamplerFactoryFn]("samplers")
+
+OUTPUT_SINKS: Registry[DesignSinkFactory] = Registry[DesignSinkFactory]("output_sinks")
+
+import prxteinmpnn.run.output_sinks as _output_sinks_bootstrap  # noqa: F401 — register default sink keys

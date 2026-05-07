@@ -30,6 +30,31 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
 
 
+def _noop_scoring_structure_batch_io(batch_idx: object, batch_count: object) -> None:
+  """Host structure-batch boundary hook for scoring (Phase **5g** PR2b).
+
+  ``jax.experimental.io_callback`` invokes this on the host with ``ordered=False``;
+  completion order is **not** guaranteed to match program order. Only lightweight
+  scalar markers cross here — scores / logits stay on device until list concat or
+  HDF5 materialization (see ``TODO_io_callback.txt``).
+
+  ``batch_count`` is ``-1`` when the protein iterator does not expose ``__len__``
+  before the host loop (Grain / streaming iterators).
+
+  Default implementation is a no-op so production pays minimal overhead; tests may
+  monkeypatch this symbol **before** the first traced scoring call for that graph.
+  """
+  del batch_idx, batch_count
+
+
+def _structure_batch_count_for_io(protein_iterator: Any) -> int:  # noqa: ANN401
+  """Return batch count for io markers, or ``-1`` if the iterator is not sized."""
+  try:
+    return len(protein_iterator)
+  except TypeError:
+    return -1
+
+
 def score(
   spec: ScoringSpecification | None = None,
   **kwargs: Any,  # noqa: ANN401
@@ -98,6 +123,7 @@ def score(
   if not all_scores:
     return {}
 
+  jax.effects_barrier()
   return {
     "scores": jnp.concatenate(all_scores, axis=0),
     "logits": jnp.concatenate(all_logits, axis=0),
@@ -145,10 +171,11 @@ def _score_standard_mode(
 ) -> tuple[list[jnp.ndarray], list[Logits]]:
   """Run scoring in standard mode."""
   score_single_pair = ScoringDriver(spec).build_score_single_pair(model)
-  # TODO(io_callback integration): Same batched list pattern; see prxteinmpnn/TODO_io_callback.txt.
+  # TODO(io_callback integration): Tensor streaming to host; see prxteinmpnn/TODO_io_callback.txt.
   all_scores, all_logits = [], []
+  structure_batch_count = _structure_batch_count_for_io(protein_iterator)
 
-  for batched_ensemble in protein_iterator:
+  for batch_idx, batched_ensemble in enumerate(protein_iterator):
     tie_group_map = None
     if spec.tie_group_map is not None:
       tie_group_map = jnp.asarray(spec.tie_group_map, dtype=jnp.int32)
@@ -203,14 +230,19 @@ def _score_standard_mode(
       out_axes=0,
     )
 
+    batch_idx_j = jnp.asarray(batch_idx, dtype=jnp.int32)
+    batch_cnt_j = jnp.asarray(structure_batch_count, dtype=jnp.int32)
+
     def _compute(
       ensemble: Protein,
       vs: Any = vmap_structures,  # noqa: ANN401
       cam: jax.Array = current_ar_mask,
       mapping_value: jax.Array | None = mapping_for_vmap,
       tie_map_value: jax.Array | None = tie_map_for_vmap,
+      b_idx: jax.Array = batch_idx_j,
+      b_cnt: jax.Array = batch_cnt_j,
     ) -> tuple[jnp.ndarray, Logits, jnp.ndarray]:
-      return vs(
+      scores, logits, decoding_orders = vs(
         jax.random.key(spec.random_seed),
         batched_sequences,
         ensemble.coordinates,
@@ -222,9 +254,16 @@ def _score_standard_mode(
         mapping_value,
         tie_map_value,
       )
+      jax.experimental.io_callback(
+        _noop_scoring_structure_batch_io,
+        None,
+        jax.lax.stop_gradient(b_idx),
+        jax.lax.stop_gradient(b_cnt),
+        ordered=False,
+      )
+      return scores, logits, decoding_orders
 
     scores, logits, _decoding_orders = _compute(batched_ensemble)
-    jax.effects_barrier()
 
     all_scores.append(scores)
     all_logits.append(logits)
@@ -335,6 +374,7 @@ def _score_streaming(
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
   score_single_pair = ScoringDriver(spec).build_score_single_pair(model)
+  structure_batch_count = _structure_batch_count_for_io(protein_iterator)
 
   with h5py.File(spec.output_h5_path, "w") as f:
     scores_ds = f.create_dataset(
@@ -346,7 +386,7 @@ def _score_streaming(
     )
     logits_ds: h5py.Dataset | None = None
 
-    for batched_ensemble in protein_iterator:
+    for batch_idx, batched_ensemble in enumerate(protein_iterator):
       tie_group_map = None
       if spec.tie_group_map is not None:
         tie_group_map = jnp.asarray(spec.tie_group_map, dtype=jnp.int32)
@@ -401,14 +441,19 @@ def _score_streaming(
         out_axes=0,
       )
 
+      batch_idx_j = jnp.asarray(batch_idx, dtype=jnp.int32)
+      batch_cnt_j = jnp.asarray(structure_batch_count, dtype=jnp.int32)
+
       def _compute(
         ensemble: Protein,
         vs: Any = vmap_structures,  # noqa: ANN401
         cam: jax.Array = current_ar_mask,
         mapping_value: jax.Array | None = mapping_for_vmap,
         tie_map_value: jax.Array | None = tie_map_for_vmap,
+        b_idx: jax.Array = batch_idx_j,
+        b_cnt: jax.Array = batch_cnt_j,
       ) -> tuple[jnp.ndarray, Logits, jnp.ndarray]:
-        return vs(
+        scores, logits, decoding_orders = vs(
           jax.random.key(spec.random_seed),
           batched_sequences,
           ensemble.coordinates,
@@ -420,6 +465,14 @@ def _score_streaming(
           mapping_value,
           tie_map_value,
         )
+        jax.experimental.io_callback(
+          _noop_scoring_structure_batch_io,
+          None,
+          jax.lax.stop_gradient(b_idx),
+          jax.lax.stop_gradient(b_cnt),
+          ordered=False,
+        )
+        return scores, logits, decoding_orders
 
       scores, logits, _ = _compute(batched_ensemble)
       jax.effects_barrier()

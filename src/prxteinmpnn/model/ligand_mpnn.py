@@ -986,9 +986,11 @@ class PrxteinLigandMPNN(eqx.Module):
     yt: jax.Array,
     ym: jax.Array,
     hk: PRNGKeyArray,
+    *,
+    inference: bool = True,
   ) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Encode one stacked-structure row with ``structure_mapping`` zeros (LigandMPNN ``state_vmap_exact`` stacks)."""
-    return ligand_encode_stack_row(self, coords, ma, ri, ci, yy, yt, ym, hk)
+    return ligand_encode_stack_row(self, coords, ma, ri, ci, yy, yt, ym, hk, inference=inference)
 
   def score_unconditional_state_vmap_exact(
     self,
@@ -1008,7 +1010,7 @@ class PrxteinLigandMPNN(eqx.Module):
     multi_state_temperature: Float | float,
     state_weights: jnp.ndarray | None,
     state_mapping: jnp.ndarray | None,
-    _dropout_inference: bool = True,
+    inference: bool = True,
     states_chunk_size: int | None = None,
   ) -> Logits:
     """LigandMPNN unconditional logits: per-row encode + decoder, scatter+fuse (``state_vmap_exact``)."""
@@ -1033,7 +1035,7 @@ class PrxteinLigandMPNN(eqx.Module):
       multi_state_temperature=multi_state_temperature,
       state_weights=state_weights,
       state_mapping=state_mapping,
-      _dropout_inference=_dropout_inference,
+      inference=inference,
       states_chunk_size=states_chunk_size,
     )
 
@@ -1048,7 +1050,7 @@ class PrxteinLigandMPNN(eqx.Module):
     multi_state_temperature: Float | float,
     state_weights: jnp.ndarray | None,
     state_mapping: jnp.ndarray | None,
-    _dropout_inference: bool = True,
+    inference: bool = True,
     states_chunk_size: int | None = None,
   ) -> Logits:
     """Same as :meth:`score_unconditional_state_vmap_exact` with ``stack`` + :class:`~prxteinmpnn.payloads.LigandStack`."""
@@ -1068,7 +1070,7 @@ class PrxteinLigandMPNN(eqx.Module):
       multi_state_temperature=multi_state_temperature,
       state_weights=state_weights,
       state_mapping=state_mapping,
-      _dropout_inference=_dropout_inference,
+      inference=inference,
       states_chunk_size=states_chunk_size,
     )
 
@@ -1272,6 +1274,8 @@ def ligand_encode_stack_row(
   yt: jax.Array,
   ym: jax.Array,
   hk: PRNGKeyArray,
+  *,
+  inference: bool = True,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
   """Module-level LigandMPNN stacked-row encoder (callable from ``jax.vmap`` closures; JAX-tracing-safe)."""
   fe_k, dn_k = jax.random.split(hk)
@@ -1296,7 +1300,7 @@ def ligand_encode_stack_row(
   mask_2d = ma[:, None] * ma[None, :]
   mask_attend = jnp.take_along_axis(mask_2d, E_idx.astype(jnp.int32), axis=1)
   for enc in model.encoder.layers:
-    h_V, h_E = enc(h_V, h_E, E_idx, ma, mask_attend, inference=True)
+    h_V, h_E = enc(h_V, h_E, E_idx, ma, mask_attend, inference=inference)
 
   h_V_C = jax.vmap(model.w_c)(h_V)
   h_E_context = jax.vmap(jax.vmap(model.w_v))(V)
@@ -1312,11 +1316,11 @@ def ligand_encode_stack_row(
       ctx_enc = model.context_encoder[ix]
 
       def y_layer(nd, eg, gm, ge):
-        return y_enc(nd, eg, gm, attention_mask=ge, inference=True)
+        return y_enc(nd, eg, gm, attention_mask=ge, inference=inference)
 
       Y_proj = jax.vmap(y_layer)(Y_proj, Y_edges_p, Y_m, Y_m_edges)
       h_E_cat = jnp.concatenate([h_E_context, Y_proj], axis=-1)
-      h_V_C = ctx_enc(h_V_C, h_E_cat, ma, attention_mask=Y_m, inference=True)
+      h_V_C = ctx_enc(h_V_C, h_E_cat, ma, attention_mask=Y_m, inference=inference)
   else:
     Y_proj = map_chunks_axis0(
       Y_nodes,
@@ -1344,11 +1348,11 @@ def ligand_encode_stack_row(
       ) -> tuple[jax.Array, jax.Array]:
         Yn_out = jax.vmap(
           lambda node, edge, mask_l, mask_e: y_layer(
-            node, edge, mask_l, attention_mask=mask_e, inference=True,
+            node, edge, mask_l, attention_mask=mask_e, inference=inference,
           ),
         )(Yn, Ye, Ymm, Yme)
         he_cat = jnp.concatenate([hec, Yn_out], axis=-1)
-        hv_out = ctx_layer(hv, he_cat, msk, attention_mask=Ymm, inference=True)
+        hv_out = ctx_layer(hv, he_cat, msk, attention_mask=Ymm, inference=inference)
         return Yn_out, hv_out
 
       Y_proj, h_V_C = map_chunks_axis0_multi(
@@ -1359,6 +1363,6 @@ def ligand_encode_stack_row(
 
   h_V_C = jax.vmap(model.v_c)(h_V_C)
   h_fin = h_V + jax.vmap(model.v_c_norm)(
-    model.dropout(h_V_C, key=dn_k, inference=True),
+    model.dropout(h_V_C, key=dn_k, inference=inference),
   )
   return h_fin, h_E, E_idx.astype(jnp.int32)

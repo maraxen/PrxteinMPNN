@@ -120,12 +120,16 @@ def ligand_score_unconditional_state_vmap_one_chunk(
   y_m_stack: jax.Array,
   state_flat_rows: jax.Array,
   n_flat: int,
+  *,
+  inference: bool = True,
 ) -> jax.Array:
   """Single fixed-size state batch (padded to leading dim of ``coords_stack``); scatter only, no fuse."""
   from prxteinmpnn.model.ligand_mpnn import ligand_encode_stack_row  # noqa: PLC0415
 
   def enc_one(coords, ma, ri, ci, yy, yt, ym):
-    return ligand_encode_stack_row(model, coords, ma, ri, ci, yy, yt, ym, k_feat)
+    return ligand_encode_stack_row(
+      model, coords, ma, ri, ci, yy, yt, ym, k_feat, inference=inference,
+    )
 
   node_b, edge_b, nei_b = jax.vmap(enc_one)(
     coords_stack,
@@ -167,7 +171,9 @@ def ligand_score_conditional_state_vmap_one_chunk(
   from prxteinmpnn.model.ligand_mpnn import ligand_encode_stack_row  # noqa: PLC0415
 
   def enc_row(coords, ma, ri, ci, yy, yt, ym):
-    return ligand_encode_stack_row(model, coords, ma, ri, ci, yy, yt, ym, k_feat)
+    return ligand_encode_stack_row(
+      model, coords, ma, ri, ci, yy, yt, ym, k_feat, inference=inference,
+    )
 
   node_b, edge_b, nei_b = jax.vmap(enc_row)(
     coords_stack,
@@ -225,11 +231,10 @@ def run_score_unconditional_state_vmap_exact_ligand(
   multi_state_temperature: Float | float,
   state_weights: jnp.ndarray | None,
   state_mapping: jnp.ndarray | None,
-  _dropout_inference: bool = True,
+  inference: bool = True,
   states_chunk_size: int | None = None,
 ) -> Logits:
   """LigandMPNN unconditional logits: per-row encode + decoder, scatter+fuse (``state_vmap_exact``)."""
-  del _dropout_inference
   from prxteinmpnn.model.ligand_mpnn import ligand_encode_stack_row  # noqa: PLC0415
 
   k_enc, k_feat = jax.random.split(prng_key)
@@ -240,7 +245,9 @@ def run_score_unconditional_state_vmap_exact_ligand(
 
   def _one_shot() -> jax.Array:
     def enc_one(coords, ma, ri, ci, yy, yt, ym):
-      return ligand_encode_stack_row(model, coords, ma, ri, ci, yy, yt, ym, k_feat)
+      return ligand_encode_stack_row(
+        model, coords, ma, ri, ci, yy, yt, ym, k_feat, inference=inference,
+      )
 
     node_b, edge_b, nei_b = jax.vmap(enc_one)(
       coords_stack,
@@ -292,6 +299,7 @@ def run_score_unconditional_state_vmap_exact_ligand(
         c_ym,
         c_rows,
         n_flat,
+        inference=inference,
       )
 
   if tie_group_map is not None:
@@ -341,7 +349,9 @@ def run_score_conditional_state_vmap_exact_ligand(
 
   def _one_shot() -> jax.Array:
     def enc_row(coords, ma, ri, ci, yy, yt, ym):
-      return ligand_encode_stack_row(model, coords, ma, ri, ci, yy, yt, ym, k_feat)
+      return ligand_encode_stack_row(
+        model, coords, ma, ri, ci, yy, yt, ym, k_feat, inference=inference,
+      )
 
     node_b, edge_b, nei_b = jax.vmap(enc_row)(
       coords_stack,

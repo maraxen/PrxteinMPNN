@@ -121,7 +121,7 @@ class BatchPlanner:
             current = decisions + hom_decisions
             if self.estimate_memory(current) <= self.budget_bytes:
                 break
-            tile = max(1, ceil_to_granularity(ax.tile_granularity, ax.tile_granularity))
+            tile = max(1, ax.tile_granularity)
             hom_decisions[i] = AxisDecision(
                 axis=ax,
                 batch_size=tile,

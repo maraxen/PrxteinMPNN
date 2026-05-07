@@ -190,7 +190,7 @@ def score(
     )
 
   if spec.output_h5_path:
-    return _score_streaming(spec)
+    return _score_streaming(spec, _plan)
 
   if not spec.sequences_to_score:
     msg = (
@@ -312,9 +312,6 @@ def _score_standard_mode(
         jnp.atleast_2d(mapping_for_vmap),
         (batch_size, mapping_for_vmap.shape[0]),
       )
-
-    tie_map_in_axis = 0 if tie_map_for_vmap is not None else None
-    mapping_in_axis = 0 if mapping_for_vmap is not None else None
 
     vmap_sequences = jax.vmap(
       score_single_pair,
@@ -468,6 +465,7 @@ def _score_batch_averaged(
 
 def _score_streaming(  # noqa: PLR0915
   spec: ScoringSpecification,
+  plan: BatchPlan,
 ) -> dict[str, Any]:
   """Score sequences and stream results to an HDF5 file."""
   if not spec.output_h5_path:
@@ -529,9 +527,6 @@ def _score_streaming(  # noqa: PLR0915
           (batch_size, mapping_for_vmap.shape[0]),
         )
 
-      tie_map_in_axis = 0 if tie_map_for_vmap is not None else None
-      mapping_in_axis = 0 if mapping_for_vmap is not None else None
-
       vmap_sequences = jax.vmap(
         score_single_pair,
         in_axes=(None, 0, None, None, None, None, None, None, None, None),
@@ -542,40 +537,41 @@ def _score_streaming(  # noqa: PLR0915
         in_axes=(None, None, None, None, None, None, 0, None, None, None),
         out_axes=0,
       )
-      vmap_structures = jax.vmap(
-        vmap_noises,
-        in_axes=(None, None, 0, 0, 0, 0, None, None, mapping_in_axis, tie_map_in_axis),
-        out_axes=0,
-      )
 
       batch_idx_j = jnp.asarray(batch_idx, dtype=jnp.int32)
       batch_cnt_j = jnp.asarray(structure_batch_count, dtype=jnp.int32)
 
-      def _compute(
-        ensemble: Protein,
-        vs: Any = vmap_structures,  # noqa: ANN401
-        cam: jax.Array = current_ar_mask,
-        mapping_value: jax.Array | None = mapping_for_vmap,
-        tie_map_value: jax.Array | None = tie_map_for_vmap,
-        b_idx: jax.Array = batch_idx_j,
-        b_cnt: jax.Array = batch_cnt_j,
-      ) -> tuple[jnp.ndarray, Logits, jnp.ndarray]:
-        scores, logits, decoding_orders = vs(
+      def _score_one_structure(structure_batch_args):
+        coords, mask, residue_idx, chain_idx, mapping_val, tie_map_val = structure_batch_args
+        return vmap_noises(
           jax.random.key(spec.random_seed),
           batched_sequences,
-          ensemble.coordinates,
-          ensemble.mask,
-          ensemble.residue_index,
-          ensemble.chain_index,
+          coords,
+          mask,
+          residue_idx,
+          chain_idx,
           jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
-          cam,
-          mapping_value,
-          tie_map_value,
+          current_ar_mask,
+          mapping_val,
+          tie_map_val,
         )
-        _scoring_structure_and_tensor_batch_io(b_idx, b_cnt, scores, logits)
-        return scores, logits, decoding_orders
 
-      scores, logits, _ = _compute(batched_ensemble)
+      batched_structure_args = (
+        batched_ensemble.coordinates,
+        batched_ensemble.mask,
+        batched_ensemble.residue_index,
+        batched_ensemble.chain_index,
+        mapping_for_vmap,
+        tie_map_for_vmap,
+      )
+      _structures_bs = plan.decision_for("n_structures").batch_size
+      scores, logits, _ = safe_map(
+        _score_one_structure,
+        batched_structure_args,
+        batch_size=_structures_bs,
+      )
+      _scoring_structure_and_tensor_batch_io(batch_idx_j, batch_cnt_j, scores, logits)
+
       StreamingBatchHost.sink_barrier()
 
       scores_ds.resize(scores_ds.shape[0] + scores.size, axis=0)

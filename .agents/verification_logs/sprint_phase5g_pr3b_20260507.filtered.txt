@@ -1,0 +1,11 @@
+Phase 5g PR3b verification excerpt (2026-05-07), cwd: prxteinmpnn/
+
+pytest tests/streaming/test_scoring_batch_io_callback.py tests/streaming/test_scoring_tensor_batch_io_callback.py -q
+-> 5 passed
+
+uv run ruff check src/prxteinmpnn/run/scoring.py tests/streaming/test_scoring_tensor_batch_io_callback.py
+-> All checks passed!
+
+uv run ty check (repository default scope): reports many pre-existing diagnostics outside this slice (notebooks, docs, examples). PR3b edits do not resolve or expand that surface.
+
+Full command transcripts: .agents/verification_logs/sprint_phase5g_pr3b_20260507.log

@@ -47,12 +47,54 @@ def _noop_scoring_structure_batch_io(batch_idx: object, batch_count: object) -> 
   del batch_idx, batch_count
 
 
+def _noop_scoring_tensor_batch_io(
+  batch_idx: object,
+  batch_count: object,
+  scores_host: object,
+  logits_host: object,
+) -> None:
+  """Host tensor-batch hook for scoring per-batch ``scores`` / ``logits`` (Phase **5g** PR3b).
+
+  Invoked via ``jax.experimental.io_callback(..., ordered=False)``; completion order is **not**
+  guaranteed to match program order. Operands are wrapped with ``stop_gradient`` at call sites.
+
+  Default implementation is a no-op for minimal production overhead; tests may monkeypatch this
+  symbol **before** the first traced scoring call for that graph.
+  """
+  del batch_idx, batch_count, scores_host, logits_host
+
+
 def _structure_batch_count_for_io(protein_iterator: Any) -> int:  # noqa: ANN401
   """Return batch count for io markers, or ``-1`` if the iterator is not sized."""
   try:
     return len(protein_iterator)
   except TypeError:
     return -1
+
+
+def _scoring_structure_and_tensor_batch_io(
+  batch_idx: jax.Array,
+  batch_count: jax.Array,
+  scores: jax.Array,
+  logits: jax.Array,
+) -> None:
+  """Emit scalar structure-batch marker then per-batch tensor hook (both ``ordered=False``)."""
+  jax.experimental.io_callback(
+    _noop_scoring_structure_batch_io,
+    None,
+    jax.lax.stop_gradient(batch_idx),
+    jax.lax.stop_gradient(batch_count),
+    ordered=False,
+  )
+  jax.experimental.io_callback(
+    _noop_scoring_tensor_batch_io,
+    None,
+    jax.lax.stop_gradient(batch_idx),
+    jax.lax.stop_gradient(batch_count),
+    jax.lax.stop_gradient(scores),
+    jax.lax.stop_gradient(logits),
+    ordered=False,
+  )
 
 
 def score(
@@ -146,7 +188,7 @@ def _score_averaged_mode(
   filtered_spec = {k: v for k, v in spec_dict.items() if k in sampling_fields}
   pop_deprecated_spec_kwargs(filtered_spec)
   sampling_spec = SamplingSpecification(**filtered_spec)
-  # TODO(io_callback integration): Batch list accumulation; stream scores/logits via io_callback where consumers support it.
+  # Phase 5g follow-up: optional host-only accumulation (skip device concat) once sinks consume tensors end-to-end.
   all_scores, all_logits = [], []
   structure_batch_count = _structure_batch_count_for_io(protein_iterator)
 
@@ -173,7 +215,7 @@ def _score_standard_mode(
 ) -> tuple[list[jnp.ndarray], list[Logits]]:
   """Run scoring in standard mode."""
   score_single_pair = ScoringDriver(spec).build_score_single_pair(model)
-  # TODO(io_callback integration): Tensor streaming to host; see prxteinmpnn/TODO_io_callback.txt.
+  # Phase 5g PR3b: per-batch tensor io_callback; device-side lists and concat return unchanged.
   all_scores, all_logits = [], []
   structure_batch_count = _structure_batch_count_for_io(protein_iterator)
 
@@ -256,13 +298,7 @@ def _score_standard_mode(
         mapping_value,
         tie_map_value,
       )
-      jax.experimental.io_callback(
-        _noop_scoring_structure_batch_io,
-        None,
-        jax.lax.stop_gradient(b_idx),
-        jax.lax.stop_gradient(b_cnt),
-        ordered=False,
-      )
+      _scoring_structure_and_tensor_batch_io(b_idx, b_cnt, scores, logits)
       return scores, logits, decoding_orders
 
     scores, logits, _decoding_orders = _compute(batched_ensemble)
@@ -362,17 +398,11 @@ def _score_batch_averaged(
 
   batch_idx_j = jnp.asarray(batch_idx, dtype=jnp.int32)
   batch_cnt_j = jnp.asarray(structure_batch_count, dtype=jnp.int32)
-  jax.experimental.io_callback(
-    _noop_scoring_structure_batch_io,
-    None,
-    jax.lax.stop_gradient(batch_idx_j),
-    jax.lax.stop_gradient(batch_cnt_j),
-    ordered=False,
-  )
+  _scoring_structure_and_tensor_batch_io(batch_idx_j, batch_cnt_j, scores, logits)
   return scores, logits
 
 
-def _score_streaming(
+def _score_streaming(  # noqa: PLR0915
   spec: ScoringSpecification,
 ) -> dict[str, Any]:
   """Score sequences and stream results to an HDF5 file."""
@@ -478,13 +508,7 @@ def _score_streaming(
           mapping_value,
           tie_map_value,
         )
-        jax.experimental.io_callback(
-          _noop_scoring_structure_batch_io,
-          None,
-          jax.lax.stop_gradient(b_idx),
-          jax.lax.stop_gradient(b_cnt),
-          ordered=False,
-        )
+        _scoring_structure_and_tensor_batch_io(b_idx, b_cnt, scores, logits)
         return scores, logits, decoding_orders
 
       scores, logits, _ = _compute(batched_ensemble)
@@ -493,6 +517,8 @@ def _score_streaming(
       scores_ds.resize(scores_ds.shape[0] + scores.size, axis=0)
       scores_ds[-scores.size :] = scores.flatten()
 
+      # Tensor hook above already D2H copies for observability; ``np.asarray`` below is a second
+      # host transfer until streaming HDF5 is unified with the callback path (follow-up).
       logits_np = np.asarray(logits, dtype=np.float32)
       if logits_ds is None:
         logits_ds = f.create_dataset(

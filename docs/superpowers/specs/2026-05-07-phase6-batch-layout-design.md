@@ -70,7 +70,7 @@ class BatchPlanner:
 
 ### Memory estimation
 
-`estimate_memory_theoretical(decisions, base_shape_bytes, activation_multiplier=4.0)`:
+`estimate_memory_theoretical(decisions, base_shape_bytes, activation_multiplier)`:
 
 ```
 estimate = base_shape_bytes
@@ -78,9 +78,17 @@ estimate = base_shape_bytes
          × activation_multiplier
 ```
 
-Safe-mapped axes contribute O(1) memory (one slice at a time) and are excluded from the product. Parity-pinned axes are always `vmap`; always included. `activation_multiplier=4.0` is conservative for attention-based models and is injected as a parameter.
+Safe-mapped axes contribute O(1) memory (one slice at a time) and are excluded from the product. Parity-pinned axes are always `vmap`; always included. `activation_multiplier` is **required, no default** — the caller must supply it based on their execution context:
 
-**By-hand example:** `base=1 MB`, `n_states=4` (vmap, pinned), `n_samples=8` (vmap), `n_temperatures=4` (safe_map) → `1MB × (4 × 8) × 4.0 = 128 MB`.
+| Context | Typical multiplier |
+|---------|-------------------|
+| Inference only (forward pass) | 2–3× |
+| Training, no checkpointing | 4–8× (activations kept for backward) |
+| Training + `jax.checkpoint` | 1.5–2× (activations recomputed, not stored) |
+
+These are starting points, not calibrated values. The StableHLO profiling path (deferred) is how you get the right number for a specific model and device. Until then, when in doubt use the inference multiplier for sampling/scoring runs and the training range for any gradient path.
+
+**By-hand example:** `base=1 MB`, `n_states=4` (vmap, pinned), `n_samples=8` (vmap), `n_temperatures=4` (safe_map), inference context → `1MB × (4 × 8) × 2.5 = 80 MB`.
 
 The budget is computed by the caller as `device_ceiling × headroom_fraction − param_bytes`. Headroom default: 0.80. The planner never queries the device directly.
 
@@ -113,20 +121,26 @@ Ten canonical `AxisSpec` instances covering all 9 `BatchingConfig` fields:
 
 ---
 
-## Migration strategy
+## Implementation PRs
 
-`BatchingConfig` is unchanged. `BatchPlanner` is constructed alongside it at each host entry point and `plan()` is called before any JIT dispatch. Phase 6 changes are **additive and advisory** — `plan()` output is logged at DEBUG level; no execution paths change yet.
+These are implementation steps within roadmap Phase 6 — not new roadmap phases.
 
-**Confirmed insertion points:**
+### PR-A through PR-D: advisory wiring (no execution changes)
 
-| PR | File | Function | Line | Axes |
-|----|------|----------|------|------|
-| 4a | `run/sampling.py` | `_sample_batch` | 744 | N_TEMPERATURES, N_NOISES, N_SAMPLES |
-| 4b | `run/scoring.py` | `score` | 110 | N_NOISES |
-| 4c | `run/jacobian.py` | `_compute_jacobian_from_logit_fn` | 58 | N_JACOBIAN_PAIRS, N_NOISES, N_COMBINE, N_APC_PAIRS |
-| 4d | `run/conformational_inference.py` | — | — | documentation only — uses fixed per-frame `jax.vmap`, no BatchingConfig fields |
+`BatchingConfig` is unchanged. `BatchPlanner` is constructed alongside it at each host entry point; `plan()` is called before any JIT dispatch and its output is **logged at DEBUG level only — no execution paths change**. This lets you observe what the planner would do without risk.
 
-PRs are sequential (4a → 4b → 4c → 4d). Each must pass the parity gate before the next opens.
+| PR | File | Function | Line | Axes wired |
+|----|------|----------|------|------------|
+| PR-A | `run/sampling.py` | `_sample_batch` | 744 | N_TEMPERATURES, N_NOISES, N_SAMPLES |
+| PR-B | `run/scoring.py` | `score` | 110 | N_NOISES |
+| PR-C | `run/jacobian.py` | `_compute_jacobian_from_logit_fn` | 58 | N_JACOBIAN_PAIRS, N_NOISES, N_COMBINE, N_APC_PAIRS |
+| PR-D | `run/conformational_inference.py` | — | — | docs only — fixed per-frame `jax.vmap`, no BatchingConfig fields |
+
+PRs are sequential (A → B → C → D). Each must pass the parity gate before the next opens.
+
+### PR-E (optional): active safe_map adoption
+
+This PR actually changes dispatch — swapping `jax.vmap → jax.lax.map(batch_size=N)` at the hot paths for axes the planner chooses as `safe_map`. This **reduces peak memory** but adds overhead (sequential execution for that axis, more compile time). Only opened if measurement shows the advisory logs firing frequently (see trigger below).
 
 ---
 
@@ -143,9 +157,17 @@ PYTHONPATH=prxteinmpnn/src uv run pytest \
 
 ---
 
-## Phase 5 — Optional safe_map adoption (metric-gated)
+## PR-E trigger — when to do the actual swap
 
-If `exceeded_budget()` fires in >10% of `run/sampling.py` invocations over a 7-day rolling cluster log window (measured from WARNING-level log lines emitted by Phase 4 PRs), open Phase 5 PRs to actively swap `vmap → safe_map` at hot paths per the BatchPlan decisions. This phase is not scheduled; it is triggered by measurement.
+After PR-A through PR-D land, every sampling/scoring/jacobian run will emit a DEBUG log line like:
+
+```
+BatchPlan: n_temperatures=safe_map, n_samples=vmap, n_noises=safe_map, exceeded_budget=False
+```
+
+If `exceeded_budget=True` appears in >10% of your cluster runs over a 7-day window, it means your workloads are genuinely memory-pressured and PR-E is worth doing. If it never appears, skip PR-E entirely — the current vmap-everywhere approach fits your budget and there's no benefit.
+
+**What PR-E actually changes:** replaces specific `jax.vmap(f)(xs)` calls with `jax.lax.map(f, xs, batch_size=N)` for axes the planner marks `safe_map`. The result is lower peak memory but higher wall time for those axes. You choose the trade-off by looking at the logs.
 
 ---
 

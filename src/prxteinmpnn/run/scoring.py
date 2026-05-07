@@ -13,7 +13,9 @@ import jax.numpy as jnp
 import numpy as np
 
 from prxteinmpnn.run.averaging import get_averaged_encodings
+from prxteinmpnn.run.output_sinks import active_scoring_sink
 from prxteinmpnn.run.scoring_driver import ScoringDriver
+from prxteinmpnn.run.streaming_host import StreamingBatchHost
 from prxteinmpnn.scoring.score import score_sequence_with_encoding
 from prxteinmpnn.utils.aa_convert import string_to_protein_sequence
 from prxteinmpnn.utils.autoregression import resolve_tie_groups
@@ -64,12 +66,18 @@ def _noop_scoring_tensor_batch_io(
   del batch_idx, batch_count, scores_host, logits_host
 
 
-def _structure_batch_count_for_io(protein_iterator: Any) -> int:  # noqa: ANN401
-  """Return batch count for io markers, or ``-1`` if the iterator is not sized."""
-  try:
-    return len(protein_iterator)
-  except TypeError:
-    return -1
+def _dispatch_scoring_tensor_batch_io(
+  batch_idx: object,
+  batch_count: object,
+  scores_host: object,
+  logits_host: object,
+) -> None:
+  """Trace-stable entry for scoring tensor ``io_callback`` (active sink or noop)."""
+  sink = active_scoring_sink()
+  if sink is not None:
+    sink.on_scoring_scores_logits(batch_idx, batch_count, scores_host, logits_host)
+    return
+  _noop_scoring_tensor_batch_io(batch_idx, batch_count, scores_host, logits_host)
 
 
 def _scoring_structure_and_tensor_batch_io(
@@ -87,7 +95,7 @@ def _scoring_structure_and_tensor_batch_io(
     ordered=False,
   )
   jax.experimental.io_callback(
-    _noop_scoring_tensor_batch_io,
+    _dispatch_scoring_tensor_batch_io,
     None,
     jax.lax.stop_gradient(batch_idx),
     jax.lax.stop_gradient(batch_count),
@@ -165,7 +173,7 @@ def score(
   if not all_scores:
     return {}
 
-  jax.effects_barrier()
+  StreamingBatchHost.sink_barrier()
   return {
     "scores": jnp.concatenate(all_scores, axis=0),
     "logits": jnp.concatenate(all_logits, axis=0),
@@ -190,7 +198,7 @@ def _score_averaged_mode(
   sampling_spec = SamplingSpecification(**filtered_spec)
   # Phase 5g follow-up: optional host-only accumulation (skip device concat) once sinks consume tensors end-to-end.
   all_scores, all_logits = [], []
-  structure_batch_count = _structure_batch_count_for_io(protein_iterator)
+  structure_batch_count = StreamingBatchHost.structure_batch_count(protein_iterator)
 
   for batch_idx, batched_ensemble in enumerate(protein_iterator):
     scores, logits = _score_batch_averaged(
@@ -217,7 +225,7 @@ def _score_standard_mode(
   score_single_pair = ScoringDriver(spec).build_score_single_pair(model)
   # Phase 5g PR3b: per-batch tensor io_callback; device-side lists and concat return unchanged.
   all_scores, all_logits = [], []
-  structure_batch_count = _structure_batch_count_for_io(protein_iterator)
+  structure_batch_count = StreamingBatchHost.structure_batch_count(protein_iterator)
 
   for batch_idx, batched_ensemble in enumerate(protein_iterator):
     tie_group_map = None
@@ -417,7 +425,7 @@ def _score_streaming(  # noqa: PLR0915
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
   score_single_pair = ScoringDriver(spec).build_score_single_pair(model)
-  structure_batch_count = _structure_batch_count_for_io(protein_iterator)
+  structure_batch_count = StreamingBatchHost.structure_batch_count(protein_iterator)
 
   with h5py.File(spec.output_h5_path, "w") as f:
     scores_ds = f.create_dataset(
@@ -512,7 +520,7 @@ def _score_streaming(  # noqa: PLR0915
         return scores, logits, decoding_orders
 
       scores, logits, _ = _compute(batched_ensemble)
-      jax.effects_barrier()
+      StreamingBatchHost.sink_barrier()
 
       scores_ds.resize(scores_ds.shape[0] + scores.size, axis=0)
       scores_ds[-scores.size :] = scores.flatten()

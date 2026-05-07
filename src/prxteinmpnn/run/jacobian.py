@@ -46,6 +46,7 @@ from prxteinmpnn.utils.catjac import (
 
 from .prep import prep_protein_stream_and_model
 from .specs import JacobianSpecification, pop_deprecated_spec_kwargs
+from .streaming_host import StreamingBatchHost
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
@@ -274,12 +275,12 @@ def _compute_batch_outputs(
         spec,
         conditional_logits_fn,
       )
-      jax.effects_barrier()
+      StreamingBatchHost.sink_barrier()
 
       yield jacobians_batch, batched_ensemble.one_hot_sequence
     if spec.average_encodings and encode_fn is not None:
       encodings_batch = _compute_encodings_for_batch(batched_ensemble, spec, encode_fn)
-      jax.effects_barrier()
+      StreamingBatchHost.sink_barrier()
       yield encodings_batch, batched_ensemble.one_hot_sequence
 
 

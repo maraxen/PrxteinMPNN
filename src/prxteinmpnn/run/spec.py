@@ -168,7 +168,8 @@ def _infer_sink_kind(spec: object) -> str:
     return "arrayrecord"
   if _output_h5_path(spec) is not None:
     return "hdf5"
-  # TODO(REFACTOR_ROADMAP §3.5): align with `OUTPUT_SINKS` registry keys when Phase 5 lands.
+  # IOConfig.sink_kind uses "arrayrecord" | "hdf5" | "none"; host tensor sinks register under OUTPUT_SINKS
+  # (e.g. "noop", "streaming_tensor_staging" — see prxteinmpnn.run.output_sinks).
   return "none"
 
 

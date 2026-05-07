@@ -79,11 +79,14 @@ class BatchPlanner:
 
 ```
 estimate = base_shape_bytes
-         × ∏(cardinality_i  for axes_i where batch_size == 0)
+         × ∏(effective_tile_size_i  for all axes_i)
          × activation_multiplier
+
+where effective_tile_size_i = cardinality_i   if batch_size_i == 0  (vmap — full axis in memory)
+                            = batch_size_i    if batch_size_i > 0   (safe_map — one tile at a time)
 ```
 
-Axes with `batch_size > 0` contribute O(1) memory (one chunk at a time) and are excluded from the product. `activation_multiplier` is **required, no default** — the caller must supply it based on their execution context:
+A safe_map axis with `batch_size=tile_granularity` contributes `tile_granularity` to the product, not `cardinality`. Setting `batch_size=cardinality` on a safe_map axis saves no memory over vmap — both put the full axis in memory at once. Demotion is only meaningful when the assigned tile is smaller than the cardinality; the greedy algorithm demotes to `tile_granularity` (the minimum valid tile), not `cardinality`. `activation_multiplier` is **required, no default** — the caller must supply it based on their execution context:
 
 | Context | Typical multiplier |
 |---------|-------------------|
@@ -93,7 +96,7 @@ Axes with `batch_size > 0` contribute O(1) memory (one chunk at a time) and are 
 
 These are rough starting points. The conditional vs unconditional logit path is a concrete example of why the right number is not derivable without HLO analysis — the activation profile differs substantially between paths and the hardcoded table cannot capture it. The StableHLO injection point (constraint 5) is how you replace this.
 
-**By-hand example:** `base=1 MB`, `n_states=4` (batch_size=0, vmap — homogeneous), `n_samples=8` (batch_size=0, vmap), `n_temperatures=4` (batch_size=4, safe_map), inference context → `1MB × (4 × 8) × 2.5 = 80 MB`.
+**By-hand example:** `base=1 MB`, `n_states=4` (heterogeneous, batch_size=1), `n_samples=8` (batch_size=0, vmap), `n_temperatures=4` (demoted, batch_size=1, tile_granularity=1), inference context → `1MB × (1 × 8 × 1) × 2.5 = 20 MB` vs the naive `1MB × (4 × 8 × 4) × 2.5 = 320 MB` if all were vmapped.
 
 The budget is computed by the caller as `device_ceiling × headroom_fraction − param_bytes`. Headroom default: 0.80. The planner never queries the device directly.
 
@@ -103,11 +106,11 @@ The budget is computed by the caller as `device_ceiling × headroom_fraction −
 
 Three phases:
 
-1. **Pre-demote heterogeneous axes**: any axis with `heterogeneous=True` is assigned `batch_size=ceil_to_granularity(cardinality, tile_granularity)` (safe_map) unconditionally. These axes never enter the budget loop — vmap requires uniform shapes within the tile, and bucketing/padding provides that at each `safe_map` step.
+1. **Pre-demote heterogeneous axes**: any axis with `heterogeneous=True` is assigned `batch_size=tile_granularity` (safe_map, minimum valid tile) unconditionally. For axes with `tile_granularity=1` (e.g. `n_states`, `n_structures`), this means single-element iteration — one element at a time, no intra-tile padding required. These axes never enter the budget loop.
 
-2. **Greedy budget loop over homogeneous axes**: fixed innermost-first ordering (axis_index ascending). Assign `batch_size=0` (vmap) to each axis until the cumulative estimate exceeds budget, then demote to `ceil_to_granularity(cardinality, tile_granularity)`. `exceeded_budget()` returns `True` when the plan still exceeds budget even with all homogeneous axes demoted — dispatcher logs a WARNING; no exception.
+2. **Greedy budget loop over homogeneous axes**: fixed innermost-first ordering (axis_index ascending). Assign `batch_size=0` (vmap) to each axis until the cumulative estimate exceeds budget, then demote to `tile_granularity` (the minimum valid tile, not `cardinality`). Demotion to `cardinality` saves no memory over vmap — only a small tile size is meaningful. `exceeded_budget()` returns `True` when the plan still exceeds budget even with all homogeneous axes at their minimum tile — dispatcher logs a WARNING; no exception.
 
-3. **Tile size warping**: every positive `batch_size` produced in phases 1–2 is rounded up to the nearest multiple of `axis.tile_granularity` via `ceil_to_granularity`. This ensures tiles are aligned to hardware-efficient sizes (e.g. multiples of 128 for residue-aligned axes) without the caller needing to manage it manually.
+3. **Tile size warping**: `tile_granularity` is the alignment unit for homogeneous demoted axes. When a demoted axis has an existing BatchingConfig chunk size (e.g. `samples_chunk_size`), the planner uses `ceil_to_granularity(chunk_size, tile_granularity)` to preserve existing tuning while aligning to hardware boundaries. This is where non-trivial warping happens — not for heterogeneous axes (granularity=1, warp is identity).
 
 ```python
 def ceil_to_granularity(n: int, g: int) -> int:
@@ -133,7 +136,7 @@ Ten canonical `AxisSpec` instances covering all 9 `BatchingConfig` fields:
 | `n_combine` | `combine_batch_size` | cardinality (safe_map) | 1 | False | multistate combine step (deferred) |
 | `n_apc_pairs` | `apc_batch_size`, `apc_residue_batch_size` | cardinality (safe_map) | 1 | False | all-pair contact scoring (deferred) |
 
-`default_batch_size=0` signals full vectorisation (vmap); any positive value signals safe_map with that tile size (rounded up to `tile_granularity`). `cardinality` means start from the full axis as a single tile. Bucketing and padding within each tile remain the caller's responsibility — the planner determines tile sizes, not padding policy. The planner may override any homogeneous axis in either direction; heterogeneous axes are always safe_map.
+`default_batch_size=0` signals full vectorisation (vmap). Any positive value signals safe_map with that tile size. The effective tile size is `tile_granularity` when demoted (not `cardinality` — setting tile=cardinality saves no memory over vmap). Heterogeneous axes with `tile_granularity=1` iterate one element at a time; warping to non-trivial tile sizes is meaningful for homogeneous axes where existing BatchingConfig chunk sizes are preserved. Bucketing and padding within each tile remain the caller's responsibility — the planner determines tile sizes, not padding policy.
 
 ---
 

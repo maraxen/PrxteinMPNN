@@ -14,7 +14,7 @@ The codebase has three independent hand-rolled bucketing implementations and no 
 - Combinatorial sweeps tile multiple axes simultaneously (states × samples × temperatures × noises)
 - GPU budgets are modest relative to the product of vmapped axis sizes
 
-This design replaces manual stacking with a computation-level batch planner that decides which axes to `vmap` (homogeneous, budget-permitting) and which to iterate via `safe_map` (heterogeneous or budget-exceeded). `safe_map` handles iteration without requiring a common padded shape, directly eliminating the `pad_length_bucket_128` stacking convention for multistate paths. The planner is prxteinmpnn-agnostic and designed for future extraction to jaxbeans.
+Bucketing and padding remain essential for shape uniformity within every tile — this design does not replace them. What it adds is a computation-level batch planner that decides: (1) which axes to `vmap` (homogeneous, budget-permitting) and which to iterate via `safe_map` (heterogeneous or budget-exceeded), and (2) what tile size to use for each `safe_map` axis, warped to hardware-efficient granularities (e.g. multiples of 128 for residue-aligned axes) rather than hand-rolled constants. The planner is prxteinmpnn-agnostic and designed for future extraction to jaxbeans.
 
 ---
 
@@ -25,7 +25,7 @@ This design replaces manual stacking with a computation-level batch planner that
 3. **`utils/batching.py` has zero prxteinmpnn-specific imports**: pure utility module, designed for jaxbeans extraction.
 4. **`BatchingConfig` stays unchanged**: 9 existing static fields untouched. BatchPlanner is constructed alongside at host entry points, not embedded in the config.
 5. **Memory profiling (StableHLO-based scaling model) deferred**: Phase 6 uses a conservative theoretical estimator. The conditional vs unconditional logit path distinction is a concrete example of why a hardcoded activation multiplier is unreliable — the right long-term model is an HLO-backed empirical fit. StableHLO analysis (XLA buffer assignment → scaling model per `(device_id, fn_hash)`) is Phase 7+ scope. The estimator interface is injected so this swap requires no planner rewrite.
-6. **`LENGTH_BUCKETS` stays; `pad_length_bucket_128` is replaced**: `LENGTH_BUCKETS=(100,200,400,800,1200)` (protein-level bucketing in `padding.py`) remains as a data-pipeline grouping tool. `pad_length_bucket_128` (multistate stacking in `state_vmap_prep.py`) is replaced by planner-driven `safe_map` dispatch — heterogeneous axes iterate without requiring a common padded length.
+6. **Bucketing conventions stay; tile size policy is added**: `LENGTH_BUCKETS=(100,200,400,800,1200)` (protein-level bucketing in `padding.py`) and `pad_length_bucket_128` (multistate stacking in `state_vmap_prep.py`) remain as the padding mechanisms that enforce shape uniformity within each tile. The planner adds a policy layer on top: it chooses tile sizes that are multiples of each axis's `tile_granularity` and respect the memory budget, rather than hard-coding constants scattered across files.
 
 ---
 
@@ -46,6 +46,7 @@ class AxisSpec:
     axis_index: int               # canonical ordering for innermost-first algorithm
     cardinality: int              # typical/max size of this axis
     default_batch_size: int       # 0 = vmap; positive = safe_map chunk size
+    tile_granularity: int         # planner rounds safe_map tile sizes up to multiples of this
     heterogeneous: bool           # True = shapes vary across axis; vmap invalid; always safe_map
     doc: str
 
@@ -100,11 +101,18 @@ The budget is computed by the caller as `device_ceiling × headroom_fraction −
 
 ### Greedy algorithm
 
-Two phases:
+Three phases:
 
-1. **Pre-demote heterogeneous axes**: any axis with `heterogeneous=True` is assigned `batch_size=cardinality` (safe_map) unconditionally. These axes never enter the budget loop — vmap requires homogeneous shapes and is not valid for them.
+1. **Pre-demote heterogeneous axes**: any axis with `heterogeneous=True` is assigned `batch_size=ceil_to_granularity(cardinality, tile_granularity)` (safe_map) unconditionally. These axes never enter the budget loop — vmap requires uniform shapes within the tile, and bucketing/padding provides that at each `safe_map` step.
 
-2. **Greedy budget loop over homogeneous axes**: fixed innermost-first ordering (axis_index ascending). Assign `batch_size=0` (vmap) to each axis until the cumulative estimate exceeds budget, then demote to `batch_size=cardinality`. `exceeded_budget()` returns `True` when the plan still exceeds budget even with all homogeneous axes demoted — dispatcher logs a WARNING; no exception.
+2. **Greedy budget loop over homogeneous axes**: fixed innermost-first ordering (axis_index ascending). Assign `batch_size=0` (vmap) to each axis until the cumulative estimate exceeds budget, then demote to `ceil_to_granularity(cardinality, tile_granularity)`. `exceeded_budget()` returns `True` when the plan still exceeds budget even with all homogeneous axes demoted — dispatcher logs a WARNING; no exception.
+
+3. **Tile size warping**: every positive `batch_size` produced in phases 1–2 is rounded up to the nearest multiple of `axis.tile_granularity` via `ceil_to_granularity`. This ensures tiles are aligned to hardware-efficient sizes (e.g. multiples of 128 for residue-aligned axes) without the caller needing to manage it manually.
+
+```python
+def ceil_to_granularity(n: int, g: int) -> int:
+    return ((n + g - 1) // g) * g
+```
 
 ---
 
@@ -112,20 +120,20 @@ Two phases:
 
 Ten canonical `AxisSpec` instances covering all 9 `BatchingConfig` fields:
 
-| Axis | BatchingConfig field(s) | default_batch_size | heterogeneous | rationale |
-|------|------------------------|--------------------|---------------|-----------|
-| `n_residues` | (length bucket, via `LENGTH_BUCKETS`) | 0 (vmap) | False | fixed after bucketing within a computation |
-| `n_states` | — (MultistateStackPayload.n_states) | cardinality (safe_map) | **True** | states may have different per-state sequence lengths; replaces `pad_length_bucket_128` |
-| `n_ligand_atoms` | — (atom dim, `ligand_mpnn.py:437`) | 0 (vmap) | False | per-residue atom count is fixed per structure |
-| `n_structures` | `batch_size` | cardinality (safe_map) | **True** | proteins in a batch have different lengths before LENGTH_BUCKETS binning |
-| `n_samples` | `samples_batch_size`, `samples_chunk_size` | cardinality (safe_map) | False | output accumulates; iterating avoids tiling sample axis into memory |
-| `n_temperatures` | `temperature_batch_size` | cardinality (safe_map) | False | scalar sweep axis |
-| `n_noises` | `noise_batch_size` | cardinality (safe_map) | False | scalar sweep axis |
-| `n_jacobian_pairs` | `jacobian_batch_size` | cardinality (safe_map) | False | residue-pair product can be very large (deferred) |
-| `n_combine` | `combine_batch_size` | cardinality (safe_map) | False | multistate combine step (deferred) |
-| `n_apc_pairs` | `apc_batch_size`, `apc_residue_batch_size` | cardinality (safe_map) | False | all-pair contact scoring (deferred) |
+| Axis | BatchingConfig field(s) | default_batch_size | tile_granularity | heterogeneous | rationale |
+|------|------------------------|--------------------|------------------|---------------|-----------|
+| `n_residues` | (length bucket, via `LENGTH_BUCKETS`) | 0 (vmap) | 128 | False | fixed after bucketing; 128-aligned for tensor core efficiency |
+| `n_states` | — (MultistateStackPayload.n_states) | cardinality (safe_map) | 1 | **True** | states may have different per-state sequence lengths; padding within each tile via `pad_length_bucket_128` |
+| `n_ligand_atoms` | — (atom dim, `ligand_mpnn.py:437`) | 0 (vmap) | 1 | False | per-residue atom count is fixed per structure |
+| `n_structures` | `batch_size` | cardinality (safe_map) | 1 | **True** | proteins differ in length; LENGTH_BUCKETS pads within each tile |
+| `n_samples` | `samples_batch_size`, `samples_chunk_size` | cardinality (safe_map) | 1 | False | output accumulates; homogeneous shape |
+| `n_temperatures` | `temperature_batch_size` | cardinality (safe_map) | 1 | False | scalar sweep; no padding needed |
+| `n_noises` | `noise_batch_size` | cardinality (safe_map) | 1 | False | scalar sweep; no padding needed |
+| `n_jacobian_pairs` | `jacobian_batch_size` | cardinality (safe_map) | 1 | False | residue-pair product can be very large (deferred) |
+| `n_combine` | `combine_batch_size` | cardinality (safe_map) | 1 | False | multistate combine step (deferred) |
+| `n_apc_pairs` | `apc_batch_size`, `apc_residue_batch_size` | cardinality (safe_map) | 1 | False | all-pair contact scoring (deferred) |
 
-`default_batch_size=0` signals full vectorisation (vmap); any positive value signals safe_map over that chunk size. `cardinality` means the planner sets `batch_size=axis.cardinality` as the initial safe_map default. The planner may override any homogeneous axis in either direction; heterogeneous axes are always safe_map.
+`default_batch_size=0` signals full vectorisation (vmap); any positive value signals safe_map with that tile size (rounded up to `tile_granularity`). `cardinality` means start from the full axis as a single tile. Bucketing and padding within each tile remain the caller's responsibility — the planner determines tile sizes, not padding policy. The planner may override any homogeneous axis in either direction; heterogeneous axes are always safe_map.
 
 ---
 
@@ -148,7 +156,7 @@ Creates `utils/batching.py`, `utils/batching_registry.py`, and updates `utils/sa
 
 ### PR-B: Active heterogeneous routing
 
-For axes with `heterogeneous=True` (`n_states`, `n_structures`), the planner's safe_map decision is enforced at dispatch time — no advisory logging, actual dispatch change. This replaces the `pad_length_bucket_128` stacking pattern in multistate paths: instead of padding states to a common multiple-of-128 length and vmapping, the planner iterates via `safe_map(f, states, batch_size=n_states)`.
+For axes with `heterogeneous=True` (`n_states`, `n_structures`), the planner's tile size is enforced at dispatch time — actual dispatch change, not advisory. Bucketing and padding within each tile remain unchanged (`pad_length_bucket_128`, `LENGTH_BUCKETS`). What changes is the tile size used for iteration: instead of a hand-rolled constant (e.g. `pad_length_bucket_128` always rounds to 128), the planner picks the tile size and warp it to `tile_granularity`.
 
 Execution changes are confined to the heterogeneous-axis dispatch sites; homogeneous axes remain on their existing vmap paths.
 

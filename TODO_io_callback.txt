@@ -38,13 +38,17 @@ Multistate ``state_vmap_exact`` logits/scoring (preferred when many states — a
 
 **PR3a slice (2026-05-06):** Non-streaming ``sample()`` and ``_sample_averaged_mode`` use **concat-anchor only** (single ``jax.effects_barrier()`` before ``jnp.concatenate`` of per-batch lists — removed per-batch barrier after ``_sample_batch``). ``_sample_batch`` gains optional ``emit_structure_batch_io`` (default ``True``); **campaign** HDF5 and ArrayRecord chunk loops set ``emit_structure_batch_io`` only when ``chunk_start + chunk_count >= total_num_samples``. Tail ``io_callback(..., ordered=False)`` to ``_noop_sampling_structure_batch_io``. ``_sample_batch_averaged`` mirrors scoring PR2c markers. Tests: ``tests/streaming/test_sampling_chunk_io_callback.py``.
 
-**PR3a / PR3b sequencing (plan-auditor 2026-05-06):** **PR3a landed** — see **PR3a slice** above and §14. Keep **one PR theme per merge**. **PR3b** (next): scoring tensor D2H / host sinks (separate review surface from scalar markers + concat-anchor barriers). Do **not** fold HDF5 vs ArrayRecord adapter unification into PR3b unless scope stays tiny.
+**PR3a / PR3b sequencing (plan-auditor 2026-05-06):** **PR3a landed** — see **PR3a slice** above and §14. Keep **one PR theme per merge**.
+
+**PR3b slice (2026-05-07):** ``run/scoring.py`` — ``_noop_scoring_tensor_batch_io`` + helper ``_scoring_structure_and_tensor_batch_io`` (scalar structure marker then tensor ``io_callback``, both ``ordered=False``, ``stop_gradient`` on batch indices and ``scores`` / ``logits``) inside traced `_compute` for standard + streaming HDF5, and after averaged tail forward. Non-streaming ``score()`` still lists device arrays then ``effects_barrier`` + ``jnp.concatenate``. Streaming keeps ``np.asarray`` for HDF5 (**second host transfer** vs tensor hook — comment in source). Tests: ``tests/streaming/test_scoring_tensor_batch_io_callback.py``. **Next:** sampling-side tensor streaming / HDF5–ArrayRecord adapter when kept narrow.
+
+**PR3b** (historical “next”): scoring tensor D2H / host sinks — **landed** as above. Do **not** fold HDF5 vs ArrayRecord adapter unification into the same PR unless scope stays tiny.
 
 Outstanding integration targets (add/adjust inline TODOs as work lands):
   [~] run/sampling.py — PR3a: structure-batch markers + concat-anchor barrier (non-streaming / averaged); chunk markers + internal pre-concat barrier (PR1); campaign ``emit_structure_batch_io`` on last chunk only; tensor streaming still open
   [ ] run/sampling.py — _sample_streaming (HDF5): Python loop + h5 writes after full batch mat
   [ ] run/sampling.py — _sample_streaming_arrayrecord: np.asarray(...) materialization
-  [~] run/scoring.py — structure-batch scalar io_callback + concat-anchor barrier in ``score()`` for standard, streaming, **and averaged** paths (PR2b + PR2c); tensor streaming still open
+  [~] run/scoring.py — structure-batch scalar io_callback + concat-anchor barrier in ``score()`` for standard, streaming, **and averaged** paths (PR2b + PR2c); **PR3b:** per-batch tensor ``io_callback`` + streaming double-D2H note; optional future host-only concat/sink unify still open
   [ ] run/jacobian.py — batch feature list + pad (may stay pure JAX; review D2H separately)
   [~] io/designs.py — NumPy payloads skip redundant ``device_get`` in ``write()``; jit+io_callback-only path still open
   [ ] training/trainer.py + training/metrics.py — scalar device_get for logs (low priority vs streaming logits)

@@ -31,7 +31,7 @@ logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
 
 
 def _noop_scoring_structure_batch_io(batch_idx: object, batch_count: object) -> None:
-  """Host structure-batch boundary hook for scoring (Phase **5g** PR2b).
+  """Host structure-batch boundary hook for scoring (Phase **5g** PR2b / **PR2c**).
 
   ``jax.experimental.io_callback`` invokes this on the host with ``ordered=False``;
   completion order is **not** guaranteed to match program order. Only lightweight
@@ -148,15 +148,17 @@ def _score_averaged_mode(
   sampling_spec = SamplingSpecification(**filtered_spec)
   # TODO(io_callback integration): Batch list accumulation; stream scores/logits via io_callback where consumers support it.
   all_scores, all_logits = [], []
+  structure_batch_count = _structure_batch_count_for_io(protein_iterator)
 
-  for batched_ensemble in protein_iterator:
+  for batch_idx, batched_ensemble in enumerate(protein_iterator):
     scores, logits = _score_batch_averaged(
       sampling_spec,
       batched_ensemble,
       model,
       batched_sequences,
+      batch_idx,
+      structure_batch_count,
     )
-    jax.effects_barrier()
     all_scores.append(scores)
     all_logits.append(logits)
 
@@ -276,6 +278,8 @@ def _score_batch_averaged(
   batched_ensemble: Protein,
   model: PrxteinMPNN,
   sequences: ProteinSequence,
+  batch_idx: int,
+  structure_batch_count: int,
 ) -> tuple[jnp.ndarray, Logits]:
   """Score sequences for a batched ensemble of proteins using averaged encodings."""
   tie_group_map = None
@@ -356,6 +360,15 @@ def _score_batch_averaged(
     )
     scores, logits = vmap_score(sequences, averaged_encodings)
 
+  batch_idx_j = jnp.asarray(batch_idx, dtype=jnp.int32)
+  batch_cnt_j = jnp.asarray(structure_batch_count, dtype=jnp.int32)
+  jax.experimental.io_callback(
+    _noop_scoring_structure_batch_io,
+    None,
+    jax.lax.stop_gradient(batch_idx_j),
+    jax.lax.stop_gradient(batch_cnt_j),
+    ordered=False,
+  )
   return scores, logits
 
 

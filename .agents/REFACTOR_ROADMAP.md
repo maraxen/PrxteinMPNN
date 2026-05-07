@@ -618,14 +618,14 @@ Each Open Question now has a **default decision** that holds unless a triggering
 
 ---
 
-## 14. Sprint status (Phase 0a GO; PR2b closed on loose-stack path; Phase 4 prep)
+## 14. Sprint status (Phase 0a GO; PR2c closed on averaged scoring; Phase 4 prep)
 
 | Field | Value |
 | :--- | :--- |
-| **task_id** | `refactor-phase5-sprint-20260508` — **Plan gate:** recon → planner → plan-auditor (**NEEDS_WORK** → barrier/checkify/DoD amendments); **landed:** Phase **5g PR2b** — ``_score_standard_mode`` / ``_score_streaming`` scalar ``jax.experimental.io_callback(..., ordered=False)`` after traced ``vs(...)`` via ``_noop_scoring_structure_batch_io``; ``jax.effects_barrier()`` immediately **before** ``jnp.concatenate`` in ``score()`` (mirrors sampling PR1 concat anchor); streaming retains **per-batch** barrier before HDF5 materialization; ``tests/streaming/test_scoring_batch_io_callback.py``. **Prior:** `refactor-phase5-sprint-20260507` (sampling PR1 chunk markers). |
-| **Last update** | **2026-05-06** — **5g PR2b:** scoring structure-batch markers + concat barrier; **still defer:** chunk/tensor streaming; HDF5 vs ArrayRecord adapter; jaxbeans **DEPEND** swap; ``OUTPUT_SINKS``; averaged scoring markers; **5h**. |
-| **Current phase** | Phase 5 **5g**: sampling chunk markers (PR1) + scoring structure-batch markers (PR2b); follow-ups per ``TODO_io_callback.txt``. |
-| **Still open** | Stream **chunk tensors** + unify HDF5/ArrayRecord sinks; jaxbeans **DEPEND** packages (multipart writers, profiling/io where adopted); optional ``OUTPUT_SINKS`` registry + driver breadth on ``run/jacobian.py`` / ``run/conformational_inference.py``; scoring ``_score_averaged_mode`` markers + tensor streaming; **5h** ensemble relocation (Q3). |
+| **task_id** | `refactor-phase5-sprint-20260509` — **Plan gate:** recon → planner → plan-auditor (**NEEDS_WORK** → placement + concat-anchor amendments); **landed:** Phase **5g PR2c** — ``_score_averaged_mode`` uses ``enumerate`` + ``_structure_batch_count_for_io``; **one** scalar ``io_callback(..., ordered=False)`` per iterator batch at the **tail** of ``_score_batch_averaged`` (after both ``average_encoding_mode`` branches; **not** inside ``score_one``); **removed** per-batch ``effects_barrier`` in the averaged host loop (**concat-anchor only**); ``score()`` barrier before ``jnp.concatenate`` unchanged; ``tests/streaming/test_scoring_batch_io_callback.py`` covers ``inputs_and_noise`` + ``inputs``. **Prior:** `refactor-phase5-sprint-20260508` (PR2b standard/streaming). |
+| **Last update** | **2026-05-09** — **5g PR2c:** averaged scoring structure-batch markers + loop barrier reconciliation (concat-anchor); **still defer:** chunk/tensor streaming; HDF5 vs ArrayRecord adapter; jaxbeans **DEPEND** swap; ``OUTPUT_SINKS``; **5h**. |
+| **Current phase** | Phase 5 **5g**: sampling chunk markers (PR1) + scoring structure-batch markers standard/streaming/averaged (PR2b + PR2c); follow-ups per ``TODO_io_callback.txt``. |
+| **Still open** | Stream **chunk tensors** + unify HDF5/ArrayRecord sinks; jaxbeans **DEPEND** packages (multipart writers, profiling/io where adopted); optional ``OUTPUT_SINKS`` registry + driver breadth on ``run/jacobian.py`` / ``run/conformational_inference.py``; scoring tensor streaming; **5h** ensemble relocation (Q3). |
 | **Plan** | **Closed slice (2026-05-06):** routing tests + driver factory-key introspection. **Reference sprint:** `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md` (WP2 narrative). |
 | **Prior landed (Phase 2)** | `protocols.py`, `model/capabilities.py`, introspection removal at sample/score/averaging, honest casts on score paths; sprint `refactor-phase2-sprint-20260505`, plan `.agents/SPRINT_refactor-phase2-20260505.md`. |
 | **Prior phase** | Phase 1: `task_id` `refactor-phase1-sprint-20260505` (§14 prior row archived in git history). |

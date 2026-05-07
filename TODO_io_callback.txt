@@ -11,6 +11,7 @@ to cap in-flight GPU state (see run_design_grid / multistate pools / STE).
 Reference implementations in this repo:
   - prxteinmpnn/run/multistate_pools.py — vmap + lax.map + io_callback
   - prxteinmpnn/run/sampling.py — ``_sample_batch`` per-chunk scalar marker io_callback + barrier pre-concat (PR1 slice)
+  - prxteinmpnn/run/scoring.py — ``_score_standard_mode`` / ``_score_streaming`` structure-batch scalar marker io_callback + barrier before ``jnp.concatenate`` in ``score()`` (PR2b slice)
   - prxteinmpnn/sampling/ste_optimize.py — logits save + effects_barrier
   - prxteinmpnn/io/designs.py — DesignArrayRecordWriter + get_io_callback_fn; ``write()`` uses
     ``device_get`` only for JAX arrays (NumPy payloads skip redundant fetch)
@@ -31,13 +32,15 @@ Multistate ``state_vmap_exact`` logits/scoring (preferred when many states — a
 
 **PR1 slice (2026-05-07, plan-auditor NEEDS_WORK):** ``_sample_batch`` emits a **scalar** chunk-marker ``io_callback(..., ordered=False)`` after each chunked ``vmap_structures`` (host hook ``_noop_sampling_chunk_io``, default no-op) and ``jax.effects_barrier()`` immediately **before** ``jnp.concatenate``. This does **not** stream logits/sequences early; HDF5/ArrayRecord adapters and scoring / jacobian / conformational parity are **explicit follow-ups**.
 
+**PR2b slice (2026-05-06):** ``_score_standard_mode`` and ``_score_streaming`` emit a **scalar** structure-batch marker ``io_callback(..., ordered=False)`` after each traced ``vs(...)`` via ``_noop_scoring_structure_batch_io``; ``score()`` calls ``jax.effects_barrier()`` immediately **before** ``jnp.concatenate`` of per-batch lists. Streaming keeps ``effects_barrier()`` **after** each batch **before** HDF5 writes. ``batch_count`` is ``-1`` when the iterator has no ``__len__``. **Not** instrumented: ``_score_averaged_mode``. Tensor D2H / sink unify still open.
+
 Outstanding integration targets (add/adjust inline TODOs as work lands):
   [~] run/sampling.py — _sample_batch: scalar chunk-marker io_callback + barrier pre-concat; tensor streaming to host still open
   [ ] run/sampling.py — sample(): non-streaming path appends device arrays per batch
   [ ] run/sampling.py — _sample_streaming (HDF5): Python loop + h5 writes after full batch mat
   [ ] run/sampling.py — _sample_streaming_arrayrecord: np.asarray(...) materialization
   [ ] run/sampling.py — _sample_averaged_mode: all_* list + concat
-  [ ] run/scoring.py — _score_averaged_mode / _score_standard_mode batch lists
+  [~] run/scoring.py — _score_standard_mode / _score_streaming: scalar structure-batch io_callback + barrier before concat in ``score()``; tensor streaming + averaged path still open
   [ ] run/jacobian.py — batch feature list + pad (may stay pure JAX; review D2H separately)
   [~] io/designs.py — NumPy payloads skip redundant ``device_get`` in ``write()``; jit+io_callback-only path still open
   [ ] training/trainer.py + training/metrics.py — scalar device_get for logs (low priority vs streaming logits)

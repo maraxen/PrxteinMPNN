@@ -618,7 +618,7 @@ Each Open Question now has a **default decision** that holds unless a triggering
 
 ---
 
-## 14. Sprint status (Phase 0a GO; PR2c landed; next sprint planned 2026-05-06)
+## 14. Sprint status (Phase 0a GO; Phase 5g PR3a sampling landed — **next: PR3b**)
 
 | Field | Value |
 | :--- | :--- |
@@ -627,6 +627,7 @@ Each Open Question now has a **default decision** that holds unless a triggering
 | **Current phase** | Phase 5 **5g**: PR3a closed → **PR3b** scoring tensors + **5f** breadth + **5e-cont**. |
 | **Still open** | Stream **chunk tensors** + unify HDF5/ArrayRecord sinks; jaxbeans **DEPEND** swap when workspace/policy allows; optional ``OUTPUT_SINKS`` + driver breadth on ``run/jacobian.py`` / ``run/conformational_inference.py``; scoring tensor streaming (**PR3b**); **`mpnn.py` §11 LoC** target; **5h** ensemble relocation (Q3). |
 | **Plan** | **Verification cwd:** package root `prxteinmpnn/`. **Merge order:** **PR3b** scoring tensors; **5e-cont**; **5f**. Log: `.agents/verification_logs/sprint_phase5g_pr3a_sampling_io_20260506.filtered.txt`. |
+| **Next action (no prior context)** | Read §14 **Still open** + `TODO_io_callback.txt` checklist. **Do next:** **PR3b** — scoring tensor D2H / host sinks (`run/scoring.py`; scalar `io_callback` already landed PR2b/c). In parallel plannable: **5e-cont** (`mpnn.py` shrink toward §11 DoD), **5f** (driver pattern on `run/jacobian.py`, `run/conformational_inference.py`), jaxbeans DEPEND only after packaging decision (`pyproject.toml` `[tool.uv.sources]` comment). **Deferred:** **5h** ensemble→jaxbeans (Q3). Phase **6** (bucketing / `safe_map`) waits on Phase 5 host boundaries — roadmap §390–416. |
 | **Prior landed (Phase 2)** | `protocols.py`, `model/capabilities.py`, introspection removal at sample/score/averaging, honest casts on score paths; sprint `refactor-phase2-sprint-20260505`, plan `.agents/SPRINT_refactor-phase2-20260505.md`. |
 | **Prior phase** | Phase 1: `task_id` `refactor-phase1-sprint-20260505` (§14 prior row archived in git history). |
 

@@ -985,17 +985,6 @@ def _sample_batch(
       )
     return jax.lax.map(map_over_noise_and_temp, keys_arr)
 
-  tie_map_in_axis = 0 if tie_map_for_vmap is not None else None
-  mapping_in_axis = 0 if mapping_for_vmap is not None else None
-  fixed_mask_axis = 0 if fixed_mask_for_vmap is not None else None
-  fixed_tokens_axis = 0 if fixed_tokens_for_vmap is not None else None
-  Y_axis = 0 if ligand_context["Y"] is not None else None
-  Y_t_axis = 0 if ligand_context["Y_t"] is not None else None
-  Y_m_axis = 0 if ligand_context["Y_m"] is not None else None
-  xyz_37_axis = 0 if ligand_context["xyz_37"] is not None else None
-  xyz_37_m_axis = 0 if ligand_context["xyz_37_m"] is not None else None
-  chain_mask_axis = 0 if ligand_context["chain_mask"] is not None else None
-
   _structures_bs = _plan.decision_for("n_structures").batch_size
 
   sequence_chunks: list[jax.Array] = []

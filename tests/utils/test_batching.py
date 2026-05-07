@@ -122,3 +122,16 @@ def test_plan_decision_for_unknown_raises():
     plan = _planner([ax], budget=1000.0).plan()
     with pytest.raises(KeyError):
         plan.decision_for("nonexistent")
+
+def test_planner_multi_axis_cascade_demotion():
+    """Innermost axes are demoted before outer ones when budget is tight."""
+    ax0 = _axis("n_states", 0, 4, 0, 1)   # axis_index=0 (innermost)
+    ax1 = _axis("n_samples", 1, 8, 0, 1)  # axis_index=1
+    ax2 = _axis("n_temps", 2, 4, 0, 1)    # axis_index=2 (outermost)
+    # budget=16: all vmap → 4×8×4=128 > 16
+    # demote ax0: 1×8×4=32 > 16
+    # demote ax1: 1×1×4=4 <= 16 → stops here; ax2 stays vmap
+    plan = _planner([ax0, ax1, ax2], budget=16.0).plan()
+    assert plan.decision_for("n_states").batch_size == 1   # demoted
+    assert plan.decision_for("n_samples").batch_size == 1  # demoted
+    assert plan.decision_for("n_temps").batch_size == 0    # vmap (budget met after ax1 demoted)

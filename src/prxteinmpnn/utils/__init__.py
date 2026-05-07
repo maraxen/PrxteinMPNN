@@ -3,6 +3,8 @@
 from . import (
   aa_convert,
   autoregression,
+  batching,
+  batching_registry,
   concatenate,
   coordinates,
   data_structures,
@@ -17,6 +19,8 @@ from . import (
 __all__ = [
   "aa_convert",
   "autoregression",
+  "batching",
+  "batching_registry",
   "concatenate",
   "coordinates",
   "data_structures",

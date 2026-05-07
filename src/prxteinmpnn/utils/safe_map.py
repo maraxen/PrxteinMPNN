@@ -46,7 +46,7 @@ def safe_map(
 
   num_elements = leaves[0].shape[0]
 
-  if batch_size is None or num_elements <= batch_size:
+  if batch_size is None or batch_size == 0 or num_elements <= batch_size:
     return jax.vmap(f)(xs)
 
   return jax.lax.map(f, xs, batch_size=batch_size)

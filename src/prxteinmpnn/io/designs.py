@@ -3,14 +3,27 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
-from typing import TYPE_CHECKING, Any, Literal, Self, TypedDict
+from typing import Any, Literal, Self, TypedDict
 
 import jax
+import jax.numpy as jnp
 import numpy as np
 from array_record.python import array_record_module
 
-if TYPE_CHECKING:
-  import jax.numpy as jnp
+
+def _to_numpy_uint8(x: jnp.ndarray | np.ndarray) -> np.ndarray:
+  """Host-side snapshot to uint8; skips ``device_get`` when ``x`` is already NumPy."""
+  if isinstance(x, np.ndarray):
+    return np.asarray(x, dtype=np.uint8)
+  return np.asarray(jax.device_get(x), dtype=np.uint8)
+
+
+def _to_numpy_float32(x: jnp.ndarray | np.ndarray) -> np.ndarray:
+  """Host-side snapshot to float32; skips ``device_get`` when ``x`` is already NumPy."""
+  if isinstance(x, np.ndarray):
+    return np.asarray(x, dtype=np.float32)
+  return np.asarray(jax.device_get(x), dtype=np.float32)
+
 
 class DesignMetadata(TypedDict):
   """Metadata for a single design."""
@@ -89,32 +102,33 @@ class DesignArrayRecordWriter:
   def write(self, payload: DesignPayload) -> None:
     """Enqueue a design payload for async serialization and writing.
 
-    Snapshot arrays from device immediately (device_get is fast), then enqueue
-    the serialization and disk I/O to avoid blocking the device.
+    Snapshot arrays from device when needed, then enqueue the serialization and disk I/O
+    to avoid blocking the device. Payload fields that are already NumPy arrays skip an extra
+    ``jax.device_get`` (matches ``run/sampling.py`` after ``np.asarray`` staging).
 
     TODO(io_callback integration): Prefer producers that hand off host arrays strictly via
-    ``jax.experimental.io_callback`` (and ``jax.effects_barrier`` at batch boundaries); then optionally
-    accept already-NumPy payloads here to skip redundant ``device_get`` (see prxteinmpnn/TODO_io_callback.txt).
+    ``jax.experimental.io_callback`` (and ``jax.effects_barrier`` at batch boundaries); see
+    ``prxteinmpnn/TODO_io_callback.txt``.
     """
     # 1. Snapshot sequence (uint8) — device_get is fast
-    seq = np.asarray(jax.device_get(payload["sequence"]), dtype=np.uint8)
+    seq = _to_numpy_uint8(payload["sequence"])
     assert seq.shape == (self.n_canonical,), f"sequence shape {seq.shape} != {(self.n_canonical,)}"
 
     # 2. Snapshot logits (float32), validate range, then cast to float16
     # Store logits as float16. Bounded to [-20, 20] in practice; fits float16 range (±65504)
     # with 5 orders of magnitude headroom. Readers MUST upcast to float32 before softmax.
-    logits_f32 = np.asarray(jax.device_get(payload["logits"]), dtype=np.float32)
+    logits_f32 = _to_numpy_float32(payload["logits"])
     assert logits_f32.shape == (self.n_canonical, 21), f"logits shape {logits_f32.shape} != {(self.n_canonical, 21)}"
     assert np.isfinite(logits_f32).all() and np.abs(logits_f32).max() < 1e4, \
         f"Logit values out of float16-safe range: max={np.abs(logits_f32).max():.1f}"
     logits = logits_f32.astype(np.float16)
 
     # 3. Snapshot scores (float32)
-    scores = np.asarray(jax.device_get(payload["scores"]), dtype=np.float32).flatten()
+    scores = _to_numpy_float32(payload["scores"]).flatten()
     assert scores.shape == (1,), f"scores shape {scores.shape} != (1,)"
 
     # 4. Snapshot state_weights (float32)
-    weights = np.asarray(jax.device_get(payload["state_weights"]), dtype=np.float32)
+    weights = _to_numpy_float32(payload["state_weights"])
     assert weights.shape == (self.n_states,), f"weights shape {weights.shape} != {(self.n_states,)}"
 
     # Enqueue serialization and disk write to thread pool

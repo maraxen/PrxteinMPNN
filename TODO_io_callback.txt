@@ -11,7 +11,8 @@ to cap in-flight GPU state (see run_design_grid / multistate pools / STE).
 Reference implementations in this repo:
   - prxteinmpnn/run/multistate_pools.py — vmap + lax.map + io_callback
   - prxteinmpnn/sampling/ste_optimize.py — logits save + effects_barrier
-  - prxteinmpnn/io/designs.py — DesignArrayRecordWriter + get_io_callback_fn; write() still uses device_get
+  - prxteinmpnn/io/designs.py — DesignArrayRecordWriter + get_io_callback_fn; ``write()`` uses
+    ``device_get`` only for JAX arrays (NumPy payloads skip redundant fetch)
 
 External reference (streaming / tiling idioms):
   - jaxbeans (if available in sibling checkout) — match io_callback + effects_barrier usage to local patterns.
@@ -25,6 +26,8 @@ Multistate ``state_vmap_exact`` logits/scoring (preferred when many states — a
 
 **Update (Phase 5g slice, 2026-05-06):** ``run/multistate_pools.py`` uses ``io_callback(..., ordered=False)`` and ``jax.effects_barrier()`` after ``lax.map``; host helpers live in ``prxteinmpnn/utils/_vendored_callbacks.py``; CI smoke: ``tests/streaming/test_io_callback_ordering.py``.
 
+``_sample_batch`` contract (plan gate / roadmap §14): ``compute_pseudo_perplexity`` runs after ``jnp.concatenate`` of per-chunk logits — JIT-tail chunk streaming must not drop full-sample logits unless perplexity is redesigned (e.g. per-chunk NLL + host combine). ``return_logits`` and HDF5/ArrayRecord callers rely on unchanged concat axes until sinks consume host-side only.
+
 Outstanding integration targets (add/adjust inline TODOs as work lands):
   [ ] run/sampling.py — _sample_batch chunked vmap: sequence_chunks / logit_chunks + concat
   [ ] run/sampling.py — sample(): non-streaming path appends device arrays per batch
@@ -33,7 +36,7 @@ Outstanding integration targets (add/adjust inline TODOs as work lands):
   [ ] run/sampling.py — _sample_averaged_mode: all_* list + concat
   [ ] run/scoring.py — _score_averaged_mode / _score_standard_mode batch lists
   [ ] run/jacobian.py — batch feature list + pad (may stay pure JAX; review D2H separately)
-  [ ] io/designs.py — replace or narrow device_get in ``write()`` when producer is jit+io_callback-only
+  [~] io/designs.py — NumPy payloads skip redundant ``device_get`` in ``write()``; jit+io_callback-only path still open
   [ ] training/trainer.py + training/metrics.py — scalar device_get for logs (low priority vs streaming logits)
   [ ] profiling/sampler_profile.py — results.append + block_until_ready (document interaction with barriers)
 

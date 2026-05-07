@@ -9,6 +9,9 @@ import json
 import logging
 import sys
 import warnings
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -58,6 +61,70 @@ LIGAND_PLACEHOLDER_ATOMS = 1
 GRID_SCHEMA_VERSION = "grid_v1"
 SAMPLING_SCHEMA_VERSION = "sampling_v1"
 LIGAND_CONTEXT_KEYS = ("Y", "Y_t", "Y_m")
+
+_streaming_tensor_sink_ctx: ContextVar[_StreamingTensorSink | None] = ContextVar(
+  "_streaming_tensor_sink_ctx",
+  default=None,
+)
+
+
+class _StreamingTensorSink:
+  """Host staging for PR4 tensor ``io_callback`` payloads (streaming write paths only)."""
+
+  def __init__(self) -> None:
+    self._pending: dict[tuple[int, int, int], tuple[np.ndarray, np.ndarray]] = {}
+
+  def record(
+    self,
+    batch_idx: object,
+    chunk_start: object,
+    chunk_count: object,
+    sequences_host: object,
+    logits_host: object,
+  ) -> None:
+    key = (
+      int(np.asarray(batch_idx)),
+      int(np.asarray(chunk_start)),
+      int(np.asarray(chunk_count)),
+    )
+    self._pending[key] = (np.asarray(sequences_host), np.asarray(logits_host))
+
+  def take_sequences_logits(
+    self,
+    batch_idx: int,
+    chunk_start: int,
+    chunk_count: int,
+  ) -> tuple[np.ndarray, np.ndarray]:
+    key = (batch_idx, chunk_start, chunk_count)
+    try:
+      return self._pending.pop(key)
+    except KeyError as e:
+      pending = list(self._pending.keys())
+      msg = f"Streaming tensor sink missing entry for {key=}; pending={pending}"
+      raise RuntimeError(msg) from e
+
+
+@contextmanager
+def _streaming_tensor_host_sink() -> Iterator[_StreamingTensorSink]:
+  sink = _StreamingTensorSink()
+  token = _streaming_tensor_sink_ctx.set(sink)
+  try:
+    yield sink
+  finally:
+    _streaming_tensor_sink_ctx.reset(token)
+
+
+def _take_streaming_sequences_logits(
+  batch_idx: int,
+  chunk_start: int,
+  chunk_count: int,
+) -> tuple[np.ndarray, np.ndarray]:
+  """Drain tensor ``io_callback`` payloads recorded for this streaming batch/chunk key."""
+  sink = _streaming_tensor_sink_ctx.get()
+  if sink is None:
+    msg = "Streaming tensor sink is not active."
+    raise RuntimeError(msg)
+  return sink.take_sequences_logits(batch_idx, chunk_start, chunk_count)
 
 
 def _canonical_structure_id(input_item: Any, index: int) -> str:  # noqa: ANN401
@@ -433,7 +500,8 @@ def _load_ligand_context_file(
 
     id_to_index = {structure_id: idx for idx, structure_id in enumerate(payload_ids)}
     gather_indices = np.asarray(
-      [id_to_index[structure_id] for structure_id in selected_ids], dtype=np.int32,
+      [id_to_index[structure_id] for structure_id in selected_ids],
+      dtype=np.int32,
     )
     return (
       jnp.asarray(np.asarray(npz_data["Y"])[gather_indices]),
@@ -678,6 +746,8 @@ def _noop_sampling_structure_batch_io(batch_idx: object, batch_count: object) ->
 def _noop_sampling_tensor_batch_io(
   batch_idx: object,
   batch_count: object,
+  chunk_start: object,
+  chunk_count: object,
   sequences_host: object,
   logits_host: object,
 ) -> None:
@@ -686,6 +756,9 @@ def _noop_sampling_tensor_batch_io(
   Invoked via ``jax.experimental.io_callback(..., ordered=False)``; completion order is **not**
   guaranteed to match program order. Operands are wrapped with ``stop_gradient`` at call sites.
 
+  ``chunk_start`` / ``chunk_count`` identify this ``_sample_batch`` invocation within the iterator /
+  campaign chunk loop (``batch_idx`` alone is **not** unique across inner chunks).
+
   Emitted after each ``_sample_batch`` forward (full chunk concat inside the trace), including
   campaign **intermediate** chunks — the structure-batch **scalar** marker remains **last-chunk
   only** (``emit_structure_batch_io``; see PR3a).
@@ -693,10 +766,34 @@ def _noop_sampling_tensor_batch_io(
   Default implementation is a no-op for minimal production overhead; tests may monkeypatch this
   symbol **before** the first traced ``_sample_batch`` call for that graph.
 
-  Streaming HDF5 / ArrayRecord paths may still call ``np.asarray`` when writing — a **second**
-  host transfer vs this hook until sink unification (see ``TODO_io_callback.txt``).
+  Streaming HDF5 / ArrayRecord paths drain copies from :func:`_dispatch_sampling_tensor_batch_io`
+  after ``jax.effects_barrier()`` so writers avoid a redundant ``np.asarray`` on returned device
+  arrays for sequences/logits; ``compute_pseudo_perplexity`` remains on the traced return path.
   """
-  del batch_idx, batch_count, sequences_host, logits_host
+  del batch_idx, batch_count, chunk_start, chunk_count, sequences_host, logits_host
+
+
+def _dispatch_sampling_tensor_batch_io(
+  batch_idx: object,
+  batch_count: object,
+  chunk_start: object,
+  chunk_count: object,
+  sequences_host: object,
+  logits_host: object,
+) -> None:
+  """Trace-stable entry point for the tensor ``io_callback`` (delegates to sink or noop)."""
+  sink = _streaming_tensor_sink_ctx.get()
+  if sink is not None:
+    sink.record(batch_idx, chunk_start, chunk_count, sequences_host, logits_host)
+    return
+  _noop_sampling_tensor_batch_io(
+    batch_idx,
+    batch_count,
+    chunk_start,
+    chunk_count,
+    sequences_host,
+    logits_host,
+  )
 
 
 def _structure_batch_count_for_io(protein_iterator: Any) -> int:  # noqa: ANN401
@@ -1019,11 +1116,15 @@ def _sample_batch(
       jax.lax.stop_gradient(batch_cnt_j),
       ordered=False,
     )
+  io_chunk_start_j = jnp.asarray(sample_offset, dtype=jnp.int32)
+  io_chunk_count_j = jnp.asarray(target_num_samples, dtype=jnp.int32)
   jax.experimental.io_callback(
-    _noop_sampling_tensor_batch_io,
+    _dispatch_sampling_tensor_batch_io,
     None,
     jax.lax.stop_gradient(batch_idx_j),
     jax.lax.stop_gradient(batch_cnt_j),
+    jax.lax.stop_gradient(io_chunk_start_j),
+    jax.lax.stop_gradient(io_chunk_count_j),
     jax.lax.stop_gradient(sampled_sequences),
     jax.lax.stop_gradient(sampled_logits),
     ordered=False,
@@ -1219,7 +1320,11 @@ def _sample_streaming(
   # Use ArrayRecord path for campaign mode if requested
   if spec.use_arrayrecord and spec.campaign_mode:
     return _sample_streaming_arrayrecord(
-      spec, protein_iterator, sampler_fn, grid_lineage, canonical_structure_ids,
+      spec,
+      protein_iterator,
+      sampler_fn,
+      grid_lineage,
+      canonical_structure_ids,
     )
 
   # Deprecation warning for HDF5 path
@@ -1230,10 +1335,10 @@ def _sample_streaming(
     stacklevel=2,
   )
 
-  # PR4: ``_sample_batch`` emits per-batch tensor ``io_callback`` (``_noop_sampling_tensor_batch_io``);
-  # this path still uses ``np.asarray`` when writing groups — **second D2H** vs the hook until sink unify
-  # (prxteinmpnn/TODO_io_callback.txt).
-  with h5py.File(spec.output_h5_path, "w") as f:
+  # Phase 5g PR4 tensor hook + streaming sink: ``_dispatch_sampling_tensor_batch_io`` stages host
+  # sequences/logits under ``(batch_idx, chunk_start, chunk_count)``; ``_take_streaming_sequences_logits``
+  # drains after ``jax.effects_barrier()`` (``TODO_io_callback.txt`` — perplexity stays return-path).
+  with _streaming_tensor_host_sink(), h5py.File(spec.output_h5_path, "w") as f:
     f.attrs["schema_version"] = GRID_SCHEMA_VERSION if spec.grid_mode else SAMPLING_SCHEMA_VERSION
     f.attrs["model_family"] = spec.model_family
     f.attrs["ligand_conditioning"] = int(spec.ligand_conditioning)
@@ -1265,7 +1370,9 @@ def _sample_streaming(
         batch_size=batch_size,
       )
       if not spec.campaign_mode:
-        sampled_sequences, sampled_logits, pseudo_perplexity = _sample_batch(
+        key_chunk_start = int(grid_lineage["sample_start"]) if grid_lineage is not None else 0
+        key_chunk_count = total_num_samples
+        _, _, pseudo_perplexity = _sample_batch(
           spec,
           batched_ensemble,
           sampler_fn,
@@ -1275,20 +1382,25 @@ def _sample_streaming(
           structure_batch_count=structure_batch_count_stream,
         )
         jax.effects_barrier()
-        for i in range(sampled_sequences.shape[0]):
+        sampled_sequences_np, sampled_logits_np = _take_streaming_sequences_logits(
+          batch_idx,
+          key_chunk_start,
+          key_chunk_count,
+        )
+        for i in range(sampled_sequences_np.shape[0]):
           grp = f.create_group(f"structure_{structure_idx}")
-          grp.create_dataset("sequences", data=sampled_sequences[i], dtype="i4")
+          grp.create_dataset("sequences", data=sampled_sequences_np[i], dtype="i4")
           if spec.return_logits:
-            grp.create_dataset("logits", data=sampled_logits[i], dtype="f4")
+            grp.create_dataset("logits", data=sampled_logits_np[i], dtype="f4")
           if pseudo_perplexity is not None:
             grp.create_dataset("pseudo_perplexity", data=pseudo_perplexity[i], dtype="f4")
           # Store metadata about the structure
           grp.attrs["structure_index"] = structure_idx
           grp.attrs["structure_id"] = batch_structure_ids[i]
-          grp.attrs["num_samples"] = sampled_sequences.shape[1]
-          grp.attrs["num_noise_levels"] = sampled_sequences.shape[2]
-          grp.attrs["num_temperatures"] = sampled_sequences.shape[3]
-          grp.attrs["sequence_length"] = sampled_sequences.shape[4]
+          grp.attrs["num_samples"] = sampled_sequences_np.shape[1]
+          grp.attrs["num_noise_levels"] = sampled_sequences_np.shape[2]
+          grp.attrs["num_temperatures"] = sampled_sequences_np.shape[3]
+          grp.attrs["sequence_length"] = sampled_sequences_np.shape[4]
           if grid_lineage is not None:
             grp.attrs["job_id"] = str(grid_lineage["job_id"])
             grp.attrs["chunk_id"] = int(grid_lineage["chunk_id"])
@@ -1319,7 +1431,7 @@ def _sample_streaming(
           chunk_count = min(chunk_size, total_num_samples - chunk_start)
           chunk_sample_start = sample_start + chunk_start
           last_chunk = chunk_start + chunk_count >= total_num_samples
-          sampled_sequences, sampled_logits, pseudo_perplexity = _sample_batch(
+          _, _, pseudo_perplexity = _sample_batch(
             spec,
             batched_ensemble,
             sampler_fn,
@@ -1332,9 +1444,14 @@ def _sample_streaming(
             emit_structure_batch_io=last_chunk,
           )
           jax.effects_barrier()
+          sampled_sequences_np, sampled_logits_np = _take_streaming_sequences_logits(
+            batch_idx,
+            chunk_sample_start,
+            chunk_count,
+          )
 
           for i, grp in enumerate(structure_groups):
-            seq_chunk = np.asarray(sampled_sequences[i], dtype=np.int32)
+            seq_chunk = sampled_sequences_np[i].astype(np.int32, copy=False)
             if "sequences" not in grp:
               grp.create_dataset(
                 "sequences",
@@ -1348,7 +1465,7 @@ def _sample_streaming(
             seq_ds[-seq_chunk.shape[0] :] = seq_chunk
 
             if spec.return_logits:
-              logits_chunk = np.asarray(sampled_logits[i], dtype=np.float32)
+              logits_chunk = sampled_logits_np[i].astype(np.float32, copy=False)
               if "logits" not in grp:
                 grp.create_dataset(
                   "logits",
@@ -1432,94 +1549,95 @@ def _sample_streaming_arrayrecord(
 
   structure_writers: list[tuple[int, DesignArrayRecordWriter]] = []
   try:
-    for batch_idx, batched_ensemble in enumerate(protein_iterator):
-      batch_size = batched_ensemble.coordinates.shape[0]
-      batch_structure_ids = _structure_ids_for_batch(
-        canonical_structure_ids,
-        structure_offset=structure_idx,
-        batch_size=batch_size,
-      )
-
-      # Create one ArrayRecord writer per structure in batch
-      seq_len = int(batched_ensemble.coordinates.shape[1])
-      n_states_rec = max(1, int(spec.run_spec.multistate.n_states))
-      for i in range(batch_size):
-        writer_path = Path(str(output_base) + f"_structure_{structure_idx}.arrayrecord")
-        writer = DesignArrayRecordWriter.from_multistate_shapes(
-          str(writer_path),
-          n_canonical=seq_len,
-          n_states=n_states_rec,
+    with _streaming_tensor_host_sink():
+      for batch_idx, batched_ensemble in enumerate(protein_iterator):
+        batch_size = batched_ensemble.coordinates.shape[0]
+        batch_structure_ids = _structure_ids_for_batch(
+          canonical_structure_ids,
+          structure_offset=structure_idx,
+          batch_size=batch_size,
         )
-        structure_writers.append((i, writer))
-        resolved_structure_ids.append(batch_structure_ids[i])
-        structure_idx += 1
 
-      # Process samples in chunks
-      for chunk_start in range(0, total_num_samples, chunk_size):
-        chunk_count = min(chunk_size, total_num_samples - chunk_start)
-        chunk_sample_start = sample_start + chunk_start
-        last_chunk = chunk_start + chunk_count >= total_num_samples
-        sampled_sequences, sampled_logits, pseudo_perplexity = _sample_batch(
-          spec,
-          batched_ensemble,
-          sampler_fn,
-          canonical_structure_ids=canonical_structure_ids,
-          batch_structure_ids=batch_structure_ids,
-          chunk_sample_start=chunk_sample_start,
-          chunk_sample_count=chunk_count,
-          batch_idx=batch_idx,
-          structure_batch_count=structure_batch_count_ar,
-          emit_structure_batch_io=last_chunk,
-        )
-        jax.effects_barrier()
-
-        # PR4 tensor hook in ``_sample_batch``; still ``np.asarray`` here for async writers (**second D2H**;
-        # see TODO_io_callback.txt) until host sink unifies with the hook.
-        for structure_batch_idx, writer in structure_writers:
-          seq_chunk = np.asarray(sampled_sequences[structure_batch_idx], dtype=np.uint8)
-          logits_chunk = (
-            np.asarray(sampled_logits[structure_batch_idx], dtype=np.float32)
-            if spec.return_logits
-            else None
+        # Create one ArrayRecord writer per structure in batch
+        seq_len = int(batched_ensemble.coordinates.shape[1])
+        n_states_rec = max(1, int(spec.run_spec.multistate.n_states))
+        for i in range(batch_size):
+          writer_path = Path(str(output_base) + f"_structure_{structure_idx}.arrayrecord")
+          writer = DesignArrayRecordWriter.from_multistate_shapes(
+            str(writer_path),
+            n_canonical=seq_len,
+            n_states=n_states_rec,
           )
-          pseudo_perp_chunk = (
-            np.asarray(pseudo_perplexity[structure_batch_idx], dtype=np.float32)
-            if pseudo_perplexity is not None
-            else None
+          structure_writers.append((i, writer))
+          resolved_structure_ids.append(batch_structure_ids[i])
+          structure_idx += 1
+
+        # Process samples in chunks
+        for chunk_start in range(0, total_num_samples, chunk_size):
+          chunk_count = min(chunk_size, total_num_samples - chunk_start)
+          chunk_sample_start = sample_start + chunk_start
+          last_chunk = chunk_start + chunk_count >= total_num_samples
+          _, _, _ = _sample_batch(
+            spec,
+            batched_ensemble,
+            sampler_fn,
+            canonical_structure_ids=canonical_structure_ids,
+            batch_structure_ids=batch_structure_ids,
+            chunk_sample_start=chunk_sample_start,
+            chunk_sample_count=chunk_count,
+            batch_idx=batch_idx,
+            structure_batch_count=structure_batch_count_ar,
+            emit_structure_batch_io=last_chunk,
+          )
+          jax.effects_barrier()
+
+          sampled_sequences_np, sampled_logits_np = _take_streaming_sequences_logits(
+            batch_idx,
+            chunk_sample_start,
+            chunk_count,
           )
 
-          # Flatten samples-noise-temperature dimensions and write each design
-          for sample_idx in range(seq_chunk.shape[0]):
-            for noise_idx in range(seq_chunk.shape[1]):
-              for temp_idx in range(seq_chunk.shape[2]):
-                sequence = seq_chunk[sample_idx, noise_idx, temp_idx, :]
-                logits = (
-                  logits_chunk[sample_idx, noise_idx, temp_idx, :, :]
-                  if logits_chunk is not None
-                  else None
-                )
-                score = np.array([0.0], dtype=np.float32)  # Placeholder; adjust as needed
-                state_weights = np.ones(n_states_rec, dtype=np.float32) / float(n_states_rec)
+          # Tensor host payloads drain here (Phase 5g sink unify); perplexity remains traced return path.
+          for structure_batch_idx, writer in structure_writers:
+            seq_chunk = sampled_sequences_np[structure_batch_idx].astype(np.uint8, copy=False)
+            logits_chunk = (
+              sampled_logits_np[structure_batch_idx].astype(np.float32, copy=False)
+              if spec.return_logits
+              else None
+            )
 
-                metadata: DesignMetadata = {
-                  "pool_type": "BackboneOnly",
-                  "state_mapping": list(range(n_states_rec)),
-                  "weight_strategy": "uniform",
-                  "combination_algorithm": "none",
-                  "structure_ids": [batch_structure_ids[structure_batch_idx]],
-                  "parent_structure_idx": structure_idx - 1,
-                }
+            # Flatten samples-noise-temperature dimensions and write each design
+            for sample_idx in range(seq_chunk.shape[0]):
+              for noise_idx in range(seq_chunk.shape[1]):
+                for temp_idx in range(seq_chunk.shape[2]):
+                  sequence = seq_chunk[sample_idx, noise_idx, temp_idx, :]
+                  logits = (
+                    logits_chunk[sample_idx, noise_idx, temp_idx, :, :]
+                    if logits_chunk is not None
+                    else None
+                  )
+                  score = np.array([0.0], dtype=np.float32)  # Placeholder; adjust as needed
+                  state_weights = np.ones(n_states_rec, dtype=np.float32) / float(n_states_rec)
 
-                payload: DesignPayload = {
-                  "sequence": sequence,
-                  "logits": logits
-                  if logits is not None
-                  else np.zeros((writer.n_canonical, 21), dtype=np.float32),
-                  "scores": score,
-                  "state_weights": state_weights,
-                  "metadata": metadata,
-                }
-                writer.write(payload)
+                  metadata: DesignMetadata = {
+                    "pool_type": "BackboneOnly",
+                    "state_mapping": list(range(n_states_rec)),
+                    "weight_strategy": "uniform",
+                    "combination_algorithm": "none",
+                    "structure_ids": [batch_structure_ids[structure_batch_idx]],
+                    "parent_structure_idx": structure_idx - 1,
+                  }
+
+                  payload: DesignPayload = {
+                    "sequence": sequence,
+                    "logits": logits
+                    if logits is not None
+                    else np.zeros((writer.n_canonical, 21), dtype=np.float32),
+                    "scores": score,
+                    "state_weights": state_weights,
+                    "metadata": metadata,
+                  }
+                  writer.write(payload)
 
   finally:
     # Close all writers (context manager will wait for pending async writes)

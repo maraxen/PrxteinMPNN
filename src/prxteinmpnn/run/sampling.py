@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 import logging
@@ -28,6 +29,8 @@ from prxteinmpnn.run.output_sinks import (
 from prxteinmpnn.run.sampling_driver import SamplingDriver
 from prxteinmpnn.run.streaming_host import StreamingBatchHost
 from prxteinmpnn.utils.autoregression import resolve_tie_groups
+from prxteinmpnn.utils.batching import BatchPlanner, estimate_memory_theoretical
+from prxteinmpnn.utils.batching_registry import N_NOISES, N_SAMPLES, N_STRUCTURES, N_TEMPERATURES
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
 
 _DEFAULT_DECODING_ORDER_FN = cast("DecodingOrderFn", random_decoding_order)
@@ -57,6 +60,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
+_batch_logger = logging.getLogger(__name__ + ".batch_plan")
 
 RANK_WITH_TEMPERATURE = 4
 AMINO_ACID_VOCAB_SIZE = 21
@@ -741,6 +745,32 @@ def _dispatch_sampling_tensor_batch_io(
   )
 
 
+def _make_sampling_planner(
+    spec: SamplingSpecification,
+    param_bytes: float = 0.0,
+    headroom: float = 0.80,
+    activation_multiplier: float = 2.5,
+) -> BatchPlanner:
+  """Create a BatchPlanner for _sample_batch dispatch with advisory logging."""
+  try:
+    import jax
+    limit = jax.devices()[0].memory_stats()["bytes_limit"]
+  except Exception:
+    limit = 4 * 1024**3
+  budget = limit * headroom - param_bytes
+  axes = [
+    dataclasses.replace(N_STRUCTURES, cardinality=max(1, getattr(spec, "batch_size", 1) or 1)),
+    dataclasses.replace(N_SAMPLES, cardinality=max(1, getattr(spec, "samples_batch_size", 128) or 128)),
+    dataclasses.replace(N_TEMPERATURES, cardinality=max(1, len(getattr(spec, "temperature", [1.0])))),
+    dataclasses.replace(N_NOISES, cardinality=max(1, len(getattr(spec, "backbone_noise", [0.0])))),
+  ]
+  return BatchPlanner(
+    axes=axes,
+    budget_bytes=budget,
+    estimate_memory=lambda ds: estimate_memory_theoretical(ds, 1.0, activation_multiplier),
+  )
+
+
 def _sample_batch(
   spec: SamplingSpecification,
   batched_ensemble: Protein,
@@ -755,6 +785,14 @@ def _sample_batch(
   emit_structure_batch_io: bool = True,
 ) -> tuple[ProteinSequence, Logits, jax.Array | None]:
   """Sample sequences for a batched ensemble of proteins."""
+  _plan = _make_sampling_planner(spec)
+  _plan.log_summary()
+  if _plan.exceeded_budget():
+    _batch_logger.warning(
+      "_sample_batch: BatchPlan exceeded budget even at minimum tiles. "
+      "Consider reducing batch sizes or enabling PR-C safe_map adoption."
+    )
+
   grid_lineage = _resolve_grid_lineage(spec)
   base_key = _base_sampling_key(spec, grid_lineage=grid_lineage)
   default_num_samples = (
@@ -958,26 +996,7 @@ def _sample_batch(
   xyz_37_m_axis = 0 if ligand_context["xyz_37_m"] is not None else None
   chain_mask_axis = 0 if ligand_context["chain_mask"] is not None else None
 
-  vmap_structures = jax.vmap(
-    internal_sample,
-    in_axes=(
-      0,
-      0,
-      0,
-      0,
-      None,
-      tie_map_in_axis,
-      mapping_in_axis,
-      fixed_mask_axis,
-      fixed_tokens_axis,
-      Y_axis,
-      Y_t_axis,
-      Y_m_axis,
-      xyz_37_axis,
-      xyz_37_m_axis,
-      chain_mask_axis,
-    ),
-  )
+  _structures_bs = _plan.decision_for("n_structures").batch_size
 
   sequence_chunks: list[jax.Array] = []
   logit_chunks: list[jax.Array] = []
@@ -1010,7 +1029,7 @@ def _sample_batch(
     # on device (``jnp.concatenate`` then ``log_softmax``); any JIT-tail streaming must either keep
     # that stage unchanged or compute perplexity per chunk and aggregate on host. ``return_logits`` /
     # non-streaming callers expect the same concatenated ``[structures, samples, ...]`` axes as today.
-    chunk_sequences, chunk_logits, _ = vmap_structures(
+    _batched = (
       batched_ensemble.coordinates,
       batched_ensemble.mask,
       batched_ensemble.residue_index,
@@ -1027,6 +1046,21 @@ def _sample_batch(
       ligand_context["xyz_37_m"],
       ligand_context["chain_mask"],
     )
+
+    def _call_one_structure(args):
+      return internal_sample(
+        args[0], args[1], args[2], args[3], args[4],
+        args[5], args[6], args[7], args[8],
+        args[9], args[10], args[11],
+        args[12], args[13], args[14],
+      )
+
+    chunk_sequences, chunk_logits, _ = _safe_map(
+      _call_one_structure,
+      _batched,
+      batch_size=_structures_bs,
+    )
+
     chunk_idx = jnp.asarray(chunk_iter, dtype=jnp.int32)
     chunk_cnt = jnp.asarray(chunk_count, dtype=jnp.int32)
     jax.experimental.io_callback(

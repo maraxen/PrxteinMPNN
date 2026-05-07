@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import sys
-from dataclasses import asdict, fields
+from dataclasses import asdict, fields, replace
 from typing import TYPE_CHECKING, Any, cast
 
 import h5py
@@ -19,6 +19,9 @@ from prxteinmpnn.run.streaming_host import StreamingBatchHost
 from prxteinmpnn.scoring.score import score_sequence_with_encoding
 from prxteinmpnn.utils.aa_convert import string_to_protein_sequence
 from prxteinmpnn.utils.autoregression import resolve_tie_groups
+from prxteinmpnn.utils.batching import BatchPlan, BatchPlanner, estimate_memory_theoretical
+from prxteinmpnn.utils.batching_registry import N_NOISES, N_STRUCTURES
+from prxteinmpnn.utils.safe_map import safe_map
 
 from .prep import prep_protein_stream_and_model
 from .specs import SamplingSpecification, ScoringSpecification, pop_deprecated_spec_kwargs
@@ -30,6 +33,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
+_batch_logger = logging.getLogger(__name__ + ".batch_plan")
 
 
 def _noop_scoring_structure_batch_io(batch_idx: object, batch_count: object) -> None:
@@ -73,6 +77,8 @@ def _dispatch_scoring_tensor_batch_io(
   logits_host: object,
 ) -> None:
   """Trace-stable entry for scoring tensor ``io_callback`` (active sink or noop)."""
+  # TODO(phase5f-followup): activate scoring_tensor_sink_session() in score() so
+  # active_scoring_sink() returns a real sink for tensor D2H streaming paths.
   sink = active_scoring_sink()
   if sink is not None:
     sink.on_scoring_scores_logits(batch_idx, batch_count, scores_host, logits_host)
@@ -103,6 +109,41 @@ def _scoring_structure_and_tensor_batch_io(
     jax.lax.stop_gradient(logits),
     ordered=False,
   )
+
+
+def _make_scoring_planner(
+    spec: ScoringSpecification,
+    param_bytes: float = 0.0,
+    headroom: float = 0.80,
+    activation_multiplier: float = 2.5,
+) -> BatchPlan:
+  """Create a BatchPlan for the scoring task.
+
+  Args:
+      spec: ScoringSpecification with batch_size and backbone_noise settings.
+      param_bytes: Model parameter memory (default 0.0).
+      headroom: Fraction of device memory to use as budget (default 0.80).
+      activation_multiplier: Activation memory multiplier (default 2.5).
+
+  Returns:
+      A BatchPlan configured for the scoring workload.
+  """
+  try:
+    import jax as jax_module
+    limit = jax_module.devices()[0].memory_stats()["bytes_limit"]
+  except Exception:
+    limit = 4 * 1024**3
+  budget = limit * headroom - param_bytes
+  axes = [
+      replace(N_STRUCTURES, cardinality=max(1, getattr(spec, "batch_size", 1) or 1)),
+      replace(N_NOISES, cardinality=max(1, len(getattr(spec, "backbone_noise", [0.0])))),
+  ]
+  planner = BatchPlanner(
+      axes=axes,
+      budget_bytes=budget,
+      estimate_memory=lambda ds: estimate_memory_theoretical(ds, 1.0, activation_multiplier),
+  )
+  return planner.plan()
 
 
 def score(
@@ -140,6 +181,13 @@ def score(
     kw = dict(kwargs)
     pop_deprecated_spec_kwargs(kw)
     spec = ScoringSpecification(**kw)
+
+  _plan = _make_scoring_planner(spec)
+  _plan.log_summary()
+  if _plan.exceeded_budget():
+    _batch_logger.warning(
+        "score: BatchPlan exceeded budget even at minimum tiles."
+    )
 
   if spec.output_h5_path:
     return _score_streaming(spec)
@@ -276,40 +324,47 @@ def _score_standard_mode(
       in_axes=(None, None, None, None, None, None, 0, None, None, None),
       out_axes=0,
     )
-    vmap_structures = jax.vmap(
-      vmap_noises,
-      in_axes=(None, None, 0, 0, 0, 0, None, None, mapping_in_axis, tie_map_in_axis),
-      out_axes=0,
-    )
 
     batch_idx_j = jnp.asarray(batch_idx, dtype=jnp.int32)
     batch_cnt_j = jnp.asarray(structure_batch_count, dtype=jnp.int32)
 
-    def _compute(
-      ensemble: Protein,
-      vs: Any = vmap_structures,  # noqa: ANN401
-      cam: jax.Array = current_ar_mask,
-      mapping_value: jax.Array | None = mapping_for_vmap,
-      tie_map_value: jax.Array | None = tie_map_for_vmap,
-      b_idx: jax.Array = batch_idx_j,
-      b_cnt: jax.Array = batch_cnt_j,
-    ) -> tuple[jnp.ndarray, Logits, jnp.ndarray]:
-      scores, logits, decoding_orders = vs(
-        jax.random.key(spec.random_seed),
-        batched_sequences,
-        ensemble.coordinates,
-        ensemble.mask,
-        ensemble.residue_index,
-        ensemble.chain_index,
-        jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
-        cam,
-        mapping_value,
-        tie_map_value,
+    def _score_one_structure(structure_batch_args):
+      """Score one structure via closure over shared args."""
+      (
+          coords, mask, residue_idx, chain_idx, mapping_val, tie_map_val
+      ) = structure_batch_args
+      return vmap_noises(
+          jax.random.key(spec.random_seed),
+          batched_sequences,
+          coords,
+          mask,
+          residue_idx,
+          chain_idx,
+          jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
+          current_ar_mask,
+          mapping_val,
+          tie_map_val,
       )
-      _scoring_structure_and_tensor_batch_io(b_idx, b_cnt, scores, logits)
-      return scores, logits, decoding_orders
 
-    scores, logits, _decoding_orders = _compute(batched_ensemble)
+    # Gather batched arguments (in_axes=0 from original vmap_structures)
+    batched_structure_args = (
+        batched_ensemble.coordinates,
+        batched_ensemble.mask,
+        batched_ensemble.residue_index,
+        batched_ensemble.chain_index,
+        mapping_for_vmap,
+        tie_map_for_vmap,
+    )
+
+    # safe_map dispatches with batch_size=1 for heterogeneous structures
+    _structures_bs = 1
+    scores, logits, decoding_orders = safe_map(
+        _score_one_structure,
+        batched_structure_args,
+        batch_size=_structures_bs,
+    )
+
+    _scoring_structure_and_tensor_batch_io(batch_idx_j, batch_cnt_j, scores, logits)
 
     all_scores.append(scores)
     all_logits.append(logits)

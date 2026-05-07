@@ -618,16 +618,16 @@ Each Open Question now has a **default decision** that holds unless a triggering
 
 ---
 
-## 14. Sprint status (Phase 0a GO; Phase 5g **sink unify landed** — **next: 5e-cont / 5f**)
+## 14. Sprint status (Phase 0a GO; Phase **5e-cont** autoregressive scan extract landed — **next: 5e-cont** / **5f**)
 
 | Field | Value |
 | :--- | :--- |
-| **task_id** | `refactor-phase5-sink-unify-20260507` — **landed (2026-05-07):** streaming HDF5 + ArrayRecord consume tensor ``io_callback`` host payloads via trace-stable ``_dispatch_sampling_tensor_batch_io`` + ``ContextVar`` sink after ``jax.effects_barrier()``; chunk keys ``(batch_idx, chunk_start, chunk_count)``; perplexity stays traced return path. Sprint doc: ``.agents/SPRINT_refactor-phase5-sink-unify-20260507.md``. Verification: ``.agents/verification_logs/sprint_phase5_sink_unify_20260507.filtered.txt``. **Prior:** PR4 sampling tensor hook (`refactor-phase5-sampling-stream-20260507`). **Next:** optional scoring-path sink parity; **5e-cont** (mpnn LoC); **5f** (SamplingDriver breadth); jaxbeans DEPEND; per-chunk tensor hook vs perplexity contract (`TODO_io_callback.txt`). |
-| **Last update** | **2026-05-07** — Phase **5g** streaming host sink unification (remove redundant ``np.asarray`` on sequences/logits after tensor hook). **Still defer:** chunk-internal tensor stream inside ``_sample_batch``; ``OUTPUT_SINKS`` registry + jaxbeans wiring; **5h**. |
-| **Current phase** | Phase 5 **5g**: sink unify closed → **5e-cont** / **5f** / jaxbeans DEPEND. |
-| **Still open** | Scoring ``run/scoring.py`` tensor sink parity (optional narrow PR); optional **chunk-level** tensor ``io_callback`` (contract vs perplexity — ``TODO_io_callback.txt``); jaxbeans **DEPEND** swap when workspace/policy allows; ``OUTPUT_SINKS`` + driver breadth on ``run/jacobian.py`` / ``run/conformational_inference.py``; **`mpnn.py` §11 LoC** target; **5h** ensemble relocation (Q3). |
-| **Plan** | **Verification cwd:** package root `prxteinmpnn/`. **Merge order:** **5e-cont**; **5f**; jaxbeans DEPEND when approved. Logs: sink unify ``.agents/verification_logs/sprint_phase5_sink_unify_20260507.filtered.txt``; prior PR4 ``.agents/verification_logs/sprint_phase5g_pr4_sampling_tensor_20260507.filtered.txt``. |
-| **Next action (no prior context)** | Read §14 **Still open** + `TODO_io_callback.txt`. **Do next:** **5e-cont** or **5f** (parallel); jaxbeans DEPEND after packaging decision. **Deferred:** **5h** (Q3). Phase **6** waits on Phase 5 host boundaries — §390–416. |
+| **task_id** | `refactor-phase5-5e-cont-20260507` — **landed (2026-05-07):** `model/mpnn_autoregressive_scan.py` hosts `run_tied_position_scan`, `sample_and_broadcast_to_group`, `run_autoregressive_scan`; `PrxteinMPNN._run_autoregressive_scan` delegates; **mpnn.py ~−489 LoC**. Sprint: `.agents/SPRINT_refactor-phase5-5e-cont-20260507.md`. Verification: `.agents/verification_logs/sprint_phase5_5e_cont_20260507.filtered.txt`. **Prior:** `refactor-phase5-sink-unify-20260507` (5g sink unify). |
+| **Last update** | **2026-05-07** — Mechanical extraction only; no ligand mirror this sprint. |
+| **Current phase** | Phase 5 **5e-cont** (increment) → more mpnn/ligand LoC toward §11 **or** **5f** SamplingDriver breadth. |
+| **Still open** | Further **5e-cont** slices (`sample_autoregressive_state_vmap_exact` block, scoring stacks); **5f** driver + `run/jacobian.py` / `run/conformational_inference.py`; optional scoring tensor sink unify; per-chunk tensor vs perplexity ([`TODO_io_callback.txt`](TODO_io_callback.txt)); jaxbeans **DEPEND**; **`OUTPUT_SINKS`**; **5h** ensemble→jaxbeans (Q3). |
+| **Plan** | **Verification cwd:** package root `prxteinmpnn/`. **Merge order:** continue **5e-cont** toward §11 LoC targets, then **5f**. Logs: this sprint filtered log above; prior sink unify `sprint_phase5_sink_unify_20260507.filtered.txt`. |
+| **Next action (no prior context)** | Read §14 **Still open**. **Do next:** another **5e-cont** extraction **or** **5f** when mpnn split pace OK. **Deferred:** **5h**. Phase **6** waits on Phase 5 boundaries — roadmap §390–416. |
 | **Prior landed (Phase 2)** | `protocols.py`, `model/capabilities.py`, introspection removal at sample/score/averaging, honest casts on score paths; sprint `refactor-phase2-sprint-20260505`, plan `.agents/SPRINT_refactor-phase2-20260505.md`. |
 | **Prior phase** | Phase 1: `task_id` `refactor-phase1-sprint-20260505` (§14 prior row archived in git history). |
 

@@ -675,6 +675,30 @@ def _noop_sampling_structure_batch_io(batch_idx: object, batch_count: object) ->
   del batch_idx, batch_count
 
 
+def _noop_sampling_tensor_batch_io(
+  batch_idx: object,
+  batch_count: object,
+  sequences_host: object,
+  logits_host: object,
+) -> None:
+  """Host tensor-batch hook for sampling per-batch ``sequences`` / ``logits`` (Phase **5g** PR4).
+
+  Invoked via ``jax.experimental.io_callback(..., ordered=False)``; completion order is **not**
+  guaranteed to match program order. Operands are wrapped with ``stop_gradient`` at call sites.
+
+  Emitted after each ``_sample_batch`` forward (full chunk concat inside the trace), including
+  campaign **intermediate** chunks — the structure-batch **scalar** marker remains **last-chunk
+  only** (``emit_structure_batch_io``; see PR3a).
+
+  Default implementation is a no-op for minimal production overhead; tests may monkeypatch this
+  symbol **before** the first traced ``_sample_batch`` call for that graph.
+
+  Streaming HDF5 / ArrayRecord paths may still call ``np.asarray`` when writing — a **second**
+  host transfer vs this hook until sink unification (see ``TODO_io_callback.txt``).
+  """
+  del batch_idx, batch_count, sequences_host, logits_host
+
+
 def _structure_batch_count_for_io(protein_iterator: Any) -> int:  # noqa: ANN401
   """Return protein-iterator batch count for io markers, or ``-1`` if not sized."""
   try:
@@ -985,6 +1009,26 @@ def _sample_batch(
   sampled_sequences = jnp.concatenate(sequence_chunks, axis=1)
   sampled_logits = jnp.concatenate(logit_chunks, axis=1)
 
+  batch_idx_j = jnp.asarray(batch_idx, dtype=jnp.int32)
+  batch_cnt_j = jnp.asarray(structure_batch_count, dtype=jnp.int32)
+  if emit_structure_batch_io:
+    jax.experimental.io_callback(
+      _noop_sampling_structure_batch_io,
+      None,
+      jax.lax.stop_gradient(batch_idx_j),
+      jax.lax.stop_gradient(batch_cnt_j),
+      ordered=False,
+    )
+  jax.experimental.io_callback(
+    _noop_sampling_tensor_batch_io,
+    None,
+    jax.lax.stop_gradient(batch_idx_j),
+    jax.lax.stop_gradient(batch_cnt_j),
+    jax.lax.stop_gradient(sampled_sequences),
+    jax.lax.stop_gradient(sampled_logits),
+    ordered=False,
+  )
+
   if spec.compute_pseudo_perplexity:
     one_hot_sequences = jax.nn.one_hot(sampled_sequences, num_classes=21)
     log_probs = jax.nn.log_softmax(sampled_logits, axis=-1)
@@ -993,27 +1037,7 @@ def _sample_batch(
     if mask is None:
       mask = jnp.ones(batched_ensemble.coordinates.shape[:2], dtype=jnp.float32)
     pseudo_perplexity = jnp.exp(nll / jnp.sum(mask, axis=-1))
-    if emit_structure_batch_io:
-      batch_idx_j = jnp.asarray(batch_idx, dtype=jnp.int32)
-      batch_cnt_j = jnp.asarray(structure_batch_count, dtype=jnp.int32)
-      jax.experimental.io_callback(
-        _noop_sampling_structure_batch_io,
-        None,
-        jax.lax.stop_gradient(batch_idx_j),
-        jax.lax.stop_gradient(batch_cnt_j),
-        ordered=False,
-      )
     return sampled_sequences, sampled_logits, pseudo_perplexity
-  if emit_structure_batch_io:
-    batch_idx_j = jnp.asarray(batch_idx, dtype=jnp.int32)
-    batch_cnt_j = jnp.asarray(structure_batch_count, dtype=jnp.int32)
-    jax.experimental.io_callback(
-      _noop_sampling_structure_batch_io,
-      None,
-      jax.lax.stop_gradient(batch_idx_j),
-      jax.lax.stop_gradient(batch_cnt_j),
-      ordered=False,
-    )
   return sampled_sequences, sampled_logits, None
 
 
@@ -1206,8 +1230,9 @@ def _sample_streaming(
     stacklevel=2,
   )
 
-  # TODO(io_callback integration): HDF5 path materializes full batches on device then writes in a
-  # Python loop; use io_callback-driven writes + effects_barrier where feasible (prxteinmpnn/TODO_io_callback.txt).
+  # PR4: ``_sample_batch`` emits per-batch tensor ``io_callback`` (``_noop_sampling_tensor_batch_io``);
+  # this path still uses ``np.asarray`` when writing groups — **second D2H** vs the hook until sink unify
+  # (prxteinmpnn/TODO_io_callback.txt).
   with h5py.File(spec.output_h5_path, "w") as f:
     f.attrs["schema_version"] = GRID_SCHEMA_VERSION if spec.grid_mode else SAMPLING_SCHEMA_VERSION
     f.attrs["model_family"] = spec.model_family
@@ -1448,8 +1473,8 @@ def _sample_streaming_arrayrecord(
         )
         jax.effects_barrier()
 
-        # TODO(io_callback integration): np.asarray(...) forces device_get; prefer jit tail with
-        # io_callback(enqueue_payload/get_io_callback_fn) + jax.effects_barrier (prxteinmpnn/TODO_io_callback.txt).
+        # PR4 tensor hook in ``_sample_batch``; still ``np.asarray`` here for async writers (**second D2H**;
+        # see TODO_io_callback.txt) until host sink unifies with the hook.
         for structure_batch_idx, writer in structure_writers:
           seq_chunk = np.asarray(sampled_sequences[structure_batch_idx], dtype=np.uint8)
           logits_chunk = (

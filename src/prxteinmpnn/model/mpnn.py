@@ -29,7 +29,6 @@ from prxteinmpnn.model.encoder import (
   Encoder,
   PhysicsEncoder,
   encoder_forward_with_int_neighbors,
-  pack_encoder_context,
 )
 from prxteinmpnn.model.features import ProteinFeatures
 from prxteinmpnn.model.mpnn_autoregressive_scan import run_autoregressive_scan
@@ -43,8 +42,6 @@ from prxteinmpnn.model.mpnn_core import (
 from prxteinmpnn.model.multistate_stack import gather_flat_to_stack, scatter_stack_to_flat
 from prxteinmpnn.payloads import MultistateStackPayload
 from prxteinmpnn.registry import combine_strategy_to_index, multistate_mode_descriptor
-from prxteinmpnn.utils.concatenate import concatenate_neighbor_nodes
-from prxteinmpnn.utils.ste import straight_through_estimator
 
 if TYPE_CHECKING:
   from prxteinmpnn.utils.types import (
@@ -1286,11 +1283,10 @@ class PrxteinMPNN(eqx.Module):
     )
 
 
-from prxteinmpnn.model.ligand_mpnn import (
-  PrxteinLigandMPNN,
+from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN, ligand_encode_stack_row
+from prxteinmpnn.model.mpnn_scoring_state_vmap_exact_ligand import (
   _ligand_slice_pad_cond_batch,
   _ligand_slice_pad_state_batch,
-  ligand_encode_stack_row,
   ligand_score_conditional_state_vmap_one_chunk,
   ligand_score_unconditional_state_vmap_one_chunk,
 )

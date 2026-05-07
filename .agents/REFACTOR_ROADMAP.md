@@ -618,16 +618,16 @@ Each Open Question now has a **default decision** that holds unless a triggering
 
 ---
 
-## 14. Sprint status (Phase 0a GO; Phase **5e-cont** ligand AR extract landed — **next: 5e-cont** / **5f**)
+## 14. Sprint status (Phase 0a GO; Phase **5e-cont** ligand scoring extract landed — **next: 5f** / further **5e-cont**)
 
 | Field | Value |
 | :--- | :--- |
-| **task_id** | `refactor-phase5-5e-cont-20260509` — **landed (2026-05-07):** `model/mpnn_autoregressive_state_vmap_exact_ligand.py` hosts `run_sample_autoregressive_state_vmap_exact_ligand`; `PrxteinLigandMPNN.sample_autoregressive_state_vmap_exact` delegates (lazy import of runner). Sprint: `.agents/SPRINT_refactor-phase5-5e-cont-20260509.md`. Verification: `.agents/verification_logs/sprint_phase5_5e_cont_ligand_20260509.filtered.txt`. **Prior:** `refactor-phase5-5e-cont-20260508` (ProteinMPNN AR extract; `mpnn_autoregressive_state_vmap_exact.py`). |
-| **Last update** | **2026-05-07** — Ligand wave-parallel AR `state_vmap_exact` body extracted; unused `concatenate_neighbor_nodes` import removed from `ligand_mpnn.py`. |
-| **Current phase** | Phase 5 **5e-cont** (increment) → further mpnn/ligand LoC toward §11 **or** **5f** SamplingDriver breadth. |
-| **Still open** | Further **5e-cont** slices (e.g. scoring stacks); **5f** driver + `run/jacobian.py` / `run/conformational_inference.py`; optional scoring tensor sink unify; per-chunk tensor vs perplexity ([`TODO_io_callback.txt`](TODO_io_callback.txt)); jaxbeans **DEPEND**; **`OUTPUT_SINKS`**; **5h** ensemble→jaxbeans (Q3). |
-| **Plan** | **Verification cwd:** package root `prxteinmpnn/`. **Merge order:** continue **5e-cont** toward §11 LoC targets, then **5f**. Logs: this sprint filtered log above; prior protein AR `sprint_phase5_5e_cont_20260508.filtered.txt`. |
-| **Next action (no prior context)** | Read §14 **Still open**. **Do next:** **5e-cont** scoring stacks **or** **5f** SamplingDriver when mpnn split pace OK. **Deferred:** **5h**. Phase **6** waits on Phase 5 boundaries — roadmap §390–416. |
+| **task_id** | `refactor-phase5-5e-cont-scoring-20260507` — **landed (2026-05-07):** `model/mpnn_scoring_state_vmap_exact_ligand.py` hosts `run_score_*_ligand`, slice helpers, and `ligand_score_*_one_chunk`; `PrxteinLigandMPNN.score_*_state_vmap_exact` delegates (lazy import). `mpnn.py` tail re-exports moved helpers from scoring module. Sprint: `.agents/SPRINT_refactor-phase5-5e-cont-scoring-20260507.md`. Verification: `.agents/verification_logs/sprint_phase5_5e_cont_scoring_ligand_20260507.filtered.txt`. **Prior:** `refactor-phase5-5e-cont-20260509` (Ligand AR extract; `mpnn_autoregressive_state_vmap_exact_ligand.py`). |
+| **Last update** | **2026-05-07** — Ligand scoring `state_vmap_exact` bodies extracted; `pyproject.toml` per-file ruff ignores for JIT-heavy scoring module; scoring uses lazy `ligand_encode_stack_row` import to break `model` package init cycle. |
+| **Current phase** | Phase 5 **5f** SamplingDriver breadth **or** further **5e-cont** mpnn/ligand LoC toward §11. |
+| **Still open** | **5f** driver + `run/jacobian.py` / `run/conformational_inference.py`; optional further **5e-cont** slices; optional scoring tensor sink unify; per-chunk tensor vs perplexity ([`TODO_io_callback.txt`](TODO_io_callback.txt)); jaxbeans **DEPEND**; **`OUTPUT_SINKS`**; **5h** ensemble→jaxbeans (Q3). |
+| **Plan** | **Verification cwd:** package root `prxteinmpnn/`. **Merge order:** **5f** or residual **5e-cont** per capacity. Logs: this sprint filtered log above; prior ligand AR `sprint_phase5_5e_cont_ligand_20260509.filtered.txt`. |
+| **Next action (no prior context)** | Read §14 **Still open**. **Do next:** **5f** `SamplingDriver` wiring into `run/sampling.py` / `run/scoring.py` **or** another **5e-cont** extract if shrinking `ligand_mpnn.py` remains priority. **Deferred:** **5h**. Phase **6** waits on Phase 5 boundaries — roadmap §390–416. |
 | **Prior landed (Phase 2)** | `protocols.py`, `model/capabilities.py`, introspection removal at sample/score/averaging, honest casts on score paths; sprint `refactor-phase2-sprint-20260505`, plan `.agents/SPRINT_refactor-phase2-20260505.md`. |
 | **Prior phase** | Phase 1: `task_id` `refactor-phase1-sprint-20260505` (§14 prior row archived in git history). |
 

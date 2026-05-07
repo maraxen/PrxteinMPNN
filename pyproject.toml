@@ -143,6 +143,13 @@ pylint.max-args = 15
   "ANN401",
   "S108",
 ]
+"src/prxteinmpnn/model/mpnn_scoring_state_vmap_exact_ligand.py" = [
+  "ANN001",
+  "ANN202",
+  "FBT001",
+  "RUF005",
+  "PLR0915",
+]
 "src/prxteinmpnn/run.py" = ["E402", "PLR0913", "ANN401"]
 "src/prxteinmpnn/io/parsing.py" = ["ANN401"]
 "src/prxteinmpnn/payloads.py" = ["ANN401"]

@@ -29,7 +29,7 @@ from prxteinmpnn.run.output_sinks import (
 from prxteinmpnn.run.sampling_driver import SamplingDriver
 from prxteinmpnn.run.streaming_host import StreamingBatchHost
 from prxteinmpnn.utils.autoregression import resolve_tie_groups
-from prxteinmpnn.utils.batching import BatchPlanner, estimate_memory_theoretical
+from prxteinmpnn.utils.batching import BatchPlan, BatchPlanner, estimate_memory_theoretical
 from prxteinmpnn.utils.batching_registry import N_NOISES, N_SAMPLES, N_STRUCTURES, N_TEMPERATURES
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
 
@@ -750,8 +750,8 @@ def _make_sampling_planner(
     param_bytes: float = 0.0,
     headroom: float = 0.80,
     activation_multiplier: float = 2.5,
-) -> BatchPlanner:
-  """Create a BatchPlanner for _sample_batch dispatch with advisory logging."""
+) -> BatchPlan:
+  """Create a BatchPlan for _sample_batch dispatch with advisory logging."""
   try:
     import jax
     limit = jax.devices()[0].memory_stats()["bytes_limit"]
@@ -768,7 +768,7 @@ def _make_sampling_planner(
     axes=axes,
     budget_bytes=budget,
     estimate_memory=lambda ds: estimate_memory_theoretical(ds, 1.0, activation_multiplier),
-  )
+  ).plan()
 
 
 def _sample_batch(

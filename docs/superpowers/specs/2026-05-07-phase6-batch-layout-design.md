@@ -134,13 +134,14 @@ These are implementation steps within roadmap Phase 6 — not new roadmap phases
 |----|------|----------|------|------------|
 | PR-A | `run/sampling.py` | `_sample_batch` | 744 | N_TEMPERATURES, N_NOISES, N_SAMPLES |
 | PR-B | `run/scoring.py` | `score` | 110 | N_NOISES |
-| PR-C | `run/conformational_inference.py` | — | — | docs only — fixed per-frame `jax.vmap`, no BatchingConfig fields |
 
-PRs are sequential (A → B → C). Each must pass the parity gate before the next opens.
+PRs are sequential (A → B). Each must pass the parity gate before the next opens.
 
-**Deferred (future sprint):** `run/jacobian.py` — `_compute_jacobian_from_logit_fn` and its N_JACOBIAN_PAIRS, N_COMBINE, N_APC_PAIRS axes. Jacobian paths have distinct resource profiles (residue-pair products, all-pair scoring) that warrant separate treatment once the sampling/scoring advisory wiring is proven out.
+**Deferred (future sprint):**
+- `run/conformational_inference.py` — fixed per-frame `jax.vmap`, no BatchingConfig fields; documentation-only change with no execution impact.
+- `run/jacobian.py` — `_compute_jacobian_from_logit_fn` and its N_JACOBIAN_PAIRS, N_COMBINE, N_APC_PAIRS axes. Jacobian paths have distinct resource profiles (residue-pair products, all-pair scoring) that warrant separate treatment once the sampling/scoring advisory wiring is proven out.
 
-### PR-D (optional): active safe_map adoption
+### PR-C (optional): active safe_map adoption
 
 This PR actually changes dispatch — swapping `jax.vmap → safe_map(f, xs, batch_size=N)` (N > 0) at the hot paths for axes the planner assigns a positive batch_size. This **reduces peak memory** but adds overhead (sequential execution for that axis, more compile time). Only opened if measurement shows the advisory logs firing frequently (see trigger below).
 
@@ -159,17 +160,17 @@ PYTHONPATH=prxteinmpnn/src uv run pytest \
 
 ---
 
-## PR-D trigger — when to do the actual swap
+## PR-C trigger — when to do the actual swap
 
-After PR-A through PR-C land, every sampling/scoring run will emit a DEBUG log line like:
+After PR-A and PR-B land, every sampling/scoring run will emit a DEBUG log line like:
 
 ```
 BatchPlan: n_temperatures=batch_size=4, n_samples=batch_size=0 (vmap), n_noises=batch_size=8, exceeded_budget=False
 ```
 
-If `exceeded_budget=True` appears in >10% of your cluster runs over a 7-day window, it means your workloads are genuinely memory-pressured and PR-D is worth doing. If it never appears, skip PR-D entirely — the current vmap-everywhere approach fits your budget and there's no benefit.
+If `exceeded_budget=True` appears in >10% of your cluster runs over a 7-day window, it means your workloads are genuinely memory-pressured and PR-C is worth doing. If it never appears, skip PR-C entirely — the current vmap-everywhere approach fits your budget and there's no benefit.
 
-**What PR-D actually changes:** replaces specific `jax.vmap(f)(xs)` calls with `safe_map(f, xs, batch_size=N)` (N > 0) for axes the planner assigns a positive batch_size. The result is lower peak memory but higher wall time for those axes. You choose the trade-off by looking at the logs.
+**What PR-C actually changes:** replaces specific `jax.vmap(f)(xs)` calls with `safe_map(f, xs, batch_size=N)` (N > 0) for axes the planner assigns a positive batch_size. The result is lower peak memory but higher wall time for those axes. You choose the trade-off by looking at the logs.
 
 ---
 

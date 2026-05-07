@@ -641,6 +641,20 @@ def _prepare_fixed_controls(
   return fixed_mask.astype(jnp.bool_), fixed_tokens.astype(jnp.int32)
 
 
+def _noop_sampling_chunk_io(chunk_idx: object, chunk_count: object) -> None:
+  """Host chunk-boundary hook for ``_sample_batch`` (Phase **5g** PR1).
+
+  ``jax.experimental.io_callback`` invokes this on the host with ``ordered=False``;
+  completion order is **not** guaranteed to match program order. Only lightweight
+  scalar markers cross here — logits / sequences stay on device until the existing
+  ``jnp.concatenate`` + pseudo-perplexity stage (see ``TODO_io_callback.txt``).
+
+  Default implementation is a no-op so production pays minimal overhead; tests may
+  monkeypatch this symbol **before** the first traced ``_sample_batch`` call.
+  """
+  del chunk_idx, chunk_count
+
+
 def _sample_batch(
   spec: SamplingSpecification,
   batched_ensemble: Protein,
@@ -900,8 +914,9 @@ def _sample_batch(
     # Slice pre-computed keys instead of generating them in the loop.
     keys = all_keys[chunk_start : chunk_start + chunk_count]
 
-    # TODO(io_callback integration): Stream each chunk to host via ``io_callback(..., ordered=False)``
-    # + ``jax.effects_barrier`` instead of retaining all chunk_* on device until ``concatenate``
+    # Chunk-marker ``io_callback(..., ordered=False)`` + barrier before concat (see ``TODO_io_callback.txt``
+    # PR1 slice). TODO(io_callback integration): Stream each chunk tensor to host instead of retaining all
+    # chunk_* on device until ``concatenate``
     # (see ``TODO_io_callback.txt``). Contract: ``compute_pseudo_perplexity`` needs full-sample logits
     # on device (``jnp.concatenate`` then ``log_softmax``); any JIT-tail streaming must either keep
     # that stage unchanged or compute perplexity per chunk and aggregate on host. ``return_logits`` /
@@ -923,9 +938,19 @@ def _sample_batch(
       ligand_context["xyz_37_m"],
       ligand_context["chain_mask"],
     )
+    chunk_idx = jnp.asarray(chunk_iter, dtype=jnp.int32)
+    chunk_cnt = jnp.asarray(chunk_count, dtype=jnp.int32)
+    jax.experimental.io_callback(
+      _noop_sampling_chunk_io,
+      None,
+      jax.lax.stop_gradient(chunk_idx),
+      jax.lax.stop_gradient(chunk_cnt),
+      ordered=False,
+    )
     sequence_chunks.append(chunk_sequences)
     logit_chunks.append(chunk_logits)
 
+  jax.effects_barrier()
   sampled_sequences = jnp.concatenate(sequence_chunks, axis=1)
   sampled_logits = jnp.concatenate(logit_chunks, axis=1)
 

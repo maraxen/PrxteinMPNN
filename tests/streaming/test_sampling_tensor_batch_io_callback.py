@@ -18,11 +18,13 @@ def test_sample_non_streaming_tensor_hook_matches_sample_output(
   monkeypatch: pytest.MonkeyPatch,
 ) -> None:
   """Two iterator batches: recorded tensors (sorted by batch idx) match ``sample()`` concat."""
-  recordings: list[tuple[int, int, np.ndarray, np.ndarray]] = []
+  recordings: list[tuple[int, int, int, int, np.ndarray, np.ndarray]] = []
 
   def recorder(
     batch_idx: object,
     batch_count: object,
+    chunk_start: object,
+    chunk_count: object,
     sequences_host: object,
     logits_host: object,
   ) -> None:
@@ -30,6 +32,8 @@ def test_sample_non_streaming_tensor_hook_matches_sample_output(
       (
         int(np.asarray(batch_idx)),
         int(np.asarray(batch_count)),
+        int(np.asarray(chunk_start)),
+        int(np.asarray(chunk_count)),
         np.asarray(sequences_host),
         np.asarray(logits_host),
       ),
@@ -71,9 +75,9 @@ def test_sample_non_streaming_tensor_hook_matches_sample_output(
       result = sample(spec)
 
   rtol, atol = get_tolerances(jnp.float32)
-  sorted_recs = sorted(recordings, key=lambda t: t[0])
-  sequences_from_hook = jnp.concatenate([jnp.asarray(r[2]) for r in sorted_recs], axis=0)
-  logits_from_hook = jnp.concatenate([jnp.asarray(r[3]) for r in sorted_recs], axis=0)
+  sorted_recs = sorted(recordings, key=lambda t: (t[0], t[2], t[3]))
+  sequences_from_hook = jnp.concatenate([jnp.asarray(r[4]) for r in sorted_recs], axis=0)
+  logits_from_hook = jnp.concatenate([jnp.asarray(r[5]) for r in sorted_recs], axis=0)
 
   assert jnp.allclose(sequences_from_hook, result["sequences"], rtol=rtol, atol=atol)
   assert jnp.allclose(logits_from_hook, result["logits"], rtol=rtol, atol=atol)

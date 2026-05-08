@@ -9,7 +9,8 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Float, PRNGKeyArray
 
-from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
+from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
+from prxteinmpnn.model.mpnn import PrxteinMPNN
 from prxteinmpnn.model.multistate_stack import gather_flat_to_stack, scatter_stack_to_flat
 from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
 from prxteinmpnn.protocols import ScoreFn, StateVmapExactScoreFn

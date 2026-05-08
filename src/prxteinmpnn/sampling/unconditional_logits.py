@@ -29,7 +29,8 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
+from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
+from prxteinmpnn.model.mpnn import PrxteinMPNN
 from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
 from prxteinmpnn.protocols import StateVmapExactLogitsFn, UnconditionalLogitsFn  # noqa: TC001
 from prxteinmpnn.sampling.state_vmap_payload_logits import (

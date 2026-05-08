@@ -11,7 +11,8 @@ from jaxtyping import Array, Bool, Float, Int, PRNGKeyArray, PyTree
 from optax import GradientTransformation
 
 if TYPE_CHECKING:
-  from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
+  from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
+  from prxteinmpnn.model.mpnn import PrxteinMPNN
 
 ArrayLike = Union[Array, np.ndarray]
 

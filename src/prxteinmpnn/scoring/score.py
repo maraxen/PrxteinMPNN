@@ -13,6 +13,8 @@ from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
 from prxteinmpnn.model.mpnn import PrxteinMPNN
 from prxteinmpnn.model.multistate_stack import gather_flat_to_stack, scatter_stack_to_flat
 from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
+from prxteinmpnn.pipeline_fns import PipelineFns
+from prxteinmpnn.pipeline_registry import make_geometric_mean_transform, resolve_hook
 from prxteinmpnn.protocols import ScoreFn, StateVmapExactScoreFn
 from prxteinmpnn.registry import (
   assert_known_multistate_mode,
@@ -111,6 +113,7 @@ def _make_score_fn_state_vmap_exact(
     ar_mask_stack: jax.Array | None,
     bias_flat: jax.Array | None,
     states_chunk_size: int = 0,
+    fns: PipelineFns | None = None,
   ) -> tuple[Float, Logits, DecodingOrder]:
 
     strategy_idx = jnp.int32(combine_strategy_to_index(multi_state_strategy))
@@ -126,6 +129,12 @@ def _make_score_fn_state_vmap_exact(
     scs_kw: dict[str, int] = {}
     if is_lig and states_chunk_size > 0:
       scs_kw["states_chunk_size"] = int(states_chunk_size)
+
+    # Derive logit transform from fns or fall back to geometric mean with temperature
+    if fns is not None:
+      logit_transform_fn = resolve_hook(fns.logit_transform_uid)
+    else:
+      logit_transform_fn = make_geometric_mean_transform(float(multi_state_temperature))
 
     if is_lig:
       logits = model.score_conditional_state_vmap_exact(  # type: ignore[union-attr]
@@ -143,11 +152,11 @@ def _make_score_fn_state_vmap_exact(
         n_flat_int,
         tie_group_map=tie_group_map,
         multi_state_strategy_idx=strategy_idx,
-        multi_state_temperature=jnp.asarray(multi_state_temperature, jnp.float32),
         state_weights=state_weights,
         state_mapping=structure_mapping,
         bias_flat=bias_flat,
         inference=True,
+        logit_transform_fn=logit_transform_fn,
         **scs_kw,
       )
     else:
@@ -167,6 +176,7 @@ def _make_score_fn_state_vmap_exact(
         state_mapping=structure_mapping,
         bias_flat=bias_flat,
         inference=True,
+        logit_transform_fn=logit_transform_fn,
       )
 
     mask_flat = scatter_stack_to_flat(
@@ -185,7 +195,7 @@ def _make_score_fn_state_vmap_exact(
     score_sequence_core = score_sequence_core_inner
   else:
 
-    @partial(jax.jit, static_argnames=("multi_state_strategy", "n_flat_int"))
+    @partial(jax.jit, static_argnames=("multi_state_strategy", "n_flat_int", "fns"))
     def score_sequence_core(
       prng_key: PRNGKeyArray,
       sequence: ProteinSequence | OneHotProteinSequence,
@@ -207,6 +217,7 @@ def _make_score_fn_state_vmap_exact(
       ar_mask_stack: jax.Array | None,
       bias_flat: jax.Array | None,
       states_chunk_size: int = 0,
+      fns: PipelineFns | None = None,
     ) -> tuple[Float, Logits, DecodingOrder]:
       del states_chunk_size
       return score_sequence_core_inner(
@@ -229,6 +240,7 @@ def _make_score_fn_state_vmap_exact(
         ar_mask_stack=ar_mask_stack,
         bias_flat=bias_flat,
         states_chunk_size=0,
+        fns=fns,
       )
 
   def score_sequence(
@@ -260,6 +272,7 @@ def _make_score_fn_state_vmap_exact(
     states_chunk_size: int = 0,
     multistate_stack: MultistateStackPayload | None = None,
     ligand_stack: LigandStack | None = None,
+    fns: PipelineFns | None = None,
     **kwargs: object,
   ) -> tuple[Float, Logits, DecodingOrder]:
     del kwargs, structure_coordinates, mask, residue_index, chain_index, backbone_noise, ar_mask
@@ -306,6 +319,7 @@ def _make_score_fn_state_vmap_exact(
       ar_mask_stack=ar_mask_stack,
       bias_flat=bias_flat,
       states_chunk_size=states_chunk_size,
+      fns=fns,
     )
 
   return cast("StateVmapExactScoreFn", score_sequence)

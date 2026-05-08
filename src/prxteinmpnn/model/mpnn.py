@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import equinox as eqx
 import jax
@@ -1069,6 +1069,7 @@ class PrxteinMPNN(eqx.Module):
     state_weights: jnp.ndarray | None,
     state_mapping: jnp.ndarray | None,
     inference: bool = True,
+    logit_transform_fn: Any | None = None,
   ) -> Logits:
     """Compute unconditional logits per stacked state then scatter+fuse (``state_vmap_exact``).
 
@@ -1114,6 +1115,16 @@ class PrxteinMPNN(eqx.Module):
 
     decoded = jax.vmap(decode_one)(node_b, edge_b, nei_b, mask_stack)
     logits_s = jax.vmap(jax.vmap(self.w_out))(decoded)
+
+    if logit_transform_fn is not None:
+      _sw = (
+        jnp.ones(logits_s.shape[0], dtype=jnp.float32) / logits_s.shape[0]
+        if state_weights is None
+        else state_weights
+      )
+      _si = jnp.arange(logits_s.shape[0], dtype=jnp.int32)
+      return logit_transform_fn(logits_s, _si, _sw)
+
     logits_flat = scatter_stack_to_flat(logits_s, state_flat_rows, n_flat)
 
     if tie_group_map is not None:
@@ -1138,6 +1149,7 @@ class PrxteinMPNN(eqx.Module):
     state_weights: jnp.ndarray | None,
     state_mapping: jnp.ndarray | None,
     inference: bool = True,
+    logit_transform_fn: Any | None = None,
   ) -> Logits:
     """Same as :meth:`score_unconditional_state_vmap_exact` with stacked geometry from ``stack``."""
     return self.score_unconditional_state_vmap_exact(
@@ -1154,6 +1166,7 @@ class PrxteinMPNN(eqx.Module):
       state_weights=state_weights,
       state_mapping=state_mapping,
       inference=inference,
+      logit_transform_fn=logit_transform_fn,
     )
 
   def score_conditional_state_vmap_exact(

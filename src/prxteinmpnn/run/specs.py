@@ -301,6 +301,7 @@ class SamplingSpecification(RunSpecification):
   chunk_id: int | None = None
   sample_start: int | None = None
   sample_count: int | None = None
+  decode_fn: Any | None = None
 
   def __post_init__(self) -> None:
     """Post-initialization processing."""

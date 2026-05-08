@@ -118,6 +118,8 @@ def multistate_stack_payload_from_loose_ar_host(
   fixed_tokens_stack: jnp.ndarray,
   state_flat_rows: jnp.ndarray,
   n_canonical: int,
+  state_index: jnp.ndarray | None = None,
+  state_embedding: jnp.ndarray | None = None,
 ) -> MultistateStackPayload:
   """Build :class:`~prxteinmpnn.payloads.MultistateStackPayload` on host for AR ``state_vmap_exact``.
 
@@ -137,6 +139,12 @@ def multistate_stack_payload_from_loose_ar_host(
     lengths.append(int(v.max() - v.min() + 1) if v.size > 0 else 0)
   offsets = state_flat_row_offsets(lengths)
   n_flat = int(offsets[-1])
+
+  if state_index is None:
+    state_index = jnp.arange(n_states, dtype=jnp.int32)
+  if state_embedding is None:
+    state_embedding = jnp.zeros((n_states, 1), dtype=jnp.float32)
+
   return MultistateStackPayload(
     coords_stack=coords_stack,
     mask_stack=mask_stack,
@@ -147,6 +155,8 @@ def multistate_stack_payload_from_loose_ar_host(
     fixed_tokens_stack=fixed_tokens_stack,
     state_flat_rows=state_flat_rows,
     flat_row_offsets=jnp.asarray(offsets, dtype=jnp.int32),
+    state_index=state_index,
+    state_embedding=state_embedding,
     n_states=n_states,
     n_canonical=n_canonical,
     n_flat=n_flat,
@@ -158,9 +168,17 @@ def multistate_stack_payload_from_prep_numpy(
   *,
   n_states: int,
   n_canonical: int,
+  state_index: jnp.ndarray | None = None,
+  state_embedding: jnp.ndarray | None = None,
 ) -> MultistateStackPayload:
   """Convert :func:`build_state_vmap_exact_stacks` numpy output to a JAX :class:`MultistateStackPayload`."""
   n_flat = int(np.asarray(sv["flat_row_offsets"])[-1])
+
+  if state_index is None:
+    state_index = jnp.arange(n_states, dtype=jnp.int32)
+  if state_embedding is None:
+    state_embedding = jnp.zeros((n_states, 1), dtype=jnp.float32)
+
   return MultistateStackPayload(
     coords_stack=jnp.asarray(sv["coords_stack"], dtype=jnp.float32),
     mask_stack=jnp.asarray(sv["mask_stack"], dtype=jnp.float32),
@@ -171,6 +189,8 @@ def multistate_stack_payload_from_prep_numpy(
     fixed_tokens_stack=jnp.asarray(sv["fixed_tokens_stack"], dtype=jnp.int32),
     state_flat_rows=jnp.asarray(sv["state_flat_rows"], dtype=jnp.int32),
     flat_row_offsets=jnp.asarray(sv["flat_row_offsets"], dtype=jnp.int32),
+    state_index=state_index,
+    state_embedding=state_embedding,
     n_states=n_states,
     n_canonical=n_canonical,
     n_flat=n_flat,

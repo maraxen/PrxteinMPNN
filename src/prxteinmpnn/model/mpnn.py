@@ -44,6 +44,7 @@ from prxteinmpnn.payloads import MultistateStackPayload
 from prxteinmpnn.registry import combine_strategy_to_index, multistate_mode_descriptor
 
 if TYPE_CHECKING:
+  from prxteinmpnn.model_inputs import LogitTransformFn
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
     AutoRegressiveMask,
@@ -1069,7 +1070,7 @@ class PrxteinMPNN(eqx.Module):
     state_weights: jnp.ndarray | None,
     state_mapping: jnp.ndarray | None,
     inference: bool = True,
-    logit_transform_fn: Any | None = None,
+    logit_transform_fn: LogitTransformFn | None = None,
   ) -> Logits:
     """Compute unconditional logits per stacked state then scatter+fuse (``state_vmap_exact``).
 
@@ -1077,6 +1078,10 @@ class PrxteinMPNN(eqx.Module):
     in ``tests/sampling/spikes/test_state_vmap_exact_spike.py`` (roadmap §13.2 Phase 0a **GO**).
     When ``tie_group_map`` is set, logits are post-processed via
     :meth:`_apply_multistate_to_all_logits`.
+
+    When ``logit_transform_fn`` is provided, it supersedes ``tie_group_map`` fusion —
+    the hook receives raw per-state ``(S, L, V)`` logits and is responsible for
+    combining them; ``apply_multistate_to_all_logits`` is not called.
     """
     k_enc, k_feat = jax.random.split(prng_key)
 
@@ -1149,9 +1154,12 @@ class PrxteinMPNN(eqx.Module):
     state_weights: jnp.ndarray | None,
     state_mapping: jnp.ndarray | None,
     inference: bool = True,
-    logit_transform_fn: Any | None = None,
+    logit_transform_fn: LogitTransformFn | None = None,
   ) -> Logits:
-    """Same as :meth:`score_unconditional_state_vmap_exact` with stacked geometry from ``stack``."""
+    """Same as :meth:`score_unconditional_state_vmap_exact` with stacked geometry from ``stack``.
+
+    logit_transform_fn supersedes tie_group_map when set.
+    """
     return self.score_unconditional_state_vmap_exact(
       prng_key,
       stack.coords_stack,
@@ -1188,9 +1196,14 @@ class PrxteinMPNN(eqx.Module):
     state_mapping: jnp.ndarray | None,
     bias_flat: jax.Array | None = None,
     inference: bool = True,
-    logit_transform_fn: Any | None = None,
+    logit_transform_fn: LogitTransformFn | None = None,
   ) -> Logits:
-    """Teacher-forced conditional logits stacked then scatter+fused."""
+    """Teacher-forced conditional logits stacked then scatter+fused.
+
+    When ``logit_transform_fn`` is provided, it supersedes ``tie_group_map`` fusion —
+    the hook receives raw per-state ``(S, L, V)`` logits and is responsible for
+    combining them; ``apply_multistate_to_all_logits`` is not called.
+    """
     k_enc, k_feat = jax.random.split(prng_key)
 
     def encode_one(coords, ma, ri, ci):
@@ -1284,9 +1297,12 @@ class PrxteinMPNN(eqx.Module):
     state_mapping: jnp.ndarray | None,
     bias_flat: jax.Array | None = None,
     inference: bool = True,
-    logit_transform_fn: Any | None = None,
+    logit_transform_fn: LogitTransformFn | None = None,
   ) -> Logits:
-    """Same as :meth:`score_conditional_state_vmap_exact` with stacked geometry from ``stack``."""
+    """Same as :meth:`score_conditional_state_vmap_exact` with stacked geometry from ``stack``.
+
+    logit_transform_fn supersedes tie_group_map when set.
+    """
     return self.score_conditional_state_vmap_exact(
       prng_key,
       stack.coords_stack,
@@ -1306,5 +1322,3 @@ class PrxteinMPNN(eqx.Module):
       inference=inference,
       logit_transform_fn=logit_transform_fn,
     )
-
-

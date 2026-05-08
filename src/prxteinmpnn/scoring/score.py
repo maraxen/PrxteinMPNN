@@ -163,7 +163,6 @@ def _make_score_fn_state_vmap_exact(
         n_flat_int,
         tie_group_map=tie_group_map,
         multi_state_strategy_idx=strategy_idx,
-        multi_state_temperature=jnp.asarray(multi_state_temperature, jnp.float32),
         state_weights=state_weights,
         state_mapping=structure_mapping,
         bias_flat=bias_flat,

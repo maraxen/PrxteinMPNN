@@ -83,6 +83,62 @@ def test_default_logit_transform_uid_exists():
     assert callable(fn)
 
 
+def test_pipeline_fns_default_constructible():
+    from prxteinmpnn.pipeline_fns import PipelineFns
+    fns = PipelineFns.default()
+    assert isinstance(fns.logit_transform_uid, str)
+    assert len(fns.logit_transform_uid) == 16
+    assert fns.encoder_pre_process_uid is None
+    assert fns.encoder_post_process_uid is None
+
+
+def test_pipeline_fns_from_callables():
+    import jax.numpy as jnp
+    from prxteinmpnn.pipeline_fns import PipelineFns
+
+    def my_transform(state_logits, state_index, state_weights):
+        return jnp.mean(state_logits, axis=0)
+
+    fns = PipelineFns.from_callables(logit_transform=my_transform)
+    assert isinstance(fns.logit_transform_uid, str)
+    assert len(fns.logit_transform_uid) == 16
+    assert fns.encoder_pre_process_uid is None
+
+
+def test_pipeline_fns_resolve_logit_transform():
+    import jax.numpy as jnp
+    from prxteinmpnn.pipeline_fns import PipelineFns
+
+    fns = PipelineFns.default()
+    fn = fns.resolve_logit_transform()
+    assert callable(fn)
+    state_logits = jnp.ones((2, 4, 21))
+    result = fn(state_logits, jnp.arange(2), jnp.ones(2))
+    assert result.shape == (4, 21)
+
+
+def test_pipeline_fns_is_frozen():
+    import dataclasses
+    import pytest
+    from prxteinmpnn.pipeline_fns import PipelineFns
+    fns = PipelineFns.default()
+    assert dataclasses.is_dataclass(fns)
+    with pytest.raises((dataclasses.FrozenInstanceError, AttributeError)):
+        fns.logit_transform_uid = "something_else"
+
+
+def test_pipeline_fns_with_encoder_post():
+    from prxteinmpnn.pipeline_fns import PipelineFns
+
+    def my_post(encoded, state_index):
+        return encoded
+
+    fns = PipelineFns.from_callables(encoder_post_process=my_post)
+    assert fns.encoder_post_process_uid is not None
+    resolved = fns.resolve_encoder_post_process()
+    assert resolved is my_post
+
+
 def test_encoder_output_is_pytree():
     import jax
     import jax.numpy as jnp

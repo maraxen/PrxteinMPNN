@@ -1,4 +1,11 @@
-# prxteinmpnn Refactor Roadmap (FINAL)
+# prxteinmpnn Refactor Roadmap (DEPRECATED — 2026-05-08)
+
+> **DEPRECATED.** This document tracked Phases 0–6 of the initial structural refactor. As of 2026-05-08, Phases 0–6 are complete (Phase 5 commit 6dd995d, Phase 6 BatchPlanner/safe_map). The active planning documents are:
+> - `.praxia/REFACTOR_MODELINPUTS.md` — ModelInputs/ModelStaticConfig PR migration plan (PRs 1–3 done; PR-4 model.__call__ boundary and PR-5 StableHLO export still pending)
+> - `docs/superpowers/plans/2026-05-08-pipeline-protocol.md` — Pipeline Protocol implementation plan (all 13 tasks complete)
+> - Deferred from pipeline plan: EncoderPreFn/PostFn wiring, multi_state_temperature removal, generalized StateIndex
+>
+> **Do not update this document.** Treat it as a historical reference only.
 
 > **Target file count delta**: net +0 to +20 files; net **−2500 LoC** in `src/prxteinmpnn/`.
 > **Parity contract** (qualified — see §10 *What we are NOT promising*): numerical outputs of `model.__call__`, `make_score_fn(...)(...)`, `make_*_logits_fn(...)(...)`, and `make_sample_sequences(...)(...)` are within `get_tolerances("float32")` before/after every phase, verified by `parity_fast` in CI and `parity_heavy` as a manual per-phase release gate.

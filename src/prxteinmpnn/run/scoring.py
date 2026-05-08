@@ -186,7 +186,7 @@ def score(
   _plan.log_summary()
   if _plan.exceeded_budget():
     _batch_logger.warning(
-        "score: BatchPlan exceeded budget even at minimum tiles."
+        "score: BatchPlan exceeded budget even at minimum tiles.",
     )
 
   if spec.output_h5_path:
@@ -330,9 +330,9 @@ def _score_standard_mode(
     def _score_one_structure(structure_batch_args):
       """Score one structure via closure over shared args."""
       (
-          coords, mask, residue_idx, chain_idx, mapping_val, tie_map_val
+          coords, mask, residue_idx, chain_idx, mapping_val, tie_map_val,
       ) = structure_batch_args
-      return vmap_noises(
+      return vmap_noises(  # noqa: B023
           jax.random.key(spec.random_seed),
           batched_sequences,
           coords,
@@ -340,7 +340,7 @@ def _score_standard_mode(
           residue_idx,
           chain_idx,
           jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
-          current_ar_mask,
+          current_ar_mask,  # noqa: B023
           mapping_val,
           tie_map_val,
       )
@@ -543,7 +543,7 @@ def _score_streaming(  # noqa: PLR0915
 
       def _score_one_structure(structure_batch_args):
         coords, mask, residue_idx, chain_idx, mapping_val, tie_map_val = structure_batch_args
-        return vmap_noises(
+        return vmap_noises(  # noqa: B023
           jax.random.key(spec.random_seed),
           batched_sequences,
           coords,
@@ -551,7 +551,7 @@ def _score_streaming(  # noqa: PLR0915
           residue_idx,
           chain_idx,
           jnp.asarray(spec.backbone_noise, dtype=jnp.float32),
-          current_ar_mask,
+          current_ar_mask,  # noqa: B023
           mapping_val,
           tie_map_val,
         )

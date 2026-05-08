@@ -156,6 +156,15 @@ pylint.max-args = 15
 "src/prxteinmpnn/run/spec.py" = ["TD003", "FIX002"]
 "src/prxteinmpnn/run/specs.py" = ["ANN401", "PLR0915", "TD003", "FIX002"]
 "src/prxteinmpnn/run/spec_json.py" = ["ANN401", "PLR0911", "SIM102"]
+# ML tensor names (h_V, Y, E_idx, etc.) follow LigandMPNN convention — not Python style violations
+# B023 in ligand_mpnn.py: define-and-immediately-consume in JAX loop (not late-binding bug)
+"src/prxteinmpnn/model/ligand_mpnn.py" = ["N806", "N803", "B023"]
+"src/prxteinmpnn/model/**/*.py" = ["N806", "N803"]
+"src/prxteinmpnn/sampling/**/*.py" = ["N806", "N803"]
+"src/prxteinmpnn/scoring/**/*.py" = ["N806", "N803"]
+"src/prxteinmpnn/run/**/*.py" = ["N806", "N803"]
+"src/prxteinmpnn/run/multistate_pools.py" = ["N806", "N803"]
+"src/prxteinmpnn/run/sampling.py" = ["N806", "N803"]
 "tests/test_adapter.py" = ["S101", "T201", "ANN201", "INP001", "PLC0415", "SLF001"]
 "scripts/**/*.py" = ["T201", "INP001"]
 

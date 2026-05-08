@@ -6,7 +6,7 @@ changing JIT boundaries or public method names on the model class.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import jax
 import jax.numpy as jnp
@@ -337,6 +337,7 @@ def run_score_conditional_state_vmap_exact_ligand(
   bias_flat: jax.Array | None = None,
   inference: bool = True,
   states_chunk_size: int | None = None,
+  logit_transform_fn: Any | None = None,
 ) -> Logits:
   """LigandMPNN stacked conditional logits; optional ``bias_flat`` added before fuse."""
   from prxteinmpnn.model.ligand_mpnn import ligand_encode_stack_row  # noqa: PLC0415
@@ -389,10 +390,22 @@ def run_score_conditional_state_vmap_exact_ligand(
     if bias_flat is not None:
       logits_s = logits_s + gather_flat_to_stack(bias_flat, state_flat_rows)
 
+    if logit_transform_fn is not None:
+      _sw = (
+        jnp.ones(logits_s.shape[0], dtype=jnp.float32) / logits_s.shape[0]
+        if state_weights is None
+        else state_weights
+      )
+      _si = jnp.arange(logits_s.shape[0], dtype=jnp.int32)
+      return logit_transform_fn(logits_s, _si, _sw)
+
     return scatter_stack_to_flat(logits_s, state_flat_rows, n_flat)
 
-  if scs <= 0 or scs >= s_tot:
+  # When logit_transform_fn is set, always use one-shot path (chunked path not supported).
+  if logit_transform_fn is not None or scs <= 0 or scs >= s_tot:
     logits_flat = _one_shot()
+    if logit_transform_fn is not None:
+      return logits_flat
   else:
     logits_flat = jnp.zeros((n_flat, log_dim), dtype=log_dtype)
     for s0 in range(0, s_tot, scs):

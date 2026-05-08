@@ -1188,6 +1188,7 @@ class PrxteinMPNN(eqx.Module):
     state_mapping: jnp.ndarray | None,
     bias_flat: jax.Array | None = None,
     inference: bool = True,
+    logit_transform_fn: Any | None = None,
   ) -> Logits:
     """Teacher-forced conditional logits stacked then scatter+fused."""
     k_enc, k_feat = jax.random.split(prng_key)
@@ -1248,6 +1249,15 @@ class PrxteinMPNN(eqx.Module):
     if bias_flat is not None:
       logits_s = logits_s + gather_flat_to_stack(bias_flat, state_flat_rows)
 
+    if logit_transform_fn is not None:
+      _sw = (
+        jnp.ones(logits_s.shape[0], dtype=jnp.float32) / logits_s.shape[0]
+        if state_weights is None
+        else state_weights
+      )
+      _si = jnp.arange(logits_s.shape[0], dtype=jnp.int32)
+      return logit_transform_fn(logits_s, _si, _sw)
+
     logits_flat = scatter_stack_to_flat(logits_s, state_flat_rows, n_flat)
     if tie_group_map is not None:
       logits_flat = apply_multistate_to_all_logits(
@@ -1274,6 +1284,7 @@ class PrxteinMPNN(eqx.Module):
     state_mapping: jnp.ndarray | None,
     bias_flat: jax.Array | None = None,
     inference: bool = True,
+    logit_transform_fn: Any | None = None,
   ) -> Logits:
     """Same as :meth:`score_conditional_state_vmap_exact` with stacked geometry from ``stack``."""
     return self.score_conditional_state_vmap_exact(
@@ -1293,6 +1304,7 @@ class PrxteinMPNN(eqx.Module):
       state_mapping=state_mapping,
       bias_flat=bias_flat,
       inference=inference,
+      logit_transform_fn=logit_transform_fn,
     )
 
 

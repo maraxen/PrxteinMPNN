@@ -16,7 +16,8 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
+from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
+from prxteinmpnn.model.mpnn import PrxteinMPNN
 from prxteinmpnn.model.multistate_stack import gather_flat_to_stack
 from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
 

@@ -15,7 +15,8 @@ from .capabilities import (
 from .decoder import Decoder, DecoderLayer
 from .encoder import Encoder, EncoderLayer
 from .features import ProteinFeatures
-from .mpnn import PrxteinLigandMPNN, PrxteinMPNN
+from .ligand_mpnn import PrxteinLigandMPNN
+from .mpnn import PrxteinMPNN
 from .multistate_stack import gather_flat_to_stack, scatter_stack_to_flat
 
 __all__ = [

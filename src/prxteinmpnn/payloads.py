@@ -51,6 +51,8 @@ class MultistateStackPayload(eqx.Module):
   fixed_tokens_stack: Int[Array, ...]
   state_flat_rows: Int[Array, ...]
   flat_row_offsets: Int[Array, ...]
+  state_index: Int[Array, ...]
+  state_embedding: Float[Array, ...]
   n_states: int = eqx.field(static=True)
   n_canonical: int = eqx.field(static=True)
   n_flat: int = eqx.field(static=True)
@@ -66,12 +68,32 @@ class MultistateStackPayload(eqx.Module):
       "fixed_tokens_stack",
       "state_flat_rows",
       "flat_row_offsets",
+      "state_index",
+      "state_embedding",
       "n_states",
       "n_canonical",
       "n_flat",
     )
     static = frozenset({"n_states", "n_canonical", "n_flat"})
     return _replace_payload(self, MultistateStackPayload, fields, static, **kw)
+
+
+class WaveParallelPayload(eqx.Module):
+  """Wave-parallel autoregressive decode schedule (graph-coloring output, host-prepped)."""
+
+  wave_group_ids: Int[Array, ...]
+  wave_group_positions: Int[Array, ...]
+  wave_group_valid: Bool[Array, ...]
+  wave_position_valid: Bool[Array, ...]
+
+  def replace(self, **kw: Any) -> WaveParallelPayload:
+    fields = (
+      "wave_group_ids",
+      "wave_group_positions",
+      "wave_group_valid",
+      "wave_position_valid",
+    )
+    return _replace_payload(self, WaveParallelPayload, fields, frozenset(), **kw)
 
 
 class LigandStack(eqx.Module):
@@ -184,4 +206,5 @@ __all__ = [
   "MultistateStackPayload",
   "SampleResult",
   "SamplingControls",
+  "WaveParallelPayload",
 ]

@@ -30,7 +30,8 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
-from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
+from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
+from prxteinmpnn.model.mpnn import PrxteinMPNN
 from prxteinmpnn.protocols import ConditionalLogitsFn, StateVmapExactLogitsFn
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,

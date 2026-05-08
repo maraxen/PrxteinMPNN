@@ -19,6 +19,37 @@ def test_encoder_output_importable():
     assert EncoderOutput is not None
 
 
+def test_encoder_pre_fn_protocol():
+    from prxteinmpnn.protocols import EncoderPreFn
+    assert EncoderPreFn is not None
+
+
+def test_encoder_post_fn_protocol():
+    from prxteinmpnn.protocols import EncoderPostFn
+    assert EncoderPostFn is not None
+
+
+def test_pipeline_protocol():
+    from prxteinmpnn.protocols import Pipeline
+    assert Pipeline is not None
+
+
+def test_model_protocol():
+    from prxteinmpnn.protocols import ModelProtocol
+    assert ModelProtocol is not None
+
+
+def test_model_protocol_runtime_checkable_vs_prxtein_mpnn():
+    """PrxteinMPNN satisfies ModelProtocol structurally."""
+    import jax
+    from prxteinmpnn.model.mpnn import PrxteinMPNN
+    from prxteinmpnn.protocols import ModelProtocol
+
+    key = jax.random.PRNGKey(0)
+    m = PrxteinMPNN(16, 16, 16, 1, 1, 6, key=key)
+    assert isinstance(m, ModelProtocol)
+
+
 def test_encoder_output_is_pytree():
     import jax
     import jax.numpy as jnp

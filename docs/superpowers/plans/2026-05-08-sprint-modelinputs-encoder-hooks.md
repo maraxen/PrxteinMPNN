@@ -512,6 +512,18 @@ If `PipelineFns` is not already in scope at these call sites, thread it down fro
 parameter. Both `score.py` and `sampling/sample.py` are host-side (not inside JIT traces), so
 threading `fns` as a new function parameter is safe.
 
+**Default fns for backwards compatibility:** When adding `fns` as a parameter to `score_sequence_core_inner`
+(or its outer wrapper), use this default:
+```python
+fns: PipelineFns | None = None
+# In function body:
+if fns is None:
+    fns = PipelineFns.from_callables(logit_transform=make_geometric_mean_transform(1.0))
+```
+Using `PipelineFns.default()` as a fallback would silently switch geometric-mean callers to
+arithmetic mean (the default transform). The correct fallback is T=1.0 geometric mean, which
+preserves prior behavior for callers that previously passed `multi_state_temperature=1.0`.
+
 - [ ] **Step D.5.1: Read scoring/score.py context around lines 100–175**
 
 Read `src/prxteinmpnn/scoring/score.py` lines 100–175 to confirm:
@@ -1021,6 +1033,8 @@ def test_ligand_encoder_pre_fn_called_outside_vmap():
     # score_unconditional_state_vmap_exact_from_payload is the equivalent of
     # PrxteinMPNN.score_unconditional_from_payload for ligand paths (D.3a removes
     # multi_state_temperature from this method's signature before C runs)
+    # Pass fns so the registered EncoderPreFn hook is dispatched.
+    # Post-D.3a: multi_state_temperature is removed from this method's signature.
     m.score_unconditional_state_vmap_exact_from_payload(
         key,
         stack,
@@ -1029,7 +1043,7 @@ def test_ligand_encoder_pre_fn_called_outside_vmap():
         multi_state_strategy_idx=jnp.int32(0),
         state_weights=None,
         state_mapping=None,
-        fns=fns,
+        fns=fns,  # required so the EncoderPreFn hook fires
     )
 
     assert observed_shape, "EncoderPreFn was never called in PrxteinLigandMPNN path"
@@ -1057,6 +1071,51 @@ git commit -m "feat(C.3): wire EncoderPreFn/EncoderPostFn in ligand_mpnn.py"
 ---
 
 ## Sprint A — MODELINPUTS PR-4: Push model.__call__ boundary
+
+**Architectural direction (critical — read before implementing):**
+
+This sprint REPLACES the big-arg-list `*_from_payload` wrappers and their `*args/**kwargs`
+"clean alias" shims. The old methods are deleted in this PR; callers are migrated in the same
+PR before deletion. Additive-alongside is explicitly wrong — the user said: "if we still have
+these score_unconditional_state_vmap_exact_from_payload with these big arg lists we need to
+eliminate."
+
+**On `*` vs `**kwargs` and `jax.export`:** `*` (keyword-only marker) is export-SAFE. Primary
+source: `mpnn.py:1088` uses `*` successfully under JIT today. Only `**kwargs` variadic capture
+breaks `jax.export` because variadic capture makes the input pytree spec non-deterministic.
+None of the new methods use `**kwargs`. The `*` marker for `fns` is correct.
+
+**Deletion list (mpnn.py) — all gone in this sprint:**
+- `sample_autoregressive_from_payload` (`*args/**kwargs` alias — line 1064)
+- `sample_autoregressive_state_vmap_exact_from_payload` (big-arg-list wrapper — line 1021)
+- `score_unconditional_from_payload` (`*args/**kwargs` alias — line 1208)
+- `score_unconditional_state_vmap_exact_from_payload` (big-arg-list wrapper — line 1168)
+- `score_conditional_from_payload` (`*args/**kwargs` alias — line 1375)
+- `score_conditional_state_vmap_exact_from_payload` (big-arg-list wrapper — line 1329)
+
+**Inner methods that STAY (they have concrete `*`-separated signatures, which is fine):**
+- `sample_autoregressive_state_vmap_exact` (line 974)
+- `score_unconditional_state_vmap_exact` (line 1079)
+- `score_conditional_state_vmap_exact` (line 1223)
+
+**New public methods added to mpnn.py:**
+- `score_unconditional(prng_key, inputs: SamplingInputs, *, fns: PipelineFns) -> Logits`
+- `score_conditional(prng_key, inputs: SamplingInputs, *, fns: PipelineFns) -> Logits`
+- `sample(prng_key, inputs: SamplingInputs, *, fns: PipelineFns) -> tuple[OneHot, Logits]`
+
+`score_conditional` reads the known sequence from `inputs.conditioning.fixed_tokens` (Int array;
+one-hot encode with `jax.nn.one_hot(..., 21)`) and `inputs.conditioning.ar_mask` as `ar_mask_stack`.
+
+**Callers to migrate before deletion:**
+- `src/prxteinmpnn/pipeline/unconditional.py:46` — change from `score_unconditional_from_payload` to `score_unconditional`
+- `src/prxteinmpnn/pipeline/conditional.py:56` — change from `score_conditional_from_payload` to `score_conditional`
+- `src/prxteinmpnn/pipeline/autoregressive.py:54` — change from `sample_autoregressive_from_payload` to `sample`
+- `src/prxteinmpnn/scoring/score.py` — build `SamplingInputs` from existing args; call `model.score_unconditional` or `model.score_conditional`
+- `src/prxteinmpnn/sampling/sample.py` — build `SamplingInputs` from existing args; call `model.sample`
+
+**Note on C.3.3 cross-sprint dependency:** Sprint C (task C.3.3) writes a test that calls
+`m.score_unconditional_state_vmap_exact_from_payload(...)` — that method is deleted here.
+Task A.3 includes a step to update that test to call `m.score_unconditional(prng_key, inputs, fns=fns)`.
 
 ---
 
@@ -1159,81 +1218,267 @@ git commit -m "feat(A.1): define LigandSamplingInputs with embedded LigandStack 
 
 ---
 
-### Task A.2 — Add `PrxteinMPNN.forward_score` and `forward_sample` entry points (additive)
+### Task A.2 — Add `PrxteinMPNN.score_unconditional`, `score_conditional`, `sample` and delete old aliases
 
 **Files:**
 - Modify: `src/prxteinmpnn/model/mpnn.py`
+- Modify: `src/prxteinmpnn/pipeline/unconditional.py`
+- Modify: `src/prxteinmpnn/pipeline/conditional.py`
+- Modify: `src/prxteinmpnn/pipeline/autoregressive.py`
+- Modify: `src/prxteinmpnn/scoring/score.py`
+- Modify: `src/prxteinmpnn/sampling/sample.py`
 - Test: `tests/test_sprint_modelinputs.py`
 
-This is **additive**: add two entry points alongside `__call__`. Each has a stable, single return type
-(not a union of Array and None). Keep `__call__` unchanged — parity tests still exercise it.
+**Execution order within A.2:** A.2.1 (add methods) → A.2.2 (migrate callers) → A.2.3 (delete
+old methods) → A.2.4 (grep verify) → A.2.5 (parity test) → A.2.6 (full suite) → A.2.7 (commit).
+Migration MUST precede deletion, or callers will break on an intermediate commit.
 
-**Return type contract:**
-- `forward_score(inputs: SamplingInputs, *, fns: PipelineFns) -> jax.Array` — returns logits only.
-- `forward_sample(inputs: SamplingInputs, *, fns: PipelineFns) -> tuple[jax.Array, jax.Array]` —
-  returns `(sequences, logits)`.
+**Unpack pattern for `score_unconditional`:** the new method reads coords/mask/etc from
+`inputs.state_stack` (not `inputs.backbone` — backbone is for the reference state but the inner
+method needs the stacked coords). After D.2a, `score_unconditional_state_vmap_exact` has
+`multi_state_temperature` removed but retains `tie_group_map`, `multi_state_strategy_idx`,
+`state_weights`, `state_mapping`. Pass them as: `tie_group_map=None`,
+`multi_state_strategy_idx=jnp.int32(0)`, `state_weights=None`, `state_mapping=None` — these
+are all ignored when `logit_transform_fn` is provided, which it always is post-D.
 
-Do NOT use `None` as a return value or a union type like `Array | None`. These are not JAX-pytree-stable and cause retrace and `jax.export` failures.
+**Unpack pattern for `score_conditional`:** one-hot encode `inputs.conditioning.fixed_tokens`
+via `jax.nn.one_hot(inputs.conditioning.fixed_tokens, 21)` → `seq_oh_stack`. Pass
+`inputs.conditioning.ar_mask` → `ar_mask_stack`. Scatter `inputs.conditioning.bias` to flat
+using `scatter_stack_to_flat(inputs.conditioning.bias, inputs.state_stack.state_flat_rows,
+int(inputs.state_stack.n_flat))` → `bias_flat` (already imported in mpnn.py).
 
-- [ ] **Step A.2.1: Write failing tests**
+**Unpack pattern for `sample`:** read coords/mask/etc from `inputs.state_stack`,
+`inputs.conditioning.fixed_tokens` → `fixed_tokens_stack`, `inputs.conditioning.ar_mask` →
+`autoregressive_mask_stack`, `inputs.conditioning.bias` → `bias_stack`,
+`inputs.wave_parallel.*` → wave group arrays. `temperature` defaults to `1.0` (captured in
+`LogitTransformFn` post-D; the inner method still has `temperature` as a separate param — pass
+`jnp.asarray(1.0)` as the scalar temperature if the inner method still requires it).
+
+- [ ] **Step A.2.1: Write deletion-guard and existence test**
 
 ```python
 # in tests/test_sprint_modelinputs.py
-def test_prxtein_mpnn_has_forward_score_and_sample():
+def test_prxtein_mpnn_new_api_replaces_old():
+    """Old *_from_payload / *args/**kwargs methods must be gone; new pytree methods must exist."""
     import jax
     from prxteinmpnn.model.mpnn import PrxteinMPNN
 
     key = jax.random.PRNGKey(0)
     m = PrxteinMPNN(16, 16, 16, 1, 1, 6, key=key)
-    assert hasattr(m, "forward_score"), "PrxteinMPNN must have forward_score()"
-    assert hasattr(m, "forward_sample"), "PrxteinMPNN must have forward_sample()"
+
+    deleted_methods = [
+        "sample_autoregressive_from_payload",
+        "sample_autoregressive_state_vmap_exact_from_payload",
+        "score_unconditional_from_payload",
+        "score_unconditional_state_vmap_exact_from_payload",
+        "score_conditional_from_payload",
+        "score_conditional_state_vmap_exact_from_payload",
+    ]
+    for name in deleted_methods:
+        assert not hasattr(m, name), (
+            f"PrxteinMPNN.{name} must be deleted in PR-4 — *args/**kwargs aliases are not allowed"
+        )
+
+    new_methods = ["score_unconditional", "score_conditional", "sample"]
+    for name in new_methods:
+        assert hasattr(m, name), f"PrxteinMPNN.{name} must exist after PR-4"
 ```
 
-- [ ] **Step A.2.2: Add `forward_score()` and `forward_sample()` to PrxteinMPNN**
+Run first to verify it FAILS (the old methods still exist, new ones don't):
+
+```bash
+uv run pytest tests/test_sprint_modelinputs.py::test_prxtein_mpnn_new_api_replaces_old -xvs
+```
+
+Expected: AssertionError on the `deleted_methods` check (they still exist pre-implementation).
+
+- [ ] **Step A.2.2: Add the three new concrete methods to mpnn.py**
+
+Add after `score_conditional_state_vmap_exact` (before the `_from_payload` methods that will be
+deleted in A.2.3). Resolve `logit_transform_fn` from `fns` via `resolve_hook`:
 
 ```python
-def forward_score(
+from prxteinmpnn.pipeline_registry import resolve_hook  # add to imports at top of file
+
+def score_unconditional(
     self,
+    prng_key: PRNGKeyArray,
     inputs: SamplingInputs,
     *,
     fns: PipelineFns,
-) -> jax.Array:
-    """Pytree-based scoring entry point. Returns logits only.
+) -> Logits:
+    """Pytree-based unconditional scoring. Replaces score_unconditional_from_payload."""
+    logit_transform_fn = resolve_hook(fns.logit_transform_uid)
+    return self.score_unconditional_state_vmap_exact(
+        prng_key,
+        inputs.state_stack.coords_stack,
+        inputs.state_stack.mask_stack,
+        inputs.state_stack.residue_index_stack,
+        inputs.state_stack.chain_index_stack,
+        inputs.state_stack.state_flat_rows,
+        int(inputs.state_stack.n_flat),
+        tie_group_map=None,
+        multi_state_strategy_idx=jnp.int32(0),
+        state_weights=None,
+        state_mapping=None,
+        inference=True,
+        logit_transform_fn=logit_transform_fn,
+    )
 
-    Accepts SamplingInputs as a single pytree operand — suitable for
-    jax.lax.switch on a single operand and jax.export.
-    """
-    # Unpack SamplingInputs, call the appropriate scoring branch.
-    ...
-
-def forward_sample(
+def score_conditional(
     self,
+    prng_key: PRNGKeyArray,
     inputs: SamplingInputs,
     *,
     fns: PipelineFns,
-) -> tuple[jax.Array, jax.Array]:
-    """Pytree-based sampling entry point. Returns (sequences, logits).
+) -> Logits:
+    """Pytree-based conditional (teacher-forced) scoring. Replaces score_conditional_from_payload."""
+    logit_transform_fn = resolve_hook(fns.logit_transform_uid)
+    seq_oh_stack = jax.nn.one_hot(inputs.conditioning.fixed_tokens, 21)
+    bias_flat = scatter_stack_to_flat(
+        inputs.conditioning.bias,
+        inputs.state_stack.state_flat_rows,
+        int(inputs.state_stack.n_flat),
+    )
+    return self.score_conditional_state_vmap_exact(
+        prng_key,
+        inputs.state_stack.coords_stack,
+        inputs.state_stack.mask_stack,
+        inputs.state_stack.residue_index_stack,
+        inputs.state_stack.chain_index_stack,
+        seq_oh_stack,
+        inputs.conditioning.ar_mask,
+        inputs.state_stack.state_flat_rows,
+        int(inputs.state_stack.n_flat),
+        tie_group_map=None,
+        multi_state_strategy_idx=jnp.int32(0),
+        state_weights=None,
+        state_mapping=None,
+        bias_flat=bias_flat,
+        inference=True,
+        logit_transform_fn=logit_transform_fn,
+    )
 
-    Accepts SamplingInputs as a single pytree operand.
-    """
-    # Unpack SamplingInputs, call the autoregressive sampling branch.
-    ...
+def sample(
+    self,
+    prng_key: PRNGKeyArray,
+    inputs: SamplingInputs,
+    *,
+    fns: PipelineFns,
+) -> tuple[OneHotProteinSequence, Logits]:
+    """Pytree-based autoregressive sampling. Replaces sample_autoregressive_from_payload."""
+    # Read the inner sample_autoregressive_state_vmap_exact signature (mpnn.py:974)
+    # to confirm the exact positional arg order before unpacking. Key mappings:
+    #   autoregressive_mask_stack  ← inputs.conditioning.ar_mask
+    #   tie_group_map_stack        ← inputs.state_stack.tie_group_map_stack
+    #   bias_stack                 ← inputs.conditioning.bias
+    #   temperature                ← jnp.asarray(1.0) (captured in LogitTransformFn post-D)
+    #   fixed_mask_stack           ← inputs.state_stack.fixed_mask_stack
+    #   fixed_tokens_stack         ← inputs.conditioning.fixed_tokens
+    #   wave_group_ids_local       ← inputs.wave_parallel.wave_group_ids
+    #   wave_group_positions_local ← inputs.wave_parallel.wave_group_positions
+    #   wave_group_valid_local     ← inputs.wave_parallel.wave_group_valid
+    #   wave_position_valid_local  ← inputs.wave_parallel.wave_position_valid
+    # Read sample_autoregressive_state_vmap_exact (line 974) for exact parameter list.
+    # DO NOT guess — read the method first with grep or Read.
+    raise NotImplementedError("implement after reading sample_autoregressive_state_vmap_exact")
 ```
 
-- [ ] **Step A.2.3: Verify parity — forward_score() matches __call__ scoring path**
+**Important:** Before implementing `sample`, read the exact parameter list of
+`sample_autoregressive_state_vmap_exact` (line 974 of mpnn.py) with:
+
+```bash
+grep -n "def sample_autoregressive_state_vmap_exact" src/prxteinmpnn/model/mpnn.py
+```
+
+Then read lines 974–1020 to get the exact signature. Fill in the `NotImplementedError` body.
+
+- [ ] **Step A.2.3: Migrate callers before deleting old methods**
+
+**Migrate `pipeline/unconditional.py`:** Change line 46 from
+`module.score_unconditional_from_payload(...)` to `module.score_unconditional(prng_key, inputs, fns=fns)`.
+First check what `inputs` object the pipeline has — it may need to build a `SamplingInputs` from
+its existing args. Read the full `UnconditionalPipeline.__call__` method (lines 1–60) before editing.
+
+**Migrate `pipeline/conditional.py`:** Same — change line 56. Read `ConditionalPipeline.__call__`
+before editing.
+
+**Migrate `pipeline/autoregressive.py`:** Change line 54. The `AutoregressivePipeline.__call__`
+has `inputs: AutoregressiveInputs(stack, wave, autoregressive_mask_stack, bias_stack)`. Build
+`SamplingInputs` from those fields:
+```python
+from prxteinmpnn.model_inputs import SamplingInputs, BackboneGeometry, ConditioningFeatures
+sampling_inputs = SamplingInputs(
+    backbone=BackboneGeometry(
+        coords=inputs.stack.coords_stack,
+        mask=inputs.stack.mask_stack,
+        residue_index=inputs.stack.residue_index_stack,
+        chain_index=inputs.stack.chain_index_stack,
+    ),
+    state_stack=inputs.stack,
+    wave_parallel=inputs.wave,
+    conditioning=ConditioningFeatures(
+        fixed_tokens=inputs.stack.fixed_tokens_stack,
+        bias=inputs.bias_stack,
+        ar_mask=inputs.autoregressive_mask_stack,
+    ),
+)
+sequences, logits = module.sample(prng_key, sampling_inputs, fns=fns)
+```
+
+**Migrate `scoring/score.py`:** Read lines 100–175 to understand current calling convention.
+Replace the call to `score_*_state_vmap_exact(...)` or `score_*_from_payload(...)` with
+a `SamplingInputs` construction + call to `model.score_unconditional()` or `model.score_conditional()`.
+
+**Migrate `sampling/sample.py`:** Read lines 575–640. Replace the call to
+`sample_autoregressive_state_vmap_exact(...)` or `sample_*_from_payload(...)` with a
+`SamplingInputs` construction + call to `model.sample()`.
+
+After all migrations, verify no remaining references to the old methods in any Python file:
+
+```bash
+grep -rn "score_unconditional_from_payload\|score_unconditional_state_vmap_exact_from_payload\|score_conditional_from_payload\|score_conditional_state_vmap_exact_from_payload\|sample_autoregressive_from_payload\|sample_autoregressive_state_vmap_exact_from_payload" \
+  src/ tests/ scripts/ 2>/dev/null
+```
+
+Expected: zero matches.
+
+- [ ] **Step A.2.4: Delete the old methods from mpnn.py**
+
+Only after A.2.3 grep confirms zero callers. Delete (in order, to avoid forward references):
+1. `score_conditional_from_payload` (lines 1375–1388 approx)
+2. `score_conditional_state_vmap_exact_from_payload` (lines 1329–1373 approx)
+3. `score_unconditional_from_payload` (lines 1208–1221 approx)
+4. `score_unconditional_state_vmap_exact_from_payload` (lines 1168–1207 approx)
+5. `sample_autoregressive_from_payload` (lines 1064–1077 approx)
+6. `sample_autoregressive_state_vmap_exact_from_payload` (lines 1021–1062 approx)
+
+Confirm line numbers with `grep -n "_from_payload" src/prxteinmpnn/model/mpnn.py` before editing.
+
+- [ ] **Step A.2.5: Verify deletion with grep**
+
+```bash
+grep -n "_from_payload\|\\*args.*Any\|\\*\\*kwargs.*Any" src/prxteinmpnn/model/mpnn.py
+```
+
+Expected: zero matches (the new concrete methods do not use `*args` or `**kwargs`).
+
+- [ ] **Step A.2.6: Write parity test comparing new method vs. inner method**
+
+The inner method `score_unconditional_state_vmap_exact` (line 1079) stays unchanged; the new
+`score_unconditional` delegates to it. Compare them directly:
 
 ```python
 # in tests/test_sprint_modelinputs.py
-def test_forward_score_parity_with_call():
-    """forward_score() and __call__ must produce identical logits on same input."""
+def test_score_unconditional_parity_with_inner():
+    """score_unconditional() must produce identical logits to score_unconditional_state_vmap_exact()."""
     import jax
     import jax.numpy as jnp
-    import equinox as eqx
     from prxteinmpnn.model.mpnn import PrxteinMPNN
     from prxteinmpnn.model_inputs import SamplingInputs, BackboneGeometry, ConditioningFeatures
-    from prxteinmpnn.payloads import MultistateStackPayload, WaveParallelPayload
     from prxteinmpnn.pipeline_fns import PipelineFns
-    from tests.pipeline.test_autoregressive import _make_stack_and_wave  # reuse fixture
+    from prxteinmpnn.pipeline_registry import resolve_hook
+    from tests.pipeline.test_autoregressive import _make_stack_and_wave
 
     S, L, D, k = 2, 6, 16, 4
     key = jax.random.PRNGKey(0)
@@ -1245,8 +1490,6 @@ def test_forward_score_parity_with_call():
         residue_index=jnp.arange(L, dtype=jnp.int32)[None].repeat(S, axis=0),
         chain_index=jnp.zeros((S, L), dtype=jnp.int32),
     )
-    # ConditioningFeatures fields: fixed_tokens (Int), bias (Float), ar_mask (Float)
-    # (see src/prxteinmpnn/model_inputs.py:33-38)
     cond = ConditioningFeatures(
         fixed_tokens=jnp.zeros((S, L), dtype=jnp.int32),
         bias=jnp.zeros((S, L, 21)),
@@ -1255,58 +1498,222 @@ def test_forward_score_parity_with_call():
     inputs = SamplingInputs(backbone=backbone, state_stack=stack, wave_parallel=wave, conditioning=cond)
     fns = PipelineFns.default()
 
-    logits_new = m.forward_score(inputs, fns=fns)
-    # __call__ equivalent — pass same data via the positional interface
-    logits_old = m.score_unconditional_from_payload(key, backbone, fns=fns)
+    # New pytree-based method
+    logits_new = m.score_unconditional(key, inputs, fns=fns)
 
-    assert jnp.allclose(logits_new, logits_old, atol=1e-5), (
-        "forward_score and __call__ scoring path must produce identical logits"
+    # Inner method — stays unchanged, concrete *-separated signature.
+    # Post-D.2a: multi_state_temperature is removed from this signature.
+    logit_transform_fn = resolve_hook(fns.logit_transform_uid)
+    logits_inner = m.score_unconditional_state_vmap_exact(
+        key,
+        stack.coords_stack,
+        stack.mask_stack,
+        stack.residue_index_stack,
+        stack.chain_index_stack,
+        stack.state_flat_rows,
+        int(stack.n_flat),
+        tie_group_map=None,
+        multi_state_strategy_idx=jnp.int32(0),
+        state_weights=None,
+        state_mapping=None,
+        inference=True,
+        logit_transform_fn=logit_transform_fn,
+    )
+
+    assert jnp.allclose(logits_new, logits_inner, atol=1e-5), (
+        "score_unconditional() must delegate to score_unconditional_state_vmap_exact() identically"
     )
 ```
 
-- [ ] **Step A.2.4: Run tests**
+Run:
 
 ```bash
-uv run pytest tests/test_sprint_modelinputs.py -k "forward" -xvs
+uv run pytest tests/test_sprint_modelinputs.py::test_score_unconditional_parity_with_inner -xvs
 ```
 
 Expected: PASS.
 
-- [ ] **Step A.2.5: Run full regression suite**
+- [ ] **Step A.2.7: Run deletion-guard test to confirm old methods are gone**
+
+```bash
+uv run pytest tests/test_sprint_modelinputs.py::test_prxtein_mpnn_new_api_replaces_old -xvs
+```
+
+Expected: PASS (old methods gone, new methods present).
+
+- [ ] **Step A.2.8: Run full regression suite**
 
 ```bash
 PYTHONPATH=src uv run pytest tests/ -q --tb=short
 ```
 
-Expected: No new failures.
+Expected: No failures (pipeline tests, sampling tests, model tests all pass with new methods).
 
-- [ ] **Step A.2.6: Commit**
+- [ ] **Step A.2.9: Add VAR_KEYWORD regression guard**
+
+```python
+# in tests/test_sprint_modelinputs.py
+def test_no_var_keyword_at_public_model_methods():
+    """PrxteinMPNN public methods must never use **kwargs (breaks jax.export).
+    * keyword-only marker is fine; only VAR_KEYWORD (**) is forbidden.
+    """
+    import inspect
+    from prxteinmpnn.model.mpnn import PrxteinMPNN
+    import jax
+
+    m = PrxteinMPNN(16, 16, 16, 1, 1, 6, key=jax.random.PRNGKey(0))
+    public_methods = ["score_unconditional", "score_conditional", "sample"]
+    for name in public_methods:
+        method = getattr(m, name)
+        sig = inspect.signature(method)
+        var_kw = [
+            p for p in sig.parameters.values()
+            if p.kind == inspect.Parameter.VAR_KEYWORD
+        ]
+        assert not var_kw, (
+            f"PrxteinMPNN.{name} has **kwargs (VAR_KEYWORD) — forbidden at public API. "
+            f"Found: {var_kw}"
+        )
+```
 
 ```bash
-git add src/prxteinmpnn/model/mpnn.py tests/test_sprint_modelinputs.py
-git commit -m "feat(A.2): add PrxteinMPNN.forward_score and forward_sample additive entry points"
+uv run pytest tests/test_sprint_modelinputs.py::test_no_var_keyword_at_public_model_methods -xvs
+```
+
+Expected: PASS.
+
+- [ ] **Step A.2.10: Commit**
+
+```bash
+git add \
+  src/prxteinmpnn/model/mpnn.py \
+  src/prxteinmpnn/pipeline/unconditional.py \
+  src/prxteinmpnn/pipeline/conditional.py \
+  src/prxteinmpnn/pipeline/autoregressive.py \
+  src/prxteinmpnn/scoring/score.py \
+  src/prxteinmpnn/sampling/sample.py \
+  tests/test_sprint_modelinputs.py
+git commit -m "refactor(A.2): replace *_from_payload/*args/**kwargs aliases with pytree-based score_unconditional/score_conditional/sample"
 ```
 
 ---
 
-### Task A.3 — Add `LigandMPNN.forward_score` and `forward_sample`
+### Task A.3 — Same replacement for `PrxteinLigandMPNN` + update C.3.3 test
 
 **Files:**
 - Modify: `src/prxteinmpnn/model/ligand_mpnn.py`
+- Modify: `tests/test_sprint_modelinputs.py` (update C.3.3 test from old API to new)
 
-Apply the same additive pattern as A.2 for `LigandMPNN`. Embed `LigandSamplingInputs` and
-extract the `ligand_stack` field to pass to the ligand encoder.
+Apply the same deletion-and-replacement pattern as A.2 for `PrxteinLigandMPNN`. The class is
+`PrxteinLigandMPNN` (not `LigandMPNN` — confirmed in prior audit rounds).
 
-- [ ] **Step A.3.1: Write test and implement similarly to A.2**
+**Deletion list (ligand_mpnn.py):** use the same grep pattern to find all `_from_payload` and
+`*args/**kwargs` methods in `ligand_mpnn.py`:
 
-Follow the same pattern: test for `hasattr(m, "forward_score")`, test parity with `__call__`,
-commit.
+```bash
+grep -n "_from_payload\|\*args.*Any\|\*\*kwargs.*Any" src/prxteinmpnn/model/ligand_mpnn.py
+```
 
-- [ ] **Step A.3.2: Commit**
+Delete all found methods after migrating their callers.
+
+**New methods:** `score_unconditional`, `score_conditional`, `sample` accepting `LigandSamplingInputs`.
+The unpack pattern is the same as A.2 but additionally unpacks `inputs.ligand_stack` and passes
+`y_stack=inputs.ligand_stack.y_stack`, `y_t_stack=inputs.ligand_stack.y_t_stack`,
+`y_m_stack=inputs.ligand_stack.y_m_stack` to the inner ligand method.
+
+- [ ] **Step A.3.1: Write deletion-guard and existence test for PrxteinLigandMPNN**
+
+```python
+# in tests/test_sprint_modelinputs.py
+def test_prxtein_ligand_mpnn_new_api_replaces_old():
+    """Old *_from_payload / *args/**kwargs methods must be gone from PrxteinLigandMPNN."""
+    import jax
+    from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
+
+    key = jax.random.PRNGKey(0)
+    m = PrxteinLigandMPNN(16, 16, 16, 1, 1, 6, key=key)
+
+    # Discover all _from_payload methods by reading ligand_mpnn.py before implementing.
+    # This test asserts none remain after deletion.
+    for name in dir(m):
+        assert "_from_payload" not in name, (
+            f"PrxteinLigandMPNN.{name} is a *_from_payload alias — must be deleted in PR-4"
+        )
+
+    new_methods = ["score_unconditional", "score_conditional", "sample"]
+    for name in new_methods:
+        assert hasattr(m, name), f"PrxteinLigandMPNN.{name} must exist after PR-4"
+```
+
+- [ ] **Step A.3.2: Update C.3.3 test to use new API**
+
+Task C.3.3 (already committed by Sprint C) wrote:
+```python
+m.score_unconditional_state_vmap_exact_from_payload(key, stack, ligand_stack, ...)
+```
+That method is now deleted. Update the test to call the new API:
+
+```python
+# Replace the m.score_unconditional_state_vmap_exact_from_payload(...) call with:
+from prxteinmpnn.model_inputs import LigandSamplingInputs, BackboneGeometry, ConditioningFeatures
+ligand_inputs = LigandSamplingInputs(
+    backbone=BackboneGeometry(
+        coords=stack.coords_stack,
+        mask=stack.mask_stack,
+        residue_index=stack.residue_index_stack,
+        chain_index=stack.chain_index_stack,
+    ),
+    state_stack=stack,
+    wave_parallel=wave,   # use the wave from _make_stack_and_wave (discard _ if needed)
+    conditioning=ConditioningFeatures(
+        fixed_tokens=stack.fixed_tokens_stack,
+        bias=jnp.zeros((S, L, 21)),
+        ar_mask=jnp.zeros((S, L, L)),
+    ),
+    ligand_stack=ligand_stack,
+)
+m.score_unconditional(key, ligand_inputs, fns=fns)
+```
+
+Note: `_make_stack_and_wave` in `tests/pipeline/test_autoregressive.py` returns `(stack, wave)`.
+The C.3.3 test used `stack, _ = _make_stack_and_wave(...)` — change `_` to `wave` so the
+`WaveParallelPayload` is available for `LigandSamplingInputs.wave_parallel`.
+
+- [ ] **Step A.3.3: Implement ligand deletion + replacement**
+
+Read `ligand_mpnn.py` to find all `_from_payload` and `*args/**kwargs` methods. Apply the same
+migrate-callers-first, then-delete pattern. The ligand callers are:
+- Any pipeline class that calls ligand `_from_payload` methods
+- `scoring/score.py` ligand path (if it calls ligand-specific methods)
+- `sampling/sample.py` ligand path
+
+Grep to find them:
+```bash
+grep -rn "PrxteinLigandMPNN\|score_.*from_payload\|sample_.*from_payload" \
+  src/prxteinmpnn/pipeline/ src/prxteinmpnn/scoring/ src/prxteinmpnn/sampling/ 2>/dev/null
+```
+
+- [ ] **Step A.3.4: Run deletion-guard test**
+
+```bash
+uv run pytest tests/test_sprint_modelinputs.py::test_prxtein_ligand_mpnn_new_api_replaces_old -xvs
+```
+
+Expected: PASS.
+
+- [ ] **Step A.3.5: Run full regression suite**
+
+```bash
+PYTHONPATH=src uv run pytest tests/ -q --tb=short
+```
+
+Expected: No failures.
+
+- [ ] **Step A.3.6: Commit**
 
 ```bash
 git add src/prxteinmpnn/model/ligand_mpnn.py tests/test_sprint_modelinputs.py
-git commit -m "feat(A.3): add LigandMPNN.forward_score and forward_sample entry points"
+git commit -m "refactor(A.3): replace ligand *_from_payload aliases with pytree-based API; update C.3.3 test"
 ```
 
 ---
@@ -1315,10 +1722,14 @@ git commit -m "feat(A.3): add LigandMPNN.forward_score and forward_sample entry 
 
 ---
 
-### Task B.1 — Smoke-test jax.export on forward_score()
+### Task B.1 — Smoke-test jax.export on score_unconditional()
 
 **Files:**
 - Test: `tests/test_sprint_modelinputs.py`
+
+**Note on `*` and export:** `*` (keyword-only marker) is export-safe — confirmed by oracle and
+primary source at `mpnn.py:1088`. `def score_unconditional(self, prng_key, inputs, *, fns)` exports
+cleanly. Only `**kwargs` variadic capture breaks `jax.export`.
 
 - [ ] **Step B.1.1: Write jax.export smoke test**
 
@@ -1328,7 +1739,7 @@ import pytest
 
 @pytest.mark.slow
 def test_jax_export_sampling_inputs_smoke():
-    """jax.export must accept forward_score() with SamplingInputs without raising."""
+    """jax.export must accept score_unconditional() with SamplingInputs without raising."""
     import jax
     import jax.numpy as jnp
     import equinox as eqx
@@ -1349,7 +1760,6 @@ def test_jax_export_sampling_inputs_smoke():
         residue_index=jnp.arange(L, dtype=jnp.int32)[None].repeat(S, axis=0),
         chain_index=jnp.zeros((S, L), dtype=jnp.int32),
     )
-    # ConditioningFeatures fields: fixed_tokens (Int), bias (Float), ar_mask (Float)
     cond = ConditioningFeatures(
         fixed_tokens=jnp.zeros((S, L), dtype=jnp.int32),
         bias=jnp.zeros((S, L, 21)),
@@ -1357,8 +1767,9 @@ def test_jax_export_sampling_inputs_smoke():
     )
     inputs = SamplingInputs(backbone=backbone, state_stack=stack, wave_parallel=wave, conditioning=cond)
 
-    jitted = eqx.filter_jit(m.forward_score)
-    exported = jax.export.export(jitted)(inputs, fns=fns)
+    # score_unconditional uses * for fns — this is export-safe (see sprint A header note)
+    jitted = eqx.filter_jit(m.score_unconditional)
+    exported = jax.export.export(jitted)(key, inputs, fns=fns)
     assert exported is not None
 ```
 
@@ -1374,7 +1785,7 @@ Expected: PASS (no XLA compilation error).
 
 ```bash
 git add tests/test_sprint_modelinputs.py
-git commit -m "test(B.1): jax.export smoke test for PrxteinMPNN.forward_score(SamplingInputs)"
+git commit -m "test(B.1): jax.export smoke test for PrxteinMPNN.score_unconditional(SamplingInputs)"
 ```
 
 ---

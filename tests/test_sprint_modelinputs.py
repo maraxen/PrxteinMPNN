@@ -26,6 +26,16 @@ def test_make_geometric_mean_transform_cache_idempotent():
     assert fn_a is fn_b, "Same temperature must return the same cached closure"
 
 
+def test_geometric_mean_transform_temperature_effect():
+    state_logits = jnp.array([[0.0, 1.0, -1.0], [0.0, -1.0, 1.0]])
+    fn_hot = make_geometric_mean_transform(2.0)
+    fn_cold = make_geometric_mean_transform(0.5)
+    out_hot = fn_hot(state_logits, None, None)
+    out_cold = fn_cold(state_logits, None, None)
+    # cold (T=0.5) should produce 4x the magnitude of hot (T=2.0)
+    assert jnp.allclose(out_cold, 4.0 * out_hot, atol=1e-5)
+
+
 def test_mpnn_score_unconditional_no_temperature_param():
     import inspect
     import jax

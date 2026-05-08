@@ -6,7 +6,7 @@ these symbols for backwards-compatible ``from prxteinmpnn.model.mpnn import …`
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import equinox as eqx
 import jax
@@ -1098,6 +1098,7 @@ class PrxteinLigandMPNN(eqx.Module):
     bias_flat: jax.Array | None = None,
     inference: bool = True,
     states_chunk_size: int | None = None,
+    logit_transform_fn: Any | None = None,
   ) -> Logits:
     """LigandMPNN stacked conditional logits; optional ``bias_flat`` added before fuse."""
     from prxteinmpnn.model.mpnn_scoring_state_vmap_exact_ligand import (  # noqa: PLC0415
@@ -1126,6 +1127,7 @@ class PrxteinLigandMPNN(eqx.Module):
       bias_flat=bias_flat,
       inference=inference,
       states_chunk_size=states_chunk_size,
+      logit_transform_fn=logit_transform_fn,
     )
 
   def score_conditional_state_vmap_exact_from_payload(
@@ -1144,6 +1146,7 @@ class PrxteinLigandMPNN(eqx.Module):
     bias_flat: jax.Array | None = None,
     inference: bool = True,
     states_chunk_size: int | None = None,
+    logit_transform_fn: Any | None = None,
   ) -> Logits:
     """Same as :meth:`score_conditional_state_vmap_exact` with ``stack`` + :class:`~prxteinmpnn.payloads.LigandStack`."""
     return self.score_conditional_state_vmap_exact(
@@ -1167,6 +1170,7 @@ class PrxteinLigandMPNN(eqx.Module):
       bias_flat=bias_flat,
       inference=inference,
       states_chunk_size=states_chunk_size,
+      logit_transform_fn=logit_transform_fn,
     )
 
   def sample_autoregressive_state_vmap_exact(

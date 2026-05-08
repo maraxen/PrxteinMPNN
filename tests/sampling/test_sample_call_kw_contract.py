@@ -8,7 +8,8 @@ from prxteinmpnn.model.capabilities import (
   PRXTEIN_LIGAND_MPNN_CAPABILITIES,
   PRXTEIN_MPNN_CAPABILITIES,
 )
-from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
+from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
+from prxteinmpnn.model.mpnn import PrxteinMPNN
 from prxteinmpnn.sampling.sample import make_sample_sequences
 
 # Keyword / positional-or-keyword names accepted by ``PrxteinMPNN.__call__`` (excluding ``self``).

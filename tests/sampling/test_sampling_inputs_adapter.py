@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import pytest
 
 from prxteinmpnn.model_inputs import SamplingInputs, SamplingStaticConfig
-from prxteinmpnn.run.decode_registry import DEFAULT_DECODE_FN_UID
+from prxteinmpnn.run.decode_registry import DEFAULT_DECODE_FN_UID, register_decode_fn, resolve_decode_fn
 from prxteinmpnn.run.specs import SamplingSpecification
 from prxteinmpnn.sampling.sample import make_sampling_inputs_from_spec, make_static_config_from_spec
 
@@ -114,3 +114,17 @@ def test_state_index_and_embedding_filled():
   assert ms.state_index.shape == (S,)
   assert jnp.array_equal(ms.state_index, jnp.arange(S, dtype=jnp.int32))
   assert ms.state_embedding.shape == (S, 1)
+
+
+def test_make_static_config_batch_fn_uid_matches_registry():
+  """batch_fn resolved from spec.decode_fn matches what's in the registry."""
+  def my_fn(logits_stack, state_index, state_weights):
+    return jnp.mean(logits_stack, axis=0)
+
+  uid = register_decode_fn(my_fn, name="test_fn")
+  resolved = resolve_decode_fn(uid)
+  assert resolved is my_fn
+
+  spec = _spec(decode_fn=my_fn)
+  cfg = make_static_config_from_spec(spec)
+  assert cfg.decode_fn_uid == uid

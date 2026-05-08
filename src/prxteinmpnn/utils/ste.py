@@ -44,6 +44,7 @@ def gumbel_softmax(
   logits: Logits,
   tau: jnp.ndarray,
   key: PRNGKeyArray,
+  *,
   hard: bool = True,
 ) -> jnp.ndarray:
   """Concrete distribution relaxation of argmax (Gumbel-softmax).

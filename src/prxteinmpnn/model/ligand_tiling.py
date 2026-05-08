@@ -59,28 +59,28 @@ def map_chunks_axis0(
 
   def start_idx(ax0_off: jax.Array | int) -> tuple[jax.Array | int, ...]:
     tail = tuple(0 for _ in range(nd - 1))
-    return (ax0_off,) + tail
+    return (ax0_off, *tail)
 
   tmpl = jax.eval_shape(
     fn,
-    jax.lax.dynamic_slice(y_ext, start_idx(0), (cs,) + rest_dims),
+    jax.lax.dynamic_slice(y_ext, start_idx(0), (cs, *rest_dims)),
   )
 
-  buf = jnp.zeros((y_ext.shape[0],) + tmpl.shape[1:], dtype=tmpl.dtype)
+  buf = jnp.zeros((y_ext.shape[0], *tmpl.shape[1:]), dtype=tmpl.dtype)
   zstart = lambda rank: tuple(0 for _ in range(rank - 1))
 
   def body(ii: jax.Array, acc: jax.Array) -> jax.Array:
     start = ii * cs
-    slc = jax.lax.dynamic_slice(y_ext, start_idx(start), (cs,) + rest_dims)
+    slc = jax.lax.dynamic_slice(y_ext, start_idx(start), (cs, *rest_dims))
     out_slab = fn(slc)
-    return jax.lax.dynamic_update_slice(acc, out_slab, (start,) + zstart(tmpl.ndim))
+    return jax.lax.dynamic_update_slice(acc, out_slab, (start, *zstart(tmpl.ndim)))
 
   n_chunks_i32 = jnp.maximum(
     jnp.int32(0),
     (jnp.asarray(L, dtype=jnp.int32) + jnp.int32(cs) - jnp.int32(1)) // jnp.int32(cs),
   )
   filled = jax.lax.fori_loop(jnp.int32(0), n_chunks_i32, body, buf)
-  slice_sizes = (L,) + tmpl.shape[1:]
+  slice_sizes = (L, *tmpl.shape[1:])
   slice_zeros = tuple(0 for _ in range(tmpl.ndim))
   return jax.lax.dynamic_slice(filled, slice_zeros, slice_sizes)
 
@@ -119,7 +119,7 @@ def map_chunks_axis0_multi(
     jax.lax.dynamic_slice(
       ap,
       (0,) + (0,) * (ap.ndim - 1),
-      (cs,) + tuple(ap.shape[d] for d in range(1, ap.ndim)),
+      (cs, *tuple(ap.shape[d] for d in range(1, ap.ndim))),
     )
     for ap in arrays_ext
   )
@@ -128,7 +128,7 @@ def map_chunks_axis0_multi(
 
   Lex = arrays_ext[0].shape[0]
   out_bufs = tuple(
-    jnp.zeros((Lex,) + tuple(sh.shape[d] for d in range(1, sh.ndim)), dtype=sh.dtype) for sh in outs_tpl
+    jnp.zeros((Lex, *tuple(sh.shape[d] for d in range(1, sh.ndim))), dtype=sh.dtype) for sh in outs_tpl
   )
 
   def zstart(rank: int) -> tuple[int, ...]:
@@ -140,13 +140,13 @@ def map_chunks_axis0_multi(
       jax.lax.dynamic_slice(
         ap,
         (start,) + (0,) * (ap.ndim - 1),
-        (cs,) + tuple(ap.shape[d] for d in range(1, ap.ndim)),
+        (cs, *tuple(ap.shape[d] for d in range(1, ap.ndim))),
       )
       for ap in arrays_ext
     )
     out_slabs = fn(*slabs_in)
     return tuple(
-      jax.lax.dynamic_update_slice(buf, osl, (start,) + zstart(osl.ndim))
+      jax.lax.dynamic_update_slice(buf, osl, (start, *zstart(osl.ndim)))
       for buf, osl in zip(acc, out_slabs, strict=True)
     )
 
@@ -160,7 +160,7 @@ def map_chunks_axis0_multi(
     jax.lax.dynamic_slice(
       buf,
       (0,) + (0,) * (buf.ndim - 1),
-      (L_ax,) + tuple(buf.shape[d] for d in range(1, buf.ndim)),
+      (L_ax, *tuple(buf.shape[d] for d in range(1, buf.ndim))),
     )
     for buf in filled
   )

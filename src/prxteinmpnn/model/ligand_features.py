@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from prxteinmpnn.model.ligand_tiling import map_chunks_axis0
 
@@ -154,9 +155,9 @@ class ProteinFeaturesLigand(eqx.Module):
         k_neighbors: int,
         atom_context_num: int = 16,
         num_positional_embeddings: int = 16,
-        use_side_chains: bool = False,
         ligand_l_chunk: int = 16,
         *,
+        use_side_chains: bool = False,
         key: PRNGKeyArray,
     ) -> None:
         keys = jax.random.split(key, 8)
@@ -188,7 +189,6 @@ class ProteinFeaturesLigand(eqx.Module):
         # 0: Atomic Number (0-119)
         # 1: Group (19 categories)
         # 2: Period (8 categories)
-        import numpy as np
         self.periodic_table_features = jnp.array(np.array([
             np.arange(119),
             np.array([0, 1, 18, 1, 2, 13, 14, 15, 16, 17, 18, 1, 2, 13, 14, 15, 16, 17, 18, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]),
@@ -201,7 +201,7 @@ class ProteinFeaturesLigand(eqx.Module):
 
     def __call__(
         self,
-        key: PRNGKeyArray,
+        _key: PRNGKeyArray,
         structure_coordinates: StructureAtomicCoordinates,
         mask: AlphaCarbonMask,
         residue_index: ResidueIndex,
@@ -209,7 +209,7 @@ class ProteinFeaturesLigand(eqx.Module):
         Y: jnp.ndarray,    # Ligand coords [L, M, 3]
         Y_t: jnp.ndarray,  # Ligand types [L, M]
         Y_m: jnp.ndarray,  # Ligand mask [L, M]
-        backbone_noise: float = 0.0,
+        _backbone_noise: float = 0.0,
         structure_mapping: jnp.ndarray | None = None,
         *,
         xyz_37: jnp.ndarray | None = None,

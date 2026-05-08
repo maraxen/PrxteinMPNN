@@ -128,6 +128,7 @@ def _compute_states_batches(
         *inference_args,
         *static_args,
       )
+      # TODO(phase5f-followup): add tensor io_callback here if conformational inference D2H streaming is needed.
       StreamingBatchHost.sink_barrier()
 
       logits, node_features, edge_features = batch_states

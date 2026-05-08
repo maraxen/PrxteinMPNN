@@ -12,6 +12,7 @@ import jax.nn.initializers as init
 import zstandard as zstd
 
 from prxteinmpnn.model import PrxteinLigandMPNN, PrxteinMPNN
+from prxteinmpnn.model.diffusion_mpnn import DiffusionPrxteinMPNN
 from prxteinmpnn.model.packer import Packer
 
 MODEL_WEIGHTS = Literal["original", "soluble", "ligand", "sc", "membrane"]
@@ -238,7 +239,6 @@ def load_model(
       key=key,
     )
   elif training_mode == "diffusion":
-    from prxteinmpnn.model.diffusion_mpnn import DiffusionPrxteinMPNN
     skeleton = DiffusionPrxteinMPNN(
       node_features=NODE_FEATURES,
       edge_features=EDGE_FEATURES,

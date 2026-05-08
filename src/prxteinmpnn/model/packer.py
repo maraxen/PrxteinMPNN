@@ -107,11 +107,11 @@ class PackerProteinFeatures(eqx.Module):
         num_positional_embeddings: int = 16,
         num_rbf: int = 16,
         top_k: int = 30,
-        atom37_order: bool = False,
         atom_context_num: int = 16,
         lower_bound: float = 0.0,
         upper_bound: float = 20.0,
         *,
+        atom37_order: bool = False,
         key: PRNGKeyArray,
     ):
         self.top_k = top_k
@@ -387,7 +387,6 @@ class Packer(eqx.Module):
         num_positional_embeddings: int = 16,
         num_rbf: int = 16,
         top_k: int = 30,
-        atom37_order: bool = False,
         atom_context_num: int = 16,
         hidden_dim: int = 128,
         num_encoder_layers: int = 3,
@@ -395,6 +394,7 @@ class Packer(eqx.Module):
         dropout: float = 0.1,
         num_mix: int = 3,
         *,
+        atom37_order: bool = False,
         key: PRNGKeyArray,
     ):
         self.num_mix = num_mix

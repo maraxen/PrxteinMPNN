@@ -275,6 +275,7 @@ def _compute_batch_outputs(
         spec,
         conditional_logits_fn,
       )
+      # TODO(phase5f-followup): add tensor io_callback here if jacobian D2H streaming is needed.
       StreamingBatchHost.sink_barrier()
 
       yield jacobians_batch, batched_ensemble.one_hot_sequence
@@ -363,7 +364,7 @@ def _categorical_jacobian_in_memory(
   protein_iterator: IterDataset,
   conditional_logits_fn: Any,  # noqa: ANN401
   encode_fn: Callable | None,
-  decode_fn: Callable | None,
+  _decode_fn: Callable | None,
 ) -> dict[str, Any]:
   """Compute Jacobians and store them in memory."""
   output_generator = _compute_batch_outputs(
@@ -374,7 +375,7 @@ def _categorical_jacobian_in_memory(
   )
 
   if spec.average_encodings:
-    if encode_fn is None or decode_fn is None:
+    if encode_fn is None or _decode_fn is None:
       msg = "encode_fn and decode_fn must be provided for average_encodings mode"
       raise ValueError(msg)
 
@@ -435,7 +436,7 @@ def _categorical_jacobian_in_memory(
           m: jax.Array,
           ar_m: jax.Array,
         ) -> jax.Array:
-          return decode_fn(
+          return _decode_fn(
             (averaged_node, averaged_edge, n_idx, m, ar_m),
             one_hot_2d,
             None,
@@ -533,13 +534,13 @@ def _compute_and_write_jacobians_streaming(
   protein_iterator: IterDataset,
   conditional_logits_fn: ConditionalLogitsFn | None,
   encode_fn: Callable | None,
-  decode_fn: Callable | None,
+  _decode_fn: Callable | None,
   spec_hash: str,
 ) -> None:
   """Compute Jacobians and stream them to a group in an HDF5 file."""
   group = f.require_group(spec_hash)
 
-  if spec.average_encodings and (encode_fn is None or decode_fn is None):
+  if spec.average_encodings and (encode_fn is None or _decode_fn is None):
     msg = "encode_fn and decode_fn must be provided for average_encodings mode"
     raise ValueError(msg)
 
@@ -617,7 +618,7 @@ def _categorical_jacobian_streaming(
   protein_iterator: IterDataset,
   conditional_logits_fn: ConditionalLogitsFn | None,
   encode_fn: Callable | None,
-  decode_fn: Callable | None,
+  _decode_fn: Callable | None,
   spec_hash: str,
 ) -> dict[str, Any]:
   """Compute Jacobians and stream them to a group in an HDF5 file."""
@@ -632,7 +633,7 @@ def _categorical_jacobian_streaming(
       protein_iterator,
       conditional_logits_fn,
       encode_fn,
-      decode_fn,
+      _decode_fn,
       spec_hash,
     )
 

@@ -179,8 +179,8 @@ class DecoderLayer(eqx.Module):
     mask: AlphaCarbonMask,
     scale: float = 30.0,
     attention_mask: Array | None = None,
-    inference: bool = False,
     *,
+    inference: bool = False,
     key: PRNGKeyArray | None = None,
   ) -> NodeFeatures:
     """Forward pass for the decoder layer."""
@@ -263,8 +263,8 @@ class DecoderLayerJ(eqx.Module):
         h_e: EdgeFeatures,
         mask_v: AlphaCarbonMask | None = None,
         mask_attend: Array | None = None,
-        inference: bool = False,
         *,
+        inference: bool = False,
         key: PRNGKeyArray | None = None,
     ) -> NodeFeatures:
         if key is None:
@@ -276,7 +276,7 @@ class DecoderLayerJ(eqx.Module):
 
         # Expand h_v to match h_e for local context
         h_v_expand = jnp.expand_dims(h_v, axis=-2)
-        h_v_expand = jnp.broadcast_to(h_v_expand, h_v_expand.shape[:-2] + (h_e.shape[-2], h_v.shape[-1]))
+        h_v_expand = jnp.broadcast_to(h_v_expand, (*h_v_expand.shape[:-2], h_e.shape[-2], h_v.shape[-1]))
 
         h_ev = jnp.concatenate([h_v_expand, h_e], axis=-1)
 
@@ -424,8 +424,8 @@ class Decoder(eqx.Module):
     ar_mask: AutoRegressiveMask,
     one_hot_sequence: OneHotProteinSequence,
     w_s_weight: jnp.ndarray,  # Sequence embedding weight
-    inference: bool = False,
     *,
+    inference: bool = False,
     key: PRNGKeyArray | None = None,
   ) -> NodeFeatures:
     """Run conditional decoding (scoring).

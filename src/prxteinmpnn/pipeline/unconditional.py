@@ -10,7 +10,7 @@ import jax.numpy as jnp
 
 @dataclasses.dataclass(frozen=True)
 class UnconditionalPipeline:
-  """Wraps score_unconditional_state_vmap_exact_from_payload with PipelineFns hooks.
+  """Wraps score_unconditional_from_payload with PipelineFns hooks.
 
   Inputs:  MultistateStackPayload (stacked backbone geometry)
   Outputs: (logits: (L, V), state_logits: (S, L, V))
@@ -43,7 +43,7 @@ class UnconditionalPipeline:
       return logit_transform_fn(state_logits, state_index, state_weights)
 
     state_weights = jnp.ones(inputs.n_states, dtype=jnp.float32) / inputs.n_states
-    logits = module.score_unconditional_state_vmap_exact_from_payload(
+    logits = module.score_unconditional_from_payload(
       key,
       inputs,
       tie_group_map=None,

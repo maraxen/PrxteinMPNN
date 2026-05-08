@@ -1174,6 +1174,17 @@ class PrxteinLigandMPNN(eqx.Module):
       logit_transform_fn=logit_transform_fn,
     )
 
+  def score_conditional_from_payload(self, *args: Any, **kwargs: Any) -> Any:
+    """Conditional scoring from MultistateStackPayload + LigandStack.
+
+    Clean alias for score_conditional_state_vmap_exact_from_payload.
+    """
+    import warnings  # noqa: PLC0415
+
+    with warnings.catch_warnings():
+      warnings.simplefilter("ignore", DeprecationWarning)
+      return self.score_conditional_state_vmap_exact_from_payload(*args, **kwargs)
+
   def sample_autoregressive_state_vmap_exact(
     self,
     prng_key: PRNGKeyArray,

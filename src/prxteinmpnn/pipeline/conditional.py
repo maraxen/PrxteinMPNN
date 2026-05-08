@@ -25,7 +25,7 @@ class ConditionalInputs(eqx.Module):
 
 @dataclasses.dataclass(frozen=True)
 class ConditionalPipeline:
-  """Wraps score_conditional_state_vmap_exact_from_payload with PipelineFns hooks.
+  """Wraps score_conditional_from_payload with PipelineFns hooks.
 
   Inputs:  ConditionalInputs
   Outputs: (logits: (L, V), state_logits: (S, L, V))
@@ -53,7 +53,7 @@ class ConditionalPipeline:
     S = inputs.stack.n_states
     state_weights = jnp.ones(S, dtype=jnp.float32) / S
 
-    logits = module.score_conditional_state_vmap_exact_from_payload(
+    logits = module.score_conditional_from_payload(
       key,
       inputs.stack,
       seq_oh_stack=inputs.seq_oh_stack,

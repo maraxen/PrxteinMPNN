@@ -155,3 +155,26 @@ def test_encoder_output_is_pytree():
     restored = jax.tree_util.tree_unflatten(treedef, leaves)
     assert restored.node_features.shape == (S, L, D)
     assert restored.mask.shape == (S, L)
+
+
+def test_pipeline_top_level_imports():
+    """All four pipeline types importable from prxteinmpnn.pipeline."""
+    from prxteinmpnn.pipeline import (
+        AutoregressivePipeline,
+        ConditionalPipeline,
+        STEPipeline,
+        UnconditionalPipeline,
+    )
+    assert all(x is not None for x in [
+        AutoregressivePipeline, ConditionalPipeline, STEPipeline, UnconditionalPipeline
+    ])
+
+
+def test_pipeline_input_carriers_top_level():
+    """Input carrier classes importable from prxteinmpnn.pipeline."""
+    from prxteinmpnn.pipeline import (
+        AutoregressiveInputs,
+        ConditionalInputs,
+        STEInputs,
+    )
+    assert all(x is not None for x in [AutoregressiveInputs, ConditionalInputs, STEInputs])

@@ -9,7 +9,13 @@ import jax.numpy as jnp
 from jaxtyping import Float, Int, PRNGKeyArray
 
 from prxteinmpnn.model import PrxteinLigandMPNN, PrxteinMPNN
-from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
+from prxteinmpnn.model_inputs import (
+  BackboneGeometry,
+  ConditioningFeatures,
+  SamplingInputs,
+  SamplingStaticConfig,
+)
+from prxteinmpnn.payloads import LigandStack, MultistateStackPayload, WaveParallelPayload
 from prxteinmpnn.protocols import SamplerFn
 from prxteinmpnn.registry import (
   MULTISTATE_MODE_STATE_VMAP_EXACT,
@@ -17,6 +23,7 @@ from prxteinmpnn.registry import (
   combine_strategy_to_index,
   multistate_mode_descriptor,
 )
+from prxteinmpnn.run.decode_registry import DEFAULT_DECODE_FN_UID, register_decode_fn
 from prxteinmpnn.sampling.state_vmap_prep import multistate_stack_payload_from_loose_ar_host
 from prxteinmpnn.sampling.ste_optimize import make_optimize_sequence_fn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
@@ -127,8 +134,131 @@ def _coerce_loose_to_multistate_stack_host(
     fixed_tokens_stack=fixed_tokens_stack,
     state_flat_rows=state_flat_rows,
     n_canonical=state_vmap_n_canonical,
+    state_index=None,
+    state_embedding=None,
   )
   return (built, None, None, None, None, None, None, None, None)
+
+
+_AMINO_ACID_VOCAB = 21
+
+
+def make_static_config_from_spec(
+  spec: Any,
+  *,
+  decode_fn: Any | None = None,
+) -> SamplingStaticConfig:
+  """Build a :class:`SamplingStaticConfig` from a ``SamplingSpecification``.
+
+  ``decode_fn`` overrides ``spec.decode_fn`` when provided.
+  Registers the fn and stores its UID; falls back to the default arithmetic-mean fn.
+  """
+  fn = decode_fn if decode_fn is not None else getattr(spec, "decode_fn", None)
+  if fn is not None:
+    uid = register_decode_fn(fn)
+  else:
+    uid = DEFAULT_DECODE_FN_UID
+  temperature = spec.temperature
+  if hasattr(temperature, "__iter__"):
+    temperature = float(next(iter(temperature)))
+  return SamplingStaticConfig(
+    decode_fn_uid=uid,
+    n_samples=int(spec.num_samples),
+    temperature=float(temperature),
+    multistate_mode="tied",
+    max_group_size=getattr(spec, "max_group_size", 1),
+  )
+
+
+def make_sampling_inputs_from_spec(
+  spec: Any,
+  coords: jnp.ndarray,
+  mask: jnp.ndarray,
+  residue_index: jnp.ndarray,
+  chain_index: jnp.ndarray,
+  *,
+  multistate_stack: Any | None = None,
+  wave_group_ids: jnp.ndarray | None = None,
+  wave_group_positions: jnp.ndarray | None = None,
+  wave_group_valid: jnp.ndarray | None = None,
+  wave_position_valid: jnp.ndarray | None = None,
+  fixed_tokens: jnp.ndarray | None = None,
+  bias: jnp.ndarray | None = None,
+  ar_mask: jnp.ndarray | None = None,
+) -> SamplingInputs:
+  """Build a :class:`SamplingInputs` pytree from a ``SamplingSpecification`` and raw arrays.
+
+  All sub-payloads are resolved to concrete arrays here — nothing optional enters JIT.
+  When ``multistate_stack`` is None, a trivial single-state payload is constructed from
+  the provided backbone arrays.
+  When wave args are None, a trivial single-wave covering all positions is constructed.
+  """
+  L = int(coords.shape[0])
+
+  backbone = BackboneGeometry(
+    coords=jnp.asarray(coords, dtype=jnp.float32),
+    mask=jnp.asarray(mask, dtype=jnp.float32),
+    residue_index=jnp.asarray(residue_index, dtype=jnp.int32),
+    chain_index=jnp.asarray(chain_index, dtype=jnp.int32),
+  )
+
+  if multistate_stack is None:
+    from prxteinmpnn.sampling.state_vmap_prep import multistate_stack_payload_from_loose_ar_host  # noqa: PLC0415
+    rows = jnp.arange(L, dtype=jnp.int32)[None]  # (1, L)
+    multistate_stack = multistate_stack_payload_from_loose_ar_host(
+      coords_stack=coords[None],
+      mask_stack=mask[None],
+      residue_index_stack=residue_index[None],
+      chain_index_stack=chain_index[None],
+      tie_group_map_stack=jnp.arange(L, dtype=jnp.int32)[None],
+      fixed_mask_stack=jnp.zeros((1, L), dtype=jnp.float32),
+      fixed_tokens_stack=jnp.zeros((1, L), dtype=jnp.int32),
+      state_flat_rows=rows,
+      n_canonical=L,
+    )
+
+  if wave_group_ids is None:
+    wave_parallel = WaveParallelPayload(
+      wave_group_ids=jnp.arange(L, dtype=jnp.int32)[None, :],
+      wave_group_positions=jnp.arange(L, dtype=jnp.int32)[None, :, None],
+      wave_group_valid=jnp.ones((1, L), dtype=bool),
+      wave_position_valid=jnp.ones((1, L, 1), dtype=bool),
+    )
+  else:
+    wave_parallel = WaveParallelPayload(
+      wave_group_ids=jnp.asarray(wave_group_ids, dtype=jnp.int32),
+      wave_group_positions=jnp.asarray(wave_group_positions, dtype=jnp.int32),
+      wave_group_valid=jnp.asarray(wave_group_valid, dtype=bool),
+      wave_position_valid=jnp.asarray(wave_position_valid, dtype=bool),
+    )
+
+  _fixed_tokens = (
+    jnp.asarray(fixed_tokens, dtype=jnp.int32)
+    if fixed_tokens is not None
+    else jnp.zeros((L,), dtype=jnp.int32)
+  )
+  _bias = (
+    jnp.asarray(bias, dtype=jnp.float32)
+    if bias is not None
+    else jnp.zeros((L, _AMINO_ACID_VOCAB), dtype=jnp.float32)
+  )
+  _ar_mask = (
+    jnp.asarray(ar_mask, dtype=jnp.float32)
+    if ar_mask is not None
+    else jnp.eye(L, dtype=jnp.float32)
+  )
+  conditioning = ConditioningFeatures(
+    fixed_tokens=_fixed_tokens,
+    bias=_bias,
+    ar_mask=_ar_mask,
+  )
+
+  return SamplingInputs(
+    backbone=backbone,
+    state_stack=multistate_stack,
+    wave_parallel=wave_parallel,
+    conditioning=conditioning,
+  )
 
 
 def make_sample_sequences(

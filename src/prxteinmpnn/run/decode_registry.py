@@ -70,12 +70,12 @@ def _capture_env() -> dict[str, str]:
 
 
 def _default_arithmetic_mean(
-  logits_stack: Any,
-  state_index: Any,
-  state_weights: Any,
+  state_logits: Any,
+  _state_index: Any,
+  _state_weights: Any,
 ) -> Any:
-  """Default: uniform arithmetic mean across states."""
-  return jnp.mean(logits_stack, axis=0)
+  """Default LogitTransformFn: uniform arithmetic mean across states."""
+  return jnp.mean(state_logits, axis=0)
 
 
 DEFAULT_DECODE_FN_UID: str = register_decode_fn(

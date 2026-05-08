@@ -2,7 +2,6 @@
 
 import jax
 import jax.numpy as jnp
-import pytest
 
 from prxteinmpnn.model.mpnn import PrxteinMPNN
 from prxteinmpnn.payloads import MultistateStackPayload

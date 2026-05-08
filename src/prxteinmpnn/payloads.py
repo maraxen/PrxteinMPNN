@@ -172,6 +172,23 @@ class EncodedFeatures(eqx.Module):
     return _replace_payload(self, EncodedFeatures, fields, frozenset(), **kw)
 
 
+class EncoderOutput(eqx.Module):
+  """Multi-state encoder output (S states) for EncoderPostFn hook injection.
+
+  Produced by jax.vmap(encode_one) over a state stack; passed to EncoderPostFn
+  before decoding. Use this type in EncoderPostFn signatures (not EncodedFeatures).
+  """
+
+  node_features: Float[Array, ...]
+  edge_features: Float[Array, ...]
+  neighbor_indices: Int[Array, ...]
+  mask: Float[Array, ...]
+
+  def replace(self, **kw: Any) -> EncoderOutput:
+    fields = ("node_features", "edge_features", "neighbor_indices", "mask")
+    return _replace_payload(self, EncoderOutput, fields, frozenset(), **kw)
+
+
 class SampleResult(eqx.Module):
   """Sequence + logits from a sampler or autoregressive pass."""
 
@@ -199,6 +216,7 @@ class GridLineage(eqx.Module):
 
 __all__ = [
   "EncodedFeatures",
+  "EncoderOutput",
   "GridLineage",
   "LigandContext",
   "LigandStack",

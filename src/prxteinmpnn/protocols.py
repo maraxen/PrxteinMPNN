@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
 import jax
-from jaxtyping import Float, Int, PRNGKeyArray
+from jaxtyping import Array, Float, Int, PRNGKeyArray
 
 if TYPE_CHECKING:
-  from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
+  from prxteinmpnn.model_inputs import BackboneGeometry
+  from prxteinmpnn.payloads import EncoderOutput, LigandStack, MultistateStackPayload
+  from prxteinmpnn.pipeline_fns import PipelineFns
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
     AutoRegressiveMask,
@@ -216,3 +218,73 @@ class DesignSink(Protocol):
     logits_host: object,
   ) -> None:
     """Record per-batch scores/logits host tensors (streaming scoring)."""
+
+
+@runtime_checkable
+class EncoderPreFn(Protocol):
+  """Hook called before the encoder on each state batch.
+
+  Returns a dict of supplemental feature arrays keyed by feature name
+  (e.g. ``"initial_node_features"``, ``"rbf_features"``), or ``None``
+  to use default feature extraction. Must use only jnp ops.
+
+  NOT yet wired inside the model encoder — wiring is a follow-up task.
+  """
+
+  def __call__(
+    self,
+    backbone: BackboneGeometry,
+    state_index: Int[Array, "S"],
+  ) -> dict[str, Any] | None: ...
+
+
+@runtime_checkable
+class EncoderPostFn(Protocol):
+  """Hook called after jax.vmap(encode_one) on the full state batch.
+
+  Receives the stacked encoder output (S states) and may return a modified
+  EncoderOutput (e.g. cosine-similarity re-weighting across states). Must
+  use only jnp ops — no Python branching on traced values.
+
+  NOT yet wired inside the model encoder — wiring is a follow-up task.
+  """
+
+  def __call__(
+    self,
+    encoded: EncoderOutput,
+    state_index: Int[Array, "S"],
+  ) -> EncoderOutput: ...
+
+
+@runtime_checkable
+class ModelProtocol(Protocol):
+  """Structural protocol over prxteinmpnn model modules.
+
+  Declares the sub-modules and static fields accessed by Pipeline implementations.
+  PrxteinMPNN must satisfy this structurally.
+  """
+
+  features: Any
+  encoder: Any
+  decoder: Any
+  w_out: Any
+  w_s_embed: Any
+  capabilities: Any
+
+
+@runtime_checkable
+class Pipeline(Protocol):
+  """Callable protocol for model pipeline implementations.
+
+  Each concrete Pipeline (Unconditional, Conditional, Autoregressive, STE) implements
+  this by calling the appropriate model method with PipelineFns hooks resolved.
+  """
+
+  def __call__(
+    self,
+    module: ModelProtocol,
+    key: PRNGKeyArray,
+    inputs: Any,
+    *,
+    fns: PipelineFns,
+  ) -> Any: ...

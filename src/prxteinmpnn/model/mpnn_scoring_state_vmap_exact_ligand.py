@@ -229,7 +229,6 @@ def run_score_unconditional_state_vmap_exact_ligand(
   *,
   tie_group_map: TieGroupMap | None,
   multi_state_strategy_idx: Int,
-  multi_state_temperature: Float | float,
   state_weights: jnp.ndarray | None,
   state_mapping: jnp.ndarray | None,
   inference: bool = True,
@@ -308,7 +307,7 @@ def run_score_unconditional_state_vmap_exact_ligand(
       logits_flat,
       tie_group_map,
       multi_state_strategy_idx,
-      jnp.asarray(multi_state_temperature, jnp.float32),
+      jnp.float32(1.0),
       state_weights,
       state_mapping,
     )
@@ -332,7 +331,6 @@ def run_score_conditional_state_vmap_exact_ligand(
   *,
   tie_group_map: TieGroupMap | None,
   multi_state_strategy_idx: Int,
-  multi_state_temperature: Float | float,
   state_weights: jnp.ndarray | None,
   state_mapping: jnp.ndarray | None,
   bias_flat: jax.Array | None = None,
@@ -448,7 +446,7 @@ def run_score_conditional_state_vmap_exact_ligand(
       logits_flat,
       tie_group_map,
       multi_state_strategy_idx,
-      jnp.asarray(multi_state_temperature, jnp.float32),
+      jnp.float32(1.0),
       state_weights,
       state_mapping,
     )

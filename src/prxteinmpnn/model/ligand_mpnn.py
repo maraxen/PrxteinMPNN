@@ -201,7 +201,6 @@ class PrxteinLigandMPNN(eqx.Module):
       "product",
     ] = "arithmetic_mean",
     structure_mapping: jnp.ndarray | None = None,
-    multi_state_temperature: float = 1.0,
     state_weights: jnp.ndarray | None = None,
     state_mapping: jnp.ndarray | None = None,
     precomputed_Y_nodes: jnp.ndarray | None = None,
@@ -274,7 +273,6 @@ class PrxteinLigandMPNN(eqx.Module):
         combine_strategy_to_index(multi_state_strategy),
         dtype=jnp.int32,
       )
-      ms_temp_lm = jnp.asarray(multi_state_temperature, dtype=jnp.float32)
       chunk_kw: dict[str, int] = {}
       if states_chunk_size is not None:
         chunk_kw["states_chunk_size"] = states_chunk_size
@@ -293,7 +291,6 @@ class PrxteinLigandMPNN(eqx.Module):
           n_flat,
           tie_group_map=tie_group_map,
           multi_state_strategy_idx=multi_state_strategy_idx_lm,
-          multi_state_temperature=ms_temp_lm,
           state_weights=state_weights,
           state_mapping=state_mapping,
           **chunk_kw,
@@ -337,7 +334,6 @@ class PrxteinLigandMPNN(eqx.Module):
           n_flat,
           tie_group_map=tie_group_map,
           multi_state_strategy_idx=multi_state_strategy_idx_lm,
-          multi_state_temperature=ms_temp_lm,
           state_weights=state_weights,
           state_mapping=state_mapping,
           bias_flat=bias,
@@ -507,7 +503,6 @@ class PrxteinLigandMPNN(eqx.Module):
         None,
         tie_group_map,
         jnp.asarray(combine_strategy_to_index(multi_state_strategy), dtype=jnp.int32),
-        multi_state_temperature,
         None,
         state_weights,
         state_mapping,
@@ -547,7 +542,7 @@ class PrxteinLigandMPNN(eqx.Module):
           all_logits,
           tie_group_map,
           strategy_idx,
-          multi_state_temperature,
+          jnp.asarray(1.0, jnp.float32),
           state_weights,
           state_mapping,
         )
@@ -577,7 +572,6 @@ class PrxteinLigandMPNN(eqx.Module):
           combine_strategy_to_index(multi_state_strategy),
           dtype=jnp.int32,
         ),
-        multi_state_temperature=multi_state_temperature,
         state_weights=state_weights,
         state_mapping=state_mapping,
         fixed_mask=fixed_mask,
@@ -603,7 +597,6 @@ class PrxteinLigandMPNN(eqx.Module):
     _bias: Logits,
     _tie_group_map: TieGroupMap | None,
     _multi_state_strategy_idx: Int,
-    _multi_state_temperature: Float,
     _initial_node_features: NodeFeatures | None,
     _state_weights: jnp.ndarray | None,
     _state_mapping: jnp.ndarray | None,
@@ -630,7 +623,6 @@ class PrxteinLigandMPNN(eqx.Module):
       _bias: Unused, required for signature uniformity.
       _tie_group_map: Unused, required for signature uniformity.
       _multi_state_strategy_idx: Unused, required for signature uniformity.
-      _multi_state_temperature: Unused, required for signature uniformity.
       _initial_node_features: Unused.
       _state_weights: Unused.
       _state_mapping: Unused.
@@ -659,7 +651,7 @@ class PrxteinLigandMPNN(eqx.Module):
         logits,
         _tie_group_map,
         _multi_state_strategy_idx,
-        _multi_state_temperature,
+        jnp.asarray(1.0, jnp.float32),
         _state_weights,
         _state_mapping,
       )
@@ -683,7 +675,6 @@ class PrxteinLigandMPNN(eqx.Module):
     bias: Logits,
     tie_group_map: TieGroupMap | None = None,
     multi_state_strategy_idx: Int = 0,
-    multi_state_temperature: Float = 1.0,
     state_weights: jnp.ndarray | None = None,
     state_mapping: jnp.ndarray | None = None,
     fixed_mask: jnp.ndarray | None = None,
@@ -951,7 +942,7 @@ class PrxteinLigandMPNN(eqx.Module):
           computed_logits,
           group_mask,
           multi_state_strategy_idx,
-          multi_state_temperature,
+          jnp.asarray(1.0, jnp.float32),
           state_weights,
           state_mapping,
         )
@@ -1009,7 +1000,6 @@ class PrxteinLigandMPNN(eqx.Module):
     *,
     tie_group_map: TieGroupMap | None,
     multi_state_strategy_idx: Int,
-    multi_state_temperature: Float | float,
     state_weights: jnp.ndarray | None,
     state_mapping: jnp.ndarray | None,
     inference: bool = True,
@@ -1034,7 +1024,6 @@ class PrxteinLigandMPNN(eqx.Module):
       n_flat,
       tie_group_map=tie_group_map,
       multi_state_strategy_idx=multi_state_strategy_idx,
-      multi_state_temperature=multi_state_temperature,
       state_weights=state_weights,
       state_mapping=state_mapping,
       inference=inference,
@@ -1049,7 +1038,6 @@ class PrxteinLigandMPNN(eqx.Module):
     *,
     tie_group_map: TieGroupMap | None,
     multi_state_strategy_idx: Int,
-    multi_state_temperature: Float | float,
     state_weights: jnp.ndarray | None,
     state_mapping: jnp.ndarray | None,
     inference: bool = True,
@@ -1069,7 +1057,6 @@ class PrxteinLigandMPNN(eqx.Module):
       stack.n_flat,
       tie_group_map=tie_group_map,
       multi_state_strategy_idx=multi_state_strategy_idx,
-      multi_state_temperature=multi_state_temperature,
       state_weights=state_weights,
       state_mapping=state_mapping,
       inference=inference,
@@ -1093,7 +1080,6 @@ class PrxteinLigandMPNN(eqx.Module):
     *,
     tie_group_map: TieGroupMap | None,
     multi_state_strategy_idx: Int,
-    multi_state_temperature: Float | float,
     state_weights: jnp.ndarray | None,
     state_mapping: jnp.ndarray | None,
     bias_flat: jax.Array | None = None,
@@ -1122,7 +1108,6 @@ class PrxteinLigandMPNN(eqx.Module):
       n_flat,
       tie_group_map=tie_group_map,
       multi_state_strategy_idx=multi_state_strategy_idx,
-      multi_state_temperature=multi_state_temperature,
       state_weights=state_weights,
       state_mapping=state_mapping,
       bias_flat=bias_flat,
@@ -1141,7 +1126,6 @@ class PrxteinLigandMPNN(eqx.Module):
     *,
     tie_group_map: TieGroupMap | None,
     multi_state_strategy_idx: Int,
-    multi_state_temperature: Float | float,
     state_weights: jnp.ndarray | None,
     state_mapping: jnp.ndarray | None,
     bias_flat: jax.Array | None = None,
@@ -1165,7 +1149,6 @@ class PrxteinLigandMPNN(eqx.Module):
       stack.n_flat,
       tie_group_map=tie_group_map,
       multi_state_strategy_idx=multi_state_strategy_idx,
-      multi_state_temperature=multi_state_temperature,
       state_weights=state_weights,
       state_mapping=state_mapping,
       bias_flat=bias_flat,
@@ -1197,7 +1180,6 @@ class PrxteinLigandMPNN(eqx.Module):
     bias_stack: jax.Array,
     temperature: Float | float,
     multi_state_strategy_idx: Int,
-    multi_state_temperature: Float,
     state_weights: jnp.ndarray | None,
     fixed_mask_stack: jax.Array,
     fixed_tokens_stack: jax.Array,
@@ -1226,7 +1208,7 @@ class PrxteinLigandMPNN(eqx.Module):
       bias_stack,
       temperature,
       multi_state_strategy_idx,
-      multi_state_temperature,
+      jnp.asarray(1.0, jnp.float32),
       state_weights,
       fixed_mask_stack,
       fixed_tokens_stack,
@@ -1248,7 +1230,6 @@ class PrxteinLigandMPNN(eqx.Module):
     bias_stack: jax.Array,
     temperature: Float | float,
     multi_state_strategy_idx: Int,
-    multi_state_temperature: Float,
     state_weights: jnp.ndarray | None,
     wave_group_ids_local: jax.Array,
     wave_group_positions_local: jax.Array,
@@ -1267,7 +1248,6 @@ class PrxteinLigandMPNN(eqx.Module):
       bias_stack,
       temperature,
       multi_state_strategy_idx,
-      multi_state_temperature,
       state_weights,
       stack.fixed_mask_stack,
       stack.fixed_tokens_stack,

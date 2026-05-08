@@ -112,7 +112,6 @@ def _run_state_vmap_exact_unconditional_spike(*, n_states: int, n_can: int, key:
     sm_flat = sm_flat.at[lo : lo + n_can].set(s)
 
   strat_idx = jnp.int32(0)
-  ms_temp = jnp.float32(1.0)
 
   logits_sv = model.score_unconditional_state_vmap_exact(
     key,
@@ -124,7 +123,6 @@ def _run_state_vmap_exact_unconditional_spike(*, n_states: int, n_can: int, key:
     n_flat,
     tie_group_map=None,
     multi_state_strategy_idx=strat_idx,
-    multi_state_temperature=ms_temp,
     state_weights=sw,
     state_mapping=sm_flat,
     inference=True,
@@ -185,7 +183,6 @@ def _run_state_vmap_exact_unconditional_spike(*, n_states: int, n_can: int, key:
       n_flat,
       tie_group_map=None,
       multi_state_strategy_idx=strat_idx,
-      multi_state_temperature=ms_temp,
       state_weights=sw,
       state_mapping=sm_flat,
       inference=True,

@@ -121,7 +121,6 @@ def test_build_stacks_and_smoke_sample_autoregressive_state_vmap_exact():
     jnp.zeros((n_states, n_pad, 21), dtype=jnp.float32),
     jnp.array(1.0, dtype=jnp.float32),
     jnp.int32(0),
-    jnp.array(1.0, dtype=jnp.float32),
     sw,
     jnp.asarray(sv["fixed_mask_stack"], dtype=jnp.float32),
     jnp.asarray(sv["fixed_tokens_stack"], dtype=jnp.int32),

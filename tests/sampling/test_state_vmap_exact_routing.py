@@ -92,7 +92,6 @@ def test_prxtein_mpnn_unconditional_call_matches_direct_score() -> None:
     n_flat,
     tie_group_map=None,
     multi_state_strategy_idx=strat_idx,
-    multi_state_temperature=ms_temp,
     state_weights=sw,
     state_mapping=None,
     inference=True,
@@ -165,7 +164,6 @@ def test_prxtein_mpnn_conditional_call_matches_direct_score() -> None:
     n_flat,
     tie_group_map=None,
     multi_state_strategy_idx=strat_idx,
-    multi_state_temperature=ms_temp,
     state_weights=sw,
     state_mapping=None,
     bias_flat=None,
@@ -219,7 +217,6 @@ def test_prxtein_mpnn_unconditional_matches_explicit_vmap_go_branch() -> None:
   cis = jnp.asarray(sv["chain_index_stack"], dtype=jnp.int32)
   rows = jnp.asarray(sv["state_flat_rows"], dtype=jnp.int32)
   strat_idx = jnp.int32(0)
-  ms_temp = jnp.float32(1.0)
   sw = jnp.ones((2,), dtype=jnp.float32) / jnp.float32(2)
   sm_flat = jnp.zeros((n_flat,), dtype=jnp.int32)
   n_can = 6
@@ -237,7 +234,6 @@ def test_prxtein_mpnn_unconditional_matches_explicit_vmap_go_branch() -> None:
     n_flat,
     tie_group_map=None,
     multi_state_strategy_idx=strat_idx,
-    multi_state_temperature=ms_temp,
     state_weights=sw,
     state_mapping=sm_flat,
     inference=True,
@@ -362,7 +358,6 @@ def test_prxtein_ligand_mpnn_call_matches_direct_score(kind: str) -> None:
       n_flat,
       tie_group_map=None,
       multi_state_strategy_idx=strat_idx,
-      multi_state_temperature=ms_temp,
       state_weights=sw,
       state_mapping=None,
     )
@@ -411,7 +406,6 @@ def test_prxtein_ligand_mpnn_call_matches_direct_score(kind: str) -> None:
       n_flat,
       tie_group_map=None,
       multi_state_strategy_idx=strat_idx,
-      multi_state_temperature=ms_temp,
       state_weights=sw,
       state_mapping=None,
       bias_flat=None,

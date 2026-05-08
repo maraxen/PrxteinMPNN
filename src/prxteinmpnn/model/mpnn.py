@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import warnings
 from functools import partial
 from typing import TYPE_CHECKING, Any, Literal, cast
 
@@ -1033,6 +1034,12 @@ class PrxteinMPNN(eqx.Module):
     wave_position_valid_local: jax.Array,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Same as :meth:`sample_autoregressive_state_vmap_exact` with geometry read from ``stack``."""
+    warnings.warn(
+        "sample_autoregressive_state_vmap_exact_from_payload is deprecated; "
+        "use sample_autoregressive_from_payload",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return self.sample_autoregressive_state_vmap_exact(
       prng_key,
       stack.coords_stack,
@@ -1053,6 +1060,21 @@ class PrxteinMPNN(eqx.Module):
       wave_group_valid_local,
       wave_position_valid_local,
     )
+
+  def sample_autoregressive_from_payload(
+    self,
+    *args: Any,
+    **kwargs: Any,
+  ) -> Any:
+    """Autoregressive sequence sampling from MultistateStackPayload.
+
+    Clean alias for sample_autoregressive_state_vmap_exact_from_payload.
+    """
+    import warnings  # noqa: PLC0415
+
+    with warnings.catch_warnings():
+      warnings.simplefilter("ignore", DeprecationWarning)
+      return self.sample_autoregressive_state_vmap_exact_from_payload(*args, **kwargs)
 
   def score_unconditional_state_vmap_exact(
     self,
@@ -1160,6 +1182,12 @@ class PrxteinMPNN(eqx.Module):
 
     logit_transform_fn supersedes tie_group_map when set.
     """
+    warnings.warn(
+        "score_unconditional_state_vmap_exact_from_payload is deprecated; "
+        "use score_unconditional_from_payload",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return self.score_unconditional_state_vmap_exact(
       prng_key,
       stack.coords_stack,
@@ -1176,6 +1204,21 @@ class PrxteinMPNN(eqx.Module):
       inference=inference,
       logit_transform_fn=logit_transform_fn,
     )
+
+  def score_unconditional_from_payload(
+    self,
+    *args: Any,
+    **kwargs: Any,
+  ) -> Any:
+    """Unconditional scoring from MultistateStackPayload.
+
+    Clean alias for score_unconditional_state_vmap_exact_from_payload.
+    """
+    import warnings  # noqa: PLC0415
+
+    with warnings.catch_warnings():
+      warnings.simplefilter("ignore", DeprecationWarning)
+      return self.score_unconditional_state_vmap_exact_from_payload(*args, **kwargs)
 
   def score_conditional_state_vmap_exact(
     self,
@@ -1303,6 +1346,12 @@ class PrxteinMPNN(eqx.Module):
 
     logit_transform_fn supersedes tie_group_map when set.
     """
+    warnings.warn(
+        "score_conditional_state_vmap_exact_from_payload is deprecated; "
+        "use score_conditional_from_payload",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return self.score_conditional_state_vmap_exact(
       prng_key,
       stack.coords_stack,
@@ -1322,3 +1371,18 @@ class PrxteinMPNN(eqx.Module):
       inference=inference,
       logit_transform_fn=logit_transform_fn,
     )
+
+  def score_conditional_from_payload(
+    self,
+    *args: Any,
+    **kwargs: Any,
+  ) -> Any:
+    """Conditional scoring from MultistateStackPayload.
+
+    Clean alias for score_conditional_state_vmap_exact_from_payload.
+    """
+    import warnings  # noqa: PLC0415
+
+    with warnings.catch_warnings():
+      warnings.simplefilter("ignore", DeprecationWarning)
+      return self.score_conditional_state_vmap_exact_from_payload(*args, **kwargs)

@@ -9,3 +9,18 @@ Available pipelines:
     AutoregressivePipeline — temperature-sampled autoregressive sequence design
     STEPipeline            — straight-through estimator for differentiable design
 """
+
+from prxteinmpnn.pipeline.autoregressive import AutoregressiveInputs, AutoregressivePipeline
+from prxteinmpnn.pipeline.conditional import ConditionalInputs, ConditionalPipeline
+from prxteinmpnn.pipeline.ste import STEInputs, STEPipeline
+from prxteinmpnn.pipeline.unconditional import UnconditionalPipeline
+
+__all__ = [
+  "AutoregressiveInputs",
+  "AutoregressivePipeline",
+  "ConditionalInputs",
+  "ConditionalPipeline",
+  "STEInputs",
+  "STEPipeline",
+  "UnconditionalPipeline",
+]

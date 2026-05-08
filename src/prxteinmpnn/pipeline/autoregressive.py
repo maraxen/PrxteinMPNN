@@ -27,7 +27,7 @@ class AutoregressiveInputs(eqx.Module):
 
 @dataclasses.dataclass(frozen=True)
 class AutoregressivePipeline:
-  """Wraps sample_autoregressive_state_vmap_exact_from_payload with PipelineFns hooks.
+  """Wraps sample_autoregressive_from_payload with PipelineFns hooks.
 
   Inputs:  AutoregressiveInputs
   Outputs: (sequences: OneHotProteinSequence, logits: Logits)
@@ -51,7 +51,7 @@ class AutoregressivePipeline:
     S = inputs.stack.n_states
     state_weights = jnp.ones(S, dtype=jnp.float32) / S
 
-    sequences, logits = module.sample_autoregressive_state_vmap_exact_from_payload(
+    sequences, logits = module.sample_autoregressive_from_payload(
       key,
       inputs.stack,
       inputs.autoregressive_mask_stack,

@@ -993,7 +993,6 @@ class PrxteinMPNN(eqx.Module):
       bias_stack,
       temperature,
       multi_state_strategy_idx,
-      jnp.asarray(1.0, jnp.float32),
       state_weights,
       fixed_mask_stack,
       fixed_tokens_stack,

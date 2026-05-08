@@ -39,7 +39,6 @@ def run_sample_autoregressive_state_vmap_exact(  # noqa: PLR0915
   bias_stack: jax.Array,
   temperature: Float | float,
   multi_state_strategy_idx: Int,
-  multi_state_temperature: Float,
   state_weights: jnp.ndarray | None,
   fixed_mask_stack: jax.Array,
   fixed_tokens_stack: jax.Array,
@@ -118,7 +117,7 @@ def run_sample_autoregressive_state_vmap_exact(  # noqa: PLR0915
   max_gs_tr = jnp.int32(wave_position_valid_local.shape[-1])
   max_gs = int(wave_position_valid_local.shape[-1])
   strat_idx = jnp.asarray(multi_state_strategy_idx, dtype=jnp.int32)
-  ms_temp = jnp.asarray(multi_state_temperature, dtype=jnp.float32)
+  ms_temp = jnp.asarray(1.0, dtype=jnp.float32)
   if state_weights is None:
     sw_use = jnp.ones((s_dim,), dtype=jnp.float32) / jnp.float32(max(s_dim, 1))
   else:

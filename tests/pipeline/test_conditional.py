@@ -57,3 +57,46 @@ def test_score_conditional_from_payload_accepts_logit_transform_fn():
     )
     assert len(call_count) > 0
     assert logits.shape == (L, V)
+
+
+def test_conditional_pipeline_importable():
+    from prxteinmpnn.pipeline.conditional import ConditionalPipeline, ConditionalInputs
+    assert ConditionalPipeline is not None
+    assert ConditionalInputs is not None
+
+
+def test_conditional_pipeline_smoke():
+    from prxteinmpnn.pipeline.conditional import ConditionalPipeline, ConditionalInputs
+    from prxteinmpnn.pipeline_fns import PipelineFns
+
+    S, L, V = 2, 6, 21
+    key = jax.random.PRNGKey(3)
+    m = PrxteinMPNN(16, 16, 16, 1, 1, 6, key=jax.random.PRNGKey(0))
+
+    stack = MultistateStackPayload(
+        coords_stack=jnp.zeros((S, L, 4, 3)),
+        mask_stack=jnp.ones((S, L)),
+        residue_index_stack=jnp.arange(L, dtype=jnp.int32)[None].repeat(S, axis=0),
+        chain_index_stack=jnp.zeros((S, L), dtype=jnp.int32),
+        tie_group_map_stack=jnp.zeros((S, L), dtype=jnp.int32),
+        fixed_mask_stack=jnp.zeros((S, L)),
+        fixed_tokens_stack=jnp.zeros((S, L), dtype=jnp.int32),
+        state_flat_rows=jnp.stack([jnp.arange(L, dtype=jnp.int32) + i * L for i in range(S)]),
+        flat_row_offsets=jnp.array([0, L], dtype=jnp.int32),
+        state_index=jnp.arange(S, dtype=jnp.int32),
+        state_embedding=jnp.zeros((S, 1)),
+        n_states=S,
+        n_canonical=L,
+        n_flat=S * L,
+    )
+    inputs = ConditionalInputs(
+        stack=stack,
+        seq_oh_stack=jnp.zeros((S, L, V)),
+        ar_mask_stack=jnp.eye(L)[None].repeat(S, axis=0),
+    )
+
+    fns = PipelineFns.default()
+    pipeline = ConditionalPipeline()
+    logits, state_logits = pipeline(m, key, inputs, fns=fns)
+    assert logits.shape == (L, V)
+    assert state_logits.shape == (S, L, V)

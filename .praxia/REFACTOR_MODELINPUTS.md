@@ -197,9 +197,41 @@ Hierarchical grouping metadata (passed through SamplingInputs or separately):
 
 ---
 
+## Batch Logits Protocol
+
+All registered decode fns must conform to `BatchLogitsFn`:
+
+```python
+class BatchLogitsFn(Protocol):
+    """JAX-traceable fn combining per-state logits into a single flat distribution.
+
+    Must use only jnp ops — no Python branching on traced values.
+    Passed as static_argnames to the outer JIT and inlined at jax.export time.
+    """
+    def __call__(
+        self,
+        logits_stack: Float[Array, "S L V"],   # per-state logits
+        state_index: Int[Array, "S"],           # ordinal state identity (0..S-1)
+        state_weights: Float[Array, "S"],       # pre-resolved to uniform if absent
+    ) -> Float[Array, "L V"]: ...
+```
+
+No `Optional[Array]` in the Protocol. `state_weights` is always resolved to a
+concrete array on the host (uniform 1/S if not provided). The Protocol enforces
+the calling convention only; jax-traceability is a runtime contract.
+
+**jax.export behavior:** since `batch_fn` is a `static_argnames` arg to the outer
+JIT, it is inlined at export time. `jax.export.export(outer_jitted)(example_inputs)`
+captures `batch_fn`'s computation into the StableHLO graph. The exported module
+has no `batch_fn` input slot — it's baked in.
+
+**Future:** a `HostBatchFn` Protocol (runs outside JIT after device transfer) for
+non-traceable rolling ops. Deferred — define the boundary cleanly now by keeping
+`BatchLogitsFn` strictly JAX-traceable.
+
 ## Decode Function Registry
 
-Each `SamplingSpecification` accepts an optional `decode_fn: Callable`. When
+Each `SamplingSpecification` accepts an optional `decode_fn: BatchLogitsFn`. When
 provided, it is registered on first use:
 
 ```python
@@ -213,11 +245,21 @@ DECODE_FN_REGISTRY[uid] = DecodeFnRegistry(
 )
 ```
 
-The `uid` is stored in `SamplingStaticConfig.decode_fn_uid`. Before JIT dispatch,
-the host resolves `uid → fn` and passes `fn` as a `static_argnums` argument.
+**Local use:** `SamplingSpecification` holds the fn reference directly. Before JIT:
+```python
+batch_fn = spec.decode_fn  # callable directly
+jitted_sample(inputs, config, batch_fn=batch_fn)  # static_argnames=("batch_fn",)
+```
 
-When `decode_fn` is None, the default tied-AR batch fn is used (the existing
-`apply_multistate_to_all_logits` path, renamed and made pluggable).
+**Cluster submission:** RunSpec serializes `decode_fn_uid` (str) to JSON.
+Cloudpickle bytes are transmitted alongside. Remote re-hydrates:
+```python
+batch_fn = cloudpickle.loads(registry[uid].cloudpickle_bytes)
+```
+Same JIT call surface in both modes via `spec.resolve_decode_fn() -> BatchLogitsFn`.
+
+When `decode_fn` is None, the default arithmetic-mean batch fn is used (the
+existing `apply_multistate_to_all_logits` path, promoted to a named default).
 
 ---
 

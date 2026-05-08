@@ -96,9 +96,31 @@ DEFAULT_LOGIT_TRANSFORM_UID: str = register_hook(
 )
 
 
+_geom_mean_cache: dict[float, Any] = {}
+
+
+def make_geometric_mean_transform(temperature: float) -> Any:
+  """Return a memoised LogitTransformFn that scales arithmetic mean by 1/temperature.
+
+  Memoised so that the same T always returns the same closure object,
+  preventing registry UID proliferation during temperature sweeps.
+  """
+  import jax.numpy as jnp  # noqa: PLC0415
+
+  if temperature in _geom_mean_cache:
+    return _geom_mean_cache[temperature]
+
+  def _geom_mean(state_logits: Any, state_index: Any, state_weights: Any) -> Any:
+    return jnp.mean(state_logits, axis=0) / temperature
+
+  _geom_mean_cache[temperature] = _geom_mean
+  return _geom_mean
+
+
 __all__ = [
   "DEFAULT_LOGIT_TRANSFORM_UID",
   "HookEntry",
+  "make_geometric_mean_transform",
   "register_encoder_post_fn",
   "register_encoder_pre_fn",
   "register_hook",

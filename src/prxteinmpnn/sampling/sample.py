@@ -435,6 +435,7 @@ def make_sample_sequences(
         "multistate_mode",
         "max_group_size",
         "state_vmap_n_canonical",
+        "batch_fn",
       ),
     )
     def _sample_sequences_jitted(
@@ -484,6 +485,8 @@ def make_sample_sequences(
       y_m_stack: jnp.ndarray | None = None,
       multistate_stack: MultistateStackPayload | None = None,
       ligand_stack: LigandStack | None = None,
+      state_weights: jnp.ndarray | None = None,
+      batch_fn: Any | None = None,
       **kwargs: Any,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """JIT core for temperature sampling (host coercion lives in outer ``sample_sequences``)."""
@@ -576,7 +579,6 @@ def make_sample_sequences(
             dtype=jnp.float32,
           )
         )
-        state_weights = kwargs.get("state_weights")
         if state_weights is None:
           n_s = int(coords_stack.shape[0])
           state_weights = jnp.ones((n_s,), dtype=jnp.float32) / jnp.float32(n_s)
@@ -661,7 +663,7 @@ def make_sample_sequences(
         call_kwargs["multi_state_temperature"] = multi_state_temperature
 
       if supports_state_weights:
-        call_kwargs["state_weights"] = kwargs.get("state_weights")
+        call_kwargs["state_weights"] = state_weights
         call_kwargs["state_mapping"] = kwargs.get("state_mapping")
 
       if supports_fixed_controls:
@@ -737,6 +739,8 @@ def make_sample_sequences(
       y_m_stack: jnp.ndarray | None = None,
       multistate_stack: MultistateStackPayload | None = None,
       ligand_stack: LigandStack | None = None,
+      state_weights: jnp.ndarray | None = None,
+      batch_fn: Any | None = None,
       **kwargs: Any,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """Sample a sequence from a structure using the ProteinMPNN model.
@@ -839,6 +843,8 @@ def make_sample_sequences(
         y_m_stack,
         multistate_stack_h,
         ligand_stack,
+        state_weights=state_weights,
+        batch_fn=batch_fn,
         **kwargs,
       )
 

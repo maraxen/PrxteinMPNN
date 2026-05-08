@@ -81,8 +81,8 @@ def _capture_env() -> dict[str, str]:
 
 def _default_arithmetic_mean(
   state_logits: Any,
-  state_index: Any,
-  state_weights: Any,
+  _state_index: Any,
+  _state_weights: Any,
 ) -> Any:
   """Default LogitTransformFn: uniform arithmetic mean across states."""
   import jax.numpy as jnp  # noqa: PLC0415

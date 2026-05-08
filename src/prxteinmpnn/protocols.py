@@ -10,7 +10,7 @@ from jaxtyping import Array, Float, Int, PRNGKeyArray
 if TYPE_CHECKING:
   from prxteinmpnn.model_inputs import BackboneGeometry
   from prxteinmpnn.payloads import EncoderOutput, LigandStack, MultistateStackPayload
-  from prxteinmpnn.pipeline_fns import PipelineFns
+  from prxteinmpnn.pipeline_fns import PipelineFns  # created in pipeline_fns.py (Batch 2)
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
     AutoRegressiveMask,

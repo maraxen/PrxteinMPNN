@@ -2,7 +2,7 @@
 
 ModelInputs (eqx.Module pytrees) carry array data through JIT.
 ModelStaticConfig (frozen dataclasses) carry compile-time constants as static_argnames.
-BatchLogitsFn (Protocol) defines the JAX-traceable post-processing contract.
+LogitTransformFn (Protocol) defines the JAX-traceable post-processing contract.
 
 Design rules:
 - NO Optional[Array] on any eqx.Module field — resolve on host before JIT.
@@ -77,7 +77,7 @@ class ScoringStaticConfig:
   ar_mask_is_eye: bool = False
 
 
-class BatchLogitsFn(Protocol):
+class LogitTransformFn(Protocol):
   """JAX-traceable fn combining per-state logits into a single flat distribution.
 
   Passed as static_argnames to the outer JIT and inlined at jax.export time.
@@ -88,7 +88,7 @@ class BatchLogitsFn(Protocol):
 
   def __call__(
     self,
-    logits_stack: Float[Array, "S L V"],
+    state_logits: Float[Array, "S L V"],
     state_index: Int[Array, "S"],
     state_weights: Float[Array, "S"],
   ) -> Float[Array, "L V"]: ...
@@ -96,7 +96,7 @@ class BatchLogitsFn(Protocol):
 
 __all__ = [
   "BackboneGeometry",
-  "BatchLogitsFn",
+  "LogitTransformFn",
   "ConditioningFeatures",
   "SamplingInputs",
   "SamplingStaticConfig",

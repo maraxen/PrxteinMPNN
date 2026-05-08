@@ -1,4 +1,4 @@
-"""Decode function registry for tracking BatchLogitsFn provenance.
+"""Decode function registry for tracking LogitTransformFn provenance.
 
 Host-only: never imported from JAX-traced code. Functions are resolved here
 and passed as static_argnames to JIT at dispatch time.
@@ -14,12 +14,12 @@ from typing import TYPE_CHECKING, Any
 import jax.numpy as jnp
 
 if TYPE_CHECKING:
-  from prxteinmpnn.model_inputs import BatchLogitsFn
+  from prxteinmpnn.model_inputs import LogitTransformFn
 
 
 @dataclasses.dataclass
 class DecodeFnEntry:
-  """Registry entry for a BatchLogitsFn with provenance metadata."""
+  """Registry entry for a LogitTransformFn with provenance metadata."""
 
   uid: str
   name: str
@@ -32,7 +32,7 @@ _REGISTRY: dict[str, DecodeFnEntry] = {}
 
 
 def register_decode_fn(fn: Any, name: str | None = None) -> str:
-  """Register a BatchLogitsFn and return its UID.
+  """Register a LogitTransformFn and return its UID.
 
   UID is a 16-char hex prefix of SHA-256(cloudpickle(fn)).
   Idempotent: re-registering the same fn returns the same UID.
@@ -53,7 +53,7 @@ def register_decode_fn(fn: Any, name: str | None = None) -> str:
 
 
 def resolve_decode_fn(uid: str) -> Any:
-  """Return the registered BatchLogitsFn for a given UID."""
+  """Return the registered LogitTransformFn for a given UID."""
   if uid not in _REGISTRY:
     msg = f"No decode fn registered for uid={uid!r}. Call register_decode_fn first."
     raise KeyError(msg)

@@ -56,19 +56,19 @@ def parse_structure(
   # then older top-level parsing export.
   _parse_structure = None
   try:
-    from proxide.io.parsing.rust import parse_structure as _parse_structure
+    from proxide.io.parsing.rust import parse_structure as _parse_structure  # noqa: PLC0415
   except (ModuleNotFoundError, ImportError):
     pass
 
   if _parse_structure is None:
     try:
-      from proxide.io.parsing.backend import parse_structure as _parse_structure
+      from proxide.io.parsing.backend import parse_structure as _parse_structure  # noqa: PLC0415
     except (ModuleNotFoundError, ImportError):
       pass
 
   if _parse_structure is None:
     try:
-      from proxide.io.parsing import parse_structure as _parse_structure
+      from proxide.io.parsing import parse_structure as _parse_structure  # noqa: PLC0415
     except (ModuleNotFoundError, ImportError) as exc:
       msg = (
         "No proxide parsing backend available. Install proxide with parsing support "

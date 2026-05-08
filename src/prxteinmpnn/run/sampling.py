@@ -753,7 +753,6 @@ def _make_sampling_planner(
 ) -> BatchPlan:
   """Create a BatchPlan for _sample_batch dispatch with advisory logging."""
   try:
-    import jax
     limit = jax.devices()[0].memory_stats()["bytes_limit"]
   except Exception:
     limit = 4 * 1024**3
@@ -790,7 +789,7 @@ def _sample_batch(
   if _plan.exceeded_budget():
     _batch_logger.warning(
       "_sample_batch: BatchPlan exceeded budget even at minimum tiles. "
-      "Consider reducing batch sizes or enabling PR-C safe_map adoption."
+      "Consider reducing batch sizes or enabling PR-C safe_map adoption.",
     )
 
   grid_lineage = _resolve_grid_lineage(spec)

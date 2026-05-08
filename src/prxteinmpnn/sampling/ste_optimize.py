@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
   from jaxtyping import Float, Int, PRNGKeyArray
 
-  from prxteinmpnn.io.designs import DesignArrayRecordWriter
+  from prxteinmpnn.io.designs import DesignArrayRecordWriter, DesignMetadata
   from prxteinmpnn.model import PrxteinMPNN
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
@@ -357,7 +357,6 @@ def make_optimize_sequence_fn(
     if writer is not None:
       def _save_logits(logits: jnp.ndarray) -> None:
         """Host-side callback to write final logits to the writer."""
-        from prxteinmpnn.io.designs import DesignMetadata
 
         # Prepare sensible defaults for fields not naturally available from STE optimization.
         scores = jnp.array([0.0], dtype=jnp.float32)  # Default score; caller can override.

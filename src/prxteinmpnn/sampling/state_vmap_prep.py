@@ -250,7 +250,7 @@ def slice_flat_tensor_to_stack(
     return np.zeros((n_states, n_pad, 0), dtype=flat.dtype)
   n_flat = int(flat.shape[0])
   tail = flat.shape[1:]
-  out = np.zeros((n_states, n_pad) + tail, dtype=flat.dtype)
+  out = np.zeros((n_states, n_pad, *tail), dtype=flat.dtype)
   for s in range(n_states):
     for j in range(n_pad):
       fr = int(state_flat_rows[s, j])

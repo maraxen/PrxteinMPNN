@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Literal, Self, TypedDict
 
@@ -153,7 +154,6 @@ class DesignArrayRecordWriter:
     record_bytes.extend(weights.tobytes())
 
     # Write metadata as JSON suffix
-    import json
     metadata_json = json.dumps(metadata).encode("utf-8")
     metadata_len = np.uint32(len(metadata_json)).tobytes()
     record_bytes.extend(metadata_len)
@@ -186,7 +186,7 @@ def stream_design_to_host(
   metadata: DesignMetadata,
 ):
   """Host-side callback for streaming designs from device.
-  
+
   This function should be called via jax.experimental.io_callback.
   """
   payload: DesignPayload = {

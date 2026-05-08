@@ -129,8 +129,7 @@ def _make_scoring_planner(
       A BatchPlan configured for the scoring workload.
   """
   try:
-    import jax as jax_module
-    limit = jax_module.devices()[0].memory_stats()["bytes_limit"]
+    limit = jax.devices()[0].memory_stats()["bytes_limit"]
   except Exception:
     limit = 4 * 1024**3
   budget = limit * headroom - param_bytes

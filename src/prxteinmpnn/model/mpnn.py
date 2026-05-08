@@ -193,8 +193,8 @@ class PrxteinMPNN(eqx.Module):
     _state_mapping: jnp.ndarray | None,
     _fixed_mask: jnp.ndarray | None,
     _fixed_tokens: jnp.ndarray | None,
-    group_indices_table: jnp.ndarray | None,
-    group_valid_table: jnp.ndarray | None,
+    _group_indices_table: jnp.ndarray | None,
+    _group_valid_table: jnp.ndarray | None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the unconditional (scoring) path.
 
@@ -277,8 +277,8 @@ class PrxteinMPNN(eqx.Module):
     state_mapping: jnp.ndarray | None,
     _fixed_mask: jnp.ndarray | None,
     _fixed_tokens: jnp.ndarray | None,
-    group_indices_table: jnp.ndarray | None,
-    group_valid_table: jnp.ndarray | None,
+    _group_indices_table: jnp.ndarray | None,
+    _group_valid_table: jnp.ndarray | None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the conditional (scoring) path.
 
@@ -681,10 +681,10 @@ class PrxteinMPNN(eqx.Module):
     state_weights: jnp.ndarray | None = None,
     state_mapping: jnp.ndarray | None = None,
     num_groups: int | None = None,
-    wave_group_ids: jnp.ndarray | None = None,
-    wave_group_positions: jnp.ndarray | None = None,
-    wave_group_valid: jnp.ndarray | None = None,
-    wave_position_valid: jnp.ndarray | None = None,
+    wave_group_ids: jnp.ndarray | None = None,  # noqa: ARG002
+    wave_group_positions: jnp.ndarray | None = None,  # noqa: ARG002
+    wave_group_valid: jnp.ndarray | None = None,  # noqa: ARG002
+    wave_position_valid: jnp.ndarray | None = None,  # noqa: ARG002
     inference: bool = True,
     coords_stack: jnp.ndarray | None = None,
     mask_stack: jnp.ndarray | None = None,
@@ -1283,10 +1283,3 @@ class PrxteinMPNN(eqx.Module):
     )
 
 
-from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN, ligand_encode_stack_row
-from prxteinmpnn.model.mpnn_scoring_state_vmap_exact_ligand import (
-  _ligand_slice_pad_cond_batch,
-  _ligand_slice_pad_state_batch,
-  ligand_score_conditional_state_vmap_one_chunk,
-  ligand_score_unconditional_state_vmap_one_chunk,
-)

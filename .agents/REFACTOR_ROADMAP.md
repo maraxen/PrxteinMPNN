@@ -374,7 +374,7 @@ Each sub-PR is parity-pinned and individually mergeable. Closes **§9**.
 **Other Phase 5 sub-PRs (3):**
 - 5f: `SamplingDriver` (host) parameterized by `DesignSink` Protocol (introduced here, deferred from Phase 2). Consumes JIT-pure registered samplers from §3.3 (`SAMPLERS` **factories** → ``SamplerFn``; see ``run/sampling_driver.py`` prep). Replaces the 4 near-duplicate streaming functions in `run/sampling.py` and the parallels in `run/scoring.py`, `run/jacobian.py`, `run/conformational_inference.py`. **Does not** copy jaxbeans's in-place `datamodule.batch_size` mutation — batching flows via `RunSpec.batching`.
 - 5g: Plumb `async_indexed_stream` (vendored at `prxteinmpnn/utils/_vendored_callbacks.py`, per §3.6) using `stop_gradient` + **`jax.experimental.io_callback(..., ordered=False)` everywhere in-repo** — **`ordered=True` is forbidden** here because it forces sequential host synchronization on every callback. Use **`jax.effects_barrier()`** at sink / batch boundaries when ordering or drain semantics matter. Wrap with `BoundedCallbackHandler` for backpressure. **Add `jax.effects_barrier()` at every sink boundary and at epoch end** — this is the customization that motivates vendoring (jaxbeans omits it; their I/O scale is smaller). `io_callback` lives **outside** any `checkify` region. Adopt `atomic_write` + `MultiPartWriter` (DEPEND), `safe_map` (DEPEND), `PreemptionHandler` (DEPEND), `BinaryDatasetWriter` schema-as-dict (DEPEND).
-- 5h: Relocate `ensemble/dbscan.py` and `ensemble/pca.py` to jaxbeans (separate jaxbeans-side PR; in this repo we add a shim that imports from jaxbeans). Closes **§12**.
+- 5h: ~~Relocate `ensemble/dbscan.py` and `ensemble/pca.py` to jaxbeans (separate jaxbeans-side PR; in this repo we add a shim that imports from jaxbeans). Closes **§12**.~~ **DEFERRED INDEFINITELY (2026-05-07).** Requires jaxbeans maintainer to confirm target path (`ml/clustering/`) and open the jaxbeans-side PR first. Do not pursue until that coordination happens out-of-band.
 
 **JIT-cache fragmentation measurement (critic #6, accepted).** The mpnn split risks fragmenting the JIT compile cache because trace contexts now span more modules. Sub-PR 5e adds a benchmark to `tests/profiling/test_cold_start.py` that:
 - Measures cold `jax.jit(model.__call__).lower(...).compile()` wall time before and after the split.
@@ -415,9 +415,32 @@ Each sub-PR is parity-pinned and individually mergeable. Closes **§9**.
 
 ---
 
+### Phase 7 — Lint, type checking, and coding standards enforcement
+
+| | |
+|---|---|
+| **Goal** | Enforce owner-specified quality standards across the codebase: linting rules, type annotation coverage, and general coding improvements. Exact scope is **TBD** — owner has several concerns and standards to specify before work begins. |
+| **Parity risk** | **Low** (mechanical / annotation-only changes; no logic moves) |
+| **PRs** | TBD — depends on scope of standards defined |
+| **Pre-conditions** | Phase 6 complete (or concurrent if changes are purely annotation / lint and touch no logic). |
+
+**Scope (to be defined by owner):**
+
+- Linting rules: ruff configuration, per-file ignores, rule additions/removals — owner to specify which rules and enforcement level.
+- Type annotation coverage: which modules require full annotation, beartype/jaxtyping decorator discipline (`PRXTEINMPNN_VERIFY`), Protocol conformance checking.
+- General coding standards: naming conventions, module structure rules, import ordering, comment policy, any other patterns owner wants enforced repo-wide.
+- CI integration: which checks become hard gates vs advisory; whether `ty` or `mypy` runs in CI and at what strictness level.
+
+**Process:** Owner specifies standards → single planning session to enumerate violations and scope PRs → mechanical remediation sprints (good candidates for fixer subagents).
+
+**CI gates added:** TBD — determined by the standards defined above.
+**Tech-debt closed:** TBD.
+
+---
+
 ## 5. Phase ordering rationale
 
-The order is **additive-first, then mechanical extractions, then behavioral changes, finally external migrations**. Phase 0 is pure scaffolding plus the **0a SPIKE** that gates Phase 4's unification claim. Phase 1 is pure deletion of dead/debug code (zero parity risk, immediately unblocks §11 StableHLO; both `mp.set_start_method` sites — `__init__.py` and `run/specs.py:15` — are addressed together). Phase 2 introduces typed boundaries *additively* — old `Callable[..., Any]` aliases coexist with new Protocols during the migration window. Phase 3 introduces pytree payloads and the composed `RunSpec` *before* registries because the registries dispatch on those payloads' static fields (combine_strategy, multistate.mode); reversing would force a second migration of registry signatures. Phase 4 collapses duplication only after Phase 3 has unified the data shapes and after the spike has decided whether `state_vmap_exact` can be unified or merely routed. Phase 5 is the highest-risk phase (file split + `SamplingDriver` + io_callback) and depends on every prior phase; the mpnn split is decomposed into 5 sub-PRs (5a–5e) plus 3 more (5f–5h). **Phase 6 goes last** so that (1) the host-orchestrator split clarifies which utilities belong outside the hot path, and (2) **batch layout and memory policy** (bucketing, ragged vs padded, `safe_map` vs stacked `vmap`) are decided **after** registries and `SamplingDriver` stabilize signatures — avoiding a second full migration of multistate carriers while Phase 4–5 are still churning.
+The order is **additive-first, then mechanical extractions, then behavioral changes, finally external migrations**. Phase 0 is pure scaffolding plus the **0a SPIKE** that gates Phase 4's unification claim. Phase 1 is pure deletion of dead/debug code (zero parity risk, immediately unblocks §11 StableHLO; both `mp.set_start_method` sites — `__init__.py` and `run/specs.py:15` — are addressed together). Phase 2 introduces typed boundaries *additively* — old `Callable[..., Any]` aliases coexist with new Protocols during the migration window. Phase 3 introduces pytree payloads and the composed `RunSpec` *before* registries because the registries dispatch on those payloads' static fields (combine_strategy, multistate.mode); reversing would force a second migration of registry signatures. Phase 4 collapses duplication only after Phase 3 has unified the data shapes and after the spike has decided whether `state_vmap_exact` can be unified or merely routed. Phase 5 is the highest-risk phase (file split + `SamplingDriver` + io_callback) and depends on every prior phase; the mpnn split is decomposed into 5 sub-PRs (5a–5e) plus 3 more (5f–5h). **Phase 6** goes after Phase 5 so that (1) the host-orchestrator split clarifies which utilities belong outside the hot path, and (2) **batch layout and memory policy** (bucketing, ragged vs padded, `safe_map` vs stacked `vmap`) are decided **after** registries and `SamplingDriver` stabilize signatures — avoiding a second full migration of multistate carriers while Phase 4–5 are still churning. **Phase 7** (lint / type checking / coding standards) is last because (1) enforcing annotation discipline on moving code creates churn, and (2) the owner's full list of standards is TBD — this phase is a planning-first phase that cannot be scoped until the codebase is structurally stable.
 
 ---
 
@@ -618,19 +641,19 @@ Each Open Question now has a **default decision** that holds unless a triggering
 
 ---
 
-## 14. Sprint status (Phase 0a GO; Phase **5e-cont** ligand scoring extract landed — **next: 5f** / further **5e-cont**)
+## 14. Sprint status (Phase 5 **5a–5g landed**; **5h deferred Q3** — next: Phase 6)
 
 | Field | Value |
 | :--- | :--- |
-| **task_id** | `refactor-phase5-5e-cont-scoring-20260507` — **landed (2026-05-07):** `model/mpnn_scoring_state_vmap_exact_ligand.py` hosts `run_score_*_ligand`, slice helpers, and `ligand_score_*_one_chunk`; `PrxteinLigandMPNN.score_*_state_vmap_exact` delegates (lazy import). `mpnn.py` tail re-exports moved helpers from scoring module. Sprint: `.agents/SPRINT_refactor-phase5-5e-cont-scoring-20260507.md`. Verification: `.agents/verification_logs/sprint_phase5_5e_cont_scoring_ligand_20260507.filtered.txt`. **Prior:** `refactor-phase5-5e-cont-20260509` (Ligand AR extract; `mpnn_autoregressive_state_vmap_exact_ligand.py`). |
-| **Last update** | **2026-05-07** — Ligand scoring `state_vmap_exact` bodies extracted; `pyproject.toml` per-file ruff ignores for JIT-heavy scoring module; scoring uses lazy `ligand_encode_stack_row` import to break `model` package init cycle. |
-| **Current phase** | Phase 5 **5f** SamplingDriver breadth **or** further **5e-cont** mpnn/ligand LoC toward §11. |
-| **Still open** | **5f** driver + `run/jacobian.py` / `run/conformational_inference.py`; optional further **5e-cont** slices; optional scoring tensor sink unify; per-chunk tensor vs perplexity ([`TODO_io_callback.txt`](TODO_io_callback.txt)); jaxbeans **DEPEND**; **`OUTPUT_SINKS`**; **5h** ensemble→jaxbeans (Q3). |
-| **Plan** | **Verification cwd:** package root `prxteinmpnn/`. **Merge order:** **5f** or residual **5e-cont** per capacity. Logs: this sprint filtered log above; prior ligand AR `sprint_phase5_5e_cont_ligand_20260509.filtered.txt`. |
-| **Next action (no prior context)** | Read §14 **Still open**. **Do next:** **5f** `SamplingDriver` wiring into `run/sampling.py` / `run/scoring.py` **or** another **5e-cont** extract if shrinking `ligand_mpnn.py` remains priority. **Deferred:** **5h**. Phase **6** waits on Phase 5 boundaries — roadmap §390–416. |
+| **task_id** | `refactor-phase5f-20260507` — **landed (2026-05-07):** commit `6dd995d`. `StreamingBatchHost` namespace centralizes `sink_barrier()`, `structure_batch_count()`, `iter_chunks()` across all `run/` entry-points. `DesignSink` Protocol + `OUTPUT_SINKS` registry introduced; `NoopDesignSink` + `StreamingTensorStagingSink` registered. `SamplingDriver` + `ScoringDriver` wired into `run/sampling.py` + `run/scoring.py`. Jacobian and conformational barriers migrated; tensor D2H deferred per §14 below. All `jax.effects_barrier()` call sites replaced. 161 tests passing (15 streaming + 120 run + 26 parity fast). **Prior:** `refactor-phase5-5e-cont-scoring-20260507` (ligand scoring `state_vmap_exact` extract). |
+| **Last update** | **2026-05-07** — Phase 5f landed: `StreamingBatchHost` + `DesignSink` + `OUTPUT_SINKS`. Phase 5 sub-PRs 5a–5g are all closed. 5h deferred (jaxbeans coordination). |
+| **Current phase** | Phase 5 **COMPLETE** (5a–5g). **5h** deferred Q3 (jaxbeans maintainer confirmation of `ml/clustering/` target path required before opening). **Next: Phase 6** (batch-layout / memory policy — §390–416). |
+| **Still open** | **5h** ensemble→jaxbeans (Q3, blocked on jaxbeans-side PR); optional scoring tensor sink session activation in `run/scoring.py` (framework exists, `active_scoring_sink()` always `None`); optional jacobian/conformational tensor D2H (explicitly "may stay pure JAX"); optional further **5e-cont** slices; jaxbeans **DEPEND** pieces (`core/profiling`, `utils/mapping`, `utils/io`, `core/safety`, `jax_io/sources`); per-chunk tensor vs perplexity ([`TODO_io_callback.txt`](TODO_io_callback.txt)). |
+| **Plan** | **Verification cwd:** package root `prxteinmpnn/`. **Next merge:** Phase 6 (§390–416) — batch layout, memory policy, `safe_map` adoption. 5h blocked on jaxbeans. |
+| **Next action (no prior context)** | Read §14 **Still open**. Phase 5 is closed except 5h (blocked). **Do next:** Phase 6 batch-layout / memory policy (§390–416) **or** jaxbeans DEPEND wiring if jaxbeans 0.1.0 is imminent. **Do not start 5h** until jaxbeans maintainer confirms `ml/clustering/` target path. |
 | **Prior landed (Phase 2)** | `protocols.py`, `model/capabilities.py`, introspection removal at sample/score/averaging, honest casts on score paths; sprint `refactor-phase2-sprint-20260505`, plan `.agents/SPRINT_refactor-phase2-20260505.md`. |
 | **Prior phase** | Phase 1: `task_id` `refactor-phase1-sprint-20260505` (§14 prior row archived in git history). |
 
 ---
 
-*End of roadmap. Phase 2 typed boundaries are landed; Phase 3b portable RunSpec JSON v2 + hygiene signed off; **2026-05-07** landed Phase **5g PR4** sampling tensor ``io_callback`` + filtered verification log (after **PR3b** scoring tensor hook same day). Prior sprint closed ``SAMPLERS`` / ``SamplingDriver`` prep + Jacobian/CIF/Inspection JSON round-trips + Phase 4 unconditional-path documentation (§13.2 GO). **2026-05-06** closed PR2b host coercion for ``make_sample_sequences`` temperature path (loose stack kwargs). **Phase 6** now includes batch-layout / memory policy (**§15**) after Phase 5. Long-form sampling notes remain under `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md`.*
+*End of roadmap. Phase 2 typed boundaries are landed; Phase 3b portable RunSpec JSON v2 + hygiene signed off; **2026-05-07** landed Phase **5f** (`StreamingBatchHost` + `DesignSink` + `OUTPUT_SINKS`, commit `6dd995d`) — closes the last in-flight Phase 5 sub-PR. Prior same day: **5g PR4** sampling tensor ``io_callback`` + filtered verification log (after **PR3b** scoring tensor hook). Prior sprint closed ``SAMPLERS`` / ``SamplingDriver`` prep + Jacobian/CIF/Inspection JSON round-trips + Phase 4 unconditional-path documentation (§13.2 GO). **2026-05-06** closed PR2b host coercion for ``make_sample_sequences`` temperature path (loose stack kwargs). **Phase 5 is complete** (5a–5g landed; 5h deferred Q3). **Phase 6** (batch-layout / memory policy, **§15**) is the active next phase. Long-form sampling notes remain under `.agents/SPRINT_refactor-phase0a-go-pr2-sample-20260507.md`.*

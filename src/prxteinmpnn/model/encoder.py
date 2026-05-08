@@ -123,8 +123,8 @@ class EncoderLayer(eqx.Module):
     mask: AlphaCarbonMask,
     mask_attend: jnp.ndarray | None = None,
     scale: float = 30.0,
-    inference: bool = False,
     *,
+    inference: bool = False,
     key: PRNGKeyArray | None = None,
   ) -> tuple[NodeFeatures, EdgeFeatures]:
     """Forward pass for the encoder layer."""
@@ -218,8 +218,8 @@ class Encoder(eqx.Module):
     mask: AlphaCarbonMask,
     initial_node_features: jnp.ndarray | None = None,
     scale: float = 30.0,
-    inference: bool = False,
     *,
+    inference: bool = False,
     key: PRNGKeyArray | None = None,
   ) -> tuple[NodeFeatures, EdgeFeatures]:
     """Forward pass for the encoder."""
@@ -257,138 +257,3 @@ class PhysicsEncoder(eqx.Module):
   physics_projection: eqx.nn.Linear
 
   node_feature_dim: int = eqx.field(static=True)
-
-  def __init__(
-    self,
-    node_features: int,
-    edge_features: int,
-    hidden_features: int,
-    num_layers: int = 3,
-    dropout_rate: float = 0.1,
-    physics_feature_dim: int | None = None,
-    *,
-    key: PRNGKeyArray,
-  ) -> None:
-    """Initialize the encoder.
-
-    Args:
-      node_features: Dimension of node features.
-      edge_features: Dimension of edge features.
-      hidden_features: Dimension of hidden features in feedforward network.
-      num_layers: Number of encoder layers.
-      dropout_rate: Dropout rate (default: 0.1).
-      physics_feature_dim: Dimension of physical features.
-      key: PRNG key for initialization.
-
-    """
-    self.node_feature_dim = node_features
-    keys = jax.random.split(key, num_layers)
-    self.layers = tuple(
-      EncoderLayer(
-        node_features,
-        edge_features,
-        hidden_features,
-        dropout_rate=dropout_rate,
-        key=k,
-      )
-      for k in keys
-    )
-    if physics_feature_dim is not None:
-      self.physics_projection = eqx.nn.Linear(
-        physics_feature_dim,
-        node_features,
-        key=keys[-1],
-      )
-    else:
-      self.physics_projection = None  # type: ignore[invalid-assignment]
-
-  def __call__(
-    self,
-    edge_features: EdgeFeatures,
-    neighbor_indices: NeighborIndices,
-    mask: AlphaCarbonMask,
-    initial_node_features: NodeFeatures | None = None,
-    scale: float = 30.0,
-    inference: bool = False,
-    *,
-    key: PRNGKeyArray | None = None,
-  ) -> tuple[NodeFeatures, EdgeFeatures]:
-    """Forward pass for the physics-augmented encoder."""
-    if key is None:
-      inference = True
-    keys = jax.random.split(key, len(self.layers)) if key is not None else [None] * len(self.layers)
-
-    node_features = (
-      jnp.zeros((edge_features.shape[0], self.node_feature_dim))
-      if initial_node_features is None
-      else jax.vmap(self.physics_projection)(initial_node_features)
-    )
-
-    mask_2d = mask[:, None] * mask[None, :]
-    mask_attend = jnp.take_along_axis(mask_2d, neighbor_indices.astype(jnp.int32), axis=1)
-
-    for i, layer in enumerate(self.layers):
-      node_features, edge_features = layer(
-        node_features,
-        edge_features,
-        neighbor_indices,
-        mask,
-        mask_attend=mask_attend,
-        scale=scale,
-        inference=inference,
-        key=keys[i],
-      )
-    return node_features, edge_features
-
-
-def pack_encoder_context(
-  node_features: jax.Array,
-  edge_features: jax.Array,
-  neighbor_indices: jax.Array,
-  mask_fw: jax.Array,
-) -> jax.Array:
-  """Neighbor-packed encoder context for AR / wave scans (mask applied here).
-
-  Matches the legacy sequence: ``zeros‖edge`` gather, ``node‖that`` gather, then
-  ``result * mask_fw[..., None]``. Batched graphs: ``jax.vmap(pack_encoder_context)``.
-
-  LigandMPNN AR scan and ligand ``state_vmap_exact`` call sites mirror this via the same helper.
-  """
-  encoder_edge_neighbors = concatenate_neighbor_nodes(
-    jnp.zeros_like(node_features),
-    edge_features,
-    neighbor_indices,
-  )
-  encoder_context = concatenate_neighbor_nodes(
-    node_features,
-    encoder_edge_neighbors,
-    neighbor_indices,
-  )
-  return encoder_context * mask_fw[..., None]
-
-
-def encoder_forward_with_int_neighbors(
-  encoder: Encoder | PhysicsEncoder,
-  edge_features: jax.Array,
-  neighbor_indices: jax.Array,
-  mask: jax.Array,
-  initial_node_features: jax.Array,
-  *,
-  inference: bool,
-  key: PRNGKeyArray | None,
-) -> tuple[jax.Array, jax.Array, jax.Array]:
-  """Run ``encoder(...)`` and return int32 neighbor indices for downstream gathers.
-
-  Callers must pass the **same** ``key`` / ``inference`` pairing as the inlined path
-  (e.g. wave ``encode_one`` uses one ``k`` for both ``features`` and encoder; scoring
-  paths use ``k_feat`` vs ``k_enc`` separately — only the encoder tail is unified here).
-  """
-  nf2, ef2 = encoder(
-    edge_features,
-    neighbor_indices,
-    mask,
-    initial_node_features=initial_node_features,
-    inference=inference,
-    key=key,
-  )
-  return nf2, ef2, neighbor_indices.astype(jnp.int32)

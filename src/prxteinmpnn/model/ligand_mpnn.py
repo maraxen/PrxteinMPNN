@@ -98,9 +98,9 @@ class PrxteinLigandMPNN(eqx.Module):
     num_amino_acids: int = 21,
     vocab_size: int = 21,
     dropout_rate: float = 0.1,
-    ligand_mpnn_use_side_chain_context: bool = False,
     ligand_l_chunk: int = 16,
     *,
+    ligand_mpnn_use_side_chain_context: bool = False,
     key: PRNGKeyArray,
   ) -> None:
     keys = jax.random.split(key, 5)
@@ -608,8 +608,8 @@ class PrxteinLigandMPNN(eqx.Module):
     _state_mapping: jnp.ndarray | None,
     _fixed_mask: jnp.ndarray | None,
     _fixed_tokens: jnp.ndarray | None,
-    group_indices_table: jnp.ndarray | None,
-    group_valid_table: jnp.ndarray | None,
+    _group_indices_table: jnp.ndarray | None,
+    _group_valid_table: jnp.ndarray | None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the unconditional (scoring) path for LigandMPNN.
 
@@ -690,6 +690,7 @@ class PrxteinLigandMPNN(eqx.Module):
     group_indices_table: jnp.ndarray | None = None,
     group_valid_table: jnp.ndarray | None = None,
     num_groups: int | None = None,
+    *,
     inference: bool = True,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Autoregressive scan for LigandMPNN with optional tied-position decoding."""

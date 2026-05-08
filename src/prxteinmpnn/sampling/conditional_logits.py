@@ -179,11 +179,10 @@ def make_conditional_logits_state_vmap_fn(
   ``ar_mask_stack`` defaults to zeros `(S,P,P)`, matching :func:`make_conditional_logits_fn`.
   """
 
-  from prxteinmpnn.model.mpnn import PrxteinLigandMPNN as _LM
-  from prxteinmpnn.model.multistate_stack import gather_flat_to_stack
+  from prxteinmpnn.model.multistate_stack import gather_flat_to_stack  # noqa: PLC0415
 
   m = eqx.nn.inference_mode(model, value=True) if isinstance(model, eqx.Module) else model
-  is_lig = isinstance(model, _LM)
+  is_lig = isinstance(model, PrxteinLigandMPNN)
   n_emb = int(m.w_s_embed.num_embeddings)
 
   if is_lig:
@@ -245,9 +244,7 @@ def make_conditional_logits_state_vmap_fn(
 
     return cast("StateVmapExactLogitsFn", conditional_stack)
 
-  from prxteinmpnn.model.mpnn import PrxteinMPNN as _PM
-
-  if not isinstance(model, _PM):
+  if not isinstance(model, PrxteinMPNN):
     raise TypeError("Expected PrxteinMPNN or PrxteinLigandMPNN")
 
   @partial(jax.jit, static_argnames=("n_flat",))

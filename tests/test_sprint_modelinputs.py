@@ -24,3 +24,15 @@ def test_make_geometric_mean_transform_cache_idempotent():
     fn_a = make_geometric_mean_transform(0.5)
     fn_b = make_geometric_mean_transform(0.5)
     assert fn_a is fn_b, "Same temperature must return the same cached closure"
+
+
+def test_mpnn_score_unconditional_no_temperature_param():
+    import inspect
+    import jax
+    from prxteinmpnn.model.mpnn import PrxteinMPNN
+
+    m = PrxteinMPNN(16, 16, 16, 1, 1, 6, key=jax.random.PRNGKey(0))
+    sig = inspect.signature(m.score_unconditional_state_vmap_exact)
+    assert "multi_state_temperature" not in sig.parameters, (
+        "multi_state_temperature must not appear in score_unconditional_state_vmap_exact"
+    )

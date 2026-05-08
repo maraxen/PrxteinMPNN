@@ -22,7 +22,7 @@ class ModelCapabilities(eqx.Module):
 
 PRXTEIN_MPNN_CAPABILITIES: ModelCapabilities = ModelCapabilities(
   is_ligand_model=False,
-  accepts_multi_state_temperature=True,
+  accepts_multi_state_temperature=False,
   accepts_state_weights=True,
   accepts_fixed_mask_and_tokens=True,
   encode_fn_supports_structure_mapping=True,
@@ -30,7 +30,7 @@ PRXTEIN_MPNN_CAPABILITIES: ModelCapabilities = ModelCapabilities(
 
 PRXTEIN_LIGAND_MPNN_CAPABILITIES: ModelCapabilities = ModelCapabilities(
   is_ligand_model=True,
-  accepts_multi_state_temperature=True,
+  accepts_multi_state_temperature=False,
   accepts_state_weights=True,
   accepts_fixed_mask_and_tokens=True,
   encode_fn_supports_structure_mapping=True,

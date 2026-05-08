@@ -284,7 +284,6 @@ def make_optimize_sequence_fn(
             tie_group_map=tie_group_map,
             multi_state_strategy=multi_state_strategy,
             multistate_mode=multistate_mode,
-            multi_state_temperature=multi_state_temperature,
             **call_kwargs,
           )
           return output_logits
@@ -405,7 +404,6 @@ def make_optimize_sequence_fn(
       structure_mapping=structure_mapping,
       tie_group_map=tie_group_map,
       multi_state_strategy=multi_state_strategy,
-      multi_state_temperature=multi_state_temperature,
       **final_call_kwargs,
     )
 

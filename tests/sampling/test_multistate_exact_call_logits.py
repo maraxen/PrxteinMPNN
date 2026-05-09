@@ -8,7 +8,8 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
+from prxteinmpnn.model.mpnn import PrxteinMPNN
+from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
 from prxteinmpnn.sampling.conditional_logits import make_conditional_logits_state_vmap_fn
 from prxteinmpnn.sampling.state_vmap_prep import (
   build_state_vmap_exact_stacks,
@@ -69,7 +70,7 @@ def test_prxteinmpnn_call_matches_state_vmap_factories(kind: str) -> None:
 
   if kind == "unconditional":
     uf = make_unconditional_logits_state_vmap_fn(model)
-    lf_f = uf(pk, cs, ms, ris, cis, rows, n_flat, None, strat_idx, ms_temp, sw, None)
+    lf_f = uf(pk, cs, ms, ris, cis, rows, n_flat, None, strat_idx, sw, None)
     _, lf_c = model(
       coords_dummy,
       mask_dummy,
@@ -86,7 +87,6 @@ def test_prxteinmpnn_call_matches_state_vmap_factories(kind: str) -> None:
       n_flat=n_flat,
       tie_group_map=None,
       multi_state_strategy="arithmetic_mean",
-      multi_state_temperature=ms_temp,
       state_weights=sw,
       state_mapping=None,
     )
@@ -105,7 +105,6 @@ def test_prxteinmpnn_call_matches_state_vmap_factories(kind: str) -> None:
       n_flat,
       None,
       strat_idx,
-      ms_temp,
       sw,
       None,
     )
@@ -126,7 +125,6 @@ def test_prxteinmpnn_call_matches_state_vmap_factories(kind: str) -> None:
       n_flat=n_flat,
       tie_group_map=None,
       multi_state_strategy="arithmetic_mean",
-      multi_state_temperature=ms_temp,
       state_weights=sw,
       state_mapping=None,
     )
@@ -225,7 +223,6 @@ def test_prxteinligandmpnn_call_matches_state_vmap_factories(kind: str) -> None:
       n_flat=n_flat,
       tie_group_map=None,
       multi_state_strategy="arithmetic_mean",
-      multi_state_temperature=ms_temp,
       state_weights=sw,
       state_mapping=None,
     )
@@ -273,7 +270,6 @@ def test_prxteinligandmpnn_call_matches_state_vmap_factories(kind: str) -> None:
       n_flat=n_flat,
       tie_group_map=None,
       multi_state_strategy="arithmetic_mean",
-      multi_state_temperature=ms_temp,
       state_weights=sw,
       state_mapping=None,
     )

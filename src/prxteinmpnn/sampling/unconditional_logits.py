@@ -67,6 +67,8 @@ def _multistate_payload_for_unconditional_vmap(
       fixed_tokens_stack=zeros_i,
       state_flat_rows=state_flat_rows,
       flat_row_offsets=offs,
+      state_index=jnp.arange(s_dim, dtype=jnp.int32),
+      state_embedding=jnp.zeros((s_dim, 1), dtype=jnp.float32),
       n_states=int(s_dim),
       n_canonical=int(p_dim),
       n_flat=int(n_flat),
@@ -127,7 +129,6 @@ def make_unconditional_logits_state_vmap_fn(
       n_flat: int,
       tie_group_map: jax.Array | None,
       multi_state_strategy_idx: jax.Array,
-      multi_state_temperature: jax.Array | float,
       state_weights: jax.Array | None,
       state_mapping: jax.Array | None,
       states_chunk_size: int | None = None,
@@ -152,7 +153,7 @@ def make_unconditional_logits_state_vmap_fn(
         lig,
         tie_group_map=tie_group_map,
         multi_state_strategy_idx=multi_state_strategy_idx,
-        multi_state_temperature=jnp.asarray(multi_state_temperature, jnp.float32),
+
         state_weights=state_weights,
         state_mapping=state_mapping,
         states_chunk_size=states_chunk_size,
@@ -174,7 +175,6 @@ def make_unconditional_logits_state_vmap_fn(
     n_flat: int,
     tie_group_map: jax.Array | None,
     multi_state_strategy_idx: jax.Array,
-    multi_state_temperature: jax.Array | float,
     state_weights: jax.Array | None,
     state_mapping: jax.Array | None,
   ) -> jax.Array:
@@ -193,7 +193,6 @@ def make_unconditional_logits_state_vmap_fn(
       None,
       tie_group_map=tie_group_map,
       multi_state_strategy_idx=multi_state_strategy_idx,
-      multi_state_temperature=jnp.asarray(multi_state_temperature, jnp.float32),
       state_weights=state_weights,
       state_mapping=state_mapping,
     )

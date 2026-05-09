@@ -50,7 +50,6 @@ def test_score_conditional_from_payload_accepts_logit_transform_fn():
         ar_mask_stack=ar_mask,
         tie_group_map=None,
         multi_state_strategy_idx=0,
-        multi_state_temperature=1.0,
         state_weights=None,
         state_mapping=None,
         logit_transform_fn=counting_transform,

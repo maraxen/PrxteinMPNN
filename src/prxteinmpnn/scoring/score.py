@@ -130,11 +130,7 @@ def _make_score_fn_state_vmap_exact(
     if is_lig and states_chunk_size > 0:
       scs_kw["states_chunk_size"] = int(states_chunk_size)
 
-    # Derive logit transform from fns or fall back to geometric mean with temperature
-    if fns is not None:
-      logit_transform_fn = resolve_hook(fns.logit_transform_uid)
-    else:
-      logit_transform_fn = make_geometric_mean_transform(float(multi_state_temperature))
+    logit_transform_fn = resolve_hook(fns.logit_transform_uid) if fns is not None else None
 
     if is_lig:
       logits = model.score_conditional_state_vmap_exact(  # type: ignore[union-attr]
@@ -179,6 +175,11 @@ def _make_score_fn_state_vmap_exact(
         logit_transform_fn=logit_transform_fn,
       )
 
+    if logit_transform_fn is not None:
+      s_dim = mask_stack.shape[0]
+      logits_s = jnp.broadcast_to(logits[jnp.newaxis], (s_dim,) + logits.shape)
+      logits = scatter_stack_to_flat(logits_s, state_flat_rows, n_flat_int)
+
     mask_flat = scatter_stack_to_flat(
       mask_stack[..., jnp.newaxis],
       state_flat_rows,
@@ -195,7 +196,7 @@ def _make_score_fn_state_vmap_exact(
     score_sequence_core = score_sequence_core_inner
   else:
 
-    @partial(jax.jit, static_argnames=("multi_state_strategy", "n_flat_int", "fns"))
+    @partial(jax.jit, static_argnames=("multi_state_strategy", "n_flat_int", "fns", "multi_state_temperature"))
     def score_sequence_core(
       prng_key: PRNGKeyArray,
       sequence: ProteinSequence | OneHotProteinSequence,

@@ -8,7 +8,8 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
+from prxteinmpnn.model.mpnn import PrxteinMPNN
+from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
 from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
 from prxteinmpnn.sampling.conditional_logits import make_conditional_logits_state_vmap_fn
 from prxteinmpnn.sampling.state_vmap_payload_logits import (
@@ -80,7 +81,6 @@ def test_unconditional_payload_logits_matches_factory() -> None:
     stack.n_flat,
     None,
     strat_idx,
-    ms_temp,
     sw,
     None,
   )
@@ -91,7 +91,6 @@ def test_unconditional_payload_logits_matches_factory() -> None:
     None,
     tie_group_map=None,
     multi_state_strategy_idx=strat_idx,
-    multi_state_temperature=ms_temp,
     state_weights=sw,
     state_mapping=None,
   )
@@ -130,7 +129,6 @@ def test_conditional_payload_logits_matches_factory() -> None:
     stack.n_flat,
     None,
     strat_idx,
-    ms_temp,
     sw,
     None,
   )
@@ -142,7 +140,6 @@ def test_conditional_payload_logits_matches_factory() -> None:
     None,
     tie_group_map=None,
     multi_state_strategy_idx=strat_idx,
-    multi_state_temperature=ms_temp,
     state_weights=sw,
     state_mapping=None,
     ar_mask_stack=None,
@@ -241,7 +238,6 @@ def test_ligand_payload_logits_matches_factory(kind: str) -> None:
       lig,
       tie_group_map=None,
       multi_state_strategy_idx=strat_idx,
-      multi_state_temperature=ms_temp,
       state_weights=sw,
       state_mapping=None,
     )
@@ -273,7 +269,6 @@ def test_ligand_payload_logits_matches_factory(kind: str) -> None:
       lig,
       tie_group_map=None,
       multi_state_strategy_idx=strat_idx,
-      multi_state_temperature=ms_temp,
       state_weights=sw,
       state_mapping=None,
       ar_mask_stack=None,

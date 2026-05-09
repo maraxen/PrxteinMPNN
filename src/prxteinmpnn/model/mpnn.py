@@ -1131,7 +1131,8 @@ class PrxteinMPNN(eqx.Module):
         else state_weights
       )
       _si = jnp.arange(logits_s.shape[0], dtype=jnp.int32)
-      return logit_transform_fn(logits_s, _si, _sw)
+      merged = logit_transform_fn(logits_s, _si, _sw)  # (L, V)
+      return merged
 
     logits_flat = scatter_stack_to_flat(logits_s, state_flat_rows, n_flat)
 
@@ -1290,7 +1291,8 @@ class PrxteinMPNN(eqx.Module):
         else state_weights
       )
       _si = jnp.arange(logits_s.shape[0], dtype=jnp.int32)
-      return logit_transform_fn(logits_s, _si, _sw)
+      merged = logit_transform_fn(logits_s, _si, _sw)  # (L, V)
+      return merged
 
     logits_flat = scatter_stack_to_flat(logits_s, state_flat_rows, n_flat)
     if tie_group_map is not None:

@@ -136,11 +136,8 @@ def make_conditional_logits_fn(
       else ar_mask
     )
 
-    # Default multi-state parameters for conditional logit computation
     _multi_state_strategy_idx = jax.numpy.array(0, dtype=jax.numpy.int32)  # 0 = "arithmetic_mean"
-    _multi_state_temperature = jax.numpy.array(1.0, dtype=jax.numpy.float32)
 
-    # Call the model's conditional path directly
     _, logits = model._call_conditional(  # noqa: SLF001
       node_features,
       edge_features,
@@ -151,9 +148,8 @@ def make_conditional_logits_fn(
       key_conditional,
       0.0,  # temperature unused in conditional path
       jax.numpy.zeros((mask.shape[0], 21), dtype=jax.numpy.float32),
-      None,  # tie_group_map not used in jacobian computation
+      None,  # tie_group_map
       _multi_state_strategy_idx,
-      _multi_state_temperature,
       None,  # _initial_node_features
       None,  # state_weights
       None,  # state_mapping
@@ -202,7 +198,6 @@ def make_conditional_logits_state_vmap_fn(
       n_flat: int,
       tie_group_map: jax.Array | None,
       multi_state_strategy_idx: jax.Array,
-      multi_state_temperature: jax.Array | float,
       state_weights: jax.Array | None,
       state_mapping: jax.Array | None,
       ar_mask_stack: jax.Array | None = None,
@@ -235,7 +230,7 @@ def make_conditional_logits_state_vmap_fn(
         n_flat,
         tie_group_map=tie_group_map,
         multi_state_strategy_idx=multi_state_strategy_idx,
-        multi_state_temperature=jnp.asarray(multi_state_temperature, jnp.float32),
+
         state_weights=state_weights,
         state_mapping=state_mapping,
         bias_flat=bias_flat,
@@ -260,7 +255,6 @@ def make_conditional_logits_state_vmap_fn(
     n_flat: int,
     tie_group_map: jax.Array | None,
     multi_state_strategy_idx: jax.Array,
-    multi_state_temperature: jax.Array | float,
     state_weights: jax.Array | None,
     state_mapping: jax.Array | None,
     ar_mask_stack: jax.Array | None = None,
@@ -286,7 +280,6 @@ def make_conditional_logits_state_vmap_fn(
       n_flat,
       tie_group_map=tie_group_map,
       multi_state_strategy_idx=multi_state_strategy_idx,
-      multi_state_temperature=jnp.asarray(multi_state_temperature, jnp.float32),
       state_weights=state_weights,
       state_mapping=state_mapping,
       bias_flat=bias_flat,

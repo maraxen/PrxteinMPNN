@@ -48,7 +48,7 @@ class UnconditionalPipeline:
       inputs,
       tie_group_map=None,
       multi_state_strategy_idx=self.multi_state_strategy_idx,
-      multi_state_temperature=1.0,
+
       state_weights=state_weights,
       state_mapping=None,
       inference=self.inference,

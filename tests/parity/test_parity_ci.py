@@ -10,7 +10,8 @@ import equinox as eqx
 import jax
 import pytest
 
-from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
+from prxteinmpnn.model.mpnn import PrxteinMPNN
+from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
 from prxteinmpnn.model.packer import Packer
 from tests.parity.reference_utils import project_root
 

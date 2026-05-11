@@ -6,7 +6,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
+from prxteinmpnn.model.mpnn import PrxteinMPNN
+from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
 from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
 from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.sampling.state_vmap_prep import (
@@ -200,7 +201,6 @@ def test_make_sample_sequences_state_vmap_exact_smoke():
     multi_state_strategy="arithmetic_mean",
     structure_mapping=sm_flat,
     temperature=jnp.float32(0.2),
-    multi_state_temperature=jnp.float32(1.0),
     state_weights=jnp.ones((n_states,), dtype=jnp.float32) / jnp.float32(n_states),
     fixed_mask=jnp.ones((bucket,), dtype=jnp.float32),
     fixed_tokens=jnp.zeros((bucket,), dtype=jnp.int32),
@@ -298,7 +298,6 @@ def test_sample_fn_state_vmap_exact_multistate_stack_payload_path():
     multi_state_strategy="arithmetic_mean",
     structure_mapping=sm_flat,
     temperature=jnp.float32(0.2),
-    multi_state_temperature=jnp.float32(1.0),
     state_weights=jnp.ones((n_states,), dtype=jnp.float32) / jnp.float32(n_states),
     fixed_mask=jnp.ones((bucket,), dtype=jnp.float32),
     fixed_tokens=jnp.zeros((bucket,), dtype=jnp.int32),
@@ -420,7 +419,6 @@ def test_sample_fn_state_vmap_exact_ligand_stack_payload_path():
     multi_state_strategy="arithmetic_mean",
     structure_mapping=sm_flat,
     temperature=jnp.float32(0.2),
-    multi_state_temperature=jnp.float32(1.0),
     state_weights=jnp.ones((n_states,), dtype=jnp.float32) / jnp.float32(n_states),
     fixed_mask=jnp.ones((bucket,), dtype=jnp.float32),
     fixed_tokens=jnp.zeros((bucket,), dtype=jnp.int32),
@@ -521,7 +519,6 @@ def test_score_fn_state_vmap_exact_multistate_stack_payload():
     structure_mapping=sm_flat,
     tie_group_map=jnp.asarray(tie_flat),
     multi_state_strategy="arithmetic_mean",
-    multi_state_temperature=jnp.float32(1.0),
     **stack_kwargs,
   )
   sc_b, log_b, _ = score_fn(
@@ -534,7 +531,6 @@ def test_score_fn_state_vmap_exact_multistate_stack_payload():
     structure_mapping=sm_flat,
     tie_group_map=jnp.asarray(tie_flat),
     multi_state_strategy="arithmetic_mean",
-    multi_state_temperature=jnp.float32(1.0),
     multistate_stack=pay,
     state_weights=sw,
   )
@@ -623,7 +619,6 @@ def test_ligand_state_vmap_exact_smoke():
     multi_state_strategy="arithmetic_mean",
     structure_mapping=sm_flat,
     temperature=jnp.float32(0.2),
-    multi_state_temperature=jnp.float32(1.0),
     state_weights=jnp.ones((n_states,), dtype=jnp.float32) / jnp.float32(n_states),
     fixed_mask=jnp.ones((bucket,), dtype=jnp.float32),
     fixed_tokens=jnp.zeros((bucket,), dtype=jnp.int32),

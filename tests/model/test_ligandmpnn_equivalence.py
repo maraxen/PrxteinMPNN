@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 from scipy.stats import pearsonr
 
-from prxteinmpnn.model.mpnn import PrxteinLigandMPNN
+from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
 from prxteinmpnn.parity.matrix import ligand_tied_multistate_rollout_outcome
 from tests.model.sampling_dist_parity_helpers import mean_positionwise_js
 from tests.parity.reference_utils import require_heavy_parity_prereqs

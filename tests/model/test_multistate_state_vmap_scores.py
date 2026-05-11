@@ -7,7 +7,8 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
+from prxteinmpnn.model.mpnn import PrxteinMPNN
+from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
 from prxteinmpnn.sampling.state_vmap_prep import build_state_vmap_exact_stacks, slice_flat_tensor_to_stack
 
 
@@ -71,7 +72,6 @@ def test_multistate_unconditional_scores_match_flat_small_prot():
     inference=True,
     tie_group_map=jnp.asarray(tie_flat),
     multi_state_strategy="arithmetic_mean",
-    multi_state_temperature=jnp.float32(1.0),
     structure_mapping=sm_flat,
     state_weights=sw,
     state_mapping=sm_flat,
@@ -87,7 +87,6 @@ def test_multistate_unconditional_scores_match_flat_small_prot():
     n_flat,
     tie_group_map=jnp.asarray(tie_flat),
     multi_state_strategy_idx=jnp.int32(0),
-    multi_state_temperature=jnp.float32(1.0),
     state_weights=sw,
     state_mapping=sm_flat,
     inference=True,
@@ -161,7 +160,6 @@ def test_multistate_conditional_scores_match_flat_small_prot():
     one_hot_sequence=oh_flat,
     tie_group_map=jnp.asarray(tie_flat),
     multi_state_strategy="arithmetic_mean",
-    multi_state_temperature=jnp.float32(1.0),
     structure_mapping=sm_flat,
     state_weights=sw,
     state_mapping=sm_flat,
@@ -188,7 +186,6 @@ def test_multistate_conditional_scores_match_flat_small_prot():
     n_flat,
     tie_group_map=jnp.asarray(tie_flat),
     multi_state_strategy_idx=jnp.int32(0),
-    multi_state_temperature=jnp.float32(1.0),
     state_weights=sw,
     state_mapping=sm_flat,
     inference=True,
@@ -285,7 +282,6 @@ def test_multistate_unconditional_scores_match_flat_small_ligand():
     group_indices_table=jnp.asarray(git),
     group_valid_table=jnp.asarray(gvt),
     multi_state_strategy="arithmetic_mean",
-    multi_state_temperature=jnp.float32(1.0),
     multistate_mode="flat",
     structure_mapping=sm_flat,
     state_weights=sw,
@@ -305,7 +301,6 @@ def test_multistate_unconditional_scores_match_flat_small_ligand():
     n_flat,
     tie_group_map=jnp.asarray(tie_flat),
     multi_state_strategy_idx=jnp.int32(0),
-    multi_state_temperature=jnp.float32(1.0),
     state_weights=sw,
     state_mapping=sm_flat,
   )
@@ -399,7 +394,6 @@ def test_multistate_conditional_scores_match_flat_small_ligand(biased: bool):
     "group_indices_table": jnp.asarray(git),
     "group_valid_table": jnp.asarray(gvt),
     "multi_state_strategy": "arithmetic_mean",
-    "multi_state_temperature": jnp.float32(1.0),
     "multistate_mode": "flat",
     "structure_mapping": sm_flat,
     "state_weights": sw,
@@ -441,7 +435,6 @@ def test_multistate_conditional_scores_match_flat_small_ligand(biased: bool):
     n_flat,
     tie_group_map=jnp.asarray(tie_flat),
     multi_state_strategy_idx=jnp.int32(0),
-    multi_state_temperature=jnp.float32(1.0),
     state_weights=sw,
     state_mapping=sm_flat,
     bias_flat=bias_flat,
@@ -498,7 +491,6 @@ def test_factory_unconditional_state_vmap_prot_matches_direct():
     n_flat,
     tie_group_map=jnp.asarray(tie_flat),
     multi_state_strategy_idx=jnp.int32(0),
-    multi_state_temperature=jnp.float32(1.0),
     state_weights=sw,
     state_mapping=sm_flat,
     inference=True,
@@ -513,7 +505,6 @@ def test_factory_unconditional_state_vmap_prot_matches_direct():
     n_flat,
     tie_group_map=jnp.asarray(tie_flat),
     multi_state_strategy_idx=jnp.int32(0),
-    multi_state_temperature=jnp.float32(1.0),
     state_weights=sw,
     state_mapping=sm_flat,
   )
@@ -575,7 +566,6 @@ def test_factory_conditional_and_score_state_vmap_prot_smoke():
     **stack_kwargs,
     tie_group_map=jnp.asarray(tie_flat),
     multi_state_strategy_idx=jnp.int32(0),
-    multi_state_temperature=jnp.float32(1.0),
     state_mapping=sm_flat,
   )
   score_fn = make_score_fn(model, multistate_mode="state_vmap_exact")
@@ -589,7 +579,6 @@ def test_factory_conditional_and_score_state_vmap_prot_smoke():
     structure_mapping=sm_flat,
     tie_group_map=jnp.asarray(tie_flat),
     multi_state_strategy="arithmetic_mean",
-    multi_state_temperature=jnp.float32(1.0),
     **stack_kwargs,
   )
   assert l1.shape == (n_flat, 21)
@@ -666,7 +655,6 @@ def test_ligand_state_chunk_matches_full_vmap_unconditional(lig_lc: int, states_
     n_flat,
     tie_group_map=jnp.asarray(tie_flat),
     multi_state_strategy_idx=jnp.int32(0),
-    multi_state_temperature=jnp.float32(1.0),
     state_weights=sw,
     state_mapping=sm_flat,
     states_chunk_size=None,
@@ -684,7 +672,6 @@ def test_ligand_state_chunk_matches_full_vmap_unconditional(lig_lc: int, states_
     n_flat,
     tie_group_map=jnp.asarray(tie_flat),
     multi_state_strategy_idx=jnp.int32(0),
-    multi_state_temperature=jnp.float32(1.0),
     state_weights=sw,
     state_mapping=sm_flat,
     **cs_kw,
@@ -765,7 +752,6 @@ def test_ligand_state_chunk_matches_full_vmap_conditional(lig_lc: int, states_ch
     n_flat,
     tie_group_map=jnp.asarray(tie_flat),
     multi_state_strategy_idx=jnp.int32(0),
-    multi_state_temperature=jnp.float32(1.0),
     state_weights=sw,
     state_mapping=sm_flat,
     inference=True,
@@ -786,7 +772,6 @@ def test_ligand_state_chunk_matches_full_vmap_conditional(lig_lc: int, states_ch
     n_flat,
     tie_group_map=jnp.asarray(tie_flat),
     multi_state_strategy_idx=jnp.int32(0),
-    multi_state_temperature=jnp.float32(1.0),
     state_weights=sw,
     state_mapping=sm_flat,
     inference=True,

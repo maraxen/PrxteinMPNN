@@ -488,7 +488,19 @@ def make_sample_sequences(
       ligand_stack: LigandStack | None = None,
       state_weights: jnp.ndarray | None = None,
       batch_fn: LogitTransformFn | None = None,
-      **kwargs: Any,
+      group_indices_table: jnp.ndarray | None = None,
+      group_valid_table: jnp.ndarray | None = None,
+      wave_group_ids: jnp.ndarray | None = None,
+      wave_group_positions: jnp.ndarray | None = None,
+      wave_group_valid: jnp.ndarray | None = None,
+      wave_position_valid: jnp.ndarray | None = None,
+      Y: jnp.ndarray | None = None,
+      Y_t: jnp.ndarray | None = None,
+      Y_m: jnp.ndarray | None = None,
+      xyz_37: jnp.ndarray | None = None,
+      xyz_37_m: jnp.ndarray | None = None,
+      chain_mask: jnp.ndarray | None = None,
+      state_mapping: jnp.ndarray | None = None,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """JIT core for temperature sampling (host coercion lives in outer ``sample_sequences``)."""
       del iterations, learning_rate
@@ -648,12 +660,12 @@ def make_sample_sequences(
         "multi_state_strategy": multi_state_strategy,
         "multistate_mode": multistate_mode,
         "structure_mapping": structure_mapping,
-        "group_indices_table": kwargs.get("group_indices_table"),
-        "group_valid_table": kwargs.get("group_valid_table"),
-        "wave_group_ids": kwargs.get("wave_group_ids"),
-        "wave_group_positions": kwargs.get("wave_group_positions"),
-        "wave_group_valid": kwargs.get("wave_group_valid"),
-        "wave_position_valid": kwargs.get("wave_position_valid"),
+        "group_indices_table": group_indices_table,
+        "group_valid_table": group_valid_table,
+        "wave_group_ids": wave_group_ids,
+        "wave_group_positions": wave_group_positions,
+        "wave_group_valid": wave_group_valid,
+        "wave_position_valid": wave_position_valid,
       }
 
       if not is_ligand_mpnn:
@@ -666,19 +678,19 @@ def make_sample_sequences(
 
       if supports_state_weights:
         call_kwargs["state_weights"] = state_weights
-        call_kwargs["state_mapping"] = kwargs.get("state_mapping")
+        call_kwargs["state_mapping"] = state_mapping
 
       if supports_fixed_controls:
         call_kwargs["fixed_mask"] = fixed_mask
         call_kwargs["fixed_tokens"] = fixed_tokens
 
       if is_ligand_mpnn:
-        call_kwargs["Y"] = kwargs.get("Y")
-        call_kwargs["Y_t"] = kwargs.get("Y_t")
-        call_kwargs["Y_m"] = kwargs.get("Y_m")
-        call_kwargs["xyz_37"] = kwargs.get("xyz_37")
-        call_kwargs["xyz_37_m"] = kwargs.get("xyz_37_m")
-        call_kwargs["chain_mask"] = kwargs.get("chain_mask")
+        call_kwargs["Y"] = Y
+        call_kwargs["Y_t"] = Y_t
+        call_kwargs["Y_m"] = Y_m
+        call_kwargs["xyz_37"] = xyz_37
+        call_kwargs["xyz_37_m"] = xyz_37_m
+        call_kwargs["chain_mask"] = chain_mask
 
       sampled_sequence, logits = model(
         structure_coordinates,
@@ -743,7 +755,19 @@ def make_sample_sequences(
       ligand_stack: LigandStack | None = None,
       state_weights: jnp.ndarray | None = None,
       batch_fn: LogitTransformFn | None = None,
-      **kwargs: Any,
+      group_indices_table: jnp.ndarray | None = None,
+      group_valid_table: jnp.ndarray | None = None,
+      wave_group_ids: jnp.ndarray | None = None,
+      wave_group_positions: jnp.ndarray | None = None,
+      wave_group_valid: jnp.ndarray | None = None,
+      wave_position_valid: jnp.ndarray | None = None,
+      Y: jnp.ndarray | None = None,
+      Y_t: jnp.ndarray | None = None,
+      Y_m: jnp.ndarray | None = None,
+      xyz_37: jnp.ndarray | None = None,
+      xyz_37_m: jnp.ndarray | None = None,
+      chain_mask: jnp.ndarray | None = None,
+      state_mapping: jnp.ndarray | None = None,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """Sample a sequence from a structure using the ProteinMPNN model.
 
@@ -847,7 +871,19 @@ def make_sample_sequences(
         ligand_stack,
         state_weights=state_weights,
         batch_fn=batch_fn,
-        **kwargs,
+        group_indices_table=group_indices_table,
+        group_valid_table=group_valid_table,
+        wave_group_ids=wave_group_ids,
+        wave_group_positions=wave_group_positions,
+        wave_group_valid=wave_group_valid,
+        wave_position_valid=wave_position_valid,
+        Y=Y,
+        Y_t=Y_t,
+        Y_m=Y_m,
+        xyz_37=xyz_37,
+        xyz_37_m=xyz_37_m,
+        chain_mask=chain_mask,
+        state_mapping=state_mapping,
       )
 
     return cast("SamplerFn", sample_sequences)

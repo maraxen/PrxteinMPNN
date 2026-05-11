@@ -12,6 +12,7 @@ from prxteinmpnn.model import PrxteinLigandMPNN, PrxteinMPNN
 from prxteinmpnn.model_inputs import (
   BackboneGeometry,
   ConditioningFeatures,
+  LogitTransformFn,
   SamplingInputs,
   SamplingStaticConfig,
 )
@@ -486,7 +487,7 @@ def make_sample_sequences(
       multistate_stack: MultistateStackPayload | None = None,
       ligand_stack: LigandStack | None = None,
       state_weights: jnp.ndarray | None = None,
-      batch_fn: Any | None = None,
+      batch_fn: LogitTransformFn | None = None,
       **kwargs: Any,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """JIT core for temperature sampling (host coercion lives in outer ``sample_sequences``)."""
@@ -626,7 +627,10 @@ def make_sample_sequences(
           )
         nc = state_vmap_n_canonical
         sampled_sequence = sampled_sequence[0, :nc, :]
-        logits = logits[0, :nc, :]
+        if batch_fn is None:
+          logits = jnp.mean(logits[:, :nc, :], axis=0)
+        else:
+          logits = batch_fn(logits[:, :nc, :], stack_sv.state_index, state_weights)
         one_hot_ndim = 2
         if sampled_sequence.ndim == one_hot_ndim:
           sampled_sequence = sampled_sequence.argmax(axis=-1).astype(jnp.int8)
@@ -738,7 +742,7 @@ def make_sample_sequences(
       multistate_stack: MultistateStackPayload | None = None,
       ligand_stack: LigandStack | None = None,
       state_weights: jnp.ndarray | None = None,
-      batch_fn: Any | None = None,
+      batch_fn: LogitTransformFn | None = None,
       **kwargs: Any,
     ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
       """Sample a sequence from a structure using the ProteinMPNN model.

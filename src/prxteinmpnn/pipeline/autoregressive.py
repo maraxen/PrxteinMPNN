@@ -31,9 +31,6 @@ class AutoregressivePipeline:
 
   Inputs:  AutoregressiveInputs
   Outputs: (sequences: OneHotProteinSequence, logits: Logits)
-
-  Note: LogitTransformFn is not currently threaded into the AR inner loop
-  (the wave-parallel scan applies per-step multistate fusion internally).
   """
 
   temperature: float = 1.0
@@ -50,6 +47,7 @@ class AutoregressivePipeline:
     """Sample sequences autoregressively and return (sequences, logits)."""
     S = inputs.stack.n_states
     state_weights = jnp.ones(S, dtype=jnp.float32) / S
+    batch_fn = fns.resolve_logit_transform()
 
     sequences, logits = module.sample_autoregressive_from_payload(
       key,

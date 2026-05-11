@@ -16,3 +16,15 @@ rationale = "Autoregressive sampling graph is larger; generous until dedicated c
 [logits]
 max_hlo_bytes = 12_000_000
 rationale = "Logits-factory lowers; aligned with model_call slack."
+
+[score_unconditional_payload]
+max_hlo_bytes = 12_000_000
+rationale = "Unconditional payload path (score_unconditional_from_payload); similar graph to model_call."
+
+[score_conditional]
+max_hlo_bytes = 15_000_000
+rationale = "Conditional payload path (score_conditional_from_payload); larger than unconditional due to seq embedding."
+
+[sample_autoregressive]
+max_hlo_bytes = 20_000_000
+rationale = "AR wave-parallel scan (sample_autoregressive_from_payload); larger graph than scoring paths."

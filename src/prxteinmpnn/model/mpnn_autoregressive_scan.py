@@ -86,9 +86,9 @@ def run_tied_position_scan(
   oh_tied = jax.nn.one_hot(
     tied_fixed_tokens,
     model.w_s_embed.num_embeddings,
-    dtype=logit_accum_dtype,
+    dtype=jnp.float32,
   )
-  seq_zero_tied = jnp.zeros((num_residues, model.w_s_embed.num_embeddings), dtype=logit_accum_dtype)
+  seq_zero_tied = jnp.zeros((num_residues, model.w_s_embed.num_embeddings), dtype=jnp.float32)
   initial_sequence_from_fixed = jnp.where(tied_fixed_mask[:, None], oh_tied, seq_zero_tied)
   emb_w_tied = model.w_s_embed.weight.astype(logit_accum_dtype)
   initial_s_embed_from_fixed = initial_sequence_from_fixed @ emb_w_tied
@@ -119,12 +119,11 @@ def run_tied_position_scan(
     group_id, key = scan_inputs
 
     def _skip_group(_: None) -> tuple:
-      # Cast all outputs to float32 to match _decode_group output dtypes (float32)
       return (
-          jax.tree.map(lambda x: x.astype(jnp.float32), all_layers_h),
-          jax.tree.map(lambda x: x.astype(jnp.float32), s_embed),
-          all_logits.astype(jnp.float32),
-          sequence.astype(jnp.float32)
+          jax.tree.map(lambda x: x.astype(jnp.bfloat16), all_layers_h),
+          jax.tree.map(lambda x: x.astype(jnp.bfloat16), s_embed),
+          all_logits.astype(jnp.bfloat16),
+          sequence.astype(jnp.bfloat16)
       ), None
 
     def _decode_group(_: None) -> tuple:
@@ -159,19 +158,12 @@ def run_tied_position_scan(
         bias,
         temperature,
         key,
-        all_logits,
-        s_embed,
-        sequence,
-        state_weights,
-        state_mapping,
-        fixed_mask,
-        fixed_tokens,
       )
       return (
-        all_layers_h_updated,
-        s_embed_updated,
-        all_logits_updated,
-        sequence_updated,
+        jax.tree.map(lambda x: x.astype(jnp.bfloat16), all_layers_h_updated),
+        jax.tree.map(lambda x: x.astype(jnp.bfloat16), s_embed_updated),
+        all_logits_updated.astype(jnp.bfloat16),
+        sequence_updated.astype(jnp.bfloat16)
       ), None
 
     return jax.lax.cond(group_id < 0, _skip_group, _decode_group, operand=None)
@@ -182,7 +174,7 @@ def run_tied_position_scan(
   initial_all_layers_h = initial_all_layers_h.at[0].set(node_features)
 
   initial_s_embed = initial_s_embed_from_fixed
-  initial_all_logits = jnp.zeros((num_residues, model.w_out.out_features), dtype=logit_accum_dtype)
+  initial_all_logits = jnp.zeros((num_residues, model.w_out.out_features), dtype=jnp.float32)
   initial_sequence = initial_sequence_from_fixed
 
   initial_carry = (
@@ -316,9 +308,9 @@ def run_autoregressive_scan(  # noqa: PLR0915
   oh_fixed = jax.nn.one_hot(
     fixed_tokens_array,
     model.w_s_embed.num_embeddings,
-    dtype=logit_accum_dtype,
+    dtype=jnp.float32,
   )
-  seq_zero = jnp.zeros((num_residues, model.w_s_embed.num_embeddings), dtype=logit_accum_dtype)
+  seq_zero = jnp.zeros((num_residues, model.w_s_embed.num_embeddings), dtype=jnp.float32)
   initial_sequence_from_fixed = jnp.where(fixed_mask_array[:, None], oh_fixed, seq_zero)
   emb_w = model.w_s_embed.weight.astype(logit_accum_dtype)
   initial_s_embed_from_fixed = initial_sequence_from_fixed @ emb_w
@@ -446,7 +438,7 @@ def run_autoregressive_scan(  # noqa: PLR0915
 
     initial_s_embed = initial_s_embed_from_fixed
     initial_all_logits = jnp.zeros(
-      (num_residues, model.w_out.out_features), dtype=logit_accum_dtype,
+      (num_residues, model.w_out.out_features), dtype=jnp.float32,
     )
     initial_sequence = initial_sequence_from_fixed
 

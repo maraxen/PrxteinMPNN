@@ -2,6 +2,7 @@
 
 import jax
 import jax.numpy as jnp
+import pytest
 
 from prxteinmpnn.model.mpnn import PrxteinMPNN
 from prxteinmpnn.payloads import MultistateStackPayload
@@ -41,15 +42,16 @@ def test_score_unconditional_from_payload_accepts_logit_transform_fn():
         call_count.append(1)
         return jnp.mean(state_logits, axis=0)
 
-    logits = m.score_unconditional_state_vmap_exact_from_payload(
-        key,
-        stack,
-        tie_group_map=None,
-        multi_state_strategy_idx=0,
-        state_weights=None,
-        state_mapping=None,
-        logit_transform_fn=counting_transform,
-    )
+    with pytest.warns(DeprecationWarning, match="use score_unconditional_from_payload"):
+        logits = m.score_unconditional_state_vmap_exact_from_payload(
+            key,
+            stack,
+            tie_group_map=None,
+            multi_state_strategy_idx=0,
+            state_weights=None,
+            state_mapping=None,
+            logit_transform_fn=counting_transform,
+        )
     assert len(call_count) > 0, "logit_transform_fn must be called"
     assert logits.shape == (6, 21)  # L=6, V=21
 
@@ -122,13 +124,14 @@ def test_unconditional_pipeline_matches_direct_call():
     pipeline_logits, pipeline_state_logits = pipeline(m, key, stack, fns=fns)
 
     # Direct call with arithmetic mean
-    direct_logits = m.score_unconditional_state_vmap_exact_from_payload(
-        key,
-        stack,
-        tie_group_map=None,
-        multi_state_strategy_idx=0,
-        state_weights=None,
-        state_mapping=None,
-        logit_transform_fn=lambda sl, si, sw: jnp.mean(sl, axis=0),
-    )
+    with pytest.warns(DeprecationWarning, match="use score_unconditional_from_payload"):
+        direct_logits = m.score_unconditional_state_vmap_exact_from_payload(
+            key,
+            stack,
+            tie_group_map=None,
+            multi_state_strategy_idx=0,
+            state_weights=None,
+            state_mapping=None,
+            logit_transform_fn=lambda sl, si, sw: jnp.mean(sl, axis=0),
+        )
     assert jnp.allclose(pipeline_logits, direct_logits, atol=1e-5)

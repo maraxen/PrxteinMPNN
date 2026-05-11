@@ -77,6 +77,54 @@ class MultistateStackPayload(eqx.Module):
     static = frozenset({"n_states", "n_canonical", "n_flat"})
     return _replace_payload(self, MultistateStackPayload, fields, static, **kw)
 
+  def slice(self, start: int, count: int) -> "MultistateStackPayload":
+    """Return a new payload with states [start, start+count).
+
+    Updates n_states = count.
+    n_flat = count * n_canonical (assumes uniform state lengths — valid for tied multistate).
+    All (S, ...) arrays are sliced on axis 0.
+    flat_row_offsets is rebased: flat_row_offsets[start:start+count] - flat_row_offsets[start].
+
+    Raises ValueError if start < 0 or start + count > n_states.
+    """
+    if start < 0 or count <= 0 or start + count > self.n_states:
+      raise ValueError(
+          f"slice out of range: start={start}, count={count}, n_states={self.n_states}"
+      )
+
+    # Slice arrays on axis 0 (the S dimension)
+    sliced_coords = self.coords_stack[start:start+count]
+    sliced_mask = self.mask_stack[start:start+count]
+    sliced_ri = self.residue_index_stack[start:start+count]
+    sliced_ci = self.chain_index_stack[start:start+count]
+    sliced_tie = self.tie_group_map_stack[start:start+count]
+    sliced_fixed_mask = self.fixed_mask_stack[start:start+count]
+    sliced_fixed_tokens = self.fixed_tokens_stack[start:start+count]
+    sliced_state_flat = self.state_flat_rows[start:start+count]
+    sliced_state_idx = self.state_index[start:start+count]
+    sliced_state_emb = self.state_embedding[start:start+count]
+
+    # Rebase flat_row_offsets: subtract the offset at index start
+    old_offset = self.flat_row_offsets[start]
+    sliced_offsets = self.flat_row_offsets[start:start+count] - old_offset
+
+    return MultistateStackPayload(
+        coords_stack=sliced_coords,
+        mask_stack=sliced_mask,
+        residue_index_stack=sliced_ri,
+        chain_index_stack=sliced_ci,
+        tie_group_map_stack=sliced_tie,
+        fixed_mask_stack=sliced_fixed_mask,
+        fixed_tokens_stack=sliced_fixed_tokens,
+        state_flat_rows=sliced_state_flat,
+        flat_row_offsets=sliced_offsets,
+        state_index=sliced_state_idx,
+        state_embedding=sliced_state_emb,
+        n_states=count,
+        n_canonical=self.n_canonical,
+        n_flat=count * self.n_canonical,
+    )
+
 
 class WaveParallelPayload(eqx.Module):
   """Wave-parallel autoregressive decode schedule (graph-coloring output, host-prepped)."""

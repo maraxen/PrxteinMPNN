@@ -50,6 +50,19 @@ class SamplingInputs(eqx.Module):
   wave_parallel: WaveParallelPayload
   conditioning: ConditioningFeatures
 
+  def slice_states(self, start: int, count: int) -> "SamplingInputs":
+    """Return a SamplingInputs with state_stack sliced to [start, start+count).
+
+    backbone, wave_parallel, and conditioning are passed through unchanged
+    (they carry no n_states axis at the SamplingInputs level).
+    """
+    return SamplingInputs(
+        backbone=self.backbone,
+        state_stack=self.state_stack.slice(start, count),
+        wave_parallel=self.wave_parallel,
+        conditioning=self.conditioning,
+    )
+
 
 class ScoringInputs(eqx.Module):
   """Pytree input for sequence scoring."""

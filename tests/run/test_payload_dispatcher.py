@@ -243,7 +243,7 @@ def test_dispatcher_conditional_basic(model):
 
 
 def test_dispatcher_mismatched_list_lengths_raises(model):
-    """Test that mismatched input list lengths raise AssertionError.
+    """Test that mismatched input list lengths raise ValueError.
 
     Task 4.3: Edge case: mismatched list lengths.
     """
@@ -255,7 +255,7 @@ def test_dispatcher_mismatched_list_lengths_raises(model):
     seq_oh_list = [jnp.zeros((2, L, 21)) for _ in range(2)]
     ar_mask_list = [jnp.eye(L)]
 
-    with pytest.raises(AssertionError, match="List lengths must match"):
+    with pytest.raises(ValueError, match="List lengths must match"):
         dispatcher.score_conditional(
             model, key, stack_list,
             seq_oh_stack_list=seq_oh_list,

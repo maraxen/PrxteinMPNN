@@ -1,0 +1,85 @@
+"""Host-level dispatcher for multi-structure SamplingInputs scoring."""
+
+import dataclasses
+from typing import TYPE_CHECKING, Any, Callable
+
+import jax
+import jax.numpy as jnp
+
+if TYPE_CHECKING:
+    from prxteinmpnn.model_inputs import SamplingInputs
+    from prxteinmpnn.model.mpnn import PrxteinMPNN
+
+
+@dataclasses.dataclass(frozen=True)
+class PayloadDispatcher:
+    """Host-level dispatcher for per-structure SamplingInputs iteration.
+
+    Iterates over a list[SamplingInputs] (n_structures axis).
+    Within each structure, dispatches to the model method directly.
+    prng_key splitting is pre-computed before the host loop to guarantee
+    plan-independence (identical keys whether caller uses vmap or safe_map externally).
+
+    Does NOT use safe_map internally — the structure loop is a plain Python for-loop
+    since SamplingInputs is a heterogeneous type (variable n_states per structure).
+    The model method (score_unconditional_from_payload etc.) handles internal vmap.
+    """
+
+    def score_unconditional(
+        self,
+        model: Any,  # PrxteinMPNN, but using Any to avoid circular imports
+        prng_key,  # JAX PRNG key
+        stack_list,  # list[MultistateStackPayload]
+        *,
+        tie_group_map,
+        multi_state_strategy_idx: int,
+        state_weights,
+        state_mapping,
+        inference: bool = True,
+        logit_transform_fn: Callable | None = None,
+        encoder_state_fn: Callable | None = None,
+    ):
+        """Score each MultistateStackPayload in stack_list unconditionally.
+
+        Args:
+            model: PrxteinMPNN instance.
+            prng_key: JAX PRNG key for the entire structure batch.
+            stack_list: list of MultistateStackPayload, one per structure.
+            tie_group_map: forwarded to model.score_unconditional_from_payload.
+            multi_state_strategy_idx: forwarded to model method.
+            state_weights: forwarded to model method.
+            state_mapping: forwarded to model method.
+            inference: forwarded to model method.
+            logit_transform_fn: forwarded to model method.
+            encoder_state_fn: forwarded to model method.
+
+        Returns:
+            list of Logits, one per structure (list of arrays).
+        """
+        # Guard for empty list
+        if not stack_list:
+            return []
+
+        # Pre-split PRNG keys for determinism
+        n = len(stack_list)
+        structure_keys = jax.random.split(prng_key, n)  # shape (n, 2)
+
+        results = []
+        for i, stack in enumerate(stack_list):
+            logits = model.score_unconditional_from_payload(
+                structure_keys[i],
+                stack,
+                tie_group_map=tie_group_map,
+                multi_state_strategy_idx=multi_state_strategy_idx,
+                state_weights=state_weights,
+                state_mapping=state_mapping,
+                inference=inference,
+                logit_transform_fn=logit_transform_fn,
+                encoder_state_fn=encoder_state_fn,
+            )
+            results.append(logits)
+
+        return results
+
+
+__all__ = ["PayloadDispatcher"]

@@ -224,7 +224,7 @@ def test_dispatcher_conditional_basic(model):
 
     stack_list = [_make_sampling_inputs(n_states=2, L=L).state_stack for _ in range(2)]
     seq_oh_list = [jnp.zeros((2, L, 21)) for _ in range(2)]
-    ar_mask_list = [jnp.eye(L) for _ in range(2)]
+    ar_mask_list = [jnp.eye(L)[None].repeat(2, axis=0) for _ in range(2)]
 
     results = dispatcher.score_conditional(
         model, key, stack_list,
@@ -279,7 +279,7 @@ def test_dispatcher_conditional_with_bias_flat(model):
 
     stack_list = [_make_sampling_inputs(n_states=2, L=L).state_stack for _ in range(2)]
     seq_oh_list = [jnp.zeros((2, L, 21)) for _ in range(2)]
-    ar_mask_list = [jnp.eye(L) for _ in range(2)]
+    ar_mask_list = [jnp.eye(L)[None].repeat(2, axis=0) for _ in range(2)]
     bias_flat_list = [jnp.zeros((L,)) for _ in range(2)]
 
     results = dispatcher.score_conditional(

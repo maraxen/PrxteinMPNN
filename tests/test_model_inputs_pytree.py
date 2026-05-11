@@ -149,3 +149,24 @@ def test_sampling_static_config_hashable():
     decode_fn_uid="abc123", n_samples=10, temperature=1.0
   )
   assert cfg == cfg2
+
+
+def test_sampling_inputs_slice_states():
+  """Test that slice_states delegates to state_stack.slice and preserves other fields."""
+  inputs = SamplingInputs(
+    backbone=_make_backbone(),
+    state_stack=_make_state_stack(n_states=4, n_pad=8),
+    wave_parallel=_make_wave_parallel(),
+    conditioning=_make_conditioning(),
+  )
+
+  # Slice to get states [1:3) (i.e., states 1 and 2)
+  sliced = inputs.slice_states(start=1, count=2)
+
+  # Verify state_stack was sliced
+  assert sliced.state_stack.n_states == 2
+
+  # Verify other fields are unchanged (same object reference)
+  assert sliced.backbone is inputs.backbone
+  assert sliced.wave_parallel is inputs.wave_parallel
+  assert sliced.conditioning is inputs.conditioning

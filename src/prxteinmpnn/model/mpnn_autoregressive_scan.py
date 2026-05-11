@@ -158,6 +158,13 @@ def run_tied_position_scan(
         bias,
         temperature,
         key,
+        all_logits,
+        s_embed,
+        sequence,
+        state_weights=state_weights,
+        state_mapping=state_mapping,
+        fixed_mask=fixed_mask,
+        fixed_tokens=fixed_tokens,
       )
       return (
         jax.tree.map(lambda x: x.astype(jnp.bfloat16), all_layers_h_updated),
@@ -178,10 +185,10 @@ def run_tied_position_scan(
   initial_sequence = initial_sequence_from_fixed
 
   initial_carry = (
-    initial_all_layers_h,
-    initial_s_embed,
-    initial_all_logits,
-    initial_sequence,
+    initial_all_layers_h.astype(jnp.bfloat16),
+    initial_s_embed.astype(jnp.bfloat16),
+    initial_all_logits.astype(jnp.bfloat16),
+    initial_sequence.astype(jnp.bfloat16),
   )
 
   actual_num_groups = group_decoding_order.shape[0]
@@ -194,7 +201,7 @@ def run_tied_position_scan(
     unroll=1,
   )
 
-  return final_carry[3], final_carry[2]
+  return final_carry[3].astype(jnp.float32), final_carry[2].astype(jnp.float32)
 
 
 def sample_and_broadcast_to_group(

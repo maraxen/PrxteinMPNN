@@ -113,7 +113,7 @@ def _run_state_vmap_exact_unconditional_spike(*, n_states: int, n_can: int, key:
 
   strat_idx = jnp.int32(0)
 
-  logits_sv = model.score_unconditional_state_vmap_exact(
+  logits_sv = model.score_unconditional(
     key,
     cs,
     ms,
@@ -168,12 +168,12 @@ def _run_state_vmap_exact_unconditional_spike(*, n_states: int, n_can: int, key:
     rtol=rtol,
     atol=atol,
   ), (
-    "Phase 0a: score_unconditional_state_vmap_exact logits differ from explicit jax.vmap stack "
+    "Phase 0a: score_unconditional logits differ from explicit jax.vmap stack "
     f"(rtol={rtol}, atol={atol}). See roadmap Phase 0a / Q6."
   )
 
   def run_sv(pk: jax.Array) -> jax.Array:
-    return model.score_unconditional_state_vmap_exact(
+    return model.score_unconditional(
       pk,
       cs,
       ms,
@@ -197,7 +197,7 @@ def _run_state_vmap_exact_unconditional_spike(*, n_states: int, n_can: int, key:
 @pytest.mark.phase0a_spike
 @pytest.mark.parity_fast
 def test_state_vmap_exact_unconditional_matches_explicit_vmap_stack() -> None:
-  """``score_unconditional_state_vmap_exact`` matches a literal ``jax.vmap`` encode/decode."""
+  """``score_unconditional`` matches a literal ``jax.vmap`` encode/decode."""
   key = jax.random.PRNGKey(101)
   _run_state_vmap_exact_unconditional_spike(n_states=2, n_can=6, key=key)
 

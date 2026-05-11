@@ -697,7 +697,7 @@ class PrxteinMPNN(eqx.Module):
     When ``multistate_mode='state_vmap_exact'`` and stacked tensors are provided
     (``coords_stack``, ``mask_stack``, ``residue_index_stack``, ``chain_index_stack``,
     ``state_flat_rows``, ``n_flat``), unconditional and conditional scoring run
-    :meth:`score_unconditional_state_vmap_exact` / :meth:`score_conditional_state_vmap_exact`.
+    :meth:`score_unconditional` / :meth:`score_conditional`.
     Autoregressive requests must use :meth:`sample_autoregressive_state_vmap_exact` or the sampler façade.
 
     Args:
@@ -804,7 +804,7 @@ class PrxteinMPNN(eqx.Module):
       )
 
       if decoding_approach == "unconditional":
-        logits_sv = self.score_unconditional_state_vmap_exact(
+        logits_sv = self.score_unconditional(
           prng_key,
           coords_stack,
           mask_stack,
@@ -843,7 +843,7 @@ class PrxteinMPNN(eqx.Module):
         else:
           oh_in = one_hot_sequence
         seq_stack_sv = gather_flat_to_stack(oh_in, state_flat_rows)
-        logits_sv = self.score_conditional_state_vmap_exact(
+        logits_sv = self.score_conditional(
           prng_key,
           coords_stack,
           mask_stack,
@@ -1059,7 +1059,7 @@ class PrxteinMPNN(eqx.Module):
       warnings.simplefilter("ignore", DeprecationWarning)
       return self.sample_autoregressive_state_vmap_exact_from_payload(*args, **kwargs)
 
-  def score_unconditional_state_vmap_exact(
+  def score_unconditional(
     self,
     prng_key: PRNGKeyArray,
     coords_stack: jax.Array,
@@ -1077,7 +1077,7 @@ class PrxteinMPNN(eqx.Module):
     logit_transform_fn: LogitTransformFn | None = None,
     encoder_state_fn: "EncoderStateFn | None" = None,
   ) -> Logits:
-    """Compute unconditional logits per stacked state then scatter+fuse (``state_vmap_exact``).
+    """Compute unconditional logits per stacked state then scatter+fuse.
 
     The ``tie_group_map is None`` encode/decode stack matches the explicit ``jax.vmap`` reference
     in ``tests/sampling/spikes/test_state_vmap_exact_spike.py`` (roadmap §13.2 Phase 0a **GO**).
@@ -1173,6 +1173,9 @@ class PrxteinMPNN(eqx.Module):
       )
     return logits_flat
 
+  # Deprecated alias for backward compatibility
+  score_unconditional_state_vmap_exact = score_unconditional
+
   def score_unconditional_state_vmap_exact_from_payload(
     self,
     prng_key: PRNGKeyArray,
@@ -1186,17 +1189,14 @@ class PrxteinMPNN(eqx.Module):
     logit_transform_fn: LogitTransformFn | None = None,
     encoder_state_fn: "EncoderStateFn | None" = None,
   ) -> Logits:
-    """Same as :meth:`score_unconditional_state_vmap_exact` with stacked geometry from ``stack``.
-
-    logit_transform_fn supersedes tie_group_map when set.
-    """
+    """Deprecated: same as score_unconditional_from_payload."""
     warnings.warn(
         "score_unconditional_state_vmap_exact_from_payload is deprecated; "
         "use score_unconditional_from_payload",
         DeprecationWarning,
         stacklevel=2,
     )
-    return self.score_unconditional_state_vmap_exact(
+    return self.score_unconditional(
       prng_key,
       stack.coords_stack,
       stack.mask_stack,
@@ -1215,20 +1215,36 @@ class PrxteinMPNN(eqx.Module):
 
   def score_unconditional_from_payload(
     self,
-    *args: Any,
-    **kwargs: Any,
-  ) -> Any:
-    """Unconditional scoring from MultistateStackPayload.
+    prng_key: PRNGKeyArray,
+    stack: MultistateStackPayload,
+    *,
+    tie_group_map: TieGroupMap | None,
+    multi_state_strategy_idx: Int,
+    state_weights: jnp.ndarray | None,
+    state_mapping: jnp.ndarray | None,
+    inference: bool = True,
+    logit_transform_fn: LogitTransformFn | None = None,
+    encoder_state_fn: "EncoderStateFn | None" = None,
+  ) -> Logits:
+    """Unconditional scoring from MultistateStackPayload."""
+    return self.score_unconditional(
+      prng_key,
+      stack.coords_stack,
+      stack.mask_stack,
+      stack.residue_index_stack,
+      stack.chain_index_stack,
+      stack.state_flat_rows,
+      stack.n_flat,
+      tie_group_map=tie_group_map,
+      multi_state_strategy_idx=multi_state_strategy_idx,
+      state_weights=state_weights,
+      state_mapping=state_mapping,
+      inference=inference,
+      logit_transform_fn=logit_transform_fn,
+      encoder_state_fn=encoder_state_fn,
+    )
 
-    Clean alias for score_unconditional_state_vmap_exact_from_payload.
-    """
-    import warnings  # noqa: PLC0415
-
-    with warnings.catch_warnings():
-      warnings.simplefilter("ignore", DeprecationWarning)
-      return self.score_unconditional_state_vmap_exact_from_payload(*args, **kwargs)
-
-  def score_conditional_state_vmap_exact(
+  def score_conditional(
     self,
     prng_key: PRNGKeyArray,
     coords_stack: jax.Array,
@@ -1359,6 +1375,9 @@ class PrxteinMPNN(eqx.Module):
       )
     return logits_flat
 
+  # Deprecated alias for backward compatibility
+  score_conditional_state_vmap_exact = score_conditional
+
   def score_conditional_state_vmap_exact_from_payload(
     self,
     prng_key: PRNGKeyArray,
@@ -1375,17 +1394,14 @@ class PrxteinMPNN(eqx.Module):
     logit_transform_fn: LogitTransformFn | None = None,
     encoder_state_fn: "EncoderStateFn | None" = None,
   ) -> Logits:
-    """Same as :meth:`score_conditional_state_vmap_exact` with stacked geometry from ``stack``.
-
-    logit_transform_fn supersedes tie_group_map when set.
-    """
+    """Deprecated: same as score_conditional_from_payload."""
     warnings.warn(
         "score_conditional_state_vmap_exact_from_payload is deprecated; "
         "use score_conditional_from_payload",
         DeprecationWarning,
         stacklevel=2,
     )
-    return self.score_conditional_state_vmap_exact(
+    return self.score_conditional(
       prng_key,
       stack.coords_stack,
       stack.mask_stack,
@@ -1407,15 +1423,37 @@ class PrxteinMPNN(eqx.Module):
 
   def score_conditional_from_payload(
     self,
-    *args: Any,
-    **kwargs: Any,
-  ) -> Any:
-    """Conditional scoring from MultistateStackPayload.
-
-    Clean alias for score_conditional_state_vmap_exact_from_payload.
-    """
-    import warnings  # noqa: PLC0415
-
-    with warnings.catch_warnings():
-      warnings.simplefilter("ignore", DeprecationWarning)
-      return self.score_conditional_state_vmap_exact_from_payload(*args, **kwargs)
+    prng_key: PRNGKeyArray,
+    stack: MultistateStackPayload,
+    seq_oh_stack: jax.Array,
+    ar_mask_stack: jax.Array,
+    *,
+    tie_group_map: TieGroupMap | None,
+    multi_state_strategy_idx: Int,
+    state_weights: jnp.ndarray | None,
+    state_mapping: jnp.ndarray | None,
+    bias_flat: jax.Array | None = None,
+    inference: bool = True,
+    logit_transform_fn: LogitTransformFn | None = None,
+    encoder_state_fn: "EncoderStateFn | None" = None,
+  ) -> Logits:
+    """Conditional scoring from MultistateStackPayload."""
+    return self.score_conditional(
+      prng_key,
+      stack.coords_stack,
+      stack.mask_stack,
+      stack.residue_index_stack,
+      stack.chain_index_stack,
+      seq_oh_stack,
+      ar_mask_stack,
+      stack.state_flat_rows,
+      stack.n_flat,
+      tie_group_map=tie_group_map,
+      multi_state_strategy_idx=multi_state_strategy_idx,
+      state_weights=state_weights,
+      state_mapping=state_mapping,
+      bias_flat=bias_flat,
+      inference=inference,
+      logit_transform_fn=logit_transform_fn,
+      encoder_state_fn=encoder_state_fn,
+    )

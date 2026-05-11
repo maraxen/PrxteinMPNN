@@ -42,9 +42,9 @@ def test_mpnn_score_unconditional_no_temperature_param():
     from prxteinmpnn.model.mpnn import PrxteinMPNN
 
     m = PrxteinMPNN(16, 16, 16, 1, 1, 6, key=jax.random.PRNGKey(0))
-    sig = inspect.signature(m.score_unconditional_state_vmap_exact)
+    sig = inspect.signature(m.score_unconditional)
     assert "multi_state_temperature" not in sig.parameters, (
-        "multi_state_temperature must not appear in score_unconditional_state_vmap_exact"
+        "multi_state_temperature must not appear in score_unconditional"
     )
 
 

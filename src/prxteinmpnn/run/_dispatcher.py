@@ -123,13 +123,17 @@ class PayloadDispatcher:
             return []
 
         # Validate aligned list lengths
-        assert len(stack_list) == len(seq_oh_stack_list) == len(ar_mask_stack_list), \
-            f"List lengths must match: {len(stack_list)}, {len(seq_oh_stack_list)}, {len(ar_mask_stack_list)}"
+        if not (len(stack_list) == len(seq_oh_stack_list) == len(ar_mask_stack_list)):
+            raise ValueError(
+                f"List lengths must match: {len(stack_list)}, {len(seq_oh_stack_list)}, {len(ar_mask_stack_list)}"
+            )
 
         # Validate bias_flat_stack_list length if provided
         if bias_flat_stack_list is not None:
-            assert len(bias_flat_stack_list) == len(stack_list), \
-                f"bias_flat_stack_list length {len(bias_flat_stack_list)} != stack_list length {len(stack_list)}"
+            if len(bias_flat_stack_list) != len(stack_list):
+                raise ValueError(
+                    f"bias_flat_stack_list length {len(bias_flat_stack_list)} != stack_list length {len(stack_list)}"
+                )
 
         # Pre-split PRNG keys for determinism
         n = len(stack_list)

@@ -656,7 +656,7 @@
   )
   
   assert isinstance(results, list) and len(results) == 1
-  assert isinstance(results[0], jnp.ndarray)
+  assert isinstance(results[0], jax.Array)
   print('PayloadDispatcher.score_unconditional() works correctly')
   "
   ```
@@ -1228,7 +1228,7 @@
 - ✅ `PayloadDispatcher` test suite with 6+ tests (basic, determinism, parity, conditional, empty list, mismatched lengths)
 - ✅ All tests pass without regressions
 - ✅ No import cycles detected
-- ✅ 6 atomic commits created (one per fixer task)
+- ✅ ~16 atomic commits created (one per task: Task 3.0 + Tasks 1.1–5.3, consistent with Task 5.3.3 expected output)
 
 ---
 

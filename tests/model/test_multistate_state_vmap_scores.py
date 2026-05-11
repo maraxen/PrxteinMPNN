@@ -77,7 +77,7 @@ def test_multistate_unconditional_scores_match_flat_small_prot():
     state_mapping=sm_flat,
   )
 
-  logits_sv = model.score_unconditional_state_vmap_exact(
+  logits_sv = model.score_unconditional(
     key,
     jnp.asarray(sv["coords_stack"], dtype=jnp.float32),
     jnp.asarray(sv["mask_stack"], dtype=jnp.float32),
@@ -174,7 +174,7 @@ def test_multistate_conditional_scores_match_flat_small_prot():
   oh_stack = jnp.asarray(oh_stack_np, dtype=jnp.float32)
   ar_stack = jnp.zeros((n_states, n_pad, n_pad), dtype=jnp.int32)
 
-  logits_sv = model.score_conditional_state_vmap_exact(
+  logits_sv = model.score_conditional(
     key,
     jnp.asarray(sv["coords_stack"], dtype=jnp.float32),
     jnp.asarray(sv["mask_stack"], dtype=jnp.float32),
@@ -288,7 +288,7 @@ def test_multistate_unconditional_scores_match_flat_small_ligand():
     state_mapping=sm_flat,
   )
 
-  logits_sv = model.score_unconditional_state_vmap_exact(
+  logits_sv = model.score_unconditional(
     key,
     jnp.asarray(sv["coords_stack"], dtype=jnp.float32),
     jnp.asarray(sv["mask_stack"], dtype=jnp.float32),
@@ -420,7 +420,7 @@ def test_multistate_conditional_scores_match_flat_small_ligand(biased: bool):
   oh_stack = jnp.asarray(oh_np, dtype=jnp.float32)
   ar_stack = jnp.zeros((n_states, n_pad, n_pad), dtype=jnp.int32)
 
-  logits_sv = model.score_conditional_state_vmap_exact(
+  logits_sv = model.score_conditional(
     jax.random.fold_in(key, 8),
     jnp.asarray(sv["coords_stack"], dtype=jnp.float32),
     jnp.asarray(sv["mask_stack"], dtype=jnp.float32),
@@ -481,7 +481,7 @@ def test_factory_unconditional_state_vmap_prot_matches_direct():
     sm_flat = sm_flat.at[off : off + n_can].set(s)
     off += n_can
 
-  direct = model.score_unconditional_state_vmap_exact(
+  direct = model.score_unconditional(
     key,
     jnp.asarray(sv["coords_stack"], dtype=jnp.float32),
     jnp.asarray(sv["mask_stack"], dtype=jnp.float32),
@@ -642,7 +642,7 @@ def test_ligand_state_chunk_matches_full_vmap_unconditional(lig_lc: int, states_
   y_mst = jnp.asarray(slice_flat_tensor_to_stack(ymf, sv["state_flat_rows"], n_states, n_pad), dtype=jnp.float32)
 
   cs_kw = dict(states_chunk_size=states_chunk_size)
-  logits_full = model.score_unconditional_state_vmap_exact(
+  logits_full = model.score_unconditional(
     key,
     jnp.asarray(sv["coords_stack"], dtype=jnp.float32),
     jnp.asarray(sv["mask_stack"], dtype=jnp.float32),
@@ -659,7 +659,7 @@ def test_ligand_state_chunk_matches_full_vmap_unconditional(lig_lc: int, states_
     state_mapping=sm_flat,
     states_chunk_size=None,
   )
-  logits_chunked = model.score_unconditional_state_vmap_exact(
+  logits_chunked = model.score_unconditional(
     key,
     jnp.asarray(sv["coords_stack"], dtype=jnp.float32),
     jnp.asarray(sv["mask_stack"], dtype=jnp.float32),
@@ -737,7 +737,7 @@ def test_ligand_state_chunk_matches_full_vmap_conditional(lig_lc: int, states_ch
   )
   ar_stack = jnp.zeros((n_states, n_pad, n_pad), dtype=jnp.int32)
 
-  logits_full = model.score_conditional_state_vmap_exact(
+  logits_full = model.score_conditional(
     jax.random.fold_in(key, 2),
     jnp.asarray(sv["coords_stack"], dtype=jnp.float32),
     jnp.asarray(sv["mask_stack"], dtype=jnp.float32),
@@ -757,7 +757,7 @@ def test_ligand_state_chunk_matches_full_vmap_conditional(lig_lc: int, states_ch
     inference=True,
     states_chunk_size=None,
   )
-  logits_chunked = model.score_conditional_state_vmap_exact(
+  logits_chunked = model.score_conditional(
     jax.random.fold_in(key, 2),
     jnp.asarray(sv["coords_stack"], dtype=jnp.float32),
     jnp.asarray(sv["mask_stack"], dtype=jnp.float32),

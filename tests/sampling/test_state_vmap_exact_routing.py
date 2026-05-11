@@ -59,7 +59,7 @@ def _protein_sv_and_dummy_flat(*, key: jax.Array, n_states: int, n_can: int) -> 
 
 @pytest.mark.parity_fast
 def test_prxtein_mpnn_unconditional_call_matches_direct_score() -> None:
-  """§347(a): stacked-path ``__call__`` agrees with :meth:`score_unconditional_state_vmap_exact`."""
+  """§347(a): stacked-path ``__call__`` agrees with :meth:`score_unconditional`."""
   key = jax.random.PRNGKey(501)
   model = PrxteinMPNN(
     node_features=32,
@@ -83,7 +83,7 @@ def test_prxtein_mpnn_unconditional_call_matches_direct_score() -> None:
   sw = jnp.ones((2,), dtype=jnp.float32) / jnp.float32(2)
   pk = jax.random.fold_in(key, 9)
 
-  logits_direct = model.score_unconditional_state_vmap_exact(
+  logits_direct = model.score_unconditional(
     pk,
     cs,
     ms,
@@ -122,7 +122,7 @@ def test_prxtein_mpnn_unconditional_call_matches_direct_score() -> None:
 
 @pytest.mark.parity_fast
 def test_prxtein_mpnn_conditional_call_matches_direct_score() -> None:
-  """§347(a): conditional stacked ``__call__`` agrees with :meth:`score_conditional_state_vmap_exact`."""
+  """§347(a): conditional stacked ``__call__`` agrees with :meth:`score_conditional`."""
   key = jax.random.PRNGKey(502)
   rng = np.random.default_rng(0)
   model = PrxteinMPNN(
@@ -152,7 +152,7 @@ def test_prxtein_mpnn_conditional_call_matches_direct_score() -> None:
   oh_in = jax.nn.one_hot(jnp.asarray(seq_flat, dtype=jnp.int32), model.w_s_embed.num_embeddings)
   seq_stack = gather_flat_to_stack(oh_in, rows)
 
-  logits_direct = model.score_conditional_state_vmap_exact(
+  logits_direct = model.score_conditional(
     pk,
     cs,
     ms,
@@ -223,7 +223,7 @@ def test_prxtein_mpnn_unconditional_matches_explicit_vmap_go_branch() -> None:
     lo = int(sv["flat_row_offsets"][s])
     sm_flat = sm_flat.at[lo : lo + n_can].set(s)
 
-  logits_sv = model.score_unconditional_state_vmap_exact(
+  logits_sv = model.score_unconditional(
     key,
     cs,
     ms,
@@ -344,7 +344,7 @@ def test_prxtein_ligand_mpnn_call_matches_direct_score(kind: str) -> None:
   ym_dummy = jnp.ones((n_flat, n_atoms), dtype=jnp.float32)
 
   if kind == "unconditional":
-    logits_direct = model.score_unconditional_state_vmap_exact(
+    logits_direct = model.score_unconditional(
       pk,
       cs,
       ms,
@@ -389,7 +389,7 @@ def test_prxtein_ligand_mpnn_call_matches_direct_score(kind: str) -> None:
     seq_flat = rng.integers(0, 20, size=(n_flat,), dtype=np.int32)
     oh_in = jax.nn.one_hot(jnp.asarray(seq_flat, dtype=jnp.int32), model.w_s_embed.num_embeddings)
     seq_stack = gather_flat_to_stack(oh_in, rows)
-    logits_direct = model.score_conditional_state_vmap_exact(
+    logits_direct = model.score_conditional(
       pk,
       cs,
       ms,

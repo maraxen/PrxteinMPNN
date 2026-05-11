@@ -696,6 +696,7 @@
       multi_state_strategy_idx: int,
       state_weights,
       state_mapping,
+      bias_flat_stack_list=None,  # optional list of bias arrays, one per structure
       inference: bool = True,
       logit_transform_fn: Callable | None = None,
       encoder_state_fn: Callable | None = None,
@@ -712,6 +713,7 @@
           multi_state_strategy_idx: forwarded to model method.
           state_weights: forwarded to model method.
           state_mapping: forwarded to model method.
+          bias_flat_stack_list: optional list of bias arrays, one per structure. If None, bias_flat=None is passed to model method.
           inference: forwarded to model method.
           logit_transform_fn: forwarded to model method.
           encoder_state_fn: forwarded to model method.
@@ -733,6 +735,7 @@
       
       results = []
       for i, stack in enumerate(stack_list):
+          bias_flat = None if bias_flat_stack_list is None else bias_flat_stack_list[i]
           logits = model.score_conditional_from_payload(
               structure_keys[i],
               stack,
@@ -742,6 +745,7 @@
               multi_state_strategy_idx=multi_state_strategy_idx,
               state_weights=state_weights,
               state_mapping=state_mapping,
+              bias_flat=bias_flat,
               inference=inference,
               logit_transform_fn=logit_transform_fn,
               encoder_state_fn=encoder_state_fn,
@@ -1079,6 +1083,33 @@
               state_mapping=None,
               inference=True,
           )
+
+
+  def test_dispatcher_conditional_with_bias_flat(model):
+      """Test score_conditional with bias_flat_stack_list provided."""
+      dispatcher = PayloadDispatcher()
+      key = jax.random.PRNGKey(0)
+      L = 6
+      
+      stack_list = [_make_sampling_inputs(n_states=2, L=L).state_stack for _ in range(2)]
+      seq_oh_list = [jnp.zeros((2, L, 21)) for _ in range(2)]
+      ar_mask_list = [jnp.eye(L) for _ in range(2)]
+      bias_flat_list = [jnp.zeros((L,)) for _ in range(2)]
+      
+      results = dispatcher.score_conditional(
+          model, key, stack_list,
+          seq_oh_stack_list=seq_oh_list,
+          ar_mask_stack_list=ar_mask_list,
+          tie_group_map=None,
+          multi_state_strategy_idx=0,
+          state_weights=None,
+          state_mapping=None,
+          bias_flat_stack_list=bias_flat_list,
+          inference=True,
+      )
+      
+      assert isinstance(results, list)
+      assert len(results) == 2
   ```
 
 - [ ] **4.3.2: Run full dispatcher test suite**
@@ -1098,7 +1129,7 @@
   git commit -m "test(run): add PayloadDispatcher conditional test and edge cases (mismatched list lengths)"
   ```
 
-**Gate:** `pytest tests/run/test_payload_dispatcher.py -v` passes with 6+ test functions.
+**Gate:** `pytest tests/run/test_payload_dispatcher.py -v` passes with 7+ test functions.
 
 ---
 

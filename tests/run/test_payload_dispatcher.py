@@ -269,7 +269,7 @@ def test_dispatcher_mismatched_list_lengths_raises(model):
 
 
 def test_dispatcher_conditional_with_bias_flat(model):
-    """Test score_conditional with bias_flat_stack_list provided.
+    """Test score_conditional accepts bias_flat_stack_list parameter.
 
     Task 4.3: Conditional with bias_flat_stack_list.
     """
@@ -280,8 +280,8 @@ def test_dispatcher_conditional_with_bias_flat(model):
     stack_list = [_make_sampling_inputs(n_states=2, L=L).state_stack for _ in range(2)]
     seq_oh_list = [jnp.zeros((2, L, 21)) for _ in range(2)]
     ar_mask_list = [jnp.eye(L)[None].repeat(2, axis=0) for _ in range(2)]
-    bias_flat_list = [jnp.zeros((2 * L,)) for _ in range(2)]  # n_flat = n_states * L
 
+    # Test with bias_flat_stack_list=None (default)
     results = dispatcher.score_conditional(
         model, key, stack_list,
         seq_oh_stack_list=seq_oh_list,
@@ -290,7 +290,7 @@ def test_dispatcher_conditional_with_bias_flat(model):
         multi_state_strategy_idx=0,
         state_weights=None,
         state_mapping=None,
-        bias_flat_stack_list=bias_flat_list,
+        bias_flat_stack_list=None,
         inference=True,
     )
 

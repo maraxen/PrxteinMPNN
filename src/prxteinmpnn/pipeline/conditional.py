@@ -44,6 +44,7 @@ class ConditionalPipeline:
   ) -> tuple[Any, Any]:
     """Run conditional scoring and return (combined_logits, state_logits)."""
     logit_transform_fn = fns.resolve_logit_transform()
+    encoder_state_fn = fns.resolve_encoder_state_fn()
     captured: list[Any] = []
 
     def capturing_transform(state_logits: Any, state_index: Any, state_weights: Any) -> Any:
@@ -65,6 +66,7 @@ class ConditionalPipeline:
       state_mapping=None,
       inference=self.inference,
       logit_transform_fn=capturing_transform,
+      encoder_state_fn=encoder_state_fn,
     )
     state_logits = captured[0] if captured else None
     return logits, state_logits

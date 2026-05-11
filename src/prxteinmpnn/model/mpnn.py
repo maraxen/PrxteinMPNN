@@ -45,7 +45,8 @@ from prxteinmpnn.payloads import MultistateStackPayload
 from prxteinmpnn.registry import combine_strategy_to_index, multistate_mode_descriptor
 
 if TYPE_CHECKING:
-  from prxteinmpnn.model_inputs import LogitTransformFn
+  from prxteinmpnn.model_inputs import BackboneGeometry, LogitTransformFn
+  from prxteinmpnn.protocols import EncoderStateFn
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
     AutoRegressiveMask,
@@ -1074,6 +1075,7 @@ class PrxteinMPNN(eqx.Module):
     state_mapping: jnp.ndarray | None,
     inference: bool = True,
     logit_transform_fn: LogitTransformFn | None = None,
+    encoder_state_fn: "EncoderStateFn | None" = None,
   ) -> Logits:
     """Compute unconditional logits per stacked state then scatter+fuse (``state_vmap_exact``).
 
@@ -1085,6 +1087,9 @@ class PrxteinMPNN(eqx.Module):
     When ``logit_transform_fn`` is provided, it supersedes ``tie_group_map`` fusion —
     the hook receives raw per-state ``(S, L, V)`` logits and is responsible for
     combining them; ``apply_multistate_to_all_logits`` is not called.
+
+    When ``encoder_state_fn`` is provided, the encoder runs via ``jax.lax.scan`` with
+    carry accumulation instead of ``jax.vmap``.
     """
     k_enc, k_feat = jax.random.split(prng_key)
 
@@ -1111,12 +1116,33 @@ class PrxteinMPNN(eqx.Module):
         key=k_enc,
       )
 
-    node_b, edge_b, nei_b = jax.vmap(encode_one)(
-      coords_stack,
-      mask_stack,
-      residue_index_stack,
-      chain_index_stack,
-    )
+    if encoder_state_fn is not None:
+      def scan_body(carry, per_state):
+        coords_s, mask_s, ri_s, ci_s, idx_s = per_state
+        from prxteinmpnn.model_inputs import BackboneGeometry  # noqa: PLC0415
+        backbone_s = BackboneGeometry(
+          coords=coords_s, mask=mask_s,
+          residue_index=ri_s, chain_index=ci_s,
+        )
+        new_carry, enc_out = encoder_state_fn(carry, idx_s, backbone_s)
+        return new_carry, enc_out
+
+      _, enc_stacked = jax.lax.scan(
+        scan_body,
+        encoder_state_fn.init_carry(),
+        (coords_stack, mask_stack, residue_index_stack, chain_index_stack,
+         jnp.arange(coords_stack.shape[0], dtype=jnp.int32)),
+      )
+      node_b = enc_stacked.node_features
+      edge_b = enc_stacked.edge_features
+      nei_b = enc_stacked.neighbor_indices
+    else:
+      node_b, edge_b, nei_b = jax.vmap(encode_one)(
+        coords_stack,
+        mask_stack,
+        residue_index_stack,
+        chain_index_stack,
+      )
 
     def decode_one(nb, eb, nei, mk):
       return self.decoder(nb, eb, nei, mk, key=k_enc)
@@ -1158,6 +1184,7 @@ class PrxteinMPNN(eqx.Module):
     state_mapping: jnp.ndarray | None,
     inference: bool = True,
     logit_transform_fn: LogitTransformFn | None = None,
+    encoder_state_fn: "EncoderStateFn | None" = None,
   ) -> Logits:
     """Same as :meth:`score_unconditional_state_vmap_exact` with stacked geometry from ``stack``.
 
@@ -1183,6 +1210,7 @@ class PrxteinMPNN(eqx.Module):
       state_mapping=state_mapping,
       inference=inference,
       logit_transform_fn=logit_transform_fn,
+      encoder_state_fn=encoder_state_fn,
     )
 
   def score_unconditional_from_payload(
@@ -1219,12 +1247,16 @@ class PrxteinMPNN(eqx.Module):
     bias_flat: jax.Array | None = None,
     inference: bool = True,
     logit_transform_fn: LogitTransformFn | None = None,
+    encoder_state_fn: "EncoderStateFn | None" = None,
   ) -> Logits:
     """Teacher-forced conditional logits stacked then scatter+fused.
 
     When ``logit_transform_fn`` is provided, it supersedes ``tie_group_map`` fusion —
     the hook receives raw per-state ``(S, L, V)`` logits and is responsible for
     combining them; ``apply_multistate_to_all_logits`` is not called.
+
+    When ``encoder_state_fn`` is provided, the encoder runs via ``jax.lax.scan`` with
+    carry accumulation instead of ``jax.vmap``.
     """
     k_enc, k_feat = jax.random.split(prng_key)
 
@@ -1251,12 +1283,33 @@ class PrxteinMPNN(eqx.Module):
         key=k_enc,
       )
 
-    node_b, edge_b, nei_b = jax.vmap(encode_one)(
-      coords_stack,
-      mask_stack,
-      residue_index_stack,
-      chain_index_stack,
-    )
+    if encoder_state_fn is not None:
+      def scan_body(carry, per_state):
+        coords_s, mask_s, ri_s, ci_s, idx_s = per_state
+        from prxteinmpnn.model_inputs import BackboneGeometry  # noqa: PLC0415
+        backbone_s = BackboneGeometry(
+          coords=coords_s, mask=mask_s,
+          residue_index=ri_s, chain_index=ci_s,
+        )
+        new_carry, enc_out = encoder_state_fn(carry, idx_s, backbone_s)
+        return new_carry, enc_out
+
+      _, enc_stacked = jax.lax.scan(
+        scan_body,
+        encoder_state_fn.init_carry(),
+        (coords_stack, mask_stack, residue_index_stack, chain_index_stack,
+         jnp.arange(coords_stack.shape[0], dtype=jnp.int32)),
+      )
+      node_b = enc_stacked.node_features
+      edge_b = enc_stacked.edge_features
+      nei_b = enc_stacked.neighbor_indices
+    else:
+      node_b, edge_b, nei_b = jax.vmap(encode_one)(
+        coords_stack,
+        mask_stack,
+        residue_index_stack,
+        chain_index_stack,
+      )
 
     def dec_one(nb, eb, nei, mk, arm, oh):
       return self.decoder.call_conditional(
@@ -1320,6 +1373,7 @@ class PrxteinMPNN(eqx.Module):
     bias_flat: jax.Array | None = None,
     inference: bool = True,
     logit_transform_fn: LogitTransformFn | None = None,
+    encoder_state_fn: "EncoderStateFn | None" = None,
   ) -> Logits:
     """Same as :meth:`score_conditional_state_vmap_exact` with stacked geometry from ``stack``.
 
@@ -1348,6 +1402,7 @@ class PrxteinMPNN(eqx.Module):
       bias_flat=bias_flat,
       inference=inference,
       logit_transform_fn=logit_transform_fn,
+      encoder_state_fn=encoder_state_fn,
     )
 
   def score_conditional_from_payload(

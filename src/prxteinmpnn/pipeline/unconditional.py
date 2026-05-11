@@ -35,6 +35,7 @@ class UnconditionalPipeline:
       (logits, state_logits) where logits is (L, V) and state_logits is (S, L, V).
     """
     logit_transform_fn = fns.resolve_logit_transform()
+    encoder_state_fn = fns.resolve_encoder_state_fn()
 
     captured_state_logits: list[Any] = []
 
@@ -53,6 +54,7 @@ class UnconditionalPipeline:
       state_mapping=None,
       inference=self.inference,
       logit_transform_fn=capturing_transform,
+      encoder_state_fn=encoder_state_fn,
     )
     state_logits = captured_state_logits[0] if captured_state_logits else None
     return logits, state_logits

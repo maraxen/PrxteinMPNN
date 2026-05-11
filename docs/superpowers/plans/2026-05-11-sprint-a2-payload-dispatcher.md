@@ -491,6 +491,32 @@
 
 ## Phase 3: PayloadDispatcher Implementation
 
+### Task 3.0: Ensure tests/run/ package exists
+
+**Files:**
+- Create: `tests/run/__init__.py`
+
+**Steps:**
+
+- [ ] **3.0.1: Create tests/run/ directory and __init__.py**
+
+  Run:
+  ```bash
+  mkdir -p /home/marielle/projects/tev_design/prxteinmpnn/tests/run
+  touch /home/marielle/projects/tev_design/prxteinmpnn/tests/run/__init__.py
+  ```
+
+- [ ] **3.0.2: Commit**
+
+  ```bash
+  git add tests/run/__init__.py
+  git commit -m "chore(tests): initialize tests/run/ package for dispatcher tests"
+  ```
+
+**Gate:** `tests/run/__init__.py` exists and pytest can collect tests from `tests/run/`.
+
+---
+
 ### Task 3.1: Implement `PayloadDispatcher.score_unconditional()`
 
 **Files:**
@@ -682,7 +708,13 @@
           stack_list: list of MultistateStackPayload, one per structure.
           seq_oh_stack_list: list of one-hot sequence arrays, aligned with stack_list.
           ar_mask_stack_list: list of AR mask arrays, aligned with stack_list.
-          (remaining args same as score_unconditional)
+          tie_group_map: forwarded to model.score_conditional_from_payload.
+          multi_state_strategy_idx: forwarded to model method.
+          state_weights: forwarded to model method.
+          state_mapping: forwarded to model method.
+          inference: forwarded to model method.
+          logit_transform_fn: forwarded to model method.
+          encoder_state_fn: forwarded to model method.
       
       Returns:
           list of Logits, one per structure (list of arrays).
@@ -836,7 +868,7 @@
       
       assert isinstance(results, list)
       assert len(results) == 2
-      assert all(isinstance(r, jnp.ndarray) for r in results)
+      assert all(isinstance(r, jax.Array) for r in results)
   
   
   def test_dispatcher_key_split_determinism(model):
@@ -1178,10 +1210,10 @@
   Run:
   ```bash
   cd /home/marielle/projects/tev_design/prxteinmpnn && \
-  git log --oneline -10
+  git log --oneline -20
   ```
 
-  Expected: See 6 commits (one per fixer task).
+  Expected: See commits for all completed tasks (one per task, up to ~16 total: 1 from Task 3.0, 1 from each of Tasks 1.1–5.3, plus the initial plan-fix commit).
 
 **Gate:** No new regressions detected; all integration tests pass.
 

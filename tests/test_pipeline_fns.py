@@ -29,6 +29,11 @@ def test_encoder_post_fn_protocol():
     assert EncoderPostFn is not None
 
 
+def test_encoder_state_fn_importable():
+    from prxteinmpnn.protocols import EncoderStateFn
+    assert EncoderStateFn is not None
+
+
 def test_pipeline_protocol():
     from prxteinmpnn.protocols import Pipeline
     assert Pipeline is not None
@@ -178,3 +183,16 @@ def test_pipeline_input_carriers_top_level():
         STEInputs,
     )
     assert all(x is not None for x in [AutoregressiveInputs, ConditionalInputs, STEInputs])
+
+
+def test_pipeline_fns_has_encoder_state_fn_uid():
+    from prxteinmpnn.pipeline_fns import PipelineFns
+    fns = PipelineFns.default()
+    assert hasattr(fns, "encoder_state_fn_uid")
+    assert fns.encoder_state_fn_uid is None
+
+
+def test_pipeline_fns_resolve_encoder_state_fn_returns_none_by_default():
+    from prxteinmpnn.pipeline_fns import PipelineFns
+    fns = PipelineFns.default()
+    assert fns.resolve_encoder_state_fn() is None

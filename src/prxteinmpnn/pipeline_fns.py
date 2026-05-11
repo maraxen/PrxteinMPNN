@@ -19,12 +19,14 @@ from prxteinmpnn.pipeline_registry import (
   DEFAULT_LOGIT_TRANSFORM_UID,
   register_encoder_post_fn,
   register_encoder_pre_fn,
+  register_encoder_state_fn,
   register_logit_transform_fn,
   resolve_hook,
 )
 
 if TYPE_CHECKING:
-  from prxteinmpnn.protocols import EncoderPostFn, EncoderPreFn, LogitTransformFn
+  from prxteinmpnn.model_inputs import LogitTransformFn
+  from prxteinmpnn.protocols import EncoderPostFn, EncoderPreFn, EncoderStateFn
 
 
 @dataclasses.dataclass(frozen=True)
@@ -40,6 +42,7 @@ class PipelineFns:
   logit_transform_uid: str
   encoder_pre_process_uid: str | None = None
   encoder_post_process_uid: str | None = None
+  encoder_state_fn_uid: str | None = None
 
   @classmethod
   def default(cls) -> PipelineFns:
@@ -53,6 +56,7 @@ class PipelineFns:
     logit_transform: Any | None = None,
     encoder_pre_process: Any | None = None,
     encoder_post_process: Any | None = None,
+    encoder_state_fn: "EncoderStateFn | None" = None,
   ) -> PipelineFns:
     """Register callables and return a PipelineFns with their UIDs.
 
@@ -73,10 +77,16 @@ class PipelineFns:
       if encoder_post_process is not None
       else None
     )
+    esf_uid = (
+      register_encoder_state_fn(encoder_state_fn)
+      if encoder_state_fn is not None
+      else None
+    )
     return cls(
       logit_transform_uid=lt_uid,
       encoder_pre_process_uid=pre_uid,
       encoder_post_process_uid=post_uid,
+      encoder_state_fn_uid=esf_uid,
     )
 
   def resolve_logit_transform(self) -> LogitTransformFn:
@@ -94,6 +104,12 @@ class PipelineFns:
     if self.encoder_post_process_uid is None:
       return None
     return resolve_hook(self.encoder_post_process_uid)  # type: ignore[return-value]
+
+  def resolve_encoder_state_fn(self) -> "EncoderStateFn | None":
+    """Return the registered EncoderStateFn callable, or None if not set."""
+    if self.encoder_state_fn_uid is None:
+      return None
+    return resolve_hook(self.encoder_state_fn_uid)  # type: ignore[return-value]
 
 
 @dataclasses.dataclass(frozen=True)

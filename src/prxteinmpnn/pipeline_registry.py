@@ -73,6 +73,11 @@ def register_encoder_post_fn(fn: Any, *, name: str | None = None) -> str:
   return register_hook(fn, name=name)
 
 
+def register_encoder_state_fn(fn: Any, *, name: str | None = None) -> str:
+  """Typed alias for register_hook for EncoderStateFn callables."""
+  return register_hook(fn, name=name)
+
+
 def _capture_env() -> dict[str, str]:
   import jax  # noqa: PLC0415
 
@@ -123,6 +128,7 @@ __all__ = [
   "make_geometric_mean_transform",
   "register_encoder_post_fn",
   "register_encoder_pre_fn",
+  "register_encoder_state_fn",
   "register_hook",
   "register_logit_transform_fn",
   "resolve_hook",

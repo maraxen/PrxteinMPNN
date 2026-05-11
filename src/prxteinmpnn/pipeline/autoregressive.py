@@ -58,7 +58,7 @@ class AutoregressivePipeline:
       inputs.bias_stack,
       self.temperature,
       self.multi_state_strategy_idx,
-      1.0,  # multi_state_temperature
+
       state_weights,
       inputs.wave.wave_group_ids,
       inputs.wave.wave_group_positions,

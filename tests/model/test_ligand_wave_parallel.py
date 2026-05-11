@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from prxteinmpnn.model.mpnn import PrxteinLigandMPNN
+from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
 from prxteinmpnn.sampling.sample import make_sample_sequences
 from prxteinmpnn.utils.wave_parallel import compute_wave_assignments
 

@@ -119,7 +119,13 @@ def run_tied_position_scan(
     group_id, key = scan_inputs
 
     def _skip_group(_: None) -> tuple:
-      return (all_layers_h, s_embed, all_logits, sequence), None
+      # Cast all outputs to float32 to match _decode_group output dtypes (float32)
+      return (
+          jax.tree.map(lambda x: x.astype(jnp.float32), all_layers_h),
+          jax.tree.map(lambda x: x.astype(jnp.float32), s_embed),
+          all_logits.astype(jnp.float32),
+          sequence.astype(jnp.float32)
+      ), None
 
     def _decode_group(_: None) -> tuple:
       group_indices = group_indices_table[group_id]

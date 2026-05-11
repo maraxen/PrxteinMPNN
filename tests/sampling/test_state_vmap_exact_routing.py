@@ -22,7 +22,8 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
+from prxteinmpnn.model.mpnn import PrxteinMPNN
+from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
 from prxteinmpnn.model.multistate_stack import gather_flat_to_stack, scatter_stack_to_flat
 from prxteinmpnn.sampling.state_vmap_prep import build_state_vmap_exact_stacks, slice_flat_tensor_to_stack
 from prxteinmpnn.utils.testing import get_tolerances
@@ -112,7 +113,6 @@ def test_prxtein_mpnn_unconditional_call_matches_direct_score() -> None:
     n_flat=n_flat,
     tie_group_map=None,
     multi_state_strategy="arithmetic_mean",
-    multi_state_temperature=ms_temp,
     state_weights=sw,
     state_mapping=None,
   )
@@ -187,7 +187,6 @@ def test_prxtein_mpnn_conditional_call_matches_direct_score() -> None:
     ar_mask_stack=arm,
     tie_group_map=None,
     multi_state_strategy="geometric_mean",
-    multi_state_temperature=ms_temp,
     state_weights=sw,
     state_mapping=None,
   )
@@ -383,7 +382,6 @@ def test_prxtein_ligand_mpnn_call_matches_direct_score(kind: str) -> None:
       n_flat=n_flat,
       tie_group_map=None,
       multi_state_strategy="arithmetic_mean",
-      multi_state_temperature=ms_temp,
       state_weights=sw,
       state_mapping=None,
     )
@@ -435,7 +433,6 @@ def test_prxtein_ligand_mpnn_call_matches_direct_score(kind: str) -> None:
       ar_mask_stack=arm,
       tie_group_map=None,
       multi_state_strategy="arithmetic_mean",
-      multi_state_temperature=ms_temp,
       state_weights=sw,
       state_mapping=None,
     )

@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from prxteinmpnn.model.mpnn import PrxteinLigandMPNN
+from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
 from scripts.convert_weights import resolve_ligand_side_chain_context
 
 

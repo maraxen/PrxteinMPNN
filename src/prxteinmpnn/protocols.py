@@ -222,6 +222,7 @@ class DesignSink(Protocol):
 
 @runtime_checkable
 class EncoderPreFn(Protocol):
+  # DEPRECATED: Use EncoderStateFn instead. Will be removed in a future sprint.
   """Hook called before the encoder on each state batch.
 
   Returns a dict of supplemental feature arrays keyed by feature name
@@ -240,6 +241,7 @@ class EncoderPreFn(Protocol):
 
 @runtime_checkable
 class EncoderPostFn(Protocol):
+  # DEPRECATED: Use EncoderStateFn instead. Will be removed in a future sprint.
   """Hook called after jax.vmap(encode_one) on the full state batch.
 
   Receives the stacked encoder output (S states) and may return a modified
@@ -254,6 +256,44 @@ class EncoderPostFn(Protocol):
     encoded: EncoderOutput,
     state_index: Int[Array, "S"],
   ) -> EncoderOutput: ...
+
+
+@runtime_checkable
+class EncoderStateFn(Protocol):
+  """Carry-based scan body over encoder states.
+
+  Replaces jax.vmap(encode_one) with jax.lax.scan, enabling cross-state
+  accumulation via an arbitrary JAX-pytree carry.
+
+  Carry must have fixed structure and shapes at JAX trace time.
+  """
+
+  def init_carry(self) -> Any:
+    """Return the initial carry pytree (called once before the scan).
+
+    Must return a valid JAX pytree with fixed structure/shapes at trace time.
+    Use () or jnp.zeros(()) for stateless hooks.
+    """
+    ...
+
+  def __call__(
+    self,
+    carry: Any,
+    state_idx: "Int[Array, '']",
+    backbone: "BackboneGeometry",
+  ) -> "tuple[Any, EncoderOutput]":
+    """Process one state in the encoder scan.
+
+    Args:
+      carry: Current carry pytree.
+      state_idx: Scalar traced int32 — index of current state in [0, S).
+      backbone: Single-state BackboneGeometry (coords, mask, ri, ci).
+
+    Returns:
+      (new_carry, encoded): updated carry and EncoderOutput with shapes
+        node_features (L, D), edge_features (L, K, D), neighbor_indices (L, K), mask (L,)
+    """
+    ...
 
 
 @runtime_checkable
@@ -288,3 +328,19 @@ class Pipeline(Protocol):
     *,
     fns: PipelineFns,
   ) -> Any: ...
+
+
+__all__ = [
+  "ConditionalLogitsFn",
+  "DesignSink",
+  "EncoderPostFn",
+  "EncoderPreFn",
+  "EncoderStateFn",
+  "ModelProtocol",
+  "Pipeline",
+  "SamplerFn",
+  "ScoreFn",
+  "StateVmapExactLogitsFn",
+  "StateVmapExactScoreFn",
+  "UnconditionalLogitsFn",
+]

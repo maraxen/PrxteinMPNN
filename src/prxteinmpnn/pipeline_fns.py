@@ -4,7 +4,10 @@ PipelineFns stores UID strings (not callables) for LogitTransformFn,
 EncoderPreFn, and EncoderPostFn. UIDs are safe to pass as static_argnames
 to JIT — the callable is resolved at dispatch time via pipeline_registry.
 
-Usage:
+DEPRECATED: Use StageSet instead. PipelineFns is maintained for backward
+compatibility and will be removed in the next major release.
+
+Usage (deprecated; use StageSet instead):
     fns = PipelineFns.default()                          # arithmetic mean
     fns = PipelineFns.from_callables(logit_transform=fn) # custom transform
     logit_fn = fns.resolve_logit_transform()             # get callable
@@ -13,16 +16,19 @@ Usage:
 from __future__ import annotations
 
 import dataclasses
+import warnings
 from typing import TYPE_CHECKING, Any
 
 from prxteinmpnn.pipeline_registry import (
   DEFAULT_LOGIT_TRANSFORM_UID,
+  DEFAULT_AR_LOGIT_TRANSFORM_UID,
   register_ar_logit_transform_fn,
   register_encoder_post_fn,
   register_encoder_pre_fn,
   register_encoder_state_fn,
   register_logit_transform_fn,
   resolve_hook,
+  StageSet,
 )
 
 if TYPE_CHECKING:
@@ -32,12 +38,18 @@ if TYPE_CHECKING:
 
 @dataclasses.dataclass(frozen=True)
 class PipelineFns:
-  """Host-only container for pipeline hook UIDs.
+  """DEPRECATED: Backward-compatible container for pipeline hook UIDs.
 
-  All three hook types are optional except logit_transform (defaults to
-  arithmetic mean). Encoder hooks are None by default — set them when
-  custom encoder pre/post processing is needed (e.g. cosine similarity
-  across states for multistate design).
+  Emits DeprecationWarning on instantiation. All public methods preserve
+  identical signatures and return types to ensure compatibility.
+
+  Host-only container for pipeline hook UIDs. All three hook types are optional
+  except logit_transform (defaults to arithmetic mean). Encoder hooks are None
+  by default — set them when custom encoder pre/post processing is needed
+  (e.g. cosine similarity across states for multistate design).
+
+  NOTE: PipelineFns is deprecated. Use StageSet instead. This class will be
+  removed in the next major release.
   """
 
   logit_transform_uid: str
@@ -46,8 +58,18 @@ class PipelineFns:
   encoder_state_fn_uid: str | None = None
   ar_logit_transform_uid: str | None = None
 
+  def __post_init__(self) -> None:
+    """Emit DeprecationWarning when PipelineFns is instantiated."""
+    warnings.warn(
+      "PipelineFns is deprecated; use StageSet instead. "
+      "All public methods are preserved with identical signatures. "
+      "PipelineFns will be removed in the next major release.",
+      DeprecationWarning,
+      stacklevel=2,
+    )
+
   @classmethod
-  def default(cls) -> PipelineFns:
+  def default(cls) -> "PipelineFns":
     """Default PipelineFns: arithmetic mean logit transform, no encoder hooks."""
     return cls(logit_transform_uid=DEFAULT_LOGIT_TRANSFORM_UID)
 
@@ -60,7 +82,7 @@ class PipelineFns:
     encoder_post_process: Any | None = None,
     encoder_state_fn: "EncoderStateFn | None" = None,
     ar_logit_transform: "ARLogitTransformFn | None" = None,
-  ) -> PipelineFns:
+  ) -> "PipelineFns":
     """Register callables and return a PipelineFns with their UIDs.
 
     Re-registering the same callable is idempotent.
@@ -98,17 +120,17 @@ class PipelineFns:
       ar_logit_transform_uid=ar_uid,
     )
 
-  def resolve_logit_transform(self) -> LogitTransformFn:
+  def resolve_logit_transform(self) -> "LogitTransformFn":
     """Return the registered LogitTransformFn callable."""
     return resolve_hook(self.logit_transform_uid)  # type: ignore[return-value]
 
-  def resolve_encoder_pre_process(self) -> EncoderPreFn | None:
+  def resolve_encoder_pre_process(self) -> "EncoderPreFn | None":
     """Return the registered EncoderPreFn callable, or None if not set."""
     if self.encoder_pre_process_uid is None:
       return None
     return resolve_hook(self.encoder_pre_process_uid)  # type: ignore[return-value]
 
-  def resolve_encoder_post_process(self) -> EncoderPostFn | None:
+  def resolve_encoder_post_process(self) -> "EncoderPostFn | None":
     """Return the registered EncoderPostFn callable, or None if not set."""
     if self.encoder_post_process_uid is None:
       return None
@@ -138,4 +160,4 @@ class TrainingFns:
   pass
 
 
-__all__ = ["PipelineFns", "TrainingFns"]
+__all__ = ["PipelineFns", "StageSet", "TrainingFns"]

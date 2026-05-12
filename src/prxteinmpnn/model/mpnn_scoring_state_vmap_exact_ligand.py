@@ -16,7 +16,7 @@ from prxteinmpnn.model.multistate_stack import gather_flat_to_stack, scatter_sta
 
 if TYPE_CHECKING:
   from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
-  from prxteinmpnn.model_inputs import LogitTransformFn
+  from prxteinmpnn.model_inputs import EncoderStateFn, LogitTransformFn
   from prxteinmpnn.utils.types import (
     Float,
     Int,
@@ -337,6 +337,7 @@ def run_score_conditional_state_vmap_exact_ligand(
   inference: bool = True,
   states_chunk_size: int | None = None,
   logit_transform_fn: LogitTransformFn | None = None,
+  encoder_state_fn: "EncoderStateFn | None" = None,
 ) -> Logits:
   """LigandMPNN stacked conditional logits; optional ``bias_flat`` added before fuse."""
   from prxteinmpnn.model.ligand_mpnn import ligand_encode_stack_row  # noqa: PLC0415

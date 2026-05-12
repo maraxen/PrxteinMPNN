@@ -1158,6 +1158,7 @@ class PrxteinLigandMPNN(eqx.Module):
     inference: bool = True,
     states_chunk_size: int | None = None,
     logit_transform_fn: LogitTransformFn | None = None,
+    encoder_state_fn: "EncoderStateFn | None" = None,
   ) -> Logits:
     """LigandMPNN stacked conditional logits; optional ``bias_flat`` added before fuse."""
     from prxteinmpnn.model.mpnn_scoring_state_vmap_exact_ligand import (  # noqa: PLC0415
@@ -1186,6 +1187,7 @@ class PrxteinLigandMPNN(eqx.Module):
       inference=inference,
       states_chunk_size=states_chunk_size,
       logit_transform_fn=logit_transform_fn,
+      encoder_state_fn=encoder_state_fn,
     )
 
   score_conditional_state_vmap_exact = score_conditional

@@ -78,6 +78,11 @@ def register_encoder_state_fn(fn: Any, *, name: str | None = None) -> str:
   return register_hook(fn, name=name)
 
 
+def register_ar_logit_transform_fn(fn: Any, *, name: str | None = None) -> str:
+  """Typed alias for register_hook for ARLogitTransformFn callables."""
+  return register_hook(fn, name=name)
+
+
 def _capture_env() -> dict[str, str]:
   import jax  # noqa: PLC0415
 
@@ -126,6 +131,7 @@ __all__ = [
   "DEFAULT_LOGIT_TRANSFORM_UID",
   "HookEntry",
   "make_geometric_mean_transform",
+  "register_ar_logit_transform_fn",
   "register_encoder_post_fn",
   "register_encoder_pre_fn",
   "register_encoder_state_fn",

@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 from prxteinmpnn.pipeline_registry import (
   DEFAULT_LOGIT_TRANSFORM_UID,
+  register_ar_logit_transform_fn,
   register_encoder_post_fn,
   register_encoder_pre_fn,
   register_encoder_state_fn,
@@ -25,7 +26,7 @@ from prxteinmpnn.pipeline_registry import (
 )
 
 if TYPE_CHECKING:
-  from prxteinmpnn.model_inputs import LogitTransformFn
+  from prxteinmpnn.model_inputs import ARLogitTransformFn, LogitTransformFn
   from prxteinmpnn.protocols import EncoderPostFn, EncoderPreFn, EncoderStateFn
 
 
@@ -43,6 +44,7 @@ class PipelineFns:
   encoder_pre_process_uid: str | None = None
   encoder_post_process_uid: str | None = None
   encoder_state_fn_uid: str | None = None
+  ar_logit_transform_uid: str | None = None
 
   @classmethod
   def default(cls) -> PipelineFns:
@@ -57,6 +59,7 @@ class PipelineFns:
     encoder_pre_process: Any | None = None,
     encoder_post_process: Any | None = None,
     encoder_state_fn: "EncoderStateFn | None" = None,
+    ar_logit_transform: "ARLogitTransformFn | None" = None,
   ) -> PipelineFns:
     """Register callables and return a PipelineFns with their UIDs.
 
@@ -82,11 +85,17 @@ class PipelineFns:
       if encoder_state_fn is not None
       else None
     )
+    ar_uid = (
+      register_ar_logit_transform_fn(ar_logit_transform)
+      if ar_logit_transform is not None
+      else None
+    )
     return cls(
       logit_transform_uid=lt_uid,
       encoder_pre_process_uid=pre_uid,
       encoder_post_process_uid=post_uid,
       encoder_state_fn_uid=esf_uid,
+      ar_logit_transform_uid=ar_uid,
     )
 
   def resolve_logit_transform(self) -> LogitTransformFn:
@@ -110,6 +119,12 @@ class PipelineFns:
     if self.encoder_state_fn_uid is None:
       return None
     return resolve_hook(self.encoder_state_fn_uid)  # type: ignore[return-value]
+
+  def resolve_ar_logit_transform(self) -> "ARLogitTransformFn | None":
+    """Return the registered ARLogitTransformFn callable, or None if not set."""
+    if self.ar_logit_transform_uid is None:
+      return None
+    return resolve_hook(self.ar_logit_transform_uid)  # type: ignore[return-value]
 
 
 @dataclasses.dataclass(frozen=True)

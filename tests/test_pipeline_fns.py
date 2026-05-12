@@ -201,3 +201,16 @@ def test_pipeline_fns_resolve_encoder_state_fn_returns_none_by_default():
 def test_ar_logit_transform_fn_importable():
     from prxteinmpnn.model_inputs import ARLogitTransformFn
     assert ARLogitTransformFn is not None
+
+
+def test_pipeline_fns_has_ar_logit_transform_uid():
+    from prxteinmpnn.pipeline_fns import PipelineFns
+    fns = PipelineFns.default()
+    assert hasattr(fns, "ar_logit_transform_uid")
+    assert fns.ar_logit_transform_uid is None
+
+
+def test_pipeline_fns_resolve_ar_logit_transform_returns_none_by_default():
+    from prxteinmpnn.pipeline_fns import PipelineFns
+    fns = PipelineFns.default()
+    assert fns.resolve_ar_logit_transform() is None

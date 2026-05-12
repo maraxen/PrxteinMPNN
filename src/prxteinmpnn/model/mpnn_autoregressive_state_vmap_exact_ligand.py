@@ -19,6 +19,7 @@ from prxteinmpnn.utils.ste import straight_through_estimator
 
 if TYPE_CHECKING:
   from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
+  from prxteinmpnn.model_inputs import ARLogitTransformFn
   from prxteinmpnn.utils.types import (
     Float,
     Int,
@@ -50,6 +51,7 @@ def run_sample_autoregressive_state_vmap_exact_ligand(  # noqa: PLR0915
   wave_group_positions_local: jax.Array,
   wave_group_valid_local: jax.Array,
   wave_position_valid_local: jax.Array,
+  ar_logit_transform_fn: "ARLogitTransformFn | None" = None,
 ) -> tuple[OneHotProteinSequence, Logits]:
   """Stacked-graph wave sampler for LigandMPNN (``state_vmap_exact``)."""
   del tie_group_map_stack
@@ -236,15 +238,22 @@ def run_sample_autoregressive_state_vmap_exact_ligand(  # noqa: PLR0915
 
         def contrib(__: None) -> tuple:  # noqa: PLR0915
           del __
-          combined = combine_logits_multistate_idx(
-            lrows_fin,
-            cmask_fin.astype(jnp.bool_),
-            strat_idx,
-            ms_temp,
-            sw_use,
-            row_state_map,
-          )
-          comb_vec = jnp.squeeze(combined, axis=0).astype(log_dtype)
+          if ar_logit_transform_fn is not None:
+            comb_vec = ar_logit_transform_fn(
+              lrows_fin * cmask_fin[:, jnp.newaxis].astype(lrows_fin.dtype),
+              row_state_map,
+              sw_use,
+            ).astype(log_dtype)
+          else:
+            combined = combine_logits_multistate_idx(
+              lrows_fin,
+              cmask_fin.astype(jnp.bool_),
+              strat_idx,
+              ms_temp,
+              sw_use,
+              row_state_map,
+            )
+            comb_vec = jnp.squeeze(combined, axis=0).astype(log_dtype)
 
           def gb_body(g_i: jax.Array, acc_gb: tuple) -> tuple:
             num_acc, den_acc = acc_gb

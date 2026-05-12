@@ -38,7 +38,7 @@ from prxteinmpnn.registry import combine_strategy_to_index, multistate_mode_desc
 from prxteinmpnn.utils.ste import straight_through_estimator
 
 if TYPE_CHECKING:
-  from prxteinmpnn.model_inputs import LogitTransformFn
+  from prxteinmpnn.model_inputs import ARLogitTransformFn, LogitTransformFn
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
     AutoRegressiveMask,
@@ -1271,6 +1271,7 @@ class PrxteinLigandMPNN(eqx.Module):
     wave_group_positions_local: jax.Array,
     wave_group_valid_local: jax.Array,
     wave_position_valid_local: jax.Array,
+    ar_logit_transform_fn: "ARLogitTransformFn | None" = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Stacked-graph wave sampler for LigandMPNN (``state_vmap_exact``)."""
     from prxteinmpnn.model.mpnn_autoregressive_state_vmap_exact_ligand import (  # noqa: PLC0415
@@ -1299,6 +1300,7 @@ class PrxteinLigandMPNN(eqx.Module):
       wave_group_positions_local,
       wave_group_valid_local,
       wave_position_valid_local,
+      ar_logit_transform_fn=ar_logit_transform_fn,
     )
 
   def sample_autoregressive_state_vmap_exact_from_payload(
@@ -1315,6 +1317,7 @@ class PrxteinLigandMPNN(eqx.Module):
     wave_group_positions_local: jax.Array,
     wave_group_valid_local: jax.Array,
     wave_position_valid_local: jax.Array,
+    ar_logit_transform_fn: "ARLogitTransformFn | None" = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Same as :meth:`sample_autoregressive_state_vmap_exact` with ``stack`` + :class:`~prxteinmpnn.payloads.LigandStack`."""
     return self.sample_autoregressive_state_vmap_exact(
@@ -1338,6 +1341,7 @@ class PrxteinLigandMPNN(eqx.Module):
       wave_group_positions_local,
       wave_group_valid_local,
       wave_position_valid_local,
+      ar_logit_transform_fn=ar_logit_transform_fn,
     )
 
 

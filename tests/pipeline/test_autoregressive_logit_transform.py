@@ -4,8 +4,9 @@ import jax.numpy as jnp
 import pytest
 
 from prxteinmpnn.model.mpnn import PrxteinMPNN
+from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
 from prxteinmpnn.model_inputs import ARLogitTransformFn
-from prxteinmpnn.payloads import MultistateStackPayload
+from prxteinmpnn.payloads import MultistateStackPayload, LigandStack
 import equinox as eqx
 
 
@@ -90,3 +91,15 @@ def test_ar_logit_transform_fn_changes_output():
     assert jnp.all(token_0_forced == 1.0), "Transform must force all-token-0 one-hot sequences"
     # Default path should differ (model produces non-trivial logits)
     assert not jnp.allclose(seqs_default, seqs_forced), "Default and transformed outputs must differ"
+
+
+def test_ligand_ar_logit_transform_fn_accepted():
+    """LigandMPNN explicit-param method must have ar_logit_transform_fn in signature."""
+    import inspect
+    m = eqx.tree_inference(
+        PrxteinLigandMPNN(16, 16, 16, 1, 1, 4, key=jax.random.PRNGKey(0)),
+        value=True,
+    )
+    # Inspect the explicit-param wrapper, not sample_autoregressive_from_payload which is *args/**kwargs
+    sig = inspect.signature(m.sample_autoregressive_state_vmap_exact_from_payload)
+    assert "ar_logit_transform_fn" in sig.parameters

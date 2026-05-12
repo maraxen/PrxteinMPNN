@@ -38,7 +38,15 @@ from prxteinmpnn.registry import combine_strategy_to_index, multistate_mode_desc
 from prxteinmpnn.utils.ste import straight_through_estimator
 
 if TYPE_CHECKING:
-  from prxteinmpnn.model_inputs import ARLogitTransformFn, LogitTransformFn
+  from prxteinmpnn.model_inputs import (
+    ARLogitTransformFn,
+    ConditionalDecodeFn,
+    EncoderStateFn,
+    FeaturizeFn,
+    LigandEncodeFn,
+    LogitTransformFn,
+    UnconditionalDecodeFn,
+  )
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
     AutoRegressiveMask,
@@ -168,6 +176,28 @@ class PrxteinLigandMPNN(eqx.Module):
 
     self.w_s_embed = eqx.nn.Embedding(vocab_size, node_features, key=proj_keys[5])
     self.w_out = eqx.nn.Linear(node_features, num_amino_acids, key=proj_keys[6])
+
+  @classmethod
+  def stage_schema(cls) -> dict[str, type | None]:
+    """Returns {stage_name: type_alias} for this LigandMPNN variant."""
+    from prxteinmpnn.model_inputs import (
+      ARLogitTransformFn,
+      ConditionalDecodeFn,
+      FeaturizeFn,
+      LigandEncodeFn,
+      LogitTransformFn,
+      UnconditionalDecodeFn,
+    )
+    from prxteinmpnn.protocols import EncoderStateFn
+
+    return {
+        "featurize": FeaturizeFn,
+        "encode": LigandEncodeFn,
+        "decode": ConditionalDecodeFn | UnconditionalDecodeFn,
+        "logit_transform": LogitTransformFn,
+        "ar_logit_transform": ARLogitTransformFn,
+        "encoder_state_fn": EncoderStateFn | None,
+    }
 
   def __call__(
     self,

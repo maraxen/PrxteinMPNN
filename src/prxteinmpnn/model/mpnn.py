@@ -45,7 +45,15 @@ from prxteinmpnn.payloads import MultistateStackPayload
 from prxteinmpnn.registry import combine_strategy_to_index, multistate_mode_descriptor
 
 if TYPE_CHECKING:
-  from prxteinmpnn.model_inputs import ARLogitTransformFn, BackboneGeometry, LogitTransformFn
+  from prxteinmpnn.model_inputs import (
+    ARLogitTransformFn,
+    BackboneGeometry,
+    ConditionalDecodeFn,
+    FeaturizeFn,
+    LogitTransformFn,
+    ProteinEncodeFn,
+    UnconditionalDecodeFn,
+  )
   from prxteinmpnn.protocols import EncoderStateFn
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
@@ -176,6 +184,27 @@ class PrxteinMPNN(eqx.Module):
       key=keys[3],
     )
     self.w_out = eqx.nn.Linear(node_features, num_amino_acids, key=keys[4])
+
+  @classmethod
+  def stage_schema(cls) -> dict[str, type | None]:
+    """Returns {stage_name: type_alias} for this MPNN model variant."""
+    from prxteinmpnn.model_inputs import (
+      ARLogitTransformFn,
+      ConditionalDecodeFn,
+      FeaturizeFn,
+      LogitTransformFn,
+      ProteinEncodeFn,
+      UnconditionalDecodeFn,
+    )
+
+    return {
+        "featurize": FeaturizeFn,
+        "encode": ProteinEncodeFn,
+        "decode": ConditionalDecodeFn | UnconditionalDecodeFn,
+        "logit_transform": LogitTransformFn,
+        "ar_logit_transform": ARLogitTransformFn,
+        "encoder_state_fn": None,
+    }
 
   def _call_unconditional(
     self,

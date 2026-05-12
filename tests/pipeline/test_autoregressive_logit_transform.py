@@ -103,3 +103,44 @@ def test_ligand_ar_logit_transform_fn_accepted():
     # Inspect the explicit-param wrapper, not sample_autoregressive_from_payload which is *args/**kwargs
     sig = inspect.signature(m.sample_autoregressive_state_vmap_exact_from_payload)
     assert "ar_logit_transform_fn" in sig.parameters
+
+
+def test_autoregressive_pipeline_resolves_ar_logit_transform():
+    """AutoregressivePipeline must resolve and pass ar_logit_transform_fn — output must change."""
+    from prxteinmpnn.pipeline.autoregressive import AutoregressivePipeline, AutoregressiveInputs
+    from prxteinmpnn.pipeline_fns import PipelineFns
+    from prxteinmpnn.payloads import WaveParallelPayload
+
+    m = _make_model()
+    S, L, V = 2, 4, 21
+    stack = _make_stack(S=S, L=L)
+    w_id, w_loc, w_gv, w_pv = _build_wave_tables(S, L, k_neighbors=4)
+    wave = WaveParallelPayload(
+        wave_group_ids=w_id,
+        wave_group_positions=w_loc,
+        wave_group_valid=w_gv,
+        wave_position_valid=w_pv,
+    )
+    inputs = AutoregressiveInputs(
+        stack=stack,
+        wave=wave,
+        autoregressive_mask_stack=jnp.zeros((S, L, L)),
+        bias_stack=jnp.zeros((S, L, V)),
+    )
+
+    def always_token_zero(state_logits, state_index, state_weights):
+        return jnp.zeros(V).at[0].set(1e9)
+
+    fns_default = PipelineFns.default()
+    fns_forced = PipelineFns.from_callables(ar_logit_transform=always_token_zero)
+    pipeline = AutoregressivePipeline(temperature=1.0)
+    key = jax.random.PRNGKey(0)
+
+    seqs_default, _ = pipeline(m, key, inputs, fns=fns_default)
+    seqs_forced, _ = pipeline(m, key, inputs, fns=fns_forced)
+
+    # With 1e9 logit on token 0, sampling must produce all token 0s (one-hot encoded as [1, 0, ...])
+    token_0_forced = seqs_forced[..., 0]
+    assert jnp.all(token_0_forced == 1.0), "Forced transform must produce all-token-0 one-hot sequences"
+    # Default path should differ (model produces non-trivial logits)
+    assert not jnp.allclose(seqs_default, seqs_forced), "Default and transformed outputs must differ"

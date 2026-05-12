@@ -48,6 +48,7 @@ class AutoregressivePipeline:
     S = inputs.stack.n_states
     state_weights = jnp.ones(S, dtype=jnp.float32) / S
     batch_fn = fns.resolve_logit_transform()
+    ar_logit_transform_fn = fns.resolve_ar_logit_transform()
 
     sequences, logits = module.sample_autoregressive_from_payload(
       key,
@@ -62,5 +63,6 @@ class AutoregressivePipeline:
       inputs.wave.wave_group_positions,
       inputs.wave.wave_group_valid,
       inputs.wave.wave_position_valid,
+      ar_logit_transform_fn=ar_logit_transform_fn,
     )
     return sequences, logits

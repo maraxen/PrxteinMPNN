@@ -1,4 +1,15 @@
-"""Runtime-checkable callback protocols for sampling, scoring, and logits factories."""
+"""Runtime-checkable callback protocols for sampling, scoring, and logits factories.
+
+Tier 1 Protocols (generic, reusable):
+- TransformFn[In, Out] — stateless transformation
+- RollingFn[Carry, In, Out] — scan-body with init_carry
+- FuseFn[PerItem, Combined] — reduce-across-axis
+
+Tier 2 Aliases (MPNN-specific):
+- FeaturizeFn, EncoderStepFn, EncoderStateFn, ProteinEncodeFn, LigandEncodeFn
+- ConditionalDecodeFn, UnconditionalDecodeFn
+- LogitTransformFn (as FuseFn), ARLogitTransformFn (as FuseFn)
+"""
 
 from __future__ import annotations
 
@@ -6,6 +17,22 @@ from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
 import jax
 from jaxtyping import Array, Float, Int, PRNGKeyArray
+
+# Tier 1/2 protocols and aliases
+from prxteinmpnn.model_inputs import (
+  ARLogitTransformFn,
+  ConditionalDecodeFn,
+  EncoderStateFn,
+  EncoderStepFn,
+  FeaturizeFn,
+  FuseFn,
+  LigandEncodeFn,
+  LogitTransformFn,
+  ProteinEncodeFn,
+  RollingFn,
+  TransformFn,
+  UnconditionalDecodeFn,
+)
 
 if TYPE_CHECKING:
   from prxteinmpnn.model_inputs import BackboneGeometry
@@ -259,44 +286,6 @@ class EncoderPostFn(Protocol):
 
 
 @runtime_checkable
-class EncoderStateFn(Protocol):
-  """Carry-based scan body over encoder states.
-
-  Replaces jax.vmap(encode_one) with jax.lax.scan, enabling cross-state
-  accumulation via an arbitrary JAX-pytree carry.
-
-  Carry must have fixed structure and shapes at JAX trace time.
-  """
-
-  def init_carry(self) -> Any:
-    """Return the initial carry pytree (called once before the scan).
-
-    Must return a valid JAX pytree with fixed structure/shapes at trace time.
-    Use () or jnp.zeros(()) for stateless hooks.
-    """
-    ...
-
-  def __call__(
-    self,
-    carry: Any,
-    state_idx: "Int[Array, '']",
-    backbone: "BackboneGeometry",
-  ) -> "tuple[Any, EncoderOutput]":
-    """Process one state in the encoder scan.
-
-    Args:
-      carry: Current carry pytree.
-      state_idx: Scalar traced int32 — index of current state in [0, S).
-      backbone: Single-state BackboneGeometry (coords, mask, ri, ci).
-
-    Returns:
-      (new_carry, encoded): updated carry and EncoderOutput with shapes
-        node_features (L, D), edge_features (L, K, D), neighbor_indices (L, K), mask (L,)
-    """
-    ...
-
-
-@runtime_checkable
 class ModelProtocol(Protocol):
   """Structural protocol over prxteinmpnn model modules.
 
@@ -331,11 +320,25 @@ class Pipeline(Protocol):
 
 
 __all__ = [
+  # Tier 1 Protocols
+  "TransformFn",
+  "RollingFn",
+  "FuseFn",
+  # Tier 2 Aliases
+  "FeaturizeFn",
+  "EncoderStepFn",
+  "EncoderStateFn",
+  "ProteinEncodeFn",
+  "LigandEncodeFn",
+  "ConditionalDecodeFn",
+  "UnconditionalDecodeFn",
+  "LogitTransformFn",
+  "ARLogitTransformFn",
+  # Legacy/Current Protocols
   "ConditionalLogitsFn",
   "DesignSink",
   "EncoderPostFn",
   "EncoderPreFn",
-  "EncoderStateFn",
   "ModelProtocol",
   "Pipeline",
   "SamplerFn",

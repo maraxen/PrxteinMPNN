@@ -45,7 +45,7 @@ from prxteinmpnn.payloads import MultistateStackPayload
 from prxteinmpnn.registry import combine_strategy_to_index, multistate_mode_descriptor
 
 if TYPE_CHECKING:
-  from prxteinmpnn.model_inputs import BackboneGeometry, LogitTransformFn
+  from prxteinmpnn.model_inputs import ARLogitTransformFn, BackboneGeometry, LogitTransformFn
   from prxteinmpnn.protocols import EncoderStateFn
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
@@ -977,6 +977,7 @@ class PrxteinMPNN(eqx.Module):
     wave_group_positions_local: jax.Array,
     wave_group_valid_local: jax.Array,
     wave_position_valid_local: jax.Array,
+    ar_logit_transform_fn: "ARLogitTransformFn | None" = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Stacked-graph wave-parallel sampler for ProteinMPNN (``state_vmap_exact``).
 
@@ -1001,6 +1002,7 @@ class PrxteinMPNN(eqx.Module):
       wave_group_positions_local,
       wave_group_valid_local,
       wave_position_valid_local,
+      ar_logit_transform_fn=ar_logit_transform_fn,
     )
 
   def sample_autoregressive_state_vmap_exact_from_payload(
@@ -1016,6 +1018,7 @@ class PrxteinMPNN(eqx.Module):
     wave_group_positions_local: jax.Array,
     wave_group_valid_local: jax.Array,
     wave_position_valid_local: jax.Array,
+    ar_logit_transform_fn: "ARLogitTransformFn | None" = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Same as :meth:`sample_autoregressive_state_vmap_exact` with geometry read from ``stack``."""
     warnings.warn(
@@ -1042,6 +1045,7 @@ class PrxteinMPNN(eqx.Module):
       wave_group_positions_local,
       wave_group_valid_local,
       wave_position_valid_local,
+      ar_logit_transform_fn=ar_logit_transform_fn,
     )
 
   def sample_autoregressive_from_payload(

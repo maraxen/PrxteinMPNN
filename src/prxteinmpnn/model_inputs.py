@@ -107,7 +107,27 @@ class LogitTransformFn(Protocol):
   ) -> Float[Array, "L V"]: ...
 
 
+class ARLogitTransformFn(Protocol):
+  """JAX-traceable fn combining per-state logits for ONE decode position into a single vector.
+
+  Called per decode step inside the AR wave-parallel scan, where logits are accumulated
+  one position at a time (shape (S, V)), not across the full sequence.
+  Contrast with LogitTransformFn which operates on (S, L, V).
+
+  Must use only jnp ops — no Python branching on traced values.
+  state_weights is always a concrete array (uniform 1/S if absent).
+  """
+
+  def __call__(
+    self,
+    state_logits: Float[Array, "S V"],
+    state_index: Int[Array, "S"],
+    state_weights: Float[Array, "S"],
+  ) -> Float[Array, "V"]: ...
+
+
 __all__ = [
+  "ARLogitTransformFn",
   "BackboneGeometry",
   "LogitTransformFn",
   "ConditioningFeatures",

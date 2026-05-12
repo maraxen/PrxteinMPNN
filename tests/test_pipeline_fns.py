@@ -196,3 +196,8 @@ def test_pipeline_fns_resolve_encoder_state_fn_returns_none_by_default():
     from prxteinmpnn.pipeline_fns import PipelineFns
     fns = PipelineFns.default()
     assert fns.resolve_encoder_state_fn() is None
+
+
+def test_ar_logit_transform_fn_importable():
+    from prxteinmpnn.model_inputs import ARLogitTransformFn
+    assert ARLogitTransformFn is not None

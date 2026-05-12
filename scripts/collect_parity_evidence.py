@@ -21,7 +21,8 @@ from scipy.spatial.distance import jensenshannon
 from scipy.stats import ks_2samp, wasserstein_distance
 
 from prxteinmpnn.io.parsing import parse_input
-from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
+from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
+from prxteinmpnn.model.mpnn import PrxteinMPNN
 from prxteinmpnn.model.packer import Packer as JAXPacker
 from prxteinmpnn.parity.evidence import (
   amino_acid_distribution,

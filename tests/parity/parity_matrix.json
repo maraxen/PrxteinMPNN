@@ -71,7 +71,7 @@
     {
       "id": "tied-positions-and-multi-state",
       "tier": "parity_heavy",
-      "code_paths": ["src/prxteinmpnn/utils/autoregression.py", "src/prxteinmpnn/model/multi_state_sampling.py", "src/prxteinmpnn/sampling/sample.py"],
+      "code_paths": ["src/prxteinmpnn/utils/autoregression.py", "src/prxteinmpnn/model/multistate_sampling.py", "src/prxteinmpnn/sampling/sample.py"],
       "reference": "LigandMPNN tie-group and multi-state sampling behavior",
       "method": "group-combined branch parity with explicit apples-to-apples comparison lanes",
       "metrics": ["group correlation", "strategy invariants"],

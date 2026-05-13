@@ -226,7 +226,14 @@ class DecoderLayer(eqx.Module):
 
 
 class DecoderLayerJ(eqx.Module):
-    """Specialized decoder layer for LigandMPNN context atoms."""
+    """Decoder layer for ligand-atom (Y) context encoding.
+
+    Named after the upstream LigandMPNN ``DecLayerJ`` reference implementation.
+    Used as ``y_context_encoder_layers`` inside ``Packer``.
+
+    Operates on 3-D node tensors ``[L, M, D]`` and 4-D edge tensors
+    ``[L, M, M, D]``, where ``M`` is the ligand context neighbourhood size.
+    """
     w1: eqx.nn.Linear
     w2: eqx.nn.Linear
     w3: eqx.nn.Linear

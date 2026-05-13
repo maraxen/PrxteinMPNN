@@ -1036,11 +1036,11 @@ class PrxteinLigandMPNN(eqx.Module):
     states_chunk_size: int | None = None,
   ) -> Logits:
     """LigandMPNN unconditional logits: per-row encode + decoder, scatter+fuse."""
-    from prxteinmpnn.model.mpnn_scoring_state_vmap_exact_ligand import (  # noqa: PLC0415
-      run_score_unconditional_state_vmap_exact_ligand,
+    from prxteinmpnn.model.score_exact_ligand import (  # noqa: PLC0415
+      run_score_unconditional_exact_ligand,
     )
 
-    return run_score_unconditional_state_vmap_exact_ligand(
+    return run_score_unconditional_exact_ligand(
       self,
       prng_key,
       coords_stack,
@@ -1122,11 +1122,11 @@ class PrxteinLigandMPNN(eqx.Module):
     encoder_state_fn: "EncoderStateFn | None" = None,
   ) -> Logits:
     """LigandMPNN stacked conditional logits; optional ``bias_flat`` added before fuse."""
-    from prxteinmpnn.model.mpnn_scoring_state_vmap_exact_ligand import (  # noqa: PLC0415
-      run_score_conditional_state_vmap_exact_ligand,
+    from prxteinmpnn.model.score_exact_ligand import (  # noqa: PLC0415
+      run_score_conditional_exact_ligand,
     )
 
-    return run_score_conditional_state_vmap_exact_ligand(
+    return run_score_conditional_exact_ligand(
       self,
       prng_key,
       coords_stack,

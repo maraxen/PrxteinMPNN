@@ -214,7 +214,7 @@ def ligand_score_conditional_state_vmap_one_chunk(
   return scatter_stack_to_flat(logits_s, state_flat_rows, n_flat)
 
 
-def run_score_unconditional_state_vmap_exact_ligand(
+def run_score_unconditional_exact_ligand(
   model: PrxteinLigandMPNN,
   prng_key: PRNGKeyArray,
   coords_stack: jax.Array,
@@ -314,7 +314,7 @@ def run_score_unconditional_state_vmap_exact_ligand(
   return logits_flat
 
 
-def run_score_conditional_state_vmap_exact_ligand(
+def run_score_conditional_exact_ligand(
   model: PrxteinLigandMPNN,
   prng_key: PRNGKeyArray,
   coords_stack: jax.Array,

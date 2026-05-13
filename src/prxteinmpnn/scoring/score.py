@@ -132,7 +132,7 @@ def _make_score_fn_state_vmap_exact(
     logit_transform_fn = stage_set.resolve_all()["logit_transform_fn"] if stage_set is not None else None
 
     if is_lig:
-      logits = model.score_conditional_state_vmap_exact(  # type: ignore[union-attr]
+      logits = model.score_conditional(  # type: ignore[union-attr]
         prng_key,
         coords_stack,
         mask_stack,
@@ -155,7 +155,7 @@ def _make_score_fn_state_vmap_exact(
         **scs_kw,
       )
     else:
-      logits = model.score_conditional_state_vmap_exact(
+      logits = model.score_conditional(
         prng_key,
         coords_stack,
         mask_stack,

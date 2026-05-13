@@ -9,8 +9,8 @@ with stacked geometry tensors and a flat ``one_hot_sequence`` / aa indices.
 
 For a single carrier object, use
 :func:`prxteinmpnn.sampling.state_vmap_payload_logits.conditional_state_vmap_logits_from_payload`
-or :meth:`prxteinmpnn.model.mpnn.PrxteinMPNN.score_conditional_state_vmap_exact_from_payload`
-/:meth:`~prxteinmpnn.model.mpnn.PrxteinLigandMPNN.score_conditional_state_vmap_exact_from_payload`
+or :meth:`prxteinmpnn.model.mpnn.PrxteinMPNN.score_conditional_from_payload`
+/:meth:`~prxteinmpnn.model.mpnn.PrxteinLigandMPNN.score_conditional_from_payload`
 (geometry in :class:`~prxteinmpnn.payloads.MultistateStackPayload`; ligand tensors in :class:`~prxteinmpnn.payloads.LigandStack`).
 
 This is used for:
@@ -167,7 +167,7 @@ def make_conditional_logits_fn(
 def make_conditional_logits_state_vmap_fn(
   model: PrxteinMPNN | PrxteinLigandMPNN,
 ) -> StateVmapExactLogitsFn:
-  """JIT ``score_conditional_state_vmap_exact`` (teacher-forced parallel decode per state).
+  """JIT ``score_conditional`` (teacher-forced parallel decode per state).
 
   ``sequence`` is a **flat** `(n_flat,)` aa index tensor or `(n_flat, 21)` one-hot; it is gathered
   into stack layout via :func:`~prxteinmpnn.model.multistate_stack.gather_flat_to_stack`.
@@ -215,7 +215,7 @@ def make_conditional_logits_state_vmap_fn(
       extra: dict[str, object] = {}
       if states_chunk_size is not None:
         extra["states_chunk_size"] = states_chunk_size
-      return m.score_conditional_state_vmap_exact(  # type: ignore[union-attr]
+      return m.score_conditional(  # type: ignore[union-attr]
         prng_key,
         coords_stack,
         mask_stack,
@@ -268,7 +268,7 @@ def make_conditional_logits_state_vmap_fn(
       if ar_mask_stack is None
       else ar_mask_stack
     )
-    return m.score_conditional_state_vmap_exact(
+    return m.score_conditional(
       prng_key,
       coords_stack,
       mask_stack,

@@ -45,18 +45,17 @@ def test_score_conditional_from_payload_accepts_logit_transform_fn():
         call_count.append(1)
         return jnp.mean(state_logits, axis=0)
 
-    with pytest.warns(DeprecationWarning, match="use score_conditional_from_payload"):
-        logits = m.score_conditional_state_vmap_exact_from_payload(
-            key,
-            stack,
-            seq_oh_stack=seq_oh,
-            ar_mask_stack=ar_mask,
-            tie_group_map=None,
-            multi_state_strategy_idx=0,
-            state_weights=None,
-            state_mapping=None,
-            logit_transform_fn=counting_transform,
-        )
+    logits = m.score_conditional_from_payload(
+        key,
+        stack,
+        seq_oh_stack=seq_oh,
+        ar_mask_stack=ar_mask,
+        tie_group_map=None,
+        multi_state_strategy_idx=0,
+        state_weights=None,
+        state_mapping=None,
+        logit_transform_fn=counting_transform,
+    )
     assert len(call_count) > 0
     assert logits.shape == (L, V)
 

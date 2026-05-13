@@ -3,8 +3,8 @@
 JIT factories :func:`~prxteinmpnn.sampling.unconditional_logits.make_unconditional_logits_state_vmap_fn`
 and :func:`~prxteinmpnn.sampling.conditional_logits.make_conditional_logits_state_vmap_fn` keep a
 tuple-first surface for historical call sites. These helpers delegate to
-:meth:`prxteinmpnn.model.mpnn.PrxteinMPNN.score_unconditional_state_vmap_exact_from_payload` /
-:meth:`~prxteinmpnn.model.mpnn.PrxteinMPNN.score_conditional_state_vmap_exact_from_payload`
+:meth:`prxteinmpnn.model.mpnn.PrxteinMPNN.score_unconditional_from_payload` /
+:meth:`~prxteinmpnn.model.mpnn.PrxteinMPNN.score_conditional_from_payload`
 (or ligand equivalents) for payload-first tooling.
 """
 
@@ -50,7 +50,7 @@ def unconditional_state_vmap_logits_from_payload(
     extra: dict[str, object] = {}
     if states_chunk_size is not None:
       extra["states_chunk_size"] = states_chunk_size
-    return m.score_unconditional_state_vmap_exact_from_payload(
+    return m.score_unconditional_from_payload(
       prng_key,
       stack,
       ligand,
@@ -63,7 +63,7 @@ def unconditional_state_vmap_logits_from_payload(
   if ligand is not None:
     msg = "ligand= must be None for PrxteinMPNN"
     raise ValueError(msg)
-  return m.score_unconditional_state_vmap_exact_from_payload(
+  return m.score_unconditional_from_payload(
     prng_key,
     stack,
     tie_group_map=tie_group_map,
@@ -107,7 +107,7 @@ def conditional_state_vmap_logits_from_payload(
     extra: dict[str, object] = {}
     if states_chunk_size is not None:
       extra["states_chunk_size"] = states_chunk_size
-    return m.score_conditional_state_vmap_exact_from_payload(
+    return m.score_conditional_from_payload(
       prng_key,
       stack,
       ligand,
@@ -124,7 +124,7 @@ def conditional_state_vmap_logits_from_payload(
   if ligand is not None:
     msg = "ligand= must be None for PrxteinMPNN"
     raise ValueError(msg)
-  return m.score_conditional_state_vmap_exact_from_payload(
+  return m.score_conditional_from_payload(
     prng_key,
     stack,
     seq_stack,

@@ -39,10 +39,10 @@ def _replace_payload(
   return out
 
 
-class MultistateStackPayload(eqx.Module):
+class MultistateStackPayload(eqx.Module):  # TODO: eliminate MultiStateStack wording, change Payload --> better word
   """Stacked backbone / token geometry for ``state_vmap_exact`` (numpy prep → JAX arrays)."""
 
-  coords_stack: Float[Array, ...]
+  coords_stack: Float[Array, ...] # TODO: we need to use our Batch and Axis primiatives, raw stacks like this are highly memory efficient
   mask_stack: Float[Array, ...]
   residue_index_stack: Int[Array, ...]
   chain_index_stack: Int[Array, ...]

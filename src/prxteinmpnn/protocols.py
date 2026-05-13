@@ -41,7 +41,7 @@ from prxteinmpnn.model.capabilities import ModelCapabilities
 
 if TYPE_CHECKING:
   from prxteinmpnn.model_inputs import BackboneGeometry
-  from prxteinmpnn.payloads import EncoderOutput, LigandStack, MultistateStackPayload
+  from prxteinmpnn.bundles import EncoderOutput, LigandBundle, ProteinBundle
   from prxteinmpnn.pipeline_registry import StageSet
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
@@ -237,8 +237,8 @@ class ModelProtocol(Protocol):
   def stage_schema(cls) -> dict[str, type | None]: ...
 
   def score_unconditional_from_payload(
-    self, prng_key: PRNGKeyArray, stack: MultistateStackPayload,
-    *, ligand: LigandStack | None = None,
+    self, prng_key: PRNGKeyArray, stack: ProteinBundle,
+    *, ligand: LigandBundle | None = None,
     tie_group_map: TieGroupMap | None, multi_state_strategy_idx: Int,
     state_weights: jax.Array | None, state_mapping: jax.Array | None,
     inference: bool = True,
@@ -247,9 +247,9 @@ class ModelProtocol(Protocol):
   ) -> Logits: ...
 
   def score_conditional_from_payload(
-    self, prng_key, stack: MultistateStackPayload,
+    self, prng_key, stack: ProteinBundle,
     seq_oh_stack: jax.Array, ar_mask_stack: jax.Array,
-    *, ligand: LigandStack | None = None,
+    *, ligand: LigandBundle | None = None,
     tie_group_map, multi_state_strategy_idx,
     state_weights, state_mapping,
     bias_flat: jax.Array | None = None,
@@ -259,12 +259,12 @@ class ModelProtocol(Protocol):
   ) -> Logits: ...
 
   def sample_autoregressive_state_vmap_exact_from_payload(
-    self, prng_key, stack: MultistateStackPayload,
-    autoregressive_mask_stack: jax.Array, bias_stack: jax.Array,
+    self, prng_key, stack: ProteinBundle,
+    autoregressive_mask: jax.Array, bias: jax.Array,
     temperature: float, multi_state_strategy_idx,
     state_weights, wave_group_ids_local, wave_group_positions_local,
     wave_group_valid_local, wave_position_valid_local,
-    *, ligand: LigandStack | None = None,
+    *, ligand: LigandBundle | None = None,
     ar_logit_transform_fn: ARLogitTransformFn | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]: ...
 

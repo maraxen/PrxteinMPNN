@@ -217,7 +217,7 @@ def _sample_batch(
     # (In a real implementation, we'd also slice the multistate/ligand stacks here)
     inputs = SamplingInputs(
       backbone=backbone,
-      state_stack=MultistateStackPayload.empty(seq_len), # TODO: real stack
+      state_stack=ProteinBundle.empty(seq_len), # TODO: real stack
       conditioning=conditioning,
     )
     return sampler_fn(key_batch, inputs)

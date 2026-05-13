@@ -185,7 +185,7 @@ def _coerce_n_states(spec: object) -> int:
       return int(ns.item())
     return int(ns)
   except (TypeError, ValueError):
-    # TODO(REFACTOR_ROADMAP §3.5): stable int from `MultistateStackPayload` / stack shape.
+    # TODO(REFACTOR_ROADMAP §3.5): stable int from `ProteinBundle` / stack shape.
     return 1
 
 

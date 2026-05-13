@@ -17,7 +17,7 @@ from prxteinmpnn.model_inputs import (
   SamplingInputs,
   SamplingStaticConfig,
 )
-from prxteinmpnn.payloads import LigandStack, MultistateStackPayload, WaveParallelPayload
+from prxteinmpnn.bundles import LigandBundle, ProteinBundle, WaveColorBundle
 from prxteinmpnn.protocols import SamplerFn
 from prxteinmpnn.registry import (
   MULTISTATE_MODE_STATE_VMAP_EXACT,
@@ -111,26 +111,26 @@ def make_sampling_inputs_from_spec(
     from prxteinmpnn.sampling.state_vmap_prep import multistate_stack_payload_from_loose_ar_host  # noqa: PLC0415
     rows = jnp.arange(L, dtype=jnp.int32)[None]  # (1, L)
     multistate_stack = multistate_stack_payload_from_loose_ar_host(
-      coords_stack=coords[None],
-      mask_stack=mask[None],
-      residue_index_stack=residue_index[None],
-      chain_index_stack=chain_index[None],
-      tie_group_map_stack=jnp.arange(L, dtype=jnp.int32)[None],
-      fixed_mask_stack=jnp.zeros((1, L), dtype=jnp.float32),
-      fixed_tokens_stack=jnp.zeros((1, L), dtype=jnp.int32),
+      coords=coords[None],
+      mask=mask[None],
+      residue_index=residue_index[None],
+      chain_index=chain_index[None],
+      tie_group_map=jnp.arange(L, dtype=jnp.int32)[None],
+      fixed_mask=jnp.zeros((1, L), dtype=jnp.float32),
+      fixed_tokens=jnp.zeros((1, L), dtype=jnp.int32),
       state_flat_rows=rows,
       n_canonical=L,
     )
 
   if wave_group_ids is None:
-    wave_parallel = WaveParallelPayload(
+    wave_parallel = WaveColorBundle(
       wave_group_ids=jnp.arange(L, dtype=jnp.int32)[None, :],
       wave_group_positions=jnp.arange(L, dtype=jnp.int32)[None, :, None],
       wave_group_valid=jnp.ones((1, L), dtype=bool),
       wave_position_valid=jnp.ones((1, L, 1), dtype=bool),
     )
   else:
-    wave_parallel = WaveParallelPayload(
+    wave_parallel = WaveColorBundle(
       wave_group_ids=jnp.asarray(wave_group_ids, dtype=jnp.int32),
       wave_group_positions=jnp.asarray(wave_group_positions, dtype=jnp.int32),
       wave_group_valid=jnp.asarray(wave_group_valid, dtype=bool),

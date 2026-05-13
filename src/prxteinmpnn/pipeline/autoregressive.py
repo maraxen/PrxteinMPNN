@@ -40,8 +40,8 @@ class AutoregressivePipeline:
     sequences, logits = module.sample_autoregressive_from_payload(
       key,
       inputs.stack,
-      inputs.autoregressive_mask_stack,
-      inputs.bias_stack,
+      inputs.autoregressive_mask,
+      inputs.bias,
       self.temperature,
       self.multi_state_strategy_idx,
 

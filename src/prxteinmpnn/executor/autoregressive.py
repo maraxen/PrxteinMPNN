@@ -19,8 +19,8 @@ class AutoregressiveExecutor(Executor):
   stack, resolving all pipeline stages (featurize, encode, ar_logit_transform)
   from the stored StageSet.
 
-  Inputs:  AutoregressiveInputs with stack (MultistateStackPayload),
-           wave (WaveParallelPayload), autoregressive_mask_stack (S, L, L),
+  Inputs:  AutoregressiveInputs with stack (ProteinBundle),
+           wave (WaveColorBundle), autoregressive_mask_stack (S, L, L),
            bias_stack (S, L, 21)
   Outputs: (sequences: OneHotProteinSequence, logits: Logits)
   """

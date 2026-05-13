@@ -5,9 +5,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from prxteinmpnn.executor.base import Executor
-from prxteinmpnn.pipeline.unconditional import UnconditionalPipeline
-from prxteinmpnn.pipeline_registry import StageSet
+import jax.numpy as jnp
 
+from prxteinmpnn.executor.base import Executor
+from prxteinmpnn.model_inputs import UnconditionalInputs, StackInputs
+from prxteinmpnn.pipeline_registry import StageSet
+from prxteinmpnn.model._inference.scoring import score_unconditional
 if TYPE_CHECKING:
   pass
 
@@ -19,7 +22,7 @@ class UnconditionalExecutor(Executor):
   resolving all pipeline stages (featurize, encode, decode, logit_transform)
   from the stored StageSet.
 
-  Inputs:  MultistateStackPayload (stacked backbone geometry)
+  Inputs:  ProteinBundle (stacked backbone geometry)
   Outputs: (logits: (L, V), state_logits: (S, L, V))
            where logits = logit_transform_fn(state_logits, state_index, state_weights)
            and state_logits is the raw per-state encoder/decoder output.
@@ -49,7 +52,7 @@ class UnconditionalExecutor(Executor):
     self,
     module: Any,
     key: Any,
-    inputs: Any,  # MultistateStackPayload
+    inputs: Any,  # ProteinBundle
     stage_set: StageSet | None = None,
     **kwargs: Any,
   ) -> tuple[Any, Any]:
@@ -58,7 +61,7 @@ class UnconditionalExecutor(Executor):
     Args:
       module: Model instance with score_unconditional_from_payload method.
       key: JAX PRNG key.
-      inputs: MultistateStackPayload with stacked backbone geometry.
+      inputs: ProteinBundle with stacked backbone geometry.
       stage_set: Optional StageSet to override the one from __init__.
                  If None, uses the StageSet from initialization.
       **kwargs: Additional keyword arguments passed to the pipeline.
@@ -70,10 +73,36 @@ class UnconditionalExecutor(Executor):
     if stage_set is None:
       stage_set = self._stage_set
 
-    # Create pipeline and delegate
-    pipeline = UnconditionalPipeline(
-      multi_state_strategy_idx=self.multi_state_strategy_idx,
-      inference=self.inference,
-    )
+    resolved = stage_set.resolve_all()
+    logit_transform_fn = resolved["logit_transform_fn"]
+    encoder_state_fn = resolved["encoder_state_fn"]
 
-    return pipeline(module, key, inputs, stage_set=stage_set, **kwargs)
+    captured_state_logits: list[Any] = []
+
+    def capturing_transform(state_logits: Any, state_index: Any, state_weights: Any) -> Any:
+      captured_state_logits.append(state_logits)
+      return logit_transform_fn(state_logits, state_index, state_weights)
+
+    state_weights = jnp.ones(inputs.n_states, dtype=jnp.float32) / inputs.n_states
+    
+    # Construct the PyTree payload
+    stack_inputs = StackInputs(
+        coords=inputs.coords,
+        mask=inputs.mask,
+        residue_index=inputs.residue_index,
+        chain_index=inputs.chain_index,
+        n_states=inputs.n_states,
+    )
+    uncond_inputs = UnconditionalInputs(state_stack=stack_inputs)
+
+    logits = score_unconditional(
+      module,
+      key,
+      uncond_inputs,
+      inference=self.inference,
+      logit_transform_fn=capturing_transform,
+      encoder_state_fn=encoder_state_fn,
+    )
+    
+    state_logits = captured_state_logits[0] if captured_state_logits else None
+    return logits, state_logits

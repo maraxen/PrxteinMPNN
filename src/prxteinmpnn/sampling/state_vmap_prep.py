@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from prxteinmpnn.payloads import MultistateStackPayload
+from prxteinmpnn.bundles import ProteinBundle
 
 MPNN_UNK_TOKEN = 20
 
@@ -109,19 +109,19 @@ def build_state_vmap_exact_stacks(
 
 def multistate_stack_payload_from_loose_ar_host(
   *,
-  coords_stack: jnp.ndarray,
-  mask_stack: jnp.ndarray,
-  residue_index_stack: jnp.ndarray,
-  chain_index_stack: jnp.ndarray,
-  tie_group_map_stack: jnp.ndarray,
-  fixed_mask_stack: jnp.ndarray,
-  fixed_tokens_stack: jnp.ndarray,
+  coords: jnp.ndarray,
+  mask: jnp.ndarray,
+  residue_index: jnp.ndarray,
+  chain_index: jnp.ndarray,
+  tie_group_map: jnp.ndarray,
+  fixed_mask: jnp.ndarray,
+  fixed_tokens: jnp.ndarray,
   state_flat_rows: jnp.ndarray,
   n_canonical: int,
   state_index: jnp.ndarray | None = None,
   state_embedding: jnp.ndarray | None = None,
-) -> MultistateStackPayload:
-  """Build :class:`~prxteinmpnn.payloads.MultistateStackPayload` on host for AR ``state_vmap_exact``.
+) -> ProteinBundle:
+  """Build :class:`~prxteinmpnn.bundles.ProteinBundle` on host for AR ``state_vmap_exact``.
 
   Callers that pass loose ``coords_stack`` / ``state_flat_rows=`` kwargs into the jitted sampler
   should be normalized **before** ``jax.jit`` so static ``n_flat`` / ``flat_row_offsets`` match
@@ -145,14 +145,14 @@ def multistate_stack_payload_from_loose_ar_host(
   if state_embedding is None:
     state_embedding = jnp.zeros((n_states, 1), dtype=jnp.float32)
 
-  return MultistateStackPayload(
-    coords_stack=coords_stack,
-    mask_stack=mask_stack,
-    residue_index_stack=residue_index_stack,
-    chain_index_stack=chain_index_stack,
-    tie_group_map_stack=tie_group_map_stack,
-    fixed_mask_stack=fixed_mask_stack,
-    fixed_tokens_stack=fixed_tokens_stack,
+  return ProteinBundle(
+    coords=coords,
+    mask=mask,
+    residue_index=residue_index,
+    chain_index=chain_index,
+    tie_group_map=tie_group_map,
+    fixed_mask=fixed_mask,
+    fixed_tokens=fixed_tokens,
     state_flat_rows=state_flat_rows,
     flat_row_offsets=jnp.asarray(offsets, dtype=jnp.int32),
     state_index=state_index,
@@ -170,8 +170,8 @@ def multistate_stack_payload_from_prep_numpy(
   n_canonical: int,
   state_index: jnp.ndarray | None = None,
   state_embedding: jnp.ndarray | None = None,
-) -> MultistateStackPayload:
-  """Convert :func:`build_state_vmap_exact_stacks` numpy output to a JAX :class:`MultistateStackPayload`."""
+) -> ProteinBundle:
+  """Convert :func:`build_state_vmap_exact_stacks` numpy output to a JAX :class:`ProteinBundle`."""
   n_flat = int(np.asarray(sv["flat_row_offsets"])[-1])
 
   if state_index is None:
@@ -179,14 +179,14 @@ def multistate_stack_payload_from_prep_numpy(
   if state_embedding is None:
     state_embedding = jnp.zeros((n_states, 1), dtype=jnp.float32)
 
-  return MultistateStackPayload(
-    coords_stack=jnp.asarray(sv["coords_stack"], dtype=jnp.float32),
-    mask_stack=jnp.asarray(sv["mask_stack"], dtype=jnp.float32),
-    residue_index_stack=jnp.asarray(sv["residue_index_stack"], dtype=jnp.int32),
-    chain_index_stack=jnp.asarray(sv["chain_index_stack"], dtype=jnp.int32),
-    tie_group_map_stack=jnp.asarray(sv["tie_group_map_stack"], dtype=jnp.int32),
-    fixed_mask_stack=jnp.asarray(sv["fixed_mask_stack"], dtype=jnp.float32),
-    fixed_tokens_stack=jnp.asarray(sv["fixed_tokens_stack"], dtype=jnp.int32),
+  return ProteinBundle(
+    coords=jnp.asarray(sv["coords_stack"], dtype=jnp.float32),
+    mask=jnp.asarray(sv["mask_stack"], dtype=jnp.float32),
+    residue_index=jnp.asarray(sv["residue_index_stack"], dtype=jnp.int32),
+    chain_index=jnp.asarray(sv["chain_index_stack"], dtype=jnp.int32),
+    tie_group_map=jnp.asarray(sv["tie_group_map_stack"], dtype=jnp.int32),
+    fixed_mask=jnp.asarray(sv["fixed_mask_stack"], dtype=jnp.float32),
+    fixed_tokens=jnp.asarray(sv["fixed_tokens_stack"], dtype=jnp.int32),
     state_flat_rows=jnp.asarray(sv["state_flat_rows"], dtype=jnp.int32),
     flat_row_offsets=jnp.asarray(sv["flat_row_offsets"], dtype=jnp.int32),
     state_index=state_index,

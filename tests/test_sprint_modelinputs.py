@@ -50,13 +50,12 @@ def test_mpnn_score_unconditional_no_temperature_param():
 
 def test_score_py_temperature_semantics_preserved():
     """After D.5 migration, scoring via _make_score_fn_state_vmap_exact with two
-    different PipelineFns temperatures must yield different logits."""
+    different StageSet temperatures must yield different logits."""
     import jax
     import jax.numpy as jnp
     from prxteinmpnn.model.mpnn import PrxteinMPNN
     from prxteinmpnn.scoring.score import _make_score_fn_state_vmap_exact
-    from prxteinmpnn.pipeline_fns import PipelineFns
-    from prxteinmpnn.pipeline_registry import make_geometric_mean_transform
+    from prxteinmpnn.pipeline_registry import StageSet, make_geometric_mean_transform
 
     S, L = 1, 6
     key = jax.random.PRNGKey(0)
@@ -66,8 +65,8 @@ def test_score_py_temperature_semantics_preserved():
 
     # state_flat_rows: shape (S, L) where row i lists the flat indices for state i
     state_flat_rows = jnp.array([[i * L + j for j in range(L)] for i in range(S)])
-    fns_T01 = PipelineFns.from_callables(logit_transform=make_geometric_mean_transform(0.1))
-    fns_T20 = PipelineFns.from_callables(logit_transform=make_geometric_mean_transform(2.0))
+    stage_set_T01 = StageSet.from_callables(logit_transform=make_geometric_mean_transform(0.1))
+    stage_set_T20 = StageSet.from_callables(logit_transform=make_geometric_mean_transform(2.0))
 
     seq_flat = jnp.zeros(S * L, dtype=jnp.int32)
     # score_sequence takes (prng_key, sequence, structure_coords, mask, ri, ci, ...)
@@ -92,8 +91,8 @@ def test_score_py_temperature_semantics_preserved():
         ar_mask_stack=None,
         bias_flat=None,
     )
-    _, logits_T01, _ = score_fn(*common_args, fns=fns_T01, **common_kw)
-    _, logits_T20, _ = score_fn(*common_args, fns=fns_T20, **common_kw)
+    _, logits_T01, _ = score_fn(*common_args, stage_set=stage_set_T01, **common_kw)
+    _, logits_T20, _ = score_fn(*common_args, stage_set=stage_set_T20, **common_kw)
 
     assert not jnp.allclose(logits_T01, logits_T20, atol=1e-5), (
         "T=0.1 and T=2.0 must produce different logits. "

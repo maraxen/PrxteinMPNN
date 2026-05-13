@@ -37,7 +37,7 @@ from prxteinmpnn.model_inputs import (
 if TYPE_CHECKING:
   from prxteinmpnn.model_inputs import BackboneGeometry
   from prxteinmpnn.payloads import EncoderOutput, LigandStack, MultistateStackPayload
-  from prxteinmpnn.pipeline_fns import PipelineFns  # created in pipeline_fns.py (Batch 2)
+  from prxteinmpnn.pipeline_registry import StageSet
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
     AutoRegressiveMask,
@@ -306,7 +306,7 @@ class Pipeline(Protocol):
   """Callable protocol for model pipeline implementations.
 
   Each concrete Pipeline (Unconditional, Conditional, Autoregressive, STE) implements
-  this by calling the appropriate model method with PipelineFns hooks resolved.
+  this by calling the appropriate model method with StageSet hooks resolved.
   """
 
   def __call__(
@@ -315,7 +315,7 @@ class Pipeline(Protocol):
     key: PRNGKeyArray,
     inputs: Any,
     *,
-    fns: PipelineFns,
+    stage_set: StageSet,
   ) -> Any: ...
 
 

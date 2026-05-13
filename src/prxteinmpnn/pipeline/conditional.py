@@ -9,6 +9,8 @@ import equinox as eqx
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
+from prxteinmpnn.pipeline_registry import StageSet
+
 
 class ConditionalInputs(eqx.Module):
   """Inputs for ConditionalPipeline.
@@ -25,7 +27,7 @@ class ConditionalInputs(eqx.Module):
 
 @dataclasses.dataclass(frozen=True)
 class ConditionalPipeline:
-  """Wraps score_conditional_from_payload with PipelineFns hooks.
+  """Wraps score_conditional_from_payload with StageSet hooks.
 
   Inputs:  ConditionalInputs
   Outputs: (logits: (L, V), state_logits: (S, L, V))
@@ -40,11 +42,12 @@ class ConditionalPipeline:
     key: Any,
     inputs: ConditionalInputs,
     *,
-    fns: Any,
+    stage_set: StageSet,
   ) -> tuple[Any, Any]:
     """Run conditional scoring and return (combined_logits, state_logits)."""
-    logit_transform_fn = fns.resolve_logit_transform()
-    encoder_state_fn = fns.resolve_encoder_state_fn()
+    resolved = stage_set.resolve_all()
+    logit_transform_fn = resolved["logit_transform_fn"]
+    encoder_state_fn = resolved["encoder_state_fn"]
     captured: list[Any] = []
 
     def capturing_transform(state_logits: Any, state_index: Any, state_weights: Any) -> Any:

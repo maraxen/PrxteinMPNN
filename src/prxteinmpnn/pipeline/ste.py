@@ -8,6 +8,8 @@ from typing import Any
 import equinox as eqx
 from jaxtyping import Array, Float, Int
 
+from prxteinmpnn.pipeline_registry import StageSet
+
 
 class STEInputs(eqx.Module):
   """Inputs for STEPipeline (single-state STE optimization).
@@ -32,7 +34,7 @@ class STEInputs(eqx.Module):
 
 @dataclasses.dataclass(frozen=True)
 class STEPipeline:
-  """Wraps make_optimize_sequence_fn with PipelineFns hooks.
+  """Wraps make_optimize_sequence_fn with StageSet hooks.
 
   Inputs:  STEInputs (single-state backbone + STE hyperparams)
   Outputs: tuple[ProteinSequence, Logits, Logits] from optimize_sequence
@@ -47,7 +49,7 @@ class STEPipeline:
     key: Any,
     inputs: STEInputs,
     *,
-    fns: Any,
+    stage_set: StageSet,
   ) -> Any:
     """Run STE optimization and return (sequence, decoder_logits, final_logits)."""
     from prxteinmpnn.sampling.ste_optimize import make_optimize_sequence_fn  # noqa: PLC0415

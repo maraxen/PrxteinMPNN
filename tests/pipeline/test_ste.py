@@ -4,6 +4,7 @@ import jax
 import jax.numpy as jnp
 
 from prxteinmpnn.model.mpnn import PrxteinMPNN
+from prxteinmpnn.pipeline_registry import StageSet
 
 
 def test_ste_pipeline_importable():
@@ -14,7 +15,6 @@ def test_ste_pipeline_importable():
 def test_ste_pipeline_smoke():
     """STEPipeline constructs and calls make_optimize_sequence_fn without error."""
     from prxteinmpnn.pipeline.ste import STEPipeline, STEInputs
-    from prxteinmpnn.pipeline_fns import PipelineFns
 
     L = 6
     key = jax.random.PRNGKey(9)
@@ -30,7 +30,7 @@ def test_ste_pipeline_smoke():
         temperature=1.0,
     )
 
-    fns = PipelineFns.default()
+    fns = StageSet.default()
     pipeline = STEPipeline()
-    result = pipeline(m, key, inputs, fns=fns)
+    result = pipeline(m, key, inputs, stage_set=fns)
     assert result is not None

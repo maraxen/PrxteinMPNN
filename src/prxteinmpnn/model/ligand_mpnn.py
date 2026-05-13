@@ -1060,48 +1060,6 @@ class PrxteinLigandMPNN(eqx.Module):
       states_chunk_size=states_chunk_size,
     )
 
-  score_unconditional_state_vmap_exact = score_unconditional
-
-  def score_unconditional_state_vmap_exact_from_payload(
-    self,
-    prng_key: PRNGKeyArray,
-    stack: MultistateStackPayload,
-    ligand: LigandStack,
-    *,
-    tie_group_map: TieGroupMap | None,
-    multi_state_strategy_idx: Int,
-    state_weights: jnp.ndarray | None,
-    state_mapping: jnp.ndarray | None,
-    inference: bool = True,
-    states_chunk_size: int | None = None,
-  ) -> Logits:
-    """Deprecated alias for :meth:`score_unconditional_from_payload`."""
-    import warnings  # noqa: PLC0415
-    warnings.warn(
-        "score_unconditional_state_vmap_exact_from_payload is deprecated; "
-        "use score_unconditional_from_payload",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return self.score_unconditional(
-      prng_key,
-      stack.coords_stack,
-      stack.mask_stack,
-      stack.residue_index_stack,
-      stack.chain_index_stack,
-      ligand.y_stack,
-      ligand.y_t_stack,
-      ligand.y_m_stack,
-      stack.state_flat_rows,
-      stack.n_flat,
-      tie_group_map=tie_group_map,
-      multi_state_strategy_idx=multi_state_strategy_idx,
-      state_weights=state_weights,
-      state_mapping=state_mapping,
-      inference=inference,
-      states_chunk_size=states_chunk_size,
-    )
-
   def score_unconditional_from_payload(
     self,
     prng_key: PRNGKeyArray,
@@ -1188,56 +1146,6 @@ class PrxteinLigandMPNN(eqx.Module):
       states_chunk_size=states_chunk_size,
       logit_transform_fn=logit_transform_fn,
       encoder_state_fn=encoder_state_fn,
-    )
-
-  score_conditional_state_vmap_exact = score_conditional
-
-  def score_conditional_state_vmap_exact_from_payload(
-    self,
-    prng_key: PRNGKeyArray,
-    stack: MultistateStackPayload,
-    ligand: LigandStack,
-    seq_oh_stack: jax.Array,
-    ar_mask_stack: jax.Array,
-    *,
-    tie_group_map: TieGroupMap | None,
-    multi_state_strategy_idx: Int,
-    state_weights: jnp.ndarray | None,
-    state_mapping: jnp.ndarray | None,
-    bias_flat: jax.Array | None = None,
-    inference: bool = True,
-    states_chunk_size: int | None = None,
-    logit_transform_fn: LogitTransformFn | None = None,
-  ) -> Logits:
-    """Deprecated alias for :meth:`score_conditional_from_payload`."""
-    import warnings  # noqa: PLC0415
-    warnings.warn(
-        "score_conditional_state_vmap_exact_from_payload is deprecated; "
-        "use score_conditional_from_payload",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return self.score_conditional(
-      prng_key,
-      stack.coords_stack,
-      stack.mask_stack,
-      stack.residue_index_stack,
-      stack.chain_index_stack,
-      ligand.y_stack,
-      ligand.y_t_stack,
-      ligand.y_m_stack,
-      seq_oh_stack,
-      ar_mask_stack,
-      stack.state_flat_rows,
-      stack.n_flat,
-      tie_group_map=tie_group_map,
-      multi_state_strategy_idx=multi_state_strategy_idx,
-      state_weights=state_weights,
-      state_mapping=state_mapping,
-      bias_flat=bias_flat,
-      inference=inference,
-      states_chunk_size=states_chunk_size,
-      logit_transform_fn=logit_transform_fn,
     )
 
   def score_conditional_from_payload(

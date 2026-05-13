@@ -12,7 +12,7 @@ axis_index ordering (innermost = 0, outermost = 9):
   8: n_combine        — multistate combine (deferred)
   9: n_apc_pairs      — all-pair contact scoring (deferred)
 """
-from prxteinmpnn.utils.batching import AxisSpec
+from prxteinmpnn.tiling.planner import AxisSpec
 
 N_RESIDUES = AxisSpec(
     name="n_residues",

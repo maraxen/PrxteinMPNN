@@ -588,7 +588,7 @@ class PrxteinLigandMPNN(eqx.Module):
         # Standard decoding order (sum of ar_mask rows defines order)
         ar_mask = jnp.zeros((mask.shape[0], mask.shape[0]))
 
-      return self._run_autoregressive_scan(
+      return self._run_sample_ar_scan(
         keys[0],
         h_V,
         h_E,
@@ -693,7 +693,7 @@ class PrxteinLigandMPNN(eqx.Module):
     )
     return dummy_seq, logits
 
-  def _run_autoregressive_scan(
+  def _run_sample_ar_scan(
     self,
     prng_key: PRNGKeyArray,
     node_features: NodeFeatures,

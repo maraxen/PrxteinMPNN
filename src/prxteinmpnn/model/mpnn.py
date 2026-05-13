@@ -32,7 +32,7 @@ from prxteinmpnn.model.encoder import (
   encoder_forward_with_int_neighbors,
 )
 from prxteinmpnn.model.features import ProteinFeatures
-from prxteinmpnn.model.mpnn_autoregressive_scan import run_autoregressive_scan
+from prxteinmpnn.model.ar_scan import run_sample_ar_scan
 from prxteinmpnn.model.mpnn_autoregressive_state_vmap_exact import (
   run_sample_autoregressive_state_vmap_exact,
 )
@@ -444,7 +444,7 @@ class PrxteinMPNN(eqx.Module):
       ... )
 
     """
-    seq, logits = self._run_autoregressive_scan(
+    seq, logits = self._run_sample_ar_scan(
       prng_key,
       node_features,
       edge_features,
@@ -625,7 +625,7 @@ class PrxteinMPNN(eqx.Module):
       (all_layers_h, computed_logits),
     )
 
-  def _run_autoregressive_scan(
+  def _run_sample_ar_scan(
     self,
     prng_key: PRNGKeyArray,
     node_features: NodeFeatures,
@@ -645,8 +645,8 @@ class PrxteinMPNN(eqx.Module):
     group_valid_table: jnp.ndarray | None = None,
     num_groups: int | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
-    """Run JAX scan loop for autoregressive sampling; see :mod:`prxteinmpnn.model.mpnn_autoregressive_scan`."""
-    return run_autoregressive_scan(
+    """Run JAX scan loop for autoregressive sampling; see :mod:`prxteinmpnn.model.ar_scan`."""
+    return run_sample_ar_scan(
       self,
       prng_key,
       node_features,

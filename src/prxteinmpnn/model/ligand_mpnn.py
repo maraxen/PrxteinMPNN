@@ -1220,11 +1220,11 @@ class PrxteinLigandMPNN(eqx.Module):
     ar_logit_transform_fn: "ARLogitTransformFn | None" = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Stacked-graph wave sampler for LigandMPNN (``state_vmap_exact``)."""
-    from prxteinmpnn.model.mpnn_autoregressive_state_vmap_exact_ligand import (  # noqa: PLC0415
-      run_sample_autoregressive_state_vmap_exact_ligand,
+    from prxteinmpnn.model.ar_exact_ligand import (  # noqa: PLC0415
+      run_sample_ar_exact_ligand,
     )
 
-    return run_sample_autoregressive_state_vmap_exact_ligand(
+    return run_sample_ar_exact_ligand(
       self,
       prng_key,
       coords_stack,

@@ -29,7 +29,7 @@ if TYPE_CHECKING:
   )
 
 
-def run_sample_autoregressive_state_vmap_exact_ligand(  # noqa: PLR0915
+def run_sample_ar_exact_ligand(  # noqa: PLR0915
   model: PrxteinLigandMPNN,
   prng_key: PRNGKeyArray,
   coords_stack: jax.Array,

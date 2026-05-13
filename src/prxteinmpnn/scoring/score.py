@@ -13,8 +13,7 @@ from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
 from prxteinmpnn.model.mpnn import PrxteinMPNN
 from prxteinmpnn.model.multistate_stack import gather_flat_to_stack, scatter_stack_to_flat
 from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
-from prxteinmpnn.pipeline_fns import PipelineFns
-from prxteinmpnn.pipeline_registry import make_geometric_mean_transform, resolve_hook
+from prxteinmpnn.pipeline_registry import StageSet, make_geometric_mean_transform, resolve_hook
 from prxteinmpnn.protocols import ScoreFn, StateVmapExactScoreFn
 from prxteinmpnn.registry import (
   assert_known_multistate_mode,
@@ -113,7 +112,7 @@ def _make_score_fn_state_vmap_exact(
     ar_mask_stack: jax.Array | None,
     bias_flat: jax.Array | None,
     states_chunk_size: int = 0,
-    fns: PipelineFns | None = None,
+    stage_set: StageSet | None = None,
   ) -> tuple[Float, Logits, DecodingOrder]:
 
     strategy_idx = jnp.int32(combine_strategy_to_index(multi_state_strategy))
@@ -130,7 +129,7 @@ def _make_score_fn_state_vmap_exact(
     if is_lig and states_chunk_size > 0:
       scs_kw["states_chunk_size"] = int(states_chunk_size)
 
-    logit_transform_fn = resolve_hook(fns.logit_transform_uid) if fns is not None else None
+    logit_transform_fn = stage_set.resolve_all()["logit_transform_fn"] if stage_set is not None else None
 
     if is_lig:
       logits = model.score_conditional_state_vmap_exact(  # type: ignore[union-attr]
@@ -196,7 +195,7 @@ def _make_score_fn_state_vmap_exact(
     score_sequence_core = score_sequence_core_inner
   else:
 
-    @partial(jax.jit, static_argnames=("multi_state_strategy", "n_flat_int", "fns", "multi_state_temperature"))
+    @partial(jax.jit, static_argnames=("multi_state_strategy", "n_flat_int", "stage_set", "multi_state_temperature"))
     def score_sequence_core(
       prng_key: PRNGKeyArray,
       sequence: ProteinSequence | OneHotProteinSequence,
@@ -218,7 +217,7 @@ def _make_score_fn_state_vmap_exact(
       ar_mask_stack: jax.Array | None,
       bias_flat: jax.Array | None,
       states_chunk_size: int = 0,
-      fns: PipelineFns | None = None,
+      stage_set: StageSet | None = None,
     ) -> tuple[Float, Logits, DecodingOrder]:
       del states_chunk_size
       return score_sequence_core_inner(
@@ -241,7 +240,7 @@ def _make_score_fn_state_vmap_exact(
         ar_mask_stack=ar_mask_stack,
         bias_flat=bias_flat,
         states_chunk_size=0,
-        fns=fns,
+        stage_set=stage_set,
       )
 
   def score_sequence(
@@ -273,7 +272,7 @@ def _make_score_fn_state_vmap_exact(
     states_chunk_size: int = 0,
     multistate_stack: MultistateStackPayload | None = None,
     ligand_stack: LigandStack | None = None,
-    fns: PipelineFns | None = None,
+    stage_set: StageSet | None = None,
     **kwargs: object,
   ) -> tuple[Float, Logits, DecodingOrder]:
     del kwargs, structure_coordinates, mask, residue_index, chain_index, backbone_noise, ar_mask
@@ -320,7 +319,7 @@ def _make_score_fn_state_vmap_exact(
       ar_mask_stack=ar_mask_stack,
       bias_flat=bias_flat,
       states_chunk_size=states_chunk_size,
-      fns=fns,
+      stage_set=stage_set,
     )
 
   return cast("StateVmapExactScoreFn", score_sequence)

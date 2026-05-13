@@ -1064,8 +1064,8 @@ class PrxteinLigandMPNN(eqx.Module):
     self,
     prng_key: PRNGKeyArray,
     stack: MultistateStackPayload,
-    ligand: "LigandStack",
     *,
+    ligand: LigandStack | None = None,
     tie_group_map: TieGroupMap | None,
     multi_state_strategy_idx: Int,
     state_weights: jnp.ndarray | None,
@@ -1074,6 +1074,9 @@ class PrxteinLigandMPNN(eqx.Module):
     states_chunk_size: int | None = None,
   ) -> Logits:
     """Unconditional scoring from MultistateStackPayload + LigandStack."""
+    if ligand is None:
+      msg = "PrxteinLigandMPNN.score_unconditional_from_payload requires ligand= keyword"
+      raise TypeError(msg)
     return self.score_unconditional(
       prng_key,
       stack.coords_stack,
@@ -1152,10 +1155,10 @@ class PrxteinLigandMPNN(eqx.Module):
     self,
     prng_key: PRNGKeyArray,
     stack: MultistateStackPayload,
-    ligand: LigandStack,
     seq_oh_stack: jax.Array,
     ar_mask_stack: jax.Array,
     *,
+    ligand: LigandStack | None = None,
     tie_group_map: TieGroupMap | None,
     multi_state_strategy_idx: Int,
     state_weights: jnp.ndarray | None,
@@ -1166,6 +1169,9 @@ class PrxteinLigandMPNN(eqx.Module):
     logit_transform_fn: LogitTransformFn | None = None,
   ) -> Logits:
     """Conditional scoring from MultistateStackPayload + LigandStack."""
+    if ligand is None:
+      msg = "PrxteinLigandMPNN.score_conditional_from_payload requires ligand= keyword"
+      raise TypeError(msg)
     return self.score_conditional(
       prng_key,
       stack.coords_stack,
@@ -1247,7 +1253,6 @@ class PrxteinLigandMPNN(eqx.Module):
     self,
     prng_key: PRNGKeyArray,
     stack: MultistateStackPayload,
-    ligand: LigandStack,
     autoregressive_mask_stack: jax.Array,
     bias_stack: jax.Array,
     temperature: Float | float,
@@ -1257,9 +1262,14 @@ class PrxteinLigandMPNN(eqx.Module):
     wave_group_positions_local: jax.Array,
     wave_group_valid_local: jax.Array,
     wave_position_valid_local: jax.Array,
+    *,
+    ligand: LigandStack | None = None,
     ar_logit_transform_fn: "ARLogitTransformFn | None" = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Same as :meth:`sample_autoregressive_state_vmap_exact` with ``stack`` + :class:`~prxteinmpnn.payloads.LigandStack`."""
+    if ligand is None:
+      msg = "PrxteinLigandMPNN.sample_autoregressive_state_vmap_exact_from_payload requires ligand= keyword"
+      raise TypeError(msg)
     return self.sample_autoregressive_state_vmap_exact(
       prng_key,
       stack.coords_stack,

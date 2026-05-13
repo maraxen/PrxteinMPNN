@@ -16,21 +16,20 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
-from prxteinmpnn.model.mpnn import PrxteinMPNN
 from prxteinmpnn.model.multistate_stack import gather_flat_to_stack
 from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
+from prxteinmpnn.protocols import ModelProtocol
 
 
-def _inference_model(model: PrxteinMPNN | PrxteinLigandMPNN) -> PrxteinMPNN | PrxteinLigandMPNN:
+def _inference_model(model: ModelProtocol) -> ModelProtocol:
   return cast(
-    "PrxteinMPNN | PrxteinLigandMPNN",
+    "ModelProtocol",
     eqx.nn.inference_mode(model, value=True) if isinstance(model, eqx.Module) else model,
   )
 
 
 def unconditional_state_vmap_logits_from_payload(
-  model: PrxteinMPNN | PrxteinLigandMPNN,
+  model: ModelProtocol,
   prng_key: jax.Array,
   stack: MultistateStackPayload,
   ligand: LigandStack | None,
@@ -43,9 +42,9 @@ def unconditional_state_vmap_logits_from_payload(
 ) -> jax.Array:
   """Unconditional stacked logits using a :class:`MultistateStackPayload` (+ ligand stack when needed)."""
   m = _inference_model(model)
-  if isinstance(m, PrxteinLigandMPNN):
+  if m.capabilities.is_ligand_model:
     if ligand is None:
-      msg = "PrxteinLigandMPNN requires ligand="
+      msg = "ligand model requires ligand="
       raise TypeError(msg)
     extra: dict[str, object] = {}
     if states_chunk_size is not None:
@@ -61,7 +60,7 @@ def unconditional_state_vmap_logits_from_payload(
       **extra,
     )
   if ligand is not None:
-    msg = "ligand= must be None for PrxteinMPNN"
+    msg = "ligand= must be None for non-ligand models"
     raise ValueError(msg)
   return m.score_unconditional_from_payload(
     prng_key,
@@ -75,7 +74,7 @@ def unconditional_state_vmap_logits_from_payload(
 
 
 def conditional_state_vmap_logits_from_payload(
-  model: PrxteinMPNN | PrxteinLigandMPNN,
+  model: ModelProtocol,
   prng_key: jax.Array,
   sequence: jax.Array,
   stack: MultistateStackPayload,
@@ -100,9 +99,9 @@ def conditional_state_vmap_logits_from_payload(
     if ar_mask_stack is None
     else ar_mask_stack
   )
-  if isinstance(m, PrxteinLigandMPNN):
+  if m.capabilities.is_ligand_model:
     if ligand is None:
-      msg = "PrxteinLigandMPNN requires ligand="
+      msg = "ligand model requires ligand="
       raise TypeError(msg)
     extra: dict[str, object] = {}
     if states_chunk_size is not None:
@@ -122,7 +121,7 @@ def conditional_state_vmap_logits_from_payload(
       **extra,
     )
   if ligand is not None:
-    msg = "ligand= must be None for PrxteinMPNN"
+    msg = "ligand= must be None for non-ligand models"
     raise ValueError(msg)
   return m.score_conditional_from_payload(
     prng_key,

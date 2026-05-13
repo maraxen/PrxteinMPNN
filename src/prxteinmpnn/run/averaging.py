@@ -8,8 +8,9 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Float, Int, PRNGKeyArray
 
+from prxteinmpnn.model._shared import combine_logits_multistate_idx
 from prxteinmpnn.model.capabilities import PRXTEIN_MPNN_CAPABILITIES
-from prxteinmpnn.model.mpnn import PrxteinMPNN
+from prxteinmpnn.protocols import ModelProtocol
 from prxteinmpnn.registry import combine_strategy_to_index
 from prxteinmpnn.sampling.conditional_logits import make_encoding_conditional_logits_split_fn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
@@ -29,7 +30,7 @@ from prxteinmpnn.utils.types import (
 
 def get_averaged_encodings(
   batched_ensemble: Protein,
-  model: PrxteinMPNN,
+  model: ModelProtocol,
   backbone_noise: Sequence[float] | float,
   noise_batch_size: int,
   random_seed: int,
@@ -173,7 +174,7 @@ def get_averaged_encodings(
 
 
 def make_encoding_sampling_split_fn(
-  model_parameters: PrxteinMPNN,
+  model_parameters: ModelProtocol,
   decoding_order_fn: DecodingOrderFn | None = None,
   sampling_strategy: Literal["temperature", "straight_through"] = "temperature",
   decode_fn_wrapper: Callable[[Callable], Callable] | None = None,
@@ -336,7 +337,7 @@ def make_encoding_sampling_split_fn(
           combine_strategy_to_index(multi_state_strategy),
           dtype=jnp.int32,
         )
-        avg_logits = PrxteinMPNN._combine_logits_multistate_idx(  # noqa: SLF001
+        avg_logits = combine_logits_multistate_idx(
           logits,
           group_member_mask,
           strategy_idx,

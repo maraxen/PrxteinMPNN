@@ -5,7 +5,7 @@ This directory contains scripts used to verify the implementation of MultiState 
 ## Scripts
 
 ### 1. `verify_weighted_multistate.py`
-- **Purpose**: Verifies the core logit combination logic in `multi_state_sampling.py`.
+- **Purpose**: Verifies the core logit combination logic in `multistate_sampling.py`.
 - **Coverage**:
     - Weighted Arithmetic Mean (LogSumExp).
     - Weighted Geometric Mean (Log probability average).

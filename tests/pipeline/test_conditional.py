@@ -6,6 +6,7 @@ import pytest
 
 from prxteinmpnn.model.mpnn import PrxteinMPNN
 from prxteinmpnn.payloads import MultistateStackPayload
+from prxteinmpnn.pipeline_registry import StageSet
 
 
 def _make_model():
@@ -68,7 +69,6 @@ def test_conditional_pipeline_importable():
 
 def test_conditional_pipeline_smoke():
     from prxteinmpnn.pipeline.conditional import ConditionalPipeline, ConditionalInputs
-    from prxteinmpnn.pipeline_fns import PipelineFns
 
     S, L, V = 2, 6, 21
     key = jax.random.PRNGKey(3)
@@ -96,8 +96,8 @@ def test_conditional_pipeline_smoke():
         ar_mask_stack=jnp.eye(L)[None].repeat(S, axis=0),
     )
 
-    fns = PipelineFns.default()
+    stage_set = StageSet.default()
     pipeline = ConditionalPipeline()
-    logits, state_logits = pipeline(m, key, inputs, fns=fns)
+    logits, state_logits = pipeline(m, key, inputs, stage_set=stage_set)
     assert logits.shape == (L, V)
     assert state_logits.shape == (S, L, V)

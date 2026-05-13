@@ -7,10 +7,12 @@ from typing import Any
 
 import jax.numpy as jnp
 
+from prxteinmpnn.pipeline_registry import StageSet
+
 
 @dataclasses.dataclass(frozen=True)
 class UnconditionalPipeline:
-  """Wraps score_unconditional_from_payload with PipelineFns hooks.
+  """Wraps score_unconditional_from_payload with StageSet resolution.
 
   Inputs:  MultistateStackPayload (stacked backbone geometry)
   Outputs: (logits: (L, V), state_logits: (S, L, V))
@@ -27,15 +29,16 @@ class UnconditionalPipeline:
     key: Any,
     inputs: Any,  # MultistateStackPayload
     *,
-    fns: Any,  # PipelineFns
+    stage_set: StageSet,
   ) -> tuple[Any, Any]:
     """Run unconditional scoring and return (combined_logits, state_logits).
 
     Returns:
       (logits, state_logits) where logits is (L, V) and state_logits is (S, L, V).
     """
-    logit_transform_fn = fns.resolve_logit_transform()
-    encoder_state_fn = fns.resolve_encoder_state_fn()
+    resolved = stage_set.resolve_all()
+    logit_transform_fn = resolved["logit_transform_fn"]
+    encoder_state_fn = resolved["encoder_state_fn"]
 
     captured_state_logits: list[Any] = []
 

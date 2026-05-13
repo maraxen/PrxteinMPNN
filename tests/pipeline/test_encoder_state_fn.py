@@ -10,6 +10,7 @@ from prxteinmpnn.model.mpnn import PrxteinMPNN
 from prxteinmpnn.payloads import MultistateStackPayload, EncoderOutput
 from prxteinmpnn.model_inputs import BackboneGeometry
 from prxteinmpnn.protocols import EncoderStateFn
+from prxteinmpnn.pipeline_registry import StageSet
 
 
 def _make_model():
@@ -168,13 +169,12 @@ def test_encoder_state_fn_in_conditional_path():
 
 
 def test_unconditional_pipeline_resolves_encoder_state_fn():
-    """UnconditionalPipeline must resolve and thread encoder_state_fn from fns."""
+    """UnconditionalPipeline must resolve and thread encoder_state_fn from stage_set."""
     from prxteinmpnn.pipeline.unconditional import UnconditionalPipeline
-    from prxteinmpnn.pipeline_fns import PipelineFns
 
     m = _make_model()
-    fns = PipelineFns.from_callables(encoder_state_fn=_make_passthrough_encoder(m))
+    stage_set = StageSet.from_callables(encoder_state_fn=_make_passthrough_encoder(m))
     pipeline = UnconditionalPipeline()
     stack = _make_stack()
-    logits, state_logits = pipeline(m, jax.random.PRNGKey(0), stack, fns=fns)
+    logits, state_logits = pipeline(m, jax.random.PRNGKey(0), stack, stage_set=stage_set)
     assert logits.shape[-1] == 21

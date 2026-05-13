@@ -7,6 +7,7 @@ from prxteinmpnn.model.mpnn import PrxteinMPNN
 from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
 from prxteinmpnn.model_inputs import ARLogitTransformFn
 from prxteinmpnn.payloads import MultistateStackPayload, LigandStack
+from prxteinmpnn.pipeline_registry import StageSet
 import equinox as eqx
 
 
@@ -108,7 +109,6 @@ def test_ligand_ar_logit_transform_fn_accepted():
 def test_autoregressive_pipeline_resolves_ar_logit_transform():
     """AutoregressivePipeline must resolve and pass ar_logit_transform_fn — output must change."""
     from prxteinmpnn.pipeline.autoregressive import AutoregressivePipeline, AutoregressiveInputs
-    from prxteinmpnn.pipeline_fns import PipelineFns
     from prxteinmpnn.payloads import WaveParallelPayload
 
     m = _make_model()
@@ -131,13 +131,13 @@ def test_autoregressive_pipeline_resolves_ar_logit_transform():
     def always_token_zero(state_logits, state_index, state_weights):
         return jnp.zeros(V).at[0].set(1e9)
 
-    fns_default = PipelineFns.default()
-    fns_forced = PipelineFns.from_callables(ar_logit_transform=always_token_zero)
+    stage_set_default = StageSet.default()
+    stage_set_forced = StageSet.from_callables(ar_logit_transform=always_token_zero)
     pipeline = AutoregressivePipeline(temperature=1.0)
     key = jax.random.PRNGKey(0)
 
-    seqs_default, _ = pipeline(m, key, inputs, fns=fns_default)
-    seqs_forced, _ = pipeline(m, key, inputs, fns=fns_forced)
+    seqs_default, _ = pipeline(m, key, inputs, stage_set=stage_set_default)
+    seqs_forced, _ = pipeline(m, key, inputs, stage_set=stage_set_forced)
 
     # With 1e9 logit on token 0, sampling must produce all token 0s (one-hot encoded as [1, 0, ...])
     token_0_forced = seqs_forced[..., 0]

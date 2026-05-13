@@ -6,6 +6,7 @@ import pytest
 
 from prxteinmpnn.model.mpnn import PrxteinMPNN
 from prxteinmpnn.payloads import MultistateStackPayload
+from prxteinmpnn.pipeline_registry import StageSet
 
 
 def _make_model():
@@ -64,7 +65,6 @@ def test_unconditional_pipeline_importable():
 def test_unconditional_pipeline_smoke():
     """UnconditionalPipeline runs and returns logits of correct shape."""
     from prxteinmpnn.pipeline.unconditional import UnconditionalPipeline
-    from prxteinmpnn.pipeline_fns import PipelineFns
 
     S, L, V = 2, 6, 21
     key = jax.random.PRNGKey(7)
@@ -86,9 +86,9 @@ def test_unconditional_pipeline_smoke():
         n_flat=S * L,
     )
 
-    fns = PipelineFns.default()
+    stage_set = StageSet.default()
     pipeline = UnconditionalPipeline()
-    result = pipeline(m, key, stack, fns=fns)
+    result = pipeline(m, key, stack, stage_set=stage_set)
     logits, state_logits = result
     assert logits.shape == (L, V)
     assert state_logits.shape == (S, L, V)
@@ -97,7 +97,6 @@ def test_unconditional_pipeline_smoke():
 def test_unconditional_pipeline_matches_direct_call():
     """UnconditionalPipeline output matches direct score_unconditional call."""
     from prxteinmpnn.pipeline.unconditional import UnconditionalPipeline
-    from prxteinmpnn.pipeline_fns import PipelineFns
 
     S, L = 2, 6
     key = jax.random.PRNGKey(11)
@@ -119,9 +118,9 @@ def test_unconditional_pipeline_matches_direct_call():
         n_flat=S * L,
     )
 
-    fns = PipelineFns.default()
+    stage_set = StageSet.default()
     pipeline = UnconditionalPipeline()
-    pipeline_logits, pipeline_state_logits = pipeline(m, key, stack, fns=fns)
+    pipeline_logits, pipeline_state_logits = pipeline(m, key, stack, stage_set=stage_set)
 
     # Direct call with arithmetic mean
     with pytest.warns(DeprecationWarning, match="use score_unconditional_from_payload"):

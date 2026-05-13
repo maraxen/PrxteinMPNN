@@ -7,6 +7,7 @@ import numpy as np
 from prxteinmpnn.model.mpnn import PrxteinMPNN
 from prxteinmpnn.payloads import MultistateStackPayload, WaveParallelPayload
 from prxteinmpnn.sampling.state_vmap_prep import remap_wave_positions_flat_to_local
+from prxteinmpnn.pipeline_registry import StageSet
 from prxteinmpnn.utils.wave_parallel import compute_wave_assignments
 
 
@@ -67,7 +68,6 @@ def test_autoregressive_pipeline_importable():
 def test_autoregressive_pipeline_smoke():
     """AutoregressivePipeline samples sequences without error."""
     from prxteinmpnn.pipeline.autoregressive import AutoregressivePipeline, AutoregressiveInputs
-    from prxteinmpnn.pipeline_fns import PipelineFns
 
     S, L = 2, 6
     key = jax.random.PRNGKey(5)
@@ -81,7 +81,7 @@ def test_autoregressive_pipeline_smoke():
         bias_stack=jnp.zeros((S, L, 21)),
     )
 
-    fns = PipelineFns.default()
+    stage_set = StageSet.default()
     pipeline = AutoregressivePipeline(temperature=0.1)
-    sequences, logits = pipeline(m, key, inputs, fns=fns)
+    sequences, logits = pipeline(m, key, inputs, stage_set=stage_set)
     assert sequences.shape[0] == S

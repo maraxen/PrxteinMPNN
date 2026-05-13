@@ -9,6 +9,8 @@ import equinox as eqx
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
+from prxteinmpnn.pipeline_registry import StageSet
+
 
 class AutoregressiveInputs(eqx.Module):
   """Inputs for AutoregressivePipeline.
@@ -27,7 +29,7 @@ class AutoregressiveInputs(eqx.Module):
 
 @dataclasses.dataclass(frozen=True)
 class AutoregressivePipeline:
-  """Wraps sample_autoregressive_from_payload with PipelineFns hooks.
+  """Wraps sample_autoregressive_from_payload with StageSet hooks.
 
   Inputs:  AutoregressiveInputs
   Outputs: (sequences: OneHotProteinSequence, logits: Logits)
@@ -42,13 +44,13 @@ class AutoregressivePipeline:
     key: Any,
     inputs: AutoregressiveInputs,
     *,
-    fns: Any,
+    stage_set: StageSet,
   ) -> tuple[Any, Any]:
     """Sample sequences autoregressively and return (sequences, logits)."""
     S = inputs.stack.n_states
     state_weights = jnp.ones(S, dtype=jnp.float32) / S
-    batch_fn = fns.resolve_logit_transform()
-    ar_logit_transform_fn = fns.resolve_ar_logit_transform()
+    resolved = stage_set.resolve_all()
+    ar_logit_transform_fn = resolved["ar_logit_transform_fn"]
 
     sequences, logits = module.sample_autoregressive_from_payload(
       key,

@@ -245,9 +245,9 @@ def test_sample_averaged():
     mock_decode_fn.return_value = jnp.ones((10, 21)) # Logits
 
     with patch("prxteinmpnn.run.sampling.prep_protein_stream_and_model", return_value=([mock_protein], mock_model)):
-        with patch("prxteinmpnn.run.sampling.make_encoding_sampling_split_fn", return_value=(MagicMock(), mock_sample_fn, mock_decode_fn)):
+        with patch("prxteinmpnn.run._sampling_averaged.make_encoding_sampling_split_fn", return_value=(MagicMock(), mock_sample_fn, mock_decode_fn)):
              # We also need to mock get_averaged_encodings
-            with patch("prxteinmpnn.run.sampling.get_averaged_encodings", return_value=(jnp.zeros((10, 128)),)):
+            with patch("prxteinmpnn.run._sampling_averaged.get_averaged_encodings", return_value=(jnp.zeros((10, 128)), jnp.zeros((10, 48, 128)), jnp.zeros((10, 48), dtype=jnp.int32), jnp.ones((10,)), jnp.zeros((10, 10), dtype=jnp.int32))):
                 spec = SamplingSpecification(
                     inputs=["1ubq.pdb"],
                     num_samples=2,
@@ -327,8 +327,8 @@ def test_sample_averaged_with_pseudo_perplexity():
     mock_decode_fn.return_value = jnp.ones((10, 21))
 
     with patch("prxteinmpnn.run.sampling.prep_protein_stream_and_model", return_value=([mock_protein], mock_model)):
-        with patch("prxteinmpnn.run.sampling.make_encoding_sampling_split_fn", return_value=(MagicMock(), mock_sample_fn, mock_decode_fn)):
-            with patch("prxteinmpnn.run.sampling.get_averaged_encodings", return_value=(jnp.zeros((10, 128)),)):
+        with patch("prxteinmpnn.run._sampling_averaged.make_encoding_sampling_split_fn", return_value=(MagicMock(), mock_sample_fn, mock_decode_fn)):
+            with patch("prxteinmpnn.run._sampling_averaged.get_averaged_encodings", return_value=(jnp.zeros((10, 128)), jnp.zeros((10, 48, 128)), jnp.zeros((10, 48), dtype=jnp.int32), jnp.ones((10,)), jnp.zeros((10, 10), dtype=jnp.int32))):
                 spec = SamplingSpecification(
                     inputs=["1ubq.pdb"],
                     num_samples=2,

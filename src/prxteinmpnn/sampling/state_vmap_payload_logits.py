@@ -53,11 +53,11 @@ def unconditional_state_vmap_logits_from_payload(
     return m.score_unconditional_from_payload(
       prng_key,
       stack,
-      ligand,
       tie_group_map=tie_group_map,
       multi_state_strategy_idx=multi_state_strategy_idx,
       state_weights=state_weights,
       state_mapping=state_mapping,
+      ligand=ligand,
       **extra,
     )
   if ligand is not None:
@@ -110,7 +110,6 @@ def conditional_state_vmap_logits_from_payload(
     return m.score_conditional_from_payload(
       prng_key,
       stack,
-      ligand,
       seq_stack,
       arm,
       tie_group_map=tie_group_map,
@@ -119,6 +118,7 @@ def conditional_state_vmap_logits_from_payload(
       state_mapping=state_mapping,
       bias_flat=bias_flat,
       inference=True,
+      ligand=ligand,
       **extra,
     )
   if ligand is not None:

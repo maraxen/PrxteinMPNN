@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import warnings
 from functools import partial
-from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import equinox as eqx
 import jax
@@ -77,34 +77,6 @@ if TYPE_CHECKING:
   )
 
 DecodingApproach = Literal["unconditional", "conditional", "autoregressive"]
-
-
-class DecodeOperands(NamedTuple):
-  """Bundle for decoding branch operands in lax.switch dispatch.
-
-  All three decoding paths (_call_unconditional, _call_conditional,
-  _call_autoregressive) receive identical operands. Bundling eliminates
-  18-arg signature duplication and improves clarity.
-  """
-
-  node_features: NodeFeatures
-  edge_features: EdgeFeatures
-  neighbor_indices: NeighborIndices
-  mask: AlphaCarbonMask
-  ar_mask: AutoRegressiveMask
-  one_hot_sequence: OneHotProteinSequence
-  prng_key: PRNGKeyArray
-  temperature: Float
-  bias: Logits
-  tie_group_map: TieGroupMap | None
-  multi_state_strategy_idx: Int
-  initial_node_features: NodeFeatures | None
-  state_weights: jnp.ndarray | None
-  state_mapping: jnp.ndarray | None
-  fixed_mask: jnp.ndarray | None
-  fixed_tokens: jnp.ndarray | None
-  group_indices_table: jnp.ndarray | None
-  group_valid_table: jnp.ndarray | None
 
 
 class PrxteinMPNN(eqx.Module):
@@ -236,12 +208,42 @@ class PrxteinMPNN(eqx.Module):
 
   def _call_unconditional(
     self,
-    operands: DecodeOperands,
+    node_features: NodeFeatures,
+    edge_features: EdgeFeatures,
+    neighbor_indices: NeighborIndices,
+    mask: AlphaCarbonMask,
+    _ar_mask: AutoRegressiveMask,
+    _one_hot_sequence: OneHotProteinSequence,
+    _prng_key: PRNGKeyArray,
+    _temperature: Float,
+    _bias: Logits,
+    _tie_group_map: TieGroupMap | None,
+    _multi_state_strategy_idx: Int,
+    _initial_node_features: NodeFeatures | None,
+    _state_weights: jnp.ndarray | None,
+    _state_mapping: jnp.ndarray | None,
+    _fixed_mask: jnp.ndarray | None,
+    _fixed_tokens: jnp.ndarray | None,
+    _group_indices_table: jnp.ndarray | None,
+    _group_valid_table: jnp.ndarray | None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the unconditional (scoring) path.
 
     Args:
-      operands: Bundled operands for all three decoding paths.
+      node_features: Node features from encoding.
+      edge_features: Edge features from encoding.
+      neighbor_indices: Indices of neighbors for each node.
+      mask: Alpha carbon mask.
+      _ar_mask: Unused, required for jax.lax.switch signature.
+      _one_hot_sequence: Unused, required for jax.lax.switch signature.
+      _prng_key: Unused, required for jax.lax.switch signature.
+      _temperature: Unused, required for jax.lax.switch signature.
+      _bias: Unused, required for jax.lax.switch signature.
+      _tie_group_map: Unused, required for jax.lax.switch signature.
+      _multi_state_strategy_idx: Unused, required for jax.lax.switch signature.
+      _initial_node_features: Unused.
+      _state_weights: Weights for each structural state.
+      _state_mapping: Mapping of each residue to its state index.
 
     Returns:
       Tuple of (dummy sequence, logits).
@@ -255,39 +257,28 @@ class PrxteinMPNN(eqx.Module):
       >>> edge_feats = jnp.ones((10, 30, 128))
       >>> neighbor_idx = jnp.arange(300).reshape(10, 30)
       >>> mask = jnp.ones((10,))
-      >>> operands = DecodeOperands(...)
-      >>> seq, logits = model._call_unconditional(operands)
+      >>> seq, logits = model._call_unconditional(edge_feats, neighbor_idx, mask)
 
     """
-    node_features = operands.node_features
-    edge_features = operands.edge_features
-    neighbor_indices = operands.neighbor_indices
-    mask = operands.mask
-    prng_key = operands.prng_key
-    tie_group_map = operands.tie_group_map
-    multi_state_strategy_idx = operands.multi_state_strategy_idx
-    state_weights = operands.state_weights
-    state_mapping = operands.state_mapping
-
     decoded_node_features = self.decoder(
       node_features,
       edge_features,
       neighbor_indices,  # Pass neighbor indices for correct context
       mask,
-      key=prng_key,
+      key=_prng_key,
     )
 
     logits = jax.vmap(self.w_out)(decoded_node_features)
 
     # Multi-state logit combining for unconditional mode (consensus likelihood)
-    if tie_group_map is not None:
+    if _tie_group_map is not None:
       logits = self._apply_multistate_to_all_logits(
         logits,
-        tie_group_map,
-        multi_state_strategy_idx,
+        _tie_group_map,
+        _multi_state_strategy_idx,
         jnp.asarray(1.0, jnp.float32),
-        state_weights,
-        state_mapping,
+        _state_weights,
+        _state_mapping,
       )
 
     # Return dummy sequence to match PyTree shape
@@ -299,12 +290,42 @@ class PrxteinMPNN(eqx.Module):
 
   def _call_conditional(
     self,
-    operands: DecodeOperands,
+    node_features: NodeFeatures,
+    edge_features: EdgeFeatures,
+    neighbor_indices: NeighborIndices,
+    mask: AlphaCarbonMask,
+    ar_mask: AutoRegressiveMask,
+    one_hot_sequence: OneHotProteinSequence,
+    prng_key: PRNGKeyArray,
+    _temperature: Float,
+    _bias: Logits,
+    tie_group_map: TieGroupMap | None,
+    multi_state_strategy_idx: Int,
+    _initial_node_features: NodeFeatures | None,
+    state_weights: jnp.ndarray | None,
+    state_mapping: jnp.ndarray | None,
+    _fixed_mask: jnp.ndarray | None,
+    _fixed_tokens: jnp.ndarray | None,
+    _group_indices_table: jnp.ndarray | None,
+    _group_valid_table: jnp.ndarray | None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the conditional (scoring) path.
 
     Args:
-      operands: Bundled operands for all three decoding paths.
+      node_features: Node features from encoding.
+      edge_features: Edge features from encoding.
+      neighbor_indices: Indices of neighbors for each node.
+      mask: Alpha carbon mask.
+      ar_mask: Autoregressive mask for conditional decoding.
+      one_hot_sequence: One-hot encoded protein sequence.
+      prng_key: PRNG Key.
+      _temperature: Unused, required for jax.lax.switch signature.
+      _bias: Unused, required for jax.lax.switch signature.
+      tie_group_map: Group mapping for multi-state scoring (consensus).
+      multi_state_strategy_idx: Strategy index for combining logits.
+      _initial_node_features: Unused.
+      state_weights: Weights for each structural state.
+      state_mapping: Mapping of each residue to its state index.
 
     Returns:
       Tuple of (input sequence, logits).
@@ -315,22 +336,16 @@ class PrxteinMPNN(eqx.Module):
     Example:
       >>> key = jax.random.PRNGKey(0)
       >>> model = PrxteinMPNN(128, 128, 128, 3, 3, 30, key=key)
-      >>> operands = DecodeOperands(...)
-      >>> out_seq, logits = model._call_conditional(operands)
+      >>> edge_feats = jnp.ones((10, 30, 128))
+      >>> neighbor_idx = jnp.arange(300).reshape(10, 30)
+      >>> mask = jnp.ones((10,))
+      >>> ar_mask = jnp.ones((10, 10))
+      >>> seq = jax.nn.one_hot(jnp.arange(10), 21)
+      >>> out_seq, logits = model._call_conditional(
+      ...     edge_feats, neighbor_idx, mask, ar_mask, seq
+      ... )
 
     """
-    node_features = operands.node_features
-    edge_features = operands.edge_features
-    neighbor_indices = operands.neighbor_indices
-    mask = operands.mask
-    ar_mask = operands.ar_mask
-    one_hot_sequence = operands.one_hot_sequence
-    prng_key = operands.prng_key
-    tie_group_map = operands.tie_group_map
-    multi_state_strategy_idx = operands.multi_state_strategy_idx
-    state_weights = operands.state_weights
-    state_mapping = operands.state_mapping
-
     decoded_node_features = self.decoder.call_conditional(
       node_features,
       edge_features,
@@ -359,15 +374,48 @@ class PrxteinMPNN(eqx.Module):
 
   def _call_autoregressive(
     self,
-    operands: DecodeOperands,
+    node_features: NodeFeatures,
+    edge_features: EdgeFeatures,
+    neighbor_indices: NeighborIndices,
+    mask: AlphaCarbonMask,
+    ar_mask: AutoRegressiveMask,
+    _one_hot_sequence: OneHotProteinSequence,
+    prng_key: PRNGKeyArray,
+    temperature: Float,
+    bias: Logits,
+    tie_group_map: TieGroupMap | None,
+    multi_state_strategy_idx: Int,
+    _initial_node_features: NodeFeatures | None,
+    state_weights: jnp.ndarray | None,
+    state_mapping: jnp.ndarray | None,
+    fixed_mask: jnp.ndarray | None,
+    fixed_tokens: jnp.ndarray | None,
+    group_indices_table: jnp.ndarray | None,
+    group_valid_table: jnp.ndarray | None,
     *,
     num_groups: int | None = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Run the autoregressive (sampling) path.
 
     Args:
-      operands: Bundled operands for all three decoding paths.
-      num_groups: Optional grouping for autoregressive mode.
+      node_features: Node features from encoding.
+      edge_features: Edge features from encoding.
+      neighbor_indices: Indices of neighbors for each node.
+      mask: Alpha carbon mask.
+      ar_mask: Autoregressive mask for sampling.
+      _one_hot_sequence: Unused, required for jax.lax.switch signature.
+      prng_key: PRNG key for sampling.
+      temperature: Temperature for Gumbel-max sampling.
+      bias: Bias to add to logits before sampling (N, 21).
+      tie_group_map: Optional (N,) array mapping each position to a group ID.
+          When provided, positions in the same group sample identical amino acids.
+      multi_state_strategy_idx: Integer index for strategy
+          (0=arithmetic_mean, 1=geometric_mean, 2=product).
+      _initial_node_features: Unused.
+      state_weights: Weights for each structural state.
+      state_mapping: Mapping of each residue to its state index.
+      group_indices_table: Pre-calculated table of group indices.
+      group_valid_table: Pre-calculated boolean valid mask for group indices.
 
     Returns:
       Tuple of (sampled sequence, logits).
@@ -385,27 +433,17 @@ class PrxteinMPNN(eqx.Module):
     Example:
       >>> key = jax.random.PRNGKey(0)
       >>> model = PrxteinMPNN(128, 128, 128, 3, 3, 30, key=key)
-      >>> operands = DecodeOperands(...)
-      >>> seq, logits = model._call_autoregressive(operands)
+      >>> edge_feats = jnp.ones((10, 30, 128))
+      >>> neighbor_idx = jnp.arange(300).reshape(10, 30)
+      >>> mask = jnp.ones((10,))
+      >>> ar_mask = jnp.ones((10, 10))
+      >>> temp = jnp.array(1.0)
+      >>> bias = jnp.zeros((10, 21))
+      >>> seq, logits = model._call_autoregressive(
+      ...     edge_feats, neighbor_idx, mask, ar_mask, None, key, temp, bias, None
+      ... )
 
     """
-    prng_key = operands.prng_key
-    node_features = operands.node_features
-    edge_features = operands.edge_features
-    neighbor_indices = operands.neighbor_indices
-    mask = operands.mask
-    ar_mask = operands.ar_mask
-    temperature = operands.temperature
-    bias = operands.bias
-    tie_group_map = operands.tie_group_map
-    multi_state_strategy_idx = operands.multi_state_strategy_idx
-    state_weights = operands.state_weights
-    state_mapping = operands.state_mapping
-    fixed_mask = operands.fixed_mask
-    fixed_tokens = operands.fixed_tokens
-    group_indices_table = operands.group_indices_table
-    group_valid_table = operands.group_valid_table
-
     seq, logits = self._run_autoregressive_scan(
       prng_key,
       node_features,
@@ -628,42 +666,6 @@ class PrxteinMPNN(eqx.Module):
       group_valid_table=group_valid_table,
       num_groups=num_groups,
     )
-
-  def _dispatch_decode(
-    self,
-    decoding_approach: DecodingApproach,
-    operands: DecodeOperands,
-    num_groups: int | None,
-  ) -> tuple[OneHotProteinSequence, Logits]:
-    """JAX-traceable dispatch among decoding approaches via lax.switch.
-
-    Args:
-      decoding_approach: One of "unconditional", "conditional", "autoregressive".
-      operands: Bundled 18-operand tuple for all three branches.
-      num_groups: Optional grouping for autoregressive mode.
-
-    Returns:
-      (sequence, logits) from selected branch.
-    """
-    branch_indices = {
-      "unconditional": 0,
-      "conditional": 1,
-      "autoregressive": 2,
-    }
-    branch_index = branch_indices[decoding_approach]
-
-    ar_fn = (
-      partial(self._call_autoregressive, num_groups=num_groups)
-      if num_groups is not None
-      else self._call_autoregressive
-    )
-    branches = [
-      self._call_unconditional,
-      self._call_conditional,
-      ar_fn,
-    ]
-
-    return jax.lax.switch(branch_index, branches, operands)
 
   def __call__(
     self,
@@ -926,6 +928,13 @@ class PrxteinMPNN(eqx.Module):
       key=prng_key,
     )
 
+    branch_indices = {
+      "unconditional": 0,
+      "conditional": 1,
+      "autoregressive": 2,
+    }
+    branch_index = branch_indices[decoding_approach]
+
     if ar_mask is None:
       ar_mask = jnp.zeros((mask.shape[0], mask.shape[0]), dtype=jnp.int32)
 
@@ -945,27 +954,38 @@ class PrxteinMPNN(eqx.Module):
       dtype=jnp.int32,
     )
 
-    operands = DecodeOperands(
-      node_features=node_features,
-      edge_features=edge_features,
-      neighbor_indices=neighbor_indices,
-      mask=mask,
-      ar_mask=ar_mask,
-      one_hot_sequence=one_hot_sequence,
-      prng_key=prng_key,
-      temperature=temperature,
-      bias=bias,
-      tie_group_map=tie_group_map,
-      multi_state_strategy_idx=multi_state_strategy_idx,
-      initial_node_features=initial_node_features,
-      state_weights=state_weights,
-      state_mapping=state_mapping,
-      fixed_mask=fixed_mask,
-      fixed_tokens=fixed_tokens,
-      group_indices_table=group_indices_table,
-      group_valid_table=group_valid_table,
+    ar_fn = (
+      partial(self._call_autoregressive, num_groups=num_groups)
+      if num_groups is not None
+      else self._call_autoregressive
     )
-    return self._dispatch_decode(decoding_approach, operands, num_groups)
+    branches = [
+      self._call_unconditional,
+      self._call_conditional,
+      ar_fn,
+    ]
+
+    operands = (
+      node_features,
+      edge_features,
+      neighbor_indices,
+      mask,
+      ar_mask,
+      one_hot_sequence,
+      prng_key,
+      temperature,
+      bias,
+      tie_group_map,
+      multi_state_strategy_idx,
+      initial_node_features,
+      state_weights,
+      state_mapping,
+      fixed_mask,
+      fixed_tokens,
+      group_indices_table,
+      group_valid_table,
+    )
+    return jax.lax.switch(branch_index, branches, *operands)
 
   def sample_autoregressive_state_vmap_exact(
     self,

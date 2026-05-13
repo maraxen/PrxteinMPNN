@@ -142,27 +142,6 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
     self.t_embed_sin = SinusoidalEmbedding(node_features)
     self.t_embed_mlp = SwiGLU(node_features, node_features * 4, node_features, key=t_key)
 
-  @classmethod
-  def stage_schema(cls) -> dict[str, type | None]:
-    """Returns {stage_name: type_alias} for this Diffusion MPNN variant."""
-    from prxteinmpnn.model_inputs import (
-      ARLogitTransformFn,
-      ConditionalDecodeFn,
-      FeaturizeFn,
-      LogitTransformFn,
-      ProteinEncodeFn,
-      UnconditionalDecodeFn,
-    )
-
-    return {
-        "featurize": FeaturizeFn,
-        "encode": ProteinEncodeFn,
-        "decode": ConditionalDecodeFn | UnconditionalDecodeFn,
-        "logit_transform": LogitTransformFn,
-        "ar_logit_transform": ARLogitTransformFn,
-        "encoder_state_fn": None,
-    }
-
   def __call__(  # type: ignore[override]
     self,
     structure_coordinates: StructureAtomicCoordinates,

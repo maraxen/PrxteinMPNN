@@ -30,9 +30,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
-from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
-from prxteinmpnn.model.mpnn import PrxteinMPNN
-from prxteinmpnn.protocols import ConditionalLogitsFn, StateVmapExactLogitsFn
+from prxteinmpnn.protocols import ConditionalLogitsFn, ModelProtocol, StateVmapExactLogitsFn
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,
   AutoRegressiveMask,
@@ -53,7 +51,7 @@ eqx.Module.__hash__ = _eqx_module_hash  # type: ignore[invalid-assignment]
 
 
 def make_conditional_logits_fn(
-  model: PrxteinMPNN | PrxteinLigandMPNN,
+  model: ModelProtocol,
 ) -> ConditionalLogitsFn:
   """Create a function to compute conditional logits for a given sequence.
 
@@ -165,7 +163,7 @@ def make_conditional_logits_fn(
 
 
 def make_conditional_logits_state_vmap_fn(
-  model: PrxteinMPNN | PrxteinLigandMPNN,
+  model: ModelProtocol,
 ) -> StateVmapExactLogitsFn:
   """JIT ``score_conditional`` (teacher-forced parallel decode per state).
 
@@ -179,7 +177,7 @@ def make_conditional_logits_state_vmap_fn(
   from prxteinmpnn.model.multistate_stack import gather_flat_to_stack  # noqa: PLC0415
 
   m = eqx.nn.inference_mode(model, value=True) if isinstance(model, eqx.Module) else model
-  is_lig = isinstance(model, PrxteinLigandMPNN)
+  is_lig = model.capabilities.is_ligand_model
   n_emb = int(m.w_s_embed.num_embeddings)
 
   if is_lig:
@@ -240,8 +238,8 @@ def make_conditional_logits_state_vmap_fn(
 
     return cast("StateVmapExactLogitsFn", conditional_stack)
 
-  if not isinstance(model, PrxteinMPNN):
-    raise TypeError("Expected PrxteinMPNN or PrxteinLigandMPNN")
+  if not isinstance(model, ModelProtocol):
+    raise TypeError("Expected a ModelProtocol-conforming model")
 
   @partial(jax.jit, static_argnames=("n_flat",))
   def conditional_stack_prot(
@@ -290,7 +288,7 @@ def make_conditional_logits_state_vmap_fn(
 
 
 def make_encoding_conditional_logits_split_fn(
-  model: PrxteinMPNN,
+  model: ModelProtocol,
 ) -> tuple[Callable, Callable]:
   """Create separate encoding and decoding functions for averaged encodings.
 

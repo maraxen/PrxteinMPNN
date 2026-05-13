@@ -9,6 +9,9 @@ Tier 2 Aliases (MPNN-specific):
 - FeaturizeFn, EncoderStepFn, EncoderStateFn, ProteinEncodeFn, LigandEncodeFn
 - ConditionalDecodeFn, UnconditionalDecodeFn
 - LogitTransformFn (as FuseFn), ARLogitTransformFn (as FuseFn)
+
+ModelProtocol — structural seam over model implementations, unifying protein and ligand variants.
+See §12 in 2026-05-13-model-protocol-seam-spec.md for architecture notes.
 """
 
 from __future__ import annotations
@@ -33,6 +36,7 @@ from prxteinmpnn.model_inputs import (
   TransformFn,
   UnconditionalDecodeFn,
 )
+from prxteinmpnn.model.capabilities import ModelCapabilities
 
 if TYPE_CHECKING:
   from prxteinmpnn.model_inputs import BackboneGeometry
@@ -50,6 +54,7 @@ if TYPE_CHECKING:
     ProteinSequence,
     ResidueIndex,
     StructureAtomicCoordinates,
+    TieGroupMap,
   )
 
 
@@ -287,10 +292,19 @@ class EncoderPostFn(Protocol):
 
 @runtime_checkable
 class ModelProtocol(Protocol):
-  """Structural protocol over prxteinmpnn model modules.
+  """Structural protocol over prxteinmpnn model implementations.
 
-  Declares the sub-modules and static fields accessed by Pipeline implementations.
-  PrxteinMPNN must satisfy this structurally.
+  Concrete implementations: PrxteinMPNN, PrxteinLigandMPNN, DiffusionPrxteinMPNN.
+
+  Equinox compatibility: all concrete implementations are eqx.Module subclasses
+  and are valid JAX pytrees. Protocol satisfaction is structural — no ABC
+  registration. jit/vmap/scan work unchanged because they trace through
+  eqx.Module leaves, not through the protocol.
+
+  Do NOT add __abstractmethods__ or ABCMeta — that breaks eqx.Module.
+
+  The _from_payload methods form the stable seam: sampling and scoring layers
+  must call only these, never raw stack-kwargs or concrete-class methods.
   """
 
   features: Any
@@ -298,7 +312,48 @@ class ModelProtocol(Protocol):
   decoder: Any
   w_out: Any
   w_s_embed: Any
-  capabilities: Any
+  capabilities: ModelCapabilities
+
+  # NOTE: __call__ is intentionally NOT part of the protocol.
+  # Its signature differs fundamentally between protein (coords, mask, ri, ci, ...)
+  # and ligand (coords, mask, ri, ci, Y, Y_t, Y_m, ...). Callers that need the raw
+  # forward pass should depend on the concrete class; callers using the seam should
+  # go through the *_from_payload methods declared below.
+
+  @classmethod
+  def stage_schema(cls) -> dict[str, type | None]: ...
+
+  def score_unconditional_from_payload(
+    self, prng_key: PRNGKeyArray, stack: MultistateStackPayload,
+    *, ligand: LigandStack | None = None,
+    tie_group_map: TieGroupMap | None, multi_state_strategy_idx: Int,
+    state_weights: jax.Array | None, state_mapping: jax.Array | None,
+    inference: bool = True,
+    logit_transform_fn: LogitTransformFn | None = None,
+    encoder_state_fn: EncoderStateFn | None = None,
+  ) -> Logits: ...
+
+  def score_conditional_from_payload(
+    self, prng_key, stack: MultistateStackPayload,
+    seq_oh_stack: jax.Array, ar_mask_stack: jax.Array,
+    *, ligand: LigandStack | None = None,
+    tie_group_map, multi_state_strategy_idx,
+    state_weights, state_mapping,
+    bias_flat: jax.Array | None = None,
+    inference: bool = True,
+    logit_transform_fn: LogitTransformFn | None = None,
+    encoder_state_fn: EncoderStateFn | None = None,
+  ) -> Logits: ...
+
+  def sample_autoregressive_state_vmap_exact_from_payload(
+    self, prng_key, stack: MultistateStackPayload,
+    autoregressive_mask_stack: jax.Array, bias_stack: jax.Array,
+    temperature: float, multi_state_strategy_idx,
+    state_weights, wave_group_ids_local, wave_group_positions_local,
+    wave_group_valid_local, wave_position_valid_local,
+    *, ligand: LigandStack | None = None,
+    ar_logit_transform_fn: ARLogitTransformFn | None = None,
+  ) -> tuple[OneHotProteinSequence, Logits]: ...
 
 
 @runtime_checkable

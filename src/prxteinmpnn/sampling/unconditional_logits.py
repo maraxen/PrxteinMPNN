@@ -29,10 +29,8 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
-from prxteinmpnn.model.mpnn import PrxteinMPNN
 from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
-from prxteinmpnn.protocols import StateVmapExactLogitsFn, UnconditionalLogitsFn  # noqa: TC001
+from prxteinmpnn.protocols import ModelProtocol, StateVmapExactLogitsFn, UnconditionalLogitsFn  # noqa: TC001
 from prxteinmpnn.sampling.state_vmap_payload_logits import (
   unconditional_state_vmap_logits_from_payload,
 )
@@ -77,7 +75,7 @@ def _multistate_payload_for_unconditional_vmap(
 
 
 def make_unconditional_logits_fn(
-  model: PrxteinMPNN,
+  model: ModelProtocol,
 ) -> UnconditionalLogitsFn:
   """Return a JIT function for dense single-graph unconditional logits."""
 
@@ -108,11 +106,11 @@ def make_unconditional_logits_fn(
 
 
 def make_unconditional_logits_state_vmap_fn(
-  model: PrxteinMPNN | PrxteinLigandMPNN,
+  model: ModelProtocol,
 ) -> StateVmapExactLogitsFn:
   """JIT ``score_unconditional``: stacked encode → scattered flat logits + fuse."""
   m = eqx.nn.inference_mode(model, value=True) if isinstance(model, eqx.Module) else model
-  is_lig = isinstance(model, PrxteinLigandMPNN)
+  is_lig = model.capabilities.is_ligand_model
 
   if is_lig:
 
@@ -161,8 +159,8 @@ def make_unconditional_logits_state_vmap_fn(
 
     return cast("StateVmapExactLogitsFn", unconditional_stack)
 
-  if not isinstance(model, PrxteinMPNN):
-    raise TypeError("Expected PrxteinMPNN or PrxteinLigandMPNN")
+  if not isinstance(model, ModelProtocol):
+    raise TypeError("Expected a ModelProtocol-conforming model")
 
   @partial(jax.jit, static_argnames=("n_flat",))
   def unconditional_stack_prot(

@@ -1,11 +1,10 @@
-"""PipelineFns: host-only frozen dataclass for pipeline hook UIDs.
+"""Backward-compatibility shim for deprecated PipelineFns.
+
+DEPRECATED: Use StageSet instead. This module will be removed in v2.0.
 
 PipelineFns stores UID strings (not callables) for LogitTransformFn,
 EncoderPreFn, and EncoderPostFn. UIDs are safe to pass as static_argnames
 to JIT — the callable is resolved at dispatch time via pipeline_registry.
-
-DEPRECATED: Use StageSet instead. PipelineFns is maintained for backward
-compatibility and will be removed in the next major release.
 
 Usage (deprecated; use StageSet instead):
     fns = PipelineFns.default()                          # arithmetic mean
@@ -49,7 +48,7 @@ class PipelineFns:
   (e.g. cosine similarity across states for multistate design).
 
   NOTE: PipelineFns is deprecated. Use StageSet instead. This class will be
-  removed in the next major release.
+  removed in v2.0.
   """
 
   logit_transform_uid: str
@@ -63,7 +62,7 @@ class PipelineFns:
     warnings.warn(
       "PipelineFns is deprecated; use StageSet instead. "
       "All public methods are preserved with identical signatures. "
-      "PipelineFns will be removed in the next major release.",
+      "PipelineFns will be removed in v2.0.",
       DeprecationWarning,
       stacklevel=2,
     )
@@ -149,15 +148,4 @@ class PipelineFns:
     return resolve_hook(self.ar_logit_transform_uid)  # type: ignore[return-value]
 
 
-@dataclasses.dataclass(frozen=True)
-class TrainingFns:
-  """Host-only container for training-specific hook UIDs.
-
-  Separate from PipelineFns. Currently empty — extend when training
-  hook wiring is needed (loss fns, etc.).
-  """
-
-  pass
-
-
-__all__ = ["PipelineFns", "StageSet", "TrainingFns"]
+__all__ = ["PipelineFns", "StageSet"]

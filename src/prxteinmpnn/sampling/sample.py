@@ -612,7 +612,6 @@ def make_sample_sequences(
           sampled_sequence, logits = model.sample_autoregressive_state_vmap_exact_from_payload(
             prng_key,
             stack_sv,
-            ls,
             autoregressive_mask_stack,
             bias_s,
             temperature,
@@ -622,6 +621,7 @@ def make_sample_sequences(
             wave_group_positions_local,
             wave_group_valid_local,
             wave_position_valid_local,
+            ligand=ls,
           )
         else:
           sampled_sequence, logits = model.sample_autoregressive_state_vmap_exact_from_payload(

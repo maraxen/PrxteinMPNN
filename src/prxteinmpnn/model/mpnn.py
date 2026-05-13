@@ -1206,46 +1206,6 @@ class PrxteinMPNN(eqx.Module):
       )
     return logits_flat
 
-  # Deprecated alias for backward compatibility
-  score_unconditional_state_vmap_exact = score_unconditional
-
-  def score_unconditional_state_vmap_exact_from_payload(
-    self,
-    prng_key: PRNGKeyArray,
-    stack: MultistateStackPayload,
-    *,
-    tie_group_map: TieGroupMap | None,
-    multi_state_strategy_idx: Int,
-    state_weights: jnp.ndarray | None,
-    state_mapping: jnp.ndarray | None,
-    inference: bool = True,
-    logit_transform_fn: LogitTransformFn | None = None,
-    encoder_state_fn: "EncoderStateFn | None" = None,
-  ) -> Logits:
-    """Deprecated: same as score_unconditional_from_payload."""
-    warnings.warn(
-        "score_unconditional_state_vmap_exact_from_payload is deprecated; "
-        "use score_unconditional_from_payload",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return self.score_unconditional(
-      prng_key,
-      stack.coords_stack,
-      stack.mask_stack,
-      stack.residue_index_stack,
-      stack.chain_index_stack,
-      stack.state_flat_rows,
-      stack.n_flat,
-      tie_group_map=tie_group_map,
-      multi_state_strategy_idx=multi_state_strategy_idx,
-      state_weights=state_weights,
-      state_mapping=state_mapping,
-      inference=inference,
-      logit_transform_fn=logit_transform_fn,
-      encoder_state_fn=encoder_state_fn,
-    )
-
   def score_unconditional_from_payload(
     self,
     prng_key: PRNGKeyArray,
@@ -1407,52 +1367,6 @@ class PrxteinMPNN(eqx.Module):
         state_mapping,
       )
     return logits_flat
-
-  # Deprecated alias for backward compatibility
-  score_conditional_state_vmap_exact = score_conditional
-
-  def score_conditional_state_vmap_exact_from_payload(
-    self,
-    prng_key: PRNGKeyArray,
-    stack: MultistateStackPayload,
-    seq_oh_stack: jax.Array,
-    ar_mask_stack: jax.Array,
-    *,
-    tie_group_map: TieGroupMap | None,
-    multi_state_strategy_idx: Int,
-    state_weights: jnp.ndarray | None,
-    state_mapping: jnp.ndarray | None,
-    bias_flat: jax.Array | None = None,
-    inference: bool = True,
-    logit_transform_fn: LogitTransformFn | None = None,
-    encoder_state_fn: "EncoderStateFn | None" = None,
-  ) -> Logits:
-    """Deprecated: same as score_conditional_from_payload."""
-    warnings.warn(
-        "score_conditional_state_vmap_exact_from_payload is deprecated; "
-        "use score_conditional_from_payload",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return self.score_conditional(
-      prng_key,
-      stack.coords_stack,
-      stack.mask_stack,
-      stack.residue_index_stack,
-      stack.chain_index_stack,
-      seq_oh_stack,
-      ar_mask_stack,
-      stack.state_flat_rows,
-      stack.n_flat,
-      tie_group_map=tie_group_map,
-      multi_state_strategy_idx=multi_state_strategy_idx,
-      state_weights=state_weights,
-      state_mapping=state_mapping,
-      bias_flat=bias_flat,
-      inference=inference,
-      logit_transform_fn=logit_transform_fn,
-      encoder_state_fn=encoder_state_fn,
-    )
 
   def score_conditional_from_payload(
     self,

@@ -16,8 +16,8 @@ ligand ``y_*_stack`` when applicable).
 
 For a :class:`~prxteinmpnn.payloads.MultistateStackPayload` carrier, prefer
 :func:`prxteinmpnn.sampling.state_vmap_payload_logits.unconditional_state_vmap_logits_from_payload`
-or :meth:`prxteinmpnn.model.mpnn.PrxteinMPNN.score_unconditional_state_vmap_exact_from_payload`
-or :meth:`~prxteinmpnn.model.mpnn.PrxteinLigandMPNN.score_unconditional_state_vmap_exact_from_payload`.
+or :meth:`prxteinmpnn.model.mpnn.PrxteinMPNN.score_unconditional_from_payload`
+or :meth:`~prxteinmpnn.model.mpnn.PrxteinLigandMPNN.score_unconditional_from_payload`.
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ def _multistate_payload_for_unconditional_vmap(
 ) -> MultistateStackPayload:
   """Build a :class:`~prxteinmpnn.payloads.MultistateStackPayload` for unconditional vmap scoring.
 
-  Fields not read by :meth:`~prxteinmpnn.model.mpnn.PrxteinMPNN.score_unconditional_state_vmap_exact_from_payload`
+  Fields not read by :meth:`~prxteinmpnn.model.mpnn.PrxteinMPNN.score_unconditional_from_payload`
   are zero-filled with broadcastable shapes; ``n_canonical`` is set to the padded width for static typing.
   """
   s_dim, p_dim = coords_stack.shape[0], coords_stack.shape[1]
@@ -110,7 +110,7 @@ def make_unconditional_logits_fn(
 def make_unconditional_logits_state_vmap_fn(
   model: PrxteinMPNN | PrxteinLigandMPNN,
 ) -> StateVmapExactLogitsFn:
-  """JIT ``score_unconditional_state_vmap_exact``: stacked encode → scattered flat logits + fuse."""
+  """JIT ``score_unconditional``: stacked encode → scattered flat logits + fuse."""
   m = eqx.nn.inference_mode(model, value=True) if isinstance(model, eqx.Module) else model
   is_lig = isinstance(model, PrxteinLigandMPNN)
 
@@ -133,7 +133,7 @@ def make_unconditional_logits_state_vmap_fn(
       state_mapping: jax.Array | None,
       states_chunk_size: int | None = None,
     ) -> jax.Array:
-      """No outer ``jax.jit``: host state-chunk loop inside ``score_unconditional_state_vmap_exact``."""
+      """No outer ``jax.jit``: host state-chunk loop inside ``score_unconditional``."""
       stack = _multistate_payload_for_unconditional_vmap(
         coords_stack,
         mask_stack,

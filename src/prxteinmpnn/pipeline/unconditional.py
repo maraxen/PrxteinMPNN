@@ -7,7 +7,7 @@ from typing import Any
 
 import jax.numpy as jnp
 
-from prxteinmpnn.pipeline_registry import StageSet
+from prxteinmpnn.model_inputs import StageSet, UnconditionalInputs
 
 
 @dataclasses.dataclass(frozen=True)
@@ -27,7 +27,7 @@ class UnconditionalPipeline:
     self,
     module: Any,
     key: Any,
-    inputs: Any,  # MultistateStackPayload
+    inputs: UnconditionalInputs,
     *,
     stage_set: StageSet,
   ) -> tuple[Any, Any]:
@@ -46,10 +46,10 @@ class UnconditionalPipeline:
       captured_state_logits.append(state_logits)
       return logit_transform_fn(state_logits, state_index, state_weights)
 
-    state_weights = jnp.ones(inputs.n_states, dtype=jnp.float32) / inputs.n_states
+    state_weights = jnp.ones(inputs.state_stack.n_states, dtype=jnp.float32) / inputs.state_stack.n_states
     logits = module.score_unconditional_from_payload(
       key,
-      inputs,
+      inputs.state_stack,
       tie_group_map=None,
       multi_state_strategy_idx=self.multi_state_strategy_idx,
 

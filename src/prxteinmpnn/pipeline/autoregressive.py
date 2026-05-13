@@ -9,22 +9,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
-from prxteinmpnn.pipeline_registry import StageSet
-
-
-class AutoregressiveInputs(eqx.Module):
-  """Inputs for AutoregressivePipeline.
-
-  stack: MultistateStackPayload with backbone geometry.
-  wave: WaveParallelPayload with wave-parallel decode schedule.
-  autoregressive_mask_stack: (S, L, L) AR mask per state.
-  bias_stack: (S, L, 21) logit bias per state.
-  """
-
-  stack: Any
-  wave: Any  # WaveParallelPayload
-  autoregressive_mask_stack: Float[Array, ...]
-  bias_stack: Float[Array, ...]
+from prxteinmpnn.model_inputs import AutoregressiveInputs, StageSet
 
 
 @dataclasses.dataclass(frozen=True)

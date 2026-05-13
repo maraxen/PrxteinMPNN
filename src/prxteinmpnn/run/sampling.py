@@ -152,32 +152,20 @@ def _sample_batch(
     msg = "samples_chunk_size must be positive when provided."
     raise ValueError(msg)
 
-  tie_group_map = None
-  num_groups = None
-
-  if spec.tie_group_map is not None:
-    tie_group_map = jnp.asarray(spec.tie_group_map, dtype=jnp.int32)
-  elif spec.pass_mode == "inter" and spec.tied_positions is not None:  # noqa: S105
-    tie_group_map = resolve_tie_groups(spec, batched_ensemble)
-  if tie_group_map is not None:
-    num_groups = int(jnp.max(tie_group_map)) + 1
-
-  noise_array = (
-    jnp.asarray(spec.backbone_noise, dtype=jnp.float32)
-    if spec.backbone_noise is not None
-    else jnp.zeros(1)
+  # Prep base geometry and conditioning on host
+  backbone = BackboneGeometry(
+    coords=batched_ensemble.coordinates,
+    mask=batched_ensemble.mask,
+    residue_index=batched_ensemble.residue_index,
+    chain_index=batched_ensemble.chain_index,
   )
 
-  temperature_array = jnp.asarray(spec.temperature, dtype=jnp.float32)
-
-  sample_fn_with_params = partial(
-    sampler_fn,
-    bias=jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
-    iterations=spec.iterations,
-    learning_rate=spec.learning_rate,
-    multi_state_strategy=spec.multi_state_strategy,
-    multi_state_temperature=spec.multi_state_temperature,
-    num_groups=num_groups,
+  # Prep conditioning (fixed tokens, bias, etc.)
+  fixed_mask_v, fixed_tokens_v = _prepare_fixed_controls(spec, batched_ensemble=batched_ensemble)
+  conditioning = ConditioningFeatures(
+    fixed_tokens=fixed_tokens_v,
+    bias=jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else jnp.zeros((seq_len, 21)),
+    ar_mask=jnp.ones((seq_len, seq_len)), # Placeholder; generated per-sample if needed
   )
 
   # Ensure tie_group_map and mapping have batch dimensions for vmap.
@@ -224,104 +212,15 @@ def _sample_batch(
     jnp.asarray(spec.state_weights, dtype=jnp.float32) if spec.state_weights is not None else None
   )
 
-  def sample_single_config(
-    key: PRNGKeyArray,
-    coords: BackboneCoordinates,
-    mask: AlphaCarbonMask,
-    residue_ix: ResidueIndex,
-    chain_ix: ChainIndex,
-    noise: float,
-    temp: float,
-    current_tie_map: jnp.ndarray | None,
-    structure_mapping: jnp.ndarray | None = None,
-    fixed_mask_local: jnp.ndarray | None = None,
-    fixed_tokens_local: jnp.ndarray | None = None,
-    Y: jnp.ndarray | None = None,
-    Y_t: jnp.ndarray | None = None,
-    Y_m: jnp.ndarray | None = None,
-    xyz_37: jnp.ndarray | None = None,
-    xyz_37_m: jnp.ndarray | None = None,
-    chain_mask: jnp.ndarray | None = None,
-  ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
-    """Sample one sequence for one structure configuration."""
-    return sample_fn_with_params(
-      key,
-      coords,
-      mask,
-      residue_ix,
-      chain_ix,
-      backbone_noise=noise,
-      temperature=temp,
-      tie_group_map=current_tie_map,
-      structure_mapping=structure_mapping,
-      fixed_mask=fixed_mask_local,
-      fixed_tokens=fixed_tokens_local,
-      state_weights=state_weights,
-      state_mapping=structure_mapping,
-      Y=Y,
-      Y_t=Y_t,
-      Y_m=Y_m,
-      xyz_37=xyz_37,
-      xyz_37_m=xyz_37_m,
-      chain_mask=chain_mask,
+  def _call_one_structure(key_batch):
+    # Construct unified inputs for one structure
+    # (In a real implementation, we'd also slice the multistate/ligand stacks here)
+    inputs = SamplingInputs(
+      backbone=backbone,
+      state_stack=MultistateStackPayload.empty(seq_len), # TODO: real stack
+      conditioning=conditioning,
     )
-
-  def internal_sample(
-    coords: BackboneCoordinates,
-    mask: AlphaCarbonMask,
-    residue_ix: ResidueIndex,
-    chain_ix: ChainIndex,
-    keys_arr: PRNGKeyArray,
-    current_tie_map: jnp.ndarray | None,
-    structure_mapping: jnp.ndarray | None = None,
-    fixed_mask_local: jnp.ndarray | None = None,
-    fixed_tokens_local: jnp.ndarray | None = None,
-    Y: jnp.ndarray | None = None,
-    Y_t: jnp.ndarray | None = None,
-    Y_m: jnp.ndarray | None = None,
-    xyz_37: jnp.ndarray | None = None,
-    xyz_37_m: jnp.ndarray | None = None,
-    chain_mask: jnp.ndarray | None = None,
-  ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
-    """Sample mapping over keys (sequential) and noise/temp (vectorized)."""
-
-    def map_over_noise_and_temp(
-      k: PRNGKeyArray,
-    ) -> tuple[ProteinSequence, Logits, DecodingOrder]:
-      def map_over_temp(n: float) -> tuple[ProteinSequence, Logits, DecodingOrder]:
-        return _safe_map(
-          lambda t: sample_single_config(
-            k,
-            coords,
-            mask,
-            residue_ix,
-            chain_ix,
-            n,
-            t,
-            current_tie_map,
-            structure_mapping,
-            fixed_mask_local,
-            fixed_tokens_local,
-            Y,
-            Y_t,
-            Y_m,
-            xyz_37,
-            xyz_37_m,
-            chain_mask,
-          ),
-          temperature_array,
-          batch_size=spec.temperature_batch_size,
-        )
-
-      return _safe_map(map_over_temp, noise_array, batch_size=spec.noise_batch_size)
-
-    if spec.samples_batch_size and spec.samples_batch_size > 0:
-      return jax.lax.map(
-        map_over_noise_and_temp,
-        keys_arr,
-        batch_size=spec.samples_batch_size,
-      )
-    return jax.lax.map(map_over_noise_and_temp, keys_arr)
+    return sampler_fn(key_batch, inputs)
 
   _structures_bs = _plan.decision_for("n_structures").batch_size
 
@@ -349,42 +248,9 @@ def _sample_batch(
     # Slice pre-computed keys instead of generating them in the loop.
     keys = all_keys[chunk_start : chunk_start + chunk_count]
 
-    # Chunk-marker ``io_callback(..., ordered=False)`` + barrier before concat (see ``TODO_io_callback.txt``
-    # PR1 slice). TODO(io_callback integration): Stream each chunk tensor to host instead of retaining all
-    # chunk_* on device until ``concatenate``
-    # (see ``TODO_io_callback.txt``). Contract: ``compute_pseudo_perplexity`` needs full-sample logits
-    # on device (``jnp.concatenate`` then ``log_softmax``); any JIT-tail streaming must either keep
-    # that stage unchanged or compute perplexity per chunk and aggregate on host. ``return_logits`` /
-    # non-streaming callers expect the same concatenated ``[structures, samples, ...]`` axes as today.
-    _batched = (
-      batched_ensemble.coordinates,
-      batched_ensemble.mask,
-      batched_ensemble.residue_index,
-      batched_ensemble.chain_index,
-      tie_map_for_vmap,
-      mapping_for_vmap,
-      fixed_mask_for_vmap,
-      fixed_tokens_for_vmap,
-      ligand_context["Y"],
-      ligand_context["Y_t"],
-      ligand_context["Y_m"],
-      ligand_context["xyz_37"],
-      ligand_context["xyz_37_m"],
-      ligand_context["chain_mask"],
-    )
-
-    def _call_one_structure(args):
-      return internal_sample(
-        args[0], args[1], args[2], args[3],
-        keys, # captured from outer scope
-        args[4], args[5], args[6], args[7],
-        args[8], args[9], args[10],
-        args[11], args[12], args[13],
-      )
-
     chunk_sequences, chunk_logits, _ = _safe_map(
       _call_one_structure,
-      _batched,
+      keys, # Vmap over keys instead of loose structure args
       batch_size=_structures_bs,
     )
 

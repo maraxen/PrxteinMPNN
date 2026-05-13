@@ -1,4 +1,4 @@
-"""Autoregressive tied-group and position scan loops for :class:`~prxteinmpnn.model.mpnn.PrxteinMPNN`.
+"""Scan-based autoregressive sampling for :class:`~prxteinmpnn.model.mpnn.PrxteinMPNN`.
 
 Extracted from :mod:`prxteinmpnn.model.mpnn` (Phase 5e-cont) to shrink ``mpnn.py`` without
 changing JIT boundaries or public method names on the model class.
@@ -278,7 +278,7 @@ def sample_and_broadcast_to_group(
   return all_logits, s_embed, sequence
 
 
-def run_autoregressive_scan(  # noqa: PLR0915
+def run_sample_ar_scan(  # noqa: PLR0915
   model: PrxteinMPNN,
   prng_key: PRNGKeyArray,
   node_features: NodeFeatures,

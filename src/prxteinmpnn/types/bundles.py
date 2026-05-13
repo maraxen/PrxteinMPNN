@@ -31,6 +31,7 @@ class ConditioningBundle(eqx.Module):
     tie_group_map: Int[Array, "S L"]
     state_weights: Float[Array, "S"]
     sequence_oh: Float[Array, "L V"]  # zeros for unconditional/AR
+    ar_mask: Float[Array, "S L L"]  # full 1s for purely conditional
 
 
 class LigandBundle(eqx.Module):

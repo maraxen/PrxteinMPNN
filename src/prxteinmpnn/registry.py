@@ -24,19 +24,7 @@ T = TypeVar("T")
 SamplerFactoryFn = Callable[..., SamplerFn]
 DesignSinkFactory = Callable[[], DesignSink]
 
-# --- Multistate mode strings (runtime API; keep in sync with type Literals) ---
-
-MULTISTATE_MODE_DEFAULT: str = "state_vmap_exact"
-
-FROZEN_MULTISTATE_MODES: frozenset[str] = frozenset({MULTISTATE_MODE_DEFAULT})
-
-def assert_known_multistate_mode(mode: str) -> str:
-  """Return ``mode`` if it is a supported multistate mode string, else raise."""
-  if mode in FROZEN_MULTISTATE_MODES:
-    return mode
-  msg = f"Unknown multistate_mode {mode!r}; expected: {MULTISTATE_MODE_DEFAULT}"
-  raise ValueError(msg)
-
+# Removed multistate mode routing strings. Only stacked mode is used.
 
 _COMBINE_INDEX: OrderedDict[str, int] = OrderedDict(
   [("arithmetic_mean", 0), ("geometric_mean", 1), ("product", 2)],

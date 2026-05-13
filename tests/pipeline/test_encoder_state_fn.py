@@ -49,7 +49,7 @@ def _make_passthrough_encoder(m):
             return ()
 
         def __call__(self, carry, state_idx, backbone):
-            from prxteinmpnn.model.encoder import encoder_forward_with_int_neighbors
+            from prxteinmpnn.model.encoder import encoder_forward_with_int_neighbors  # internal import: not public API
             ef, nei, nf, _ = self.m.features(
                 jax.random.PRNGKey(0),
                 backbone.coords, backbone.mask,
@@ -81,7 +81,7 @@ def test_encoder_state_fn_carry_accumulates():
             return jnp.zeros((), dtype=jnp.int32)
 
         def __call__(self, carry, state_idx, backbone):
-            from prxteinmpnn.model.encoder import encoder_forward_with_int_neighbors
+            from prxteinmpnn.model.encoder import encoder_forward_with_int_neighbors  # internal import: not public API
             ef, nei, nf, _ = self.m.features(
                 jax.random.PRNGKey(0),
                 backbone.coords, backbone.mask,

@@ -19,7 +19,7 @@ from prxteinmpnn.utils.concatenate import concatenate_neighbor_nodes
 from prxteinmpnn.utils.ste import straight_through_estimator
 
 if TYPE_CHECKING:
-  from prxteinmpnn.model.mpnn import PrxteinMPNN
+  from prxteinmpnn.model.mpnn import PrxteinMPNN  # prxteinmpnn-internal-import
   from prxteinmpnn.model_inputs import ARLogitTransformFn
   from prxteinmpnn.utils.types import (
     Float,

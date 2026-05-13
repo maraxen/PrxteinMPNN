@@ -32,8 +32,8 @@ from prxteinmpnn.model.encoder import (
   encoder_forward_with_int_neighbors,
 )
 from prxteinmpnn.model.features import ProteinFeatures
-from prxteinmpnn.model.ar_scan import run_sample_ar_scan
-from prxteinmpnn.model.ar_exact import run_sample_ar_exact
+from prxteinmpnn.model._inference.ar_scan import run_sample_ar_scan
+from prxteinmpnn.model._inference.ar_exact import run_sample_ar_exact
 from prxteinmpnn.model.mpnn_core import (
   autoregressive_decoding_context,
   edge_sequence_features_autoregressive,

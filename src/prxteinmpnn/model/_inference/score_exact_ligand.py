@@ -15,7 +15,7 @@ from prxteinmpnn.model._shared import apply_multistate_to_all_logits
 from prxteinmpnn.model.multistate_stack import gather_flat_to_stack, scatter_stack_to_flat
 
 if TYPE_CHECKING:
-  from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
+  from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN  # prxteinmpnn-internal-import
   from prxteinmpnn.model_inputs import EncoderStateFn, LogitTransformFn
   from prxteinmpnn.utils.types import (
     Float,
@@ -125,7 +125,7 @@ def ligand_score_unconditional_state_vmap_one_chunk(
   inference: bool = True,
 ) -> jax.Array:
   """Single fixed-size state batch (padded to leading dim of ``coords_stack``); scatter only, no fuse."""
-  from prxteinmpnn.model.ligand_mpnn import ligand_encode_stack_row  # noqa: PLC0415
+  from prxteinmpnn.model.ligand_mpnn import ligand_encode_stack_row  # prxteinmpnn-internal-import; noqa: PLC0415
 
   def enc_one(coords, ma, ri, ci, yy, yt, ym):
     return ligand_encode_stack_row(
@@ -169,7 +169,7 @@ def ligand_score_conditional_state_vmap_one_chunk(
   inference: bool,
 ) -> jax.Array:
   """Conditional path for one fixed-size state batch; scatter only, no fuse."""
-  from prxteinmpnn.model.ligand_mpnn import ligand_encode_stack_row  # noqa: PLC0415
+  from prxteinmpnn.model.ligand_mpnn import ligand_encode_stack_row  # prxteinmpnn-internal-import; noqa: PLC0415
 
   def enc_row(coords, ma, ri, ci, yy, yt, ym):
     return ligand_encode_stack_row(
@@ -235,7 +235,7 @@ def run_score_unconditional_exact_ligand(
   states_chunk_size: int | None = None,
 ) -> Logits:
   """LigandMPNN unconditional logits: per-row encode + decoder, scatter+fuse (``state_vmap_exact``)."""
-  from prxteinmpnn.model.ligand_mpnn import ligand_encode_stack_row  # noqa: PLC0415
+  from prxteinmpnn.model.ligand_mpnn import ligand_encode_stack_row  # prxteinmpnn-internal-import; noqa: PLC0415
 
   k_enc, k_feat = jax.random.split(prng_key)
   s_tot = int(coords_stack.shape[0])
@@ -340,7 +340,7 @@ def run_score_conditional_exact_ligand(
   encoder_state_fn: "EncoderStateFn | None" = None,
 ) -> Logits:
   """LigandMPNN stacked conditional logits; optional ``bias_flat`` added before fuse."""
-  from prxteinmpnn.model.ligand_mpnn import ligand_encode_stack_row  # noqa: PLC0415
+  from prxteinmpnn.model.ligand_mpnn import ligand_encode_stack_row  # prxteinmpnn-internal-import; noqa: PLC0415
 
   k_enc, k_feat = jax.random.split(prng_key)
   s_tot = int(coords_stack.shape[0])

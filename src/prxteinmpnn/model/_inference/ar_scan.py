@@ -21,7 +21,7 @@ from prxteinmpnn.padding import LENGTH_BUCKETS
 from prxteinmpnn.utils.ste import straight_through_estimator
 
 if TYPE_CHECKING:
-  from prxteinmpnn.model.mpnn import PrxteinMPNN
+  from prxteinmpnn.model.mpnn import PrxteinMPNN  # prxteinmpnn-internal-import
   from prxteinmpnn.utils.types import (
     AlphaCarbonMask,
     AutoRegressiveMask,

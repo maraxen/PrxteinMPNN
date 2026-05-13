@@ -13,12 +13,12 @@ import jax.numpy as jnp
 
 from prxteinmpnn.model._shared import combine_logits_multistate_idx
 from prxteinmpnn.model.encoder import pack_encoder_context
-from prxteinmpnn.model.ligand_mpnn import ligand_encode_stack_row
+from prxteinmpnn.model.ligand_mpnn import ligand_encode_stack_row  # prxteinmpnn-internal-import
 from prxteinmpnn.utils.concatenate import concatenate_neighbor_nodes
 from prxteinmpnn.utils.ste import straight_through_estimator
 
 if TYPE_CHECKING:
-  from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
+  from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN  # prxteinmpnn-internal-import
   from prxteinmpnn.model_inputs import ARLogitTransformFn
   from prxteinmpnn.utils.types import (
     Float,

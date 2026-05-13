@@ -1036,7 +1036,7 @@ class PrxteinLigandMPNN(eqx.Module):
     states_chunk_size: int | None = None,
   ) -> Logits:
     """LigandMPNN unconditional logits: per-row encode + decoder, scatter+fuse."""
-    from prxteinmpnn.model.score_exact_ligand import (  # noqa: PLC0415
+    from prxteinmpnn.model._inference.score_exact_ligand import (  # noqa: PLC0415
       run_score_unconditional_exact_ligand,
     )
 
@@ -1122,7 +1122,7 @@ class PrxteinLigandMPNN(eqx.Module):
     encoder_state_fn: "EncoderStateFn | None" = None,
   ) -> Logits:
     """LigandMPNN stacked conditional logits; optional ``bias_flat`` added before fuse."""
-    from prxteinmpnn.model.score_exact_ligand import (  # noqa: PLC0415
+    from prxteinmpnn.model._inference.score_exact_ligand import (  # noqa: PLC0415
       run_score_conditional_exact_ligand,
     )
 
@@ -1220,7 +1220,7 @@ class PrxteinLigandMPNN(eqx.Module):
     ar_logit_transform_fn: "ARLogitTransformFn | None" = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
     """Stacked-graph wave sampler for LigandMPNN (``state_vmap_exact``)."""
-    from prxteinmpnn.model.ar_exact_ligand import (  # noqa: PLC0415
+    from prxteinmpnn.model._inference.ar_exact_ligand import (  # noqa: PLC0415
       run_sample_ar_exact_ligand,
     )
 

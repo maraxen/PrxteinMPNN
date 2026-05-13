@@ -47,3 +47,5 @@ logs/
 .praxia/pytest_errors/
 .praxia/*_console*.log
 .praxia/fast_pytest*.log
+venv/
+scratch/

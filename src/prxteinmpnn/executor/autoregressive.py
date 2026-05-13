@@ -71,26 +71,10 @@ class AutoregressiveExecutor(Executor):
     if stage_set is None:
       stage_set = self._stage_set
 
-    # Resolve all stages from StageSet UIDs via registry
-    stages = stage_set.resolve_all()
-
     # Create pipeline and delegate
     pipeline = AutoregressivePipeline(
       temperature=self.temperature,
       multi_state_strategy_idx=self.multi_state_strategy_idx,
     )
 
-    # Create a fake PipelineFns-like object that resolve_* methods can use
-    # This bridges the old PipelineFns API with StageSet
-    class _FnsAdapter:
-      def __init__(self, stages_dict: dict[str, Any]):
-        self._stages = stages_dict
-
-      def resolve_logit_transform(self) -> Any:
-        return self._stages["logit_transform_fn"]
-
-      def resolve_ar_logit_transform(self) -> Any:
-        return self._stages["ar_logit_transform_fn"]
-
-    fns_adapter = _FnsAdapter(stages)
-    return pipeline(module, key, inputs, fns=fns_adapter, **kwargs)
+    return pipeline(module, key, inputs, stage_set=stage_set, **kwargs)

@@ -93,7 +93,7 @@ class DesignArrayRecordWriter:
     n_states: int,
     options: str = "zstd:9,group_size:1",
   ) -> Self:
-    """Writer sized like :class:`prxteinmpnn.payloads.MultistateStackPayload` static axes.
+    """Writer sized like :class:`prxteinmpnn.bundles.ProteinBundle` static axes.
 
     ``n_canonical`` and ``n_states`` match the stack payload's ``n_canonical`` /
     ``n_states`` (roadmap §3.2) so ArrayRecord rows align with multistate campaigns.

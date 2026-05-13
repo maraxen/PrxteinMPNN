@@ -11,7 +11,7 @@ from jaxtyping import Float, PRNGKeyArray
 
 from prxteinmpnn.model._shared import apply_multistate_to_all_logits
 from prxteinmpnn.model.multistate_stack import gather_flat_to_stack, scatter_stack_to_flat
-from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
+from prxteinmpnn.bundles import LigandBundle, ProteinBundle
 from prxteinmpnn.pipeline_registry import StageSet, make_geometric_mean_transform, resolve_hook
 from prxteinmpnn.protocols import ModelProtocol, ScoreFn, StateVmapExactScoreFn
 from prxteinmpnn.registry import (
@@ -94,10 +94,10 @@ def _make_score_fn_state_vmap_exact(
     prng_key: PRNGKeyArray,
     sequence: ProteinSequence | OneHotProteinSequence,
     *,
-    coords_stack: jax.Array,
-    mask_stack: jax.Array,
-    residue_index_stack: jax.Array,
-    chain_index_stack: jax.Array,
+    coords: jax.Array,
+    mask: jax.Array,
+    residue_index: jax.Array,
+    chain_index: jax.Array,
     state_flat_rows: jax.Array,
     n_flat_int: int,
     structure_mapping: jax.Array | None,
@@ -105,9 +105,9 @@ def _make_score_fn_state_vmap_exact(
     multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"],
     multi_state_temperature: Float,
     state_weights: jax.Array,
-    y_stack: jax.Array | None,
-    y_t_stack: jax.Array | None,
-    y_m_stack: jax.Array | None,
+    y: jax.Array | None,
+    y_t: jax.Array | None,
+    y_m: jax.Array | None,
     ar_mask_stack: jax.Array | None,
     bias_flat: jax.Array | None,
     states_chunk_size: int = 0,
@@ -117,7 +117,7 @@ def _make_score_fn_state_vmap_exact(
     strategy_idx = jnp.int32(combine_strategy_to_index(multi_state_strategy))
     oh = jax.nn.one_hot(sequence, n_emb) if sequence.ndim == 1 else sequence
     seq_stack = gather_flat_to_stack(oh, state_flat_rows)
-    s_dim, p_dim = mask_stack.shape[0], mask_stack.shape[1]
+    s_dim, p_dim = mask.shape[0], mask.shape[1]
     arm = (
       jnp.zeros((s_dim, p_dim, p_dim), dtype=jnp.int32)
       if ar_mask_stack is None
@@ -133,13 +133,13 @@ def _make_score_fn_state_vmap_exact(
     if is_lig:
       logits = model.score_conditional(  # type: ignore[union-attr]
         prng_key,
-        coords_stack,
-        mask_stack,
-        residue_index_stack,
-        chain_index_stack,
-        y_stack,
-        y_t_stack,
-        y_m_stack,
+        coords,
+        mask,
+        residue_index,
+        chain_index,
+        y,
+        y_t,
+        y_m,
         seq_stack,
         arm,
         state_flat_rows,
@@ -156,10 +156,10 @@ def _make_score_fn_state_vmap_exact(
     else:
       logits = model.score_conditional(
         prng_key,
-        coords_stack,
-        mask_stack,
-        residue_index_stack,
-        chain_index_stack,
+        coords,
+        mask,
+        residue_index,
+        chain_index,
         seq_stack,
         arm,
         state_flat_rows,
@@ -174,12 +174,12 @@ def _make_score_fn_state_vmap_exact(
       )
 
     if logit_transform_fn is not None:
-      s_dim = mask_stack.shape[0]
+      s_dim = mask.shape[0]
       logits_s = jnp.broadcast_to(logits[jnp.newaxis], (s_dim,) + logits.shape)
       logits = scatter_stack_to_flat(logits_s, state_flat_rows, n_flat_int)
 
     mask_flat = scatter_stack_to_flat(
-      mask_stack[..., jnp.newaxis],
+      mask[..., jnp.newaxis],
       state_flat_rows,
       n_flat_int,
     )[..., 0]
@@ -199,10 +199,10 @@ def _make_score_fn_state_vmap_exact(
       prng_key: PRNGKeyArray,
       sequence: ProteinSequence | OneHotProteinSequence,
       *,
-      coords_stack: jax.Array,
-      mask_stack: jax.Array,
-      residue_index_stack: jax.Array,
-      chain_index_stack: jax.Array,
+      coords: jax.Array,
+      mask: jax.Array,
+      residue_index: jax.Array,
+      chain_index: jax.Array,
       state_flat_rows: jax.Array,
       n_flat_int: int,
       structure_mapping: jax.Array | None,
@@ -210,9 +210,9 @@ def _make_score_fn_state_vmap_exact(
       multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"],
       multi_state_temperature: Float,
       state_weights: jax.Array,
-      y_stack: jax.Array | None,
-      y_t_stack: jax.Array | None,
-      y_m_stack: jax.Array | None,
+      y: jax.Array | None,
+      y_t: jax.Array | None,
+      y_m: jax.Array | None,
       ar_mask_stack: jax.Array | None,
       bias_flat: jax.Array | None,
       states_chunk_size: int = 0,
@@ -222,10 +222,10 @@ def _make_score_fn_state_vmap_exact(
       return score_sequence_core_inner(
         prng_key,
         sequence,
-        coords_stack=coords_stack,
-        mask_stack=mask_stack,
-        residue_index_stack=residue_index_stack,
-        chain_index_stack=chain_index_stack,
+        coords=coords,
+        mask=mask,
+        residue_index=residue_index,
+        chain_index=chain_index,
         state_flat_rows=state_flat_rows,
         n_flat_int=n_flat_int,
         structure_mapping=structure_mapping,
@@ -233,9 +233,9 @@ def _make_score_fn_state_vmap_exact(
         multi_state_strategy=multi_state_strategy,
         multi_state_temperature=multi_state_temperature,
         state_weights=state_weights,
-        y_stack=y_stack,
-        y_t_stack=y_t_stack,
-        y_m_stack=y_m_stack,
+        y=y,
+        y_t=y_t,
+        y_m=y_m,
         ar_mask_stack=ar_mask_stack,
         bias_flat=bias_flat,
         states_chunk_size=0,
@@ -256,55 +256,55 @@ def _make_score_fn_state_vmap_exact(
     multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
     multi_state_temperature: Float = 1.0,
     *,
-    coords_stack: jax.Array | None = None,
-    mask_stack: jax.Array | None = None,
-    residue_index_stack: jax.Array | None = None,
-    chain_index_stack: jax.Array | None = None,
+    coords: jax.Array | None = None,
+    mask: jax.Array | None = None,
+    residue_index: jax.Array | None = None,
+    chain_index: jax.Array | None = None,
     state_flat_rows: jax.Array | None = None,
     n_flat: int | None = None,
     state_weights: jax.Array | None = None,
-    y_stack: jax.Array | None = None,
-    y_t_stack: jax.Array | None = None,
-    y_m_stack: jax.Array | None = None,
+    y: jax.Array | None = None,
+    y_t: jax.Array | None = None,
+    y_m: jax.Array | None = None,
     ar_mask_stack: jax.Array | None = None,
     bias_flat: jax.Array | None = None,
     states_chunk_size: int = 0,
-    multistate_stack: MultistateStackPayload | None = None,
-    ligand_stack: LigandStack | None = None,
+    multistate_stack: ProteinBundle | None = None,
+    ligand_stack: LigandBundle | None = None,
     stage_set: StageSet | None = None,
     **kwargs: object,
   ) -> tuple[Float, Logits, DecodingOrder]:
     del kwargs, structure_coordinates, mask, residue_index, chain_index, backbone_noise, ar_mask
     if multistate_stack is not None:
-      coords_stack = multistate_stack.coords_stack
-      mask_stack = multistate_stack.mask_stack
-      residue_index_stack = multistate_stack.residue_index_stack
-      chain_index_stack = multistate_stack.chain_index_stack
+      coords = multistate_stack.coords
+      mask = multistate_stack.mask
+      residue_index = multistate_stack.residue_index
+      chain_index = multistate_stack.chain_index
       state_flat_rows = multistate_stack.state_flat_rows
       n_flat = int(multistate_stack.n_flat)
     if ligand_stack is not None:
-      if y_stack is not None or y_t_stack is not None or y_m_stack is not None:
+      if y is not None or y_t is not None or y_m is not None:
         msg = "state_vmap_exact scoring: pass either ligand_stack= or y_stack= / y_t_stack= / y_m_stack=, not both"
         raise ValueError(msg)
-      y_stack = ligand_stack.y_stack
-      y_t_stack = ligand_stack.y_t_stack
-      y_m_stack = ligand_stack.y_m_stack
-    if coords_stack is None or mask_stack is None or residue_index_stack is None or chain_index_stack is None:
+      y = ligand_stack.y
+      y_t = ligand_stack.y_t
+      y_m = ligand_stack.y_m
+    if coords is None or mask is None or residue_index is None or chain_index is None:
       msg = "state_vmap_exact scoring requires stack tensors or multistate_stack="
       raise ValueError(msg)
     if state_flat_rows is None or n_flat is None or state_weights is None:
       msg = "state_vmap_exact scoring requires state_flat_rows=, n_flat=, state_weights="
       raise ValueError(msg)
-    if is_lig and (y_stack is None or y_t_stack is None or y_m_stack is None):
+    if is_lig and (y is None or y_t is None or y_m is None):
       msg = "PrxteinLigandMPNN state_vmap_exact scoring requires y_stack, y_t_stack, y_m_stack kwargs or ligand_stack="
       raise ValueError(msg)
     return score_sequence_core(
       prng_key,
       sequence,
-      coords_stack=coords_stack,
-      mask_stack=mask_stack,
-      residue_index_stack=residue_index_stack,
-      chain_index_stack=chain_index_stack,
+      coords=coords,
+      mask=mask,
+      residue_index=residue_index,
+      chain_index=chain_index,
       state_flat_rows=state_flat_rows,
       n_flat_int=n_flat,
       structure_mapping=structure_mapping,
@@ -312,9 +312,9 @@ def _make_score_fn_state_vmap_exact(
       multi_state_strategy=multi_state_strategy,
       multi_state_temperature=multi_state_temperature,
       state_weights=state_weights,
-      y_stack=y_stack,
-      y_t_stack=y_t_stack,
-      y_m_stack=y_m_stack,
+      y=y,
+      y_t=y_t,
+      y_m=y_m,
       ar_mask_stack=ar_mask_stack,
       bias_flat=bias_flat,
       states_chunk_size=states_chunk_size,

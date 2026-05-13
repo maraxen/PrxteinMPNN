@@ -23,12 +23,12 @@ Tier 2 Aliases (MPNN-specific type aliases built from Tier 1):
 from __future__ import annotations
 
 import dataclasses
-from typing import Any, Literal, Protocol, TypeVar, runtime_checkable
+from typing import Annotated, Any, Literal, Protocol, TypeVar, runtime_checkable
 
 import equinox as eqx
 from jaxtyping import Array, Float, Int
 
-from prxteinmpnn.payloads import LigandStack, MultistateStackPayload, WaveParallelPayload
+from prxteinmpnn.bundles import LigandBundle, WaveColorBundle
 
 # ==============================================================================
 # Base Components
@@ -58,63 +58,45 @@ class ConditioningFeatures(eqx.Module):
 
 
 class ModelInputs(eqx.Module):
-  """Base class for all MPNN model inputs (Pytrees).
+  """Unified payload carrier for all MPNN model paths (scoring, sampling).
 
-  Carries backbone geometry and optional ligand/conditioning context.
+  Carries backbone geometry, sequence conditioning, and state stack info.
   """
+  # Backbone geometry
+  coords: Float[Array, "..."]
+  mask: Float[Array, "..."]
+  residue_index: Int[Array, "..."]
+  chain_index: Int[Array, "..."]
 
-  backbone: BackboneGeometry
-  ligand: LigandStack | None = None
+  # State / Stack properties
+  tie_group_map: Int[Array, "..."] | None = None
+  state_index: Int[Array, "..."] | None = None
+  state_embedding: Float[Array, "..."] | None = None
+  state_weights: Float[Array, "..."] | None = None
 
+  @property
+  def n_states(self) -> int:
+    return self.coords.shape[0] if self.coords.ndim > 2 else 1
 
-class ProteinInputs(ModelInputs):
-  """Inputs for protein-only MPNN paths (ligand=None)."""
+  @property
+  def n_canonical(self) -> int:
+    # Assuming n_canonical relates to the stack size or can be explicitly passed if needed differently.
+    return self.n_states
+  state_index: Int[Array, "..."] | None = None
+  state_embedding: Float[Array, "..."] | None = None
+  state_weights: Float[Array, "..."] | None = None
 
-  pass
+  # Sequence / Conditioning properties
+  sequence: Int[Array, "..."] | Float[Array, "..."] | None = None
+  seq_oh: Float[Array, "..."] | None = None
+  bias: Float[Array, "..."] | None = None
+  ar_mask: Float[Array, "..."] | None = None
+  fixed_mask: Float[Array, "..."] | None = None
+  fixed_tokens: Int[Array, "..."] | None = None
 
-
-class SequenceInputs(ModelInputs):
-  """Inputs that include a protein sequence (scoring, conditioning)."""
-
-  sequence: Int[Array, "L"] | Float[Array, "L 21"]
-
-
-class UnconditionalInputs(ModelInputs):
-  """Inputs for unconditional scoring over a state stack."""
-
-  state_stack: MultistateStackPayload
-
-
-class ConditionalInputs(SequenceInputs):
-  """Inputs for teacher-forced conditional scoring.
-
-  Adds autoregressive mask information and state stack to sequence inputs.
-  """
-
-  ar_mask_stack: Float[Array, "S L L"]
-  state_stack: MultistateStackPayload
-
-
-class SamplingInputs(ModelInputs):
-  """Base inputs for sampling pipelines."""
-
-  state_stack: MultistateStackPayload
-  conditioning: ConditioningFeatures
-
-
-class AutoregressiveInputs(SamplingInputs):
-  """Inputs specifically for autoregressive decode pipelines.
-
-  Consolidates MultistateStackPayload and WaveParallelPayload.
-  """
-
-  wave_parallel: WaveParallelPayload
-
-
-class ScoringInputs(UnconditionalInputs, SequenceInputs):
-  """Pytree input for sequence scoring over a state stack."""
-
-  pass
+  # Extended contexts
+  ligand: LigandBundle | None = None
+  wave_parallel: WaveColorBundle | None = None
 
 
 # ==============================================================================

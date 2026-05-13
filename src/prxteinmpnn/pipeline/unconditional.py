@@ -14,7 +14,7 @@ from prxteinmpnn.model_inputs import StageSet, UnconditionalInputs
 class UnconditionalPipeline:
   """Wraps score_unconditional_from_payload with StageSet resolution.
 
-  Inputs:  MultistateStackPayload (stacked backbone geometry)
+  Inputs:  ProteinBundle (stacked backbone geometry)
   Outputs: (logits: (L, V), state_logits: (S, L, V))
            where logits = logit_transform_fn(state_logits, state_index, state_weights)
            and state_logits is the raw per-state encoder/decoder output.

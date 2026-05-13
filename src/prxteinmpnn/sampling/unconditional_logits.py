@@ -14,7 +14,7 @@ decoding_approach=\"unconditional\", multistate_mode=\"state_vmap_exact\", ...)`
 with ``coords_stack`` / ``mask_stack`` / ``state_flat_rows`` / ``n_flat`` (and
 ligand ``y_*_stack`` when applicable).
 
-For a :class:`~prxteinmpnn.payloads.MultistateStackPayload` carrier, prefer
+For a :class:`~prxteinmpnn.bundles.ProteinBundle` carrier, prefer
 :func:`prxteinmpnn.sampling.state_vmap_payload_logits.unconditional_state_vmap_logits_from_payload`
 or :meth:`prxteinmpnn.model.mpnn.PrxteinMPNN.score_unconditional_from_payload`
 or :meth:`~prxteinmpnn.model.mpnn.PrxteinLigandMPNN.score_unconditional_from_payload`.
@@ -29,7 +29,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
+from prxteinmpnn.bundles import LigandBundle, ProteinBundle
 from prxteinmpnn.protocols import ModelProtocol, StateVmapExactLogitsFn, UnconditionalLogitsFn  # noqa: TC001
 from prxteinmpnn.sampling.state_vmap_payload_logits import (
   unconditional_state_vmap_logits_from_payload,
@@ -37,32 +37,32 @@ from prxteinmpnn.sampling.state_vmap_payload_logits import (
 
 
 def _multistate_payload_for_unconditional_vmap(
-  coords_stack: jax.Array,
-  mask_stack: jax.Array,
-  residue_index_stack: jax.Array,
-  chain_index_stack: jax.Array,
+  coords: jax.Array,
+  mask: jax.Array,
+  residue_index: jax.Array,
+  chain_index: jax.Array,
   state_flat_rows: jax.Array,
   n_flat: int,
-) -> MultistateStackPayload:
-  """Build a :class:`~prxteinmpnn.payloads.MultistateStackPayload` for unconditional vmap scoring.
+) -> ProteinBundle:
+  """Build a :class:`~prxteinmpnn.bundles.ProteinBundle` for unconditional vmap scoring.
 
   Fields not read by :meth:`~prxteinmpnn.model.mpnn.PrxteinMPNN.score_unconditional_from_payload`
   are zero-filled with broadcastable shapes; ``n_canonical`` is set to the padded width for static typing.
   """
-  s_dim, p_dim = coords_stack.shape[0], coords_stack.shape[1]
+  s_dim, p_dim = coords.shape[0], coords.shape[1]
   zeros_i = jnp.zeros((s_dim, p_dim), dtype=jnp.int32)
   zeros_f = jnp.zeros((s_dim, p_dim), dtype=jnp.float32)
   offs = jnp.zeros((s_dim + 1,), dtype=jnp.int32)
   return cast(
-    "MultistateStackPayload",
-    MultistateStackPayload(
-      coords_stack=coords_stack,
-      mask_stack=mask_stack,
-      residue_index_stack=residue_index_stack,
-      chain_index_stack=chain_index_stack,
-      tie_group_map_stack=zeros_i,
-      fixed_mask_stack=zeros_f,
-      fixed_tokens_stack=zeros_i,
+    "ProteinBundle",
+    ProteinBundle(
+      coords=coords,
+      mask=mask,
+      residue_index=residue_index,
+      chain_index=chain_index,
+      tie_group_map=zeros_i,
+      fixed_mask=zeros_f,
+      fixed_tokens=zeros_i,
       state_flat_rows=state_flat_rows,
       flat_row_offsets=offs,
       state_index=jnp.arange(s_dim, dtype=jnp.int32),
@@ -116,13 +116,13 @@ def make_unconditional_logits_state_vmap_fn(
 
     def unconditional_stack(
       prng_key: jax.Array,
-      coords_stack: jax.Array,
-      mask_stack: jax.Array,
-      residue_index_stack: jax.Array,
-      chain_index_stack: jax.Array,
-      y_stack: jax.Array,
-      y_t_stack: jax.Array,
-      y_m_stack: jax.Array,
+      coords: jax.Array,
+      mask: jax.Array,
+      residue_index: jax.Array,
+      chain_index: jax.Array,
+      y: jax.Array,
+      y_t: jax.Array,
+      y_m: jax.Array,
       state_flat_rows: jax.Array,
       n_flat: int,
       tie_group_map: jax.Array | None,
@@ -133,16 +133,16 @@ def make_unconditional_logits_state_vmap_fn(
     ) -> jax.Array:
       """No outer ``jax.jit``: host state-chunk loop inside ``score_unconditional``."""
       stack = _multistate_payload_for_unconditional_vmap(
-        coords_stack,
-        mask_stack,
-        residue_index_stack,
-        chain_index_stack,
+        coords,
+        mask,
+        residue_index,
+        chain_index,
         state_flat_rows,
         n_flat,
       )
       lig = cast(
-        "LigandStack",
-        LigandStack(y_stack=y_stack, y_t_stack=y_t_stack, y_m_stack=y_m_stack),
+        "LigandBundle",
+        LigandBundle(y=y, y_t=y_t, y_m=y_m),
       )
       return unconditional_state_vmap_logits_from_payload(
         m,
@@ -165,10 +165,10 @@ def make_unconditional_logits_state_vmap_fn(
   @partial(jax.jit, static_argnames=("n_flat",))
   def unconditional_stack_prot(
     prng_key: jax.Array,
-    coords_stack: jax.Array,
-    mask_stack: jax.Array,
-    residue_index_stack: jax.Array,
-    chain_index_stack: jax.Array,
+    coords: jax.Array,
+    mask: jax.Array,
+    residue_index: jax.Array,
+    chain_index: jax.Array,
     state_flat_rows: jax.Array,
     n_flat: int,
     tie_group_map: jax.Array | None,
@@ -177,10 +177,10 @@ def make_unconditional_logits_state_vmap_fn(
     state_mapping: jax.Array | None,
   ) -> jax.Array:
     stack = _multistate_payload_for_unconditional_vmap(
-      coords_stack,
-      mask_stack,
-      residue_index_stack,
-      chain_index_stack,
+      coords,
+      mask,
+      residue_index,
+      chain_index,
       state_flat_rows,
       n_flat,
     )

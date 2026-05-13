@@ -11,7 +11,7 @@ For a single carrier object, use
 :func:`prxteinmpnn.sampling.state_vmap_payload_logits.conditional_state_vmap_logits_from_payload`
 or :meth:`prxteinmpnn.model.mpnn.PrxteinMPNN.score_conditional_from_payload`
 /:meth:`~prxteinmpnn.model.mpnn.PrxteinLigandMPNN.score_conditional_from_payload`
-(geometry in :class:`~prxteinmpnn.payloads.MultistateStackPayload`; ligand tensors in :class:`~prxteinmpnn.payloads.LigandStack`).
+(geometry in :class:`~prxteinmpnn.bundles.ProteinBundle`; ligand tensors in :class:`~prxteinmpnn.bundles.LigandBundle`).
 
 This is used for:
 - Jacobian computation (sensitivity analysis)
@@ -185,13 +185,13 @@ def make_conditional_logits_state_vmap_fn(
     def conditional_stack(
       prng_key: jax.Array,
       sequence: jax.Array,
-      coords_stack: jax.Array,
-      mask_stack: jax.Array,
-      residue_index_stack: jax.Array,
-      chain_index_stack: jax.Array,
-      y_stack: jax.Array,
-      y_t_stack: jax.Array,
-      y_m_stack: jax.Array,
+      coords: jax.Array,
+      mask: jax.Array,
+      residue_index: jax.Array,
+      chain_index: jax.Array,
+      y: jax.Array,
+      y_t: jax.Array,
+      y_m: jax.Array,
       state_flat_rows: jax.Array,
       n_flat: int,
       tie_group_map: jax.Array | None,
@@ -204,7 +204,7 @@ def make_conditional_logits_state_vmap_fn(
     ) -> jax.Array:
       oh = jax.nn.one_hot(sequence, n_emb) if sequence.ndim == 1 else sequence
       seq_stack = gather_flat_to_stack(oh, state_flat_rows)
-      s_dim, p_dim = mask_stack.shape[0], mask_stack.shape[1]
+      s_dim, p_dim = mask.shape[0], mask.shape[1]
       arm = (
         jnp.zeros((s_dim, p_dim, p_dim), dtype=jnp.int32)
         if ar_mask_stack is None
@@ -215,13 +215,13 @@ def make_conditional_logits_state_vmap_fn(
         extra["states_chunk_size"] = states_chunk_size
       return m.score_conditional(  # type: ignore[union-attr]
         prng_key,
-        coords_stack,
-        mask_stack,
-        residue_index_stack,
-        chain_index_stack,
-        y_stack,
-        y_t_stack,
-        y_m_stack,
+        coords,
+        mask,
+        residue_index,
+        chain_index,
+        y,
+        y_t,
+        y_m,
         seq_stack,
         arm,
         state_flat_rows,
@@ -245,10 +245,10 @@ def make_conditional_logits_state_vmap_fn(
   def conditional_stack_prot(
     prng_key: jax.Array,
     sequence: jax.Array,
-    coords_stack: jax.Array,
-    mask_stack: jax.Array,
-    residue_index_stack: jax.Array,
-    chain_index_stack: jax.Array,
+    coords: jax.Array,
+    mask: jax.Array,
+    residue_index: jax.Array,
+    chain_index: jax.Array,
     state_flat_rows: jax.Array,
     n_flat: int,
     tie_group_map: jax.Array | None,
@@ -260,7 +260,7 @@ def make_conditional_logits_state_vmap_fn(
   ) -> jax.Array:
     oh = jax.nn.one_hot(sequence, n_emb) if sequence.ndim == 1 else sequence
     seq_stack = gather_flat_to_stack(oh, state_flat_rows)
-    s_dim, p_dim = mask_stack.shape[0], mask_stack.shape[1]
+    s_dim, p_dim = mask.shape[0], mask.shape[1]
     arm = (
       jnp.zeros((s_dim, p_dim, p_dim), dtype=jnp.int32)
       if ar_mask_stack is None
@@ -268,10 +268,10 @@ def make_conditional_logits_state_vmap_fn(
     )
     return m.score_conditional(
       prng_key,
-      coords_stack,
-      mask_stack,
-      residue_index_stack,
-      chain_index_stack,
+      coords,
+      mask,
+      residue_index,
+      chain_index,
       seq_stack,
       arm,
       state_flat_rows,

@@ -1,4 +1,4 @@
-"""Host-callable ``state_vmap_exact`` logits via :class:`~prxteinmpnn.payloads.MultistateStackPayload`.
+"""Host-callable ``state_vmap_exact`` logits via :class:`~prxteinmpnn.bundles.ProteinBundle`.
 
 JIT factories :func:`~prxteinmpnn.sampling.unconditional_logits.make_unconditional_logits_state_vmap_fn`
 and :func:`~prxteinmpnn.sampling.conditional_logits.make_conditional_logits_state_vmap_fn` keep a
@@ -17,7 +17,7 @@ import jax
 import jax.numpy as jnp
 
 from prxteinmpnn.model.multistate_stack import gather_flat_to_stack
-from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
+from prxteinmpnn.bundles import LigandBundle, ProteinBundle
 from prxteinmpnn.protocols import ModelProtocol
 
 
@@ -31,8 +31,8 @@ def _inference_model(model: ModelProtocol) -> ModelProtocol:
 def unconditional_state_vmap_logits_from_payload(
   model: ModelProtocol,
   prng_key: jax.Array,
-  stack: MultistateStackPayload,
-  ligand: LigandStack | None,
+  stack: ProteinBundle,
+  ligand: LigandBundle | None,
   *,
   tie_group_map: jax.Array | None,
   multi_state_strategy_idx: jax.Array,
@@ -40,7 +40,7 @@ def unconditional_state_vmap_logits_from_payload(
   state_mapping: jax.Array | None,
   states_chunk_size: int | None = None,
 ) -> jax.Array:
-  """Unconditional stacked logits using a :class:`MultistateStackPayload` (+ ligand stack when needed)."""
+  """Unconditional stacked logits using a :class:`ProteinBundle` (+ ligand stack when needed)."""
   m = _inference_model(model)
   if m.capabilities.is_ligand_model:
     if ligand is None:
@@ -77,8 +77,8 @@ def conditional_state_vmap_logits_from_payload(
   model: ModelProtocol,
   prng_key: jax.Array,
   sequence: jax.Array,
-  stack: MultistateStackPayload,
-  ligand: LigandStack | None,
+  stack: ProteinBundle,
+  ligand: LigandBundle | None,
   *,
   tie_group_map: jax.Array | None,
   multi_state_strategy_idx: jax.Array,
@@ -93,7 +93,7 @@ def conditional_state_vmap_logits_from_payload(
   n_emb = int(m.w_s_embed.num_embeddings)
   oh = jax.nn.one_hot(sequence, n_emb) if sequence.ndim == 1 else sequence
   seq_stack = gather_flat_to_stack(oh, stack.state_flat_rows)
-  s_dim, p_dim = stack.mask_stack.shape[0], stack.mask_stack.shape[1]
+  s_dim, p_dim = stack.mask.shape[0], stack.mask.shape[1]
   arm = (
     jnp.zeros((s_dim, p_dim, p_dim), dtype=jnp.int32)
     if ar_mask_stack is None

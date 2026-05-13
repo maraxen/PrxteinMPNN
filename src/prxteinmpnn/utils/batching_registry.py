@@ -41,7 +41,7 @@ N_STATES = AxisSpec(
     default_batch_size=1,  # tile_granularity: iterate one element at a time
     tile_granularity=1,
     heterogeneous=True,
-    doc="Multistate stack axis (MultistateStackPayload.n_states). Shapes vary across states.",
+    doc="Multistate stack axis (ProteinBundle.n_states). Shapes vary across states.",
 )
 
 N_STRUCTURES = AxisSpec(

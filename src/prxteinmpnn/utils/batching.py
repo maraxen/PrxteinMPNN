@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# TODO: introduce bucketing management in here
 
 def ceil_to_granularity(n: int, g: int) -> int:
     """Round n up to the nearest multiple of g. If g <= 1 or n == 0, returns n unchanged."""

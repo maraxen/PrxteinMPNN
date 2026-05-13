@@ -1,4 +1,6 @@
-"""Stacked wave-parallel autoregressive sampler for ProteinMPNN ``state_vmap_exact``.
+"""Stacked wave-parallel autoregressive sampler for ProteinMPNN (exact strategy).
+
+Implemented via jax.vmap over states with full attention.
 
 Extracted from :mod:`prxteinmpnn.model.mpnn` (Phase 5e-cont) to shrink ``mpnn.py`` without
 changing JIT boundaries or public method names on the model class.
@@ -28,7 +30,7 @@ if TYPE_CHECKING:
   )
 
 
-def run_sample_autoregressive_state_vmap_exact(  # noqa: PLR0915
+def run_sample_ar_exact(  # noqa: PLR0915
   model: PrxteinMPNN,
   prng_key: PRNGKeyArray,
   coords_stack: jax.Array,
@@ -49,7 +51,7 @@ def run_sample_autoregressive_state_vmap_exact(  # noqa: PLR0915
   wave_position_valid_local: jax.Array,
   ar_logit_transform_fn: "ARLogitTransformFn | None" = None,
 ) -> tuple[OneHotProteinSequence, Logits]:
-  """Stacked-graph wave-parallel sampler for ProteinMPNN (``state_vmap_exact``).
+  """Stacked-graph wave-parallel sampler for ProteinMPNN (exact strategy).
 
   Outputs one-hot sequences and logits with shape ``(n_states, n_pad, ·)``.
   """

@@ -19,7 +19,7 @@ from prxteinmpnn.ensemble.dbscan import (
 )
 from prxteinmpnn.ensemble.gmm import make_fit_gmm
 from prxteinmpnn.ensemble.pca import pca_transform
-from prxteinmpnn.model import PrxteinMPNN
+from prxteinmpnn.protocols import ModelProtocol
 from prxteinmpnn.run.prep import prep_protein_stream_and_model
 from prxteinmpnn.run.specs import ConformationalInferenceSpecification, pop_deprecated_spec_kwargs
 from prxteinmpnn.run.streaming_host import StreamingBatchHost
@@ -59,7 +59,7 @@ def derive_states(
 
 def _get_logits_fn(
   spec: ConformationalInferenceSpecification,
-  model: PrxteinMPNN,
+  model: ModelProtocol,
 ) -> tuple[Callable, bool]:
   """Select and partially configure the appropriate logits function."""
   match spec.inference_strategy:
@@ -81,7 +81,7 @@ def _get_logits_fn(
 def _compute_states_batches(
   spec: ConformationalInferenceSpecification,
   protein_iterator: IterDataset,
-  model: PrxteinMPNN,
+  model: ModelProtocol,
 ) -> Generator[
   tuple[
     Logits | None,
@@ -144,7 +144,7 @@ def _compute_states_batches(
 def _derive_states_in_memory(
   spec: ConformationalInferenceSpecification,
   protein_iterator: IterDataset,
-  model: PrxteinMPNN,
+  model: ModelProtocol,
 ) -> dict[str, jax.Array | dict[str, ConformationalInferenceSpecification] | None]:
   """Compute global states and stores them in memory."""
   all_batches = list(_compute_states_batches(spec, protein_iterator, model))
@@ -168,7 +168,7 @@ def _derive_states_in_memory(
 def _derive_states_streaming(
   spec: ConformationalInferenceSpecification,
   protein_iterator: IterDataset,
-  model: PrxteinMPNN,
+  model: ModelProtocol,
 ) -> dict[str, Any]:
   """Compute global states and streams them to an HDF5 file."""
   if not spec.output_h5_path:

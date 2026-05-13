@@ -9,12 +9,11 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Float, PRNGKeyArray
 
-from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
-from prxteinmpnn.model.mpnn import PrxteinMPNN
+from prxteinmpnn.model._shared import apply_multistate_to_all_logits
 from prxteinmpnn.model.multistate_stack import gather_flat_to_stack, scatter_stack_to_flat
 from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
 from prxteinmpnn.pipeline_registry import StageSet, make_geometric_mean_transform, resolve_hook
-from prxteinmpnn.protocols import ScoreFn, StateVmapExactScoreFn
+from prxteinmpnn.protocols import ModelProtocol, ScoreFn, StateVmapExactScoreFn
 from prxteinmpnn.registry import (
   assert_known_multistate_mode,
   combine_strategy_to_index,
@@ -42,7 +41,7 @@ SCORE_EPS = 1e-8
 
 
 def score_sequence_with_encoding(
-  model: PrxteinMPNN | PrxteinLigandMPNN,
+  model: ModelProtocol,
   sequence: ProteinSequence,
   encoding: tuple,
   tie_group_map: jax.Array | None = None,
@@ -64,7 +63,7 @@ def score_sequence_with_encoding(
       combine_strategy_to_index(multi_state_strategy),
       dtype=jnp.int32,
     )
-    logits = PrxteinMPNN._apply_multistate_to_all_logits(  # noqa: SLF001
+    logits = apply_multistate_to_all_logits(
       logits,
       tie_group_map,
       strategy_idx,
@@ -81,14 +80,14 @@ def score_sequence_with_encoding(
 
 
 def _make_score_fn_state_vmap_exact(
-  model: PrxteinMPNN | PrxteinLigandMPNN,
+  model: ModelProtocol,
   *,
   inference: bool,
 ) -> StateVmapExactScoreFn:
   if inference and isinstance(model, eqx.Module):
     model = eqx.nn.inference_mode(model, value=True)
 
-  is_lig = isinstance(model, PrxteinLigandMPNN)
+  is_lig = model.capabilities.is_ligand_model
   n_emb = int(model.w_s_embed.num_embeddings)
 
   def score_sequence_core_inner(
@@ -326,7 +325,7 @@ def _make_score_fn_state_vmap_exact(
 
 
 def make_score_fn(
-  model: PrxteinMPNN | PrxteinLigandMPNN,
+  model: ModelProtocol,
   decoding_order_fn: DecodingOrderFn = _DEFAULT_DECODING_ORDER_FN,
   _num_encoder_layers: int = 3,
   _num_decoder_layers: int = 3,

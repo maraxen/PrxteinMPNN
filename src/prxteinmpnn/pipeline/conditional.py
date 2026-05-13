@@ -9,20 +9,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
-from prxteinmpnn.pipeline_registry import StageSet
-
-
-class ConditionalInputs(eqx.Module):
-  """Inputs for ConditionalPipeline.
-
-  stack: MultistateStackPayload with backbone geometry.
-  seq_oh_stack: one-hot sequences per state, shape (S, L, 21).
-  ar_mask_stack: autoregressive mask per state, shape (S, L, L).
-  """
-
-  stack: Any
-  seq_oh_stack: Float[Array, ...]
-  ar_mask_stack: Float[Array, ...]
+from prxteinmpnn.model_inputs import ConditionalInputs, StageSet
 
 
 @dataclasses.dataclass(frozen=True)

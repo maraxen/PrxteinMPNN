@@ -9,6 +9,7 @@ from collections.abc import Callable
 from functools import partial
 from typing import TYPE_CHECKING, Any
 
+from prxteinmpnn.run._base_driver import BaseDriver
 from prxteinmpnn.run.streaming_host import StreamingBatchHost
 from prxteinmpnn.scoring.score import make_score_fn
 
@@ -16,16 +17,11 @@ if TYPE_CHECKING:
   from prxteinmpnn.run.specs import ScoringSpecification
 
 
-class ScoringDriver:
+class ScoringDriver(BaseDriver["ScoringSpecification"]):
   """Thin factory around :func:`~prxteinmpnn.scoring.score.make_score_fn` bound to a spec."""
 
-  @staticmethod
-  def host_effects_barrier() -> None:
-    """Barrier at host/sink boundaries for ``ordered=False`` ``io_callback`` (delegates to :class:`StreamingBatchHost`)."""
-    StreamingBatchHost.sink_barrier()
-
   def __init__(self, spec: ScoringSpecification) -> None:
-    self.spec = spec
+    super().__init__(spec)
 
   def build_score_single_pair(self, model: object) -> Callable[..., Any]:
     """Return ``partial(make_score_fn(model), multi_state_*=...)`` for batched scoring vmaps."""

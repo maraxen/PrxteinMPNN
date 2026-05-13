@@ -28,10 +28,10 @@ from typing import Any, Literal, Protocol, TypeVar, runtime_checkable
 import equinox as eqx
 from jaxtyping import Array, Float, Int
 
-from prxteinmpnn.payloads import MultistateStackPayload, WaveParallelPayload
+from prxteinmpnn.payloads import LigandStack, MultistateStackPayload, WaveParallelPayload
 
 # ==============================================================================
-# Concrete Model Input Types
+# Base Components
 # ==============================================================================
 
 
@@ -52,37 +52,69 @@ class ConditioningFeatures(eqx.Module):
   ar_mask: Float[Array, ...]
 
 
-class SamplingInputs(eqx.Module):
-  """Full pytree input for tied multistate autoregressive sampling.
+# ==============================================================================
+# Model Input Hierarchy (Pytrees)
+# ==============================================================================
 
-  All sub-payloads must be resolved to concrete arrays before JIT.
-  state_stack.state_embedding must be zeros((n_states, D)) when no embedding.
+
+class ModelInputs(eqx.Module):
+  """Base class for all MPNN model inputs (Pytrees).
+
+  Carries backbone geometry and optional ligand/conditioning context.
   """
 
   backbone: BackboneGeometry
+  ligand: LigandStack | None = None
+
+
+class ProteinInputs(ModelInputs):
+  """Inputs for protein-only MPNN paths (ligand=None)."""
+
+  pass
+
+
+class SequenceInputs(ModelInputs):
+  """Inputs that include a protein sequence (scoring, conditioning)."""
+
+  sequence: Int[Array, "L"] | Float[Array, "L 21"]
+
+
+class UnconditionalInputs(ModelInputs):
+  """Inputs for unconditional scoring over a state stack."""
+
   state_stack: MultistateStackPayload
-  wave_parallel: WaveParallelPayload
+
+
+class ConditionalInputs(SequenceInputs):
+  """Inputs for teacher-forced conditional scoring.
+
+  Adds autoregressive mask information and state stack to sequence inputs.
+  """
+
+  ar_mask_stack: Float[Array, "S L L"]
+  state_stack: MultistateStackPayload
+
+
+class SamplingInputs(ModelInputs):
+  """Base inputs for sampling pipelines."""
+
+  state_stack: MultistateStackPayload
   conditioning: ConditioningFeatures
 
-  def slice_states(self, start: int, count: int) -> "SamplingInputs":
-    """Return a SamplingInputs with state_stack sliced to [start, start+count).
 
-    backbone, wave_parallel, and conditioning are passed through unchanged
-    (they carry no n_states axis at the SamplingInputs level).
-    """
-    return SamplingInputs(
-        backbone=self.backbone,
-        state_stack=self.state_stack.slice(start, count),
-        wave_parallel=self.wave_parallel,
-        conditioning=self.conditioning,
-    )
+class AutoregressiveInputs(SamplingInputs):
+  """Inputs specifically for autoregressive decode pipelines.
+
+  Consolidates MultistateStackPayload and WaveParallelPayload.
+  """
+
+  wave_parallel: WaveParallelPayload
 
 
-class ScoringInputs(eqx.Module):
-  """Pytree input for sequence scoring."""
+class ScoringInputs(UnconditionalInputs, SequenceInputs):
+  """Pytree input for sequence scoring over a state stack."""
 
-  backbone: BackboneGeometry
-  sequences: Int[Array, ...]
+  pass
 
 
 # ==============================================================================

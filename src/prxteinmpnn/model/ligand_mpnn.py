@@ -33,6 +33,13 @@ from prxteinmpnn.model.mpnn_core import (
   edge_sequence_features_autoregressive,
 )
 from prxteinmpnn.model.multistate_stack import gather_flat_to_stack
+from prxteinmpnn.model_inputs import (
+  AutoregressiveInputs,
+  ConditionalInputs,
+  ModelInputs,
+  ScoringInputs,
+  UnconditionalInputs,
+)
 from prxteinmpnn.payloads import LigandStack, MultistateStackPayload
 from prxteinmpnn.registry import combine_strategy_to_index, multistate_mode_descriptor
 from prxteinmpnn.utils.ste import straight_through_estimator
@@ -176,6 +183,46 @@ class PrxteinLigandMPNN(eqx.Module):
 
     self.w_s_embed = eqx.nn.Embedding(vocab_size, node_features, key=proj_keys[5])
     self.w_out = eqx.nn.Linear(node_features, num_amino_acids, key=proj_keys[6])
+
+  def __call__(self, key: PRNGKeyArray, inputs: ModelInputs, **kwargs: Any) -> Any:
+    """Unified forward pass entry point.
+
+    Dispatches to specialized paths based on the type of ``inputs``.
+    """
+    if isinstance(inputs, UnconditionalInputs):
+      return self.score_unconditional_from_payload(
+          key, inputs.state_stack, ligand=inputs.ligand, **kwargs
+      )
+    elif isinstance(inputs, ConditionalInputs):
+      return self.score_conditional_from_payload(
+          key,
+          inputs.state_stack,
+          inputs.sequence,
+          inputs.ar_mask_stack,
+          ligand=inputs.ligand,
+          **kwargs,
+      )
+    elif isinstance(inputs, AutoregressiveInputs):
+      # Extract fields from conditioning features for legacy signature
+      cond = inputs.conditioning
+      return self.sample_autoregressive_from_payload(
+          key,
+          inputs.state_stack,
+          cond.ar_mask,
+          cond.bias,
+          inputs.wave_parallel.wave_group_ids,
+          inputs.wave_parallel.wave_group_positions,
+          inputs.wave_parallel.wave_group_valid,
+          inputs.wave_parallel.wave_position_valid,
+          ligand=inputs.ligand,
+          **kwargs,
+      )
+    elif isinstance(inputs, ScoringInputs):
+      return self.score_unconditional_from_payload(
+          key, inputs.state_stack, ligand=inputs.ligand, **kwargs
+      )
+
+    raise TypeError(f"Unsupported input type: {type(inputs)}")
 
   @classmethod
   def stage_schema(cls) -> dict[str, type | None]:

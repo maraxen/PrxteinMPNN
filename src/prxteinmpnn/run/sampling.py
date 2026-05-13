@@ -1022,7 +1022,6 @@ def _sample_batch(
       batched_ensemble.mask,
       batched_ensemble.residue_index,
       batched_ensemble.chain_index,
-      keys,
       tie_map_for_vmap,
       mapping_for_vmap,
       fixed_mask_for_vmap,
@@ -1037,10 +1036,11 @@ def _sample_batch(
 
     def _call_one_structure(args):
       return internal_sample(
-        args[0], args[1], args[2], args[3], args[4],
-        args[5], args[6], args[7], args[8],
-        args[9], args[10], args[11],
-        args[12], args[13], args[14],
+        args[0], args[1], args[2], args[3],
+        keys, # captured from outer scope
+        args[4], args[5], args[6], args[7],
+        args[8], args[9], args[10],
+        args[11], args[12], args[13],
       )
 
     chunk_sequences, chunk_logits, _ = _safe_map(

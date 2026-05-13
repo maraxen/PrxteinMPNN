@@ -33,9 +33,7 @@ from prxteinmpnn.model.encoder import (
 )
 from prxteinmpnn.model.features import ProteinFeatures
 from prxteinmpnn.model.ar_scan import run_sample_ar_scan
-from prxteinmpnn.model.mpnn_autoregressive_state_vmap_exact import (
-  run_sample_autoregressive_state_vmap_exact,
-)
+from prxteinmpnn.model.ar_exact import run_sample_ar_exact
 from prxteinmpnn.model.mpnn_core import (
   autoregressive_decoding_context,
   edge_sequence_features_autoregressive,
@@ -1008,11 +1006,11 @@ class PrxteinMPNN(eqx.Module):
     wave_position_valid_local: jax.Array,
     ar_logit_transform_fn: "ARLogitTransformFn | None" = None,
   ) -> tuple[OneHotProteinSequence, Logits]:
-    """Stacked-graph wave-parallel sampler for ProteinMPNN (``state_vmap_exact``).
+    """Stacked-graph wave-parallel sampler for ProteinMPNN (exact strategy).
 
     Outputs one-hot sequences and logits with shape ``(n_states, n_pad, ·)``.
     """
-    return run_sample_autoregressive_state_vmap_exact(
+    return run_sample_ar_exact(
       self,
       prng_key,
       coords_stack,

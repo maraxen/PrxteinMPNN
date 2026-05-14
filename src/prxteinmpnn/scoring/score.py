@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 from functools import partial
-from typing import Any, Literal, cast
+from typing import Literal, cast
 
 import equinox as eqx
 import jax
@@ -85,7 +85,6 @@ def make_score_fn(
     y: jax.Array | None = None,
     y_t: jax.Array | None = None,
     y_m: jax.Array | None = None,
-    **kwargs: Any,
   ) -> tuple[jax.Array, jax.Array, jax.Array]:
     
     L = sequence.shape[0]
@@ -145,7 +144,19 @@ def score(
     mask: jax.Array,
     residue_index: jax.Array,
     chain_index: jax.Array,
-    **kwargs: Any,
+    sequence: jax.Array | None = None,
+    backbone_noise: float | None = None,
+    ar_mask: jax.Array | None = None,
+    structure_mapping: jax.Array | None = None,
+    tie_group_map: jax.Array | None = None,
+    multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
+    multi_state_temperature: float = 1.0,
+    state_weights: jax.Array | None = None,
+    bias: jax.Array | None = None,
+    use_rolling_state: bool = False,
+    y: jax.Array | None = None,
+    y_t: jax.Array | None = None,
+    y_m: jax.Array | None = None,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Score a sequence on a structure using the default scoring function.
 
@@ -158,7 +169,19 @@ def score(
         mask: Alpha carbon mask indicating valid residues.
         residue_index: Residue indices.
         chain_index: Chain indices.
-        **kwargs: Additional keyword arguments for the scoring function.
+        sequence: Protein sequence to score.
+        backbone_noise: Noise level for backbone coordinates.
+        ar_mask: Autoregressive mask for scoring.
+        structure_mapping: Mapping between structures.
+        tie_group_map: Groups of tied positions.
+        multi_state_strategy: How to combine multi-state logits.
+        multi_state_temperature: Temperature for multi-state combination.
+        state_weights: Weights for each state.
+        bias: Sequence bias.
+        use_rolling_state: Use rolling state scan vs vmap.
+        y: Ligand coordinates.
+        y_t: Ligand atom types.
+        y_m: Ligand atom mask.
 
     Returns:
         Tuple of (masked average score, logits, decoding order).
@@ -168,10 +191,22 @@ def score(
         "tuple[jax.Array, jax.Array, jax.Array]",
         score_fn(
             prng_key=prng_key,
+            sequence=sequence,
             structure_coordinates=structure_coordinates,
             mask=mask,
             residue_index=residue_index,
             chain_index=chain_index,
-            **kwargs,
+            backbone_noise=backbone_noise,
+            ar_mask=ar_mask,
+            structure_mapping=structure_mapping,
+            tie_group_map=tie_group_map,
+            multi_state_strategy=multi_state_strategy,
+            multi_state_temperature=multi_state_temperature,
+            state_weights=state_weights,
+            bias=bias,
+            use_rolling_state=use_rolling_state,
+            y=y,
+            y_t=y_t,
+            y_m=y_m,
         ),
     )

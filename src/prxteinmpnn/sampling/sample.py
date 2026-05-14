@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 from functools import partial
-from typing import Any, Literal, cast
+from typing import Literal, cast
 
 import jax
 import jax.numpy as jnp
@@ -90,7 +90,6 @@ def make_sample_sequences(
       y: jax.Array | None = None,
       y_t: jax.Array | None = None,
       y_m: jax.Array | None = None,
-      **kwargs: Any,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
       
       L = structure_coordinates.shape[1] if structure_coordinates.ndim == 4 else structure_coordinates.shape[0]
@@ -152,7 +151,6 @@ def make_sample_sequences(
       y: jax.Array | None = None,
       y_t: jax.Array | None = None,
       y_m: jax.Array | None = None,
-      **kwargs: Any,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
       
       L = structure_coordinates.shape[1] if structure_coordinates.ndim == 4 else structure_coordinates.shape[0]

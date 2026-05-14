@@ -41,12 +41,18 @@ def pop_deprecated_spec_kwargs(kwargs: MutableMapping[str, Any]) -> None:
 
 
 if TYPE_CHECKING:
+  from typing import Protocol
+
   from jaxtyping import ArrayLike
   from proxide.io.parsing.foldcomp import FoldCompDatabase
 
-  from prxteinmpnn.ensemble.dbscan import ConformationalStates
   from prxteinmpnn.utils.catjac import CombineCatJacPairFn
   from prxteinmpnn.utils.decoding_order import DecodingOrderFn
+
+  class ConformationalStates(Protocol):
+    """Protocol for conformational state containers (see ensemble_tools.dbscan)."""
+
+    n_states: Any
 
 # Type aliases for convenience
 ModelWeights = MODEL_WEIGHTS
@@ -84,7 +90,7 @@ class RunSpecification:
       model: An optional model ID to use (default is None).
       altloc: The alternate location to use (default is "first").
       decoding_order_fn: An optional function to generate the decoding order (default is None).
-      conformational_states: ConformationalStates to use for coarse graining the inference.
+      conformational_states: ConformationalStates (from ensemble_tools.dbscan) to use for coarse graining the inference.
       max_length: Maximum sequence length for padding/truncation (default is 512).
                   Set to None to disable padding. Controls memory usage - smaller values
                   reduce memory but may cause recompilation for different sequence lengths.

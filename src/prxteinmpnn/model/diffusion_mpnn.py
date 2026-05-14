@@ -42,12 +42,9 @@ class SinusoidalEmbedding(eqx.Module):
     freqs = jnp.exp(
       -jnp.log(self.max_period) * jnp.arange(0, half_dim, dtype=jnp.float32) / half_dim,
     )
-    if timesteps.ndim == 0:
-      args = timesteps * freqs
-      embedding = jnp.concatenate([jnp.cos(args), jnp.sin(args)], axis=-1)
-    else:
-      args = timesteps[:, None].astype(jnp.float32) * freqs[None, :]
-      embedding = jnp.concatenate([jnp.cos(args), jnp.sin(args)], axis=-1)
+    # Expect timesteps as 1D array [B]
+    args = timesteps[:, None].astype(jnp.float32) * freqs[None, :]
+    embedding = jnp.concatenate([jnp.cos(args), jnp.sin(args)], axis=-1)
 
     if self.embedding_dim % 2 == 1:
       embedding = jnp.concatenate([embedding, jnp.zeros_like(embedding[:, :1])], axis=-1)
@@ -200,14 +197,11 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
     # 2. Inject Timestep Embedding (if provided)
     if timestep is not None:
       t_embed = self.t_embed_sin(timestep)
-      t_embed = self.t_embed_mlp(t_embed)  # [C] or [B, C]
-      
-      # Match node_features shape [L, C] or [B, L, C]
-      if timestep.ndim == 0:
-        t_embed = t_embed[None, :] # [1, C]
-      elif timestep.ndim == 1:
-        t_embed = t_embed[:, None, :] # [B, 1, C]
-        
+      t_embed = self.t_embed_mlp(t_embed)  # [B, C]
+
+      # Match node_features shape [B, L, C]
+      t_embed = t_embed[:, None, :] # [B, 1, C]
+
       node_features = node_features + t_embed
 
     return node_features, edge_features, edge_indices

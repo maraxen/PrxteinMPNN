@@ -181,7 +181,7 @@ class PrxteinLigandMPNN(eqx.Module):
     h_V = jnp.zeros((E.shape[0], self.node_features_dim))
     h_E = E
 
-    mask = geo.mask[0] if geo.mask.ndim == 2 else geo.mask
+    mask = geo.mask[0]
     mask_2d = mask[:, None] * mask[None, :]
     mask_attend = jnp.take_along_axis(mask_2d, E_idx.astype(jnp.int32), axis=1)
 

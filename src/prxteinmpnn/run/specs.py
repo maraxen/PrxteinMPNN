@@ -446,6 +446,7 @@ class ConformationalInferenceSpecification(RunSpecification):
 MIN_PAIR = 2
 
 
+@register_spec
 @dataclass
 class InspectionSpecification(RunSpecification):
   """Configuration for inspecting model encodings and features."""
@@ -527,4 +528,4 @@ def apply_deprecated_spec_init_warnings(cls: type) -> None:
   Call once per extra subclass (e.g. :class:`~prxteinmpnn.training.specs.TrainingSpecification`)
   defined outside this module.
   """
-  _wrap_spec_init_with_deprecated_kwarg_warnings(cls)
+  register_spec(cls)

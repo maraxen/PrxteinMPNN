@@ -59,13 +59,13 @@ def kernel(
             structure_mapping=sm
         )
 
-    edge_f, edge_i, node_f, _ = jax.vmap(encode_one)(
+    edge_f, edge_i, node_f, _ = jax.vmap(encode_one, in_axes=(0, 0, 0, 0, 0, 0))(
         geo.coords, geo.mask, geo.residue_index, geo.chain_index,
         geo.structure_mapping, noise_stack
     )
     
-    node_f, edge_f = jax.vmap(model.encoder)(
-        edge_f, edge_i, geo.mask, initial_node_features=node_f, 
+    node_f, edge_f = jax.vmap(model.encoder, in_axes=(0, 0, 0, 0, 0))(
+        edge_f, edge_i, geo.mask, initial_node_features=node_f,
         key=jax.random.split(k_enc, S)
     )
 
@@ -92,10 +92,10 @@ def kernel(
                 )
 
             # decoded: (S, L, H)
-            decoded = jax.vmap(decode_one)(node_f, edge_f, edge_i, geo.mask, cond.ar_mask)
+            decoded = jax.vmap(decode_one, in_axes=(0, 0, 0, 0, 0))(node_f, edge_f, edge_i, geo.mask, cond.ar_mask)
             
             # Project to logits: (S, L, 21)
-            logits = jax.vmap(jax.vmap(model.w_out))(decoded)
+            logits = jax.vmap(jax.vmap(model.w_out, in_axes=0), in_axes=0)(decoded)
 
             # Combine logits across states: (L, 21)
             combined_logits = stage_set.logit_transform(logits)

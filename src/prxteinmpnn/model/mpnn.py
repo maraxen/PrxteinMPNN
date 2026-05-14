@@ -123,10 +123,10 @@ class PrxteinMPNN(eqx.Module):
     
     edge_features, edge_indices, node_features, _ = self.features(
       prng_key,
-      geo.coords[0] if geo.coords.ndim == 4 else geo.coords,
-      geo.mask[0] if geo.mask.ndim == 2 else geo.mask,
-      geo.residue_index[0] if geo.residue_index.ndim == 2 else geo.residue_index,
-      geo.chain_index[0] if geo.chain_index.ndim == 2 else geo.chain_index,
+      geo.coords[0],
+      geo.mask[0],
+      geo.residue_index[0],
+      geo.chain_index[0],
       bundle.backbone_noise,
       backbone_noise_mode=config.backbone_noise_mode,
       structure_mapping=geo.structure_mapping[0] if geo.structure_mapping is not None else None,

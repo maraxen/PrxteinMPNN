@@ -357,6 +357,18 @@ def train_step(  # noqa: PLR0915
 
     one_hot_seq = jax.nn.one_hot(seq, 21)
 
+    # 1. Encode
+    node_features, edge_features, edge_indices = m(
+      key,
+      coords,
+      mask,
+      res_idx,
+      chain_idx,
+      backbone_noise=jnp.array(backbone_noise_std),
+      structure_mapping=None, # training is usually single-state
+      initial_node_features=phys_feat,
+    )
+
     if training_mode == "diffusion":
       if noise_schedule is None:
         msg = "noise_schedule required for diffusion training"
@@ -367,34 +379,26 @@ def train_step(  # noqa: PLR0915
       noisy_seq, _ = noise_schedule.sample_forward(one_hot_seq, t, noise)
 
       diff_model = cast("DiffusionPrxteinMPNN", m)
-      _, logits = diff_model(
-        coords,
-        mask,
-        res_idx,
-        chain_idx,
-        decoding_approach="diffusion",
-        timestep=t,
-        noisy_sequence=noisy_seq,
-        physics_features=phys_feat,
+      # Inject timestep embedding
+      t_embed = diff_model.t_embed_sin(t)
+      t_embed = diff_model.t_embed_mlp(t_embed)
+      t_embed = t_embed[None, :] # [1, C]
+      node_features = node_features + t_embed
+
+      # Decode
+      decoded = diff_model.decoder.call_conditional(
+          node_features, edge_features, edge_indices, mask, ar_mask, noisy_seq,
+          diff_model.w_s_embed.weight, key=key, inference=False
       )
+      logits = jax.vmap(diff_model.w_out)(decoded)
       return logits
 
-    # Pass rbf_features and neighbor_indices if provided
-    # When rbf_features is provided, the model skips coordinate noising and RBF computation
-    _, logits = m(
-      coords,
-      mask,
-      res_idx,
-      chain_idx,
-      decoding_approach="conditional",
-      prng_key=key,
-      ar_mask=ar_mask,
-      one_hot_sequence=one_hot_seq,
-      backbone_noise=jnp.array(backbone_noise_std),
-      initial_node_features=phys_feat,
-      rbf_features=rbf_feats,
-      neighbor_indices=neighbor_idx,
+    # 2. Decode (Conditional MPNN)
+    decoded = m.decoder.call_conditional(
+      node_features, edge_features, edge_indices, mask, ar_mask, one_hot_seq,
+      m.w_s_embed.weight, key=key, inference=False
     )
+    logits = jax.vmap(m.w_out)(decoded)
     return logits
 
   def batch_loss(logits: Logits, seq: jax.Array, msk: jax.Array) -> jax.Array:
@@ -577,6 +581,18 @@ def eval_step(
     """Forward pass for a single protein."""
     inference_model = eqx.nn.inference_mode(model)
 
+    # 1. Encode
+    node_features, edge_features, edge_indices = inference_model(
+      key,
+      coords,
+      msk,
+      res_idx,
+      chain_idx,
+      backbone_noise=jnp.array(0.0),
+      structure_mapping=None,
+      initial_node_features=phys_feat,
+    )
+
     if training_mode == "diffusion":
       if noise_schedule is None:
         msg = "noise_schedule required for diffusion evaluation"
@@ -588,28 +604,26 @@ def eval_step(
       noisy_seq, _ = noise_schedule.sample_forward(one_hot_seq, t, noise)
 
       diff_model = cast("DiffusionPrxteinMPNN", inference_model)
-      _, logits = diff_model(
-        coords,
-        msk,
-        res_idx,
-        chain_idx,
-        decoding_approach="diffusion",
-        timestep=t,
-        noisy_sequence=noisy_seq,
-        physics_features=phys_feat,
+      # Inject timestep embedding
+      t_embed = diff_model.t_embed_sin(t)
+      t_embed = diff_model.t_embed_mlp(t_embed)
+      t_embed = t_embed[None, :]
+      node_features = node_features + t_embed
+
+      # Decode
+      decoded = diff_model.decoder.call_conditional(
+          node_features, edge_features, edge_indices, msk, jnp.ones((msk.shape[0], msk.shape[0])), noisy_seq,
+          diff_model.w_s_embed.weight, key=key, inference=True
       )
+      logits = jax.vmap(diff_model.w_out)(decoded)
       return logits
 
-    _, logits = inference_model(
-      coords,
-      msk,
-      res_idx,
-      chain_idx,
-      decoding_approach="unconditional",
-      prng_key=key,
-      backbone_noise=jnp.array(0.0),
-      initial_node_features=phys_feat,
+    # 2. Decode (Unconditional/Conditional)
+    decoded = inference_model.decoder.call_conditional(
+      node_features, edge_features, edge_indices, msk, jnp.ones((msk.shape[0], msk.shape[0])), jax.nn.one_hot(seq, 21),
+      inference_model.w_s_embed.weight, key=key, inference=True
     )
+    logits = jax.vmap(inference_model.w_out)(decoded)
     return logits
 
   logits_batch = jax.vmap(single_forward)(

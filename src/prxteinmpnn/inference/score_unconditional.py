@@ -39,7 +39,9 @@ def kernel(
         chain_index: jax.Array, 
         ligand_y: jax.Array, 
         ligand_y_t: jax.Array, 
-        ligand_y_m: jax.Array
+        ligand_y_m: jax.Array,
+        structure_mapping: jax.Array | None,
+        backbone_noise: jax.Array
     ):
         return model(
             key=k_enc,
@@ -50,27 +52,31 @@ def kernel(
             y=ligand_y,
             y_t=ligand_y_t,
             y_m=ligand_y_m,
+            structure_mapping=structure_mapping,
+            backbone_noise=backbone_noise,
             inference=config.inference,
         )
+
+    noise_stack = jnp.broadcast_to(geo.backbone_noise, (S,))
 
     # Encode
     if config.use_rolling_state:
         # scan over states
         def scan_body(carry: Any, per_state: tuple[jax.Array, ...]):
-            coords, mask, residue_index, chain_index, ligand_y, ligand_y_t, ligand_y_m = per_state
-            h_V, h_E, E_idx = encode_one(coords, mask, residue_index, chain_index, ligand_y, ligand_y_t, ligand_y_m)
+            coords, mask, residue_index, chain_index, ligand_y, ligand_y_t, ligand_y_m, sm, noise = per_state
+            h_V, h_E, E_idx = encode_one(coords, mask, residue_index, chain_index, ligand_y, ligand_y_t, ligand_y_m, sm, noise)
             # Accumulate running stats if needed; for now, simple stack
             return carry, (h_V, h_E, E_idx)
             
         _, (node_b, edge_b, nei_b) = jax.lax.scan(
             scan_body,
             None,
-            (geo.coords, geo.mask, geo.residue_index, geo.chain_index, lig.y, lig.y_t, lig.y_m)
+            (geo.coords, geo.mask, geo.residue_index, geo.chain_index, lig.y, lig.y_t, lig.y_m, geo.structure_mapping, noise_stack)
         )
     else:
         node_b, edge_b, nei_b = jax.vmap(encode_one)(
             geo.coords, geo.mask, geo.residue_index, geo.chain_index,
-            lig.y, lig.y_t, lig.y_m
+            lig.y, lig.y_t, lig.y_m, geo.structure_mapping, noise_stack
         )
 
     # Decode unconditional

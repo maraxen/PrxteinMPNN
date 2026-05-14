@@ -15,7 +15,9 @@ from typing import TYPE_CHECKING
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from jaxtyping import PRNGKeyArray
 
+from prxteinmpnn.model.dropout import Dropout
 from prxteinmpnn.utils.concatenate import concatenate_neighbor_nodes
 
 if TYPE_CHECKING:
@@ -27,7 +29,6 @@ if TYPE_CHECKING:
     NeighborIndices,
     NodeFeatures,
     OneHotProteinSequence,
-    PRNGKeyArray,
   )
 
 # Layer normalization with a standard epsilon
@@ -113,8 +114,8 @@ class DecoderLayer(eqx.Module):
   norm1: LayerNorm
   dense: eqx.nn.MLP  # Use eqx.nn.MLP directly
   norm2: LayerNorm
-  dropout1: eqx.nn.Dropout
-  dropout2: eqx.nn.Dropout
+  dropout1: Dropout
+  dropout2: Dropout
 
   def __init__(
     self,
@@ -147,8 +148,8 @@ class DecoderLayer(eqx.Module):
     """
     keys = jax.random.split(key, 4)
 
-    self.dropout1 = eqx.nn.Dropout(dropout_rate)
-    self.dropout2 = eqx.nn.Dropout(dropout_rate)
+    self.dropout1 = Dropout(dropout_rate)
+    self.dropout2 = Dropout(dropout_rate)
 
     # Input dim is [h_i, e_context]
     mlp_input_dim = node_features + edge_context_features
@@ -240,8 +241,8 @@ class DecoderLayerJ(eqx.Module):
     dense: eqx.nn.MLP
     norm1: eqx.nn.LayerNorm
     norm2: eqx.nn.LayerNorm
-    dropout1: eqx.nn.Dropout
-    dropout2: eqx.nn.Dropout
+    dropout1: Dropout
+    dropout2: Dropout
     scale: float = eqx.field(static=True)
 
     def __init__(
@@ -260,8 +261,8 @@ class DecoderLayerJ(eqx.Module):
         self.dense = eqx.nn.MLP(hidden_dim, hidden_dim, hidden_dim * 4, depth=1, activation=_gelu, key=keys[3])
         self.norm1 = eqx.nn.LayerNorm(hidden_dim)
         self.norm2 = eqx.nn.LayerNorm(hidden_dim)
-        self.dropout1 = eqx.nn.Dropout(dropout)
-        self.dropout2 = eqx.nn.Dropout(dropout)
+        self.dropout1 = Dropout(dropout)
+        self.dropout2 = Dropout(dropout)
         self.scale = scale
 
     def __call__(

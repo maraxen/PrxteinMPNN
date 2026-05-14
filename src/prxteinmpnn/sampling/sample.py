@@ -9,21 +9,11 @@ import jax.numpy as jnp
 from jaxtyping import Float, Int, PRNGKeyArray
 
 from prxteinmpnn.registry import SAMPLERS
-from prxteinmpnn.types.bundles import (
-    ConditioningBundle,
-    GeometryBundle,
-    InferenceBundle,
-    LigandBundle as InferenceLigandBundle,
-    WaveScheduleBundle,
-)
-from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.protocols import ModelProtocol, SamplerFn
+from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.stages import StageSet
-from prxteinmpnn.inference.logits import LOGIT_STRATEGIES, BatchLogitFn
 from prxteinmpnn.inference import sample_autoregressive, optimize_ste
-from prxteinmpnn.registry import (
-  combine_strategy_to_index,
-)
+from prxteinmpnn.host.bundle_builder import build_inference_bundle
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,
@@ -106,60 +96,22 @@ def make_sample_sequences(
       L = structure_coordinates.shape[1] if structure_coordinates.ndim == 4 else structure_coordinates.shape[0]
       S = structure_coordinates.shape[0] if structure_coordinates.ndim == 4 else 1
 
-      # Normalize inputs
-      if structure_coordinates.ndim == 3:
-          structure_coordinates = structure_coordinates[None, ...]
-          mask = mask[None, ...]
-          residue_index = residue_index[None, ...]
-          chain_index = chain_index[None, ...]
-          if tie_group_map is not None:
-              tie_group_map = tie_group_map[None, ...]
-          if y is not None:
-              y = y[None, ...]
-              y_t = y_t[None, ...]
-              y_m = y_m[None, ...]
-
-      geo = GeometryBundle(
+      bundle, config, stage_set = build_inference_bundle(
           coords=structure_coordinates,
           mask=mask,
           residue_index=residue_index,
           chain_index=chain_index,
-          state_flat_rows=jnp.zeros((S, L), dtype=jnp.int32),
-          n_states=S,
-          n_canonical=L,
-          n_flat=L
-      )
-      
-      if state_weights is None:
-          state_weights = jnp.ones(S) / S
-      
-      cond = ConditioningBundle(
-          fixed_mask=fixed_mask if fixed_mask is not None else jnp.zeros(L),
-          fixed_tokens=fixed_tokens if fixed_tokens is not None else jnp.zeros(L, dtype=jnp.int32),
-          bias=bias if bias is not None else jnp.zeros((L, 21)),
-          tie_group_map=tie_group_map if tie_group_map is not None else jnp.broadcast_to(jnp.arange(L)[None, :], (S, L)),
+          backbone_noise=backbone_noise if backbone_noise is not None else 0.0,
+          fixed_mask=fixed_mask,
+          fixed_tokens=fixed_tokens,
+          bias=bias,
+          tie_group_map=tie_group_map,
           state_weights=state_weights,
-          sequence_oh=jnp.zeros((L, 21)), # initial sequence not needed for STE
-          ar_mask=jnp.zeros((S, L, L)) # will be updated in optimize_fn
-      )
-      
-      lig = InferenceLigandBundle(
-          y=y if y is not None else jnp.zeros((S, 0, 4, 3)),
-          y_t=y_t if y_t is not None else jnp.zeros((S, 0, 4), dtype=jnp.int32),
-          y_m=y_m if y_m is not None else jnp.zeros((S, 0, 4))
-      )
-      
-      bundle = InferenceBundle(
-          geometry=geo,
-          conditioning=cond,
-          ligand=lig,
-          wave=WaveScheduleBundle.empty(L)
-      )
-      
-      config = InferenceConfig(
-          mode="score_conditional", # STE uses score_conditional in its loss
+          y=y, y_t=y_t, y_m=y_m,
           temperature=temperature,
-          logit_combine_strategy=combine_strategy_to_index(multi_state_strategy),
+          mode="score_conditional",
+          strategy=multi_state_strategy,
+          strategy_temperature=multi_state_temperature,
           use_rolling_state=use_rolling_state,
           inference=True
       )
@@ -172,7 +124,7 @@ def make_sample_sequences(
           learning_rate, 
           temperature,
           use_rolling_state=use_rolling_state,
-          logit_combine_strategy=config.logit_combine_strategy
+          logit_combine_strategy=multi_state_strategy
       )
       return final_seq, final_logits, jnp.arange(L)
 
@@ -206,102 +158,40 @@ def make_sample_sequences(
       L = structure_coordinates.shape[1] if structure_coordinates.ndim == 4 else structure_coordinates.shape[0]
       S = structure_coordinates.shape[0] if structure_coordinates.ndim == 4 else 1
 
-      if structure_coordinates.ndim == 3:
-          structure_coordinates = structure_coordinates[None, ...]
-          mask = mask[None, ...]
-          residue_index = residue_index[None, ...]
-          chain_index = chain_index[None, ...]
-          if tie_group_map is not None:
-              tie_group_map = tie_group_map[None, ...]
-          if y is not None:
-              y = y[None, ...]
-              y_t = y_t[None, ...]
-              y_m = y_m[None, ...]
-
-      geo = GeometryBundle(
-          coords=structure_coordinates,
-          mask=mask,
-          residue_index=residue_index,
-          chain_index=chain_index,
-          state_flat_rows=jnp.zeros((S, L), dtype=jnp.int32),
-          n_states=S,
-          n_canonical=L,
-          n_flat=L
-      )
-      
-      if state_weights is None:
-          state_weights = jnp.ones(S) / S
-      
-      if tie_group_map is None:
-          tie_group_map = jnp.broadcast_to(jnp.arange(L)[None, :], (S, L))
-
-      # For AR sampling, we need a decoding order to build the ar_mask stack
-      # and wave schedule.
       k_order, prng_key = jax.random.split(prng_key)
-      decoding_order, _ = decoding_order_fn(k_order, L, None, None) # simplified
-      
-      # For now, we use a sequential wave schedule for simplicity
-      # but in a more advanced implementation, we'd use the decoding order.
-      # WaveScheduleBundle.empty(L) gives a sequential 1-at-a-time schedule.
-      
+      decoding_order, _ = decoding_order_fn(k_order, L, None, None)
+
       from prxteinmpnn.utils.autoregression import generate_ar_mask
       ar_mask_single = generate_ar_mask(
           decoding_order if decoding_order is not None else jnp.arange(L),
           tie_group_map=tie_group_map[0] if tie_group_map is not None else None,
           num_groups=jnp.max(tie_group_map) + 1 if tie_group_map is not None else None
       )
-      # Broadcast to S states
-      ar_mask = jnp.broadcast_to(ar_mask_single[None, ...], (S, L, L))
-
-      cond = ConditioningBundle(
-          fixed_mask=fixed_mask if fixed_mask is not None else jnp.zeros(L),
-          fixed_tokens=fixed_tokens if fixed_tokens is not None else jnp.zeros(L, dtype=jnp.int32),
-          bias=bias if bias is not None else jnp.zeros((L, 21)),
-          tie_group_map=tie_group_map if tie_group_map is not None else jnp.broadcast_to(jnp.arange(L)[None, :], (S, L)),
+      
+      bundle, config, stage_set = build_inference_bundle(
+          coords=structure_coordinates,
+          mask=mask,
+          residue_index=residue_index,
+          chain_index=chain_index,
+          backbone_noise=backbone_noise if backbone_noise is not None else 0.0,
+          fixed_mask=fixed_mask,
+          fixed_tokens=fixed_tokens,
+          bias=bias,
+          tie_group_map=tie_group_map,
           state_weights=state_weights,
-          sequence_oh=jnp.zeros((L, 21)), 
-          ar_mask=ar_mask
-      )
-      
-      lig = InferenceLigandBundle(
-          y=y if y is not None else jnp.zeros((S, 0, 4, 3)),
-          y_t=y_t if y_t is not None else jnp.zeros((S, 0, 4), dtype=jnp.int32),
-          y_m=y_m if y_m is not None else jnp.zeros((S, 0, 4))
-      )
-      
-      bundle = InferenceBundle(
-          geometry=geo,
-          conditioning=cond,
-          ligand=lig,
-          wave=WaveScheduleBundle.empty(L)
-      )
-      
-      config = InferenceConfig(
-          mode="sample_ar",
+          ar_mask=ar_mask_single,
+          y=y, y_t=y_t, y_m=y_m,
           temperature=temperature,
-          logit_combine_strategy=combine_strategy_to_index(multi_state_strategy),
+          mode="sample_ar",
+          strategy=multi_state_strategy,
+          strategy_temperature=multi_state_temperature,
           use_rolling_state=use_rolling_state,
           inference=True
       )
       
-      # Map combining strategy to the appropriate StageSet/LogitTransformFn
-      strategy_cls = LOGIT_STRATEGIES.get(multi_state_strategy)
-      if multi_state_strategy == "geometric_mean":
-          logit_transform = strategy_cls(cond.state_weights, temperature=multi_state_temperature)
-      else:
-          logit_transform = strategy_cls(cond.state_weights)
-          
-      stage_set = StageSet(logit_transform=logit_transform)
+      result = sample_autoregressive.kernel(model, prng_key, bundle, config, stage_set)
       
-      result_bundle = sample_autoregressive.kernel(model, prng_key, bundle, config, stage_set)
-      sampled_seq_oh = result_bundle.conditioning.sequence_oh
-      sampled_seq = jnp.argmax(sampled_seq_oh, axis=-1)
-      
-      # We return (sequence, logits, decoding_order)
-      # For sampled_seq, logits are not immediately available from the kernel 
-      # (it returns the final sequence). If we need logits, we'd have to re-score.
-      # For now, return zero logits as a placeholder if not provided by kernel.
-      return sampled_seq.astype(jnp.int8), jnp.zeros((L, 21)), decoding_order
+      return result.sequence.astype(jnp.int8), result.logits, decoding_order
 
     return cast("SamplerFn", sample_sequences)
 

@@ -28,7 +28,9 @@ from prxteinmpnn.types.bundles import (
     InferenceBundle,
 )
 from prxteinmpnn.host._sampling_averaged import _sample_batch_averaged
-from prxteinmpnn.inference.sample_autoregressive import kernel as sample_ar_kernel
+from prxteinmpnn.host.bundle_builder import build_inference_bundle
+from prxteinmpnn.inference import sample_autoregressive as sample_ar
+from prxteinmpnn.inference import score_conditional
 from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.stages import StageSet
 from prxteinmpnn.inference._combine import ArithmeticMeanLogits
@@ -133,75 +135,41 @@ def _sample_batch(
   structure_batch_count: int = -1,
   emit_structure_batch_io: bool = True,
 ) -> tuple[ProteinSequence, Logits, jax.Array | None]:
-  """Sample sequences for a batched ensemble of proteins."""
-  _plan = _make_sampling_planner(spec)
-  _plan.log_summary()
-  if _plan.exceeded_budget():
-    _batch_logger.warning(
-      "_sample_batch: BatchPlan exceeded budget even at minimum tiles. "
-      "Consider reducing batch sizes or enabling PR-C safe_map adoption.",
-    )
+  # 1. Plan batching
+  plan = _make_sampling_planner(spec)
+  plan.log_summary()
 
+  structures_bs = plan.decision_for("n_structures").batch_size
+  samples_bs = plan.decision_for("n_samples").batch_size
+  temps_bs = plan.decision_for("n_temperatures").batch_size
+  noises_bs = plan.decision_for("n_noises").batch_size
+
+  # 2. Resolve Grids
   grid_lineage = _resolve_grid_lineage(spec)
   base_key = _base_sampling_key(spec, grid_lineage=grid_lineage)
-  default_num_samples = (
-    int(grid_lineage["sample_count"]) if grid_lineage is not None else int(spec.num_samples)
-  )
+  
   target_num_samples = (
-    int(chunk_sample_count) if chunk_sample_count is not None else default_num_samples
+    int(chunk_sample_count) if chunk_sample_count is not None 
+    else (int(grid_lineage["sample_count"]) if grid_lineage is not None else int(spec.num_samples))
   )
+  
+  noises = jnp.asarray(spec.backbone_noise)
+  temperatures = jnp.asarray(spec.temperature)
+  
   if target_num_samples <= 0:
     msg = "num_samples must be positive."
     raise ValueError(msg)
-  chunk_size = (
-    target_num_samples
-    if chunk_sample_count is not None
-    else (spec.samples_chunk_size or target_num_samples)
-  )
-  if chunk_size <= 0:
-    msg = "samples_chunk_size must be positive when provided."
-    raise ValueError(msg)
 
   seq_len = batched_ensemble.coordinates.shape[1]
   batch_size = batched_ensemble.coordinates.shape[0]
-
-  # Prep base geometry bundle
-  backbone = GeometryBundle(
-    coords=jnp.asarray(batched_ensemble.coordinates),
-    mask=jnp.asarray(batched_ensemble.mask),
-    residue_index=jnp.asarray(batched_ensemble.residue_index),
-    chain_index=jnp.asarray(batched_ensemble.chain_index),
-    state_flat_rows=jnp.arange(seq_len)[None, :], # single state mapping
-    n_states=1,
-    n_canonical=seq_len,
-    n_flat=seq_len
-  )
-
-  # Prep conditioning (fixed tokens, bias, etc.)
-  fixed_mask_v, fixed_tokens_v = _prepare_fixed_controls(spec, batched_ensemble=batched_ensemble)
-  conditioning = ConditioningBundle(
-    fixed_mask=jnp.asarray(fixed_mask_v),
-    fixed_tokens=jnp.asarray(fixed_tokens_v),
-    bias=jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else jnp.zeros((seq_len, 21)),
-    tie_group_map=jnp.zeros((1, seq_len), dtype=jnp.int32), # Placeholder until resolve_tie_groups
-    state_weights=jnp.ones(1, dtype=jnp.float32),
-    sequence_oh=jnp.zeros((seq_len, 21), dtype=jnp.float32),
-    ar_mask=jnp.ones((1, seq_len, seq_len), dtype=jnp.float32), # full visibility for conditional
-  )
 
   # Ensure tie_group_map and mapping have batch dimensions for vmap.
-  batch_size = batched_ensemble.coordinates.shape[0]
-  seq_len = batched_ensemble.coordinates.shape[1]
-
   tie_map_for_vmap = None
-  if tie_group_map is not None:
-    if tie_group_map.ndim == 1:
-      tie_map_for_vmap = jnp.broadcast_to(
-        jnp.atleast_2d(tie_group_map),
-        (batch_size, tie_group_map.shape[0]),
-      )
-    else:
-      tie_map_for_vmap = tie_group_map
+  if spec.tie_group_map is not None:
+    tie_map_for_vmap = jnp.broadcast_to(
+      jnp.atleast_2d(spec.tie_group_map),
+      (batch_size, spec.tie_group_map.shape[0]),
+    )
 
   mapping_for_vmap = (
     jnp.asarray(spec.structure_mapping, dtype=jnp.int32)
@@ -233,104 +201,80 @@ def _sample_batch(
     jnp.asarray(spec.state_weights, dtype=jnp.float32) if spec.state_weights is not None else None
   )
 
-  # Prep ligand and wave bundles (empty placeholders for now)
-  ligand = LigandBundle(
-    y=jnp.zeros((1, 0, 0, 3)),
-    y_t=jnp.zeros((1, 0, 0), dtype=jnp.int32),
-    y_m=jnp.zeros((1, 0, 0))
-  )
-  wave = WaveScheduleBundle.empty(seq_len)
+  # 3. Inner Kernel Closure (Single Structure, Single Noise, Single Temp)
+  def _call_kernel(key_samples, structure_idx, noise_val, temp_val):
+      # Extract single structure from batch
+      c = batched_ensemble.coordinates[structure_idx]
+      m = batched_ensemble.mask[structure_idx]
+      ri = batched_ensemble.residue_index[structure_idx]
+      ci = batched_ensemble.chain_index[structure_idx]
+      
+      # Prepare controls
+      fm = fixed_mask_for_vmap[structure_idx]
+      ft = fixed_tokens_for_vmap[structure_idx]
+      
+      # Build bundle
+      bundle, config, stage_set = build_inference_bundle(
+          coords=c, mask=m, residue_index=ri, chain_index=ci,
+          backbone_noise=noise_val,
+          fixed_mask=fm, fixed_tokens=ft,
+          bias=jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
+          tie_group_map=tie_map_for_vmap[structure_idx] if tie_map_for_vmap is not None else None,
+          state_weights=state_weights,
+          y=ligand_context["y"][structure_idx] if ligand_context["y"] is not None else None,
+          y_t=ligand_context["y_t"][structure_idx] if ligand_context["y_t"] is not None else None,
+          y_m=ligand_context["y_m"][structure_idx] if ligand_context["y_m"] is not None else None,
+          structure_mapping=mapping_for_vmap[structure_idx] if mapping_for_vmap is not None else None,
+          temperature=temp_val,
+          mode="sample_ar",
+          strategy=spec.multi_state_strategy or "arithmetic_mean",
+          strategy_temperature=spec.multi_state_temperature or 1.0,
+          use_rolling_state=spec.use_rolling_state,
+          inference=True
+      )
 
-  # Prep config and stages
-  inference_config = InferenceConfig(
-    mode="sample_ar",
-    temperature=float(spec.temperature[0]) if spec.temperature else 1.0,
-  )
-  stage_set = StageSet(
-    logit_transform=ArithmeticMeanLogits(weights=jnp.ones(1))
-  )
+      # Map over samples
+      def _run_one_sample(k):
+          res = sample_ar.kernel(model, k, bundle, config, stage_set)
+          return res.sequence, res.logits
+      
+      return _safe_map(_run_one_sample, key_samples, batch_size=samples_bs)
 
-  def _call_one_structure(key_batch):
-    # Construct unified bundle
-    bundle = InferenceBundle(
-      geometry=backbone,
-      conditioning=conditioning,
-      ligand=ligand,
-      wave=wave
-    )
-    # Pass through to the new kernel
-    return sample_ar_kernel(
-        model=model,
-        prng_key=key_batch,
-        bundle=bundle,
-        config=inference_config,
-        stage_set=stage_set
-    )
+  # 4. Nested Dispatch (Structures -> Noises -> Temps)
+  # We use a combined key generation strategy
+  sample_indices = np.arange(target_num_samples, dtype=np.int32)
+  if chunk_sample_start is not None:
+      sample_indices += int(chunk_sample_start)
+  elif grid_lineage is not None:
+      sample_indices += int(grid_lineage["sample_start"])
 
-  _structures_bs = _plan.decision_for("n_structures").batch_size
+  # Generate keys for (samples)
+  sample_keys = jax.vmap(lambda idx: jax.random.fold_in(base_key, idx))(sample_indices)
 
-  sequence_chunks: list[jax.Array] = []
-  logit_chunks: list[jax.Array] = []
-  total_chunks = (target_num_samples + chunk_size - 1) // chunk_size
-  default_sample_offset = int(grid_lineage["sample_start"]) if grid_lineage is not None else 0
-  sample_offset = (
-    int(chunk_sample_start) if chunk_sample_start is not None else default_sample_offset
-  )
+  def _dispatch_structure(s_idx):
+      def _dispatch_noise(n_val):
+          def _dispatch_temp(t_val):
+              return _call_kernel(sample_keys, s_idx, n_val, t_val)
+          
+          return _safe_map(_dispatch_temp, temperatures, batch_size=temps_bs)
+      
+      return _safe_map(_dispatch_noise, noises, batch_size=noises_bs)
 
-  # Pre-compute all keys at once using vmap to avoid tracer leakage in Python loop.
-  # This ensures fold_in is fully untraced and vectorized, then chunked deterministically by slicing.
-  # Uses eager numpy indices to prevent tracer escape during vmap.
-  all_sample_indices = np.arange(
-    sample_offset,
-    sample_offset + target_num_samples,
-    dtype=np.int32,
-  )
-  all_keys = jax.vmap(lambda idx: jax.random.fold_in(base_key, idx))(all_sample_indices)
-
-  for chunk_iter in range(total_chunks):
-    chunk_start = chunk_iter * chunk_size
-    chunk_count = min(chunk_size, target_num_samples - chunk_start)
-    # Slice pre-computed keys instead of generating them in the loop.
-    keys = all_keys[chunk_start : chunk_start + chunk_count]
-
-    chunk_sequences, chunk_logits, _ = _safe_map(
-      _call_one_structure,
-      keys, # Vmap over keys instead of loose structure args
-      batch_size=_structures_bs,
-    )
-
-    chunk_idx = jnp.asarray(chunk_iter, dtype=jnp.int32)
-    chunk_cnt = jnp.asarray(chunk_count, dtype=jnp.int32)
-    jax.experimental.io_callback(
-      _noop_sampling_chunk_io,
-      None,
-      jax.lax.stop_gradient(chunk_idx),
-      jax.lax.stop_gradient(chunk_cnt),
-      ordered=False,
-    )
-    sequence_chunks.append(chunk_sequences)
-    logit_chunks.append(chunk_logits)
-
-  StreamingBatchHost.sink_barrier()
-  sampled_sequences = jnp.concatenate(sequence_chunks, axis=1)
-  sampled_logits = jnp.concatenate(logit_chunks, axis=1)
-
-  batch_idx_j = jnp.asarray(batch_idx, dtype=jnp.int32)
-  batch_cnt_j = jnp.asarray(structure_batch_count, dtype=jnp.int32)
-  io_chunk_start_j = jnp.asarray(sample_offset, dtype=jnp.int32)
-  io_chunk_count_j = jnp.asarray(target_num_samples, dtype=jnp.int32)
-  jax.experimental.io_callback(
-    _dispatch_sampling_tensor_batch_io,
-    None,
-    jax.lax.stop_gradient(batch_idx_j),
-    jax.lax.stop_gradient(batch_cnt_j),
-    jax.lax.stop_gradient(io_chunk_start_j),
-    jax.lax.stop_gradient(io_chunk_count_j),
-    jax.lax.stop_gradient(sampled_sequences),
-    jax.lax.stop_gradient(sampled_logits),
-    ordered=False,
+  # Final batch map over structures
+  # results: (batch, noise, temp, samples, seq_len)
+  # logits: (batch, noise, temp, samples, seq_len, 21)
+  sampled_sequences, sampled_logits = _safe_map(
+      _dispatch_structure, 
+      jnp.arange(batch_size), 
+      batch_size=structures_bs
   )
 
+  # 5. Post-process (transpose to expected output shape: [batch, samples, noise, temp, seq_len])
+  # current: [B, D, T, N, L] -> desired: [B, N, D, T, L]
+  sampled_sequences = jnp.transpose(sampled_sequences, (0, 3, 1, 2, 4))
+  sampled_logits = jnp.transpose(sampled_logits, (0, 3, 1, 2, 4, 5))
+
+  # 6. IO & Metadata
   if spec.compute_pseudo_perplexity:
     one_hot_sequences = jax.nn.one_hot(sampled_sequences, num_classes=21)
     log_probs = jax.nn.log_softmax(sampled_logits, axis=-1)
@@ -338,8 +282,11 @@ def _sample_batch(
     mask = batched_ensemble.mask
     if mask is None:
       mask = jnp.ones(batched_ensemble.coordinates.shape[:2], dtype=jnp.float32)
-    pseudo_perplexity = jnp.exp(nll / jnp.sum(mask, axis=-1))
+    # mask is [B, L], nll is [B, N, D, T]
+    # sum(mask, axis=-1) is [B]
+    pseudo_perplexity = jnp.exp(nll / jnp.sum(mask, axis=-1)[:, None, None, None])
     return sampled_sequences, sampled_logits, pseudo_perplexity
+  
   return sampled_sequences, sampled_logits, None
 
 

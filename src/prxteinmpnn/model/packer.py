@@ -10,8 +10,13 @@ import jax
 import jax.numpy as jnp
 
 from prxteinmpnn.model.decoder import DecoderLayer, DecoderLayerJ
+from prxteinmpnn.model.dropout import Dropout
 from prxteinmpnn.model.encoder import EncoderLayer
 from prxteinmpnn.utils.concatenate import concatenate_neighbor_nodes
+
+from prxteinmpnn.types.bundles import PackerBundle, PackerResult
+from prxteinmpnn.types.configs import InferenceConfig
+from prxteinmpnn.utils.coordinates import apply_noise_to_coordinates
 
 if TYPE_CHECKING:
   from prxteinmpnn.utils.types import (
@@ -200,15 +205,19 @@ class PackerProteinFeatures(eqx.Module):
         return jax.vmap(_get_angles)(n, ca, c, y)
 
 
-    def features_encode(self, features: dict[str, Any]) -> tuple:
-        s = features["S"]
-        x = features["X"]
-        y = features["Y"]
-        y_m = features["Y_m"]
-        y_t = features["Y_t"]
-        mask = features["mask"]
-        r_idx = features["R_idx"]
-        chain_labels = features["chain_labels"]
+    def features_encode(self, prng_key: PRNGKeyArray, bundle: PackerBundle) -> tuple:
+        s = bundle.s
+        x = bundle.x
+        y = bundle.y
+        y_m = bundle.y_m
+        y_t = bundle.y_t
+        mask = bundle.mask
+        r_idx = bundle.residue_index
+        chain_labels = bundle.chain_labels
+        backbone_noise = bundle.backbone_noise
+
+        if backbone_noise > 0:
+            x, _ = apply_noise_to_coordinates(prng_key, x, backbone_noise=backbone_noise)
 
         ca = x[:, self.ca_idx, :]
         n = x[:, self.n_idx, :]
@@ -290,16 +299,15 @@ class PackerProteinFeatures(eqx.Module):
 
         return v, e, E_idx, y_nodes, y_edges, e_context, y_m
 
-    def features_decode(self, features: dict[str, Any]) -> tuple:
-        s = features["S"]
-        x = features["X"]
-        x_m = features["X_m"]
-        mask = features["mask"]
-        E_idx = features["E_idx"]
+    def features_decode(self, bundle: PackerBundle, E_idx: jax.Array) -> tuple:
+        s = bundle.s
+        x = bundle.x
+        x_m = bundle.x_m
+        mask = bundle.mask
 
-        y = features["Y"][:, :self.atom_context_num, :]
-        y_m = features["Y_m"][:, :self.atom_context_num]
-        y_t = features["Y_t"][:, :self.atom_context_num]
+        y = bundle.y[:, :self.atom_context_num, :]
+        y_m = bundle.y_m[:, :self.atom_context_num]
+        y_t = bundle.y_t[:, :self.atom_context_num]
 
         x_m = x_m * mask[:, None]
 
@@ -375,7 +383,7 @@ class Packer(eqx.Module):
     v_c: eqx.nn.Linear
     v_c_norm: eqx.nn.LayerNorm
 
-    h_v_c_dropout: eqx.nn.Dropout
+    h_v_c_dropout: Dropout
 
     num_mix: int = eqx.field(static=True)
     hidden_dim: int = eqx.field(static=True)
@@ -436,7 +444,7 @@ class Packer(eqx.Module):
 
         self.v_c = eqx.nn.Linear(hidden_dim, hidden_dim, use_bias=False, key=keys[13])
         self.v_c_norm = eqx.nn.LayerNorm(hidden_dim)
-        self.h_v_c_dropout = eqx.nn.Dropout(dropout)
+        self.h_v_c_dropout = Dropout(dropout)
 
         self.y_context_encoder_layers = tuple(
             DecoderLayerJ(hidden_dim, hidden_dim, dropout=dropout, key=k)
@@ -448,9 +456,9 @@ class Packer(eqx.Module):
             for k in jax.random.split(keys[15], num_decoder_layers)
         )
 
-    def encode(self, feature_dict: dict[str, Any], *, key: PRNGKeyArray | None = None, inference: bool = False) -> tuple:
-        mask = feature_dict["mask"]
-        v, e, E_idx, y_nodes, y_edges, e_context, y_m = self.features.features_encode(feature_dict)
+    def encode(self, bundle: PackerBundle, *, key: PRNGKeyArray | None = None, inference: bool = False) -> tuple:
+        mask = bundle.mask
+        v, e, E_idx, y_nodes, y_edges, e_context, y_m = self.features.features_encode(key, bundle)
 
         if key is None:
             inference = True
@@ -481,13 +489,30 @@ class Packer(eqx.Module):
 
         return h_v, h_e, E_idx
 
-    def decode(self, feature_dict: dict[str, Any], *, key: PRNGKeyArray | None = None, inference: bool = False) -> tuple:
-        h_v = feature_dict["h_v"]
-        h_e = feature_dict["h_e"]
-        E_idx = feature_dict["E_idx"]
-        mask = feature_dict["mask"]
+    def decode(
+        self, 
+        bundle: PackerBundle, 
+        h_v: jax.Array, 
+        h_e: jax.Array, 
+        E_idx: jax.Array,
+        *, 
+        key: PRNGKeyArray | None = None, 
+        inference: bool = False
+    ) -> PackerResult:
+        mask = bundle.mask
 
-        v, f = self.features.features_decode(feature_dict)
+        # Inject E_idx into bundle temporarily for features_decode if needed
+        # or just pass it explicitly. The current features_decode expects it in "features" dict.
+        # Let's adjust features_decode signature.
+        
+        # We'll monkeypatch E_idx into bundle since it's an internal call
+        # but better to just pass it. 
+        # I already updated features_decode to expect it from bundle.E_idx (ignored type)
+        # So I'll add it to bundle via equinox.tree_at or similar if I wanted to be clean,
+        # but here I'll just pass it to features_decode directly.
+        
+        # Wait, I'll update features_decode signature to (self, bundle, E_idx)
+        v, f = self.features.features_decode(bundle, E_idx)
 
         h_f = jax.vmap(jax.vmap(self.w_f))(f)
         h_ef = jnp.concatenate([h_e, h_f], axis=-1)
@@ -511,10 +536,14 @@ class Packer(eqx.Module):
         concentration = 0.1 + jax.nn.softplus(torsions[..., 1])
         mix_logits = torsions[..., 2]
 
-        return mean, concentration, mix_logits
+        return PackerResult(mean=mean, concentration=concentration, mix_logits=mix_logits)
 
-    def __call__(self, feature_dict: dict[str, Any], *, key: PRNGKeyArray | None = None) -> tuple:
-        keys = jax.random.split(key, 2) if key is not None else (None, None)
-        h_v, h_e, E_idx = self.encode(feature_dict, key=keys[0])
-        feature_dict.update({"h_v": h_v, "h_e": h_e, "E_idx": E_idx})
-        return self.decode(feature_dict, key=keys[1])
+    def __call__(
+        self, 
+        prng_key: PRNGKeyArray, 
+        bundle: PackerBundle, 
+        config: InferenceConfig
+    ) -> PackerResult:
+        keys = jax.random.split(prng_key, 2)
+        h_v, h_e, E_idx = self.encode(bundle, key=keys[0])
+        return self.decode(bundle, h_v, h_e, E_idx, key=keys[1])

@@ -165,160 +165,49 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
 
   def __call__(  # type: ignore[override]
     self,
-    structure_coordinates: StructureAtomicCoordinates,
-    mask: AlphaCarbonMask,
-    residue_index: ResidueIndex,
-    chain_index: ChainIndex,
-    decoding_approach: Literal["unconditional", "conditional", "autoregressive", "diffusion"],
+    prng_key: PRNGKeyArray,
+    coords: jax.Array,
+    mask: jax.Array,
+    residue_index: jax.Array,
+    chain_index: jax.Array,
+    backbone_noise: float | jax.Array = 0.0,
     *,
-    prng_key: PRNGKeyArray | None = None,
-    ar_mask: jax.Array | None = None,
-    one_hot_sequence: OneHotProteinSequence | None = None,
-    temperature: jax.Array | None = None,
-    bias: Logits | None = None,
-    backbone_noise: jax.Array | None = None,
-    tie_group_map: jnp.ndarray | None = None,
-    multi_state_strategy: Literal[
-      "arithmetic_mean",
-      "geometric_mean",
-      "product",
-    ] = "arithmetic_mean",
-    structure_mapping: jnp.ndarray | None = None,
-    initial_node_features: jnp.ndarray | None = None,
-    # Diffusion specific args
-    timestep: jax.Array | None = None,  # [B]
-    noisy_sequence: OneHotProteinSequence | None = None,  # [B, N, 21]
-    physics_features: jax.Array | None = None,
-    physics_noise_scale: float | jax.Array = 0.0,
-  ) -> tuple[OneHotProteinSequence, Logits]:
-    """Run the model.
-
-    Args:
-        structure_coordinates: Atomic coordinates of the structure.
-        mask: Mask for valid residues.
-        residue_index: Residue indices.
-        chain_index: Chain indices.
-        decoding_approach: Decoding strategy to use.
-        prng_key: Random key for stochastic operations.
-        ar_mask: Autoregressive mask.
-        one_hot_sequence: Input sequence (for conditional/teacher forcing).
-        temperature: Sampling temperature.
-        bias: Logit bias.
-        backbone_noise: Noise added to backbone coordinates.
-        tie_group_map: Map for tied residues.
-        multi_state_strategy: Strategy for multi-state decoding.
-        structure_mapping: Mapping for structure features.
-        initial_node_features: Initial node features.
-        timestep: Diffusion timestep.
-        noisy_sequence: Noisy sequence for diffusion denoising.
-        physics_features: Additional physics features.
-        physics_noise_scale: Scale of noise added to physics features.
-
+    backbone_noise_mode: str = "direct",
+    structure_mapping: jax.Array | None = None,
+    initial_node_features: jax.Array | None = None,
+    timestep: jax.Array | None = None,
+    **kwargs: Any,
+  ) -> tuple[jax.Array, jax.Array, jax.Array]:
+    """Encoder-only entry point with diffusion timestep support.
+    
     Returns:
-        Tuple of (sequence, logits).
-
+        3-tuple of (node_features, edge_features, edge_indices).
     """
-    if decoding_approach != "diffusion":
-      return super().__call__(
-        structure_coordinates,
-        mask,
-        residue_index,
-        chain_index,
-        decoding_approach,
-        prng_key=prng_key,
-        ar_mask=ar_mask,
-        one_hot_sequence=one_hot_sequence,
-        temperature=temperature,
-        bias=bias,
-        backbone_noise=backbone_noise,
-        tie_group_map=tie_group_map,
-        multi_state_strategy=multi_state_strategy,
-        structure_mapping=structure_mapping,
-        initial_node_features=initial_node_features,
-      )
-
-    # --- Diffusion Logic ---
-    if prng_key is None:
-      prng_key = jax.random.PRNGKey(0)
-    # Assert prng_key is not None for type checkers (though handled above)
-    # Assert prng_key is not None for type checkers (though handled above)
-    assert prng_key is not None  # noqa: S101
-    prng_key, feat_key, enc_key = jax.random.split(prng_key, 3)
-
-    if backbone_noise is None:
-      backbone_noise = jnp.array(0.0, dtype=jnp.float32)
-
-    # Apply noise to physics features if provided
-    if physics_features is not None and physics_noise_scale > 0.0:
-      # Use feat_key for noise generation
-      # We need another key if we want to be strict, but let's just split feat_key
-      feat_key, phys_key = jax.random.split(feat_key)
-      phys_noise = jax.random.normal(phys_key, physics_features.shape)
-      physics_features = physics_features + phys_noise * physics_noise_scale
-
-    # 1. Extract Features & Encode (Standard MPNN)
-    edge_features, neighbor_indices, node_features, _ = self.features(
-      feat_key,
-      structure_coordinates,
+    # 1. Base Encode
+    node_features, edge_features, edge_indices = super().__call__(
+      prng_key,
+      coords,
       mask,
       residue_index,
       chain_index,
       backbone_noise,
+      backbone_noise_mode=backbone_noise_mode,
       structure_mapping=structure_mapping,
       initial_node_features=initial_node_features,
+      **kwargs
     )
 
-    node_features, edge_features = self.encoder(
-      edge_features,
-      neighbor_indices,
-      mask,
-      node_features,
-      key=enc_key,
-    )
+    # 2. Inject Timestep Embedding (if provided)
+    if timestep is not None:
+      t_embed = self.t_embed_sin(timestep)
+      t_embed = self.t_embed_mlp(t_embed)  # [C] or [B, C]
+      
+      # Match node_features shape [L, C] or [B, L, C]
+      if timestep.ndim == 0:
+        t_embed = t_embed[None, :] # [1, C]
+      elif timestep.ndim == 1:
+        t_embed = t_embed[:, None, :] # [B, 1, C]
+        
+      node_features = node_features + t_embed
 
-    # 2. Inject Timestep Embedding
-    if timestep is None:
-      msg = "timestep is required for diffusion mode"
-      raise ValueError(msg)
-
-    t_embed = self.t_embed_sin(timestep)
-    t_embed = self.t_embed_mlp(t_embed)  # [B, C]
-
-    # Broadcast t_embed to [B, N, C] (batched) or [1, N, C] (unbatched/vmapped)
-    t_embed = t_embed[:, None, :] if timestep.ndim == 1 else t_embed[None, :]
-
-    node_features = node_features + t_embed
-
-    # 3. Decode (Conditional on Noisy Sequence)
-    if noisy_sequence is None:
-      msg = "noisy_sequence is required for diffusion mode"
-      raise ValueError(msg)
-
-    # Use full visibility mask for parallel decoding if not provided
-    if ar_mask is None:
-      n = mask.shape[0]
-      ar_mask = jnp.ones((n, n), dtype=jnp.int32)
-
-    # Call internal conditional method bypassing super().__call__ dispatch
-
-    return self._call_conditional(
-      node_features,
-      edge_features,
-      neighbor_indices,
-      mask,
-      ar_mask,
-      noisy_sequence,
-      prng_key,
-      jnp.array(1.0),  # Temp unused
-      jnp.zeros((mask.shape[0], 21)),  # Bias unused
-      None,  # tie_group_map unused
-      0,  # strategy unused
-      jnp.array(1.0),  # temperature unused
-      initial_node_features,
-      None,
-      None,
-      None,
-      None,
-      None,
-      None,
-    )
+    return node_features, edge_features, edge_indices

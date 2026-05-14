@@ -109,7 +109,7 @@
     {
       "id": "converted-proteinmpnn-020",
       "base": "project",
-      "path": "src/prxteinmpnn/model_params/proteinmpnn_v_48_020.eqx.zst",
+      "path": "model_params/proteinmpnn_v_48_020.eqx.zst",
       "sha256": null,
       "required_for": [
         "parity_heavy",

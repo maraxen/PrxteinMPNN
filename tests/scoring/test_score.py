@@ -18,48 +18,41 @@ def mock_model() -> PrxteinMPNN:
     model_mock = MagicMock(spec=PrxteinMPNN)
 
     def mock_call_impl(
-        structure_coordinates,
+        key,
+        coords,
         mask,
         residue_index,
         chain_index,
-        decoding_approach,
-        prng_key,
-        ar_mask,
-        one_hot_sequence,
-        temperature=None,
-        bias=None,
         backbone_noise=None,
-        structure_mapping=None,
-        tie_group_map=None,
-        multi_state_strategy="arithmetic_mean",
-        multi_state_temperature=1.0,
+        **kwargs
     ):
         del (
-            structure_coordinates,
+            coords,
             mask,
             residue_index,
             chain_index,
-            decoding_approach,
-            ar_mask,
-            one_hot_sequence,
-            temperature,
-            bias,
             backbone_noise,
-            structure_mapping,
-            tie_group_map,
-            multi_state_strategy,
-            multi_state_temperature,
+            kwargs
         )
-        # Using a dynamic shape from the input tracer (structure_coordinates.shape[0])
-        # inside the mock's side_effect causes a ConcretizationTypeError during JIT.
-        # We hardcode the residue count because the '1ubq.pdb' fixture is static.
         n_residues = 76
-        logits = jax.random.uniform(
-            prng_key, shape=(n_residues, 21), dtype=jnp.float32,
-        )
-        return None, logits
+        h_V = jnp.zeros((n_residues, 128))
+        h_E = jnp.zeros((n_residues, 48, 128))
+        E_idx = jnp.zeros((n_residues, 48), dtype=jnp.int32)
+        return h_V, h_E, E_idx
 
     model_mock.side_effect = mock_call_impl
+    
+    # Mock decoder
+    model_mock.decoder = MagicMock()
+    model_mock.decoder.call_conditional.side_effect = lambda nb, eb, i, m, a, oh, w, **kw: jnp.zeros((nb.shape[0], 128))
+    
+    # Mock projections
+    model_mock.w_out = MagicMock()
+    model_mock.w_out.side_effect = lambda x: jnp.zeros(21)
+    
+    model_mock.w_s_embed = MagicMock()
+    model_mock.w_s_embed.weight = jnp.zeros((21, 128))
+    
     return model_mock
 
 

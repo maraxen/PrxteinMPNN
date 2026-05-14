@@ -145,7 +145,7 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
   @classmethod
   def stage_schema(cls) -> dict[str, type | None]:
     """Returns {stage_name: type_alias} for this Diffusion MPNN variant."""
-    from prxteinmpnn.model_inputs import (
+    from prxteinmpnn.types.stages import (
       ARLogitTransformFn,
       ConditionalDecodeFn,
       FeaturizeFn,

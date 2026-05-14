@@ -23,42 +23,20 @@ def get_decoding_step_map(
   group_decoding_order: jnp.ndarray,
   num_groups: int | None = None,
 ) -> jnp.ndarray:
-  """Map each residue to its decoding step index based on group order.
-
-  Args:
-    tie_group_map: (N,) array of group ids in range [0, num_groups-1].
-    group_decoding_order: (M,) array, permutation of group ids [0, ..., M-1].
-    num_groups: Number of unique groups. If not provided, inferred from
-        group_decoding_order length.
-
-  Returns:
-    decoding_step_map: (N,) array, decoding step for each residue.
-
-  """
-  if num_groups is None:
-    num_groups = len(group_decoding_order)
+  """Map each residue to its decoding step index based on group order."""
+  # Use N as a safe upper bound for num_groups if not provided
+  N = tie_group_map.shape[0]
+  M = group_decoding_order.shape[0]
+  
   group_to_step = (
-    jnp.zeros(num_groups, dtype=jnp.int32)
-    .at[group_decoding_order]
-    .set(jnp.arange(len(group_decoding_order)))
+    jnp.zeros(N, dtype=jnp.int32)
+    .at[group_decoding_order].set(jnp.arange(M))
   )
   return group_to_step[tie_group_map]
 
 
 def make_autoregressive_mask(decoding_step_map: jnp.ndarray) -> jnp.ndarray:
-  """Create an (N, N) AR mask for group-based decoding.
-
-  Positions at step i can attend to all positions at steps <= i.
-  This allows positions in the same group (same step) to attend to each other.
-
-  Args:
-    decoding_step_map: (N,) array, decoding step for each residue.
-
-  Returns:
-    mask: (N, N) boolean array where mask[i,j]=True means position i
-          can attend to position j.
-
-  """
+  """Create an (N, N) AR mask for group-based decoding."""
   steps_i = decoding_step_map[:, None]
   steps_j = decoding_step_map[None, :]
   return steps_i >= steps_j
@@ -164,59 +142,40 @@ def resolve_tie_groups(
   return tie_group_map
 
 
-@partial(jax.jit, static_argnames=("num_groups",))
+@jax.jit
 def generate_ar_mask(
   decoding_order: DecodingOrder,
   chain_idx: jnp.ndarray | None = None,
   tie_group_map: jnp.ndarray | None = None,
   num_groups: int | None = None,
 ) -> AutoRegressiveMask:
-  """Get the autoregressive mask for the given decoding order.
-
-  When tie_group_map is provided, positions in the same group can attend to each
-  other (within the same decoding step), enabling tied sampling.
-
-  Args:
-      decoding_order: The order in which atoms are decoded.
-      chain_idx: Optional chain indices. If provided, atoms can only attend to
-          atoms in the same chain that come before them in the decoding order.
-      tie_group_map: Optional (N,) array mapping each position to a group ID.
-          When provided, positions in the same group are decoded simultaneously
-          and can attend to each other.
-      num_groups: Number of unique groups in tie_group_map. Required if
-          tie_group_map is provided. Should equal tie_group_map.max() + 1
-          when groups are normalized to [0, 1, ..., num_groups-1].
-
-  Returns:
-      An autoregressive mask (N, N) where mask[i,j]=1 means position i can
-      attend to position j during decoding.
-
-  Example:
-      >>> # Standard AR mask
-      >>> order = jnp.array([0, 1, 2])
-      >>> mask = generate_ar_mask(order)
-      >>> # mask = [[1, 0, 0], [1, 1, 0], [1, 1, 1]]
-      >>>
-      >>> # With tied positions
-      >>> tie_map = jnp.array([0, 1, 0])  # Positions 0 and 2 are tied
-      >>> mask = generate_ar_mask(order, tie_group_map=tie_map, num_groups=2)
-      >>> # Positions 0 and 2 can attend to each other
-
-  """
+  """Get the autoregressive mask for the given decoding order."""
+  N = decoding_order.shape[0]
+  
   if tie_group_map is None:
     row_indices = decoding_order[:, None]
     col_indices = decoding_order[None, :]
     ar_mask = (row_indices >= col_indices).astype(jnp.int32)
   else:
-    if num_groups is None:
-      msg = "num_groups must be provided when tie_group_map is not None"
-      raise ValueError(msg)
-
-    group_mask = tie_group_map[decoding_order][None, :] == jnp.arange(num_groups)[:, None]
+    # Use N as the static size for range-based ops
+    # group_mask: (N, N)
+    group_mask = tie_group_map[decoding_order][None, :] == jnp.arange(N)[:, None]
+    
+    # Identify which groups are actually present
+    group_present = jnp.any(group_mask, axis=1)
+    
+    # group_first_occurrence: (N,)
     group_first_occurrence = jnp.argmax(group_mask, axis=1)
-    group_decoding_order = jnp.argsort(group_first_occurrence)
+    
+    # Sort groups by their first occurrence in the decoding order
+    # We only care about present groups
+    group_decoding_order = jnp.argsort(jnp.where(group_present, group_first_occurrence, N + 1))
+    
+    # If num_groups is provided, we can use it to mask the decoding steps
+    # but for now, we just use the full order found.
+    # The decoding_step_map will only be indexed by tie_group_map.
 
-    decoding_step_map = get_decoding_step_map(tie_group_map, group_decoding_order, num_groups)
+    decoding_step_map = get_decoding_step_map(tie_group_map, group_decoding_order)
     ar_mask = make_autoregressive_mask(decoding_step_map).astype(jnp.int32)
 
   if chain_idx is not None:

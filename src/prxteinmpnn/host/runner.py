@@ -20,15 +20,26 @@ import jax.numpy as jnp
 import numpy as np
 
 from prxteinmpnn.io.designs import DesignArrayRecordWriter, DesignMetadata, DesignPayload
-from prxteinmpnn.run._sampling_averaged import _sample_batch_averaged
-from prxteinmpnn.run._sampling_grid_lineage import (
+from prxteinmpnn.types.bundles import (
+    GeometryBundle,
+    ConditioningBundle,
+    LigandBundle,
+    WaveScheduleBundle,
+    InferenceBundle,
+)
+from prxteinmpnn.host._sampling_averaged import _sample_batch_averaged
+from prxteinmpnn.inference.sample_autoregressive import kernel as sample_ar_kernel
+from prxteinmpnn.types.configs import InferenceConfig
+from prxteinmpnn.types.stages import StageSet
+from prxteinmpnn.inference._combine import ArithmeticMeanLogits
+from prxteinmpnn.host._sampling_grid_lineage import (
   _base_sampling_key,
   _grid_iteration_arrays,
   _grid_manifest_row_hash,
   _grid_sample_indices,
   _resolve_grid_lineage,
 )
-from prxteinmpnn.run._sampling_helper import (
+from prxteinmpnn.host._sampling_helper import (
   RANK_WITH_TEMPERATURE,
   _DEFAULT_DECODING_ORDER_FN,
   _broadcast_per_structure,
@@ -41,21 +52,20 @@ from prxteinmpnn.run._sampling_helper import (
   _prepare_ligand_context,
   _structure_ids_for_batch,
 )
-from prxteinmpnn.run.averaging import get_averaged_encodings, make_encoding_sampling_split_fn
-from prxteinmpnn.run.output_sinks import (
+from prxteinmpnn.host.averaging import get_averaged_encodings, make_encoding_sampling_split_fn
+from prxteinmpnn.host.output_sinks import (
   active_sampling_staging_sink,
   streaming_tensor_sink_session,
   take_staging_sequences_logits,
 )
-from prxteinmpnn.run.sampling_driver import SamplingDriver
-from prxteinmpnn.run.streaming_host import StreamingBatchHost
+from prxteinmpnn.host.streaming_host import StreamingBatchHost
 from prxteinmpnn.utils.autoregression import resolve_tie_groups
-from prxteinmpnn.utils.batching import BatchPlan, BatchPlanner, estimate_memory_theoretical
-from prxteinmpnn.utils.batching_registry import N_NOISES, N_SAMPLES, N_STRUCTURES, N_TEMPERATURES
+from prxteinmpnn.tiling.planner import BatchPlan, BatchPlanner, estimate_memory_theoretical
+from prxteinmpnn.tiling.axes import N_NOISES, N_SAMPLES, N_STRUCTURES, N_TEMPERATURES
 from prxteinmpnn.utils.safe_map import safe_map as _safe_map
 
 from .prep import prep_protein_stream_and_model
-from .specs import SamplingSpecification, pop_deprecated_spec_kwargs
+from prxteinmpnn.run.specs import SamplingSpecification, pop_deprecated_spec_kwargs
 
 if TYPE_CHECKING:
   from collections.abc import Callable, Sequence
@@ -113,7 +123,7 @@ def _make_sampling_planner(
 def _sample_batch(
   spec: SamplingSpecification,
   batched_ensemble: Protein,
-  sampler_fn: Callable,
+  model: ModelProtocol,
   *,
   canonical_structure_ids: Sequence[str] | None = None,
   batch_structure_ids: Sequence[str] | None = None,
@@ -152,20 +162,31 @@ def _sample_batch(
     msg = "samples_chunk_size must be positive when provided."
     raise ValueError(msg)
 
-  # Prep base geometry and conditioning on host
-  backbone = BackboneGeometry(
-    coords=batched_ensemble.coordinates,
-    mask=batched_ensemble.mask,
-    residue_index=batched_ensemble.residue_index,
-    chain_index=batched_ensemble.chain_index,
+  seq_len = batched_ensemble.coordinates.shape[1]
+  batch_size = batched_ensemble.coordinates.shape[0]
+
+  # Prep base geometry bundle
+  backbone = GeometryBundle(
+    coords=jnp.asarray(batched_ensemble.coordinates),
+    mask=jnp.asarray(batched_ensemble.mask),
+    residue_index=jnp.asarray(batched_ensemble.residue_index),
+    chain_index=jnp.asarray(batched_ensemble.chain_index),
+    state_flat_rows=jnp.arange(seq_len)[None, :], # single state mapping
+    n_states=1,
+    n_canonical=seq_len,
+    n_flat=seq_len
   )
 
   # Prep conditioning (fixed tokens, bias, etc.)
   fixed_mask_v, fixed_tokens_v = _prepare_fixed_controls(spec, batched_ensemble=batched_ensemble)
-  conditioning = ConditioningFeatures(
-    fixed_tokens=fixed_tokens_v,
+  conditioning = ConditioningBundle(
+    fixed_mask=jnp.asarray(fixed_mask_v),
+    fixed_tokens=jnp.asarray(fixed_tokens_v),
     bias=jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else jnp.zeros((seq_len, 21)),
-    ar_mask=jnp.ones((seq_len, seq_len)), # Placeholder; generated per-sample if needed
+    tie_group_map=jnp.zeros((1, seq_len), dtype=jnp.int32), # Placeholder until resolve_tie_groups
+    state_weights=jnp.ones(1, dtype=jnp.float32),
+    sequence_oh=jnp.zeros((seq_len, 21), dtype=jnp.float32),
+    ar_mask=jnp.ones((1, seq_len, seq_len), dtype=jnp.float32), # full visibility for conditional
   )
 
   # Ensure tie_group_map and mapping have batch dimensions for vmap.
@@ -212,15 +233,39 @@ def _sample_batch(
     jnp.asarray(spec.state_weights, dtype=jnp.float32) if spec.state_weights is not None else None
   )
 
+  # Prep ligand and wave bundles (empty placeholders for now)
+  ligand = LigandBundle(
+    y=jnp.zeros((1, 0, 0, 3)),
+    y_t=jnp.zeros((1, 0, 0), dtype=jnp.int32),
+    y_m=jnp.zeros((1, 0, 0))
+  )
+  wave = WaveScheduleBundle.empty(seq_len)
+
+  # Prep config and stages
+  inference_config = InferenceConfig(
+    mode="sample_ar",
+    temperature=float(spec.temperature[0]) if spec.temperature else 1.0,
+  )
+  stage_set = StageSet(
+    logit_transform=ArithmeticMeanLogits(weights=jnp.ones(1))
+  )
+
   def _call_one_structure(key_batch):
-    # Construct unified inputs for one structure
-    # (In a real implementation, we'd also slice the multistate/ligand stacks here)
-    inputs = SamplingInputs(
-      backbone=backbone,
-      state_stack=ProteinBundle.empty(seq_len), # TODO: real stack
+    # Construct unified bundle
+    bundle = InferenceBundle(
+      geometry=backbone,
       conditioning=conditioning,
+      ligand=ligand,
+      wave=wave
     )
-    return sampler_fn(key_batch, inputs)
+    # Pass through to the new kernel
+    return sample_ar_kernel(
+        model=model,
+        prng_key=key_batch,
+        bundle=bundle,
+        config=inference_config,
+        stage_set=stage_set
+    )
 
   _structures_bs = _plan.decision_for("n_structures").batch_size
 
@@ -340,14 +385,6 @@ def sample(
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
 
-  sampler_fn = SamplingDriver(spec).build_sampler_fn(
-    model,
-    decoding_order_fn=_DEFAULT_DECODING_ORDER_FN,
-    sampling_strategy=spec.sampling_strategy,
-    use_concrete=getattr(spec, "use_concrete", False),
-    tau_start=getattr(spec, "concrete_tau_start", 1.0),
-    tau_end=getattr(spec, "concrete_tau_end", 0.1),
-  )
 
   if spec.average_node_features:
     if spec.output_h5_path:
@@ -355,7 +392,7 @@ def sample(
     return _sample_non_streaming_averaged(spec, protein_iterator, model)
 
   if spec.output_h5_path:
-    return _sample_streaming(spec, protein_iterator, sampler_fn)
+    return _sample_streaming(spec, protein_iterator, model)
 
   # TODO(io_callback integration): Non-streaming path appends per-batch device arrays then concats;
   # prefer preallocated buffers or io_callback streaming (see prxteinmpnn/TODO_io_callback.txt).
@@ -376,7 +413,7 @@ def sample(
     sampled_sequences, logits, pseudo_perplexity = _sample_batch(
       spec,
       batched_ensemble,
-      sampler_fn,
+      model,
       canonical_structure_ids=canonical_structure_ids,
       batch_structure_ids=batch_structure_ids,
       batch_idx=batch_idx,
@@ -457,7 +494,7 @@ def sample(
 def _sample_streaming(
   spec: SamplingSpecification,
   protein_iterator: IterDataset,
-  sampler_fn: Callable,
+  model: ModelProtocol,
 ) -> dict[str, Any]:
   """Sample new sequences and stream results to an HDF5 or ArrayRecord file."""
   grid_lineage = _resolve_grid_lineage(spec)
@@ -480,7 +517,7 @@ def _sample_streaming(
     return _sample_streaming_arrayrecord(
       spec,
       protein_iterator,
-      sampler_fn,
+      model,
       grid_lineage,
       canonical_structure_ids,
     )
@@ -533,7 +570,7 @@ def _sample_streaming(
         _, _, pseudo_perplexity = _sample_batch(
           spec,
           batched_ensemble,
-          sampler_fn,
+          model,
           canonical_structure_ids=canonical_structure_ids,
           batch_structure_ids=batch_structure_ids,
           batch_idx=batch_idx,
@@ -590,7 +627,7 @@ def _sample_streaming(
           _, _, pseudo_perplexity = _sample_batch(
             spec,
             batched_ensemble,
-            sampler_fn,
+            model,
             canonical_structure_ids=canonical_structure_ids,
             batch_structure_ids=batch_structure_ids,
             chunk_sample_start=chunk_sample_start,
@@ -679,7 +716,7 @@ def _sample_streaming(
 def _sample_streaming_arrayrecord(
   spec: SamplingSpecification,
   protein_iterator: IterDataset,
-  sampler_fn: Callable,
+  model: ModelProtocol,
   grid_lineage: dict[str, int | str] | None,
   canonical_structure_ids: list[str],
 ) -> dict[str, Any]:
@@ -733,7 +770,7 @@ def _sample_streaming_arrayrecord(
           _, _, _ = _sample_batch(
             spec,
             batched_ensemble,
-            sampler_fn,
+            model,
             canonical_structure_ids=canonical_structure_ids,
             batch_structure_ids=batch_structure_ids,
             chunk_sample_start=chunk_sample_start,

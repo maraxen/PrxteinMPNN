@@ -8,14 +8,9 @@ import jax
 
 from prxteinmpnn.sampling.conditional_logits import (
   make_conditional_logits_fn,
-  make_conditional_logits_state_vmap_fn,
   make_encoding_conditional_logits_split_fn,
 )
 from prxteinmpnn.sampling.sample import make_sample_sequences
-from prxteinmpnn.sampling.unconditional_logits import (
-  make_unconditional_logits_fn,
-  make_unconditional_logits_state_vmap_fn,
-)
 from prxteinmpnn.utils import ste
 
 if TYPE_CHECKING:
@@ -23,11 +18,8 @@ if TYPE_CHECKING:
 
 __all__ = [
   "make_conditional_logits_fn",
-  "make_conditional_logits_state_vmap_fn",
   "make_encoding_conditional_logits_split_fn",
   "make_sample_sequences",
-  "make_unconditional_logits_fn",
-  "make_unconditional_logits_state_vmap_fn",
   "sample",
   "ste",
 ]

@@ -9,8 +9,7 @@ from jaxtyping import PRNGKeyArray
 from prxteinmpnn.types.bundles import InferenceBundle
 from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.protocols import ModelProtocol
-from prxteinmpnn.typing import Logits
-from prxteinmpnn.model.multistate_stack import scatter_stack_to_flat
+from prxteinmpnn.utils.types import Logits
 
 
 
@@ -85,31 +84,4 @@ def kernel(
     # Add bias
     logits_stack = logits_stack + cond.bias[None, ...]
 
-    # Scatter stack to flat representation
-    # tie_group_map is (S, L) giving flat indices
-    flat_logits = scatter_stack_to_flat(
-        stacked_logits=logits_stack,
-        state_flat_rows=geo.state_flat_rows,
-        n_flat=geo.n_flat
-    )
-
-    # Combine logits across states mapped to the same tie group
-    # Note: the combination requires knowing which states tie to which canonical positions.
-    # In standard flat mode, this was done via scatter.
-    # If S=1, flat_logits is just (L, V)
-    if S > 1:
-        logit_transform = stage_set.get("logit_transform")
-        if logit_transform is not None:
-            # logit_transform is expected to handle combining the stack S
-            # according to whatever weights/strategy were bound to it.
-            logits_stack = logit_transform(logits_stack)
-            # Re-scatter to flat after combining if needed, or if logit_transform 
-            # returns a flat structure directly. 
-            # Note: For pure stacking, if the output is just L x V, we might not need to scatter.
-            # But we leave scatter for now if we still need flat graph parity.
-            flat_logits = scatter_stack_to_flat(
-                stacked_logits=jnp.expand_dims(logits_stack, axis=0), # S=1 now
-                state_flat_rows=geo.state_flat_rows[:1],
-                n_flat=geo.n_flat
-            )
-    return flat_logits
+    return stage_set.logit_transform(logits_stack)

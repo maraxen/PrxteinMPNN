@@ -76,6 +76,7 @@ class ProteinFeatures(eqx.Module):
   k_neighbors: int = eqx.field(static=True)
   rbf_dim: int = eqx.field(static=True)
   pos_embed_dim: int = eqx.field(static=True)
+  num_positional_embeddings: int = eqx.field(static=True)
 
   def __init__(
     self,
@@ -94,11 +95,13 @@ class ProteinFeatures(eqx.Module):
     self.k_neighbors = k_neighbors
     self.rbf_dim = 16
     self.pos_embed_dim = 16 # Fixed output dim
+    self.num_positional_embeddings = num_positional_embeddings
 
     pos_one_hot_dim = 2 * num_positional_embeddings + 2
     edge_embed_in_dim = 16 + 16 * 25  # Matches POS_EMBED_DIM + RBF_DIM * 25
 
-    self.w_pos = eqx.nn.Linear(pos_one_hot_dim, 16, key=keys[0])
+    # Positional encodings in reference models typically don't use bias
+    self.w_pos = eqx.nn.Linear(pos_one_hot_dim, 16, use_bias=True, key=keys[0])
     self.w_e = eqx.nn.Linear(edge_embed_in_dim, edge_features, use_bias=False, key=keys[1])
     self.norm_edges = LayerNorm(edge_features)
     self.w_e_proj = eqx.nn.Linear(edge_features, edge_features, key=keys[2])
@@ -182,6 +185,8 @@ class ProteinFeatures(eqx.Module):
       neighbor_indices = jnp.array(neighbor_indices, dtype=jnp.int32)
 
     # At this point neighbor_indices must be populated (either passed in or computed)
+    if neighbor_indices is None:
+        raise ValueError("neighbor_indices is None. This could happen if distances is None and no neighbor_indices were provided.")
     neighbor_indices = jnp.array(neighbor_indices, dtype=jnp.int32)
 
     if rbf_features is not None:
@@ -191,6 +196,9 @@ class ProteinFeatures(eqx.Module):
     neighbor_offsets = compute_neighbor_offsets(residue_index, neighbor_indices)
 
     edge_chains = (chain_index[:, None] == chain_index[None, :]).astype(jnp.int32)
+    if edge_chains is None:
+        # This should be impossible if chain_index is not None
+        pass
     edge_chains_neighbors = jnp.take_along_axis(
       edge_chains,
       neighbor_indices,

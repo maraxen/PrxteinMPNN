@@ -19,10 +19,13 @@ from typing import TYPE_CHECKING, Any, cast
 import jax
 import jax.numpy as jnp
 import optax
+import equinox as eqx
 
 from prxteinmpnn.inference.score_conditional import kernel as score_conditional
 from prxteinmpnn.types.bundles import InferenceBundle, ConditioningBundle
 from prxteinmpnn.types.configs import InferenceConfig
+from prxteinmpnn.types.stages import StageSet
+from prxteinmpnn.inference.logits import LOGIT_STRATEGIES, BatchLogitFn
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +40,7 @@ if TYPE_CHECKING:
     ProteinSequence,
   )
 
-from prxteinmpnn.registry import assert_known_multistate_mode
+
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
 from prxteinmpnn.utils.ste import gumbel_softmax, straight_through_estimator
@@ -54,7 +57,7 @@ def make_optimize_sequence_fn(
   tau_end: float = 0.1,
 ) -> Callable[..., tuple[ProteinSequence, Logits, Logits]]:
 
-  @partial(jax.jit, static_argnames=("iterations", "use_rolling_state", "logit_combine_strategy"))
+  @partial(jax.jit, static_argnames=("use_rolling_state", "logit_combine_strategy"))
   def optimize_sequence(
     prng_key: PRNGKeyArray,
     bundle: InferenceBundle,
@@ -64,6 +67,7 @@ def make_optimize_sequence_fn(
     temperature: float,
     use_rolling_state: bool = False,
     logit_combine_strategy: int = 0,
+    stage_set: StageSet | None = None,
     writer: DesignArrayRecordWriter | None = None,
   ) -> tuple[ProteinSequence, Logits, Logits]:
     num_residues = bundle.geometry.coords.shape[1]
@@ -141,13 +145,25 @@ def make_optimize_sequence_fn(
               cond_new
           )
 
+          if stage_set is None:
+            # Construct default stage set if none provided
+            strategy_cls = LOGIT_STRATEGIES.get(
+                "arithmetic_mean" if logit_combine_strategy == 0 else
+                "geometric_mean" if logit_combine_strategy == 1 else
+                "product"
+            )
+            fuse = strategy_cls(bundle.conditioning.state_weights)
+            current_stage_set = StageSet(logit_transform=fuse)
+          else:
+            current_stage_set = stage_set
+
           # Call the score_conditional kernel
           output_logits = score_conditional(
               model=model,
-              prng_key=next_key, # we just need some key, doesn't matter much for deterministic eval
+              prng_key=next_key, 
               bundle=bundle_new,
               config=config,
-              stage_set={},
+              stage_set=current_stage_set,
           )
           return output_logits
 
@@ -244,12 +260,23 @@ def make_optimize_sequence_fn(
         cond_new
     )
 
+    if stage_set is None:
+      strategy_cls = LOGIT_STRATEGIES.get(
+          "arithmetic_mean" if logit_combine_strategy == 0 else
+          "geometric_mean" if logit_combine_strategy == 1 else
+          "product"
+      )
+      fuse = strategy_cls(bundle.conditioning.state_weights)
+      final_stage_set = StageSet(logit_transform=fuse)
+    else:
+      final_stage_set = stage_set
+
     final_output_logits = score_conditional(
         model=model,
         prng_key=final_key,
         bundle=bundle_new,
         config=config,
-        stage_set={},
+        stage_set=final_stage_set,
     )
 
     return final_sequence, final_output_logits, final_logits

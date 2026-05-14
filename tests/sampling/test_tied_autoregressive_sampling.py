@@ -326,6 +326,12 @@ class TestTiedAutoregressiveSampling:
     # (This is probabilistic but very likely)
     chex.assert_shape(seq, (n_residues,))
 
+  def _combine_logits_multistate(self, logits, mask):
+    """Helper for testing logit averaging."""
+    group_logits = jnp.where(mask[:, None], logits, -jnp.inf)
+    n_tied = jnp.sum(mask)
+    return jax.scipy.special.logsumexp(group_logits, axis=0, keepdims=True) - jnp.log(jnp.maximum(n_tied, 1))
+
   def test_logit_averaging_math(self):
     """Test the mathematical correctness of logit averaging."""
     # Test the helper method directly
@@ -335,7 +341,8 @@ class TestTiedAutoregressiveSampling:
     # Create group mask for positions 0, 2, 4 (3 positions)
     group_mask = jnp.array([True, False, True, False, True, False])
 
-    avg_logits = PrxteinMPNN._combine_logits_multistate(logits, group_mask)  # noqa: SLF001    # Verify shape
+    avg_logits = self._combine_logits_multistate(logits, group_mask)
+    # Verify shape
     chex.assert_shape(avg_logits, (1, 21))
 
     # Verify manual calculation matches

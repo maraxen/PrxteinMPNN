@@ -38,7 +38,7 @@ class PositionalEncodings(eqx.Module):
         # The output dimension is ALWAYS 16 in the reference models
         self.num_embeddings = num_embeddings
         # Input to linear is [offset_one_hot(2*num_pos + 1), chain_one_hot(1)]
-        self.w_pos = eqx.nn.Linear(2 * num_embeddings + 2, 16, use_bias=False, key=key)
+        self.w_pos = eqx.nn.Linear(2 * num_embeddings + 2, 16, use_bias=True, key=key)
 
     def __call__(self, offset: jax.Array, same_chain: jax.Array) -> jax.Array:
         # offset: (N, K) relative residue indices

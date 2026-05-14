@@ -15,7 +15,15 @@ from __future__ import annotations
 
 from typing import Any, Protocol, TypeVar, runtime_checkable
 
+import equinox as eqx
 from jaxtyping import Array, Float, Int
+
+from prxteinmpnn.inference.logits import (
+    ArithmeticMeanLogits,
+    BatchLogitFn,
+    GeometricMeanLogits,
+    ProductOfProbabilities,
+)
 
 # Type variables for generic protocols
 In = TypeVar("In")
@@ -32,7 +40,9 @@ class TransformFn(Protocol[In, Out]):
     Generic function protocol for any host- or JAX-traceable transformation.
     Examples: featurization, encoding, decoding.
     """
-    def __call__(self, input: In) -> Out: ...
+
+    def __call__(self, input: In) -> Out:
+        ...
 
 
 @runtime_checkable
@@ -42,8 +52,14 @@ class RollingFn(Protocol[Carry, In, Out]):
     Used for state-accumulating transformations (e.g. encoder state threading).
     Carry structure must be fixed at JAX trace time.
     """
-    def init_carry(self) -> Carry: ...
-    def __call__(self, carry: Carry, state_idx: Int[Array, ""], input: In) -> tuple[Carry, Out]: ...
+
+    def init_carry(self) -> Carry:
+        ...
+
+    def __call__(
+        self, carry: Carry, state_idx: Int[Array, ""], input: In
+    ) -> tuple[Carry, Out]:
+        ...
 
 
 @runtime_checkable
@@ -53,7 +69,9 @@ class FuseFn(Protocol[PerItem, Combined]):
     Used for combining per-item (e.g. per-state) results into a single combined result.
     Examples: logit stacking and reduction, state aggregation.
     """
-    def __call__(self, per_item: PerItem) -> Combined: ...
+
+    def __call__(self, per_item: PerItem) -> Combined:
+        ...
 
 
 # Tier 2 Aliases: MPNN-Specific Type Specializations
@@ -71,6 +89,22 @@ UnconditionalDecodeFn = TransformFn[Any, Any]
 LogitTransformFn = FuseFn[Float[Array, "S L V"], Float[Array, "L V"]]
 ARLogitTransformFn = FuseFn[Float[Array, "S V"], Float[Array, "V"]]
 
+
+class StageSet(eqx.Module):
+    """Typed bag of composable pipeline stages.
+
+    eqx.Module makes this a JAX PyTree — weight arrays inside
+    FuseFn implementations are traced through JIT correctly.
+    """
+
+    logit_transform: (
+        BatchLogitFn | None
+    ) = None
+    ar_logit_transform: (
+        BatchLogitFn | None
+    ) = None
+
+
 __all__ = [
     "TransformFn",
     "RollingFn",
@@ -84,4 +118,5 @@ __all__ = [
     "UnconditionalDecodeFn",
     "LogitTransformFn",
     "ARLogitTransformFn",
+    "StageSet",
 ]

@@ -8,10 +8,7 @@ or ``model(..., decoding_approach=\"conditional\", multistate_mode=\"state_vmap_
 with stacked geometry tensors and a flat ``one_hot_sequence`` / aa indices.
 
 For a single carrier object, use
-:func:`prxteinmpnn.sampling.state_vmap_payload_logits.conditional_state_vmap_logits_from_payload`
-or :meth:`prxteinmpnn.model.mpnn.PrxteinMPNN.score_conditional_from_payload`
-/:meth:`~prxteinmpnn.model.mpnn.PrxteinLigandMPNN.score_conditional_from_payload`
-(geometry in :class:`~prxteinmpnn.bundles.ProteinBundle`; ligand tensors in :class:`~prxteinmpnn.bundles.LigandBundle`).
+(geometry in :class:`~prxteinmpnn.types.bundles.GeometryBundle`; ligand tensors in :class:`~prxteinmpnn.types.bundles.LigandBundle`).
 
 This is used for:
 - Jacobian computation (sensitivity analysis)
@@ -30,7 +27,18 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
-from prxteinmpnn.protocols import ConditionalLogitsFn, ModelProtocol, StateVmapExactLogitsFn
+from prxteinmpnn.inference.score_conditional import kernel as score_conditional
+from prxteinmpnn.types.bundles import (
+    ConditioningBundle,
+    GeometryBundle,
+    InferenceBundle,
+    LigandBundle as InferenceLigandBundle,
+    WaveScheduleBundle,
+)
+from prxteinmpnn.types.configs import InferenceConfig
+from prxteinmpnn.types.protocols import ConditionalLogitsFn, ModelProtocol
+from prxteinmpnn.types.stages import StageSet
+from prxteinmpnn.inference.logits import LOGIT_STRATEGIES, BatchLogitFn
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,
   AutoRegressiveMask,
@@ -108,183 +116,87 @@ def make_conditional_logits_fn(
       ... )
 
     """
-    key_features, key_encoder, key_conditional = jax.random.split(prng_key, 3)
+    L = structure_coordinates.shape[1] if structure_coordinates.ndim == 4 else structure_coordinates.shape[0]
+    S = structure_coordinates.shape[0] if structure_coordinates.ndim == 4 else 1
 
-    edge_features, neighbor_indices, node_features, _ = model.features(
-      key_features,
-      structure_coordinates,
-      mask,
-      residue_index,
-      chain_index,
-      backbone_noise,
-      structure_mapping=structure_mapping,
+    # Normalize inputs
+    if structure_coordinates.ndim == 3:
+        structure_coordinates = structure_coordinates[None, ...]
+        mask = mask[None, ...]
+        residue_index = residue_index[None, ...]
+        chain_index = chain_index[None, ...]
+        if structure_mapping is not None:
+            structure_mapping = structure_mapping[None, ...]
+
+    if sequence.ndim == 1:
+        one_hot_sequence = jax.nn.one_hot(sequence, 21)
+    else:
+        one_hot_sequence = sequence
+
+    if ar_mask is None:
+        ar_mask = jnp.zeros((L, L))
+    
+    # Broadcast ar_mask to S
+    ar_mask_stack = jnp.broadcast_to(ar_mask[None, ...], (S, L, L))
+
+    geo = GeometryBundle(
+        coords=structure_coordinates,
+        mask=mask,
+        residue_index=residue_index,
+        chain_index=chain_index,
+        state_flat_rows=jnp.zeros((S, L), dtype=jnp.int32),
+        n_states=S,
+        n_canonical=L,
+        n_flat=L
     )
-
-    node_features, edge_features = model.encoder(
-      edge_features,
-      neighbor_indices,
-      mask,
-      node_features,
-      key=key_encoder,
+    
+    cond = ConditioningBundle(
+        fixed_mask=jnp.zeros(L),
+        fixed_tokens=jnp.zeros(L, dtype=jnp.int32),
+        bias=jnp.zeros((L, 21)),
+        tie_group_map=jnp.broadcast_to(jnp.arange(L)[None, :], (S, L)),
+        state_weights=jnp.ones(S) / S,
+        sequence_oh=one_hot_sequence,
+        ar_mask=ar_mask_stack
     )
-
-    ar_mask = (
-      jax.numpy.zeros((mask.shape[0], mask.shape[0]), dtype=jax.numpy.int32)
-      if ar_mask is None
-      else ar_mask
+    
+    bundle = InferenceBundle(
+        geometry=geo,
+        conditioning=cond,
+        ligand=InferenceLigandBundle(
+            y=jnp.zeros((S, 0, 4, 3)),
+            y_t=jnp.zeros((S, 0, 4), dtype=jnp.int32),
+            y_m=jnp.zeros((S, 0, 4))
+        ),
+        wave=WaveScheduleBundle.empty(L)
     )
-
-    _multi_state_strategy_idx = jax.numpy.array(0, dtype=jax.numpy.int32)  # 0 = "arithmetic_mean"
-
-    _, logits = model._call_conditional(  # noqa: SLF001
-      node_features,
-      edge_features,
-      neighbor_indices,
-      mask,
-      ar_mask,
-      sequence,
-      key_conditional,
-      0.0,  # temperature unused in conditional path
-      jax.numpy.zeros((mask.shape[0], 21), dtype=jax.numpy.float32),
-      None,  # tie_group_map
-      _multi_state_strategy_idx,
-      None,  # _initial_node_features
-      None,  # state_weights
-      None,  # state_mapping
-      None,  # _fixed_mask
-      None,  # _fixed_tokens
-      None,  # group_indices_table
-      None,  # group_valid_table
+    
+    config = InferenceConfig(
+        mode="score_conditional",
+        temperature=0.0,
+        logit_combine_strategy=0, # arithmetic_mean
+        use_rolling_state=False,
+        inference=True
     )
+    
+    strategy_cls = LOGIT_STRATEGIES.get("arithmetic_mean")
+    stage_set = StageSet(logit_transform=strategy_cls(cond.state_weights))
 
-    return logits
+    return score_conditional(
+        model=model,
+        prng_key=prng_key,
+        bundle=bundle,
+        config=config,
+        stage_set=stage_set
+    )
 
   return cast("ConditionalLogitsFn", conditional_logits)
 
 
-def make_conditional_logits_state_vmap_fn(
-  model: ModelProtocol,
-) -> StateVmapExactLogitsFn:
-  """JIT ``score_conditional`` (teacher-forced parallel decode per state).
 
-  ``sequence`` is a **flat** `(n_flat,)` aa index tensor or `(n_flat, 21)` one-hot; it is gathered
-  into stack layout via :func:`~prxteinmpnn.model.multistate_stack.gather_flat_to_stack`.
 
-  Ligand checkpoints require stacked ``y_*`` tensors; omit them on ``PrxteinMPNN``.
-  ``ar_mask_stack`` defaults to zeros `(S,P,P)`, matching :func:`make_conditional_logits_fn`.
-  """
 
-  from prxteinmpnn.model.multistate_stack import gather_flat_to_stack  # noqa: PLC0415
 
-  m = eqx.nn.inference_mode(model, value=True) if isinstance(model, eqx.Module) else model
-  is_lig = model.capabilities.is_ligand_model
-  n_emb = int(m.w_s_embed.num_embeddings)
-
-  if is_lig:
-
-    def conditional_stack(
-      prng_key: jax.Array,
-      sequence: jax.Array,
-      coords: jax.Array,
-      mask: jax.Array,
-      residue_index: jax.Array,
-      chain_index: jax.Array,
-      y: jax.Array,
-      y_t: jax.Array,
-      y_m: jax.Array,
-      state_flat_rows: jax.Array,
-      n_flat: int,
-      tie_group_map: jax.Array | None,
-      multi_state_strategy_idx: jax.Array,
-      state_weights: jax.Array | None,
-      state_mapping: jax.Array | None,
-      ar_mask_stack: jax.Array | None = None,
-      bias_flat: jax.Array | None = None,
-      states_chunk_size: int | None = None,
-    ) -> jax.Array:
-      oh = jax.nn.one_hot(sequence, n_emb) if sequence.ndim == 1 else sequence
-      seq_stack = gather_flat_to_stack(oh, state_flat_rows)
-      s_dim, p_dim = mask.shape[0], mask.shape[1]
-      arm = (
-        jnp.zeros((s_dim, p_dim, p_dim), dtype=jnp.int32)
-        if ar_mask_stack is None
-        else ar_mask_stack
-      )
-      extra: dict[str, object] = {}
-      if states_chunk_size is not None:
-        extra["states_chunk_size"] = states_chunk_size
-      return m.score_conditional(  # type: ignore[union-attr]
-        prng_key,
-        coords,
-        mask,
-        residue_index,
-        chain_index,
-        y,
-        y_t,
-        y_m,
-        seq_stack,
-        arm,
-        state_flat_rows,
-        n_flat,
-        tie_group_map=tie_group_map,
-        multi_state_strategy_idx=multi_state_strategy_idx,
-
-        state_weights=state_weights,
-        state_mapping=state_mapping,
-        bias_flat=bias_flat,
-        inference=True,
-        **extra,
-      )
-
-    return cast("StateVmapExactLogitsFn", conditional_stack)
-
-  if not isinstance(model, ModelProtocol):
-    raise TypeError("Expected a ModelProtocol-conforming model")
-
-  @partial(jax.jit, static_argnames=("n_flat",))
-  def conditional_stack_prot(
-    prng_key: jax.Array,
-    sequence: jax.Array,
-    coords: jax.Array,
-    mask: jax.Array,
-    residue_index: jax.Array,
-    chain_index: jax.Array,
-    state_flat_rows: jax.Array,
-    n_flat: int,
-    tie_group_map: jax.Array | None,
-    multi_state_strategy_idx: jax.Array,
-    state_weights: jax.Array | None,
-    state_mapping: jax.Array | None,
-    ar_mask_stack: jax.Array | None = None,
-    bias_flat: jax.Array | None = None,
-  ) -> jax.Array:
-    oh = jax.nn.one_hot(sequence, n_emb) if sequence.ndim == 1 else sequence
-    seq_stack = gather_flat_to_stack(oh, state_flat_rows)
-    s_dim, p_dim = mask.shape[0], mask.shape[1]
-    arm = (
-      jnp.zeros((s_dim, p_dim, p_dim), dtype=jnp.int32)
-      if ar_mask_stack is None
-      else ar_mask_stack
-    )
-    return m.score_conditional(
-      prng_key,
-      coords,
-      mask,
-      residue_index,
-      chain_index,
-      seq_stack,
-      arm,
-      state_flat_rows,
-      n_flat,
-      tie_group_map=tie_group_map,
-      multi_state_strategy_idx=multi_state_strategy_idx,
-      state_weights=state_weights,
-      state_mapping=state_mapping,
-      bias_flat=bias_flat,
-      inference=True,
-    )
-
-  return cast("StateVmapExactLogitsFn", conditional_stack_prot)
 
 
 def make_encoding_conditional_logits_split_fn(

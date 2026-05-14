@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import pytest
 
 from prxteinmpnn.model import PrxteinMPNN
-from prxteinmpnn.run.averaging import make_encoding_sampling_split_fn
+from prxteinmpnn.host.averaging import make_encoding_sampling_split_fn
 from prxteinmpnn.sampling import (
     make_sample_sequences,
     sample,

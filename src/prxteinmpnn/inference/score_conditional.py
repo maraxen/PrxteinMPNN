@@ -9,13 +9,7 @@ from jaxtyping import PRNGKeyArray
 from prxteinmpnn.types.bundles import InferenceBundle
 from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.protocols import ModelProtocol
-from prxteinmpnn.typing import Logits
-from prxteinmpnn.model.multistate_stack import scatter_stack_to_flat
-from prxteinmpnn.model.multistate_sampling import (
-    arithmetic_mean_logits,
-    geometric_mean_logits,
-    product_of_probabilities_logits,
-)
+from prxteinmpnn.utils.types import Logits
 
 
 from prxteinmpnn.types.stages import StageSet
@@ -91,20 +85,4 @@ def kernel(
 
     logits_stack = logits_stack + cond.bias[None, ...]
 
-    flat_logits = scatter_stack_to_flat(
-        stacked_logits=logits_stack,
-        state_flat_rows=geo.state_flat_rows,
-        n_flat=geo.n_flat
-    )
-
-    if S > 1:
-        logit_transform = stage_set.get("logit_transform")
-        if logit_transform is not None:
-            logits_stack = logit_transform(logits_stack)
-            flat_logits = scatter_stack_to_flat(
-                stacked_logits=jnp.expand_dims(logits_stack, axis=0),
-                state_flat_rows=geo.state_flat_rows[:1],
-                n_flat=geo.n_flat
-            )
-
-    return flat_logits
+    return stage_set.logit_transform(logits_stack)

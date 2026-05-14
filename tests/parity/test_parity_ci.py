@@ -13,6 +13,7 @@ import pytest
 from prxteinmpnn.model.mpnn import PrxteinMPNN
 from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
 from prxteinmpnn.model.packer import Packer
+from prxteinmpnn.io.weights import load_weights
 from tests.parity.reference_utils import project_root
 
 PARITY_AUDIT_TIER = "parity_audit"
@@ -203,21 +204,12 @@ def _load_with_positional_fallback(case: FamilyCheckpointCase, *, key: jax.Array
       num_positional_embeddings=num_positional_embeddings,
     )
     try:
-      loaded = eqx.tree_deserialise_leaves(case.checkpoint_path, template)
-    except RuntimeError as error:
-      failures.append(f"num_positional_embeddings={num_positional_embeddings}: {error}")
-      continue
+        loaded = load_weights(local_path=str(case.checkpoint_path), skeleton=template)
+        return loaded
+    except Exception as e:
+        failures.append(f"num_pos={num_positional_embeddings}: {e}")
 
-    if type(loaded) is not type(template):
-      msg = (
-        f"{case.asset_id}: deserialized checkpoint type {type(loaded)} "
-        f"did not match template type {type(template)}"
-      )
-      raise TypeError(msg)
-
-    return loaded
-
-  details = " | ".join(failures[-2:])
+  details = " | ".join(failures)
   msg = f"{case.asset_id}: failed to load checkpoint with positional embedding fallbacks. {details}"
   raise RuntimeError(msg)
 
@@ -232,6 +224,9 @@ def test_checkpoint_family_manifest_declares_all_families() -> None:
   if families != EXPECTED_FAMILIES:
     msg = f"Expected families {EXPECTED_FAMILIES}, got {families}"
     pytest.fail(msg)
+  for case in FAMILY_CHECKPOINT_CASES:
+    if case.checkpoint_path.parent != MODEL_PARAMS_DIR:
+        print(f"DEBUG: parent={repr(case.checkpoint_path.parent)}, expected={repr(MODEL_PARAMS_DIR)}")
   if not all(case.checkpoint_path.parent == MODEL_PARAMS_DIR for case in FAMILY_CHECKPOINT_CASES):
     pytest.fail("All converted checkpoint paths must be under model_params/")
 

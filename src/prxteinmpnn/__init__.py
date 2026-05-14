@@ -6,14 +6,14 @@ or any entrypoint that uses ``multiprocessing`` worker pools (the campaign CLI a
 does this); see ``prxteinmpnn.runtime``.
 """
 
-from .host.specs import (
+from .run.specs import (
   JacobianSpecification,
   RunSpecification,
   SamplingSpecification,
   ScoringSpecification,
 )
-from .host.runner import sample
-from .host.scoring import score
+from .sampling import sample
+from .scoring import score
 
 from .runtime import configure_multiprocessing
 

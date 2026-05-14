@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, TextIO, cast
 
-from prxteinmpnn.io.weights import MODEL_VERSION, MODEL_WEIGHTS
+from prxteinmpnn.model.versions import MODEL_VERSION, MODEL_WEIGHTS
 
 from .spec import RunSpec, build_run_spec
 

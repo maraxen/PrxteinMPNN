@@ -74,7 +74,7 @@ def kernel(
             (geo.coords, geo.mask, geo.residue_index, geo.chain_index, lig.y, lig.y_t, lig.y_m, geo.structure_mapping, noise_stack)
         )
     else:
-        node_b, edge_b, nei_b = jax.vmap(encode_one)(
+        node_b, edge_b, nei_b = jax.vmap(encode_one, in_axes=(0, 0, 0, 0, 0, 0, 0, 0, 0))(
             geo.coords, geo.mask, geo.residue_index, geo.chain_index,
             lig.y, lig.y_t, lig.y_m, geo.structure_mapping, noise_stack
         )

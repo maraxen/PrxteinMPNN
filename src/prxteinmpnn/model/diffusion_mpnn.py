@@ -11,7 +11,7 @@ import jax.numpy as jnp
 from prxteinmpnn.model.mpnn import PrxteinMPNN
 
 if TYPE_CHECKING:
-  from prxteinmpnn.utils.types import (
+  from prxteinmpnn.types.arrays import (
     AlphaCarbonMask,
     ChainIndex,
     Logits,

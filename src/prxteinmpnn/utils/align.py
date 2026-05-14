@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
   from collections.abc import Callable
 
-  from prxteinmpnn.utils.types import OneHotProteinSequence, ProteinSequence
+  from prxteinmpnn.types.arrays import OneHotProteinSequence, ProteinSequence
 
 
 import jax

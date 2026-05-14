@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
   from prxteinmpnn.model.diffusion_mpnn import DiffusionPrxteinMPNN
   from prxteinmpnn.training.diffusion import NoiseSchedule
-  from prxteinmpnn.utils.types import Logits
+  from prxteinmpnn.types.arrays import Logits
 
 
 @eqx.filter_jit

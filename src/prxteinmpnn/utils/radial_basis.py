@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
-from .types import AtomIndexPair, NeighborIndices, StructureAtomicCoordinates
+from prxteinmpnn.types.arrays import AtomIndexPair, NeighborIndices, StructureAtomicCoordinates
 
 AllAtomRBF = Float[Array, "L K R D"]
 AtomPairRBF = Float[Array, "K R D"]

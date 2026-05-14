@@ -11,7 +11,7 @@ from proxide.chem.residues import (
   unk_restype_index,
 )
 
-from prxteinmpnn.utils.types import ProteinSequence
+from prxteinmpnn.types.arrays import ProteinSequence
 
 MPNN_ALPHABET = "ACDEFGHIKLMNPQRSTVWYX"
 AF_ALPHABET = "ARNDCQEGHILKMFPSTWYVX"

@@ -14,7 +14,7 @@ from prxteinmpnn.host._sampling_helper import (
 from prxteinmpnn.host.averaging import get_averaged_encodings, make_encoding_sampling_split_fn
 from prxteinmpnn.run.specs import SamplingSpecification
 from prxteinmpnn.utils.data_structures import Protein
-from prxteinmpnn.utils.types import ProteinSequence
+from prxteinmpnn.types.arrays import ProteinSequence
 
 if TYPE_CHECKING:
   from prxteinmpnn.model.mpnn import PrxteinMPNN

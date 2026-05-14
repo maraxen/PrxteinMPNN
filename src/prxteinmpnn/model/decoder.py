@@ -21,7 +21,7 @@ from prxteinmpnn.model.dropout import Dropout
 from prxteinmpnn.utils.concatenate import concatenate_neighbor_nodes
 
 if TYPE_CHECKING:
-  from prxteinmpnn.utils.types import (
+  from prxteinmpnn.types.arrays import (
     AlphaCarbonMask,
     Array,
     AutoRegressiveMask,

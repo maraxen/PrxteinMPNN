@@ -15,7 +15,7 @@ from prxteinmpnn.types.stages import StageSet
 from prxteinmpnn.inference import sample_autoregressive, optimize_ste
 from prxteinmpnn.inference.bundle_builder import build_inference_bundle
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
-from prxteinmpnn.utils.types import (
+from prxteinmpnn.types.arrays import (
   AlphaCarbonMask,
   BackboneNoise,
   ChainIndex,

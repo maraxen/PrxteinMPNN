@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
   from prxteinmpnn.io.designs import DesignArrayRecordWriter, DesignMetadata
   from prxteinmpnn.model import PrxteinMPNN
-  from prxteinmpnn.utils.types import (
+  from prxteinmpnn.types.arrays import (
     AutoRegressiveMask,
     Logits,
     ProteinSequence,

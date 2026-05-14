@@ -9,7 +9,7 @@ from jaxtyping import PRNGKeyArray
 from prxteinmpnn.types.bundles import InferenceBundle
 from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.protocols import ModelProtocol
-from prxteinmpnn.utils.types import Logits
+from prxteinmpnn.types.arrays import Logits
 
 
 from prxteinmpnn.types.stages import StageSet

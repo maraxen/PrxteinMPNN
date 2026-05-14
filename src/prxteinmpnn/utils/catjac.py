@@ -11,7 +11,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from prxteinmpnn.utils.align import align_sequences
-from prxteinmpnn.utils.types import (
+from prxteinmpnn.types.arrays import (
   CategoricalJacobian,
   InterproteinMapping,
   OneHotProteinSequence,

@@ -8,7 +8,7 @@ import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 from proxide.core.containers import atom_order
 
-from prxteinmpnn.utils.types import (
+from prxteinmpnn.types.arrays import (
   AlphaCarbonDistance,
   AtomicCoordinate,
   BackboneCoordinates,

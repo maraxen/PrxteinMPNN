@@ -8,7 +8,7 @@ import pytest
 from jax import random
 
 from prxteinmpnn.utils.data_structures import Protein
-from prxteinmpnn.utils.types import ModelParameters
+from prxteinmpnn.types.arrays import ModelParameters
 
 
 def _parse_first_structure(path: Path) -> Protein:

@@ -77,7 +77,7 @@ if TYPE_CHECKING:
 
   from prxteinmpnn.model.mpnn import PrxteinMPNN
   from prxteinmpnn.utils.data_structures import Protein
-  from prxteinmpnn.utils.types import (
+  from prxteinmpnn.types.arrays import (
     AlphaCarbonMask,
     AutoRegressiveMask,
     BackboneCoordinates,

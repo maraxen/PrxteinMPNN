@@ -30,7 +30,7 @@ from jaxtyping import PRNGKeyArray
 from prxteinmpnn.inference.bundle_builder import build_inference_bundle
 from prxteinmpnn.inference.score_conditional import kernel as score_conditional
 from prxteinmpnn.types.protocols import ConditionalLogitsFn, ModelProtocol
-from prxteinmpnn.utils.types import (
+from prxteinmpnn.types.arrays import (
   AlphaCarbonMask,
   AutoRegressiveMask,
   BackboneNoise,

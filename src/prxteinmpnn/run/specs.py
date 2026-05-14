@@ -52,7 +52,7 @@ if TYPE_CHECKING:
   class ConformationalStates(Protocol):
     """Protocol for conformational state containers (see ensemble_tools.dbscan)."""
 
-    n_states: Any
+    n_states: ArrayLike
 
 # Type aliases for convenience
 ModelWeights = MODEL_WEIGHTS
@@ -71,6 +71,7 @@ def _loader_inputs(inputs: Sequence[str | TextIO] | str | TextIO) -> Sequence[st
   return cast("Sequence[str | TextIO]", out)
 
 
+@register_spec
 @dataclass
 class RunSpecification:
   """Configuration for running the model.
@@ -225,6 +226,7 @@ class RunSpecification:
     self._sync_run_spec()
 
 
+@register_spec
 @dataclass
 class ScoringSpecification(RunSpecification):
   """Configuration for scoring sequences.
@@ -267,6 +269,7 @@ class ScoringSpecification(RunSpecification):
     self._sync_run_spec()
 
 
+@register_spec
 @dataclass
 class SamplingSpecification(RunSpecification):
   """Configuration for sampling sequences."""
@@ -374,6 +377,7 @@ class SamplingSpecification(RunSpecification):
     self._sync_run_spec()
 
 
+@register_spec
 @dataclass
 class JacobianSpecification(RunSpecification):
   """Configuration for computing categorical Jacobians."""
@@ -400,6 +404,7 @@ class JacobianSpecification(RunSpecification):
     self._sync_run_spec()
 
 
+@register_spec
 @dataclass
 class ConformationalInferenceSpecification(RunSpecification):
   """Configuration for deriving states from a protein ensemble.
@@ -489,9 +494,14 @@ Specs = (
 _WRAPPED_DEPRECATED_INIT: set[type] = set()
 
 
-def _wrap_spec_init_with_deprecated_kwarg_warnings(cls: type) -> None:
+def register_spec(cls: type) -> type:
+  """Decorator to wrap spec __init__ with deprecated kwarg warnings.
+
+  Strips deprecated kwargs and emits DeprecationWarning for each removed key.
+  Safe to apply multiple times; idempotent via _WRAPPED_DEPRECATED_INIT tracking.
+  """
   if cls in _WRAPPED_DEPRECATED_INIT:
-    return
+    return cls
   _WRAPPED_DEPRECATED_INIT.add(cls)
   original_init = cls.__init__
 
@@ -508,17 +518,7 @@ def _wrap_spec_init_with_deprecated_kwarg_warnings(cls: type) -> None:
     original_init(self, *args, **kwargs)
 
   setattr(cls, "__init__", patched_init)  # noqa: B010
-
-
-for _spec_cls in (
-  RunSpecification,
-  ScoringSpecification,
-  SamplingSpecification,
-  JacobianSpecification,
-  ConformationalInferenceSpecification,
-  InspectionSpecification,
-):
-  _wrap_spec_init_with_deprecated_kwarg_warnings(_spec_cls)
+  return cls
 
 
 def apply_deprecated_spec_init_warnings(cls: type) -> None:

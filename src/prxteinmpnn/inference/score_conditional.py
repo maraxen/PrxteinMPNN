@@ -72,7 +72,7 @@ def kernel(
             (geo.coords, geo.mask, geo.residue_index, geo.chain_index, lig.y, lig.y_t, lig.y_m, geo.structure_mapping, noise_stack)
         )
     else:
-        node_b, edge_b, nei_b = jax.vmap(encode_one)(
+        node_b, edge_b, nei_b = jax.vmap(encode_one, in_axes=(0, 0, 0, 0, 0, 0, 0, 0, 0))(
             geo.coords, geo.mask, geo.residue_index, geo.chain_index,
             lig.y, lig.y_t, lig.y_m, geo.structure_mapping, noise_stack
         )
@@ -85,11 +85,11 @@ def kernel(
     # For conditional scoring, wave provides the AR masks, or we assume a full mask?
     seq_oh_stack = jnp.broadcast_to(cond.sequence_oh[None, ...], (S, *cond.sequence_oh.shape))
     
-    decoded = jax.vmap(decode_one)(
+    decoded = jax.vmap(decode_one, in_axes=(0, 0, 0, 0, 0, 0))(
         node_b, edge_b, nei_b, geo.mask, cond.ar_mask, seq_oh_stack
     )
 
-    logits_stack = jax.vmap(jax.vmap(model.w_out))(decoded)
+    logits_stack = jax.vmap(jax.vmap(model.w_out, in_axes=0), in_axes=0)(decoded)
 
     logits_stack = logits_stack + cond.bias[None, ...]
 

@@ -11,20 +11,10 @@ import jax
 import jax.nn.initializers as init
 import zstandard as zstd
 
+from prxteinmpnn.model.versions import MODEL_VERSION, MODEL_WEIGHTS
 from prxteinmpnn.model import PrxteinLigandMPNN, PrxteinMPNN
 from prxteinmpnn.model.diffusion_mpnn import DiffusionPrxteinMPNN
 from prxteinmpnn.model.packer import Packer
-
-MODEL_WEIGHTS = Literal["original", "soluble", "ligand", "sc", "membrane"]
-MODEL_VERSION = Literal[
-  "v_48_002",
-  "v_48_010",
-  "v_48_020",
-  "v_48_030",
-  "v_48_v2",
-  "v_32_010_25",
-  "v_32_002_16",
-]
 HF_REPO_ID = "maraxen/prxteinmpnn"  # Legacy reference
 
 NODE_FEATURES = 128

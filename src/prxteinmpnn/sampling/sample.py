@@ -13,7 +13,7 @@ from prxteinmpnn.types.protocols import ModelProtocol, SamplerFn
 from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.stages import StageSet
 from prxteinmpnn.inference import sample_autoregressive, optimize_ste
-from prxteinmpnn.host.bundle_builder import build_inference_bundle
+from prxteinmpnn.inference.bundle_builder import build_inference_bundle
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,

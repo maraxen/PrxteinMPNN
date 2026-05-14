@@ -166,13 +166,13 @@ class PrxteinLigandMPNN(eqx.Module):
 
     V, E, E_idx, Y_nodes, Y_edges, Y_m_out = self.features(
       _key=keys[0],
-      structure_coordinates=geo.coords[0] if geo.coords.ndim == 4 else geo.coords,
-      mask=geo.mask[0] if geo.mask.ndim == 2 else geo.mask,
-      residue_index=geo.residue_index[0] if geo.residue_index.ndim == 2 else geo.residue_index,
-      chain_index=geo.chain_index[0] if geo.chain_index.ndim == 2 else geo.chain_index,
-      Y=lig.y[0] if lig.y.ndim == 4 else lig.y,
-      Y_t=lig.y_t[0] if lig.y_t.ndim == 3 else lig.y_t,
-      Y_m=lig.y_m[0] if lig.y_m.ndim == 3 else lig.y_m,
+      structure_coordinates=geo.coords[0],
+      mask=geo.mask[0],
+      residue_index=geo.residue_index[0],
+      chain_index=geo.chain_index[0],
+      Y=lig.y[0],
+      Y_t=lig.y_t[0],
+      Y_m=lig.y_m[0],
       backbone_noise=bundle.backbone_noise,
       structure_mapping=geo.structure_mapping[0] if geo.structure_mapping is not None else None,
       **kwargs

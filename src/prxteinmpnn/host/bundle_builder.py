@@ -54,7 +54,13 @@ def build_inference_bundle(
             y = y[None, ...]
             y_t = y_t[None, ...]
             y_m = y_m[None, ...]
-            
+
+    # After normalization, all arrays must be 4D (or 3D for mask/indices, 3D/4D for ligand)
+    assert coords.ndim == 4, f"Expected coords.ndim == 4 after normalization, got {coords.ndim}"
+    assert mask.ndim == 3, f"Expected mask.ndim == 3 after normalization, got {mask.ndim}"
+    assert residue_index.ndim == 3, f"Expected residue_index.ndim == 3 after normalization, got {residue_index.ndim}"
+    assert chain_index.ndim == 3, f"Expected chain_index.ndim == 3 after normalization, got {chain_index.ndim}"
+
     S, L = coords.shape[0], coords.shape[1]
     
     # 2. Geometry

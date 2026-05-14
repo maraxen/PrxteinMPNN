@@ -118,10 +118,10 @@ def make_score_fn(
     )
     
     logits = score_conditional.kernel(model, prng_key, bundle, config, stage_set)
-    
+
     # Compute score
     log_probability = jax.nn.log_softmax(logits, axis=-1)[..., :20]
-    score = -(sequence_oh[..., :20] * log_probability).sum(-1)
+    score = -(sequence[..., :20] * log_probability).sum(-1)
     
     # Use average mask across states for scoring? Or just mask[0]?
     # In modernized architecture, we usually score against the combined logits.

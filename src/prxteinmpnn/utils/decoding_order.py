@@ -11,7 +11,7 @@ import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
 from .autoregression import get_decoding_step_map
-from .types import (
+from prxteinmpnn.types.arrays import (
   DecodingOrder,
 )
 

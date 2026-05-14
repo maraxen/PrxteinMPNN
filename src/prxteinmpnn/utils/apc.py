@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 
 if TYPE_CHECKING:
-  from prxteinmpnn.utils.types import CategoricalJacobian
+  from prxteinmpnn.types.arrays import CategoricalJacobian
 
 # Constants
 JACOBIAN_EXPECTED_NDIM = 4

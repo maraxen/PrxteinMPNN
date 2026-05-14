@@ -19,7 +19,7 @@ from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.utils.coordinates import apply_noise_to_coordinates
 
 if TYPE_CHECKING:
-  from prxteinmpnn.utils.types import (
+  from prxteinmpnn.types.arrays import (
     PRNGKeyArray,
   )
 

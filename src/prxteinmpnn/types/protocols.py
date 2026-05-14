@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from prxteinmpnn.types.bundles import InferenceBundle
     from prxteinmpnn.types.configs import InferenceConfig
     from prxteinmpnn.types.stages import StageSet
-    from prxteinmpnn.utils.types import (
+    from prxteinmpnn.types.arrays import (
         AlphaCarbonMask,
         AutoRegressiveMask,
         BackboneNoise,

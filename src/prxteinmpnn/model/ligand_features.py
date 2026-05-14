@@ -17,7 +17,7 @@ from prxteinmpnn.model.ligand_tiling import map_chunks_axis0
 from prxteinmpnn.utils.coordinates import apply_noise_to_coordinates
 
 if TYPE_CHECKING:
-    from prxteinmpnn.utils.types import (
+    from prxteinmpnn.types.arrays import (
         AlphaCarbonMask,
         ChainIndex,
         ResidueIndex,

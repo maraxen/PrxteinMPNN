@@ -16,7 +16,7 @@ from jaxtyping import Array, Float
 if TYPE_CHECKING:
   from collections.abc import Sequence
 
-  from prxteinmpnn.utils.types import ModelParameters
+  from prxteinmpnn.types.arrays import ModelParameters
 
 STANDARD_EPSILON = 1e-5
 ScaleConstant = Float[Array, "C"]  # Scale parameter for normalization

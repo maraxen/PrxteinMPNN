@@ -20,7 +20,7 @@ from prxteinmpnn.types.bundles import InferenceBundle
 from prxteinmpnn.types.configs import InferenceConfig
 
 if TYPE_CHECKING:
-  from prxteinmpnn.utils.types import PRNGKeyArray
+  from prxteinmpnn.types.arrays import PRNGKeyArray
 
 class PrxteinLigandMPNN(eqx.Module):
   features: ProteinFeaturesLigand

@@ -11,7 +11,7 @@ from jax.scipy.special import entr
 from jax.typing import ArrayLike
 from jaxtyping import Float
 
-from prxteinmpnn.utils.types import Logits
+from prxteinmpnn.types.arrays import Logits
 
 
 def mle_entropy(states: Logits) -> ArrayLike:

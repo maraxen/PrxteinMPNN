@@ -5,7 +5,7 @@ prxteinmpnn.utils.concatenate
 
 import jax.numpy as jnp
 
-from .types import EdgeFeatures, NeighborIndices, NodeFeatures
+from prxteinmpnn.types.arrays import EdgeFeatures, NeighborIndices, NodeFeatures
 
 
 def concatenate_neighbor_nodes(

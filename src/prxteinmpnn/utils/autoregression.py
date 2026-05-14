@@ -13,9 +13,8 @@ if TYPE_CHECKING:
   from collections.abc import Sequence
 
   from prxteinmpnn.run.specs import RunSpecification
+  from prxteinmpnn.types.arrays import AutoRegressiveMask, DecodingOrder
   from prxteinmpnn.utils.data_structures import Protein
-
-  from .types import AutoRegressiveMask, DecodingOrder
 
 
 def get_decoding_step_map(

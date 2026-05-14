@@ -21,7 +21,7 @@ import jax.numpy as jnp
 if TYPE_CHECKING:
   from jaxtyping import PRNGKeyArray
 
-  from prxteinmpnn.utils.types import (
+  from prxteinmpnn.types.arrays import (
     AlphaCarbonMask,
     CEELoss,
     Logits,

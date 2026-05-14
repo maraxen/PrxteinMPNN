@@ -1,4 +1,4 @@
-"""Type definitions for the PrxteinMPNN project."""
+"""Array type definitions for the PrxteinMPNN project."""
 
 # TODO(tech-debt): `.agents/TECHNICAL_DEBT.md` §10 — tighten contracts (`Protocol`, aliases) at model/sampling boundaries.
 
@@ -93,3 +93,54 @@ class TrainingMetrics(dict):
   accuracy: float
   perplexity: float
   learning_rate: float
+
+
+__all__ = [
+    "ArrayLike",
+    "NodeFeatures",
+    "Scalar",
+    "ScalarFloat",
+    "EdgeFeatures",
+    "Message",
+    "AtomicCoordinate",
+    "NeighborIndices",
+    "BackboneCoordinates",
+    "StructureAtomicCoordinates",
+    "AtomMask",
+    "AtomResidueIndex",
+    "AtomChainIndex",
+    "Parameters",
+    "ModelParameters",
+    "Model",
+    "AlphaCarbonDistance",
+    "Distances",
+    "AtomIndexPair",
+    "AttentionMask",
+    "Logits",
+    "DecodingOrder",
+    "ProteinSequence",
+    "OneHotProteinSequence",
+    "NodeEdgeFeatures",
+    "SequenceEdgeFeatures",
+    "AutoRegressiveMask",
+    "InputBias",
+    "InputLengths",
+    "BFactors",
+    "ResidueIndex",
+    "ChainIndex",
+    "DecodingOrderInputs",
+    "DecodingOrderOutputs",
+    "CEELoss",
+    "SamplingHyperparameters",
+    "AlphaCarbonMask",
+    "BackboneDihedrals",
+    "BackboneNoise",
+    "BackboneAtomCoordinates",
+    "GroupMask",
+    "LinkMask",
+    "TieGroupMap",
+    "Temperature",
+    "CategoricalJacobian",
+    "InterproteinMapping",
+    "TrainingMetrics",
+]

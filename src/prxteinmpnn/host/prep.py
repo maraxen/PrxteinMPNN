@@ -14,7 +14,7 @@ if TYPE_CHECKING:
   from grain.python import IterDataset
 
   from prxteinmpnn.run.specs import Specs
-  from prxteinmpnn.utils.types import Model
+  from prxteinmpnn.types.arrays import Model
 
 import equinox as eqx
 from proxide.ops.dataset import create_protein_dataset

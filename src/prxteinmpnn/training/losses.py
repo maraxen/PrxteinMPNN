@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 
 if TYPE_CHECKING:
-  from prxteinmpnn.utils.types import Logits, ProteinSequence
+  from prxteinmpnn.types.arrays import Logits, ProteinSequence
 
 
 def cross_entropy_loss(

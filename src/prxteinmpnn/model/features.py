@@ -22,7 +22,7 @@ from prxteinmpnn.utils.graph import compute_neighbor_offsets
 from prxteinmpnn.utils.radial_basis import compute_radial_basis
 
 if TYPE_CHECKING:
-  from prxteinmpnn.utils.types import (
+  from prxteinmpnn.types.arrays import (
     AlphaCarbonMask,
     BackboneNoise,
     ChainIndex,

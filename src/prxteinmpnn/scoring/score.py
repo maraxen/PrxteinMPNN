@@ -18,7 +18,7 @@ from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
 
 _DEFAULT_DECODING_ORDER_FN = cast("DecodingOrderFn", random_decoding_order)
-from prxteinmpnn.utils.types import (
+from prxteinmpnn.types.arrays import (
   AlphaCarbonMask,
   AutoRegressiveMask,
   BackboneNoise,

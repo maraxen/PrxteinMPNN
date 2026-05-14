@@ -37,7 +37,7 @@ if TYPE_CHECKING:
   from prxteinmpnn.model.diffusion_mpnn import DiffusionPrxteinMPNN
   from prxteinmpnn.model.mpnn import PrxteinMPNN
   from prxteinmpnn.training.specs import TrainingSpecification
-  from prxteinmpnn.utils.types import BackboneCoordinates, Logits
+  from prxteinmpnn.types.arrays import BackboneCoordinates, Logits
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)

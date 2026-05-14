@@ -15,7 +15,7 @@ from prxteinmpnn.sampling.conditional_logits import make_encoding_conditional_lo
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.data_structures import Protein
 from prxteinmpnn.utils.decoding_order import DecodingOrder, DecodingOrderFn
-from prxteinmpnn.utils.types import (
+from prxteinmpnn.types.arrays import (
   AlphaCarbonMask,
   BackboneCoordinates,
   BackboneNoise,

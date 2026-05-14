@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Int
 
-from prxteinmpnn.utils.types import (
+from prxteinmpnn.types.arrays import (
   NeighborIndices,
   ResidueIndex,
 )

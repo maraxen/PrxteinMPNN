@@ -28,12 +28,12 @@ from prxteinmpnn.types.bundles import (
     InferenceBundle,
 )
 from prxteinmpnn.host._sampling_averaged import _sample_batch_averaged
-from prxteinmpnn.host.bundle_builder import build_inference_bundle
+from prxteinmpnn.inference.bundle_builder import build_inference_bundle
 from prxteinmpnn.inference import sample_autoregressive as sample_ar
 from prxteinmpnn.inference import score_conditional
 from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.stages import StageSet
-from prxteinmpnn.inference._combine import ArithmeticMeanLogits
+from prxteinmpnn.inference.logits import ArithmeticMeanLogits
 from prxteinmpnn.host._sampling_grid_lineage import (
   _base_sampling_key,
   _grid_iteration_arrays,

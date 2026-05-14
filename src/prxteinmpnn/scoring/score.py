@@ -13,7 +13,7 @@ from prxteinmpnn.types.protocols import ModelProtocol, ScoreFn
 from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.stages import StageSet
 from prxteinmpnn.inference import score_conditional, score_unconditional
-from prxteinmpnn.host.bundle_builder import build_inference_bundle
+from prxteinmpnn.inference.bundle_builder import build_inference_bundle
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
 

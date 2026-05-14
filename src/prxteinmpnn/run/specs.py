@@ -71,6 +71,36 @@ def _loader_inputs(inputs: Sequence[str | TextIO] | str | TextIO) -> Sequence[st
   return cast("Sequence[str | TextIO]", out)
 
 
+_WRAPPED_DEPRECATED_INIT: set[type] = set()
+
+
+def register_spec(cls: type) -> type:
+  """Decorator to wrap spec __init__ with deprecated kwarg warnings.
+
+  Strips deprecated kwargs and emits DeprecationWarning for each removed key.
+  Safe to apply multiple times; idempotent via _WRAPPED_DEPRECATED_INIT tracking.
+  """
+  if cls in _WRAPPED_DEPRECATED_INIT:
+    return cls
+  _WRAPPED_DEPRECATED_INIT.add(cls)
+  original_init = cls.__init__
+
+  def patched_init(self: object, *args: object, **kwargs: object) -> None:
+    kwargs.pop("run_spec", None)
+    for key in list(kwargs):
+      if key in _DEPRECATED_SPEC_KWARGS:
+        kwargs.pop(key)
+        warnings.warn(
+          f"Specification kwarg {key!r} is deprecated and ignored.",
+          DeprecationWarning,
+          stacklevel=3,
+        )
+    original_init(self, *args, **kwargs)
+
+  setattr(cls, "__init__", patched_init)  # noqa: B010
+  return cls
+
+
 @register_spec
 @dataclass
 class RunSpecification:
@@ -490,36 +520,6 @@ Specs = (
   | JacobianSpecification
   | InspectionSpecification
 )
-
-
-_WRAPPED_DEPRECATED_INIT: set[type] = set()
-
-
-def register_spec(cls: type) -> type:
-  """Decorator to wrap spec __init__ with deprecated kwarg warnings.
-
-  Strips deprecated kwargs and emits DeprecationWarning for each removed key.
-  Safe to apply multiple times; idempotent via _WRAPPED_DEPRECATED_INIT tracking.
-  """
-  if cls in _WRAPPED_DEPRECATED_INIT:
-    return cls
-  _WRAPPED_DEPRECATED_INIT.add(cls)
-  original_init = cls.__init__
-
-  def patched_init(self: object, *args: object, **kwargs: object) -> None:
-    kwargs.pop("run_spec", None)
-    for key in list(kwargs):
-      if key in _DEPRECATED_SPEC_KWARGS:
-        kwargs.pop(key)
-        warnings.warn(
-          f"Specification kwarg {key!r} is deprecated and ignored.",
-          DeprecationWarning,
-          stacklevel=3,
-        )
-    original_init(self, *args, **kwargs)
-
-  setattr(cls, "__init__", patched_init)  # noqa: B010
-  return cls
 
 
 def apply_deprecated_spec_init_warnings(cls: type) -> None:

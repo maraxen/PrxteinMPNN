@@ -7,10 +7,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
+import equinox as eqx
 import jax
 from jaxtyping import Array, Float, Int, PRNGKeyArray
 
 if TYPE_CHECKING:
+    from prxteinmpnn.model.capabilities import ModelCapabilities
+    from prxteinmpnn.model.decoder import Decoder
+    from prxteinmpnn.model.encoder import Encoder, PhysicsEncoder
+    from prxteinmpnn.model.features import ProteinFeatures
+    from prxteinmpnn.model.ligand_features import ProteinFeaturesLigand
     from prxteinmpnn.types.bundles import InferenceBundle
     from prxteinmpnn.types.configs import InferenceConfig
     from prxteinmpnn.types.stages import StageSet
@@ -123,14 +129,14 @@ class ModelProtocol(Protocol):
     Satisfied by PrxteinMPNN, PrxteinLigandMPNN, DiffusionPrxteinMPNN.
     """
 
-    features: Any
-    encoder: Any
-    decoder: Any
-    w_out: Any
-    w_s_embed: Any
-    capabilities: Any
+    features: ProteinFeatures | ProteinFeaturesLigand
+    encoder: Encoder | PhysicsEncoder
+    decoder: Decoder
+    w_out: eqx.nn.Linear
+    w_s_embed: eqx.nn.Embedding
+    capabilities: ModelCapabilities
 
-    def __call__(self, key: PRNGKeyArray, **kwargs: Any) -> Any:
+    def __call__(self, key: PRNGKeyArray, **kwargs: Any) -> tuple[jax.Array, jax.Array, jax.Array]:
         ...
 
     @classmethod

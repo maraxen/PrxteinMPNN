@@ -85,22 +85,6 @@ Temperature = Float[ArrayLike, ""]  # Temperature for sampling
 CategoricalJacobian = Float[ArrayLike, "num_residues num_classes num_residues num_classes"]
 InterproteinMapping = Int[ArrayLike, "num_pairs max_length 2"]  # Mapping between protein pairs
 
-EnsembleData = (
-  Float[ArrayLike, "num_samples num_features"] | Float[ArrayLike, "n_batches n_samples n_features"]
-)
-Centroids = Float[ArrayLike, "num_clusters num_features"]
-Labels = Int[ArrayLike, "num_samples"]
-
-Means = Float[ArrayLike, "n_components n_features"]
-Covariances = Float[ArrayLike, "n_components n_features n_features"]
-Weights = Float[ArrayLike, "n_components"]
-Responsibilities = Float[ArrayLike, "n_samples n_components"]
-Converged = Bool[ArrayLike, ""]
-LogLikelihood = Float[ArrayLike, ""]
-ComponentCounts = Int[ArrayLike, "n_components"]
-BIC = Float[ArrayLike, ""]
-PCAInputData = Float[ArrayLike, "num_samples num_features"]
-
 
 class TrainingMetrics(dict):
   """Dictionary containing training metrics."""

@@ -139,7 +139,7 @@ class PrxteinMPNN(eqx.Module):
     node_features, edge_features = self.encoder(
       edge_features,
       edge_indices,
-      geo.mask[0] if geo.mask.ndim == 2 else geo.mask,
+      geo.mask[0],
       node_features,
       key=prng_key,
     )

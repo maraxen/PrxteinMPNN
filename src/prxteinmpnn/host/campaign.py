@@ -22,17 +22,45 @@ from typing import Any, Protocol
 import h5py
 import numpy as np
 
-from prxteinmpnn.run.campaign_manifest import (
-  build_manifest_row,
-  load_manifest,
-  validate_manifest_rows,
-  write_manifest,
-)
-from prxteinmpnn.run.sampling import sample
+# TODO(TASK-2): wire up after bundle_builder move (TASK-5)
+# from prxteinmpnn.run.campaign_manifest import (
+#   build_manifest_row,
+#   load_manifest,
+#   validate_manifest_rows,
+#   write_manifest,
+# )
+from prxteinmpnn.host.runner import sample
 from prxteinmpnn.run.specs import SamplingSpecification, pop_deprecated_spec_kwargs
 from prxteinmpnn.runtime import configure_multiprocessing
 
 logger = logging.getLogger(__name__)
+
+
+# TODO(TASK-2): Implement manifest functions (build_manifest_row, load_manifest, etc.)
+# These were intended to be in prxteinmpnn.run.campaign_manifest but that module does not exist.
+# See .praxia/TECHNICAL_DEBT.md for migration context.
+def build_manifest_row(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401, ANN002, ANN003
+  """Stub: build_manifest_row not yet implemented."""
+  msg = "build_manifest_row is not yet implemented. See TECHNICAL_DEBT.md for context."
+  raise NotImplementedError(msg)
+
+
+def load_manifest(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401, ANN002, ANN003
+  """Stub: load_manifest not yet implemented."""
+  msg = "load_manifest is not yet implemented. See TECHNICAL_DEBT.md for context."
+  raise NotImplementedError(msg)
+
+
+def validate_manifest_rows(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401, ANN002, ANN003
+  """Stub: validate_manifest_rows not yet implemented."""
+  msg = "validate_manifest_rows is not yet implemented. See TECHNICAL_DEBT.md for context."
+  raise NotImplementedError(msg)
+
+
+def write_manifest(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401, ANN002, ANN003
+  """Stub: write_manifest not yet implemented."""
+  msg = "write_manifest is not yet implemented. See TECHNICAL_DEBT.md for context."
+  raise NotImplementedError(msg)
 
 LOCK_SCHEMA_VERSION = "campaign_lock_v1"
 DONE_MARKER_SCHEMA_VERSION = "campaign_done_marker_v1"

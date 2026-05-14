@@ -7,6 +7,7 @@ Adapted from github.com/justktln2/cimist
 import jax.numpy as jnp
 from jax import Array
 from jax.lax import digamma, polygamma
+from jax.scipy.special import entr
 from jax.typing import ArrayLike
 from jaxtyping import Float
 

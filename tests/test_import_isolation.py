@@ -44,6 +44,6 @@ def test_psa_not_imported_at_runtime() -> None:
     _run_isolation_check("prxteinmpnn.psa")
 
 
-def test_ensemble_dbscan_not_imported_at_runtime() -> None:
-    """The ConformationalStates source module must not load at runtime."""
-    _run_isolation_check("prxteinmpnn.ensemble.dbscan")
+def test_ensemble_tools_not_imported_at_runtime() -> None:
+    """The sibling ensemble_tools package must not be eagerly imported at runtime."""
+    _run_isolation_check("ensemble_tools")

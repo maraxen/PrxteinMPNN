@@ -13,7 +13,9 @@ from typing import TYPE_CHECKING
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from jaxtyping import PRNGKeyArray
 
+from prxteinmpnn.model.dropout import Dropout
 from prxteinmpnn.utils.concatenate import concatenate_neighbor_nodes
 
 if TYPE_CHECKING:
@@ -41,9 +43,9 @@ class EncoderLayer(eqx.Module):
   norm2: LayerNorm
   edge_update_mlp: eqx.nn.MLP
   norm3: LayerNorm
-  dropout1: eqx.nn.Dropout
-  dropout2: eqx.nn.Dropout
-  dropout3: eqx.nn.Dropout
+  dropout1: Dropout
+  dropout2: Dropout
+  dropout3: Dropout
   node_features_dim: int = eqx.field(static=True)
   edge_features_dim: int = eqx.field(static=True)
 
@@ -72,9 +74,9 @@ class EncoderLayer(eqx.Module):
     keys = jax.random.split(key, 7)
     embed_input_size = edge_features + node_features * 2
 
-    self.dropout1 = eqx.nn.Dropout(dropout_rate)
-    self.dropout2 = eqx.nn.Dropout(dropout_rate)
-    self.dropout3 = eqx.nn.Dropout(dropout_rate)
+    self.dropout1 = Dropout(dropout_rate)
+    self.dropout2 = Dropout(dropout_rate)
+    self.dropout3 = Dropout(dropout_rate)
 
     self.edge_message_mlp = eqx.nn.MLP(
       in_size=embed_input_size,
@@ -251,12 +253,79 @@ class Encoder(eqx.Module):
 
 
 class PhysicsEncoder(eqx.Module):
-  """The complete encoder module for ProteinMPNN."""
+  """The complete encoder module for ProteinMPNN with physics features."""
 
   layers: tuple[EncoderLayer, ...]
   physics_projection: eqx.nn.Linear
-
   node_feature_dim: int = eqx.field(static=True)
+
+  def __init__(
+    self,
+    node_features: int,
+    edge_features: int,
+    hidden_features: int,
+    num_layers: int = 3,
+    dropout_rate: float = 0.1,
+    physics_feature_dim: int = 0,
+    *,
+    key: PRNGKeyArray,
+  ) -> None:
+    self.node_feature_dim = node_features
+    keys = jax.random.split(key, num_layers + 1)
+    
+    self.physics_projection = eqx.nn.Linear(
+        physics_feature_dim, node_features, key=keys[0]
+    )
+    
+    self.layers = tuple(
+      EncoderLayer(
+        node_features,
+        edge_features,
+        hidden_features,
+        dropout_rate=dropout_rate,
+        key=k,
+      )
+      for k in keys[1:]
+    )
+
+  def __call__(
+    self,
+    edge_features: EdgeFeatures,
+    neighbor_indices: NeighborIndices,
+    mask: AlphaCarbonMask,
+    initial_node_features: jnp.ndarray | None = None,
+    scale: float = 30.0,
+    *,
+    inference: bool = False,
+    key: PRNGKeyArray | None = None,
+  ) -> tuple[NodeFeatures, EdgeFeatures]:
+    """Forward pass for the physics encoder."""
+    if key is None:
+      inference = True
+    keys = jax.random.split(key, len(self.layers)) if key is not None else [None] * len(self.layers)
+
+    mask_2d = mask[:, None] * mask[None, :]
+    mask_attend = jnp.take_along_axis(mask_2d, neighbor_indices.astype(jnp.int32), axis=1)
+
+    # Initial node features from initial_node_features (physics)
+    node_features = (
+      jnp.zeros((edge_features.shape[0], self.node_feature_dim))
+      if initial_node_features is None
+      else self.physics_projection(initial_node_features)
+    )
+
+    for i, layer in enumerate(self.layers):
+      node_features, edge_features = layer(
+        node_features,
+        edge_features,
+        neighbor_indices,
+        mask,
+        mask_attend=mask_attend,
+        scale=scale,
+        inference=inference,
+        key=keys[i],
+      )
+    return node_features, edge_features
 
 
 def pack_encoder_context(

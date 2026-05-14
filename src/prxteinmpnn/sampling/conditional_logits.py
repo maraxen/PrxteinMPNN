@@ -27,18 +27,9 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
+from prxteinmpnn.host.bundle_builder import build_inference_bundle
 from prxteinmpnn.inference.score_conditional import kernel as score_conditional
-from prxteinmpnn.types.bundles import (
-    ConditioningBundle,
-    GeometryBundle,
-    InferenceBundle,
-    LigandBundle as InferenceLigandBundle,
-    WaveScheduleBundle,
-)
-from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.protocols import ConditionalLogitsFn, ModelProtocol
-from prxteinmpnn.types.stages import StageSet
-from prxteinmpnn.inference.logits import LOGIT_STRATEGIES, BatchLogitFn
 from prxteinmpnn.utils.types import (
   AlphaCarbonMask,
   AutoRegressiveMask,
@@ -116,71 +107,20 @@ def make_conditional_logits_fn(
       ... )
 
     """
-    L = structure_coordinates.shape[1] if structure_coordinates.ndim == 4 else structure_coordinates.shape[0]
-    S = structure_coordinates.shape[0] if structure_coordinates.ndim == 4 else 1
-
-    # Normalize inputs
-    if structure_coordinates.ndim == 3:
-        structure_coordinates = structure_coordinates[None, ...]
-        mask = mask[None, ...]
-        residue_index = residue_index[None, ...]
-        chain_index = chain_index[None, ...]
-        if structure_mapping is not None:
-            structure_mapping = structure_mapping[None, ...]
-
-    if sequence.ndim == 1:
-        one_hot_sequence = jax.nn.one_hot(sequence, 21)
-    else:
-        one_hot_sequence = sequence
-
-    if ar_mask is None:
-        ar_mask = jnp.zeros((L, L))
-    
-    # Broadcast ar_mask to S
-    ar_mask_stack = jnp.broadcast_to(ar_mask[None, ...], (S, L, L))
-
-    geo = GeometryBundle(
+    bundle, config, stage_set = build_inference_bundle(
         coords=structure_coordinates,
         mask=mask,
         residue_index=residue_index,
         chain_index=chain_index,
-        state_flat_rows=jnp.zeros((S, L), dtype=jnp.int32),
-        n_states=S,
-        n_canonical=L,
-        n_flat=L
-    )
-    
-    cond = ConditioningBundle(
-        fixed_mask=jnp.zeros(L),
-        fixed_tokens=jnp.zeros(L, dtype=jnp.int32),
-        bias=jnp.zeros((L, 21)),
-        tie_group_map=jnp.broadcast_to(jnp.arange(L)[None, :], (S, L)),
-        state_weights=jnp.ones(S) / S,
-        sequence_oh=one_hot_sequence,
-        ar_mask=ar_mask_stack
-    )
-    
-    bundle = InferenceBundle(
-        geometry=geo,
-        conditioning=cond,
-        ligand=InferenceLigandBundle(
-            y=jnp.zeros((S, 0, 4, 3)),
-            y_t=jnp.zeros((S, 0, 4), dtype=jnp.int32),
-            y_m=jnp.zeros((S, 0, 4))
-        ),
-        wave=WaveScheduleBundle.empty(L)
-    )
-    
-    config = InferenceConfig(
+        sequence=sequence,
+        backbone_noise=backbone_noise if backbone_noise is not None else 0.0,
+        ar_mask=ar_mask,
+        structure_mapping=structure_mapping,
         mode="score_conditional",
-        temperature=0.0,
-        logit_combine_strategy=0, # arithmetic_mean
+        strategy="arithmetic_mean",
         use_rolling_state=False,
         inference=True
     )
-    
-    strategy_cls = LOGIT_STRATEGIES.get("arithmetic_mean")
-    stage_set = StageSet(logit_transform=strategy_cls(cond.state_weights))
 
     return score_conditional(
         model=model,

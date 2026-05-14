@@ -121,11 +121,12 @@ def load_weights(
     return eqx.combine(new_params, static)
 
   if local_path:
-    if local_path.endswith(".zst"):
-      with open(local_path, "rb") as f:
-        data = f.read()
+    with open(local_path, "rb") as f:
+      header = f.read(4)
+      f.seek(0)
+      if header == b"\x28\xb5\x2f\xfd":  # zstd magic number (little-endian)
         dctx = zstd.ZstdDecompressor()
-        stream = io.BytesIO(dctx.decompress(data))
+        stream = io.BytesIO(dctx.decompress(f.read()))
         return eqx.tree_deserialise_leaves(stream, skeleton)
     return eqx.tree_deserialise_leaves(local_path, skeleton)
   filename = checkpoint_id

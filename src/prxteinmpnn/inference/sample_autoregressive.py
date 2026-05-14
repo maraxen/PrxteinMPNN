@@ -1,92 +1,103 @@
-"""Autoregressive sampling kernel using InferenceBundle."""
+"""Autoregressive sampling kernel for PrxteinMPNN.
 
-from dataclasses import replace
-from typing import Any
+This kernel implements the core sampling loop, optimized for JIT and vmap.
+It consumes a unified InferenceBundle and returns a structured SampleResult.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
-from jaxtyping import PRNGKeyArray
+from jaxtyping import Array, Float, Int
 
-from prxteinmpnn.types.bundles import InferenceBundle
-from prxteinmpnn.types.configs import InferenceConfig
-from prxteinmpnn.types.protocols import ModelProtocol
-from prxteinmpnn.types.stages import StageSet
-from prxteinmpnn.utils.types import Logits
+if TYPE_CHECKING:
+    from prxteinmpnn.model.mpnn import PrxteinMPNN
+    from prxteinmpnn.types.bundles import InferenceBundle
+    from prxteinmpnn.types.configs import InferenceConfig
+    from prxteinmpnn.types.stages import StageSet
+    from prxteinmpnn.utils.types import PRNGKeyArray
+
+
+@dataclass(frozen=True)
+class SampleResult:
+    """Result of an autoregressive sampling run."""
+    sequence: Int[Array, "L"]
+    logits: Float[Array, "L 21"]
+
 
 def kernel(
-    model: ModelProtocol,
+    model: PrxteinMPNN,
     prng_key: PRNGKeyArray,
     bundle: InferenceBundle,
     config: InferenceConfig,
     stage_set: StageSet,
-) -> jax.Array:
-    """Compute autoregressive samples using wave scheduling."""
+) -> SampleResult:
+    """Autoregressive sampling kernel.
+
+    Optimized to encode features once and then iterate through the decoding waves.
+    """
     k_enc, k_dec = jax.random.split(prng_key)
     
     geo = bundle.geometry
     cond = bundle.conditioning
     lig = bundle.ligand
     wave = bundle.wave
-
+    
     L = geo.n_canonical
     S = geo.n_states
     
-    def encode_one(c, m, ri, ci, y, yt, ym, sm):
-        return model(
-            key=k_enc,
-            coords=c,
-            mask=m,
-            residue_index=ri,
-            chain_index=ci,
-            y=y,
-            y_t=yt,
-            y_m=ym,
-            structure_mapping=sm,
-            inference=config.inference,
+    # 1. Encode once (features are fixed for all decoding steps)
+    noise_stack = jnp.broadcast_to(geo.backbone_noise, (S,))
+
+    def encode_one(c, m, ri, ci, sm, noise):
+        return model.features(
+            k_enc, c, m, ri, ci, noise,
+            backbone_noise_mode=geo.backbone_noise_mode,
+            structure_mapping=sm
         )
 
-    if config.use_rolling_state:
-        def scan_body(carry, per_state):
-            c, m, ri, ci, y, yt, ym = per_state
-            h_V, h_E, E_idx = encode_one(c, m, ri, ci, y, yt, ym)
-            return carry, (h_V, h_E, E_idx)
-            
-        _, (node_b, edge_b, nei_b) = jax.lax.scan(
-            scan_body,
-            None,
-            (geo.coords, geo.mask, geo.residue_index, geo.chain_index, lig.y, lig.y_t, lig.y_m, geo.structure_mapping)
-        )
-    else:
-        node_b, edge_b, nei_b = jax.vmap(encode_one)(
-            geo.coords, geo.mask, geo.residue_index, geo.chain_index,
-            lig.y, lig.y_t, lig.y_m, geo.structure_mapping
-        )
+    edge_f, edge_i, node_f, _ = jax.vmap(encode_one)(
+        geo.coords, geo.mask, geo.residue_index, geo.chain_index,
+        geo.structure_mapping, noise_stack
+    )
+    
+    node_f, edge_f = jax.vmap(model.encoder)(
+        edge_f, edge_i, geo.mask, initial_node_features=node_f, 
+        key=jax.random.split(k_enc, S)
+    )
 
+    # 2. Decoding Loop
     def step_fn(i, sequence):
         # Current position in decoding order
-        # wave.group_positions[i, 0, 0] is the position index if sequential
         pos = wave.group_positions[i, 0, 0]
         group_id = cond.tie_group_map[0, pos]
 
         # Check if this is the first time we encounter this group in the decoding order
-        # tie_group_at_order: (L,)
         tie_group_at_order = cond.tie_group_map[0, wave.group_positions[:, 0, 0]]
         first_occurrence_idx = jnp.argmax(tie_group_at_order == group_id)
         is_first = (first_occurrence_idx == i)
 
         def do_sample(seq):
-            # Update ConditioningBundle with current sequence
-            current_cond = replace(cond,
-                sequence_oh=jax.nn.one_hot(seq, 21)
-            )
-            current_bundle = replace(bundle, conditioning=current_cond)
+            # One-hot sequence
+            seq_oh = jax.nn.one_hot(seq, 21)
 
-            # Get logits from model
-            # logits: (S, L, 21)
-            logits = model(k_dec, bundle=current_bundle, config=config)
+            # Decode (vmap over states)
+            def decode_one(n, e, idx, m, arm):
+                return model.decoder.call_conditional(
+                    n, e, idx, m, arm, seq_oh, model.w_s_embed.weight,
+                    key=k_dec, inference=config.inference
+                )
 
-            # Combine logits across states
-            # combined_logits: (L, 21)
+            # decoded: (S, L, H)
+            decoded = jax.vmap(decode_one)(node_f, edge_f, edge_i, geo.mask, cond.ar_mask)
+            
+            # Project to logits: (S, L, 21)
+            logits = jax.vmap(jax.vmap(model.w_out))(decoded)
+
+            # Combine logits across states: (L, 21)
             combined_logits = stage_set.logit_transform(logits)
 
             # Apply bias
@@ -96,46 +107,52 @@ def kernel(
             mask = (cond.tie_group_map[0] == group_id)
             group_logits = jnp.where(mask[:, None], combined_logits, -jnp.inf)
             n_tied = jnp.sum(mask)
+            # Use logsumexp for averaging in log-space
             avg_logits = jax.scipy.special.logsumexp(group_logits, axis=0) - jnp.log(jnp.maximum(n_tied, 1))
 
             # Sample
             subkey = jax.random.fold_in(k_dec, group_id)
-            sampled = jax.random.categorical(subkey, avg_logits / config.temperature)
+            sampled = jax.random.categorical(subkey, avg_logits / cond.temperature)
             
             # Update all positions in the group
-            # Respect fixed positions individually within the group (though usually they match)
-            group_indices = jnp.where(mask, jnp.arange(L), -1)
-            
-            def update_one(s, idx):
-                is_valid = idx != -1
-                idx_safe = jnp.where(is_valid, idx, 0)
-                is_fixed = cond.fixed_mask[idx_safe]
-                fixed_val = cond.fixed_tokens[idx_safe]
-                token = jnp.where(is_fixed, fixed_val, sampled).astype(jnp.int32)
-                return jnp.where(is_valid, s.at[idx_safe].set(token), s)
-
-            # We can't easily loop over group_indices in JIT if size is dynamic.
-            # But we can use sequence.at[group_indices_fixed].set(tokens)
-            
-            # If any position in the group is fixed, the whole group should use that token.
-            # We take the maximum token value among fixed positions in the group 
-            # (assuming they are consistent if multiple are fixed).
             is_group_fixed = jnp.any(cond.fixed_mask.astype(jnp.bool_) & mask)
             group_fixed_token = jnp.max(jnp.where(cond.fixed_mask.astype(jnp.bool_) & mask, cond.fixed_tokens, 0))
-            
             final_token = jnp.where(is_group_fixed, group_fixed_token, sampled).astype(jnp.int32)
-            return jnp.where(mask, final_token, seq)
+            
+            new_seq = jnp.where(mask, final_token, seq)
+            return new_seq, combined_logits[pos]
 
-        # Only perform expensive sampling if this is the first occurrence of the group
-        return jax.lax.cond(is_first, do_sample, lambda s: s, sequence)
+        def no_sample(seq):
+            return seq, jnp.zeros((21,))
+
+        return jax.lax.cond(is_first, do_sample, no_sample, sequence)
 
     seq_init = jnp.where(cond.fixed_mask > 0.5, cond.fixed_tokens, 0).astype(jnp.int32)
     
     def scan_body(sequence, i):
-        return step_fn(i, sequence), None
+        new_seq, step_logits = step_fn(i, sequence)
+        return new_seq, step_logits
 
-    final_seq, _ = jax.lax.scan(scan_body, seq_init, jnp.arange(wave.group_positions.shape[0]))
-    
-    # Return updated bundle
-    final_cond = replace(cond, sequence_oh=jax.nn.one_hot(final_seq, 21))
-    return replace(bundle, conditioning=final_cond)
+    # Run scan over waves
+    final_seq, logits_stack = jax.lax.scan(
+        scan_body,
+        seq_init,
+        jnp.arange(wave.n_waves)
+    )
+
+    # 3. Map logits_stack (W, 21) back to (L, 21)
+    def scatter_logits(logits_final, i):
+        pos = wave.group_positions[i, 0, 0]
+        group_id = cond.tie_group_map[0, pos]
+        mask = (cond.tie_group_map[0] == group_id)
+        step_logits = logits_stack[i]
+        new_logits_final = jnp.where(mask[:, None], step_logits, logits_final)
+        return new_logits_final, None
+
+    logits_init = jnp.zeros((L, 21))
+    logits_final, _ = jax.lax.scan(scatter_logits, logits_init, jnp.arange(wave.n_waves))
+
+    return SampleResult(
+        sequence=final_seq,
+        logits=logits_final
+    )

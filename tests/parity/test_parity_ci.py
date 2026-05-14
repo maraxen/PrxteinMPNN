@@ -224,9 +224,6 @@ def test_checkpoint_family_manifest_declares_all_families() -> None:
   if families != EXPECTED_FAMILIES:
     msg = f"Expected families {EXPECTED_FAMILIES}, got {families}"
     pytest.fail(msg)
-  for case in FAMILY_CHECKPOINT_CASES:
-    if case.checkpoint_path.parent != MODEL_PARAMS_DIR:
-        print(f"DEBUG: parent={repr(case.checkpoint_path.parent)}, expected={repr(MODEL_PARAMS_DIR)}")
   if not all(case.checkpoint_path.parent == MODEL_PARAMS_DIR for case in FAMILY_CHECKPOINT_CASES):
     pytest.fail("All converted checkpoint paths must be under model_params/")
 

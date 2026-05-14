@@ -34,6 +34,7 @@ class ConditioningBundle(eqx.Module):
     state_weights: Float[Array, "S"]
     sequence_oh: Float[Array, "L V"]  # zeros for unconditional/AR
     ar_mask: Float[Array, "S L L"]  # full 1s for purely conditional
+    temperature: Float[Array, ""] = eqx.field(default_factory=lambda: jnp.array(1.0))
 
 
 class LigandBundle(eqx.Module):
@@ -124,6 +125,7 @@ class InferenceBundle(eqx.Module):
     conditioning: ConditioningBundle
     ligand: LigandBundle
     wave: WaveScheduleBundle
+    backbone_noise: Float[Array, ""] = eqx.field(default_factory=lambda: jnp.array(0.0))
 
 
 class EncodedFeatures(eqx.Module):
@@ -141,7 +143,22 @@ class EncoderOutput(eqx.Module):
     mask: Float[Array, "S L"]
 
 
-class SampleResult(eqx.Module):
-    """Sequence + logits from a sampler or autoregressive pass."""
-    sequence: Int[Array, "L"]
-    logits: Float[Array, "L V"]
+class PackerResult(eqx.Module):
+    """Mixture parameters for side-chain torsions."""
+    mean: Float[Array, "L 4 3"]
+    concentration: Float[Array, "L 4 3"]
+    mix_logits: Float[Array, "L 4 3"]
+
+
+class PackerBundle(eqx.Module):
+    """Input features for side-chain packing."""
+    s: Int[Array, "L"]
+    x: Float[Array, "L 14 3"]
+    x_m: Float[Array, "L 14"]
+    y: Float[Array, "L M 3"]
+    y_m: Float[Array, "L M"]
+    y_t: Float[Array, "L M"]
+    mask: Float[Array, "L"]
+    residue_index: Int[Array, "L"]
+    chain_labels: Int[Array, "L"]
+    backbone_noise: Float[Array, ""] = 0.0

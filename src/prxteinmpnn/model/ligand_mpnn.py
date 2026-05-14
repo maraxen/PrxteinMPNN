@@ -12,9 +12,12 @@ from prxteinmpnn.model.capabilities import (
   ModelCapabilities,
 )
 from prxteinmpnn.model.decoder import Decoder, DecoderLayer
+from prxteinmpnn.model.dropout import Dropout
 from prxteinmpnn.model.encoder import Encoder
 from prxteinmpnn.model.ligand_features import ProteinFeaturesLigand
 from prxteinmpnn.model.ligand_tiling import map_chunks_axis0, map_chunks_axis0_multi
+from prxteinmpnn.types.bundles import InferenceBundle
+from prxteinmpnn.types.configs import InferenceConfig
 
 if TYPE_CHECKING:
   from prxteinmpnn.utils.types import PRNGKeyArray
@@ -36,7 +39,7 @@ class PrxteinLigandMPNN(eqx.Module):
 
   w_s_embed: eqx.nn.Embedding
   w_out: eqx.nn.Linear
-  dropout: eqx.nn.Dropout
+  dropout: Dropout
 
   node_features_dim: int = eqx.field(static=True)
   edge_features_dim: int = eqx.field(static=True)
@@ -123,7 +126,7 @@ class PrxteinLigandMPNN(eqx.Module):
     self.v_c = eqx.nn.Linear(node_features, node_features, key=proj_keys[4])
     self.v_c_norm = eqx.nn.LayerNorm(node_features)
 
-    self.dropout = eqx.nn.Dropout(dropout_rate)
+    self.dropout = Dropout(dropout_rate)
 
     self.w_s_embed = eqx.nn.Embedding(vocab_size, node_features, key=proj_keys[5])
     self.w_out = eqx.nn.Linear(node_features, num_amino_acids, key=proj_keys[6])
@@ -152,32 +155,33 @@ class PrxteinLigandMPNN(eqx.Module):
   def __call__(
     self,
     key: PRNGKeyArray,
-    coords: jnp.ndarray,
-    mask: jnp.ndarray,
-    residue_index: jnp.ndarray,
-    chain_index: jnp.ndarray,
-    y: jnp.ndarray,
-    y_t: jnp.ndarray,
-    y_m: jnp.ndarray,
+    bundle: InferenceBundle,
+    config: InferenceConfig,
     **kwargs: Any,
   ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Pure forward: features -> encode -> return encoded representation."""
     keys = jax.random.split(key, 2)
+    geo = bundle.geometry
+    lig = bundle.ligand
 
     V, E, E_idx, Y_nodes, Y_edges, Y_m_out = self.features(
       _key=keys[0],
-      structure_coordinates=coords,
-      mask=mask,
-      residue_index=residue_index,
-      chain_index=chain_index,
-      Y=y,
-      Y_t=y_t,
-      Y_m=y_m,
+      structure_coordinates=geo.coords[0] if geo.coords.ndim == 4 else geo.coords,
+      mask=geo.mask[0] if geo.mask.ndim == 2 else geo.mask,
+      residue_index=geo.residue_index[0] if geo.residue_index.ndim == 2 else geo.residue_index,
+      chain_index=geo.chain_index[0] if geo.chain_index.ndim == 2 else geo.chain_index,
+      Y=lig.y[0] if lig.y.ndim == 4 else lig.y,
+      Y_t=lig.y_t[0] if lig.y_t.ndim == 3 else lig.y_t,
+      Y_m=lig.y_m[0] if lig.y_m.ndim == 3 else lig.y_m,
+      backbone_noise=bundle.backbone_noise,
+      structure_mapping=geo.structure_mapping[0] if geo.structure_mapping is not None else None,
+      **kwargs
     )
-
+    
     h_V = jnp.zeros((E.shape[0], self.node_features_dim))
     h_E = E
 
+    mask = geo.mask[0] if geo.mask.ndim == 2 else geo.mask
     mask_2d = mask[:, None] * mask[None, :]
     mask_attend = jnp.take_along_axis(mask_2d, E_idx.astype(jnp.int32), axis=1)
 

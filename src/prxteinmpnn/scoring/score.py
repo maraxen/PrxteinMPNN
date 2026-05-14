@@ -9,21 +9,11 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Float, PRNGKeyArray
 
-from prxteinmpnn.types.bundles import (
-    ConditioningBundle,
-    GeometryBundle,
-    InferenceBundle,
-    LigandBundle as InferenceLigandBundle,
-    WaveScheduleBundle,
-)
-from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.protocols import ModelProtocol, ScoreFn
+from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.stages import StageSet
-from prxteinmpnn.inference.logits import LOGIT_STRATEGIES, BatchLogitFn
 from prxteinmpnn.inference import score_conditional, score_unconditional
-from prxteinmpnn.registry import (
-  combine_strategy_to_index,
-)
+from prxteinmpnn.host.bundle_builder import build_inference_bundle
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
 
@@ -101,86 +91,31 @@ def make_score_fn(
     L = sequence.shape[0]
     S = structure_coordinates.shape[0] if structure_coordinates.ndim == 4 else 1
     
-    # Reshape single-state inputs to (1, L, ...)
-    if structure_coordinates.ndim == 3:
-        structure_coordinates = structure_coordinates[None, ...]
-        mask = mask[None, ...]
-        residue_index = residue_index[None, ...]
-        chain_index = chain_index[None, ...]
-        if tie_group_map is not None:
-            tie_group_map = tie_group_map[None, ...]
-        if y is not None:
-            y = y[None, ...]
-            y_t = y_t[None, ...]
-            y_m = y_m[None, ...]
-
-    if sequence.ndim == 1:
-        sequence_oh = jax.nn.one_hot(sequence, n_aa)
+    decoding_order, prng_key = decoding_order_fn(prng_key, L, None, None)
+    if ar_mask is None:
+        ar_mask_single = generate_ar_mask(decoding_order)
     else:
-        sequence_oh = sequence
+        ar_mask_single = ar_mask[0] if ar_mask.ndim == 3 else ar_mask
 
-    # Build bundles
-    geo = GeometryBundle(
+    bundle, config, stage_set = build_inference_bundle(
         coords=structure_coordinates,
         mask=mask,
         residue_index=residue_index,
         chain_index=chain_index,
-        state_flat_rows=jnp.zeros((S, L), dtype=jnp.int32), # unused in simple scoring
-        n_states=S,
-        n_canonical=L,
-        n_flat=L
-    )
-    
-    if state_weights is None:
-        state_weights = jnp.ones(S) / S
-        
-    if tie_group_map is None:
-        tie_group_map = jnp.broadcast_to(jnp.arange(L)[None, :], (S, L))
-
-    decoding_order, prng_key = decoding_order_fn(prng_key, L, None, None)
-    if ar_mask is None:
-        ar_mask_stack = jax.vmap(lambda _: generate_ar_mask(decoding_order))(jnp.zeros(S))
-    else:
-        ar_mask_stack = ar_mask if ar_mask.ndim == 3 else ar_mask[None, ...]
-
-    cond = ConditioningBundle(
-        fixed_mask=jnp.zeros(L),
-        fixed_tokens=jnp.zeros(L, dtype=jnp.int32),
-        bias=bias if bias is not None else jnp.zeros((L, n_aa)),
+        sequence=sequence,
+        backbone_noise=backbone_noise if backbone_noise is not None else 0.0,
+        ar_mask=ar_mask_single,
+        structure_mapping=structure_mapping,
         tie_group_map=tie_group_map,
         state_weights=state_weights,
-        sequence_oh=sequence_oh,
-        ar_mask=ar_mask_stack
-    )
-    
-    lig = InferenceLigandBundle(
-        y=y if y is not None else jnp.zeros((S, 0, 4, 3)),
-        y_t=y_t if y_t is not None else jnp.zeros((S, 0, 4), dtype=jnp.int32),
-        y_m=y_m if y_m is not None else jnp.zeros((S, 0, 4))
-    )
-    
-    bundle = InferenceBundle(
-        geometry=geo,
-        conditioning=cond,
-        ligand=lig,
-        wave=WaveScheduleBundle.empty(L)
-    )
-    
-    config = InferenceConfig(
+        bias=bias,
+        y=y, y_t=y_t, y_m=y_m,
         mode="score_conditional",
-        temperature=1.0,
-        logit_combine_strategy=combine_strategy_to_index(multi_state_strategy),
+        strategy=multi_state_strategy,
+        strategy_temperature=multi_state_temperature,
         use_rolling_state=use_rolling_state,
         inference=True
     )
-    
-    strategy_cls = LOGIT_STRATEGIES.get(multi_state_strategy)
-    if multi_state_strategy == "geometric_mean":
-        transform = strategy_cls(state_weights, temperature=multi_state_temperature)
-    else:
-        transform = strategy_cls(state_weights)
-        
-    stage_set = StageSet(logit_transform=transform)
     
     logits = score_conditional.kernel(model, prng_key, bundle, config, stage_set)
     

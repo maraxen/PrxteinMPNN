@@ -14,6 +14,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from prxteinmpnn.model.ligand_tiling import map_chunks_axis0
+from prxteinmpnn.utils.coordinates import apply_noise_to_coordinates
 
 if TYPE_CHECKING:
     from prxteinmpnn.utils.types import (
@@ -25,6 +26,36 @@ if TYPE_CHECKING:
 
 PRNGKeyArray = jax.Array
 LayerNorm = eqx.nn.LayerNorm
+
+# Static periodic table features: (3, 119)
+# 0: Atomic Number (0-118)
+# 1: Group (1..18, 0 for null)
+# 2: Period (1..7, 0 for null)
+_R1_G = [0, 1, 18]
+_R23_G = [1, 2, 13, 14, 15, 16, 17, 18]
+_R45_G = list(range(1, 19))
+_R67_G = [1, 2] + [3] * 15 + list(range(4, 19))
+_GROUP_FEATURES = jnp.array(_R1_G + _R23_G + _R23_G + _R45_G + _R45_G + _R67_G + _R67_G)
+
+_R1_P = [0, 1, 1]
+_R2_P = [2] * 8
+_R3_P = [3] * 8
+_R4_P = [4] * 18
+_R5_P = [5] * 18
+_R6_P = [6] * 32
+_R7_P = [7] * 32
+_PERIOD_FEATURES = jnp.array(_R1_P + _R2_P + _R3_P + _R4_P + _R5_P + _R6_P + _R7_P)
+
+PERIODIC_TABLE_FEATURES = jnp.stack([
+    jnp.arange(119),
+    _GROUP_FEATURES,
+    _PERIOD_FEATURES,
+])
+
+SIDE_CHAIN_ATOM_TYPES = jnp.array([
+    6, 6, 6, 8, 8, 16, 6, 6, 6, 7, 7, 8, 8, 16, 6, 6,
+    6, 6, 7, 7, 7, 8, 8, 6, 7, 7, 8, 6, 6, 6, 7, 8,
+])
 
 
 class PositionalEncodings(eqx.Module):
@@ -38,7 +69,7 @@ class PositionalEncodings(eqx.Module):
         # The output dimension is ALWAYS 16 in the reference models
         self.num_embeddings = num_embeddings
         # Input to linear is [offset_one_hot(2*num_pos + 1), chain_one_hot(1)]
-        self.w_pos = eqx.nn.Linear(2 * num_embeddings + 2, 16, use_bias=True, key=key)
+        self.w_pos = eqx.nn.Linear(2 * num_embeddings + 2, 16, use_bias=False, key=key)
 
     def __call__(self, offset: jax.Array, same_chain: jax.Array) -> jax.Array:
         # offset: (N, K) relative residue indices
@@ -78,9 +109,6 @@ class ProteinFeaturesLigand(eqx.Module):
     norm_y_nodes: LayerNorm
 
     w_e_proj: eqx.nn.Linear  # Added to match W_e in ProteinMPNN
-
-    periodic_table_features: jnp.ndarray = eqx.field(static=True)
-    side_chain_atom_types: jnp.ndarray = eqx.field(static=True)
 
     k_neighbors: int = eqx.field(static=True)
     atom_context_num: int = eqx.field(static=True)
@@ -185,20 +213,6 @@ class ProteinFeaturesLigand(eqx.Module):
 
         self.w_e_proj = eqx.nn.Linear(edge_features, edge_features, key=keys[7])
 
-        # Static periodic table features: (3, 120)
-        # 0: Atomic Number (0-119)
-        # 1: Group (19 categories)
-        # 2: Period (8 categories)
-        self.periodic_table_features = jnp.array(np.array([
-            np.arange(119),
-            np.array([0, 1, 18, 1, 2, 13, 14, 15, 16, 17, 18, 1, 2, 13, 14, 15, 16, 17, 18, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]),
-            np.array([0, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7]),
-        ]))
-        self.side_chain_atom_types = jnp.array(np.array([
-            6, 6, 6, 8, 8, 16, 6, 6, 6, 7, 7, 8, 8, 16, 6, 6,
-            6, 6, 7, 7, 7, 8, 8, 6, 7, 7, 8, 6, 6, 6, 7, 8,
-        ]))
-
     def __call__(
         self,
         _key: PRNGKeyArray,
@@ -209,14 +223,27 @@ class ProteinFeaturesLigand(eqx.Module):
         Y: jnp.ndarray,    # Ligand coords [L, M, 3]
         Y_t: jnp.ndarray,  # Ligand types [L, M]
         Y_m: jnp.ndarray,  # Ligand mask [L, M]
-        _backbone_noise: float = 0.0,
+        backbone_noise: float = 0.0,
         structure_mapping: jnp.ndarray | None = None,
         *,
         xyz_37: jnp.ndarray | None = None,
         xyz_37_m: jnp.ndarray | None = None,
         chain_mask: jnp.ndarray | None = None,
     ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-        # Implement full forward pass
+        # 0. Noise Application
+        if backbone_noise > 0:
+            # Note: We currently only apply noise to backbone coordinates (N, CA, C, O)
+            # Ligand coordinates Y are kept as-is.
+            # We split the key to avoid reusing the same randomness for other ops.
+            noise_key, _key = jax.random.split(_key)
+            
+            # backbone_noise_mode is not currently supported in LigandMPNN (defaults to direct)
+            structure_coordinates, _ = apply_noise_to_coordinates(
+                noise_key,
+                structure_coordinates,
+                backbone_noise=backbone_noise,
+            )
+
         # N, CA, C, O
         N = structure_coordinates[:, 0, :]
         Ca = structure_coordinates[:, 1, :]
@@ -284,8 +311,8 @@ class ProteinFeaturesLigand(eqx.Module):
             r_m = xyz_37_m[:, 5:][e_idx_sub]
             r = xyz_37[:, 5:, :][e_idx_sub]
             r_t = jnp.broadcast_to(
-                self.side_chain_atom_types[None, None, :],
-                (mask.shape[0], e_idx_sub.shape[1], self.side_chain_atom_types.shape[0]),
+                SIDE_CHAIN_ATOM_TYPES[None, None, :],
+                (mask.shape[0], e_idx_sub.shape[1], SIDE_CHAIN_ATOM_TYPES.shape[0]),
             )
 
             r = r.reshape(mask.shape[0], -1, 3)
@@ -308,8 +335,8 @@ class ProteinFeaturesLigand(eqx.Module):
         # 2. Node/Ligand Features
         # type_1hot: (L, M, 147)
         Y_t_cast = Y_t.astype(jnp.int32)
-        Y_t_g = self.periodic_table_features[1, Y_t_cast]
-        Y_t_p = self.periodic_table_features[2, Y_t_cast]
+        Y_t_g = PERIODIC_TABLE_FEATURES[1, Y_t_cast]
+        Y_t_p = PERIODIC_TABLE_FEATURES[2, Y_t_cast]
 
         Y_t_1hot_ = jnp.concatenate([
             jax.nn.one_hot(Y_t_cast, 120),

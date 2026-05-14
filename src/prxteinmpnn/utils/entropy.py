@@ -5,30 +5,12 @@ Adapted from github.com/justktln2/cimist
 """
 
 import jax.numpy as jnp
-from jax import Array, jit
+from jax import Array
 from jax.lax import digamma, polygamma
-from jax.lax.linalg import eigh
-from jax.scipy.special import entr
 from jax.typing import ArrayLike
 from jaxtyping import Float
 
 from prxteinmpnn.utils.types import Logits
-
-
-@jit
-def von_neumman(rho: Float) -> ArrayLike:
-  r"""Compute the von Neumman entropy of the density overlap matrix rho.
-
-  With a square matrix $\rho$ defined by $\rho_{ij} = \\sqrt{p(i)}\\sqrt{p(j)}$,
-  the von Neumann entropy is given by $S_{vn} = -\\sum_{j} \\lambda_j \\log \\lambda_j$.
-
-  Attributes:
-    rho(Float):
-
-  """
-  _, lambda_ = eigh(rho)
-
-  return jnp.sum(jnp.where(lambda_ > 0, entr(lambda_), 0.0))
 
 
 def mle_entropy(states: Logits) -> ArrayLike:
@@ -109,26 +91,3 @@ def posterior_entropy_moments(alpha: Array) -> Array:
   return jnp.array([posterior_entropy_mean(alpha), posterior_entropy_squared_mean(alpha)])
 
 
-@jit
-def posterior_mean_std(alpha: Array) -> Array:
-  r"""Calculate the mean and standard deviation of the distribution of the entropy.
-
-  For a categorical distribution $p \\sim Dirichlet(\alpha)$.
-
-  Returns
-  -------
-  A 2x1 array with the posterior mean as the first entropy and the posterior standard deviation as
-    the second.
-
-  References
-  ----------
-  [1] Evan Archer, Il Memming Park, Jonathan W. Pillow; Journal of Machine Learning Research.
-    15(81):2833-2868, 2014. doi:10.5555/2627435.2697056
-
-  Notes
-  -----
-  See equations 18-19 in appendix A of reference [1].
-
-  """
-  mean_entropy, mean_squared_entropy = posterior_entropy_moments(alpha)
-  return jnp.array([mean_entropy, jnp.sqrt(mean_squared_entropy - mean_entropy**2)])

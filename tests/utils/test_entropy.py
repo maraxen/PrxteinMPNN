@@ -1,6 +1,6 @@
 """Tests for entropy utility functions.
 
-Tests cover von Neumann entropy, MLE entropy, and Bayesian entropy estimators.
+Tests cover MLE entropy and Bayesian/Dirichlet posterior entropy estimators.
 """
 
 import chex

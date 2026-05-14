@@ -89,7 +89,6 @@ if TYPE_CHECKING:
   )
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
 _batch_logger = logging.getLogger(__name__ + ".batch_plan")
 
 

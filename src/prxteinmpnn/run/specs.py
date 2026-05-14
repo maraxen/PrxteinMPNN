@@ -62,7 +62,6 @@ ModelVersion = MODEL_VERSION
 AlignmentStrategy = Literal["sequence", "structure"]
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, stream=sys.stdout, force=True)
 
 # TODO(tech-debt): `.agents/TECHNICAL_DEBT.md` §10 — formalize contracts on `RunSpecification` and related public types.
 

@@ -268,6 +268,6 @@ def make_encoding_conditional_logits_split_fn(
       inference_model.w_s_embed.weight,
     )
 
-    return jax.vmap(inference_model.w_out)(decoded_node_features)
+    return jax.vmap(inference_model.w_out, in_axes=0)(decoded_node_features)
 
   return encode_fn, decode_fn

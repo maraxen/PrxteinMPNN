@@ -84,8 +84,8 @@ def kernel(
         # For unconditional, we don't pass sequence to the decoder
         return model.decoder(nb, eb, nei, mk, key=k_dec, inference=config.inference)
 
-    decoded = jax.vmap(decode_one)(node_b, edge_b, nei_b, geo.mask)
-    logits_stack = jax.vmap(jax.vmap(model.w_out))(decoded)
+    decoded = jax.vmap(decode_one, in_axes=(0, 0, 0, 0))(node_b, edge_b, nei_b, geo.mask)
+    logits_stack = jax.vmap(jax.vmap(model.w_out, in_axes=0), in_axes=0)(decoded)
 
     # Add bias
     logits_stack = logits_stack + cond.bias[None, ...]

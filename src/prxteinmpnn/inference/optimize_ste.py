@@ -173,9 +173,9 @@ def make_optimize_sequence_fn(
         
         if enable_remat:
           eval_with_mask_remat = jax.checkpoint(eval_with_mask)
-          pred_logits_batch = jax.vmap(eval_with_mask_remat)(ar_masks)
+          pred_logits_batch = jax.vmap(eval_with_mask_remat, in_axes=0)(ar_masks)
         else:
-          pred_logits_batch = jax.vmap(eval_with_mask)(ar_masks)
+          pred_logits_batch = jax.vmap(eval_with_mask, in_axes=0)(ar_masks)
 
         output_logits = jnp.mean(pred_logits_batch, axis=0)
 

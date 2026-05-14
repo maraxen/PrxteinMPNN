@@ -353,29 +353,34 @@ Ensure critical compiled paths remain exportable to **StableHLO** and compatible
 
 ## 12. Move ensemble analytics (DBSCAN, PCA, …) to jaxbeans
 
-**Status:** 🟢 Planned  
+**Status:** 🟡 In progress (re-scoped to ensemble_prxteinmpnn_tools_WIP, 2026-05-14)  
 **Priority:** Medium
 
 ### Description
 
 General-purpose **DBSCAN**, **PCA**, and related ensemble utilities in `prxteinmpnn.ensemble` belong in **jaxbeans** (shared JAX utilities) so PrxteinMPNN stays domain-focused and other projects can reuse them.
 
-### Modules and consumers (current)
+**Update (2026-05-14):** Ensemble subpackage extracted to `~/projects/ensemble_prxteinmpnn_tools_WIP/` as a standalone experimental package during Sprint 3 (Task T10). The modules, tests, and type aliases are now managed there. Next phase is either publishing to PyPI or integrating into jaxbeans as originally planned. See `README.md` "Related Tools" section for current location and install instructions.
+
+### Modules and consumers (previous location in prxteinmpnn)
 
 - **Sources:** `src/prxteinmpnn/ensemble/dbscan.py`, `src/prxteinmpnn/ensemble/pca.py` (and call sites in `run/conformational_inference.py`, `ensemble/ci.py`, `run/specs.py`)
 - **Tests:** `tests/ensemble/test_dbscan.py`, `tests/ensemble/test_pca.py`
+- **Now at:** `~/projects/ensemble_prxteinmpnn_tools_WIP/src/ensemble_tools/` with matching test structure
 
 ### Required work
 
-- [ ] Add equivalent APIs to jaxbeans; depend on jaxbeans from PrxteinMPNN
-- [ ] Replace `prxteinmpnn.ensemble.{dbscan,pca}` imports with jaxbeans; keep thin re-exports or delete after a deprecation window
-- [ ] Move or duplicate tests into jaxbeans; trim PrxteinMPNN tests to integration-only if needed
-- [ ] Coordinate `pcax` / typing (`PCAInputData` in `utils/types.py`) as part of the move
+- [x] Extract ensemble subpackage to standalone location (`ensemble_prxteinmpnn_tools_WIP`)
+- [ ] Evaluate: publish to PyPI vs. integrate into jaxbeans
+- [ ] If PyPI: tag version, finalize API docs, add to prxteinmpnn dependencies
+- [ ] If jaxbeans: coordinate API migration, maintain parity, retire ensemble_prxteinmpnn_tools_WIP
+- [ ] Update prxteinmpnn imports to reference external package (currently TYPE_CHECKING + Protocol stubs in `run/specs.py`)
 
 ### Code pointers
 
-- `src/prxteinmpnn/ensemble/dbscan.py` — `TODO(tech-debt)` §12
-- `src/prxteinmpnn/ensemble/pca.py` — `TODO(tech-debt)` §12
+- `src/prxteinmpnn/ensemble/` — now deleted; use `ensemble_tools` at external location
+- `src/prxteinmpnn/run/specs.py` — `ConformationalStates` type uses Protocol stub (TYPE_CHECKING import)
+- `~/projects/ensemble_prxteinmpnn_tools_WIP/src/ensemble_tools/dbscan.py` — new source location
 
 ---
 

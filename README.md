@@ -40,6 +40,12 @@ faithful reproduction of the original model's behavior.
 
 Legacy root-level parity stubs are non-canonical; use the links above.
 
+## Related Tools
+
+The following packages were extracted from prxteinmpnn during refactoring:
+
+- **`ensemble_tools`** — Clustering and conformational inference algorithms (GMM, EM, KMeans, DBSCAN, PCA, BIC, VMM). Located at `~/projects/ensemble_prxteinmpnn_tools_WIP/`. Experimental, not published to PyPI. Install with `uv pip install -e ~/projects/ensemble_prxteinmpnn_tools_WIP`. Import as `from ensemble_tools.xxx import yyy`. The `ConformationalStates` type used by `RunSpecification.conformational_states` comes from `ensemble_tools.dbscan`.
+
 ### Running Equivalence Tests
 
 ```bash

@@ -136,7 +136,7 @@ class ModelProtocol(Protocol):
     w_s_embed: eqx.nn.Embedding
     capabilities: ModelCapabilities
 
-    def __call__(self, key: PRNGKeyArray, **kwargs: Any) -> tuple[jax.Array, jax.Array, jax.Array]:
+    def __call__(self, key: PRNGKeyArray, **kwargs: jax.Array | str | float | int | bool | None) -> tuple[jax.Array, jax.Array, jax.Array]:
         ...
 
     @classmethod

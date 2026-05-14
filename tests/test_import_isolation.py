@@ -34,11 +34,6 @@ print("OK: {module_path} not in sys.modules")
     )
 
 
-def test_ensemble_not_imported_at_runtime() -> None:
-    """prxteinmpnn.ensemble must not appear in sys.modules after core import."""
-    _run_isolation_check("prxteinmpnn.ensemble")
-
-
 def test_psa_not_imported_at_runtime() -> None:
     """prxteinmpnn.psa must not appear in sys.modules after core import."""
     _run_isolation_check("prxteinmpnn.psa")

@@ -13,10 +13,10 @@ if TYPE_CHECKING:
 
 class InferenceConfig(eqx.Module):
     """JIT-traced configuration for PrxteinMPNN inference."""
-    mode: str = eqx.static_field(default="score_conditional")
-    backbone_noise_mode: str = eqx.static_field(default="direct") # "direct" | "thermal"
-    use_rolling_state: bool = eqx.static_field(default=False) # scan vs vmap over steps
-    inference: bool = eqx.static_field(default=True)
+    mode: str = eqx.field(static=True, default="score_conditional")
+    backbone_noise_mode: str = eqx.field(static=True, default="direct") # "direct" | "thermal"
+    use_rolling_state: bool = eqx.field(static=True, default=False) # scan vs vmap over steps
+    inference: bool = eqx.field(static=True, default=True)
 
 
 @dataclasses.dataclass

@@ -58,7 +58,7 @@ def kernel(
             inference=config.inference,
         )
 
-    noise_stack = jnp.broadcast_to(geo.backbone_noise, (S,))
+    noise_stack = jnp.broadcast_to(bundle.backbone_noise, (S,))
 
     if config.use_rolling_state:
         def scan_body(carry: Any, per_state: tuple[jax.Array, ...]):

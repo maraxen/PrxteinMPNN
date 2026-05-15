@@ -5,8 +5,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 import numpy as np
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
@@ -31,39 +30,6 @@ class AxisNames:
     N_SAMPLES = "n_samples"
     N_TEMPERATURES = "n_temperatures"
     N_NOISES = "n_noises"
-
-
-@dataclass(frozen=True)
-class SamplingPlan:
-    """Complete batch and sampling plan for a single _sample_batch call.
-
-    Aggregates the results of batch planning, grid resolution, and scheduling decisions.
-    """
-    batch_plan: BatchPlan
-    structures_bs: int
-    samples_bs: int
-    temps_bs: int
-    noises_bs: int
-    target_num_samples: int
-    sample_keys: jax.Array
-    grid_lineage: dict[str, Any] | None
-    sample_start: int
-    chunk_size: int
-
-    def __post_init__(self) -> None:
-        """Validate the plan is internally consistent."""
-        if self.structures_bs <= 0:
-            msg = "structures_bs must be positive"
-            raise ValueError(msg)
-        if self.samples_bs <= 0:
-            msg = "samples_bs must be positive"
-            raise ValueError(msg)
-        if self.temps_bs <= 0:
-            msg = "temps_bs must be positive"
-            raise ValueError(msg)
-        if self.noises_bs <= 0:
-            msg = "noises_bs must be positive"
-            raise ValueError(msg)
 
 
 def make_sampling_planner(
@@ -216,68 +182,3 @@ def resolve_sample_start(
         The sample start index (0-based).
     """
     return int(grid_lineage["sample_start"]) if grid_lineage is not None else 0
-
-
-def build_sampling_plan(
-    spec: SamplingSpecification,
-    base_key: PRNGKeyArray,
-    grid_lineage: dict[str, Any] | None = None,
-    chunk_sample_start: int | None = None,
-    param_bytes: float = 0.0,
-    headroom: float = 0.80,
-    activation_multiplier: float = 2.5,
-) -> SamplingPlan:
-    """Build a complete sampling plan from specification and context.
-
-    This is the primary entry point for batch planning. It aggregates:
-    - Batch size decisions via make_sampling_planner
-    - Sample count resolution
-    - PRNG key generation
-    - Chunk and sample start resolution
-
-    Args:
-        spec: The sampling specification.
-        base_key: Base PRNG key for sample key derivation.
-        grid_lineage: Optional grid lineage from spec resolution.
-        chunk_sample_start: Optional explicit chunk start override.
-        param_bytes: Estimated parameter bytes for memory planning.
-        headroom: Memory headroom fraction.
-        activation_multiplier: Activation memory multiplier.
-
-    Returns:
-        A complete SamplingPlan ready for dispatch.
-    """
-    # Create batch plan from specifications
-    batch_plan = make_sampling_planner(spec, param_bytes, headroom, activation_multiplier)
-    batch_plan.log_summary()
-
-    # Extract per-axis batch sizes
-    structures_bs, samples_bs, temps_bs, noises_bs = extract_batch_sizes(batch_plan)
-
-    # Resolve sample count
-    target_num_samples = resolve_target_samples(spec, chunk_sample_start, grid_lineage)
-
-    # Compute deterministic sample keys
-    sample_keys = compute_sample_keys(
-        base_key,
-        target_num_samples,
-        chunk_sample_start=chunk_sample_start,
-        grid_lineage_sample_start=grid_lineage["sample_start"] if grid_lineage is not None else None,
-    )
-
-    # Resolve streaming parameters
-    sample_start = resolve_sample_start(grid_lineage)
-    chunk_size = resolve_chunk_size(spec, target_num_samples, grid_lineage)
-
-    return SamplingPlan(
-        batch_plan=batch_plan,
-        structures_bs=structures_bs,
-        samples_bs=samples_bs,
-        temps_bs=temps_bs,
-        noises_bs=noises_bs,
-        target_num_samples=target_num_samples,
-        sample_keys=sample_keys,
-        grid_lineage=grid_lineage,
-        sample_start=sample_start,
-        chunk_size=chunk_size,
-    )

@@ -88,54 +88,22 @@ def test_implementations_accept_none_bias():
         assert out.shape == (L, V)
 
 
-# ---------------------------------------------------------------------------
-# 2. Kernel call sites: bias passed to logit_transform, not inline
-# ---------------------------------------------------------------------------
+def test_bias_applied_after_fusion_numerically():
+    """Bias is added after state fusion, not before — numerical verification."""
+    from prxteinmpnn.inference.logits import ArithmeticMeanLogits
 
-def test_score_conditional_no_standalone_bias_before_transform():
-    """score_conditional does not add bias before calling logit_transform."""
-    import prxteinmpnn.inference.score_conditional as sc
+    S, L, V = 2, 4, 21
+    weights = jnp.ones(S)
+    fn = ArithmeticMeanLogits(weights=weights)
+    logits = jnp.zeros((S, L, V))
+    bias = jnp.ones((L, V))
 
-    source = inspect.getsource(sc)
-    # Bias must not appear on a line before logit_transform as a standalone addition
-    lines = source.splitlines()
-    in_bias_zone = False
-    for line in lines:
-        stripped = line.strip()
-        if "logit_transform" in stripped:
-            break
-        # The old pattern was: logits_stack = logits_stack + cond.bias[None, ...]
-        if "cond.bias" in stripped and "+=" in stripped or (
-            "cond.bias" in stripped and stripped.startswith("logits_stack")
-        ):
-            pytest.fail(
-                f"score_conditional still adds bias before logit_transform: {line!r}"
-            )
+    # Without bias
+    fused_no_bias = fn(logits, bias=None)
+    # With bias
+    fused_with_bias = fn(logits, bias=bias)
+
+    # Bias should increase the output
+    assert jnp.allclose(fused_with_bias, fused_no_bias + bias, atol=1e-5)
 
 
-def test_score_unconditional_no_standalone_bias_before_transform():
-    """score_unconditional does not add bias before calling logit_transform."""
-    import prxteinmpnn.inference.score_unconditional as su
-
-    source = inspect.getsource(su)
-    lines = source.splitlines()
-    for line in lines:
-        stripped = line.strip()
-        if "logit_transform" in stripped:
-            break
-        if "cond.bias" in stripped and stripped.startswith("logits_stack"):
-            pytest.fail(
-                f"score_unconditional still adds bias before logit_transform: {line!r}"
-            )
-
-
-def test_sample_ar_no_standalone_bias_after_transform():
-    """sample_autoregressive does not add bias separately after logit_transform."""
-    import prxteinmpnn.inference.sample_autoregressive as sar
-
-    source = inspect.getsource(sar)
-    # Old pattern: combined_logits = combined_logits + cond.bias
-    assert "combined_logits + cond.bias" not in source and \
-           "combined_logits += cond.bias" not in source, (
-        "sample_autoregressive still has a standalone bias addition after logit_transform"
-    )

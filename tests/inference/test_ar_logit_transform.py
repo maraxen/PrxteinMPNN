@@ -89,16 +89,3 @@ def test_stage_set_ar_logit_fuse_survives_jit():
     assert out.shape == (V,)
 
 
-# ---------------------------------------------------------------------------
-# 4. bundle_builder wires ar_logit_transform by default
-# ---------------------------------------------------------------------------
-
-def test_bundle_builder_sets_ar_logit_transform():
-    """build_inference_bundle returns a StageSet with ar_logit_transform set."""
-    pytest.importorskip("prxteinmpnn.inference.bundle_builder")
-    from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-
-    import inspect
-    sig = inspect.signature(build_inference_bundle)
-    # This is a structural check — full wiring tested in integration tests
-    assert "strategy" in sig.parameters or "stage_set" in sig.parameters

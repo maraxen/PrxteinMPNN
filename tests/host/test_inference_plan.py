@@ -59,12 +59,23 @@ def test_inference_plan_sample_score_are_distinct():
 
 def test_inference_plan_has_stage_set_attribute():
     """InferencePlan exposes a stage_set attribute (resolved from spec)."""
-    from prxteinmpnn.host.plan import InferencePlan
-    # Check via annotations or __dataclass_fields__ or __init__ signature
-    sig = inspect.signature(InferencePlan.__init__)
-    params = list(sig.parameters)
-    has_stage_set = "stage_set" in params or hasattr(InferencePlan, "stage_set")
-    assert has_stage_set, "InferencePlan must have a stage_set attribute"
+    import equinox as eqx
+    from prxteinmpnn.host.plan import InferencePlan, make_inference_plan
+
+    # Create a minimal plan instance via make_inference_plan
+    class DummyModel(eqx.Module):
+        pass
+
+    class DummySpec:
+        sampling_strategy = "temperature"
+        use_rolling_state = False
+        multi_state_strategy = "arithmetic_mean"
+        multi_state_temperature = 1.0
+        state_weights = None
+        temperature = [1.0]
+
+    plan = make_inference_plan(DummyModel(), DummySpec())
+    assert hasattr(plan, "stage_set"), "InferencePlan instance must have a stage_set attribute"
 
 
 # ---------------------------------------------------------------------------
@@ -117,3 +128,24 @@ def test_make_inference_plan_returns_inference_plan():
     assert isinstance(plan, InferencePlan), (
         f"make_inference_plan must return InferencePlan, got {type(plan)}"
     )
+
+
+def test_make_inference_plan_with_geometric_mean():
+    """make_inference_plan with multi_state_strategy='geometric_mean' wires GeometricMeanLogits."""
+    from prxteinmpnn.host.plan import make_inference_plan
+    from prxteinmpnn.inference.logits import GeometricMeanLogits
+    import equinox as eqx
+
+    class DummyModel(eqx.Module):
+        pass
+
+    class GeoSpec:
+        sampling_strategy = "temperature"
+        use_rolling_state = False
+        multi_state_strategy = "geometric_mean"
+        multi_state_temperature = 1.0
+        state_weights = None
+        temperature = [1.0]
+
+    plan = make_inference_plan(DummyModel(), GeoSpec())
+    assert isinstance(plan.stage_set.logit_transform, GeometricMeanLogits)

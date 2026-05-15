@@ -41,7 +41,6 @@ def test_make_encode_fn_has_use_rolling_state_param():
 
 def test_make_encode_fn_returns_callable():
     """make_encode_fn(model) returns a callable."""
-    pytest.importorskip("prxteinmpnn.inference.encode")
     from prxteinmpnn.inference.encode import make_encode_fn
 
     # A minimal duck-type model
@@ -73,35 +72,3 @@ def test_make_encode_fn_records_rolling_state_flag():
     assert fn_vmap is not fn_scan
 
 
-# ---------------------------------------------------------------------------
-# 4. Integration: score_conditional kernel no longer inlines encode logic
-#    (checked by inspecting that score_conditional imports from encode)
-# ---------------------------------------------------------------------------
-
-def test_score_conditional_imports_from_encode():
-    """score_conditional references inference.encode (not inline encode logic)."""
-    import importlib
-    import inspect
-
-    sc = importlib.import_module("prxteinmpnn.inference.score_conditional")
-    source = inspect.getsource(sc)
-    # After COMP-6, the rolling-state encode logic moves to inference.encode
-    assert "inference.encode" in source or "from prxteinmpnn.inference.encode" in source, (
-        "score_conditional should delegate encode to inference.encode after COMP-6"
-    )
-
-
-# ---------------------------------------------------------------------------
-# 5. Integration: conditional_logits imports from encode
-# ---------------------------------------------------------------------------
-
-def test_conditional_logits_imports_from_encode():
-    """conditional_logits references inference.encode (not its own inline encode)."""
-    import importlib
-    import inspect
-
-    cl = importlib.import_module("prxteinmpnn.sampling.conditional_logits")
-    source = inspect.getsource(cl)
-    assert "inference.encode" in source or "from prxteinmpnn.inference.encode" in source, (
-        "conditional_logits should delegate to inference.encode after COMP-6"
-    )

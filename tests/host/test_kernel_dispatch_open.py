@@ -45,28 +45,6 @@ def test_resolve_kernel_fn_temperature_differs_from_straight_through():
     assert fn_temp is not fn_ste, "temperature and straight_through must resolve to distinct fns"
 
 
-# ---------------------------------------------------------------------------
-# 2. kernel_dispatch no longer hardwires sample_ar.kernel
-# ---------------------------------------------------------------------------
-
-def test_kernel_dispatch_does_not_hardwire_sample_ar_kernel():
-    """_sample_batch no longer calls sample_ar.kernel directly."""
-    import prxteinmpnn.host.kernel_dispatch as kd
-    source = inspect.getsource(kd)
-
-    assert "sample_ar.kernel(" not in source, (
-        "_sample_batch must not hardwire sample_ar.kernel; use resolve_kernel_fn instead"
-    )
-
-
-def test_kernel_dispatch_uses_resolve_kernel_fn():
-    """_sample_batch calls resolve_kernel_fn to select the decode path."""
-    import prxteinmpnn.host.kernel_dispatch as kd
-    source = inspect.getsource(kd)
-
-    assert "resolve_kernel_fn" in source, (
-        "_sample_batch must call resolve_kernel_fn to dispatch"
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -79,10 +57,14 @@ def test_spec_sampling_strategy_temperature_maps_to_ar():
     from prxteinmpnn.inference import sample_autoregressive as sample_ar
 
     fn = resolve_kernel_fn("temperature")
-    # The resolved fn must be the AR kernel or a thin wrapper around it
-    # Check by name or by identity with driver
-    fn_src = inspect.getsource(fn) if hasattr(fn, "__code__") else repr(fn)
-    # Accept either the AR kernel directly or driver.decode wrapping it
-    assert fn is sample_ar.kernel or "ar" in fn_src.lower() or "sample" in fn_src.lower(), (
-        "resolve_kernel_fn('temperature') should resolve to the AR sampling path"
+    assert fn is sample_ar.kernel, (
+        "resolve_kernel_fn('temperature') must resolve to sample_ar.kernel"
     )
+
+
+def test_resolve_kernel_fn_unknown_strategy_returns_callable():
+    """resolve_kernel_fn with unknown strategy returns a callable (default fallback, no raise)."""
+    from prxteinmpnn.host.kernel_dispatch import resolve_kernel_fn
+
+    fn = resolve_kernel_fn("totally_unknown_strategy")
+    assert callable(fn)

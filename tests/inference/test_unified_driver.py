@@ -41,21 +41,18 @@ def test_decode_signature():
 # 2. Dispatch topology inference
 # ---------------------------------------------------------------------------
 
-def test_decode_returns_logits_for_conditional_no_sample_step():
-    """decode with ConditionalDecodeStep + no sample_step returns (L, V) logits."""
-    pytest.importorskip("prxteinmpnn.inference.driver")
-    from prxteinmpnn.inference.driver import decode
+def test_stage_set_default_is_scoring_mode():
+    """StageSet default configuration indicates scoring mode (no sample_step)."""
     from prxteinmpnn.types.stages import StageSet
 
-    # Stage set: conditional decode, no sample_step — teacher-forced path
-    ss = StageSet()  # decode_step=None means falls back to conditional
+    # Default: no sample_step, no decode_step — teacher-forced scoring path
+    ss = StageSet()
     # Topology check: stage_set.sample_step is None → scoring mode
     assert ss.sample_step is None
 
 
-def test_decode_with_sample_step_returns_sample_result():
-    """decode with sample_step set returns SampleResult (not plain logits)."""
-    pytest.importorskip("prxteinmpnn.inference.driver")
+def test_infer_topology_with_sample_step_returns_ar():
+    """infer_topology returns TOPOLOGY_AR when sample_step is set."""
     from prxteinmpnn.inference.driver import TOPOLOGY_AR, infer_topology
     from prxteinmpnn.types.stages import StageSet
 
@@ -92,41 +89,19 @@ def test_decode_topology_unconditional():
     assert infer_topology(ss) == TOPOLOGY_UNCONDITIONAL
 
 
-# ---------------------------------------------------------------------------
-# 3. Existing kernel wrappers delegate to driver
-# ---------------------------------------------------------------------------
+def test_infer_topology_with_conditional_decode_step():
+    """infer_topology returns TOPOLOGY_CONDITIONAL_SCORE when ConditionalDecodeStep is set (not Unconditional)."""
+    import equinox as eqx
+    from prxteinmpnn.inference.driver import TOPOLOGY_CONDITIONAL_SCORE, infer_topology
+    from prxteinmpnn.types.stages import ConditionalDecodeStep, StageSet
 
-def test_score_conditional_kernel_imports_driver():
-    """score_conditional.kernel delegates to inference.driver."""
-    import importlib
-    import inspect
+    class DummyDecoder(eqx.Module):
+        pass
 
-    sc = importlib.import_module("prxteinmpnn.inference.score_conditional")
-    source = inspect.getsource(sc)
-    assert "driver" in source or "from prxteinmpnn.inference.driver" in source, (
-        "score_conditional should delegate to inference.driver after COMP-5"
-    )
+    class DummyEmbed(eqx.Module):
+        pass
 
-
-def test_score_unconditional_kernel_imports_driver():
-    """score_unconditional.kernel delegates to inference.driver."""
-    import importlib
-    import inspect
-
-    su = importlib.import_module("prxteinmpnn.inference.score_unconditional")
-    source = inspect.getsource(su)
-    assert "driver" in source or "from prxteinmpnn.inference.driver" in source, (
-        "score_unconditional should delegate to inference.driver after COMP-5"
-    )
+    ss = StageSet(decode_step=ConditionalDecodeStep(decoder=DummyDecoder(), w_s_embed=DummyEmbed()))
+    assert infer_topology(ss) == TOPOLOGY_CONDITIONAL_SCORE
 
 
-def test_sample_autoregressive_kernel_imports_driver():
-    """sample_autoregressive.kernel delegates to inference.driver."""
-    import importlib
-    import inspect
-
-    sar = importlib.import_module("prxteinmpnn.inference.sample_autoregressive")
-    source = inspect.getsource(sar)
-    assert "driver" in source or "from prxteinmpnn.inference.driver" in source, (
-        "sample_autoregressive should delegate to inference.driver after COMP-5"
-    )

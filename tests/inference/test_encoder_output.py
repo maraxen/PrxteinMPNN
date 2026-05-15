@@ -53,7 +53,7 @@ def test_encoder_output_is_jax_pytree():
         neighbor_indices=jnp.zeros((4, 8), dtype=jnp.int32),
     )
     leaves = jax.tree.leaves(enc)
-    assert len(leaves) >= 2  # at least node and edge features are leaves
+    assert len(leaves) == 3  # node_features, edge_features, neighbor_indices
 
 
 def test_encoder_output_survives_vmap():
@@ -114,13 +114,13 @@ def test_encoder_output_survives_scan():
 # 3. Score-site integration: encode sites produce EncoderOutput
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="requires minimal_bundle_fixture — deferred to COMP-2")
+@pytest.mark.skip(reason="requires minimal_bundle_fixture in conftest — follow-up task")
 def test_score_conditional_encode_returns_encoder_output(minimal_bundle_fixture):
     """score_conditional kernel internally produces EncoderOutput (smoke test)."""
     pytest.importorskip("prxteinmpnn.inference.score_conditional")
 
 
-@pytest.mark.skip(reason="requires minimal_encode_fn_fixture — deferred to COMP-2")
+@pytest.mark.skip(reason="requires minimal_encode_fn_fixture in conftest — follow-up task")
 def test_conditional_logits_encode_fn_returns_encoder_output(minimal_encode_fn_fixture):
     """encode_fn in conditional_logits returns EncoderOutput, not a raw tuple."""
     encode_fn, _ = minimal_encode_fn_fixture

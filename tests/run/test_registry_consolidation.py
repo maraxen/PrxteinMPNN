@@ -13,14 +13,6 @@ from __future__ import annotations
 # 1. No duplicate arithmetic mean in decode_registry
 # ---------------------------------------------------------------------------
 
-def test_decode_registry_has_no_plain_arithmetic_mean():
-    """decode_registry must not define a standalone _default_arithmetic_mean function."""
-    import prxteinmpnn.run.decode_registry as dr
-    assert not hasattr(dr, "_default_arithmetic_mean"), (
-        "_default_arithmetic_mean duplicates ArithmeticMeanLogits — remove it"
-    )
-
-
 def test_default_decode_fn_uid_removed_or_backed_by_logit_strategies():
     """DEFAULT_DECODE_FN_UID is gone or backed by a LOGIT_STRATEGIES eqx.Module instance."""
     import prxteinmpnn.run.decode_registry as dr

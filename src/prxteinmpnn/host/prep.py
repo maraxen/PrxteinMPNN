@@ -17,6 +17,7 @@ if TYPE_CHECKING:
   from prxteinmpnn.types.arrays import Model
 
 import equinox as eqx
+import jax
 from proxide.ops.dataset import create_protein_dataset
 
 from prxteinmpnn.io.weights import load_model
@@ -121,6 +122,9 @@ def prep_protein_stream_and_model(
     local_ckpt = str(spec.model_local_path)
   elif reg_path := _resolve_local_checkpoint_from_registry(spec):
     local_ckpt = reg_path
+
+  if spec.cache_path is not None:
+    jax.config.update("jax_compilation_cache_dir", str(spec.cache_path))
 
   if spec.checkpoint_id is not None:
     model = load_model(

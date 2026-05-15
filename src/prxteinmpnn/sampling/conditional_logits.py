@@ -29,6 +29,7 @@ from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.inference.bundle_builder import build_inference_bundle
 from prxteinmpnn.inference.score_conditional import kernel as score_conditional
+from prxteinmpnn.types.encodings import EncoderOutput
 from prxteinmpnn.types.protocols import ConditionalLogitsFn, ModelProtocol
 from prxteinmpnn.types.arrays import (
   AlphaCarbonMask,
@@ -227,20 +228,22 @@ def make_encoding_conditional_logits_split_fn(
       key=key_encoder,
     )
 
-    ar_mask_placeholder = jax.numpy.zeros((mask.shape[0], mask.shape[0]), dtype=jax.numpy.int32)
-
-    return (node_features, processed_edge_features, neighbor_indices, mask, ar_mask_placeholder)
+    return EncoderOutput(
+        node_features=node_features,
+        edge_features=processed_edge_features,
+        neighbor_indices=neighbor_indices,
+        mask=mask,
+    )
 
   def decode_fn(
-    encoding: tuple,
+    encoding: EncoderOutput,
     sequence: ProteinSequence,
     ar_mask: AutoRegressiveMask | None = None,
   ) -> Logits:
     """Decode encoder features to logits for a given sequence.
 
     Args:
-      encoding: Tuple of (node_features, edge_features, neighbor_indices, mask, _)
-                from encode_fn.
+      encoding: EncoderOutput from encode_fn containing node_features, edge_features, neighbor_indices, and mask.
       sequence: Protein sequence as integer array (N,) or one-hot (N, 21).
       ar_mask: Optional autoregressive mask (N, N). If None, uses zeros.
 
@@ -248,10 +251,13 @@ def make_encoding_conditional_logits_split_fn(
       Logits of shape (N, 21) for each residue position.
 
     """
-    node_features, processed_edge_features, neighbor_indices, mask, _ = encoding
+    node_features = encoding.node_features
+    processed_edge_features = encoding.edge_features
+    neighbor_indices = encoding.neighbor_indices
+    mask = encoding.mask
 
     if ar_mask is None:
-      ar_mask = jax.numpy.zeros((mask.shape[0], mask.shape[0]), dtype=jax.numpy.int32)
+      ar_mask = jax.numpy.zeros((node_features.shape[0], node_features.shape[0]), dtype=jax.numpy.int32)
 
     if sequence.ndim == 1:
       one_hot_sequence = jax.nn.one_hot(sequence, inference_model.w_s_embed.num_embeddings)

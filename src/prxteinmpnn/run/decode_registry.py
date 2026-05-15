@@ -11,8 +11,6 @@ import hashlib
 import sys
 from typing import TYPE_CHECKING, Any
 
-import jax.numpy as jnp
-
 if TYPE_CHECKING:
   from prxteinmpnn.types.stages import LogitTransformFn
 
@@ -69,19 +67,4 @@ def _capture_env() -> dict[str, str]:
   }
 
 
-def _default_arithmetic_mean(
-  state_logits: Any,
-  _state_index: Any,
-  _state_weights: Any,
-) -> Any:
-  """Default LogitTransformFn: uniform arithmetic mean across states."""
-  return jnp.mean(state_logits, axis=0)
-
-
-DEFAULT_DECODE_FN_UID: str = register_decode_fn(
-  _default_arithmetic_mean,
-  name="arithmetic_mean_default",
-)
-
-
-__all__ = ["DecodeFnEntry", "DEFAULT_DECODE_FN_UID", "register_decode_fn", "resolve_decode_fn"]
+__all__ = ["DecodeFnEntry", "register_decode_fn", "resolve_decode_fn"]

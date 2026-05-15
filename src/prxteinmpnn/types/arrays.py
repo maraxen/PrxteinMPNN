@@ -1,6 +1,6 @@
 """Array type definitions for the PrxteinMPNN project."""
 
-# TODO(tech-debt): `.agents/TECHNICAL_DEBT.md` §10 — tighten contracts (`Protocol`, aliases) at model/sampling boundaries.
+# TODO(tech-debt): `.praxia/TECHNICAL_DEBT.md` §10 — tighten contracts (`Protocol`, aliases) at model/sampling boundaries.
 
 from __future__ import annotations
 
@@ -71,7 +71,6 @@ ChainIndex = Int[ArrayLike, "num_residues"]  # Index of chains in the structure
 DecodingOrderInputs = tuple[PRNGKeyArray, int]
 DecodingOrderOutputs = tuple[DecodingOrder, PRNGKeyArray]
 CEELoss = Float[ArrayLike, ""]  # Cross-entropy loss
-SamplingHyperparameters = tuple[float | int | Array | GradientTransformation, ...]
 
 AlphaCarbonMask = Int[ArrayLike, "num_residues"]
 BackboneDihedrals = Float[ArrayLike, "num_residues 3"]  # Dihedral angles for backbone atoms
@@ -131,7 +130,6 @@ __all__ = [
     "DecodingOrderInputs",
     "DecodingOrderOutputs",
     "CEELoss",
-    "SamplingHyperparameters",
     "AlphaCarbonMask",
     "BackboneDihedrals",
     "BackboneNoise",

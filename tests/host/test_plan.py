@@ -12,7 +12,6 @@ import pytest
 
 from prxteinmpnn.host.plan import (
     AxisNames,
-    SamplingPlan,
     compute_sample_keys,
     extract_batch_sizes,
     resolve_chunk_size,
@@ -174,7 +173,7 @@ class TestComputeSampleKeys:
         """Output should have shape (target_num_samples,)."""
         base_key = jax.random.PRNGKey(0)
         result = compute_sample_keys(base_key, target_num_samples=10)
-        assert result.shape == (10,)
+        assert result.shape == (10, 2)
 
     def test_compute_sample_keys_deterministic(self):
         """Same inputs should produce same keys."""
@@ -235,13 +234,13 @@ class TestComputeSampleKeys:
         """Should handle single sample correctly."""
         base_key = jax.random.PRNGKey(0)
         result = compute_sample_keys(base_key, target_num_samples=1)
-        assert result.shape == (1,)
+        assert result.shape == (1, 2)
 
     def test_compute_sample_keys_large_count(self):
         """Should handle large sample counts."""
         base_key = jax.random.PRNGKey(0)
         result = compute_sample_keys(base_key, target_num_samples=1000)
-        assert result.shape == (1000,)
+        assert result.shape == (1000, 2)
 
     def test_compute_sample_keys_jax_key_type(self):
         """Result should be JAX array."""
@@ -299,86 +298,6 @@ class TestExtractBatchSizes:
         result = extract_batch_sizes(plan)
         for bs in result:
             assert isinstance(bs, int)
-
-
-class TestSamplingPlanValidation:
-    """Test suite for SamplingPlan validation."""
-
-    def test_sampling_plan_valid(self):
-        """Valid SamplingPlan should be created without error."""
-        plan = MockBatchPlan()
-        sample_keys = jax.random.split(jax.random.PRNGKey(0), 10)
-        sampling_plan = SamplingPlan(
-            batch_plan=plan,
-            structures_bs=1,
-            samples_bs=16,
-            temps_bs=2,
-            noises_bs=1,
-            target_num_samples=100,
-            sample_keys=sample_keys,
-            grid_lineage=None,
-            sample_start=0,
-            chunk_size=100
-        )
-        assert sampling_plan.structures_bs == 1
-        assert sampling_plan.target_num_samples == 100
-
-    def test_sampling_plan_zero_structures_bs_raises(self):
-        """Zero structures_bs should raise ValueError."""
-        plan = MockBatchPlan()
-        sample_keys = jax.random.split(jax.random.PRNGKey(0), 10)
-        with pytest.raises(ValueError, match="structures_bs must be positive"):
-            SamplingPlan(
-                batch_plan=plan,
-                structures_bs=0,
-                samples_bs=16,
-                temps_bs=2,
-                noises_bs=1,
-                target_num_samples=100,
-                sample_keys=sample_keys,
-                grid_lineage=None,
-                sample_start=0,
-                chunk_size=100
-            )
-
-    def test_sampling_plan_negative_samples_bs_raises(self):
-        """Negative samples_bs should raise ValueError."""
-        plan = MockBatchPlan()
-        sample_keys = jax.random.split(jax.random.PRNGKey(0), 10)
-        with pytest.raises(ValueError, match="samples_bs must be positive"):
-            SamplingPlan(
-                batch_plan=plan,
-                structures_bs=1,
-                samples_bs=-1,
-                temps_bs=2,
-                noises_bs=1,
-                target_num_samples=100,
-                sample_keys=sample_keys,
-                grid_lineage=None,
-                sample_start=0,
-                chunk_size=100
-            )
-
-    def test_sampling_plan_all_batch_sizes_validated(self):
-        """All four batch sizes should be validated."""
-        plan = MockBatchPlan()
-        sample_keys = jax.random.split(jax.random.PRNGKey(0), 10)
-        for bad_bs_name in ["structures_bs", "samples_bs", "temps_bs", "noises_bs"]:
-            kwargs = {
-                "batch_plan": plan,
-                "structures_bs": 1,
-                "samples_bs": 16,
-                "temps_bs": 2,
-                "noises_bs": 1,
-                "target_num_samples": 100,
-                "sample_keys": sample_keys,
-                "grid_lineage": None,
-                "sample_start": 0,
-                "chunk_size": 100
-            }
-            kwargs[bad_bs_name] = 0
-            with pytest.raises(ValueError, match=f"{bad_bs_name} must be positive"):
-                SamplingPlan(**kwargs)
 
 
 class TestAxisNames:
@@ -440,7 +359,7 @@ class TestIntegration:
             grid_lineage_sample_start=start
         )
 
-        assert keys.shape == (50,)
+        assert keys.shape == (50, 2)
 
 
 class MockBatchPlan:

@@ -10,6 +10,7 @@ from prxteinmpnn.types.bundles import InferenceBundle
 from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.protocols import ModelProtocol
 from prxteinmpnn.types.arrays import Logits
+from prxteinmpnn.types.encodings import EncoderOutput
 
 
 from prxteinmpnn.types.stages import StageSet
@@ -64,18 +65,19 @@ def kernel(
         def scan_body(carry: Any, per_state: tuple[jax.Array, ...]):
             coords, mask, residue_index, chain_index, ligand_y, ligand_y_t, ligand_y_m, sm, noise = per_state
             h_V, h_E, E_idx = encode_one(coords, mask, residue_index, chain_index, ligand_y, ligand_y_t, ligand_y_m, sm, noise)
-            return carry, (h_V, h_E, E_idx)
-            
-        _, (node_b, edge_b, nei_b) = jax.lax.scan(
+            return carry, EncoderOutput(node_features=h_V, edge_features=h_E, neighbor_indices=E_idx)
+
+        _, enc = jax.lax.scan(
             scan_body,
             None,
             (geo.coords, geo.mask, geo.residue_index, geo.chain_index, lig.y, lig.y_t, lig.y_m, geo.structure_mapping, noise_stack)
         )
     else:
-        node_b, edge_b, nei_b = jax.vmap(encode_one, in_axes=(0, 0, 0, 0, 0, 0, 0, 0, 0))(
+        node_f, edge_f, nei_f = jax.vmap(encode_one, in_axes=(0, 0, 0, 0, 0, 0, 0, 0, 0))(
             geo.coords, geo.mask, geo.residue_index, geo.chain_index,
             lig.y, lig.y_t, lig.y_m, geo.structure_mapping, noise_stack
         )
+        enc = EncoderOutput(node_features=node_f, edge_features=edge_f, neighbor_indices=nei_f)
 
     def decode_one(nb: jax.Array, eb: jax.Array, nei: jax.Array, mk: jax.Array, arm: jax.Array, oh: jax.Array):
         return model.decoder.call_conditional(
@@ -84,9 +86,9 @@ def kernel(
 
     # For conditional scoring, wave provides the AR masks, or we assume a full mask?
     seq_oh_stack = jnp.broadcast_to(cond.sequence_oh[None, ...], (S, *cond.sequence_oh.shape))
-    
+
     decoded = jax.vmap(decode_one, in_axes=(0, 0, 0, 0, 0, 0))(
-        node_b, edge_b, nei_b, geo.mask, cond.ar_mask, seq_oh_stack
+        enc.node_features, enc.edge_features, enc.neighbor_indices, geo.mask, cond.ar_mask, seq_oh_stack
     )
 
     logits_stack = jax.vmap(jax.vmap(model.w_out, in_axes=0), in_axes=0)(decoded)

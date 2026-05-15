@@ -20,6 +20,8 @@ if TYPE_CHECKING:
     from prxteinmpnn.types.stages import StageSet
     from prxteinmpnn.types.arrays import PRNGKeyArray
 
+from prxteinmpnn.types.encodings import EncoderOutput
+
 
 @dataclass(frozen=True)
 class SampleResult:
@@ -63,11 +65,13 @@ def kernel(
         geo.coords, geo.mask, geo.residue_index, geo.chain_index,
         geo.structure_mapping, noise_stack
     )
-    
+
     node_f, edge_f = jax.vmap(model.encoder, in_axes=(0, 0, 0, 0, 0))(
         edge_f, edge_i, geo.mask, initial_node_features=node_f,
         key=jax.random.split(k_enc, S)
     )
+
+    enc = EncoderOutput(node_features=node_f, edge_features=edge_f, neighbor_indices=edge_i)
 
     # 2. Decoding Loop
     def step_fn(i, sequence):
@@ -92,7 +96,7 @@ def kernel(
                 )
 
             # decoded: (S, L, H)
-            decoded = jax.vmap(decode_one, in_axes=(0, 0, 0, 0, 0))(node_f, edge_f, edge_i, geo.mask, cond.ar_mask)
+            decoded = jax.vmap(decode_one, in_axes=(0, 0, 0, 0, 0))(enc.node_features, enc.edge_features, enc.neighbor_indices, geo.mask, cond.ar_mask)
             
             # Project to logits: (S, L, 21)
             logits = jax.vmap(jax.vmap(model.w_out, in_axes=0), in_axes=0)(decoded)

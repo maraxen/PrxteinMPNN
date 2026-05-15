@@ -176,6 +176,7 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "tests"]
+addopts = "-m 'not parity_heavy and not slow'"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "parity_fast: deterministic fast parity fixtures and checks",

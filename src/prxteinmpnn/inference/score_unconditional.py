@@ -10,6 +10,7 @@ from prxteinmpnn.types.bundles import InferenceBundle
 from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.protocols import ModelProtocol
 from prxteinmpnn.types.arrays import Logits
+from prxteinmpnn.types.encodings import EncoderOutput
 
 
 
@@ -66,25 +67,26 @@ def kernel(
             coords, mask, residue_index, chain_index, ligand_y, ligand_y_t, ligand_y_m, sm, noise = per_state
             h_V, h_E, E_idx = encode_one(coords, mask, residue_index, chain_index, ligand_y, ligand_y_t, ligand_y_m, sm, noise)
             # Accumulate running stats if needed; for now, simple stack
-            return carry, (h_V, h_E, E_idx)
-            
-        _, (node_b, edge_b, nei_b) = jax.lax.scan(
+            return carry, EncoderOutput(node_features=h_V, edge_features=h_E, neighbor_indices=E_idx)
+
+        _, enc = jax.lax.scan(
             scan_body,
             None,
             (geo.coords, geo.mask, geo.residue_index, geo.chain_index, lig.y, lig.y_t, lig.y_m, geo.structure_mapping, noise_stack)
         )
     else:
-        node_b, edge_b, nei_b = jax.vmap(encode_one, in_axes=(0, 0, 0, 0, 0, 0, 0, 0, 0))(
+        node_f, edge_f, nei_f = jax.vmap(encode_one, in_axes=(0, 0, 0, 0, 0, 0, 0, 0, 0))(
             geo.coords, geo.mask, geo.residue_index, geo.chain_index,
             lig.y, lig.y_t, lig.y_m, geo.structure_mapping, noise_stack
         )
+        enc = EncoderOutput(node_features=node_f, edge_features=edge_f, neighbor_indices=nei_f)
 
     # Decode unconditional
     def decode_one(nb: jax.Array, eb: jax.Array, nei: jax.Array, mk: jax.Array):
         # For unconditional, we don't pass sequence to the decoder
         return model.decoder(nb, eb, nei, mk, key=k_dec, inference=config.inference)
 
-    decoded = jax.vmap(decode_one, in_axes=(0, 0, 0, 0))(node_b, edge_b, nei_b, geo.mask)
+    decoded = jax.vmap(decode_one, in_axes=(0, 0, 0, 0))(enc.node_features, enc.edge_features, enc.neighbor_indices, geo.mask)
     logits_stack = jax.vmap(jax.vmap(model.w_out, in_axes=0), in_axes=0)(decoded)
 
     # Add bias

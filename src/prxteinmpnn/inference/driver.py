@@ -106,8 +106,6 @@ def _decode_conditional(
     Returns:
         Logits of shape (L, V)
     """
-    geo = enc.neighbor_indices  # Use neighbor_indices as proxy for geo shape context
-    # Reconstruct geo from bundle context if needed; for now enc carries the state structure
     S = enc.node_features.shape[0]  # First dim is state dimension
 
     def decode_one(nb, eb, nei, mk, arm, oh):
@@ -241,7 +239,7 @@ def _decode_ar(
             if stage_set.ar_logit_transform is not None:
                 # Apply ar_logit_transform per position: (S, L, 21) -> (L, 21) via vmap
                 ar_fused = jax.vmap(stage_set.ar_logit_transform, in_axes=1, out_axes=0)(logits)
-                combined_logits = ar_fused + cond.bias
+                combined_logits = ar_fused + cond.bias if cond.bias is not None else ar_fused
             else:
                 combined_logits = stage_set.logit_transform(logits, bias=cond.bias)
 

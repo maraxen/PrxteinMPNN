@@ -32,6 +32,9 @@ from prxteinmpnn.inference.logits import ArithmeticMeanLogits
 from prxteinmpnn.host._sampling_grid_lineage import (
   _base_sampling_key,
   _resolve_grid_lineage,
+  _grid_manifest_row_hash,
+  _grid_iteration_arrays,
+  _grid_sample_indices,
 )
 from prxteinmpnn.host._sampling_helper import (
   RANK_WITH_TEMPERATURE,
@@ -47,6 +50,12 @@ from prxteinmpnn.host._sampling_helper import (
   _structure_ids_for_batch,
 )
 from prxteinmpnn.host.averaging import get_averaged_encodings, make_encoding_sampling_split_fn
+from prxteinmpnn.host.logit_aggregation import (
+    compute_pseudo_perplexity,
+    pad_to_max,
+    aggregate_logits,
+    aggregate_pseudo_perplexities,
+)
 from prxteinmpnn.host.streaming import (
     _sample_streaming,
     _sample_streaming_averaged,
@@ -233,17 +242,12 @@ def _sample_batch(
 
   # 6. IO & Metadata
   if spec.compute_pseudo_perplexity:
-    one_hot_sequences = jax.nn.one_hot(sampled_sequences, num_classes=21)
-    log_probs = jax.nn.log_softmax(sampled_logits, axis=-1)
-    nll = -jnp.sum(one_hot_sequences * log_probs, axis=(-1, -2))
     mask = batched_ensemble.mask
     if mask is None:
       mask = jnp.ones(batched_ensemble.coordinates.shape[:2], dtype=jnp.float32)
-    # mask is [B, L], nll is [B, N, D, T]
-    # sum(mask, axis=-1) is [B]
-    pseudo_perplexity = jnp.exp(nll / jnp.sum(mask, axis=-1)[:, None, None, None])
+    pseudo_perplexity = compute_pseudo_perplexity(sampled_logits, sampled_sequences, mask)
     return sampled_sequences, sampled_logits, pseudo_perplexity
-  
+
   return sampled_sequences, sampled_logits, None
 
 
@@ -335,17 +339,6 @@ def sample(
   StreamingBatchHost.sink_barrier()
   max_len = max(arr.shape[-1] for arr in all_sequences)
 
-  def pad_to_max(arr: jax.Array, target_len: int, axis: int = -1, pad_value: int = 0) -> jax.Array:
-    """Pad the specified dimension of a JAX array to target_len."""
-    diff = target_len - arr.shape[axis]
-    if diff == 0:
-      return arr
-    padding_config = [(0, 0)] * arr.ndim
-    # Handle negative axis
-    axis = axis % arr.ndim
-    padding_config[axis] = (0, diff)
-    return jnp.pad(arr, padding_config, constant_values=pad_value)
-
   all_sequences_padded = [pad_to_max(seq, max_len, axis=-1, pad_value=0) for seq in all_sequences]
 
   all_masks = [
@@ -369,10 +362,9 @@ def sample(
     },
   }
   if spec.return_logits and all_logits is not None:
-    all_logits_padded = [pad_to_max(logits, max_len, axis=-2, pad_value=0) for logits in all_logits]
-    results["logits"] = jnp.concatenate(all_logits_padded, axis=0)
+    results["logits"] = aggregate_logits(all_logits, max_len)
   if all_pseudo_perplexities:
-    results["pseudo_perplexity"] = jnp.concatenate(all_pseudo_perplexities, axis=0)
+    results["pseudo_perplexity"] = aggregate_pseudo_perplexities(all_pseudo_perplexities)
 
   if grid_lineage is not None:
     manifest_row_hash = _grid_manifest_row_hash(spec, grid_lineage)
@@ -430,8 +422,8 @@ def _sample_non_streaming_averaged(
 
   return {
     "sequences": jnp.concatenate(all_sequences, axis=0),
-    "logits": jnp.concatenate(all_logits, axis=0),
-    "pseudo_perplexity": jnp.concatenate(all_pseudo_perplexities, axis=0) if all_pseudo_perplexities else None,
+    "logits": aggregate_logits(all_logits),
+    "pseudo_perplexity": aggregate_pseudo_perplexities(all_pseudo_perplexities) if all_pseudo_perplexities else None,
     "schema_version": "sampling_averaged_v1",
     "metadata": {
       "specification": spec,

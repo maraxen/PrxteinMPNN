@@ -69,8 +69,8 @@ Wave B (after COMP-1):
   [ ] COMP-9 (#192)  Consolidate LOGIT_STRATEGIES + run/decode_registry.py  [deferred to post-COMP-5]
 
 Wave C (after COMP-2 + COMP-3):
-  [ ] COMP-4 (#187)  Canonicalize bias into stage_set.logit_transform
-  [ ] COMP-5 (#188)  Collapse three kernels into one StageSet-driven driver
+  [x] COMP-4 (#187)  Canonicalize bias into stage_set.logit_transform
+  [x] COMP-5 (#188)  Collapse three kernels into one StageSet-driven driver
 
 Wave D (after COMP-5):
   [ ] COMP-7 (#190)  Open kernel_dispatch to accept resolved DecodeFn from spec

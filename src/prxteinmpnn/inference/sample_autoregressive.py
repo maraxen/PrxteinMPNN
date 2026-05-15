@@ -106,12 +106,10 @@ def kernel(
             # Combine logits across states: (L, 21)
             if stage_set.ar_logit_transform is not None:
                 # Apply ar_logit_transform per position: (S, L, 21) -> (L, 21) via vmap
-                combined_logits = jax.vmap(stage_set.ar_logit_transform, in_axes=1, out_axes=0)(logits)
+                ar_fused = jax.vmap(stage_set.ar_logit_transform, in_axes=1, out_axes=0)(logits)
+                combined_logits = ar_fused + cond.bias
             else:
-                combined_logits = stage_set.logit_transform(logits)
-
-            # Apply bias
-            combined_logits = combined_logits + cond.bias
+                combined_logits = stage_set.logit_transform(logits, bias=cond.bias)
 
             # Logit averaging for the group
             mask = (cond.tie_group_map[0] == group_id)

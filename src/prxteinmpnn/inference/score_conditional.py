@@ -55,6 +55,4 @@ def kernel(
 
     logits_stack = jax.vmap(jax.vmap(model.w_out, in_axes=0), in_axes=0)(decoded)
 
-    logits_stack = logits_stack + cond.bias[None, ...]
-
-    return stage_set.logit_transform(logits_stack)
+    return stage_set.logit_transform(logits_stack, bias=cond.bias)

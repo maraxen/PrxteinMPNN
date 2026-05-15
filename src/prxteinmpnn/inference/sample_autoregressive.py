@@ -104,7 +104,11 @@ def kernel(
             logits = jax.vmap(jax.vmap(model.w_out, in_axes=0), in_axes=0)(decoded)
 
             # Combine logits across states: (L, 21)
-            combined_logits = stage_set.logit_transform(logits)
+            if stage_set.ar_logit_transform is not None:
+                # Apply ar_logit_transform per position: (S, L, 21) -> (L, 21) via vmap
+                combined_logits = jax.vmap(stage_set.ar_logit_transform, in_axes=1, out_axes=0)(logits)
+            else:
+                combined_logits = stage_set.logit_transform(logits)
 
             # Apply bias
             combined_logits = combined_logits + cond.bias

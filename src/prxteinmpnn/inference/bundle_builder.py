@@ -7,12 +7,12 @@ import jax.numpy as jnp
 from typing import Any
 
 from prxteinmpnn.types.bundles import (
-    InferenceBundle, GeometryBundle, ConditioningBundle, 
+    InferenceBundle, GeometryBundle, ConditioningBundle,
     LigandBundle, WaveScheduleBundle
 )
 from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.stages import StageSet
-from prxteinmpnn.inference.logits import LOGIT_STRATEGIES
+from prxteinmpnn.inference.logits import LOGIT_STRATEGIES, ARLogitFuse
 
 def build_inference_bundle(
     coords: jax.Array,           # (L, 4, 3) or (S, L, 4, 3)
@@ -139,7 +139,10 @@ def build_inference_bundle(
         logit_transform = strategy_cls(state_weights, temperature=strategy_temperature)
     else:
         logit_transform = strategy_cls(state_weights)
-        
-    stage_set = StageSet(logit_transform=logit_transform)
-    
+
+    stage_set = StageSet(
+        logit_transform=logit_transform,
+        ar_logit_transform=ARLogitFuse()
+    )
+
     return bundle, config, stage_set

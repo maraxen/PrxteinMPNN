@@ -361,20 +361,20 @@ class TestVmapAxisContract:
     def test_explicit_in_axes_presence(self):
         """Verify explicit in_axes arguments on all vmap calls.
 
-        Read sample_autoregressive.py and confirm all jax.vmap calls
-        have explicit in_axes argument (not relying on defaults).
+        After COMP-5, kernel delegates to driver. Check driver module for vmap calls.
+        Confirm all jax.vmap calls have explicit in_axes argument (not relying on defaults).
 
         This is a code inspection test.
         """
         import inspect
-        from prxteinmpnn.inference.sample_autoregressive import kernel as kernel_fn
+        from prxteinmpnn.inference import driver
 
-        source = inspect.getsource(kernel_fn)
+        source = inspect.getsource(driver)
 
         # Check for vmap calls
         vmap_calls = [line for line in source.split("\n") if "jax.vmap" in line]
 
-        assert len(vmap_calls) > 0, "No vmap calls found in kernel"
+        assert len(vmap_calls) > 0, "No vmap calls found in driver module"
 
         # Verify each vmap call has in_axes
         for call in vmap_calls:

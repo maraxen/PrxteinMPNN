@@ -85,6 +85,7 @@ def make_score_fn(
     y: jax.Array | None = None,
     y_t: jax.Array | None = None,
     y_m: jax.Array | None = None,
+    **kwargs,  # Accept but ignore extra kwargs (e.g., _k_neighbors for backward compat)
   ) -> tuple[jax.Array, jax.Array, jax.Array]:
     
     L = sequence.shape[0]

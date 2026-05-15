@@ -47,9 +47,9 @@ All waves complete as of 2026-05-15. Commits on `refactor-full`.
 
 **Remaining tail items:**
 
-- [ ] `tests/inference/test_vmap_axis_contract.py` — vmap output shapes `(B, L, 21)`, single vs. batch consistency
+- [x] `tests/inference/test_vmap_axis_contract.py` — 11 tests; commits 45a04958, 9fd99858
 - [ ] `tests/run/test_conformational_states_protocol.py` — duck-type compat: `n_states: int` accepted by `RunSpecification`
-- [ ] **Item 177**: JAX persistent compilation cache — `jax.config.update("jax_compilation_cache_dir", ...)` in `host/prep.py` gated on `spec.cache_path`
+- [x] **Item 177**: JAX persistent compilation cache — `host/prep.py`; commit 45a04958
 - [ ] `eqx.static_field` → `eqx.field(static=True)` deprecation cleanup in `types/configs.py`
 
 ---

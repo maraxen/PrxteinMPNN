@@ -76,7 +76,7 @@ Wave D (after COMP-5):
   [x] COMP-7 (#190)  Open kernel_dispatch to accept resolved DecodeFn from spec
 
 Wave E (after COMP-6 + COMP-7):
-  [ ] COMP-8 (#191)  Implement InferencePlan / Pipeline protocol  [closes #176]
+  [x] COMP-8 (#191)  Implement InferencePlan / Pipeline protocol  [closes #176]
 ```
 
 **Invariants (do not change):**

@@ -1,33 +1,17 @@
 """Core user interface for the PrxteinMPNN package."""
 
-# TODO(tech-debt): `.agents/TECHNICAL_DEBT.md` §14 + `TODO_io_callback.txt` (host-side I/O streaming).
+# TODO(tech-debt): `.praxia/TECHNICAL_DEBT.md` §14 + `TODO_io_callback.txt` (host-side I/O streaming).
 
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
-import sys
-from functools import partial
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 
-from prxteinmpnn.types.bundles import (
-    GeometryBundle,
-    ConditioningBundle,
-    LigandBundle,
-    WaveScheduleBundle,
-    InferenceBundle,
-)
 from prxteinmpnn.host._sampling_averaged import _sample_batch_averaged
 from prxteinmpnn.host.kernel_dispatch import _sample_batch
-from prxteinmpnn.inference import score_conditional
-from prxteinmpnn.types.configs import InferenceConfig
-from prxteinmpnn.types.stages import StageSet
-from prxteinmpnn.inference.logits import ArithmeticMeanLogits
 from prxteinmpnn.host._sampling_grid_lineage import (
   _base_sampling_key,
   _resolve_grid_lineage,
@@ -39,7 +23,7 @@ from prxteinmpnn.host._sampling_helper import (
   _canonical_structure_ids_for_spec,
   _structure_ids_for_batch,
 )
-from prxteinmpnn.host.averaging import get_averaged_encodings, make_encoding_sampling_split_fn
+from prxteinmpnn.host.averaging import make_encoding_sampling_split_fn
 from prxteinmpnn.host.logit_aggregation import (
     pad_to_max,
     aggregate_logits,
@@ -56,9 +40,6 @@ from prxteinmpnn.host.plan import (
     resolve_target_samples,
     resolve_chunk_size,
 )
-from prxteinmpnn.utils.autoregression import resolve_tie_groups
-from prxteinmpnn.tiling.planner import BatchPlan
-
 from .prep import prep_protein_stream_and_model
 from prxteinmpnn.run.specs import SamplingSpecification, pop_deprecated_spec_kwargs
 

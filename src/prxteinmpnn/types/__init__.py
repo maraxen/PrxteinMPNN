@@ -47,7 +47,6 @@ from prxteinmpnn.types.arrays import (
     TieGroupMap,
     TrainingMetrics,
 )
-from prxteinmpnn.types.hyperparameters import SamplingHyperparameters
 
 __all__ = [
     "AlphaCarbonDistance",
@@ -95,5 +94,4 @@ __all__ = [
     "Temperature",
     "TieGroupMap",
     "TrainingMetrics",
-    "SamplingHyperparameters",
 ]

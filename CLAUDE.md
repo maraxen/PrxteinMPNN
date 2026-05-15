@@ -60,7 +60,7 @@ All waves complete as of 2026-05-15. Commits on `refactor-full`.
 
 ```
 Wave A (no deps):
-  [ ] COMP-1 (#184)  Instantiate EncoderOutput — replace bare encode tuples
+  [x] COMP-1 (#184)  Instantiate EncoderOutput — replace bare encode tuples
 
 Wave B (after COMP-1):
   [ ] COMP-2 (#185)  Wire ar_logit_transform into sample_autoregressive.kernel

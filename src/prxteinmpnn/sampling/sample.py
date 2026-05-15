@@ -68,7 +68,7 @@ def make_sample_sequences(
       tau_end=tau_end,
     )
 
-    @partial(jax.jit, static_argnames=("multi_state_strategy", "use_rolling_state"))
+    @partial(jax.jit, static_argnames=("multi_state_strategy", "use_rolling_state", "num_groups"))
     def sample_sequences(
       prng_key: PRNGKeyArray,
       structure_coordinates: jax.Array,
@@ -83,6 +83,7 @@ def make_sample_sequences(
       learning_rate: float = 0.01,
       temperature: float = 1.0,
       tie_group_map: jax.Array | None = None,
+      num_groups: int | None = None,
       multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
       multi_state_temperature: float = 1.0,
       state_weights: jax.Array | None = None,
@@ -131,7 +132,7 @@ def make_sample_sequences(
 
   if sampling_strategy == "temperature":
 
-    @partial(jax.jit, static_argnames=("multi_state_strategy", "use_rolling_state"))
+    @partial(jax.jit, static_argnames=("multi_state_strategy", "use_rolling_state", "num_groups"))
     def sample_sequences(
       prng_key: PRNGKeyArray,
       structure_coordinates: jax.Array,
@@ -144,6 +145,7 @@ def make_sample_sequences(
       backbone_noise: float | None = None,
       temperature: float = 1.0,
       tie_group_map: jax.Array | None = None,
+      num_groups: int | None = None,
       multi_state_strategy: Literal["arithmetic_mean", "geometric_mean", "product"] = "arithmetic_mean",
       multi_state_temperature: float = 1.0,
       state_weights: jax.Array | None = None,
@@ -162,8 +164,8 @@ def make_sample_sequences(
       from prxteinmpnn.utils.autoregression import generate_ar_mask
       ar_mask_single = generate_ar_mask(
           decoding_order if decoding_order is not None else jnp.arange(L),
-          tie_group_map=tie_group_map[0] if tie_group_map is not None else None,
-          num_groups=jnp.max(tie_group_map) + 1 if tie_group_map is not None else None
+          tie_group_map=tie_group_map,
+          num_groups=num_groups
       )
       
       bundle, config, stage_set = build_inference_bundle(

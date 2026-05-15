@@ -83,6 +83,8 @@ def kernel(
 
     # Decode unconditional
     def decode_one(nb: jax.Array, eb: jax.Array, nei: jax.Array, mk: jax.Array):
+        if stage_set.decode_step is not None:
+            return stage_set.decode_step(nb, eb, nei, mk, key=k_dec, inference=config.inference)
         # For unconditional, we don't pass sequence to the decoder
         return model.decoder(nb, eb, nei, mk, key=k_dec, inference=config.inference)
 

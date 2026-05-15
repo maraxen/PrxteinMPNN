@@ -90,6 +90,8 @@ def kernel(
 
             # Decode (vmap over states)
             def decode_one(n, e, idx, m, arm):
+                if stage_set.decode_step is not None:
+                    return stage_set.decode_step(n, e, idx, m, arm, seq_oh, key=k_dec, inference=config.inference)
                 return model.decoder.call_conditional(
                     n, e, idx, m, arm, seq_oh, model.w_s_embed.weight,
                     key=k_dec, inference=config.inference

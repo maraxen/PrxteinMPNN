@@ -89,7 +89,10 @@ def test_stage_set_with_decode_step_is_pytree():
     class DummyDecoder(eqx.Module):
         pass
 
-    cd = ConditionalDecodeStep(decoder=DummyDecoder())
+    class DummyEmbed(eqx.Module):
+        pass
+
+    cd = ConditionalDecodeStep(decoder=DummyDecoder(), w_s_embed=DummyEmbed())
     ss = StageSet(decode_step=cd)
     leaves = jax.tree.leaves(ss)
     assert isinstance(leaves, list)

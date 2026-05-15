@@ -97,6 +97,31 @@ class ProductOfProbabilities(eqx.Module):
     def __call__(self, per_state: Float[Array, "S ... V"]) -> Float[Array, "... V"]:
         dims_to_add = per_state.ndim - 1
         w_reshaped = self.weights.reshape((per_state.shape[0],) + (1,) * dims_to_add)
-        
+
         weighted_logits = per_state * w_reshaped
         return jnp.sum(weighted_logits, axis=0)
+
+
+class ARLogitFuse(eqx.Module):
+    """Default AR per-step tied-group log-mean fuse.
+
+    Reduces per-state logits to a single canonical set via arithmetic mean.
+    Input:  (S, V)  →  Output: (V,)
+
+    This is used in sample_autoregressive.kernel as the per-position fuser
+    when stage_set.ar_logit_transform is set.
+    """
+
+    def __call__(self, logits: Float[Array, "S V"]) -> Float[Array, "V"]:
+        """Arithmetic mean across states dimension."""
+        return jnp.mean(logits, axis=0)
+
+
+__all__ = [
+    "BatchLogitFn",
+    "LOGIT_STRATEGIES",
+    "ArithmeticMeanLogits",
+    "GeometricMeanLogits",
+    "ProductOfProbabilities",
+    "ARLogitFuse",
+]

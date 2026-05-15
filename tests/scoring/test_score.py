@@ -17,42 +17,55 @@ def mock_model() -> PrxteinMPNN:
     """Fixture for a mock PrxteinMPNN model."""
     model_mock = MagicMock(spec=PrxteinMPNN)
 
-    def mock_call_impl(
+    def mock_features(
         key,
         coords,
         mask,
         residue_index,
         chain_index,
-        backbone_noise=None,
+        backbone_noise,
+        backbone_noise_mode=None,
+        structure_mapping=None,
         **kwargs
     ):
         del (
+            key,
             coords,
             mask,
             residue_index,
             chain_index,
             backbone_noise,
+            backbone_noise_mode,
+            structure_mapping,
             kwargs
         )
         n_residues = 76
-        h_V = jnp.zeros((n_residues, 128))
-        h_E = jnp.zeros((n_residues, 48, 128))
-        E_idx = jnp.zeros((n_residues, 48), dtype=jnp.int32)
-        return h_V, h_E, E_idx
+        edge_f = jnp.zeros((n_residues, 48, 128))
+        edge_i = jnp.zeros((n_residues, 48), dtype=jnp.int32)
+        node_f = jnp.zeros((n_residues, 128))
+        padding = jnp.zeros((n_residues,))
+        return edge_f, edge_i, node_f, padding
 
-    model_mock.side_effect = mock_call_impl
-    
+    model_mock.features = MagicMock(side_effect=mock_features)
+
+    # Mock encoder
+    model_mock.encoder = MagicMock()
+    model_mock.encoder.side_effect = lambda ef, ei, m, initial_node_features=None, key=None: (
+        initial_node_features if initial_node_features is not None else jnp.zeros((76, 128)),
+        ef
+    )
+
     # Mock decoder
     model_mock.decoder = MagicMock()
     model_mock.decoder.call_conditional.side_effect = lambda nb, eb, i, m, a, oh, w, **kw: jnp.zeros((nb.shape[0], 128))
-    
+
     # Mock projections
     model_mock.w_out = MagicMock()
     model_mock.w_out.side_effect = lambda x: jnp.zeros(21)
-    
+
     model_mock.w_s_embed = MagicMock()
     model_mock.w_s_embed.weight = jnp.zeros((21, 128))
-    
+
     return model_mock
 
 
@@ -119,7 +132,6 @@ def test_make_score_sequence_output_shape_and_type(
     chex.assert_tree_all_finite((score, logits))
 
     # Test with backbone noise
-    noise = jax.random.normal(prng_key, coords.shape)
     score, logits, order = score_fn(
         prng_key,
         sequence,
@@ -128,7 +140,7 @@ def test_make_score_sequence_output_shape_and_type(
         residue_index,
         chain_index,
         _k_neighbors=48,
-        backbone_noise=noise,
+        backbone_noise=0.1,
     )
     chex.assert_shape(score, ())
     chex.assert_type(score, float)

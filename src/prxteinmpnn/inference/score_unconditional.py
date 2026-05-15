@@ -91,7 +91,4 @@ def kernel(
     decoded = jax.vmap(decode_one, in_axes=(0, 0, 0, 0))(enc.node_features, enc.edge_features, enc.neighbor_indices, geo.mask)
     logits_stack = jax.vmap(jax.vmap(model.w_out, in_axes=0), in_axes=0)(decoded)
 
-    # Add bias
-    logits_stack = logits_stack + cond.bias[None, ...]
-
-    return stage_set.logit_transform(logits_stack)
+    return stage_set.logit_transform(logits_stack, bias=cond.bias)

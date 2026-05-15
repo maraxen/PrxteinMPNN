@@ -73,7 +73,7 @@ Wave C (after COMP-2 + COMP-3):
   [x] COMP-5 (#188)  Collapse three kernels into one StageSet-driven driver
 
 Wave D (after COMP-5):
-  [ ] COMP-7 (#190)  Open kernel_dispatch to accept resolved DecodeFn from spec
+  [x] COMP-7 (#190)  Open kernel_dispatch to accept resolved DecodeFn from spec
 
 Wave E (after COMP-6 + COMP-7):
   [ ] COMP-8 (#191)  Implement InferencePlan / Pipeline protocol  [closes #176]

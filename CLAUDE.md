@@ -63,8 +63,8 @@ Wave A (no deps):
   [x] COMP-1 (#184)  Instantiate EncoderOutput — replace bare encode tuples
 
 Wave B (after COMP-1):
-  [ ] COMP-2 (#185)  Wire ar_logit_transform into sample_autoregressive.kernel
-  [ ] COMP-3 (#186)  Add DecodeStepFn + SampleStepFn stages to StageSet
+  [x] COMP-2 (#185)  Wire ar_logit_transform into sample_autoregressive.kernel
+  [x] COMP-3 (#186)  Add DecodeStepFn + SampleStepFn stages to StageSet
   [ ] COMP-6 (#189)  Expose make_encode_fn in inference/encode.py
   [ ] COMP-9 (#192)  Consolidate LOGIT_STRATEGIES + run/decode_registry.py
 

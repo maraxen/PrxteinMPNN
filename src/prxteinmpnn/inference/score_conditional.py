@@ -80,6 +80,8 @@ def kernel(
         enc = EncoderOutput(node_features=node_f, edge_features=edge_f, neighbor_indices=nei_f)
 
     def decode_one(nb: jax.Array, eb: jax.Array, nei: jax.Array, mk: jax.Array, arm: jax.Array, oh: jax.Array):
+        if stage_set.decode_step is not None:
+            return stage_set.decode_step(nb, eb, nei, mk, arm, oh, key=k_dec, inference=config.inference)
         return model.decoder.call_conditional(
             nb, eb, nei, mk, arm, oh, model.w_s_embed.weight, inference=config.inference, key=k_dec
         )

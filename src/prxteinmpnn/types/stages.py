@@ -90,6 +90,56 @@ LogitTransformFn = FuseFn[Float[Array, "S L V"], Float[Array, "L V"]]
 ARLogitTransformFn = FuseFn[Float[Array, "S V"], Float[Array, "V"]]
 
 
+class ConditionalDecodeStep(eqx.Module):
+    """Wraps decoder.call_conditional for use as a stage_set.decode_step.
+
+    Encapsulates the conditional decoding operation in a composable module
+    for clean wiring into inference kernels.
+    """
+    decoder: Any  # model.decoder
+    w_s_embed: Any  # model.w_s_embed.weight
+
+    def __call__(
+        self,
+        node_f: Any,
+        edge_f: Any,
+        nei: Any,
+        mask: Any,
+        ar_mask: Any,
+        seq_oh: Any,
+        *,
+        key: Any,
+        inference: Any
+    ) -> Any:
+        """Decode conditional given node features, edges, and sequence one-hot."""
+        return self.decoder.call_conditional(
+            node_f, edge_f, nei, mask, ar_mask, seq_oh, self.w_s_embed,
+            key=key, inference=inference
+        )
+
+
+class UnconditionalDecodeStep(eqx.Module):
+    """Wraps decoder.__call__ for unconditional scoring.
+
+    Encapsulates the unconditional decoding operation in a composable module
+    for clean wiring into inference kernels.
+    """
+    decoder: Any  # model.decoder
+
+    def __call__(
+        self,
+        node_f: Any,
+        edge_f: Any,
+        nei: Any,
+        mask: Any,
+        *,
+        key: Any,
+        inference: Any
+    ) -> Any:
+        """Decode unconditional given node features and edges."""
+        return self.decoder(node_f, edge_f, nei, mask, key=key, inference=inference)
+
+
 class StageSet(eqx.Module):
     """Typed bag of composable pipeline stages.
 
@@ -103,6 +153,10 @@ class StageSet(eqx.Module):
     ar_logit_transform: (
         BatchLogitFn | None
     ) = None
+    decode_step: (
+        ConditionalDecodeStep | UnconditionalDecodeStep | None
+    ) = None
+    sample_step: Any | None = None  # None = scoring mode; categorical/gumbel/ste = sampling
 
 
 __all__ = [
@@ -116,6 +170,8 @@ __all__ = [
     "LigandEncodeFn",
     "ConditionalDecodeFn",
     "UnconditionalDecodeFn",
+    "ConditionalDecodeStep",
+    "UnconditionalDecodeStep",
     "LogitTransformFn",
     "ARLogitTransformFn",
     "StageSet",

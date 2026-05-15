@@ -66,7 +66,7 @@ Wave B (after COMP-1):
   [x] COMP-2 (#185)  Wire ar_logit_transform into sample_autoregressive.kernel
   [x] COMP-3 (#186)  Add DecodeStepFn + SampleStepFn stages to StageSet
   [x] COMP-6 (#189)  Expose make_encode_fn in inference/encode.py
-  [ ] COMP-9 (#192)  Consolidate LOGIT_STRATEGIES + run/decode_registry.py  [deferred to post-COMP-5]
+  [x] COMP-9 (#192)  Consolidate LOGIT_STRATEGIES + run/decode_registry.py
 
 Wave C (after COMP-2 + COMP-3):
   [x] COMP-4 (#187)  Canonicalize bias into stage_set.logit_transform

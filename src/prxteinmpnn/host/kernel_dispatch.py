@@ -53,7 +53,7 @@ def resolve_kernel_fn(strategy: str) -> Callable:
       # Call score_conditional kernel (teacher-forced decoding)
       logits = score_conditional_kernel(model, prng_key, bundle, config, stage_set)
       # Compute sequence from logits via argmax (greedy decoding)
-      sequence = logits.argmax(axis=-1).astype(jnp.int8)
+      sequence = logits.argmax(axis=-1).astype(jnp.int32)
       return SampleResult(sequence=sequence, logits=logits)
 
     return _ste_kernel_wrapper

@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import dataclasses
 import hashlib
 import json
 import logging
@@ -61,9 +60,16 @@ from prxteinmpnn.host.output_sinks import (
   take_staging_sequences_logits,
 )
 from prxteinmpnn.host.streaming_host import StreamingBatchHost
+from prxteinmpnn.host.plan import (
+    make_sampling_planner,
+    extract_batch_sizes,
+    compute_sample_keys,
+    resolve_target_samples,
+    resolve_chunk_size,
+    resolve_sample_start,
+)
 from prxteinmpnn.utils.autoregression import resolve_tie_groups
-from prxteinmpnn.tiling.planner import BatchPlan, BatchPlanner, estimate_memory_theoretical
-from prxteinmpnn.tiling.axes import N_NOISES, N_SAMPLES, N_STRUCTURES, N_TEMPERATURES
+from prxteinmpnn.tiling.planner import BatchPlan
 from prxteinmpnn.utils.safe_map import safe_map as _safe_map
 
 from .prep import prep_protein_stream_and_model
@@ -96,31 +102,6 @@ SAMPLING_SCHEMA_VERSION = "sampling_v1"
 GRID_SCHEMA_VERSION = "grid_v1"
 
 
-def _make_sampling_planner(
-    spec: SamplingSpecification,
-    param_bytes: float = 0.0,
-    headroom: float = 0.80,
-    activation_multiplier: float = 2.5,
-) -> BatchPlan:
-  """Create a BatchPlan for _sample_batch dispatch with advisory logging."""
-  try:
-    limit = jax.devices()[0].memory_stats()["bytes_limit"]
-  except Exception:
-    limit = 4 * 1024**3
-  budget = limit * headroom - param_bytes
-  axes = [
-    dataclasses.replace(N_STRUCTURES, cardinality=max(1, getattr(spec, "batch_size", 1) or 1)),
-    dataclasses.replace(N_SAMPLES, cardinality=max(1, getattr(spec, "samples_batch_size", 128) or 128)),
-    dataclasses.replace(N_TEMPERATURES, cardinality=max(1, len(getattr(spec, "temperature", [1.0])))),
-    dataclasses.replace(N_NOISES, cardinality=max(1, len(getattr(spec, "backbone_noise", [0.0])))),
-  ]
-  return BatchPlanner(
-    axes=axes,
-    budget_bytes=budget,
-    estimate_memory=lambda ds: estimate_memory_theoretical(ds, 1.0, activation_multiplier),
-  ).plan()
-
-
 def _sample_batch(
   spec: SamplingSpecification,
   batched_ensemble: Protein,
@@ -135,29 +116,18 @@ def _sample_batch(
   emit_structure_batch_io: bool = True,
 ) -> tuple[ProteinSequence, Logits, jax.Array | None]:
   # 1. Plan batching
-  plan = _make_sampling_planner(spec)
+  plan = make_sampling_planner(spec)
   plan.log_summary()
 
-  structures_bs = plan.decision_for("n_structures").batch_size
-  samples_bs = plan.decision_for("n_samples").batch_size
-  temps_bs = plan.decision_for("n_temperatures").batch_size
-  noises_bs = plan.decision_for("n_noises").batch_size
+  structures_bs, samples_bs, temps_bs, noises_bs = extract_batch_sizes(plan)
 
   # 2. Resolve Grids
   grid_lineage = _resolve_grid_lineage(spec)
   base_key = _base_sampling_key(spec, grid_lineage=grid_lineage)
-  
-  target_num_samples = (
-    int(chunk_sample_count) if chunk_sample_count is not None 
-    else (int(grid_lineage["sample_count"]) if grid_lineage is not None else int(spec.num_samples))
-  )
-  
+  target_num_samples = resolve_target_samples(spec, chunk_sample_count, grid_lineage)
+
   noises = jnp.asarray(spec.backbone_noise)
   temperatures = jnp.asarray(spec.temperature)
-  
-  if target_num_samples <= 0:
-    msg = "num_samples must be positive."
-    raise ValueError(msg)
 
   seq_len = batched_ensemble.coordinates.shape[1]
   batch_size = batched_ensemble.coordinates.shape[0]
@@ -240,15 +210,13 @@ def _sample_batch(
       return _safe_map(_run_one_sample, key_samples, batch_size=samples_bs)
 
   # 4. Nested Dispatch (Structures -> Noises -> Temps)
-  # We use a combined key generation strategy
-  sample_indices = np.arange(target_num_samples, dtype=np.int32)
-  if chunk_sample_start is not None:
-      sample_indices += int(chunk_sample_start)
-  elif grid_lineage is not None:
-      sample_indices += int(grid_lineage["sample_start"])
-
-  # Generate keys for (samples)
-  sample_keys = jax.vmap(lambda idx: jax.random.fold_in(base_key, idx))(sample_indices)
+  # Compute deterministic sample keys
+  sample_keys = compute_sample_keys(
+      base_key,
+      target_num_samples,
+      chunk_sample_start=chunk_sample_start,
+      grid_lineage_sample_start=grid_lineage["sample_start"] if grid_lineage is not None else None,
+  )
 
   def _dispatch_structure(s_idx):
       def _dispatch_noise(n_val):
@@ -348,6 +316,7 @@ def sample(
   resolved_structure_ids: list[str] = []
   structure_offset = 0
   structure_batch_count = StreamingBatchHost.structure_batch_count(protein_iterator)
+  grid_lineage = _resolve_grid_lineage(spec)
 
   for batch_idx, batched_ensemble in enumerate(protein_iterator):
     batch_size = batched_ensemble.coordinates.shape[0]
@@ -415,13 +384,13 @@ def sample(
   if all_pseudo_perplexities:
     results["pseudo_perplexity"] = jnp.concatenate(all_pseudo_perplexities, axis=0)
 
-  grid_lineage = _resolve_grid_lineage(spec)
   if grid_lineage is not None:
     manifest_row_hash = _grid_manifest_row_hash(spec, grid_lineage)
-    chunk_size = int(spec.samples_chunk_size or grid_lineage["sample_count"])
+    total_num_samples_for_grid = resolve_target_samples(spec, grid_lineage=grid_lineage)
+    chunk_size_for_grid = resolve_chunk_size(spec, total_num_samples_for_grid, grid_lineage)
     iteration_ids, iteration_starts, iteration_counts = _grid_iteration_arrays(
       grid_lineage,
-      chunk_size=chunk_size,
+      chunk_size=chunk_size_for_grid,
     )
     sample_indices = _grid_sample_indices(grid_lineage)
     results["sample_indices"] = jnp.asarray(sample_indices, dtype=jnp.int32)
@@ -446,11 +415,9 @@ def _sample_streaming(
   grid_lineage = _resolve_grid_lineage(spec)
   canonical_structure_ids = _canonical_structure_ids_for_spec(spec)
   resolved_structure_ids: list[str] = []
-  total_num_samples = (
-    int(grid_lineage["sample_count"]) if grid_lineage is not None else int(spec.num_samples)
-  )
-  chunk_size = int(spec.samples_chunk_size or total_num_samples)
-  sample_start = int(grid_lineage["sample_start"]) if grid_lineage is not None else 0
+  total_num_samples = resolve_target_samples(spec, grid_lineage=grid_lineage)
+  chunk_size = resolve_chunk_size(spec, total_num_samples, grid_lineage)
+  sample_start = resolve_sample_start(grid_lineage)
   structure_batch_count_stream = StreamingBatchHost.structure_batch_count(protein_iterator)
 
   # Validate ArrayRecord and HDF5 parameter combinations
@@ -672,11 +639,9 @@ def _sample_streaming_arrayrecord(
   to avoid blocking the device on disk I/O.
   """
   resolved_structure_ids: list[str] = []
-  total_num_samples = (
-    int(grid_lineage["sample_count"]) if grid_lineage is not None else int(spec.num_samples)
-  )
-  chunk_size = int(spec.samples_chunk_size or total_num_samples)
-  sample_start = int(grid_lineage["sample_start"]) if grid_lineage is not None else 0
+  total_num_samples = resolve_target_samples(spec, grid_lineage=grid_lineage)
+  chunk_size = resolve_chunk_size(spec, total_num_samples, grid_lineage)
+  sample_start = resolve_sample_start(grid_lineage)
   structure_idx = 0
   structure_batch_count_ar = StreamingBatchHost.structure_batch_count(protein_iterator)
 

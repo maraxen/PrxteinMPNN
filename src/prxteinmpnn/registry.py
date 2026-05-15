@@ -52,4 +52,4 @@ SAMPLERS: Registry[SamplerFactoryFn] = Registry[SamplerFactoryFn]("samplers")
 
 OUTPUT_SINKS: Registry[DesignSinkFactory] = Registry[DesignSinkFactory]("output_sinks")
 
-import prxteinmpnn.host.streaming as _output_sinks_bootstrap  # noqa: F401 — register default sink keys
+import prxteinmpnn.host.output_sinks as _output_sinks_bootstrap  # noqa: F401 — register default sink keys

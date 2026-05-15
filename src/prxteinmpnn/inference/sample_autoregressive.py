@@ -36,11 +36,11 @@ def kernel(
     """Autoregressive sampling kernel.
 
     Optimized to encode features once and then iterate through the decoding waves.
-    Delegates to unified driver for decoding logic.
+    Delegates to unified driver for autoregressive decoding.
     """
     import jax
     from prxteinmpnn.inference.encode import make_encode_fn
-    from prxteinmpnn.inference.driver import decode
+    from prxteinmpnn.inference.driver import decode_ar
 
     k_enc, k_dec = jax.random.split(prng_key)
 
@@ -49,4 +49,4 @@ def kernel(
     enc = encode_fn(bundle, k_enc, config)
 
     # Delegate to unified driver for autoregressive sampling
-    return decode(model, k_dec, enc, bundle.conditioning, bundle.wave, config, stage_set)
+    return decode_ar(model, k_dec, enc, bundle.conditioning, bundle.wave, config, stage_set)

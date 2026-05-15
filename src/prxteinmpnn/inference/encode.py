@@ -154,6 +154,13 @@ def make_encode_fn(model: ModelProtocol, *, use_rolling_state: bool = False) -> 
                     noise_stack,
                 ),
             )
+            # Ensure mask is included in the returned EncoderOutput
+            enc = EncoderOutput(
+                node_features=enc.node_features,
+                edge_features=enc.edge_features,
+                neighbor_indices=enc.neighbor_indices,
+                mask=geo.mask,
+            )
         else:
             # Parallel vmap over S states (higher throughput)
             node_f, edge_f, nei_f = jax.vmap(encode_one, in_axes=(0, 0, 0, 0, 0, 0, 0, 0, 0))(
@@ -171,6 +178,7 @@ def make_encode_fn(model: ModelProtocol, *, use_rolling_state: bool = False) -> 
                 node_features=node_f,
                 edge_features=edge_f,
                 neighbor_indices=nei_f,
+                mask=geo.mask,
             )
 
         return enc

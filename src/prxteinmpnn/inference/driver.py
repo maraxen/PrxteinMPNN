@@ -79,7 +79,7 @@ def decode(
     topology = infer_topology(stage_set)
 
     if topology == TOPOLOGY_AR:
-        return _decode_ar(model, key, enc, cond, wave, config, stage_set)
+        return decode_ar(model, key, enc, cond, wave, config, stage_set)
     elif topology == TOPOLOGY_UNCONDITIONAL:
         return _decode_unconditional(model, key, enc, cond, config, stage_set)
     else:
@@ -173,7 +173,7 @@ def _decode_unconditional(
 # Autoregressive Sampling Path (scan over waves)
 # ---------------------------------------------------------------------------
 
-def _decode_ar(
+def decode_ar(
     model: ModelProtocol,
     key: PRNGKeyArray,
     enc: EncoderOutput,
@@ -192,7 +192,7 @@ def _decode_ar(
         key: PRNG key for sampling
         enc: EncoderOutput from prior encode
         cond: ConditioningBundle with ar_mask, tie_group_map, fixed_mask, temperature, bias
-        wave: WaveScheduleBundle with group_positions, n_waves
+        wave: WaveScheduleBundle with group_positions and derived n_waves from shape
         config: InferenceConfig
         stage_set: StageSet with ar_logit_transform, decode_step, logit_transform, sample_step
 
@@ -202,6 +202,7 @@ def _decode_ar(
     geo_mask = enc.mask  # Assuming enc.mask carries geometry mask
     L = enc.node_features.shape[1]  # Second dim is sequence length
     S = enc.node_features.shape[0]  # First dim is state dimension
+    n_waves = wave.group_ids.shape[0]  # First dim of group_ids is W (num waves)
 
     # Decoding Loop
     def step_fn(i, sequence):
@@ -277,7 +278,7 @@ def _decode_ar(
     final_seq, logits_stack = jax.lax.scan(
         scan_body,
         seq_init,
-        jnp.arange(wave.n_waves)
+        jnp.arange(n_waves)
     )
 
     # Map logits_stack (W, 21) back to (L, 21)
@@ -290,7 +291,7 @@ def _decode_ar(
         return new_logits_final, None
 
     logits_init = jnp.zeros((L, 21))
-    logits_final, _ = jax.lax.scan(scatter_logits, logits_init, jnp.arange(wave.n_waves))
+    logits_final, _ = jax.lax.scan(scatter_logits, logits_init, jnp.arange(n_waves))
 
     return SampleResult(
         sequence=final_seq,
@@ -300,6 +301,7 @@ def _decode_ar(
 
 __all__ = [
     "decode",
+    "decode_ar",
     "infer_topology",
     "TOPOLOGY_AR",
     "TOPOLOGY_CONDITIONAL_SCORE",

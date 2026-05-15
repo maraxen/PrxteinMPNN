@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 import jax
 import jax.numpy as jnp
@@ -25,6 +25,41 @@ if TYPE_CHECKING:
     Logits,
     ProteinSequence,
   )
+
+
+def resolve_kernel_fn(strategy: str) -> Callable:
+  """Resolve a kernel callable from sampling_strategy string.
+
+  Dispatches to the appropriate inference kernel based on the sampling strategy:
+  - 'temperature': Autoregressive sampling kernel
+  - 'straight_through': Straight-through estimator wrapped teacher-forced kernel
+  - Default: Autoregressive sampling
+
+  Args:
+    strategy: Sampling strategy name (e.g., 'temperature', 'straight_through')
+
+  Returns:
+    A callable with signature (model, key, bundle, config, stage_set) -> SampleResult
+  """
+  if strategy == "temperature":
+    return sample_ar.kernel
+  elif strategy == "straight_through":
+    # For STE, wrap score_conditional kernel to return SampleResult compatible interface
+    from prxteinmpnn.inference.score_conditional import kernel as score_conditional_kernel
+    from prxteinmpnn.inference.sample_autoregressive import SampleResult
+
+    def _ste_kernel_wrapper(model, prng_key, bundle, config, stage_set):
+      """Wrap score_conditional to return SampleResult-compatible interface."""
+      # Call score_conditional kernel (teacher-forced decoding)
+      logits = score_conditional_kernel(model, prng_key, bundle, config, stage_set)
+      # Compute sequence from logits via argmax (greedy decoding)
+      sequence = logits.argmax(axis=-1).astype(jnp.int8)
+      return SampleResult(sequence=sequence, logits=logits)
+
+    return _ste_kernel_wrapper
+  else:
+    # Default to temperature strategy
+    return sample_ar.kernel
 
 
 def _sample_batch(
@@ -95,7 +130,10 @@ def _sample_batch(
     jnp.asarray(spec.state_weights, dtype=jnp.float32) if spec.state_weights is not None else None
   )
 
-  # 3. Inner Kernel Closure (Single Structure, Single Noise, Single Temp)
+  # 3. Resolve the kernel function from spec.sampling_strategy
+  _kernel_fn = resolve_kernel_fn(spec.sampling_strategy)
+
+  # 4. Inner Kernel Closure (Single Structure, Single Noise, Single Temp)
   def _call_kernel(key_samples, structure_idx, noise_val, temp_val):
       # Extract single structure from batch
       c = batched_ensemble.coordinates[structure_idx]
@@ -129,12 +167,12 @@ def _sample_batch(
 
       # Map over samples
       def _run_one_sample(k):
-          res = sample_ar.kernel(model, k, bundle, config, stage_set)
+          res = _kernel_fn(model, k, bundle, config, stage_set)
           return res.sequence, res.logits
 
       return _safe_map(_run_one_sample, key_samples, batch_size=samples_bs)
 
-  # 4. Nested Dispatch (Structures -> Noises -> Temps)
+  # 5. Nested Dispatch (Structures -> Noises -> Temps)
   # Compute deterministic sample keys
   sample_keys = compute_sample_keys(
       base_key,
@@ -161,12 +199,12 @@ def _sample_batch(
       batch_size=structures_bs
   )
 
-  # 5. Post-process (transpose to expected output shape: [batch, samples, noise, temp, seq_len])
+  # 6. Post-process (transpose to expected output shape: [batch, samples, noise, temp, seq_len])
   # current: [B, D, T, N, L] -> desired: [B, N, D, T, L]
   sampled_sequences = jnp.transpose(sampled_sequences, (0, 3, 1, 2, 4))
   sampled_logits = jnp.transpose(sampled_logits, (0, 3, 1, 2, 4, 5))
 
-  # 6. IO & Metadata
+  # 7. IO & Metadata
   if spec.compute_pseudo_perplexity:
     mask = batched_ensemble.mask
     if mask is None:

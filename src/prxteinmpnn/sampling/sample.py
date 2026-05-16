@@ -153,6 +153,9 @@ def make_sample_sequences(
       y: jax.Array | None = None,
       y_t: jax.Array | None = None,
       y_m: jax.Array | None = None,
+      precomputed_node_features: jax.Array | None = None,
+      precomputed_edge_features: jax.Array | None = None,
+      precomputed_neighbor_indices: jax.Array | None = None,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
       
       L = structure_coordinates.shape[1] if structure_coordinates.ndim == 4 else structure_coordinates.shape[0]
@@ -188,8 +191,30 @@ def make_sample_sequences(
           use_rolling_state=use_rolling_state,
           inference=True
       )
-      
-      result = sample_autoregressive.kernel(model, prng_key, bundle, config, stage_set)
+
+      # Handle precomputed features if provided
+      if precomputed_node_features is not None and precomputed_edge_features is not None and precomputed_neighbor_indices is not None:
+        from prxteinmpnn.types.encodings import EncoderOutput
+        from prxteinmpnn.inference.driver import decode_ar
+
+        # Ensure precomputed features have state dimension (S, L, ...)
+        node_feats = precomputed_node_features if precomputed_node_features.ndim > 2 else precomputed_node_features[None, ...]
+        edge_feats = precomputed_edge_features if precomputed_edge_features.ndim > 3 else precomputed_edge_features[None, ...]
+        neighbor_idx = precomputed_neighbor_indices if precomputed_neighbor_indices.ndim > 2 else precomputed_neighbor_indices[None, ...]
+        _mask = mask if mask.ndim == 2 else mask[None, ...]
+
+        # Use precomputed features
+        enc = EncoderOutput(
+            node_features=node_feats,
+            edge_features=edge_feats,
+            neighbor_indices=neighbor_idx,
+            mask=_mask,
+        )
+        # Split the key the same way as sample_autoregressive.kernel does
+        k_enc, k_dec = jax.random.split(prng_key)
+        result = decode_ar(model, k_dec, enc, bundle.conditioning, bundle.wave, config, stage_set)
+      else:
+        result = sample_autoregressive.kernel(model, prng_key, bundle, config, stage_set)
       
       return result.sequence.astype(jnp.int8), result.logits, decoding_order
 

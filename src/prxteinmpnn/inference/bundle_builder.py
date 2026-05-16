@@ -98,13 +98,26 @@ def build_inference_bundle(
     elif ar_mask.ndim == 2:
         ar_mask = jnp.broadcast_to(ar_mask[None, ...], (S, L, L))
 
+    # Handle sequence: can be token indices or already one-hot
+    if sequence is not None:
+        if sequence.ndim == 1:
+            # Token indices: convert to one-hot
+            sequence_oh = jax.nn.one_hot(sequence, 21)
+        elif sequence.ndim == 2 and sequence.shape[1] == 21:
+            # Already one-hot
+            sequence_oh = sequence
+        else:
+            raise ValueError(f"sequence must be shape (L,) for tokens or (L, 21) for one-hot, got {sequence.shape}")
+    else:
+        sequence_oh = jnp.zeros((L, 21))
+
     cond = ConditioningBundle(
         fixed_mask=fixed_mask if fixed_mask is not None else jnp.zeros(L),
         fixed_tokens=fixed_tokens if fixed_tokens is not None else jnp.zeros(L, dtype=jnp.int32),
         bias=bias if bias is not None else jnp.zeros((L, 21)),
         tie_group_map=tie_group_map,
         state_weights=state_weights,
-        sequence_oh=jax.nn.one_hot(sequence, 21) if sequence is not None else jnp.zeros((L, 21)),
+        sequence_oh=sequence_oh,
         ar_mask=ar_mask,
         temperature=jnp.array(temperature)
     )

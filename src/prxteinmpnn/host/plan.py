@@ -1,18 +1,15 @@
-"""Batch planning and scheduling logic for sampling operations.
-
-Also includes InferencePlan and related components for unified inference dispatch.
-"""
+"""Batch planning and scheduling logic for sampling operations."""
 
 from __future__ import annotations
 
 import dataclasses
 import logging
 import numpy as np
-from typing import TYPE_CHECKING, Any, NamedTuple, Callable
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 import jax
 import jax.numpy as jnp
-import equinox as eqx
 
 from prxteinmpnn.tiling.planner import BatchPlan, BatchPlanner, estimate_memory_theoretical
 from prxteinmpnn.tiling.axes import N_NOISES, N_SAMPLES, N_STRUCTURES, N_TEMPERATURES
@@ -22,10 +19,6 @@ if TYPE_CHECKING:
     from jaxtyping import PRNGKeyArray
     from prxteinmpnn.run.specs import SamplingSpecification
     from prxteinmpnn.types.arrays import ProteinSequence, Logits
-    from prxteinmpnn.types.stages import StageSet
-    from prxteinmpnn.types.bundles import InferenceBundle
-    from prxteinmpnn.types.configs import InferenceConfig
-    from prxteinmpnn.types.protocols import ModelProtocol
 
 logger = logging.getLogger(__name__)
 _batch_logger = logging.getLogger(__name__ + ".batch_plan")
@@ -192,165 +185,3 @@ def resolve_sample_start(
     return int(grid_lineage["sample_start"]) if grid_lineage is not None else 0
 
 
-# ---------------------------------------------------------------------------
-# COMP-8: InferencePlan and related components for unified inference dispatch
-# ---------------------------------------------------------------------------
-
-
-class InferenceComponents(NamedTuple):
-    """Resolved inference components: encode function, driver, and stages.
-
-    This named tuple holds the three core pieces needed for inference:
-    - encode_fn: Callable that encodes the InferenceBundle to EncoderOutput
-    - driver: Callable that performs decoding with stage_set dispatching
-    - stage_set: StageSet containing logit transforms and decode/sample steps
-    """
-    encode_fn: Callable
-    driver: Callable
-    stage_set: Any  # StageSet
-
-
-@dataclasses.dataclass
-class InferencePlan:
-    """Resolved plan: encode-once/decode-many with distinct .sample() and .score() entrypoints.
-
-    InferencePlan wraps a model and its resolved components. It exposes two distinct
-    methods for inference:
-    - .sample(): Autoregressive sampling with stochasticity and sequence output
-    - .score(): Deterministic teacher-forced scoring of a given sequence
-
-    Both methods use the same underlying driver; the topology is inferred from stage_set.
-    The key difference is in how callers set up the stage_set (with/without sample_step).
-    """
-
-    model: Any
-    components: InferenceComponents
-
-    @property
-    def stage_set(self) -> Any:
-        """Access the resolved StageSet."""
-        return self.components.stage_set
-
-    def sample(
-        self,
-        bundle: InferenceBundle,
-        key: PRNGKeyArray,
-        config: InferenceConfig,
-    ) -> Any:
-        """Autoregressive sampling: stochastic, returns SampleResult with sequence + logits.
-
-        Args:
-            bundle: InferenceBundle with protein, ligand, conditioning, wave schedule.
-            key: PRNG key for sampling randomness.
-            config: InferenceConfig controlling encoder and inference settings.
-
-        Returns:
-            SampleResult(sequence, logits) where sequence is (L,) and logits is (L, 21).
-        """
-        enc = self.components.encode_fn(bundle, key, config)
-        return self.components.driver(
-            self.model, key, enc,
-            bundle.conditioning, bundle.wave, config,
-            self.components.stage_set
-        )
-
-    def score(
-        self,
-        bundle: InferenceBundle,
-        key: PRNGKeyArray,
-        config: InferenceConfig,
-    ) -> Logits:
-        """Deterministic teacher-forced scoring: returns (L, V) logits.
-
-        Args:
-            bundle: InferenceBundle with protein, ligand, conditioning, wave schedule.
-            key: PRNG key for any randomness (not used in score path).
-            config: InferenceConfig controlling encoder and inference settings.
-
-        Returns:
-            Logits of shape (L, V) where L is sequence length, V is vocabulary (21).
-        """
-        enc = self.components.encode_fn(bundle, key, config)
-        return self.components.driver(
-            self.model, key, enc,
-            bundle.conditioning, bundle.wave, config,
-            self.components.stage_set
-        )
-
-
-def make_inference_plan(
-    model: ModelProtocol,
-    spec: Any,
-) -> InferencePlan:
-    """Factory: resolve and create an InferencePlan from model and spec.
-
-    Resolves:
-    - encode_fn: Via make_encode_fn with rolling_state strategy from spec
-    - logit_transform: Via LOGIT_STRATEGIES registry lookup
-    - ar_logit_transform: Default ARLogitFuse for per-position fusion
-    - stage_set: Assembled from resolved transforms and decode/sample steps from spec
-    - components: Bundled as InferenceComponents(encode_fn, driver, stage_set)
-
-    Args:
-        model: ModelProtocol instance (must have encoder, decoder, w_out, etc.)
-        spec: Spec-like object with attributes:
-            - use_rolling_state (bool, optional): Strategy for encoding (default False)
-            - multi_state_strategy (str, optional): Logit fusion strategy (default 'arithmetic_mean')
-            - multi_state_temperature (float, optional): Temperature for fusion (default 1.0)
-            - state_weights (array-like, optional): State weights for fusion (default None)
-            - temperature (list, optional): Temperature grid (for structure, unused here)
-
-    Returns:
-        InferencePlan with resolved components ready for .sample() and .score() dispatch.
-    """
-    from prxteinmpnn.inference.encode import make_encode_fn
-    from prxteinmpnn.inference import driver as driver_module
-    from prxteinmpnn.inference.logits import LOGIT_STRATEGIES, ARLogitFuse
-    from prxteinmpnn.types.stages import StageSet
-
-    # Resolve encode strategy
-    use_rolling_state = getattr(spec, "use_rolling_state", False)
-    encode_fn = make_encode_fn(model, use_rolling_state=use_rolling_state)
-
-    # Resolve logit fusion strategy and weights
-    strategy_name = getattr(spec, "multi_state_strategy", None) or "arithmetic_mean"
-    strategy_temp = getattr(spec, "multi_state_temperature", 1.0) or 1.0
-    state_weights = getattr(spec, "state_weights", None)
-
-    strategy_cls = LOGIT_STRATEGIES.get(strategy_name)
-    if strategy_cls is None:
-        msg = f"Logit strategy '{strategy_name}' not found in registry"
-        raise ValueError(msg)
-
-    # Handle weights: use provided or default to ones
-    if state_weights is not None:
-        weights = jnp.asarray(state_weights, dtype=jnp.float32)
-    else:
-        weights = jnp.ones(1, dtype=jnp.float32)
-
-    # Instantiate logit transform with temperature support
-    try:
-        logit_transform = strategy_cls(weights, temperature=strategy_temp)
-    except TypeError:
-        # Strategy does not accept temperature parameter
-        logit_transform = strategy_cls(weights)
-
-    # Default AR logit transform (arithmetic mean across states per position)
-    ar_logit_transform = ARLogitFuse()
-
-    # Assemble stage_set (decode_step and sample_step left as None for now)
-    stage_set = StageSet(
-        logit_transform=logit_transform,
-        ar_logit_transform=ar_logit_transform,
-        decode_step=None,
-        sample_step=None,
-    )
-
-    # Bundle components
-    components = InferenceComponents(
-        encode_fn=encode_fn,
-        driver=driver_module.decode,
-        stage_set=stage_set,
-    )
-
-    return InferencePlan(model=model, components=components)

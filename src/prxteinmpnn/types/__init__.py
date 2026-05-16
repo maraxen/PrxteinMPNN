@@ -1,6 +1,5 @@
 """Core types for PrxteinMPNN."""
 
-from prxteinmpnn.types.encodings import EncoderOutput
 from prxteinmpnn.types.arrays import (
     AlphaCarbonDistance,
     AlphaCarbonMask,
@@ -48,7 +47,6 @@ from prxteinmpnn.types.arrays import (
     TieGroupMap,
     TrainingMetrics,
 )
-
 __all__ = [
     "AlphaCarbonDistance",
     "AlphaCarbonMask",
@@ -73,7 +71,6 @@ __all__ = [
     "DecodingOrderOutputs",
     "Distances",
     "EdgeFeatures",
-    "EncoderOutput",
     "GroupMask",
     "InputBias",
     "InputLengths",

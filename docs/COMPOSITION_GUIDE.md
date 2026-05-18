@@ -25,6 +25,8 @@ InferencePlan                 │                         │
 
 **`StageSet` is the composition interface.** Setting or leaving `None` its four slots fully determines which decode path runs and what logic executes at each step.
 
+**`InferencePlan` is the recommended entry point.** It wraps model + stages + encoding strategy into a single callable object with `.sample()` and `.score()` methods. Use the factory `make_inference_plan(model, spec)` to auto-resolve stages from a specification, or build one manually for full control.
+
 ---
 
 ## StageSet slot reference
@@ -136,11 +138,38 @@ class GumbelTopKStep(eqx.Module):
         return jnp.argmax((logits + gumbel) / self.tau)
 ```
 
-> **Note:** the current `_decode_ar` in `driver.py` uses `jax.random.categorical` directly and does not yet delegate to `stage_set.sample_step`. Wiring `sample_step` into the AR scan body is the next composability step (post-Sprint 2).
+> **Note:** the current `_decode_ar` in `driver.py` uses `jax.random.categorical` directly. Wiring `sample_step` into the AR scan body as a fully composable delegate is a potential future enhancement. For now, `sample_step` presence (non-None) flags AR topology; the sampling method itself uses `jax.random.categorical`.
 
 ---
 
 ## Putting it together: full example
+
+### Option 1: Factory (Recommended)
+
+For the common case where you just want to change fusion strategy via spec:
+
+```python
+from prxteinmpnn.host.plan import make_inference_plan
+from prxteinmpnn.run.specs import SamplingSpecification
+
+spec = SamplingSpecification(
+    inputs="structure.pdb",
+    num_samples=10,
+    multi_state_strategy="geometric_mean",
+    state_weights=[1.0, 0.8, 0.6],
+)
+
+# Reads strategy, state_weights, rolling_state from spec automatically
+plan = make_inference_plan(model, spec)
+
+# Use the plan
+result = plan.sample(bundle, key, config)     # SampleResult(sequence, logits)
+logits = plan.score(bundle, key, config)      # (L, 21)
+```
+
+### Option 2: Manual Component Assembly
+
+For fine-grained control over stages and encoding:
 
 ```python
 import jax
@@ -151,7 +180,7 @@ from prxteinmpnn.inference import driver
 from prxteinmpnn.inference.logits import GeometricMeanLogits, ARLogitFuse
 from prxteinmpnn.types.stages import StageSet
 
-# --- Custom experiment: geometric mean fusion, temperature AR fuse ---
+# --- Custom experiment: geometric mean fusion with custom temperature ---
 
 state_weights = jnp.array([1.0, 0.8, 0.6])   # 3 conformational states
 
@@ -170,17 +199,9 @@ components = InferenceComponents(
 
 plan = InferencePlan(model=model, components=components)
 
-# Sample (AR scan topology when stage_set.sample_step is set; here it falls through
-# to conditional score topology since sample_step=None):
+# Use the plan
 result = plan.sample(bundle, key, config)     # SampleResult(sequence, logits)
 logits = plan.score(bundle, key, config)      # (L, 21)
-```
-
-For the common case where you just want to change fusion strategy, use the factory:
-
-```python
-# Reads strategy, rolling_state, state_weights from spec automatically
-plan = make_inference_plan(model, spec)
 ```
 
 ---

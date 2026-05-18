@@ -13,7 +13,7 @@ Welcome to PrxteinMPNN's documentation! This project provides a functional inter
   :maxdepth: 2
   :caption: Contents:
 
-  api/modules
+  api/index
   tutorials/index
   examples/index
 

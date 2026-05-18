@@ -1,5 +1,5 @@
-score
-========================
+Scoring
+=======
 
 .. automodule:: prxteinmpnn.scoring.score
    :members:

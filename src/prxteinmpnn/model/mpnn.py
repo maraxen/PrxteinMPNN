@@ -122,83 +122,47 @@ class PrxteinMPNN(eqx.Module):
     bundle: InferenceBundle | None = None,
     config: InferenceConfig | None = None,
     **kwargs: Any,
-  ) -> tuple[jax.Array, jax.Array] | tuple[jax.Array, jax.Array, jax.Array]:
-    """Unified entry point supporting both old and new APIs.
+  ) -> tuple[jax.Array, jax.Array, jax.Array]:
+    """Single-state encode: features + encoder for one conformational state.
 
-    Old API: model(coords, mask, res_idx, chain_idx, decoding_approach="conditional", ...)
-    New API: model(prng_key, bundle, config)
+    This is the low-level building block called by make_encode_fn (inference/encode.py).
+    It is NOT an inference entry point — use make_inference_plan, make_score_sequence,
+    or make_sample_sequences for full inference paths.
+
+    Args:
+        structure_coordinates: (L, 4, 3) atom37 coordinates for one state.
+        mask_or_bundle: (L,) residue mask.
+        residue_index: (L,) residue indices.
+        chain_index: (L,) chain indices.
+        prng_key: PRNG key for encoder dropout.
+        backbone_noise: scalar backbone noise level.
 
     Returns:
-        Old API: (logits, logits) for conditional decoding
-        New API: (node_features, edge_features, edge_indices) for encoder-only
+        (node_features, edge_features, neighbor_indices) for this state.
     """
-    from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-    from prxteinmpnn.inference.driver import decode
-    from prxteinmpnn.inference.encode import make_encode_fn
+    coords = structure_coordinates
+    mask = mask_or_bundle
+    if prng_key is None:
+      import jax
+      prng_key = jax.random.PRNGKey(0)
+    noise = backbone_noise if backbone_noise is not None else 0.0
+    sm = kwargs.get("structure_mapping", None)
 
-    # Detect which API is being used
-    if isinstance(mask_or_bundle, InferenceBundle) or bundle is not None:
-      # New API: model(prng_key, bundle, config, ...)
-      _prng_key = structure_coordinates
-      _bundle = mask_or_bundle if isinstance(mask_or_bundle, InferenceBundle) else bundle
-      _config = residue_index if isinstance(residue_index, InferenceConfig) else config
-
-      geo = _bundle.geometry
-
-      edge_features, edge_indices, node_features, _ = self.features(
-        _prng_key,
-        geo.coords[0],
-        geo.mask[0],
-        geo.residue_index[0],
-        geo.chain_index[0],
-        _bundle.backbone_noise,
-        backbone_noise_mode=_config.backbone_noise_mode,
-        structure_mapping=geo.structure_mapping[0] if geo.structure_mapping is not None else None,
-        initial_node_features=kwargs.get("initial_node_features"),
-        rbf_features=kwargs.get("rbf_features"),
-        neighbor_indices=kwargs.get("neighbor_indices"),
-      )
-
-      node_features, edge_features = self.encoder(
-        edge_features,
-        edge_indices,
-        geo.mask[0],
-        node_features,
-        key=_prng_key,
-      )
-
-      return node_features, edge_features, edge_indices
-
-    else:
-      # Old API: model(coords, mask, res_idx, chain_idx, decoding_approach="conditional", ...)
-      if prng_key is None:
-        raise ValueError("prng_key is required for old API")
-
-      coords = structure_coordinates
-      _mask = mask_or_bundle
-      _residue_index = residue_index
-      _chain_index = chain_index
-
-      # Build bundle from geometry
-      _bundle, _config, stage_set = build_inference_bundle(
-        coords=coords,
-        mask=_mask,
-        residue_index=_residue_index,
-        chain_index=_chain_index,
-        sequence=one_hot_sequence if one_hot_sequence is not None else None,
-        ar_mask=ar_mask,
-        backbone_noise=backbone_noise if backbone_noise is not None else 0.0,
-        mode="score_conditional" if decoding_approach == "conditional" else "score_unconditional",
-        inference=True,
-      )
-
-      # Encode
-      k_enc, k_dec = jax.random.split(prng_key)
-      encode_fn = make_encode_fn(self, use_rolling_state=_config.use_rolling_state)
-      enc = encode_fn(_bundle, k_enc, _config)
-
-      # Decode
-      logits = decode(self, k_dec, enc, _bundle.conditioning, _bundle.wave, _config, stage_set)
-
-      # Return (logits, logits) for compatibility with test expectations
-      return logits, logits
+    edge_features, neighbor_indices, node_features, _ = self.features(
+      prng_key,
+      coords,
+      mask,
+      residue_index,
+      chain_index,
+      noise,
+      backbone_noise_mode=kwargs.get("backbone_noise_mode", "direct"),
+      structure_mapping=sm,
+    )
+    node_features, edge_features = self.encoder(
+      edge_features,
+      neighbor_indices,
+      mask,
+      initial_node_features=node_features,
+      key=prng_key,
+    )
+    return node_features, edge_features, neighbor_indices

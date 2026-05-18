@@ -9,6 +9,8 @@ import numpy as np
 import pytest
 from scipy.stats import pearsonr
 
+from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+from prxteinmpnn.inference import score_conditional
 from prxteinmpnn.model import PrxteinMPNN
 from prxteinmpnn.sampling.conditional_logits import (
   make_conditional_logits_fn,
@@ -60,17 +62,25 @@ def test_conditional_logits_helper_matches_model_branch() -> None:
     ar_mask=ar_mask,
     backbone_noise=jnp.array(0.0, dtype=jnp.float32),
   )
-  _, direct_logits = model(
-    coordinates,
-    mask,
-    residue_index,
-    chain_index,
-    decoding_approach="conditional",
-    prng_key=key,
-    ar_mask=ar_mask,
-    one_hot_sequence=sequence_one_hot,
+
+  # Use inference API for direct_logits
+  coords_batch = coordinates[None, ...]
+  mask_batch = mask[None, ...]
+  residue_index_batch = residue_index[None, ...]
+  chain_index_batch = chain_index[None, ...]
+  ar_mask_batch = ar_mask[None, ...] if ar_mask.ndim == 2 else ar_mask
+
+  bundle, config, stage_set = build_inference_bundle(
+    coords=coords_batch,
+    mask=mask_batch,
+    residue_index=residue_index_batch,
+    chain_index=chain_index_batch,
+    sequence=sequence_one_hot,
+    ar_mask=ar_mask_batch,
     backbone_noise=jnp.array(0.0, dtype=jnp.float32),
+    mode="score_conditional",
   )
+  direct_logits = score_conditional.kernel(model, key, bundle, config, stage_set)
 
   helper_logits_np = np.asarray(helper_logits)
   direct_logits_np = np.asarray(direct_logits)

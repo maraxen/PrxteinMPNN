@@ -13,6 +13,12 @@ import numpy as np
 import pytest
 from scipy.stats import pearsonr
 
+from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+from prxteinmpnn.inference import (
+  score_conditional,
+  score_unconditional,
+  sample_autoregressive,
+)
 from prxteinmpnn.io.weights import load_weights
 from prxteinmpnn.model.mpnn import PrxteinMPNN
 from tests.parity.reference_utils import require_heavy_parity_prereqs
@@ -353,13 +359,21 @@ def test_decoder_unconditional_parity(
     ).numpy()[0]
 
   jax_model = _jax_protein_for_source(heavy_parity_models, weight_source)
-  _, jax_logits = jax_model(
-    parity_batch.x_jax_atom37,
-    jnp.array(parity_batch.mask[0]),
-    jnp.array(parity_batch.residue_index[0]),
-    jnp.array(parity_batch.chain_index[0]),
-    "unconditional",
+
+  # Extract first 4 atoms to match (L, 4, 3) format
+  coords_batch = parity_batch.x_jax_atom37[:, :4, :][None, ...]  # (1, L, 4, 3)
+  mask_batch = jnp.array(parity_batch.mask[0])[None, ...]  # (1, L)
+  residue_index_batch = jnp.array(parity_batch.residue_index[0])[None, ...]  # (1, L)
+  chain_index_batch = jnp.array(parity_batch.chain_index[0])[None, ...]  # (1, L)
+
+  bundle, config, stage_set = build_inference_bundle(
+    coords=coords_batch,
+    mask=mask_batch,
+    residue_index=residue_index_batch,
+    chain_index=chain_index_batch,
+    mode="score_unconditional",
   )
+  jax_logits = score_unconditional.kernel(jax_model, jax.random.PRNGKey(0), bundle, config, stage_set)
   jax_log_probs = np.asarray(jax.nn.log_softmax(jax_logits, axis=-1))
 
   corr = _pearson_correlation(pt_log_probs, jax_log_probs)
@@ -380,15 +394,23 @@ def test_decoder_conditional_scoring_parity(
   pt_log_probs = pt_score["log_probs"].numpy()[0]
 
   jax_model = _jax_protein_for_source(heavy_parity_models, weight_source)
-  _, jax_logits = jax_model(
-    parity_batch.x_jax_atom37,
-    jnp.array(parity_batch.mask[0]),
-    jnp.array(parity_batch.residue_index[0]),
-    jnp.array(parity_batch.chain_index[0]),
-    "conditional",
-    one_hot_sequence=jax.nn.one_hot(jnp.array(parity_batch.sequence[0]), 21),
-    ar_mask=jnp.array(parity_batch.ar_mask),
+
+  # Extract first 4 atoms to match (L, 4, 3) format
+  coords_batch = parity_batch.x_jax_atom37[:, :4, :][None, ...]  # (1, L, 4, 3)
+  mask_batch = jnp.array(parity_batch.mask[0])[None, ...]  # (1, L)
+  residue_index_batch = jnp.array(parity_batch.residue_index[0])[None, ...]  # (1, L)
+  chain_index_batch = jnp.array(parity_batch.chain_index[0])[None, ...]  # (1, L)
+
+  bundle, config, stage_set = build_inference_bundle(
+    coords=coords_batch,
+    mask=mask_batch,
+    residue_index=residue_index_batch,
+    chain_index=chain_index_batch,
+    sequence=jax.nn.one_hot(jnp.array(parity_batch.sequence[0]), 21),
+    ar_mask=jnp.array(parity_batch.ar_mask)[None, ...],
+    mode="score_conditional",
   )
+  jax_logits = score_conditional.kernel(jax_model, jax.random.PRNGKey(0), bundle, config, stage_set)
   jax_log_probs = np.asarray(jax.nn.log_softmax(jax_logits, axis=-1))
 
   assert np.array_equal(pt_score["decoding_order"].numpy()[0], parity_batch.decoding_order)
@@ -413,22 +435,31 @@ def test_autoregressive_sampling_parity(
     pt_sample = heavy_parity_models.pt_model.sample(feature_dict)
 
   jax_model = _jax_protein_for_source(heavy_parity_models, weight_source)
-  jax_sequence, jax_logits = jax_model(
-    parity_batch.x_jax_atom37,
-    jnp.array(parity_batch.mask[0]),
-    jnp.array(parity_batch.residue_index[0]),
-    jnp.array(parity_batch.chain_index[0]),
-    "autoregressive",
-    prng_key=jax.random.PRNGKey(7),
-    ar_mask=jnp.array(parity_batch.ar_mask),
-    temperature=jnp.array(1.0),
-    bias=jnp.array(parity_batch.bias[0]),
+
+  # Extract first 4 atoms to match (L, 4, 3) format
+  coords_batch = parity_batch.x_jax_atom37[:, :4, :][None, ...]  # (1, L, 4, 3)
+  mask_batch = jnp.array(parity_batch.mask[0])[None, ...]  # (1, L)
+  residue_index_batch = jnp.array(parity_batch.residue_index[0])[None, ...]  # (1, L)
+  chain_index_batch = jnp.array(parity_batch.chain_index[0])[None, ...]  # (1, L)
+
+  bundle, config, stage_set = build_inference_bundle(
+    coords=coords_batch,
+    mask=mask_batch,
+    residue_index=residue_index_batch,
+    chain_index=chain_index_batch,
+    ar_mask=jnp.array(parity_batch.ar_mask)[None, ...],
+    bias=jnp.array(parity_batch.bias[0])[None, ...],
+    temperature=1.0,
+    mode="sample_autoregressive",
+  )
+  result = sample_autoregressive.kernel(
+    jax_model, jax.random.PRNGKey(7), bundle, config, stage_set
   )
 
   pt_tokens = pt_sample["S"].numpy()[0]
-  jax_tokens = np.asarray(jnp.argmax(jax_sequence, axis=-1))
+  jax_tokens = np.asarray(result.sequence)  # Already tokens from SampleResult
   pt_log_probs = pt_sample["log_probs"].numpy()[0]
-  jax_log_probs = np.asarray(jax.nn.log_softmax(jax_logits, axis=-1))
+  jax_log_probs = np.asarray(jax.nn.log_softmax(result.logits, axis=-1))
 
   assert np.array_equal(pt_sample["decoding_order"].numpy()[0], parity_batch.decoding_order)
   token_agreement = float(np.mean(pt_tokens == jax_tokens))
@@ -460,28 +491,36 @@ def test_tied_positions_and_multi_state_parity(
     pt_sample = heavy_parity_models.pt_model.sample(feature_dict)
 
   jax_model = _jax_protein_for_source(heavy_parity_models, weight_source)
-  jax_sequence, jax_logits = jax_model(
-    parity_batch.x_jax_atom37,
-    jnp.array(parity_batch.mask[0]),
-    jnp.array(parity_batch.residue_index[0]),
-    jnp.array(parity_batch.chain_index[0]),
-    "autoregressive",
-    prng_key=jax.random.PRNGKey(7),
-    ar_mask=jnp.array(parity_batch.ar_mask),
-    temperature=jnp.array(1.0),
-    bias=jnp.array(parity_batch.bias[0]),
-    tie_group_map=jnp.array(tie_group_map),
-    multi_state_strategy="product",
+
+  # Extract first 4 atoms to match (L, 4, 3) format
+  coords_batch = parity_batch.x_jax_atom37[:, :4, :][None, ...]  # (1, L, 4, 3)
+  mask_batch = jnp.array(parity_batch.mask[0])[None, ...]  # (1, L)
+  residue_index_batch = jnp.array(parity_batch.residue_index[0])[None, ...]  # (1, L)
+  chain_index_batch = jnp.array(parity_batch.chain_index[0])[None, ...]  # (1, L)
+
+  bundle, config, stage_set = build_inference_bundle(
+    coords=coords_batch,
+    mask=mask_batch,
+    residue_index=residue_index_batch,
+    chain_index=chain_index_batch,
+    ar_mask=jnp.array(parity_batch.ar_mask)[None, ...],
+    bias=jnp.array(parity_batch.bias[0])[None, ...],
+    temperature=1.0,
+    tie_group_map=jnp.array(tie_group_map)[None, ...],
+    mode="sample_autoregressive",
+  )
+  result = sample_autoregressive.kernel(
+    jax_model, jax.random.PRNGKey(7), bundle, config, stage_set
   )
 
   pt_tokens = pt_sample["S"].numpy()[0]
-  jax_tokens = np.asarray(jnp.argmax(jax_sequence, axis=-1))
+  jax_tokens = np.asarray(result.sequence)  # Already tokens from SampleResult
   pt_log_probs = _combine_reference_tied_log_probs(
     pt_sample["log_probs"].numpy()[0],
     tie_groups=tie_groups,
     tie_weights=tie_weights,
   )
-  jax_log_probs = np.asarray(jax.nn.log_softmax(jax_logits, axis=-1))
+  jax_log_probs = np.asarray(jax.nn.log_softmax(result.logits, axis=-1))
 
   token_agreement = float(np.mean(pt_tokens == jax_tokens))
   corr = _pearson_correlation(pt_log_probs, jax_log_probs)

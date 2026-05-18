@@ -1,10 +1,14 @@
 """Tests for the PrxteinMPNN model."""
-from functools import partial
-
 import chex
 import jax
 import jax.numpy as jnp
 
+from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+from prxteinmpnn.inference import (
+    score_conditional,
+    score_unconditional,
+    sample_autoregressive,
+)
 from prxteinmpnn.model.mpnn import PrxteinMPNN
 
 
@@ -21,47 +25,104 @@ class TestMPNN(chex.TestCase):
             k_neighbors=30,
             key=self.model_key,
         )
-        self.input_data = {
-            "structure_coordinates": jnp.ones((10, 4, 3)),
-            "mask": jnp.ones((10,)),
-            "residue_index": jnp.arange(10),
-            "chain_index": jnp.zeros((10,), dtype=jnp.int32),
-            "prng_key": jax.random.PRNGKey(1),
-        }
+        self.coords = jnp.ones((10, 4, 3))
+        self.mask = jnp.ones((10,))
+        self.residue_index = jnp.arange(10)
+        self.chain_index = jnp.zeros((10,), dtype=jnp.int32)
+        self.prng_key = jax.random.PRNGKey(1)
 
     @chex.variants(with_jit=True, without_jit=True, with_device=True)
-    def test_call_all_approaches(self):
-        """Test the __call__ method with all decoding approaches."""
+    def test_score_unconditional(self):
+        """Test unconditional scoring through inference API."""
+        coords_batch = self.coords[None, ...]
+        mask_batch = self.mask[None, ...]
+        residue_index_batch = self.residue_index[None, ...]
+        chain_index_batch = self.chain_index[None, ...]
 
-        @partial(
-            self.variant, static_argnames=["decoding_approach", "multi_state_strategy"],
+        bundle, config, stage_set = build_inference_bundle(
+            coords=coords_batch,
+            mask=mask_batch,
+            residue_index=residue_index_batch,
+            chain_index=chain_index_batch,
+            mode="score_unconditional",
         )
-        def call_fn(decoding_approach, multi_state_strategy, **kwargs):
-            return self.model(
-                **kwargs,
-                decoding_approach=decoding_approach,
-                multi_state_strategy=multi_state_strategy,
+
+        @self.variant
+        def score_fn():
+            return score_unconditional.kernel(
+                self.model, self.prng_key, bundle, config, stage_set
             )
 
-        for decoding_approach in ["unconditional", "conditional", "autoregressive"]:
-            seq, logits = call_fn(
-                decoding_approach=decoding_approach,
-                multi_state_strategy="arithmetic_mean",
-                **self.input_data,
-            )
-
-            chex.assert_shape(seq, (10, 21))
-            chex.assert_shape(logits, (10, 21))
-            chex.assert_type(seq, float)
-            chex.assert_type(logits, float)
-            chex.assert_tree_all_finite((seq, logits))
-
-    def test_call_no_key(self):
-        """Test the __call__ method without a prng_key."""
-        self.input_data.pop("prng_key")
-        seq, logits = self.model(**self.input_data, decoding_approach="unconditional")
-        chex.assert_shape(seq, (10, 21))
+        logits = score_fn()
         chex.assert_shape(logits, (10, 21))
-        chex.assert_type(seq, float)
         chex.assert_type(logits, float)
-        chex.assert_tree_all_finite((seq, logits))
+        chex.assert_tree_all_finite(logits)
+
+    @chex.variants(with_jit=True, without_jit=True, with_device=True)
+    def test_score_conditional(self):
+        """Test conditional scoring through inference API."""
+        coords_batch = self.coords[None, ...]
+        mask_batch = self.mask[None, ...]
+        residue_index_batch = self.residue_index[None, ...]
+        chain_index_batch = self.chain_index[None, ...]
+
+        bundle, config, stage_set = build_inference_bundle(
+            coords=coords_batch,
+            mask=mask_batch,
+            residue_index=residue_index_batch,
+            chain_index=chain_index_batch,
+            sequence=jnp.zeros((10, 21)),
+            mode="score_conditional",
+        )
+
+        @self.variant
+        def score_fn():
+            return score_conditional.kernel(
+                self.model, self.prng_key, bundle, config, stage_set
+            )
+
+        logits = score_fn()
+        chex.assert_shape(logits, (10, 21))
+        chex.assert_type(logits, float)
+        chex.assert_tree_all_finite(logits)
+
+    def test_sample_autoregressive(self):
+        """Test autoregressive sampling through inference API."""
+        coords_batch = self.coords[None, ...]
+        mask_batch = self.mask[None, ...]
+        residue_index_batch = self.residue_index[None, ...]
+        chain_index_batch = self.chain_index[None, ...]
+
+        bundle, config, stage_set = build_inference_bundle(
+            coords=coords_batch,
+            mask=mask_batch,
+            residue_index=residue_index_batch,
+            chain_index=chain_index_batch,
+            mode="sample_autoregressive",
+        )
+
+        result = sample_autoregressive.kernel(
+            self.model, self.prng_key, bundle, config, stage_set
+        )
+
+        chex.assert_shape(result.sequence, (10,))
+        chex.assert_shape(result.logits, (10, 21))
+        chex.assert_type(result.sequence, jnp.int32)
+        chex.assert_type(result.logits, float)
+        chex.assert_tree_all_finite(result.logits)
+
+    def test_encoder_basic(self):
+        """Test encoder output shape without bundle machinery."""
+        node_f, edge_f, neighbors = self.model(
+            self.coords,
+            self.mask,
+            self.residue_index,
+            self.chain_index,
+            prng_key=self.prng_key,
+        )
+        chex.assert_shape(node_f, (10, 128))
+        # edge_f shape is (L, min(k_neighbors, L), edge_features)
+        # Since L=10 and k_neighbors=30, it's (10, 10, 128)
+        chex.assert_shape(edge_f, (10, 10, 128))
+        chex.assert_shape(neighbors, (10, 10))
+        chex.assert_tree_all_finite((node_f, edge_f))

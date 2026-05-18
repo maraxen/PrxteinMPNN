@@ -72,3 +72,159 @@ def test_make_encode_fn_records_rolling_state_flag():
     assert fn_vmap is not fn_scan
 
 
+# ---------------------------------------------------------------------------
+# 4. Scan path (use_rolling_state=True) with EncoderOutput contract
+# ---------------------------------------------------------------------------
+
+def test_make_encode_fn_rolling_state_returns_encoder_output():
+    """make_encode_fn(use_rolling_state=True) returns EncoderOutput with mask populated."""
+    import jax
+    import jax.numpy as jnp
+    import equinox as eqx
+    from prxteinmpnn.inference.encode import make_encode_fn
+    from prxteinmpnn.types.encodings import EncoderOutput
+    from prxteinmpnn.types.bundles import GeometryBundle, LigandBundle, InferenceBundle, WaveScheduleBundle
+    from prxteinmpnn.types.configs import InferenceConfig
+
+    # Minimal duck-type model
+    class DummyModel(eqx.Module):
+        def features(self, k, coords, mask, ri, ci, noise, **kwargs):
+            # Return dummy features: (L, H) shaped
+            L = coords.shape[-2]
+            H = 32
+            return (
+                jnp.zeros((L, 10, H)),  # edge_features
+                jnp.zeros((L, 10), dtype=jnp.int32),  # neighbor_indices
+                jnp.zeros((L, H)),  # node_features
+                None,  # unused
+            )
+
+        def encoder(self, edge_f, edge_i, mask, initial_node_features=None, key=None):
+            return initial_node_features, edge_f  # Minimal: return inputs
+
+    # Build minimal bundle
+    S = 2
+    L = 4
+    geo = GeometryBundle(
+        coords=jnp.zeros((S, L, 4, 3)),
+        mask=jnp.ones((S, L)),
+        residue_index=jnp.arange(L)[None, :].repeat(S, axis=0),
+        chain_index=jnp.zeros((S, L), dtype=jnp.int32),
+        state_flat_rows=jnp.arange(L)[None, :].repeat(S, axis=0),
+        n_states=S,
+        n_canonical=L,
+        n_flat=L * S,
+        structure_mapping=None,
+    )
+    lig = LigandBundle(y=jnp.zeros((S, 0, 14, 3)), y_t=jnp.zeros((S, 0, 14), dtype=jnp.int32), y_m=jnp.zeros((S, 0, 14)))
+    wave = WaveScheduleBundle.empty(L)
+    bundle = InferenceBundle(
+        geometry=geo,
+        ligand=lig,
+        wave=wave,
+        backbone_noise=jnp.array(0.0),
+        conditioning=None,
+    )
+    config = InferenceConfig(
+        backbone_noise_mode="direct",
+        use_rolling_state=True,
+        inference=True,
+    )
+
+    # Create encode_fn with use_rolling_state=True
+    model = DummyModel()
+    encode_fn = make_encode_fn(model, use_rolling_state=True)
+
+    # Call it
+    key = jax.random.PRNGKey(0)
+    output = encode_fn(bundle, key, config)
+
+    # Verify output is EncoderOutput
+    assert isinstance(output, EncoderOutput)
+    # Verify mask is populated (scan path includes mask in output)
+    assert output.mask is not None
+    assert output.mask.shape == (S, L)
+    assert jnp.allclose(output.mask, jnp.ones((S, L)))
+
+
+def test_make_encode_fn_scan_vs_vmap_both_return_encoder_output():
+    """Both scan and vmap paths return valid EncoderOutput with same structure."""
+    import jax
+    import jax.numpy as jnp
+    import equinox as eqx
+    from prxteinmpnn.inference.encode import make_encode_fn
+    from prxteinmpnn.types.encodings import EncoderOutput
+    from prxteinmpnn.types.bundles import GeometryBundle, LigandBundle, InferenceBundle, WaveScheduleBundle
+    from prxteinmpnn.types.configs import InferenceConfig
+
+    class DummyModel(eqx.Module):
+        def features(self, k, coords, mask, ri, ci, noise, **kwargs):
+            L = coords.shape[-2]
+            H = 32
+            return (
+                jnp.zeros((L, 10, H)),
+                jnp.zeros((L, 10), dtype=jnp.int32),
+                jnp.zeros((L, H)),
+                None,
+            )
+
+        def encoder(self, edge_f, edge_i, mask, initial_node_features=None, key=None):
+            return initial_node_features, edge_f
+
+    S = 2
+    L = 4
+    geo = GeometryBundle(
+        coords=jnp.zeros((S, L, 4, 3)),
+        mask=jnp.ones((S, L)),
+        residue_index=jnp.arange(L)[None, :].repeat(S, axis=0),
+        chain_index=jnp.zeros((S, L), dtype=jnp.int32),
+        state_flat_rows=jnp.arange(L)[None, :].repeat(S, axis=0),
+        n_states=S,
+        n_canonical=L,
+        n_flat=L * S,
+        structure_mapping=None,
+    )
+    lig = LigandBundle(y=jnp.zeros((S, 0, 14, 3)), y_t=jnp.zeros((S, 0, 14), dtype=jnp.int32), y_m=jnp.zeros((S, 0, 14)))
+    wave = WaveScheduleBundle.empty(L)
+    bundle = InferenceBundle(
+        geometry=geo,
+        ligand=lig,
+        wave=wave,
+        backbone_noise=jnp.array(0.0),
+        conditioning=None,
+    )
+    config_scan = InferenceConfig(
+        backbone_noise_mode="direct",
+        use_rolling_state=True,
+        inference=True,
+    )
+    config_vmap = InferenceConfig(
+        backbone_noise_mode="direct",
+        use_rolling_state=False,
+        inference=True,
+    )
+
+    model = DummyModel()
+    key = jax.random.PRNGKey(0)
+
+    # Scan path
+    encode_scan = make_encode_fn(model, use_rolling_state=True)
+    out_scan = encode_scan(bundle, key, config_scan)
+
+    # Vmap path
+    encode_vmap = make_encode_fn(model, use_rolling_state=False)
+    out_vmap = encode_vmap(bundle, key, config_vmap)
+
+    # Both are EncoderOutput
+    assert isinstance(out_scan, EncoderOutput)
+    assert isinstance(out_vmap, EncoderOutput)
+
+    # Both have mask populated
+    assert out_scan.mask is not None
+    assert out_vmap.mask is not None
+
+    # Shapes match
+    assert out_scan.node_features.shape == out_vmap.node_features.shape
+    assert out_scan.edge_features.shape == out_vmap.edge_features.shape
+    assert out_scan.neighbor_indices.shape == out_vmap.neighbor_indices.shape
+

@@ -74,3 +74,30 @@ def test_register_resolve_roundtrip_with_eqx_module():
     uid = register_decode_fn(fn, name="test_arith_mean")
     resolved = resolve_decode_fn(uid)
     assert resolved is fn, "resolve_decode_fn must return the registered instance"
+
+
+# ---------------------------------------------------------------------------
+# 4. Error handling: unknown UID raises KeyError
+# ---------------------------------------------------------------------------
+
+def test_resolve_decode_fn_unknown_uid_raises_key_error():
+    """resolve_decode_fn raises KeyError for unknown UID."""
+    import pytest
+    from prxteinmpnn.run.decode_registry import resolve_decode_fn
+
+    with pytest.raises(KeyError, match="No decode fn registered"):
+        resolve_decode_fn("nonexistent_uid_xyz_12345")
+
+
+def test_resolve_decode_fn_error_message_includes_uid():
+    """KeyError message from resolve_decode_fn includes the requested UID."""
+    import pytest
+    from prxteinmpnn.run.decode_registry import resolve_decode_fn
+
+    uid_requested = "bad_uid_test_123"
+    with pytest.raises(KeyError) as exc_info:
+        resolve_decode_fn(uid_requested)
+
+    # Error message should mention the UID and registration hint
+    assert uid_requested in str(exc_info.value)
+    assert "register_decode_fn" in str(exc_info.value)

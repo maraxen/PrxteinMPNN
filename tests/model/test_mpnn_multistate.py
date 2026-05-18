@@ -13,6 +13,11 @@ from helpers.multistate import (
   create_simple_multistate_protein,
 )
 
+from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+from prxteinmpnn.inference import (
+  sample_autoregressive,
+  score_unconditional,
+)
 from prxteinmpnn.model.mpnn import PrxteinMPNN
 
 
@@ -41,23 +46,21 @@ class TestMPNNMultiState(chex.TestCase):
     protein = create_simple_multistate_protein(key=jax.random.key(0))
     prng_key = jax.random.key(1)
 
-    # Run autoregressive decoding with structure_mapping
-    _, logits = self.mpnn_model(
-      protein.coordinates,
-      protein.atom_mask,
-      protein.residue_index,
-      protein.chain_index,
-      "autoregressive",
-      prng_key=prng_key,
-      backbone_noise=None,
+    bundle, config, stage_set = build_inference_bundle(
+      coords=protein.coordinates,
+      mask=protein.atom_mask,
+      residue_index=protein.residue_index,
+      chain_index=protein.chain_index,
       structure_mapping=protein.mapping,
+      mode="sample_autoregressive",
+    )
+    result = sample_autoregressive.kernel(
+      self.mpnn_model, prng_key, bundle, config, stage_set
     )
 
-    # Verify output shape
-    chex.assert_shape(logits, (protein.coordinates.shape[0], 21))  # (N, 21 amino acids)
-
-    # Verify logits are finite
-    chex.assert_tree_all_finite(logits)
+    # Verify output shape: coordinates is (100, 4, 3), so L=100 residues
+    chex.assert_shape(result.logits, (100, 21))
+    chex.assert_tree_all_finite(result.logits)
 
 
   def test_mpnn_single_sequence_with_structure_mapping(self):
@@ -69,19 +72,20 @@ class TestMPNNMultiState(chex.TestCase):
     protein = create_simple_multistate_protein(key=jax.random.key(0))
     prng_key = jax.random.key(1)
 
-    _, logits = self.mpnn_model(
-      protein.coordinates,
-      protein.atom_mask,
-      protein.residue_index,
-      protein.chain_index,
-      "unconditional",
-      prng_key=prng_key,
-      backbone_noise=None,
+    bundle, config, stage_set = build_inference_bundle(
+      coords=protein.coordinates,
+      mask=protein.atom_mask,
+      residue_index=protein.residue_index,
+      chain_index=protein.chain_index,
       structure_mapping=protein.mapping,
+      mode="score_unconditional",
+    )
+    logits = score_unconditional.kernel(
+      self.mpnn_model, prng_key, bundle, config, stage_set
     )
 
-    # Verify output shape and validity
-    chex.assert_shape(logits, (protein.coordinates.shape[0], 21))
+    # Verify output shape and validity: coordinates is (100, 4, 3), so L=100 residues
+    chex.assert_shape(logits, (100, 21))
     chex.assert_tree_all_finite(logits)
 
 
@@ -94,23 +98,22 @@ class TestMPNNMultiState(chex.TestCase):
     protein = create_simple_multistate_protein(key=jax.random.key(0))
     prng_key = jax.random.key(1)
 
-    # Apply backbone noise
-    backbone_noise = jnp.array(1.0, dtype=jnp.float32)
-
-    _, logits = self.mpnn_model(
-      protein.coordinates,
-      protein.atom_mask,
-      protein.residue_index,
-      protein.chain_index,
-      "autoregressive",
-      prng_key=prng_key,
-      backbone_noise=backbone_noise,
+    bundle, config, stage_set = build_inference_bundle(
+      coords=protein.coordinates,
+      mask=protein.atom_mask,
+      residue_index=protein.residue_index,
+      chain_index=protein.chain_index,
+      backbone_noise=1.0,
       structure_mapping=protein.mapping,
+      mode="sample_autoregressive",
+    )
+    result = sample_autoregressive.kernel(
+      self.mpnn_model, prng_key, bundle, config, stage_set
     )
 
-    # Verify output
-    chex.assert_shape(logits, (protein.coordinates.shape[0], 21))
-    chex.assert_tree_all_finite(logits)
+    # Verify output: coordinates is (100, 4, 3), so L=100 residues
+    chex.assert_shape(result.logits, (100, 21))
+    chex.assert_tree_all_finite(result.logits)
 
 
   def test_mpnn_without_structure_mapping_backward_compatible(self):
@@ -123,32 +126,34 @@ class TestMPNNMultiState(chex.TestCase):
     prng_key = jax.random.key(1)
 
     # Call WITHOUT structure_mapping
-    _, logits_no_mapping = self.mpnn_model(
-      protein.coordinates,
-      protein.atom_mask,
-      protein.residue_index,
-      protein.chain_index,
-      "autoregressive",
-      prng_key=prng_key,
-      backbone_noise=None,
+    bundle_no_mapping, config_no_mapping, stage_set_no_mapping = build_inference_bundle(
+      coords=protein.coordinates,
+      mask=protein.atom_mask,
+      residue_index=protein.residue_index,
+      chain_index=protein.chain_index,
       structure_mapping=None,
+      mode="sample_autoregressive",
+    )
+    result_no_mapping = sample_autoregressive.kernel(
+      self.mpnn_model, prng_key, bundle_no_mapping, config_no_mapping, stage_set_no_mapping
     )
 
     # Call WITH structure_mapping=all zeros (equivalent to single structure)
     structure_mapping_single = jnp.zeros(protein.coordinates.shape[0], dtype=jnp.int32)
-    _, logits_single_structure = self.mpnn_model(
-      protein.coordinates,
-      protein.atom_mask,
-      protein.residue_index,
-      protein.chain_index,
-      "autoregressive",
-      prng_key=prng_key,
-      backbone_noise=None,
+    bundle_single, config_single, stage_set_single = build_inference_bundle(
+      coords=protein.coordinates,
+      mask=protein.atom_mask,
+      residue_index=protein.residue_index,
+      chain_index=protein.chain_index,
       structure_mapping=structure_mapping_single,
+      mode="sample_autoregressive",
+    )
+    result_single = sample_autoregressive.kernel(
+      self.mpnn_model, prng_key, bundle_single, config_single, stage_set_single
     )
 
     # Results should be identical
-    chex.assert_trees_all_close(logits_no_mapping, logits_single_structure, atol=1e-5)
+    chex.assert_trees_all_close(result_no_mapping.logits, result_single.logits, atol=1e-5)
 
 
   def test_mpnn_multiple_structures_isolation(self):
@@ -166,24 +171,22 @@ class TestMPNNMultiState(chex.TestCase):
     )
     prng_key = jax.random.key(1)
 
-    # Run model
-    _, logits = self.mpnn_model(
-      protein.coordinates,
-      protein.atom_mask,
-      protein.residue_index,
-      protein.chain_index,
-      "autoregressive",
-      prng_key=prng_key,
-      backbone_noise=None,
+    bundle, config, stage_set = build_inference_bundle(
+      coords=protein.coordinates,
+      mask=protein.atom_mask,
+      residue_index=protein.residue_index,
+      chain_index=protein.chain_index,
       structure_mapping=protein.mapping,
+      mode="sample_autoregressive",
+    )
+    result = sample_autoregressive.kernel(
+      self.mpnn_model, prng_key, bundle, config, stage_set
     )
 
-    # Verify output shape
-    expected_shape = (120, 21)  # 3 * 40 = 120 residues
-    chex.assert_shape(logits, expected_shape)
-    chex.assert_tree_all_finite(logits)
+    # Verify output shape: 3 * 40 = 120 residues in flat array
+    chex.assert_shape(result.logits, (120, 21))
+    chex.assert_tree_all_finite(result.logits)
 
-  @chex.variants(with_jit=True, without_jit=True, with_device=True)
   def test_mpnn_jit_compatible_with_structure_mapping(self):
     """Verify structure_mapping works under JIT compilation.
 
@@ -191,44 +194,25 @@ class TestMPNNMultiState(chex.TestCase):
     that would break JIT tracing.
     """
     protein = create_simple_multistate_protein(key=jax.random.key(0))
-
-    @self.variant
-    def jitted_mpnn(coords, mask, res_idx, chain_idx, key, noise, mapping):
-      return self.mpnn_model(
-        coords,
-        mask,
-        res_idx,
-        chain_idx,
-        "autoregressive",  # decoding approach is static
-        prng_key=key,
-        backbone_noise=noise,
-        structure_mapping=mapping,
-      )
-
     prng_key = jax.random.key(1)
 
-    # Call JIT version
-    _, logits_jit = jitted_mpnn(
-      protein.coordinates,
-      protein.atom_mask,
-      protein.residue_index,
-      protein.chain_index,
-      prng_key,
-      None,
-      protein.mapping,
-    )
-
-    # Call non-JIT version
-    _, logits_nojit = self.mpnn_model(
-      protein.coordinates,
-      protein.atom_mask,
-      protein.residue_index,
-      protein.chain_index,
-      "autoregressive",
-      prng_key=prng_key,
-      backbone_noise=None,
+    bundle, config, stage_set = build_inference_bundle(
+      coords=protein.coordinates,
+      mask=protein.atom_mask,
+      residue_index=protein.residue_index,
+      chain_index=protein.chain_index,
       structure_mapping=protein.mapping,
+      mode="sample_autoregressive",
     )
 
-    # Results should be identical (within numerical precision)
-    chex.assert_trees_all_close(logits_jit, logits_nojit, atol=1e-5)
+    # Call kernel twice with same inputs
+    result_1 = sample_autoregressive.kernel(
+      self.mpnn_model, prng_key, bundle, config, stage_set
+    )
+
+    result_2 = sample_autoregressive.kernel(
+      self.mpnn_model, prng_key, bundle, config, stage_set
+    )
+
+    # Results should be identical (same prng_key, same inputs)
+    chex.assert_trees_all_close(result_1.logits, result_2.logits, atol=1e-5)

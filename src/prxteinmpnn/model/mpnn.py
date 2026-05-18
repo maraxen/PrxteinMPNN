@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-import numpy as np
 
 from prxteinmpnn.model.capabilities import (
   PRXTEIN_MPNN_CAPABILITIES,
@@ -19,9 +18,6 @@ from prxteinmpnn.model.encoder import (
   PhysicsEncoder,
 )
 from prxteinmpnn.model.features import ProteinFeatures
-
-from prxteinmpnn.types.bundles import InferenceBundle
-from prxteinmpnn.types.configs import InferenceConfig
 
 if TYPE_CHECKING:
   from prxteinmpnn.types.arrays import PRNGKeyArray
@@ -109,44 +105,37 @@ class PrxteinMPNN(eqx.Module):
 
   def __call__(
     self,
-    structure_coordinates: jax.Array | PRNGKeyArray,
-    mask_or_bundle: jax.Array | InferenceBundle | None = None,
-    residue_index: jax.Array | None = None,
-    chain_index: jax.Array | None = None,
+    coords: jax.Array,
+    mask: jax.Array,
+    residue_index: jax.Array,
+    chain_index: jax.Array,
     *,
-    decoding_approach: str | None = None,
     prng_key: PRNGKeyArray | None = None,
-    ar_mask: jax.Array | None = None,
-    one_hot_sequence: jax.Array | None = None,
-    backbone_noise: jax.Array | float | None = None,
-    bundle: InferenceBundle | None = None,
-    config: InferenceConfig | None = None,
-    **kwargs: Any,
+    backbone_noise: float | jax.Array = 0.0,
+    backbone_noise_mode: str = "direct",
+    structure_mapping: jax.Array | None = None,
   ) -> tuple[jax.Array, jax.Array, jax.Array]:
-    """Single-state encode: features + encoder for one conformational state.
+    """Single-state encoder: features + encoder for one conformational state.
 
     This is the low-level building block called by make_encode_fn (inference/encode.py).
-    It is NOT an inference entry point — use make_inference_plan, make_score_sequence,
-    or make_sample_sequences for full inference paths.
+    It is NOT an inference entry point — use the Sprint 2 inference API:
+    build_inference_bundle + score_conditional/score_unconditional/sample_autoregressive kernels.
 
     Args:
-        structure_coordinates: (L, 4, 3) atom37 coordinates for one state.
-        mask_or_bundle: (L,) residue mask.
+        coords: (L, 4, 3) atom coordinates for one state.
+        mask: (L,) residue mask.
         residue_index: (L,) residue indices.
         chain_index: (L,) chain indices.
         prng_key: PRNG key for encoder dropout.
         backbone_noise: scalar backbone noise level.
+        backbone_noise_mode: mode for backbone noise ("direct" or other).
+        structure_mapping: optional structure isolation mapping.
 
     Returns:
         (node_features, edge_features, neighbor_indices) for this state.
     """
-    coords = structure_coordinates
-    mask = mask_or_bundle
     if prng_key is None:
-      import jax
       prng_key = jax.random.PRNGKey(0)
-    noise = backbone_noise if backbone_noise is not None else 0.0
-    sm = kwargs.get("structure_mapping", None)
 
     edge_features, neighbor_indices, node_features, _ = self.features(
       prng_key,
@@ -154,9 +143,9 @@ class PrxteinMPNN(eqx.Module):
       mask,
       residue_index,
       chain_index,
-      noise,
-      backbone_noise_mode=kwargs.get("backbone_noise_mode", "direct"),
-      structure_mapping=sm,
+      backbone_noise,
+      backbone_noise_mode=backbone_noise_mode,
+      structure_mapping=structure_mapping,
     )
     node_features, edge_features = self.encoder(
       edge_features,

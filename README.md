@@ -18,6 +18,9 @@ PrxteinMPNN provides a **functional interface for ProteinMPNN**, leveraging the 
 
 **[Complete Documentation →](http://maraxen.github.io/PrxteinMPNN)**
 
+**Composition & Extensibility:**
+- [Composition Guide](docs/COMPOSITION_GUIDE.md) — Build inference pipelines using `StageSet`, `InferencePlan`, and composable stages
+
 ## ✅ Validation
 
 PrxteinMPNN is validated against the upstream [LigandMPNN](https://github.com/dauparas/LigandMPNN)
@@ -124,7 +127,7 @@ uv sync --extra tpu   # For TPU
 uv sync --extra cpu   # For CPU-only (default)
 ```
 
-### Basic Usage
+### Basic Usage (via `sample()` high-level API)
 
 ```python
 import jax
@@ -145,7 +148,8 @@ spec = SamplingSpecification(
     temperature=0.1,
     random_seed=42,
     # Multi-state support (optional)
-    # multi_state_strategy="product" 
+    # multi_state_strategy="arithmetic_mean",
+    # state_weights=[1.0, 0.8, 0.6]
 )
 
 # 3. Sample new sequences
@@ -154,6 +158,42 @@ results = sample(spec)
 # 4. Access results
 sequences = results["sequences"]  # (num_samples, seq_len)
 logits = results["logits"]        # (num_samples, seq_len, 21)
+```
+
+### Composable Inference API (Sprint 2)
+
+For fine-grained control over fusion strategies, encoding, and decoding stages:
+
+```python
+import jax
+import jax.numpy as jnp
+from prxteinmpnn.io.weights import load_model
+from prxteinmpnn.host.plan import make_inference_plan
+from prxteinmpnn.run.specs import SamplingSpecification
+from prxteinmpnn.types.stages import StageSet
+from prxteinmpnn.inference.logits import GeometricMeanLogits, ARLogitFuse
+
+# 1. Load model
+model = load_model(model_version="v_48_020", model_weights="original")
+
+# 2. Create spec with multi-state parameters
+spec = SamplingSpecification(
+    inputs="path/to/structure.pdb",
+    num_samples=10,
+    temperature=0.1,
+    multi_state_strategy="geometric_mean",  # or "arithmetic_mean", "product", etc.
+    state_weights=[1.0, 0.8, 0.6],
+)
+
+# 3. Create a composable inference plan
+plan = make_inference_plan(model, spec)  # Resolves stages and encoding strategy
+
+# 4. Sample or score using the plan
+# plan.sample(bundle, key, config) → SampleResult
+# plan.score(bundle, key, config)  → Logits
+
+# Or customize by building InferencePlan components directly
+# (see docs/COMPOSITION_GUIDE.md for advanced patterns)
 ```
 
 ### Scoring Sequences
@@ -210,6 +250,7 @@ ruff check src/ --fix
 - **Immutable Data**: Protein structures and model states are immutable
 - **JAX Transformations**: Compatible with `jit`, `vmap`, and `scan`
 - **Modular Architecture**: Clean separation of concerns across sampling, scoring, and utilities
+- **Composable Inference** (Sprint 2): Use `StageSet` to swap fusion strategies, encoding methods, and decode variants without touching kernel math. See [Composition Guide](docs/COMPOSITION_GUIDE.md)
 
 ## 🎯 Project Goals
 

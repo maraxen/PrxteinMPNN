@@ -1,5 +1,11 @@
 """Core types for PrxteinMPNN."""
 
+from prxteinmpnn.types.encodings import EncoderOutput
+from prxteinmpnn.types.stages import (
+    StageSet,
+    ConditionalDecodeStep,
+    UnconditionalDecodeStep,
+)
 from prxteinmpnn.types.arrays import (
     AlphaCarbonDistance,
     AlphaCarbonMask,
@@ -48,6 +54,10 @@ from prxteinmpnn.types.arrays import (
     TrainingMetrics,
 )
 __all__ = [
+    "EncoderOutput",
+    "StageSet",
+    "ConditionalDecodeStep",
+    "UnconditionalDecodeStep",
     "AlphaCarbonDistance",
     "AlphaCarbonMask",
     "ArrayLike",

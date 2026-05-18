@@ -109,3 +109,99 @@ def test_sample_autoregressive_kernel_signature_accepts_stage_set():
 
     sig = inspect.signature(kernel)
     assert "stage_set" in sig.parameters
+
+
+# ---------------------------------------------------------------------------
+# 6. Unconditional decode path and topology inference
+# ---------------------------------------------------------------------------
+
+def test_infer_topology_unconditional():
+    """infer_topology with UnconditionalDecodeStep returns TOPOLOGY_UNCONDITIONAL."""
+    import equinox as eqx
+    from prxteinmpnn.types.stages import UnconditionalDecodeStep, StageSet
+    from prxteinmpnn.inference.driver import infer_topology, TOPOLOGY_UNCONDITIONAL
+
+    class DummyDecoder(eqx.Module):
+        pass
+
+    stage_set = StageSet(decode_step=UnconditionalDecodeStep(decoder=DummyDecoder()))
+    assert infer_topology(stage_set) == TOPOLOGY_UNCONDITIONAL
+
+
+def test_infer_topology_conditional():
+    """infer_topology with ConditionalDecodeStep returns TOPOLOGY_CONDITIONAL_SCORE."""
+    import equinox as eqx
+    from prxteinmpnn.types.stages import ConditionalDecodeStep, StageSet
+    from prxteinmpnn.inference.driver import infer_topology, TOPOLOGY_CONDITIONAL_SCORE
+
+    class DummyDecoder(eqx.Module):
+        pass
+
+    class DummyEmbed(eqx.Module):
+        pass
+
+    stage_set = StageSet(
+        decode_step=ConditionalDecodeStep(decoder=DummyDecoder(), w_s_embed=DummyEmbed())
+    )
+    assert infer_topology(stage_set) == TOPOLOGY_CONDITIONAL_SCORE
+
+
+# ---------------------------------------------------------------------------
+# 7. DecodeStep __call__ delegation tests
+# ---------------------------------------------------------------------------
+
+def test_unconditional_decode_step_call_delegates_to_decoder():
+    """UnconditionalDecodeStep.__call__ delegates to decoder and returns output."""
+    import equinox as eqx
+    import jax
+    import jax.numpy as jnp
+    from prxteinmpnn.types.stages import UnconditionalDecodeStep
+
+    class DummyDecoder(eqx.Module):
+        def __call__(self, nf, ef, nei, mask, *, key, inference):
+            # Passthrough: return node features as-is
+            return nf
+
+    step = UnconditionalDecodeStep(decoder=DummyDecoder())
+    key = jax.random.PRNGKey(0)
+    nf = jnp.ones((4, 8))
+    ef = jnp.ones((4, 10, 8))
+    nei = jnp.zeros((4, 10), dtype=jnp.int32)
+    mask = jnp.ones(4)
+
+    result = step(nf, ef, nei, mask, key=key, inference=True)
+
+    # Verify result shape matches input
+    assert result.shape == (4, 8)
+    assert jnp.allclose(result, nf)
+
+
+def test_conditional_decode_step_call_delegates_to_decoder():
+    """ConditionalDecodeStep.__call__ delegates to decoder.call_conditional."""
+    import equinox as eqx
+    import jax
+    import jax.numpy as jnp
+    from prxteinmpnn.types.stages import ConditionalDecodeStep
+
+    class DummyDecoder(eqx.Module):
+        def call_conditional(self, nf, ef, nei, mask, ar_mask, seq_oh, w_s_embed, *, key, inference):
+            # Passthrough: return node features
+            return nf
+
+    class DummyEmbed(eqx.Module):
+        weight = jnp.ones((21, 16))
+
+    step = ConditionalDecodeStep(decoder=DummyDecoder(), w_s_embed=DummyEmbed())
+    key = jax.random.PRNGKey(0)
+    nf = jnp.ones((4, 8))
+    ef = jnp.ones((4, 10, 8))
+    nei = jnp.zeros((4, 10), dtype=jnp.int32)
+    mask = jnp.ones(4)
+    ar_mask = jnp.ones(4)
+    seq_oh = jnp.zeros((4, 21))
+
+    result = step(nf, ef, nei, mask, ar_mask, seq_oh, key=key, inference=True)
+
+    # Verify result matches
+    assert result.shape == (4, 8)
+    assert jnp.allclose(result, nf)

@@ -1,4 +1,7 @@
-"""Batch planning and scheduling logic for sampling operations."""
+"""Batch planning and scheduling logic for sampling operations.
+
+Also includes InferencePlan and related components for unified inference dispatch.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +9,7 @@ import dataclasses
 import logging
 import numpy as np
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple, Callable
 
 import jax
 import jax.numpy as jnp
@@ -19,6 +22,10 @@ if TYPE_CHECKING:
     from jaxtyping import PRNGKeyArray
     from prxteinmpnn.run.specs import SamplingSpecification
     from prxteinmpnn.types.arrays import ProteinSequence, Logits
+    from prxteinmpnn.types.stages import StageSet
+    from prxteinmpnn.types.bundles import InferenceBundle
+    from prxteinmpnn.types.configs import InferenceConfig
+    from prxteinmpnn.types.protocols import ModelProtocol
 
 logger = logging.getLogger(__name__)
 _batch_logger = logging.getLogger(__name__ + ".batch_plan")
@@ -184,4 +191,81 @@ def resolve_sample_start(
     """
     return int(grid_lineage["sample_start"]) if grid_lineage is not None else 0
 
+
+# ---------------------------------------------------------------------------
+# COMP-8: InferencePlan and related components for unified inference dispatch
+# ---------------------------------------------------------------------------
+
+
+class InferenceComponents(NamedTuple):
+    """Resolved inference components: encode function, driver, and stages."""
+    encode_fn: Callable
+    driver: Callable
+    stage_set: Any  # StageSet
+
+
+@dataclass
+class InferencePlan:
+    """Resolved plan: encode-once/decode-many with distinct .sample() and .score() entrypoints."""
+
+    model: Any
+    components: InferenceComponents
+
+    @property
+    def stage_set(self) -> Any:
+        return self.components.stage_set
+
+    def sample(self, bundle: InferenceBundle, key: PRNGKeyArray, config: InferenceConfig) -> Any:
+        enc = self.components.encode_fn(bundle, key, config)
+        return self.components.driver(
+            self.model, key, enc, bundle.conditioning, bundle.wave, config, self.components.stage_set
+        )
+
+    def score(self, bundle: InferenceBundle, key: PRNGKeyArray, config: InferenceConfig) -> Logits:
+        enc = self.components.encode_fn(bundle, key, config)
+        return self.components.driver(
+            self.model, key, enc, bundle.conditioning, bundle.wave, config, self.components.stage_set
+        )
+
+
+def make_inference_plan(model: ModelProtocol, spec: Any) -> InferencePlan:
+    """Factory: resolve and create an InferencePlan from model and spec."""
+    from prxteinmpnn.inference.encode import make_encode_fn
+    from prxteinmpnn.inference import driver as driver_module
+    from prxteinmpnn.inference.logits import LOGIT_STRATEGIES, ARLogitFuse
+    from prxteinmpnn.types.stages import StageSet
+
+    use_rolling_state = getattr(spec, "use_rolling_state", False)
+    encode_fn = make_encode_fn(model, use_rolling_state=use_rolling_state)
+
+    strategy_name = getattr(spec, "multi_state_strategy", None) or "arithmetic_mean"
+    strategy_temp = getattr(spec, "multi_state_temperature", 1.0) or 1.0
+    state_weights = getattr(spec, "state_weights", None)
+
+    strategy_cls = LOGIT_STRATEGIES.get(strategy_name)
+    if strategy_cls is None:
+        msg = f"Logit strategy '{strategy_name}' not found in registry"
+        raise ValueError(msg)
+
+    weights = jnp.asarray(state_weights, dtype=jnp.float32) if state_weights is not None else jnp.ones(1, dtype=jnp.float32)
+
+    try:
+        logit_transform = strategy_cls(weights, temperature=strategy_temp)
+    except TypeError:
+        logit_transform = strategy_cls(weights)
+
+    stage_set = StageSet(
+        logit_transform=logit_transform,
+        ar_logit_transform=ARLogitFuse(),
+        decode_step=None,
+        sample_step=None,
+    )
+
+    components = InferenceComponents(
+        encode_fn=encode_fn,
+        driver=driver_module.decode,
+        stage_set=stage_set,
+    )
+
+    return InferencePlan(model=model, components=components)
 

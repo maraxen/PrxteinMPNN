@@ -261,7 +261,9 @@ def decode_ar(
             final_token = jnp.where(is_group_fixed, group_fixed_token, sampled).astype(jnp.int32)
 
             new_seq = jnp.where(mask, final_token, seq)
-            return new_seq, combined_logits[pos]
+            # Return avg_logits (the logits used for sampling) for all positions in the group
+            step_logits = avg_logits
+            return new_seq, step_logits
 
         def no_sample(seq):
             return seq, jnp.zeros((21,))

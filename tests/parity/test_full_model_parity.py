@@ -21,6 +21,7 @@ from prxteinmpnn.inference import (
 )
 from prxteinmpnn.io.weights import load_weights
 from prxteinmpnn.model.mpnn import PrxteinMPNN
+from prxteinmpnn.types.bundles import WaveScheduleBundle
 from tests.parity.reference_utils import require_heavy_parity_prereqs
 
 
@@ -448,7 +449,7 @@ def test_autoregressive_sampling_parity(
     residue_index=residue_index_batch,
     chain_index=chain_index_batch,
     ar_mask=jnp.array(parity_batch.ar_mask)[None, ...],
-    bias=jnp.array(parity_batch.bias[0])[None, ...],
+    bias=jnp.array(parity_batch.bias[0]),
     temperature=1.0,
     mode="sample_autoregressive",
   )
@@ -492,11 +493,14 @@ def test_tied_positions_and_multi_state_parity(
 
   jax_model = _jax_protein_for_source(heavy_parity_models, weight_source)
 
-  # Extract first 4 atoms to match (L, 4, 3) format
-  coords_batch = parity_batch.x_jax_atom37[:, :4, :][None, ...]  # (1, L, 4, 3)
+  # Use actual backbone coordinates from x_pytorch (same reference data)
+  coords_batch = jnp.array(parity_batch.x_pytorch[0])[None, ...]  # (1, L, 4, 3)
   mask_batch = jnp.array(parity_batch.mask[0])[None, ...]  # (1, L)
   residue_index_batch = jnp.array(parity_batch.residue_index[0])[None, ...]  # (1, L)
   chain_index_batch = jnp.array(parity_batch.chain_index[0])[None, ...]  # (1, L)
+
+  # Replace wave schedule with the tie groups
+  wave = WaveScheduleBundle.from_tie_groups(jnp.array(tie_group_map), jnp.array(parity_batch.decoding_order))
 
   bundle, config, stage_set = build_inference_bundle(
     coords=coords_batch,
@@ -504,11 +508,12 @@ def test_tied_positions_and_multi_state_parity(
     residue_index=residue_index_batch,
     chain_index=chain_index_batch,
     ar_mask=jnp.array(parity_batch.ar_mask)[None, ...],
-    bias=jnp.array(parity_batch.bias[0])[None, ...],
+    bias=jnp.array(parity_batch.bias[0]),
     temperature=1.0,
     tie_group_map=jnp.array(tie_group_map)[None, ...],
     mode="sample_autoregressive",
   )
+  bundle = eqx.tree_at(lambda b: b.wave, bundle, wave)
   result = sample_autoregressive.kernel(
     jax_model, jax.random.PRNGKey(7), bundle, config, stage_set
   )

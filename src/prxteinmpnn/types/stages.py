@@ -70,7 +70,7 @@ class FuseFn(Protocol[PerItem, Combined]):
     Examples: logit stacking and reduction, state aggregation.
     """
 
-    def __call__(self, per_item: PerItem) -> Combined:
+    def __call__(self, per_item: PerItem, bias: PerItem | None = None) -> Combined:
         ...
 
 
@@ -87,6 +87,8 @@ ConditionalDecodeFn = TransformFn[Any, Any]
 UnconditionalDecodeFn = TransformFn[Any, Any]
 
 LogitTransformFn = FuseFn[Float[Array, "S L V"], Float[Array, "L V"]]
+# ARLogitTransformFn: concrete signature (S, V) + (V,) -> (V,) — bias always passed, never None
+# Callers provide jnp.zeros_like(bias_shape) for no-op bias
 ARLogitTransformFn = FuseFn[Float[Array, "S V"], Float[Array, "V"]]
 
 

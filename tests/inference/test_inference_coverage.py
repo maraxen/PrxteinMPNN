@@ -465,20 +465,22 @@ class TestARLogitFuseExtended:
         assert isinstance(stage_set.ar_logit_transform, ARLogitFuse)
 
     def test_ar_logit_fuse_vmap_compatible(self):
-        """ARLogitFuse works under vmap for per-position fusion."""
+        """ARLogitFuse works under vmap for per-position fusion with per-position bias."""
         fuse = ARLogitFuse()
 
-        # Simulate (S, L, V) logits
+        # Simulate (S, L, V) logits and (L, V) bias
         S, L, V = 3, 6, 21
         logits = jnp.ones((S, L, V))
+        bias = jnp.zeros((L, V))
 
-        # vmap over position axis: (S, L, V) -> (L, V)
-        vmapped_fuse = jax.vmap(fuse, in_axes=1, out_axes=0)
-        result = vmapped_fuse(logits)
+        # vmap over position axis: (S, L, V) + (L, V) -> (L, V)
+        # in_axes=(1, 0) means move axis 1 of logits to front and axis 0 of bias to front
+        vmapped_fuse = jax.vmap(fuse, in_axes=(1, 0), out_axes=0)
+        result = vmapped_fuse(logits, bias)
 
         assert result.shape == (L, V)
-        # Each position should be mean of logits at that position
-        expected_per_pos = jnp.mean(logits, axis=0)
+        # Each position should be mean of logits at that position plus bias
+        expected_per_pos = jnp.mean(logits, axis=0) + bias
         assert jnp.allclose(result, expected_per_pos, atol=1e-5)
 
 

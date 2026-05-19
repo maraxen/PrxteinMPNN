@@ -360,8 +360,8 @@ def test_decoder_unconditional_parity(
 
   jax_model = _jax_protein_for_source(heavy_parity_models, weight_source)
 
-  # Extract first 4 atoms to match (L, 4, 3) format
-  coords_batch = parity_batch.x_jax_atom37[:, :4, :][None, ...]  # (1, L, 4, 3)
+  # Use actual backbone coordinates from x_pytorch (same reference data)
+  coords_batch = jnp.array(parity_batch.x_pytorch[0])[None, ...]  # (1, L, 4, 3)
   mask_batch = jnp.array(parity_batch.mask[0])[None, ...]  # (1, L)
   residue_index_batch = jnp.array(parity_batch.residue_index[0])[None, ...]  # (1, L)
   chain_index_batch = jnp.array(parity_batch.chain_index[0])[None, ...]  # (1, L)
@@ -395,8 +395,8 @@ def test_decoder_conditional_scoring_parity(
 
   jax_model = _jax_protein_for_source(heavy_parity_models, weight_source)
 
-  # Extract first 4 atoms to match (L, 4, 3) format
-  coords_batch = parity_batch.x_jax_atom37[:, :4, :][None, ...]  # (1, L, 4, 3)
+  # Use actual backbone coordinates from x_pytorch (same reference data)
+  coords_batch = jnp.array(parity_batch.x_pytorch[0])[None, ...]  # (1, L, 4, 3)
   mask_batch = jnp.array(parity_batch.mask[0])[None, ...]  # (1, L)
   residue_index_batch = jnp.array(parity_batch.residue_index[0])[None, ...]  # (1, L)
   chain_index_batch = jnp.array(parity_batch.chain_index[0])[None, ...]  # (1, L)
@@ -436,8 +436,8 @@ def test_autoregressive_sampling_parity(
 
   jax_model = _jax_protein_for_source(heavy_parity_models, weight_source)
 
-  # Extract first 4 atoms to match (L, 4, 3) format
-  coords_batch = parity_batch.x_jax_atom37[:, :4, :][None, ...]  # (1, L, 4, 3)
+  # Use actual backbone coordinates from x_pytorch (same reference data)
+  coords_batch = jnp.array(parity_batch.x_pytorch[0])[None, ...]  # (1, L, 4, 3)
   mask_batch = jnp.array(parity_batch.mask[0])[None, ...]  # (1, L)
   residue_index_batch = jnp.array(parity_batch.residue_index[0])[None, ...]  # (1, L)
   chain_index_batch = jnp.array(parity_batch.chain_index[0])[None, ...]  # (1, L)

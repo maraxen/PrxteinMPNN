@@ -151,6 +151,10 @@ def _decode_unconditional(
     Returns:
         Logits of shape (L, V)
     """
+    # Unconditional path does not use wave schedule
+    assert isinstance(stage_set.decode_step, UnconditionalDecodeStep), \
+        f"Unconditional decoding requires UnconditionalDecodeStep, got {type(stage_set.decode_step)}"
+
     def decode_one(nb, eb, nei, mk):
         if stage_set.decode_step is not None:
             return stage_set.decode_step(nb, eb, nei, mk, key=key, inference=config.inference)
@@ -248,12 +252,14 @@ def decode_ar(
             mask = (cond.tie_group_map[0] == group_id)
             group_logits = jnp.where(mask[:, None], combined_logits, -jnp.inf)
             n_tied = jnp.sum(mask)
-            # Use logsumexp for averaging in log-space
+            # Use logsumexp for averaging in log-space: (L, 21) -> (21,)
             avg_logits = jax.scipy.special.logsumexp(group_logits, axis=0) - jnp.log(jnp.maximum(n_tied, 1))
+            # Ensure shape is (21,) not (L, 21) by explicit reshape to avoid JAX tracing issues
+            step_logits = avg_logits.reshape((21,))
 
             # Sample
             subkey = jax.random.fold_in(key, group_id)
-            sampled = jax.random.categorical(subkey, avg_logits / cond.temperature)
+            sampled = jax.random.categorical(subkey, step_logits / cond.temperature)
 
             # Update all positions in the group
             is_group_fixed = jnp.any(cond.fixed_mask.astype(jnp.bool_) & mask)
@@ -261,8 +267,6 @@ def decode_ar(
             final_token = jnp.where(is_group_fixed, group_fixed_token, sampled).astype(jnp.int32)
 
             new_seq = jnp.where(mask, final_token, seq)
-            # Return avg_logits (the logits used for sampling) for all positions in the group
-            step_logits = avg_logits
             return new_seq, step_logits
 
         def no_sample(seq):

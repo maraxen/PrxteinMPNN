@@ -43,7 +43,7 @@
 - Modify: `src/prxteinmpnn/model_inputs.py`
 - Modify: `src/prxteinmpnn/run/decode_registry.py`
 
-Background: `BatchLogitsFn` is a Protocol for `(state_logits: S L V, state_index: S, state_weights: S) -> L V`. The name "Batch" is misleading — it's a per-step logit combination function, not a batching primitive. Renamed to `LogitTransformFn` to align with oracle-approved nomenclature. Current locations: `model_inputs.py:80` (definition) and `decode_registry.py:17` (TYPE_CHECKING import). No test files reference `BatchLogitsFn` directly yet.
+Background: `BatchLogitsFn` is a Protocol for `(state_logits: S L V, state_index: S, state_weights: S) -> L V`. The name "Batch" is misleading — it's a per-step logit combination function, not a batching primitive. Renamed to `LogitTransformFn` to align with established naming convention. Current locations: `model_inputs.py:80` (definition) and `decode_registry.py:17` (TYPE_CHECKING import). No test files reference `BatchLogitsFn` directly yet.
 
 - [ ] **Step 1: Write the failing test**
 

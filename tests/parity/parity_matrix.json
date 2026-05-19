@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "source": "Oracle-approved parity path inventory",
+  "source": "Parity path inventory — acceptance thresholds and reference method specs",
   "tiers": {
     "parity_fast": {
       "description": "Deterministic golden checks that do not require the upstream checkout."

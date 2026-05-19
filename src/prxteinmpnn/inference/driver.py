@@ -240,26 +240,45 @@ def decode_ar(
             # Project to logits: (S, L, 21)
             logits = jax.vmap(jax.vmap(model.w_out, in_axes=0), in_axes=0)(decoded)
 
-            # Combine logits across states: (L, 21)
+            # Fuse per-position logits across states with and without bias:
+            # - stored_logits: bias-free, for log_prob parity comparison
+            # - sampling_logits: bias-applied, for categorical sampling
             if stage_set.ar_logit_transform is not None:
-                # Apply ar_logit_transform per position: (S, L, 21) -> (L, 21) via vmap
-                ar_fused = jax.vmap(stage_set.ar_logit_transform, in_axes=1, out_axes=0)(logits)
-                combined_logits = ar_fused + cond.bias if cond.bias is not None else ar_fused
+                # ar_logit_transform signature: (logits: (S, V), bias: (V,)) -> (V,)
+                # Vmap over positions to fuse each position's logits with corresponding bias
+                # logits: (S, L, 21), need to vmap axis 1 (L positions)
+                # cond.bias: (L, 21) per position
+                # For stored logits: use zero bias
+                zeros_bias = jnp.zeros_like(cond.bias)  # (L, 21)
+                stored_logits = jax.vmap(stage_set.ar_logit_transform, in_axes=(1, 0), out_axes=0)(
+                    logits, zeros_bias
+                )  # outputs (L, 21)
+                # For sampling logits: use actual bias
+                sampling_logits = jax.vmap(stage_set.ar_logit_transform, in_axes=(1, 0), out_axes=0)(
+                    logits, cond.bias
+                )  # outputs (L, 21)
             else:
-                combined_logits = stage_set.logit_transform(logits, bias=cond.bias)
+                # Fallback to logit_transform with explicit bias handling
+                stored_logits = stage_set.logit_transform(logits, bias=jnp.zeros_like(cond.bias))
+                sampling_logits = stage_set.logit_transform(logits, bias=cond.bias)
 
-            # Logit averaging for the group
+            # Logit averaging for the group (tied positions)
             mask = (cond.tie_group_map[0] == group_id)
-            group_logits = jnp.where(mask[:, None], combined_logits, -jnp.inf)
-            n_tied = jnp.sum(mask)
-            # Use logsumexp for averaging in log-space: (L, 21) -> (21,)
-            avg_logits = jax.scipy.special.logsumexp(group_logits, axis=0) - jnp.log(jnp.maximum(n_tied, 1))
-            # Ensure shape is (21,) not (L, 21) by explicit reshape to avoid JAX tracing issues
-            step_logits = avg_logits.reshape((21,))
 
-            # Sample
+            # Average stored logits (bias-free)
+            stored_group = jnp.where(mask[:, None], stored_logits, -jnp.inf)
+            n_tied = jnp.sum(mask)
+            avg_stored = jax.scipy.special.logsumexp(stored_group, axis=0) - jnp.log(jnp.maximum(n_tied, 1))
+            step_logits = avg_stored.reshape((21,))  # (21,)
+
+            # Average sampling logits (bias-applied)
+            sampling_group = jnp.where(mask[:, None], sampling_logits, -jnp.inf)
+            avg_sampling = jax.scipy.special.logsumexp(sampling_group, axis=0) - jnp.log(jnp.maximum(n_tied, 1))
+            avg_sampling = avg_sampling.reshape((21,))  # (21,)
+
+            # Sample from bias-applied logits
             subkey = jax.random.fold_in(key, group_id)
-            sampled = jax.random.categorical(subkey, step_logits / cond.temperature)
+            sampled = jax.random.categorical(subkey, avg_sampling / cond.temperature)
 
             # Update all positions in the group
             is_group_fixed = jnp.any(cond.fixed_mask.astype(jnp.bool_) & mask)
@@ -270,6 +289,7 @@ def decode_ar(
             return new_seq, step_logits
 
         def no_sample(seq):
+            # No update for tied positions that have already been sampled
             return seq, jnp.zeros((21,))
 
         return jax.lax.cond(is_first, do_sample, no_sample, sequence)

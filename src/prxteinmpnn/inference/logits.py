@@ -137,16 +137,19 @@ class ProductOfProbabilities(eqx.Module):
 class ARLogitFuse(eqx.Module):
     """Default AR per-step tied-group log-mean fuse.
 
-    Reduces per-state logits to a single canonical set via arithmetic mean.
-    Input:  (S, V)  →  Output: (V,)
+    Reduces per-state logits to a single canonical set via arithmetic mean,
+    then applies bias for sampling/scoring.
+    Input:  (S, V) logits, (V,) bias  →  Output: (V,)
 
     This is used in sample_autoregressive.kernel as the per-position fuser
     when stage_set.ar_logit_transform is set.
+
+    Bias is always a concrete array (use jnp.zeros_like(shape) for no-op).
     """
 
-    def __call__(self, logits: Float[Array, "S V"]) -> Float[Array, "V"]:
-        """Arithmetic mean across states dimension."""
-        return jnp.mean(logits, axis=0)
+    def __call__(self, logits: Float[Array, "S V"], bias: Float[Array, "V"]) -> Float[Array, "V"]:
+        """Arithmetic mean across states dimension, then add bias."""
+        return jnp.mean(logits, axis=0) + bias
 
 
 __all__ = [

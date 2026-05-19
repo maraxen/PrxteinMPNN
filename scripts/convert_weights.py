@@ -594,7 +594,7 @@ def convert_full_model(
 ):
     """Convert full PyTorch ProteinMPNN to JAX PrxteinMPNN or PrxteinLigandMPNN."""
     print(f"Converting model from state dict with {len(pt_state_dict)} keys")
-    from prxteinmpnn.model.mpnn import PrxteinLigandMPNN
+    from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
 
     # Convert feature extraction layers
     print("Converting features...")
@@ -756,7 +756,8 @@ def main():
         pt_state_dict = np.load(args.input, allow_pickle=True).item()
 
     # Initialize JAX model with matching architecture
-    from prxteinmpnn.model.mpnn import PrxteinLigandMPNN, PrxteinMPNN
+    from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
+    from prxteinmpnn.model.mpnn import PrxteinMPNN
 
     key = jax.random.PRNGKey(0)
 

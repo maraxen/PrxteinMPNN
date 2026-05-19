@@ -35,26 +35,28 @@ def test_ar_logit_fuse_is_eqx_module():
 # ---------------------------------------------------------------------------
 
 def test_ar_logit_fuse_reduces_state_dim():
-    """ARLogitFuse(logits_S_V) -> (V,) reduces the S (states) dimension."""
+    """ARLogitFuse(logits_S_V, bias_V) -> (V,) reduces the S (states) dimension."""
     from prxteinmpnn.inference.logits import ARLogitFuse
 
     fuse = ARLogitFuse()
     S, V = 3, 21
     logits = jnp.ones((S, V))
-    out = fuse(logits)
+    bias = jnp.zeros(V)
+    out = fuse(logits, bias)
     assert out.shape == (V,), f"Expected ({V},), got {out.shape}"
 
 
 def test_ar_logit_fuse_default_is_mean():
-    """Default ARLogitFuse applies arithmetic mean across states (dim 0)."""
+    """Default ARLogitFuse applies arithmetic mean across states (dim 0), then adds bias."""
     from prxteinmpnn.inference.logits import ARLogitFuse
 
     fuse = ARLogitFuse()
     S, V = 4, 21
     # Make each state have distinct values so mean is non-trivial
     logits = jnp.arange(S * V, dtype=jnp.float32).reshape(S, V)
-    out = fuse(logits)
-    expected = jnp.mean(logits, axis=0)
+    bias = jnp.ones(V) * 2.0
+    out = fuse(logits, bias)
+    expected = jnp.mean(logits, axis=0) + bias
     assert jnp.allclose(out, expected, atol=1e-5)
 
 
@@ -80,12 +82,13 @@ def test_stage_set_ar_logit_fuse_survives_jit():
     ss = StageSet(ar_logit_transform=ARLogitFuse())
 
     @jax.jit
-    def apply(stage_set, x):
-        return stage_set.ar_logit_transform(x)
+    def apply(stage_set, logits, bias):
+        return stage_set.ar_logit_transform(logits, bias)
 
     S, V = 3, 21
     logits = jnp.zeros((S, V))
-    out = apply(ss, logits)
+    bias = jnp.zeros(V)
+    out = apply(ss, logits, bias)
     assert out.shape == (V,)
 
 

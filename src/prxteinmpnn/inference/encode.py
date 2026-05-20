@@ -117,6 +117,7 @@ def make_encode_fn(model: ModelProtocol, *, use_rolling_state: bool = False) -> 
                 mask,
                 initial_node_features=node_f,
                 key=jax.random.fold_in(k_enc, 0),
+                inference=config.inference,
             )
             return node_f, edge_f, edge_i
 

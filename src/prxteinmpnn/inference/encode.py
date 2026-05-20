@@ -96,27 +96,18 @@ def make_encode_fn(model: ModelProtocol, *, use_rolling_state: bool = False) -> 
             Returns:
                 (node_features, edge_features, neighbor_indices)
             """
-            # Note: ligand args (y, y_t, y_m) are accepted but not currently used
-            # by model.features. They are kept for API compatibility with the bundle.
-
-            # Features extraction (no ligand args passed to features)
-            edge_f, edge_i, node_f, _ = model.features(
-                k_enc,
+            node_f, edge_f, edge_i = model(
                 coords,
                 mask,
                 residue_index,
                 chain_index,
-                noise,
+                prng_key=jax.random.fold_in(k_enc, 0),
+                backbone_noise=noise,
                 backbone_noise_mode=config.backbone_noise_mode,
                 structure_mapping=structure_mapping,
-            )
-            # Encoder
-            node_f, edge_f = model.encoder(
-                edge_f,
-                edge_i,
-                mask,
-                initial_node_features=node_f,
-                key=jax.random.fold_in(k_enc, 0),
+                y=ligand_y,
+                y_t=ligand_y_t,
+                y_m=ligand_y_m,
                 inference=config.inference,
             )
             return node_f, edge_f, edge_i

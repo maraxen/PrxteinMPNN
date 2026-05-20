@@ -55,6 +55,17 @@ def mock_model() -> PrxteinMPNN:
         ef
     )
 
+    # Mock __call__ for per-state array interface (composability contract)
+    def mock_call(coords, mask, residue_index, chain_index, **kwargs):
+        """Return (node_features, edge_features, neighbor_indices)"""
+        n_residues = 76
+        node_f = jnp.zeros((n_residues, 128))
+        edge_f = jnp.zeros((n_residues, 48, 128))
+        edge_i = jnp.zeros((n_residues, 48), dtype=jnp.int32)
+        return node_f, edge_f, edge_i
+
+    model_mock.side_effect = mock_call
+
     # Mock decoder
     model_mock.decoder = MagicMock()
     model_mock.decoder.call_conditional.side_effect = lambda nb, eb, i, m, a, oh, w, **kw: jnp.zeros((nb.shape[0], 128))

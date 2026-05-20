@@ -811,6 +811,7 @@ def main():
             num_positional_embeddings=num_pos,
             num_context_layers=NUM_LIGAND_CONTEXT_LAYERS,
             ligand_mpnn_use_side_chain_context=use_side_chain_context,
+            dropout_rate=0.0,
             key=key,
         )
         jax_model = convert_full_model(pt_state_dict, jax_model)
@@ -828,6 +829,7 @@ def main():
             k_neighbors=48,
             num_positional_embeddings=num_pos,
             physics_feature_dim=3 if is_membrane else None,
+            dropout_rate=0.0,
             key=key,
         )
         jax_model = convert_full_model(pt_state_dict, jax_model)

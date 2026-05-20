@@ -406,20 +406,24 @@ def test_ligand_conditioning_context_reference_correlation(
   assert _pearson_correlation(h_v_pt.numpy()[0], np.asarray(h_v_jax)) > 0.85
   assert _pearson_correlation(h_e_pt.numpy()[0], np.asarray(h_e_jax)) > 0.99
 
-  _, logits_jax = jax_model(
-    jnp.array(ligand_batch.x[0]),
-    jnp.array(ligand_batch.mask[0]),
-    jnp.array(ligand_batch.residue_index[0]),
-    jnp.array(ligand_batch.chain_index[0]),
-    jnp.array(ligand_batch.y[0]),
-    jnp.array(ligand_batch.y_t[0]),
-    jnp.array(ligand_batch.y_m[0]),
-    "conditional",
-    prng_key=jax.random.PRNGKey(31),
-    ar_mask=jnp.array(ar_mask),
-    one_hot_sequence=jax.nn.one_hot(jnp.array(ligand_batch.s[0]), 21),
-    inference=True,
+  # Migrate to new bundle-based API for conditional scoring
+  from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+  from prxteinmpnn.inference import score_conditional
+
+  sequence_oh = jax.nn.one_hot(jnp.array(ligand_batch.s[0]), 21)
+  bundle, config, stage_set = build_inference_bundle(
+    coords=jnp.array(ligand_batch.x[0])[None, ...],
+    mask=jnp.array(ligand_batch.mask[0])[None, ...],
+    residue_index=jnp.array(ligand_batch.residue_index[0])[None, ...],
+    chain_index=jnp.array(ligand_batch.chain_index[0])[None, ...],
+    y=jnp.array(ligand_batch.y[0])[None, ...],
+    y_t=jnp.array(ligand_batch.y_t[0])[None, ...],
+    y_m=jnp.array(ligand_batch.y_m[0])[None, ...],
+    ar_mask=jnp.array(ar_mask)[None, ...],
+    sequence=sequence_oh,
+    mode="score_conditional",
   )
+  logits_jax = score_conditional.kernel(jax_model, jax.random.PRNGKey(31), bundle, config, stage_set)
   log_probs_jax = np.asarray(jax.nn.log_softmax(logits_jax, axis=-1))
 
   assert _pearson_correlation(log_probs_pt, log_probs_jax) > 0.9
@@ -463,23 +467,26 @@ def test_ligand_autoregressive_reference_alignment(
   sampled_seq_pt = sampled_pt["S"].numpy()[0]
   sampled_log_probs_pt = sampled_pt["log_probs"].numpy()[0]
 
-  sampled_seq_jax, logits_jax = jax_model(
-    jnp.array(ligand_batch.x[0]),
-    jnp.array(ligand_batch.mask[0]),
-    jnp.array(ligand_batch.residue_index[0]),
-    jnp.array(ligand_batch.chain_index[0]),
-    jnp.array(ligand_batch.y[0]),
-    jnp.array(ligand_batch.y_t[0]),
-    jnp.array(ligand_batch.y_m[0]),
-    "autoregressive",
-    prng_key=jax.random.PRNGKey(37),
-    ar_mask=jnp.array(ar_mask),
-    temperature=1.0,
+  # Migrate to new bundle-based API for autoregressive sampling
+  from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+  from prxteinmpnn.inference import sample_autoregressive
+
+  bundle, config, stage_set = build_inference_bundle(
+    coords=jnp.array(ligand_batch.x[0])[None, ...],
+    mask=jnp.array(ligand_batch.mask[0])[None, ...],
+    residue_index=jnp.array(ligand_batch.residue_index[0])[None, ...],
+    chain_index=jnp.array(ligand_batch.chain_index[0])[None, ...],
+    y=jnp.array(ligand_batch.y[0])[None, ...],
+    y_t=jnp.array(ligand_batch.y_t[0])[None, ...],
+    y_m=jnp.array(ligand_batch.y_m[0])[None, ...],
+    ar_mask=jnp.array(ar_mask)[None, ...],
     bias=jnp.array(bias[0]),
-    inference=True,
+    temperature=1.0,
+    mode="sample_autoregressive",
   )
-  sampled_tokens_jax = np.asarray(sampled_seq_jax).argmax(axis=-1)
-  sampled_log_probs_jax = np.asarray(jax.nn.log_softmax(logits_jax, axis=-1))
+  result = sample_autoregressive.kernel(jax_model, jax.random.PRNGKey(37), bundle, config, stage_set)
+  sampled_tokens_jax = np.asarray(result.sequence).argmax(axis=-1)
+  sampled_log_probs_jax = np.asarray(jax.nn.log_softmax(result.logits, axis=-1))
 
   assert np.array_equal(sampled_tokens_jax, forced_tokens)
   assert np.array_equal(sampled_seq_pt, sampled_tokens_jax)
@@ -491,6 +498,9 @@ def test_ligand_jax_package_and_pt_convert_produce_identical_forced_samples(
   ligand_batch: LigandBatch,
 ) -> None:
   """End-to-end checksum: packaged ``.eqx`` vs in-test ``convert_full_model`` (no PyTorch RNG)."""
+  from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+  from prxteinmpnn.inference import sample_autoregressive
+
   ar_mask = _build_ar_mask(ligand_batch.randn[0])
   forcing_rng = np.random.default_rng(23)
   forced_tokens = forcing_rng.integers(0, 20, size=(ligand_batch.x.shape[1],), dtype=np.int64)
@@ -500,22 +510,21 @@ def test_ligand_jax_package_and_pt_convert_produce_identical_forced_samples(
   key = jax.random.PRNGKey(37)
 
   def _sample(m: PrxteinLigandMPNN) -> np.ndarray:
-    seq, _ = m(
-      jnp.array(ligand_batch.x[0]),
-      jnp.array(ligand_batch.mask[0]),
-      jnp.array(ligand_batch.residue_index[0]),
-      jnp.array(ligand_batch.chain_index[0]),
-      jnp.array(ligand_batch.y[0]),
-      jnp.array(ligand_batch.y_t[0]),
-      jnp.array(ligand_batch.y_m[0]),
-      "autoregressive",
-      prng_key=key,
-      ar_mask=jnp.array(ar_mask),
-      temperature=1.0,
+    bundle, config, stage_set = build_inference_bundle(
+      coords=jnp.array(ligand_batch.x[0])[None, ...],
+      mask=jnp.array(ligand_batch.mask[0])[None, ...],
+      residue_index=jnp.array(ligand_batch.residue_index[0])[None, ...],
+      chain_index=jnp.array(ligand_batch.chain_index[0])[None, ...],
+      y=jnp.array(ligand_batch.y[0])[None, ...],
+      y_t=jnp.array(ligand_batch.y_t[0])[None, ...],
+      y_m=jnp.array(ligand_batch.y_m[0])[None, ...],
+      ar_mask=jnp.array(ar_mask)[None, ...],
       bias=jnp.array(bias),
-      inference=True,
+      temperature=1.0,
+      mode="sample_autoregressive",
     )
-    return np.asarray(seq).argmax(axis=-1)
+    result = sample_autoregressive.kernel(m, key, bundle, config, stage_set)
+    return np.asarray(result.sequence).argmax(axis=-1)
 
   a = _sample(ligand_parity_bundle.jax_from_pt_convert)
   b = _sample(ligand_parity_bundle.jax_from_eqx_package)
@@ -574,22 +583,24 @@ def test_ligand_stochastic_sampling_per_position_distribution_near_reference(
     pt_sequences.append(sampled_pt["S"].numpy()[0].astype(np.int64))
 
     key = jax.random.PRNGKey(20_000 + i)
-    sampled_seq_jax, _ = jax_model(
-      jnp.array(ligand_batch.x[0]),
-      jnp.array(ligand_batch.mask[0]),
-      jnp.array(ligand_batch.residue_index[0]),
-      jnp.array(ligand_batch.chain_index[0]),
-      jnp.array(ligand_batch.y[0]),
-      jnp.array(ligand_batch.y_t[0]),
-      jnp.array(ligand_batch.y_m[0]),
-      "autoregressive",
-      prng_key=key,
-      ar_mask=jnp.array(ar_mask),
-      temperature=temperature_jax,
+    from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+    from prxteinmpnn.inference import sample_autoregressive
+
+    bundle, config, stage_set = build_inference_bundle(
+      coords=jnp.array(ligand_batch.x[0])[None, ...],
+      mask=jnp.array(ligand_batch.mask[0])[None, ...],
+      residue_index=jnp.array(ligand_batch.residue_index[0])[None, ...],
+      chain_index=jnp.array(ligand_batch.chain_index[0])[None, ...],
+      y=jnp.array(ligand_batch.y[0])[None, ...],
+      y_t=jnp.array(ligand_batch.y_t[0])[None, ...],
+      y_m=jnp.array(ligand_batch.y_m[0])[None, ...],
+      ar_mask=jnp.array(ar_mask)[None, ...],
       bias=jnp.array(bias_np[0]),
-      inference=True,
+      temperature=temperature_jax,
+      mode="sample_autoregressive",
     )
-    jax_sequences.append(np.asarray(sampled_seq_jax).argmax(axis=-1).astype(np.int64))
+    result = sample_autoregressive.kernel(jax_model, key, bundle, config, stage_set)
+    jax_sequences.append(np.asarray(result.sequence).argmax(axis=-1).astype(np.int64))
 
   stacked_pt = np.stack(pt_sequences, axis=0)
   stacked_jax = np.stack(jax_sequences, axis=0)
@@ -639,32 +650,39 @@ def test_ligand_tied_sampling_weighted_sum_product_alignment(
   with torch.no_grad():
     sampled_pt = pt_model.sample(feature_dict)
 
-  sampled_seq_jax, logits_jax = jax_model(
-    jnp.array(ligand_batch.x[0]),
-    jnp.array(ligand_batch.mask[0]),
-    jnp.array(ligand_batch.residue_index[0]),
-    jnp.array(ligand_batch.chain_index[0]),
-    jnp.array(ligand_batch.y[0]),
-    jnp.array(ligand_batch.y_t[0]),
-    jnp.array(ligand_batch.y_m[0]),
-    "autoregressive",
-    prng_key=jax.random.PRNGKey(43),
-    ar_mask=jnp.array(ar_mask),
-    temperature=1.0,
+  # Migrate to new bundle-based API for autoregressive sampling with tied positions
+  from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+  from prxteinmpnn.inference import sample_autoregressive
+  from prxteinmpnn.types.bundles import WaveScheduleBundle
+  import equinox as eqx
+
+  L = ligand_batch.x.shape[1]
+  wave = WaveScheduleBundle.from_tie_groups(jnp.arange(L), jnp.array(tie_group_map))
+
+  bundle, config, stage_set = build_inference_bundle(
+    coords=jnp.array(ligand_batch.x[0])[None, ...],
+    mask=jnp.array(ligand_batch.mask[0])[None, ...],
+    residue_index=jnp.array(ligand_batch.residue_index[0])[None, ...],
+    chain_index=jnp.array(ligand_batch.chain_index[0])[None, ...],
+    y=jnp.array(ligand_batch.y[0])[None, ...],
+    y_t=jnp.array(ligand_batch.y_t[0])[None, ...],
+    y_m=jnp.array(ligand_batch.y_m[0])[None, ...],
+    ar_mask=jnp.array(ar_mask)[None, ...],
     bias=jnp.array(bias[0]),
-    tie_group_map=jnp.array(tie_group_map),
-    multi_state_strategy="product",
-    inference=True,
+    temperature=1.0,
+    mode="sample_autoregressive",
   )
+  bundle = eqx.tree_at(lambda b: b.wave, bundle, wave)
+  result = sample_autoregressive.kernel(jax_model, jax.random.PRNGKey(43), bundle, config, stage_set)
 
   sampled_tokens_pt = sampled_pt["S"].numpy()[0]
-  sampled_tokens_jax = np.asarray(sampled_seq_jax).argmax(axis=-1)
+  sampled_tokens_jax = np.asarray(result.sequence).argmax(axis=-1)
   sampled_log_probs_pt = _combine_reference_tied_log_probs(
     sampled_pt["log_probs"].numpy()[0],
     tie_groups=tie_groups,
     tie_weights=tie_weights,
   )
-  sampled_log_probs_jax = np.asarray(jax.nn.log_softmax(logits_jax, axis=-1))
+  sampled_log_probs_jax = np.asarray(jax.nn.log_softmax(result.logits, axis=-1))
 
   tokens_match = np.array_equal(sampled_tokens_pt, sampled_tokens_jax)
   _enforce_ligand_tied_rollout(
@@ -727,22 +745,31 @@ def test_ligand_tied_scoring_arithmetic_mean_alignment(
   scored_log_probs_pt = _row_log_softmax(combined_logits_pt)
   scored_tokens_pt = np.asarray(np.argmax(scored_log_probs_pt, axis=-1), dtype=np.int32)
 
-  _, logits_jax = jax_model(
-    jnp.array(ligand_batch.x[0]),
-    jnp.array(ligand_batch.mask[0]),
-    jnp.array(ligand_batch.residue_index[0]),
-    jnp.array(ligand_batch.chain_index[0]),
-    jnp.array(ligand_batch.y[0]),
-    jnp.array(ligand_batch.y_t[0]),
-    jnp.array(ligand_batch.y_m[0]),
-    "conditional",
-    prng_key=jax.random.PRNGKey(47),
-    ar_mask=jnp.array(ar_mask),
-    one_hot_sequence=jax.nn.one_hot(jnp.array(ligand_batch.s[0]), 21),
-    tie_group_map=jnp.array(tie_group_map),
-    multi_state_strategy="arithmetic_mean",
-    inference=True,
+  # Migrate to new bundle-based API for conditional scoring with tied positions
+  from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+  from prxteinmpnn.inference import score_conditional
+  from prxteinmpnn.types.bundles import WaveScheduleBundle
+  import equinox as eqx
+
+  L = ligand_batch.x.shape[1]
+  wave = WaveScheduleBundle.from_tie_groups(jnp.arange(L), jnp.array(tie_group_map))
+
+  sequence_oh = jax.nn.one_hot(jnp.array(ligand_batch.s[0]), 21)
+  bundle, config, stage_set = build_inference_bundle(
+    coords=jnp.array(ligand_batch.x[0])[None, ...],
+    mask=jnp.array(ligand_batch.mask[0])[None, ...],
+    residue_index=jnp.array(ligand_batch.residue_index[0])[None, ...],
+    chain_index=jnp.array(ligand_batch.chain_index[0])[None, ...],
+    y=jnp.array(ligand_batch.y[0])[None, ...],
+    y_t=jnp.array(ligand_batch.y_t[0])[None, ...],
+    y_m=jnp.array(ligand_batch.y_m[0])[None, ...],
+    ar_mask=jnp.array(ar_mask)[None, ...],
+    sequence=sequence_oh,
+    mode="score_conditional",
+    strategy="arithmetic_mean",
   )
+  bundle = eqx.tree_at(lambda b: b.wave, bundle, wave)
+  logits_jax = score_conditional.kernel(jax_model, jax.random.PRNGKey(47), bundle, config, stage_set)
   scored_log_probs_jax = np.asarray(jax.nn.log_softmax(logits_jax, axis=-1))
   scored_tokens_jax = np.asarray(np.argmax(scored_log_probs_jax, axis=-1), dtype=np.int32)
 

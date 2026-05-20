@@ -71,6 +71,9 @@ def _run_conditional(
   include_side_chain_inputs: bool,
 ) -> tuple[jax.Array, jax.Array]:
   """Run conditional decoding with optional side-chain context tensors."""
+  from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+  from prxteinmpnn.inference import score_conditional
+
   kwargs: dict[str, jax.Array] = {}
   if include_side_chain_inputs:
     kwargs = {
@@ -79,34 +82,28 @@ def _run_conditional(
       "chain_mask": inputs["chain_mask"],
     }
 
-  return model(
-    inputs["structure_coordinates"],
-    inputs["mask"],
-    inputs["residue_index"],
-    inputs["chain_index"],
-    inputs["y"],
-    inputs["y_t"],
-    y_m,
-    "conditional",
-    prng_key=jax.random.PRNGKey(123),
-    ar_mask=inputs["ar_mask"],
-    one_hot_sequence=inputs["one_hot_sequence"],
-    inference=True,
-    **kwargs,
+  # Build inference bundle with ligand coordinates and ligand mask
+  bundle, config, stage_set = build_inference_bundle(
+    coords=inputs["structure_coordinates"][None, ...],  # Add batch dim
+    mask=inputs["mask"][None, ...],
+    residue_index=inputs["residue_index"][None, ...],
+    chain_index=inputs["chain_index"][None, ...],
+    y=inputs["y"][None, ...],
+    y_t=inputs["y_t"][None, ...],
+    y_m=y_m[None, ...],
+    ar_mask=inputs["ar_mask"][None, ...],
+    sequence=inputs["one_hot_sequence"],
+    mode="score_conditional",
   )
 
+  # Run conditional scoring kernel
+  logits = score_conditional.kernel(model, jax.random.PRNGKey(123), bundle, config, stage_set, **kwargs)
 
-_LIGAND_ENCODE_DEBT = pytest.mark.xfail(
-    reason=(
-        "Ligand features (y/y_t/y_m, xyz_37) are not yet threaded through "
-        "encode.py's encode_one — tracked as Sprint 3 tech debt. "
-        "Tests use old model() positional API which is removed."
-    ),
-    strict=False,
-)
+  # Return sequence (one-hot) and logits for compatibility with previous API
+  return inputs["one_hot_sequence"], logits
 
 
-@_LIGAND_ENCODE_DEBT
+@pytest.mark.parity_heavy
 def test_ligand_side_chain_gate_off_preserves_default_path() -> None:
   """Ensure side-chain tensors do not affect outputs when gate is disabled."""
   inputs = _synthetic_inputs()
@@ -133,7 +130,7 @@ def test_ligand_side_chain_gate_off_preserves_default_path() -> None:
   np.testing.assert_allclose(np.asarray(logits_default), np.asarray(logits_with_sidechain))
 
 
-@_LIGAND_ENCODE_DEBT
+@pytest.mark.parity_heavy
 def test_ligand_side_chain_gate_on_executes_context_lane() -> None:
   """Ensure side-chain lane requires side-chain inputs and produces usable outputs."""
   inputs = _synthetic_inputs()
@@ -177,9 +174,13 @@ def test_ligand_side_chain_gate_on_executes_context_lane() -> None:
   assert bool(jnp.all(jnp.isfinite(logits)))
 
 
-@_LIGAND_ENCODE_DEBT
+@pytest.mark.parity_heavy
 def test_ligand_tied_autoregressive_support_without_sidechain_context() -> None:
   """Ensure ligand autoregressive tied decoding enforces per-group token consistency."""
+  from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+  from prxteinmpnn.inference import sample_autoregressive
+  import equinox as eqx
+
   inputs = _synthetic_inputs(seq_len=10, ligand_atoms=8)
   model = _build_model(
     key=jax.random.PRNGKey(11),
@@ -192,50 +193,48 @@ def test_ligand_tied_autoregressive_support_without_sidechain_context() -> None:
   bias = np.zeros((10, 21), dtype=np.float32)
   bias[np.arange(10), forced_tokens] = 45.0
 
-  no_tie_sequence, _ = model(
-    inputs["structure_coordinates"],
-    inputs["mask"],
-    inputs["residue_index"],
-    inputs["chain_index"],
-    inputs["y"],
-    inputs["y_t"],
-    inputs["y_m"],
-    "autoregressive",
-    prng_key=jax.random.PRNGKey(13),
-    ar_mask=inputs["ar_mask"],
-    temperature=1.0,
-    bias=jnp.asarray(bias),
-    inference=True,
-  )
-  no_tie_tokens = np.asarray(no_tie_sequence).argmax(axis=-1)
+  def _sample_with_bundle(use_tie_groups: bool) -> np.ndarray:
+    from prxteinmpnn.types.bundles import WaveScheduleBundle
+
+    bundle, config, stage_set = build_inference_bundle(
+      coords=inputs["structure_coordinates"][None, ...],
+      mask=inputs["mask"][None, ...],
+      residue_index=inputs["residue_index"][None, ...],
+      chain_index=inputs["chain_index"][None, ...],
+      y=inputs["y"][None, ...],
+      y_t=inputs["y_t"][None, ...],
+      y_m=inputs["y_m"][None, ...],
+      ar_mask=inputs["ar_mask"][None, ...],
+      bias=jnp.asarray(bias),
+      temperature=1.0,
+      mode="sample_autoregressive",
+    )
+    if use_tie_groups:
+      L = inputs["structure_coordinates"].shape[0]
+      wave = WaveScheduleBundle.from_tie_groups(jnp.arange(L), jnp.array(tie_group_map))
+      bundle = eqx.tree_at(lambda b: b.wave, bundle, wave)
+    result = sample_autoregressive.kernel(model, jax.random.PRNGKey(13), bundle, config, stage_set)
+    return np.asarray(result.sequence).argmax(axis=-1)
+
+  no_tie_tokens = _sample_with_bundle(use_tie_groups=False)
   for group in tie_groups:
     assert len(np.unique(no_tie_tokens[group])) > 1
 
-  tied_sequence, _ = model(
-    inputs["structure_coordinates"],
-    inputs["mask"],
-    inputs["residue_index"],
-    inputs["chain_index"],
-    inputs["y"],
-    inputs["y_t"],
-    inputs["y_m"],
-    "autoregressive",
-    prng_key=jax.random.PRNGKey(13),
-    ar_mask=inputs["ar_mask"],
-    temperature=1.0,
-    bias=jnp.asarray(bias),
-    tie_group_map=tie_group_map,
-    multi_state_strategy="product",
-    inference=True,
-  )
-  tied_tokens = np.asarray(tied_sequence).argmax(axis=-1)
+  tied_tokens = _sample_with_bundle(use_tie_groups=True)
+  # When tied, positions in the same group should have the same token
   for group in tie_groups:
-    assert np.all(tied_tokens[group] == tied_tokens[group[0]])
+    unique_tokens = np.unique(tied_tokens[group])
+    assert len(unique_tokens) == 1, f"Expected 1 unique token in group {group}, got {len(unique_tokens)}: {unique_tokens}"
 
 
-@_LIGAND_ENCODE_DEBT
+@pytest.mark.parity_heavy
 def test_ligand_tied_autoregressive_support_with_sidechain_context() -> None:
   """Ensure side-chain-conditioned ligand tied decoding remains group-consistent."""
+  from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+  from prxteinmpnn.inference import sample_autoregressive
+  from prxteinmpnn.types.bundles import WaveScheduleBundle
+  import equinox as eqx
+
   inputs = _synthetic_inputs(seq_len=10, ligand_atoms=8)
   model = _build_model(
     key=jax.random.PRNGKey(17),
@@ -247,35 +246,47 @@ def test_ligand_tied_autoregressive_support_with_sidechain_context() -> None:
   bias = np.zeros((10, 21), dtype=np.float32)
   bias[np.arange(10), forced_tokens] = 45.0
 
-  tied_sequence, logits = model(
-    inputs["structure_coordinates"],
-    inputs["mask"],
-    inputs["residue_index"],
-    inputs["chain_index"],
-    inputs["y"],
-    inputs["y_t"],
-    inputs["y_m"],
-    "autoregressive",
-    prng_key=jax.random.PRNGKey(19),
-    ar_mask=inputs["ar_mask"],
-    temperature=1.0,
+  L = inputs["structure_coordinates"].shape[0]
+  wave = WaveScheduleBundle.from_tie_groups(jnp.arange(L), jnp.array(tie_group_map))
+
+  bundle, config, stage_set = build_inference_bundle(
+    coords=inputs["structure_coordinates"][None, ...],
+    mask=inputs["mask"][None, ...],
+    residue_index=inputs["residue_index"][None, ...],
+    chain_index=inputs["chain_index"][None, ...],
+    y=inputs["y"][None, ...],
+    y_t=inputs["y_t"][None, ...],
+    y_m=inputs["y_m"][None, ...],
+    ar_mask=inputs["ar_mask"][None, ...],
     bias=jnp.asarray(bias),
-    tie_group_map=tie_group_map,
-    multi_state_strategy="product",
+    temperature=1.0,
+    mode="sample_autoregressive",
+  )
+  bundle = eqx.tree_at(lambda b: b.wave, bundle, wave)
+  result = sample_autoregressive.kernel(
+    model,
+    jax.random.PRNGKey(19),
+    bundle,
+    config,
+    stage_set,
     xyz_37=inputs["xyz_37"],
     xyz_37_m=inputs["xyz_37_m"],
     chain_mask=inputs["chain_mask"],
-    inference=True,
   )
-  tied_tokens = np.asarray(tied_sequence).argmax(axis=-1)
+  tied_tokens = np.asarray(result.sequence).argmax(axis=-1)
   for group in tie_groups:
     assert np.all(tied_tokens[group] == tied_tokens[group[0]])
-  assert bool(jnp.all(jnp.isfinite(logits)))
+  assert bool(jnp.all(jnp.isfinite(result.logits)))
 
 
-@_LIGAND_ENCODE_DEBT
+@pytest.mark.parity_heavy
 def test_ligand_conditional_multistate_logits_are_group_shared() -> None:
   """Ensure conditional multistate strategy combines logits identically per tied group."""
+  from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+  from prxteinmpnn.inference import score_conditional
+  from prxteinmpnn.types.bundles import WaveScheduleBundle
+  import equinox as eqx
+
   inputs = _synthetic_inputs(seq_len=10, ligand_atoms=8)
   model = _build_model(
     key=jax.random.PRNGKey(23),
@@ -284,22 +295,23 @@ def test_ligand_conditional_multistate_logits_are_group_shared() -> None:
   tie_groups = [[0, 1, 2], [3, 4]]
   tie_group_map = _build_tie_group_map(seq_len=10, groups=tie_groups)
 
-  _, tied_logits = model(
-    inputs["structure_coordinates"],
-    inputs["mask"],
-    inputs["residue_index"],
-    inputs["chain_index"],
-    inputs["y"],
-    inputs["y_t"],
-    inputs["y_m"],
-    "conditional",
-    prng_key=jax.random.PRNGKey(29),
-    ar_mask=inputs["ar_mask"],
-    one_hot_sequence=inputs["one_hot_sequence"],
-    tie_group_map=tie_group_map,
-    multi_state_strategy="product",
-    inference=True,
+  L = inputs["structure_coordinates"].shape[0]
+  wave = WaveScheduleBundle.from_tie_groups(jnp.arange(L), jnp.array(tie_group_map))
+
+  bundle, config, stage_set = build_inference_bundle(
+    coords=inputs["structure_coordinates"][None, ...],
+    mask=inputs["mask"][None, ...],
+    residue_index=inputs["residue_index"][None, ...],
+    chain_index=inputs["chain_index"][None, ...],
+    y=inputs["y"][None, ...],
+    y_t=inputs["y_t"][None, ...],
+    y_m=inputs["y_m"][None, ...],
+    ar_mask=inputs["ar_mask"][None, ...],
+    sequence=inputs["one_hot_sequence"],
+    mode="score_conditional",
   )
+  bundle = eqx.tree_at(lambda b: b.wave, bundle, wave)
+  tied_logits = score_conditional.kernel(model, jax.random.PRNGKey(29), bundle, config, stage_set)
   tied_logits_np = np.asarray(tied_logits)
   for group in tie_groups:
     np.testing.assert_allclose(

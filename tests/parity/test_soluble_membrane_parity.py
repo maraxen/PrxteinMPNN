@@ -232,7 +232,7 @@ def _load_soluble_membrane_models_impl() -> SolubleMembraneParityModels:
     )
   num_positional_embeddings_membrane = int((pos_weight_membrane.shape[1] - 2) // 2) if pos_weight_membrane is not None else 16
 
-  pt_membrane_per_residue = model_utils.ProteinMPNN_PerResidue(
+  pt_membrane_per_residue = model_utils.ProteinMPNN(
     num_letters=21,
     node_features=128,
     edge_features=128,
@@ -240,6 +240,7 @@ def _load_soluble_membrane_models_impl() -> SolubleMembraneParityModels:
     num_encoder_layers=3,
     num_decoder_layers=3,
     k_neighbors=48,
+    model_type="per_residue_label",
   )
   pt_membrane_per_residue.load_state_dict(membrane_per_residue_checkpoint["model_state_dict"])
   pt_membrane_per_residue.eval()
@@ -295,7 +296,7 @@ def _load_soluble_membrane_models_impl() -> SolubleMembraneParityModels:
     )
   num_positional_embeddings_global = int((pos_weight_global.shape[1] - 2) // 2) if pos_weight_global is not None else 16
 
-  pt_membrane_global = model_utils.ProteinMPNN_PerResidue(
+  pt_membrane_global = model_utils.ProteinMPNN(
     num_letters=21,
     node_features=128,
     edge_features=128,
@@ -303,6 +304,7 @@ def _load_soluble_membrane_models_impl() -> SolubleMembraneParityModels:
     num_encoder_layers=3,
     num_decoder_layers=3,
     k_neighbors=48,
+    model_type="global_label",
   )
   pt_membrane_global.load_state_dict(membrane_global_checkpoint["model_state_dict"])
   pt_membrane_global.eval()

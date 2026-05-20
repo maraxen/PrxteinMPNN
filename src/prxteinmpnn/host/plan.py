@@ -232,7 +232,7 @@ def make_inference_plan(model: ModelProtocol, spec: Any) -> InferencePlan:
     """Factory: resolve and create an InferencePlan from model and spec."""
     from prxteinmpnn.inference.encode import make_encode_fn
     from prxteinmpnn.inference import driver as driver_module
-    from prxteinmpnn.inference.logits import LOGIT_STRATEGIES, ARLogitFuse
+    from prxteinmpnn.inference.logits import LOGIT_STRATEGIES, ARLogitFuse, TieGroupProductOfExperts
     from prxteinmpnn.types.stages import StageSet
 
     use_rolling_state = getattr(spec, "use_rolling_state", False)
@@ -259,6 +259,7 @@ def make_inference_plan(model: ModelProtocol, spec: Any) -> InferencePlan:
         ar_logit_transform=ARLogitFuse(),
         decode_step=None,
         sample_step=None,
+        tie_group_fuse=TieGroupProductOfExperts(),
     )
 
     components = InferenceComponents(

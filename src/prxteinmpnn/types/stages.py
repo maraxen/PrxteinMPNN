@@ -23,6 +23,7 @@ from prxteinmpnn.inference.logits import (
     BatchLogitFn,
     GeometricMeanLogits,
     ProductOfProbabilities,
+    TieGroupFuseFn,
 )
 
 # Type variables for generic protocols
@@ -159,6 +160,7 @@ class StageSet(eqx.Module):
         ConditionalDecodeStep | UnconditionalDecodeStep | None
     ) = None
     sample_step: Any | None = None  # None = scoring mode; categorical/gumbel/ste = sampling
+    tie_group_fuse: TieGroupFuseFn | None = None
 
 
 __all__ = [
@@ -177,4 +179,5 @@ __all__ = [
     "LogitTransformFn",
     "ARLogitTransformFn",
     "StageSet",
+    "TieGroupFuseFn",
 ]

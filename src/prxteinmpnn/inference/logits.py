@@ -152,6 +152,64 @@ class ARLogitFuse(eqx.Module):
         return jnp.mean(logits, axis=0) + bias
 
 
+# ---------------------------------------------------------------------------
+# Tie-group fuse strategies
+# ---------------------------------------------------------------------------
+
+from jaxtyping import Bool  # noqa: E402
+
+
+@runtime_checkable
+class TieGroupFuseFn(Protocol):
+    """Protocol for fusing tied-position logits into a single canonical set.
+
+    Signature: (logits: (L, V), mask: (L,)) -> (V,)
+    where L is the sequence length (positions in group selected by mask)
+    and V is the vocabulary size (usually 21).
+    """
+    def __call__(
+        self,
+        logits: Float[Array, "L V"],
+        mask: Bool[Array, "L"],
+    ) -> Float[Array, "V"]:
+        ...
+
+
+TIE_GROUP_STRATEGIES: Registry = Registry("tie_group_strategies")
+
+
+@TIE_GROUP_STRATEGIES.register("logsumexp_mean")
+class TieGroupLogsumexpMean(eqx.Module):
+    """Logsumexp mean across tied positions (legacy behavior).
+
+    Computes: logsumexp(logits[group], axis=0) - log(n_tied)
+    """
+    def __call__(
+        self,
+        logits: Float[Array, "L V"],
+        mask: Bool[Array, "L"],
+    ) -> Float[Array, "V"]:
+        group = jnp.where(mask[:, None], logits, -jnp.inf)
+        n = jnp.sum(mask)
+        return jax.scipy.special.logsumexp(group, axis=0) - jnp.log(jnp.maximum(n, 1))
+
+
+@TIE_GROUP_STRATEGIES.register("product_of_experts")
+class TieGroupProductOfExperts(eqx.Module):
+    """Product-of-experts across tied positions (matches LigandMPNN reference).
+
+    Computes: sum(log_softmax(logits[group]), axis=0)
+    This matches the PyTorch reference's _combine_reference_tied_log_probs.
+    """
+    def __call__(
+        self,
+        logits: Float[Array, "L V"],
+        mask: Bool[Array, "L"],
+    ) -> Float[Array, "V"]:
+        log_probs = jax.nn.log_softmax(logits, axis=-1)
+        return jnp.sum(jnp.where(mask[:, None], log_probs, 0.0), axis=0)
+
+
 __all__ = [
     "BatchLogitFn",
     "LOGIT_STRATEGIES",
@@ -159,4 +217,8 @@ __all__ = [
     "GeometricMeanLogits",
     "ProductOfProbabilities",
     "ARLogitFuse",
+    "TieGroupFuseFn",
+    "TIE_GROUP_STRATEGIES",
+    "TieGroupLogsumexpMean",
+    "TieGroupProductOfExperts",
 ]

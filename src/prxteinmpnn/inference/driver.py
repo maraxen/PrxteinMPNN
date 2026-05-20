@@ -265,16 +265,23 @@ def decode_ar(
             # Logit averaging for the group (tied positions)
             mask = (cond.tie_group_map[0] == group_id)
 
-            # Average stored logits (bias-free)
-            stored_group = jnp.where(mask[:, None], stored_logits, -jnp.inf)
-            n_tied = jnp.sum(mask)
-            avg_stored = jax.scipy.special.logsumexp(stored_group, axis=0) - jnp.log(jnp.maximum(n_tied, 1))
-            step_logits = avg_stored.reshape((21,))  # (21,)
+            # Fuse stored logits (bias-free) across tied positions
+            if stage_set.tie_group_fuse is not None:
+                step_logits = stage_set.tie_group_fuse(stored_logits, mask).reshape((21,))
+            else:
+                stored_group = jnp.where(mask[:, None], stored_logits, -jnp.inf)
+                n_tied = jnp.sum(mask)
+                avg_stored = jax.scipy.special.logsumexp(stored_group, axis=0) - jnp.log(jnp.maximum(n_tied, 1))
+                step_logits = avg_stored.reshape((21,))
 
-            # Average sampling logits (bias-applied)
-            sampling_group = jnp.where(mask[:, None], sampling_logits, -jnp.inf)
-            avg_sampling = jax.scipy.special.logsumexp(sampling_group, axis=0) - jnp.log(jnp.maximum(n_tied, 1))
-            avg_sampling = avg_sampling.reshape((21,))  # (21,)
+            # Fuse sampling logits (bias-applied) across tied positions
+            if stage_set.tie_group_fuse is not None:
+                avg_sampling = stage_set.tie_group_fuse(sampling_logits, mask).reshape((21,))
+            else:
+                sampling_group = jnp.where(mask[:, None], sampling_logits, -jnp.inf)
+                n_tied = jnp.sum(mask)
+                avg_sampling = jax.scipy.special.logsumexp(sampling_group, axis=0) - jnp.log(jnp.maximum(n_tied, 1))
+                avg_sampling = avg_sampling.reshape((21,))
 
             # Sample from bias-applied logits
             subkey = jax.random.fold_in(key, group_id)

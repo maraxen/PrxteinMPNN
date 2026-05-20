@@ -92,3 +92,60 @@ def test_stage_set_ar_logit_fuse_survives_jit():
     assert out.shape == (V,)
 
 
+# ---------------------------------------------------------------------------
+# TieGroupFuseFn strategies
+# ---------------------------------------------------------------------------
+
+def test_tie_group_product_of_experts_n1_matches_log_softmax():
+    """TieGroupProductOfExperts with n_tied=1 equals log_softmax of the single position.
+
+    For a group of size 1, PoE = sum(log_softmax(logits[group])) = log_softmax(logits[pos]).
+    This verifies the n_tied=1 case reduces correctly without double-softmax.
+    """
+    from prxteinmpnn.inference.logits import TieGroupProductOfExperts
+
+    V, L = 21, 5
+    key = jax.random.PRNGKey(0)
+    logits = jax.random.normal(key, (L, V))
+    mask = jnp.zeros(L, dtype=jnp.bool_).at[2].set(True)  # single position
+
+    poe = TieGroupProductOfExperts()
+    fused = poe(logits, mask)  # (V,)
+
+    expected = jax.nn.log_softmax(logits[2])
+    assert fused.shape == (V,)
+    assert jnp.allclose(fused, expected, atol=1e-5), f"max diff: {jnp.max(jnp.abs(fused - expected))}"
+
+
+def test_tie_group_product_of_experts_importable_from_logits():
+    from prxteinmpnn.inference.logits import TieGroupProductOfExperts, TieGroupLogsumexpMean, TIE_GROUP_STRATEGIES  # noqa: F401
+
+
+def test_tie_group_strategies_registry_has_both():
+    from prxteinmpnn.inference.logits import TIE_GROUP_STRATEGIES
+    assert TIE_GROUP_STRATEGIES.get("product_of_experts") is not None
+    assert TIE_GROUP_STRATEGIES.get("logsumexp_mean") is not None
+
+
+def test_stage_set_has_tie_group_fuse_slot():
+    from prxteinmpnn.types.stages import StageSet
+    from prxteinmpnn.inference.logits import TieGroupProductOfExperts
+    ss = StageSet(tie_group_fuse=TieGroupProductOfExperts())
+    assert ss.tie_group_fuse is not None
+
+
+def test_bundle_builder_defaults_tie_group_fuse():
+    """build_inference_bundle wires TieGroupProductOfExperts by default."""
+    import jax.numpy as jnp
+    from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+    from prxteinmpnn.inference.logits import TieGroupProductOfExperts
+
+    L = 4
+    coords = jnp.zeros((L, 4, 3))
+    mask = jnp.ones(L)
+    ri = jnp.arange(L)
+    ci = jnp.zeros(L, dtype=jnp.int32)
+    _, _, stage_set = build_inference_bundle(coords, mask, ri, ci)
+    assert isinstance(stage_set.tie_group_fuse, TieGroupProductOfExperts)
+
+

@@ -87,12 +87,6 @@ Wave E (after COMP-6 + COMP-7):
 
 ---
 
-### Sprint 3 Debt
-
-- **`test_tied_positions_and_multi_state_parity` (0.64–0.68 correlation)**: Our driver stores `logsumexp(raw_logits[group], axis=0) − log(n)` in `SampleResult.logits`, but the reference test's `_combine_reference_tied_log_probs` computes `log_softmax(sum(log_probs[group]))`. These are semantically different operations. Resolution requires a `SampleResult.logits` semantics decision for tied groups — do NOT patch inline in driver; design through StageSet or update the test's combination strategy.
-
----
-
 ### Downstream (post-Sprint 2)
 
 - **IREE-WASM**: StableHLO → WASM for browser CPU inference (gate `iree` as optional extras)

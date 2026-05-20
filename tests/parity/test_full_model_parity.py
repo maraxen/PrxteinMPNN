@@ -443,6 +443,9 @@ def test_autoregressive_sampling_parity(
   residue_index_batch = jnp.array(parity_batch.residue_index[0])[None, ...]  # (1, L)
   chain_index_batch = jnp.array(parity_batch.chain_index[0])[None, ...]  # (1, L)
 
+  L = coords_batch.shape[1]
+  wave = WaveScheduleBundle.from_tie_groups(jnp.arange(L), jnp.array(parity_batch.decoding_order))
+
   bundle, config, stage_set = build_inference_bundle(
     coords=coords_batch,
     mask=mask_batch,
@@ -453,6 +456,7 @@ def test_autoregressive_sampling_parity(
     temperature=1.0,
     mode="sample_autoregressive",
   )
+  bundle = eqx.tree_at(lambda b: b.wave, bundle, wave)
   result = sample_autoregressive.kernel(
     jax_model, jax.random.PRNGKey(7), bundle, config, stage_set
   )

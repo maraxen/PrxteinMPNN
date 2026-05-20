@@ -114,6 +114,10 @@ class PrxteinMPNN(eqx.Module):
     backbone_noise: float | jax.Array = 0.0,
     backbone_noise_mode: str = "direct",
     structure_mapping: jax.Array | None = None,
+    y: jax.Array | None = None,
+    y_t: jax.Array | None = None,
+    y_m: jax.Array | None = None,
+    inference: bool = True,
   ) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Single-state encoder: features + encoder for one conformational state.
 
@@ -130,6 +134,10 @@ class PrxteinMPNN(eqx.Module):
         backbone_noise: scalar backbone noise level.
         backbone_noise_mode: mode for backbone noise ("direct" or other).
         structure_mapping: optional structure isolation mapping.
+        y: accepted but ignored (for API compatibility with LigandMPNN).
+        y_t: accepted but ignored (for API compatibility with LigandMPNN).
+        y_m: accepted but ignored (for API compatibility with LigandMPNN).
+        inference: accepted but ignored (kept for symmetry with downstream calls).
 
     Returns:
         (node_features, edge_features, neighbor_indices) for this state.

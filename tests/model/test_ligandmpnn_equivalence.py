@@ -485,7 +485,7 @@ def test_ligand_autoregressive_reference_alignment(
     mode="sample_autoregressive",
   )
   result = sample_autoregressive.kernel(jax_model, jax.random.PRNGKey(37), bundle, config, stage_set)
-  sampled_tokens_jax = np.asarray(result.sequence).argmax(axis=-1)
+  sampled_tokens_jax = np.asarray(result.sequence)
   sampled_log_probs_jax = np.asarray(jax.nn.log_softmax(result.logits, axis=-1))
 
   assert np.array_equal(sampled_tokens_jax, forced_tokens)
@@ -524,7 +524,7 @@ def test_ligand_jax_package_and_pt_convert_produce_identical_forced_samples(
       mode="sample_autoregressive",
     )
     result = sample_autoregressive.kernel(m, key, bundle, config, stage_set)
-    return np.asarray(result.sequence).argmax(axis=-1)
+    return np.asarray(result.sequence)
 
   a = _sample(ligand_parity_bundle.jax_from_pt_convert)
   b = _sample(ligand_parity_bundle.jax_from_eqx_package)
@@ -600,7 +600,7 @@ def test_ligand_stochastic_sampling_per_position_distribution_near_reference(
       mode="sample_autoregressive",
     )
     result = sample_autoregressive.kernel(jax_model, key, bundle, config, stage_set)
-    jax_sequences.append(np.asarray(result.sequence).argmax(axis=-1).astype(np.int64))
+    jax_sequences.append(np.asarray(result.sequence).astype(np.int64))
 
   stacked_pt = np.stack(pt_sequences, axis=0)
   stacked_jax = np.stack(jax_sequences, axis=0)
@@ -676,7 +676,7 @@ def test_ligand_tied_sampling_weighted_sum_product_alignment(
   result = sample_autoregressive.kernel(jax_model, jax.random.PRNGKey(43), bundle, config, stage_set)
 
   sampled_tokens_pt = sampled_pt["S"].numpy()[0]
-  sampled_tokens_jax = np.asarray(result.sequence).argmax(axis=-1)
+  sampled_tokens_jax = np.asarray(result.sequence)
   sampled_log_probs_pt = _combine_reference_tied_log_probs(
     sampled_pt["log_probs"].numpy()[0],
     tie_groups=tie_groups,

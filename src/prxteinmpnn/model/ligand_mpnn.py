@@ -16,8 +16,6 @@ from prxteinmpnn.model.dropout import Dropout
 from prxteinmpnn.model.encoder import Encoder
 from prxteinmpnn.model.ligand_features import ProteinFeaturesLigand
 from prxteinmpnn.model.ligand_tiling import map_chunks_axis0, map_chunks_axis0_multi
-from prxteinmpnn.types.bundles import InferenceBundle
-from prxteinmpnn.types.configs import InferenceConfig
 
 if TYPE_CHECKING:
   from prxteinmpnn.types.arrays import PRNGKeyArray
@@ -155,27 +153,59 @@ class PrxteinLigandMPNN(eqx.Module):
   def __call__(
     self,
     key: PRNGKeyArray,
-    bundle: InferenceBundle,
-    config: InferenceConfig,
-    **kwargs: Any,
+    coords: jax.Array,
+    mask: jax.Array,
+    residue_index: jax.Array,
+    chain_index: jax.Array,
+    *,
+    backbone_noise: float | jax.Array = 0.0,
+    backbone_noise_mode: str = "direct",
+    structure_mapping: jax.Array | None = None,
+    y: jax.Array | None = None,
+    y_t: jax.Array | None = None,
+    y_m: jax.Array | None = None,
+    inference: bool = True,
   ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-    """Pure forward: features -> encode -> return encoded representation."""
+    """Pure forward: features -> encode -> return encoded representation.
+
+    Args:
+        key: PRNG key for encoding.
+        coords: (L, 4, 3) atom coordinates for one state.
+        mask: (L,) residue mask.
+        residue_index: (L,) residue indices.
+        chain_index: (L,) chain indices.
+        backbone_noise: scalar backbone noise level.
+        backbone_noise_mode: mode for backbone noise (accepted but not used by LigandMPNN features).
+        structure_mapping: optional structure isolation mapping.
+        y: (M, 4, 3) ligand coordinates.
+        y_t: (M, 4) ligand atom type tokens.
+        y_m: (M, 4) ligand atom mask.
+        inference: unused for compatibility.
+
+    Returns:
+        (node_features, edge_features, neighbor_indices) for this state.
+    """
     keys = jax.random.split(key, 2)
-    geo = bundle.geometry
-    lig = bundle.ligand
+
+    # Default ligand arrays to empty if not provided
+    if y is None:
+        y = jnp.zeros((0, 4, 3))
+    if y_t is None:
+        y_t = jnp.zeros((0, 4), dtype=jnp.int32)
+    if y_m is None:
+        y_m = jnp.zeros((0, 4))
 
     V, E, E_idx, Y_nodes, Y_edges, Y_m_out = self.features(
       _key=keys[0],
-      structure_coordinates=geo.coords[0],
-      mask=geo.mask[0],
-      residue_index=geo.residue_index[0],
-      chain_index=geo.chain_index[0],
-      Y=lig.y[0],
-      Y_t=lig.y_t[0],
-      Y_m=lig.y_m[0],
-      backbone_noise=bundle.backbone_noise,
-      structure_mapping=geo.structure_mapping[0] if geo.structure_mapping is not None else None,
-      **kwargs
+      structure_coordinates=coords,
+      mask=mask,
+      residue_index=residue_index,
+      chain_index=chain_index,
+      Y=y,
+      Y_t=y_t,
+      Y_m=y_m,
+      backbone_noise=backbone_noise,
+      structure_mapping=structure_mapping,
     )
     
     h_V = jnp.zeros((E.shape[0], self.node_features_dim))

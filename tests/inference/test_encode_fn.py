@@ -88,8 +88,18 @@ def test_make_encode_fn_rolling_state_returns_encoder_output():
 
     # Minimal duck-type model
     class DummyModel(eqx.Module):
+        def __call__(self, coords, mask, residue_index, chain_index, **kwargs):
+            # Return (node_features, edge_features, neighbor_indices)
+            L = coords.shape[-2]
+            H = 32
+            return (
+                jnp.zeros((L, H)),  # node_features
+                jnp.zeros((L, 10, H)),  # edge_features
+                jnp.zeros((L, 10), dtype=jnp.int32),  # neighbor_indices
+            )
+
         def features(self, k, coords, mask, ri, ci, noise, **kwargs):
-            # Return dummy features: (L, H) shaped
+            # Legacy interface for backward compat (unused now)
             L = coords.shape[-2]
             H = 32
             return (
@@ -158,6 +168,16 @@ def test_make_encode_fn_scan_vs_vmap_both_return_encoder_output():
     from prxteinmpnn.types.configs import InferenceConfig
 
     class DummyModel(eqx.Module):
+        def __call__(self, coords, mask, residue_index, chain_index, **kwargs):
+            # Return (node_features, edge_features, neighbor_indices)
+            L = coords.shape[-2]
+            H = 32
+            return (
+                jnp.zeros((L, H)),  # node_features
+                jnp.zeros((L, 10, H)),  # edge_features
+                jnp.zeros((L, 10), dtype=jnp.int32),  # neighbor_indices
+            )
+
         def features(self, k, coords, mask, ri, ci, noise, **kwargs):
             L = coords.shape[-2]
             H = 32

@@ -12,7 +12,7 @@ from prxteinmpnn.types.bundles import (
 )
 from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.stages import StageSet
-from prxteinmpnn.inference.logits import LOGIT_STRATEGIES, ARLogitFuse
+from prxteinmpnn.inference.logits import LOGIT_STRATEGIES, ARLogitFuse, TieGroupProductOfExperts
 
 def build_inference_bundle(
     coords: jax.Array,           # (L, 4, 3) or (S, L, 4, 3)
@@ -155,7 +155,8 @@ def build_inference_bundle(
 
     stage_set = StageSet(
         logit_transform=logit_transform,
-        ar_logit_transform=ARLogitFuse()
+        ar_logit_transform=ARLogitFuse(),
+        tie_group_fuse=TieGroupProductOfExperts(),
     )
 
     return bundle, config, stage_set

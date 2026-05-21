@@ -24,8 +24,8 @@ class GeometryBundle(eqx.Module):
     Parameters
     ----------
     coords : Float[Array, "S L 4 3"]
-        Backbone coordinates: [C, N, CA, CB] atoms per residue.
-        Shape: S = num conformational states, L = sequence length.
+        Backbone atom coordinates in canonical order [N, CA, C, O] per residue.
+        S = num conformational states, L = sequence length.
     mask : Float[Array, "S L"]
         Per-residue backbone validity mask (1.0 = valid, 0.0 = masked).
     residue_index : Int[Array, "S L"]
@@ -48,8 +48,8 @@ class GeometryBundle(eqx.Module):
         None for standard single-model inputs.
     physics_features : Float[Array, "S L P"] | None
         Optional membrane physics features (one-hot per-residue labels).
-        Shape P depends on physics model; None for soluble/ligand-only models
-        (no membrane conditioning).
+        P = physics feature dimension (depends on physics model).
+        None for soluble/ligand-only models (no membrane conditioning).
 
     References
     ----------
@@ -131,12 +131,13 @@ class LigandBundle(eqx.Module):
     Parameters
     ----------
     ligand_coords : Float[Array, "S L_lig A 3"]
-        Ligand atom coordinates. Shape: S = num states, L_lig = num ligand
-        residues, A = atoms per residue.
+        Ligand atom 3D coordinates gathered per protein residue.
+        L_lig = protein sequence length (each protein residue has A nearest
+        ligand atoms); A = num nearest ligand atoms per protein residue.
     ligand_atom_types : Int[Array, "S L_lig A"]
-        Atomic element indices for ligand atoms (e.g., 6=C, 7=N, 8=O).
+        Ligand atom element type indices (integer) per protein residue.
     ligand_mask : Float[Array, "S L_lig A"]
-        Per-atom validity mask (1.0 = valid, 0.0 = masked/absent).
+        Validity mask for ligand atoms (1.0 = valid ligand atom, 0.0 = padding).
 
     References
     ----------
@@ -171,6 +172,12 @@ class WaveScheduleBundle(eqx.Module):
         Validity mask for groups (True = group has content).
     position_valid : Bool[Array, "W G P"]
         Validity mask for positions within groups (True = position is real).
+
+    References
+    ----------
+    .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+       sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+       https://doi.org/10.1126/science.add2187
     """
     group_ids: Int[Array, "W G"]
     group_positions: Int[Array, "W G P"]
@@ -417,7 +424,8 @@ class PackerBundle(eqx.Module):
     ligand_mask : Float[Array, "L M"]
         Validity mask for ligand atoms.
     ligand_atom_types : Float[Array, "L M"]
-        Ligand atom element indices.
+        Ligand atom element type indices per protein residue. Note: annotated as
+        Float due to upstream type drift; semantically integer atom type indices.
     mask : Float[Array, "L"]
         Per-residue validity mask (1.0 = design-able, 0.0 = masked).
     residue_index : Int[Array, "L"]

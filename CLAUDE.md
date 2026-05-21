@@ -54,7 +54,7 @@ All waves complete as of 2026-05-15. Commits on `refactor-full`.
 
 ---
 
-### Sprint 2 — Composability (COMP-1 → COMP-9)
+### Sprint 2 — Composability (COMP-1 → COMP-9) ✅
 
 **Praxia backlog IDs:** 184–192
 
@@ -84,6 +84,18 @@ Wave E (after COMP-6 + COMP-7):
 - `LOGIT_STRATEGIES` eqx.Module PyTree pattern — `state_weights` must remain traced leaves
 - Kernel math (scatter logic, scan layouts, grad/remat in optimize_ste) — rewire only, never rewrite
 - `SamplerFn` / `ScoreFn` top-level signatures — composability work happens below these
+
+---
+
+---
+
+### Sprint 3 — Known Debt (non-blocking)
+
+- **Ruff lint**: 403 fixable errors across `src/` — style/annotation drift, non-blocking.
+  Run: `uvx ruff check src 2>&1 | tail -3` to check current count.
+- **Tied-positions parity warnings**: 4 `RuntimeWarning` in
+  `test_ligand_tied_sampling_weighted_sum_product_alignment` and
+  `test_ligand_tied_scoring_arithmetic_mean_alignment` — warn-only, do not affect pass/fail.
 
 ---
 

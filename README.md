@@ -26,14 +26,16 @@ PrxteinMPNN provides a **functional interface for ProteinMPNN**, leveraging the 
 PrxteinMPNN is validated against the upstream [LigandMPNN](https://github.com/dauparas/LigandMPNN)
 reference implementation (including ProteinMPNN behavior):
 
-| Decoding Path | Correlation | Status |
-|---------------|-------------|---------|
-| **Unconditional** | 0.984 | ✅ **Validated** |
-| **Conditional** | 0.958-0.984 | ✅ **Validated** |
-| **Autoregressive** | 0.953-0.970 | ✅ **Validated** |
+| Decoding Path | Tolerance | Status |
+|---------------|-----------|---------|
+| **Unconditional** | atol/rtol 1e-4, corr ≥ 0.999 | ✅ **Validated** |
+| **Conditional** | atol/rtol 1e-4, corr ≥ 0.999 | ✅ **Validated** |
+| **Autoregressive** | atol/rtol 1e-4, corr ≥ 0.999 | ✅ **Validated** |
+| **Membrane** | atol/rtol 1e-4, corr ≥ 0.999 | ✅ **Validated** |
+| **Side-chain packer** | atol 1e-4/1e-3, corr ≥ 0.999 | ✅ **Validated** |
 
-All three decoding paths achieve **>0.95 Pearson correlation** with reference outputs, ensuring
-faithful reproduction of the original model's behavior.
+Full parity suite: **30/30 `parity_heavy` tests pass** on Engaging cluster (job 14203624).
+575 fast tests pass locally (575 passed, 6 skipped, 2 xfailed).
 
 **Canonical parity/equivalence docs (source of truth):**
 - [Final validation summary (Markdown)](docs/FINAL_VALIDATION_RESULTS.md)

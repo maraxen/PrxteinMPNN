@@ -22,12 +22,12 @@ _PACKER_CONFIG = InferenceConfig(inference=True)
 def _feature_dict_to_packer_bundle(fd: dict[str, jnp.ndarray]) -> PackerBundle:
   """Convert uppercase-keyed feature dict to a ``PackerBundle``."""
   return PackerBundle(
-    s=fd["S"].astype(jnp.int32),
-    x=fd["X"],
-    x_m=fd["X_m"],
-    y=fd["Y"],
-    y_m=fd["Y_m"],
-    y_t=fd["Y_t"],
+    sequence=fd["S"].astype(jnp.int32),
+    backbone_coords=fd["X"],
+    backbone_mask=fd["X_m"],
+    ligand_coords=fd["Y"],
+    ligand_mask=fd["Y_m"],
+    ligand_atom_types=fd["Y_t"],
     mask=fd["mask"],
     residue_index=fd["R_idx"].astype(jnp.int32),
     chain_labels=fd["chain_labels"].astype(jnp.int32),

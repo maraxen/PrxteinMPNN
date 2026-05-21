@@ -118,7 +118,7 @@ def make_encode_fn(model: ModelProtocol, *, use_rolling_state: bool = False) -> 
                     return carry, EncoderOutput(node_features=node_f, edge_features=edge_f, neighbor_indices=edge_i)
                 scan_xs: Any = (
                     geo.coords, geo.mask, geo.residue_index, geo.chain_index,
-                    lig.y, lig.y_t, lig.y_m, geo.structure_mapping, noise_stack, phys,
+                    lig.ligand_coords, lig.ligand_atom_types, lig.ligand_mask, geo.structure_mapping, noise_stack, phys,
                 )
             else:
                 def scan_body(carry: Any, per_state: Any) -> tuple[Any, EncoderOutput]:  # type: ignore[misc]
@@ -127,7 +127,7 @@ def make_encode_fn(model: ModelProtocol, *, use_rolling_state: bool = False) -> 
                     return carry, EncoderOutput(node_features=node_f, edge_features=edge_f, neighbor_indices=edge_i)
                 scan_xs = (
                     geo.coords, geo.mask, geo.residue_index, geo.chain_index,
-                    lig.y, lig.y_t, lig.y_m, geo.structure_mapping, noise_stack,
+                    lig.ligand_coords, lig.ligand_atom_types, lig.ligand_mask, geo.structure_mapping, noise_stack,
                 )
 
             _, enc = jax.lax.scan(scan_body, None, scan_xs)
@@ -145,9 +145,9 @@ def make_encode_fn(model: ModelProtocol, *, use_rolling_state: bool = False) -> 
                 geo.mask,
                 geo.residue_index,
                 geo.chain_index,
-                lig.y,
-                lig.y_t,
-                lig.y_m,
+                lig.ligand_coords,
+                lig.ligand_atom_types,
+                lig.ligand_mask,
                 geo.structure_mapping,
                 noise_stack,
                 phys,

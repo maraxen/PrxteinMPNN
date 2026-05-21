@@ -131,9 +131,9 @@ def build_inference_bundle(
 
     # 4. Ligand
     lig = LigandBundle(
-        y=y if y is not None else jnp.zeros((S, 0, 4, 3)),
-        y_t=y_t if y_t is not None else jnp.zeros((S, 0, 4), dtype=jnp.int32),
-        y_m=y_m if y_m is not None else jnp.zeros((S, 0, 4)),
+        ligand_coords=y if y is not None else jnp.zeros((S, 0, 4, 3)),
+        ligand_atom_types=y_t if y_t is not None else jnp.zeros((S, 0, 4), dtype=jnp.int32),
+        ligand_mask=y_m if y_m is not None else jnp.zeros((S, 0, 4)),
     )
 
     # 5. Assemble Bundle

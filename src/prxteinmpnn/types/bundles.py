@@ -42,9 +42,9 @@ class ConditioningBundle(eqx.Module):
 
 class LigandBundle(eqx.Module):
     """Ligand context. All-zeros when no ligand."""
-    y: Float[Array, "S L_lig A 3"]
-    y_t: Int[Array, "S L_lig A"]
-    y_m: Float[Array, "S L_lig A"]
+    ligand_coords: Float[Array, "S L_lig A 3"]
+    ligand_atom_types: Int[Array, "S L_lig A"]
+    ligand_mask: Float[Array, "S L_lig A"]
 
 
 class WaveScheduleBundle(eqx.Module):
@@ -155,12 +155,12 @@ class PackerResult(eqx.Module):
 
 class PackerBundle(eqx.Module):
     """Input features for side-chain packing."""
-    s: Int[Array, L]
-    x: Float[Array, "L 14 3"]
-    x_m: Float[Array, "L 14"]
-    y: Float[Array, "L M 3"]
-    y_m: Float[Array, "L M"]
-    y_t: Float[Array, "L M"]
+    sequence: Int[Array, L]
+    backbone_coords: Float[Array, "L 14 3"]
+    backbone_mask: Float[Array, "L 14"]
+    ligand_coords: Float[Array, "L M 3"]
+    ligand_mask: Float[Array, "L M"]
+    ligand_atom_types: Float[Array, "L M"]
     mask: Float[Array, L]
     residue_index: Int[Array, L]
     chain_labels: Int[Array, L]

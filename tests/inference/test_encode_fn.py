@@ -126,7 +126,7 @@ def test_make_encode_fn_rolling_state_returns_encoder_output():
         n_flat=L * S,
         structure_mapping=None,
     )
-    lig = LigandBundle(y=jnp.zeros((S, 0, 14, 3)), y_t=jnp.zeros((S, 0, 14), dtype=jnp.int32), y_m=jnp.zeros((S, 0, 14)))
+    lig = LigandBundle(ligand_coords=jnp.zeros((S, 0, 14, 3)), ligand_atom_types=jnp.zeros((S, 0, 14), dtype=jnp.int32), ligand_mask=jnp.zeros((S, 0, 14)))
     wave = WaveScheduleBundle.empty(L)
     bundle = InferenceBundle(
         geometry=geo,
@@ -204,7 +204,7 @@ def test_make_encode_fn_scan_vs_vmap_both_return_encoder_output():
         n_flat=L * S,
         structure_mapping=None,
     )
-    lig = LigandBundle(y=jnp.zeros((S, 0, 14, 3)), y_t=jnp.zeros((S, 0, 14), dtype=jnp.int32), y_m=jnp.zeros((S, 0, 14)))
+    lig = LigandBundle(ligand_coords=jnp.zeros((S, 0, 14, 3)), ligand_atom_types=jnp.zeros((S, 0, 14), dtype=jnp.int32), ligand_mask=jnp.zeros((S, 0, 14)))
     wave = WaveScheduleBundle.empty(L)
     bundle = InferenceBundle(
         geometry=geo,

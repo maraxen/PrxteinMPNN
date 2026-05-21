@@ -205,11 +205,11 @@ class PackerProteinFeatures(eqx.Module):
 
 
     def features_encode(self, prng_key: PRNGKeyArray, bundle: PackerBundle) -> tuple:
-        s = bundle.s
-        x = bundle.x
-        y = bundle.y
-        y_m = bundle.y_m
-        y_t = bundle.y_t
+        s = bundle.sequence
+        x = bundle.backbone_coords
+        y = bundle.ligand_coords
+        y_m = bundle.ligand_mask
+        y_t = bundle.ligand_atom_types
         mask = bundle.mask
         r_idx = bundle.residue_index
         chain_labels = bundle.chain_labels
@@ -299,14 +299,14 @@ class PackerProteinFeatures(eqx.Module):
         return v, e, E_idx, y_nodes, y_edges, e_context, y_m
 
     def features_decode(self, bundle: PackerBundle, E_idx: jax.Array) -> tuple:
-        s = bundle.s
-        x = bundle.x
-        x_m = bundle.x_m
+        s = bundle.sequence
+        x = bundle.backbone_coords
+        x_m = bundle.backbone_mask
         mask = bundle.mask
 
-        y = bundle.y[:, :self.atom_context_num, :]
-        y_m = bundle.y_m[:, :self.atom_context_num]
-        y_t = bundle.y_t[:, :self.atom_context_num]
+        y = bundle.ligand_coords[:, :self.atom_context_num, :]
+        y_m = bundle.ligand_mask[:, :self.atom_context_num]
+        y_t = bundle.ligand_atom_types[:, :self.atom_context_num]
 
         x_m = x_m * mask[:, None]
 

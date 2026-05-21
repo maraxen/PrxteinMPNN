@@ -6,20 +6,20 @@
 
 PrxteinMPNN provides a **functional interface for ProteinMPNN**, leveraging the **JAX** ecosystem for accelerated computation and transparent protein design workflows.
 
-## 🎯 Key Features
+## Key Features
 
-- **🔍 Increased Transparency**: Clear and functional interface for ProteinMPNN, enabling users to understand all the operations defining the models flow
-- **⚡ JAX Compatibility**: Efficient computation with JAX's functional programming paradigm, including JIT compilation and vectorization
-- **🧩 Modular Design**: Maintain a modular structure to facilitate easy updates and extensions to the model
-- **🚀 Performance Optimization**: Utilize JAX's capabilities for large-scale protein design tasks
-- **🔄 JAX Transformations**: Compatible with `jit`, `vmap`, and `scan` for batch processing and optimization
+- **Faithful parity with LigandMPNN**: All five decoding paths validated to ≥ 0.999 Pearson correlation (see Validation section)
+- **Composable inference**: Swap fusion strategies, encode paths, and decode variants via `StageSet` without touching kernel math
+- **JAX-native**: `jit`, `vmap`, `scan` throughout; Equinox modules as PyTrees for full AD compatibility
+- **Multi-state and membrane support**: physics-conditioned encoder, tied-position product-of-experts, side-chain packer
+- **CLI + JSON spec**: `prxteinmpnn spec validate / roundtrip` for portable run specifications
 
-## 📚 Documentation
+## Documentation
 
 **[Complete Documentation →](http://maraxen.github.io/PrxteinMPNN)**
 
-**Composition & Extensibility:**
-- [Composition Guide](docs/COMPOSITION_GUIDE.md) — Build inference pipelines using `StageSet`, `InferencePlan`, and composable stages
+- [Composition Guide](docs/COMPOSITION_GUIDE.md) — `StageSet`, `InferencePlan`, and the five extension points
+- [Parity Validation](docs/parity/parity_report.md) — Numerical parity report vs LigandMPNN reference
 
 ## ✅ Validation
 
@@ -119,7 +119,7 @@ CI tier routing:
 - `ligand-tied-positions-and-multi-state` is staged as warn-only in `parity_heavy` and fail in
   `parity_audit`.
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Installation
 
@@ -129,139 +129,126 @@ uv sync --extra tpu   # For TPU
 uv sync --extra cpu   # For CPU-only (default)
 ```
 
-### Basic Usage (via `sample()` high-level API)
+### High-level API
 
 ```python
-import jax
 from prxteinmpnn.io.weights import load_model
-from prxteinmpnn.run.sampling import sample
-from prxteinmpnn.run.specs import SamplingSpecification
+from prxteinmpnn.run import sample, score, SamplingSpecification, ScoringSpecification
 
-# 1. Load the pre-trained model (Equinox module)
-model = load_model(
-    model_version="v_48_020",
-    model_weights="original"
-)
+model = load_model(model_version="v_48_020", model_weights="original")
 
-# 2. Configure sampling specification
+# --- Sampling ---
 spec = SamplingSpecification(
     inputs="path/to/structure.pdb",
     num_samples=10,
     temperature=0.1,
     random_seed=42,
-    # Multi-state support (optional)
-    # multi_state_strategy="arithmetic_mean",
-    # state_weights=[1.0, 0.8, 0.6]
 )
-
-# 3. Sample new sequences
 results = sample(spec)
+sequences = results["sequences"]   # (num_samples, seq_len)
+logits    = results["logits"]      # (num_samples, seq_len, 21)
 
-# 4. Access results
-sequences = results["sequences"]  # (num_samples, seq_len)
-logits = results["logits"]        # (num_samples, seq_len, 21)
-```
-
-### Composable Inference API (Sprint 2)
-
-For fine-grained control over fusion strategies, encoding, and decoding stages:
-
-```python
-import jax
-import jax.numpy as jnp
-from prxteinmpnn.io.weights import load_model
-from prxteinmpnn.host.plan import make_inference_plan
-from prxteinmpnn.run.specs import SamplingSpecification
-from prxteinmpnn.types.stages import StageSet
-from prxteinmpnn.inference.logits import GeometricMeanLogits, ARLogitFuse
-
-# 1. Load model
-model = load_model(model_version="v_48_020", model_weights="original")
-
-# 2. Create spec with multi-state parameters
-spec = SamplingSpecification(
-    inputs="path/to/structure.pdb",
-    num_samples=10,
-    temperature=0.1,
-    multi_state_strategy="geometric_mean",  # or "arithmetic_mean", "product", etc.
-    state_weights=[1.0, 0.8, 0.6],
-)
-
-# 3. Create a composable inference plan
-plan = make_inference_plan(model, spec)  # Resolves stages and encoding strategy
-
-# 4. Sample or score using the plan
-# plan.sample(bundle, key, config) → SampleResult
-# plan.score(bundle, key, config)  → Logits
-
-# Or customize by building InferencePlan components directly
-# (see docs/COMPOSITION_GUIDE.md for advanced patterns)
-```
-
-### Scoring Sequences
-
-```python
-from prxteinmpnn.run.scoring import score
-from prxteinmpnn.run.specs import ScoringSpecification
-
+# --- Scoring ---
 spec = ScoringSpecification(
     inputs="path/to/structure.pdb",
-    sequences_to_score=["MV..."],
-    temperature=1.0
+    sequences_to_score=["MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQAPILSRVGDGTQDNLSGAEK"],
+    temperature=1.0,
+)
+results = score(spec)
+scores = results["scores"]         # negative log-likelihood per sequence
+```
+
+### Composable Inference API
+
+For fine-grained control over fusion strategy, encode path, and decode variant — without touching kernel math:
+
+```python
+import jax.numpy as jnp
+from prxteinmpnn.host.plan import make_inference_plan, InferencePlan, InferenceComponents
+from prxteinmpnn.inference.encode import make_encode_fn
+from prxteinmpnn.inference import driver
+from prxteinmpnn.inference.logits import GeometricMeanLogits, ARLogitFuse
+from prxteinmpnn.run import SamplingSpecification
+from prxteinmpnn.types.stages import StageSet
+
+# Option A: factory (resolves stages from spec automatically)
+spec = SamplingSpecification(
+    inputs="structure.pdb",
+    num_samples=10,
+    multi_state_strategy="geometric_mean",
+    state_weights=[1.0, 0.8, 0.6],
+)
+plan = make_inference_plan(model, spec)
+
+# Option B: manual assembly for full control
+state_weights = jnp.array([1.0, 0.8, 0.6])
+stage_set = StageSet(
+    logit_transform=GeometricMeanLogits(weights=state_weights, temperature=1.2),
+    ar_logit_transform=ARLogitFuse(),
+)
+plan = InferencePlan(
+    model=model,
+    components=InferenceComponents(
+        encode_fn=make_encode_fn(model, use_rolling_state=False),
+        driver=driver.decode,
+        stage_set=stage_set,
+    ),
 )
 
-results = score(spec)
-average_scores = results["scores"]  # Negative log-likelihood
+result = plan.sample(bundle, key, config)   # → SampleResult(sequence, logits)
+logits = plan.score(bundle, key, config)    # → (L, 21)
 ```
 
-## 🛠️ Requirements
+See [Composition Guide](docs/COMPOSITION_GUIDE.md) for the five extension points (`logit_transform`, `ar_logit_transform`, `decode_step`, `sample_step`, `tie_group_fuse`).
 
-- **Python >= 3.11**
-- **JAX ecosystem**: jax, jaxlib, flax
-- **Core dependencies**: NumPy, joblib, jaxtyping
-- **Protein handling**: foldcomp, biotite
-- **Testing**: chex, pytest, pytest-cov
-
-## 🏗️ Development
-
-### Code Quality & Standards
-
-This project follows strict coding standards:
-
-- **JAX-idiomatic code**: Functional programming paradigm with immutable data structures
-- **Linting**: Ruff with strict configuration (line length: 100, all rules enabled)
-- **Type checking**: Pyright in strict mode
-- **Testing**: Comprehensive unit and integration tests with pytest
-- **Documentation**: Google-style docstrings with examples
-
-### Running Tests
+### CLI
 
 ```bash
-python -m pytest tests/
+# Validate a run specification JSON file
+prxteinmpnn spec validate run_spec.json
+
+# Check JSON round-trip fidelity
+prxteinmpnn spec roundtrip run_spec.json
+
+# Check portable subset round-trip
+prxteinmpnn spec portable-roundtrip portable_spec.json
+
+# Serialize a spec to JSON (from Python)
+from prxteinmpnn.run import run_specification_to_json
+json_str = run_specification_to_json(spec)
 ```
 
-### Linting
+## Requirements
 
-```bash
-ruff check src/ --fix
+- Python ≥ 3.11
+- JAX + Equinox (GPU/TPU/CPU via extras)
+- `uv sync --extra cpu` for CPU-only; `--extra cuda` for GPU
+
+## Development
+
+| Command | Purpose |
+|---------|---------|
+| `uv run pytest` | Fast test suite (excludes `parity_heavy`) |
+| `uvx ruff check src` | Lint |
+| `uv run ty check` | Type check (ty strict) |
+| `uv run ruff format .` | Auto-format |
+
+All three decoding paths + membrane + packer are validated via `parity_heavy` tests; see [Running Equivalence Tests](#running-equivalence-tests) below.
+
+## Architecture
+
+```
+prxteinmpnn.run          ← SamplingSpecification, ScoringSpecification, sample(), score()
+prxteinmpnn.host.plan    ← InferencePlan, InferenceComponents, make_inference_plan()
+prxteinmpnn.types.stages ← StageSet (the composition interface)
+prxteinmpnn.inference    ← driver.decode, logits (LOGIT_STRATEGIES, TIE_GROUP_STRATEGIES)
+prxteinmpnn.model        ← LigandMPNN, Packer (Equinox modules, JIT-safe)
+prxteinmpnn.sampling     ← sample() kernel
+prxteinmpnn.scoring      ← score() kernel
+prxteinmpnn.cli          ← prxteinmpnn spec validate/roundtrip
 ```
 
-## 📖 Core Concepts
-
-- **Functional Design**: All operations follow JAX's functional programming paradigm
-- **Immutable Data**: Protein structures and model states are immutable
-- **JAX Transformations**: Compatible with `jit`, `vmap`, and `scan`
-- **Modular Architecture**: Clean separation of concerns across sampling, scoring, and utilities
-- **Composable Inference** (Sprint 2): Use `StageSet` to swap fusion strategies, encoding methods, and decode variants without touching kernel math. See [Composition Guide](docs/COMPOSITION_GUIDE.md)
-
-## 🎯 Project Goals
-
-PrxteinMPNN aims to provide:
-
-1. **Transparency**: A clear, understandable interface to ProteinMPNN's capabilities
-2. **Performance**: Leverage JAX for high-performance protein design workflows  
-3. **Modularity**: Easy-to-extend components for custom protein design tasks
-4. **Compatibility**: Seamless integration with the broader JAX ecosystem
+`StageSet` is the composition seam between the host layer and JAX-traced kernels. Everything above it is Python-land; everything below it is traced. See [Composition Guide](docs/COMPOSITION_GUIDE.md).
 
 ## Multiprocessing
 

@@ -37,6 +37,7 @@ InferencePlan                 │                         │
 | `ar_logit_transform` | `BatchLogitFn` | `ARLogitFuse` | Per-position AR fusion `(S, V) → (V)` |
 | `decode_step` | `ConditionalDecodeStep \| UnconditionalDecodeStep \| None` | `None` | Which decoder variant runs (None = conditional fallback) |
 | `sample_step` | any \| `None` | `None` | Sampling function; `None` means scoring mode |
+| `tie_group_fuse` | `TieGroupFuseFn \| None` | `TieGroupProductOfExperts` | Tied-position fusion strategy; `None` falls back to logsumexp-mean |
 
 **Topology is inferred at call time** by `driver.infer_topology(stage_set)`:
 
@@ -48,7 +49,7 @@ else:                                          → TOPOLOGY_CONDITIONAL_SCORE
 
 ---
 
-## The four extension points
+## The five extension points
 
 ### 1. New state-fusion strategy
 
@@ -142,6 +143,35 @@ class GumbelTopKStep(eqx.Module):
 
 ---
 
+### 5. New tied-position fuse strategy
+
+`tie_group_fuse` controls how logits are merged across positions in a tied group (multi-chain or symmetric conditioning). The default is `TieGroupProductOfExperts` which matches the LigandMPNN reference.
+
+```python
+from prxteinmpnn.inference.logits import TIE_GROUP_STRATEGIES, TieGroupFuseFn
+import equinox as eqx
+import jax
+import jax.numpy as jnp
+
+@TIE_GROUP_STRATEGIES.register("temperature_logsumexp")
+class TieGroupTemperatureLogsumexp(eqx.Module):
+    temperature: float = eqx.field(static=True, default=1.0)
+
+    def __call__(self, logits, mask):
+        group = jnp.where(mask[:, None], logits / self.temperature, -jnp.inf)
+        n = jnp.sum(mask)
+        return jax.scipy.special.logsumexp(group, axis=0) - jnp.log(jnp.maximum(n, 1))
+```
+
+Wire it via `StageSet`:
+```python
+stage_set = StageSet(tie_group_fuse=TieGroupTemperatureLogsumexp(temperature=0.5))
+```
+
+Or leave `tie_group_fuse=None` to fall back to logsumexp-mean.
+
+---
+
 ## Putting it together: full example
 
 ### Option 1: Factory (Recommended)
@@ -223,7 +253,9 @@ These are the JAX-traced invariants. Modifying them breaks JIT retracing contrac
 
 | Goal | File |
 |------|------|
-| New fusion strategy | `inference/logits.py` — add eqx.Module, register with `@LOGIT_STRATEGIES.register` |
+| New state-fusion strategy | `inference/logits.py` — add eqx.Module, register with `@LOGIT_STRATEGIES.register` |
+| New AR fusion strategy | `inference/logits.py` — implement protocol, set via `StageSet(ar_logit_transform=...)` |
+| New tied-position fuse | `inference/logits.py` — add eqx.Module, register with `@TIE_GROUP_STRATEGIES.register` |
 | New encode strategy | `inference/encode.py` — extend `make_encode_fn` flags |
 | New decode variant | `types/stages.py` — add eqx.Module implementation |
 | New host dispatch path | `host/kernel_dispatch.py` — add case to `resolve_kernel_fn` |

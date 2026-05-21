@@ -23,6 +23,9 @@ class GeometryBundle(eqx.Module):
     n_canonical: int = eqx.field(static=True)
     n_flat: int = eqx.field(static=True)
     structure_mapping: Int[Array, "S L"] | None = None
+    # Membrane physics features: one-hot of per-residue labels, shape (S, L, P).
+    # None for soluble/ligand models (no physics conditioning).
+    physics_features: Float[Array, "S L P"] | None = None
 
 
 class ConditioningBundle(eqx.Module):

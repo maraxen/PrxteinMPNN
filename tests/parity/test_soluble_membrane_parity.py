@@ -214,7 +214,7 @@ def _load_soluble_membrane_models_impl() -> SolubleMembraneParityModels:
   if repo_rt_str not in sys.path:
     sys.path.insert(0, repo_rt_str)
 
-  from scripts.convert_weights import convert_full_model
+  from scripts.convert_weights import convert_full_model, convert_physics_encoder
 
   jax_soluble_pt_skeleton = PrxteinMPNN(
     node_features=128,
@@ -292,6 +292,9 @@ def _load_soluble_membrane_models_impl() -> SolubleMembraneParityModels:
   jax_membrane_per_residue_pt_convert = convert_full_model(
     membrane_per_residue_state_dict_numpy, jax_membrane_per_residue_pt_skeleton
   )
+  jax_membrane_per_residue_pt_convert = convert_physics_encoder(
+    membrane_per_residue_state_dict_numpy, jax_membrane_per_residue_pt_convert
+  )
 
   # Load Membrane Global MPNN
   pt_membrane_global_checkpoint_path = reference_root / "model_params/global_label_membrane_mpnn_v_48_020.pt"
@@ -354,6 +357,9 @@ def _load_soluble_membrane_models_impl() -> SolubleMembraneParityModels:
     key=jax_key,
   )
   jax_membrane_global_pt_convert = convert_full_model(membrane_global_state_dict_numpy, jax_membrane_global_pt_skeleton)
+  jax_membrane_global_pt_convert = convert_physics_encoder(
+    membrane_global_state_dict_numpy, jax_membrane_global_pt_convert
+  )
 
   return SolubleMembraneParityModels(
     torch=torch,
@@ -382,26 +388,11 @@ def parity_batch() -> ParityBatch:
   return _build_parity_batch()
 
 
-_MEMBRANE_XFAIL = pytest.mark.xfail(
-  reason=(
-    "Sprint 3 debt: physics_features not wired through build_inference_bundle → encode path. "
-    "PT membrane encode reads 'membrane_per_residue_labels' and initialises h_V = W_v(one_hot(labels)); "
-    "JAX PhysicsEncoder receives initial_node_features=None (zero init) instead. "
-    "Fix requires threading physics_features through GeometryBundle, encode.py, and PrxteinMPNN.__call__."
-  ),
-  strict=False,
-)
-
-
 @pytest.mark.parity_heavy
 @pytest.mark.parametrize("weight_source", ("eqx", "pt_convert"))
 @pytest.mark.parametrize(
   "checkpoint_kind",
-  [
-    "soluble",
-    pytest.param("membrane_per_residue", marks=_MEMBRANE_XFAIL),
-    pytest.param("membrane_global", marks=_MEMBRANE_XFAIL),
-  ],
+  ["soluble", "membrane_per_residue", "membrane_global"],
 )
 def test_unconditional_parity(
   soluble_membrane_parity_models: SolubleMembraneParityModels,
@@ -459,11 +450,21 @@ def test_unconditional_parity(
   residue_index_batch = jnp.array(parity_batch.residue_index[0])[None, ...]  # (1, L)
   chain_index_batch = jnp.array(parity_batch.chain_index[0])[None, ...]  # (1, L)
 
+  # Membrane physics features: one-hot of per-residue class labels.
+  # PT receives membrane_per_residue_labels=torch.zeros((1, L), dtype=long) → class 0 for all.
+  # JAX must match: one_hot([0,...,0], 3) → (1, L, 3) with each row = [1, 0, 0].
+  physics_features_jax: jax.Array | None = None
+  if is_membrane:
+    seq_len = parity_batch.sequence.shape[1]
+    labels = jnp.zeros(seq_len, dtype=jnp.int32)
+    physics_features_jax = jax.nn.one_hot(labels, 3)[None, ...]  # (1, L, 3)
+
   bundle, config, stage_set = build_inference_bundle(
     coords=coords_batch,
     mask=mask_batch,
     residue_index=residue_index_batch,
     chain_index=chain_index_batch,
+    physics_features=physics_features_jax,
     mode="score_unconditional",
   )
   jax_logits = score_unconditional.kernel(jax_model, jax.random.PRNGKey(0), bundle, config, stage_set)

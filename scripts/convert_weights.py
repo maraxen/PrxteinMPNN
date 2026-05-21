@@ -722,6 +722,46 @@ def convert_full_model(
     return jax_model
 
 
+def convert_physics_encoder(
+    pt_state_dict: dict[str, Any],
+    jax_model: Any,
+) -> Any:
+    """Convert membrane PhysicsEncoder weights: physics_projection, physics_norm, physics_w_v.
+
+    Reads PT keys:
+      features.node_embedding.{weight,bias} → encoder.physics_projection
+      features.norm_nodes.{weight,bias}      → encoder.physics_norm
+      W_v.{weight,bias}                      → encoder.physics_w_v
+    """
+    jax_model = eqx.tree_at(
+        lambda m: m.encoder.physics_projection,
+        jax_model,
+        convert_linear_layer(
+            pt_state_dict["features.node_embedding.weight"],
+            pt_state_dict.get("features.node_embedding.bias"),
+            jax_model.encoder.physics_projection,
+        ),
+    )
+    jax_model = eqx.tree_at(
+        lambda m: (m.encoder.physics_norm.weight, m.encoder.physics_norm.bias),
+        jax_model,
+        (
+            jnp.array(pt_state_dict["features.norm_nodes.weight"]),
+            jnp.array(pt_state_dict["features.norm_nodes.bias"]),
+        ),
+    )
+    jax_model = eqx.tree_at(
+        lambda m: m.encoder.physics_w_v,
+        jax_model,
+        convert_linear_layer(
+            pt_state_dict["W_v.weight"],
+            pt_state_dict.get("W_v.bias"),
+            jax_model.encoder.physics_w_v,
+        ),
+    )
+    return jax_model
+
+
 def main():
     parser = argparse.ArgumentParser(description="Convert PyTorch weights to JAX")
     parser.add_argument("--input", type=str, required=True, help="Input PyTorch .pt file")
@@ -834,17 +874,8 @@ def main():
         )
         jax_model = convert_full_model(pt_state_dict, jax_model)
 
-        # Load physics projection if membrane
         if is_membrane:
-            jax_model = eqx.tree_at(
-                lambda m: m.encoder.physics_projection,
-                jax_model,
-                convert_linear_layer(
-                    pt_state_dict["features.node_embedding.weight"],
-                    pt_state_dict.get("features.node_embedding.bias"),
-                    jax_model.encoder.physics_projection,
-                ),
-            )
+            jax_model = convert_physics_encoder(pt_state_dict, jax_model)
 
     # Save
     print(f"Saving JAX weights to {args.output}")

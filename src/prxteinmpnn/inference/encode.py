@@ -80,6 +80,8 @@ def make_encode_fn(model: ModelProtocol, *, use_rolling_state: bool = False) -> 
         # Broadcast backbone noise across S states
         noise_stack = jnp.broadcast_to(bundle.backbone_noise, (S,))
 
+        phys = geo.physics_features  # None for soluble/ligand, (S, L, P) for membrane
+
         def encode_one(
             coords: jax.Array,
             mask: jax.Array,
@@ -90,17 +92,10 @@ def make_encode_fn(model: ModelProtocol, *, use_rolling_state: bool = False) -> 
             ligand_y_m: jax.Array,
             structure_mapping: jax.Array | None,
             noise: jax.Array,
+            pf: jax.Array | None,
         ) -> tuple[jax.Array, jax.Array, jax.Array]:
-            """Encode a single state: features + encoder.
-
-            Returns:
-                (node_features, edge_features, neighbor_indices)
-            """
-            node_f, edge_f, edge_i = model(
-                coords,
-                mask,
-                residue_index,
-                chain_index,
+            """Encode a single state: features + encoder."""
+            kwargs: dict[str, Any] = dict(
                 prng_key=jax.random.fold_in(k_enc, 0),
                 backbone_noise=noise,
                 backbone_noise_mode=config.backbone_noise_mode,
@@ -110,43 +105,32 @@ def make_encode_fn(model: ModelProtocol, *, use_rolling_state: bool = False) -> 
                 y_m=ligand_y_m,
                 inference=config.inference,
             )
+            if pf is not None:
+                kwargs["initial_node_features"] = pf
+            node_f, edge_f, edge_i = model(coords, mask, residue_index, chain_index, **kwargs)
             return node_f, edge_f, edge_i
 
         if use_rolling_state:
-            # Sequential scan over S states (lower memory, allows accumulation)
-            def scan_body(
-                carry: Any,
-                per_state: tuple[
-                    jax.Array, jax.Array, jax.Array, jax.Array,
-                    jax.Array, jax.Array, jax.Array, jax.Array | None, jax.Array
-                ],
-            ) -> tuple[Any, EncoderOutput]:
-                coords, mask, ri, ci, ly, lyt, lym, sm, noise = per_state
-                node_f, edge_f, edge_i = encode_one(
-                    coords, mask, ri, ci, ly, lyt, lym, sm, noise
+            if phys is not None:
+                def scan_body(carry: Any, per_state: Any) -> tuple[Any, EncoderOutput]:
+                    c, m, ri, ci, ly, lyt, lym, sm, n, pf = per_state
+                    node_f, edge_f, edge_i = encode_one(c, m, ri, ci, ly, lyt, lym, sm, n, pf)
+                    return carry, EncoderOutput(node_features=node_f, edge_features=edge_f, neighbor_indices=edge_i)
+                scan_xs: Any = (
+                    geo.coords, geo.mask, geo.residue_index, geo.chain_index,
+                    lig.y, lig.y_t, lig.y_m, geo.structure_mapping, noise_stack, phys,
                 )
-                return carry, EncoderOutput(
-                    node_features=node_f,
-                    edge_features=edge_f,
-                    neighbor_indices=edge_i,
+            else:
+                def scan_body(carry: Any, per_state: Any) -> tuple[Any, EncoderOutput]:  # type: ignore[misc]
+                    c, m, ri, ci, ly, lyt, lym, sm, n = per_state
+                    node_f, edge_f, edge_i = encode_one(c, m, ri, ci, ly, lyt, lym, sm, n, None)
+                    return carry, EncoderOutput(node_features=node_f, edge_features=edge_f, neighbor_indices=edge_i)
+                scan_xs = (
+                    geo.coords, geo.mask, geo.residue_index, geo.chain_index,
+                    lig.y, lig.y_t, lig.y_m, geo.structure_mapping, noise_stack,
                 )
 
-            _, enc = jax.lax.scan(
-                scan_body,
-                None,
-                (
-                    geo.coords,
-                    geo.mask,
-                    geo.residue_index,
-                    geo.chain_index,
-                    lig.y,
-                    lig.y_t,
-                    lig.y_m,
-                    geo.structure_mapping,
-                    noise_stack,
-                ),
-            )
-            # Ensure mask is included in the returned EncoderOutput
+            _, enc = jax.lax.scan(scan_body, None, scan_xs)
             enc = EncoderOutput(
                 node_features=enc.node_features,
                 edge_features=enc.edge_features,
@@ -154,8 +138,9 @@ def make_encode_fn(model: ModelProtocol, *, use_rolling_state: bool = False) -> 
                 mask=geo.mask,
             )
         else:
-            # Parallel vmap over S states (higher throughput)
-            node_f, edge_f, nei_f = jax.vmap(encode_one, in_axes=(0, 0, 0, 0, 0, 0, 0, 0, 0))(
+            # Parallel vmap over S states; physics axis is 0 when present, None (broadcast) when absent.
+            in_axes = (0, 0, 0, 0, 0, 0, 0, 0, 0, None if phys is None else 0)
+            node_f, edge_f, nei_f = jax.vmap(encode_one, in_axes=in_axes)(
                 geo.coords,
                 geo.mask,
                 geo.residue_index,
@@ -165,6 +150,7 @@ def make_encode_fn(model: ModelProtocol, *, use_rolling_state: bool = False) -> 
                 lig.y_m,
                 geo.structure_mapping,
                 noise_stack,
+                phys,
             )
             enc = EncoderOutput(
                 node_features=node_f,

@@ -104,6 +104,12 @@ class ConditionalDecodeStep(eqx.Module):
         Model's decoder module (e.g., model.decoder).
     w_s_embed : Any
         Sequence embedding lookup weights (e.g., model.w_s_embed.weight).
+
+    References
+    ----------
+    .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+       sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+       https://doi.org/10.1126/science.add2187
     """
     decoder: Any  # model.decoder
     w_s_embed: Any  # model.w_s_embed.weight
@@ -166,6 +172,12 @@ class UnconditionalDecodeStep(eqx.Module):
     ----------
     decoder : Any
         Model's decoder module (e.g., model.decoder).
+
+    References
+    ----------
+    .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+       sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+       https://doi.org/10.1126/science.add2187
     """
     decoder: Any  # model.decoder
 
@@ -245,10 +257,10 @@ class StageSet(eqx.Module):
         Examples: eqx.Module subclasses with __call__(logits, key) → tokens.
     tie_group_fuse : TieGroupFuseFn | None
         Reduce over tied positions. Signature:
-        ``((K,), (K,)) → () | scalar``
-        Implements reduction for positions in the same tie_group_id
-        (e.g., product of experts for logit fusion across ties).
-        None = no tied-position fusion (each position independent).
+        ``(logits: (L, V), mask: (L,)) → (V,)``
+        Implements logit fusion across positions sharing the same tie_group_id
+        (e.g., TieGroupProductOfExperts for log-softmax sum across ties).
+        None = no tied-position fusion (each position treated independently).
 
     Notes
     -----

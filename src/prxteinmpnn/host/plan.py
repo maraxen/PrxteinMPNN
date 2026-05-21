@@ -247,6 +247,16 @@ class InferenceComponents(NamedTuple):
     stage_set : Any
         StageSet instance with all slots wired (logit_transform, ar_logit_transform,
         decode_step, sample_step, tie_group_fuse). Ready for JIT.
+
+    References
+    ----------
+    .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+       sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+       https://doi.org/10.1126/science.add2187
+
+    .. [LigandMPNN] Dauparas, J., et al. "Atomic context-conditioned protein
+       sequence design using LigandMPNN." *Nature Methods* 22(4):717-723 (2025).
+       https://doi.org/10.1038/s41592-025-02626-1
     """
     encode_fn: Callable
     driver: Callable
@@ -272,6 +282,16 @@ class InferencePlan:
     `.sample()` and `.score()` invoke the same encode → decode pipeline but with
     different stage_set configurations. The decode_step and sample_step fields in
     stage_set determine the output (sampled sequence or logits).
+
+    References
+    ----------
+    .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+       sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+       https://doi.org/10.1126/science.add2187
+
+    .. [LigandMPNN] Dauparas, J., et al. "Atomic context-conditioned protein
+       sequence design using LigandMPNN." *Nature Methods* 22(4):717-723 (2025).
+       https://doi.org/10.1038/s41592-025-02626-1
     """
 
     model: Any
@@ -346,6 +366,21 @@ def make_inference_plan(model: ModelProtocol, spec: Any) -> InferencePlan:
     -------
     InferencePlan
         Ready-to-use inference plan for sampling/scoring.
+
+    Notes
+    -----
+    Resolution order:
+
+    1. ``encode_fn`` — uses ``make_encode_fn(model, use_rolling_state=use_rolling_state)``.
+       ``use_rolling_state=True`` selects scan-based multi-state encoding; False uses vmap.
+    2. ``logit_transform`` — instantiated from ``LOGIT_STRATEGIES[multi_state_strategy]``
+       with ``state_weights`` and ``multi_state_temperature``.
+    3. ``ar_logit_transform`` — always wired as ``ARLogitFuse()`` (arithmetic mean + bias
+       injection over states, identity when S=1).
+    4. ``tie_group_fuse`` — always wired as ``TieGroupProductOfExperts()`` (log-softmax sum
+       across tied positions).
+    5. ``decode_step`` and ``sample_step`` — both left as ``None`` in the returned plan;
+       driver selects topology at call time based on stage_set slot occupancy.
 
     References
     ----------

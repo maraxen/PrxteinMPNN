@@ -93,7 +93,7 @@ def make_score_fn(
         tie_group_map=tie_group_map,
         state_weights=state_weights,
         bias=bias,
-        y=y, y_t=y_t, y_m=y_m,
+        ligand_coords=y, ligand_atom_types=y_t, ligand_mask=y_m,
         mode="score_conditional",
         strategy=multi_state_strategy,
         strategy_temperature=multi_state_temperature,

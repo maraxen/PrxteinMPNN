@@ -116,10 +116,10 @@ class ProteinFeaturesLigand(eqx.Module):
     # <=0 restores legacy monolithic (L*M*M,) GEMMs (fine for small L / debugging parity).
     ligand_l_chunk: int = eqx.field(static=True)
 
-    def _make_angle_features(self, A: jax.Array, B: jax.Array, C: jax.Array, Y: jax.Array) -> jax.Array:
+    def _make_angle_features(self, atom_n: jax.Array, atom_ca: jax.Array, atom_c: jax.Array, ligand_atom_coords: jax.Array) -> jax.Array:
         """Port of _make_angle_features from PyTorch."""
-        v1 = A - B
-        v2 = C - B
+        v1 = atom_n - atom_ca
+        v2 = atom_c - atom_ca
         e1 = v1 / (jnp.linalg.norm(v1, axis=-1, keepdims=True) + 1e-8)
         e1_v2_dot = jnp.sum(e1 * v2, axis=-1, keepdims=True)
         u2 = v2 - e1 * e1_v2_dot
@@ -129,9 +129,9 @@ class ProteinFeaturesLigand(eqx.Module):
         # R_residue: (L, 3, 3) relative rotation matrix
         R_residue = jnp.stack([e1, e2, e3], axis=-1)
 
-        # local_vectors: relative position of Y in residue frame
+        # local_vectors: relative position of ligand_atom_coords in residue frame
         # (L, M, 3)
-        diff = Y - B[:, None, :]
+        diff = ligand_atom_coords - atom_ca[:, None, :]
         local_vectors = jnp.einsum("lqp, lym -> lyp", R_residue, diff)
 
         rxy = jnp.sqrt(local_vectors[..., 0]**2 + local_vectors[..., 1]**2 + 1e-8)
@@ -219,9 +219,9 @@ class ProteinFeaturesLigand(eqx.Module):
         mask: AlphaCarbonMask,
         residue_index: ResidueIndex,
         chain_index: ChainIndex,
-        Y: jnp.ndarray,    # Ligand coords [L, M, 3]
-        Y_t: jnp.ndarray,  # Ligand types [L, M]
-        Y_m: jnp.ndarray,  # Ligand mask [L, M]
+        ligand_coords: jnp.ndarray,    # Ligand coords [L, M, 3]
+        ligand_atom_types: jnp.ndarray,  # Ligand types [L, M]
+        ligand_mask: jnp.ndarray,  # Ligand mask [L, M]
         backbone_noise: float = 0.0,
         structure_mapping: jnp.ndarray | None = None,
         *,
@@ -317,22 +317,22 @@ class ProteinFeaturesLigand(eqx.Module):
             r_m = r_m.reshape(mask.shape[0], -1)
             r_t = r_t.reshape(mask.shape[0], -1)
 
-            Y = jnp.concatenate([r, Y], axis=1)
-            Y_m = jnp.concatenate([r_m.astype(Y_m.dtype), Y_m], axis=1)
-            Y_t = jnp.concatenate([r_t.astype(Y_t.dtype), Y_t], axis=1)
+            ligand_coords = jnp.concatenate([r, ligand_coords], axis=1)
+            ligand_mask = jnp.concatenate([r_m.astype(ligand_mask.dtype), ligand_mask], axis=1)
+            ligand_atom_types = jnp.concatenate([r_t.astype(ligand_atom_types.dtype), ligand_atom_types], axis=1)
 
-            cb_y_distances = jnp.sum((Cb[:, None, :] - Y) ** 2, axis=-1)
-            mask_y = mask[:, None] * Y_m
+            cb_y_distances = jnp.sum((Cb[:, None, :] - ligand_coords) ** 2, axis=-1)
+            mask_y = mask[:, None] * ligand_mask
             cb_y_distances_adjusted = cb_y_distances * mask_y + (1.0 - mask_y) * 10000.0
             _, e_idx_y = jax.lax.top_k(-cb_y_distances_adjusted, self.atom_context_num)
 
-            Y = jnp.take_along_axis(Y, e_idx_y[:, :, None], axis=1)
-            Y_t = jnp.take_along_axis(Y_t, e_idx_y, axis=1)
-            Y_m = jnp.take_along_axis(Y_m, e_idx_y, axis=1)
+            ligand_coords = jnp.take_along_axis(ligand_coords, e_idx_y[:, :, None], axis=1)
+            ligand_atom_types = jnp.take_along_axis(ligand_atom_types, e_idx_y, axis=1)
+            ligand_mask = jnp.take_along_axis(ligand_mask, e_idx_y, axis=1)
 
         # 2. Node/Ligand Features
         # type_1hot: (L, M, 147)
-        Y_t_cast = Y_t.astype(jnp.int32)
+        Y_t_cast = ligand_atom_types.astype(jnp.int32)
         Y_t_g = PERIODIC_TABLE_FEATURES[1, Y_t_cast]
         Y_t_p = PERIODIC_TABLE_FEATURES[2, Y_t_cast]
 
@@ -344,13 +344,13 @@ class ProteinFeaturesLigand(eqx.Module):
 
         Y_t_1hot = jax.vmap(jax.vmap(self.type_linear))(Y_t_1hot_)
 
-        r_n_y = self._rbf(jnp.sqrt(jnp.sum((N[:, None, :] - Y)**2, axis=-1) + 1e-6))
-        r_ca_y = self._rbf(jnp.sqrt(jnp.sum((Ca[:, None, :] - Y)**2, axis=-1) + 1e-6))
-        r_c_y = self._rbf(jnp.sqrt(jnp.sum((C[:, None, :] - Y)**2, axis=-1) + 1e-6))
-        r_o_y = self._rbf(jnp.sqrt(jnp.sum((O[:, None, :] - Y)**2, axis=-1) + 1e-6))
-        r_cb_y = self._rbf(jnp.sqrt(jnp.sum((Cb[:, None, :] - Y)**2, axis=-1) + 1e-6))
+        r_n_y = self._rbf(jnp.sqrt(jnp.sum((N[:, None, :] - ligand_coords)**2, axis=-1) + 1e-6))
+        r_ca_y = self._rbf(jnp.sqrt(jnp.sum((Ca[:, None, :] - ligand_coords)**2, axis=-1) + 1e-6))
+        r_c_y = self._rbf(jnp.sqrt(jnp.sum((C[:, None, :] - ligand_coords)**2, axis=-1) + 1e-6))
+        r_o_y = self._rbf(jnp.sqrt(jnp.sum((O[:, None, :] - ligand_coords)**2, axis=-1) + 1e-6))
+        r_cb_y = self._rbf(jnp.sqrt(jnp.sum((Cb[:, None, :] - ligand_coords)**2, axis=-1) + 1e-6))
 
-        f_angles = self._make_angle_features(N, Ca, C, Y)
+        f_angles = self._make_angle_features(N, Ca, C, ligand_coords)
 
         D_all = jnp.concatenate([r_n_y, r_ca_y, r_c_y, r_o_y, r_cb_y, Y_t_1hot, f_angles], axis=-1)
         V = jax.vmap(jax.vmap(self.node_project_down))(D_all)
@@ -358,10 +358,10 @@ class ProteinFeaturesLigand(eqx.Module):
 
         # Ligand–ligand edges: O(L·M²); chunk axis L when ligand_l_chunk > 0
         if self.ligand_l_chunk <= 0:
-            Y_edges = self._y_edges_coords_to_embed(Y)
+            Y_edges = self._y_edges_coords_to_embed(ligand_coords)
         else:
             Y_edges = map_chunks_axis0(
-                Y,
+                ligand_coords,
                 chunk_size=self.ligand_l_chunk,
                 # Unbound callable avoids JAX 0.9.x WeakKeyDictionary cache keying BoundMethod(self=_)
                 # when outer JIT traces bool from autoregressive submatrices (TracerBoolConversionError).
@@ -381,4 +381,4 @@ class ProteinFeaturesLigand(eqx.Module):
         Y_edges = jax.vmap(jax.vmap(jax.vmap(self.norm_y_edges)))(Y_edges)
         Y_nodes = jax.vmap(jax.vmap(self.norm_y_nodes))(Y_nodes)
 
-        return V, E, E_idx, Y_nodes, Y_edges, Y_m
+        return V, E, E_idx, Y_nodes, Y_edges, ligand_mask

@@ -206,6 +206,11 @@ dev = [
     "torch>=2.9.1",
     "pytest>=8.0.0",
     "pytest-xdist>=3.5.0",
+    # Heavy parity: packer test requires Bio (sc_utils PDB IO) and dm-tree (sc_utils import tree).
+    "biopython>=1.83",
+    "dm-tree>=0.1.8",
+    # scipy.stats.pearsonr used in soluble/membrane parity tests.
+    "scipy>=1.12.0",
 ]
 
 [tool.setuptools.package-data]

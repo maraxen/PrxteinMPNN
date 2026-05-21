@@ -199,6 +199,8 @@ result = plan.sample(bundle, key, config)   # → SampleResult(sequence, logits)
 logits = plan.score(bundle, key, config)    # → (L, 21)
 ```
 
+Plain callables and lambdas work in all `StageSet` slots (the driver uses `eqx.filter_jit`). Use `eqx.Module` only when the callable carries JAX array leaves (e.g. weights that need grad).
+
 See [Composition Guide](docs/COMPOSITION_GUIDE.md) for the five extension points (`logit_transform`, `ar_logit_transform`, `decode_step`, `sample_step`, `tie_group_fuse`).
 
 ### CLI

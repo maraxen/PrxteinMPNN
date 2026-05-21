@@ -49,3 +49,6 @@ logs/
 .praxia/fast_pytest*.log
 venv/
 scratch/
+
+# fastembed / embedding model cache (ONNX blobs, never commit)
+.fastembed_cache/

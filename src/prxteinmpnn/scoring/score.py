@@ -112,9 +112,9 @@ def make_score_fn(
     # We use the first state's mask as a proxy for the system mask.
     mask_flat = mask[0]
     masked_score_sum = (score * mask_flat).sum(-1)
-    mask_sum = mask_flat.sum() + 1e-8
+    mask_sum = mask_flat.sum() + 1e-8  # epsilon guards the division below
 
-    return masked_score_sum / mask_sum, logits, decoding_order
+    return masked_score_sum / mask_sum, logits, decoding_order  # noqa: JL012
 
   return cast("ScoreFn", score_sequence)
 

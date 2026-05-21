@@ -197,9 +197,17 @@ allowed-unresolved-imports = ["proxide.**", "prolix.**"]
 invalid-type-form = "ignore"
 
 [tool.jaxlint]
-# JAX-oriented static checks (JL*). Optional local runs: ``uv run jaxlint check src --no-doc``.
-# Default CI does not gate on jaxlint (upstream may emit false positives while the tool matures).
-select = ["JL"]
+# JAX-oriented static checks. Advisory only — not a CI gate.
+# JL: perf/API anti-patterns. JD: docstring completeness. JM: MathJax notation.
+select = ["JL", "JD", "JM"]
+docstring-style = "numpy"
+required-sections = ["Parameters", "Returns"]
+
+[tool.jaxlint.per_file_ignores]
+# Tests: skip docstring enforcement entirely.
+"tests/**" = ["JD001", "JD002", "JD004", "JD005"]
+# Scripts: advisory context, not public API.
+"scripts/**" = ["JD001", "JD002", "JD004", "JD005"]
 
 [dependency-groups]
 dev = [

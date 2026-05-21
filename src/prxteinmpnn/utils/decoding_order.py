@@ -10,10 +10,11 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
-from .autoregression import get_decoding_step_map
 from prxteinmpnn.types.arrays import (
   DecodingOrder,
 )
+
+from .autoregression import get_decoding_step_map
 
 DecodingOrderInputs = tuple[PRNGKeyArray, int, jnp.ndarray | None]  # Added tie_group_map
 DecodingOrderOutputs = tuple[DecodingOrder, PRNGKeyArray]

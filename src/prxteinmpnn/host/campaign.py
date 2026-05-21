@@ -39,25 +39,25 @@ logger = logging.getLogger(__name__)
 # TODO(TASK-2): Implement manifest functions (build_manifest_row, load_manifest, etc.)
 # These were intended to be in prxteinmpnn.run.campaign_manifest but that module does not exist.
 # See .praxia/TECHNICAL_DEBT.md for migration context.
-def build_manifest_row(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401, ANN002, ANN003
+def build_manifest_row(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
   """Stub: build_manifest_row not yet implemented."""
   msg = "build_manifest_row is not yet implemented. See TECHNICAL_DEBT.md for context."
   raise NotImplementedError(msg)
 
 
-def load_manifest(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401, ANN002, ANN003
+def load_manifest(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
   """Stub: load_manifest not yet implemented."""
   msg = "load_manifest is not yet implemented. See TECHNICAL_DEBT.md for context."
   raise NotImplementedError(msg)
 
 
-def validate_manifest_rows(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401, ANN002, ANN003
+def validate_manifest_rows(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
   """Stub: validate_manifest_rows not yet implemented."""
   msg = "validate_manifest_rows is not yet implemented. See TECHNICAL_DEBT.md for context."
   raise NotImplementedError(msg)
 
 
-def write_manifest(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401, ANN002, ANN003
+def write_manifest(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
   """Stub: write_manifest not yet implemented."""
   msg = "write_manifest is not yet implemented. See TECHNICAL_DEBT.md for context."
   raise NotImplementedError(msg)

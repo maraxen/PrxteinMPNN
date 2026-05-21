@@ -26,16 +26,16 @@ from .mpnn import PrxteinMPNN
 from .packer import Packer
 
 __all__ = [
-  "PrxteinMPNN",
-  "PrxteinLigandMPNN",
-  "DiffusionPrxteinMPNN",
-  "Packer",
-  "Encoder",
-  "EncoderLayer",
+  "PRXTEIN_LIGAND_MPNN_CAPABILITIES",
+  "PRXTEIN_MPNN_CAPABILITIES",
   "Decoder",
   "DecoderLayer",
-  "ProteinFeatures",
+  "DiffusionPrxteinMPNN",
+  "Encoder",
+  "EncoderLayer",
   "ModelCapabilities",
-  "PRXTEIN_MPNN_CAPABILITIES",
-  "PRXTEIN_LIGAND_MPNN_CAPABILITIES",
+  "Packer",
+  "ProteinFeatures",
+  "PrxteinLigandMPNN",
+  "PrxteinMPNN",
 ]

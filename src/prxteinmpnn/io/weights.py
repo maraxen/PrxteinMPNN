@@ -11,10 +11,10 @@ import jax
 import jax.nn.initializers as init
 import zstandard as zstd
 
-from prxteinmpnn.model.versions import MODEL_VERSION, MODEL_WEIGHTS
 from prxteinmpnn.model import PrxteinLigandMPNN, PrxteinMPNN
 from prxteinmpnn.model.diffusion_mpnn import DiffusionPrxteinMPNN
 from prxteinmpnn.model.packer import Packer
+
 HF_REPO_ID = "maraxen/prxteinmpnn"  # Legacy reference
 
 NODE_FEATURES = 128

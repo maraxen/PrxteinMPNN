@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import sys
 import warnings
 from collections.abc import MutableMapping, Sequence
 from dataclasses import dataclass, field

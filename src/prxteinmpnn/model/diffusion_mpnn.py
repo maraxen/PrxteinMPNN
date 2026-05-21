@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 import equinox as eqx
 import jax
@@ -12,13 +12,7 @@ from prxteinmpnn.model.mpnn import PrxteinMPNN
 
 if TYPE_CHECKING:
   from prxteinmpnn.types.arrays import (
-    AlphaCarbonMask,
-    ChainIndex,
-    Logits,
-    OneHotProteinSequence,
     PRNGKeyArray,
-    ResidueIndex,
-    StructureAtomicCoordinates,
   )
 
 
@@ -191,7 +185,7 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
       backbone_noise_mode=backbone_noise_mode,
       structure_mapping=structure_mapping,
       initial_node_features=initial_node_features,
-      **kwargs
+      **kwargs,
     )
 
     # 2. Inject Timestep Embedding (if provided)

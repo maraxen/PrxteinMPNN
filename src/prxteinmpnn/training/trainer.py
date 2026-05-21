@@ -388,7 +388,7 @@ def train_step(  # noqa: PLR0915
       # Decode
       decoded = diff_model.decoder.call_conditional(
           node_features, edge_features, edge_indices, mask, ar_mask, noisy_seq,
-          diff_model.w_s_embed.weight, key=key, inference=False
+          diff_model.w_s_embed.weight, key=key, inference=False,
       )
       logits = jax.vmap(diff_model.w_out)(decoded)
       return logits
@@ -396,7 +396,7 @@ def train_step(  # noqa: PLR0915
     # 2. Decode (Conditional MPNN)
     decoded = m.decoder.call_conditional(
       node_features, edge_features, edge_indices, mask, ar_mask, one_hot_seq,
-      m.w_s_embed.weight, key=key, inference=False
+      m.w_s_embed.weight, key=key, inference=False,
     )
     logits = jax.vmap(m.w_out)(decoded)
     return logits
@@ -613,7 +613,7 @@ def eval_step(
       # Decode
       decoded = diff_model.decoder.call_conditional(
           node_features, edge_features, edge_indices, msk, jnp.ones((msk.shape[0], msk.shape[0])), noisy_seq,
-          diff_model.w_s_embed.weight, key=key, inference=True
+          diff_model.w_s_embed.weight, key=key, inference=True,
       )
       logits = jax.vmap(diff_model.w_out)(decoded)
       return logits
@@ -621,7 +621,7 @@ def eval_step(
     # 2. Decode (Unconditional/Conditional)
     decoded = inference_model.decoder.call_conditional(
       node_features, edge_features, edge_indices, msk, jnp.ones((msk.shape[0], msk.shape[0])), jax.nn.one_hot(seq, 21),
-      inference_model.w_s_embed.weight, key=key, inference=True
+      inference_model.w_s_embed.weight, key=key, inference=True,
     )
     logits = jax.vmap(inference_model.w_out)(decoded)
     return logits

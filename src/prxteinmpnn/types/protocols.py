@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 import equinox as eqx
 import jax
-from jaxtyping import Array, Float, Int, PRNGKeyArray
+from jaxtyping import Float, PRNGKeyArray
 
 if TYPE_CHECKING:
     from prxteinmpnn.model.capabilities import ModelCapabilities
@@ -17,9 +17,6 @@ if TYPE_CHECKING:
     from prxteinmpnn.model.encoder import Encoder, PhysicsEncoder
     from prxteinmpnn.model.features import ProteinFeatures
     from prxteinmpnn.model.ligand_features import ProteinFeaturesLigand
-    from prxteinmpnn.types.bundles import InferenceBundle
-    from prxteinmpnn.types.configs import InferenceConfig
-    from prxteinmpnn.types.stages import StageSet
     from prxteinmpnn.types.arrays import (
         AlphaCarbonMask,
         AutoRegressiveMask,
@@ -31,6 +28,9 @@ if TYPE_CHECKING:
         ResidueIndex,
         StructureAtomicCoordinates,
     )
+    from prxteinmpnn.types.bundles import InferenceBundle
+    from prxteinmpnn.types.configs import InferenceConfig
+    from prxteinmpnn.types.stages import StageSet
 
 
 @runtime_checkable
@@ -136,7 +136,7 @@ class ModelProtocol(Protocol):
     w_s_embed: eqx.nn.Embedding
     capabilities: ModelCapabilities
 
-    def __call__(self, key: PRNGKeyArray, **kwargs: jax.Array | str | float | int | bool | None) -> tuple[jax.Array, jax.Array, jax.Array]:
+    def __call__(self, key: PRNGKeyArray, **kwargs: jax.Array | str | float | bool | None) -> tuple[jax.Array, jax.Array, jax.Array]:
         ...
 
     @classmethod
@@ -161,10 +161,10 @@ class Pipeline(Protocol):
 
 __all__ = [
     "ConditionalLogitsFn",
-    "UnconditionalLogitsFn",
-    "SamplerFn",
-    "ScoreFn",
     "DesignSink",
     "ModelProtocol",
     "Pipeline",
+    "SamplerFn",
+    "ScoreFn",
+    "UnconditionalLogitsFn",
 ]

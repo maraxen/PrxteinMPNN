@@ -1,5 +1,6 @@
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence, cast
+from typing import Any, cast
 
 import jax
 import jax.numpy as jnp

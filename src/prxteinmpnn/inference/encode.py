@@ -10,7 +10,8 @@ The make_encode_fn factory controls the strategy (scan vs vmap over S).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, Any
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 import jax
 import jax.numpy as jnp
@@ -18,10 +19,9 @@ import jax.numpy as jnp
 from prxteinmpnn.types.encodings import EncoderOutput
 
 if TYPE_CHECKING:
-    from prxteinmpnn.types.protocols import ModelProtocol
     from prxteinmpnn.types.bundles import InferenceBundle
     from prxteinmpnn.types.configs import InferenceConfig
-    from prxteinmpnn.types.arrays import PRNGKeyArray
+    from prxteinmpnn.types.protocols import ModelProtocol
 
 
 # Type alias for the encode function returned by make_encode_fn
@@ -164,4 +164,4 @@ def make_encode_fn(model: ModelProtocol, *, use_rolling_state: bool = False) -> 
     return encode_fn
 
 
-__all__ = ["make_encode_fn", "EncodeFn"]
+__all__ = ["EncodeFn", "make_encode_fn"]

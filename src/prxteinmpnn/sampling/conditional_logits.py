@@ -24,14 +24,10 @@ from typing import cast
 
 import equinox as eqx
 import jax
-import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-from prxteinmpnn.inference.encode import make_encode_fn
 from prxteinmpnn.inference.score_conditional import kernel as score_conditional
-from prxteinmpnn.types.encodings import EncoderOutput
-from prxteinmpnn.types.protocols import ConditionalLogitsFn, ModelProtocol
 from prxteinmpnn.types.arrays import (
   AlphaCarbonMask,
   AutoRegressiveMask,
@@ -42,6 +38,8 @@ from prxteinmpnn.types.arrays import (
   ResidueIndex,
   StructureAtomicCoordinates,
 )
+from prxteinmpnn.types.encodings import EncoderOutput
+from prxteinmpnn.types.protocols import ConditionalLogitsFn, ModelProtocol
 
 
 def _eqx_module_hash(self: object) -> int:  # pragma: no cover - safe shim
@@ -121,7 +119,7 @@ def make_conditional_logits_fn(
         mode="score_conditional",
         strategy="arithmetic_mean",
         use_rolling_state=False,
-        inference=True
+        inference=True,
     )
 
     return score_conditional(
@@ -129,7 +127,7 @@ def make_conditional_logits_fn(
         prng_key=prng_key,
         bundle=bundle,
         config=config,
-        stage_set=stage_set
+        stage_set=stage_set,
     )
 
   return cast("ConditionalLogitsFn", conditional_logits)

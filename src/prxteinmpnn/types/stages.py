@@ -13,18 +13,16 @@ Tier 2 Aliases (MPNN-specific):
 
 from __future__ import annotations
 
-from typing import Any, Protocol, TypeVar, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, TypeVar, runtime_checkable
 
 import equinox as eqx
 from jaxtyping import Array, Float, Int
 
-from prxteinmpnn.inference.logits import (
-    ArithmeticMeanLogits,
-    BatchLogitFn,
-    GeometricMeanLogits,
-    ProductOfProbabilities,
-    TieGroupFuseFn,
-)
+if TYPE_CHECKING:
+    from prxteinmpnn.inference.logits import (
+        BatchLogitFn,
+        TieGroupFuseFn,
+    )
 
 # Type variables for generic protocols
 In = TypeVar("In")
@@ -58,7 +56,7 @@ class RollingFn(Protocol[Carry, In, Out]):
         ...
 
     def __call__(
-        self, carry: Carry, state_idx: Int[Array, ""], input: In
+        self, carry: Carry, state_idx: Int[Array, ""], input: In,
     ) -> tuple[Carry, Out]:
         ...
 
@@ -112,12 +110,12 @@ class ConditionalDecodeStep(eqx.Module):
         seq_oh: Any,
         *,
         key: Any,
-        inference: Any
+        inference: Any,
     ) -> Any:
         """Decode conditional given node features, edges, and sequence one-hot."""
         return self.decoder.call_conditional(
             node_f, edge_f, nei, mask, ar_mask, seq_oh, self.w_s_embed,
-            key=key, inference=inference
+            key=key, inference=inference,
         )
 
 
@@ -137,7 +135,7 @@ class UnconditionalDecodeStep(eqx.Module):
         mask: Any,
         *,
         key: Any,
-        inference: Any
+        inference: Any,
     ) -> Any:
         """Decode unconditional given node features and edges."""
         return self.decoder(node_f, edge_f, nei, mask, key=key, inference=inference)
@@ -164,20 +162,20 @@ class StageSet(eqx.Module):
 
 
 __all__ = [
-    "TransformFn",
-    "RollingFn",
-    "FuseFn",
-    "FeaturizeFn",
-    "EncoderStepFn",
-    "EncoderStateFn",
-    "ProteinEncodeFn",
-    "LigandEncodeFn",
-    "ConditionalDecodeFn",
-    "UnconditionalDecodeFn",
-    "ConditionalDecodeStep",
-    "UnconditionalDecodeStep",
-    "LogitTransformFn",
     "ARLogitTransformFn",
+    "ConditionalDecodeFn",
+    "ConditionalDecodeStep",
+    "EncoderStateFn",
+    "EncoderStepFn",
+    "FeaturizeFn",
+    "FuseFn",
+    "LigandEncodeFn",
+    "LogitTransformFn",
+    "ProteinEncodeFn",
+    "RollingFn",
     "StageSet",
     "TieGroupFuseFn",
+    "TransformFn",
+    "UnconditionalDecodeFn",
+    "UnconditionalDecodeStep",
 ]

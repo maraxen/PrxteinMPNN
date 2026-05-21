@@ -7,60 +7,46 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-import jax
 import jax.numpy as jnp
 
 from prxteinmpnn.host._sampling_averaged import _sample_batch_averaged
-from prxteinmpnn.host.kernel_dispatch import _sample_batch
 from prxteinmpnn.host._sampling_grid_lineage import (
-  _base_sampling_key,
-  _resolve_grid_lineage,
-  _grid_manifest_row_hash,
   _grid_iteration_arrays,
+  _grid_manifest_row_hash,
   _grid_sample_indices,
+  _resolve_grid_lineage,
 )
 from prxteinmpnn.host._sampling_helper import (
   _canonical_structure_ids_for_spec,
   _structure_ids_for_batch,
 )
 from prxteinmpnn.host.averaging import make_encoding_sampling_split_fn
+from prxteinmpnn.host.kernel_dispatch import _sample_batch
 from prxteinmpnn.host.logit_aggregation import (
-    pad_to_max,
-    aggregate_logits,
-    aggregate_pseudo_perplexities,
+  aggregate_logits,
+  aggregate_pseudo_perplexities,
+  pad_to_max,
+)
+from prxteinmpnn.host.plan import (
+  resolve_chunk_size,
+  resolve_target_samples,
 )
 from prxteinmpnn.host.streaming import (
-    _sample_streaming,
-    _sample_streaming_averaged,
-    SAMPLING_SCHEMA_VERSION,
-    GRID_SCHEMA_VERSION,
+  GRID_SCHEMA_VERSION,
+  SAMPLING_SCHEMA_VERSION,
+  _sample_streaming,
+  _sample_streaming_averaged,
 )
 from prxteinmpnn.host.streaming_host import StreamingBatchHost
-from prxteinmpnn.host.plan import (
-    resolve_target_samples,
-    resolve_chunk_size,
-)
-from .prep import prep_protein_stream_and_model
 from prxteinmpnn.run.specs import SamplingSpecification, pop_deprecated_spec_kwargs
 
+from .prep import prep_protein_stream_and_model
+
 if TYPE_CHECKING:
-  from collections.abc import Callable, Sequence
 
   from grain.python import IterDataset
-  from jaxtyping import PRNGKeyArray
 
   from prxteinmpnn.model.mpnn import PrxteinMPNN
-  from prxteinmpnn.utils.data_structures import Protein
-  from prxteinmpnn.types.arrays import (
-    AlphaCarbonMask,
-    AutoRegressiveMask,
-    BackboneCoordinates,
-    ChainIndex,
-    DecodingOrder,
-    Logits,
-    ProteinSequence,
-    ResidueIndex,
-  )
 
 logger = logging.getLogger(__name__)
 _batch_logger = logging.getLogger(__name__ + ".batch_plan")

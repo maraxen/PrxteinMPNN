@@ -30,11 +30,11 @@ class GeometryBundle(eqx.Module):
 
 class ConditioningBundle(eqx.Module):
     """Sequence conditioning — fully resolved, no Optional."""
-    fixed_mask: Float[Array, "L"]
-    fixed_tokens: Int[Array, "L"]
+    fixed_mask: Float[Array, L]
+    fixed_tokens: Int[Array, L]
     bias: Float[Array, "L V"]
     tie_group_map: Int[Array, "S L"]
-    state_weights: Float[Array, "S"]
+    state_weights: Float[Array, S]
     sequence_oh: Float[Array, "L V"]  # zeros for unconditional/AR
     ar_mask: Float[Array, "S L L"]  # full 1s for purely conditional
     temperature: Float[Array, ""] = eqx.field(default_factory=lambda: jnp.array(1.0))
@@ -55,8 +55,8 @@ class WaveScheduleBundle(eqx.Module):
 
     @staticmethod
     def from_tie_groups(
-        tie_group_map: Int[Array, "L"],
-        decoding_order: Int[Array, "L"]
+        tie_group_map: Int[Array, L],
+        decoding_order: Int[Array, L],
     ) -> WaveScheduleBundle:
         """Create a schedule where tied positions are in the same wave step."""
         L = tie_group_map.shape[0]
@@ -64,7 +64,7 @@ class WaveScheduleBundle(eqx.Module):
         # (Assuming decoding_order respects ties: positions in same tie group
         # must appear consecutively or be handled as a block)
         # For now, let's group by tie_group_map.
-        
+
         # Unique tie groups in order of first appearance in decoding_order
         present_groups = []
         seen_groups = set()
@@ -73,15 +73,15 @@ class WaveScheduleBundle(eqx.Module):
             if g not in seen_groups:
                 present_groups.append(g)
                 seen_groups.add(g)
-        
+
         W = len(present_groups)
         # Maximum positions in a group
         counts = jnp.bincount(tie_group_map)
         P = int(jnp.max(counts))
         G = 1 # One tie-group per wave step for simplicity
-        
+
         group_ids = jnp.array(present_groups)[:, None] # (W, 1)
-        
+
         # group_positions: (W, 1, P)
         # This is tricky to do in JAX without loops if we want it general.
         # But since this is host-side factory, we can use loops.
@@ -91,19 +91,19 @@ class WaveScheduleBundle(eqx.Module):
             # Pad to P
             padded = jnp.pad(indices, (0, P - len(indices)), constant_values=-1)
             pos_list.append(padded)
-        
+
         group_positions = jnp.array(pos_list)[:, None, :]
         group_valid = jnp.ones((W, 1), dtype=jnp.bool_)
         position_valid = group_positions != -1
-        
+
         # Replace -1 with 0 to avoid index errors (masked by position_valid)
         group_positions = jnp.where(position_valid, group_positions, 0)
-        
+
         return WaveScheduleBundle(
             group_ids=group_ids,
             group_positions=group_positions,
             group_valid=group_valid,
-            position_valid=position_valid
+            position_valid=position_valid,
         )
 
     @staticmethod
@@ -118,7 +118,7 @@ class WaveScheduleBundle(eqx.Module):
             group_ids=group_ids,
             group_positions=group_positions,
             group_valid=group_valid,
-            position_valid=position_valid
+            position_valid=position_valid,
         )
 
 
@@ -155,13 +155,13 @@ class PackerResult(eqx.Module):
 
 class PackerBundle(eqx.Module):
     """Input features for side-chain packing."""
-    s: Int[Array, "L"]
+    s: Int[Array, L]
     x: Float[Array, "L 14 3"]
     x_m: Float[Array, "L 14"]
     y: Float[Array, "L M 3"]
     y_m: Float[Array, "L M"]
     y_t: Float[Array, "L M"]
-    mask: Float[Array, "L"]
-    residue_index: Int[Array, "L"]
-    chain_labels: Int[Array, "L"]
+    mask: Float[Array, L]
+    residue_index: Int[Array, L]
+    chain_labels: Int[Array, L]
     backbone_noise: Float[Array, ""] = 0.0

@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import warnings
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 import h5py
 import numpy as np
 
-from prxteinmpnn.io.designs import DesignArrayRecordWriter, DesignMetadata, DesignPayload
 from prxteinmpnn.host._sampling_grid_lineage import (
     _grid_iteration_arrays,
     _grid_manifest_row_hash,
@@ -24,21 +24,20 @@ from prxteinmpnn.host.output_sinks import (
     streaming_tensor_sink_session,
     take_staging_sequences_logits,
 )
-from prxteinmpnn.host.streaming_host import StreamingBatchHost
 from prxteinmpnn.host.plan import (
     resolve_chunk_size,
     resolve_sample_start,
     resolve_target_samples,
 )
+from prxteinmpnn.host.streaming_host import StreamingBatchHost
+from prxteinmpnn.io.designs import DesignArrayRecordWriter, DesignMetadata, DesignPayload
 from prxteinmpnn.run.specs import SamplingSpecification
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
 
     from grain.python import IterDataset
 
     from prxteinmpnn.host.streaming_host import ModelProtocol
-    from prxteinmpnn.utils.data_structures import Protein
 
 
 SAMPLING_SCHEMA_VERSION = "sampling_v1"

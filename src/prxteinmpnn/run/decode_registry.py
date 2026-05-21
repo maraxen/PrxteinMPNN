@@ -9,10 +9,7 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import sys
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-  from prxteinmpnn.types.stages import LogitTransformFn
+from typing import Any
 
 
 @dataclasses.dataclass

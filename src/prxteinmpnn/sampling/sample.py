@@ -1,32 +1,17 @@
 """Factory for creating sequence sampling functions for PrxteinMPNN."""
 
-from collections.abc import Callable
 from functools import partial
 from typing import Literal, cast
 
 import jax
 import jax.numpy as jnp
-from jaxtyping import Float, Int, PRNGKeyArray
+from jaxtyping import PRNGKeyArray
 
+from prxteinmpnn.inference import optimize_ste, sample_autoregressive
+from prxteinmpnn.inference.bundle_builder import build_inference_bundle
 from prxteinmpnn.registry import SAMPLERS
 from prxteinmpnn.types.protocols import ModelProtocol, SamplerFn
-from prxteinmpnn.types.configs import InferenceConfig
-from prxteinmpnn.types.stages import StageSet
-from prxteinmpnn.inference import sample_autoregressive, optimize_ste
-from prxteinmpnn.inference.bundle_builder import build_inference_bundle
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
-from prxteinmpnn.types.arrays import (
-  AlphaCarbonMask,
-  BackboneNoise,
-  ChainIndex,
-  DecodingOrder,
-  InputBias,
-  Logits,
-  ProteinSequence,
-  ResidueIndex,
-  StructureAtomicCoordinates,
-)
-
 
 _AMINO_ACID_VOCAB = 21
 
@@ -92,7 +77,7 @@ def make_sample_sequences(
       y_t: jax.Array | None = None,
       y_m: jax.Array | None = None,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
-      
+
       L = structure_coordinates.shape[1] if structure_coordinates.ndim == 4 else structure_coordinates.shape[0]
       S = structure_coordinates.shape[0] if structure_coordinates.ndim == 4 else 1
 
@@ -113,18 +98,18 @@ def make_sample_sequences(
           strategy=multi_state_strategy,
           strategy_temperature=multi_state_temperature,
           use_rolling_state=use_rolling_state,
-          inference=True
+          inference=True,
       )
-      
+
       final_seq, final_logits, _ = optimize_fn(
-          prng_key, 
-          bundle, 
-          config, 
-          iterations, 
-          learning_rate, 
+          prng_key,
+          bundle,
+          config,
+          iterations,
+          learning_rate,
           temperature,
           use_rolling_state=use_rolling_state,
-          logit_combine_strategy=multi_state_strategy
+          logit_combine_strategy=multi_state_strategy,
       )
       return final_seq, final_logits, jnp.arange(L)
 
@@ -157,7 +142,7 @@ def make_sample_sequences(
       precomputed_edge_features: jax.Array | None = None,
       precomputed_neighbor_indices: jax.Array | None = None,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
-      
+
       L = structure_coordinates.shape[1] if structure_coordinates.ndim == 4 else structure_coordinates.shape[0]
       S = structure_coordinates.shape[0] if structure_coordinates.ndim == 4 else 1
 
@@ -168,9 +153,9 @@ def make_sample_sequences(
       ar_mask_single = generate_ar_mask(
           decoding_order if decoding_order is not None else jnp.arange(L),
           tie_group_map=tie_group_map,
-          num_groups=num_groups
+          num_groups=num_groups,
       )
-      
+
       bundle, config, stage_set = build_inference_bundle(
           coords=structure_coordinates,
           mask=mask,
@@ -189,7 +174,7 @@ def make_sample_sequences(
           strategy=multi_state_strategy,
           strategy_temperature=multi_state_temperature,
           use_rolling_state=use_rolling_state,
-          inference=True
+          inference=True,
       )
 
       result = sample_autoregressive.kernel(model, prng_key, bundle, config, stage_set)

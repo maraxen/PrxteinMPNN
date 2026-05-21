@@ -10,13 +10,13 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from prxteinmpnn.utils.align import align_sequences
 from prxteinmpnn.types.arrays import (
   CategoricalJacobian,
   InterproteinMapping,
   OneHotProteinSequence,
   ProteinSequence,
 )
+from prxteinmpnn.utils.align import align_sequences
 
 CombineCatJacPairFn = Callable[
   [

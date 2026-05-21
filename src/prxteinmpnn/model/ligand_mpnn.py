@@ -1,7 +1,7 @@
 """Ligand-conditioned MPNN (:class:`PrxteinLigandMPNN`) and ligand stack helpers."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING
 
 import equinox as eqx
 import jax
@@ -133,13 +133,13 @@ class PrxteinLigandMPNN(eqx.Module):
   @classmethod
   def stage_schema(cls) -> dict[str, type | None]:
     from prxteinmpnn.types.stages import (
+      ARLogitTransformFn,
       ConditionalDecodeFn,
-      UnconditionalDecodeFn,
+      EncoderStateFn,
       FeaturizeFn,
       LigandEncodeFn,
       LogitTransformFn,
-      ARLogitTransformFn,
-      EncoderStateFn,
+      UnconditionalDecodeFn,
     )
     return {
         "featurize": FeaturizeFn,
@@ -209,7 +209,7 @@ class PrxteinLigandMPNN(eqx.Module):
       backbone_noise=backbone_noise,
       structure_mapping=structure_mapping,
     )
-    
+
     h_V = jnp.zeros((E.shape[0], self.node_features_dim))
     h_E = E
 

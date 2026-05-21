@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from functools import partial
 from typing import TYPE_CHECKING
 
 import jax
@@ -26,7 +25,7 @@ def get_decoding_step_map(
   # Use N as a safe upper bound for num_groups if not provided
   N = tie_group_map.shape[0]
   M = group_decoding_order.shape[0]
-  
+
   group_to_step = (
     jnp.zeros(N, dtype=jnp.int32)
     .at[group_decoding_order].set(jnp.arange(M))
@@ -150,7 +149,7 @@ def generate_ar_mask(
 ) -> AutoRegressiveMask:
   """Get the autoregressive mask for the given decoding order."""
   N = decoding_order.shape[0]
-  
+
   if tie_group_map is None:
     row_indices = decoding_order[:, None]
     col_indices = decoding_order[None, :]
@@ -159,17 +158,17 @@ def generate_ar_mask(
     # Use N as the static size for range-based ops
     # group_mask: (N, N)
     group_mask = tie_group_map[decoding_order][None, :] == jnp.arange(N)[:, None]
-    
+
     # Identify which groups are actually present
     group_present = jnp.any(group_mask, axis=1)
-    
+
     # group_first_occurrence: (N,)
     group_first_occurrence = jnp.argmax(group_mask, axis=1)
-    
+
     # Sort groups by their first occurrence in the decoding order
     # We only care about present groups
     group_decoding_order = jnp.argsort(jnp.where(group_present, group_first_occurrence, N + 1))
-    
+
     # If num_groups is provided, we can use it to mask the decoding steps
     # but for now, we just use the full order found.
     # The decoding_step_map will only be indexed by tie_group_map.

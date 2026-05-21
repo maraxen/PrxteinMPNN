@@ -223,6 +223,11 @@ name = "pypi"
 url = "https://pypi.org/simple"
 explicit = true
 
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
 [tool.uv.sources]
 # Local workspace packages (parent `tev_design/pyproject.toml` workspace members:
 # `prxteinmpnn`, `prolix` only — jaxbeans is NOT a member today).
@@ -232,3 +237,5 @@ explicit = true
 prolix = { workspace = true }
 # Resolve proxide from PyPI (not sibling-folder discovery) when ../proxide exists.
 proxide = { index = "pypi" }
+# CPU-only torch: Engaging compute nodes have no cuDNN; PyPI default pulls the CUDA wheel.
+torch = { index = "pytorch-cpu" }

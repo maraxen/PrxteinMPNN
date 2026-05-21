@@ -257,6 +257,8 @@ class PhysicsEncoder(eqx.Module):
 
   layers: tuple[EncoderLayer, ...]
   physics_projection: eqx.nn.Linear
+  physics_norm: eqx.nn.LayerNorm
+  physics_w_v: eqx.nn.Linear
   node_feature_dim: int = eqx.field(static=True)
 
   def __init__(
@@ -271,12 +273,15 @@ class PhysicsEncoder(eqx.Module):
     key: PRNGKeyArray,
   ) -> None:
     self.node_feature_dim = node_features
-    keys = jax.random.split(key, num_layers + 1)
-    
+    # keys[0] → physics_projection, keys[1] → physics_w_v, keys[2:] → encoder layers
+    keys = jax.random.split(key, num_layers + 2)
+
     self.physics_projection = eqx.nn.Linear(
         physics_feature_dim, node_features, key=keys[0]
     )
-    
+    self.physics_norm = eqx.nn.LayerNorm(node_features)
+    self.physics_w_v = eqx.nn.Linear(node_features, node_features, key=keys[1])
+
     self.layers = tuple(
       EncoderLayer(
         node_features,
@@ -285,7 +290,7 @@ class PhysicsEncoder(eqx.Module):
         dropout_rate=dropout_rate,
         key=k,
       )
-      for k in keys[1:]
+      for k in keys[2:]
     )
 
   def __call__(
@@ -307,11 +312,16 @@ class PhysicsEncoder(eqx.Module):
     mask_2d = mask[:, None] * mask[None, :]
     mask_attend = jnp.take_along_axis(mask_2d, neighbor_indices.astype(jnp.int32), axis=1)
 
-    # Initial node features from initial_node_features (physics)
+    # Membrane init: W_v(LayerNorm(node_embedding(one_hot(labels))))
+    # All three layers operate per-residue → vmap over L.
     node_features = (
       jnp.zeros((edge_features.shape[0], self.node_feature_dim))
       if initial_node_features is None
-      else self.physics_projection(initial_node_features)
+      else jax.vmap(self.physics_w_v)(
+        jax.vmap(self.physics_norm)(
+          jax.vmap(self.physics_projection)(initial_node_features)
+        )
+      )
     )
 
     for i, layer in enumerate(self.layers):

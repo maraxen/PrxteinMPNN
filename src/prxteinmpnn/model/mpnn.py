@@ -118,6 +118,7 @@ class PrxteinMPNN(eqx.Module):
     y_t: jax.Array | None = None,
     y_m: jax.Array | None = None,
     inference: bool = True,
+    initial_node_features: jax.Array | None = None,
   ) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Single-state encoder: features + encoder for one conformational state.
 
@@ -145,7 +146,7 @@ class PrxteinMPNN(eqx.Module):
     if prng_key is None:
       prng_key = jax.random.PRNGKey(0)
 
-    edge_features, neighbor_indices, node_features, _ = self.features(
+    edge_features, neighbor_indices, feat_node_features, _ = self.features(
       prng_key,
       coords,
       mask,
@@ -155,11 +156,16 @@ class PrxteinMPNN(eqx.Module):
       backbone_noise_mode=backbone_noise_mode,
       structure_mapping=structure_mapping,
     )
+    # initial_node_features overrides ProteinFeatures output (always None for soluble);
+    # used by membrane models to pass one-hot physics labels through PhysicsEncoder.
+    effective_node_features = (
+      initial_node_features if initial_node_features is not None else feat_node_features
+    )
     node_features, edge_features = self.encoder(
       edge_features,
       neighbor_indices,
       mask,
-      initial_node_features=node_features,
+      initial_node_features=effective_node_features,
       key=prng_key,
     )
     return node_features, edge_features, neighbor_indices

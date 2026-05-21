@@ -33,6 +33,7 @@ def build_inference_bundle(
     y_t: jax.Array | None = None,
     y_m: jax.Array | None = None,
     structure_mapping: jax.Array | None = None,
+    physics_features: jax.Array | None = None,
     temperature: float = 1.0,
     mode: str = "score_conditional",
     strategy: str = "arithmetic_mean",
@@ -54,6 +55,8 @@ def build_inference_bundle(
             y = y[None, ...]
             y_t = y_t[None, ...]
             y_m = y_m[None, ...]
+        if physics_features is not None and physics_features.ndim == 2:
+            physics_features = physics_features[None, ...]
 
     # After normalization, all arrays must be 4D (or 2D for mask/indices when already batched)
     # Coords: always (S, L, 4, 3)
@@ -75,7 +78,8 @@ def build_inference_bundle(
         n_states=S,
         n_canonical=L,
         n_flat=L,
-        structure_mapping=structure_mapping
+        structure_mapping=structure_mapping,
+        physics_features=physics_features,
     )
     
     # 3. Conditioning

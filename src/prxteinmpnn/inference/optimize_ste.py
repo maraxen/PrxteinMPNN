@@ -122,10 +122,10 @@ def make_optimize_sequence_fn(
 
       def loss_fn(logits: Logits) -> Float:
         if use_concrete:
-          seq_repr = gumbel_softmax(logits / temperature, tau, gumbel_key, hard=True)
+          seq_repr = gumbel_softmax(logits / temperature, tau, gumbel_key, hard=True)  # noqa: JL012 — temperature is static float, caller-validated
           one_hot_sequence = seq_repr
         else:
-          one_hot_sequence = straight_through_estimator(logits / temperature)
+          one_hot_sequence = straight_through_estimator(logits / temperature)  # noqa: JL012 — temperature is static float, caller-validated
           seq_repr = one_hot_sequence # to prevent undefined variable in labels later
 
         def eval_with_mask(ar_mask: AutoRegressiveMask) -> Logits:
@@ -216,7 +216,7 @@ def make_optimize_sequence_fn(
     )
 
     final_logits = jnp.where(fixed_mask_bool[:, None], fixed_bias, final_logits)
-    final_one_hot = straight_through_estimator(final_logits / temperature)
+    final_one_hot = straight_through_estimator(final_logits / temperature)  # noqa: JL012 — temperature is static float, caller-validated
     final_sequence = final_one_hot.argmax(axis=-1).astype(jnp.int8)
 
     if writer is not None:

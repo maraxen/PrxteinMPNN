@@ -8,10 +8,30 @@ import numpy as np
 import pytest
 
 from prxteinmpnn.model.packer import Packer as JAXPacker
+from prxteinmpnn.types.bundles import PackerBundle
+from prxteinmpnn.types.configs import InferenceConfig
 from scripts.convert_weights import convert_packer_model
 from tests.parity.reference_utils import import_reference_module, require_heavy_parity_prereqs
 
 torch = pytest.importorskip("torch")
+
+_PACKER_KEY = jax.random.PRNGKey(0)
+_PACKER_CONFIG = InferenceConfig(inference=True)
+
+
+def _feature_dict_to_packer_bundle(fd: dict[str, jnp.ndarray]) -> PackerBundle:
+  """Convert uppercase-keyed feature dict to a ``PackerBundle``."""
+  return PackerBundle(
+    s=fd["S"].astype(jnp.int32),
+    x=fd["X"],
+    x_m=fd["X_m"],
+    y=fd["Y"],
+    y_m=fd["Y_m"],
+    y_t=fd["Y_t"],
+    mask=fd["mask"],
+    residue_index=fd["R_idx"].astype(jnp.int32),
+    chain_labels=fd["chain_labels"].astype(jnp.int32),
+  )
 
 
 def _forward_jax_packer_for_parity(
@@ -20,14 +40,14 @@ def _forward_jax_packer_for_parity(
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
   """Run JAX packer on CPU when available to align with reference ``device='cpu'`` numerics."""
   jax.config.update("jax_default_matmul_precision", "highest")
+  bundle = _feature_dict_to_packer_bundle(feature_dict_jax)
   cpu_devices = [d for d in jax.devices() if d.platform == "cpu"]
-  if not cpu_devices:
-    return jax_packer(feature_dict_jax)
-  try:
+  if cpu_devices:
     with jax.default_device(cpu_devices[0]):
-      return jax_packer(feature_dict_jax)
-  except (AttributeError, RuntimeError, TypeError, ValueError):
-    return jax_packer(feature_dict_jax)
+      result = jax_packer(_PACKER_KEY, bundle, _PACKER_CONFIG)
+  else:
+    result = jax_packer(_PACKER_KEY, bundle, _PACKER_CONFIG)
+  return result.mean, result.concentration, result.mix_logits
 
 
 def _build_synthetic_features(

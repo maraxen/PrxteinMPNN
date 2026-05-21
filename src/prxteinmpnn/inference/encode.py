@@ -87,9 +87,9 @@ def make_encode_fn(model: ModelProtocol, *, use_rolling_state: bool = False) -> 
             mask: jax.Array,
             residue_index: jax.Array,
             chain_index: jax.Array,
-            ligand_y: jax.Array,
-            ligand_y_t: jax.Array,
-            ligand_y_m: jax.Array,
+            ligand_coords: jax.Array,
+            ligand_atom_types: jax.Array,
+            ligand_mask: jax.Array,
             structure_mapping: jax.Array | None,
             noise: jax.Array,
             pf: jax.Array | None,
@@ -100,9 +100,9 @@ def make_encode_fn(model: ModelProtocol, *, use_rolling_state: bool = False) -> 
                 backbone_noise=noise,
                 backbone_noise_mode=config.backbone_noise_mode,
                 structure_mapping=structure_mapping,
-                y=ligand_y,
-                y_t=ligand_y_t,
-                y_m=ligand_y_m,
+                y=ligand_coords,
+                y_t=ligand_atom_types,
+                y_m=ligand_mask,
                 inference=config.inference,
             )
             if pf is not None:
@@ -113,8 +113,8 @@ def make_encode_fn(model: ModelProtocol, *, use_rolling_state: bool = False) -> 
         if use_rolling_state:
             if phys is not None:
                 def scan_body(carry: Any, per_state: Any) -> tuple[Any, EncoderOutput]:
-                    c, m, ri, ci, ly, lyt, lym, sm, n, pf = per_state
-                    node_f, edge_f, edge_i = encode_one(c, m, ri, ci, ly, lyt, lym, sm, n, pf)
+                    c, m, ri, ci, l_coords, l_types, l_mask, sm, n, pf = per_state
+                    node_f, edge_f, edge_i = encode_one(c, m, ri, ci, l_coords, l_types, l_mask, sm, n, pf)
                     return carry, EncoderOutput(node_features=node_f, edge_features=edge_f, neighbor_indices=edge_i)
                 scan_xs: Any = (
                     geo.coords, geo.mask, geo.residue_index, geo.chain_index,
@@ -122,8 +122,8 @@ def make_encode_fn(model: ModelProtocol, *, use_rolling_state: bool = False) -> 
                 )
             else:
                 def scan_body(carry: Any, per_state: Any) -> tuple[Any, EncoderOutput]:  # type: ignore[misc]
-                    c, m, ri, ci, ly, lyt, lym, sm, n = per_state
-                    node_f, edge_f, edge_i = encode_one(c, m, ri, ci, ly, lyt, lym, sm, n, None)
+                    c, m, ri, ci, l_coords, l_types, l_mask, sm, n = per_state
+                    node_f, edge_f, edge_i = encode_one(c, m, ri, ci, l_coords, l_types, l_mask, sm, n, None)
                     return carry, EncoderOutput(node_features=node_f, edge_features=edge_f, neighbor_indices=edge_i)
                 scan_xs = (
                     geo.coords, geo.mask, geo.residue_index, geo.chain_index,

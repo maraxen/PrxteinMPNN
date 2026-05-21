@@ -42,9 +42,9 @@ def sample(
   multi_state_temperature: float = 1.0,
   state_weights: jax.Array | None = None,
   use_rolling_state: bool = False,
-  y: jax.Array | None = None,
-  y_t: jax.Array | None = None,
-  y_m: jax.Array | None = None,
+  ligand_coords: jax.Array | None = None,
+  ligand_atom_types: jax.Array | None = None,
+  ligand_mask: jax.Array | None = None,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
   """Sample sequences from a structure using the default temperature sampler.
 
@@ -67,9 +67,9 @@ def sample(
     multi_state_temperature: Temperature for multi-state combination.
     state_weights: Weights for each state.
     use_rolling_state: Use rolling state scan vs vmap.
-    y: Ligand coordinates.
-    y_t: Ligand atom types.
-    y_m: Ligand atom mask.
+    ligand_coords: Ligand coordinates.
+    ligand_atom_types: Ligand atom types.
+    ligand_mask: Ligand atom mask.
 
   Returns:
     Tuple of (sampled sequence, logits, decoding order).
@@ -94,8 +94,8 @@ def sample(
       multi_state_temperature=multi_state_temperature,
       state_weights=state_weights,
       use_rolling_state=use_rolling_state,
-      y=y,
-      y_t=y_t,
-      y_m=y_m,
+      ligand_coords=ligand_coords,
+      ligand_atom_types=ligand_atom_types,
+      ligand_mask=ligand_mask,
     ),
   )

@@ -66,9 +66,9 @@ def make_score_fn(
     state_weights: jax.Array | None = None,
     bias: jax.Array | None = None,
     use_rolling_state: bool = False,
-    y: jax.Array | None = None,
-    y_t: jax.Array | None = None,
-    y_m: jax.Array | None = None,
+    ligand_coords: jax.Array | None = None,
+    ligand_atom_types: jax.Array | None = None,
+    ligand_mask: jax.Array | None = None,
     **kwargs,  # Accept but ignore extra kwargs (e.g., _k_neighbors for backward compat)
   ) -> tuple[jax.Array, jax.Array, jax.Array]:
 
@@ -93,7 +93,7 @@ def make_score_fn(
         tie_group_map=tie_group_map,
         state_weights=state_weights,
         bias=bias,
-        ligand_coords=y, ligand_atom_types=y_t, ligand_mask=y_m,
+        ligand_coords=ligand_coords, ligand_atom_types=ligand_atom_types, ligand_mask=ligand_mask,
         mode="score_conditional",
         strategy=multi_state_strategy,
         strategy_temperature=multi_state_temperature,
@@ -139,9 +139,9 @@ def score(
     state_weights: jax.Array | None = None,
     bias: jax.Array | None = None,
     use_rolling_state: bool = False,
-    y: jax.Array | None = None,
-    y_t: jax.Array | None = None,
-    y_m: jax.Array | None = None,
+    ligand_coords: jax.Array | None = None,
+    ligand_atom_types: jax.Array | None = None,
+    ligand_mask: jax.Array | None = None,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Score a sequence on a structure using the default scoring function.
 
@@ -164,9 +164,9 @@ def score(
         state_weights: Weights for each state.
         bias: Sequence bias.
         use_rolling_state: Use rolling state scan vs vmap.
-        y: Ligand coordinates.
-        y_t: Ligand atom types.
-        y_m: Ligand atom mask.
+        ligand_coords: Ligand coordinates.
+        ligand_atom_types: Ligand atom types.
+        ligand_mask: Ligand atom mask.
 
     Returns:
         Tuple of (masked average score, logits, decoding order).
@@ -190,8 +190,8 @@ def score(
             state_weights=state_weights,
             bias=bias,
             use_rolling_state=use_rolling_state,
-            y=y,
-            y_t=y_t,
-            y_m=y_m,
+            ligand_coords=ligand_coords,
+            ligand_atom_types=ligand_atom_types,
+            ligand_mask=ligand_mask,
         ),
     )

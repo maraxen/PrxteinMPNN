@@ -165,7 +165,7 @@ class PackerProteinFeatures(eqx.Module):
         dist, idx = jax.lax.top_k(-dist_sq, k)
         return -dist, idx
 
-    def _make_angle_features(self, n: jnp.ndarray, ca: jnp.ndarray, c: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+    def _make_angle_features(self, atom_n: jnp.ndarray, atom_ca: jnp.ndarray, atom_c: jnp.ndarray, ligand_atom_coords: jnp.ndarray) -> jnp.ndarray:
         """Compute angle features matching PyTorch sc_utils implementation.
         
         Uses Gram-Schmidt orthonormalization to create local coordinate frame,
@@ -201,7 +201,7 @@ class PackerProteinFeatures(eqx.Module):
 
             return jnp.stack([f1, f2, f3, f4], axis=-1)  # [M, 4]
 
-        return jax.vmap(_get_angles)(n, ca, c, y)
+        return jax.vmap(_get_angles)(atom_n, atom_ca, atom_c, ligand_atom_coords)
 
 
     def features_encode(self, prng_key: PRNGKeyArray, bundle: PackerBundle) -> tuple:

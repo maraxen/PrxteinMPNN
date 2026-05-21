@@ -51,13 +51,35 @@ else:                                          → TOPOLOGY_CONDITIONAL_SCORE
 
 ## The five extension points
 
-### 1. New state-fusion strategy
-
-Implement a new `BatchLogitFn` as an `eqx.Module`. The `weights` array must be a **traced leaf** (not `eqx.field(static=True)`) so JIT can differentiate through it.
+**Plain callables and lambdas work directly** — the driver uses `eqx.filter_jit` throughout, which automatically marks non-array objects (including functions) as static. Use `eqx.Module` only when the callable needs **trainable array leaves** (e.g. `weights` that flow through grad).
 
 ```python
-# inference/logits.py or your experiment module
-@LOGIT_STRATEGIES.register("harmonic_mean")
+# Simplest case: stateless function, no registration needed
+stage_set = StageSet(
+    logit_transform=lambda per_state, bias=None: jnp.mean(per_state, axis=0),
+)
+
+# With state (weights need to be traced leaves for grad):
+import equinox as eqx
+class WeightedMean(eqx.Module):
+    weights: jax.Array
+    def __call__(self, per_state, bias=None):
+        w = self.weights / self.weights.sum()
+        return jnp.einsum("s,s...v->...v", w, per_state)
+
+stage_set = StageSet(logit_transform=WeightedMean(weights=jnp.array([1.0, 0.8, 0.6])))
+```
+
+`@LOGIT_STRATEGIES.register("name")` is only needed if you want **lookup-by-string from a JSON spec**. For direct Python use, skip it entirely.
+
+---
+
+### 1. New state-fusion strategy
+
+For a strategy with learnable weights, implement as an `eqx.Module`. The `weights` array must be a **traced leaf** (not `eqx.field(static=True)`) so JIT can differentiate through it.
+
+```python
+@LOGIT_STRATEGIES.register("harmonic_mean")  # optional — only needed for spec lookup
 class HarmonicMeanLogits(eqx.Module):
     weights: Float[Array, "S"]
 

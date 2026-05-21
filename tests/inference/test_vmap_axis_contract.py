@@ -179,9 +179,9 @@ def make_minimal_bundle(L: int = 4, S: int = 1) -> InferenceBundle:
 
     # Ligand bundle (all zeros)
     ligand = LigandBundle(
-        y=jnp.zeros((S, 0, 14, 3)),
-        y_t=jnp.zeros((S, 0, 14), dtype=jnp.int32),
-        y_m=jnp.zeros((S, 0, 14)),
+        ligand_coords=jnp.zeros((S, 0, 14, 3)),
+        ligand_atom_types=jnp.zeros((S, 0, 14), dtype=jnp.int32),
+        ligand_mask=jnp.zeros((S, 0, 14)),
     )
 
     # Wave schedule bundle (sequential decoding)

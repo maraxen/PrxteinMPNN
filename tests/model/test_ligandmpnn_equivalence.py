@@ -568,6 +568,23 @@ def test_ligand_stochastic_sampling_per_position_distribution_near_reference(
   ar_mask = _build_ar_mask(ligand_batch.randn[0])
   bias_np = np.zeros((1, seq_len, 21), dtype=np.float32)
 
+  from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+  from prxteinmpnn.inference import sample_autoregressive
+
+  bundle, config, stage_set = build_inference_bundle(
+    coords=jnp.array(ligand_batch.x[0])[None, ...],
+    mask=jnp.array(ligand_batch.mask[0])[None, ...],
+    residue_index=jnp.array(ligand_batch.residue_index[0])[None, ...],
+    chain_index=jnp.array(ligand_batch.chain_index[0])[None, ...],
+    y=jnp.array(ligand_batch.y[0])[None, ...],
+    y_t=jnp.array(ligand_batch.y_t[0])[None, ...],
+    y_m=jnp.array(ligand_batch.y_m[0])[None, ...],
+    ar_mask=jnp.array(ar_mask)[None, ...],
+    bias=jnp.array(bias_np[0]),
+    temperature=temperature_jax,
+    mode="sample_autoregressive",
+  )
+
   pt_sequences: list[np.ndarray] = []
   jax_sequences: list[np.ndarray] = []
 
@@ -583,22 +600,6 @@ def test_ligand_stochastic_sampling_per_position_distribution_near_reference(
     pt_sequences.append(sampled_pt["S"].numpy()[0].astype(np.int64))
 
     key = jax.random.PRNGKey(20_000 + i)
-    from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-    from prxteinmpnn.inference import sample_autoregressive
-
-    bundle, config, stage_set = build_inference_bundle(
-      coords=jnp.array(ligand_batch.x[0])[None, ...],
-      mask=jnp.array(ligand_batch.mask[0])[None, ...],
-      residue_index=jnp.array(ligand_batch.residue_index[0])[None, ...],
-      chain_index=jnp.array(ligand_batch.chain_index[0])[None, ...],
-      y=jnp.array(ligand_batch.y[0])[None, ...],
-      y_t=jnp.array(ligand_batch.y_t[0])[None, ...],
-      y_m=jnp.array(ligand_batch.y_m[0])[None, ...],
-      ar_mask=jnp.array(ar_mask)[None, ...],
-      bias=jnp.array(bias_np[0]),
-      temperature=temperature_jax,
-      mode="sample_autoregressive",
-    )
     result = sample_autoregressive.kernel(jax_model, key, bundle, config, stage_set)
     jax_sequences.append(np.asarray(result.sequence).astype(np.int64))
 

@@ -231,18 +231,17 @@ class ProteinFeaturesLigand(eqx.Module):
         chain_mask: jnp.ndarray | None = None,
     ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         # 0. Noise Application
-        if backbone_noise > 0:
-            # Note: We currently only apply noise to backbone coordinates (N, CA, C, O)
-            # Ligand coordinates Y are kept as-is.
-            # We split the key to avoid reusing the same randomness for other ops.
-            noise_key, _key = jax.random.split(_key)
-            
-            # backbone_noise_mode is not currently supported in LigandMPNN (defaults to direct)
-            structure_coordinates, _ = apply_noise_to_coordinates(
-                noise_key,
-                structure_coordinates,
-                backbone_noise=backbone_noise,
-            )
+        # TODO: allow caller to supply an arbitrary noise_fn(key, coords, backbone_noise) -> coords
+        # so both PrxteinMPNN and LigandMPNN can share a configurable noise strategy via StageSet.
+        noise_key, _key = jax.random.split(_key)
+        noised_coords, _ = apply_noise_to_coordinates(
+            noise_key,
+            structure_coordinates,
+            backbone_noise=backbone_noise,
+        )
+        structure_coordinates = jnp.where(
+            backbone_noise > 0, noised_coords, structure_coordinates
+        )
 
         # N, CA, C, O
         N = structure_coordinates[:, 0, :]

@@ -552,7 +552,13 @@ def test_ligand_stochastic_sampling_per_position_distribution_near_reference(
   Tight forced-bias token identity is covered by
   :func:`test_ligand_autoregressive_reference_alignment`.
   """
+  import gc
   import torch
+
+  # Each parametrized variant compiles a fresh 96-sample scan; clear XLA artifacts
+  # from prior variants to prevent buffer-pool exhaustion (SIGABRT on second run).
+  jax.clear_caches()
+  gc.collect()
 
   pt_model = ligand_parity_bundle.pt_model
   jax_model = (

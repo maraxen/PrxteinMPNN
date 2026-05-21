@@ -7,16 +7,10 @@ prxteinmpnn.utils.data_structures
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from dataclasses import dataclass as dc
 
 import numpy as np
 from flax.struct import dataclass
-
-if TYPE_CHECKING:
-  pass
-
-from dataclasses import dataclass as dc
-
 from proxide.core.containers import (
   OligomerType,
   Protein,

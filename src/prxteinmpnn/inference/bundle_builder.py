@@ -4,15 +4,18 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
-from typing import Any
 
+from prxteinmpnn.inference.logits import LOGIT_STRATEGIES, ARLogitFuse, TieGroupProductOfExperts
 from prxteinmpnn.types.bundles import (
-    InferenceBundle, GeometryBundle, ConditioningBundle,
-    LigandBundle, WaveScheduleBundle
+    ConditioningBundle,
+    GeometryBundle,
+    InferenceBundle,
+    LigandBundle,
+    WaveScheduleBundle,
 )
 from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.stages import StageSet
-from prxteinmpnn.inference.logits import LOGIT_STRATEGIES, ARLogitFuse, TieGroupProductOfExperts
+
 
 def build_inference_bundle(
     coords: jax.Array,           # (L, 4, 3) or (S, L, 4, 3)
@@ -42,7 +45,7 @@ def build_inference_bundle(
     inference: bool = True,
 ) -> tuple[InferenceBundle, InferenceConfig, StageSet]:
     """Single entry point for bundle construction from raw arrays."""
-    
+
     # 1. Resolve shapes
     if coords.ndim == 3:
         coords = coords[None, ...]
@@ -67,7 +70,7 @@ def build_inference_bundle(
     assert chain_index.ndim == 2, f"Expected chain_index.ndim == 2 after normalization, got {chain_index.ndim}"
 
     S, L = coords.shape[0], coords.shape[1]
-    
+
     # 2. Geometry
     geo = GeometryBundle(
         coords=coords,
@@ -81,16 +84,16 @@ def build_inference_bundle(
         structure_mapping=structure_mapping,
         physics_features=physics_features,
     )
-    
+
     # 3. Conditioning
     if state_weights is None:
         state_weights = jnp.ones(S) / S
-    
+
     if tie_group_map is None:
         tie_group_map = jnp.broadcast_to(jnp.arange(L)[None, :], (S, L))
     elif tie_group_map.ndim == 1:
         tie_group_map = jnp.broadcast_to(tie_group_map[None, :], (S, L))
-        
+
     if ar_mask is None:
         if mode == "score_conditional":
             # Default to full context minus self (all-ones except diagonal)
@@ -123,33 +126,33 @@ def build_inference_bundle(
         state_weights=state_weights,
         sequence_oh=sequence_oh,
         ar_mask=ar_mask,
-        temperature=jnp.array(temperature)
+        temperature=jnp.array(temperature),
     )
-    
+
     # 4. Ligand
     lig = LigandBundle(
         y=y if y is not None else jnp.zeros((S, 0, 4, 3)),
         y_t=y_t if y_t is not None else jnp.zeros((S, 0, 4), dtype=jnp.int32),
-        y_m=y_m if y_m is not None else jnp.zeros((S, 0, 4))
+        y_m=y_m if y_m is not None else jnp.zeros((S, 0, 4)),
     )
-    
+
     # 5. Assemble Bundle
     bundle = InferenceBundle(
         geometry=geo,
         conditioning=cond,
         ligand=lig,
         wave=WaveScheduleBundle.empty(L),
-        backbone_noise=jnp.array(backbone_noise)
+        backbone_noise=jnp.array(backbone_noise),
     )
-    
+
     # 6. Config
     config = InferenceConfig(
         mode=mode,
         backbone_noise_mode=backbone_noise_mode,
         use_rolling_state=use_rolling_state,
-        inference=inference
+        inference=inference,
     )
-    
+
     # 7. StageSet
     strategy_cls = LOGIT_STRATEGIES.get(strategy)
     if strategy == "geometric_mean":

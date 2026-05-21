@@ -2,12 +2,12 @@
 
 from jaxtyping import PRNGKeyArray
 
-from prxteinmpnn.inference.encode import make_encode_fn
 from prxteinmpnn.inference.driver import decode
+from prxteinmpnn.inference.encode import make_encode_fn
+from prxteinmpnn.types.arrays import Logits
 from prxteinmpnn.types.bundles import InferenceBundle
 from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.protocols import ModelProtocol
-from prxteinmpnn.types.arrays import Logits
 from prxteinmpnn.types.stages import StageSet
 
 # TODO: by default, 1 - jnp.eye should be the autoregressive mask

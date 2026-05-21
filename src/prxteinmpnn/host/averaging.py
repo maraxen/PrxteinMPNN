@@ -8,13 +8,9 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Float, Int, PRNGKeyArray
 
-from prxteinmpnn.types.protocols import ModelProtocol
-from prxteinmpnn.inference.logits import LOGIT_STRATEGIES, BatchLogitFn
+from prxteinmpnn.inference.logits import LOGIT_STRATEGIES
 from prxteinmpnn.model.capabilities import PRXTEIN_MPNN_CAPABILITIES
 from prxteinmpnn.sampling.conditional_logits import make_encoding_conditional_logits_split_fn
-from prxteinmpnn.utils.autoregression import generate_ar_mask
-from prxteinmpnn.utils.data_structures import Protein
-from prxteinmpnn.utils.decoding_order import DecodingOrder, DecodingOrderFn
 from prxteinmpnn.types.arrays import (
   AlphaCarbonMask,
   BackboneCoordinates,
@@ -25,6 +21,10 @@ from prxteinmpnn.types.arrays import (
   ResidueIndex,
   StructureAtomicCoordinates,
 )
+from prxteinmpnn.types.protocols import ModelProtocol
+from prxteinmpnn.utils.autoregression import generate_ar_mask
+from prxteinmpnn.utils.data_structures import Protein
+from prxteinmpnn.utils.decoding_order import DecodingOrder, DecodingOrderFn
 
 
 def get_averaged_encodings(

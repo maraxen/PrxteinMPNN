@@ -6,6 +6,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, PRNGKeyArray
 
+
 class Dropout(eqx.Module):
   """Dropout layer with dynamic probability `p`.
   
@@ -21,11 +22,11 @@ class Dropout(eqx.Module):
     self.inference = jnp.array(inference)
 
   def __call__(
-    self, 
-    x: Array, 
-    *, 
-    key: PRNGKeyArray | None = None, 
-    inference: bool | None = None
+    self,
+    x: Array,
+    *,
+    key: PRNGKeyArray | None = None,
+    inference: bool | None = None,
   ) -> Array:
     """Apply dropout to the input.
     
@@ -43,13 +44,13 @@ class Dropout(eqx.Module):
 
     # Handle both scalar and array inference flags
     inference_bool = jnp.asarray(inference, dtype=jnp.bool_)
-      
+
     # Bernoulli mask
     if key is None:
         # Fallback for inference=True or missing key
         return x
-        
+
     mask = jax.random.bernoulli(key, 1.0 - self.p, x.shape)
     dropped_x = jnp.where(mask, x / (1.0 - self.p), 0.0)
-    
+
     return jnp.where(inference_bool, x, dropped_x)

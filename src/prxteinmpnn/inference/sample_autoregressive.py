@@ -13,16 +13,16 @@ from jaxtyping import Array, Float, Int
 
 if TYPE_CHECKING:
     from prxteinmpnn.model.mpnn import PrxteinMPNN
+    from prxteinmpnn.types.arrays import PRNGKeyArray
     from prxteinmpnn.types.bundles import InferenceBundle
     from prxteinmpnn.types.configs import InferenceConfig
     from prxteinmpnn.types.stages import StageSet
-    from prxteinmpnn.types.arrays import PRNGKeyArray
 
 
 @dataclass(frozen=True)
 class SampleResult:
     """Result of an autoregressive sampling run."""
-    sequence: Int[Array, "L"]
+    sequence: Int[Array, L]
     logits: Float[Array, "L 21"]
 
 
@@ -39,8 +39,9 @@ def kernel(
     Delegates to unified driver for autoregressive decoding.
     """
     import jax
-    from prxteinmpnn.inference.encode import make_encode_fn
+
     from prxteinmpnn.inference.driver import decode_ar
+    from prxteinmpnn.inference.encode import make_encode_fn
 
     k_enc, k_dec = jax.random.split(prng_key)
 

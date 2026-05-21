@@ -1,35 +1,19 @@
 """Score a given sequence on a structure using the ProteinMPNN model."""
 
-from collections.abc import Callable
 from functools import partial
 from typing import Literal, cast
 
 import equinox as eqx
 import jax
-import jax.numpy as jnp
-from jaxtyping import Float, PRNGKeyArray
+from jaxtyping import PRNGKeyArray
 
-from prxteinmpnn.types.protocols import ModelProtocol, ScoreFn
-from prxteinmpnn.types.configs import InferenceConfig
-from prxteinmpnn.types.stages import StageSet
-from prxteinmpnn.inference import score_conditional, score_unconditional
+from prxteinmpnn.inference import score_conditional
 from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+from prxteinmpnn.types.protocols import ModelProtocol, ScoreFn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
 
 _DEFAULT_DECODING_ORDER_FN = cast("DecodingOrderFn", random_decoding_order)
-from prxteinmpnn.types.arrays import (
-  AlphaCarbonMask,
-  AutoRegressiveMask,
-  BackboneNoise,
-  ChainIndex,
-  DecodingOrder,
-  Logits,
-  OneHotProteinSequence,
-  ProteinSequence,
-  ResidueIndex,
-  StructureAtomicCoordinates,
-)
 
 SCORE_EPS = 1e-8
 
@@ -59,7 +43,7 @@ def make_score_fn(
   del _num_encoder_layers, _num_decoder_layers
 
   # Multistate mode is always state_vmap_exact in modernization
-  
+
   if inference and isinstance(model, eqx.Module):
     model = eqx.nn.inference_mode(model, value=True)
 
@@ -87,10 +71,10 @@ def make_score_fn(
     y_m: jax.Array | None = None,
     **kwargs,  # Accept but ignore extra kwargs (e.g., _k_neighbors for backward compat)
   ) -> tuple[jax.Array, jax.Array, jax.Array]:
-    
+
     L = sequence.shape[0]
     S = structure_coordinates.shape[0] if structure_coordinates.ndim == 4 else 1
-    
+
     decoding_order, prng_key = decoding_order_fn(prng_key, L, None, None)
     if ar_mask is None:
         ar_mask_single = generate_ar_mask(decoding_order)
@@ -114,22 +98,22 @@ def make_score_fn(
         strategy=multi_state_strategy,
         strategy_temperature=multi_state_temperature,
         use_rolling_state=use_rolling_state,
-        inference=True
+        inference=True,
     )
-    
+
     logits = score_conditional.kernel(model, prng_key, bundle, config, stage_set)
 
     # Compute score
     log_probability = jax.nn.log_softmax(logits, axis=-1)[..., :20]
     score = -(sequence[..., :20] * log_probability).sum(-1)
-    
+
     # Use average mask across states for scoring? Or just mask[0]?
     # In modernized architecture, we usually score against the combined logits.
     # We use the first state's mask as a proxy for the system mask.
     mask_flat = mask[0]
     masked_score_sum = (score * mask_flat).sum(-1)
     mask_sum = mask_flat.sum() + 1e-8
-    
+
     return masked_score_sum / mask_sum, logits, decoding_order
 
   return cast("ScoreFn", score_sequence)

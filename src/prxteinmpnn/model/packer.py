@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import equinox as eqx
 import jax
@@ -12,10 +12,9 @@ import jax.numpy as jnp
 from prxteinmpnn.model.decoder import DecoderLayer, DecoderLayerJ
 from prxteinmpnn.model.dropout import Dropout
 from prxteinmpnn.model.encoder import EncoderLayer
-from prxteinmpnn.utils.concatenate import concatenate_neighbor_nodes
-
 from prxteinmpnn.types.bundles import PackerBundle, PackerResult
 from prxteinmpnn.types.configs import InferenceConfig
+from prxteinmpnn.utils.concatenate import concatenate_neighbor_nodes
 from prxteinmpnn.utils.coordinates import apply_noise_to_coordinates
 
 if TYPE_CHECKING:
@@ -490,27 +489,27 @@ class Packer(eqx.Module):
         return h_v, h_e, E_idx
 
     def decode(
-        self, 
-        bundle: PackerBundle, 
-        h_v: jax.Array, 
-        h_e: jax.Array, 
+        self,
+        bundle: PackerBundle,
+        h_v: jax.Array,
+        h_e: jax.Array,
         E_idx: jax.Array,
-        *, 
-        key: PRNGKeyArray | None = None, 
-        inference: bool = False
+        *,
+        key: PRNGKeyArray | None = None,
+        inference: bool = False,
     ) -> PackerResult:
         mask = bundle.mask
 
         # Inject E_idx into bundle temporarily for features_decode if needed
         # or just pass it explicitly. The current features_decode expects it in "features" dict.
         # Let's adjust features_decode signature.
-        
+
         # We'll monkeypatch E_idx into bundle since it's an internal call
-        # but better to just pass it. 
+        # but better to just pass it.
         # I already updated features_decode to expect it from bundle.E_idx (ignored type)
         # So I'll add it to bundle via equinox.tree_at or similar if I wanted to be clean,
         # but here I'll just pass it to features_decode directly.
-        
+
         # Wait, I'll update features_decode signature to (self, bundle, E_idx)
         v, f = self.features.features_decode(bundle, E_idx)
 
@@ -539,10 +538,10 @@ class Packer(eqx.Module):
         return PackerResult(mean=mean, concentration=concentration, mix_logits=mix_logits)
 
     def __call__(
-        self, 
-        prng_key: PRNGKeyArray, 
-        bundle: PackerBundle, 
-        config: InferenceConfig
+        self,
+        prng_key: PRNGKeyArray,
+        bundle: PackerBundle,
+        config: InferenceConfig,
     ) -> PackerResult:
         keys = jax.random.split(prng_key, 2)
         h_v, h_e, E_idx = self.encode(bundle, key=keys[0])

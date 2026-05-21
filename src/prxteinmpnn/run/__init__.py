@@ -2,14 +2,15 @@
 
 # Jacobian functionality temporarily disabled during Equinox migration
 # Will be re-enabled after refactoring conditional_logits module
+from prxteinmpnn.host.sampling_driver import SamplingDriver
+from prxteinmpnn.sampling import sample
+from prxteinmpnn.scoring.score import score
+
 from .run_spec_portable_json import (
   PORTABLE_RUN_SPEC_VERSION,
   run_spec_portable_from_dict,
   run_spec_portable_to_dict,
 )
-from prxteinmpnn.sampling import sample
-from prxteinmpnn.host.sampling_driver import SamplingDriver
-from prxteinmpnn.scoring.score import score
 from .spec import RunSpec, build_run_spec
 from .spec_json import (
   SpecJSONDecodeError,

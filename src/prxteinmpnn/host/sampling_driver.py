@@ -14,13 +14,12 @@ from __future__ import annotations
 import importlib
 from typing import TYPE_CHECKING
 
-from prxteinmpnn.registry import SAMPLERS
 from prxteinmpnn.host._base_driver import BaseDriver
-from prxteinmpnn.host.streaming_host import StreamingBatchHost
+from prxteinmpnn.registry import SAMPLERS
 
 if TYPE_CHECKING:
-  from prxteinmpnn.types.protocols import SamplerFn
   from prxteinmpnn.run.specs import SamplingSpecification
+  from prxteinmpnn.types.protocols import SamplerFn
 
 
 class SamplingDriver(BaseDriver["SamplingSpecification"]):

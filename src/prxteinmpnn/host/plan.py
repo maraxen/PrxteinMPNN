@@ -7,22 +7,22 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-import numpy as np
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, NamedTuple, Callable
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
-from prxteinmpnn.tiling.planner import BatchPlan, BatchPlanner, estimate_memory_theoretical
 from prxteinmpnn.tiling.axes import N_NOISES, N_SAMPLES, N_STRUCTURES, N_TEMPERATURES
+from prxteinmpnn.tiling.planner import BatchPlan, BatchPlanner, estimate_memory_theoretical
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
     from jaxtyping import PRNGKeyArray
+
     from prxteinmpnn.run.specs import SamplingSpecification
-    from prxteinmpnn.types.arrays import ProteinSequence, Logits
-    from prxteinmpnn.types.stages import StageSet
+    from prxteinmpnn.types.arrays import Logits
     from prxteinmpnn.types.bundles import InferenceBundle
     from prxteinmpnn.types.configs import InferenceConfig
     from prxteinmpnn.types.protocols import ModelProtocol
@@ -172,10 +172,9 @@ def resolve_chunk_size(
     """
     if hasattr(spec, "samples_chunk_size") and spec.samples_chunk_size:
         return int(spec.samples_chunk_size)
-    elif grid_lineage is not None:
+    if grid_lineage is not None:
         return int(grid_lineage["sample_count"])
-    else:
-        return total_num_samples
+    return total_num_samples
 
 
 def resolve_sample_start(
@@ -218,20 +217,20 @@ class InferencePlan:
     def sample(self, bundle: InferenceBundle, key: PRNGKeyArray, config: InferenceConfig) -> Any:
         enc = self.components.encode_fn(bundle, key, config)
         return self.components.driver(
-            self.model, key, enc, bundle.conditioning, bundle.wave, config, self.components.stage_set
+            self.model, key, enc, bundle.conditioning, bundle.wave, config, self.components.stage_set,
         )
 
     def score(self, bundle: InferenceBundle, key: PRNGKeyArray, config: InferenceConfig) -> Logits:
         enc = self.components.encode_fn(bundle, key, config)
         return self.components.driver(
-            self.model, key, enc, bundle.conditioning, bundle.wave, config, self.components.stage_set
+            self.model, key, enc, bundle.conditioning, bundle.wave, config, self.components.stage_set,
         )
 
 
 def make_inference_plan(model: ModelProtocol, spec: Any) -> InferencePlan:
     """Factory: resolve and create an InferencePlan from model and spec."""
-    from prxteinmpnn.inference.encode import make_encode_fn
     from prxteinmpnn.inference import driver as driver_module
+    from prxteinmpnn.inference.encode import make_encode_fn
     from prxteinmpnn.inference.logits import LOGIT_STRATEGIES, ARLogitFuse, TieGroupProductOfExperts
     from prxteinmpnn.types.stages import StageSet
 

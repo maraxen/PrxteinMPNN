@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Any
 
 import equinox as eqx
 import jax
-import jax.numpy as jnp
 
 from prxteinmpnn.model.capabilities import (
   PRXTEIN_MPNN_CAPABILITIES,

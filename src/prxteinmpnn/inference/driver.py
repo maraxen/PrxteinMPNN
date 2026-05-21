@@ -19,15 +19,14 @@ import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
 if TYPE_CHECKING:
-    from prxteinmpnn.types.bundles import InferenceBundle
     from prxteinmpnn.types.configs import InferenceConfig
     from prxteinmpnn.types.protocols import ModelProtocol
     from prxteinmpnn.types.stages import StageSet
 
+from prxteinmpnn.inference.sample_autoregressive import SampleResult
 from prxteinmpnn.types.arrays import Logits
 from prxteinmpnn.types.encodings import EncoderOutput
 from prxteinmpnn.types.stages import UnconditionalDecodeStep
-from prxteinmpnn.inference.sample_autoregressive import SampleResult
 
 # Topology constants (used at call time, not traced)
 TOPOLOGY_AR = "ar"
@@ -80,10 +79,9 @@ def decode(
 
     if topology == TOPOLOGY_AR:
         return decode_ar(model, key, enc, cond, wave, config, stage_set)
-    elif topology == TOPOLOGY_UNCONDITIONAL:
+    if topology == TOPOLOGY_UNCONDITIONAL:
         return _decode_unconditional(model, key, enc, cond, config, stage_set)
-    else:
-        return _decode_conditional(model, key, enc, cond, config, stage_set)
+    return _decode_conditional(model, key, enc, cond, config, stage_set)
 
 
 # ---------------------------------------------------------------------------
@@ -113,7 +111,7 @@ def _decode_conditional(
             return stage_set.decode_step(nb, eb, nei, mk, arm, oh, key=key, inference=config.inference)
         return model.decoder.call_conditional(
             nb, eb, nei, mk, arm, oh, model.w_s_embed.weight,
-            inference=config.inference, key=key
+            inference=config.inference, key=key,
         )
 
     # Broadcast sequence one-hot to all states
@@ -121,7 +119,7 @@ def _decode_conditional(
 
     # Decode over states: (S, L, H)
     decoded = jax.vmap(decode_one, in_axes=(0, 0, 0, 0, 0, 0))(
-        enc.node_features, enc.edge_features, enc.neighbor_indices, enc.mask, cond.ar_mask, seq_oh_stack
+        enc.node_features, enc.edge_features, enc.neighbor_indices, enc.mask, cond.ar_mask, seq_oh_stack,
     )
 
     # Project to logits: (S, L, V) -> (S, L, 21)
@@ -163,7 +161,7 @@ def _decode_unconditional(
 
     # Decode over states: (S, L, H)
     decoded = jax.vmap(decode_one, in_axes=(0, 0, 0, 0))(
-        enc.node_features, enc.edge_features, enc.neighbor_indices, enc.mask
+        enc.node_features, enc.edge_features, enc.neighbor_indices, enc.mask,
     )
 
     # Project to logits: (S, L, V) -> (S, L, 21)
@@ -229,12 +227,12 @@ def decode_ar(
                     return stage_set.decode_step(n, e, idx, m, arm, seq_oh, key=key, inference=config.inference)
                 return model.decoder.call_conditional(
                     n, e, idx, m, arm, seq_oh, model.w_s_embed.weight,
-                    key=key, inference=config.inference
+                    key=key, inference=config.inference,
                 )
 
             # decoded: (S, L, H)
             decoded = jax.vmap(decode_one, in_axes=(0, 0, 0, 0, 0))(
-                enc.node_features, enc.edge_features, enc.neighbor_indices, geo_mask, cond.ar_mask
+                enc.node_features, enc.edge_features, enc.neighbor_indices, geo_mask, cond.ar_mask,
             )
 
             # Project to logits: (S, L, 21)
@@ -251,11 +249,11 @@ def decode_ar(
                 # For stored logits: use zero bias
                 zeros_bias = jnp.zeros_like(cond.bias)  # (L, 21)
                 stored_logits = jax.vmap(stage_set.ar_logit_transform, in_axes=(1, 0), out_axes=0)(
-                    logits, zeros_bias
+                    logits, zeros_bias,
                 )  # outputs (L, 21)
                 # For sampling logits: use actual bias
                 sampling_logits = jax.vmap(stage_set.ar_logit_transform, in_axes=(1, 0), out_axes=0)(
-                    logits, cond.bias
+                    logits, cond.bias,
                 )  # outputs (L, 21)
             else:
                 # Fallback to logit_transform with explicit bias handling
@@ -311,7 +309,7 @@ def decode_ar(
     final_seq, logits_stack = jax.lax.scan(
         scan_body,
         seq_init,
-        jnp.arange(n_waves)
+        jnp.arange(n_waves),
     )
 
     # Map logits_stack (W, 21) back to (L, 21)
@@ -328,15 +326,15 @@ def decode_ar(
 
     return SampleResult(
         sequence=final_seq,
-        logits=logits_final
+        logits=logits_final,
     )
 
 
 __all__ = [
-    "decode",
-    "decode_ar",
-    "infer_topology",
     "TOPOLOGY_AR",
     "TOPOLOGY_CONDITIONAL_SCORE",
     "TOPOLOGY_UNCONDITIONAL",
+    "decode",
+    "decode_ar",
+    "infer_topology",
 ]

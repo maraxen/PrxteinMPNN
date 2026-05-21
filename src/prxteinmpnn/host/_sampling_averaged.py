@@ -1,20 +1,19 @@
+from collections.abc import Callable
 from functools import partial
-from typing import TYPE_CHECKING, Any, Callable, cast
+from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
-from jax._src.prng import PRNGKeyArray  # noqa: PLC2701
+from jax._src.prng import PRNGKeyArray
 
-from prxteinmpnn.utils.decoding_order import random_decoding_order
 from prxteinmpnn.host._sampling_helper import (
-  RANK_WITH_TEMPERATURE,
   _DEFAULT_DECODING_ORDER_FN,
   _noop_sampling_structure_batch_io,
 )
 from prxteinmpnn.host.averaging import get_averaged_encodings, make_encoding_sampling_split_fn
 from prxteinmpnn.run.specs import SamplingSpecification
-from prxteinmpnn.utils.data_structures import Protein
 from prxteinmpnn.types.arrays import ProteinSequence
+from prxteinmpnn.utils.data_structures import Protein
 
 if TYPE_CHECKING:
   from prxteinmpnn.model.mpnn import PrxteinMPNN

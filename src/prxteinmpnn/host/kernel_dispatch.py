@@ -2,29 +2,39 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.run.specs import SamplingSpecification
-from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-from prxteinmpnn.inference import sample_autoregressive as sample_ar
-from prxteinmpnn.host.plan import make_sampling_planner, extract_batch_sizes, compute_sample_keys, resolve_target_samples
 from prxteinmpnn.host._sampling_grid_lineage import _base_sampling_key, _resolve_grid_lineage
-from prxteinmpnn.host._sampling_helper import _broadcast_per_structure, _prepare_fixed_controls, _prepare_ligand_context
+from prxteinmpnn.host._sampling_helper import (
+  _broadcast_per_structure,
+  _prepare_fixed_controls,
+  _prepare_ligand_context,
+)
 from prxteinmpnn.host.logit_aggregation import compute_pseudo_perplexity
-from prxteinmpnn.utils.safe_map import safe_map as _safe_map
+from prxteinmpnn.host.plan import (
+  compute_sample_keys,
+  extract_batch_sizes,
+  make_sampling_planner,
+  resolve_target_samples,
+)
+from prxteinmpnn.inference import sample_autoregressive as sample_ar
+from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+from prxteinmpnn.run.specs import SamplingSpecification
 from prxteinmpnn.types.protocols import ModelProtocol
+from prxteinmpnn.utils.safe_map import safe_map as _safe_map
 
 if TYPE_CHECKING:
   from collections.abc import Sequence
 
-  from prxteinmpnn.utils.data_structures import Protein
   from prxteinmpnn.types.arrays import (
     Logits,
     ProteinSequence,
   )
+  from prxteinmpnn.utils.data_structures import Protein
 
 
 def resolve_kernel_fn(strategy: str) -> Callable:
@@ -43,10 +53,10 @@ def resolve_kernel_fn(strategy: str) -> Callable:
   """
   if strategy == "temperature":
     return sample_ar.kernel
-  elif strategy == "straight_through":
+  if strategy == "straight_through":
     # For STE, wrap score_conditional kernel to return SampleResult compatible interface
-    from prxteinmpnn.inference.score_conditional import kernel as score_conditional_kernel
     from prxteinmpnn.inference.sample_autoregressive import SampleResult
+    from prxteinmpnn.inference.score_conditional import kernel as score_conditional_kernel
 
     def _ste_kernel_wrapper(model, prng_key, bundle, config, stage_set):
       """Wrap score_conditional to return SampleResult-compatible interface."""
@@ -57,9 +67,8 @@ def resolve_kernel_fn(strategy: str) -> Callable:
       return SampleResult(sequence=sequence, logits=logits)
 
     return _ste_kernel_wrapper
-  else:
-    # Default to temperature strategy
-    return sample_ar.kernel
+  # Default to temperature strategy
+  return sample_ar.kernel
 
 
 def _sample_batch(
@@ -162,7 +171,7 @@ def _sample_batch(
           strategy=spec.multi_state_strategy or "arithmetic_mean",
           strategy_temperature=spec.multi_state_temperature or 1.0,
           use_rolling_state=spec.use_rolling_state,
-          inference=True
+          inference=True,
       )
 
       # Map over samples
@@ -196,7 +205,7 @@ def _sample_batch(
   sampled_sequences, sampled_logits = _safe_map(
       _dispatch_structure,
       jnp.arange(batch_size),
-      batch_size=structures_bs
+      batch_size=structures_bs,
   )
 
   # 6. Post-process (transpose to expected output shape: [batch, samples, noise, temp, seq_len])

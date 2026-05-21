@@ -44,7 +44,7 @@ class ArithmeticMeanLogits(eqx.Module):
     Input:  (S, ..., V)  →  Output: (..., V)
     """
 
-    weights: Float[Array, "S"]
+    weights: Float[Array, S]
 
     def __call__(
         self,
@@ -85,7 +85,7 @@ class GeometricMeanLogits(eqx.Module):
     Implements: Σ(wᵢ · Lᵢ) / (T · Σwᵢ)
     """
 
-    weights: Float[Array, "S"]
+    weights: Float[Array, S]
     temperature: float = eqx.field(static=True, default=1.0)
 
     def __call__(
@@ -115,7 +115,7 @@ class ProductOfProbabilities(eqx.Module):
     Implements: Σ(wᵢ · Lᵢ)
     """
 
-    weights: Float[Array, "S"]
+    weights: Float[Array, S]
 
     def __call__(
         self,
@@ -147,7 +147,7 @@ class ARLogitFuse(eqx.Module):
     Bias is always a concrete array (use jnp.zeros_like(shape) for no-op).
     """
 
-    def __call__(self, logits: Float[Array, "S V"], bias: Float[Array, "V"]) -> Float[Array, "V"]:
+    def __call__(self, logits: Float[Array, "S V"], bias: Float[Array, V]) -> Float[Array, V]:
         """Arithmetic mean across states dimension, then add bias."""
         return jnp.mean(logits, axis=0) + bias
 
@@ -156,7 +156,7 @@ class ARLogitFuse(eqx.Module):
 # Tie-group fuse strategies
 # ---------------------------------------------------------------------------
 
-from jaxtyping import Bool  # noqa: E402
+from jaxtyping import Bool
 
 
 @runtime_checkable
@@ -170,8 +170,8 @@ class TieGroupFuseFn(Protocol):
     def __call__(
         self,
         logits: Float[Array, "L V"],
-        mask: Bool[Array, "L"],
-    ) -> Float[Array, "V"]:
+        mask: Bool[Array, L],
+    ) -> Float[Array, V]:
         ...
 
 
@@ -187,8 +187,8 @@ class TieGroupLogsumexpMean(eqx.Module):
     def __call__(
         self,
         logits: Float[Array, "L V"],
-        mask: Bool[Array, "L"],
-    ) -> Float[Array, "V"]:
+        mask: Bool[Array, L],
+    ) -> Float[Array, V]:
         group = jnp.where(mask[:, None], logits, -jnp.inf)
         n = jnp.sum(mask)
         return jax.scipy.special.logsumexp(group, axis=0) - jnp.log(jnp.maximum(n, 1))
@@ -204,21 +204,21 @@ class TieGroupProductOfExperts(eqx.Module):
     def __call__(
         self,
         logits: Float[Array, "L V"],
-        mask: Bool[Array, "L"],
-    ) -> Float[Array, "V"]:
+        mask: Bool[Array, L],
+    ) -> Float[Array, V]:
         log_probs = jax.nn.log_softmax(logits, axis=-1)
         return jnp.sum(jnp.where(mask[:, None], log_probs, 0.0), axis=0)
 
 
 __all__ = [
-    "BatchLogitFn",
     "LOGIT_STRATEGIES",
+    "TIE_GROUP_STRATEGIES",
+    "ARLogitFuse",
     "ArithmeticMeanLogits",
+    "BatchLogitFn",
     "GeometricMeanLogits",
     "ProductOfProbabilities",
-    "ARLogitFuse",
     "TieGroupFuseFn",
-    "TIE_GROUP_STRATEGIES",
     "TieGroupLogsumexpMean",
     "TieGroupProductOfExperts",
 ]

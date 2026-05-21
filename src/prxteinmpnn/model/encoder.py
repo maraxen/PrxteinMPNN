@@ -277,7 +277,7 @@ class PhysicsEncoder(eqx.Module):
     keys = jax.random.split(key, num_layers + 2)
 
     self.physics_projection = eqx.nn.Linear(
-        physics_feature_dim, node_features, key=keys[0]
+        physics_feature_dim, node_features, key=keys[0],
     )
     self.physics_norm = eqx.nn.LayerNorm(node_features)
     self.physics_w_v = eqx.nn.Linear(node_features, node_features, key=keys[1])
@@ -319,8 +319,8 @@ class PhysicsEncoder(eqx.Module):
       if initial_node_features is None
       else jax.vmap(self.physics_w_v)(
         jax.vmap(self.physics_norm)(
-          jax.vmap(self.physics_projection)(initial_node_features)
-        )
+          jax.vmap(self.physics_projection)(initial_node_features),
+        ),
       )
     )
 

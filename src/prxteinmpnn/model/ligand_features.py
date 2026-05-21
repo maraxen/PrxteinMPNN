@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-import numpy as np
 
 from prxteinmpnn.model.ligand_tiling import map_chunks_axis0
 from prxteinmpnn.utils.coordinates import apply_noise_to_coordinates
@@ -240,7 +239,7 @@ class ProteinFeaturesLigand(eqx.Module):
             backbone_noise=backbone_noise,
         )
         structure_coordinates = jnp.where(
-            backbone_noise > 0, noised_coords, structure_coordinates
+            backbone_noise > 0, noised_coords, structure_coordinates,
         )
 
         # N, CA, C, O

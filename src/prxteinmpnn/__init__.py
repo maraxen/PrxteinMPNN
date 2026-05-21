@@ -12,10 +12,9 @@ from .run.specs import (
   SamplingSpecification,
   ScoringSpecification,
 )
+from .runtime import configure_multiprocessing
 from .sampling import sample
 from .scoring import score
-
-from .runtime import configure_multiprocessing
 
 __version__ = "0.1.0"
 __author__ = "Marielle Russo"

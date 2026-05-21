@@ -13,8 +13,8 @@ from contextvars import ContextVar, Token
 
 import numpy as np
 
-from prxteinmpnn.types.protocols import DesignSink
 from prxteinmpnn.registry import OUTPUT_SINKS
+from prxteinmpnn.types.protocols import DesignSink
 
 
 class NoopDesignSink:

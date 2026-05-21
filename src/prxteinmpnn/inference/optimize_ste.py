@@ -14,23 +14,23 @@ import logging
 import os
 from collections.abc import Callable
 from functools import partial
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import optax
-import equinox as eqx
 
+from prxteinmpnn.inference.logits import LOGIT_STRATEGIES
 from prxteinmpnn.inference.score_conditional import kernel as score_conditional
-from prxteinmpnn.types.bundles import InferenceBundle, ConditioningBundle
+from prxteinmpnn.types.bundles import InferenceBundle
 from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.stages import StageSet
-from prxteinmpnn.inference.logits import LOGIT_STRATEGIES, BatchLogitFn
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-  from jaxtyping import Float, Int, PRNGKeyArray
+  from jaxtyping import Float, PRNGKeyArray
 
   from prxteinmpnn.io.designs import DesignArrayRecordWriter, DesignMetadata
   from prxteinmpnn.model import PrxteinMPNN
@@ -131,18 +131,18 @@ def make_optimize_sequence_fn(
         def eval_with_mask(ar_mask: AutoRegressiveMask) -> Logits:
           # Broadcast ar_mask to S
           ar_mask_stack = jnp.broadcast_to(ar_mask[None, ...], (bundle.geometry.n_states, *ar_mask.shape))
-          
+
           # Replace conditioning with our local one_hot_sequence and ar_mask
           cond_new = eqx.tree_at(
               lambda c: (c.sequence_oh, c.ar_mask),
               bundle.conditioning,
-              (one_hot_sequence, ar_mask_stack)
+              (one_hot_sequence, ar_mask_stack),
           )
-          
+
           bundle_new = eqx.tree_at(
               lambda b: b.conditioning,
               bundle,
-              cond_new
+              cond_new,
           )
 
           if stage_set is None:
@@ -150,7 +150,7 @@ def make_optimize_sequence_fn(
             strategy_cls = LOGIT_STRATEGIES.get(
                 "arithmetic_mean" if logit_combine_strategy == 0 else
                 "geometric_mean" if logit_combine_strategy == 1 else
-                "product"
+                "product",
             )
             fuse = strategy_cls(bundle.conditioning.state_weights)
             current_stage_set = StageSet(logit_transform=fuse)
@@ -160,7 +160,7 @@ def make_optimize_sequence_fn(
           # Call the score_conditional kernel
           output_logits = score_conditional(
               model=model,
-              prng_key=next_key, 
+              prng_key=next_key,
               bundle=bundle_new,
               config=config,
               stage_set=current_stage_set,
@@ -170,7 +170,7 @@ def make_optimize_sequence_fn(
         remat_value = os.getenv("JAX_ENABLE_REMAT", "0").lower()
         remat_truthy = {"1", "true", "yes", "on", "enabled"}
         enable_remat = remat_value in remat_truthy
-        
+
         if enable_remat:
           eval_with_mask_remat = jax.checkpoint(eval_with_mask)
           pred_logits_batch = jax.vmap(eval_with_mask_remat, in_axes=0)(ar_masks)
@@ -252,19 +252,19 @@ def make_optimize_sequence_fn(
     cond_new = eqx.tree_at(
         lambda c: (c.sequence_oh, c.ar_mask),
         bundle.conditioning,
-        (final_one_hot, ar_mask_stack)
+        (final_one_hot, ar_mask_stack),
     )
     bundle_new = eqx.tree_at(
         lambda b: b.conditioning,
         bundle,
-        cond_new
+        cond_new,
     )
 
     if stage_set is None:
       strategy_cls = LOGIT_STRATEGIES.get(
           "arithmetic_mean" if logit_combine_strategy == 0 else
           "geometric_mean" if logit_combine_strategy == 1 else
-          "product"
+          "product",
       )
       fuse = strategy_cls(bundle.conditioning.state_weights)
       final_stage_set = StageSet(logit_transform=fuse)

@@ -95,7 +95,15 @@ class ConditionalDecodeStep(eqx.Module):
     """Wraps decoder.call_conditional for use as a stage_set.decode_step.
 
     Encapsulates the conditional decoding operation in a composable module
-    for clean wiring into inference kernels.
+    for clean wiring into inference kernels. Holds the sequence embedding
+    lookup table (w_s_embed) for one-hot → embedding conversion.
+
+    Parameters
+    ----------
+    decoder : Any
+        Model's decoder module (e.g., model.decoder).
+    w_s_embed : Any
+        Sequence embedding lookup weights (e.g., model.w_s_embed.weight).
     """
     decoder: Any  # model.decoder
     w_s_embed: Any  # model.w_s_embed.weight
@@ -112,7 +120,36 @@ class ConditionalDecodeStep(eqx.Module):
         key: Any,
         inference: Any,
     ) -> Any:
-        """Decode conditional given node features, edges, and sequence one-hot."""
+        """Decode conditional logits from features and sequence context.
+
+        Parameters
+        ----------
+        node_f : Any
+            Node (residue) features from encoder. Shape ``(L, D)`` where
+            L = sequence length, D = embedding dimension.
+        edge_f : Any
+            Edge features between neighbors. Shape ``(L, K, D)`` where
+            K = num neighbors.
+        nei : Any
+            Neighbor indices for gather operations. Shape ``(L, K)``.
+        mask : Any
+            Per-residue validity mask. Shape ``(L,)``.
+        ar_mask : Any
+            Autoregressive attention mask (1.0 = visible, 0.0 = masked).
+            Shape ``(L, L)``.
+        seq_oh : Any
+            One-hot encoded input sequence (previous predictions + fixed).
+            Shape ``(L, V)`` where V = vocab size (21).
+        key : Any
+            PRNG key for any stochastic operations.
+        inference : Any
+            Inference configuration object.
+
+        Returns
+        -------
+        Any
+            Logits array of shape ``(L, V)`` — per-position per-amino-acid scores.
+        """
         return self.decoder.call_conditional(
             node_f, edge_f, nei, mask, ar_mask, seq_oh, self.w_s_embed,
             key=key, inference=inference,
@@ -120,10 +157,15 @@ class ConditionalDecodeStep(eqx.Module):
 
 
 class UnconditionalDecodeStep(eqx.Module):
-    """Wraps decoder.__call__ for unconditional scoring.
+    """Wraps decoder.__call__ for unconditional scoring (no sequence context).
 
     Encapsulates the unconditional decoding operation in a composable module
-    for clean wiring into inference kernels.
+    for clean wiring into inference kernels. No sequence embedding required.
+
+    Parameters
+    ----------
+    decoder : Any
+        Model's decoder module (e.g., model.decoder).
     """
     decoder: Any  # model.decoder
 
@@ -137,15 +179,89 @@ class UnconditionalDecodeStep(eqx.Module):
         key: Any,
         inference: Any,
     ) -> Any:
-        """Decode unconditional given node features and edges."""
+        """Decode unconditional logits from backbone features alone.
+
+        Parameters
+        ----------
+        node_f : Any
+            Node (residue) features from encoder. Shape ``(L, D)`` where
+            L = sequence length, D = embedding dimension.
+        edge_f : Any
+            Edge features between neighbors. Shape ``(L, K, D)`` where
+            K = num neighbors.
+        nei : Any
+            Neighbor indices for gather operations. Shape ``(L, K)``.
+        mask : Any
+            Per-residue validity mask. Shape ``(L,)``.
+        key : Any
+            PRNG key for any stochastic operations.
+        inference : Any
+            Inference configuration object.
+
+        Returns
+        -------
+        Any
+            Logits array of shape ``(L, V)`` — per-position per-amino-acid scores.
+        """
         return self.decoder(node_f, edge_f, nei, mask, key=key, inference=inference)
 
 
 class StageSet(eqx.Module):
-    """Typed bag of composable pipeline stages.
+    """Composable typed bag of inference pipeline stages for modular decode paths.
 
-    eqx.Module makes this a JAX PyTree — weight arrays inside
-    FuseFn implementations are traced through JIT correctly.
+    eqx.Module makes this a JAX PyTree — weight arrays inside FuseFn
+    implementations (e.g., ARLogitFuse, TieGroupProductOfExperts) are traced
+    through JIT correctly. StageSet is the primary extensibility point:
+    callers wire in encode_fn, driver, and stage_set, then invoke the pipeline
+    with different stage_set instances for sampling vs. scoring vs. ARv2 modes.
+
+    **Topology Inference Rules** (kernel reads these to select code path):
+    - If ``sample_step is not None`` → autoregressive (AR) sampling mode
+    - If ``isinstance(decode_step, UnconditionalDecodeStep)`` → unconditional scoring
+    - Otherwise → conditional scoring (decode_step is ConditionalDecodeStep)
+
+    Parameters
+    ----------
+    logit_transform : BatchLogitFn | None
+        Multi-state → single-state logit fusion. Signature:
+        ``(S, L, V) + (L, V) → (L, V)``
+        Reduces per-state logits to unified logits using state_weights and
+        fusion strategy (e.g., arithmetic/geometric mean, product of experts).
+        None = identity (single-state passthrough, no fusion).
+    ar_logit_transform : BatchLogitFn | None
+        Per-position bias injection during autoregressive decode.
+        Signature: ``(S, V) + (V,) → (V,)``
+        Takes per-state logits + position-specific bias, outputs final logits
+        for sampling. Bias is always passed (never None); callers provide
+        jnp.zeros_like for no-op.
+        None = identity.
+    decode_step : ConditionalDecodeStep | UnconditionalDecodeStep | None
+        Decoder forward pass. ConditionalDecodeStep requires ar_mask and seq_oh
+        (sequence one-hot); UnconditionalDecodeStep ignores them.
+        None = topology not yet wired (internal invariant).
+    sample_step : Any | None
+        Sampling strategy: None = scoring-only mode (no sampling);
+        categorical/Gumbel-Softmax/STE = sample from logits.
+        Examples: eqx.Module subclasses with __call__(logits, key) → tokens.
+    tie_group_fuse : TieGroupFuseFn | None
+        Reduce over tied positions. Signature:
+        ``((K,), (K,)) → () | scalar``
+        Implements reduction for positions in the same tie_group_id
+        (e.g., product of experts for logit fusion across ties).
+        None = no tied-position fusion (each position independent).
+
+    Notes
+    -----
+    Plain callables (lambdas, functools.partial without parameters) and
+    stateless functions can be used in slots; eqx.filter_jit marks non-array
+    content static. Weight-bearing implementations must be eqx.Module subclasses
+    for JAX tracing.
+
+    References
+    ----------
+    .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+       sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+       https://doi.org/10.1126/science.add2187
     """
 
     logit_transform: (

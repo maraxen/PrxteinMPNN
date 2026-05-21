@@ -13,7 +13,50 @@ from jaxtyping import Array, Bool, Float, Int
 
 
 class GeometryBundle(eqx.Module):
-    """Stacked backbone geometry. S=1 for single-state."""
+    """Stacked backbone geometry for one or more conformational states.
+
+    Backbone coordinates, masks, and residue/chain indices assembled from
+    protein structures. Forms the JIT boundary: host-side prepares geometry,
+    passes as traced PyTree into JAX kernels. Static fields (n_states, n_canonical,
+    n_flat) are not traced; Optional fields are resolved to zero-filled arrays
+    before JIT entry.
+
+    Parameters
+    ----------
+    coords : Float[Array, "S L 4 3"]
+        Backbone coordinates: [C, N, CA, CB] atoms per residue.
+        Shape: S = num conformational states, L = sequence length.
+    mask : Float[Array, "S L"]
+        Per-residue backbone validity mask (1.0 = valid, 0.0 = masked).
+    residue_index : Int[Array, "S L"]
+        Absolute residue indices in the PDB structure.
+    chain_index : Int[Array, "S L"]
+        Chain assignment for inter-chain masking.
+    state_flat_rows : Int[Array, "S L"]
+        Mapping from per-state positions into the flat supersystem layout
+        for multi-state models. Used by logit fusion to scatter logits
+        correctly across conformational states.
+    n_states : int
+        Number of conformational states. Static (not a JAX array).
+    n_canonical : int
+        Number of canonical amino acids (19 or 20). Static (not a JAX array).
+    n_flat : int
+        Flat supersystem size = sum of all residues across all states.
+        Static (not a JAX array).
+    structure_mapping : Int[Array, "S L"] | None
+        Optional structure-specific residue mapping for multi-model systems.
+        None for standard single-model inputs.
+    physics_features : Float[Array, "S L P"] | None
+        Optional membrane physics features (one-hot per-residue labels).
+        Shape P depends on physics model; None for soluble/ligand-only models
+        (no membrane conditioning).
+
+    References
+    ----------
+    .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+       sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+       https://doi.org/10.1126/science.add2187
+    """
     coords: Float[Array, "S L 4 3"]
     mask: Float[Array, "S L"]
     residue_index: Int[Array, "S L"]
@@ -29,25 +72,106 @@ class GeometryBundle(eqx.Module):
 
 
 class ConditioningBundle(eqx.Module):
-    """Sequence conditioning — fully resolved, no Optional."""
-    fixed_mask: Float[Array, L]
-    fixed_tokens: Int[Array, L]
+    """Sequence-level conditioning input — fully resolved, no Optional fields.
+
+    All fields are pre-populated by the host: unconditional/autoregressive modes
+    pass zeros for sequence_oh, conditional modes pass one-hot, masked regions
+    pass fixed_tokens, etc. JAX kernels never see None; zero-filled arrays are
+    passed instead for missing modalities.
+
+    Parameters
+    ----------
+    fixed_mask : Float[Array, "L"]
+        Per-position fixation mask (1.0 = fixed, 0.0 = designable).
+        Shape: L = sequence length.
+    fixed_tokens : Int[Array, "L"]
+        Amino acid index for fixed residues (0 = not fixed, actual index = fixed).
+    bias : Float[Array, "L V"]
+        Per-position per-amino-acid logit bias. Shape: V = vocab size (21).
+        Applied during decode_step before sampling or scoring.
+    tie_group_map : Int[Array, "S L"]
+        Tied-position group assignment. Positions with same group id
+        receive same logit distribution (for symmetric design patterns).
+        Shape: S = num states.
+    state_weights : Float[Array, "S"]
+        Per-state contribution weights for logit fusion in multi-state models.
+        Traced leaf; summed to 1.0 across states before fusion.
+    sequence_oh : Float[Array, "L V"]
+        One-hot encoded input sequence for conditional decoding.
+        All zeros for unconditional or autoregressive-only modes.
+    ar_mask : Float[Array, "S L L"]
+        Autoregressive attention mask. 1.0 = visible, 0.0 = masked.
+        All-ones for purely conditional (non-AR) scoring.
+    temperature : Float[Array, ""]
+        Sampling temperature (scalar). Default 1.0 = no temperature scaling.
+        Traced leaf; used by sample_step if present.
+
+    References
+    ----------
+    .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+       sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+       https://doi.org/10.1126/science.add2187
+    """
+    fixed_mask: Float[Array, "L"]
+    fixed_tokens: Int[Array, "L"]
     bias: Float[Array, "L V"]
     tie_group_map: Int[Array, "S L"]
-    state_weights: Float[Array, S]
+    state_weights: Float[Array, "S"]
     sequence_oh: Float[Array, "L V"]  # zeros for unconditional/AR
     ar_mask: Float[Array, "S L L"]  # full 1s for purely conditional
     temperature: Float[Array, ""] = eqx.field(default_factory=lambda: jnp.array(1.0))
 
 
 class LigandBundle(eqx.Module):
-    """Ligand context. All-zeros when no ligand."""
+    """Ligand atomic context for structure-conditioned sequence design.
+
+    Per-state ligand coordinates, atom types, and validity masks. All arrays
+    are zero-filled when no ligand is present; never None inside JIT.
+
+    Parameters
+    ----------
+    ligand_coords : Float[Array, "S L_lig A 3"]
+        Ligand atom coordinates. Shape: S = num states, L_lig = num ligand
+        residues, A = atoms per residue.
+    ligand_atom_types : Int[Array, "S L_lig A"]
+        Atomic element indices for ligand atoms (e.g., 6=C, 7=N, 8=O).
+    ligand_mask : Float[Array, "S L_lig A"]
+        Per-atom validity mask (1.0 = valid, 0.0 = masked/absent).
+
+    References
+    ----------
+    .. [LigandMPNN] Dauparas, J., et al. "Atomic context-conditioned protein
+       sequence design using LigandMPNN." *Nature Methods* 22(4):717-723 (2025).
+       https://doi.org/10.1038/s41592-025-02626-1
+
+    .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).
+       https://github.com/dauparas/LigandMPNN
+    """
     ligand_coords: Float[Array, "S L_lig A 3"]
     ligand_atom_types: Int[Array, "S L_lig A"]
     ligand_mask: Float[Array, "S L_lig A"]
 
 
 class WaveScheduleBundle(eqx.Module):
+    """Tied-position decoding schedule encoded as waves and groups.
+
+    Organizes the tied-position autoregressive decode into W waves; each
+    wave contains G groups of P positions. Positions with the same tie_group_id
+    are decoded together (to maintain equivalent logit distributions).
+
+    Parameters
+    ----------
+    group_ids : Int[Array, "W G"]
+        Tie group identifier per wave and group slot.
+        Shape: W = num decoding waves, G = max groups per wave.
+    group_positions : Int[Array, "W G P"]
+        Position indices within each group.
+        Shape: P = max positions per group. Padded with -1 (masked by position_valid).
+    group_valid : Bool[Array, "W G"]
+        Validity mask for groups (True = group has content).
+    position_valid : Bool[Array, "W G P"]
+        Validity mask for positions within groups (True = position is real).
+    """
     group_ids: Int[Array, "W G"]
     group_positions: Int[Array, "W G P"]
     group_valid: Bool[Array, "W G"]
@@ -55,10 +179,26 @@ class WaveScheduleBundle(eqx.Module):
 
     @staticmethod
     def from_tie_groups(
-        tie_group_map: Int[Array, L],
-        decoding_order: Int[Array, L],
+        tie_group_map: Int[Array, "L"],
+        decoding_order: Int[Array, "L"],
     ) -> WaveScheduleBundle:
-        """Create a schedule where tied positions are in the same wave step."""
+        """Create a schedule where tied positions are in the same wave step.
+
+        Groups positions by tie_group_map and orders them according to
+        decoding_order. Each tied position group becomes one wave.
+
+        Parameters
+        ----------
+        tie_group_map : Int[Array, "L"]
+            Tie group assignment per position. Same id = same group.
+        decoding_order : Int[Array, "L"]
+            Positions in decoding order. Determines wave sequencing.
+
+        Returns
+        -------
+        WaveScheduleBundle
+            Schedule with groups organized into waves.
+        """
         L = tie_group_map.shape[0]
         # Map each position to its decoding step
         # (Assuming decoding_order respects ties: positions in same tie group
@@ -108,7 +248,18 @@ class WaveScheduleBundle(eqx.Module):
 
     @staticmethod
     def empty(seq_len: int) -> WaveScheduleBundle:
-        """Sequential single-position-at-a-time schedule."""
+        """Sequential single-position-at-a-time schedule (no tied positions).
+
+        Parameters
+        ----------
+        seq_len : int
+            Sequence length. Creates W=L waves, one position per wave.
+
+        Returns
+        -------
+        WaveScheduleBundle
+            Schedule with sequential untied decoding.
+        """
         # W = L, G = 1
         group_ids = jnp.arange(seq_len)[:, None]
         group_positions = jnp.arange(seq_len)[:, None, None]
@@ -123,7 +274,36 @@ class WaveScheduleBundle(eqx.Module):
 
 
 class InferenceBundle(eqx.Module):
-    """Top-level JIT input."""
+    """Top-level container passed as single traced PyTree through JIT boundary.
+
+    Combines geometry, conditioning, ligand context, and wave schedule into
+    one immutable PyTree for inference kernels. All sub-bundles are fully
+    resolved on the host (no None fields); sub-bundles are traced leaves.
+
+    Parameters
+    ----------
+    geometry : GeometryBundle
+        Backbone geometry (coordinates, masks, indices) for one or more states.
+    conditioning : ConditioningBundle
+        Sequence conditioning: fixed positions, biases, tied groups, one-hot.
+    ligand : LigandBundle
+        Ligand atoms and masks. Zero-filled if no ligand.
+    wave : WaveScheduleBundle
+        Decoding wave schedule for tied-position autoregressive decode.
+    backbone_noise : Float[Array, ""]
+        Backbone coordinate noise magnitude (scalar). 0.0 = no noise.
+        Used by coordinate augmentation during encode/decode.
+
+    References
+    ----------
+    .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+       sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+       https://doi.org/10.1126/science.add2187
+
+    .. [LigandMPNN] Dauparas, J., et al. "Atomic context-conditioned protein
+       sequence design using LigandMPNN." *Nature Methods* 22(4):717-723 (2025).
+       https://doi.org/10.1038/s41592-025-02626-1
+    """
     geometry: GeometryBundle
     conditioning: ConditioningBundle
     ligand: LigandBundle
@@ -132,14 +312,56 @@ class InferenceBundle(eqx.Module):
 
 
 class EncodedFeatures(eqx.Module):
-    """Encoder outputs carried across encode / decode boundaries (single or batched)."""
+    """Single-state encoder output reused across encode/decode boundaries.
+
+    Node and edge features extracted by the encoder from a single backbone
+    structure. Typically batched via vmap when processing multiple states.
+
+    Parameters
+    ----------
+    node_features : Float[Array, "L D"]
+        Per-residue node embeddings. Shape: L = sequence length, D = embedding dim.
+    edge_features : Float[Array, "L K D"]
+        Per-residue neighbor edge embeddings.
+        Shape: K = num neighbors per residue (typically 30).
+    neighbor_indices : Int[Array, "L K"]
+        Neighbor residue indices (used for gather operations in decode).
+
+    References
+    ----------
+    .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+       sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+       https://doi.org/10.1126/science.add2187
+    """
     node_features: Float[Array, "L D"]
     edge_features: Float[Array, "L K D"]
     neighbor_indices: Int[Array, "L K"]
 
 
 class EncoderOutput(eqx.Module):
-    """Multi-state encoder output (S states)."""
+    """Multi-state encoder output before logit fusion.
+
+    Stacked single-state encoder outputs (via vmap) for multiple conformational
+    states. Passed into logit fusion and decode functions.
+
+    Parameters
+    ----------
+    node_features : Float[Array, "S L D"]
+        Per-state per-residue node embeddings.
+        Shape: S = num states, L = sequence length, D = embedding dim.
+    edge_features : Float[Array, "S L K D"]
+        Per-state per-residue neighbor edge embeddings.
+    neighbor_indices : Int[Array, "S L K"]
+        Neighbor residue indices (constant across states).
+    mask : Float[Array, "S L"]
+        Per-state per-residue validity mask.
+
+    References
+    ----------
+    .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+       sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+       https://doi.org/10.1126/science.add2187
+    """
     node_features: Float[Array, "S L D"]
     edge_features: Float[Array, "S L K D"]
     neighbor_indices: Int[Array, "S L K"]
@@ -147,21 +369,80 @@ class EncoderOutput(eqx.Module):
 
 
 class PackerResult(eqx.Module):
-    """Mixture parameters for side-chain torsions."""
+    """Von Mises–Fisher mixture parameters for side-chain torsion angles.
+
+    Output of the side-chain packer forward pass. Encodes the predicted
+    distribution over chi angles (4 per residue) as a VMF mixture model.
+
+    Parameters
+    ----------
+    mean : Float[Array, "L 4 3"]
+        Mean direction vectors (unit sphere). Shape: L = num residues,
+        4 = chi angles (chi1-chi4), 3 = Cartesian coordinates.
+    concentration : Float[Array, "L 4 3"]
+        Concentration (kappa) parameters for VMF. Higher = sharper distribution.
+    mix_logits : Float[Array, "L 4 3"]
+        Logits for mixture weights across the 3-component VMF mixture.
+
+    References
+    ----------
+    .. [LigandMPNN] Dauparas, J., et al. "Atomic context-conditioned protein
+       sequence design using LigandMPNN." *Nature Methods* 22(4):717-723 (2025).
+       https://doi.org/10.1038/s41592-025-02626-1
+
+    .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).
+       https://github.com/dauparas/LigandMPNN
+    """
     mean: Float[Array, "L 4 3"]
     concentration: Float[Array, "L 4 3"]
     mix_logits: Float[Array, "L 4 3"]
 
 
 class PackerBundle(eqx.Module):
-    """Input features for side-chain packing."""
-    sequence: Int[Array, L]
+    """Input features for side-chain packing (torsion angle prediction).
+
+    Amino acid sequence, backbone coordinates, and ligand context for the
+    side-chain packing forward pass. Output is a PackerResult (VMF parameters).
+
+    Parameters
+    ----------
+    sequence : Int[Array, "L"]
+        Amino acid sequence (indices 0–20). Shape: L = sequence length.
+    backbone_coords : Float[Array, "L 14 3"]
+        All backbone atoms (N, CA, C, O, CB, etc.). Shape: 14 = max atom types.
+    backbone_mask : Float[Array, "L 14"]
+        Validity mask for backbone atoms.
+    ligand_coords : Float[Array, "L M 3"]
+        Ligand atom coordinates per residue. Shape: M = max ligand atoms.
+    ligand_mask : Float[Array, "L M"]
+        Validity mask for ligand atoms.
+    ligand_atom_types : Float[Array, "L M"]
+        Ligand atom element indices.
+    mask : Float[Array, "L"]
+        Per-residue validity mask (1.0 = design-able, 0.0 = masked).
+    residue_index : Int[Array, "L"]
+        Absolute residue indices in PDB.
+    chain_labels : Int[Array, "L"]
+        Chain assignment for inter-chain masking.
+    backbone_noise : Float[Array, ""]
+        Backbone coordinate noise magnitude. Default 0.0 (no noise).
+
+    References
+    ----------
+    .. [LigandMPNN] Dauparas, J., et al. "Atomic context-conditioned protein
+       sequence design using LigandMPNN." *Nature Methods* 22(4):717-723 (2025).
+       https://doi.org/10.1038/s41592-025-02626-1
+
+    .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).
+       https://github.com/dauparas/LigandMPNN
+    """
+    sequence: Int[Array, "L"]
     backbone_coords: Float[Array, "L 14 3"]
     backbone_mask: Float[Array, "L 14"]
     ligand_coords: Float[Array, "L M 3"]
     ligand_mask: Float[Array, "L M"]
     ligand_atom_types: Float[Array, "L M"]
-    mask: Float[Array, L]
-    residue_index: Int[Array, L]
-    chain_labels: Int[Array, L]
+    mask: Float[Array, "L"]
+    residue_index: Int[Array, "L"]
+    chain_labels: Int[Array, "L"]
     backbone_noise: Float[Array, ""] = 0.0

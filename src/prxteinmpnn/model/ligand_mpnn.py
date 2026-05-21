@@ -152,12 +152,12 @@ class PrxteinLigandMPNN(eqx.Module):
 
   def __call__(
     self,
-    key: PRNGKeyArray,
     coords: jax.Array,
     mask: jax.Array,
     residue_index: jax.Array,
     chain_index: jax.Array,
     *,
+    prng_key: PRNGKeyArray | None = None,
     backbone_noise: float | jax.Array = 0.0,
     backbone_noise_mode: str = "direct",
     structure_mapping: jax.Array | None = None,
@@ -169,23 +169,25 @@ class PrxteinLigandMPNN(eqx.Module):
     """Pure forward: features -> encode -> return encoded representation.
 
     Args:
-        key: PRNG key for encoding.
         coords: (L, 4, 3) atom coordinates for one state.
         mask: (L,) residue mask.
         residue_index: (L,) residue indices.
         chain_index: (L,) chain indices.
+        prng_key: PRNG key for encoding (optional, defaults to PRNGKey(0)).
         backbone_noise: scalar backbone noise level.
-        backbone_noise_mode: mode for backbone noise (accepted but not used by LigandMPNN features).
+        backbone_noise_mode: accepted but not used by LigandMPNN features.
         structure_mapping: optional structure isolation mapping.
         y: (M, 4, 3) ligand coordinates.
         y_t: (M, 4) ligand atom type tokens.
         y_m: (M, 4) ligand atom mask.
-        inference: unused for compatibility.
+        inference: unused, accepted for API uniformity.
 
     Returns:
         (node_features, edge_features, neighbor_indices) for this state.
     """
-    keys = jax.random.split(key, 2)
+    if prng_key is None:
+      prng_key = jax.random.PRNGKey(0)
+    keys = jax.random.split(prng_key, 2)
 
     # Default ligand arrays to empty if not provided
     if y is None:
@@ -211,7 +213,6 @@ class PrxteinLigandMPNN(eqx.Module):
     h_V = jnp.zeros((E.shape[0], self.node_features_dim))
     h_E = E
 
-    mask = geo.mask[0]
     mask_2d = mask[:, None] * mask[None, :]
     mask_attend = jnp.take_along_axis(mask_2d, E_idx.astype(jnp.int32), axis=1)
 

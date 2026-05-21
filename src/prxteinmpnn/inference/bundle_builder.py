@@ -32,9 +32,9 @@ def build_inference_bundle(
     fixed_tokens: jax.Array | None = None,
     tie_group_map: jax.Array | None = None,
     state_weights: jax.Array | None = None,
-    y: jax.Array | None = None,
-    y_t: jax.Array | None = None,
-    y_m: jax.Array | None = None,
+    ligand_coords: jax.Array | None = None,
+    ligand_atom_types: jax.Array | None = None,
+    ligand_mask: jax.Array | None = None,
     structure_mapping: jax.Array | None = None,
     physics_features: jax.Array | None = None,
     temperature: float = 1.0,
@@ -54,10 +54,10 @@ def build_inference_bundle(
         chain_index = chain_index[None, ...]
         if structure_mapping is not None:
             structure_mapping = structure_mapping[None, ...]
-        if y is not None:
-            y = y[None, ...]
-            y_t = y_t[None, ...]
-            y_m = y_m[None, ...]
+        if ligand_coords is not None:
+            ligand_coords = ligand_coords[None, ...]
+            ligand_atom_types = ligand_atom_types[None, ...]
+            ligand_mask = ligand_mask[None, ...]
         if physics_features is not None and physics_features.ndim == 2:
             physics_features = physics_features[None, ...]
 
@@ -131,9 +131,9 @@ def build_inference_bundle(
 
     # 4. Ligand
     lig = LigandBundle(
-        ligand_coords=y if y is not None else jnp.zeros((S, 0, 4, 3)),
-        ligand_atom_types=y_t if y_t is not None else jnp.zeros((S, 0, 4), dtype=jnp.int32),
-        ligand_mask=y_m if y_m is not None else jnp.zeros((S, 0, 4)),
+        ligand_coords=ligand_coords if ligand_coords is not None else jnp.zeros((S, 0, 4, 3)),
+        ligand_atom_types=ligand_atom_types if ligand_atom_types is not None else jnp.zeros((S, 0, 4), dtype=jnp.int32),
+        ligand_mask=ligand_mask if ligand_mask is not None else jnp.zeros((S, 0, 4)),
     )
 
     # 5. Assemble Bundle

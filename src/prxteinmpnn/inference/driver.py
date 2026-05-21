@@ -106,11 +106,11 @@ def _decode_conditional(
     """
     S = enc.node_features.shape[0]  # First dim is state dimension
 
-    def decode_one(nb, eb, nei, mk, arm, oh):
+    def decode_one(node_features, edge_features, neighbor_indices, mask, ar_mask, seq_oh):
         if stage_set.decode_step is not None:
-            return stage_set.decode_step(nb, eb, nei, mk, arm, oh, key=key, inference=config.inference)
+            return stage_set.decode_step(node_features, edge_features, neighbor_indices, mask, ar_mask, seq_oh, key=key, inference=config.inference)
         return model.decoder.call_conditional(
-            nb, eb, nei, mk, arm, oh, model.w_s_embed.weight,
+            node_features, edge_features, neighbor_indices, mask, ar_mask, seq_oh, model.w_s_embed.weight,
             inference=config.inference, key=key,
         )
 
@@ -153,11 +153,11 @@ def _decode_unconditional(
     assert isinstance(stage_set.decode_step, UnconditionalDecodeStep), \
         f"Unconditional decoding requires UnconditionalDecodeStep, got {type(stage_set.decode_step)}"
 
-    def decode_one(nb, eb, nei, mk):
+    def decode_one(node_features, edge_features, neighbor_indices, mask):
         if stage_set.decode_step is not None:
-            return stage_set.decode_step(nb, eb, nei, mk, key=key, inference=config.inference)
+            return stage_set.decode_step(node_features, edge_features, neighbor_indices, mask, key=key, inference=config.inference)
         # For unconditional, no sequence conditioning
-        return model.decoder(nb, eb, nei, mk, key=key, inference=config.inference)
+        return model.decoder(node_features, edge_features, neighbor_indices, mask, key=key, inference=config.inference)
 
     # Decode over states: (S, L, H)
     decoded = jax.vmap(decode_one, in_axes=(0, 0, 0, 0))(
@@ -222,11 +222,11 @@ def decode_ar(
             seq_oh = jax.nn.one_hot(seq, 21)
 
             # Decode (vmap over states)
-            def decode_one(n, e, idx, m, arm):
+            def decode_one(node_features, edge_features, neighbor_indices, mask, ar_mask):
                 if stage_set.decode_step is not None:
-                    return stage_set.decode_step(n, e, idx, m, arm, seq_oh, key=key, inference=config.inference)
+                    return stage_set.decode_step(node_features, edge_features, neighbor_indices, mask, ar_mask, seq_oh, key=key, inference=config.inference)
                 return model.decoder.call_conditional(
-                    n, e, idx, m, arm, seq_oh, model.w_s_embed.weight,
+                    node_features, edge_features, neighbor_indices, mask, ar_mask, seq_oh, model.w_s_embed.weight,
                     key=key, inference=config.inference,
                 )
 

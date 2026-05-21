@@ -48,14 +48,21 @@ def make_sampling_planner(
 ) -> BatchPlan:
     """Create a BatchPlan for _sample_batch dispatch with advisory logging.
 
-    Args:
-        spec: The sampling specification containing batch size and temperature/noise parameters.
-        param_bytes: Estimated model parameter size in bytes.
-        headroom: Fraction of device memory to use (0.80 = 80% headroom).
-        activation_multiplier: Multiplier for activation memory estimation.
+    Parameters
+    ----------
+    spec : SamplingSpecification
+        Sampling specification containing batch size and temperature/noise parameters.
+    param_bytes : float, optional
+        Estimated model parameter size in bytes. Default 0.0.
+    headroom : float, optional
+        Fraction of device memory to use. Default 0.80 (80% headroom).
+    activation_multiplier : float, optional
+        Multiplier for activation memory estimation. Default 2.5.
 
-    Returns:
-        A BatchPlan describing the batch size decisions for each axis.
+    Returns
+    -------
+    BatchPlan
+        Batch size decisions for each sampling axis (structures, samples, temps, noises).
     """
     try:
         limit = jax.devices()[0].memory_stats()["bytes_limit"]
@@ -78,11 +85,15 @@ def make_sampling_planner(
 def extract_batch_sizes(plan: BatchPlan) -> tuple[int, int, int, int]:
     """Extract batch sizes for all sampling axes from a BatchPlan.
 
-    Args:
-        plan: The BatchPlan from make_sampling_planner.
+    Parameters
+    ----------
+    plan : BatchPlan
+        Batch plan from make_sampling_planner.
 
-    Returns:
-        A tuple of (structures_bs, samples_bs, temps_bs, noises_bs).
+    Returns
+    -------
+    tuple[int, int, int, int]
+        Tuple of (structures_bs, samples_bs, temps_bs, noises_bs).
     """
     structures_bs = plan.decision_for(AxisNames.N_STRUCTURES).batch_size
     samples_bs = plan.decision_for(AxisNames.N_SAMPLES).batch_size
@@ -97,16 +108,23 @@ def compute_sample_keys(
     chunk_sample_start: int | None = None,
     grid_lineage_sample_start: int | None = None,
 ) -> jax.Array:
-    """Compute deterministic PRNG keys for all samples based on indexing strategy.
+    """Compute deterministic PRNG keys for all samples via fold_in.
 
-    Args:
-        base_key: The base PRNG key for folding.
-        target_num_samples: Number of samples to generate keys for.
-        chunk_sample_start: Optional explicit chunk start index.
-        grid_lineage_sample_start: Optional grid lineage sample start index.
+    Parameters
+    ----------
+    base_key : PRNGKeyArray
+        Base PRNG key for folding.
+    target_num_samples : int
+        Number of samples to generate keys for.
+    chunk_sample_start : int | None, optional
+        Explicit chunk start index. Default None.
+    grid_lineage_sample_start : int | None, optional
+        Grid lineage sample start index. Default None.
 
-    Returns:
-        JAX array of shape (target_num_samples,) containing folded keys.
+    Returns
+    -------
+    jax.Array
+        Array of shape ``(target_num_samples,)`` containing folded keys.
     """
     sample_indices = np.arange(target_num_samples, dtype=np.int32)
     if chunk_sample_start is not None:
@@ -128,16 +146,24 @@ def resolve_target_samples(
     Prioritizes explicit chunk_sample_count, then grid lineage sample_count,
     then spec.num_samples as fallback.
 
-    Args:
-        spec: The sampling specification.
-        chunk_sample_count: Optional explicit sample count for this chunk.
-        grid_lineage: Optional grid lineage dict with 'sample_count' key.
+    Parameters
+    ----------
+    spec : SamplingSpecification
+        Sampling specification.
+    chunk_sample_count : int | None, optional
+        Explicit sample count for this chunk. Default None.
+    grid_lineage : dict[str, int | str] | None, optional
+        Grid lineage dict with 'sample_count' key. Default None.
 
-    Returns:
-        The resolved target sample count as a positive integer.
+    Returns
+    -------
+    int
+        Resolved target sample count (positive).
 
-    Raises:
-        ValueError: If resolved sample count is not positive.
+    Raises
+    ------
+    ValueError
+        If resolved sample count is not positive.
     """
     if chunk_sample_count is not None:
         target = int(chunk_sample_count)
@@ -159,16 +185,22 @@ def resolve_chunk_size(
 ) -> int:
     """Resolve the chunk size for streaming sample output.
 
-    Uses spec.samples_chunk_size if set, otherwise uses grid_lineage['sample_count']
-    if grid_lineage exists, otherwise uses total_num_samples.
+    Uses spec.samples_chunk_size if set, otherwise grid_lineage['sample_count']
+    if grid_lineage exists, otherwise total_num_samples.
 
-    Args:
-        spec: The sampling specification.
-        total_num_samples: Total number of samples to be generated.
-        grid_lineage: Optional grid lineage dict.
+    Parameters
+    ----------
+    spec : SamplingSpecification
+        Sampling specification.
+    total_num_samples : int
+        Total number of samples to be generated.
+    grid_lineage : dict[str, int | str] | None, optional
+        Grid lineage dict. Default None.
 
-    Returns:
-        The chunk size as a positive integer.
+    Returns
+    -------
+    int
+        Chunk size (positive).
     """
     if hasattr(spec, "samples_chunk_size") and spec.samples_chunk_size:
         return int(spec.samples_chunk_size)
@@ -182,11 +214,15 @@ def resolve_sample_start(
 ) -> int:
     """Resolve the sample start index from grid lineage or default to 0.
 
-    Args:
-        grid_lineage: Optional grid lineage dict with 'sample_start' key.
+    Parameters
+    ----------
+    grid_lineage : dict[str, int | str] | None, optional
+        Grid lineage dict with 'sample_start' key. Default None.
 
-    Returns:
-        The sample start index (0-based).
+    Returns
+    -------
+    int
+        Sample start index (0-based).
     """
     return int(grid_lineage["sample_start"]) if grid_lineage is not None else 0
 
@@ -197,7 +233,21 @@ def resolve_sample_start(
 
 
 class InferenceComponents(NamedTuple):
-    """Resolved inference components: encode function, driver, and stages."""
+    """Resolved inference components for encode-once/decode-many pipeline.
+
+    Parameters
+    ----------
+    encode_fn : Callable
+        Encoder forward pass. Signature:
+        ``(bundle: InferenceBundle, key: PRNGKeyArray, config: InferenceConfig) → EncoderOutput``
+    driver : Callable
+        Decode driver. Signature:
+        ``(model, key, enc, conditioning, wave, config, stage_set) → result``
+        Routes to sample_autoregressive or score_conditional based on stage_set.
+    stage_set : Any
+        StageSet instance with all slots wired (logit_transform, ar_logit_transform,
+        decode_step, sample_step, tie_group_fuse). Ready for JIT.
+    """
     encode_fn: Callable
     driver: Callable
     stage_set: Any  # StageSet
@@ -205,22 +255,72 @@ class InferenceComponents(NamedTuple):
 
 @dataclass
 class InferencePlan:
-    """Resolved plan: encode-once/decode-many with distinct .sample() and .score() entrypoints."""
+    """Resolved inference plan with encode-once/decode-many pattern.
+
+    Encodes geometry and ligand context once, then reuses encoder output for
+    multiple decode passes (sampling or scoring) with different stage_set instances.
+
+    Parameters
+    ----------
+    model : Any
+        Parameterized protein/ligand model (carries JAX arrays).
+    components : InferenceComponents
+        Resolved components: encode_fn, driver, stage_set.
+
+    Notes
+    -----
+    `.sample()` and `.score()` invoke the same encode → decode pipeline but with
+    different stage_set configurations. The decode_step and sample_step fields in
+    stage_set determine the output (sampled sequence or logits).
+    """
 
     model: Any
     components: InferenceComponents
 
     @property
     def stage_set(self) -> Any:
+        """Access the wired StageSet directly."""
         return self.components.stage_set
 
     def sample(self, bundle: InferenceBundle, key: PRNGKeyArray, config: InferenceConfig) -> Any:
+        """Encode and sample from the pipeline.
+
+        Parameters
+        ----------
+        bundle : InferenceBundle
+            Input geometry, conditioning, ligand, and wave schedule.
+        key : PRNGKeyArray
+            PRNG key for sampling.
+        config : InferenceConfig
+            Inference configuration (batch, device, etc.).
+
+        Returns
+        -------
+        Any
+            Sampled sequence (or auxiliary output from driver).
+        """
         enc = self.components.encode_fn(bundle, key, config)
         return self.components.driver(
             self.model, key, enc, bundle.conditioning, bundle.wave, config, self.components.stage_set,
         )
 
     def score(self, bundle: InferenceBundle, key: PRNGKeyArray, config: InferenceConfig) -> Logits:
+        """Encode and score the pipeline.
+
+        Parameters
+        ----------
+        bundle : InferenceBundle
+            Input geometry, conditioning, ligand, and wave schedule.
+        key : PRNGKeyArray
+            PRNG key for any stochastic operations.
+        config : InferenceConfig
+            Inference configuration (batch, device, etc.).
+
+        Returns
+        -------
+        Logits
+            Logit scores per position per amino acid.
+        """
         enc = self.components.encode_fn(bundle, key, config)
         return self.components.driver(
             self.model, key, enc, bundle.conditioning, bundle.wave, config, self.components.stage_set,
@@ -228,7 +328,35 @@ class InferencePlan:
 
 
 def make_inference_plan(model: ModelProtocol, spec: Any) -> InferencePlan:
-    """Factory: resolve and create an InferencePlan from model and spec."""
+    """Factory: resolve and create an InferencePlan from model and spec.
+
+    Assembles the inference pipeline by resolving encode_fn (from use_rolling_state),
+    wiring logit_transform (from multi_state_strategy), and instantiating stage_set
+    with ARLogitFuse and TieGroupProductOfExperts.
+
+    Parameters
+    ----------
+    model : ModelProtocol
+        Parameterized model with decoder, encoder, and embeddings.
+    spec : Any
+        Specification with attributes: use_rolling_state, multi_state_strategy,
+        multi_state_temperature, state_weights.
+
+    Returns
+    -------
+    InferencePlan
+        Ready-to-use inference plan for sampling/scoring.
+
+    References
+    ----------
+    .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+       sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+       https://doi.org/10.1126/science.add2187
+
+    .. [LigandMPNN] Dauparas, J., et al. "Atomic context-conditioned protein
+       sequence design using LigandMPNN." *Nature Methods* 22(4):717-723 (2025).
+       https://doi.org/10.1038/s41592-025-02626-1
+    """
     from prxteinmpnn.inference import driver as driver_module
     from prxteinmpnn.inference.encode import make_encode_fn
     from prxteinmpnn.inference.logits import LOGIT_STRATEGIES, ARLogitFuse, TieGroupProductOfExperts

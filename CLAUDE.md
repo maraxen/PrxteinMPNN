@@ -98,7 +98,10 @@ Wave A (no deps):
                 commit: ec09ecb8
 
 Wave B (after Wave A):
-  [ ] COMP-533  Move strategy→kernel resolution into make_inference_plan
+  [x] COMP-533  Move strategy→kernel resolution into make_inference_plan
+                _sample_batch now consumer (keyword-only stage_set param);
+                runner.py constructs once + functools.partial for streaming;
+                sample.py exempted (SamplerFn constraint, COMP-535+).
 
 Wave C (after Wave B):
   [ ] COMP-534  Wire _sample_batch through InferencePlan
@@ -143,6 +146,17 @@ Wave 6 (P2/P3 — done ✅):
 - **Tied-positions parity warnings**: 4 `RuntimeWarning` in
   `test_ligand_tied_sampling_weighted_sum_product_alignment` and
   `test_ligand_tied_scoring_arithmetic_mean_alignment` — warn-only, do not affect pass/fail.
+- **COMP-533: sample.py stage_set exemption**: `sampling/sample.py:182` calls
+  `make_stage_set` inside `sample_sequences` (a `SamplerFn` implementation).
+  Cannot be moved without changing the `SamplerFn` protocol signature.
+  Planned for COMP-535+ once `plan.encode()` / `plan.decode()` are exposed.
+- **COMP-NEW: Unify result-sink topology**: Non-streaming path uses
+  `all_sequences.append` (in-memory). Streaming path uses
+  `streaming_tensor_sink_session`. Averaged paths should be arbitrary
+  (not hardcoded); `FuseFn` should allow custom `io_callback` hooks, but
+  always stream via `io_callback` first with FuseFn hooks downstream.
+  Scope: collapse streaming/non-streaming within the regular path;
+  leave averaged kernel topology separate. ~300 LOC, low blast radius.
 
 ---
 

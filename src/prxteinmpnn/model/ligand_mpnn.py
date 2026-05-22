@@ -319,9 +319,9 @@ class PrxteinLigandMPNN(eqx.Module):
       mask=mask,
       residue_index=residue_index,
       chain_index=chain_index,
-      Y=y,
-      Y_t=y_t,
-      Y_m=y_m,
+      ligand_coords=y,
+      ligand_atom_types=y_t,
+      ligand_mask=y_m,
       backbone_noise=backbone_noise,
       structure_mapping=structure_mapping,
     )

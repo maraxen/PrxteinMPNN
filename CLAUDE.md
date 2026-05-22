@@ -87,6 +87,29 @@ Wave E (after COMP-6 + COMP-7):
 
 ---
 
+### Sprint 4 — InferencePlan / Campaign Composability Wiring (#531–536)
+
+**Praxia backlog IDs:** 531–536
+
+```
+Wave A (no deps):
+  [x] COMP-532  Split build_inference_bundle → (bundle, config) only
+                make_stage_set added to inference/logits.py; host/plan.py + all call sites updated
+                commit: ec09ecb8
+
+Wave B (after Wave A):
+  [ ] COMP-533  Move strategy→kernel resolution into make_inference_plan
+
+Wave C (after Wave B):
+  [ ] COMP-534  Wire _sample_batch through InferencePlan
+
+Wave D (after Wave C):
+  [ ] COMP-535  Expose plan.encode() / plan.decode()
+
+Wave E (after Wave D):
+  [ ] COMP-536  Implement campaign.py manifest functions
+```
+
 ---
 
 ### Sprint 3 — Documentation + Known Debt

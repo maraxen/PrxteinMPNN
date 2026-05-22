@@ -114,7 +114,7 @@ def make_score_fn(
     masked_score_sum = (score * mask_flat).sum(-1)
     mask_sum = mask_flat.sum() + 1e-8  # epsilon guards the division below
 
-    return masked_score_sum / mask_sum, logits, decoding_order  # noqa: JL012
+    return masked_score_sum / mask_sum, logits, decoding_order
 
   return cast("ScoreFn", score_sequence)
 

@@ -130,7 +130,7 @@ def _decode_conditional(
     model: ModelProtocol,
     key: PRNGKeyArray,
     enc: EncoderOutput,
-    cond: "ConditioningBundle",
+    cond: ConditioningBundle,
     config: InferenceConfig,
     stage_set: StageSet,
 ) -> Logits:
@@ -198,7 +198,7 @@ def _decode_unconditional(
     model: ModelProtocol,
     key: PRNGKeyArray,
     enc: EncoderOutput,
-    cond: "ConditioningBundle",
+    cond: ConditioningBundle,
     config: InferenceConfig,
     stage_set: StageSet,
 ) -> Logits:

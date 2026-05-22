@@ -112,11 +112,11 @@ class ConditioningBundle(eqx.Module):
        sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
        https://doi.org/10.1126/science.add2187
     """
-    fixed_mask: Float[Array, "L"]
-    fixed_tokens: Int[Array, "L"]
+    fixed_mask: Float[Array, L]
+    fixed_tokens: Int[Array, L]
     bias: Float[Array, "L V"]
     tie_group_map: Int[Array, "S L"]
-    state_weights: Float[Array, "S"]
+    state_weights: Float[Array, S]
     sequence_oh: Float[Array, "L V"]  # zeros for unconditional/AR
     ar_mask: Float[Array, "S L L"]  # full 1s for purely conditional
     temperature: Float[Array, ""] = eqx.field(default_factory=lambda: jnp.array(1.0))
@@ -186,8 +186,8 @@ class WaveScheduleBundle(eqx.Module):
 
     @staticmethod
     def from_tie_groups(
-        tie_group_map: Int[Array, "L"],
-        decoding_order: Int[Array, "L"],
+        tie_group_map: Int[Array, L],
+        decoding_order: Int[Array, L],
     ) -> WaveScheduleBundle:
         """Create a schedule where tied positions are in the same wave step.
 
@@ -444,13 +444,13 @@ class PackerBundle(eqx.Module):
     .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).
        https://github.com/dauparas/LigandMPNN
     """
-    sequence: Int[Array, "L"]
+    sequence: Int[Array, L]
     backbone_coords: Float[Array, "L 14 3"]
     backbone_mask: Float[Array, "L 14"]
     ligand_coords: Float[Array, "L M 3"]
     ligand_mask: Float[Array, "L M"]
     ligand_atom_types: Float[Array, "L M"]
-    mask: Float[Array, "L"]
-    residue_index: Int[Array, "L"]
-    chain_labels: Int[Array, "L"]
+    mask: Float[Array, L]
+    residue_index: Int[Array, L]
+    chain_labels: Int[Array, L]
     backbone_noise: Float[Array, ""] = 0.0

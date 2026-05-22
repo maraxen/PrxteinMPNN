@@ -41,7 +41,6 @@ tpu = ["jax"]
 cpu = ["jax"]
 docs = [
     "sphinx",
-    "sphinx-rtd-theme",
     "sphinx-autodoc-typehints",
     "sphinx-autobuild",
     "myst-parser",
@@ -74,7 +73,6 @@ dev = [
   # Optional JAX static checks (PyPI). Not a merge gate — run locally when debugging perf/JIT.
   "jaxlint>=0.1.0a1",
   "sphinx",
-  "sphinx-rtd-theme",
   "sphinx-autodoc-typehints",
   "sphinx-autobuild",
   "myst-parser",

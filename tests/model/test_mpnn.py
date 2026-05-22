@@ -4,6 +4,7 @@ import jax
 import jax.numpy as jnp
 
 from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+from prxteinmpnn.inference.logits import make_stage_set
 from prxteinmpnn.inference import (
     score_conditional,
     score_unconditional,
@@ -39,13 +40,14 @@ class TestMPNN(chex.TestCase):
         residue_index_batch = self.residue_index[None, ...]
         chain_index_batch = self.chain_index[None, ...]
 
-        bundle, config, stage_set = build_inference_bundle(
+        bundle, config = build_inference_bundle(
             coords=coords_batch,
             mask=mask_batch,
             residue_index=residue_index_batch,
             chain_index=chain_index_batch,
             mode="score_unconditional",
         )
+        stage_set = make_stage_set()
 
         @self.variant
         def score_fn():
@@ -66,7 +68,7 @@ class TestMPNN(chex.TestCase):
         residue_index_batch = self.residue_index[None, ...]
         chain_index_batch = self.chain_index[None, ...]
 
-        bundle, config, stage_set = build_inference_bundle(
+        bundle, config = build_inference_bundle(
             coords=coords_batch,
             mask=mask_batch,
             residue_index=residue_index_batch,
@@ -74,6 +76,7 @@ class TestMPNN(chex.TestCase):
             sequence=jnp.zeros((10, 21)),
             mode="score_conditional",
         )
+        stage_set = make_stage_set()
 
         @self.variant
         def score_fn():
@@ -93,13 +96,14 @@ class TestMPNN(chex.TestCase):
         residue_index_batch = self.residue_index[None, ...]
         chain_index_batch = self.chain_index[None, ...]
 
-        bundle, config, stage_set = build_inference_bundle(
+        bundle, config = build_inference_bundle(
             coords=coords_batch,
             mask=mask_batch,
             residue_index=residue_index_batch,
             chain_index=chain_index_batch,
             mode="sample_autoregressive",
         )
+        stage_set = make_stage_set()
 
         result = sample_autoregressive.kernel(
             self.model, self.prng_key, bundle, config, stage_set

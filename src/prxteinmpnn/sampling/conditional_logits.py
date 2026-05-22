@@ -27,6 +27,7 @@ import jax
 from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+from prxteinmpnn.inference.logits import make_stage_set
 from prxteinmpnn.inference.score_conditional import kernel as score_conditional
 from prxteinmpnn.types.arrays import (
   AlphaCarbonMask,
@@ -107,7 +108,7 @@ def make_conditional_logits_fn(
       ... )
 
     """
-    bundle, config, stage_set = build_inference_bundle(
+    bundle, config = build_inference_bundle(
         coords=structure_coordinates,
         mask=mask,
         residue_index=residue_index,
@@ -117,10 +118,10 @@ def make_conditional_logits_fn(
         ar_mask=ar_mask,
         structure_mapping=structure_mapping,
         mode="score_conditional",
-        strategy="arithmetic_mean",
         use_rolling_state=False,
         inference=True,
     )
+    stage_set = make_stage_set()
 
     return score_conditional(
         model=model,

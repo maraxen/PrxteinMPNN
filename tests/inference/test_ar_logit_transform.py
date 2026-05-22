@@ -135,17 +135,11 @@ def test_stage_set_has_tie_group_fuse_slot():
 
 
 def test_bundle_builder_defaults_tie_group_fuse():
-    """build_inference_bundle wires TieGroupProductOfExperts by default."""
+    """make_stage_set wires TieGroupProductOfExperts by default."""
     import jax.numpy as jnp
-    from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-    from prxteinmpnn.inference.logits import TieGroupProductOfExperts
+    from prxteinmpnn.inference.logits import make_stage_set, TieGroupProductOfExperts
 
-    L = 4
-    coords = jnp.zeros((L, 4, 3))
-    mask = jnp.ones(L)
-    ri = jnp.arange(L)
-    ci = jnp.zeros(L, dtype=jnp.int32)
-    _, _, stage_set = build_inference_bundle(coords, mask, ri, ci)
+    stage_set = make_stage_set()
     assert isinstance(stage_set.tie_group_fuse, TieGroupProductOfExperts)
 
 

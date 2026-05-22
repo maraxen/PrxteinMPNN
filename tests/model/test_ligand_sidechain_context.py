@@ -72,6 +72,7 @@ def _run_conditional(
 ) -> tuple[jax.Array, jax.Array]:
   """Run conditional decoding with optional side-chain context tensors."""
   from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+  from prxteinmpnn.inference.logits import make_stage_set
   from prxteinmpnn.inference import score_conditional
 
   kwargs: dict[str, jax.Array] = {}
@@ -83,7 +84,7 @@ def _run_conditional(
     }
 
   # Build inference bundle with ligand coordinates and ligand mask
-  bundle, config, stage_set = build_inference_bundle(
+  bundle, config = build_inference_bundle(
     coords=inputs["structure_coordinates"][None, ...],  # Add batch dim
     mask=inputs["mask"][None, ...],
     residue_index=inputs["residue_index"][None, ...],
@@ -95,6 +96,7 @@ def _run_conditional(
     sequence=inputs["one_hot_sequence"],
     mode="score_conditional",
   )
+  stage_set = make_stage_set()
 
   # Run conditional scoring kernel
   logits = score_conditional.kernel(model, jax.random.PRNGKey(123), bundle, config, stage_set, **kwargs)
@@ -178,6 +180,7 @@ def test_ligand_side_chain_gate_on_executes_context_lane() -> None:
 def test_ligand_tied_autoregressive_support_without_sidechain_context() -> None:
   """Ensure ligand autoregressive tied decoding enforces per-group token consistency."""
   from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+  from prxteinmpnn.inference.logits import make_stage_set
   from prxteinmpnn.inference import sample_autoregressive
   import equinox as eqx
 
@@ -196,7 +199,7 @@ def test_ligand_tied_autoregressive_support_without_sidechain_context() -> None:
   def _sample_with_bundle(use_tie_groups: bool) -> np.ndarray:
     from prxteinmpnn.types.bundles import WaveScheduleBundle
 
-    bundle, config, stage_set = build_inference_bundle(
+    bundle, config = build_inference_bundle(
       coords=inputs["structure_coordinates"][None, ...],
       mask=inputs["mask"][None, ...],
       residue_index=inputs["residue_index"][None, ...],
@@ -209,6 +212,7 @@ def test_ligand_tied_autoregressive_support_without_sidechain_context() -> None:
       temperature=1.0,
       mode="sample_autoregressive",
     )
+    stage_set = make_stage_set()
     if use_tie_groups:
       L = inputs["structure_coordinates"].shape[0]
       wave = WaveScheduleBundle.from_tie_groups(jnp.arange(L), jnp.array(tie_group_map))
@@ -231,6 +235,7 @@ def test_ligand_tied_autoregressive_support_without_sidechain_context() -> None:
 def test_ligand_tied_autoregressive_support_with_sidechain_context() -> None:
   """Ensure side-chain-conditioned ligand tied decoding remains group-consistent."""
   from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+  from prxteinmpnn.inference.logits import make_stage_set
   from prxteinmpnn.inference import sample_autoregressive
   from prxteinmpnn.types.bundles import WaveScheduleBundle
   import equinox as eqx
@@ -249,7 +254,7 @@ def test_ligand_tied_autoregressive_support_with_sidechain_context() -> None:
   L = inputs["structure_coordinates"].shape[0]
   wave = WaveScheduleBundle.from_tie_groups(jnp.arange(L), jnp.array(tie_group_map))
 
-  bundle, config, stage_set = build_inference_bundle(
+  bundle, config = build_inference_bundle(
     coords=inputs["structure_coordinates"][None, ...],
     mask=inputs["mask"][None, ...],
     residue_index=inputs["residue_index"][None, ...],
@@ -262,6 +267,7 @@ def test_ligand_tied_autoregressive_support_with_sidechain_context() -> None:
     temperature=1.0,
     mode="sample_autoregressive",
   )
+  stage_set = make_stage_set()
   bundle = eqx.tree_at(lambda b: b.wave, bundle, wave)
   result = sample_autoregressive.kernel(
     model,
@@ -283,6 +289,7 @@ def test_ligand_tied_autoregressive_support_with_sidechain_context() -> None:
 def test_ligand_conditional_multistate_logits_are_group_shared() -> None:
   """Ensure conditional multistate strategy combines logits identically per tied group."""
   from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+  from prxteinmpnn.inference.logits import make_stage_set
   from prxteinmpnn.inference import score_conditional
   from prxteinmpnn.types.bundles import WaveScheduleBundle
   import equinox as eqx
@@ -298,7 +305,7 @@ def test_ligand_conditional_multistate_logits_are_group_shared() -> None:
   L = inputs["structure_coordinates"].shape[0]
   wave = WaveScheduleBundle.from_tie_groups(jnp.arange(L), jnp.array(tie_group_map))
 
-  bundle, config, stage_set = build_inference_bundle(
+  bundle, config = build_inference_bundle(
     coords=inputs["structure_coordinates"][None, ...],
     mask=inputs["mask"][None, ...],
     residue_index=inputs["residue_index"][None, ...],
@@ -310,6 +317,7 @@ def test_ligand_conditional_multistate_logits_are_group_shared() -> None:
     sequence=inputs["one_hot_sequence"],
     mode="score_conditional",
   )
+  stage_set = make_stage_set()
   bundle = eqx.tree_at(lambda b: b.wave, bundle, wave)
   tied_logits = score_conditional.kernel(model, jax.random.PRNGKey(29), bundle, config, stage_set)
   tied_logits_np = np.asarray(tied_logits)

@@ -14,6 +14,7 @@ from helpers.multistate import (
 )
 
 from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+from prxteinmpnn.inference.logits import make_stage_set
 from prxteinmpnn.inference import (
   sample_autoregressive,
   score_unconditional,
@@ -46,7 +47,7 @@ class TestMPNNMultiState(chex.TestCase):
     protein = create_simple_multistate_protein(key=jax.random.key(0))
     prng_key = jax.random.key(1)
 
-    bundle, config, stage_set = build_inference_bundle(
+    bundle, config = build_inference_bundle(
       coords=protein.coordinates,
       mask=protein.atom_mask,
       residue_index=protein.residue_index,
@@ -54,6 +55,7 @@ class TestMPNNMultiState(chex.TestCase):
       structure_mapping=protein.mapping,
       mode="sample_autoregressive",
     )
+    stage_set = make_stage_set()
     result = sample_autoregressive.kernel(
       self.mpnn_model, prng_key, bundle, config, stage_set
     )
@@ -72,7 +74,7 @@ class TestMPNNMultiState(chex.TestCase):
     protein = create_simple_multistate_protein(key=jax.random.key(0))
     prng_key = jax.random.key(1)
 
-    bundle, config, stage_set = build_inference_bundle(
+    bundle, config = build_inference_bundle(
       coords=protein.coordinates,
       mask=protein.atom_mask,
       residue_index=protein.residue_index,
@@ -80,6 +82,7 @@ class TestMPNNMultiState(chex.TestCase):
       structure_mapping=protein.mapping,
       mode="score_unconditional",
     )
+    stage_set = make_stage_set()
     logits = score_unconditional.kernel(
       self.mpnn_model, prng_key, bundle, config, stage_set
     )
@@ -98,7 +101,7 @@ class TestMPNNMultiState(chex.TestCase):
     protein = create_simple_multistate_protein(key=jax.random.key(0))
     prng_key = jax.random.key(1)
 
-    bundle, config, stage_set = build_inference_bundle(
+    bundle, config = build_inference_bundle(
       coords=protein.coordinates,
       mask=protein.atom_mask,
       residue_index=protein.residue_index,
@@ -107,6 +110,7 @@ class TestMPNNMultiState(chex.TestCase):
       structure_mapping=protein.mapping,
       mode="sample_autoregressive",
     )
+    stage_set = make_stage_set()
     result = sample_autoregressive.kernel(
       self.mpnn_model, prng_key, bundle, config, stage_set
     )
@@ -126,7 +130,7 @@ class TestMPNNMultiState(chex.TestCase):
     prng_key = jax.random.key(1)
 
     # Call WITHOUT structure_mapping
-    bundle_no_mapping, config_no_mapping, stage_set_no_mapping = build_inference_bundle(
+    bundle_no_mapping, config_no_mapping = build_inference_bundle(
       coords=protein.coordinates,
       mask=protein.atom_mask,
       residue_index=protein.residue_index,
@@ -134,13 +138,14 @@ class TestMPNNMultiState(chex.TestCase):
       structure_mapping=None,
       mode="sample_autoregressive",
     )
+    stage_set_no_mapping = make_stage_set()
     result_no_mapping = sample_autoregressive.kernel(
       self.mpnn_model, prng_key, bundle_no_mapping, config_no_mapping, stage_set_no_mapping
     )
 
     # Call WITH structure_mapping=all zeros (equivalent to single structure)
     structure_mapping_single = jnp.zeros(protein.coordinates.shape[0], dtype=jnp.int32)
-    bundle_single, config_single, stage_set_single = build_inference_bundle(
+    bundle_single, config_single = build_inference_bundle(
       coords=protein.coordinates,
       mask=protein.atom_mask,
       residue_index=protein.residue_index,
@@ -148,6 +153,7 @@ class TestMPNNMultiState(chex.TestCase):
       structure_mapping=structure_mapping_single,
       mode="sample_autoregressive",
     )
+    stage_set_single = make_stage_set()
     result_single = sample_autoregressive.kernel(
       self.mpnn_model, prng_key, bundle_single, config_single, stage_set_single
     )
@@ -171,7 +177,7 @@ class TestMPNNMultiState(chex.TestCase):
     )
     prng_key = jax.random.key(1)
 
-    bundle, config, stage_set = build_inference_bundle(
+    bundle, config = build_inference_bundle(
       coords=protein.coordinates,
       mask=protein.atom_mask,
       residue_index=protein.residue_index,
@@ -179,6 +185,7 @@ class TestMPNNMultiState(chex.TestCase):
       structure_mapping=protein.mapping,
       mode="sample_autoregressive",
     )
+    stage_set = make_stage_set()
     result = sample_autoregressive.kernel(
       self.mpnn_model, prng_key, bundle, config, stage_set
     )
@@ -196,7 +203,7 @@ class TestMPNNMultiState(chex.TestCase):
     protein = create_simple_multistate_protein(key=jax.random.key(0))
     prng_key = jax.random.key(1)
 
-    bundle, config, stage_set = build_inference_bundle(
+    bundle, config = build_inference_bundle(
       coords=protein.coordinates,
       mask=protein.atom_mask,
       residue_index=protein.residue_index,
@@ -204,6 +211,7 @@ class TestMPNNMultiState(chex.TestCase):
       structure_mapping=protein.mapping,
       mode="sample_autoregressive",
     )
+    stage_set = make_stage_set()
 
     # Call kernel twice with same inputs
     result_1 = sample_autoregressive.kernel(

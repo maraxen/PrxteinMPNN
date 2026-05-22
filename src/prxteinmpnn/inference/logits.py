@@ -382,6 +382,50 @@ class TieGroupProductOfExperts(eqx.Module):
         return jnp.sum(jnp.where(mask[:, None], log_probs, 0.0), axis=0)
 
 
+def make_stage_set(
+    strategy: str = "arithmetic_mean",
+    strategy_temperature: float = 1.0,
+    state_weights: "jax.Array | None" = None,
+) -> "StageSet":
+    """Construct a StageSet with strategy-resolved logit_transform.
+
+    Parameters
+    ----------
+    strategy : str
+        Key into LOGIT_STRATEGIES (``"arithmetic_mean"``, ``"geometric_mean"``, ``"product"``).
+    strategy_temperature : float
+        Temperature forwarded to strategies that accept it (e.g. GeometricMeanLogits).
+    state_weights : jax.Array or None
+        Per-state weights. When None, defaults to uniform weights of shape (1,).
+
+    Returns
+    -------
+    StageSet
+        Stage set with logit_transform, ar_logit_transform, and tie_group_fuse wired.
+    """
+    from prxteinmpnn.types.stages import StageSet
+
+    strategy_cls = LOGIT_STRATEGIES.get(strategy)
+    if strategy_cls is None:
+        msg = f"Logit strategy '{strategy}' not found in LOGIT_STRATEGIES"
+        raise ValueError(msg)
+
+    weights = jnp.asarray(state_weights, dtype=jnp.float32) if state_weights is not None else jnp.ones(1, dtype=jnp.float32)
+
+    try:
+        logit_transform = strategy_cls(weights, temperature=strategy_temperature)
+    except TypeError:
+        logit_transform = strategy_cls(weights)
+
+    return StageSet(
+        logit_transform=logit_transform,
+        ar_logit_transform=ARLogitFuse(),
+        decode_step=None,
+        sample_step=None,
+        tie_group_fuse=TieGroupProductOfExperts(),
+    )
+
+
 __all__ = [
     "LOGIT_STRATEGIES",
     "TIE_GROUP_STRATEGIES",
@@ -393,4 +437,5 @@ __all__ = [
     "TieGroupFuseFn",
     "TieGroupLogsumexpMean",
     "TieGroupProductOfExperts",
+    "make_stage_set",
 ]

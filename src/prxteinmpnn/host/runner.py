@@ -296,6 +296,16 @@ def _sample_non_streaming_averaged(
   -----
   Used when average_node_features=True and output_h5_path=None (in-memory mode).
   Iterates over batches, calls _sample_batch_averaged per batch, concatenates results.
+
+  References
+  ----------
+  .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+     sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+     https://doi.org/10.1126/science.add2187
+
+  .. [LigandMPNN] Dauparas, J., et al. "Atomic context-conditioned protein
+     sequence design using LigandMPNN." *Nature Methods* 22(4):717-723 (2025).
+     https://doi.org/10.1038/s41592-025-02626-1
   """
   _, sample_fn, decode_fn = make_encoding_sampling_split_fn(model)
 

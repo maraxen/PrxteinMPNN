@@ -371,10 +371,8 @@ class InferencePlan:
         Any
             Sampled sequence (or auxiliary output from driver).
         """
-        enc = self.components.encode_fn(bundle, key, config)
-        return self.components.driver(
-            self.model, key, enc, bundle.conditioning, bundle.wave, config, self.components.stage_set,
-        )
+        enc = self.encode(bundle, key, config)
+        return self.decode(enc, bundle, key, config)
 
     def score(self, bundle: InferenceBundle, key: PRNGKeyArray, config: InferenceConfig) -> Logits:
         """Encode and score the pipeline.

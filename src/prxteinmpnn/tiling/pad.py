@@ -31,12 +31,11 @@ def pad_bundle(bundle: InferenceBundle, target_length: int) -> InferenceBundle:
     mask = jnp.pad(geo.mask, ((0, 0), (0, pad_amt)))
     residue_index = jnp.pad(geo.residue_index, ((0, 0), (0, pad_amt)))
     chain_index = jnp.pad(geo.chain_index, ((0, 0), (0, pad_amt)))
-    state_flat_rows = jnp.pad(geo.state_flat_rows, ((0, 0), (0, pad_amt)), constant_values=-1)
 
     new_geo = eqx.tree_at(
-        lambda g: (g.coords, g.mask, g.residue_index, g.chain_index, g.state_flat_rows),
+        lambda g: (g.coords, g.mask, g.residue_index, g.chain_index),
         geo,
-        (coords, mask, residue_index, chain_index, state_flat_rows),
+        (coords, mask, residue_index, chain_index),
     )
 
     # Pad Conditioning

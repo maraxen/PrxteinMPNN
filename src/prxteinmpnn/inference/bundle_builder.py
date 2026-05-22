@@ -77,7 +77,6 @@ def build_inference_bundle(
         mask=mask,
         residue_index=residue_index,
         chain_index=chain_index,
-        state_flat_rows=jnp.zeros((S, L), dtype=jnp.int32), # TODO: Handle flat rows if needed
         n_states=S,
         n_canonical=L,
         n_flat=L,

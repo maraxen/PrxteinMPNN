@@ -27,7 +27,6 @@ def make_score_fn(
   _num_encoder_layers: int = 3,
   _num_decoder_layers: int = 3,
   inference: bool = True,  # noqa: FBT001, FBT002
-  multistate_mode: Literal["flat", "state_vmap_exact"] = "flat",
 ) -> ScoreFn:
   """Create a function to score a sequence on a structure using PrxteinMPNN.
 
@@ -35,14 +34,11 @@ def make_score_fn(
     model: Protein or Ligand Equinox checkpoint.
     decoding_order_fn: Decoding order.
     inference: Use ``eqx.nn.inference_mode`` when True.
-    multistate_mode: ``flat`` (default) or ``state_vmap_exact``.
 
   Returns:
     JIT scoring function.
   """
   del _num_encoder_layers, _num_decoder_layers
-
-  # Multistate mode is always state_vmap_exact in modernization
 
   if inference and isinstance(model, eqx.Module):
     model = eqx.nn.inference_mode(model, value=True)

@@ -3,8 +3,6 @@
 prxteinmpnn.utils.data_structures
 """
 
-# TODO(tech-debt): `.agents/TECHNICAL_DEBT.md` §6 — docstring / public API audit.
-
 from __future__ import annotations
 
 from dataclasses import dataclass as dc

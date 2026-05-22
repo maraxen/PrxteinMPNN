@@ -8,8 +8,6 @@ The proxide library provides unified parsing for:
 Legacy biotite/mdtraj-based parsers have been removed.
 """
 
-# TODO(tech-debt): `.agents/TECHNICAL_DEBT.md` §7 — finish dedup vs proxide/prolix; delete any remaining dead shims.
-
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any

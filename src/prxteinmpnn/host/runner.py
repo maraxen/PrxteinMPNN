@@ -56,36 +56,97 @@ def sample(
   spec: SamplingSpecification | None = None,
   **kwargs: Any,  # noqa: ANN401
 ) -> dict[str, Any]:
-  """Sample new sequences for the given input structures.
+  """Sample new sequences for given input structures using high-performance Grain pipeline.
 
-  This function uses a high-performance Grain pipeline to load and process
-  structures, then samples new sequences for each structure.
+  Routes to streaming or in-memory sampling based on output configuration and averaging mode.
+  Loads structures via Grain iterator, prepares model, processes in batches, and aggregates
+  results with optional logits and pseudo-perplexity calculations.
 
-  Args:
-      spec: An optional SamplingSpecification object. If None, a default will be created using
-      kwargs, options are provided as keyword arguments. The following options can be set:
-        inputs: A single or sequence of inputs (files, PDB IDs, etc.).
-        chain_id: Specific chain(s) to parse from the structure.
-        model: The model number to load. If None, all models are loaded.
-        altloc: The alternate location identifier to use.
-        model_version: The model version to use.
-        model_weights: The model weights to use.
-        foldcomp_database: The FoldComp database to use for FoldComp IDs.
-        random_seed: The random number generator key.
-        backbone_noise: The amount of noise to add to the backbone.
-        num_samples: The number of sequences to sample per structure/noise level.
-        sampling_strategy: The sampling strategy to use.
-        temperature: The sampling temperature.
-        bias: An optional array to bias the logits.
-        fixed_positions: An optional array of residue indices to keep fixed.
-        iterations: Number of optimization iterations for "straight_through" sampling.
-        learning_rate: Learning rate for "straight_through" sampling.
-        batch_size: The number of structures to process in a single batch.
-      **kwargs: Additional keyword arguments for structure loading.
+  Parameters
+  ----------
+  spec : SamplingSpecification, optional
+      SamplingSpecification object configuring inputs, model, and sampling strategy.
+      If None, a default specification is constructed from **kwargs.
+  **kwargs : Any
+      Keyword arguments for SamplingSpecification if spec is None. Options include:
+        inputs : str or list[str]
+            Input structures (file paths, PDB IDs, etc.).
+        chain_id : str, optional
+            Specific chain(s) to parse.
+        model : int, optional
+            Model number to load. If None, all models used.
+        altloc : str, optional
+            Alternate location identifier.
+        model_version : str, optional
+            Model version (e.g., 'proteinmpnn_v1').
+        model_weights : str, optional
+            Path to model weights.
+        foldcomp_database : str, optional
+            FoldComp database for compressed structures.
+        random_seed : int, optional
+            Random seed for sampling.
+        backbone_noise : float, optional
+            Noise added to backbone coordinates.
+        num_samples : int, optional
+            Number of sequences per structure/noise level.
+        sampling_strategy : str, optional
+            Sampling strategy (e.g., 'autoregressive', 'straight_through').
+        temperature : float, optional
+            Sampling temperature.
+        bias : jax.Array, optional
+            Per-position or per-position-per-token logit bias. Shape: (L,) or (L, 21).
+        fixed_positions : list[int], optional
+            Residue indices to keep fixed.
+        iterations : int, optional
+            Optimization iterations for 'straight_through' strategy.
+        learning_rate : float, optional
+            Learning rate for 'straight_through' strategy.
+        batch_size : int, optional
+            Number of structures per batch.
+        return_logits : bool, optional
+            Whether to return logits for each position.
+        average_node_features : bool, optional
+            Whether to average node features across states.
+        output_h5_path : str, optional
+            Path to streaming H5 output file.
+        grid_mode : bool, optional
+            Whether in grid sampling mode (affects metadata lineage).
 
-  Returns:
-      A dictionary containing sampled sequences, logits, and metadata.
+  Returns
+  -------
+  dict[str, Any]
+      Dictionary with keys:
+        sequences : jax.Array
+            Sampled sequences, shape (B*N, L) where B is batch count,
+            N is num_samples per structure, L is sequence length.
+            Padded to max length across all sequences, masked with 'mask' key.
+        mask : jax.Array
+            Sequence validity mask (1 for valid, 0 for padding). Shape: (B*N, L).
+        schema_version : str
+            Schema version for results ('grid_v1' or 'sampling_v1').
+        metadata : dict
+            Metadata including specification, skipped_inputs, structure_ids,
+            and optional lineage info (grid mode).
+        logits : jax.Array, optional
+            Per-position logits if return_logits=True. Shape: (B*N, L, 21).
+        pseudo_perplexity : jax.Array, optional
+            Per-sequence pseudo-perplexity scores if computed.
 
+  Notes
+  -----
+  Streaming vs. in-memory: If output_h5_path is set, uses streaming I/O.
+  Otherwise, concatenates per-batch results in memory. See _sample_streaming
+  and _sample_streaming_averaged for streaming modes.
+
+  References
+  ----------
+  .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+     sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+     https://doi.org/10.1126/science.add2187
+
+  .. [LigandMPNN] Dauparas, J., et al. "Atomic context-conditioned protein
+     sequence design using LigandMPNN." *Nature Methods* 22(4):717-723 (2025).
+     https://doi.org/10.1038/s41592-025-02626-1
   """
   if spec is None:
     kw = dict(kwargs)
@@ -200,7 +261,42 @@ def _sample_non_streaming_averaged(
   protein_iterator: IterDataset,
   model: PrxteinMPNN,
 ) -> dict[str, Any]:
-  """Sample sequences with averaged encodings without streaming."""
+  """Sample sequences with averaged node features, no streaming I/O.
+
+  Splits encoding and sampling via make_encoding_sampling_split_fn to enable
+  per-structure averaging of node features across multiple forward passes.
+  Processes batches in-memory and concatenates results.
+
+  Parameters
+  ----------
+  spec : SamplingSpecification
+      Sampling configuration (must have average_node_features=True
+      and output_h5_path=None).
+  protein_iterator : IterDataset
+      Grain IterDataset yielding batches of structures (coordinates, residue types, etc.).
+  model : PrxteinMPNN
+      Model instance with encoder, decoder, and projection layers.
+
+  Returns
+  -------
+  dict[str, Any]
+      Dictionary with keys:
+        sequences : jax.Array
+            Sampled sequences. Shape: (B*N, L).
+        logits : jax.Array
+            Per-position logits. Shape: (B*N, L, 21).
+        pseudo_perplexity : jax.Array or None
+            Per-sequence pseudo-perplexity if computed.
+        schema_version : str
+            Schema version ('sampling_averaged_v1').
+        metadata : dict
+            Specification and batch metadata.
+
+  Notes
+  -----
+  Used when average_node_features=True and output_h5_path=None (in-memory mode).
+  Iterates over batches, calls _sample_batch_averaged per batch, concatenates results.
+  """
   _, sample_fn, decode_fn = make_encoding_sampling_split_fn(model)
 
   all_sequences, all_logits, all_pseudo_perplexities = [], [], []

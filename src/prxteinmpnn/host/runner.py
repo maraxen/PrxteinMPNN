@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import functools
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -156,6 +157,15 @@ def sample(
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
 
+  # Construct stage_set once before routing to averaged or non-streaming path
+  stage_set = make_stage_set(
+      strategy=spec.multi_state_strategy or "arithmetic_mean",
+      strategy_temperature=spec.multi_state_temperature or 1.0,
+      state_weights=(
+          jnp.asarray(spec.state_weights, dtype=jnp.float32)
+          if spec.state_weights is not None else None
+      ),
+  )
 
   if spec.average_node_features:
     if spec.output_h5_path:
@@ -163,7 +173,8 @@ def sample(
     return _sample_non_streaming_averaged(spec, protein_iterator, model)
 
   if spec.output_h5_path:
-    return _sample_streaming(spec, protein_iterator, model, _sample_batch)
+    bound_sample_batch = functools.partial(_sample_batch, stage_set=stage_set)
+    return _sample_streaming(spec, protein_iterator, model, bound_sample_batch)
 
   # TODO(io_callback integration): Non-streaming path appends per-batch device arrays then concats;
   # prefer preallocated buffers or io_callback streaming (see prxteinmpnn/TODO_io_callback.txt).
@@ -174,16 +185,6 @@ def sample(
   structure_offset = 0
   structure_batch_count = StreamingBatchHost.structure_batch_count(protein_iterator)
   grid_lineage = _resolve_grid_lineage(spec)
-
-  # Construct stage_set once before batch loop
-  stage_set = make_stage_set(
-      strategy=spec.multi_state_strategy or "arithmetic_mean",
-      strategy_temperature=spec.multi_state_temperature or 1.0,
-      state_weights=(
-          jnp.asarray(spec.state_weights, dtype=jnp.float32)
-          if spec.state_weights is not None else None
-      ),
-  )
 
   for batch_idx, batched_ensemble in enumerate(protein_iterator):
     batch_size = batched_ensemble.coordinates.shape[0]

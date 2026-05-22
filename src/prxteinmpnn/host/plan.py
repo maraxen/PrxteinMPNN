@@ -323,6 +323,37 @@ class InferencePlan:
         """
         return self.components.encode_fn(bundle, key, config)
 
+    def decode(
+        self,
+        enc: EncoderOutput,
+        bundle: InferenceBundle,
+        key: PRNGKeyArray,
+        config: InferenceConfig,
+    ) -> Any:
+        """Decode pre-encoded features into logits or sampled sequences.
+
+        Parameters
+        ----------
+        enc : EncoderOutput
+            Pre-computed encoder output from encode(). May be reused across calls.
+        bundle : InferenceBundle
+            Input bundle providing conditioning and wave schedule for decoder.
+        key : PRNGKeyArray
+            PRNG key for any stochastic decoding.
+        config : InferenceConfig
+            Inference configuration.
+
+        Returns
+        -------
+        Any
+            Logits (shape (L, 21)) when stage_set.decode_step is active.
+            SampleResult when stage_set.sample_step is active.
+            Return type is driver-dependent; typed Any to match driver: Callable precision.
+        """
+        return self.components.driver(
+            self.model, key, enc, bundle.conditioning, bundle.wave, config, self.components.stage_set,
+        )
+
     def sample(self, bundle: InferenceBundle, key: PRNGKeyArray, config: InferenceConfig) -> Any:
         """Encode and sample from the pipeline.
 

@@ -35,7 +35,43 @@ _gelu = partial(jax.nn.gelu, approximate=False)
 
 
 class EncoderLayer(eqx.Module):
-  """A single encoder layer for the ProteinMPNN model."""
+  """Single message-passing encoder layer for ProteinMPNN.
+
+  Processes node and edge features via [h_i, e_ij, h_j] concatenation,
+  updates node features via message aggregation and feedforward network,
+  then updates edge features. Used in both protein-only and ligand-conditioned models.
+
+  Parameters
+  ----------
+  edge_message_mlp : eqx.nn.MLP
+      Edge message computation MLP: (embed_input_size) -> edge_features.
+  norm1 : LayerNorm
+      Layer normalization for aggregated node messages. Shape: (node_features,).
+  dense : eqx.nn.MLP
+      Node feature feedforward MLP: (node_features) -> (node_features).
+  norm2 : LayerNorm
+      Layer normalization after dense update. Shape: (node_features,).
+  edge_update_mlp : eqx.nn.MLP
+      Edge update MLP: (embed_input_size) -> edge_features.
+  norm3 : LayerNorm
+      Layer normalization for edge updates. Shape: (edge_features,).
+  dropout1 : Dropout
+      Dropout after message aggregation.
+  dropout2 : Dropout
+      Dropout after dense feedforward.
+  dropout3 : Dropout
+      Dropout after edge update.
+  node_features_dim : int, static
+      Dimension of node features.
+  edge_features_dim : int, static
+      Dimension of edge features.
+
+  References
+  ----------
+  .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+     sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+     https://doi.org/10.1126/science.add2187
+  """
 
   edge_message_mlp: eqx.nn.MLP
   norm1: LayerNorm
@@ -60,13 +96,18 @@ class EncoderLayer(eqx.Module):
   ) -> None:
     """Initialize the encoder layer.
 
-    Args:
-      node_features: Dimension of node features.
-      edge_features: Dimension of edge features.
-      hidden_features: Dimension of hidden features in feedforward network.
-      dropout_rate: Dropout rate (default: 0.1).
-      key: PRNG key for initialization.
-
+    Parameters
+    ----------
+    node_features : int
+        Dimension of node features.
+    edge_features : int
+        Dimension of edge features.
+    hidden_features : int
+        Dimension of hidden features in feedforward networks.
+    dropout_rate : float, optional
+        Dropout rate (default: 0.1).
+    key : PRNGKeyArray
+        PRNG key for weight initialization.
     """
     self.node_features_dim = node_features
     self.edge_features_dim = edge_features
@@ -129,7 +170,42 @@ class EncoderLayer(eqx.Module):
     inference: bool = False,
     key: PRNGKeyArray | None = None,
   ) -> tuple[NodeFeatures, EdgeFeatures]:
-    """Forward pass for the encoder layer."""
+    """Forward pass for the encoder layer.
+
+    Computes edge messages via [h_i, e_ij, h_j] concatenation and MLP,
+    aggregates to node features, updates via feedforward, then updates edges.
+
+    Parameters
+    ----------
+    node_features : NodeFeatures
+        Node features. Shape: (L, H_n).
+    edge_features : EdgeFeatures
+        Edge features (neighbor-aggregated). Shape: (L, K, H_e) where K is neighbor count.
+    neighbor_indices : NeighborIndices
+        Neighbor indices for gather operations. Shape: (L, K).
+    mask : AlphaCarbonMask
+        Alpha carbon mask (1.0 for valid, 0.0 for invalid). Shape: (L,).
+    mask_attend : jnp.ndarray, optional
+        Attention mask for neighbor validity. Shape: (L, K).
+    scale : float, optional
+        Attention feature scaling constant inherited from ProteinMPNN (default: 30.0).
+        ProteinMPNN temperature-like scaling constant (see Dauparas et al. 2022).
+    inference : bool, optional
+        Whether in inference mode (no dropout). Default: False.
+    key : PRNGKeyArray, optional
+        PRNG key for dropout. If None, inference mode is enabled.
+
+    Returns
+    -------
+    tuple[NodeFeatures, EdgeFeatures]
+        Updated node and edge features with same shapes as inputs.
+
+    References
+    ----------
+    .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+       sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+       https://doi.org/10.1126/science.add2187
+    """
     if key is None:
       inference = True
     keys = jax.random.split(key, 3) if key is not None else (None, None, None)
@@ -171,7 +247,25 @@ class EncoderLayer(eqx.Module):
 
 
 class Encoder(eqx.Module):
-  """The complete encoder module for ProteinMPNN."""
+  """Multi-layer encoder stacking EncoderLayer message-passing passes.
+
+  Iteratively refines node and edge features through a sequence of encoder layers.
+  Each layer updates features via message passing and is used in both protein-only
+  and ligand-conditioned models.
+
+  Parameters
+  ----------
+  layers : tuple[EncoderLayer, ...]
+      Tuple of encoder layers applied sequentially.
+  node_feature_dim : int, static
+      Dimension of node features (cached from initialization).
+
+  References
+  ----------
+  .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+     sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+     https://doi.org/10.1126/science.add2187
+  """
 
   layers: tuple[EncoderLayer, ...]
 
@@ -190,15 +284,22 @@ class Encoder(eqx.Module):
   ) -> None:
     """Initialize the encoder.
 
-    Args:
-      node_features: Dimension of node features.
-      edge_features: Dimension of edge features.
-      hidden_features: Dimension of hidden features in feedforward network.
-      num_layers: Number of encoder layers.
-      dropout_rate: Dropout rate (default: 0.1).
-      physics_feature_dim: Dimension of physical features.
-      key: PRNG key for initialization.
-
+    Parameters
+    ----------
+    node_features : int
+        Dimension of node features.
+    edge_features : int
+        Dimension of edge features.
+    hidden_features : int
+        Dimension of hidden features in feedforward networks.
+    num_layers : int, optional
+        Number of stacked encoder layers (default: 3).
+    dropout_rate : float, optional
+        Dropout rate (default: 0.1).
+    _physics_feature_dim : int, optional
+        Unused; reserved for subclass compatibility.
+    key : PRNGKeyArray
+        PRNG key for weight initialization.
     """
     self.node_feature_dim = node_features
     keys = jax.random.split(key, num_layers)
@@ -224,7 +325,39 @@ class Encoder(eqx.Module):
     inference: bool = False,
     key: PRNGKeyArray | None = None,
   ) -> tuple[NodeFeatures, EdgeFeatures]:
-    """Forward pass for the encoder."""
+    """Forward pass through all encoder layers.
+
+    Processes edge and initial node features through stacked layers, updating
+    both node and edge representations iteratively.
+
+    Parameters
+    ----------
+    edge_features : EdgeFeatures
+        Input edge features (neighbor-aggregated). Shape: (L, K, H_e).
+    neighbor_indices : NeighborIndices
+        Neighbor indices for gather operations. Shape: (L, K).
+    mask : AlphaCarbonMask
+        Alpha carbon mask. Shape: (L,).
+    initial_node_features : jnp.ndarray, optional
+        Initial node features. If None, zero-initialized. Shape: (L, H_n).
+    scale : float, optional
+        Attention scaling constant (default: 30.0).
+    inference : bool, optional
+        Whether in inference mode. Default: False.
+    key : PRNGKeyArray, optional
+        PRNG key for dropout.
+
+    Returns
+    -------
+    tuple[NodeFeatures, EdgeFeatures]
+        Final node and edge features. Shapes: (L, H_n), (L, K, H_e).
+
+    References
+    ----------
+    .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+       sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+       https://doi.org/10.1126/science.add2187
+    """
     if key is None:
       inference = True
     keys = jax.random.split(key, len(self.layers)) if key is not None else [None] * len(self.layers)
@@ -253,7 +386,31 @@ class Encoder(eqx.Module):
 
 
 class PhysicsEncoder(eqx.Module):
-  """The complete encoder module for ProteinMPNN with physics features."""
+  """Physics-conditioned encoder extension for membrane protein models.
+
+  Extends the standard encoder with a projection from physics features
+  (e.g., membrane accessibility) to node feature space, enabling conditioning
+  on physical properties during message passing.
+
+  Parameters
+  ----------
+  layers : tuple[EncoderLayer, ...]
+      Tuple of encoder layers applied sequentially.
+  physics_projection : eqx.nn.Linear
+      Projects physics features to node feature space. Shape: (P,) -> (H_n).
+  physics_norm : eqx.nn.LayerNorm
+      Layer normalization of projected physics features. Shape: (H_n,).
+  physics_w_v : eqx.nn.Linear
+      Value projection of normalized physics (W_v in membrane paper). Shape: (H_n,) -> (H_n,).
+  node_feature_dim : int, static
+      Dimension of node features.
+
+  References
+  ----------
+  .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+     sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+     https://doi.org/10.1126/science.add2187
+  """
 
   layers: tuple[EncoderLayer, ...]
   physics_projection: eqx.nn.Linear
@@ -272,6 +429,25 @@ class PhysicsEncoder(eqx.Module):
     *,
     key: PRNGKeyArray,
   ) -> None:
+    """Initialize the physics-conditioned encoder.
+
+    Parameters
+    ----------
+    node_features : int
+        Dimension of node features.
+    edge_features : int
+        Dimension of edge features.
+    hidden_features : int
+        Dimension of hidden features in feedforward networks.
+    num_layers : int, optional
+        Number of stacked encoder layers (default: 3).
+    dropout_rate : float, optional
+        Dropout rate (default: 0.1).
+    physics_feature_dim : int, optional
+        Dimension of physics features (e.g., membrane properties). Default: 0.
+    key : PRNGKeyArray
+        PRNG key for weight initialization.
+    """
     self.node_feature_dim = node_features
     # keys[0] → physics_projection, keys[1] → physics_w_v, keys[2:] → encoder layers
     keys = jax.random.split(key, num_layers + 2)
@@ -304,7 +480,40 @@ class PhysicsEncoder(eqx.Module):
     inference: bool = False,
     key: PRNGKeyArray | None = None,
   ) -> tuple[NodeFeatures, EdgeFeatures]:
-    """Forward pass for the physics encoder."""
+    """Forward pass through the physics-conditioned encoder.
+
+    Projects physics features to node space (W_v(LayerNorm(projection(physics)))),
+    then processes through stacked encoder layers.
+
+    Parameters
+    ----------
+    edge_features : EdgeFeatures
+        Input edge features (neighbor-aggregated). Shape: (L, K, H_e).
+    neighbor_indices : NeighborIndices
+        Neighbor indices for gather operations. Shape: (L, K).
+    mask : AlphaCarbonMask
+        Alpha carbon mask. Shape: (L,).
+    initial_node_features : jnp.ndarray, optional
+        Physics features to project. Shape: (L, P) where P is physics_feature_dim.
+        If None, zero-initialized node features used instead.
+    scale : float, optional
+        Attention scaling constant (default: 30.0).
+    inference : bool, optional
+        Whether in inference mode. Default: False.
+    key : PRNGKeyArray, optional
+        PRNG key for dropout.
+
+    Returns
+    -------
+    tuple[NodeFeatures, EdgeFeatures]
+        Final node and edge features. Shapes: (L, H_n), (L, K, H_e).
+
+    References
+    ----------
+    .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+       sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+       https://doi.org/10.1126/science.add2187
+    """
     if key is None:
       inference = True
     keys = jax.random.split(key, len(self.layers)) if key is not None else [None] * len(self.layers)
@@ -344,12 +553,34 @@ def pack_encoder_context(
   neighbor_indices: jax.Array,
   mask_fw: jax.Array,
 ) -> jax.Array:
-  """Neighbor-packed encoder context for AR / wave scans (mask applied here).
+  """Pack neighbor context tensor for encoder MLP input during AR decoding.
 
-  Matches the legacy sequence: ``zeros‖edge`` gather, ``node‖that`` gather, then
-  ``result * mask_fw[..., None]``. Batched graphs: ``jax.vmap(pack_encoder_context)``.
+  Gathers edge features from neighbors, concatenates with node features,
+  and applies forward mask. Used in AR sampling loops to construct the
+  encoder context (packed neighbors) for each position.
 
-  LigandMPNN AR scan and ligand ``state_vmap_exact`` call sites mirror this via the same helper.
+  Parameters
+  ----------
+  node_features : jax.Array
+      Node features. Shape: (L, H_n).
+  edge_features : jax.Array
+      Neighbor-aggregated edge features. Shape: (L, K, H_e).
+  neighbor_indices : jax.Array
+      Neighbor indices for gather. Shape: (L, K).
+  mask_fw : jax.Array
+      Forward (feasible position) mask. Shape: (L,).
+
+  Returns
+  -------
+  jax.Array
+      Packed encoder context: [zeros‖edge] gathered, [node‖that] gathered,
+      then masked. Shape: (L, K, H_e + H_n).
+
+  Notes
+  -----
+  Matches the legacy sequence: zeros gather, node gather, then masking.
+  Batched graphs: vmap(pack_encoder_context) over batch dimension.
+  Used in AR scan and ligand state_vmap_exact call sites.
   """
   encoder_edge_neighbors = concatenate_neighbor_nodes(
     jnp.zeros_like(node_features),
@@ -374,11 +605,41 @@ def encoder_forward_with_int_neighbors(
   inference: bool,
   key: PRNGKeyArray | None,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
-  """Run ``encoder(...)`` and return int32 neighbor indices for downstream gathers.
+  """Run encoder and return int32 neighbor indices for downstream gathers.
 
-  Callers must pass the **same** ``key`` / ``inference`` pairing as the inlined path
-  (e.g. wave ``encode_one`` uses one ``k`` for both ``features`` and encoder; scoring
-  paths use ``k_feat`` vs ``k_enc`` separately — only the encoder tail is unified here).
+  Executes the encoder forward pass and casts neighbor indices to int32
+  for compatibility with downstream gather operations (e.g., pack_encoder_context).
+
+  Parameters
+  ----------
+  encoder : Encoder | PhysicsEncoder
+      Encoder module to apply.
+  edge_features : jax.Array
+      Neighbor-aggregated edge features. Shape: (L, K, H_e).
+  neighbor_indices : jax.Array
+      Neighbor indices. Shape: (L, K).
+  mask : jax.Array
+      Alpha carbon mask. Shape: (L,).
+  initial_node_features : jax.Array
+      Initial node features (or physics features for PhysicsEncoder).
+      Shape: (L, H_n) or (L, P).
+  inference : bool
+      Whether in inference mode (no dropout).
+  key : PRNGKeyArray, optional
+      PRNG key for dropout. If None, inference mode enabled.
+
+  Returns
+  -------
+  tuple[jax.Array, jax.Array, jax.Array]
+      (updated_node_features, updated_edge_features, int32_neighbor_indices).
+      Shapes: (L, H_n), (L, K, H_e), (L, K).
+
+  Notes
+  -----
+  Callers must pass the **same** ``key`` / ``inference`` pairing as the inlined path.
+  Example: wave ``encode_one`` uses one ``k`` for both ``features`` and encoder;
+  scoring paths use ``k_feat`` vs ``k_enc`` separately — only the encoder tail
+  is unified here.
   """
   nf2, ef2 = encoder(
     edge_features,

@@ -35,12 +35,30 @@ TOPOLOGY_UNCONDITIONAL = "unconditional"
 
 
 def infer_topology(stage_set: StageSet) -> str:
-    """Infer decode topology from stage_set configuration.
+    """Infer decode topology from StageSet slot occupancy.
 
-    Returns one of:
-      - TOPOLOGY_AR: sample_step is not None (autoregressive sampling)
-      - TOPOLOGY_UNCONDITIONAL: decode_step is UnconditionalDecodeStep
-      - TOPOLOGY_CONDITIONAL_SCORE: all else (conditional or fallback to model.decoder)
+    Examines stage_set fields to determine which decoding path to use:
+    AR (sampling), unconditional (scoring without sequence), or conditional
+    (teacher-forced scoring with sequence context).
+
+    Parameters
+    ----------
+    stage_set : StageSet
+        StageSet configuration with decode_step and sample_step.
+
+    Returns
+    -------
+    str
+        One of TOPOLOGY_AR, TOPOLOGY_UNCONDITIONAL, or TOPOLOGY_CONDITIONAL_SCORE.
+        - TOPOLOGY_AR: sample_step is not None (autoregressive sampling)
+        - TOPOLOGY_UNCONDITIONAL: decode_step is UnconditionalDecodeStep
+        - TOPOLOGY_CONDITIONAL_SCORE: all else (conditional or fallback to model.decoder)
+
+    References
+    ----------
+    .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+       sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+       https://doi.org/10.1126/science.add2187
     """
     if stage_set.sample_step is not None:
         return TOPOLOGY_AR
@@ -58,22 +76,41 @@ def decode(
     config: InferenceConfig,
     stage_set: StageSet,
 ) -> Union[Logits, SampleResult]:
-    """Unified decode driver.
+    """Unified decode driver dispatching by StageSet topology.
 
-    Dispatches to the appropriate kernel path (AR, unconditional, or conditional scoring)
-    based on stage_set configuration. All kernel logic is parameterized by stages.
+    Routes to autoregressive sampling, unconditional scoring, or conditional
+    (teacher-forced) scoring based on stage_set configuration. All kernel logic
+    is parameterized by stages.
 
-    Args:
-        model: ModelProtocol instance
-        key: PRNG key for decoding randomness
-        enc: EncoderOutput from prior encode step
-        cond: ConditioningBundle
-        wave: WaveScheduleBundle or None (None for unconditional)
-        config: InferenceConfig
-        stage_set: StageSet with decode_step, logit_transform, ar_logit_transform, sample_step
+    Parameters
+    ----------
+    model : ModelProtocol
+        Model instance with decoder and w_out linear layer.
+    key : PRNGKeyArray
+        PRNG key for decoding randomness (dropout, sampling).
+    enc : EncoderOutput
+        Encoder output from prior encode step.
+    cond : ConditioningBundle
+        Conditioning data: sequence_oh, ar_mask, bias, fixed positions, tie_group_map.
+    wave : WaveScheduleBundle or None
+        Wave schedule for AR sampling. None for scoring paths.
+    config : InferenceConfig
+        Inference configuration (temperature, inference mode flag).
+    stage_set : StageSet
+        StageSet with decode_step, logit_transform, ar_logit_transform, sample_step,
+        tie_group_fuse.
 
-    Returns:
-        Logits (for scoring paths) or SampleResult (for AR path)
+    Returns
+    -------
+    Union[Logits, SampleResult]
+        Logits of shape (L, 21) for scoring paths (unconditional, conditional).
+        SampleResult with sequence (L,) and logits (L, 21) for AR path.
+
+    References
+    ----------
+    .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+       sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+       https://doi.org/10.1126/science.add2187
     """
     topology = infer_topology(stage_set)
 
@@ -96,13 +133,30 @@ def _decode_conditional(
     config: InferenceConfig,
     stage_set: StageSet,
 ) -> Logits:
-    """Conditional scoring kernel.
+    """Conditional scoring kernel (teacher-forced decoding).
 
-    Performs teacher-forced decoding over S states, projects to logits,
-    and fuses via stage_set.logit_transform.
+    Performs teacher-forced decoding with sequence context, vmapping over
+    S states, projecting to logits, and fusing via stage_set.logit_transform.
 
-    Returns:
-        Logits of shape (L, V)
+    Parameters
+    ----------
+    model : ModelProtocol
+        Model instance.
+    key : PRNGKeyArray
+        PRNG key.
+    enc : EncoderOutput
+        Encoder output. Shape: node (S, L, H_n), edge (S, L, K, H_e).
+    cond : ConditioningBundle
+        ConditioningBundle with sequence_oh (1, L, 21), ar_mask, bias (L, 21).
+    config : InferenceConfig
+        Inference config.
+    stage_set : StageSet
+        StageSet with decode_step and logit_transform.
+
+    Returns
+    -------
+    Logits
+        Fused logits. Shape: (L, 21).
     """
     S = enc.node_features.shape[0]  # First dim is state dimension
 
@@ -141,13 +195,30 @@ def _decode_unconditional(
     config: InferenceConfig,
     stage_set: StageSet,
 ) -> Logits:
-    """Unconditional scoring kernel.
+    """Unconditional scoring kernel (no sequence context).
 
-    Decodes without sequence context (no ar_mask, no seq_oh).
-    vmaps over S states and fuses via stage_set.logit_transform.
+    Decodes without sequence conditioning, vmapping over S states,
+    and fuses via stage_set.logit_transform.
 
-    Returns:
-        Logits of shape (L, V)
+    Parameters
+    ----------
+    model : ModelProtocol
+        Model instance.
+    key : PRNGKeyArray
+        PRNG key.
+    enc : EncoderOutput
+        Encoder output. Shape: node (S, L, H_n), edge (S, L, K, H_e).
+    cond : ConditioningBundle
+        ConditioningBundle (used for bias only; sequence/ar_mask ignored).
+    config : InferenceConfig
+        Inference config.
+    stage_set : StageSet
+        StageSet with decode_step (UnconditionalDecodeStep) and logit_transform.
+
+    Returns
+    -------
+    Logits
+        Fused logits. Shape: (L, 21).
     """
     # Unconditional path does not use wave schedule
     assert isinstance(stage_set.decode_step, UnconditionalDecodeStep), \
@@ -184,22 +255,56 @@ def decode_ar(
     config: InferenceConfig,
     stage_set: StageSet,
 ) -> SampleResult:
-    """Autoregressive sampling kernel.
+    """Autoregressive sampling kernel scanning through wave schedule.
 
-    Encodes once and iterates through wave schedule, sampling at each position
-    and updating the sequence. Returns both the sampled sequence and the logits.
+    Encodes once and iterates through wave schedule via lax.scan. At each wave,
+    identifies the tied position group, scores all positions, fuses logits across
+    the group, samples, applies fixed positions and tie_group_fuse if configured,
+    and updates the sequence. Returns sampled sequence and per-position logits.
 
-    Args:
-        model: ModelProtocol
-        key: PRNG key for sampling
-        enc: EncoderOutput from prior encode
-        cond: ConditioningBundle with ar_mask, tie_group_map, fixed_mask, temperature, bias
-        wave: WaveScheduleBundle with group_positions and derived n_waves from shape
-        config: InferenceConfig
-        stage_set: StageSet with ar_logit_transform, decode_step, logit_transform, sample_step
+    Parameters
+    ----------
+    model : ModelProtocol
+        Model instance.
+    key : PRNGKeyArray
+        PRNG key for sampling randomness.
+    enc : EncoderOutput
+        Encoder output. Shape: node (S, L, H_n), edge (S, L, K, H_e).
+    cond : ConditioningBundle
+        ConditioningBundle with ar_mask (L,), tie_group_map (1, L),
+        fixed_mask (L,), fixed_tokens (L,), temperature, bias (L, 21).
+    wave : WaveScheduleBundle
+        WaveScheduleBundle with group_positions (W, S_pos, 1) and group_ids (W,).
+    config : InferenceConfig
+        Inference config.
+    stage_set : StageSet
+        StageSet with ar_logit_transform, decode_step, logit_transform,
+        sample_step, and tie_group_fuse.
 
-    Returns:
-        SampleResult(sequence, logits) where sequence is (L,) and logits is (L, 21)
+    Returns
+    -------
+    SampleResult
+        SampleResult(sequence, logits). Shapes: sequence (L,), logits (L, 21).
+
+    Notes
+    -----
+    Scans through wave schedule, per wave step:
+      1. Identify tied position group from decoding order.
+      2. Check if group is first occurrence in order (avoid re-sampling).
+      3. If first: vmap decode, fuse logits per position (ar_logit_transform),
+         average across tied positions (tie_group_fuse), sample, apply fixed mask.
+      4. If not first: skip (no update, zero logits).
+    Logits stored bias-free for parity comparison; sampling logits include bias.
+
+    References
+    ----------
+    .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+       sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+       https://doi.org/10.1126/science.add2187
+
+    .. [LigandMPNN] Dauparas, J., et al. "Atomic context-conditioned protein
+       sequence design using LigandMPNN." *Nature Methods* 22(4):717-723 (2025).
+       https://doi.org/10.1038/s41592-025-02626-1
     """
     geo_mask = enc.mask  # Assuming enc.mask carries geometry mask
     L = enc.node_features.shape[1]  # Second dim is sequence length

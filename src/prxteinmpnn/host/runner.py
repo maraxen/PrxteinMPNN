@@ -22,6 +22,7 @@ from prxteinmpnn.host._sampling_helper import (
 )
 from prxteinmpnn.host.averaging import make_encoding_sampling_split_fn
 from prxteinmpnn.host.kernel_dispatch import _sample_batch
+from prxteinmpnn.inference.logits import make_stage_set
 from prxteinmpnn.host.logit_aggregation import (
   aggregate_logits,
   aggregate_pseudo_perplexities,
@@ -174,6 +175,16 @@ def sample(
   structure_batch_count = StreamingBatchHost.structure_batch_count(protein_iterator)
   grid_lineage = _resolve_grid_lineage(spec)
 
+  # Construct stage_set once before batch loop
+  stage_set = make_stage_set(
+      strategy=spec.multi_state_strategy or "arithmetic_mean",
+      strategy_temperature=spec.multi_state_temperature or 1.0,
+      state_weights=(
+          jnp.asarray(spec.state_weights, dtype=jnp.float32)
+          if spec.state_weights is not None else None
+      ),
+  )
+
   for batch_idx, batched_ensemble in enumerate(protein_iterator):
     batch_size = batched_ensemble.coordinates.shape[0]
     batch_structure_ids = _structure_ids_for_batch(
@@ -185,6 +196,7 @@ def sample(
       spec,
       batched_ensemble,
       model,
+      stage_set=stage_set,
       canonical_structure_ids=canonical_structure_ids,
       batch_structure_ids=batch_structure_ids,
       batch_idx=batch_idx,

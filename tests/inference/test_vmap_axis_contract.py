@@ -155,7 +155,6 @@ def make_minimal_bundle(L: int = 4, S: int = 1) -> InferenceBundle:
         mask=jnp.ones((S, L)),
         residue_index=jnp.arange(L)[None, :].repeat(S, axis=0),
         chain_index=jnp.zeros((S, L), dtype=jnp.int32),
-        state_flat_rows=jnp.arange(L)[None, :].repeat(S, axis=0),
         n_states=S,
         n_canonical=L,
         n_flat=L * S,

@@ -32,10 +32,6 @@ class GeometryBundle(eqx.Module):
         Absolute residue indices in the PDB structure.
     chain_index : Int[Array, "S L"]
         Chain assignment for inter-chain masking.
-    state_flat_rows : Int[Array, "S L"]
-        Mapping from per-state positions into the flat supersystem layout
-        for multi-state models. Used by logit fusion to scatter logits
-        correctly across conformational states.
     n_states : int
         Number of conformational states. Static (not a JAX array).
     n_canonical : int
@@ -61,7 +57,6 @@ class GeometryBundle(eqx.Module):
     mask: Float[Array, "S L"]
     residue_index: Int[Array, "S L"]
     chain_index: Int[Array, "S L"]
-    state_flat_rows: Int[Array, "S L"]  # maps stack → flat supersystem
     n_states: int = eqx.field(static=True)
     n_canonical: int = eqx.field(static=True)
     n_flat: int = eqx.field(static=True)

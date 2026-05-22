@@ -9,7 +9,11 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import sys
+from collections.abc import Callable
 from typing import Any
+
+# Type alias for decode/logit-transform functions
+DecodeFn = Callable[..., Any]
 
 
 @dataclasses.dataclass
@@ -47,7 +51,7 @@ def register_decode_fn(fn: Any, name: str | None = None) -> str:
   return uid
 
 
-def resolve_decode_fn(uid: str) -> Any:
+def resolve_decode_fn(uid: str) -> DecodeFn:
   """Return the registered LogitTransformFn for a given UID."""
   if uid not in _REGISTRY:
     msg = f"No decode fn registered for uid={uid!r}. Call register_decode_fn first."
@@ -64,4 +68,4 @@ def _capture_env() -> dict[str, str]:
   }
 
 
-__all__ = ["DecodeFnEntry", "register_decode_fn", "resolve_decode_fn"]
+__all__ = ["DecodeFn", "DecodeFnEntry", "register_decode_fn", "resolve_decode_fn"]

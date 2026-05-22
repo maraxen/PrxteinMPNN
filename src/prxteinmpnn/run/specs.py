@@ -60,9 +60,10 @@ ModelVersion = MODEL_VERSION
 
 AlignmentStrategy = Literal["sequence", "structure"]
 
-logger = logging.getLogger(__name__)
+# Type aliases for tied-position logit fusion configuration
+TiedPositionMode = Literal["auto", "direct"] | None
 
-# TODO(tech-debt): `.agents/TECHNICAL_DEBT.md` §10 — formalize contracts on `RunSpecification` and related public types.
+logger = logging.getLogger(__name__)
 
 
 def _loader_inputs(inputs: Sequence[str | TextIO] | str | TextIO) -> Sequence[str | TextIO]:
@@ -213,7 +214,7 @@ class RunSpecification:
   split: str = "inference"
 
   # Tied-position logit averaging fields
-  tied_positions: Sequence[tuple[int, int]] | Literal["auto", "direct"] | None = None
+  tied_positions: Sequence[tuple[int, int]] | TiedPositionMode = None
   pass_mode: Literal["inter", "intra"] = "intra"  # noqa: S105
   tie_group_map: ArrayLike | None = None
   structure_mapping: ArrayLike | None = None

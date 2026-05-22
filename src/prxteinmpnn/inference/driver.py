@@ -19,6 +19,7 @@ import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
 if TYPE_CHECKING:
+    from prxteinmpnn.types.bundles import ConditioningBundle, WaveScheduleBundle
     from prxteinmpnn.types.configs import InferenceConfig
     from prxteinmpnn.types.protocols import ModelProtocol
     from prxteinmpnn.types.stages import StageSet
@@ -71,8 +72,8 @@ def decode(
     model: ModelProtocol,
     key: PRNGKeyArray,
     enc: EncoderOutput,
-    cond,
-    wave,
+    cond: ConditioningBundle,
+    wave: WaveScheduleBundle | None,
     config: InferenceConfig,
     stage_set: StageSet,
 ) -> Union[Logits, SampleResult]:
@@ -157,6 +158,12 @@ def _decode_conditional(
     -------
     Logits
         Fused logits. Shape: (L, 21).
+
+    References
+    ----------
+    .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+       sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+       https://doi.org/10.1126/science.add2187
     """
     S = enc.node_features.shape[0]  # First dim is state dimension
 
@@ -219,6 +226,12 @@ def _decode_unconditional(
     -------
     Logits
         Fused logits. Shape: (L, 21).
+
+    References
+    ----------
+    .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+       sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+       https://doi.org/10.1126/science.add2187
     """
     # Unconditional path does not use wave schedule
     assert isinstance(stage_set.decode_step, UnconditionalDecodeStep), \

@@ -23,7 +23,6 @@ from prxteinmpnn.host._sampling_helper import (
 )
 from prxteinmpnn.host.averaging import make_encoding_sampling_split_fn
 from prxteinmpnn.host.kernel_dispatch import _sample_batch
-from prxteinmpnn.inference.logits import make_stage_set
 from prxteinmpnn.host.logit_aggregation import (
   aggregate_logits,
   aggregate_pseudo_perplexities,

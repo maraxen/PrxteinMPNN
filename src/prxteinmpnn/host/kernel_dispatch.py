@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     Logits,
     ProteinSequence,
   )
+  from prxteinmpnn.types.stages import StageSet
   from prxteinmpnn.utils.data_structures import Protein
 
 
@@ -77,6 +78,7 @@ def _sample_batch(
   batched_ensemble: Protein,
   model: ModelProtocol,
   *,
+  stage_set: StageSet,
   canonical_structure_ids: Sequence[str] | None = None,
   batch_structure_ids: Sequence[str] | None = None,
   chunk_sample_start: int | None = None,

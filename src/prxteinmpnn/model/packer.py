@@ -361,7 +361,64 @@ class PackerProteinFeatures(eqx.Module):
         return v, f
 
 class Packer(eqx.Module):
-    """LigandMPNN Side-Chain Packer."""
+    """Side-chain torsion angle packer from LigandMPNN.
+
+    Predicts von Mises–Fisher (VMF) mixture parameters for chi1–chi4 torsion angles
+    given backbone and ligand context. Uses dual-encoder cross-attention architecture
+    matching the reference LigandMPNN implementation.
+
+    Parameters
+    ----------
+    features : PackerProteinFeatures
+        Feature extraction module.
+    w_e : eqx.nn.Linear
+        Edge feature projection.
+    w_v : eqx.nn.Linear
+        Node feature projection.
+    w_f : eqx.nn.Linear
+        Sidechain edge feature projection.
+    w_v_sc : eqx.nn.Linear
+        Sidechain node feature projection.
+    linear_down : eqx.nn.Linear
+        Dimension reduction for sidechain context.
+    w_torsions : eqx.nn.Linear
+        Output projection to VMF mixture parameters.
+    encoder_layers : tuple[EncoderLayer, ...]
+        Backbone encoder layers.
+    context_encoder_layers : tuple[DecoderLayer, ...]
+        Protein cross-attention layers.
+    y_context_encoder_layers : tuple[DecoderLayerJ, ...]
+        Ligand context encoder layers.
+    decoder_layers : tuple[DecoderLayer, ...]
+        Sidechain decoder layers.
+    w_c : eqx.nn.Linear
+        Protein context projection.
+    w_e_context : eqx.nn.Linear
+        Edge context projection.
+    w_nodes_y : eqx.nn.Linear
+        Ligand node projection.
+    w_edges_y : eqx.nn.Linear
+        Ligand edge projection.
+    v_c : eqx.nn.Linear
+        Protein-ligand fusion layer.
+    v_c_norm : eqx.nn.LayerNorm
+        Layer normalization after fusion.
+    h_v_c_dropout : Dropout
+        Dropout layer.
+    num_mix : int
+        Number of VMF mixture components. Static (not a JAX array).
+    hidden_dim : int
+        Hidden layer dimension. Static (not a JAX array).
+
+    References
+    ----------
+    .. [LigandMPNN] Dauparas, J., et al. "Atomic context-conditioned protein
+       sequence design using LigandMPNN." *Nature Methods* 22(4):717-723 (2025).
+       https://doi.org/10.1038/s41592-025-02626-1
+
+    .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).
+       https://github.com/dauparas/LigandMPNN
+    """
     features: PackerProteinFeatures
     w_e: eqx.nn.Linear
     w_v: eqx.nn.Linear
@@ -403,7 +460,38 @@ class Packer(eqx.Module):
         *,
         atom37_order: bool = False,
         key: PRNGKeyArray,
-    ):
+    ) -> None:
+        """Initialize the Packer model.
+
+        Parameters
+        ----------
+        edge_features : int
+            Edge feature dimension. Default: 128.
+        node_features : int
+            Node feature dimension. Default: 128.
+        num_positional_embeddings : int
+            Positional embedding dimension. Default: 16.
+        num_rbf : int
+            Number of RBF basis functions. Default: 16.
+        top_k : int
+            Number of top-k neighbors. Default: 30.
+        atom_context_num : int
+            Number of ligand atom neighbors. Default: 16.
+        hidden_dim : int
+            Hidden layer dimension. Default: 128.
+        num_encoder_layers : int
+            Number of encoder layers. Default: 3.
+        num_decoder_layers : int
+            Number of decoder layers. Default: 3.
+        dropout : float
+            Dropout rate. Default: 0.1.
+        num_mix : int
+            Number of VMF mixture components. Default: 3.
+        atom37_order : bool
+            Whether to use ATOM37 atom ordering. Default: False.
+        key : PRNGKeyArray
+            PRNG key for weight initialization.
+        """
         self.num_mix = num_mix
         self.hidden_dim = hidden_dim
 
@@ -498,19 +586,32 @@ class Packer(eqx.Module):
         key: PRNGKeyArray | None = None,
         inference: bool = False,
     ) -> PackerResult:
+        """Predict VMF mixture parameters for side-chain torsion angles.
+
+        Parameters
+        ----------
+        bundle : PackerBundle
+            Packed input bundle (sequence, coordinates, ligand, masks).
+        h_v : jax.Array
+            Encoded node features from encode(). Shape ``(L, hidden_dim)``.
+        h_e : jax.Array
+            Encoded edge features from encode(). Shape ``(L, K, hidden_dim)``.
+        E_idx : jax.Array
+            Neighbor indices from encode(). Shape ``(L, K)``.
+        key : PRNGKeyArray | None
+            PRNG key for dropout (optional).
+        inference : bool
+            If True, disable dropout. Default: False.
+
+        Returns
+        -------
+        PackerResult
+            VMF mixture parameters: ``mean``, ``concentration``, ``mix_logits``.
+            - ``mean``: Shape ``(L, 4, num_mix)`` — VMF means for chi1–chi4.
+            - ``concentration``: Shape ``(L, 4, num_mix)`` — VMF concentration parameters.
+            - ``mix_logits``: Shape ``(L, 4, num_mix)`` — Mixture logits.
+        """
         mask = bundle.mask
-
-        # Inject E_idx into bundle temporarily for features_decode if needed
-        # or just pass it explicitly. The current features_decode expects it in "features" dict.
-        # Let's adjust features_decode signature.
-
-        # We'll monkeypatch E_idx into bundle since it's an internal call
-        # but better to just pass it.
-        # I already updated features_decode to expect it from bundle.E_idx (ignored type)
-        # So I'll add it to bundle via equinox.tree_at or similar if I wanted to be clean,
-        # but here I'll just pass it to features_decode directly.
-
-        # Wait, I'll update features_decode signature to (self, bundle, E_idx)
         v, f = self.features.features_decode(bundle, E_idx)
 
         h_f = jax.vmap(jax.vmap(self.w_f))(f)

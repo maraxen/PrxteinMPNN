@@ -21,6 +21,64 @@ if TYPE_CHECKING:
   from prxteinmpnn.types.arrays import PRNGKeyArray
 
 class PrxteinLigandMPNN(eqx.Module):
+  """Ligand-conditioned protein sequence design model.
+
+  Extends ProteinMPNN with ligand atom context via dual-encoder cross-attention.
+  The ``context_encoder`` and ``y_context_encoder`` modules process ligand features
+  in parallel and cross-attend to protein features.
+
+  Parameters
+  ----------
+  features : ProteinFeaturesLigand
+    Feature extraction module (backbone + ligand).
+  encoder : Encoder
+    Protein backbone encoder.
+  decoder : Decoder
+    Protein decoder.
+  context_encoder : tuple[DecoderLayer, ...]
+    Protein cross-attention layers attending to ligand features.
+  y_context_encoder : tuple[DecoderLayer, ...]
+    Ligand encoder layers processing ligand context.
+  w_v : eqx.nn.Linear
+    Projection for node features.
+  w_c : eqx.nn.Linear
+    Projection for protein context.
+  w_nodes_y : eqx.nn.Linear
+    Projection for ligand node features.
+  w_edges_y : eqx.nn.Linear
+    Projection for ligand edge features.
+  v_c : eqx.nn.Linear
+    Protein-ligand context fusion layer.
+  v_c_norm : eqx.nn.LayerNorm
+    Layer normalization after fusion.
+  w_s_embed : eqx.nn.Embedding
+    Sequence embedding (amino acid token to latent).
+  w_out : eqx.nn.Linear
+    Output logits projection.
+  dropout : Dropout
+    Dropout layer.
+  node_features_dim : int
+    Node feature dimension. Static (not a JAX array).
+  edge_features_dim : int
+    Edge feature dimension. Static (not a JAX array).
+  hidden_features_dim : int
+    Hidden layer dimension. Static (not a JAX array).
+  num_decoder_layers : int
+    Number of decoder layers. Static (not a JAX array).
+  ligand_mpnn_use_side_chain_context : bool
+    Whether to include side-chain context. Static (not a JAX array).
+  capabilities : ModelCapabilities
+    Model capabilities descriptor. Static (not a JAX array).
+
+  References
+  ----------
+  .. [LigandMPNN] Dauparas, J., et al. "Atomic context-conditioned protein
+     sequence design using LigandMPNN." *Nature Methods* 22(4):717-723 (2025).
+     https://doi.org/10.1038/s41592-025-02626-1
+
+  .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).
+     https://github.com/dauparas/LigandMPNN
+  """
   features: ProteinFeaturesLigand
   encoder: Encoder
   decoder: Decoder
@@ -64,6 +122,39 @@ class PrxteinLigandMPNN(eqx.Module):
     ligand_mpnn_use_side_chain_context: bool = False,
     key: PRNGKeyArray,
   ) -> None:
+    """Initialize PrxteinLigandMPNN model.
+
+    Parameters
+    ----------
+    node_features : int
+        Node feature dimension.
+    edge_features : int
+        Edge feature dimension.
+    hidden_features : int
+        Hidden layer dimension.
+    num_encoder_layers : int
+        Number of encoder layers.
+    num_decoder_layers : int
+        Number of decoder layers.
+    k_neighbors : int
+        Number of top-k neighbors for message passing.
+    num_context_layers : int
+        Number of ligand context encoder layers. Default: 2.
+    num_positional_embeddings : int
+        Dimension of positional embeddings. Default: 16.
+    num_amino_acids : int
+        Vocabulary size for amino acid tokens. Default: 21.
+    vocab_size : int
+        Output vocabulary size (should match num_amino_acids). Default: 21.
+    dropout_rate : float
+        Dropout rate. Default: 0.1.
+    ligand_l_chunk : int
+        Chunk size for ligand processing. Default: 16.
+    ligand_mpnn_use_side_chain_context : bool
+        Whether to include side-chain context. Default: False.
+    key : PRNGKeyArray
+        PRNG key for weight initialization.
+    """
     keys = jax.random.split(key, 5)
     self.node_features_dim = node_features
     self.edge_features_dim = edge_features

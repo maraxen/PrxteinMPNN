@@ -110,7 +110,10 @@ Wave C (after Wave B):
                 Commits: dee1d5d5 → 5756f9d3 (T1-T5), 6d18f0c7 (T6)
 
 Wave D (after Wave C):
-  [ ] COMP-535  Expose plan.encode() / plan.decode()
+  [x] COMP-535  Expose plan.encode() / plan.decode()
+                plan.encode(bundle, key, config) → EncoderOutput and
+                plan.decode(enc, bundle, key, config) → Any added to InferencePlan;
+                .sample()/.score() delegate to new methods.
 
 Wave E (after Wave D):
   [ ] COMP-536  Implement campaign.py manifest functions

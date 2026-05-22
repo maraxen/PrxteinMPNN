@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from prxteinmpnn.types.arrays import Logits
     from prxteinmpnn.types.bundles import InferenceBundle
     from prxteinmpnn.types.configs import InferenceConfig
+    from prxteinmpnn.types.encodings import EncoderOutput
     from prxteinmpnn.types.protocols import ModelProtocol
 
 logger = logging.getLogger(__name__)
@@ -301,6 +302,26 @@ class InferencePlan:
     def stage_set(self) -> Any:
         """Access the wired StageSet directly."""
         return self.components.stage_set
+
+    def encode(self, bundle: InferenceBundle, key: PRNGKeyArray, config: InferenceConfig) -> EncoderOutput:
+        """Encode geometry and context into reusable encoder output.
+
+        Parameters
+        ----------
+        bundle : InferenceBundle
+            Input geometry, conditioning, ligand, and wave schedule.
+        key : PRNGKeyArray
+            PRNG key (passed to encoder; may be used for noise injection).
+        config : InferenceConfig
+            Inference configuration.
+
+        Returns
+        -------
+        EncoderOutput
+            Encoded node features, edge features, neighbor indices, and mask.
+            Reuse this output across multiple decode() calls for encode-once/decode-many.
+        """
+        return self.components.encode_fn(bundle, key, config)
 
     def sample(self, bundle: InferenceBundle, key: PRNGKeyArray, config: InferenceConfig) -> Any:
         """Encode and sample from the pipeline.

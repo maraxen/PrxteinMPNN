@@ -23,7 +23,6 @@ from prxteinmpnn.host.plan import (
 )
 from prxteinmpnn.inference import sample_autoregressive as sample_ar
 from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-from prxteinmpnn.inference.logits import make_stage_set
 from prxteinmpnn.run.specs import SamplingSpecification
 from prxteinmpnn.types.protocols import ModelProtocol
 from prxteinmpnn.utils.safe_map import safe_map as _safe_map

@@ -153,7 +153,31 @@ def conditional_decoder_layer_edge_features(
   mask_bw: jax.Array,
   masked_node_edge_features: jax.Array,
 ) -> jax.Array:
-  """Per-layer edge context for :meth:`Decoder.call_conditional`."""
+  """Assemble per-layer edge context for conditional (scoring) decoding.
+
+  Gathers neighbor node features and concatenates with sequence edge context,
+  then applies backward mask and adds pre-computed masked edge features.
+  Called once per layer in :meth:`Decoder.call_conditional`.
+
+  Parameters
+  ----------
+  loop_node_features : jax.Array
+      Updated node features from current layer. Shape ``(L, D)``.
+  sequence_edge_features : jax.Array
+      Sequence-to-sequence edge context. Shape ``(L, K, D_edge)``.
+  neighbor_indices : jax.Array
+      Neighbor indices for gathering. Shape ``(L, K)``.
+  mask_bw : jax.Array
+      Backward (causal) mask for conditional decoding. Shape ``(L,)``.
+  masked_node_edge_features : jax.Array
+      Pre-masked node-edge features. Shape ``(L, K, D)``.
+
+  Returns
+  -------
+  jax.Array
+      Per-layer edge context with mask and pre-computed terms applied.
+      Shape ``(L, K, D_combined)``.
+  """
   current_features = concatenate_neighbor_nodes(
     loop_node_features,
     sequence_edge_features,
@@ -326,13 +350,44 @@ class DecoderLayer(eqx.Module):
 
 
 class DecoderLayerJ(eqx.Module):
-    """Decoder layer for ligand-atom (Y) context encoding.
+    """Gated attention decoder for ligand-atom context encoding.
 
     Named after the upstream LigandMPNN ``DecLayerJ`` reference implementation.
-    Used as ``y_context_encoder_layers`` inside ``Packer``.
+    Used within ``Packer`` as ``y_context_encoder_layers`` to encode ligand atom
+    context via multi-head message passing. Operates on 3-D node tensors
+    ``[L, M, D]`` and 4-D edge tensors ``[L, M, M, D]``, where ``L`` is sequence
+    length, ``M`` is the ligand context neighbourhood size, and ``D`` is the
+    hidden dimension.
 
-    Operates on 3-D node tensors ``[L, M, D]`` and 4-D edge tensors
-    ``[L, M, M, D]``, where ``M`` is the ligand context neighbourhood size.
+    Parameters
+    ----------
+    w1 : eqx.nn.Linear
+        First message projection. Input: concatenated node-edge context.
+    w2 : eqx.nn.Linear
+        Second message projection (gating layer).
+    w3 : eqx.nn.Linear
+        Third message projection (gating layer).
+    dense : eqx.nn.MLP
+        Feedforward network for residual update.
+    norm1 : eqx.nn.LayerNorm
+        Layer normalization after message aggregation.
+    norm2 : eqx.nn.LayerNorm
+        Layer normalization after feedforward.
+    dropout1 : Dropout
+        Dropout after message aggregation.
+    dropout2 : Dropout
+        Dropout after feedforward.
+    scale : float
+        Message aggregation scale factor. Static (not a JAX array).
+
+    References
+    ----------
+    .. [LigandMPNN] Dauparas, J., et al. "Atomic context-conditioned protein
+       sequence design using LigandMPNN." *Nature Methods* 22(4):717-723 (2025).
+       https://doi.org/10.1038/s41592-025-02626-1
+
+    .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).
+       https://github.com/dauparas/LigandMPNN
     """
     w1: eqx.nn.Linear
     w2: eqx.nn.Linear
@@ -353,6 +408,21 @@ class DecoderLayerJ(eqx.Module):
         *,
         key: PRNGKeyArray,
     ):
+        """Initialize the gated attention decoder layer.
+
+        Parameters
+        ----------
+        hidden_dim : int
+            Hidden dimension for all linear projections and layer norms.
+        in_dim : int
+            Input dimension for edge context (concatenated with node features).
+        dropout : float
+            Dropout rate. Default: 0.1.
+        scale : float
+            Message aggregation scale factor. Default: 30.0.
+        key : PRNGKeyArray
+            PRNG key for weight initialization.
+        """
         keys = jax.random.split(key, 5)
         self.w1 = eqx.nn.Linear(hidden_dim + in_dim, hidden_dim, key=keys[0])
         self.w2 = eqx.nn.Linear(hidden_dim, hidden_dim, key=keys[1])
@@ -374,6 +444,29 @@ class DecoderLayerJ(eqx.Module):
         inference: bool = False,
         key: PRNGKeyArray | None = None,
     ) -> NodeFeatures:
+        """Forward pass for gated attention message passing over ligand context.
+
+        Parameters
+        ----------
+        h_v : NodeFeatures
+            Node features from ligand context. Shape ``(L, M, D)``.
+        h_e : EdgeFeatures
+            Edge features (local ligand context). Shape ``(L, M, M, D)``.
+        mask_v : AlphaCarbonMask | None
+            Optional node mask. Shape ``(L, M)``. Default: None.
+        mask_attend : Array | None
+            Optional attention mask for message gating. Shape ``(L, M, M)``.
+            Default: None.
+        inference : bool
+            If True, disable dropout. Default: False.
+        key : PRNGKeyArray | None
+            PRNG key for dropout (optional).
+
+        Returns
+        -------
+        NodeFeatures
+            Updated node features. Shape ``(L, M, D)``.
+        """
         if key is None:
             inference = True
         keys = jax.random.split(key, 2) if key is not None else (None, None)

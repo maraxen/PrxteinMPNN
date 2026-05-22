@@ -106,11 +106,11 @@ Wave 5 (P1 — in progress):
   [x] model/ligand_mpnn.py — PrxteinLigandMPNN class + __init__
   [x] model/decoder.py — pack_decoder_unconditional_layer_edge_features, pack_conditional_decoder_static_edges, DecoderLayer, Decoder + __call__ / call_conditional
 
-Wave 6 (P2/P3 — pending):
-  [ ] encoder.py — magic constants
-  [ ] driver.py — decode functions
-  [ ] host/runner.py — sample() returns dict, inner closures
-  [ ] Final jaxlint advisory scan
+Wave 6 (P2/P3 — done ✅):
+  [x] encoder.py — EncoderLayer, Encoder, PhysicsEncoder + magic constants (scale=30.0)
+  [x] driver.py — infer_topology, decode, _decode_conditional, _decode_unconditional, decode_ar
+  [x] host/runner.py — sample(), _sample_non_streaming_averaged
+  [x] Final jaxlint advisory scan (jaxlint internal sensor crash — not a code issue)
 ```
 
 **Known Debt (non-blocking):**

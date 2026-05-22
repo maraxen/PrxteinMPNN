@@ -1,0 +1,62 @@
+---
+workspace: prxteinmpnn
+session_id: 2026-05-22-sprint4-wave-a
+status: wave_a_complete
+immediately_relevant:
+- file: src/prxteinmpnn/inference/bundle_builder.py
+  lines:
+  - 18
+  - 151
+  reason: 'Wave A target: now returns (bundle, config) only; strategy/StageSet params removed.'
+- file: src/prxteinmpnn/inference/logits.py
+  lines:
+  - 385
+  - 430
+  reason: make_stage_set() added here — new canonical factory for StageSet construction from strategy name/temp/weights.
+- file: src/prxteinmpnn/host/plan.py
+  lines:
+  - 350
+  - 433
+  reason: 'make_inference_plan: already calls make_stage_set; Wave B target — callers should flow strategy resolution through here.'
+- file: src/prxteinmpnn/host/kernel_dispatch.py
+  lines:
+  - 158
+  - 182
+  reason: 'Wave B/C target: calls make_stage_set inline; will eventually route through InferencePlan.'
+- file: src/prxteinmpnn/sampling/sample.py
+  lines:
+  - 164
+  - 190
+  reason: 'Wave B/C target: temperature path calls make_stage_set inline; will eventually route through InferencePlan.'
+- file: CLAUDE.md
+  lines:
+  - 88
+  - 110
+  reason: Sprint 4 DAG with Wave A marked [x]; Waves B-E still pending.
+active_dispatches: []
+task_id: COMP-532
+phase: sprint4
+goal_statement: 'Sprint 4: Wire InferencePlan / Campaign Composability (COMP-532 through COMP-536). Wave A complete. Resume at Wave B (COMP-533).'
+context_refs:
+- phase: sprint4
+  task_id: COMP-532
+  summary: 'build_inference_bundle now returns (bundle, config) only. make_stage_set(strategy, strategy_temperature, state_weights) added to inference/logits.py. host/plan.py make_inference_plan updated to call make_stage_set. All 14 call sites updated. 109 tests pass. Commit: ec09ecb8.'
+- phase: sprint4
+  task_id: COMP-533
+  summary: 'Wave B pending: callers like sample.py and kernel_dispatch.py call make_stage_set inline; Wave B routes them through InferencePlan instead. make_inference_plan already calls make_stage_set correctly — Wave B wires the callers to it.'
+failed_attempts: []
+open_questions:
+- 'Wave B scope: should make_inference_plan accept raw strategy kwargs or keep the spec-with-getattr pattern?'
+- kernel_dispatch.py creates stage_set inline per structure in a loop — does Wave B hoist plan creation above the loop?
+deferred:
+- description: 'COMP-534 Wave C: Wire _sample_batch through InferencePlan'
+  rationale: Depends on Wave B.
+  recommended_phase: after_wave_b
+- description: 'COMP-535 Wave D: Expose plan.encode() / plan.decode()'
+  rationale: Depends on Wave C.
+  recommended_phase: after_wave_c
+- description: 'COMP-536 Wave E: Implement campaign.py manifest functions'
+  rationale: Depends on Wave D.
+  recommended_phase: after_wave_d
+lessons_refs: []
+---

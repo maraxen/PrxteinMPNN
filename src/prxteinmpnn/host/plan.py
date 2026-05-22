@@ -391,10 +391,8 @@ class InferencePlan:
         Logits
             Logit scores per position per amino acid.
         """
-        enc = self.components.encode_fn(bundle, key, config)
-        return self.components.driver(
-            self.model, key, enc, bundle.conditioning, bundle.wave, config, self.components.stage_set,
-        )
+        enc = self.encode(bundle, key, config)
+        return self.decode(enc, bundle, key, config)
 
 
 def make_inference_plan(model: ModelProtocol, spec: Any) -> InferencePlan:

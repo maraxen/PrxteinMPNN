@@ -192,7 +192,7 @@ def sample(
       spec,
       batched_ensemble,
       model,
-      stage_set=stage_set,
+      stage_set=plan.stage_set,
       canonical_structure_ids=canonical_structure_ids,
       batch_structure_ids=batch_structure_ids,
       batch_idx=batch_idx,

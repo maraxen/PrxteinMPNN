@@ -116,7 +116,10 @@ Wave D (after Wave C):
                 .sample()/.score() delegate to new methods.
 
 Wave E (after Wave D):
-  [ ] COMP-536  Implement campaign.py manifest functions
+  [x] COMP-536  Implement campaign.py manifest functions
+                build_manifest_row, load_manifest, validate_manifest_rows, write_manifest
+                all implemented in host/campaign.py; stubs replaced.
+                Commit: e4b51bf1
 ```
 
 ---

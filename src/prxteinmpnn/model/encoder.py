@@ -188,8 +188,10 @@ class EncoderLayer(eqx.Module):
     mask_attend : jnp.ndarray, optional
         Attention mask for neighbor validity. Shape: (L, K).
     scale : float, optional
-        Attention feature scaling constant inherited from ProteinMPNN (default: 30.0).
-        ProteinMPNN temperature-like scaling constant (see Dauparas et al. 2022).
+        Divisor applied to summed neighbor messages before the residual update,
+        controlling the effective temperature of message aggregation. Set to
+        30.0 to match the ProteinMPNN reference implementation (Dauparas et al.
+        2022); smaller values sharpen aggregation, larger values smooth it.
     inference : bool, optional
         Whether in inference mode (no dropout). Default: False.
     key : PRNGKeyArray, optional

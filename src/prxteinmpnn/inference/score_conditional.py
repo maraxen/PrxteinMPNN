@@ -10,8 +10,6 @@ from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.protocols import ModelProtocol
 from prxteinmpnn.types.stages import StageSet
 
-# TODO: by default, 1 - jnp.eye should be the autoregressive mask
-
 def kernel(
     model: ModelProtocol,
     prng_key: PRNGKeyArray,

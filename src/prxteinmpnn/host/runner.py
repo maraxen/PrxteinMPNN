@@ -168,7 +168,7 @@ def sample(
     return _sample_non_streaming_averaged(spec, protein_iterator, model)
 
   if spec.output_h5_path:
-    bound_sample_batch = functools.partial(_sample_batch, stage_set=stage_set)
+    bound_sample_batch = functools.partial(_sample_batch, stage_set=plan.stage_set)
     return _sample_streaming(spec, protein_iterator, model, bound_sample_batch)
 
   # TODO(io_callback integration): Non-streaming path appends per-batch device arrays then concats;

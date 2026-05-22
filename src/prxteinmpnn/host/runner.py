@@ -159,15 +159,8 @@ def sample(
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
 
-  # Construct stage_set once before routing to averaged or non-streaming path
-  stage_set = make_stage_set(
-      strategy=spec.multi_state_strategy or "arithmetic_mean",
-      strategy_temperature=spec.multi_state_temperature or 1.0,
-      state_weights=(
-          jnp.asarray(spec.state_weights, dtype=jnp.float32)
-          if spec.state_weights is not None else None
-      ),
-  )
+  # Construct inference plan once before routing to averaged or non-streaming path
+  plan = make_inference_plan(model, spec)
 
   if spec.average_node_features:
     if spec.output_h5_path:

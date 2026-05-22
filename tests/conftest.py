@@ -153,3 +153,90 @@ def apply_jit(request):
         return fn
 
     return _wrapper
+
+
+@pytest.fixture
+def minimal_bundle_fixture():
+    """Minimal InferenceBundle for smoke testing.
+
+    Returns a valid InferenceBundle with small but proper array shapes:
+    S=1 (one state), L=4 (sequence length), K=8 (neighbors), D=16 (embed dim).
+    """
+    from prxteinmpnn.types.bundles import (
+        GeometryBundle,
+        ConditioningBundle,
+        LigandBundle,
+        WaveScheduleBundle,
+        InferenceBundle,
+    )
+
+    S, L, K, D = 1, 4, 8, 16
+    V = 21  # vocab size (amino acids)
+
+    # Minimal geometry
+    geometry = GeometryBundle(
+        coords=jnp.zeros((S, L, 4, 3)),  # S, L, 4 atoms, 3D
+        mask=jnp.ones((S, L)),
+        residue_index=jnp.arange(L)[None, :].astype(jnp.int32).repeat(S, axis=0),
+        chain_index=jnp.zeros((S, L), dtype=jnp.int32),
+        n_states=S,
+        n_canonical=20,
+        n_flat=L,
+    )
+
+    # Minimal conditioning
+    conditioning = ConditioningBundle(
+        fixed_mask=jnp.zeros(L),
+        fixed_tokens=jnp.zeros(L, dtype=jnp.int32),
+        bias=jnp.zeros((L, V)),
+        tie_group_map=jnp.zeros((S, L), dtype=jnp.int32),
+        state_weights=jnp.ones(S),
+        sequence_oh=jnp.zeros((L, V)),
+        ar_mask=jnp.ones((S, L, L)),
+    )
+
+    # Minimal ligand (empty)
+    ligand = LigandBundle(
+        ligand_coords=jnp.zeros((S, L, 1, 3)),
+        ligand_atom_types=jnp.zeros((S, L, 1), dtype=jnp.int32),
+        ligand_mask=jnp.zeros((S, L, 1)),
+    )
+
+    # Minimal wave schedule
+    wave = WaveScheduleBundle.empty(L)
+
+    # Construct the bundle
+    bundle = InferenceBundle(
+        geometry=geometry,
+        conditioning=conditioning,
+        ligand=ligand,
+        wave=wave,
+        backbone_noise=jnp.array(0.0),
+    )
+
+    return bundle
+
+
+@pytest.fixture
+def minimal_encode_fn_fixture():
+    """Minimal encode function fixture for testing.
+
+    Returns a tuple (encode_fn, config) where encode_fn is a callable that
+    accepts the minimal test arguments and returns an EncoderOutput.
+    """
+    from prxteinmpnn.types.encodings import EncoderOutput
+    from prxteinmpnn.types.configs import InferenceConfig
+
+    L, K, D = 4, 8, 16
+
+    def minimal_encode_fn(*args, **kwargs):
+        """Minimal encode function that returns a valid EncoderOutput."""
+        return EncoderOutput(
+            node_features=jnp.zeros((L, D)),
+            edge_features=jnp.zeros((L, K, D)),
+            neighbor_indices=jnp.zeros((L, K), dtype=jnp.int32),
+        )
+
+    # Return the function and a minimal config
+    config = InferenceConfig()
+    return (minimal_encode_fn, config)

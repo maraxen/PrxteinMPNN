@@ -408,10 +408,11 @@ def test_ligand_conditioning_context_reference_correlation(
 
   # Migrate to new bundle-based API for conditional scoring
   from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+  from prxteinmpnn.inference.logits import make_stage_set
   from prxteinmpnn.inference import score_conditional
 
   sequence_oh = jax.nn.one_hot(jnp.array(ligand_batch.s[0]), 21)
-  bundle, config, stage_set = build_inference_bundle(
+  bundle, config = build_inference_bundle(
     coords=jnp.array(ligand_batch.x[0])[None, ...],
     mask=jnp.array(ligand_batch.mask[0])[None, ...],
     residue_index=jnp.array(ligand_batch.residue_index[0])[None, ...],
@@ -423,6 +424,7 @@ def test_ligand_conditioning_context_reference_correlation(
     sequence=sequence_oh,
     mode="score_conditional",
   )
+  stage_set = make_stage_set()
   logits_jax = score_conditional.kernel(jax_model, jax.random.PRNGKey(31), bundle, config, stage_set)
   log_probs_jax = np.asarray(jax.nn.log_softmax(logits_jax, axis=-1))
 
@@ -469,9 +471,10 @@ def test_ligand_autoregressive_reference_alignment(
 
   # Migrate to new bundle-based API for autoregressive sampling
   from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+  from prxteinmpnn.inference.logits import make_stage_set
   from prxteinmpnn.inference import sample_autoregressive
 
-  bundle, config, stage_set = build_inference_bundle(
+  bundle, config = build_inference_bundle(
     coords=jnp.array(ligand_batch.x[0])[None, ...],
     mask=jnp.array(ligand_batch.mask[0])[None, ...],
     residue_index=jnp.array(ligand_batch.residue_index[0])[None, ...],
@@ -484,6 +487,7 @@ def test_ligand_autoregressive_reference_alignment(
     temperature=1.0,
     mode="sample_autoregressive",
   )
+  stage_set = make_stage_set()
   result = sample_autoregressive.kernel(jax_model, jax.random.PRNGKey(37), bundle, config, stage_set)
   sampled_tokens_jax = np.asarray(result.sequence)
   sampled_log_probs_jax = np.asarray(jax.nn.log_softmax(result.logits, axis=-1))
@@ -499,6 +503,7 @@ def test_ligand_jax_package_and_pt_convert_produce_identical_forced_samples(
 ) -> None:
   """End-to-end checksum: packaged ``.eqx`` vs in-test ``convert_full_model`` (no PyTorch RNG)."""
   from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+  from prxteinmpnn.inference.logits import make_stage_set
   from prxteinmpnn.inference import sample_autoregressive
 
   ar_mask = _build_ar_mask(ligand_batch.randn[0])
@@ -510,7 +515,7 @@ def test_ligand_jax_package_and_pt_convert_produce_identical_forced_samples(
   key = jax.random.PRNGKey(37)
 
   def _sample(m: PrxteinLigandMPNN) -> np.ndarray:
-    bundle, config, stage_set = build_inference_bundle(
+    bundle, config = build_inference_bundle(
       coords=jnp.array(ligand_batch.x[0])[None, ...],
       mask=jnp.array(ligand_batch.mask[0])[None, ...],
       residue_index=jnp.array(ligand_batch.residue_index[0])[None, ...],
@@ -523,6 +528,7 @@ def test_ligand_jax_package_and_pt_convert_produce_identical_forced_samples(
       temperature=1.0,
       mode="sample_autoregressive",
     )
+    stage_set = make_stage_set()
     result = sample_autoregressive.kernel(m, key, bundle, config, stage_set)
     return np.asarray(result.sequence)
 
@@ -575,9 +581,10 @@ def test_ligand_stochastic_sampling_per_position_distribution_near_reference(
   bias_np = np.zeros((1, seq_len, 21), dtype=np.float32)
 
   from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+  from prxteinmpnn.inference.logits import make_stage_set
   from prxteinmpnn.inference import sample_autoregressive
 
-  bundle, config, stage_set = build_inference_bundle(
+  bundle, config = build_inference_bundle(
     coords=jnp.array(ligand_batch.x[0])[None, ...],
     mask=jnp.array(ligand_batch.mask[0])[None, ...],
     residue_index=jnp.array(ligand_batch.residue_index[0])[None, ...],
@@ -590,6 +597,7 @@ def test_ligand_stochastic_sampling_per_position_distribution_near_reference(
     temperature=temperature_jax,
     mode="sample_autoregressive",
   )
+  stage_set = make_stage_set()
 
   pt_sequences: list[np.ndarray] = []
   jax_sequences: list[np.ndarray] = []
@@ -659,6 +667,7 @@ def test_ligand_tied_sampling_weighted_sum_product_alignment(
 
   # Migrate to new bundle-based API for autoregressive sampling with tied positions
   from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+  from prxteinmpnn.inference.logits import make_stage_set
   from prxteinmpnn.inference import sample_autoregressive
   from prxteinmpnn.types.bundles import WaveScheduleBundle
   import equinox as eqx
@@ -666,7 +675,7 @@ def test_ligand_tied_sampling_weighted_sum_product_alignment(
   L = ligand_batch.x.shape[1]
   wave = WaveScheduleBundle.from_tie_groups(jnp.arange(L), jnp.array(tie_group_map))
 
-  bundle, config, stage_set = build_inference_bundle(
+  bundle, config = build_inference_bundle(
     coords=jnp.array(ligand_batch.x[0])[None, ...],
     mask=jnp.array(ligand_batch.mask[0])[None, ...],
     residue_index=jnp.array(ligand_batch.residue_index[0])[None, ...],
@@ -679,6 +688,7 @@ def test_ligand_tied_sampling_weighted_sum_product_alignment(
     temperature=1.0,
     mode="sample_autoregressive",
   )
+  stage_set = make_stage_set()
   bundle = eqx.tree_at(lambda b: b.wave, bundle, wave)
   result = sample_autoregressive.kernel(jax_model, jax.random.PRNGKey(43), bundle, config, stage_set)
 
@@ -754,6 +764,7 @@ def test_ligand_tied_scoring_arithmetic_mean_alignment(
 
   # Migrate to new bundle-based API for conditional scoring with tied positions
   from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+  from prxteinmpnn.inference.logits import make_stage_set
   from prxteinmpnn.inference import score_conditional
   from prxteinmpnn.types.bundles import WaveScheduleBundle
   import equinox as eqx
@@ -762,7 +773,7 @@ def test_ligand_tied_scoring_arithmetic_mean_alignment(
   wave = WaveScheduleBundle.from_tie_groups(jnp.arange(L), jnp.array(tie_group_map))
 
   sequence_oh = jax.nn.one_hot(jnp.array(ligand_batch.s[0]), 21)
-  bundle, config, stage_set = build_inference_bundle(
+  bundle, config = build_inference_bundle(
     coords=jnp.array(ligand_batch.x[0])[None, ...],
     mask=jnp.array(ligand_batch.mask[0])[None, ...],
     residue_index=jnp.array(ligand_batch.residue_index[0])[None, ...],
@@ -773,7 +784,8 @@ def test_ligand_tied_scoring_arithmetic_mean_alignment(
     ar_mask=jnp.array(ar_mask)[None, ...],
     sequence=sequence_oh,
     mode="score_conditional",
-    strategy="arithmetic_mean",
+  )
+  stage_set = make_stage_set(      strategy="arithmetic_mean",
   )
   bundle = eqx.tree_at(lambda b: b.wave, bundle, wave)
   logits_jax = score_conditional.kernel(jax_model, jax.random.PRNGKey(47), bundle, config, stage_set)

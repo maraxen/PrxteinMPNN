@@ -14,6 +14,7 @@ import pytest
 from scipy.stats import pearsonr
 
 from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+from prxteinmpnn.inference.logits import make_stage_set
 from prxteinmpnn.inference import score_unconditional
 from prxteinmpnn.io.weights import load_weights
 from prxteinmpnn.model.mpnn import PrxteinMPNN
@@ -459,7 +460,7 @@ def test_unconditional_parity(
     labels = jnp.zeros(seq_len, dtype=jnp.int32)
     physics_features_jax = jax.nn.one_hot(labels, 3)[None, ...]  # (1, L, 3)
 
-  bundle, config, stage_set = build_inference_bundle(
+  bundle, config = build_inference_bundle(
     coords=coords_batch,
     mask=mask_batch,
     residue_index=residue_index_batch,
@@ -467,6 +468,7 @@ def test_unconditional_parity(
     physics_features=physics_features_jax,
     mode="score_unconditional",
   )
+  stage_set = make_stage_set()
   jax_logits = score_unconditional.kernel(jax_model, jax.random.PRNGKey(0), bundle, config, stage_set)
   jax_log_probs = np.asarray(jax.nn.log_softmax(jax_logits, axis=-1))
 

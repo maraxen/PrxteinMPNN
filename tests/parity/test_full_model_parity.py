@@ -14,6 +14,7 @@ import pytest
 from scipy.stats import pearsonr
 
 from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+from prxteinmpnn.inference.logits import make_stage_set
 from prxteinmpnn.inference import (
   score_conditional,
   score_unconditional,
@@ -367,13 +368,14 @@ def test_decoder_unconditional_parity(
   residue_index_batch = jnp.array(parity_batch.residue_index[0])[None, ...]  # (1, L)
   chain_index_batch = jnp.array(parity_batch.chain_index[0])[None, ...]  # (1, L)
 
-  bundle, config, stage_set = build_inference_bundle(
+  bundle, config = build_inference_bundle(
     coords=coords_batch,
     mask=mask_batch,
     residue_index=residue_index_batch,
     chain_index=chain_index_batch,
     mode="score_unconditional",
   )
+  stage_set = make_stage_set()
   jax_logits = score_unconditional.kernel(jax_model, jax.random.PRNGKey(0), bundle, config, stage_set)
   jax_log_probs = np.asarray(jax.nn.log_softmax(jax_logits, axis=-1))
 
@@ -402,7 +404,7 @@ def test_decoder_conditional_scoring_parity(
   residue_index_batch = jnp.array(parity_batch.residue_index[0])[None, ...]  # (1, L)
   chain_index_batch = jnp.array(parity_batch.chain_index[0])[None, ...]  # (1, L)
 
-  bundle, config, stage_set = build_inference_bundle(
+  bundle, config = build_inference_bundle(
     coords=coords_batch,
     mask=mask_batch,
     residue_index=residue_index_batch,
@@ -411,6 +413,7 @@ def test_decoder_conditional_scoring_parity(
     ar_mask=jnp.array(parity_batch.ar_mask)[None, ...],
     mode="score_conditional",
   )
+  stage_set = make_stage_set()
   jax_logits = score_conditional.kernel(jax_model, jax.random.PRNGKey(0), bundle, config, stage_set)
   jax_log_probs = np.asarray(jax.nn.log_softmax(jax_logits, axis=-1))
 
@@ -446,7 +449,7 @@ def test_autoregressive_sampling_parity(
   L = coords_batch.shape[1]
   wave = WaveScheduleBundle.from_tie_groups(jnp.arange(L), jnp.array(parity_batch.decoding_order))
 
-  bundle, config, stage_set = build_inference_bundle(
+  bundle, config = build_inference_bundle(
     coords=coords_batch,
     mask=mask_batch,
     residue_index=residue_index_batch,
@@ -456,6 +459,7 @@ def test_autoregressive_sampling_parity(
     temperature=1.0,
     mode="sample_autoregressive",
   )
+  stage_set = make_stage_set()
   bundle = eqx.tree_at(lambda b: b.wave, bundle, wave)
   result = sample_autoregressive.kernel(
     jax_model, jax.random.PRNGKey(7), bundle, config, stage_set
@@ -506,7 +510,7 @@ def test_tied_positions_and_multi_state_parity(
   # Replace wave schedule with the tie groups
   wave = WaveScheduleBundle.from_tie_groups(jnp.array(tie_group_map), jnp.array(parity_batch.decoding_order))
 
-  bundle, config, stage_set = build_inference_bundle(
+  bundle, config = build_inference_bundle(
     coords=coords_batch,
     mask=mask_batch,
     residue_index=residue_index_batch,
@@ -517,6 +521,7 @@ def test_tied_positions_and_multi_state_parity(
     tie_group_map=jnp.array(tie_group_map)[None, ...],
     mode="sample_autoregressive",
   )
+  stage_set = make_stage_set()
   bundle = eqx.tree_at(lambda b: b.wave, bundle, wave)
   result = sample_autoregressive.kernel(
     jax_model, jax.random.PRNGKey(7), bundle, config, stage_set

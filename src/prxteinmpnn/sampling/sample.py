@@ -10,6 +10,7 @@ from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.inference import optimize_ste, sample_autoregressive
 from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+from prxteinmpnn.inference.logits import make_stage_set
 from prxteinmpnn.registry import SAMPLERS
 from prxteinmpnn.types.bundles import WaveScheduleBundle
 from prxteinmpnn.types.protocols import ModelProtocol, SamplerFn
@@ -84,7 +85,7 @@ def make_sample_sequences(
       L = structure_coordinates.shape[1] if structure_coordinates.ndim == 4 else structure_coordinates.shape[0]
       S = structure_coordinates.shape[0] if structure_coordinates.ndim == 4 else 1
 
-      bundle, config, stage_set = build_inference_bundle(
+      bundle, config = build_inference_bundle(
           coords=structure_coordinates,
           mask=mask,
           residue_index=residue_index,
@@ -98,8 +99,6 @@ def make_sample_sequences(
           ligand_coords=ligand_coords, ligand_atom_types=ligand_atom_types, ligand_mask=ligand_mask,
           temperature=temperature,
           mode="score_conditional",
-          strategy=multi_state_strategy,
-          strategy_temperature=multi_state_temperature,
           use_rolling_state=use_rolling_state,
           inference=True,
       )
@@ -162,7 +161,7 @@ def make_sample_sequences(
           num_groups=num_groups,
       )
 
-      bundle, config, stage_set = build_inference_bundle(
+      bundle, config = build_inference_bundle(
           coords=structure_coordinates,
           mask=mask,
           residue_index=residue_index,
@@ -177,10 +176,13 @@ def make_sample_sequences(
           ligand_coords=ligand_coords, ligand_atom_types=ligand_atom_types, ligand_mask=ligand_mask,
           temperature=temperature,
           mode="sample_ar",
-          strategy=multi_state_strategy,
-          strategy_temperature=multi_state_temperature,
           use_rolling_state=use_rolling_state,
           inference=True,
+      )
+      stage_set = make_stage_set(
+          strategy=multi_state_strategy,
+          strategy_temperature=multi_state_temperature,
+          state_weights=state_weights,
       )
       if wave_schedule is not None:
           bundle = eqx.tree_at(lambda b: b.wave, bundle, wave_schedule)

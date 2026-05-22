@@ -394,8 +394,7 @@ def make_inference_plan(model: ModelProtocol, spec: Any) -> InferencePlan:
     """
     from prxteinmpnn.inference import driver as driver_module
     from prxteinmpnn.inference.encode import make_encode_fn
-    from prxteinmpnn.inference.logits import LOGIT_STRATEGIES, ARLogitFuse, TieGroupProductOfExperts
-    from prxteinmpnn.types.stages import StageSet
+    from prxteinmpnn.inference.logits import make_stage_set
 
     use_rolling_state = getattr(spec, "use_rolling_state", False)
     encode_fn = make_encode_fn(model, use_rolling_state=use_rolling_state)
@@ -404,25 +403,7 @@ def make_inference_plan(model: ModelProtocol, spec: Any) -> InferencePlan:
     strategy_temp = getattr(spec, "multi_state_temperature", 1.0) or 1.0
     state_weights = getattr(spec, "state_weights", None)
 
-    strategy_cls = LOGIT_STRATEGIES.get(strategy_name)
-    if strategy_cls is None:
-        msg = f"Logit strategy '{strategy_name}' not found in registry"
-        raise ValueError(msg)
-
-    weights = jnp.asarray(state_weights, dtype=jnp.float32) if state_weights is not None else jnp.ones(1, dtype=jnp.float32)
-
-    try:
-        logit_transform = strategy_cls(weights, temperature=strategy_temp)
-    except TypeError:
-        logit_transform = strategy_cls(weights)
-
-    stage_set = StageSet(
-        logit_transform=logit_transform,
-        ar_logit_transform=ARLogitFuse(),
-        decode_step=None,
-        sample_step=None,
-        tie_group_fuse=TieGroupProductOfExperts(),
-    )
+    stage_set = make_stage_set(strategy_name, strategy_temp, state_weights)
 
     components = InferenceComponents(
         encode_fn=encode_fn,

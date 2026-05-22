@@ -5,7 +5,6 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.inference.logits import LOGIT_STRATEGIES, ARLogitFuse, TieGroupProductOfExperts
 from prxteinmpnn.types.bundles import (
     ConditioningBundle,
     GeometryBundle,
@@ -14,7 +13,6 @@ from prxteinmpnn.types.bundles import (
     WaveScheduleBundle,
 )
 from prxteinmpnn.types.configs import InferenceConfig
-from prxteinmpnn.types.stages import StageSet
 
 
 def build_inference_bundle(
@@ -39,11 +37,9 @@ def build_inference_bundle(
     physics_features: jax.Array | None = None,
     temperature: float = 1.0,
     mode: str = "score_conditional",
-    strategy: str = "arithmetic_mean",
-    strategy_temperature: float = 1.0,
     use_rolling_state: bool = False,
     inference: bool = True,
-) -> tuple[InferenceBundle, InferenceConfig, StageSet]:
+) -> tuple[InferenceBundle, InferenceConfig]:
     """Single entry point for bundle construction from raw arrays."""
 
     # 1. Resolve shapes
@@ -152,17 +148,4 @@ def build_inference_bundle(
         inference=inference,
     )
 
-    # 7. StageSet
-    strategy_cls = LOGIT_STRATEGIES.get(strategy)
-    if strategy == "geometric_mean":
-        logit_transform = strategy_cls(state_weights, temperature=strategy_temperature)
-    else:
-        logit_transform = strategy_cls(state_weights)
-
-    stage_set = StageSet(
-        logit_transform=logit_transform,
-        ar_logit_transform=ARLogitFuse(),
-        tie_group_fuse=TieGroupProductOfExperts(),
-    )
-
-    return bundle, config, stage_set
+    return bundle, config

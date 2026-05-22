@@ -20,6 +20,7 @@ from prxteinmpnn.inference.logits import (
     GeometricMeanLogits,
     ProductOfProbabilities,
     ARLogitFuse,
+    make_stage_set,
 )
 from prxteinmpnn.inference.driver import (
     decode,
@@ -384,16 +385,15 @@ class TestBundleBuilderStrategies:
         """bundle_builder correctly wires geometric_mean strategy."""
         coords, mask, residue_index, chain_index, sequence = synthetic_inputs
 
-        bundle, config, stage_set = build_inference_bundle(
+        bundle, config = build_inference_bundle(
             coords=coords,
             mask=mask,
             residue_index=residue_index,
             chain_index=chain_index,
             sequence=sequence,
             mode="score_conditional",
-            strategy="geometric_mean",
-            strategy_temperature=2.0,
         )
+        stage_set = make_stage_set(strategy="geometric_mean", strategy_temperature=2.0)
 
         # Verify geometric_mean is wired
         assert isinstance(stage_set.logit_transform, GeometricMeanLogits)
@@ -403,14 +403,14 @@ class TestBundleBuilderStrategies:
         """bundle_builder correctly wires product strategy."""
         coords, mask, residue_index, chain_index, sequence = synthetic_inputs
 
-        bundle, config, stage_set = build_inference_bundle(
+        bundle, config = build_inference_bundle(
             coords=coords,
             mask=mask,
             residue_index=residue_index,
             chain_index=chain_index,
             sequence=sequence,
-            strategy="product",
         )
+        stage_set = make_stage_set(strategy="product")
 
         # Verify product is wired
         assert isinstance(stage_set.logit_transform, ProductOfProbabilities)
@@ -420,15 +420,15 @@ class TestBundleBuilderStrategies:
         coords, mask, residue_index, chain_index, sequence = synthetic_inputs
         custom_weights = jnp.array([0.3, 0.7])
 
-        bundle, config, stage_set = build_inference_bundle(
+        bundle, config = build_inference_bundle(
             coords=coords,
             mask=mask,
             residue_index=residue_index,
             chain_index=chain_index,
             sequence=sequence,
             state_weights=custom_weights,
-            strategy="arithmetic_mean",
         )
+        stage_set = make_stage_set(strategy="arithmetic_mean", state_weights=custom_weights)
 
         # Verify weights are propagated
         assert jnp.allclose(stage_set.logit_transform.weights, custom_weights)
@@ -437,15 +437,14 @@ class TestBundleBuilderStrategies:
         """bundle_builder wires custom temperature for geometric_mean."""
         coords, mask, residue_index, chain_index, sequence = synthetic_inputs
 
-        bundle, config, stage_set = build_inference_bundle(
+        bundle, config = build_inference_bundle(
             coords=coords,
             mask=mask,
             residue_index=residue_index,
             chain_index=chain_index,
             sequence=sequence,
-            strategy="geometric_mean",
-            strategy_temperature=0.5,
         )
+        stage_set = make_stage_set(strategy="geometric_mean", strategy_temperature=0.5)
 
         assert isinstance(stage_set.logit_transform, GeometricMeanLogits)
         assert stage_set.logit_transform.temperature == 0.5
@@ -497,14 +496,16 @@ class TestEndToEndIntegration:
         coords, mask, residue_index, chain_index, sequence = synthetic_inputs
 
         for strategy in ["arithmetic_mean", "geometric_mean", "product"]:
-            bundle, config, stage_set = build_inference_bundle(
+            bundle, config = build_inference_bundle(
                 coords=coords,
                 mask=mask,
                 residue_index=residue_index,
                 chain_index=chain_index,
                 sequence=sequence,
-                strategy=strategy,
             )
+            # Test with S=2 states, so provide matching state weights
+            state_weights = jnp.array([0.5, 0.5])
+            stage_set = make_stage_set(strategy=strategy, state_weights=state_weights)
 
             # Verify strategy is wired and callable
             assert stage_set.logit_transform is not None
@@ -522,7 +523,7 @@ class TestEndToEndIntegration:
 
         bias = jnp.ones((L, 21)) * 0.5
 
-        bundle, config, stage_set = build_inference_bundle(
+        bundle, config = build_inference_bundle(
             coords=coords,
             mask=mask,
             residue_index=residue_index,
@@ -530,6 +531,9 @@ class TestEndToEndIntegration:
             sequence=sequence,
             bias=bias,
         )
+        # Test with S=2 states, so provide matching state weights
+        state_weights = jnp.array([0.5, 0.5])
+        stage_set = make_stage_set(state_weights=state_weights)
 
         # Verify bias is in conditioning
         assert jnp.allclose(bundle.conditioning.bias, bias)

@@ -23,6 +23,7 @@ from prxteinmpnn.host.plan import (
 )
 from prxteinmpnn.inference import sample_autoregressive as sample_ar
 from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+from prxteinmpnn.inference.logits import make_stage_set
 from prxteinmpnn.run.specs import SamplingSpecification
 from prxteinmpnn.types.protocols import ModelProtocol
 from prxteinmpnn.utils.safe_map import safe_map as _safe_map
@@ -155,7 +156,7 @@ def _sample_batch(
       ft = fixed_tokens_for_vmap[structure_idx]
 
       # Build bundle
-      bundle, config, stage_set = build_inference_bundle(
+      bundle, config = build_inference_bundle(
           coords=c, mask=m, residue_index=ri, chain_index=ci,
           backbone_noise=noise_val,
           fixed_mask=fm, fixed_tokens=ft,
@@ -168,10 +169,13 @@ def _sample_batch(
           structure_mapping=mapping_for_vmap[structure_idx] if mapping_for_vmap is not None else None,
           temperature=temp_val,
           mode="sample_ar",
-          strategy=spec.multi_state_strategy or "arithmetic_mean",
-          strategy_temperature=spec.multi_state_temperature or 1.0,
           use_rolling_state=spec.use_rolling_state,
           inference=True,
+      )
+      stage_set = make_stage_set(
+          strategy=spec.multi_state_strategy or "arithmetic_mean",
+          strategy_temperature=spec.multi_state_temperature or 1.0,
+          state_weights=state_weights,
       )
 
       # Map over samples

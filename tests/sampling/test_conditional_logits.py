@@ -10,6 +10,7 @@ import pytest
 from scipy.stats import pearsonr
 
 from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+from prxteinmpnn.inference.logits import make_stage_set
 from prxteinmpnn.inference import score_conditional
 from prxteinmpnn.model import PrxteinMPNN
 from prxteinmpnn.sampling.conditional_logits import (
@@ -70,7 +71,7 @@ def test_conditional_logits_helper_matches_model_branch() -> None:
   chain_index_batch = chain_index[None, ...]
   ar_mask_batch = ar_mask[None, ...] if ar_mask.ndim == 2 else ar_mask
 
-  bundle, config, stage_set = build_inference_bundle(
+  bundle, config = build_inference_bundle(
     coords=coords_batch,
     mask=mask_batch,
     residue_index=residue_index_batch,
@@ -80,6 +81,7 @@ def test_conditional_logits_helper_matches_model_branch() -> None:
     backbone_noise=jnp.array(0.0, dtype=jnp.float32),
     mode="score_conditional",
   )
+  stage_set = make_stage_set()
   direct_logits = score_conditional.kernel(model, key, bundle, config, stage_set)
 
   helper_logits_np = np.asarray(helper_logits)

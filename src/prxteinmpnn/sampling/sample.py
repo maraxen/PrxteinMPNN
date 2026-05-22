@@ -3,6 +3,7 @@
 from functools import partial
 from typing import Literal, cast
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
@@ -10,6 +11,7 @@ from jaxtyping import PRNGKeyArray
 from prxteinmpnn.inference import optimize_ste, sample_autoregressive
 from prxteinmpnn.inference.bundle_builder import build_inference_bundle
 from prxteinmpnn.registry import SAMPLERS
+from prxteinmpnn.types.bundles import WaveScheduleBundle
 from prxteinmpnn.types.protocols import ModelProtocol, SamplerFn
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
 
@@ -76,6 +78,7 @@ def make_sample_sequences(
       ligand_coords: jax.Array | None = None,
       ligand_atom_types: jax.Array | None = None,
       ligand_mask: jax.Array | None = None,
+      wave_schedule: WaveScheduleBundle | None = None,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
 
       L = structure_coordinates.shape[1] if structure_coordinates.ndim == 4 else structure_coordinates.shape[0]
@@ -100,6 +103,8 @@ def make_sample_sequences(
           use_rolling_state=use_rolling_state,
           inference=True,
       )
+      if wave_schedule is not None:
+          bundle = eqx.tree_at(lambda b: b.wave, bundle, wave_schedule)
 
       final_seq, final_logits, _ = optimize_fn(
           prng_key,
@@ -141,6 +146,7 @@ def make_sample_sequences(
       precomputed_node_features: jax.Array | None = None,
       precomputed_edge_features: jax.Array | None = None,
       precomputed_neighbor_indices: jax.Array | None = None,
+      wave_schedule: WaveScheduleBundle | None = None,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
 
       L = structure_coordinates.shape[1] if structure_coordinates.ndim == 4 else structure_coordinates.shape[0]
@@ -176,6 +182,8 @@ def make_sample_sequences(
           use_rolling_state=use_rolling_state,
           inference=True,
       )
+      if wave_schedule is not None:
+          bundle = eqx.tree_at(lambda b: b.wave, bundle, wave_schedule)
 
       result = sample_autoregressive.kernel(model, prng_key, bundle, config, stage_set)
 

@@ -9,6 +9,7 @@ import pytest
 
 from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
 from prxteinmpnn.sampling.sample import make_sample_sequences
+from prxteinmpnn.types.bundles import WaveScheduleBundle
 from prxteinmpnn.utils.wave_parallel import compute_wave_assignments
 
 
@@ -21,16 +22,9 @@ def _tie_map_compact(seq_len: int, pairs: list[tuple[int, int]]) -> np.ndarray:
   return inv.astype(np.int32, copy=False)
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Wave-parallel ligand kwargs (group_indices_table, wave_group_ids, etc.) "
-        "are not yet threaded through make_sample_sequences — Sprint 3 tech debt."
-    ),
-    strict=False,
-)
 @pytest.mark.parametrize("use_wave", [False, True])
 def test_ligand_tied_autoregressive_wave_kwarg_smoke(use_wave: bool) -> None:
-  """Ligand MPNN tied sampling runs with or without wave tables (no ``TypeError`` on kwargs)."""
+  """Ligand MPNN tied sampling runs with or without wave schedule (no ``TypeError`` on kwargs)."""
   key = jax.random.PRNGKey(42)
   seq_len = 12
   n_canonical = 6
@@ -80,21 +74,14 @@ def test_ligand_tied_autoregressive_wave_kwarg_smoke(use_wave: bool) -> None:
 
   _, sk = jax.random.split(key)
 
-  wave_kw: dict = {}
+  wave_schedule = None
   if use_wave:
-    wave_kw = {
-      "wave_group_ids": jnp.asarray(w_id, dtype=jnp.int32),
-      "wave_group_positions": jnp.asarray(w_pos, dtype=jnp.int32),
-      "wave_group_valid": jnp.asarray(w_gv, dtype=bool),
-      "wave_position_valid": jnp.asarray(w_pv, dtype=bool),
-    }
-  else:
-    wave_kw = {
-      "wave_group_ids": None,
-      "wave_group_positions": None,
-      "wave_group_valid": None,
-      "wave_position_valid": None,
-    }
+    wave_schedule = WaveScheduleBundle(
+      group_ids=jnp.asarray(w_id, dtype=jnp.int32),
+      group_positions=jnp.asarray(w_pos, dtype=jnp.int32),
+      group_valid=jnp.asarray(w_gv, dtype=bool),
+      position_valid=jnp.asarray(w_pv, dtype=bool),
+    )
 
   sampler = make_sample_sequences(model, sampling_strategy="temperature")
   seq, logits, _ = sampler(
@@ -106,12 +93,10 @@ def test_ligand_tied_autoregressive_wave_kwarg_smoke(use_wave: bool) -> None:
     temperature=jnp.array(0.1, dtype=jnp.float32),
     tie_group_map=jnp.asarray(tie_flat, dtype=jnp.int32),
     num_groups=num_groups,
-    group_indices_table=jnp.asarray(git, dtype=jnp.int32),
-    group_valid_table=jnp.asarray(gvt, dtype=bool),
-    y=y,
-    y_t=y_t,
-    y_m=y_m,
-    **wave_kw,
+    ligand_coords=y,
+    ligand_atom_types=y_t,
+    ligand_mask=y_m,
+    wave_schedule=wave_schedule,
   )
   assert seq.shape == (seq_len,)
   assert logits.shape == (seq_len, 21)

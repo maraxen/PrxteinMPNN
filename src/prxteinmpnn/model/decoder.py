@@ -41,7 +41,29 @@ def pack_decoder_unconditional_layer_edge_features(
   edge_features: jax.Array,
   neighbor_indices: jax.Array,
 ) -> jax.Array:
-  """Neighbor tensor ``[0, e_ij, h_j]`` then ``[h_i, …]`` for unconditional decode (matches legacy)."""
+  """Pack unconditional decoder edge features from node and edge tensors.
+
+  Builds neighbor context as ``[h_i, 0, e_ij, h_j]`` for each position-neighbor pair.
+
+  Parameters
+  ----------
+  node_features : jax.Array
+    Node feature matrix. Shape ``(L, D)``.
+  edge_features : jax.Array
+    Edge feature matrix. Shape ``(L, K, D)``.
+  neighbor_indices : jax.Array
+    Neighbor indices for gather. Shape ``(L, K)``.
+
+  Returns
+  -------
+  jax.Array
+    Packed neighbor tensor matching unconditional decoder input format.
+    Shape ``(L, K, 3D)``.
+
+  Notes
+  -----
+  This matches the legacy ProteinMPNN unconditional decode convention.
+  """
   zeros_with_edges = concatenate_neighbor_nodes(
     jnp.zeros_like(node_features),
     edge_features,
@@ -63,7 +85,40 @@ def pack_conditional_decoder_static_edges(
   ar_mask: jax.Array,
   mask: jax.Array,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
-  """Build masks and neighbor-packed tensors that are constant across conditional decoder layers."""
+  """Build pre-computed tensors for conditional decoder layers.
+
+  Prepares edge contexts, attention masks, and position masks that remain
+  constant across all conditional decoder layer passes.
+
+  Parameters
+  ----------
+  node_features : jax.Array
+    Node feature matrix. Shape ``(L, D)``.
+  edge_features : jax.Array
+    Edge feature matrix. Shape ``(L, K, D)``.
+  neighbor_indices : jax.Array
+    Neighbor indices for gather. Shape ``(L, K)``.
+  one_hot_sequence : jax.Array
+    One-hot encoded protein sequence. Shape ``(L, 21)``.
+  w_s_weight : jax.Array
+    Sequence embedding weight matrix. Shape ``(21, D)``.
+  ar_mask : jax.Array
+    Autoregressive mask for conditional decoding. Shape ``(L, L)``.
+  mask : jax.Array
+    Alpha carbon mask. Shape ``(L,)``.
+
+  Returns
+  -------
+  tuple[jax.Array, jax.Array, jax.Array]
+    - ``sequence_edge_features``: Packed sequence+edge context. Shape ``(L, K, D)``.
+    - ``mask_bw``: Backward (already-decoded) attention mask. Shape ``(L, K)``.
+    - ``masked_node_edge_features``: Forward (future-token) edge context. Shape ``(L, K, D)``.
+
+  Notes
+  -----
+  These tensors are computed once and reused across all decoder layer iterations
+  to avoid redundant computation.
+  """
   embedded_sequence = jnp.atleast_2d(one_hot_sequence) @ w_s_weight
 
   temp_node_edge = concatenate_neighbor_nodes(
@@ -108,11 +163,37 @@ def conditional_decoder_layer_edge_features(
 
 
 class DecoderLayer(eqx.Module):
-  """A single decoder layer for the ProteinMPNN model."""
+  """Single message-passing decoder layer for ProteinMPNN.
+
+  Reads from pre-packed neighbor context (node features + edge context),
+  applies 2-layer MLP message update, layer norm, dense feedforward,
+  residual connections, and dropout.
+
+  Parameters
+  ----------
+  message_mlp : eqx.nn.MLP
+    Message network combining node + edge context.
+  norm1 : LayerNorm
+    Layer normalization after message aggregation.
+  dense : eqx.nn.MLP
+    Feedforward network.
+  norm2 : LayerNorm
+    Layer normalization after feedforward.
+  dropout1 : Dropout
+    Dropout after message aggregation.
+  dropout2 : Dropout
+    Dropout after feedforward.
+
+  References
+  ----------
+  .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+     sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+     https://doi.org/10.1126/science.add2187
+  """
 
   message_mlp: eqx.nn.MLP
   norm1: LayerNorm
-  dense: eqx.nn.MLP  # Use eqx.nn.MLP directly
+  dense: eqx.nn.MLP
   norm2: LayerNorm
   dropout1: Dropout
   dropout2: Dropout
@@ -128,23 +209,18 @@ class DecoderLayer(eqx.Module):
   ) -> None:
     """Initialize the decoder layer.
 
-    Args:
-      node_features: Dimension of node features (e.g., 128).
-      edge_context_features: Dimension of edge context (e.g., 384).
-      hidden_features: Dimension of hidden layer in dense MLP.
-      dropout_rate: Dropout rate (default: 0.1).
-      key: PRNG key for initialization.
-
-    Returns:
-      None
-
-    Raises:
-      None
-
-    Example:
-      >>> key = jax.random.PRNGKey(0)
-      >>> layer = DecoderLayer(128, 384, 128, key=key)
-
+    Parameters
+    ----------
+    node_features : int
+        Dimension of node features (e.g., 128).
+    edge_context_features : int
+        Dimension of edge context (e.g., 384).
+    _hidden_features : int
+        Dimension of hidden layer in dense MLP.
+    dropout_rate : float
+        Dropout rate. Default: 0.1.
+    key : PRNGKeyArray
+        PRNG key for weight initialization.
     """
     keys = jax.random.split(key, 4)
 
@@ -184,7 +260,30 @@ class DecoderLayer(eqx.Module):
     inference: bool = False,
     key: PRNGKeyArray | None = None,
   ) -> NodeFeatures:
-    """Forward pass for the decoder layer."""
+    """Forward pass for the decoder layer.
+
+    Parameters
+    ----------
+    node_features : NodeFeatures
+        Node features from encoder. Shape ``(L, D)``.
+    layer_edge_features : EdgeFeatures
+        Pre-packed edge context. Shape ``(L, K, D_edge)``.
+    mask : AlphaCarbonMask
+        Alpha carbon mask. Shape ``(L,)``.
+    scale : float
+        Message aggregation scale factor. Default: 30.0.
+    attention_mask : Array | None
+        Optional attention mask for conditional decoding. Shape ``(L, K)``.
+    inference : bool
+        If True, disable dropout. Default: False.
+    key : PRNGKeyArray | None
+        PRNG key for dropout (optional).
+
+    Returns
+    -------
+    NodeFeatures
+        Updated node features. Shape ``(L, D)``.
+    """
     # Pass the key to jax.random.split for potential dropout use
     if key is None:
       inference = True
@@ -313,7 +412,23 @@ class DecoderLayerJ(eqx.Module):
 
 
 class Decoder(eqx.Module):
-  """The complete decoder module for ProteinMPNN."""
+  """Full decoder stacking multiple DecoderLayer passes.
+
+  Parameters
+  ----------
+  layers : tuple[DecoderLayer, ...]
+    Tuple of stacked decoder layers.
+  node_features_dim : int
+    Dimension of node features. Static (not a JAX array).
+  edge_features_dim : int
+    Dimension of raw edge features. Static (not a JAX array).
+
+  References
+  ----------
+  .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+     sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+     https://doi.org/10.1126/science.add2187
+  """
 
   layers: tuple[DecoderLayer, ...]
   node_features_dim: int = eqx.field(static=True)
@@ -331,24 +446,20 @@ class Decoder(eqx.Module):
   ) -> None:
     """Initialize the decoder.
 
-    Args:
-      node_features: Dimension of node features (e.g., 128).
-      edge_features: Dimension of edge features (e.g., 128).
-      hidden_features: Dimension of hidden layer in decoder layers.
-      num_layers: Number of decoder layers (default: 3).
-      dropout_rate: Dropout rate (default: 0.1).
-      key: PRNG key for initialization.
-
-    Returns:
-      None
-
-    Raises:
-      None
-
-    Example:
-      >>> key = jax.random.PRNGKey(0)
-      >>> decoder = Decoder(128, 128, 128, num_layers=3, key=key)
-
+    Parameters
+    ----------
+    node_features : int
+        Dimension of node features (e.g., 128).
+    edge_features : int
+        Dimension of raw edge features (e.g., 128).
+    hidden_features : int
+        Dimension of hidden layer in decoder layers.
+    num_layers : int
+        Number of stacked decoder layers. Default: 3.
+    dropout_rate : float
+        Dropout rate. Default: 0.1.
+    key : PRNGKeyArray
+        PRNG key for weight initialization.
     """
     self.node_features_dim = node_features
     self.edge_features_dim = edge_features
@@ -378,30 +489,30 @@ class Decoder(eqx.Module):
     *,
     key: PRNGKeyArray | None = None,
   ) -> NodeFeatures:
-    """Forward pass for UNCONDITIONAL decoding.
+    """Forward pass for unconditional decoding.
 
-    Args:
-      node_features: Node features from encoder of shape (N, 128).
-      edge_features: Edge features from encoder of shape (N, K, 128).
-      neighbor_indices: Indices of neighbors for each node.
-      mask: Alpha carbon mask of shape (N,).
-      key: PRNG key for dropout (optional).
+    Parameters
+    ----------
+    node_features : NodeFeatures
+        Node features from encoder. Shape ``(L, D)``.
+    edge_features : EdgeFeatures
+        Raw edge features from encoder. Shape ``(L, K, D)``.
+    neighbor_indices : NeighborIndices
+        Neighbor indices for each node. Shape ``(L, K)``.
+    mask : AlphaCarbonMask
+        Alpha carbon mask. Shape ``(L,)``.
+    key : PRNGKeyArray | None
+        PRNG key for dropout (optional).
 
-    Returns:
-      Decoded node features of shape (N, 128).
+    Returns
+    -------
+    NodeFeatures
+        Decoded node features. Shape ``(L, D)``.
 
-    Raises:
-      None
-
-    Example:
-      >>> key = jax.random.PRNGKey(0)
-      >>> decoder = Decoder(128, 128, 128, num_layers=3, key=key)
-      >>> node_feats = jnp.ones((10, 128))
-      >>> edge_feats = jnp.ones((10, 30, 128))
-      >>> neighbor_idx = jnp.arange(300).reshape(10, 30)
-      >>> mask = jnp.ones((10,))
-      >>> output = decoder(node_feats, edge_feats, neighbor_idx, mask)
-
+    Notes
+    -----
+    Unconditional decoding does not condition on any sequence.
+    This is used for sequence generation / sampling.
     """
     if key is None:
       inference = True
@@ -436,39 +547,40 @@ class Decoder(eqx.Module):
     inference: bool = False,
     key: PRNGKeyArray | None = None,
   ) -> NodeFeatures:
-    """Run conditional decoding (scoring).
+    """Forward pass for conditional decoding (scoring).
 
-    Args:
-      node_features: Node features from encoder of shape (N, 128).
-      edge_features: Edge features from encoder of shape (N, K, 128).
-      neighbor_indices: Indices of neighbors for each node.
-      mask: Alpha carbon mask of shape (N,).
-      ar_mask: Autoregressive mask for conditional decoding.
-      one_hot_sequence: One-hot encoded protein sequence.
-      w_s_weight: Sequence embedding weight matrix.
-      inference: Whether to run in inference mode (disables dropout).
-      key: PRNG key for dropout (optional).
+    Used during sequence scoring / log-probability computation.
 
-    Returns:
-      Decoded node features of shape (N, 128).
+    Parameters
+    ----------
+    node_features : NodeFeatures
+        Node features from encoder. Shape ``(L, D)``.
+    edge_features : EdgeFeatures
+        Edge features from encoder. Shape ``(L, K, D)``.
+    neighbor_indices : NeighborIndices
+        Neighbor indices for each node. Shape ``(L, K)``.
+    mask : AlphaCarbonMask
+        Alpha carbon mask. Shape ``(L,)``.
+    ar_mask : AutoRegressiveMask
+        Autoregressive mask for conditional decoding. Shape ``(L, L)``.
+    one_hot_sequence : OneHotProteinSequence
+        One-hot encoded protein sequence. Shape ``(L, 21)``.
+    w_s_weight : jnp.ndarray
+        Sequence embedding weight matrix. Shape ``(21, D)``.
+    inference : bool
+        If True, disable dropout. Default: False.
+    key : PRNGKeyArray | None
+        PRNG key for dropout (optional).
 
-    Raises:
-      None
+    Returns
+    -------
+    NodeFeatures
+        Decoded node features. Shape ``(L, D)``.
 
-    Example:
-      >>> key = jax.random.PRNGKey(0)
-      >>> decoder = Decoder(128, 128, 128, num_layers=3, key=key)
-      >>> node_feats = jnp.ones((10, 128))
-      >>> edge_feats = jnp.ones((10, 30, 128))
-      >>> neighbor_indices = jnp.arange(300).reshape(10, 30)
-      >>> mask = jnp.ones((10,))
-      >>> ar_mask = jnp.ones((10, 10))
-      >>> seq = jax.nn.one_hot(jnp.arange(10), 21)
-      >>> w_s = jnp.ones((21, 128))
-      >>> output = decoder.call_conditional(
-      ...     node_feats, edge_feats, neighbor_indices, mask, ar_mask, seq, w_s
-      ... )
-
+    Notes
+    -----
+    Conditional decoding conditions on the given sequence and uses
+    autoregressive masking to prevent attending to future positions.
     """
     if key is None:
       inference = True

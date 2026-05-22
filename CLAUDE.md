@@ -89,7 +89,31 @@ Wave E (after COMP-6 + COMP-7):
 
 ---
 
-### Sprint 3 — Known Debt (non-blocking)
+### Sprint 3 — Documentation + Known Debt
+
+**Documentation waves (auditor+reviewer gated per wave):**
+
+```
+Wave 4 (P0 — done ✅):
+  [x] types/bundles.py — all bundle classes (GeometryBundle, ConditioningBundle, LigandBundle,
+      WaveScheduleBundle, InferenceBundle, EncodedFeatures, EncoderOutput, PackerResult, PackerBundle)
+  [x] types/stages.py — StageSet (topology rules + slots), ConditionalDecodeStep, UnconditionalDecodeStep
+  [x] host/plan.py — InferenceComponents, InferencePlan, make_inference_plan + helper functions
+
+Wave 5 (P1 — in progress):
+  [x] inference/logits.py — BatchLogitFn, ArithmeticMeanLogits, GeometricMeanLogits, ProductOfProbabilities, ARLogitFuse, TieGroupFuseFn, TieGroupLogsumexpMean, TieGroupProductOfExperts
+  [x] model/packer.py — Packer class + __init__ / decode
+  [x] model/ligand_mpnn.py — PrxteinLigandMPNN class + __init__
+  [x] model/decoder.py — pack_decoder_unconditional_layer_edge_features, pack_conditional_decoder_static_edges, DecoderLayer, Decoder + __call__ / call_conditional
+
+Wave 6 (P2/P3 — pending):
+  [ ] encoder.py — magic constants
+  [ ] driver.py — decode functions
+  [ ] host/runner.py — sample() returns dict, inner closures
+  [ ] Final jaxlint advisory scan
+```
+
+**Known Debt (non-blocking):**
 
 - **Ruff lint**: 403 fixable errors across `src/` — style/annotation drift, non-blocking.
   Run: `uvx ruff check src 2>&1 | tail -3` to check current count.

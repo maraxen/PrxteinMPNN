@@ -36,34 +36,201 @@ from prxteinmpnn.runtime import configure_multiprocessing
 logger = logging.getLogger(__name__)
 
 
-# TODO(TASK-2): Implement manifest functions (build_manifest_row, load_manifest, etc.)
-# These were intended to be in prxteinmpnn.run.campaign_manifest but that module does not exist.
-# See .praxia/TECHNICAL_DEBT.md for migration context.
-def build_manifest_row(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-  """Stub: build_manifest_row not yet implemented."""
-  msg = "build_manifest_row is not yet implemented. See TECHNICAL_DEBT.md for context."
-  raise NotImplementedError(msg)
+def build_manifest_row(
+  spec: SamplingSpecification,
+  *,
+  campaign_id: str,
+  job_index: int,
+  chunk_id: int,
+  sample_start: int,
+  sample_count: int,
+  fixed_policy: str,
+  state_weight_profile: str,
+  planner_version: str,
+  dataset_fingerprint: str,
+  environment_image: str,
+  git_sha: str,
+  config_hash: str,
+  job_id: str,
+) -> dict[str, Any]:
+  """Build a deterministic manifest row with SHA256 hash.
+
+  Computes a deterministic hash from schema_version, campaign_id, job_id,
+  chunk_id, sample_start, sample_count, fixed_policy, state_weight_profile,
+  model_family, ligand/sidechain_conditioning, multi_state_strategy,
+  temperature, and backbone_noise. job_index is intentionally excluded from
+  the hash payload: it is derivable from job_id and included in the row dict
+  for caller convenience.
+
+  Returns a dict ready for plan_campaign_manifest to extend with
+  output_h5_path and sampling_spec.
+  """
+  temperature_list = list(spec.temperature) if spec.temperature else []
+  backbone_noise_list = list(spec.backbone_noise) if spec.backbone_noise else []
+  hash_payload = {
+    "schema_version": MANIFEST_ROW_SCHEMA_VERSION,
+    "campaign_id": campaign_id,
+    "job_id": job_id,
+    "chunk_id": int(chunk_id),
+    "sample_start": int(sample_start),
+    "sample_count": int(sample_count),
+    "fixed_policy": fixed_policy,
+    "state_weight_profile": state_weight_profile,
+    "model_family": str(spec.model_family or ""),
+    "ligand_conditioning": bool(spec.ligand_conditioning),
+    "sidechain_conditioning": bool(spec.sidechain_conditioning),
+    "multi_state_strategy": str(spec.multi_state_strategy or ""),
+    "temperature": [str(float(t)) for t in temperature_list],
+    "backbone_noise": [str(float(n)) for n in backbone_noise_list],
+  }
+  row_hash = hashlib.sha256(_canonical_json_bytes(hash_payload)).hexdigest()
+  return {
+    "manifest_row_hash": row_hash,
+    "job_id": job_id,
+    "job_index": int(job_index),
+    "chunk_id": int(chunk_id),
+    "sample_start": int(sample_start),
+    "sample_count": int(sample_count),
+    "fixed_policy": fixed_policy,
+    "state_weight_profile": state_weight_profile,
+    "multi_state_strategy": str(spec.multi_state_strategy or ""),
+    "temperature": temperature_list,
+    "backbone_noise": backbone_noise_list,
+    "ligand_conditioning": bool(spec.ligand_conditioning),
+    "sidechain_conditioning": bool(spec.sidechain_conditioning),
+    "checkpoint_id": spec.checkpoint_id,
+    "planner_version": planner_version,
+    "dataset_fingerprint": dataset_fingerprint,
+    "environment_image": environment_image,
+    "git_sha": git_sha,
+    "config_hash": config_hash,
+  }
 
 
-def load_manifest(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-  """Stub: load_manifest not yet implemented."""
-  msg = "load_manifest is not yet implemented. See TECHNICAL_DEBT.md for context."
-  raise NotImplementedError(msg)
+def load_manifest(manifest_path: str | Path) -> dict[str, Any]:
+  """Load and validate a campaign manifest JSON file.
+
+  Validates that the file is valid UTF-8 JSON, the root is a dict,
+  a 'rows' key is present and is a list, and each row is a dict.
+  Raises FileNotFoundError, ValueError, or TypeError on invalid input.
+  """
+  path = Path(manifest_path)
+  if not path.exists():
+    msg = f"Manifest file not found: {path}"
+    raise FileNotFoundError(msg)
+  try:
+    payload = json.loads(path.read_bytes().decode("utf-8"))
+  except json.JSONDecodeError as exc:
+    msg = f"Invalid JSON in manifest file {path}: {exc}"
+    raise ValueError(msg) from exc
+  except UnicodeDecodeError as exc:
+    msg = f"Manifest file {path} is not valid UTF-8: {exc}"
+    raise ValueError(msg) from exc
+  if not isinstance(payload, dict):
+    msg = f"Manifest payload must be a JSON object, got {type(payload).__name__}"
+    raise TypeError(msg)
+  if "rows" not in payload:
+    msg = "Manifest payload must include 'rows' key"
+    raise ValueError(msg)
+  rows = payload["rows"]
+  if not isinstance(rows, list):
+    msg = f"Manifest 'rows' must be a list, got {type(rows).__name__}"
+    raise TypeError(msg)
+  for idx, row in enumerate(rows):
+    if not isinstance(row, dict):
+      msg = f"Manifest row {idx} must be a JSON object, got {type(row).__name__}"
+      raise TypeError(msg)
+  return payload
 
 
-def validate_manifest_rows(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-  """Stub: validate_manifest_rows not yet implemented."""
-  msg = "validate_manifest_rows is not yet implemented. See TECHNICAL_DEBT.md for context."
-  raise NotImplementedError(msg)
+def validate_manifest_rows(
+  rows: list[dict[str, Any]],
+  *,
+  required_fixed_policies: tuple[str, ...] | None = None,
+) -> None:
+  """Validate manifest rows for uniqueness and required fields.
+
+  Enforces:
+  - All rows have a non-empty manifest_row_hash
+  - No duplicate manifest_row_hash (zero_lineage_collisions gate invariant)
+  - All rows have non-empty checkpoint_id, fixed_policy, state_weight_profile
+  - All required_fixed_policies are represented in at least one row
+
+  Raises ValueError on any violation.
+  """
+  hashes_seen: set[str] = set()
+  for idx, row in enumerate(rows):
+    if not isinstance(row, dict):  # pragma: no cover - guarded by load_manifest
+      msg = f"Row {idx} is not a dict"
+      raise ValueError(msg)
+    row_hash = row.get("manifest_row_hash")
+    if not row_hash:
+      msg = f"Row {idx} missing or empty manifest_row_hash"
+      raise ValueError(msg)
+    row_hash_str = str(row_hash)
+    if row_hash_str in hashes_seen:
+      msg = f"Duplicate manifest_row_hash: {row_hash_str!r}"
+      raise ValueError(msg)
+    hashes_seen.add(row_hash_str)
+  for row in rows:
+    row_hash = str(row.get("manifest_row_hash", "unknown"))
+    checkpoint_id = row.get("checkpoint_id")
+    if checkpoint_id is None or not str(checkpoint_id).strip() or str(checkpoint_id).strip() == "None":
+      msg = f"Row {row_hash} has empty or missing checkpoint_id"
+      raise ValueError(msg)
+    fixed_policy = row.get("fixed_policy")
+    if fixed_policy is None or not str(fixed_policy).strip():
+      msg = f"Row {row_hash} has empty or missing fixed_policy"
+      raise ValueError(msg)
+    state_weight_profile = row.get("state_weight_profile")
+    if state_weight_profile is None or not str(state_weight_profile).strip():
+      msg = f"Row {row_hash} has empty or missing state_weight_profile"
+      raise ValueError(msg)
+  if required_fixed_policies:
+    policies_seen = {str(row.get("fixed_policy", "")).strip() for row in rows}
+    missing = set(required_fixed_policies) - policies_seen
+    if missing:
+      msg = f"Required fixed policies not found in rows: {sorted(missing)}"
+      raise ValueError(msg)
 
 
-def write_manifest(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-  """Stub: write_manifest not yet implemented."""
-  msg = "write_manifest is not yet implemented. See TECHNICAL_DEBT.md for context."
-  raise NotImplementedError(msg)
+def write_manifest(
+  manifest_path: str | Path,
+  rows: list[dict[str, Any]],
+  *,
+  metadata: dict[str, Any] | None = None,
+) -> Path:
+  """Write campaign manifest JSON atomically with indented formatting.
+
+  Uses atomic write (tmp file → replace → fsync) to ensure durability.
+  Writes indented JSON (indent=2, sort_keys=True) for human readability.
+  Returns resolved absolute path to manifest file.
+  """
+  path = Path(manifest_path).resolve()
+  path.parent.mkdir(parents=True, exist_ok=True)
+  payload: dict[str, Any] = {"schema_version": MANIFEST_SCHEMA_VERSION}
+  if metadata is not None:
+    payload["metadata"] = metadata
+  payload["rows"] = rows
+  raw = json.dumps(
+    payload,
+    indent=2,
+    sort_keys=True,
+    ensure_ascii=False,
+    allow_nan=False,
+  ).encode("utf-8")
+  tmp_path = path.with_name(f"{path.name}.tmp.{uuid.uuid4().hex}")
+  tmp_path.write_bytes(raw)
+  _fsync_file(tmp_path)
+  tmp_path.replace(path)
+  _fsync_directory(path.parent)
+  return path
+
 
 LOCK_SCHEMA_VERSION = "campaign_lock_v1"
 DONE_MARKER_SCHEMA_VERSION = "campaign_done_marker_v1"
+MANIFEST_ROW_SCHEMA_VERSION = "campaign_manifest_row_v1"
+MANIFEST_SCHEMA_VERSION = "campaign_manifest_v1"
 DEFAULT_LOCK_LEASE_SECONDS = 1800
 DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 60
 GateCellKey = tuple[str, str, str, tuple[str, ...], tuple[str, ...], bool, bool]

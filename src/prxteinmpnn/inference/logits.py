@@ -69,7 +69,7 @@ class ArithmeticMeanLogits(eqx.Module):
        https://doi.org/10.1126/science.add2187
     """
 
-    weights: Float[Array, S]
+    weights: Float[Array, "S"]
 
     def __call__(
         self,
@@ -138,7 +138,7 @@ class GeometricMeanLogits(eqx.Module):
        https://doi.org/10.1126/science.add2187
     """
 
-    weights: Float[Array, S]
+    weights: Float[Array, "S"]
     temperature: float = eqx.field(static=True, default=1.0)
 
     def __call__(
@@ -177,9 +177,9 @@ class GeometricMeanLogits(eqx.Module):
 
 @LOGIT_STRATEGIES.register("product")
 class ProductOfProbabilities(eqx.Module):
-    """Sum of weighted log-probabilities across states.
+    """Weighted sum of logits across states.
 
-    Implements: Σ(wᵢ · Lᵢ) — weighted sum of log-probabilities (no normalization).
+    Implements: Σ(wᵢ · Lᵢ) — weighted sum of logits (no normalization applied).
     Registered strategy name: ``"product"``.
 
     Parameters
@@ -194,7 +194,7 @@ class ProductOfProbabilities(eqx.Module):
        https://doi.org/10.1126/science.add2187
     """
 
-    weights: Float[Array, S]
+    weights: Float[Array, "S"]
 
     def __call__(
         self,
@@ -247,7 +247,7 @@ class ARLogitFuse(eqx.Module):
        https://doi.org/10.1126/science.add2187
     """
 
-    def __call__(self, logits: Float[Array, "S V"], bias: Float[Array, V]) -> Float[Array, V]:
+    def __call__(self, logits: Float[Array, "S V"], bias: Float[Array, "V"]) -> Float[Array, "V"]:
         """Fuse per-state logits and add bias.
 
         Parameters
@@ -283,8 +283,8 @@ class TieGroupFuseFn(Protocol):
     def __call__(
         self,
         logits: Float[Array, "L V"],
-        mask: Bool[Array, L],
-    ) -> Float[Array, V]:
+        mask: Bool[Array, "L"],
+    ) -> Float[Array, "V"]:
         """Fuse tied-position logits into a single canonical set.
 
         Parameters
@@ -311,12 +311,18 @@ class TieGroupLogsumexpMean(eqx.Module):
 
     Computes: ``logsumexp(logits[group], axis=0) - log(n_tied)``.
     Registered strategy name: ``"logsumexp_mean"``.
+
+    References
+    ----------
+    .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
+       sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
+       https://doi.org/10.1126/science.add2187
     """
     def __call__(
         self,
         logits: Float[Array, "L V"],
-        mask: Bool[Array, L],
-    ) -> Float[Array, V]:
+        mask: Bool[Array, "L"],
+    ) -> Float[Array, "V"]:
         """Fuse tied-position logits via logsumexp mean.
 
         Parameters
@@ -356,8 +362,8 @@ class TieGroupProductOfExperts(eqx.Module):
     def __call__(
         self,
         logits: Float[Array, "L V"],
-        mask: Bool[Array, L],
-    ) -> Float[Array, V]:
+        mask: Bool[Array, "L"],
+    ) -> Float[Array, "V"]:
         """Fuse tied-position logits via product-of-experts.
 
         Parameters

@@ -544,6 +544,33 @@ class Packer(eqx.Module):
         )
 
     def encode(self, bundle: PackerBundle, *, key: PRNGKeyArray | None = None, inference: bool = False) -> tuple:
+        """Encode protein structure with ligand context via message-passing layers.
+
+        Applies featurization, then stacked encoder layers over protein graph with
+        ligand atom context integration, producing encoded node and edge features.
+
+        Parameters
+        ----------
+        bundle : PackerBundle
+            Packed input bundle (sequence, coordinates, ligand, masks).
+        key : PRNGKeyArray | None
+            PRNG key for encoder stochasticity (optional).
+        inference : bool
+            If True, disable dropout. Default: False.
+
+        Returns
+        -------
+        tuple
+            Tuple of (node_features, edge_features, neighbor_indices):
+            - node_features: Shape ``(L, D)`` — encoded residue features.
+            - edge_features: Shape ``(L, K, D_edge)`` — encoded neighbor edge context.
+            - neighbor_indices: Shape ``(L, K)`` — neighbor indices for gather.
+
+        References
+        ----------
+        .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).
+           https://github.com/dauparas/LigandMPNN
+        """
         mask = bundle.mask
         v, e, E_idx, y_nodes, y_edges, e_context, y_m = self.features.features_encode(key, bundle)
 
@@ -644,6 +671,30 @@ class Packer(eqx.Module):
         bundle: PackerBundle,
         config: InferenceConfig,
     ) -> PackerResult:
+        """End-to-end packing: encode structure, then decode side-chain torsions.
+
+        Parameters
+        ----------
+        prng_key : PRNGKeyArray
+            PRNG key for encoder and decoder stochasticity.
+        bundle : PackerBundle
+            Packed input bundle (sequence, coordinates, ligand, masks).
+        config : InferenceConfig
+            Inference configuration (unused, accepted for API uniformity).
+
+        Returns
+        -------
+        PackerResult
+            VMF mixture parameters for side-chain torsion angles:
+            - ``mean``: Shape ``(L, 4, num_mix)`` — VMF means for chi1–chi4.
+            - ``concentration``: Shape ``(L, 4, num_mix)`` — VMF concentration.
+            - ``mix_logits``: Shape ``(L, 4, num_mix)`` — Mixture logits.
+
+        References
+        ----------
+        .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).
+           https://github.com/dauparas/LigandMPNN
+        """
         keys = jax.random.split(prng_key, 2)
         h_v, h_e, E_idx = self.encode(bundle, key=keys[0])
         return self.decode(bundle, h_v, h_e, E_idx, key=keys[1])

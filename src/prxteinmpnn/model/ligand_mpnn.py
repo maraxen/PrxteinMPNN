@@ -223,6 +223,13 @@ class PrxteinLigandMPNN(eqx.Module):
 
   @classmethod
   def stage_schema(cls) -> dict[str, type | None]:
+    """Return the canonical stage names and type signatures for LigandMPNN pipeline.
+
+    Returns
+    -------
+    dict[str, type | None]
+        Mapping of stage name to expected type (e.g., "encode" → LigandEncodeFn).
+    """
     from prxteinmpnn.types.stages import (
       ARLogitTransformFn,
       ConditionalDecodeFn,
@@ -257,24 +264,42 @@ class PrxteinLigandMPNN(eqx.Module):
     y_m: jax.Array | None = None,
     inference: bool = True,
   ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-    """Pure forward: features -> encode -> return encoded representation.
+    """Forward pass: featurize protein structure with ligand context, then encode.
 
-    Args:
-        coords: (L, 4, 3) atom coordinates for one state.
-        mask: (L,) residue mask.
-        residue_index: (L,) residue indices.
-        chain_index: (L,) chain indices.
-        prng_key: PRNG key for encoding (optional, defaults to PRNGKey(0)).
-        backbone_noise: scalar backbone noise level.
-        backbone_noise_mode: accepted but not used by LigandMPNN features.
-        structure_mapping: optional structure isolation mapping.
-        y: (M, 4, 3) ligand coordinates.
-        y_t: (M, 4) ligand atom type tokens.
-        y_m: (M, 4) ligand atom mask.
-        inference: unused, accepted for API uniformity.
+    Parameters
+    ----------
+    coords : jax.Array
+        Protein backbone + side-chain atom coordinates. Shape ``(L, 4, 3)``.
+    mask : jax.Array
+        Residue mask. Shape ``(L,)``.
+    residue_index : jax.Array
+        Residue sequence indices. Shape ``(L,)``.
+    chain_index : jax.Array
+        Chain assignment indices. Shape ``(L,)``.
+    prng_key : PRNGKeyArray | None
+        PRNG key for encoder stochasticity (optional). Default: PRNGKey(0).
+    backbone_noise : float | jax.Array
+        Backbone noise standard deviation. Default: 0.0.
+    backbone_noise_mode : str
+        Noise injection mode (not used by LigandMPNN features). Default: "direct".
+    structure_mapping : jax.Array | None
+        Optional structure isolation mask. Default: None.
+    y : jax.Array | None
+        Ligand atom coordinates. Shape ``(M, 4, 3)`` or None. Default: None.
+    y_t : jax.Array | None
+        Ligand atom type tokens. Shape ``(M, 4)`` or None. Default: None.
+    y_m : jax.Array | None
+        Ligand atom mask. Shape ``(M, 4)`` or None. Default: None.
+    inference : bool
+        Not used; accepted for API uniformity. Default: True.
 
-    Returns:
-        (node_features, edge_features, neighbor_indices) for this state.
+    Returns
+    -------
+    tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
+        Tuple of (node_features, edge_features, neighbor_indices):
+        - node_features: Shape ``(L, D)`` — encoded residue features.
+        - edge_features: Shape ``(L, K, D_edge)`` — neighbor edge context.
+        - neighbor_indices: Shape ``(L, K)`` — neighbor indices.
     """
     if prng_key is None:
       prng_key = jax.random.PRNGKey(0)

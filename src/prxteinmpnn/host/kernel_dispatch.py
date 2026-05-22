@@ -174,11 +174,6 @@ def _sample_batch(
           use_rolling_state=spec.use_rolling_state,
           inference=True,
       )
-      stage_set = make_stage_set(
-          strategy=spec.multi_state_strategy or "arithmetic_mean",
-          strategy_temperature=spec.multi_state_temperature or 1.0,
-          state_weights=state_weights,
-      )
 
       # Map over samples
       def _run_one_sample(k):

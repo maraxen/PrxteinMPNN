@@ -30,6 +30,8 @@ from prxteinmpnn.host.logit_aggregation import (
   pad_to_max,
 )
 from prxteinmpnn.host.plan import (
+  InferencePlan,
+  make_inference_plan,
   resolve_chunk_size,
   resolve_target_samples,
 )

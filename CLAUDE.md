@@ -104,7 +104,10 @@ Wave B (after Wave A):
                 sample.py exempted (SamplerFn constraint, COMP-535+).
 
 Wave C (after Wave B):
-  [ ] COMP-534  Wire _sample_batch through InferencePlan
+  [x] COMP-534  Wire _sample_batch through InferencePlan
+                runner.py now calls make_inference_plan(model, spec) once;
+                all non-averaged paths use plan.stage_set (streaming + non-streaming).
+                Commits: dee1d5d5 → 5756f9d3 (T1-T5), 6d18f0c7 (T6)
 
 Wave D (after Wave C):
   [ ] COMP-535  Expose plan.encode() / plan.decode()

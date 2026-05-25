@@ -159,13 +159,9 @@ Wave 6 (P2/P3 — done ✅):
   `make_stage_set` inside `sample_sequences` (a `SamplerFn` implementation).
   Cannot be moved without changing the `SamplerFn` protocol signature.
   Planned for COMP-535+ once `plan.encode()` / `plan.decode()` are exposed.
-- **COMP-NEW: Unify result-sink topology**: Non-streaming path uses
-  `all_sequences.append` (in-memory). Streaming path uses
-  `streaming_tensor_sink_session`. Averaged paths should be arbitrary
-  (not hardcoded); `FuseFn` should allow custom `io_callback` hooks, but
-  always stream via `io_callback` first with FuseFn hooks downstream.
-  Scope: collapse streaming/non-streaming within the regular path;
-  leave averaged kernel topology separate. ~300 LOC, low blast radius.
+- **COMP-NEW: Unify result-sink topology** ✅ (2026-05-25): Non-streaming path now drains
+  via `streaming_tensor_sink_session` per-batch (io_callback + `effects_barrier`), matching
+  the streaming path. Averaged paths left as-is (out of scope). Commits: 81bbe9f4 → 91de6e83.
 
 ---
 

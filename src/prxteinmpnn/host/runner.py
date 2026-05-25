@@ -1,6 +1,6 @@
 """Core user interface for the PrxteinMPNN package."""
 
-# TODO(tech-debt): `.praxia/TECHNICAL_DEBT.md` §14 + `TODO_io_callback.txt` (host-side I/O streaming).
+# COMP-NEW (2026-05-25): non-streaming path now drains via streaming_tensor_sink_session (§14 resolved).
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ import functools
 import logging
 from typing import TYPE_CHECKING, Any
 
-import jax
 import jax.numpy as jnp
 
 from prxteinmpnn.host._sampling_averaged import _sample_batch_averaged
@@ -29,13 +28,15 @@ from prxteinmpnn.host.logit_aggregation import (
   aggregate_pseudo_perplexities,
   pad_to_max,
 )
+from prxteinmpnn.host.output_sinks import (
+  streaming_tensor_sink_session,
+  take_staging_sequences_logits,
+)
 from prxteinmpnn.host.plan import (
-  InferencePlan,
   make_inference_plan,
   resolve_chunk_size,
   resolve_target_samples,
 )
-from prxteinmpnn.host.output_sinks import streaming_tensor_sink_session, take_staging_sequences_logits
 from prxteinmpnn.host.streaming import (
   GRID_SCHEMA_VERSION,
   SAMPLING_SCHEMA_VERSION,

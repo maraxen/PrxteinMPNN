@@ -10,11 +10,18 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
+from typing import TYPE_CHECKING
 
+import equinox as eqx
+import jax
+import jax.experimental
 import numpy as np
 
 from prxteinmpnn.registry import OUTPUT_SINKS
 from prxteinmpnn.types.protocols import DesignSink
+
+if TYPE_CHECKING:
+  from prxteinmpnn.types.bundles import EncoderOutput
 
 
 class NoopDesignSink:
@@ -147,6 +154,118 @@ def scoring_tensor_sink_session(sink: DesignSink) -> Iterator[DesignSink]:
     yield sink
   finally:
     _scoring_tensor_sink_ctx.reset(token)
+
+
+class EncoderIntermediateStagingSink:
+  """Stages encoder intermediate io_callback payloads.
+
+  Keyed by (batch_idx, structure_idx, noise_idx).
+  """
+
+  __slots__ = ("_pending",)
+
+  def __init__(self) -> None:
+    self._pending: dict[tuple[int, int, int], tuple[np.ndarray, np.ndarray]] = {}
+
+  def on_encoder_intermediate(
+    self,
+    batch_idx: object,
+    structure_idx: object,
+    noise_idx: object,
+    node_features: object,
+    edge_features: object,
+  ) -> None:
+    key = (
+      int(np.asarray(batch_idx)),
+      int(np.asarray(structure_idx)),
+      int(np.asarray(noise_idx)),
+    )
+    self._pending[key] = (np.asarray(node_features), np.asarray(edge_features))
+
+  def take_intermediates(
+    self,
+    batch_idx: int,
+    structure_idx: int,
+    noise_idx: int,
+  ) -> tuple[np.ndarray, np.ndarray]:
+    key = (batch_idx, structure_idx, noise_idx)
+    try:
+      return self._pending.pop(key)
+    except KeyError as e:
+      pending = list(self._pending.keys())
+      msg = f"Encoder intermediate sink missing entry for {key=}; pending={pending}"
+      raise RuntimeError(msg) from e
+
+
+_encoder_intermediate_sink_ctx: ContextVar[EncoderIntermediateStagingSink | None] = ContextVar(
+  "_encoder_intermediate_sink_ctx",
+  default=None,
+)
+
+
+@contextmanager
+def encoder_sink_session() -> Iterator[EncoderIntermediateStagingSink]:
+  """Activate a fresh staging sink for encoder intermediate captures."""
+  sink = EncoderIntermediateStagingSink()
+  token: Token[EncoderIntermediateStagingSink | None] = _encoder_intermediate_sink_ctx.set(sink)
+  try:
+    yield sink
+  finally:
+    _encoder_intermediate_sink_ctx.reset(token)
+
+
+def take_encoder_intermediates(
+  batch_idx: int,
+  structure_idx: int,
+  noise_idx: int,
+) -> tuple[np.ndarray, np.ndarray]:
+  """Drain encoder intermediate payload for this (batch, structure, noise) key."""
+  sink = _encoder_intermediate_sink_ctx.get()
+  if sink is None:
+    msg = "Encoder intermediate sink is not active."
+    raise RuntimeError(msg)
+  return sink.take_intermediates(batch_idx, structure_idx, noise_idx)
+
+
+def active_encoder_staging_sink() -> EncoderIntermediateStagingSink | None:
+  """Return the active encoder intermediate sink, if any."""
+  return _encoder_intermediate_sink_ctx.get()
+
+
+def _dispatch_encoder_intermediate_io(
+  batch_idx: object,
+  structure_idx: object,
+  noise_idx: object,
+  node_features: object,
+  edge_features: object,
+) -> None:
+  """io_callback target: routes encoder intermediate to active staging sink."""
+  sink = _encoder_intermediate_sink_ctx.get()
+  if sink is None:
+    return
+  sink.on_encoder_intermediate(batch_idx, structure_idx, noise_idx, node_features, edge_features)
+
+
+class IoCallbackEncoderSink(eqx.Module):
+  """Fires jax.experimental.io_callback per noise-level encoding into the active encoder sink."""
+
+  def __call__(
+    self,
+    enc: EncoderOutput,
+    batch_idx: object,
+    structure_idx: object,
+    noise_idx: object,
+  ) -> None:
+    jax.experimental.io_callback(
+      _dispatch_encoder_intermediate_io,
+      None,
+      batch_idx,
+      structure_idx,
+      noise_idx,
+      enc.node_features,
+      enc.edge_features,
+      ordered=False,
+    )
 
 
 def _register_default_output_sinks() -> None:

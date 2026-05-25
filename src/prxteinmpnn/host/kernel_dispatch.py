@@ -6,11 +6,14 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import jax
+import jax.experimental
 import jax.numpy as jnp
 
 from prxteinmpnn.host._sampling_grid_lineage import _base_sampling_key, _resolve_grid_lineage
 from prxteinmpnn.host._sampling_helper import (
   _broadcast_per_structure,
+  _dispatch_sampling_tensor_batch_io,
+  _noop_sampling_structure_batch_io,
   _prepare_fixed_controls,
   _prepare_ligand_context,
 )
@@ -213,7 +216,31 @@ def _sample_batch(
   sampled_sequences = jnp.transpose(sampled_sequences, (0, 3, 1, 2, 4))
   sampled_logits = jnp.transpose(sampled_logits, (0, 3, 1, 2, 4, 5))
 
-  # 7. IO & Metadata
+  # 7. io_callback emission — stage tensors to active sink (if any)
+  _effective_chunk_start = chunk_sample_start if chunk_sample_start is not None else 0
+
+  jax.experimental.io_callback(
+      _dispatch_sampling_tensor_batch_io,
+      None,
+      jnp.int32(batch_idx),
+      jnp.int32(structure_batch_count),
+      jnp.int32(_effective_chunk_start),
+      jnp.int32(target_num_samples),
+      sampled_sequences,
+      sampled_logits,
+      ordered=False,
+  )
+
+  if emit_structure_batch_io:
+    jax.experimental.io_callback(
+        _noop_sampling_structure_batch_io,
+        None,
+        jnp.int32(batch_idx),
+        jnp.int32(structure_batch_count),
+        ordered=False,
+    )
+
+  # 8. IO & Metadata
   if spec.compute_pseudo_perplexity:
     mask = batched_ensemble.mask
     if mask is None:

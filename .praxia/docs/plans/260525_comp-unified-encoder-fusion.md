@@ -3,7 +3,7 @@
 **Date:** 2026-05-25  
 **Ticket:** COMP-UNIFIED  
 **Branch:** `refactor-full`  
-**Status:** SPEC DRAFT — awaiting oracle review
+**Status:** SPEC REVISED — oracle critique addressed (2026-05-25)
 
 ---
 
@@ -146,6 +146,11 @@ def _dispatch_encoder_intermediate_io(
 `take_encoder_intermediates(batch_idx, structure_idx)` drains the entry or raises
 `RuntimeError` if missing (matching `take_staging_sequences_logits` contract).
 
+**Composition rule (R4 fix):** `encoder_sink_session()` and
+`streaming_tensor_sink_session()` use separate ContextVars and can nest safely.
+Both can be active simultaneously — they manage independent staging stores.
+T1 must include a test confirming both can be active in the same `with` block.
+
 ### 3. `make_averaging_encode_fn` in `averaging.py`
 
 Replace `get_averaged_encodings` + `make_encoding_sampling_split_fn` with a
@@ -168,6 +173,15 @@ def make_averaging_encode_fn(
     3. Averages node_features and edge_features across the noise axis
     4. Returns a single EncoderOutput with averaged features; neighbor_indices
        and mask taken from the first noise level (shape-invariant).
+
+    PRECONDITION (R1): base_encode_fn must be a pure JAX-traceable function of
+    (bundle, key, config). _apply_backbone_noise must produce a bundle with
+    IDENTICAL pytree structure to its input — only the coordinates array changes.
+    Any field that varies conditionally on noise value (e.g., a Python-level
+    conditional on bundle state) will cause jax.lax.map to fail with a pytree
+    structure mismatch. The implementer MUST verify this with an end-to-end
+    jax.lax.map test over ≥2 noise levels using a real make_encode_fn(model)
+    (not a stub). See T2 gate requirements.
     """
     noise_levels = jnp.asarray(spec.backbone_noise, dtype=jnp.float32)
 
@@ -194,7 +208,8 @@ def make_averaging_encode_fn(
 **Key design note:** `ar_mask` is NOT included in `EncoderOutput` (stays at 4
 fields). The driver re-derives `ar_mask` from `bundle.conditioning.ar_mask`
 at decode time. The 5th element of the old `get_averaged_encodings` tuple is
-discarded.
+discarded. T2 must assert `bundle.conditioning.ar_mask` is identical across
+noise levels (shape and values) to confirm discard is safe.
 
 **`jax.lax.map` rationale:** Using a Python for-loop or `jax.vmap` over noise
 levels causes N separate trace compilations when noise levels change across
@@ -203,29 +218,36 @@ keeping compile cost O(1).
 
 ### 4. Update `make_inference_plan` in `plan.py`
 
+Do NOT introduce new `_make_base_encode_fn` / `_make_driver` helpers. Wrap the
+existing `encode_fn` that `make_inference_plan` already constructs (via
+`make_encode_fn(model, use_rolling_state=...)`) directly:
+
 ```python
 def make_inference_plan(
     model: ModelProtocol,
     spec: SamplingSpecification,
 ) -> InferencePlan:
     stage_set = make_stage_set(model, spec)
-    base_encode_fn = _make_base_encode_fn(model)
+    base_encode_fn = make_encode_fn(model, use_rolling_state=spec.use_rolling_state)
 
     if spec.average_node_features:
         encode_fn = make_averaging_encode_fn(base_encode_fn, spec)
     else:
         encode_fn = base_encode_fn
 
+    # driver and other components unchanged from current make_inference_plan
     components = InferenceComponents(
         encode_fn=encode_fn,
-        driver=_make_driver(model),
+        driver=<existing driver>,
         stage_set=stage_set,
     )
     return InferencePlan(model=model, components=components)
 ```
 
 The `spec.average_node_features` check lives only here. All callers downstream
-receive an `InferencePlan` that is opaque to averaging.
+receive an `InferencePlan` that is opaque to averaging. The implementer reads
+the actual current `make_inference_plan` body to fill in `<existing driver>`
+without introducing new abstractions.
 
 ### 5. Restructure `_sample_batch` in `kernel_dispatch.py`
 
@@ -285,27 +307,36 @@ def _call_kernel(key_samples, structure_idx, noise_val, temp_val):
     return _safe_map(_run_one_sample, key_samples, batch_size=samples_bs)
 ```
 
-**STE strategy preservation:** `plan.decode()` delegates to
-`components.driver(model, key, enc, bundle.conditioning, bundle.wave, config, stage_set)`.
-The driver already dispatches through `stage_set.sample_step` (or `decode_step`
-for scoring). The STE wrapper in `resolve_kernel_fn` is relocated into
-`make_stage_set` — the `straight_through` strategy wires a different
-`sample_step` instance, not a different kernel path. No behavior change.
+**STE strategy preservation (R3 fix — DEFER):** The current `resolve_kernel_fn`
+dispatches `"straight_through"` to a closure wrapping `score_conditional_kernel`
+and returning a `SampleResult`-shaped tuple. This is NOT a `sample_step`
+(signature: `(logits, key) → tokens`) — it is a full kernel replacement with a
+different decoder topology (teacher-forced + argmax). Relocating STE into
+`make_stage_set.sample_step` would require restructuring the driver, which is
+out of scope for COMP-UNIFIED.
 
-**Noise loop:** The noise axis dispatch (`_dispatch_noise` closure calling
-`_call_kernel` with `noise_val`) remains — noise perturbation still needs to
-happen inside `_call_kernel` to feed `build_inference_bundle`. For averaging,
-`plan.encode()` internally applies `jax.lax.map` over noise levels; the outer
-dispatch loop passes `noise_val=0.0` to `build_inference_bundle` and averaging
-is a property of the encode closure, not a separate loop axis.
+**Decision: keep `resolve_kernel_fn` intact for STE.** The refactor in T4 must
+preserve the existing `resolve_kernel_fn` call-path for `"straight_through"`.
+When `plan.decode()` is implemented, it must check `spec.sampling_strategy` and
+route `straight_through` through the existing closure, not through
+`stage_set.sample_step`. STE integration into the composable pipeline is a
+separate follow-up ticket (`COMP-STE`).
 
-**Alternative noise handling (simpler):** When `spec.average_node_features`,
-the noise axis in `_call_kernel` is effectively collapsed — `plan.encode()` runs
-the full multi-noise average internally. The noise dispatch loop in
-`_sample_batch` still iterates over `spec.backbone_noise` but since all noise
-values yield the same averaged `enc`, redundant calls are idempotent. This is
-slightly wasteful. A cleaner approach: when `spec.average_node_features`, pass
-`noises = jnp.zeros(1)` to the dispatch loop. Spec requires this optimization.
+**Noise loop — no shape-collapsing optimization (R2 fix):** When
+`spec.average_node_features`, the outer noise dispatch loop in `_sample_batch`
+still iterates over `spec.backbone_noise`. `plan.encode()` internally applies
+averaging over those same noise levels, so each iteration of the outer loop
+produces an identical `enc` (idempotent but not wasteful — only one
+`plan.encode()` call exists per `_call_kernel` invocation, so the averaging
+happens once-per-call regardless). The outer loop is over structures × noises ×
+temps; the `enc` produced is averaged, but the noise axis dimension in the
+output tensor is preserved. Do NOT change `noises` to `jnp.zeros(1)` — this
+would silently change the output tensor shape from `(B, D, T, N, L)` to
+`(B, 1, T, N, L)`, breaking HDF5 schema and parity expectations.
+
+For v2: if the noise axis is provably redundant under averaging, collapse it
+explicitly with a reshape+broadcast after dispatch — not by silently changing
+the dispatch dimensions.
 
 ### 6. Simplify `runner.py`
 
@@ -408,7 +439,12 @@ any external callers. Scheduled for deletion in the next major release.
   - `take_encoder_intermediates(batch_idx, structure_idx)` drain function
   - `IoCallbackEncoderSink(eqx.Module)` with `__call__(enc, batch_idx, structure_idx)` → `io_callback`
 
-**Gate:** `isinstance(IoCallbackEncoderSink(), EncoderSinkFn)` is True (runtime_checkable).
+**Gate:**
+- `isinstance(IoCallbackEncoderSink(), EncoderSinkFn)` is True (runtime_checkable)
+- `EncoderSinkFn` uses same `TYPE_CHECKING`-guarded import pattern as existing protocols in `stages.py` (no forward-ref issues)
+- `eqx.tree_at` round-trips a `StageSet` with `encoder_sink=None` (default) unchanged
+- Grep `StageSet(` in codebase; all usages are keyword-arg form and absorb new default field cleanly
+- Both `encoder_sink_session()` and `streaming_tensor_sink_session()` can be active simultaneously in the same `with` block (separate ContextVars)
 
 ### T2: `make_averaging_encode_fn` in `averaging.py`
 
@@ -420,7 +456,11 @@ any external callers. Scheduled for deletion in the next major release.
   - Returns `EncoderOutput` with `mean(node_features)`, `mean(edge_features)`, `[0]` for nei/mask
 - Add deprecation stubs for `get_averaged_encodings`, `make_encoding_sampling_split_fn`, `make_encoding_conditional_logits_split_fn`
 
-**Gate:** Unit test: single noise level → identical to calling base_encode_fn once.
+**Gate (R1/R7/R8 required):**
+1. Single noise level: averaged output == base_encode_fn output (jnp.allclose)
+2. End-to-end `jax.lax.map` test with ≥3 noise levels using a REAL `make_encode_fn(model)` (not a stub) — must complete without pytree structure mismatch
+3. `bundle.conditioning.ar_mask` is identical (shape + values) across all noise levels — confirms ar_mask discard is safe
+4. `_apply_backbone_noise` produces a bundle with IDENTICAL pytree structure to input (only coords array changes; assert `jax.tree_util.tree_structure(noisy) == jax.tree_util.tree_structure(original)`)
 
 ### T3: Update `make_inference_plan`
 
@@ -431,7 +471,9 @@ any external callers. Scheduled for deletion in the next major release.
 - Update `make_inference_plan` to branch on `spec.average_node_features` as shown above
 
 **Gate:** `make_inference_plan(model, spec_with_avg=True).encode(bundle, key, config)` returns
-`EncoderOutput` with same shape as single-noise encode (averaged).
+`EncoderOutput` with same shape as single-noise encode. Verify no new helper
+functions (`_make_base_encode_fn`, `_make_driver`) were introduced — the body
+wraps the existing `encode_fn` construction directly.
 
 ### T4: Restructure `_sample_batch`
 
@@ -439,20 +481,15 @@ any external callers. Scheduled for deletion in the next major release.
 
 - Change signature: `model, stage_set` → `plan: InferencePlan`
 - Restructure `_call_kernel` as described in §5 above
-- When `spec.average_node_features`, set `noises = jnp.zeros(1)` for dispatch loop
-- Preserve STE: ensure `plan.stage_set.sample_step` carries the STE-appropriate
-  step (wired in `make_stage_set`, not kernel_dispatch)
+- Do NOT change noise dispatch dimensions (see R2 fix in §5)
+- Preserve `resolve_kernel_fn` call for STE; `plan.decode()` must route
+  `"straight_through"` through the existing closure (see R3 fix in §5)
 - Keep all io_callback emission logic (COMP-NEW) unchanged
 
-**Gate:** Existing tests in `tests/host/test_sampling_tensor_batch_io.py` must
-pass with the new signature (monkeypatches target `plan.encode` / `plan.decode`).
-
-**Risk: STE strategy.** Currently `resolve_kernel_fn("straight_through")` returns
-a closure wrapping `score_conditional_kernel`. After this refactor, the STE path
-must be wired through `make_stage_set` as a `sample_step` variant — the
-`resolve_kernel_fn` dispatch is replaced by `stage_set.sample_step` selection.
-Verify: `spec.sampling_strategy == "straight_through"` → `plan.stage_set.sample_step`
-is a `STESampleStep` (or equivalent) that calls `score_conditional_kernel` internally.
+**Gate:**
+- Existing tests in `tests/host/test_sampling_tensor_batch_io.py` pass (monkeypatches updated to target `plan.encode` / `plan.decode`)
+- `_sample_batch(spec_with_averaging, batch, plan_avg, ...)` output shape == `_sample_batch(spec_no_avg, batch, plan_no_avg, ...)` output shape
+- `sampling_strategy="straight_through"` path still exercises `resolve_kernel_fn` (not `stage_set.sample_step`)
 
 ### T5: Simplify `runner.py`
 
@@ -463,9 +500,11 @@ is a `STESampleStep` (or equivalent) that calls `score_conditional_kernel` inter
 - Update non-streaming loop: `_sample_batch(spec, batch, plan, ...)` — drop `stage_set=plan.stage_set`
 - Update streaming: `functools.partial(_sample_batch, plan=plan)` (drop `stage_set=plan.stage_set`)
 - Update import block: remove `_sample_batch_averaged`, `_sample_non_streaming_averaged` usages
+- Also remove stale import of `make_encoding_sampling_split_fn` from `averaging` (line 24 area)
 
 **Gate:** `runner.sample(spec_with_avg=True)` takes the non-streaming path and
-produces output with same shape as before.
+produces output with same shape as before. Verify `_sample_non_streaming_averaged`
+does not appear anywhere in the module after cleanup.
 
 ### T6: Deprecate `_sample_streaming_averaged`
 
@@ -487,25 +526,40 @@ produces output with same shape as before.
 Required tests:
 
 1. `test_make_averaging_encode_fn_single_noise_matches_base` — with 1 noise
-   level, averaged fn output == base fn output (exact equality via jnp.allclose)
-2. `test_make_averaging_encode_fn_multi_noise_shape` — with N noise levels,
-   averaged fn output has same shape as base fn output (averaging reduces axis)
-3. `test_make_inference_plan_avg_wraps_encode_fn` — `spec.average_node_features=True`
-   → `plan.encode_fn` is the averaging wrapper (inspect closure)
-4. `test_make_inference_plan_no_avg_base_encode_fn` — `spec.average_node_features=False`
-   → `plan.encode_fn` is the base fn (no extra wrapping)
-5. `test_sample_batch_accepts_plan` — `_sample_batch(spec, batch, plan, ...)` does
+   level, averaged fn output == base fn output (exact equality via jnp.allclose);
+   uses a REAL `make_encode_fn(model)` stub, not a pure Python mock
+2. `test_make_averaging_encode_fn_lax_map_end_to_end` — with ≥3 noise levels,
+   `jax.lax.map` completes without pytree structure mismatch; output has same
+   shape as base fn output (averaging reduces noise axis); uses real `make_encode_fn`
+3. `test_apply_backbone_noise_preserves_pytree_structure` — assert
+   `jax.tree_util.tree_structure(noisy_bundle) == jax.tree_util.tree_structure(original_bundle)`
+4. `test_ar_mask_invariant_across_noise_levels` — `bundle.conditioning.ar_mask`
+   is identical (jnp.array_equal) across all noise perturbations (confirms ar_mask
+   discard is safe in `EncoderOutput`)
+5. `test_make_inference_plan_avg_wraps_encode_fn` — `spec.average_node_features=True`
+   → `plan.components.encode_fn` is the averaging wrapper (inspect closure type)
+6. `test_make_inference_plan_no_avg_base_encode_fn` — `spec.average_node_features=False`
+   → `plan.components.encode_fn` is the bare `make_encode_fn` result (no extra wrapping)
+7. `test_sample_batch_accepts_plan` — `_sample_batch(spec, batch, plan, ...)` does
    not raise; monkeypatch `plan.encode` + `plan.decode` with stubs
-6. `test_encoder_sink_fires_when_wired` — `IoCallbackEncoderSink` wired in
-   `stage_set.encoder_sink`; after `_sample_batch`, `take_encoder_intermediates`
+8. `test_encoder_sink_fires_when_wired` — `IoCallbackEncoderSink` wired in
+   `stage_set.encoder_sink`; after `_sample_batch` + effects_barrier, `take_encoder_intermediates`
    returns staged data
-7. `test_encoder_sink_no_op_when_none` — `stage_set.encoder_sink=None` (default);
+9. `test_encoder_sink_no_op_when_none` — `stage_set.encoder_sink=None` (default);
    no sink activation; no `RuntimeError`
-8. `test_runner_averaged_path_no_longer_branches` — after T5, inspect
-   `runner.sample.__code__` or call with `average_node_features=True`; no
-   `_sample_non_streaming_averaged` call in stack trace
-9. `test_deprecation_warning_legacy_averaged_fns` — calling each deprecated stub
-   emits `DeprecationWarning`
+10. `test_encoder_sink_session_composes_with_streaming_sink` — both
+    `encoder_sink_session()` and `streaming_tensor_sink_session()` active simultaneously;
+    no interference
+11. `test_runner_averaged_path_no_longer_branches` — after T5, call
+    `runner.sample(spec_with_avg=True)`; assert `_sample_non_streaming_averaged`
+    is not in the call stack (inspect via mock or source-level check)
+12. `test_deprecation_warning_legacy_averaged_fns` — calling each of the 5 deprecated
+    stubs emits `DeprecationWarning` with appropriate message
+13. **PARITY TEST (R7 — required):** `test_averaged_path_parity_legacy_vs_unified`
+    — pick a small protein structure (seq_len ≤ 20); run `_sample_batch_averaged`
+    (legacy) and `_sample_batch(spec, batch, plan_avg)` (unified); assert output
+    sequences and logits agree within tolerance (`rtol=1e-4, atol=1e-5`). This
+    test confirms the refactor is semantically equivalent, not just shape-correct.
 
 ---
 
@@ -527,17 +581,17 @@ Required tests:
    `bundle_builder.py`? Leaning toward `bundle_builder.py` since noise perturbation
    is a bundle transformation, not an averaging concern. T2 implementer to decide.
 
-2. **Noise dispatch when averaging**: Should we pass `noises = jnp.zeros(1)` to
-   the outer dispatch loop (as spec above), or let `_call_kernel` skip the noise
-   arg entirely when `spec.average_node_features`? Former is simpler; latter
-   saves one `build_inference_bundle` call per structure. Spec above chooses former
-   for simplicity — revisit if profiling shows overhead.
-
-3. **`encoder_sink` and `ordered=False`**: The `io_callback` for `encoder_sink`
+2. **`encoder_sink` and `ordered=False`**: The `io_callback` for `encoder_sink`
    fires during `_call_kernel` per-structure, not at the end of the full batch.
    This means encoder intermediates arrive out of order if `structure_batch_count > 1`.
    `EncoderIntermediateStagingSink.take_encoder_intermediates()` should not enforce
    ordering. Caller must collect all intermediates after `effects_barrier()`.
+
+3. **COMP-STE follow-up**: STE relocation into the composable pipeline (wiring
+   through `stage_set.sample_step`) is deferred from COMP-UNIFIED. When STE
+   integration is tackled, the key structural challenge is that STE is a full
+   kernel replacement (teacher-forced decode), not a sampling rule. It likely
+   warrants a separate `decode_step` variant rather than a `sample_step`.
 
 ---
 

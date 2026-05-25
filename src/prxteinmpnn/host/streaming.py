@@ -126,8 +126,11 @@ def _sample_streaming(
                     model,
                     canonical_structure_ids=canonical_structure_ids,
                     batch_structure_ids=batch_structure_ids,
+                    chunk_sample_start=key_chunk_start,
+                    chunk_sample_count=key_chunk_count,
                     batch_idx=batch_idx,
                     structure_batch_count=structure_batch_count_stream,
+                    emit_structure_batch_io=True,
                 )
                 StreamingBatchHost.sink_barrier()
                 sampled_sequences_np, sampled_logits_np = take_staging_sequences_logits(
@@ -175,8 +178,10 @@ def _sample_streaming(
                     resolved_structure_ids.append(batch_structure_ids[i])
                     structure_idx += 1
 
-                for chunk_start, chunk_count in StreamingBatchHost.iter_chunks(total_num_samples, chunk_size):
+                chunks = list(StreamingBatchHost.iter_chunks(total_num_samples, chunk_size))
+                for chunk_idx, (chunk_start, chunk_count) in enumerate(chunks):
                     chunk_sample_start = sample_start + chunk_start
+                    is_last_chunk = chunk_idx == len(chunks) - 1
                     _, _, pseudo_perplexity = sample_batch_fn(
                         spec,
                         batched_ensemble,
@@ -187,6 +192,7 @@ def _sample_streaming(
                         chunk_sample_count=chunk_count,
                         batch_idx=batch_idx,
                         structure_batch_count=structure_batch_count_stream,
+                        emit_structure_batch_io=is_last_chunk,
                     )
                     StreamingBatchHost.sink_barrier()
                     sampled_sequences_np, sampled_logits_np = take_staging_sequences_logits(
@@ -317,8 +323,10 @@ def _sample_streaming_arrayrecord(
                     structure_idx += 1
 
                 # Process samples in chunks
-                for chunk_start, chunk_count in StreamingBatchHost.iter_chunks(total_num_samples, chunk_size):
+                chunks = list(StreamingBatchHost.iter_chunks(total_num_samples, chunk_size))
+                for chunk_idx, (chunk_start, chunk_count) in enumerate(chunks):
                     chunk_sample_start = sample_start + chunk_start
+                    is_last_chunk = chunk_idx == len(chunks) - 1
                     _, _, _ = sample_batch_fn(
                         spec,
                         batched_ensemble,
@@ -329,6 +337,7 @@ def _sample_streaming_arrayrecord(
                         chunk_sample_count=chunk_count,
                         batch_idx=batch_idx,
                         structure_batch_count=structure_batch_count_ar,
+                        emit_structure_batch_io=is_last_chunk,
                     )
                     StreamingBatchHost.sink_barrier()
 

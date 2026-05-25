@@ -322,21 +322,23 @@ route `straight_through` through the existing closure, not through
 `stage_set.sample_step`. STE integration into the composable pipeline is a
 separate follow-up ticket (`COMP-STE`).
 
-**Noise loop — no shape-collapsing optimization (R2 fix):** When
-`spec.average_node_features`, the outer noise dispatch loop in `_sample_batch`
-still iterates over `spec.backbone_noise`. `plan.encode()` internally applies
-averaging over those same noise levels, so each iteration of the outer loop
-produces an identical `enc` (idempotent but not wasteful — only one
-`plan.encode()` call exists per `_call_kernel` invocation, so the averaging
-happens once-per-call regardless). The outer loop is over structures × noises ×
-temps; the `enc` produced is averaged, but the noise axis dimension in the
-output tensor is preserved. Do NOT change `noises` to `jnp.zeros(1)` — this
-would silently change the output tensor shape from `(B, D, T, N, L)` to
-`(B, 1, T, N, L)`, breaking HDF5 schema and parity expectations.
+**Noise dispatch when averaging:** The noise axis in `_sample_batch` is NOT a
+Python loop — it is a `_safe_map` (vmap or `jax.lax.map`) over a JAX array of
+noise values. `n_val` inside `_call_kernel` is a traced scalar. When averaging,
+`plan.encode()` internally runs `jax.lax.map` over all noise levels; the outer
+dispatch's `n_val` is redundant (the averaging closure owns noise, not the
+bundle passed in).
 
-For v2: if the noise axis is provably redundant under averaging, collapse it
-explicitly with a reshape+broadcast after dispatch — not by silently changing
-the dispatch dimensions.
+**Correct fix:** When `spec.average_node_features`, set `noises = jnp.zeros(1)`
+before the dispatch. This gives a single-element noise axis (value `0.0`),
+producing a clean unperturbed bundle. The averaging closure handles all noise
+internally. Output shape becomes `(B, 1, T, N, L)` — semantically correct:
+there is one averaged encoding, not D separate ones.
+
+**Schema contract:** Averaged outputs have `noise_dim=1` regardless of
+`len(spec.backbone_noise)`. The HDF5 writer and any downstream parity tests
+must document and accept this. T8.13 (parity test) must confirm the shape
+explicitly: `output.shape[1] == 1` when `average_node_features=True`.
 
 ### 6. Simplify `runner.py`
 
@@ -481,14 +483,15 @@ wraps the existing `encode_fn` construction directly.
 
 - Change signature: `model, stage_set` → `plan: InferencePlan`
 - Restructure `_call_kernel` as described in §5 above
-- Do NOT change noise dispatch dimensions (see R2 fix in §5)
+- When `spec.average_node_features`, set `noises = jnp.zeros(1)` before dispatch
 - Preserve `resolve_kernel_fn` call for STE; `plan.decode()` must route
   `"straight_through"` through the existing closure (see R3 fix in §5)
 - Keep all io_callback emission logic (COMP-NEW) unchanged
 
 **Gate:**
 - Existing tests in `tests/host/test_sampling_tensor_batch_io.py` pass (monkeypatches updated to target `plan.encode` / `plan.decode`)
-- `_sample_batch(spec_with_averaging, batch, plan_avg, ...)` output shape == `_sample_batch(spec_no_avg, batch, plan_no_avg, ...)` output shape
+- `_sample_batch(spec_avg, batch, plan_avg, ...).sequences.shape[1] == 1` (noise_dim collapsed)
+- `_sample_batch(spec_no_avg, batch, plan_no_avg, ...).sequences.shape[1] == len(spec.backbone_noise)`
 - `sampling_strategy="straight_through"` path still exercises `resolve_kernel_fn` (not `stage_set.sample_step`)
 
 ### T5: Simplify `runner.py`

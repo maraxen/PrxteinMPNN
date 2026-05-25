@@ -35,6 +35,15 @@ from prxteinmpnn.runtime import configure_multiprocessing
 
 logger = logging.getLogger(__name__)
 
+LOCK_SCHEMA_VERSION = "campaign_lock_v1"
+DONE_MARKER_SCHEMA_VERSION = "campaign_done_marker_v1"
+MANIFEST_ROW_SCHEMA_VERSION = "campaign_manifest_row_v1"
+MANIFEST_SCHEMA_VERSION = "campaign_manifest_v1"
+DEFAULT_LOCK_LEASE_SECONDS = 1800
+DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 60
+GateCellKey = tuple[str, str, str, tuple[str, ...], tuple[str, ...], bool, bool]
+ScaleStageResult = dict[str, Any]
+
 
 def build_manifest_row(
   spec: SamplingSpecification,
@@ -175,6 +184,8 @@ def validate_manifest_rows(
   for row in rows:
     row_hash = str(row.get("manifest_row_hash", "unknown"))
     checkpoint_id = row.get("checkpoint_id")
+    # Guard against None and against "None" (the string produced when spec.checkpoint_id=None
+    # is stored via str() serialization in a caller that doesn't validate upstream).
     if checkpoint_id is None or not str(checkpoint_id).strip() or str(checkpoint_id).strip() == "None":
       msg = f"Row {row_hash} has empty or missing checkpoint_id"
       raise ValueError(msg)
@@ -225,16 +236,6 @@ def write_manifest(
   tmp_path.replace(path)
   _fsync_directory(path.parent)
   return path
-
-
-LOCK_SCHEMA_VERSION = "campaign_lock_v1"
-DONE_MARKER_SCHEMA_VERSION = "campaign_done_marker_v1"
-MANIFEST_ROW_SCHEMA_VERSION = "campaign_manifest_row_v1"
-MANIFEST_SCHEMA_VERSION = "campaign_manifest_v1"
-DEFAULT_LOCK_LEASE_SECONDS = 1800
-DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 60
-GateCellKey = tuple[str, str, str, tuple[str, ...], tuple[str, ...], bool, bool]
-ScaleStageResult = dict[str, Any]
 
 
 @dataclass

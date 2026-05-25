@@ -172,8 +172,8 @@ def sample(
     bound_sample_batch = functools.partial(_sample_batch, stage_set=plan.stage_set)
     return _sample_streaming(spec, protein_iterator, model, bound_sample_batch)
 
-  # TODO(io_callback integration): Non-streaming path appends per-batch device arrays then concats;
-  # prefer preallocated buffers or io_callback streaming (see prxteinmpnn/TODO_io_callback.txt).
+  # Non-streaming path uses io_callback staging via streaming_tensor_sink_session;
+  # drains per-batch via take_staging_sequences_logits.
   all_sequences, all_pseudo_perplexities = [], []
   all_logits = [] if spec.return_logits else None
   canonical_structure_ids = _canonical_structure_ids_for_spec(spec)

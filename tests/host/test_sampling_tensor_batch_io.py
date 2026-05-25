@@ -111,123 +111,303 @@ def test_dispatch_tensor_io_callback_stages_to_active_sink():
 # ---------------------------------------------------------------------------
 
 
-def test_emit_structure_batch_io_gate_in_sample_batch():
-    """Verify _sample_batch respects emit_structure_batch_io parameter.
+def test_emit_structure_batch_io_gate_in_sample_batch(monkeypatch):
+    """_sample_batch emits scalar marker io_callback only when emit_structure_batch_io=True."""
+    # Count _noop_sampling_structure_batch_io invocations
+    call_log = {"structure": 0}
 
-    This test directly verifies the io_callback emission logic without
-    invoking the full _sample_batch (which requires complex JAX-compatible mocks).
-    Instead, we patch the io_callback handler to track invocations.
-    """
-    from prxteinmpnn.host.kernel_dispatch import _sample_batch
+    def _counting_noop(batch_idx, batch_count):
+        call_log["structure"] += 1
+
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch._noop_sampling_structure_batch_io",
+        _counting_noop,
+    )
+
+    # Create a mock BatchPlan
+    mock_plan = MagicMock()
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch.make_sampling_planner",
+        lambda spec, **kwargs: mock_plan,
+    )
+
+    # Patch extract_batch_sizes to return dummy batch sizes
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch.extract_batch_sizes",
+        lambda plan: (1, 2, 1, 1),
+    )
+
+    # Patch grid and key resolution
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch._resolve_grid_lineage",
+        lambda spec: None,
+    )
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch._base_sampling_key",
+        lambda spec, **kwargs: jax.random.key(0),
+    )
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch.resolve_target_samples",
+        lambda spec, chunk_count, grid: 2,
+    )
+
+    # Patch _safe_map to bypass all the nested vmap layers and return dummy output arrays
+    def _mock_safe_map(fn, xs, batch_size=None):
+        # Return dummy arrays matching expected output shapes
+        # The shape convention is: (batch, samples, noise, temp, seq_len) and
+        # (batch, samples, noise, temp, seq_len, vocab)
+        return (
+            jnp.zeros((1, 2, 1, 1, 10), dtype=jnp.int32),
+            jnp.zeros((1, 2, 1, 1, 10, 21), dtype=jnp.float32),
+        )
+
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch._safe_map", _mock_safe_map
+    )
+
+    # Patch helper functions to avoid ligand/control prep failures
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch._prepare_ligand_context",
+        lambda *args, **kwargs: {"y": None, "y_t": None, "y_m": None},
+    )
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch._prepare_fixed_controls",
+        lambda *args, **kwargs: (None, None),
+    )
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch.compute_sample_keys",
+        lambda *args, **kwargs: [jax.random.key(i) for i in range(2)],
+    )
 
     spec = SamplingSpecification(
         inputs=["/tmp/test.pdb"],
         checkpoint_id="ckpt_001",
-        num_samples=1,
+        num_samples=2,
         temperature=[1.0],
         backbone_noise=[0.0],
         sampling_strategy="temperature",
         compute_pseudo_perplexity=False,
     )
+    batched_ensemble = _make_fake_protein(batch_size=1, seq_len=10)
+    model = MagicMock(name="model")
+    stage_set = MagicMock(name="stage_set")
 
-    # We'll mock the parts that would fail in full vmap context
-    call_log = {"tensor": 0, "structure": 0}
+    # emit_structure_batch_io=False — scalar marker should NOT fire
+    call_log["structure"] = 0
+    _sample_batch(
+        spec,
+        batched_ensemble,
+        model,
+        stage_set=stage_set,
+        batch_idx=0,
+        structure_batch_count=1,
+        emit_structure_batch_io=False,
+    )
+    jax.effects_barrier()
+    assert call_log["structure"] == 0, (
+        f"emit_structure_batch_io=False should not emit scalar marker, got {call_log['structure']}"
+    )
 
-    def mock_dispatch_tensor(*args, **kwargs):
-        call_log["tensor"] += 1
-
-    def mock_noop_structure(*args, **kwargs):
-        call_log["structure"] += 1
-
-    with patch(
-        "prxteinmpnn.host.kernel_dispatch._dispatch_sampling_tensor_batch_io",
-        side_effect=mock_dispatch_tensor,
-    ), patch(
-        "prxteinmpnn.host.kernel_dispatch._noop_sampling_structure_batch_io",
-        side_effect=mock_noop_structure,
-    ), patch(
-        "prxteinmpnn.host.kernel_dispatch.make_sampling_planner"
-    ), patch(
-        "prxteinmpnn.host.kernel_dispatch._safe_map"
-    ) as mock_safe_map:
-        # Mock _safe_map to return dummy arrays with correct shapes
-        def mock_safe_map_impl(fn, xs, batch_size=None):
-            # Return dummy sequences and logits of expected shape
-            return (
-                jnp.zeros((1, 2, 1, 1, 10), dtype=jnp.int32),
-                jnp.zeros((1, 2, 1, 1, 10, 21), dtype=jnp.float32),
-            )
-
-        mock_safe_map.side_effect = mock_safe_map_impl
-
-        with patch(
-            "prxteinmpnn.host.kernel_dispatch.extract_batch_sizes"
-        ) as mock_extract, patch(
-            "prxteinmpnn.host.kernel_dispatch._resolve_grid_lineage"
-        ) as mock_grid, patch(
-            "prxteinmpnn.host.kernel_dispatch.resolve_target_samples"
-        ) as mock_target:
-            mock_extract.return_value = (1, 2, 1, 1)
-            mock_grid.return_value = None
-            mock_target.return_value = 2
-
-            with patch(
-                "prxteinmpnn.host.kernel_dispatch._base_sampling_key"
-            ) as mock_base_key, patch(
-                "prxteinmpnn.host.kernel_dispatch.compute_sample_keys"
-            ) as mock_sample_keys:
-                mock_base_key.return_value = jax.random.key(0)
-                mock_sample_keys.return_value = [
-                    jax.random.key(i) for i in range(2)
-                ]
-
-                batched_ensemble = _make_fake_protein(batch_size=1, seq_len=10)
-                model = MagicMock(name="model")
-                stage_set = MagicMock(name="stage_set")
-
-                # Test 1: emit_structure_batch_io=False
-                call_log["tensor"] = 0
-                call_log["structure"] = 0
-                try:
-                    _sample_batch(
-                        spec,
-                        batched_ensemble,
-                        model,
-                        stage_set=stage_set,
-                        batch_idx=0,
-                        structure_batch_count=1,
-                        emit_structure_batch_io=False,
-                    )
-                except Exception:
-                    pass  # We're only checking if io_callback was attempted
-
-                assert (
-                    call_log["structure"] == 0
-                ), f"emit_structure_batch_io=False should not emit scalar marker, got {call_log['structure']}"
-
-                # Test 2: emit_structure_batch_io=True
-                call_log["tensor"] = 0
-                call_log["structure"] = 0
-                try:
-                    _sample_batch(
-                        spec,
-                        batched_ensemble,
-                        model,
-                        stage_set=stage_set,
-                        batch_idx=0,
-                        structure_batch_count=1,
-                        emit_structure_batch_io=True,
-                    )
-                except Exception:
-                    pass
-
-                assert (
-                    call_log["structure"] == 1
-                ), f"emit_structure_batch_io=True should emit scalar marker once, got {call_log['structure']}"
+    # emit_structure_batch_io=True — scalar marker SHOULD fire once
+    call_log["structure"] = 0
+    _sample_batch(
+        spec,
+        batched_ensemble,
+        model,
+        stage_set=stage_set,
+        batch_idx=0,
+        structure_batch_count=1,
+        emit_structure_batch_io=True,
+    )
+    jax.effects_barrier()
+    assert call_log["structure"] == 1, (
+        f"emit_structure_batch_io=True should emit scalar marker once, got {call_log['structure']}"
+    )
 
 
 # ---------------------------------------------------------------------------
-# Test 3: io_callback is generated by _sample_batch (integration test)
+# Test 3: _sample_batch graceful no-op when no sink active
+# ---------------------------------------------------------------------------
+
+
+def test_sample_batch_does_not_raise_without_active_sink(monkeypatch):
+    """_sample_batch does not raise when no streaming_tensor_sink_session() is active.
+
+    _dispatch_sampling_tensor_batch_io checks active_sampling_staging_sink() is None
+    and returns early — this validates the graceful no-op path.
+    """
+
+    # Create a mock BatchPlan
+    mock_plan = MagicMock()
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch.make_sampling_planner",
+        lambda spec, **kwargs: mock_plan,
+    )
+
+    # Patch extract_batch_sizes to return dummy batch sizes
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch.extract_batch_sizes",
+        lambda plan: (1, 2, 1, 1),
+    )
+
+    # Patch grid and key resolution
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch._resolve_grid_lineage",
+        lambda spec: None,
+    )
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch._base_sampling_key",
+        lambda spec, **kwargs: jax.random.key(0),
+    )
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch.resolve_target_samples",
+        lambda spec, chunk_count, grid: 2,
+    )
+
+    # Patch _safe_map to bypass all the nested vmap layers
+    def _mock_safe_map(fn, xs, batch_size=None):
+        # Return dummy arrays matching expected output shapes
+        return (
+            jnp.zeros((1, 2, 1, 1, 10), dtype=jnp.int32),
+            jnp.zeros((1, 2, 1, 1, 10, 21), dtype=jnp.float32),
+        )
+
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch._safe_map", _mock_safe_map
+    )
+
+    # Patch helper functions to avoid ligand/control prep failures
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch._prepare_ligand_context",
+        lambda *args, **kwargs: {"y": None, "y_t": None, "y_m": None},
+    )
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch._prepare_fixed_controls",
+        lambda *args, **kwargs: (None, None),
+    )
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch.compute_sample_keys",
+        lambda *args, **kwargs: [jax.random.key(i) for i in range(2)],
+    )
+
+    spec = SamplingSpecification(
+        inputs=["/tmp/test.pdb"],
+        checkpoint_id="ckpt_001",
+        num_samples=2,
+        temperature=[1.0],
+        backbone_noise=[0.0],
+        sampling_strategy="temperature",
+        compute_pseudo_perplexity=False,
+    )
+    batched_ensemble = _make_fake_protein(batch_size=1, seq_len=10)
+    model = MagicMock(name="model")
+    stage_set = MagicMock(name="stage_set")
+
+    # No streaming_tensor_sink_session() context — should not raise
+    _sample_batch(
+        spec,
+        batched_ensemble,
+        model,
+        stage_set=stage_set,
+        batch_idx=0,
+        structure_batch_count=1,
+    )
+    jax.effects_barrier()
+    # If we get here without RuntimeError, the no-op path is working
+
+
+# ---------------------------------------------------------------------------
+# Test 4: _sample_batch stages when sink active
+# ---------------------------------------------------------------------------
+
+
+def test_sample_batch_stages_when_sink_active(monkeypatch):
+    """_sample_batch stages sequences/logits to sink when streaming_tensor_sink_session() is active."""
+
+    # Create a mock BatchPlan
+    mock_plan = MagicMock()
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch.make_sampling_planner",
+        lambda spec, **kwargs: mock_plan,
+    )
+
+    # Patch extract_batch_sizes to return dummy batch sizes
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch.extract_batch_sizes",
+        lambda plan: (1, 2, 1, 1),
+    )
+
+    # Patch grid and key resolution
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch._resolve_grid_lineage",
+        lambda spec: None,
+    )
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch._base_sampling_key",
+        lambda spec, **kwargs: jax.random.key(0),
+    )
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch.resolve_target_samples",
+        lambda spec, chunk_count, grid: 2,
+    )
+
+    # Patch _safe_map to bypass all the nested vmap layers
+    def _mock_safe_map(fn, xs, batch_size=None):
+        # Return dummy arrays matching expected output shapes
+        return (
+            jnp.zeros((1, 2, 1, 1, 10), dtype=jnp.int32),
+            jnp.zeros((1, 2, 1, 1, 10, 21), dtype=jnp.float32),
+        )
+
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch._safe_map", _mock_safe_map
+    )
+
+    # Patch helper functions to avoid ligand/control prep failures
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch._prepare_ligand_context",
+        lambda *args, **kwargs: {"y": None, "y_t": None, "y_m": None},
+    )
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch._prepare_fixed_controls",
+        lambda *args, **kwargs: (None, None),
+    )
+    monkeypatch.setattr(
+        "prxteinmpnn.host.kernel_dispatch.compute_sample_keys",
+        lambda *args, **kwargs: [jax.random.key(i) for i in range(2)],
+    )
+
+    spec = SamplingSpecification(
+        inputs=["/tmp/test.pdb"],
+        checkpoint_id="ckpt_001",
+        num_samples=2,
+        temperature=[1.0],
+        backbone_noise=[0.0],
+        sampling_strategy="temperature",
+        compute_pseudo_perplexity=False,
+    )
+    batched_ensemble = _make_fake_protein(batch_size=1, seq_len=10)
+    model = MagicMock(name="model")
+    stage_set = MagicMock(name="stage_set")
+
+    with streaming_tensor_sink_session():
+        _sample_batch(
+            spec,
+            batched_ensemble,
+            model,
+            stage_set=stage_set,
+            batch_idx=0,
+            structure_batch_count=1,
+        )
+        jax.effects_barrier()
+        seqs, logits = take_staging_sequences_logits(0, 0, spec.num_samples)
+
+    assert seqs is not None
+    assert logits is not None
+
+
+# ---------------------------------------------------------------------------
+# Test 5: io_callback is generated by _sample_batch (integration test)
 # ---------------------------------------------------------------------------
 
 
@@ -249,7 +429,7 @@ def test_sample_batch_io_callback_sources_exist():
 
 
 # ---------------------------------------------------------------------------
-# Test 4: emit_structure_batch_io parameter exists and defaults to True
+# Test 6: emit_structure_batch_io parameter exists and defaults to True
 # ---------------------------------------------------------------------------
 
 

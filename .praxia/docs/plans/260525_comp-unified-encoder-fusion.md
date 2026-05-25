@@ -3,7 +3,7 @@
 **Date:** 2026-05-25  
 **Ticket:** COMP-UNIFIED  
 **Branch:** `refactor-full`  
-**Status:** SPEC v3 — architecture corrected (2026-05-25)
+**Status:** SPEC v4 — K-arbitrary outputs + STE wired + T8 complete (2026-05-25)
 
 ---
 
@@ -14,11 +14,15 @@ parallel averaged-path functions (`_sample_non_streaming_averaged`,
 `_sample_streaming_averaged`, `_sample_batch_averaged`). Averaging becomes a
 composable `EncodingFusionFn` stage wired into `StageSet.encoding_fusion`. When
 set, the dispatch topology in `_sample_batch` restructures: the noise axis maps
-over **encode only**, the fusion reduces D encoded outputs to 1, then decode runs
-once on the fused `EncoderOutput`.
+over **encode only**, the fusion reduces D encoded outputs to K (K arbitrary),
+then decode runs K times on the fused `EncoderOutput`s.
 
 A new optional `encoder_sink: EncoderSinkFn | None` slot allows io_callback-based
 staging of per-noise-level encoder intermediates before fusion.
+
+STE (`sampling_strategy="straight_through"`) is also wired in this ticket via
+`make_stage_set` topology (`ConditionalDecodeStep + sample_step=None`) and
+`InferencePlan.decode` normalization. `resolve_kernel_fn` is deleted.
 
 ---
 
@@ -55,10 +59,10 @@ Output shape: `(B, D, T, N, L)`.
 
 **With fusion:** The noise `_safe_map` maps over **encode only**. After producing
 `stacked_enc: EncoderOutput` with leading D axis, `encoding_fusion(stacked_enc)`
-reduces D → 1. Decode then runs once on the fused `EncoderOutput`. Output shape:
-`(B, 1, T, N, L)` — noise_dim=1 is semantically correct (one fused encoding per
-structure, not D separate ones). The existing transpose `(0,3,1,2,4)` still
-applies; `D=1` passes through unchanged.
+reduces D → K (K arbitrary; K=1 for `ArithmeticMeanEncodingFusion`, K=D for
+`IdentityEncodingFusion`, K<D for cluster reps, etc.). Decode then runs K times
+via `_safe_map(decode, K_outputs)`. Output shape: `(B, K, T, N, L)`. The existing
+transpose `(0,3,1,2,4)` applies to both paths; K plays the noise-axis role.
 
 ---
 
@@ -70,15 +74,19 @@ Add to `src/prxteinmpnn/types/stages.py`:
 
 ```python
 class EncodingFusionFn(Protocol):
-    """Reduce D encoded outputs (from noise dispatch) to a single fused EncoderOutput.
+    """Fuse D noise-level encoded outputs into K outputs for decoding.
 
     Called after encoding at D noise levels, before decoding. Receives a stacked
-    EncoderOutput with a leading D axis (one entry per noise level) and returns
-    a single EncoderOutput with that axis removed.
+    EncoderOutput with a leading D axis and returns an EncoderOutput with a
+    leading K axis — K is arbitrary (K=1 for averaging, K=D for identity,
+    K<D for cluster representatives, etc.).
+
+    The fused path maps decode over the K outputs, producing (B, K, T, N, L).
 
     Implementations:
-    - ArithmeticMeanEncodingFusion: element-wise mean over D
-    - Future: weighted mean, cluster representatives (K=1 centroid), etc.
+    - ArithmeticMeanEncodingFusion: K=1, element-wise mean over D
+    - IdentityEncodingFusion: K=D, no fusion (useful for testing)
+    - Future: weighted ensemble (K=1), cluster representatives (K≤D), etc.
     """
     def __call__(self, stacked: EncoderOutput) -> EncoderOutput: ...
 ```
@@ -265,39 +273,57 @@ def _call_structure_fused(structure_idx):
     noise_with_idx = (noises, jnp.arange(len(spec.backbone_noise)))
     stacked_enc = _safe_map(encode_at_noise, noise_with_idx, batch_size=noises_bs)
 
-    # Step 2: fuse D encoded outputs → 1
+    # Step 2: fuse D encoded outputs → K (K arbitrary)
     fused_enc = plan.stage_set.encoding_fusion(stacked_enc)
+    # fused_enc: EncoderOutput with leading K axis
 
-    # Step 3: decode (bundle for conditioning uses noise=0.0 — coords irrelevant)
-    def _dispatch_temp(temp_val):
-        decode_bundle, decode_config = build_inference_bundle(
-            ..., backbone_noise=jnp.float32(0.0), temperature=temp_val, ...)
+    # Step 3: decode K times — one decode tree per fused encoding
+    decode_bundle, decode_config = build_inference_bundle(
+        ..., backbone_noise=jnp.float32(0.0), temperature=jnp.float32(1.0), ...)
 
-        def _run_one_sample(k):
-            res = plan.decode(fused_enc, decode_bundle, k, decode_config)
-            return res.sequence, res.logits
+    def _call_decode_one_enc(enc_k):
+        def _dispatch_temp(temp_val):
+            # temperature applied as logit scale inside decoder, not bundle coords
+            def _run_one_sample(k):
+                res = plan.decode(enc_k, decode_bundle, k, decode_config)
+                return res.sequence, res.logits
+            return _safe_map(_run_one_sample, sample_keys, batch_size=samples_bs)
+        return _safe_map(_dispatch_temp, temperatures, batch_size=temps_bs)
 
-        return _safe_map(_run_one_sample, sample_keys, batch_size=samples_bs)
-
-    return _safe_map(_dispatch_temp, temperatures, batch_size=temps_bs)
+    # Map over K fused encodings
+    return _safe_map(_call_decode_one_enc, fused_enc, batch_size=<k_bs>)
 
 fused_seqs, fused_logits = _safe_map(
     _call_structure_fused, jnp.arange(batch_size), batch_size=structures_bs,
 )
-# shape: (B, T, N, L) — no noise axis
-# Expand to (B, 1, T, N, L) for schema consistency with Path A
-sampled_sequences = fused_seqs[:, None, ...]
-sampled_logits = fused_logits[:, None, ...]
+# shape: (B, K, T, N, L)
 ```
 
 After this, the existing transpose `(0, 3, 1, 2, 4)` applies to both paths:
 - Path A: `(B, D, T, N, L)` → `(B, N, D, T, L)`
-- Path B: `(B, 1, T, N, L)` → `(B, N, 1, T, L)` — noise_dim=1, schema documented
+- Path B: `(B, K, T, N, L)` → `(B, N, K, T, L)` — K plays the noise-axis role
 
-**STE — defer (COMP-STE):** `resolve_kernel_fn("straight_through")` returns a full
-kernel replacement (teacher-forced + argmax), not a `sample_step`. Do not relocate
-into `make_stage_set`. `plan.decode()` must preserve the existing `resolve_kernel_fn`
-routing for `"straight_through"`. STE composability is a separate follow-up.
+**`k_bs` batch size:** Add a `BatchPlan` axis for K, or default `k_bs=None` (full vmap over K). Since K is typically small (1 for averaging), full vmap is fine for v1. Wire into `BatchPlan` if K can be large.
+
+**STE — wire via `make_stage_set` + `InferencePlan.decode` normalization:**
+
+`score_conditional.kernel` is already `encode → driver.decode(...)`. The driver
+routes teacher-forced vs AR via `stage_set` topology: `sample_step=None` +
+`ConditionalDecodeStep` → teacher-forced scoring. So:
+
+1. `make_stage_set(model, spec)` for `"straight_through"`:
+   - `decode_step = ConditionalDecodeStep(model.decoder, model.w_s_embed)`
+   - `sample_step = None`
+2. `InferencePlan.decode(enc, bundle, key, config)` calls `driver.decode(...)`.
+   For the teacher-forced path, `driver.decode` returns logits (not `SampleResult`).
+   `InferencePlan.decode` normalizes: `SampleResult(logits.argmax(-1).astype(int32), logits)`.
+   This gives `_call_kernel` a consistent interface regardless of strategy.
+3. `resolve_kernel_fn` is **removed** from `kernel_dispatch.py`. Strategy selection
+   is fully in `make_stage_set` + `make_inference_plan`.
+
+This is a small change: `make_stage_set` gains a branch for `"straight_through"`;
+`InferencePlan.decode` gains a normalization step; `resolve_kernel_fn` is deleted.
+No changes to `driver.py`.
 
 ### 6. Simplify `runner.py`
 
@@ -342,8 +368,8 @@ Five legacy functions get `DeprecationWarning` stubs, originals preserved:
 | `src/prxteinmpnn/types/stages.py` | Add `EncodingFusionFn` + `EncoderSinkFn` protocols; add `encoding_fusion` + `encoder_sink` fields to `StageSet` |
 | `src/prxteinmpnn/host/output_sinks.py` | Add `IoCallbackEncoderSink`, `EncoderIntermediateStagingSink`, `_dispatch_encoder_intermediate_io`, `active_encoder_staging_sink`, `encoder_sink_session`, `take_encoder_intermediates` |
 | `src/prxteinmpnn/host/averaging.py` | Add `ArithmeticMeanEncodingFusion`; deprecation stubs for legacy functions |
-| `src/prxteinmpnn/host/plan.py` | Update `make_inference_plan`: wire `ArithmeticMeanEncodingFusion` into `stage_set.encoding_fusion` when `spec.average_node_features` |
-| `src/prxteinmpnn/host/kernel_dispatch.py` | Restructure `_sample_batch`: `model + stage_set` → `plan`; two dispatch paths based on `stage_set.encoding_fusion` |
+| `src/prxteinmpnn/host/plan.py` | Update `make_inference_plan`: wire `ArithmeticMeanEncodingFusion` when `spec.average_node_features`; `InferencePlan.decode` normalizes logits→`SampleResult` |
+| `src/prxteinmpnn/host/kernel_dispatch.py` | Restructure `_sample_batch`: `model + stage_set` → `plan`; two dispatch paths based on `stage_set.encoding_fusion`; remove `resolve_kernel_fn` |
 | `src/prxteinmpnn/host/runner.py` | Remove averaged branch + `_sample_non_streaming_averaged`; pass `plan` everywhere; remove stale imports |
 | `src/prxteinmpnn/host/streaming.py` | Deprecate `_sample_streaming_averaged`; update `_sample_streaming` to accept `plan` |
 | `src/prxteinmpnn/host/_sampling_averaged.py` | Deprecation stubs for `_internal_sample_averaged`, `_sample_batch_averaged` |
@@ -375,11 +401,14 @@ Five legacy functions get `DeprecationWarning` stubs, originals preserved:
 - `eqx.tree_at` round-trip on a default `StageSet()` succeeds
 - `encoder_sink_session()` + `streaming_tensor_sink_session()` simultaneously active — no interference
 
-### T2: `ArithmeticMeanEncodingFusion` in `averaging.py`
+### T2: Fusion implementations in `averaging.py`
 
 **Files:** `host/averaging.py`
 
-- Add `ArithmeticMeanEncodingFusion(eqx.Module)` as described in §2
+- Add `ArithmeticMeanEncodingFusion(eqx.Module)` as described in §2 (K=1 output)
+- Add `IdentityEncodingFusion(eqx.Module)` — pass-through, K=D: returns `stacked`
+  unchanged (all D encoded outputs forwarded to decode). Used in T8 to verify
+  arbitrary-K path without needing a real fusion strategy.
 - Add deprecation stubs for `get_averaged_encodings`, `make_encoding_sampling_split_fn`,
   `make_encoding_conditional_logits_split_fn`
 
@@ -388,36 +417,47 @@ Five legacy functions get `DeprecationWarning` stubs, originals preserved:
    a single noise level → output equals the un-stacked encoding (`jnp.allclose`)
 2. `ArithmeticMeanEncodingFusion()(stacked_enc)` over D≥3 noise levels → output shape
    equals single-noise shape (D axis reduced)
-3. `bundle.conditioning.ar_mask` is identical across noise perturbations for any
+3. `IdentityEncodingFusion()(stacked_enc)` with D=3 → output has D=3 on leading axis
+   (no reduction); each slice `== stacked_enc[i]`
+4. `bundle.conditioning.ar_mask` is identical across noise perturbations for any
    given structure — confirms discarding from `EncoderOutput` is safe
 
-### T3: Update `make_inference_plan`
+### T3: Update `make_inference_plan` + `InferencePlan.decode`
 
 **Files:** `host/plan.py`
 
 - When `spec.average_node_features`: use `eqx.tree_at` to wire `ArithmeticMeanEncodingFusion()`
-  into `stage_set.encoding_fusion` (do not introduce new helper functions)
-- `encode_fn` and `driver` in `InferenceComponents` unchanged
+  into `stage_set.encoding_fusion`
+- When `spec.sampling_strategy == "straight_through"`: `make_stage_set` wires
+  `decode_step=ConditionalDecodeStep(model.decoder, model.w_s_embed)`, `sample_step=None`
+- `InferencePlan.decode(enc, bundle, key, config)`: after calling `driver.decode(...)`,
+  if result is raw logits (not `SampleResult`), wrap as
+  `SampleResult(logits.argmax(-1).astype(jnp.int32), logits)` — normalizes interface
+  so `_call_kernel` is strategy-agnostic
 
-**Gate:** `make_inference_plan(model, spec_avg=True).stage_set.encoding_fusion` is
-an `ArithmeticMeanEncodingFusion` instance. `make_inference_plan(model, spec_avg=False).stage_set.encoding_fusion` is `None`.
+**Gate:**
+- `make_inference_plan(model, spec_avg=True).stage_set.encoding_fusion` is `ArithmeticMeanEncodingFusion`
+- `make_inference_plan(model, spec_avg=False).stage_set.encoding_fusion` is `None`
+- `make_inference_plan(model, spec_ste).stage_set.sample_step is None` and `decode_step` is `ConditionalDecodeStep`
+- `resolve_kernel_fn` absent from `kernel_dispatch.py` after T4
 
 ### T4: Restructure `_sample_batch`
 
 **Files:** `host/kernel_dispatch.py`
 
 - Change signature: `model + stage_set` → `plan: InferencePlan`
-- Implement Path A (no fusion) and Path B (with fusion) as described in §5
-- Path B: `_safe_map(encode_at_noise, ...)` → `encoding_fusion(stacked_enc)` → decode
+- Implement Path A (no fusion) and Path B (with fusion, K-outputs) as described in §5
+- Path B: encode D times → `encoding_fusion(stacked_enc)` → `_safe_map(decode, K_outputs)`
 - `encoder_sink` fires inside the encode `_safe_map` in both paths (noise_idx tracked)
-- Preserve `resolve_kernel_fn` for STE (see §5)
+- Delete `resolve_kernel_fn` — STE now routed via `stage_set` topology
 - All COMP-NEW `io_callback` emission logic unchanged
 
 **Gate:**
-- Existing `tests/host/test_sampling_tensor_batch_io.py` passes (update monkeypatches to target `plan`)
-- `plan.stage_set.encoding_fusion is None` → output `shape[1] == len(spec.backbone_noise)`
-- `plan.stage_set.encoding_fusion is not None` → output `shape[1] == 1`
-- `sampling_strategy="straight_through"` still routes through `resolve_kernel_fn`
+- Existing `tests/host/test_sampling_tensor_batch_io.py` passes (monkeypatches updated)
+- Path A: `output.shape[1] == len(spec.backbone_noise)`
+- Path B with `ArithmeticMeanEncodingFusion` (K=1): `output.shape[1] == 1`
+- Path B with `IdentityEncodingFusion` (K=D): `output.shape[1] == len(spec.backbone_noise)`
+- `sampling_strategy="straight_through"`: `resolve_kernel_fn` absent; STE produces correct logits via `stage_set`
 
 ### T5: Simplify `runner.py`
 
@@ -461,6 +501,23 @@ Stubs for `_internal_sample_averaged`, `_sample_batch_averaged`.
 11. `test_runner_averaged_path_removed` — `runner.sample` source contains no reference to `_sample_non_streaming_averaged`
 12. `test_deprecation_warning_legacy_fns` — each of 5 deprecated stubs emits `DeprecationWarning`
 13. **PARITY (required):** `test_averaged_path_parity_legacy_vs_unified` — small structure (seq_len ≤ 20); `_sample_batch_averaged` (legacy) vs `_sample_batch(plan_with_fusion)` (unified); sequences and logits agree within `rtol=1e-4, atol=1e-5`
+14. `test_encoding_fusion_arbitrary_k` — plan with `IdentityEncodingFusion` (K=D, D=3 noise levels);
+    `output.shape[1] == 3` after `_sample_batch`. Verifies Path B maps decode over all K outputs
+    without collapsing them.
+15. `test_ste_routes_via_stage_set` — `spec.sampling_strategy="straight_through"` →
+    `plan.stage_set.sample_step is None`; `plan.stage_set.decode_step` is `ConditionalDecodeStep`;
+    `_sample_batch` completes; output is `SampleResult` with `.logits` and `.sequence` fields.
+    Assert `resolve_kernel_fn` is absent from `kernel_dispatch` module (attribute not present).
+16. `test_inference_plan_decode_normalizes_logits` — wire `ConditionalDecodeStep + sample_step=None`;
+    call `plan.decode(enc, bundle, key, config)`; result is `SampleResult` with
+    `sequence.dtype == jnp.int32` and `logits.ndim == 2`. Confirms normalization wraps raw logits.
+
+**Monkeypatch cleanup note (T4 gate):** Existing `tests/host/test_sampling_tensor_batch_io.py`
+monkeypatches `prxteinmpnn.host.kernel_dispatch.make_sampling_planner` and
+`extract_batch_sizes`. After T4, `_sample_batch` signature changes from
+`(spec, batched_ensemble, model, *, stage_set, ...)` to
+`(spec, batched_ensemble, plan, ...)`. Update these tests to pass a mock `InferencePlan` instead
+of `model + stage_set`. Also remove any monkeypatch of `resolve_kernel_fn` (deleted in T4).
 
 ---
 
@@ -481,7 +538,11 @@ Stubs for `_internal_sample_averaged`, `_sample_batch_averaged`.
 
 2. **`encoder_sink` and ordering:** Fires D times per structure inside the noise `_safe_map`, with `ordered=False`. Intermediates arrive out of order. `take_encoder_intermediates` does not enforce ordering. Caller collects all after `effects_barrier()`.
 
-3. **COMP-STE follow-up:** STE is a teacher-forced full kernel replacement, not a `sample_step`. Deferred. Likely warrants a separate `decode_step` variant when tackled.
+3. **STE wired in this ticket (not deferred):** `score_conditional.kernel` is already
+   `encode → driver.decode(...)`. The driver routes teacher-forced vs AR via `stage_set`:
+   `sample_step=None + ConditionalDecodeStep` → teacher-forced. `make_stage_set` for
+   `"straight_through"` wires this topology; `InferencePlan.decode` normalizes logits →
+   `SampleResult`. `resolve_kernel_fn` is deleted in T4. No `driver.py` changes.
 
 ---
 

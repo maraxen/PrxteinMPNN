@@ -8,6 +8,7 @@ import functools
 import logging
 from typing import TYPE_CHECKING, Any
 
+import jax
 import jax.numpy as jnp
 
 from prxteinmpnn.host._sampling_averaged import _sample_batch_averaged
@@ -34,6 +35,7 @@ from prxteinmpnn.host.plan import (
   resolve_chunk_size,
   resolve_target_samples,
 )
+from prxteinmpnn.host.output_sinks import streaming_tensor_sink_session, take_staging_sequences_logits
 from prxteinmpnn.host.streaming import (
   GRID_SCHEMA_VERSION,
   SAMPLING_SCHEMA_VERSION,
@@ -180,32 +182,38 @@ def sample(
   structure_batch_count = StreamingBatchHost.structure_batch_count(protein_iterator)
   grid_lineage = _resolve_grid_lineage(spec)
 
-  for batch_idx, batched_ensemble in enumerate(protein_iterator):
-    batch_size = batched_ensemble.coordinates.shape[0]
-    batch_structure_ids = _structure_ids_for_batch(
-      canonical_structure_ids,
-      structure_offset=structure_offset,
-      batch_size=batch_size,
-    )
-    sampled_sequences, logits, pseudo_perplexity = _sample_batch(
-      spec,
-      batched_ensemble,
-      model,
-      stage_set=plan.stage_set,
-      canonical_structure_ids=canonical_structure_ids,
-      batch_structure_ids=batch_structure_ids,
-      batch_idx=batch_idx,
-      structure_batch_count=structure_batch_count,
-    )
-    all_sequences.append(sampled_sequences)
-    if spec.return_logits and all_logits is not None:
-      all_logits.append(logits)
-    if pseudo_perplexity is not None:
-      all_pseudo_perplexities.append(pseudo_perplexity)
-    resolved_structure_ids.extend(batch_structure_ids)
-    structure_offset += batch_size
-
-  StreamingBatchHost.sink_barrier()
+  with streaming_tensor_sink_session():
+    for batch_idx, batched_ensemble in enumerate(protein_iterator):
+      batch_size = batched_ensemble.coordinates.shape[0]
+      batch_structure_ids = _structure_ids_for_batch(
+        canonical_structure_ids,
+        structure_offset=structure_offset,
+        batch_size=batch_size,
+      )
+      target_for_batch = resolve_target_samples(spec, None, grid_lineage)
+      _, _, pseudo_perplexity = _sample_batch(
+        spec,
+        batched_ensemble,
+        model,
+        stage_set=plan.stage_set,
+        canonical_structure_ids=canonical_structure_ids,
+        batch_structure_ids=batch_structure_ids,
+        batch_idx=batch_idx,
+        structure_batch_count=structure_batch_count,
+      )
+      StreamingBatchHost.sink_barrier()
+      sampled_sequences_np, sampled_logits_np = take_staging_sequences_logits(
+        batch_idx,
+        0,
+        target_for_batch,
+      )
+      all_sequences.append(jnp.asarray(sampled_sequences_np))
+      if spec.return_logits and all_logits is not None:
+        all_logits.append(jnp.asarray(sampled_logits_np))
+      if pseudo_perplexity is not None:
+        all_pseudo_perplexities.append(pseudo_perplexity)
+      resolved_structure_ids.extend(batch_structure_ids)
+      structure_offset += batch_size
   max_len = max(arr.shape[-1] for arr in all_sequences)
 
   all_sequences_padded = [pad_to_max(seq, max_len, axis=-1, pad_value=0) for seq in all_sequences]

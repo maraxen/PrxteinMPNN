@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar, runtime_checkable
 
+import jax
 import equinox as eqx
 from jaxtyping import Array, Float, Int
 
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
         BatchLogitFn,
         TieGroupFuseFn,
     )
+    from prxteinmpnn.types.bundles import EncoderOutput
 
 # Type variables for generic protocols
 In = TypeVar("In")
@@ -89,6 +91,38 @@ LogitTransformFn = FuseFn[Float[Array, "S L V"], Float[Array, "L V"]]
 # ARLogitTransformFn: concrete signature (S, V) + (V,) -> (V,) — bias always passed, never None
 # Callers provide jnp.zeros_like(bias_shape) for no-op bias
 ARLogitTransformFn = FuseFn[Float[Array, "S V"], Float[Array, "V"]]
+
+
+@runtime_checkable
+class EncoderSinkFn(Protocol):
+    """Optional side-effect hook called once per noise-level encoding.
+
+    When encoding_fusion is set, fires D times per structure (once per noise
+    level), before fusion. Implementations MUST use io_callback with ordered=False.
+    """
+
+    def __call__(
+        self,
+        enc: "EncoderOutput",
+        batch_idx: jax.Array,
+        structure_idx: jax.Array,
+        noise_idx: jax.Array,
+    ) -> None:
+        ...
+
+
+@runtime_checkable
+class EncodingFusionFn(Protocol):
+    """Fuse D noise-level encoded outputs into K outputs for decoding.
+
+    Called after encoding at D noise levels, before decoding. Receives a stacked
+    EncoderOutput with a leading D axis and returns an EncoderOutput with a
+    leading K axis — K is arbitrary (K=1 for averaging, K=D for identity,
+    K<D for cluster representatives, etc.).
+    """
+
+    def __call__(self, stacked: "EncoderOutput") -> "EncoderOutput":
+        ...
 
 
 class ConditionalDecodeStep(eqx.Module):
@@ -231,6 +265,9 @@ class StageSet(eqx.Module):
     - If ``sample_step is not None`` → autoregressive (AR) sampling mode
     - If ``isinstance(decode_step, UnconditionalDecodeStep)`` → unconditional scoring
     - Otherwise → conditional scoring (decode_step is ConditionalDecodeStep)
+    - If ``encoding_fusion is not None`` → noise axis maps over encode only;
+      fusion reduces D → K; decode maps over K outputs
+    - If ``encoder_sink is not None`` → fires io_callback per noise-level encoding, before fusion
 
     Parameters
     ----------
@@ -287,14 +324,18 @@ class StageSet(eqx.Module):
     ) = None
     sample_step: Any | None = None  # None = scoring mode; categorical/gumbel/ste = sampling
     tie_group_fuse: TieGroupFuseFn | None = None
+    encoder_sink: EncoderSinkFn | None = None
+    encoding_fusion: EncodingFusionFn | None = None
 
 
 __all__ = [
     "ARLogitTransformFn",
     "ConditionalDecodeFn",
     "ConditionalDecodeStep",
+    "EncoderSinkFn",
     "EncoderStateFn",
     "EncoderStepFn",
+    "EncodingFusionFn",
     "FeaturizeFn",
     "FuseFn",
     "LigandEncodeFn",

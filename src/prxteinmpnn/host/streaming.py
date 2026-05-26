@@ -37,7 +37,6 @@ if TYPE_CHECKING:
 
     from grain.python import IterDataset
 
-    from prxteinmpnn.host.streaming_host import ModelProtocol
 
 
 SAMPLING_SCHEMA_VERSION = "sampling_v1"
@@ -47,7 +46,7 @@ GRID_SCHEMA_VERSION = "grid_v1"
 def _sample_streaming(
     spec: SamplingSpecification,
     protein_iterator: IterDataset,
-    model: ModelProtocol,
+    plan: Any,
     sample_batch_fn: Callable[..., tuple[Any, Any, Any | None]],
 ) -> dict[str, Any]:
     """Sample new sequences and stream results to an HDF5 or ArrayRecord file."""
@@ -69,7 +68,7 @@ def _sample_streaming(
         return _sample_streaming_arrayrecord(
             spec,
             protein_iterator,
-            model,
+            plan,
             grid_lineage,
             canonical_structure_ids,
             sample_batch_fn,
@@ -123,7 +122,7 @@ def _sample_streaming(
                 _, _, pseudo_perplexity = sample_batch_fn(
                     spec,
                     batched_ensemble,
-                    model,
+                    plan,
                     canonical_structure_ids=canonical_structure_ids,
                     batch_structure_ids=batch_structure_ids,
                     chunk_sample_start=key_chunk_start,
@@ -185,7 +184,7 @@ def _sample_streaming(
                     _, _, pseudo_perplexity = sample_batch_fn(
                         spec,
                         batched_ensemble,
-                        model,
+                        plan,
                         canonical_structure_ids=canonical_structure_ids,
                         batch_structure_ids=batch_structure_ids,
                         chunk_sample_start=chunk_sample_start,
@@ -275,7 +274,7 @@ def _sample_streaming(
 def _sample_streaming_arrayrecord(
     spec: SamplingSpecification,
     protein_iterator: IterDataset,
-    model: ModelProtocol,
+    plan: Any,
     grid_lineage: dict[str, int | str] | None,
     canonical_structure_ids: list[str],
     sample_batch_fn: Callable[..., tuple[Any, Any, Any | None]],
@@ -330,7 +329,7 @@ def _sample_streaming_arrayrecord(
                     _, _, _ = sample_batch_fn(
                         spec,
                         batched_ensemble,
-                        model,
+                        plan,
                         canonical_structure_ids=canonical_structure_ids,
                         batch_structure_ids=batch_structure_ids,
                         chunk_sample_start=chunk_sample_start,

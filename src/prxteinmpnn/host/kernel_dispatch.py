@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import jax
@@ -24,76 +23,39 @@ from prxteinmpnn.host.plan import (
   make_sampling_planner,
   resolve_target_samples,
 )
-from prxteinmpnn.inference import sample_autoregressive as sample_ar
 from prxteinmpnn.inference.bundle_builder import build_inference_bundle
 from prxteinmpnn.run.specs import SamplingSpecification
-from prxteinmpnn.types.protocols import ModelProtocol
 from prxteinmpnn.utils.safe_map import safe_map as _safe_map
 
 if TYPE_CHECKING:
   from collections.abc import Sequence
 
+  from prxteinmpnn.host.plan import InferencePlan
   from prxteinmpnn.types.arrays import (
     Logits,
     ProteinSequence,
   )
-  from prxteinmpnn.types.stages import StageSet
   from prxteinmpnn.utils.data_structures import Protein
-
-
-def resolve_kernel_fn(strategy: str) -> Callable:
-  """Resolve a kernel callable from sampling_strategy string.
-
-  Dispatches to the appropriate inference kernel based on the sampling strategy:
-  - 'temperature': Autoregressive sampling kernel
-  - 'straight_through': Straight-through estimator wrapped teacher-forced kernel
-  - Default: Autoregressive sampling
-
-  Args:
-    strategy: Sampling strategy name (e.g., 'temperature', 'straight_through')
-
-  Returns:
-    A callable with signature (model, key, bundle, config, stage_set) -> SampleResult
-  """
-  if strategy == "temperature":
-    return sample_ar.kernel
-  if strategy == "straight_through":
-    # For STE, wrap score_conditional kernel to return SampleResult compatible interface
-    from prxteinmpnn.inference.sample_autoregressive import SampleResult
-    from prxteinmpnn.inference.score_conditional import kernel as score_conditional_kernel
-
-    def _ste_kernel_wrapper(model, prng_key, bundle, config, stage_set):
-      """Wrap score_conditional to return SampleResult-compatible interface."""
-      # Call score_conditional kernel (teacher-forced decoding)
-      logits = score_conditional_kernel(model, prng_key, bundle, config, stage_set)
-      # Compute sequence from logits via argmax (greedy decoding)
-      sequence = logits.argmax(axis=-1).astype(jnp.int32)
-      return SampleResult(sequence=sequence, logits=logits)
-
-    return _ste_kernel_wrapper
-  # Default to temperature strategy
-  return sample_ar.kernel
 
 
 def _sample_batch(
   spec: SamplingSpecification,
-  batched_ensemble: Protein,
-  model: ModelProtocol,
+  batched_ensemble: "Protein",
+  plan: "InferencePlan",
   *,
-  stage_set: StageSet,
-  canonical_structure_ids: Sequence[str] | None = None,
-  batch_structure_ids: Sequence[str] | None = None,
+  canonical_structure_ids: "Sequence[str] | None" = None,
+  batch_structure_ids: "Sequence[str] | None" = None,
   chunk_sample_start: int | None = None,
   chunk_sample_count: int | None = None,
   batch_idx: int = 0,
   structure_batch_count: int = -1,
   emit_structure_batch_io: bool = True,
-) -> tuple[ProteinSequence, Logits, jax.Array | None]:
+) -> "tuple[ProteinSequence, Logits, jax.Array | None]":
   # 1. Plan batching
-  plan = make_sampling_planner(spec)
-  plan.log_summary()
+  batch_plan = make_sampling_planner(spec)
+  batch_plan.log_summary()
 
-  structures_bs, samples_bs, temps_bs, noises_bs = extract_batch_sizes(plan)
+  structures_bs, samples_bs, temps_bs, noises_bs = extract_batch_sizes(batch_plan)
 
   # 2. Resolve Grids
   grid_lineage = _resolve_grid_lineage(spec)
@@ -144,48 +106,7 @@ def _sample_batch(
     jnp.asarray(spec.state_weights, dtype=jnp.float32) if spec.state_weights is not None else None
   )
 
-  # 3. Resolve the kernel function from spec.sampling_strategy
-  _kernel_fn = resolve_kernel_fn(spec.sampling_strategy)
-
-  # 4. Inner Kernel Closure (Single Structure, Single Noise, Single Temp)
-  def _call_kernel(key_samples, structure_idx, noise_val, temp_val):
-      # Extract single structure from batch
-      c = batched_ensemble.coordinates[structure_idx]
-      m = batched_ensemble.mask[structure_idx]
-      ri = batched_ensemble.residue_index[structure_idx]
-      ci = batched_ensemble.chain_index[structure_idx]
-
-      # Prepare controls
-      fm = fixed_mask_for_vmap[structure_idx]
-      ft = fixed_tokens_for_vmap[structure_idx]
-
-      # Build bundle
-      bundle, config = build_inference_bundle(
-          coords=c, mask=m, residue_index=ri, chain_index=ci,
-          backbone_noise=noise_val,
-          fixed_mask=fm, fixed_tokens=ft,
-          bias=jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
-          tie_group_map=tie_map_for_vmap[structure_idx] if tie_map_for_vmap is not None else None,
-          state_weights=state_weights,
-          ligand_coords=ligand_context["y"][structure_idx] if ligand_context["y"] is not None else None,
-          ligand_atom_types=ligand_context["y_t"][structure_idx] if ligand_context["y_t"] is not None else None,
-          ligand_mask=ligand_context["y_m"][structure_idx] if ligand_context["y_m"] is not None else None,
-          structure_mapping=mapping_for_vmap[structure_idx] if mapping_for_vmap is not None else None,
-          temperature=temp_val,
-          mode="sample_ar",
-          use_rolling_state=spec.use_rolling_state,
-          inference=True,
-      )
-
-      # Map over samples
-      def _run_one_sample(k):
-          res = _kernel_fn(model, k, bundle, config, stage_set)
-          return res.sequence, res.logits
-
-      return _safe_map(_run_one_sample, key_samples, batch_size=samples_bs)
-
-  # 5. Nested Dispatch (Structures -> Noises -> Temps)
-  # Compute deterministic sample keys
+  # 3. Compute deterministic sample keys
   sample_keys = compute_sample_keys(
       base_key,
       target_num_samples,
@@ -193,23 +114,134 @@ def _sample_batch(
       grid_lineage_sample_start=grid_lineage["sample_start"] if grid_lineage is not None else None,
   )
 
-  def _dispatch_structure(s_idx):
-      def _dispatch_noise(n_val):
-          def _dispatch_temp(t_val):
-              return _call_kernel(sample_keys, s_idx, n_val, t_val)
+  # 4. Dispatch — two paths based on whether encoding_fusion is wired (Python-level static check)
+  if plan.stage_set.encoding_fusion is None:
+    # -------------------------------------------------------------------------
+    # Path A: no fusion — standard encode-per-(structure, noise, temp) topology
+    # -------------------------------------------------------------------------
+    def _call_kernel(key_samples, structure_idx, noise_val, temp_val):
+        c = batched_ensemble.coordinates[structure_idx]
+        m = batched_ensemble.mask[structure_idx]
+        ri = batched_ensemble.residue_index[structure_idx]
+        ci = batched_ensemble.chain_index[structure_idx]
+        fm = fixed_mask_for_vmap[structure_idx]
+        ft = fixed_tokens_for_vmap[structure_idx]
 
-          return _safe_map(_dispatch_temp, temperatures, batch_size=temps_bs)
+        bundle, config = build_inference_bundle(
+            coords=c, mask=m, residue_index=ri, chain_index=ci,
+            backbone_noise=noise_val,
+            fixed_mask=fm, fixed_tokens=ft,
+            bias=jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
+            tie_group_map=tie_map_for_vmap[structure_idx] if tie_map_for_vmap is not None else None,
+            state_weights=state_weights,
+            ligand_coords=ligand_context["y"][structure_idx] if ligand_context["y"] is not None else None,
+            ligand_atom_types=ligand_context["y_t"][structure_idx] if ligand_context["y_t"] is not None else None,
+            ligand_mask=ligand_context["y_m"][structure_idx] if ligand_context["y_m"] is not None else None,
+            structure_mapping=mapping_for_vmap[structure_idx] if mapping_for_vmap is not None else None,
+            temperature=temp_val,
+            mode="sample_ar",
+            use_rolling_state=spec.use_rolling_state,
+            inference=True,
+        )
 
-      return _safe_map(_dispatch_noise, noises, batch_size=noises_bs)
+        encode_key = jax.random.fold_in(base_key, structure_idx)
+        enc = plan.encode(bundle, encode_key, config)
 
-  # Final batch map over structures
-  # results: (batch, noise, temp, samples, seq_len)
-  # logits: (batch, noise, temp, samples, seq_len, 21)
-  sampled_sequences, sampled_logits = _safe_map(
-      _dispatch_structure,
-      jnp.arange(batch_size),
-      batch_size=structures_bs,
-  )
+        if plan.stage_set.encoder_sink is not None:
+            plan.stage_set.encoder_sink(enc, jnp.int32(batch_idx), structure_idx, jnp.int32(0))
+
+        def _run_one_sample(k):
+            res = plan.decode(enc, bundle, k, config)
+            return res.sequence, res.logits
+
+        return _safe_map(_run_one_sample, key_samples, batch_size=samples_bs)
+
+    def _dispatch_structure(s_idx):
+        def _dispatch_noise(n_val):
+            def _dispatch_temp(t_val):
+                return _call_kernel(sample_keys, s_idx, n_val, t_val)
+            return _safe_map(_dispatch_temp, temperatures, batch_size=temps_bs)
+        return _safe_map(_dispatch_noise, noises, batch_size=noises_bs)
+
+    # shape: (B, D, T, N, L) and (B, D, T, N, L, 21)
+    sampled_sequences, sampled_logits = _safe_map(
+        _dispatch_structure,
+        jnp.arange(batch_size),
+        batch_size=structures_bs,
+    )
+
+  else:
+    # -------------------------------------------------------------------------
+    # Path B: with fusion — encode D times per structure, fuse → K, decode K×T×N
+    # -------------------------------------------------------------------------
+    def _call_structure_fused(structure_idx):
+        c = batched_ensemble.coordinates[structure_idx]
+        m = batched_ensemble.mask[structure_idx]
+        ri = batched_ensemble.residue_index[structure_idx]
+        ci = batched_ensemble.chain_index[structure_idx]
+        fm = fixed_mask_for_vmap[structure_idx]
+        ft = fixed_tokens_for_vmap[structure_idx]
+
+        def _build_bundle(noise_val, temperature_val=jnp.float32(1.0)):
+            return build_inference_bundle(
+                coords=c, mask=m, residue_index=ri, chain_index=ci,
+                backbone_noise=noise_val,
+                fixed_mask=fm, fixed_tokens=ft,
+                bias=jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
+                tie_group_map=tie_map_for_vmap[structure_idx] if tie_map_for_vmap is not None else None,
+                state_weights=state_weights,
+                ligand_coords=ligand_context["y"][structure_idx] if ligand_context["y"] is not None else None,
+                ligand_atom_types=ligand_context["y_t"][structure_idx] if ligand_context["y_t"] is not None else None,
+                ligand_mask=ligand_context["y_m"][structure_idx] if ligand_context["y_m"] is not None else None,
+                structure_mapping=mapping_for_vmap[structure_idx] if mapping_for_vmap is not None else None,
+                temperature=temperature_val,
+                mode="sample_ar",
+                use_rolling_state=spec.use_rolling_state,
+                inference=True,
+            )
+
+        # Step 1: encode at each noise level
+        noise_indices = jnp.arange(len(spec.backbone_noise), dtype=jnp.int32)
+
+        def encode_at_noise(noise_and_idx):
+            noise_val, noise_idx = noise_and_idx
+            bundle, config = _build_bundle(noise_val)
+            encode_key = jax.random.fold_in(base_key, structure_idx)
+            enc = plan.encode(bundle, encode_key, config)
+            if plan.stage_set.encoder_sink is not None:
+                plan.stage_set.encoder_sink(enc, jnp.int32(batch_idx), structure_idx, noise_idx)
+            return enc
+
+        stacked_enc = _safe_map(encode_at_noise, (noises, noise_indices), batch_size=noises_bs)
+
+        # Step 2: fuse D encoded outputs → K
+        fused_enc = plan.stage_set.encoding_fusion(stacked_enc)
+
+        # Build decode bundle at noise=0 (fusion already handled noise variation)
+        decode_bundle, _ = _build_bundle(jnp.float32(0.0))
+
+        # Step 3: decode K times, then over temps, then over samples
+        def _call_decode_one_enc(enc_k):
+            def _dispatch_temp(temp_val):
+                _, t_config = _build_bundle(jnp.float32(0.0), temperature_val=temp_val)
+
+                def _run_one_sample(k):
+                    res = plan.decode(enc_k, decode_bundle, k, t_config)
+                    return res.sequence, res.logits
+
+                return _safe_map(_run_one_sample, sample_keys, batch_size=samples_bs)
+
+            return _safe_map(_dispatch_temp, temperatures, batch_size=temps_bs)
+
+        # Map decode over K fused encodings
+        return _safe_map(_call_decode_one_enc, fused_enc, batch_size=None)
+
+    # shape: (B, K, T, N, L) and (B, K, T, N, L, 21)
+    sampled_sequences, sampled_logits = _safe_map(
+        _call_structure_fused,
+        jnp.arange(batch_size),
+        batch_size=structures_bs,
+    )
 
   # 6. Post-process (transpose to expected output shape: [batch, samples, noise, temp, seq_len])
   # current: [B, D, T, N, L] -> desired: [B, N, D, T, L]

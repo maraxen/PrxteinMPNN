@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import functools
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -170,8 +169,7 @@ def sample(
     return _sample_non_streaming_averaged(spec, protein_iterator, model)
 
   if spec.output_h5_path:
-    bound_sample_batch = functools.partial(_sample_batch, stage_set=plan.stage_set)
-    return _sample_streaming(spec, protein_iterator, model, bound_sample_batch)
+    return _sample_streaming(spec, protein_iterator, plan, _sample_batch)
 
   # Non-streaming path uses io_callback staging via streaming_tensor_sink_session;
   # drains per-batch via take_staging_sequences_logits.
@@ -195,8 +193,7 @@ def sample(
       _, _, pseudo_perplexity = _sample_batch(
         spec,
         batched_ensemble,
-        model,
-        stage_set=plan.stage_set,
+        plan,
         canonical_structure_ids=canonical_structure_ids,
         batch_structure_ids=batch_structure_ids,
         batch_idx=batch_idx,

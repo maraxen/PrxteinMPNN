@@ -53,12 +53,27 @@ def _make_stub_kernel(seq_len: int = 10, vocab: int = 21):
     Returns:
         Callable stub kernel compatible with _sample_batch
     """
-    def _stub(model, prng_key, bundle, config, stage_set):
+    def _stub(prng_key, bundle, config, stage_set):
         seq = jnp.zeros((seq_len,), dtype=jnp.int32)
         logits = jnp.zeros((seq_len, vocab), dtype=jnp.float32)
         return SampleResult(sequence=seq, logits=logits)
 
     return _stub
+
+
+def _make_mock_plan(stage_set: "MagicMock | None" = None) -> "MagicMock":
+    """Create a mock InferencePlan for tests that bypasses real model/encoding.
+
+    Sets encoding_fusion=None and encoder_sink=None to select Path A dispatch.
+    """
+    from prxteinmpnn.host.plan import InferencePlan
+
+    mock = MagicMock(spec=InferencePlan)
+    if stage_set is not None:
+        mock.stage_set = stage_set
+    mock.stage_set.encoding_fusion = None
+    mock.stage_set.encoder_sink = None
+    return mock
 
 
 # ---------------------------------------------------------------------------
@@ -189,16 +204,15 @@ def test_emit_structure_batch_io_gate_in_sample_batch(monkeypatch):
         compute_pseudo_perplexity=False,
     )
     batched_ensemble = _make_fake_protein(batch_size=1, seq_len=10)
-    model = MagicMock(name="model")
     stage_set = MagicMock(name="stage_set")
+    inference_plan = _make_mock_plan(stage_set)
 
     # emit_structure_batch_io=False — scalar marker should NOT fire
     call_log["structure"] = 0
     _sample_batch(
         spec,
         batched_ensemble,
-        model,
-        stage_set=stage_set,
+        inference_plan,
         batch_idx=0,
         structure_batch_count=1,
         emit_structure_batch_io=False,
@@ -213,8 +227,7 @@ def test_emit_structure_batch_io_gate_in_sample_batch(monkeypatch):
     _sample_batch(
         spec,
         batched_ensemble,
-        model,
-        stage_set=stage_set,
+        inference_plan,
         batch_idx=0,
         structure_batch_count=1,
         emit_structure_batch_io=True,
@@ -300,15 +313,14 @@ def test_sample_batch_does_not_raise_without_active_sink(monkeypatch):
         compute_pseudo_perplexity=False,
     )
     batched_ensemble = _make_fake_protein(batch_size=1, seq_len=10)
-    model = MagicMock(name="model")
     stage_set = MagicMock(name="stage_set")
+    inference_plan = _make_mock_plan(stage_set)
 
     # No streaming_tensor_sink_session() context — should not raise
     _sample_batch(
         spec,
         batched_ensemble,
-        model,
-        stage_set=stage_set,
+        inference_plan,
         batch_idx=0,
         structure_batch_count=1,
     )
@@ -387,15 +399,14 @@ def test_sample_batch_stages_when_sink_active(monkeypatch):
         compute_pseudo_perplexity=False,
     )
     batched_ensemble = _make_fake_protein(batch_size=1, seq_len=10)
-    model = MagicMock(name="model")
     stage_set = MagicMock(name="stage_set")
+    inference_plan = _make_mock_plan(stage_set)
 
     with streaming_tensor_sink_session():
         _sample_batch(
             spec,
             batched_ensemble,
-            model,
-            stage_set=stage_set,
+            inference_plan,
             batch_idx=0,
             structure_batch_count=1,
         )

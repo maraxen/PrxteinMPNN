@@ -172,9 +172,13 @@ def test_make_stage_set_called_once_per_sample(protein_structure):
         "random_seed": 42,  # Fixed seed for reproducibility
     }
 
-    # Patch the USE-SITE binding: prxteinmpnn.host.runner.make_stage_set
-    # This is where runner.py binds the name after `from prxteinmpnn.inference.logits import make_stage_set`
-    with patch("prxteinmpnn.host.runner.make_stage_set", side_effect=tracking_make_stage_set):
+    # Patch the definition site in inference.logits.
+    # make_stage_set is a local import inside make_inference_plan (not module-level in plan.py),
+    # so we patch the definition site — the local `from ... import` rebinds at call time,
+    # picking up the patched value from sys.modules.
+    # runner.py does not import make_stage_set directly (AST invariant enforced by
+    # test_runner_does_not_import_make_stage_set); stage_set flows via make_inference_plan.
+    with patch("prxteinmpnn.inference.logits.make_stage_set", side_effect=tracking_make_stage_set):
         try:
             spec = SamplingSpecification(**spec_kwargs)
             result = sample(spec)

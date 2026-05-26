@@ -128,30 +128,6 @@ class TestCompound533StageSetHoist:
             # Temperature parameter is accepted; strategy uses it
             assert stage_set.logit_transform.temperature is not None
 
-    def test_stage_set_param_required_for_sample_batch(self) -> None:
-        """Verify that _sample_batch requires stage_set parameter.
-
-        The refactor makes stage_set a required keyword-only parameter
-        to _sample_batch. This test verifies the parameter exists and
-        is documented as required.
-
-        This test is defensive: it ensures the refactor's API contract
-        (stage_set must be passed from caller) is in place.
-        """
-        from prxteinmpnn.host.kernel_dispatch import _sample_batch
-        import inspect
-
-        sig = inspect.signature(_sample_batch)
-        params = sig.parameters
-
-        # Verify stage_set is a keyword-only parameter
-        assert "stage_set" in params
-        assert params["stage_set"].kind == inspect.Parameter.KEYWORD_ONLY
-
-        # Verify stage_set is required (no default)
-        assert params["stage_set"].default == inspect.Parameter.empty
-
-
 # =============================================================================
 # Tests added by T8: Hoist verification via use-site patch and AST structural
 # =============================================================================
@@ -241,25 +217,13 @@ def test_stage_set_reproducibility_and_use():
     """PRIMARY CORRECTNESS GATE for COMP-533 stage_set hoist.
 
     Verifies that make_stage_set is deterministic (produces identical StageSet
-    instances when called with same params) and is the only mechanism for
-    creating stage sets in the hoisted architecture.
+    instances when called with same params).
 
-    This test ensures the refactor's core invariant: stage_set is constructed
-    once in runner.py and passed to _sample_batch, with no secondary construction
-    or modification within the kernel dispatch layer.
-
-    Tests two aspects:
-    1. make_stage_set is deterministic (same inputs → same outputs across calls)
-    2. The hoisted architecture prevents stage_set from being constructed
-       within _call_kernel (verified via structural inspection)
+    Tests: make_stage_set is deterministic (same inputs → same outputs across calls)
     """
     from prxteinmpnn.inference.logits import make_stage_set
     from prxteinmpnn.types.stages import StageSet
-    import inspect
-    from pathlib import Path
 
-    # Part 1: Verify make_stage_set is deterministic
-    # ================================================================
     stage_set_1 = make_stage_set(
         strategy="arithmetic_mean",
         strategy_temperature=1.0,
@@ -281,30 +245,12 @@ def test_stage_set_reproducibility_and_use():
     assert type(stage_set_1.ar_logit_transform) == type(stage_set_2.ar_logit_transform)
     assert type(stage_set_1.tie_group_fuse) == type(stage_set_2.tie_group_fuse)
 
-    # Part 2: Verify stage_set is not constructed inside _call_kernel
-    # ================================================================
-    # Read kernel_dispatch.py and check that _call_kernel doesn't call make_stage_set
+    # Verify kernel_dispatch.py does not call make_stage_set (it now uses InferencePlan)
+    from pathlib import Path
     kd_path = Path(__file__).parent.parent.parent / "src/prxteinmpnn/host/kernel_dispatch.py"
     assert kd_path.exists(), f"kernel_dispatch.py not found at {kd_path}"
-
     source = kd_path.read_text()
-
-    # Find _call_kernel function definition
-    import re
-    call_kernel_match = re.search(
-        r'def _call_kernel\(.*?\):\n(.*?)(?=\n  def |\n  # |\Z)',
-        source,
-        re.DOTALL
+    assert "make_stage_set" not in source, (
+        "kernel_dispatch.py must not call make_stage_set; "
+        "stage_set is accessed via plan.stage_set (InferencePlan)"
     )
-
-    if call_kernel_match:
-        call_kernel_body = call_kernel_match.group(1)
-        # Verify make_stage_set is NOT called within _call_kernel
-        assert "make_stage_set" not in call_kernel_body, (
-            "_call_kernel should not call make_stage_set; stage_set should be "
-            "hoisted to runner.py and passed as parameter"
-        )
-        # Verify stage_set is used (referenced) within _call_kernel
-        assert "stage_set" in call_kernel_body, (
-            "_call_kernel should receive stage_set as parameter and use it"
-        )

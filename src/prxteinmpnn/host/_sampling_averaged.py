@@ -248,20 +248,7 @@ def _original_sample_batch_averaged(
   return sampled_sequences, logits, None
 
 
-def _sample_batch_averaged(
-  spec: SamplingSpecification,
-  batched_ensemble: Protein,
-  model: "PrxteinMPNN",
-  sample_fn: Callable,  # noqa: ARG001
-  decode_fn: Callable,  # noqa: ARG001
-  batch_idx: int,
-  structure_batch_count: int,
-  *,
-  keys: PRNGKeyArray,
-  tie_group_map: jnp.ndarray | None,
-  num_groups: int | None,
-  create_decode_wrapper: Callable,
-) -> tuple[ProteinSequence, jax.Array]:
+def _sample_batch_averaged(*args: object, **kwargs: object) -> tuple[ProteinSequence, jax.Array]:
   """Deprecated: Use the composable sampling pipeline with InferencePlan instead."""
   warnings.warn(
     "_sample_batch_averaged is deprecated. Use _sample_batch with a plan that has "
@@ -269,17 +256,5 @@ def _sample_batch_averaged(
     DeprecationWarning,
     stacklevel=2,
   )
-  return _original_sample_batch_averaged(
-    spec,
-    batched_ensemble,
-    model,
-    sample_fn,
-    decode_fn,
-    batch_idx,
-    structure_batch_count,
-    keys=keys,
-    tie_group_map=tie_group_map,
-    num_groups=num_groups,
-    create_decode_wrapper=create_decode_wrapper,
-  )
+  return _original_sample_batch_averaged(*args, **kwargs)
 

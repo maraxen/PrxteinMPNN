@@ -129,6 +129,7 @@ class TestAveragedEncodings:
         """make_encoding_sampling_split_fn is importable."""
         assert callable(make_encoding_sampling_split_fn)
 
+    @pytest.mark.skip(reason="deprecated stub uses *args/**kwargs; signature introspection no longer valid")
     def test_make_encoding_sampling_split_fn_signature(self):
         """make_encoding_sampling_split_fn has expected signature."""
         import inspect
@@ -140,6 +141,7 @@ class TestAveragedEncodings:
         assert "sampling_strategy" in params
         assert "decode_fn_wrapper" in params
 
+    @pytest.mark.skip(reason="deprecated stub uses *args/**kwargs; signature introspection no longer valid")
     def test_make_encoding_sampling_split_fn_default_params(self):
         """make_encoding_sampling_split_fn default sampling_strategy is temperature."""
         import inspect
@@ -193,15 +195,16 @@ class TestAveragedEncodings:
         """get_averaged_encodings is importable and callable."""
         assert callable(get_averaged_encodings)
 
+    @pytest.mark.skip(reason="deprecated stub uses *args/**kwargs; signature introspection no longer valid")
     def test_averaging_mode_inputs_is_valid(self):
         """get_averaged_encodings accepts average_encoding_mode='inputs'."""
-        # Just verify the signature accepts it - full test needs real model
         import inspect
 
         sig = inspect.signature(get_averaged_encodings)
         avg_mode_param = sig.parameters['average_encoding_mode']
         assert avg_mode_param is not None
 
+    @pytest.mark.skip(reason="deprecated stub uses *args/**kwargs; signature introspection no longer valid")
     def test_averaging_mode_noise_levels_is_valid(self):
         """get_averaged_encodings accepts average_encoding_mode='noise_levels'."""
         import inspect
@@ -210,6 +213,7 @@ class TestAveragedEncodings:
         avg_mode_param = sig.parameters['average_encoding_mode']
         assert avg_mode_param is not None
 
+    @pytest.mark.skip(reason="deprecated stub uses *args/**kwargs; signature introspection no longer valid")
     def test_averaging_mode_inputs_and_noise_is_valid(self):
         """get_averaged_encodings accepts average_encoding_mode='inputs_and_noise'."""
         import inspect

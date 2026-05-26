@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any
 
 import jax.numpy as jnp
 
-from prxteinmpnn.host._sampling_averaged import _sample_batch_averaged
 from prxteinmpnn.host._sampling_grid_lineage import (
   _grid_iteration_arrays,
   _grid_manifest_row_hash,
@@ -20,7 +19,6 @@ from prxteinmpnn.host._sampling_helper import (
   _canonical_structure_ids_for_spec,
   _structure_ids_for_batch,
 )
-from prxteinmpnn.host.averaging import make_encoding_sampling_split_fn
 from prxteinmpnn.host.kernel_dispatch import _sample_batch
 from prxteinmpnn.host.logit_aggregation import (
   aggregate_logits,
@@ -40,7 +38,6 @@ from prxteinmpnn.host.streaming import (
   GRID_SCHEMA_VERSION,
   SAMPLING_SCHEMA_VERSION,
   _sample_streaming,
-  _sample_streaming_averaged,
 )
 from prxteinmpnn.host.streaming_host import StreamingBatchHost
 from prxteinmpnn.run.specs import SamplingSpecification, pop_deprecated_spec_kwargs
@@ -110,8 +107,6 @@ def sample(
             Number of structures per batch.
         return_logits : bool, optional
             Whether to return logits for each position.
-        average_node_features : bool, optional
-            Whether to average node features across states.
         output_h5_path : str, optional
             Path to streaming H5 output file.
         grid_mode : bool, optional
@@ -141,7 +136,7 @@ def sample(
   -----
   Streaming vs. in-memory: If output_h5_path is set, uses streaming I/O.
   Otherwise, concatenates per-batch results in memory. See _sample_streaming
-  and _sample_streaming_averaged for streaming modes.
+  in streaming.py for streaming mode details.
 
   References
   ----------
@@ -160,13 +155,8 @@ def sample(
 
   protein_iterator, model = prep_protein_stream_and_model(spec)
 
-  # Construct inference plan once before routing to averaged or non-streaming path
+  # Construct inference plan once before routing to streaming or non-streaming path
   plan = make_inference_plan(model, spec)
-
-  if spec.average_node_features:
-    if spec.output_h5_path:
-      return _sample_streaming_averaged(spec, protein_iterator, model, _sample_batch_averaged)
-    return _sample_non_streaming_averaged(spec, protein_iterator, model)
 
   if spec.output_h5_path:
     return _sample_streaming(spec, protein_iterator, plan, _sample_batch)
@@ -265,87 +255,3 @@ def sample(
 
 
 
-
-
-
-
-def _sample_non_streaming_averaged(
-  spec: SamplingSpecification,
-  protein_iterator: IterDataset,
-  model: PrxteinMPNN,
-) -> dict[str, Any]:
-  """Sample sequences with averaged node features, no streaming I/O.
-
-  Splits encoding and sampling via make_encoding_sampling_split_fn to enable
-  per-structure averaging of node features across multiple forward passes.
-  Processes batches in-memory and concatenates results.
-
-  Parameters
-  ----------
-  spec : SamplingSpecification
-      Sampling configuration (must have average_node_features=True
-      and output_h5_path=None).
-  protein_iterator : IterDataset
-      Grain IterDataset yielding batches of structures (coordinates, residue types, etc.).
-  model : PrxteinMPNN
-      Model instance with encoder, decoder, and projection layers.
-
-  Returns
-  -------
-  dict[str, Any]
-      Dictionary with keys:
-        sequences : jax.Array
-            Sampled sequences. Shape: (B*N, L).
-        logits : jax.Array
-            Per-position logits. Shape: (B*N, L, 21).
-        pseudo_perplexity : jax.Array or None
-            Per-sequence pseudo-perplexity if computed.
-        schema_version : str
-            Schema version ('sampling_averaged_v1').
-        metadata : dict
-            Specification and batch metadata.
-
-  Notes
-  -----
-  Used when average_node_features=True and output_h5_path=None (in-memory mode).
-  Iterates over batches, calls _sample_batch_averaged per batch, concatenates results.
-
-  References
-  ----------
-  .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
-     sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
-     https://doi.org/10.1126/science.add2187
-
-  .. [LigandMPNN] Dauparas, J., et al. "Atomic context-conditioned protein
-     sequence design using LigandMPNN." *Nature Methods* 22(4):717-723 (2025).
-     https://doi.org/10.1038/s41592-025-02626-1
-  """
-  _, sample_fn, decode_fn = make_encoding_sampling_split_fn(model)
-
-  all_sequences, all_logits, all_pseudo_perplexities = [], [], []
-  structure_batch_count_avg = StreamingBatchHost.structure_batch_count(protein_iterator)
-
-  for batch_idx, batched_ensemble in enumerate(protein_iterator):
-    sampled_sequences, sampled_logits, pseudo_perplexity = _sample_batch_averaged(
-      spec,
-      batched_ensemble,
-      model,
-      sample_fn,
-      decode_fn,
-      batch_idx,
-      structure_batch_count_avg,
-    )
-    all_sequences.append(sampled_sequences)
-    all_logits.append(sampled_logits)
-    if pseudo_perplexity is not None:
-      all_pseudo_perplexities.append(pseudo_perplexity)
-
-  return {
-    "sequences": jnp.concatenate(all_sequences, axis=0),
-    "logits": aggregate_logits(all_logits),
-    "pseudo_perplexity": aggregate_pseudo_perplexities(all_pseudo_perplexities) if all_pseudo_perplexities else None,
-    "schema_version": "sampling_averaged_v1",
-    "metadata": {
-      "specification": spec,
-    },
-  }

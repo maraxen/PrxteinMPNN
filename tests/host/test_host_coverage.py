@@ -1,7 +1,6 @@
 """Unit tests for host dispatch layer coverage.
 
 Covers:
-  - kernel_dispatch.py: resolve_kernel_fn, _sample_batch dispatch logic
   - sampling_driver.py: SamplingDriver initialization, registry lookups
   - averaging.py: logit aggregation, encode/sample splitting functions
   - prep.py: bundle/config preparation, checkpoint resolution
@@ -18,7 +17,6 @@ import jax.numpy as jnp
 import pytest
 from jax import random
 
-from prxteinmpnn.host.kernel_dispatch import resolve_kernel_fn
 from prxteinmpnn.host.sampling_driver import SamplingDriver
 from prxteinmpnn.host.averaging import (
     get_averaged_encodings,
@@ -31,76 +29,6 @@ from prxteinmpnn.host.prep import (
 )
 from prxteinmpnn.run.specs import SamplingSpecification
 from prxteinmpnn.utils.data_structures import Protein
-
-
-# ============================================================================
-# kernel_dispatch.py tests
-# ============================================================================
-
-
-class TestResolveKernelFn:
-    """Test kernel strategy resolution."""
-
-    def test_resolve_temperature_strategy(self):
-        """resolve_kernel_fn('temperature') returns autoregressive kernel."""
-        from prxteinmpnn.inference import sample_autoregressive as sample_ar
-
-        fn = resolve_kernel_fn("temperature")
-        assert fn is sample_ar.kernel
-
-    def test_resolve_straight_through_strategy(self):
-        """resolve_kernel_fn('straight_through') returns STE wrapper."""
-        fn = resolve_kernel_fn("straight_through")
-        assert callable(fn)
-
-    def test_resolve_unknown_strategy_fallback(self):
-        """resolve_kernel_fn with unknown strategy falls back to AR kernel."""
-        from prxteinmpnn.inference import sample_autoregressive as sample_ar
-
-        fn = resolve_kernel_fn("unknown_strategy")
-        assert fn is sample_ar.kernel
-
-    def test_temperature_and_ste_differ(self):
-        """Temperature and STE strategies resolve to different callables."""
-        fn_temp = resolve_kernel_fn("temperature")
-        fn_ste = resolve_kernel_fn("straight_through")
-        assert fn_temp is not fn_ste
-
-
-class TestStraightThroughWrapper:
-    """Test STE kernel wrapper contract."""
-
-    def test_ste_wrapper_returns_callable(self):
-        """STE wrapper returns a callable with correct signature."""
-        fn = resolve_kernel_fn("straight_through")
-        assert callable(fn)
-
-    def test_ste_wrapper_has_kernel_signature(self):
-        """STE wrapper signature: (model, key, bundle, config, stage_set) -> result."""
-        import inspect
-
-        fn = resolve_kernel_fn("straight_through")
-        sig = inspect.signature(fn)
-        params = list(sig.parameters.keys())
-        assert params == ["model", "prng_key", "bundle", "config", "stage_set"]
-
-    def test_ste_wrapper_imports_correct_modules(self):
-        """STE wrapper can be resolved without errors."""
-        # Verify that resolving "straight_through" doesn't raise
-        fn = resolve_kernel_fn("straight_through")
-        assert callable(fn)
-        # Check that it's not the same as temperature kernel
-        temp_fn = resolve_kernel_fn("temperature")
-        assert fn is not temp_fn
-
-    def test_ste_wrapper_is_distinct_from_temperature(self):
-        """STE wrapper is a different callable than temperature strategy."""
-        ste_fn = resolve_kernel_fn("straight_through")
-        temp_fn = resolve_kernel_fn("temperature")
-        # They should be different functions
-        assert ste_fn is not temp_fn
-        assert callable(ste_fn)
-        assert callable(temp_fn)
 
 
 # ============================================================================
@@ -540,28 +468,6 @@ class TestResolveLocalCheckpoint:
 
         result = _resolve_local_checkpoint_from_registry(spec)
         assert Path(result) == artifact_path
-
-
-# ============================================================================
-# Integration tests
-# ============================================================================
-
-
-class TestKernelDispatchIntegration:
-    """Integration tests for dispatch layer."""
-
-    def test_resolve_kernel_fn_temperature_with_mocked_call(self):
-        """Test that temperature kernel can be called with mocked objects."""
-        from prxteinmpnn.inference.sample_autoregressive import SampleResult
-
-        fn = resolve_kernel_fn("temperature")
-        assert callable(fn)
-        # Note: Can't actually call without full model setup, just verify it's the right fn
-
-    def test_resolve_kernel_fn_ste_mock_result_shape(self):
-        """Test STE wrapper result shape matches expected interface."""
-        fn = resolve_kernel_fn("straight_through")
-        assert callable(fn)
 
 
 if __name__ == "__main__":

@@ -307,6 +307,7 @@ class SamplingSpecification(RunSpecification):
   num_samples: int = 1
   sampling_strategy: Literal["temperature", "straight_through"] = "temperature"
   temperature: Sequence[float] | float = 0.1
+  use_unified_driver: bool = False
   bias: ArrayLike | None = None
   fixed_positions: ArrayLike | None = None
   fixed_mask: ArrayLike | None = None

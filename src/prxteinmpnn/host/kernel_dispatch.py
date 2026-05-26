@@ -38,6 +38,40 @@ if TYPE_CHECKING:
   from prxteinmpnn.utils.data_structures import Protein
 
 
+def _dispatch_axis(strategy, body, xs, *, batch_size_fallback: int = 0):
+  """Dispatch iteration over an axis using the declared AxisStrategy.
+
+  Args:
+      strategy: AxisStrategy from BatchPlanner — Vmap, SafeMap, or Scan.
+      body: Function to apply at each element. For Vmap/SafeMap: body(x) -> y.
+            For Scan: called as body(x) -> y; carry is threaded around it.
+      xs: Input array or pytree to map over (leading axis = the mapped axis).
+      batch_size_fallback: Used only if strategy is not an AxisStrategy instance
+          (backward compat with callers that don't have the strategy field yet).
+
+  Returns:
+      Stacked results, same leading shape as xs.
+  """
+  from prxteinmpnn.tiling.strategy import SafeMap, Scan, Vmap
+  from prxteinmpnn.utils.safe_scan import safe_scan
+
+  if isinstance(strategy, Vmap):
+    return jax.vmap(body)(xs)
+  if isinstance(strategy, SafeMap):
+    return _safe_map(body, xs, batch_size=strategy.tile)
+  if isinstance(strategy, Scan):
+    # Wrap body to be scan-compatible: body is (x -> y), transition threads carry.
+    # For default case (init=None, no real carry), this is a carry-passthrough.
+    init = strategy.init if strategy.init is not None else jnp.array(0)
+    def scan_body(carry, x):
+      y = body(x)
+      return carry, y  # carry-passthrough: carry is not updated
+    _, ys = safe_scan(scan_body, xs, init=init)
+    return ys
+  # Fallback: treat as safe_map with batch_size_fallback
+  return _safe_map(body, xs, batch_size=batch_size_fallback)
+
+
 def _sample_batch(
   spec: SamplingSpecification,
   batched_ensemble: "Protein",
@@ -115,7 +149,68 @@ def _sample_batch(
   )
 
   # 4. Dispatch — two paths based on whether encoding_fusion is wired (Python-level static check)
-  if plan.stage_set.encoding_fusion is None:
+  # Check spec for unified driver flag (defaults to False — no behavior change)
+  _use_unified = getattr(spec, "use_unified_driver", False)
+
+  if _use_unified and plan.stage_set.encoding_fusion is None:
+    # -------------------------------------------------------------------------
+    # Unified Path A: strategy-dispatched axis iteration using AxisDecision.strategy
+    # Reads strategy from batch_plan.decision_for(axis_name) instead of batch_size ints.
+    # -------------------------------------------------------------------------
+    struct_decision = batch_plan.decision_for("n_structures")
+    noise_decision = batch_plan.decision_for("n_noises")
+    temp_decision = batch_plan.decision_for("n_temperatures")
+    sample_decision = batch_plan.decision_for("n_samples")
+
+    def _unified_call_kernel(key_samples, structure_idx, noise_val, temp_val):
+        c = batched_ensemble.coordinates[structure_idx]
+        m = batched_ensemble.mask[structure_idx]
+        ri = batched_ensemble.residue_index[structure_idx]
+        ci = batched_ensemble.chain_index[structure_idx]
+        fm = fixed_mask_for_vmap[structure_idx]
+        ft = fixed_tokens_for_vmap[structure_idx]
+
+        bundle, config = build_inference_bundle(
+            coords=c, mask=m, residue_index=ri, chain_index=ci,
+            backbone_noise=noise_val,
+            fixed_mask=fm, fixed_tokens=ft,
+            bias=jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
+            tie_group_map=tie_map_for_vmap[structure_idx] if tie_map_for_vmap is not None else None,
+            state_weights=state_weights,
+            ligand_coords=ligand_context["y"][structure_idx] if ligand_context["y"] is not None else None,
+            ligand_atom_types=ligand_context["y_t"][structure_idx] if ligand_context["y_t"] is not None else None,
+            ligand_mask=ligand_context["y_m"][structure_idx] if ligand_context["y_m"] is not None else None,
+            structure_mapping=mapping_for_vmap[structure_idx] if mapping_for_vmap is not None else None,
+            temperature=temp_val,
+            mode="sample_ar",
+            use_rolling_state=spec.use_rolling_state,
+            inference=True,
+        )
+
+        encode_key = jax.random.fold_in(base_key, structure_idx)
+        enc = plan.encode(bundle, encode_key, config)
+
+        for _sink in plan.stage_set.encoder_sink:
+            _sink(enc, jnp.int32(batch_idx), structure_idx, jnp.int32(0))
+
+        def _run_one_sample(k):
+            res = plan.decode(enc, bundle, k, config)
+            return res.sequence, res.logits
+
+        return _dispatch_axis(sample_decision.strategy, _run_one_sample, key_samples)
+
+    def _unified_dispatch_structure(s_idx):
+        def _dispatch_noise(n_val):
+            def _dispatch_temp(t_val):
+                return _unified_call_kernel(sample_keys, s_idx, n_val, t_val)
+            return _dispatch_axis(temp_decision.strategy, _dispatch_temp, temperatures)
+        return _dispatch_axis(noise_decision.strategy, _dispatch_noise, noises)
+
+    sampled_sequences, sampled_logits = _dispatch_axis(
+        struct_decision.strategy, _unified_dispatch_structure, jnp.arange(batch_size)
+    )
+
+  elif plan.stage_set.encoding_fusion is None:
     # -------------------------------------------------------------------------
     # Path A: no fusion — standard encode-per-(structure, noise, temp) topology
     # -------------------------------------------------------------------------

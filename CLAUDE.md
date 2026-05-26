@@ -177,6 +177,50 @@ Wave 6 (P2/P3 — done ✅):
 
 ---
 
+### Sprint 5 — Composable Axis-Iteration Pipeline ✅
+
+**Branch:** `refactor-full` | **Commits:** `6f17aa18` → `97a703b7`
+
+```
+Wave A (parallel, new files — complete):
+  [x] S5-A1  AxisStrategy sealed union + ScanTransition protocol
+              src/prxteinmpnn/tiling/strategy.py; commit: 6f17aa18
+  [x] S5-A2  safe_scan carry-bearing primitive
+              src/prxteinmpnn/utils/safe_scan.py; commit: dc59491e
+  [x] S5-A3  Fuse/Tap/Sink protocols + AxisBoundary eqx.Module
+              src/prxteinmpnn/types/boundaries.py; commit: 06733964
+  [x] S5-A4  CarrySpec with heterogeneous-axis guard
+              src/prxteinmpnn/tiling/carry.py; commit: e76be656
+
+Wave B (after A — complete):
+  [x] S5-B5  AxisDecision.strategy + BatchPlanner Phase 0 carry pre-demotion
+              planner.py carries list + strategy field on AxisDecision; commit: 8d42365d
+  [x] S5-B6  StageSet encoder_sink → tuple[...]; axis_boundaries static slot
+              stages.py + kernel_dispatch.py sink iteration; commit: ec5c783e
+
+Wave C (after B — complete):
+  [x] S5-C7  PlanTopologyError + _validate_plan_topology in host/plan.py
+              Two mandatory rejections: Scan on heterogeneous; ordered on Vmap; commit: 34d45a7b
+
+Wave D (after C — complete):
+  [x] S5-D8  6-test regression suite (hard gate for unified driver); commit: 34e40088
+  [x] S5-D9  Unified driver Path A behind use_unified_driver flag; commit: 8f8d7ccb
+  [x] S5-D10 Unified driver Path B + use_unified_driver defaults to True; commit: 4fc0aa8b
+
+Wave E (after D — complete):
+  [x] S5-E11 Retire use_rolling_state branch → _VmapEncode/_ScanEncode eqx.Module subclasses
+             encode.py + remove use_rolling_state from InferenceConfig; commit: 97a703b7
+```
+
+**Invariants preserved:**
+- `InferenceBundle` and sub-bundles — untouched
+- `SamplerFn`/`ScoreFn` top-level signatures — untouched
+- `safe_map` "no carry" contract — untouched (`safe_scan` is a separate sibling)
+- `make_stage_set` single StageSet construction site — untouched
+- Kernel math (scatter, scan layouts, grad/remat) — untouched
+
+---
+
 ### Downstream (post-Sprint 2)
 
 - **IREE-WASM**: StableHLO → WASM for browser CPU inference (gate `iree` as optional extras)

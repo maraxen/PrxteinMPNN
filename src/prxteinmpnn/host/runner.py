@@ -35,7 +35,6 @@ from prxteinmpnn.host.plan import (
   resolve_chunk_size,
   resolve_target_samples,
 )
-from prxteinmpnn.inference.logits import make_stage_set
 from prxteinmpnn.host.streaming import (
   GRID_SCHEMA_VERSION,
   SAMPLING_SCHEMA_VERSION,

@@ -15,8 +15,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar, runtime_checkable
 
-import jax
 import equinox as eqx
+import jax
 from jaxtyping import Array, Float, Int
 
 if TYPE_CHECKING:
@@ -103,7 +103,7 @@ class EncoderSinkFn(Protocol):
 
     def __call__(
         self,
-        enc: "EncoderOutput",
+        enc: EncoderOutput,
         batch_idx: jax.Array,
         structure_idx: jax.Array,
         noise_idx: jax.Array,
@@ -121,7 +121,7 @@ class EncodingFusionFn(Protocol):
     K<D for cluster representatives, etc.).
     """
 
-    def __call__(self, stacked: "EncoderOutput") -> "EncoderOutput":
+    def __call__(self, stacked: EncoderOutput) -> EncoderOutput:
         ...
 
 

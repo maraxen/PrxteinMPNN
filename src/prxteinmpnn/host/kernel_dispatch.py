@@ -210,6 +210,83 @@ def _sample_batch(
         struct_decision.strategy, _unified_dispatch_structure, jnp.arange(batch_size)
     )
 
+  elif _use_unified and plan.stage_set.encoding_fusion is not None:
+    # -------------------------------------------------------------------------
+    # Unified Path B: strategy-dispatched encoding fusion + decoding
+    # -------------------------------------------------------------------------
+    struct_decision = batch_plan.decision_for("n_structures")
+    noise_decision = batch_plan.decision_for("n_noises")
+    temp_decision = batch_plan.decision_for("n_temperatures")
+    sample_decision = batch_plan.decision_for("n_samples")
+
+    def _unified_call_structure_fused(structure_idx):
+        c = batched_ensemble.coordinates[structure_idx]
+        m = batched_ensemble.mask[structure_idx]
+        ri = batched_ensemble.residue_index[structure_idx]
+        ci = batched_ensemble.chain_index[structure_idx]
+        fm = fixed_mask_for_vmap[structure_idx]
+        ft = fixed_tokens_for_vmap[structure_idx]
+
+        def _build_bundle(noise_val, temperature_val=jnp.float32(1.0)):
+            return build_inference_bundle(
+                coords=c, mask=m, residue_index=ri, chain_index=ci,
+                backbone_noise=noise_val,
+                fixed_mask=fm, fixed_tokens=ft,
+                bias=jnp.asarray(spec.bias, dtype=jnp.float32) if spec.bias is not None else None,
+                tie_group_map=tie_map_for_vmap[structure_idx] if tie_map_for_vmap is not None else None,
+                state_weights=state_weights,
+                ligand_coords=ligand_context["y"][structure_idx] if ligand_context["y"] is not None else None,
+                ligand_atom_types=ligand_context["y_t"][structure_idx] if ligand_context["y_t"] is not None else None,
+                ligand_mask=ligand_context["y_m"][structure_idx] if ligand_context["y_m"] is not None else None,
+                structure_mapping=mapping_for_vmap[structure_idx] if mapping_for_vmap is not None else None,
+                temperature=temperature_val,
+                mode="sample_ar",
+                use_rolling_state=spec.use_rolling_state,
+                inference=True,
+            )
+
+        # Step 1: encode at each noise level using the noise axis strategy
+        noise_indices = jnp.arange(len(spec.backbone_noise), dtype=jnp.int32)
+
+        def _encode_at_noise(noise_and_idx):
+            noise_val, noise_idx = noise_and_idx
+            bundle, config = _build_bundle(noise_val)
+            encode_key = jax.random.fold_in(base_key, structure_idx)
+            enc = plan.encode(bundle, encode_key, config)
+            for _sink in plan.stage_set.encoder_sink:
+                _sink(enc, jnp.int32(batch_idx), structure_idx, noise_idx)
+            return enc
+
+        stacked_enc = _dispatch_axis(
+            noise_decision.strategy, _encode_at_noise, (noises, noise_indices)
+        )
+
+        # Step 2: fuse D encoded outputs → K
+        fused_enc = plan.stage_set.encoding_fusion(stacked_enc)
+
+        # Build decode bundle at noise=0 (fusion already handled noise variation)
+        decode_bundle, _ = _build_bundle(jnp.float32(0.0))
+
+        # Step 3: decode K times × temperatures × samples
+        def _call_decode_one_enc(enc_k):
+            def _dispatch_temp(temp_val):
+                _, t_config = _build_bundle(jnp.float32(0.0), temperature_val=temp_val)
+
+                def _run_one_sample(k):
+                    res = plan.decode(enc_k, decode_bundle, k, t_config)
+                    return res.sequence, res.logits
+
+                return _dispatch_axis(sample_decision.strategy, _run_one_sample, sample_keys)
+
+            return _dispatch_axis(temp_decision.strategy, _dispatch_temp, temperatures)
+
+        # Map decode over K fused encodings (use _safe_map for this axis as it has no AxisDecision)
+        return _safe_map(_call_decode_one_enc, fused_enc, batch_size=None)
+
+    sampled_sequences, sampled_logits = _dispatch_axis(
+        struct_decision.strategy, _unified_call_structure_fused, jnp.arange(batch_size)
+    )
+
   elif plan.stage_set.encoding_fusion is None:
     # -------------------------------------------------------------------------
     # Path A: no fusion — standard encode-per-(structure, noise, temp) topology

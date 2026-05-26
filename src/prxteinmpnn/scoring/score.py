@@ -92,7 +92,6 @@ def make_score_fn(
         bias=bias,
         ligand_coords=ligand_coords, ligand_atom_types=ligand_atom_types, ligand_mask=ligand_mask,
         mode="score_conditional",
-        use_rolling_state=use_rolling_state,
         inference=True,
     )
     stage_set = make_stage_set(

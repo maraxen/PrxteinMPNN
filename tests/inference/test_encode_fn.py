@@ -136,7 +136,6 @@ def test_make_encode_fn_rolling_state_returns_encoder_output():
     )
     config = InferenceConfig(
         backbone_noise_mode="direct",
-        use_rolling_state=True,
         inference=True,
     )
 
@@ -213,12 +212,10 @@ def test_make_encode_fn_scan_vs_vmap_both_return_encoder_output():
     )
     config_scan = InferenceConfig(
         backbone_noise_mode="direct",
-        use_rolling_state=True,
         inference=True,
     )
     config_vmap = InferenceConfig(
         backbone_noise_mode="direct",
-        use_rolling_state=False,
         inference=True,
     )
 

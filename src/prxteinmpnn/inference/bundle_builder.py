@@ -37,7 +37,6 @@ def build_inference_bundle(
     physics_features: jax.Array | None = None,
     temperature: float = 1.0,
     mode: str = "score_conditional",
-    use_rolling_state: bool = False,
     inference: bool = True,
 ) -> tuple[InferenceBundle, InferenceConfig]:
     """Single entry point for bundle construction from raw arrays."""
@@ -144,7 +143,6 @@ def build_inference_bundle(
     config = InferenceConfig(
         mode=mode,
         backbone_noise_mode=backbone_noise_mode,
-        use_rolling_state=use_rolling_state,
         inference=inference,
     )
 

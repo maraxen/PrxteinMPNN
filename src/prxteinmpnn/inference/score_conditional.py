@@ -21,8 +21,8 @@ def kernel(
     import jax
     k_enc, k_dec = jax.random.split(prng_key)
 
-    # Encode using make_encode_fn, which controls scan vs vmap over S states
-    encode_fn = make_encode_fn(model, use_rolling_state=config.use_rolling_state)
+    # Encode using vmap strategy (parallel over S states)
+    encode_fn = make_encode_fn(model, use_rolling_state=False)
     enc = encode_fn(bundle, k_enc, config)
 
     # Delegate to unified driver for conditional decoding

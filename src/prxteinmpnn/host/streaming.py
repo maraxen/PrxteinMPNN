@@ -421,7 +421,7 @@ def _sample_streaming_arrayrecord(
     return results
 
 
-def _sample_streaming_averaged(
+def _original_sample_streaming_averaged(
     spec: SamplingSpecification,
     protein_iterator: IterDataset,
     model: Any,
@@ -469,3 +469,19 @@ def _sample_streaming_averaged(
             "skipped_inputs": getattr(protein_iterator, "skipped_frames", []),
         },
     }
+
+
+def _sample_streaming_averaged(
+    spec: SamplingSpecification,
+    protein_iterator: IterDataset,
+    model: Any,
+    sample_batch_averaged_fn: Callable[..., tuple[Any, Any, Any | None]],
+) -> dict[str, Any]:
+    """Deprecated: Use _sample_streaming with a plan that has ArithmeticMeanEncodingFusion wired."""
+    warnings.warn(
+        "_sample_streaming_averaged is deprecated. Use _sample_streaming with a plan "
+        "that has ArithmeticMeanEncodingFusion wired into stage_set.encoding_fusion.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return _original_sample_streaming_averaged(spec, protein_iterator, model, sample_batch_averaged_fn)

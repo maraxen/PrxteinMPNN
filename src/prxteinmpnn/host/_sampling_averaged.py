@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from functools import partial
 from typing import TYPE_CHECKING
+import warnings
 
 import jax
 import jax.numpy as jnp
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
   from prxteinmpnn.model.mpnn import PrxteinMPNN
 
 
-def _internal_sample_averaged(
+def _original_internal_sample_averaged(
   spec: SamplingSpecification,
   encoded_feat: tuple,
   keys_arr: PRNGKeyArray,
@@ -61,6 +62,26 @@ def _internal_sample_averaged(
   return vmap_sample_fn(keys_arr, decoding_order_keys)
 
 
+def _internal_sample_averaged(
+  spec: SamplingSpecification,
+  encoded_feat: tuple,
+  keys_arr: PRNGKeyArray,
+  sample_fn_with_params: Callable,
+  tie_group_map: jnp.ndarray | None,
+  num_groups: int | None,
+) -> ProteinSequence:
+  """Deprecated: This function is part of the averaged sampling path being migrated."""
+  warnings.warn(
+    "_internal_sample_averaged is deprecated. Use the composable sampling pipeline "
+    "with ArithmeticMeanEncodingFusion in InferencePlan.",
+    DeprecationWarning,
+    stacklevel=2,
+  )
+  return _original_internal_sample_averaged(
+    spec, encoded_feat, keys_arr, sample_fn_with_params, tie_group_map, num_groups
+  )
+
+
 def _compute_logits_averaged(
   spec: SamplingSpecification,
   averaged_encodings: tuple,
@@ -98,7 +119,7 @@ def _compute_logits_averaged(
   return logits
 
 
-def _sample_batch_averaged(
+def _original_sample_batch_averaged(
   spec: SamplingSpecification,
   batched_ensemble: Protein,
   model: "PrxteinMPNN",
@@ -152,7 +173,7 @@ def _sample_batch_averaged(
   )
 
   if spec.average_encoding_mode == "inputs_and_noise":
-    sampled_sequences = _internal_sample_averaged(
+    sampled_sequences = _original_internal_sample_averaged(
       spec,
       averaged_encodings,
       keys,
@@ -165,7 +186,7 @@ def _sample_batch_averaged(
     struct_axis = 0
 
     def _call_internal(enc: tuple) -> ProteinSequence:
-      return _internal_sample_averaged(
+      return _original_internal_sample_averaged(
         spec,
         enc,
         keys,
@@ -225,4 +246,40 @@ def _sample_batch_averaged(
     ordered=False,
   )
   return sampled_sequences, logits, None
+
+
+def _sample_batch_averaged(
+  spec: SamplingSpecification,
+  batched_ensemble: Protein,
+  model: "PrxteinMPNN",
+  sample_fn: Callable,  # noqa: ARG001
+  decode_fn: Callable,  # noqa: ARG001
+  batch_idx: int,
+  structure_batch_count: int,
+  *,
+  keys: PRNGKeyArray,
+  tie_group_map: jnp.ndarray | None,
+  num_groups: int | None,
+  create_decode_wrapper: Callable,
+) -> tuple[ProteinSequence, jax.Array]:
+  """Deprecated: Use the composable sampling pipeline with InferencePlan instead."""
+  warnings.warn(
+    "_sample_batch_averaged is deprecated. Use _sample_batch with a plan that has "
+    "ArithmeticMeanEncodingFusion wired into stage_set.encoding_fusion.",
+    DeprecationWarning,
+    stacklevel=2,
+  )
+  return _original_sample_batch_averaged(
+    spec,
+    batched_ensemble,
+    model,
+    sample_fn,
+    decode_fn,
+    batch_idx,
+    structure_batch_count,
+    keys=keys,
+    tie_group_map=tie_group_map,
+    num_groups=num_groups,
+    create_decode_wrapper=create_decode_wrapper,
+  )
 

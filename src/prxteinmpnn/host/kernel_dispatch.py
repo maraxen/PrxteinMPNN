@@ -147,8 +147,8 @@ def _sample_batch(
         encode_key = jax.random.fold_in(base_key, structure_idx)
         enc = plan.encode(bundle, encode_key, config)
 
-        if plan.stage_set.encoder_sink is not None:
-            plan.stage_set.encoder_sink(enc, jnp.int32(batch_idx), structure_idx, jnp.int32(0))
+        for _sink in plan.stage_set.encoder_sink:
+            _sink(enc, jnp.int32(batch_idx), structure_idx, jnp.int32(0))
 
         def _run_one_sample(k):
             res = plan.decode(enc, bundle, k, config)
@@ -208,8 +208,8 @@ def _sample_batch(
             bundle, config = _build_bundle(noise_val)
             encode_key = jax.random.fold_in(base_key, structure_idx)
             enc = plan.encode(bundle, encode_key, config)
-            if plan.stage_set.encoder_sink is not None:
-                plan.stage_set.encoder_sink(enc, jnp.int32(batch_idx), structure_idx, noise_idx)
+            for _sink in plan.stage_set.encoder_sink:
+                _sink(enc, jnp.int32(batch_idx), structure_idx, noise_idx)
             return enc
 
         stacked_enc = _safe_map(encode_at_noise, (noises, noise_indices), batch_size=noises_bs)

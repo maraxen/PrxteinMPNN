@@ -24,6 +24,7 @@ if TYPE_CHECKING:
         BatchLogitFn,
         TieGroupFuseFn,
     )
+    from prxteinmpnn.types.boundaries import AxisBoundary
     from prxteinmpnn.types.bundles import EncoderOutput
 
 # Type variables for generic protocols
@@ -267,7 +268,8 @@ class StageSet(eqx.Module):
     - Otherwise → conditional scoring (decode_step is ConditionalDecodeStep)
     - If ``encoding_fusion is not None`` → noise axis maps over encode only;
       fusion reduces D → K; decode maps over K outputs
-    - If ``encoder_sink is not None`` → fires io_callback per noise-level encoding, before fusion
+    - If ``encoder_sink`` is non-empty → iterates tuple, fires io_callback per sink
+      per noise-level encoding, before fusion
 
     Parameters
     ----------
@@ -298,6 +300,16 @@ class StageSet(eqx.Module):
         Implements logit fusion across positions sharing the same tie_group_id
         (e.g., TieGroupProductOfExperts for log-softmax sum across ties).
         None = no tied-position fusion (each position treated independently).
+    encoder_sink : tuple[EncoderSinkFn, ...]
+        Zero or more side-effect hooks called once per noise-level encoding.
+        Each sink fires D times per structure (once per noise level), before fusion.
+        Sink implementations MUST use io_callback with ordered=False.
+        Empty tuple (default) = no sinks.
+    axis_boundaries : dict[str, AxisBoundary]
+        Per-axis pipeline boundary configuration mapping axis names to AxisBoundary
+        instances. Each AxisBoundary bundles optional fuse, tap, and sink operations
+        for one named axis. All fields are static — no JAX arrays. Empty dict (default)
+        = no axis-level boundaries.
 
     Notes
     -----
@@ -324,8 +336,9 @@ class StageSet(eqx.Module):
     ) = None
     sample_step: Any | None = None  # None = scoring mode; categorical/gumbel/ste = sampling
     tie_group_fuse: TieGroupFuseFn | None = None
-    encoder_sink: EncoderSinkFn | None = None
+    encoder_sink: tuple[EncoderSinkFn, ...] = ()
     encoding_fusion: EncodingFusionFn | None = None
+    axis_boundaries: dict[str, "AxisBoundary"] = eqx.field(static=True, default_factory=dict)
 
 
 __all__ = [

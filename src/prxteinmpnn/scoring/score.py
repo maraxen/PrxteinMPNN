@@ -9,6 +9,7 @@ from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.inference import score_conditional
 from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+from prxteinmpnn.inference.logits import make_stage_set
 from prxteinmpnn.types.protocols import ModelProtocol, ScoreFn
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.decoding_order import DecodingOrderFn, random_decoding_order
@@ -77,7 +78,7 @@ def make_score_fn(
     else:
         ar_mask_single = ar_mask[0] if ar_mask.ndim == 3 else ar_mask
 
-    bundle, config, stage_set = build_inference_bundle(
+    bundle, config = build_inference_bundle(
         coords=structure_coordinates,
         mask=mask,
         residue_index=residue_index,
@@ -91,10 +92,13 @@ def make_score_fn(
         bias=bias,
         ligand_coords=ligand_coords, ligand_atom_types=ligand_atom_types, ligand_mask=ligand_mask,
         mode="score_conditional",
-        strategy=multi_state_strategy,
-        strategy_temperature=multi_state_temperature,
         use_rolling_state=use_rolling_state,
         inference=True,
+    )
+    stage_set = make_stage_set(
+        strategy=multi_state_strategy,
+        strategy_temperature=multi_state_temperature,
+        state_weights=state_weights,
     )
 
     logits = score_conditional.kernel(model, prng_key, bundle, config, stage_set)

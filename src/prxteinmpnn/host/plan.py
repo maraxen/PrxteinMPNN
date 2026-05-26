@@ -436,8 +436,12 @@ def make_inference_plan(model: ModelProtocol, spec: Any) -> InferencePlan:
        injection over states, identity when S=1).
     4. ``tie_group_fuse`` — always wired as ``TieGroupProductOfExperts()`` (log-softmax sum
        across tied positions).
-    5. ``decode_step`` and ``sample_step`` — both left as ``None`` in the returned plan;
+    5. ``decode_step`` and ``sample_step`` — for ``sampling_strategy="straight_through"``,
+       ``decode_step`` is wired to ``ConditionalDecodeStep`` and ``sample_step`` remains
+       ``None`` (teacher-forced path). All other strategies leave both slots as ``None``;
        driver selects topology at call time based on stage_set slot occupancy.
+    6. ``encoding_fusion`` — wired as ``ArithmeticMeanEncodingFusion`` when
+       ``spec.average_node_features=True``; otherwise left ``None``.
 
     References
     ----------
@@ -465,6 +469,7 @@ def make_inference_plan(model: ModelProtocol, spec: Any) -> InferencePlan:
     # Wire encoding fusion for averaged mode
     if getattr(spec, "average_node_features", False):
         import equinox as eqx
+
         from prxteinmpnn.host.averaging import ArithmeticMeanEncodingFusion
 
         stage_set = eqx.tree_at(
@@ -477,6 +482,7 @@ def make_inference_plan(model: ModelProtocol, spec: Any) -> InferencePlan:
     # Wire STE (straight-through estimator) decode topology
     if getattr(spec, "sampling_strategy", None) == "straight_through":
         import equinox as eqx
+
         from prxteinmpnn.types.stages import ConditionalDecodeStep
 
         conditional_decode_step = ConditionalDecodeStep(

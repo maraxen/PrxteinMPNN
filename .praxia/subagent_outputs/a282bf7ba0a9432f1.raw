@@ -1,0 +1,73 @@
+All signal gathered. Now I'll render the verdict.
+
+---
+
+```json
+{
+  "verdict": "NEEDS_WORK",
+  "confidence": "high",
+  "summary": "T5 and T6 are fully compliant. T7 has a structural defect: the deprecation warnings are present in the function bodies but the spec's own inline test probe calls the shims with zero arguments, causing TypeError before warnings.warn executes. The warnings fire correctly for any legitimate call signature; the zero-arg probe is an incorrect test harness.",
+  "scores": {
+    "functional_correctness": 4,
+    "security": 5,
+    "code_quality": 4,
+    "test_coverage": 3,
+    "error_handling": 4,
+    "documentation": 4
+  },
+  "verification": {
+    "tests": {
+      "status": "passed",
+      "command": "uv run pytest tests/host/test_sampling_tensor_batch_io.py -q",
+      "output_excerpt": "6 passed in 0.96s"
+    },
+    "linting": {
+      "status": "skipped",
+      "command": "not run (not requested by spec)",
+      "output_excerpt": "n/a"
+    },
+    "types": {
+      "status": "skipped",
+      "command": "not run (not requested by spec)",
+      "output_excerpt": "n/a"
+    }
+  },
+  "findings": [
+    {
+      "severity": "warning",
+      "type": "REQUIRED_FIX",
+      "path": "src/prxteinmpnn/host/_sampling_averaged.py",
+      "line": 65,
+      "issue": "The spec's inline probe for T7 calls `fn()` with no arguments. Both `_sample_batch_averaged` (7 required positional args) and `_internal_sample_averaged` (6 required positional args) raise TypeError before the function body — including warnings.warn — is reached. The warnings.warn calls at lines 74 and 266 are structurally correct and WILL fire for any real caller; the defect is in the test probe, not the implementation.",
+      "fix": "The spec's inline test snippet must be updated to pass valid (or minimal mock) positional arguments so the function body is actually entered. Example for _internal_sample_averaged: pass `object(), object(), object(), lambda *a: None, None, None` — or use `unittest.mock.MagicMock()` for each positional. The shim code itself does not need to change."
+    },
+    {
+      "severity": "suggestion",
+      "type": "SUGGESTION",
+      "path": "src/prxteinmpnn/host/_sampling_averaged.py",
+      "line": 74,
+      "issue": "The deprecation warnings are in the function body but there is no automated test in the test suite that exercises the deprecated-shim path with real argument shapes to confirm warnings.warn is reachable.",
+      "fix": "Add a test in tests/host/ (or tests/deprecation/) that calls each shim with mock-compatible arguments inside a warnings.catch_warnings(record=True) block, asserting DeprecationWarning fires."
+    }
+  ],
+  "required_fixes": [
+    "T7 spec probe: update the inline Python snippet so it passes at least one valid (or mock) argument per required positional parameter before calling each deprecated shim. The warnings.warn lines are correctly placed; the zero-arg invocation never reaches them."
+  ],
+  "suggestions": [
+    "Add a proper pytest test in the test suite for the deprecated-shim DeprecationWarning path (not just an inline snippet) to prevent silent regression."
+  ],
+  "next_action": {
+    "kind": "retry",
+    "target": "implementer",
+    "note": "T5 is PASS (0 banned symbols, plan is 3rd positional). T6 is PASS (_original_sample_streaming_averaged preserved, DeprecationWarning wired at streaming.py:484). T7 implementation is correct but the spec test probe is broken — fix the probe or add a proper test, then re-verify."
+  }
+}
+```
+
+**Per-task summary:**
+
+- **T5** — PASS. `runner.py` has zero matches for all five banned symbols. `_sample_batch` signature at `kernel_dispatch.py:41–44` confirms `plan` is the 3rd positional (`spec`, `batched_ensemble`, `plan`), matching the call site at `runner.py:183–186`.
+
+- **T6** — PASS. `streaming.py` has `_original_sample_streaming_averaged` preserved at line 424 and `_sample_streaming_averaged` issues `DeprecationWarning` at line 484.
+
+- **T7** — NEEDS_WORK (spec probe defect, not implementation defect). `warnings.warn` calls are at `_sampling_averaged.py:74` and `_sampling_averaged.py:266`, both correctly placed at the top of each shim. However the spec's inline test calls `fn()` with zero args — Python raises `TypeError` on argument binding *before* entering the function body, so `warnings.warn` is never reached. The test suite (`test_sampling_tensor_batch_io.py`) passes 6/6.

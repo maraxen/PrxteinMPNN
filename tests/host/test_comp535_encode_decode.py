@@ -6,9 +6,11 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import equinox as eqx
+import jax.numpy as jnp
 import pytest
 
 from prxteinmpnn.host.plan import InferencePlan, InferenceComponents, make_inference_plan
+from prxteinmpnn.inference.sample_autoregressive import SampleResult
 
 
 class DummyModel(eqx.Module):
@@ -24,10 +26,16 @@ class DummySpec:
     temperature = [1.0]
 
 
+_DUMMY_SAMPLE_RESULT = SampleResult(
+    sequence=jnp.zeros((5,), dtype=jnp.int32),
+    logits=jnp.zeros((5, 21), dtype=jnp.float32),
+)
+
+
 def _make_plan_with_mocks():
     """Helper: InferencePlan with MagicMock encode_fn, driver, stage_set."""
     encode_fn = MagicMock(name="encode_fn")
-    driver = MagicMock(name="driver")
+    driver = MagicMock(name="driver", return_value=_DUMMY_SAMPLE_RESULT)
     stage_set = MagicMock(name="stage_set")
     components = InferenceComponents(encode_fn=encode_fn, driver=driver, stage_set=stage_set)
     model = MagicMock(name="model")

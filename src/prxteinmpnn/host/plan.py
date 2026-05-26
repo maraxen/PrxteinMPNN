@@ -32,6 +32,14 @@ logger = logging.getLogger(__name__)
 _batch_logger = logging.getLogger(__name__ + ".batch_plan")
 
 
+class PlanTopologyError(ValueError):
+    """Raised at make_inference_plan() time when plan topology is invalid.
+
+    This fires before any JAX compilation — topology errors are caught at
+    plan construction time, not at trace time or runtime.
+    """
+
+
 # Axis name constants for batch planning
 class AxisNames:
     """Named access to batch axes to avoid hardcoded strings."""
@@ -226,6 +234,52 @@ def resolve_sample_start(
         Sample start index (0-based).
     """
     return int(grid_lineage["sample_start"]) if grid_lineage is not None else 0
+
+
+def _validate_plan_topology(
+    plan: BatchPlan,
+    stage_set: "StageSet",
+) -> None:
+    """Validate plan topology at plan construction time.
+
+    Checks:
+    1. No Scan strategy on heterogeneous axes (jax.lax.scan requires static carry shape).
+    2. No ordered=True boundary op (Tap/Sink) on Vmap axes (vmap has no step ordering).
+
+    Raises:
+        PlanTopologyError: on first violation found.
+    """
+    from prxteinmpnn.tiling.strategy import Scan, Vmap
+
+    for d in plan.decisions:
+        # Rule 1: Scan on heterogeneous axis is structurally impossible
+        if d.axis.heterogeneous and isinstance(d.strategy, Scan):
+            msg = (
+                f"PlanTopologyError: axis '{d.axis.name}' is heterogeneous "
+                f"(element shapes vary) but has a Scan strategy. "
+                f"jax.lax.scan requires static carry shape — heterogeneous axes "
+                f"must use SafeMap. Use CarrySpec only on homogeneous axes."
+            )
+            raise PlanTopologyError(msg)
+
+        # Rule 2: ordered boundary op on Vmap axis has no step-ordering guarantee
+        if isinstance(d.strategy, Vmap):
+            boundary = stage_set.axis_boundaries.get(d.axis.name)
+            if boundary is not None:
+                if boundary.tap is not None and getattr(boundary.tap, "ordered", False):
+                    msg = (
+                        f"PlanTopologyError: axis '{d.axis.name}' has an ordered=True "
+                        f"Tap but uses Vmap strategy. vmap does not preserve step order. "
+                        f"Use SafeMap or Scan on axes with ordered boundary ops."
+                    )
+                    raise PlanTopologyError(msg)
+                if boundary.sink is not None and getattr(boundary.sink, "ordered", False):
+                    msg = (
+                        f"PlanTopologyError: axis '{d.axis.name}' has an ordered=True "
+                        f"Sink but uses Vmap strategy. vmap does not preserve step order. "
+                        f"Use SafeMap or Scan on axes with ordered boundary ops."
+                    )
+                    raise PlanTopologyError(msg)
 
 
 # ---------------------------------------------------------------------------

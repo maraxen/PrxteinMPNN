@@ -1,9 +1,11 @@
 """Contains the logic for averaging node features over multiple structures and/or noise levels."""
 
+import warnings
 from collections.abc import Callable, Sequence
 from functools import partial
 from typing import Literal, cast
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxtyping import Float, Int, PRNGKeyArray
@@ -21,13 +23,50 @@ from prxteinmpnn.types.arrays import (
   ResidueIndex,
   StructureAtomicCoordinates,
 )
+from prxteinmpnn.types.bundles import EncoderOutput
 from prxteinmpnn.types.protocols import ModelProtocol
+from prxteinmpnn.types.stages import (
+  EncodingFusionFn as _EncodingFusionFn,  # noqa: F401 (type reference)
+)
 from prxteinmpnn.utils.autoregression import generate_ar_mask
 from prxteinmpnn.utils.data_structures import Protein
 from prxteinmpnn.utils.decoding_order import DecodingOrder, DecodingOrderFn
 
 
-def get_averaged_encodings(
+class ArithmeticMeanEncodingFusion(eqx.Module):
+  """Average D encoded outputs element-wise over the leading noise axis.
+
+  Receives a stacked EncoderOutput with leading D axis (one entry per noise
+  level) and returns a single EncoderOutput with the D axis reduced. K=1 output.
+
+  neighbor_indices and mask are taken from the first noise-level entry (they
+  are structural constants, not noise-varying).
+  """
+
+  def __call__(self, stacked: EncoderOutput) -> EncoderOutput:
+    return cast(
+      EncoderOutput,
+      EncoderOutput(
+        node_features=jnp.mean(stacked.node_features, axis=0),
+        edge_features=jnp.mean(stacked.edge_features, axis=0),
+        neighbor_indices=stacked.neighbor_indices[0],
+        mask=stacked.mask[0],
+      ),
+    )
+
+
+class IdentityEncodingFusion(eqx.Module):
+  """Pass-through fusion: return all D encoded outputs unchanged (K=D).
+
+  No reduction is applied. The output has the same leading D axis as the
+  input. Used for testing arbitrary-K dispatch and as a no-op baseline.
+  """
+
+  def __call__(self, stacked: EncoderOutput) -> EncoderOutput:
+    return cast(EncoderOutput, stacked)
+
+
+def _get_averaged_encodings_legacy(
   batched_ensemble: Protein,
   model: ModelProtocol,
   backbone_noise: Sequence[float] | float,
@@ -172,7 +211,18 @@ def get_averaged_encodings(
   )
 
 
-def make_encoding_sampling_split_fn(
+def get_averaged_encodings(*args, **kwargs):
+  """Deprecated. Use ArithmeticMeanEncodingFusion via StageSet.encoding_fusion instead."""
+  warnings.warn(
+    "get_averaged_encodings is deprecated. Use ArithmeticMeanEncodingFusion "
+    "via StageSet.encoding_fusion instead.",
+    DeprecationWarning,
+    stacklevel=2,
+  )
+  return _get_averaged_encodings_legacy(*args, **kwargs)
+
+
+def _make_encoding_sampling_split_fn_legacy(
   model_parameters: ModelProtocol,
   decoding_order_fn: DecodingOrderFn | None = None,
   sampling_strategy: Literal["temperature", "straight_through"] = "temperature",
@@ -388,3 +438,14 @@ def make_encoding_sampling_split_fn(
     return final_seq
 
   return encode_fn, sample_fn, decode_logits_fn
+
+
+def make_encoding_sampling_split_fn(*args, **kwargs):
+  """Deprecated. Use InferencePlan.encode and InferencePlan.decode instead."""
+  warnings.warn(
+    "make_encoding_sampling_split_fn is deprecated. Use InferencePlan.encode "
+    "and InferencePlan.decode instead.",
+    DeprecationWarning,
+    stacklevel=2,
+  )
+  return _make_encoding_sampling_split_fn_legacy(*args, **kwargs)

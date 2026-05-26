@@ -350,9 +350,18 @@ class InferencePlan:
             SampleResult when stage_set.sample_step is active.
             Return type is driver-dependent; typed Any to match driver: Callable precision.
         """
-        return self.components.driver(
+        from prxteinmpnn.inference.sample_autoregressive import SampleResult
+
+        result = self.components.driver(
             self.model, key, enc, bundle.conditioning, bundle.wave, config, self.components.stage_set,
         )
+        # Normalize: if driver returned raw logits, wrap as SampleResult
+        if not isinstance(result, SampleResult):
+            result = SampleResult(
+                sequence=jnp.argmax(result, axis=-1).astype(jnp.int32),
+                logits=result,
+            )
+        return result
 
     def sample(self, bundle: InferenceBundle, key: PRNGKeyArray, config: InferenceConfig) -> Any:
         """Encode and sample from the pipeline.
@@ -452,6 +461,35 @@ def make_inference_plan(model: ModelProtocol, spec: Any) -> InferencePlan:
     state_weights = getattr(spec, "state_weights", None)
 
     stage_set = make_stage_set(strategy_name, strategy_temp, state_weights)
+
+    # Wire encoding fusion for averaged mode
+    if getattr(spec, "average_node_features", False):
+        import equinox as eqx
+        from prxteinmpnn.host.averaging import ArithmeticMeanEncodingFusion
+
+        stage_set = eqx.tree_at(
+            lambda s: s.encoding_fusion,
+            stage_set,
+            ArithmeticMeanEncodingFusion(),
+            is_leaf=lambda x: x is None,
+        )
+
+    # Wire STE (straight-through estimator) decode topology
+    if getattr(spec, "sampling_strategy", None) == "straight_through":
+        import equinox as eqx
+        from prxteinmpnn.types.stages import ConditionalDecodeStep
+
+        conditional_decode_step = ConditionalDecodeStep(
+            decoder=model.decoder,
+            w_s_embed=model.w_s_embed.weight,
+        )
+        stage_set = eqx.tree_at(
+            lambda s: s.decode_step,
+            stage_set,
+            conditional_decode_step,
+            is_leaf=lambda x: x is None,
+        )
+        # sample_step stays None (already None from make_stage_set) — teacher-forced path
 
     components = InferenceComponents(
         encode_fn=encode_fn,

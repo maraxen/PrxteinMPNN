@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import dataclasses
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from prxteinmpnn.tiling.carry import CarrySpec
+
+from prxteinmpnn.tiling.strategy import AxisStrategy, SafeMap, Scan, Vmap
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +62,7 @@ class AxisDecision:
     axis: AxisSpec
     batch_size: int        # 0 = vmap; positive = safe_map tile size
     reasoning: str
+    strategy: AxisStrategy = dataclasses.field(default_factory=Vmap)
 
 
 @dataclass(frozen=True)
@@ -97,25 +102,58 @@ class BatchPlanner:
     axes: list[AxisSpec]
     budget_bytes: float
     estimate_memory: Callable[..., float]
+    carries: list[CarrySpec] = dataclasses.field(default_factory=list)
 
     def plan(self) -> BatchPlan:
+        from prxteinmpnn.tiling.carry import CarrySpec as _CarrySpec  # local import
+
         sorted_axes = sorted(self.axes, key=lambda a: a.axis_index)
+        carry_by_name = {c.axis_name: c for c in self.carries}
+
+        # Phase 0: pre-demote axes with declared CarrySpec to Scan (before budget loop)
+        phase0_decisions: list[AxisDecision] = []
+        phase0_names: set[str] = set()
+        for ax in sorted_axes:
+            if ax.name in carry_by_name:
+                cs = carry_by_name[ax.name]
+                scan_strategy = Scan(
+                    init=cs.init,
+                    transition=cs.transition,
+                    ordered_sinks=cs.ordered_sinks,
+                )
+                phase0_decisions.append(AxisDecision(
+                    axis=ax,
+                    batch_size=1,
+                    reasoning=f"carry-bearing scan (CarrySpec declared for '{ax.name}')",
+                    strategy=scan_strategy,
+                ))
+                phase0_names.add(ax.name)
+
+        remaining = [ax for ax in sorted_axes if ax.name not in phase0_names]
 
         # Phase 1: pre-demote heterogeneous axes (shapes vary; vmap invalid)
-        decisions: list[AxisDecision] = []
-        for ax in sorted_axes:
+        decisions: list[AxisDecision] = list(phase0_decisions)
+        het_names: set[str] = set()
+        for ax in remaining:
             if ax.heterogeneous:
                 tile = max(1, ax.tile_granularity)
                 decisions.append(AxisDecision(
                     axis=ax,
                     batch_size=tile,
                     reasoning="heterogeneous axis: element shapes vary; safe_map required",
+                    strategy=SafeMap(tile=tile),
                 ))
+                het_names.add(ax.name)
 
         # Phase 2: greedy budget loop for homogeneous axes (innermost-first)
-        homogeneous = [ax for ax in sorted_axes if not ax.heterogeneous]
+        homogeneous = [ax for ax in remaining if not ax.heterogeneous]
         hom_decisions: list[AxisDecision] = [
-            AxisDecision(axis=ax, batch_size=0, reasoning="vmap (homogeneous, within budget)")
+            AxisDecision(
+                axis=ax,
+                batch_size=0,
+                reasoning="vmap (homogeneous, within budget)",
+                strategy=Vmap(),
+            )
             for ax in homogeneous
         ]
         for i, ax in enumerate(homogeneous):
@@ -127,6 +165,7 @@ class BatchPlanner:
                 axis=ax,
                 batch_size=tile,
                 reasoning=f"demoted to safe_map tile={tile}: estimate exceeded budget",
+                strategy=SafeMap(tile=tile),
             )
 
         all_decisions = decisions + hom_decisions

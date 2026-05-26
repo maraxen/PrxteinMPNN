@@ -87,7 +87,7 @@ Wave E (after COMP-6 + COMP-7):
 
 ---
 
-### Sprint 4 — InferencePlan / Campaign Composability Wiring (#531–536)
+### Sprint 4 — InferencePlan / Campaign Composability Wiring (#531–536) ✅
 
 **Praxia backlog IDs:** 531–536
 

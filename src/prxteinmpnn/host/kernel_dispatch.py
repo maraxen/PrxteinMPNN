@@ -183,7 +183,6 @@ def _sample_batch(
             structure_mapping=mapping_for_vmap[structure_idx] if mapping_for_vmap is not None else None,
             temperature=temp_val,
             mode="sample_ar",
-            use_rolling_state=spec.use_rolling_state,
             inference=True,
         )
 
@@ -241,8 +240,7 @@ def _sample_batch(
                 structure_mapping=mapping_for_vmap[structure_idx] if mapping_for_vmap is not None else None,
                 temperature=temperature_val,
                 mode="sample_ar",
-                use_rolling_state=spec.use_rolling_state,
-                inference=True,
+                    inference=True,
             )
 
         # Step 1: encode at each noise level using the noise axis strategy
@@ -312,7 +310,6 @@ def _sample_batch(
             structure_mapping=mapping_for_vmap[structure_idx] if mapping_for_vmap is not None else None,
             temperature=temp_val,
             mode="sample_ar",
-            use_rolling_state=spec.use_rolling_state,
             inference=True,
         )
 
@@ -368,8 +365,7 @@ def _sample_batch(
                 structure_mapping=mapping_for_vmap[structure_idx] if mapping_for_vmap is not None else None,
                 temperature=temperature_val,
                 mode="sample_ar",
-                use_rolling_state=spec.use_rolling_state,
-                inference=True,
+                    inference=True,
             )
 
         # Step 1: encode at each noise level

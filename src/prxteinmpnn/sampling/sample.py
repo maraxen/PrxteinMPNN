@@ -99,7 +99,6 @@ def make_sample_sequences(
           ligand_coords=ligand_coords, ligand_atom_types=ligand_atom_types, ligand_mask=ligand_mask,
           temperature=temperature,
           mode="score_conditional",
-          use_rolling_state=use_rolling_state,
           inference=True,
       )
       if wave_schedule is not None:
@@ -176,7 +175,6 @@ def make_sample_sequences(
           ligand_coords=ligand_coords, ligand_atom_types=ligand_atom_types, ligand_mask=ligand_mask,
           temperature=temperature,
           mode="sample_ar",
-          use_rolling_state=use_rolling_state,
           inference=True,
       )
       stage_set = make_stage_set(

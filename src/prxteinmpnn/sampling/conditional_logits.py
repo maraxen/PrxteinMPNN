@@ -118,7 +118,6 @@ def make_conditional_logits_fn(
         ar_mask=ar_mask,
         structure_mapping=structure_mapping,
         mode="score_conditional",
-        use_rolling_state=False,
         inference=True,
     )
     stage_set = make_stage_set()

@@ -15,7 +15,6 @@ class InferenceConfig(eqx.Module):
     """JIT-traced configuration for PrxteinMPNN inference."""
     mode: str = eqx.field(static=True, default="score_conditional")
     backbone_noise_mode: str = eqx.field(static=True, default="direct") # "direct" | "thermal"
-    use_rolling_state: bool = eqx.field(static=True, default=False) # scan vs vmap over steps
     use_unified_driver: bool = eqx.field(static=True, default=True) # unified axis dispatch (strategy-driven topology)
     inference: bool = eqx.field(static=True, default=True)
 

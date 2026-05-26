@@ -120,6 +120,18 @@ Wave E (after Wave D):
                 build_manifest_row, load_manifest, validate_manifest_rows, write_manifest
                 all implemented in host/campaign.py; stubs replaced.
                 Commit: e4b51bf1
+
+Wave F (after Wave E — COMP-UNIFIED):
+  [x] COMP-UNIFIED  Encoding fusion composability + test suite cleanup
+                EncodingFusionFn protocol + ArithmeticMeanEncodingFusion / IdentityEncodingFusion
+                added to StageSet; Python-level Path A/B branch in _sample_batch eliminates
+                if spec.average_node_features: branching in runner.py.
+                score.py fixed for COMP-532 2-tuple split (was never updated).
+                runner.py re-exports InferencePlan; does NOT import make_stage_set (AST invariant).
+                test_comp535_encode_decode mocks updated (driver returns real SampleResult).
+                test_host_coverage deprecated-stub signature tests skipped.
+                test_comp533 patch target fixed: definition site (inference.logits) not runner.
+                Commits: [T1-T8 COMP-UNIFIED chain] → fix(COMP-UNIFIED) cleanup commits → 0fa64e62
 ```
 
 ---

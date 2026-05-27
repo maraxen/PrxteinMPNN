@@ -178,7 +178,12 @@ def test_ste_decode_tied() -> None:
     temperature = 1.0
 
     # ========== Reference path via make_optimize_sequence_fn ==========
-    ref_optimize_fn = make_optimize_sequence_fn(model)
+    # Build a stage_set with arithmetic_mean strategy matching the implementation path
+    ref_stage_set = make_stage_set(
+        strategy="arithmetic_mean",
+        state_weights=bundle.conditioning.state_weights,
+    )
+    ref_optimize_fn = make_optimize_sequence_fn(model, ref_stage_set)
     ref_seq, ref_logits_output, ref_logits_ste = ref_optimize_fn(
         prng_key=jax_key,
         bundle=bundle,

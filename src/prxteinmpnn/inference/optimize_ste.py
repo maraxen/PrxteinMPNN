@@ -21,7 +21,6 @@ import jax
 import jax.numpy as jnp
 import optax
 
-from prxteinmpnn.inference.logits import LOGIT_STRATEGIES
 from prxteinmpnn.inference.score_conditional import kernel as score_conditional
 from prxteinmpnn.types.bundles import InferenceBundle
 from prxteinmpnn.types.configs import InferenceConfig
@@ -50,12 +49,48 @@ _DEFAULT_DECODING_ORDER_FN = cast("DecodingOrderFn", random_decoding_order)
 
 def make_optimize_sequence_fn(
   model: PrxteinMPNN,
+  stage_set: StageSet,
   decoding_order_fn: DecodingOrderFn = _DEFAULT_DECODING_ORDER_FN,
   batch_size: int = 4,
   use_concrete: bool = False,
   tau_start: float = 1.0,
   tau_end: float = 0.1,
 ) -> Callable[..., tuple[ProteinSequence, Logits, Logits]]:
+  """Create an STE (straight-through estimator) sequence optimization function.
+
+  Parameters
+  ----------
+  model : PrxteinMPNN
+      Protein/ligand model instance.
+  stage_set : StageSet
+      Resolved stage set with logit_transform, decode_step, and sample_step wired.
+      REQUIRED (no default). TypeError raised if omitted.
+  decoding_order_fn : DecodingOrderFn, optional
+      Function to generate decoding order (default: random).
+  batch_size : int, optional
+      Batch size for optimization (default: 4).
+  use_concrete : bool, optional
+      Use Gumbel-Softmax for STE (default: False).
+  tau_start : float, optional
+      Start temperature for Gumbel-Softmax (default: 1.0).
+  tau_end : float, optional
+      End temperature for Gumbel-Softmax (default: 0.1).
+
+  Returns
+  -------
+  Callable
+      Optimization function with signature:
+      (prng_key, bundle, config, iterations, learning_rate, temperature,
+       use_rolling_state=False, logit_combine_strategy=0, writer=None)
+      → (sequence, logits_output, logits_ste)
+
+  Notes
+  -----
+  Hard-cut (Task 13 / Risk REC-5): stage_set is now mandatory. Calling without
+  it raises TypeError at function-call time (Python signature enforcement).
+  No DeprecationWarning. Migration required for all callers: pass stage_set=
+  at call time or construct via make_stage_set(...).
+  """
 
   @partial(jax.jit, static_argnames=("use_rolling_state", "logit_combine_strategy"))
   def optimize_sequence(
@@ -67,7 +102,6 @@ def make_optimize_sequence_fn(
     temperature: float,
     use_rolling_state: bool = False,
     logit_combine_strategy: int = 0,
-    stage_set: StageSet | None = None,
     writer: DesignArrayRecordWriter | None = None,
   ) -> tuple[ProteinSequence, Logits, Logits]:
     num_residues = bundle.geometry.coords.shape[1]
@@ -145,25 +179,14 @@ def make_optimize_sequence_fn(
               cond_new,
           )
 
-          if stage_set is None:
-            # Construct default stage set if none provided
-            strategy_cls = LOGIT_STRATEGIES.get(
-                "arithmetic_mean" if logit_combine_strategy == 0 else
-                "geometric_mean" if logit_combine_strategy == 1 else
-                "product",
-            )
-            fuse = strategy_cls(bundle.conditioning.state_weights)
-            current_stage_set = StageSet(logit_transform=fuse)
-          else:
-            current_stage_set = stage_set
-
+          # stage_set is required (hard-cut in Task 13); use it directly
           # Call the score_conditional kernel
           output_logits = score_conditional(
               model=model,
               prng_key=next_key,
               bundle=bundle_new,
               config=config,
-              stage_set=current_stage_set,
+              stage_set=stage_set,
           )
           return output_logits
 

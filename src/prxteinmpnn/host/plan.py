@@ -22,6 +22,7 @@ from prxteinmpnn.tiling.planner import BatchPlan, BatchPlanner, estimate_memory_
 if TYPE_CHECKING:
     from jaxtyping import PRNGKeyArray
 
+    from prxteinmpnn.inference.decode.protocols import ARDecodeFn, DecodeScoreFn, STEDecodeFn
     from prxteinmpnn.run.specs import SamplingSpecification
     from prxteinmpnn.types.arrays import Logits
     from prxteinmpnn.types.bundles import InferenceBundle
@@ -351,6 +352,9 @@ class InferencePlan:
         Parameterized protein/ligand model (carries JAX arrays).
     components : InferenceComponents
         Resolved components: encode_fn, driver, stage_set.
+    decode_fn : DecodeScoreFn | ARDecodeFn | STEDecodeFn
+        Resolved decode mode class instance (ConditionalDecode, UnconditionalDecode,
+        AutoregressiveDecode, or STEDecode). Wired once at plan construction time.
 
     Notes
     -----
@@ -371,6 +375,7 @@ class InferencePlan:
 
     model: Any
     components: InferenceComponents
+    decode_fn: "DecodeScoreFn | ARDecodeFn | STEDecodeFn"
 
     @property
     def stage_set(self) -> Any:
@@ -516,6 +521,8 @@ def make_inference_plan(model: ModelProtocol, spec: Any) -> InferencePlan:
        driver selects topology at call time based on stage_set slot occupancy.
     6. ``encoding_fusion`` — wired as ``ArithmeticMeanEncodingFusion`` when
        ``spec.average_node_features=True``; otherwise left ``None``.
+    7. ``decode_fn`` — resolved via make_decode_fn(model, mode, strategy) and wired as
+       a top-level field on the plan.
 
     References
     ----------
@@ -528,8 +535,11 @@ def make_inference_plan(model: ModelProtocol, spec: Any) -> InferencePlan:
        https://doi.org/10.1038/s41592-025-02626-1
     """
     from prxteinmpnn.inference import driver as driver_module
+    from prxteinmpnn.inference.decode.factory import make_decode_fn
+    from prxteinmpnn.inference.decode.mode import ConditionalMode
     from prxteinmpnn.inference.encode import make_encode_fn
     from prxteinmpnn.inference.logits import make_stage_set
+    from prxteinmpnn.tiling.strategy import Vmap
 
     use_rolling_state = getattr(spec, "use_rolling_state", False)
     encode_fn = make_encode_fn(model, use_rolling_state=use_rolling_state)
@@ -571,11 +581,17 @@ def make_inference_plan(model: ModelProtocol, spec: Any) -> InferencePlan:
         )
         # sample_step stays None (already None from make_stage_set) — teacher-forced path
 
+    # Resolve decode_fn via make_decode_fn with default ConditionalMode and Vmap strategy
+    # (conservative defaults; caller can override via spec if needed)
+    decode_mode = ConditionalMode()
+    decode_strategy = Vmap()
+    decode_fn = make_decode_fn(model, mode=decode_mode, strategy=decode_strategy)
+
     components = InferenceComponents(
         encode_fn=encode_fn,
         driver=driver_module.decode,
         stage_set=stage_set,
     )
 
-    return InferencePlan(model=model, components=components)
+    return InferencePlan(model=model, components=components, decode_fn=decode_fn)
 

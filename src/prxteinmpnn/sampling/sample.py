@@ -48,8 +48,13 @@ def make_sample_sequences(
   del _num_encoder_layers, _num_decoder_layers
 
   if sampling_strategy == "straight_through":
+    # Construct a default stage_set with arithmetic_mean strategy (default for STE).
+    # Callers can pass state_weights at sample time to override the logit_transform.
+    default_stage_set = make_stage_set(strategy_name="arithmetic_mean")
+
     optimize_fn = optimize_ste.make_optimize_sequence_fn(
       model,
+      default_stage_set,
       decoding_order_fn,
       use_concrete=use_concrete,
       tau_start=tau_start,
@@ -112,7 +117,6 @@ def make_sample_sequences(
           learning_rate,
           temperature,
           use_rolling_state=use_rolling_state,
-          logit_combine_strategy=multi_state_strategy,
       )
       return final_seq, final_logits, jnp.arange(L)
 

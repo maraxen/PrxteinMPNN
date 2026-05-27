@@ -8,18 +8,18 @@ from __future__ import annotations
 
 from prxteinmpnn.inference.decode.factory import make_decode_fn
 from prxteinmpnn.inference.decode.mode import (
-    AutoregressiveMode,
-    ConditionalMode,
-    DecodeMode,
-    STEMode,
-    UnconditionalMode,
+  AutoregressiveMode,
+  ConditionalMode,
+  DecodeMode,
+  STEMode,
+  UnconditionalMode,
 )
 
 __all__ = [
-    "make_decode_fn",
-    "ConditionalMode",
-    "UnconditionalMode",
-    "AutoregressiveMode",
-    "STEMode",
-    "DecodeMode",
+  "AutoregressiveMode",
+  "ConditionalMode",
+  "DecodeMode",
+  "STEMode",
+  "UnconditionalMode",
+  "make_decode_fn",
 ]

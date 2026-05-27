@@ -7,4 +7,4 @@ while preserving the library/app dependency direction (host imports tiling, not 
 
 
 class TilingError(Exception):
-    """Base for errors raised by tiling-side primitives."""
+  """Base for errors raised by tiling-side primitives."""

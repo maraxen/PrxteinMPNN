@@ -11,28 +11,30 @@ from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.protocols import ModelProtocol
 from prxteinmpnn.types.stages import StageSet
 
+
 def kernel(
-    model: ModelProtocol,
-    prng_key: PRNGKeyArray,
-    bundle: InferenceBundle,
-    config: InferenceConfig,
-    stage_set: StageSet,
+  model: ModelProtocol,
+  prng_key: PRNGKeyArray,
+  bundle: InferenceBundle,
+  config: InferenceConfig,
+  stage_set: StageSet,
 ) -> Logits:
-    """Compute teacher-forced conditional logits."""
-    import jax
-    k_enc, k_dec = jax.random.split(prng_key)
+  """Compute teacher-forced conditional logits."""
+  import jax
 
-    # Encode using vmap strategy (parallel over S states)
-    encode_fn = make_encode_fn(model, use_rolling_state=False)
-    enc = encode_fn(bundle, k_enc, config)
+  k_enc, k_dec = jax.random.split(prng_key)
 
-    # Use ConditionalDecode mode class for conditional decoding
-    # (hardcoded Vmap iterator; STE uses this internally)
-    decode_fn = ConditionalDecode(model=model, state_iterator=VmapIterator())
-    return decode_fn(
-        key=k_dec,
-        enc=enc,
-        bundle=bundle.conditioning,
-        config=config,
-        stage_set=stage_set,
-    )
+  # Encode using vmap strategy (parallel over S states)
+  encode_fn = make_encode_fn(model, use_rolling_state=False)
+  enc = encode_fn(bundle, k_enc, config)
+
+  # Use ConditionalDecode mode class for conditional decoding
+  # (hardcoded Vmap iterator; STE uses this internally)
+  decode_fn = ConditionalDecode(model=model, state_iterator=VmapIterator())
+  return decode_fn(
+    key=k_dec,
+    enc=enc,
+    bundle=bundle.conditioning,
+    config=config,
+    stage_set=stage_set,
+  )

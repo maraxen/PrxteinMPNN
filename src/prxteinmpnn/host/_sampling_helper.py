@@ -16,7 +16,6 @@ AMINO_ACID_VOCAB_SIZE = 21
 RANK_WITH_TEMPERATURE = 4
 
 
-
 _DEFAULT_DECODING_ORDER_FN = cast("DecodingOrderFn", random_decoding_order)
 
 
@@ -395,6 +394,7 @@ def _dispatch_sampling_tensor_batch_io(
   Drains device tensors to the active :func:`streaming_tensor_sink_session`.
   """
   from prxteinmpnn.host.output_sinks import active_sampling_staging_sink
+
   sink = active_sampling_staging_sink()
   if sink is not None:
     sink.on_sampling_sequences_logits(
@@ -471,4 +471,3 @@ def _prepare_fixed_controls(
       raise ValueError(msg)
 
   return jnp.asarray(fixed_mask_np), jnp.asarray(fixed_tokens_np)
-

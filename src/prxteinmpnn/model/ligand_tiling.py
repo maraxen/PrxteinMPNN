@@ -14,7 +14,9 @@ import jax
 import jax.numpy as jnp
 
 
-def pad_axis_to_multiple(arr: jax.Array, tile: int, axis: int = 0, *, pad_val: float = 0.0) -> jax.Array:
+def pad_axis_to_multiple(
+  arr: jax.Array, tile: int, axis: int = 0, *, pad_val: float = 0.0,
+) -> jax.Array:
   """Pad `arr` so its length along `axis` is a multiple of `tile` (>0)."""
   if tile <= 0:
     raise ValueError("tile must be positive")
@@ -128,7 +130,8 @@ def map_chunks_axis0_multi(
 
   Lex = arrays_ext[0].shape[0]
   out_bufs = tuple(
-    jnp.zeros((Lex, *tuple(sh.shape[d] for d in range(1, sh.ndim))), dtype=sh.dtype) for sh in outs_tpl
+    jnp.zeros((Lex, *tuple(sh.shape[d] for d in range(1, sh.ndim))), dtype=sh.dtype)
+    for sh in outs_tpl
   )
 
   def zstart(rank: int) -> tuple[int, ...]:

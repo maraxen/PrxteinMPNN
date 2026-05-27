@@ -17,52 +17,50 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class ConditionalMode:
-    """Decode mode: condition on structure + sequence."""
-    pass
+  """Decode mode: condition on structure + sequence."""
 
 
 @dataclass(frozen=True)
 class UnconditionalMode:
-    """Decode mode: no sequence conditioning."""
-    pass
+  """Decode mode: no sequence conditioning."""
 
 
 @dataclass(frozen=True)
 class AutoregressiveMode:
-    """Decode mode: sequential decoding with wave iteration.
+  """Decode mode: sequential decoding with wave iteration.
 
-    Wave axis is always Scan internally — a structural invariant, not a knob.
-    There is no W-axis BatchPlanner decision; the user does not pass a wave_iterator.
+  Wave axis is always Scan internally — a structural invariant, not a knob.
+  There is no W-axis BatchPlanner decision; the user does not pass a wave_iterator.
 
-    Risk D-3 mitigation: no user-facing W-axis knob; unreachable by API design.
-    """
-    pass
+  Risk D-3 mitigation: no user-facing W-axis knob; unreachable by API design.
+  """
 
 
 @dataclass(frozen=True)
 class STEMode:
-    """Decode mode: scoring-based sequence refinement (STE).
+  """Decode mode: scoring-based sequence refinement (STE).
 
-    Wraps an inner decode mode (typically ConditionalMode) and applies
-    iterative gradient-based refinement.
+  Wraps an inner decode mode (typically ConditionalMode) and applies
+  iterative gradient-based refinement.
 
-    Parameters
-    ----------
-    inner_mode : ConditionalMode, default=ConditionalMode()
-        The inner decoding strategy used for gradient computation.
-    iterations : int, default=100
-        Number of STE refinement iterations.
-    """
-    inner_mode: ConditionalMode = ConditionalMode()
-    iterations: int = 100
+  Parameters
+  ----------
+  inner_mode : ConditionalMode, default=ConditionalMode()
+      The inner decoding strategy used for gradient computation.
+  iterations : int, default=100
+      Number of STE refinement iterations.
+  """
+
+  inner_mode: ConditionalMode = ConditionalMode()
+  iterations: int = 100
 
 
 DecodeMode = ConditionalMode | UnconditionalMode | AutoregressiveMode | STEMode
 
 __all__ = [
-    "ConditionalMode",
-    "UnconditionalMode",
-    "AutoregressiveMode",
-    "STEMode",
-    "DecodeMode",
+  "AutoregressiveMode",
+  "ConditionalMode",
+  "DecodeMode",
+  "STEMode",
+  "UnconditionalMode",
 ]

@@ -137,7 +137,8 @@ def make_optimize_sequence_fn(
       if use_concrete:
         key_decoding_orders, gumbel_key, next_key = jax.random.split(current_key, 3)
         progress = jnp.float32(_iteration) / jnp.maximum(
-          jnp.float32(iterations) - 1.0, 1.0,
+          jnp.float32(iterations) - 1.0,
+          1.0,
         )
         tau = jnp.float32(tau_start) * (jnp.float32(tau_end / tau_start) ** progress)
       else:
@@ -147,12 +148,16 @@ def make_optimize_sequence_fn(
       decoding_orders, _ = jax.vmap(decoding_order_fn, in_axes=(0, None, None, None))(
         keys_for_decoding,
         num_residues,
-        tie_group_map[0] if tie_group_map is not None else None, # assume identical for all states for the tie group
+        tie_group_map[0]
+        if tie_group_map is not None
+        else None,  # assume identical for all states for the tie group
         num_groups,
       )
 
       # ar_masks will have shape (batch_size, L, L)
-      ar_masks = jax.vmap(generate_ar_mask, in_axes=(0, None))(decoding_orders, tie_group_map[0] if tie_group_map is not None else None)
+      ar_masks = jax.vmap(generate_ar_mask, in_axes=(0, None))(
+        decoding_orders, tie_group_map[0] if tie_group_map is not None else None,
+      )
 
       def loss_fn(logits: Logits) -> Float:
         if use_concrete:
@@ -160,33 +165,35 @@ def make_optimize_sequence_fn(
           one_hot_sequence = seq_repr
         else:
           one_hot_sequence = straight_through_estimator(logits / temperature)
-          seq_repr = one_hot_sequence # to prevent undefined variable in labels later
+          seq_repr = one_hot_sequence  # to prevent undefined variable in labels later
 
         def eval_with_mask(ar_mask: AutoRegressiveMask) -> Logits:
           # Broadcast ar_mask to S
-          ar_mask_stack = jnp.broadcast_to(ar_mask[None, ...], (bundle.geometry.n_states, *ar_mask.shape))
+          ar_mask_stack = jnp.broadcast_to(
+            ar_mask[None, ...], (bundle.geometry.n_states, *ar_mask.shape),
+          )
 
           # Replace conditioning with our local one_hot_sequence and ar_mask
           cond_new = eqx.tree_at(
-              lambda c: (c.sequence_oh, c.ar_mask),
-              bundle.conditioning,
-              (one_hot_sequence, ar_mask_stack),
+            lambda c: (c.sequence_oh, c.ar_mask),
+            bundle.conditioning,
+            (one_hot_sequence, ar_mask_stack),
           )
 
           bundle_new = eqx.tree_at(
-              lambda b: b.conditioning,
-              bundle,
-              cond_new,
+            lambda b: b.conditioning,
+            bundle,
+            cond_new,
           )
 
           # stage_set is required (hard-cut in Task 13); use it directly
           # Call the score_conditional kernel
           output_logits = score_conditional(
-              model=model,
-              prng_key=next_key,
-              bundle=bundle_new,
-              config=config,
-              stage_set=stage_set,
+            model=model,
+            prng_key=next_key,
+            bundle=bundle_new,
+            config=config,
+            stage_set=stage_set,
           )
           return output_logits
 
@@ -208,7 +215,7 @@ def make_optimize_sequence_fn(
           labels=labels,
         )
 
-        mask = bundle.geometry.mask[0] # assuming identical masks across states for the loss
+        mask = bundle.geometry.mask[0]  # assuming identical masks across states for the loss
         return (loss * mask).sum() / (mask.sum() + 1e-8)
 
       _, grads = jax.value_and_grad(loss_fn)(current_logits)
@@ -243,6 +250,7 @@ def make_optimize_sequence_fn(
     final_sequence = final_one_hot.argmax(axis=-1).astype(jnp.int8)
 
     if writer is not None:
+
       def _save_logits(logits: jnp.ndarray) -> None:
         scores = jnp.array([0.0], dtype=jnp.float32)
         n_states = bundle.geometry.n_states
@@ -268,26 +276,34 @@ def make_optimize_sequence_fn(
       jax.experimental.io_callback(_save_logits, None, final_logits, ordered=False)
       jax.effects_barrier()
 
-    final_decoding_order, _ = decoding_order_fn(final_key, num_residues, tie_group_map[0] if tie_group_map is not None else None, num_groups)
-    final_ar_mask = cast("Callable", generate_ar_mask)(final_decoding_order, tie_group_map[0] if tie_group_map is not None else None)
+    final_decoding_order, _ = decoding_order_fn(
+      final_key, num_residues, tie_group_map[0] if tie_group_map is not None else None, num_groups,
+    )
+    final_ar_mask = cast("Callable", generate_ar_mask)(
+      final_decoding_order, tie_group_map[0] if tie_group_map is not None else None,
+    )
 
-    ar_mask_stack = jnp.broadcast_to(final_ar_mask[None, ...], (bundle.geometry.n_states, *final_ar_mask.shape))
+    ar_mask_stack = jnp.broadcast_to(
+      final_ar_mask[None, ...], (bundle.geometry.n_states, *final_ar_mask.shape),
+    )
     cond_new = eqx.tree_at(
-        lambda c: (c.sequence_oh, c.ar_mask),
-        bundle.conditioning,
-        (final_one_hot, ar_mask_stack),
+      lambda c: (c.sequence_oh, c.ar_mask),
+      bundle.conditioning,
+      (final_one_hot, ar_mask_stack),
     )
     bundle_new = eqx.tree_at(
-        lambda b: b.conditioning,
-        bundle,
-        cond_new,
+      lambda b: b.conditioning,
+      bundle,
+      cond_new,
     )
 
     if stage_set is None:
       strategy_cls = LOGIT_STRATEGIES.get(
-          "arithmetic_mean" if logit_combine_strategy == 0 else
-          "geometric_mean" if logit_combine_strategy == 1 else
-          "product",
+        "arithmetic_mean"
+        if logit_combine_strategy == 0
+        else "geometric_mean"
+        if logit_combine_strategy == 1
+        else "product",
       )
       fuse = strategy_cls(bundle.conditioning.state_weights)
       final_stage_set = StageSet(logit_transform=fuse)
@@ -295,11 +311,11 @@ def make_optimize_sequence_fn(
       final_stage_set = stage_set
 
     final_output_logits = score_conditional(
-        model=model,
-        prng_key=final_key,
-        bundle=bundle_new,
-        config=config,
-        stage_set=final_stage_set,
+      model=model,
+      prng_key=final_key,
+      bundle=bundle_new,
+      config=config,
+      stage_set=final_stage_set,
     )
 
     return final_sequence, final_output_logits, final_logits

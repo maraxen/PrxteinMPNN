@@ -28,6 +28,7 @@ def _to_numpy_float32(x: jnp.ndarray | np.ndarray) -> np.ndarray:
 
 class DesignMetadata(TypedDict):
   """Metadata for a single design."""
+
   pool_type: Literal["BackboneOnly", "BackboneLigand", "BackboneSidechain", "FullContext"]
   state_mapping: list[int]
   weight_strategy: str
@@ -35,13 +36,16 @@ class DesignMetadata(TypedDict):
   structure_ids: list[str]
   parent_structure_idx: int
 
+
 class DesignPayload(TypedDict):
   """Serialized design payload."""
+
   sequence: Any  # jnp.ndarray (uint8), shape (n_canonical,)
-  logits: Any    # jnp.ndarray (float32 input, cast to float16 for storage), shape (n_canonical, 21)
-  scores: Any    # jnp.ndarray (float32)
+  logits: Any  # jnp.ndarray (float32 input, cast to float16 for storage), shape (n_canonical, 21)
+  scores: Any  # jnp.ndarray (float32)
   state_weights: Any  # jnp.ndarray (float32)
   metadata: DesignMetadata
+
 
 class DesignArrayRecordWriter:
   """Writer for storing designs in compressed ArrayRecord format using zero-copy binary serialization.
@@ -55,8 +59,9 @@ class DesignArrayRecordWriter:
         probs = scipy.special.softmax(logits, axis=-1)
   """
 
-  def __init__(self, path: str, options: str = "zstd:9,group_size:1",
-               n_canonical: int = 214, n_states: int = 9):
+  def __init__(
+    self, path: str, options: str = "zstd:9,group_size:1", n_canonical: int = 214, n_states: int = 9,
+  ):
     """Initialize the writer.
 
     Args:
@@ -73,11 +78,14 @@ class DesignArrayRecordWriter:
     # Binary schema: field_name -> (shape, dtype)
     # Flattens individual designs to fixed-size records
     self.schema = {
-        "sequence": (n_canonical,),      # uint8
-        "logits": (n_canonical, 21),     # float16 — upcast to float32 before softmax/logsumexp (see class docstring)
-        "scores": (1,),                  # float32
-        "state_weights": (n_states,),     # float32
-        # metadata (task_id, model, etc) stored as suffix of logits
+      "sequence": (n_canonical,),  # uint8
+      "logits": (
+        n_canonical,
+        21,
+      ),  # float16 — upcast to float32 before softmax/logsumexp (see class docstring)
+      "scores": (1,),  # float32
+      "state_weights": (n_states,),  # float32
+      # metadata (task_id, model, etc) stored as suffix of logits
     }
 
     # Async I/O: single-threaded executor to avoid blocking device on disk writes
@@ -119,9 +127,12 @@ class DesignArrayRecordWriter:
     # Store logits as float16. Bounded to [-20, 20] in practice; fits float16 range (±65504)
     # with 5 orders of magnitude headroom. Readers MUST upcast to float32 before softmax.
     logits_f32 = _to_numpy_float32(payload["logits"])
-    assert logits_f32.shape == (self.n_canonical, 21), f"logits shape {logits_f32.shape} != {(self.n_canonical, 21)}"
-    assert np.isfinite(logits_f32).all() and np.abs(logits_f32).max() < 1e4, \
-        f"Logit values out of float16-safe range: max={np.abs(logits_f32).max():.1f}"
+    assert logits_f32.shape == (self.n_canonical, 21), (
+      f"logits shape {logits_f32.shape} != {(self.n_canonical, 21)}"
+    )
+    assert np.isfinite(logits_f32).all() and np.abs(logits_f32).max() < 1e4, (
+      f"Logit values out of float16-safe range: max={np.abs(logits_f32).max():.1f}"
+    )
     logits = logits_f32.astype(np.float16)
 
     # 3. Snapshot scores (float32)
@@ -133,11 +144,19 @@ class DesignArrayRecordWriter:
     assert weights.shape == (self.n_states,), f"weights shape {weights.shape} != {(self.n_states,)}"
 
     # Enqueue serialization and disk write to thread pool
-    future = self._executor.submit(self._write_sync, seq, logits, scores, weights, payload["metadata"])
+    future = self._executor.submit(
+      self._write_sync, seq, logits, scores, weights, payload["metadata"],
+    )
     self._futures.append(future)
 
-  def _write_sync(self, seq: np.ndarray, logits: np.ndarray, scores: np.ndarray,
-                  weights: np.ndarray, metadata: DesignMetadata) -> None:
+  def _write_sync(
+    self,
+    seq: np.ndarray,
+    logits: np.ndarray,
+    scores: np.ndarray,
+    weights: np.ndarray,
+    metadata: DesignMetadata,
+  ) -> None:
     """Synchronous serialization and disk write (runs in thread pool)."""
     record_bytes = bytearray()
 
@@ -177,6 +196,7 @@ class DesignArrayRecordWriter:
     self.close()
     return False
 
+
 def stream_design_to_host(
   writer: DesignArrayRecordWriter,
   sequence: jnp.ndarray,
@@ -197,6 +217,7 @@ def stream_design_to_host(
     "metadata": metadata,
   }
   writer.write(payload)
+
 
 def get_io_callback_fn(writer: DesignArrayRecordWriter):
   """Returns a JAX-compatible callback function for io_callback."""

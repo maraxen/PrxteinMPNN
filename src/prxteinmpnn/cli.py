@@ -30,7 +30,10 @@ app.add_typer(spec_app, name="spec")
 
 @spec_app.command("validate")
 def spec_validate(
-  path: Annotated[Path, typer.Argument(exists=True, readable=True, help="JSON file from run_specification_to_json")],
+  path: Annotated[
+    Path,
+    typer.Argument(exists=True, readable=True, help="JSON file from run_specification_to_json"),
+  ],
 ) -> None:
   """Load a JSON specification and exit 0 if it constructs a valid spec."""
   text = path.read_text(encoding="utf-8")

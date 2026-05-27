@@ -10,136 +10,137 @@ only iterator orchestration.
 from __future__ import annotations
 
 from typing import Any
+
 import equinox as eqx
-import jax
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.inference.decode._kernel import _project_logits
 from prxteinmpnn.tiling.iterator import MapIterator
+from prxteinmpnn.types.bundles import ConditioningBundle, EncoderOutput
 from prxteinmpnn.types.stages import StageSet
-from prxteinmpnn.types.bundles import EncoderOutput, ConditioningBundle
 
 
 class UnconditionalDecode(eqx.Module):
-    """Unconditional decode mode (no sequence conditioning).
+  """Unconditional decode mode (no sequence conditioning).
 
-    Decodes without teacher-forcing by vmapping decode_one over the state axis.
-    The per-state decode function can be either stage_set.decode_step (if set)
-    or model.decoder (fallback).
+  Decodes without teacher-forcing by vmapping decode_one over the state axis.
+  The per-state decode function can be either stage_set.decode_step (if set)
+  or model.decoder (fallback).
 
-    Attributes
+  Attributes
+  ----------
+  model : Any
+      Model instance (static field).
+  state_iterator : MapIterator
+      Iterator for state-axis (Vmap or SafeMap).
+
+  Notes
+  -----
+  Unlike ConditionalDecode, UnconditionalDecode does NOT consume sequence_oh.
+  The per-state function receives only (node_features, edge_features,
+  neighbor_indices, mask).
+
+  This class is NOT a subclass of _ConditionalDecodeBase because unconditional
+  decoding does not have the teacher-forcing contract.
+  """
+
+  model: Any = eqx.field(static=True)
+  state_iterator: MapIterator
+
+  def __call__(
+    self,
+    key: PRNGKeyArray,
+    enc: EncoderOutput,
+    bundle: ConditioningBundle,
+    config: Any,
+    stage_set: StageSet,
+  ) -> jnp.ndarray:
+    """Decode unconditionally (no sequence context).
+
+    Parameters
     ----------
-    model : Any
-        Model instance (static field).
-    state_iterator : MapIterator
-        Iterator for state-axis (Vmap or SafeMap).
+    key : PRNGKeyArray
+        PRNG key.
+    enc : EncoderOutput
+        Encoder output. Shape: node (S, L, H_n), edge (S, L, K, H_e).
+    bundle : ConditioningBundle
+        Conditioning data. For unconditional, only bias is used;
+        sequence_oh and ar_mask are ignored.
+    config : InferenceConfig
+        Inference configuration.
+    stage_set : StageSet
+        Pipeline stages (decode_step, logit_transform).
 
-    Notes
-    -----
-    Unlike ConditionalDecode, UnconditionalDecode does NOT consume sequence_oh.
-    The per-state function receives only (node_features, edge_features,
-    neighbor_indices, mask).
-
-    This class is NOT a subclass of _ConditionalDecodeBase because unconditional
-    decoding does not have the teacher-forcing contract.
+    Returns
+    -------
+    jnp.ndarray
+        Fused logits. Shape: (L, 21).
     """
 
-    model: Any = eqx.field(static=True)
-    state_iterator: MapIterator
+    # Define the per-state decode function (no sequence_oh)
+    def decode_one(inputs):
+      """Decode a single state without sequence conditioning.
 
-    def __call__(
-        self,
-        key: PRNGKeyArray,
-        enc: EncoderOutput,
-        bundle: ConditioningBundle,
-        config: Any,
-        stage_set: StageSet,
-    ) -> jnp.ndarray:
-        """Decode unconditionally (no sequence context).
+      inputs: (node_features, edge_features, neighbor_indices, mask)
+      """
+      node_features, edge_features, neighbor_indices, mask = inputs
+      if stage_set.decode_step is not None:
+        return stage_set.decode_step(
+          node_features,
+          edge_features,
+          neighbor_indices,
+          mask,
+          key=key,
+          inference=config.inference,
+        )
+      # Fallback: use model.decoder (unconditional path)
+      # Note: model.decoder() does not accept inference parameter
+      return self.model.decoder(
+        node_features,
+        edge_features,
+        neighbor_indices,
+        mask,
+        key=key,
+      )
 
-        Parameters
-        ----------
-        key : PRNGKeyArray
-            PRNG key.
-        enc : EncoderOutput
-            Encoder output. Shape: node (S, L, H_n), edge (S, L, K, H_e).
-        bundle : ConditioningBundle
-            Conditioning data. For unconditional, only bias is used;
-            sequence_oh and ar_mask are ignored.
-        config : InferenceConfig
-            Inference configuration.
-        stage_set : StageSet
-            Pipeline stages (decode_step, logit_transform).
+    # Bundle inputs as a single pytree for the iterator
+    inputs = (enc.node_features, enc.edge_features, enc.neighbor_indices, enc.mask)
 
-        Returns
-        -------
-        jnp.ndarray
-            Fused logits. Shape: (L, 21).
-        """
-        # Define the per-state decode function (no sequence_oh)
-        def decode_one(inputs):
-            """Decode a single state without sequence conditioning.
+    # Vmap over state axis: (S, L, H) -> (S, L, H)
+    decoded = self.state_iterator(decode_one, inputs, in_axes=0)
 
-            inputs: (node_features, edge_features, neighbor_indices, mask)
-            """
-            node_features, edge_features, neighbor_indices, mask = inputs
-            if stage_set.decode_step is not None:
-                return stage_set.decode_step(
-                    node_features,
-                    edge_features,
-                    neighbor_indices,
-                    mask,
-                    key=key,
-                    inference=config.inference,
-                )
-            # Fallback: use model.decoder (unconditional path)
-            # Note: model.decoder() does not accept inference parameter
-            return self.model.decoder(
-                node_features,
-                edge_features,
-                neighbor_indices,
-                mask,
-                key=key,
-            )
+    # Project to logits: (S, L, H) -> (S, L, V)
+    logits_stack = _project_logits(self.model, decoded)
 
-        # Bundle inputs as a single pytree for the iterator
-        inputs = (enc.node_features, enc.edge_features, enc.neighbor_indices, enc.mask)
+    # Fuse across states: (S, L, V) -> (L, V)
+    return self._apply_logit_transform(logits_stack, stage_set, bias=bundle.bias)
 
-        # Vmap over state axis: (S, L, H) -> (S, L, H)
-        decoded = self.state_iterator(decode_one, inputs, in_axes=0)
+  @staticmethod
+  def _apply_logit_transform(
+    logits: jnp.ndarray,
+    stage_set: StageSet,
+    bias: jnp.ndarray | None = None,
+  ) -> jnp.ndarray:
+    """Apply logit fusion via stage_set.logit_transform.
 
-        # Project to logits: (S, L, H) -> (S, L, V)
-        logits_stack = _project_logits(self.model, decoded)
+    Parameters
+    ----------
+    logits : ndarray
+        Logits to fuse. Shape (S, L, V).
+    stage_set : StageSet
+        Contains logit_transform.
+    bias : ndarray | None, default None
+        Optional position-specific bias. Shape (L, V).
 
-        # Fuse across states: (S, L, V) -> (L, V)
-        return self._apply_logit_transform(logits_stack, stage_set, bias=bundle.bias)
+    Returns
+    -------
+    ndarray
+        Fused logits. Shape (L, V).
+    """
+    if stage_set.logit_transform is None:
+      # Identity: single-state passthrough
+      return logits
 
-    @staticmethod
-    def _apply_logit_transform(
-        logits: jnp.ndarray,
-        stage_set: StageSet,
-        bias: jnp.ndarray | None = None,
-    ) -> jnp.ndarray:
-        """Apply logit fusion via stage_set.logit_transform.
-
-        Parameters
-        ----------
-        logits : ndarray
-            Logits to fuse. Shape (S, L, V).
-        stage_set : StageSet
-            Contains logit_transform.
-        bias : ndarray | None, default None
-            Optional position-specific bias. Shape (L, V).
-
-        Returns
-        -------
-        ndarray
-            Fused logits. Shape (L, V).
-        """
-        if stage_set.logit_transform is None:
-            # Identity: single-state passthrough
-            return logits
-
-        # logit_transform signature: (S, L, V) + (L, V) -> (L, V)
-        return stage_set.logit_transform(logits, bias=bias)
+    # logit_transform signature: (S, L, V) + (L, V) -> (L, V)
+    return stage_set.logit_transform(logits, bias=bias)

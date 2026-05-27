@@ -1,4 +1,5 @@
 """Custom Dropout module with dynamic probability for leaf alignment."""
+
 from __future__ import annotations
 
 import equinox as eqx
@@ -9,11 +10,12 @@ from jaxtyping import Array, PRNGKeyArray
 
 class Dropout(eqx.Module):
   """Dropout layer with dynamic probability `p`.
-  
+
   Unlike `equinox.nn.Dropout`, this module treats the dropout probability `p`
   as a dynamic leaf. This is required for alignment with legacy checkpoints
   where `p` was serialized as a tensor.
   """
+
   p: Array
   inference: Array
 
@@ -29,13 +31,13 @@ class Dropout(eqx.Module):
     inference: bool | None = None,
   ) -> Array:
     """Apply dropout to the input.
-    
+
     Args:
       x: Input array.
       key: PRNG key for random mask generation. Required if `inference` is False.
-      inference: Whether to run in inference mode (no dropout). 
+      inference: Whether to run in inference mode (no dropout).
         Defaults to `self.inference`.
-        
+
     Returns:
       The array with dropout applied.
     """
@@ -47,8 +49,8 @@ class Dropout(eqx.Module):
 
     # Bernoulli mask
     if key is None:
-        # Fallback for inference=True or missing key
-        return x
+      # Fallback for inference=True or missing key
+      return x
 
     mask = jax.random.bernoulli(key, 1.0 - self.p, x.shape)
     dropped_x = jnp.where(mask, x / (1.0 - self.p), 0.0)

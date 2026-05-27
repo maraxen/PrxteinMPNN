@@ -12,13 +12,13 @@
 """
 
 _TRAINING_NOT_READY = (
-    "prxteinmpnn.training is not yet updated for the Sprint 2 composable architecture. "
-    "See Sprint 3 backlog item for TrainingPlan / TrainingStageSet design."
+  "prxteinmpnn.training is not yet updated for the Sprint 2 composable architecture. "
+  "See Sprint 3 backlog item for TrainingPlan / TrainingStageSet design."
 )
 
 
 def __getattr__(name: str) -> object:
-    raise NotImplementedError(_TRAINING_NOT_READY)
+  raise NotImplementedError(_TRAINING_NOT_READY)
 
 
 __all__: list[str] = []

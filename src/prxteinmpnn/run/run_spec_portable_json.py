@@ -33,7 +33,9 @@ from .spec import (
 
 PORTABLE_RUN_SPEC_VERSION = 2
 PORTABLE_RUN_SPEC_LEGACY_VERSION = 1
-_SUPPORTED_PORTABLE_VERSIONS = frozenset({PORTABLE_RUN_SPEC_VERSION, PORTABLE_RUN_SPEC_LEGACY_VERSION})
+_SUPPORTED_PORTABLE_VERSIONS = frozenset(
+  {PORTABLE_RUN_SPEC_VERSION, PORTABLE_RUN_SPEC_LEGACY_VERSION},
+)
 
 _PrecisionLabel = Literal["fp32", "fp16", "bf16"]
 
@@ -96,7 +98,9 @@ def _placeholder_run_spec(
   io: IOConfig | None = None,
 ) -> RunSpec:
   """Defaults mirror :func:`build_run_spec` for a bare ``RunSpecification``-like spec."""
-  io_final = io if io is not None else IOConfig(output_dir=None, sink_kind="none", manifest_path=None)
+  io_final = (
+    io if io is not None else IOConfig(output_dir=None, sink_kind="none", manifest_path=None)
+  )
   ligand = LigandConfig(
     model_family="proteinmpnn",
     use_side_chain_context=None,
@@ -178,9 +182,7 @@ def run_spec_portable_from_dict(data: Mapping[str, Any]) -> RunSpec:
   """Parse portable dict; unknown top-level keys are ignored."""
   raw_ver = data.get("version", None)
   if type(raw_ver) is not int or raw_ver not in _SUPPORTED_PORTABLE_VERSIONS:
-    msg = (
-      f"[portable_run_spec] version: expected int in {_SUPPORTED_PORTABLE_VERSIONS!r}, got {raw_ver!r}"
-    )
+    msg = f"[portable_run_spec] version: expected int in {_SUPPORTED_PORTABLE_VERSIONS!r}, got {raw_ver!r}"
     raise ValueError(msg)
   wire_ver = raw_ver
 

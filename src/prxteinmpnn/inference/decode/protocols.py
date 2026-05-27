@@ -16,13 +16,14 @@ Per Pattern 5 (skill caution): these are static-only type aliases, NOT @runtime_
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 __all__ = [
-    "DecodeScoreFn",
-    "ARDecodeFn",
-    "STEDecodeFn",
-    "DecoderSinkFn",
+  "ARDecodeFn",
+  "DecodeScoreFn",
+  "DecoderSinkFn",
+  "STEDecodeFn",
 ]
 
 # Callable type aliases for decode protocols

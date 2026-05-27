@@ -1,7 +1,7 @@
+import warnings
 from collections.abc import Callable
 from functools import partial
 from typing import TYPE_CHECKING
-import warnings
 
 import jax
 import jax.numpy as jnp
@@ -78,7 +78,12 @@ def _internal_sample_averaged(
     stacklevel=2,
   )
   return _original_internal_sample_averaged(
-    spec, encoded_feat, keys_arr, sample_fn_with_params, tie_group_map, num_groups
+    spec,
+    encoded_feat,
+    keys_arr,
+    sample_fn_with_params,
+    tie_group_map,
+    num_groups,
   )
 
 
@@ -257,4 +262,3 @@ def _sample_batch_averaged(*args: object, **kwargs: object) -> tuple[ProteinSequ
     stacklevel=2,
   )
   return _original_sample_batch_averaged(*args, **kwargs)
-

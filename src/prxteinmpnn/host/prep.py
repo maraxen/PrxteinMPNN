@@ -44,7 +44,10 @@ def _resolve_local_checkpoint_from_registry(spec: Specs) -> str | None:
   entries = payload.get("entries", [])
   found = None
   for entry in entries:
-    if entry.get("model_family") == spec.model_family and entry.get("checkpoint_id") == spec.checkpoint_id:
+    if (
+      entry.get("model_family") == spec.model_family
+      and entry.get("checkpoint_id") == spec.checkpoint_id
+    ):
       found = entry
       break
   if found is None:

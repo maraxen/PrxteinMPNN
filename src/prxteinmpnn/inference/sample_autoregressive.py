@@ -12,42 +12,43 @@ from typing import TYPE_CHECKING
 from jaxtyping import Array, Float, Int
 
 if TYPE_CHECKING:
-    from prxteinmpnn.model.mpnn import PrxteinMPNN
-    from prxteinmpnn.types.arrays import PRNGKeyArray
-    from prxteinmpnn.types.bundles import InferenceBundle
-    from prxteinmpnn.types.configs import InferenceConfig
-    from prxteinmpnn.types.stages import StageSet
+  from prxteinmpnn.model.mpnn import PrxteinMPNN
+  from prxteinmpnn.types.arrays import PRNGKeyArray
+  from prxteinmpnn.types.bundles import InferenceBundle
+  from prxteinmpnn.types.configs import InferenceConfig
+  from prxteinmpnn.types.stages import StageSet
 
 
 @dataclass(frozen=True)
 class SampleResult:
-    """Result of an autoregressive sampling run."""
-    sequence: Int[Array, L]
-    logits: Float[Array, "L 21"]
+  """Result of an autoregressive sampling run."""
+
+  sequence: Int[Array, L]
+  logits: Float[Array, "L 21"]
 
 
 def kernel(
-    model: PrxteinMPNN,
-    prng_key: PRNGKeyArray,
-    bundle: InferenceBundle,
-    config: InferenceConfig,
-    stage_set: StageSet,
+  model: PrxteinMPNN,
+  prng_key: PRNGKeyArray,
+  bundle: InferenceBundle,
+  config: InferenceConfig,
+  stage_set: StageSet,
 ) -> SampleResult:
-    """Autoregressive sampling kernel.
+  """Autoregressive sampling kernel.
 
-    Optimized to encode features once and then iterate through the decoding waves.
-    Delegates to unified driver for autoregressive decoding.
-    """
-    import jax
+  Optimized to encode features once and then iterate through the decoding waves.
+  Delegates to unified driver for autoregressive decoding.
+  """
+  import jax
 
-    from prxteinmpnn.inference.driver import decode_ar
-    from prxteinmpnn.inference.encode import make_encode_fn
+  from prxteinmpnn.inference.driver import decode_ar
+  from prxteinmpnn.inference.encode import make_encode_fn
 
-    k_enc, k_dec = jax.random.split(prng_key)
+  k_enc, k_dec = jax.random.split(prng_key)
 
-    # Encode using make_encode_fn with rolling state disabled for AR
-    encode_fn = make_encode_fn(model, use_rolling_state=False)
-    enc = encode_fn(bundle, k_enc, config)
+  # Encode using make_encode_fn with rolling state disabled for AR
+  encode_fn = make_encode_fn(model, use_rolling_state=False)
+  enc = encode_fn(bundle, k_enc, config)
 
-    # Delegate to unified driver for autoregressive sampling
-    return decode_ar(model, k_dec, enc, bundle.conditioning, bundle.wave, config, stage_set)
+  # Delegate to unified driver for autoregressive sampling
+  return decode_ar(model, k_dec, enc, bundle.conditioning, bundle.wave, config, stage_set)

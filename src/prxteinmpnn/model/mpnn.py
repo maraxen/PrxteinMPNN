@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 else:
   PRNGKeyArray = Any
 
+
 class PrxteinMPNN(eqx.Module):
   """The complete end-to-end ProteinMPNN model."""
 

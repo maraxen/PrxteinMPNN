@@ -13,7 +13,7 @@ from typing import Any
 import equinox as eqx
 import jax.numpy as jnp
 
-from prxteinmpnn.types.bundles import ConditioningBundle, EncoderOutput
+from prxteinmpnn.types.bundles import EncoderOutput, InferenceBundle
 from prxteinmpnn.types.stages import StageSet
 
 
@@ -48,7 +48,7 @@ class _ConditionalDecodeBase(eqx.Module, abc.ABC):
     self,
     key: Any,
     enc: EncoderOutput,
-    bundle: ConditioningBundle,
+    bundle: InferenceBundle,
     config: Any,
     stage_set: StageSet,
   ) -> Any:
@@ -60,8 +60,9 @@ class _ConditionalDecodeBase(eqx.Module, abc.ABC):
         PRNG key for dropout/stochasticity.
     enc : EncoderOutput
         Encoder output (node/edge features, indices, mask).
-    bundle : ConditioningBundle
-        Conditioning data (sequence, ar_mask, bias).
+    bundle : InferenceBundle
+        Full inference bundle; each mode extracts `bundle.conditioning`
+        (and `bundle.wave` for AR) internally.
     config : InferenceConfig
         Inference configuration.
     stage_set : StageSet

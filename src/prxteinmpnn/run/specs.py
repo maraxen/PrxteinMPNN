@@ -53,6 +53,7 @@ if TYPE_CHECKING:
 
     n_states: ArrayLike
 
+
 # Type aliases for convenience
 ModelWeights = MODEL_WEIGHTS
 ModelVersion = MODEL_VERSION

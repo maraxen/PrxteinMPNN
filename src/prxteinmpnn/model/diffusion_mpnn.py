@@ -146,12 +146,12 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
     )
 
     return {
-        "featurize": FeaturizeFn,
-        "encode": ProteinEncodeFn,
-        "decode": ConditionalDecodeFn | UnconditionalDecodeFn,
-        "logit_transform": LogitTransformFn,
-        "ar_logit_transform": ARLogitTransformFn,
-        "encoder_state_fn": None,
+      "featurize": FeaturizeFn,
+      "encode": ProteinEncodeFn,
+      "decode": ConditionalDecodeFn | UnconditionalDecodeFn,
+      "logit_transform": LogitTransformFn,
+      "ar_logit_transform": ARLogitTransformFn,
+      "encoder_state_fn": None,
     }
 
   def __call__(  # type: ignore[override]
@@ -170,7 +170,7 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
     **kwargs: Any,
   ) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Encoder-only entry point with diffusion timestep support.
-    
+
     Returns:
         3-tuple of (node_features, edge_features, edge_indices).
     """
@@ -194,7 +194,7 @@ class DiffusionPrxteinMPNN(PrxteinMPNN):
       t_embed = self.t_embed_mlp(t_embed)  # [B, C]
 
       # Match node_features shape [B, L, C]
-      t_embed = t_embed[:, None, :] # [B, 1, C]
+      t_embed = t_embed[:, None, :]  # [B, 1, C]
 
       node_features = node_features + t_embed
 

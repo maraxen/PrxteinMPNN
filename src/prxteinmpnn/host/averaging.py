@@ -45,7 +45,7 @@ class ArithmeticMeanEncodingFusion(eqx.Module):
 
   def __call__(self, stacked: EncoderOutput) -> EncoderOutput:
     return cast(
-      EncoderOutput,
+      "EncoderOutput",
       EncoderOutput(
         node_features=jnp.mean(stacked.node_features, axis=0),
         edge_features=jnp.mean(stacked.edge_features, axis=0),
@@ -63,7 +63,7 @@ class IdentityEncodingFusion(eqx.Module):
   """
 
   def __call__(self, stacked: EncoderOutput) -> EncoderOutput:
-    return cast(EncoderOutput, stacked)
+    return cast("EncoderOutput", stacked)
 
 
 def _get_averaged_encodings_legacy(
@@ -384,14 +384,16 @@ def _make_encoding_sampling_split_fn_legacy(
         group_member_mask = tie_group_map == group_idx  # (N,) boolean
         # Stubbed for Phase 5 refactor compatibility
         if multi_state_strategy == "arithmetic_mean":
-            strategy_cls = LOGIT_STRATEGIES.get("arithmetic_mean")
-            avg_logits = strategy_cls(jnp.ones(1))(logits[None, ...])
+          strategy_cls = LOGIT_STRATEGIES.get("arithmetic_mean")
+          avg_logits = strategy_cls(jnp.ones(1))(logits[None, ...])
         elif multi_state_strategy == "geometric_mean":
-            strategy_cls = LOGIT_STRATEGIES.get("geometric_mean")
-            avg_logits = strategy_cls(jnp.ones(1), temperature=multi_state_temperature)(logits[None, ...])
+          strategy_cls = LOGIT_STRATEGIES.get("geometric_mean")
+          avg_logits = strategy_cls(jnp.ones(1), temperature=multi_state_temperature)(
+            logits[None, ...],
+          )
         else:
-            strategy_cls = LOGIT_STRATEGIES.get("product")
-            avg_logits = strategy_cls(jnp.ones(1))(logits[None, ...])
+          strategy_cls = LOGIT_STRATEGIES.get("product")
+          avg_logits = strategy_cls(jnp.ones(1))(logits[None, ...])
         if bias is not None:
           group_mask = group_member_mask.astype(jnp.float32)[:, None]  # (N, 1)
           group_count = group_mask.sum(axis=0, keepdims=True)  # (1, 1)

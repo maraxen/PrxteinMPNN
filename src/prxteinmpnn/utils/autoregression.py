@@ -26,10 +26,7 @@ def get_decoding_step_map(
   N = tie_group_map.shape[0]
   M = group_decoding_order.shape[0]
 
-  group_to_step = (
-    jnp.zeros(N, dtype=jnp.int32)
-    .at[group_decoding_order].set(jnp.arange(M))
-  )
+  group_to_step = jnp.zeros(N, dtype=jnp.int32).at[group_decoding_order].set(jnp.arange(M))
   return group_to_step[tie_group_map]
 
 

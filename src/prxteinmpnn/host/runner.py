@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import jax.numpy as jnp
 
@@ -44,12 +44,6 @@ from prxteinmpnn.host.streaming_host import StreamingBatchHost
 from prxteinmpnn.run.specs import SamplingSpecification, pop_deprecated_spec_kwargs
 
 from .prep import prep_protein_stream_and_model
-
-if TYPE_CHECKING:
-
-  from grain.python import IterDataset
-
-  from prxteinmpnn.model.mpnn import PrxteinMPNN
 
 logger = logging.getLogger(__name__)
 _batch_logger = logging.getLogger(__name__ + ".batch_plan")
@@ -252,7 +246,3 @@ def sample(
     }
 
   return results
-
-
-
-

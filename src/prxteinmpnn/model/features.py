@@ -94,7 +94,7 @@ class ProteinFeatures(eqx.Module):
 
     self.k_neighbors = k_neighbors
     self.rbf_dim = 16
-    self.pos_embed_dim = 16 # Fixed output dim
+    self.pos_embed_dim = 16  # Fixed output dim
     self.num_positional_embeddings = num_positional_embeddings
 
     pos_one_hot_dim = 2 * num_positional_embeddings + 2
@@ -186,7 +186,9 @@ class ProteinFeatures(eqx.Module):
 
     # At this point neighbor_indices must be populated (either passed in or computed)
     if neighbor_indices is None:
-        raise ValueError("neighbor_indices is None. This could happen if distances is None and no neighbor_indices were provided.")
+      raise ValueError(
+        "neighbor_indices is None. This could happen if distances is None and no neighbor_indices were provided.",
+      )
     neighbor_indices = jnp.array(neighbor_indices, dtype=jnp.int32)
 
     if rbf_features is not None:
@@ -197,8 +199,8 @@ class ProteinFeatures(eqx.Module):
 
     edge_chains = (chain_index[:, None] == chain_index[None, :]).astype(jnp.int32)
     if edge_chains is None:
-        # This should be impossible if chain_index is not None
-        pass
+      # This should be impossible if chain_index is not None
+      pass
     edge_chains_neighbors = jnp.take_along_axis(
       edge_chains,
       neighbor_indices,

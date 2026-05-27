@@ -1,4 +1,5 @@
 """Ligand-conditioned MPNN (:class:`PrxteinLigandMPNN`) and ligand stack helpers."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -19,6 +20,7 @@ from prxteinmpnn.model.ligand_tiling import map_chunks_axis0, map_chunks_axis0_m
 
 if TYPE_CHECKING:
   from prxteinmpnn.types.arrays import PRNGKeyArray
+
 
 class PrxteinLigandMPNN(eqx.Module):
   """Ligand-conditioned protein sequence design model.
@@ -79,6 +81,7 @@ class PrxteinLigandMPNN(eqx.Module):
   .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).
      https://github.com/dauparas/LigandMPNN
   """
+
   features: ProteinFeaturesLigand
   encoder: Encoder
   decoder: Decoder
@@ -198,7 +201,11 @@ class PrxteinLigandMPNN(eqx.Module):
 
     self.context_encoder = tuple(
       DecoderLayer(
-        node_features, node_features * 2, hidden_features, dropout_rate=dropout_rate, key=k,
+        node_features,
+        node_features * 2,
+        hidden_features,
+        dropout_rate=dropout_rate,
+        key=k,
       )
       for k in context_keys
     )
@@ -220,7 +227,6 @@ class PrxteinLigandMPNN(eqx.Module):
     self.w_s_embed = eqx.nn.Embedding(vocab_size, node_features, key=proj_keys[5])
     self.w_out = eqx.nn.Linear(node_features, num_amino_acids, key=proj_keys[6])
 
-
   @classmethod
   def stage_schema(cls) -> dict[str, type | None]:
     """Return the canonical stage names and type signatures for LigandMPNN pipeline.
@@ -239,13 +245,14 @@ class PrxteinLigandMPNN(eqx.Module):
       LogitTransformFn,
       UnconditionalDecodeFn,
     )
+
     return {
-        "featurize": FeaturizeFn,
-        "encode": LigandEncodeFn,
-        "decode": ConditionalDecodeFn | UnconditionalDecodeFn,
-        "logit_transform": LogitTransformFn,
-        "ar_logit_transform": ARLogitTransformFn,
-        "encoder_state_fn": EncoderStateFn | None,
+      "featurize": FeaturizeFn,
+      "encode": LigandEncodeFn,
+      "decode": ConditionalDecodeFn | UnconditionalDecodeFn,
+      "logit_transform": LogitTransformFn,
+      "ar_logit_transform": ARLogitTransformFn,
+      "encoder_state_fn": EncoderStateFn | None,
     }
 
   def __call__(
@@ -307,11 +314,11 @@ class PrxteinLigandMPNN(eqx.Module):
 
     # Default ligand arrays to empty if not provided
     if y is None:
-        y = jnp.zeros((0, 4, 3))
+      y = jnp.zeros((0, 4, 3))
     if y_t is None:
-        y_t = jnp.zeros((0, 4), dtype=jnp.int32)
+      y_t = jnp.zeros((0, 4), dtype=jnp.int32)
     if y_m is None:
-        y_m = jnp.zeros((0, 4))
+      y_m = jnp.zeros((0, 4))
 
     V, E, E_idx, Y_nodes, Y_edges, Y_m_out = self.features(
       _key=keys[0],
@@ -348,13 +355,21 @@ class PrxteinLigandMPNN(eqx.Module):
       for i in range(len(self.context_encoder)):
         Y_nodes = jax.vmap(
           lambda node, edge, mask_l, mask_e: self.y_context_encoder[i](
-            node, edge, mask_l, attention_mask=mask_e, inference=True,
+            node,
+            edge,
+            mask_l,
+            attention_mask=mask_e,
+            inference=True,
           ),
         )(Y_nodes, Y_edges, Y_m_out, Y_m_edges)
 
         h_E_context_cat = jnp.concatenate([h_E_context, Y_nodes], axis=-1)
         h_V_C = self.context_encoder[i](
-          h_V_C, h_E_context_cat, mask, attention_mask=Y_m_out, inference=True,
+          h_V_C,
+          h_E_context_cat,
+          mask,
+          attention_mask=Y_m_out,
+          inference=True,
         )
     else:
       Y_nodes = map_chunks_axis0(
@@ -383,7 +398,11 @@ class PrxteinLigandMPNN(eqx.Module):
         ) -> tuple[jax.Array, jax.Array]:
           Yn_out = jax.vmap(
             lambda node, edge, mask_l, mask_e: y_layer(
-              node, edge, mask_l, attention_mask=mask_e, inference=True,
+              node,
+              edge,
+              mask_l,
+              attention_mask=mask_e,
+              inference=True,
             ),
           )(Yn, Ye, Ymm, Yme)
           he_cat = jnp.concatenate([hec, Yn_out], axis=-1)

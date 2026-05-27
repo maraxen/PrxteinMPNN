@@ -90,5 +90,3 @@ def posterior_entropy_moments(alpha: Array) -> Array:
   """
   alpha = alpha.flatten()
   return jnp.array([posterior_entropy_mean(alpha), posterior_entropy_squared_mean(alpha)])
-
-

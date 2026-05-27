@@ -6,144 +6,152 @@ import jax
 import jax.numpy as jnp
 
 from prxteinmpnn.types.bundles import (
-    ConditioningBundle,
-    GeometryBundle,
-    InferenceBundle,
-    LigandBundle,
-    WaveScheduleBundle,
+  ConditioningBundle,
+  GeometryBundle,
+  InferenceBundle,
+  LigandBundle,
+  WaveScheduleBundle,
 )
 from prxteinmpnn.types.configs import InferenceConfig
 
 
 def build_inference_bundle(
-    coords: jax.Array,           # (L, 4, 3) or (S, L, 4, 3)
-    mask: jax.Array,             # (L,) or (S, L)
-    residue_index: jax.Array,
-    chain_index: jax.Array,
-    *,
-    backbone_noise: float | jax.Array = 0.0,
-    backbone_noise_mode: str = "direct",
-    sequence: jax.Array | None = None,
-    ar_mask: jax.Array | None = None,
-    bias: jax.Array | None = None,
-    fixed_mask: jax.Array | None = None,
-    fixed_tokens: jax.Array | None = None,
-    tie_group_map: jax.Array | None = None,
-    state_weights: jax.Array | None = None,
-    ligand_coords: jax.Array | None = None,
-    ligand_atom_types: jax.Array | None = None,
-    ligand_mask: jax.Array | None = None,
-    structure_mapping: jax.Array | None = None,
-    physics_features: jax.Array | None = None,
-    temperature: float = 1.0,
-    mode: str = "score_conditional",
-    inference: bool = True,
+  coords: jax.Array,  # (L, 4, 3) or (S, L, 4, 3)
+  mask: jax.Array,  # (L,) or (S, L)
+  residue_index: jax.Array,
+  chain_index: jax.Array,
+  *,
+  backbone_noise: float | jax.Array = 0.0,
+  backbone_noise_mode: str = "direct",
+  sequence: jax.Array | None = None,
+  ar_mask: jax.Array | None = None,
+  bias: jax.Array | None = None,
+  fixed_mask: jax.Array | None = None,
+  fixed_tokens: jax.Array | None = None,
+  tie_group_map: jax.Array | None = None,
+  state_weights: jax.Array | None = None,
+  ligand_coords: jax.Array | None = None,
+  ligand_atom_types: jax.Array | None = None,
+  ligand_mask: jax.Array | None = None,
+  structure_mapping: jax.Array | None = None,
+  physics_features: jax.Array | None = None,
+  temperature: float = 1.0,
+  mode: str = "score_conditional",
+  inference: bool = True,
 ) -> tuple[InferenceBundle, InferenceConfig]:
-    """Single entry point for bundle construction from raw arrays."""
+  """Single entry point for bundle construction from raw arrays."""
 
-    # 1. Resolve shapes
-    if coords.ndim == 3:
-        coords = coords[None, ...]
-        mask = mask[None, ...]
-        residue_index = residue_index[None, ...]
-        chain_index = chain_index[None, ...]
-        if structure_mapping is not None:
-            structure_mapping = structure_mapping[None, ...]
-        if ligand_coords is not None:
-            ligand_coords = ligand_coords[None, ...]
-            ligand_atom_types = ligand_atom_types[None, ...]
-            ligand_mask = ligand_mask[None, ...]
-        if physics_features is not None and physics_features.ndim == 2:
-            physics_features = physics_features[None, ...]
+  # 1. Resolve shapes
+  if coords.ndim == 3:
+    coords = coords[None, ...]
+    mask = mask[None, ...]
+    residue_index = residue_index[None, ...]
+    chain_index = chain_index[None, ...]
+    if structure_mapping is not None:
+      structure_mapping = structure_mapping[None, ...]
+    if ligand_coords is not None:
+      ligand_coords = ligand_coords[None, ...]
+      ligand_atom_types = ligand_atom_types[None, ...]
+      ligand_mask = ligand_mask[None, ...]
+    if physics_features is not None and physics_features.ndim == 2:
+      physics_features = physics_features[None, ...]
 
-    # After normalization, all arrays must be 4D (or 2D for mask/indices when already batched)
-    # Coords: always (S, L, 4, 3)
-    # Mask/residue_index/chain_index: always (S, L) after normalization
-    assert coords.ndim == 4, f"Expected coords.ndim == 4 after normalization, got {coords.ndim}"
-    assert mask.ndim == 2, f"Expected mask.ndim == 2 after normalization, got {mask.ndim}"
-    assert residue_index.ndim == 2, f"Expected residue_index.ndim == 2 after normalization, got {residue_index.ndim}"
-    assert chain_index.ndim == 2, f"Expected chain_index.ndim == 2 after normalization, got {chain_index.ndim}"
+  # After normalization, all arrays must be 4D (or 2D for mask/indices when already batched)
+  # Coords: always (S, L, 4, 3)
+  # Mask/residue_index/chain_index: always (S, L) after normalization
+  assert coords.ndim == 4, f"Expected coords.ndim == 4 after normalization, got {coords.ndim}"
+  assert mask.ndim == 2, f"Expected mask.ndim == 2 after normalization, got {mask.ndim}"
+  assert residue_index.ndim == 2, (
+    f"Expected residue_index.ndim == 2 after normalization, got {residue_index.ndim}"
+  )
+  assert chain_index.ndim == 2, (
+    f"Expected chain_index.ndim == 2 after normalization, got {chain_index.ndim}"
+  )
 
-    S, L = coords.shape[0], coords.shape[1]
+  S, L = coords.shape[0], coords.shape[1]
 
-    # 2. Geometry
-    geo = GeometryBundle(
-        coords=coords,
-        mask=mask,
-        residue_index=residue_index,
-        chain_index=chain_index,
-        n_states=S,
-        n_canonical=L,
-        n_flat=L,
-        structure_mapping=structure_mapping,
-        physics_features=physics_features,
-    )
+  # 2. Geometry
+  geo = GeometryBundle(
+    coords=coords,
+    mask=mask,
+    residue_index=residue_index,
+    chain_index=chain_index,
+    n_states=S,
+    n_canonical=L,
+    n_flat=L,
+    structure_mapping=structure_mapping,
+    physics_features=physics_features,
+  )
 
-    # 3. Conditioning
-    if state_weights is None:
-        state_weights = jnp.ones(S) / S
+  # 3. Conditioning
+  if state_weights is None:
+    state_weights = jnp.ones(S) / S
 
-    if tie_group_map is None:
-        tie_group_map = jnp.broadcast_to(jnp.arange(L)[None, :], (S, L))
-    elif tie_group_map.ndim == 1:
-        tie_group_map = jnp.broadcast_to(tie_group_map[None, :], (S, L))
+  if tie_group_map is None:
+    tie_group_map = jnp.broadcast_to(jnp.arange(L)[None, :], (S, L))
+  elif tie_group_map.ndim == 1:
+    tie_group_map = jnp.broadcast_to(tie_group_map[None, :], (S, L))
 
-    if ar_mask is None:
-        if mode == "score_conditional":
-            # Default to full context minus self (all-ones except diagonal)
-            ar_mask = 1.0 - jnp.eye(L)
-            ar_mask = jnp.broadcast_to(ar_mask[None, ...], (S, L, L))
-        else:
-            # For sampling, it will be generated by the kernel/driver
-            ar_mask = jnp.zeros((S, L, L))
-    elif ar_mask.ndim == 2:
-        ar_mask = jnp.broadcast_to(ar_mask[None, ...], (S, L, L))
-
-    # Handle sequence: can be token indices or already one-hot
-    if sequence is not None:
-        if sequence.ndim == 1:
-            # Token indices: convert to one-hot
-            sequence_oh = jax.nn.one_hot(sequence, 21)
-        elif sequence.ndim == 2 and sequence.shape[1] == 21:
-            # Already one-hot
-            sequence_oh = sequence
-        else:
-            raise ValueError(f"sequence must be shape (L,) for tokens or (L, 21) for one-hot, got {sequence.shape}")
+  if ar_mask is None:
+    if mode == "score_conditional":
+      # Default to full context minus self (all-ones except diagonal)
+      ar_mask = 1.0 - jnp.eye(L)
+      ar_mask = jnp.broadcast_to(ar_mask[None, ...], (S, L, L))
     else:
-        sequence_oh = jnp.zeros((L, 21))
+      # For sampling, it will be generated by the kernel/driver
+      ar_mask = jnp.zeros((S, L, L))
+  elif ar_mask.ndim == 2:
+    ar_mask = jnp.broadcast_to(ar_mask[None, ...], (S, L, L))
 
-    cond = ConditioningBundle(
-        fixed_mask=fixed_mask if fixed_mask is not None else jnp.zeros(L),
-        fixed_tokens=fixed_tokens if fixed_tokens is not None else jnp.zeros(L, dtype=jnp.int32),
-        bias=bias if bias is not None else jnp.zeros((L, 21)),
-        tie_group_map=tie_group_map,
-        state_weights=state_weights,
-        sequence_oh=sequence_oh,
-        ar_mask=ar_mask,
-        temperature=jnp.array(temperature),
-    )
+  # Handle sequence: can be token indices or already one-hot
+  if sequence is not None:
+    if sequence.ndim == 1:
+      # Token indices: convert to one-hot
+      sequence_oh = jax.nn.one_hot(sequence, 21)
+    elif sequence.ndim == 2 and sequence.shape[1] == 21:
+      # Already one-hot
+      sequence_oh = sequence
+    else:
+      raise ValueError(
+        f"sequence must be shape (L,) for tokens or (L, 21) for one-hot, got {sequence.shape}",
+      )
+  else:
+    sequence_oh = jnp.zeros((L, 21))
 
-    # 4. Ligand
-    lig = LigandBundle(
-        ligand_coords=ligand_coords if ligand_coords is not None else jnp.zeros((S, 0, 4, 3)),
-        ligand_atom_types=ligand_atom_types if ligand_atom_types is not None else jnp.zeros((S, 0, 4), dtype=jnp.int32),
-        ligand_mask=ligand_mask if ligand_mask is not None else jnp.zeros((S, 0, 4)),
-    )
+  cond = ConditioningBundle(
+    fixed_mask=fixed_mask if fixed_mask is not None else jnp.zeros(L),
+    fixed_tokens=fixed_tokens if fixed_tokens is not None else jnp.zeros(L, dtype=jnp.int32),
+    bias=bias if bias is not None else jnp.zeros((L, 21)),
+    tie_group_map=tie_group_map,
+    state_weights=state_weights,
+    sequence_oh=sequence_oh,
+    ar_mask=ar_mask,
+    temperature=jnp.array(temperature),
+  )
 
-    # 5. Assemble Bundle
-    bundle = InferenceBundle(
-        geometry=geo,
-        conditioning=cond,
-        ligand=lig,
-        wave=WaveScheduleBundle.empty(L),
-        backbone_noise=jnp.array(backbone_noise),
-    )
+  # 4. Ligand
+  lig = LigandBundle(
+    ligand_coords=ligand_coords if ligand_coords is not None else jnp.zeros((S, 0, 4, 3)),
+    ligand_atom_types=ligand_atom_types
+    if ligand_atom_types is not None
+    else jnp.zeros((S, 0, 4), dtype=jnp.int32),
+    ligand_mask=ligand_mask if ligand_mask is not None else jnp.zeros((S, 0, 4)),
+  )
 
-    # 6. Config
-    config = InferenceConfig(
-        mode=mode,
-        backbone_noise_mode=backbone_noise_mode,
-        inference=inference,
-    )
+  # 5. Assemble Bundle
+  bundle = InferenceBundle(
+    geometry=geo,
+    conditioning=cond,
+    ligand=lig,
+    wave=WaveScheduleBundle.empty(L),
+    backbone_noise=jnp.array(backbone_noise),
+  )
 
-    return bundle, config
+  # 6. Config
+  config = InferenceConfig(
+    mode=mode,
+    backbone_noise_mode=backbone_noise_mode,
+    inference=inference,
+  )
+
+  return bundle, config

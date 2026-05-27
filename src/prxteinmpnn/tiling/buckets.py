@@ -18,6 +18,7 @@ from jaxtyping import Array, Bool, Float
 # Protein length buckets (designed for typical protein sizes)
 LENGTH_BUCKETS: tuple[int, ...] = (100, 200, 400, 800, 1200)
 
+
 def pad_length_bucket_128(n: int) -> int:
   """Pad to the nearest multiple of 128 (useful for kernel/memory alignment)."""
   return ((int(n) + 127) // 128) * 128

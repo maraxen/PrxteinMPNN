@@ -109,34 +109,28 @@ def make_conditional_logits_fn(
 
     """
     bundle, config = build_inference_bundle(
-        coords=structure_coordinates,
-        mask=mask,
-        residue_index=residue_index,
-        chain_index=chain_index,
-        sequence=sequence,
-        backbone_noise=backbone_noise if backbone_noise is not None else 0.0,
-        ar_mask=ar_mask,
-        structure_mapping=structure_mapping,
-        mode="score_conditional",
-        inference=True,
+      coords=structure_coordinates,
+      mask=mask,
+      residue_index=residue_index,
+      chain_index=chain_index,
+      sequence=sequence,
+      backbone_noise=backbone_noise if backbone_noise is not None else 0.0,
+      ar_mask=ar_mask,
+      structure_mapping=structure_mapping,
+      mode="score_conditional",
+      inference=True,
     )
     stage_set = make_stage_set()
 
     return score_conditional(
-        model=model,
-        prng_key=prng_key,
-        bundle=bundle,
-        config=config,
-        stage_set=stage_set,
+      model=model,
+      prng_key=prng_key,
+      bundle=bundle,
+      config=config,
+      stage_set=stage_set,
     )
 
   return cast("ConditionalLogitsFn", conditional_logits)
-
-
-
-
-
-
 
 
 def make_encoding_conditional_logits_split_fn(
@@ -228,10 +222,10 @@ def make_encoding_conditional_logits_split_fn(
     )
 
     return EncoderOutput(
-        node_features=node_features,
-        edge_features=processed_edge_features,
-        neighbor_indices=neighbor_indices,
-        mask=mask,
+      node_features=node_features,
+      edge_features=processed_edge_features,
+      neighbor_indices=neighbor_indices,
+      mask=mask,
     )
 
   def decode_fn(
@@ -256,7 +250,9 @@ def make_encoding_conditional_logits_split_fn(
     mask = encoding.mask
 
     if ar_mask is None:
-      ar_mask = jax.numpy.zeros((node_features.shape[0], node_features.shape[0]), dtype=jax.numpy.int32)
+      ar_mask = jax.numpy.zeros(
+        (node_features.shape[0], node_features.shape[0]), dtype=jax.numpy.int32,
+      )
 
     if sequence.ndim == 1:
       one_hot_sequence = jax.nn.one_hot(sequence, inference_model.w_s_embed.num_embeddings)

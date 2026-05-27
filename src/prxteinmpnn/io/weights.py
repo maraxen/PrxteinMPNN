@@ -39,6 +39,7 @@ LEGACY_ALIAS_MAP = {
   ("soluble", "v_48_030"): "solublempnn_v_48_030.eqx.zst",
 }
 
+
 def get_topology_for_checkpoint(checkpoint_id: str) -> dict[str, int | bool | str]:
   """Infer model topology and type from the checkpoint filename/id."""
   topology = {
@@ -107,7 +108,9 @@ def load_weights(
       return init.normal(stddev=0.01)(key, shape, param.dtype)
 
     initialized_leaves = [initialize_param(p, k) for p, k in zip(param_leaves, keys, strict=True)]
-    new_params = jax.tree_util.tree_unflatten(jax.tree_util.tree_structure(params), initialized_leaves)
+    new_params = jax.tree_util.tree_unflatten(
+      jax.tree_util.tree_structure(params), initialized_leaves,
+    )
     return eqx.combine(new_params, static)
 
   if local_path:

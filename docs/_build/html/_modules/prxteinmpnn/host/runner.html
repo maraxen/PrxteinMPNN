@@ -1,0 +1,613 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>prxteinmpnn.host.runner &#8212; PrxteinMPNN 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/mystnb.11b39860a7a0cbfd473a3ad8a317855267ff0bd372690045ca344a6b62be495e.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/style.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=a1637f0b"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=30646c52"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/prxteinmpnn/host/runner';</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">PrxteinMPNN 0.1.0 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/models.html">Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/inference.html">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/types.html">Types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/sampling.html">Sampling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/scoring.html">Scoring</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/host.html">Host / Dispatch Layer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/run.html">Run / Specs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/utils.html">Utilities</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/quickstart.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/installation.html">Installation Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/basic_usage.html">Basic Usage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../examples/index.html">Examples</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../examples/advanced_example.html">Advanced Example</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+<a href="https://github.com/maraxen/prxteinmpnn" target="_blank"
+   class="btn btn-sm btn-source-repository-button"
+   title="Source repository"
+   data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+
+</a>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1></h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for prxteinmpnn.host.runner</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Core user interface for the PrxteinMPNN package.&quot;&quot;&quot;</span>
+
+<span class="c1"># COMP-NEW (2026-05-25): non-streaming path now drains via streaming_tensor_sink_session (§14 resolved).</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.host._sampling_grid_lineage</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+  <span class="n">_grid_iteration_arrays</span><span class="p">,</span>
+  <span class="n">_grid_manifest_row_hash</span><span class="p">,</span>
+  <span class="n">_grid_sample_indices</span><span class="p">,</span>
+  <span class="n">_resolve_grid_lineage</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.host._sampling_helper</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+  <span class="n">_canonical_structure_ids_for_spec</span><span class="p">,</span>
+  <span class="n">_structure_ids_for_batch</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.host.kernel_dispatch</span><span class="w"> </span><span class="kn">import</span> <span class="n">_sample_batch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.host.logit_aggregation</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+  <span class="n">aggregate_logits</span><span class="p">,</span>
+  <span class="n">aggregate_pseudo_perplexities</span><span class="p">,</span>
+  <span class="n">pad_to_max</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.host.output_sinks</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+  <span class="n">streaming_tensor_sink_session</span><span class="p">,</span>
+  <span class="n">take_staging_sequences_logits</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.host.plan</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+  <span class="n">InferencePlan</span><span class="p">,</span>
+  <span class="n">make_inference_plan</span><span class="p">,</span>
+  <span class="n">resolve_chunk_size</span><span class="p">,</span>
+  <span class="n">resolve_target_samples</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.host.streaming</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+  <span class="n">GRID_SCHEMA_VERSION</span><span class="p">,</span>
+  <span class="n">SAMPLING_SCHEMA_VERSION</span><span class="p">,</span>
+  <span class="n">_sample_streaming</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.host.streaming_host</span><span class="w"> </span><span class="kn">import</span> <span class="n">StreamingBatchHost</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.run.specs</span><span class="w"> </span><span class="kn">import</span> <span class="n">SamplingSpecification</span><span class="p">,</span> <span class="n">pop_deprecated_spec_kwargs</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.prep</span><span class="w"> </span><span class="kn">import</span> <span class="n">prep_protein_stream_and_model</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+
+  <span class="kn">from</span><span class="w"> </span><span class="nn">grain.python</span><span class="w"> </span><span class="kn">import</span> <span class="n">IterDataset</span>
+
+  <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.mpnn</span><span class="w"> </span><span class="kn">import</span> <span class="n">PrxteinMPNN</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+<span class="n">_batch_logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span> <span class="o">+</span> <span class="s2">&quot;.batch_plan&quot;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="sample">
+<a class="viewcode-back" href="../../../api/host.html#prxteinmpnn.host.runner.sample">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">sample</span><span class="p">(</span>
+  <span class="n">spec</span><span class="p">:</span> <span class="n">SamplingSpecification</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>  <span class="c1"># noqa: ANN401</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Sample new sequences for given input structures using high-performance Grain pipeline.</span>
+
+<span class="sd">  Routes to streaming or in-memory sampling based on output configuration and averaging mode.</span>
+<span class="sd">  Loads structures via Grain iterator, prepares model, processes in batches, and aggregates</span>
+<span class="sd">  results with optional logits and pseudo-perplexity calculations.</span>
+
+<span class="sd">  Parameters</span>
+<span class="sd">  ----------</span>
+<span class="sd">  spec : SamplingSpecification, optional</span>
+<span class="sd">      SamplingSpecification object configuring inputs, model, and sampling strategy.</span>
+<span class="sd">      If None, a default specification is constructed from **kwargs.</span>
+<span class="sd">  **kwargs : Any</span>
+<span class="sd">      Keyword arguments for SamplingSpecification if spec is None. Options include:</span>
+<span class="sd">        inputs : str or list[str]</span>
+<span class="sd">            Input structures (file paths, PDB IDs, etc.).</span>
+<span class="sd">        chain_id : str, optional</span>
+<span class="sd">            Specific chain(s) to parse.</span>
+<span class="sd">        model : int, optional</span>
+<span class="sd">            Model number to load. If None, all models used.</span>
+<span class="sd">        altloc : str, optional</span>
+<span class="sd">            Alternate location identifier.</span>
+<span class="sd">        model_version : str, optional</span>
+<span class="sd">            Model version (e.g., &#39;proteinmpnn_v1&#39;).</span>
+<span class="sd">        model_weights : str, optional</span>
+<span class="sd">            Path to model weights.</span>
+<span class="sd">        foldcomp_database : str, optional</span>
+<span class="sd">            FoldComp database for compressed structures.</span>
+<span class="sd">        random_seed : int, optional</span>
+<span class="sd">            Random seed for sampling.</span>
+<span class="sd">        backbone_noise : float, optional</span>
+<span class="sd">            Noise added to backbone coordinates.</span>
+<span class="sd">        num_samples : int, optional</span>
+<span class="sd">            Number of sequences per structure/noise level.</span>
+<span class="sd">        sampling_strategy : str, optional</span>
+<span class="sd">            Sampling strategy (e.g., &#39;autoregressive&#39;, &#39;straight_through&#39;).</span>
+<span class="sd">        temperature : float, optional</span>
+<span class="sd">            Sampling temperature.</span>
+<span class="sd">        bias : jax.Array, optional</span>
+<span class="sd">            Per-position or per-position-per-token logit bias. Shape: (L,) or (L, 21).</span>
+<span class="sd">        fixed_positions : list[int], optional</span>
+<span class="sd">            Residue indices to keep fixed.</span>
+<span class="sd">        iterations : int, optional</span>
+<span class="sd">            Optimization iterations for &#39;straight_through&#39; strategy.</span>
+<span class="sd">        learning_rate : float, optional</span>
+<span class="sd">            Learning rate for &#39;straight_through&#39; strategy.</span>
+<span class="sd">        batch_size : int, optional</span>
+<span class="sd">            Number of structures per batch.</span>
+<span class="sd">        return_logits : bool, optional</span>
+<span class="sd">            Whether to return logits for each position.</span>
+<span class="sd">        output_h5_path : str, optional</span>
+<span class="sd">            Path to streaming H5 output file.</span>
+<span class="sd">        grid_mode : bool, optional</span>
+<span class="sd">            Whether in grid sampling mode (affects metadata lineage).</span>
+
+<span class="sd">  Returns</span>
+<span class="sd">  -------</span>
+<span class="sd">  dict[str, Any]</span>
+<span class="sd">      Dictionary with keys:</span>
+<span class="sd">        sequences : jax.Array</span>
+<span class="sd">            Sampled sequences, shape (B*N, L) where B is batch count,</span>
+<span class="sd">            N is num_samples per structure, L is sequence length.</span>
+<span class="sd">            Padded to max length across all sequences, masked with &#39;mask&#39; key.</span>
+<span class="sd">        mask : jax.Array</span>
+<span class="sd">            Sequence validity mask (1 for valid, 0 for padding). Shape: (B*N, L).</span>
+<span class="sd">        schema_version : str</span>
+<span class="sd">            Schema version for results (&#39;grid_v1&#39; or &#39;sampling_v1&#39;).</span>
+<span class="sd">        metadata : dict</span>
+<span class="sd">            Metadata including specification, skipped_inputs, structure_ids,</span>
+<span class="sd">            and optional lineage info (grid mode).</span>
+<span class="sd">        logits : jax.Array, optional</span>
+<span class="sd">            Per-position logits if return_logits=True. Shape: (B*N, L, 21).</span>
+<span class="sd">        pseudo_perplexity : jax.Array, optional</span>
+<span class="sd">            Per-sequence pseudo-perplexity scores if computed.</span>
+
+<span class="sd">  Notes</span>
+<span class="sd">  -----</span>
+<span class="sd">  Streaming vs. in-memory: If output_h5_path is set, uses streaming I/O.</span>
+<span class="sd">  Otherwise, concatenates per-batch results in memory. See _sample_streaming</span>
+<span class="sd">  in streaming.py for streaming mode details.</span>
+
+<span class="sd">  References</span>
+<span class="sd">  ----------</span>
+<span class="sd">  .. [ProteinMPNN] Dauparas, J., et al. &quot;Robust deep learning-based protein</span>
+<span class="sd">     sequence design using ProteinMPNN.&quot; *Science* 378(6615):49-56 (2022).</span>
+<span class="sd">     https://doi.org/10.1126/science.add2187</span>
+
+<span class="sd">  .. [LigandMPNN] Dauparas, J., et al. &quot;Atomic context-conditioned protein</span>
+<span class="sd">     sequence design using LigandMPNN.&quot; *Nature Methods* 22(4):717-723 (2025).</span>
+<span class="sd">     https://doi.org/10.1038/s41592-025-02626-1</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="k">if</span> <span class="n">spec</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">kw</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="n">pop_deprecated_spec_kwargs</span><span class="p">(</span><span class="n">kw</span><span class="p">)</span>
+    <span class="n">spec</span> <span class="o">=</span> <span class="n">SamplingSpecification</span><span class="p">(</span><span class="o">**</span><span class="n">kw</span><span class="p">)</span>
+
+  <span class="n">protein_iterator</span><span class="p">,</span> <span class="n">model</span> <span class="o">=</span> <span class="n">prep_protein_stream_and_model</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+
+  <span class="c1"># Construct inference plan once before routing to streaming or non-streaming path</span>
+  <span class="n">plan</span> <span class="o">=</span> <span class="n">make_inference_plan</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">spec</span><span class="p">)</span>
+
+  <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">output_h5_path</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">_sample_streaming</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">protein_iterator</span><span class="p">,</span> <span class="n">plan</span><span class="p">,</span> <span class="n">_sample_batch</span><span class="p">)</span>
+
+  <span class="c1"># Non-streaming path uses io_callback staging via streaming_tensor_sink_session;</span>
+  <span class="c1"># drains per-batch via take_staging_sequences_logits.</span>
+  <span class="n">all_sequences</span><span class="p">,</span> <span class="n">all_pseudo_perplexities</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+  <span class="n">all_logits</span> <span class="o">=</span> <span class="p">[]</span> <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">return_logits</span> <span class="k">else</span> <span class="kc">None</span>
+  <span class="n">canonical_structure_ids</span> <span class="o">=</span> <span class="n">_canonical_structure_ids_for_spec</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+  <span class="n">resolved_structure_ids</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+  <span class="n">structure_offset</span> <span class="o">=</span> <span class="mi">0</span>
+  <span class="n">structure_batch_count</span> <span class="o">=</span> <span class="n">StreamingBatchHost</span><span class="o">.</span><span class="n">structure_batch_count</span><span class="p">(</span><span class="n">protein_iterator</span><span class="p">)</span>
+  <span class="n">grid_lineage</span> <span class="o">=</span> <span class="n">_resolve_grid_lineage</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+
+  <span class="k">with</span> <span class="n">streaming_tensor_sink_session</span><span class="p">():</span>
+    <span class="k">for</span> <span class="n">batch_idx</span><span class="p">,</span> <span class="n">batched_ensemble</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">protein_iterator</span><span class="p">):</span>
+      <span class="n">batch_size</span> <span class="o">=</span> <span class="n">batched_ensemble</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+      <span class="n">batch_structure_ids</span> <span class="o">=</span> <span class="n">_structure_ids_for_batch</span><span class="p">(</span>
+        <span class="n">canonical_structure_ids</span><span class="p">,</span>
+        <span class="n">structure_offset</span><span class="o">=</span><span class="n">structure_offset</span><span class="p">,</span>
+        <span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size</span><span class="p">,</span>
+      <span class="p">)</span>
+      <span class="n">target_for_batch</span> <span class="o">=</span> <span class="n">resolve_target_samples</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">grid_lineage</span><span class="p">)</span>
+      <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">pseudo_perplexity</span> <span class="o">=</span> <span class="n">_sample_batch</span><span class="p">(</span>
+        <span class="n">spec</span><span class="p">,</span>
+        <span class="n">batched_ensemble</span><span class="p">,</span>
+        <span class="n">plan</span><span class="p">,</span>
+        <span class="n">canonical_structure_ids</span><span class="o">=</span><span class="n">canonical_structure_ids</span><span class="p">,</span>
+        <span class="n">batch_structure_ids</span><span class="o">=</span><span class="n">batch_structure_ids</span><span class="p">,</span>
+        <span class="n">batch_idx</span><span class="o">=</span><span class="n">batch_idx</span><span class="p">,</span>
+        <span class="n">structure_batch_count</span><span class="o">=</span><span class="n">structure_batch_count</span><span class="p">,</span>
+      <span class="p">)</span>
+      <span class="n">StreamingBatchHost</span><span class="o">.</span><span class="n">sink_barrier</span><span class="p">()</span>
+      <span class="n">sampled_sequences_np</span><span class="p">,</span> <span class="n">sampled_logits_np</span> <span class="o">=</span> <span class="n">take_staging_sequences_logits</span><span class="p">(</span>
+        <span class="n">batch_idx</span><span class="p">,</span>
+        <span class="mi">0</span><span class="p">,</span>
+        <span class="n">target_for_batch</span><span class="p">,</span>
+      <span class="p">)</span>
+      <span class="n">all_sequences</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">sampled_sequences_np</span><span class="p">))</span>
+      <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">return_logits</span> <span class="ow">and</span> <span class="n">all_logits</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">all_logits</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">sampled_logits_np</span><span class="p">))</span>
+      <span class="k">if</span> <span class="n">pseudo_perplexity</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">all_pseudo_perplexities</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pseudo_perplexity</span><span class="p">)</span>
+      <span class="n">resolved_structure_ids</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">batch_structure_ids</span><span class="p">)</span>
+      <span class="n">structure_offset</span> <span class="o">+=</span> <span class="n">batch_size</span>
+  <span class="n">max_len</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">arr</span> <span class="ow">in</span> <span class="n">all_sequences</span><span class="p">)</span>
+
+  <span class="n">all_sequences_padded</span> <span class="o">=</span> <span class="p">[</span><span class="n">pad_to_max</span><span class="p">(</span><span class="n">seq</span><span class="p">,</span> <span class="n">max_len</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">pad_value</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">seq</span> <span class="ow">in</span> <span class="n">all_sequences</span><span class="p">]</span>
+
+  <span class="n">all_masks</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">pad_to_max</span><span class="p">(</span>
+      <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">seq</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span>
+      <span class="n">max_len</span><span class="p">,</span>
+      <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
+      <span class="n">pad_value</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">for</span> <span class="n">seq</span> <span class="ow">in</span> <span class="n">all_sequences</span>
+  <span class="p">]</span>
+
+  <span class="n">results</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;sequences&quot;</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">all_sequences_padded</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
+    <span class="s2">&quot;mask&quot;</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">all_masks</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
+    <span class="s2">&quot;schema_version&quot;</span><span class="p">:</span> <span class="n">GRID_SCHEMA_VERSION</span> <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">grid_mode</span> <span class="k">else</span> <span class="n">SAMPLING_SCHEMA_VERSION</span><span class="p">,</span>
+    <span class="s2">&quot;metadata&quot;</span><span class="p">:</span> <span class="p">{</span>
+      <span class="s2">&quot;specification&quot;</span><span class="p">:</span> <span class="n">spec</span><span class="p">,</span>
+      <span class="s2">&quot;skipped_inputs&quot;</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">protein_iterator</span><span class="p">,</span> <span class="s2">&quot;skipped_frames&quot;</span><span class="p">,</span> <span class="p">[]),</span>
+      <span class="s2">&quot;structure_ids&quot;</span><span class="p">:</span> <span class="n">resolved_structure_ids</span><span class="p">,</span>
+    <span class="p">},</span>
+  <span class="p">}</span>
+  <span class="k">if</span> <span class="n">spec</span><span class="o">.</span><span class="n">return_logits</span> <span class="ow">and</span> <span class="n">all_logits</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">results</span><span class="p">[</span><span class="s2">&quot;logits&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">aggregate_logits</span><span class="p">(</span><span class="n">all_logits</span><span class="p">,</span> <span class="n">max_len</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">all_pseudo_perplexities</span><span class="p">:</span>
+    <span class="n">results</span><span class="p">[</span><span class="s2">&quot;pseudo_perplexity&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">aggregate_pseudo_perplexities</span><span class="p">(</span><span class="n">all_pseudo_perplexities</span><span class="p">)</span>
+
+  <span class="k">if</span> <span class="n">grid_lineage</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">manifest_row_hash</span> <span class="o">=</span> <span class="n">_grid_manifest_row_hash</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">grid_lineage</span><span class="p">)</span>
+    <span class="n">total_num_samples_for_grid</span> <span class="o">=</span> <span class="n">resolve_target_samples</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">grid_lineage</span><span class="o">=</span><span class="n">grid_lineage</span><span class="p">)</span>
+    <span class="n">chunk_size_for_grid</span> <span class="o">=</span> <span class="n">resolve_chunk_size</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">total_num_samples_for_grid</span><span class="p">,</span> <span class="n">grid_lineage</span><span class="p">)</span>
+    <span class="n">iteration_ids</span><span class="p">,</span> <span class="n">iteration_starts</span><span class="p">,</span> <span class="n">iteration_counts</span> <span class="o">=</span> <span class="n">_grid_iteration_arrays</span><span class="p">(</span>
+      <span class="n">grid_lineage</span><span class="p">,</span>
+      <span class="n">chunk_size</span><span class="o">=</span><span class="n">chunk_size_for_grid</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">sample_indices</span> <span class="o">=</span> <span class="n">_grid_sample_indices</span><span class="p">(</span><span class="n">grid_lineage</span><span class="p">)</span>
+    <span class="n">results</span><span class="p">[</span><span class="s2">&quot;sample_indices&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">sample_indices</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+    <span class="n">results</span><span class="p">[</span><span class="s2">&quot;metadata&quot;</span><span class="p">][</span><span class="s2">&quot;lineage&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+      <span class="o">**</span><span class="n">grid_lineage</span><span class="p">,</span>
+      <span class="s2">&quot;manifest_row_hash&quot;</span><span class="p">:</span> <span class="n">manifest_row_hash</span><span class="p">,</span>
+      <span class="s2">&quot;sample_indices&quot;</span><span class="p">:</span> <span class="n">sample_indices</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span>
+      <span class="s2">&quot;grid_iteration_ids&quot;</span><span class="p">:</span> <span class="n">iteration_ids</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span>
+      <span class="s2">&quot;grid_iteration_sample_start&quot;</span><span class="p">:</span> <span class="n">iteration_starts</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span>
+      <span class="s2">&quot;grid_iteration_sample_count&quot;</span><span class="p">:</span> <span class="n">iteration_counts</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span>
+    <span class="p">}</span>
+
+  <span class="k">return</span> <span class="n">results</span></div>
+
+
+
+
+
+</pre></div>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By PrxteinMPNN Team
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, PrxteinMPNN Team.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

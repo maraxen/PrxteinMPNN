@@ -712,26 +712,26 @@ def test_ste_routes_via_stage_set():
 
 
 def test_inference_plan_decode_normalizes_logits():
-    """plan.decode returns SampleResult even when driver returns raw logits (jnp.array).
+    """plan.decode returns SampleResult even when decode_fn returns raw logits (jnp.array).
 
-    Builds a mock driver that returns raw (L, 21) logits array.
+    Builds a mock decode_fn that returns raw (L, 21) logits array.
     decode() must wrap this as SampleResult with sequence=argmax.astype(int32).
     """
     L, V = 10, 21
 
     raw_logits = jax.random.normal(jax.random.PRNGKey(0), (L, V))
 
-    def _mock_driver(model, key, enc, conditioning, wave, config, stage_set):
+    def _mock_decode_fn(key, enc, conditioning, config, stage_set):
         return raw_logits  # Return raw array, not SampleResult
 
     mock_model = MagicMock()
     stage_set = StageSet()
     components = InferenceComponents(
         encode_fn=MagicMock(return_value=MagicMock()),
-        driver=_mock_driver,
+        driver=MagicMock(),  # driver is not used anymore
         stage_set=stage_set,
     )
-    plan = InferencePlan(model=mock_model, components=components, decode_fn=MagicMock())
+    plan = InferencePlan(model=mock_model, components=components, decode_fn=_mock_decode_fn)
 
     # Build minimal bundle and config mocks
     mock_bundle = MagicMock()

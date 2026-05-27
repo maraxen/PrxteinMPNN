@@ -433,18 +433,16 @@ class InferencePlan:
     Returns
     -------
     Any
-        Logits (shape (L, 21)) when stage_set.decode_step is active.
-        SampleResult when stage_set.sample_step is active.
-        Return type is driver-dependent; typed Any to match driver: Callable precision.
+        SampleResult containing logits (shape (L, 21)) and argmax sequence.
+        Dispatches via self.decode_fn (ConditionalDecode by default; see
+        make_inference_plan for mode configuration).
     """
     from prxteinmpnn.inference.sample_autoregressive import SampleResult
 
-    result = self.components.driver(
-      self.model,
+    result = self.decode_fn(
       key,
       enc,
       bundle.conditioning,
-      bundle.wave,
       config,
       self.components.stage_set,
     )
@@ -595,8 +593,11 @@ def make_inference_plan(model: ModelProtocol, spec: Any) -> InferencePlan:
     )
     # sample_step stays None (already None from make_stage_set) — teacher-forced path
 
-  # Resolve decode_fn via make_decode_fn with default ConditionalMode and Vmap strategy
-  # (conservative defaults; caller can override via spec if needed)
+  # Resolve decode_fn via make_decode_fn with default ConditionalMode and Vmap strategy.
+  # NOTE: mode and strategy are intentionally hardcoded here (conservative defaults).
+  # Routing mode from spec.sampling_strategy is planned future work. To use a
+  # different mode (AR, STE, Unconditional), construct decode_fn manually via
+  # make_decode_fn() and pass it to InferencePlan directly.
   decode_mode = ConditionalMode()
   decode_strategy = Vmap()
   decode_fn = make_decode_fn(model, mode=decode_mode, strategy=decode_strategy)

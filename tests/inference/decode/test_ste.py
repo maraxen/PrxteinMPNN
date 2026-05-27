@@ -155,6 +155,9 @@ def test_ste_decode_tied() -> None:
     Fixture B: S=4, L=20, tie_group_map=[0,0,1,1,2,2,...,9,9] (10 groups).
     This is the CRITICAL test for Risk D-2 mitigation: verifies tied-group einsum
     averaging is applied correctly during optimization.
+
+    Includes numerical parity check (Step 10.1): STEDecode output matches
+    make_optimize_sequence_fn reference to atol=1e-5, rtol=1e-5.
     """
     # Build tied positions: pairs of positions
     tie_group_map = jnp.array(
@@ -169,29 +172,46 @@ def test_ste_decode_tied() -> None:
         tie_group_map=tie_group_map,
     )
 
-    # Implementation
+    jax_key = jax.random.PRNGKey(0)
+    iterations = 10
+    learning_rate = 1e-3
+    temperature = 1.0
+
+    # ========== Reference path via make_optimize_sequence_fn ==========
+    ref_optimize_fn = make_optimize_sequence_fn(model)
+    ref_seq, ref_logits_output, ref_logits_ste = ref_optimize_fn(
+        prng_key=jax_key,
+        bundle=bundle,
+        config=config,
+        iterations=iterations,
+        learning_rate=learning_rate,
+        temperature=temperature,
+    )
+
+    # ========== Implementation path via STEDecode ==========
     inner = ConditionalDecode(model=model, state_iterator=VmapIterator())
     ste_decode = STEDecode(
         inner=inner,
-        iterations=3,  # Reduced for testing
-        optimizer=optax.adam(1e-3),
+        iterations=iterations,
+        optimizer=optax.adam(learning_rate),
     )
     stage_set_ste = make_stage_set(
         strategy="arithmetic_mean",
         state_weights=bundle.conditioning.state_weights,
     )
-    jax_key = jax.random.PRNGKey(0)
-    impl_seq, impl_logits_final, impl_logits_ste = ste_decode(
+    impl_seq, impl_logits_output, impl_logits_ste = ste_decode(
         prng_key=jax_key,
         bundle=bundle,
         config=config,
-        temperature=1.0,
+        temperature=temperature,
         stage_set=stage_set_ste,
     )
 
+    # ========== Numerical parity assertion (Risk D-2 fixture mandate) ==========
     # Verify shapes
     assert impl_seq.shape == (20,), f"Expected seq shape (20,), got {impl_seq.shape}"
     assert impl_logits_ste.shape == (20, 21), f"Expected logits_ste shape (20, 21), got {impl_logits_ste.shape}"
+    assert impl_logits_output.shape == (20, 21), f"Expected logits_output shape (20, 21), got {impl_logits_output.shape}"
 
     # Verify tied-group consistency: positions with same group_id should have nearly identical logits
     # (they may not be exactly identical due to floating point, but very close)
@@ -206,6 +226,22 @@ def test_ste_decode_tied() -> None:
                     rtol=1e-6,
                     err_msg=f"Tied positions {positions[0]} and {p} (group {group_id}) should have identical logits"
                 )
+
+    # Assert numerical parity between reference and implementation (per spec Step 10.1)
+    np.testing.assert_allclose(
+        impl_logits_output,
+        ref_logits_output,
+        atol=1e-5,
+        rtol=1e-5,
+        err_msg="STEDecode output logits do not match make_optimize_sequence_fn reference (Risk D-2 parity)"
+    )
+    np.testing.assert_allclose(
+        impl_logits_ste,
+        ref_logits_ste,
+        atol=1e-5,
+        rtol=1e-5,
+        err_msg="STEDecode STE logits do not match make_optimize_sequence_fn reference (Risk D-2 parity)"
+    )
 
 
 @pytest.mark.parametrize("num_states", [1, 4])

@@ -246,6 +246,7 @@ def _validate_plan_topology(
     Checks:
     1. No Scan strategy on heterogeneous axes (jax.lax.scan requires static carry shape).
     2. No ordered=True boundary op (Tap/Sink) on Vmap axes (vmap has no step ordering).
+    3. No STEDecode paired with UnconditionalDecodeStep (STE requires conditional scoring).
 
     Raises:
         PlanTopologyError: on first violation found.
@@ -281,6 +282,24 @@ def _validate_plan_topology(
                         f"Use SafeMap or Scan on axes with ordered boundary ops."
                     )
                     raise PlanTopologyError(msg)
+
+    # Rule 3: STEDecode requires ConditionalDecodeStep, not UnconditionalDecodeStep (Sprint 6)
+    decode_fn = getattr(plan, "decode_fn", None)
+    if decode_fn is not None:
+        # Lazy import to avoid circular dependencies
+        from prxteinmpnn.inference.decode.ste import STEDecode
+        from prxteinmpnn.types.stages import UnconditionalDecodeStep
+
+        if isinstance(decode_fn, STEDecode):
+            decode_step = getattr(stage_set, "decode_step", None)
+            if isinstance(decode_step, UnconditionalDecodeStep):
+                msg = (
+                    "PlanTopologyError: STEDecode requires ConditionalDecodeStep on "
+                    "stage_set.decode_step; got UnconditionalDecodeStep. "
+                    "STE (straight-through estimator) requires conditional scoring via "
+                    "sequence context; unconditional decoding is incompatible."
+                )
+                raise PlanTopologyError(msg)
 
 
 # ---------------------------------------------------------------------------

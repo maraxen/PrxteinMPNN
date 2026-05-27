@@ -17,7 +17,7 @@ from jaxtyping import PRNGKeyArray
 
 from prxteinmpnn.inference.decode._kernel import _project_logits
 from prxteinmpnn.tiling.iterator import MapIterator
-from prxteinmpnn.types.bundles import ConditioningBundle, EncoderOutput
+from prxteinmpnn.types.bundles import EncoderOutput, InferenceBundle
 from prxteinmpnn.types.stages import StageSet
 
 
@@ -52,7 +52,7 @@ class UnconditionalDecode(eqx.Module):
     self,
     key: PRNGKeyArray,
     enc: EncoderOutput,
-    bundle: ConditioningBundle,
+    bundle: InferenceBundle,
     config: Any,
     stage_set: StageSet,
   ) -> jnp.ndarray:
@@ -64,8 +64,8 @@ class UnconditionalDecode(eqx.Module):
         PRNG key.
     enc : EncoderOutput
         Encoder output. Shape: node (S, L, H_n), edge (S, L, K, H_e).
-    bundle : ConditioningBundle
-        Conditioning data. For unconditional, only bias is used;
+    bundle : InferenceBundle
+        Inference bundle with conditioning data. For unconditional, only bias is used;
         sequence_oh and ar_mask are ignored.
     config : InferenceConfig
         Inference configuration.
@@ -77,6 +77,7 @@ class UnconditionalDecode(eqx.Module):
     jnp.ndarray
         Fused logits. Shape: (L, 21).
     """
+    cond = bundle.conditioning
 
     # Define the per-state decode function (no sequence_oh)
     def decode_one(inputs):
@@ -114,7 +115,7 @@ class UnconditionalDecode(eqx.Module):
     logits_stack = _project_logits(self.model, decoded)
 
     # Fuse across states: (S, L, V) -> (L, V)
-    return self._apply_logit_transform(logits_stack, stage_set, bias=bundle.bias)
+    return self._apply_logit_transform(logits_stack, stage_set, bias=cond.bias)
 
   @staticmethod
   def _apply_logit_transform(

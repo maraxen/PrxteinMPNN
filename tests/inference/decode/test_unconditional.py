@@ -24,6 +24,9 @@ from prxteinmpnn.types.bundles import (
     ConditioningBundle,
     EncoderOutput,
     GeometryBundle,
+    InferenceBundle,
+    WaveScheduleBundle,
+    LigandBundle,
 )
 from prxteinmpnn.types.stages import UnconditionalDecodeStep
 
@@ -32,7 +35,7 @@ def _build_synthetic_fixture(
     num_states: int = 1,
     num_residues: int = 8,
     seed: int = 42,
-) -> tuple[PrxteinMPNN, EncoderOutput, ConditioningBundle, InferenceConfig]:
+) -> tuple[PrxteinMPNN, EncoderOutput, "InferenceBundle", InferenceConfig]:  # type: ignore
     """Build deterministic fixture with S=num_states, L=num_residues."""
     rng = np.random.default_rng(seed)
     jax_key = jax.random.PRNGKey(seed)
@@ -80,19 +83,55 @@ def _build_synthetic_fixture(
 
     config = InferenceConfig(inference=True)
 
-    return model, enc, cond, config
+    # Create geometry bundle for InferenceBundle
+    coords = jax.random.normal(jax.random.PRNGKey(seed + 3), (num_states, L, 4, 3))
+    residue_index_stack = jnp.broadcast_to(
+        jnp.arange(L)[None, :],
+        (num_states, L)
+    )
+    geometry = GeometryBundle(
+        coords=coords,
+        mask=mask,
+        residue_index=residue_index_stack,
+        chain_index=jnp.zeros((num_states, L), dtype=jnp.int32),
+        n_states=num_states,
+        n_canonical=20,
+        n_flat=num_states * L,
+    )
+
+    # Create ligand bundle (empty for unconditional)
+    ligand = LigandBundle(
+        ligand_coords=jnp.zeros((num_states, L, 5, 3)),
+        ligand_atom_types=jnp.zeros((num_states, L, 5), dtype=jnp.int32),
+        ligand_mask=jnp.zeros((num_states, L, 5)),
+    )
+
+    # Create wave schedule bundle (empty, not used by unconditional)
+    wave = WaveScheduleBundle.empty(L)
+
+    # Create InferenceBundle
+    bundle = InferenceBundle(
+        geometry=geometry,
+        conditioning=cond,
+        ligand=ligand,
+        wave=wave,
+    )
+
+    return model, enc, bundle, config
 
 
 def _reference_decode_unconditional(
     model,
     key,
     enc,
-    cond,
+    bundle,
     config,
     stage_set,
     num_states,
 ):
     """Reference implementation (reimplemented from driver._decode_unconditional to avoid assertion bug)."""
+    cond = bundle.conditioning
+
     def decode_one(node_features, edge_features, neighbor_indices, mask):
         # Use fallback path: call model.decoder directly
         return model.decoder(
@@ -119,7 +158,7 @@ def _reference_decode_unconditional(
 @pytest.mark.parametrize("iterator_type", ["vmap", "safemap"])
 def test_unconditional_parity(num_states: int, iterator_type: str):
     """Test UnconditionalDecode matches reference implementation."""
-    model, enc, cond, config = _build_synthetic_fixture(num_states=num_states)
+    model, enc, bundle, config = _build_synthetic_fixture(num_states=num_states)
     jax_key = jax.random.PRNGKey(42)
 
     # Build stage_set without decode_step, with proper state_weights
@@ -132,7 +171,7 @@ def test_unconditional_parity(num_states: int, iterator_type: str):
         model=model,
         key=jax_key,
         enc=enc,
-        cond=cond,
+        bundle=bundle,
         config=config,
         stage_set=stage_set,
         num_states=num_states,
@@ -152,7 +191,7 @@ def test_unconditional_parity(num_states: int, iterator_type: str):
     impl_logits = unconditional_decode(
         key=jax_key,
         enc=enc,
-        bundle=cond,
+        bundle=bundle,
         config=config,
         stage_set=stage_set,
     )

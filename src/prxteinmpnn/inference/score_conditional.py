@@ -34,7 +34,7 @@ def kernel(
   return decode_fn(
     key=k_dec,
     enc=enc,
-    bundle=bundle.conditioning,
+    bundle=bundle,
     config=config,
     stage_set=stage_set,
   )

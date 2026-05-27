@@ -34,7 +34,7 @@ from prxteinmpnn.inference.decode._kernel import (
 from prxteinmpnn.inference.sample_autoregressive import SampleResult
 from prxteinmpnn.tiling.carry_shape import CarryShape
 from prxteinmpnn.tiling.iterator import MapIterator, ScanIterator
-from prxteinmpnn.types.bundles import ConditioningBundle, EncoderOutput, WaveScheduleBundle
+from prxteinmpnn.types.bundles import EncoderOutput, InferenceBundle, WaveScheduleBundle
 from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.stages import StageSet
 
@@ -106,10 +106,9 @@ class AutoregressiveDecode(eqx.Module):
     self,
     key: PRNGKeyArray,
     enc: EncoderOutput,
-    bundle: ConditioningBundle,
+    bundle: InferenceBundle,
     config: InferenceConfig,
     stage_set: StageSet,
-    wave: WaveScheduleBundle,
   ) -> SampleResult:
     """Autoregressive decode: carry sequence through wave scan, then scatter logits.
 
@@ -119,16 +118,14 @@ class AutoregressiveDecode(eqx.Module):
         PRNG key for sampling randomness.
     enc : EncoderOutput
         Encoder output. Shape: node (S, L, H_n), edge (S, L, K, H_e).
-    bundle : ConditioningBundle
-        Conditioning bundle with ar_mask, tie_group_map, fixed_mask,
-        fixed_tokens, temperature, bias.
+    bundle : InferenceBundle
+        Inference bundle with conditioning (ar_mask, tie_group_map, fixed_mask,
+        fixed_tokens, temperature, bias) and wave schedule.
     config : InferenceConfig
         Inference configuration.
     stage_set : StageSet
         Pipeline stages with ar_logit_transform, decode_step,
         logit_transform, tie_group_fuse.
-    wave : WaveScheduleBundle
-        Wave schedule with group_positions and group_ids.
 
     Returns
     -------
@@ -154,6 +151,8 @@ class AutoregressiveDecode(eqx.Module):
     """
     L = enc.node_features.shape[1]
     S = enc.node_features.shape[0]
+    cond = bundle.conditioning
+    wave = bundle.wave
     n_waves = wave.group_ids.shape[0]
 
     # 1. Materialize init sequence from metadata
@@ -161,8 +160,8 @@ class AutoregressiveDecode(eqx.Module):
 
     # Initialize with fixed positions
     init_sequence = jnp.where(
-      bundle.fixed_mask > 0.5,
-      bundle.fixed_tokens,
+      cond.fixed_mask > 0.5,
+      cond.fixed_tokens,
       init_sequence,
     ).astype(jnp.int32)
 
@@ -184,12 +183,12 @@ class AutoregressiveDecode(eqx.Module):
       """
       # Identify tied position group for this wave
       pos = wave.group_positions[wave_idx, 0, 0]
-      group_id = bundle.tie_group_map[0, pos]
+      group_id = cond.tie_group_map[0, pos]
 
       # Check if this is the first time we encounter this group
       # Note: we only check the first position in the group (group_positions[wave_idx, 0, 0])
       # to determine if this group should be sampled
-      tie_group_at_order = bundle.tie_group_map[0, wave.group_positions[:, 0, 0]]
+      tie_group_at_order = cond.tie_group_map[0, wave.group_positions[:, 0, 0]]
       first_occurrence_idx = jnp.argmax(tie_group_at_order == group_id)
       is_first = first_occurrence_idx == wave_idx
 
@@ -208,7 +207,7 @@ class AutoregressiveDecode(eqx.Module):
           enc.edge_features,
           enc.neighbor_indices,
           enc.mask,
-          bundle.ar_mask,
+          cond.ar_mask,
           seq_oh_stack,
         )
 
@@ -236,7 +235,7 @@ class AutoregressiveDecode(eqx.Module):
 
         # Fuse per-position logits across states with and without bias
         # For stored logits: bias-free
-        zeros_bias = jnp.zeros_like(bundle.bias)  # (L, 21)
+        zeros_bias = jnp.zeros_like(cond.bias)  # (L, 21)
         if stage_set.ar_logit_transform is not None:
           stored_logits = jax.vmap(
             stage_set.ar_logit_transform,
@@ -247,7 +246,7 @@ class AutoregressiveDecode(eqx.Module):
             stage_set.ar_logit_transform,
             in_axes=(1, 0),
             out_axes=0,
-          )(logits, bundle.bias)  # (L, 21)
+          )(logits, cond.bias)  # (L, 21)
         else:
           stored_logits = stage_set.logit_transform(
             logits,
@@ -255,11 +254,11 @@ class AutoregressiveDecode(eqx.Module):
           )
           sampling_logits = stage_set.logit_transform(
             logits,
-            bias=bundle.bias,
+            bias=cond.bias,
           )
 
         # Logit averaging for the group (tied positions)
-        mask_group = bundle.tie_group_map[0] == group_id
+        mask_group = cond.tie_group_map[0] == group_id
 
         # Fuse stored logits (bias-free) across tied positions
         if stage_set.tie_group_fuse is not None:
@@ -303,15 +302,15 @@ class AutoregressiveDecode(eqx.Module):
         subkey = jax.random.fold_in(key, group_id)
         sampled = jax.random.categorical(
           subkey,
-          avg_sampling / bundle.temperature,
+          avg_sampling / cond.temperature,
         )
 
         # Update all positions in the group
-        is_group_fixed = jnp.any(bundle.fixed_mask.astype(jnp.bool_) & mask_group)
+        is_group_fixed = jnp.any(cond.fixed_mask.astype(jnp.bool_) & mask_group)
         group_fixed_token = jnp.max(
           jnp.where(
-            bundle.fixed_mask.astype(jnp.bool_) & mask_group,
-            bundle.fixed_tokens,
+            cond.fixed_mask.astype(jnp.bool_) & mask_group,
+            cond.fixed_tokens,
             0,
           ),
         )
@@ -345,8 +344,8 @@ class AutoregressiveDecode(eqx.Module):
     ) -> tuple[jnp.ndarray, None]:
       """Scatter one wave's logits to its positions."""
       pos = wave.group_positions[wave_idx, 0, 0]
-      group_id = bundle.tie_group_map[0, pos]
-      mask_group = bundle.tie_group_map[0] == group_id
+      group_id = cond.tie_group_map[0, pos]
+      mask_group = cond.tie_group_map[0] == group_id
       step_logits = logits_stack[wave_idx]  # (21,)
       new_logits_final = jnp.where(
         mask_group[:, None],

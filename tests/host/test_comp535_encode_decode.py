@@ -33,15 +33,14 @@ _DUMMY_SAMPLE_RESULT = SampleResult(
 
 
 def _make_plan_with_mocks():
-    """Helper: InferencePlan with MagicMock encode_fn, driver, stage_set, decode_fn."""
+    """Helper: InferencePlan with MagicMock encode_fn, stage_set, decode_fn."""
     encode_fn = MagicMock(name="encode_fn")
-    driver = MagicMock(name="driver", return_value=_DUMMY_SAMPLE_RESULT)
     stage_set = MagicMock(name="stage_set")
     # decode_fn should return real SampleResult to pass through jnp.argmax check
     decode_fn = MagicMock(name="decode_fn", return_value=_DUMMY_SAMPLE_RESULT)
-    components = InferenceComponents(encode_fn=encode_fn, driver=driver, stage_set=stage_set)
+    components = InferenceComponents(encode_fn=encode_fn, stage_set=stage_set)
     model = MagicMock(name="model")
-    return InferencePlan(model=model, components=components, decode_fn=decode_fn), encode_fn, driver, stage_set, model
+    return InferencePlan(model=model, components=components, decode_fn=decode_fn), encode_fn, stage_set, model
 
 
 def test_inference_plan_has_encode_method():
@@ -55,7 +54,7 @@ def test_inference_plan_has_decode_method():
 
 
 def test_encode_method_calls_encode_fn():
-    plan, encode_fn, _, _, _ = _make_plan_with_mocks()
+    plan, encode_fn, _, _ = _make_plan_with_mocks()
     bundle = MagicMock(name="bundle")
     key = MagicMock(name="key")
     config = MagicMock(name="config")
@@ -67,7 +66,7 @@ def test_encode_method_calls_encode_fn():
 
 
 def test_decode_method_calls_driver():
-    plan, _, _, stage_set, model = _make_plan_with_mocks()
+    plan, _, stage_set, model = _make_plan_with_mocks()
     enc = MagicMock(name="enc")
     bundle = MagicMock(name="bundle")
     key = MagicMock(name="key")
@@ -75,16 +74,16 @@ def test_decode_method_calls_driver():
 
     result = plan.decode(enc, bundle, key, config)
 
-    # decode_fn now called with (key, enc, bundle.conditioning, config, stage_set)
+    # decode_fn now called with (key, enc, bundle, config, stage_set)
     plan.decode_fn.assert_called_once_with(
-        key, enc, bundle.conditioning, config, stage_set
+        key, enc, bundle, config, stage_set
     )
     # Result should be the SampleResult returned by decode_fn
     assert isinstance(result, SampleResult)
 
 
 def test_sample_delegates_to_encode_decode():
-    plan, _, _, _, _ = _make_plan_with_mocks()
+    plan, _, _, _ = _make_plan_with_mocks()
     bundle = MagicMock(name="bundle")
     key = MagicMock(name="key")
     config = MagicMock(name="config")
@@ -104,7 +103,7 @@ def test_sample_delegates_to_encode_decode():
 
 
 def test_score_delegates_to_encode_decode():
-    plan, _, _, _, _ = _make_plan_with_mocks()
+    plan, _, _, _ = _make_plan_with_mocks()
     bundle = MagicMock(name="bundle")
     key = MagicMock(name="key")
     config = MagicMock(name="config")
@@ -133,7 +132,7 @@ def test_encode_passthrough_identity():
         neighbor_indices=MagicMock(),
         mask=None,
     )
-    plan, encode_fn, _, _, _ = _make_plan_with_mocks()
+    plan, encode_fn, _, _ = _make_plan_with_mocks()
     encode_fn.return_value = enc_instance
 
     bundle = MagicMock()
@@ -152,7 +151,7 @@ def test_make_inference_plan_has_encode_decode():
 
 def test_encode_once_decode_many_invariant():
     """A single encode() result can be passed to decode() twice — encode_fn called once."""
-    plan, encode_fn, _, _, _ = _make_plan_with_mocks()
+    plan, encode_fn, _, _ = _make_plan_with_mocks()
     bundle = MagicMock(name="bundle")
     key = MagicMock(name="key")
     key1 = MagicMock(name="key1")

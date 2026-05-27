@@ -122,10 +122,9 @@ def test_autoregressive_produces_valid_output_s1():
     result = ar_decode(
         key=k_dec,
         enc=enc,
-        bundle=bundle.conditioning,
+        bundle=bundle,
         config=config,
         stage_set=stage_set,
-        wave=bundle.wave,
     )
 
     # Verify shape and dtype
@@ -163,10 +162,9 @@ def test_autoregressive_produces_valid_output_s4():
     result = ar_decode(
         key=k_dec,
         enc=enc,
-        bundle=bundle.conditioning,
+        bundle=bundle,
         config=config,
         stage_set=stage_set,
-        wave=bundle.wave,
     )
 
     # Verify shape and dtype
@@ -220,10 +218,9 @@ def test_state_iterator_parity_vmap_vs_safemap():
     result_vmap = ar_vmap(
         key=k_dec,
         enc=enc,
-        bundle=bundle.conditioning,
+        bundle=bundle,
         config=config,
         stage_set=stage_set,
-        wave=bundle.wave,
     )
 
     # AR decode with SafeMap
@@ -238,10 +235,9 @@ def test_state_iterator_parity_vmap_vs_safemap():
     result_safemap = ar_safemap(
         key=k_dec,
         enc=enc,
-        bundle=bundle.conditioning,
+        bundle=bundle,
         config=config,
         stage_set=stage_set,
-        wave=bundle.wave,
     )
 
     # Results should be identical
@@ -286,10 +282,9 @@ def test_autoregressive_with_tied_positions():
     result = ar_decode(
         key=k_dec,
         enc=enc,
-        bundle=bundle.conditioning,
+        bundle=bundle,
         config=config,
         stage_set=stage_set,
-        wave=bundle.wave,
     )
 
     # Verify shape and dtype
@@ -333,10 +328,9 @@ def test_autoregressive_with_tied_positions_s4():
     result = ar_decode(
         key=k_dec,
         enc=enc,
-        bundle=bundle.conditioning,
+        bundle=bundle,
         config=config,
         stage_set=stage_set,
-        wave=bundle.wave,
     )
 
     # Verify shape and dtype

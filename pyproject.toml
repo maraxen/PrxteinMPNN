@@ -220,7 +220,7 @@ dev = [
 ]
 
 [tool.setuptools.package-data]
-prxteinmpnn = ["model_params/*.eqx.zst"]
+prxteinmpnn = ["model_params/*.eqx.zst", "py.typed"]
 
 [tool.uv]
 # Only resolve for platforms we actually target (including WSL which reports as linux)

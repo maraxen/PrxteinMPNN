@@ -143,5 +143,8 @@ def test_validator_passes_for_default_plan():
     _validate_plan_topology(plan, stage_set)  # no raise
 
 
-def test_plan_topology_error_is_value_error_subclass():
-    assert issubclass(PlanTopologyError, ValueError)
+def test_plan_topology_error_is_tiling_error_subclass():
+    """PlanTopologyError is a TilingError (library-side error base)."""
+    from prxteinmpnn.tiling.errors import TilingError
+
+    assert issubclass(PlanTopologyError, TilingError)

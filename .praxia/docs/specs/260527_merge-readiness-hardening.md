@@ -306,7 +306,7 @@ uv run python -c "import importlib.metadata; m = importlib.metadata.metadata('pr
 
 ## Closures
 
-*(Populated during MR-08 execution)*
+- **Debt #16 (UnconditionalDecodeStep kwargs):** Confirmed RESOLVED. Recon 260527 verified `types/stages.py:219-253` kwargs match `Decoder.__call__` exactly. No open references found in src/ or tests/.
 
 ---
 

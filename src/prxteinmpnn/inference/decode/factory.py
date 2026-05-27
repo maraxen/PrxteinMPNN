@@ -6,6 +6,8 @@ dispatching each mode's state-axis strategy via tiling/dispatch.make_axis_dispat
 
 Risk D-12 mitigation: wraps DispatchRejected from make_axis_dispatch with mode-name
 context to help users understand which mode failed the dispatch check.
+
+Note: Stage-set projection for STE is handled internally by STEDecode (see ste.py).
 """
 
 from __future__ import annotations
@@ -21,7 +23,7 @@ from prxteinmpnn.inference.decode.mode import (
     STEMode,
     UnconditionalMode,
 )
-from prxteinmpnn.inference.decode.ste import STEDecode, _project_stage_set_for_ste
+from prxteinmpnn.inference.decode.ste import STEDecode
 from prxteinmpnn.inference.decode.unconditional import UnconditionalDecode
 from prxteinmpnn.tiling.carry_shape import CarryShape
 from prxteinmpnn.tiling.dispatch import DispatchRejected, make_axis_dispatch

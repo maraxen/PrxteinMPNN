@@ -5,7 +5,7 @@ Contains ``DecoderLayer``, ``DecoderLayerJ``, ``Decoder``, and **orchestration h
 Phase **5b** so ``mpnn.py`` stays focused on model wiring.
 """
 
-# TODO(tech-debt): `.agents/TECHNICAL_DEBT.md` §6 — docstring / public API audit.
+# NOTE: Public API surface audited Sprint 3 Wave 5. Docstrings complete as of refactor-full.
 
 from __future__ import annotations
 
@@ -350,158 +350,165 @@ class DecoderLayer(eqx.Module):
 
 
 class DecoderLayerJ(eqx.Module):
-    """Gated attention decoder for ligand-atom context encoding.
+  """Gated attention decoder for ligand-atom context encoding.
 
-    Named after the upstream LigandMPNN ``DecLayerJ`` reference implementation.
-    Used within ``Packer`` as ``y_context_encoder_layers`` to encode ligand atom
-    context via multi-head message passing. Operates on 3-D node tensors
-    ``[L, M, D]`` and 4-D edge tensors ``[L, M, M, D]``, where ``L`` is sequence
-    length, ``M`` is the ligand context neighbourhood size, and ``D`` is the
-    hidden dimension.
+  Named after the upstream LigandMPNN ``DecLayerJ`` reference implementation.
+  Used within ``Packer`` as ``y_context_encoder_layers`` to encode ligand atom
+  context via multi-head message passing. Operates on 3-D node tensors
+  ``[L, M, D]`` and 4-D edge tensors ``[L, M, M, D]``, where ``L`` is sequence
+  length, ``M`` is the ligand context neighbourhood size, and ``D`` is the
+  hidden dimension.
+
+  Parameters
+  ----------
+  w1 : eqx.nn.Linear
+      First message projection. Input: concatenated node-edge context.
+  w2 : eqx.nn.Linear
+      Second message projection (gating layer).
+  w3 : eqx.nn.Linear
+      Third message projection (gating layer).
+  dense : eqx.nn.MLP
+      Feedforward network for residual update.
+  norm1 : eqx.nn.LayerNorm
+      Layer normalization after message aggregation.
+  norm2 : eqx.nn.LayerNorm
+      Layer normalization after feedforward.
+  dropout1 : Dropout
+      Dropout after message aggregation.
+  dropout2 : Dropout
+      Dropout after feedforward.
+  scale : float
+      Message aggregation scale factor. Static (not a JAX array).
+
+  References
+  ----------
+  .. [LigandMPNN] Dauparas, J., et al. "Atomic context-conditioned protein
+     sequence design using LigandMPNN." *Nature Methods* 22(4):717-723 (2025).
+     https://doi.org/10.1038/s41592-025-02626-1
+
+  .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).
+     https://github.com/dauparas/LigandMPNN
+  """
+
+  w1: eqx.nn.Linear
+  w2: eqx.nn.Linear
+  w3: eqx.nn.Linear
+  dense: eqx.nn.MLP
+  norm1: eqx.nn.LayerNorm
+  norm2: eqx.nn.LayerNorm
+  dropout1: Dropout
+  dropout2: Dropout
+  scale: float = eqx.field(static=True)
+
+  def __init__(
+    self,
+    hidden_dim: int,
+    in_dim: int,
+    dropout: float = 0.1,
+    scale: float = 30.0,
+    *,
+    key: PRNGKeyArray,
+  ):
+    """Initialize the gated attention decoder layer.
 
     Parameters
     ----------
-    w1 : eqx.nn.Linear
-        First message projection. Input: concatenated node-edge context.
-    w2 : eqx.nn.Linear
-        Second message projection (gating layer).
-    w3 : eqx.nn.Linear
-        Third message projection (gating layer).
-    dense : eqx.nn.MLP
-        Feedforward network for residual update.
-    norm1 : eqx.nn.LayerNorm
-        Layer normalization after message aggregation.
-    norm2 : eqx.nn.LayerNorm
-        Layer normalization after feedforward.
-    dropout1 : Dropout
-        Dropout after message aggregation.
-    dropout2 : Dropout
-        Dropout after feedforward.
+    hidden_dim : int
+        Hidden dimension for all linear projections and layer norms.
+    in_dim : int
+        Input dimension for edge context (concatenated with node features).
+    dropout : float
+        Dropout rate. Default: 0.1.
     scale : float
-        Message aggregation scale factor. Static (not a JAX array).
-
-    References
-    ----------
-    .. [LigandMPNN] Dauparas, J., et al. "Atomic context-conditioned protein
-       sequence design using LigandMPNN." *Nature Methods* 22(4):717-723 (2025).
-       https://doi.org/10.1038/s41592-025-02626-1
-
-    .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).
-       https://github.com/dauparas/LigandMPNN
+        Message aggregation scale factor. Default: 30.0.
+    key : PRNGKeyArray
+        PRNG key for weight initialization.
     """
-    w1: eqx.nn.Linear
-    w2: eqx.nn.Linear
-    w3: eqx.nn.Linear
-    dense: eqx.nn.MLP
-    norm1: eqx.nn.LayerNorm
-    norm2: eqx.nn.LayerNorm
-    dropout1: Dropout
-    dropout2: Dropout
-    scale: float = eqx.field(static=True)
+    keys = jax.random.split(key, 5)
+    self.w1 = eqx.nn.Linear(hidden_dim + in_dim, hidden_dim, key=keys[0])
+    self.w2 = eqx.nn.Linear(hidden_dim, hidden_dim, key=keys[1])
+    self.w3 = eqx.nn.Linear(hidden_dim, hidden_dim, key=keys[2])
+    self.dense = eqx.nn.MLP(
+      hidden_dim, hidden_dim, hidden_dim * 4, depth=1, activation=_gelu, key=keys[3],
+    )
+    self.norm1 = eqx.nn.LayerNorm(hidden_dim)
+    self.norm2 = eqx.nn.LayerNorm(hidden_dim)
+    self.dropout1 = Dropout(dropout)
+    self.dropout2 = Dropout(dropout)
+    self.scale = scale
 
-    def __init__(
-        self,
-        hidden_dim: int,
-        in_dim: int,
-        dropout: float = 0.1,
-        scale: float = 30.0,
-        *,
-        key: PRNGKeyArray,
-    ):
-        """Initialize the gated attention decoder layer.
+  def __call__(
+    self,
+    h_v: NodeFeatures,
+    h_e: EdgeFeatures,
+    mask_v: AlphaCarbonMask | None = None,
+    mask_attend: Array | None = None,
+    *,
+    inference: bool = False,
+    key: PRNGKeyArray | None = None,
+  ) -> NodeFeatures:
+    """Forward pass for gated attention message passing over ligand context.
 
-        Parameters
-        ----------
-        hidden_dim : int
-            Hidden dimension for all linear projections and layer norms.
-        in_dim : int
-            Input dimension for edge context (concatenated with node features).
-        dropout : float
-            Dropout rate. Default: 0.1.
-        scale : float
-            Message aggregation scale factor. Default: 30.0.
-        key : PRNGKeyArray
-            PRNG key for weight initialization.
-        """
-        keys = jax.random.split(key, 5)
-        self.w1 = eqx.nn.Linear(hidden_dim + in_dim, hidden_dim, key=keys[0])
-        self.w2 = eqx.nn.Linear(hidden_dim, hidden_dim, key=keys[1])
-        self.w3 = eqx.nn.Linear(hidden_dim, hidden_dim, key=keys[2])
-        self.dense = eqx.nn.MLP(hidden_dim, hidden_dim, hidden_dim * 4, depth=1, activation=_gelu, key=keys[3])
-        self.norm1 = eqx.nn.LayerNorm(hidden_dim)
-        self.norm2 = eqx.nn.LayerNorm(hidden_dim)
-        self.dropout1 = Dropout(dropout)
-        self.dropout2 = Dropout(dropout)
-        self.scale = scale
+    Parameters
+    ----------
+    h_v : NodeFeatures
+        Node features from ligand context. Shape ``(L, M, D)``.
+    h_e : EdgeFeatures
+        Edge features (local ligand context). Shape ``(L, M, M, D)``.
+    mask_v : AlphaCarbonMask | None
+        Optional node mask. Shape ``(L, M)``. Default: None.
+    mask_attend : Array | None
+        Optional attention mask for message gating. Shape ``(L, M, M)``.
+        Default: None.
+    inference : bool
+        If True, disable dropout. Default: False.
+    key : PRNGKeyArray | None
+        PRNG key for dropout (optional).
 
-    def __call__(
-        self,
-        h_v: NodeFeatures,
-        h_e: EdgeFeatures,
-        mask_v: AlphaCarbonMask | None = None,
-        mask_attend: Array | None = None,
-        *,
-        inference: bool = False,
-        key: PRNGKeyArray | None = None,
-    ) -> NodeFeatures:
-        """Forward pass for gated attention message passing over ligand context.
+    Returns
+    -------
+    NodeFeatures
+        Updated node features. Shape ``(L, M, D)``.
+    """
+    if key is None:
+      inference = True
+    keys = jax.random.split(key, 2) if key is not None else (None, None)
 
-        Parameters
-        ----------
-        h_v : NodeFeatures
-            Node features from ligand context. Shape ``(L, M, D)``.
-        h_e : EdgeFeatures
-            Edge features (local ligand context). Shape ``(L, M, M, D)``.
-        mask_v : AlphaCarbonMask | None
-            Optional node mask. Shape ``(L, M)``. Default: None.
-        mask_attend : Array | None
-            Optional attention mask for message gating. Shape ``(L, M, M)``.
-            Default: None.
-        inference : bool
-            If True, disable dropout. Default: False.
-        key : PRNGKeyArray | None
-            PRNG key for dropout (optional).
+    # h_v: [L, M, D]
+    # h_e: [L, M, M, D]
 
-        Returns
-        -------
-        NodeFeatures
-            Updated node features. Shape ``(L, M, D)``.
-        """
-        if key is None:
-            inference = True
-        keys = jax.random.split(key, 2) if key is not None else (None, None)
+    # Expand h_v to match h_e for local context
+    h_v_expand = jnp.expand_dims(h_v, axis=-2)
+    h_v_expand = jnp.broadcast_to(
+      h_v_expand, (*h_v_expand.shape[:-2], h_e.shape[-2], h_v.shape[-1]),
+    )
 
-        # h_v: [L, M, D]
-        # h_e: [L, M, M, D]
+    h_ev = jnp.concatenate([h_v_expand, h_e], axis=-1)
 
-        # Expand h_v to match h_e for local context
-        h_v_expand = jnp.expand_dims(h_v, axis=-2)
-        h_v_expand = jnp.broadcast_to(h_v_expand, (*h_v_expand.shape[:-2], h_e.shape[-2], h_v.shape[-1]))
+    # Message passing
+    h_message = jax.vmap(jax.vmap(jax.vmap(self.w1)))(h_ev)
+    h_message = _gelu(h_message)
+    h_message = jax.vmap(jax.vmap(jax.vmap(self.w2)))(h_message)
+    h_message = _gelu(h_message)
+    h_message = jax.vmap(jax.vmap(jax.vmap(self.w3)))(h_message)
 
-        h_ev = jnp.concatenate([h_v_expand, h_e], axis=-1)
+    if mask_attend is not None:
+      h_message = jnp.expand_dims(mask_attend, axis=-1) * h_message
 
-        # Message passing
-        h_message = jax.vmap(jax.vmap(jax.vmap(self.w1)))(h_ev)
-        h_message = _gelu(h_message)
-        h_message = jax.vmap(jax.vmap(jax.vmap(self.w2)))(h_message)
-        h_message = _gelu(h_message)
-        h_message = jax.vmap(jax.vmap(jax.vmap(self.w3)))(h_message)
+    dh = jnp.sum(h_message, axis=-2) / self.scale
 
-        if mask_attend is not None:
-            h_message = jnp.expand_dims(mask_attend, axis=-1) * h_message
+    h_v = jax.vmap(jax.vmap(self.norm1))(h_v + self.dropout1(dh, key=keys[0], inference=inference))
 
-        dh = jnp.sum(h_message, axis=-2) / self.scale
+    # MLP
+    dh_dense = jax.vmap(jax.vmap(self.dense))(h_v)
+    h_v = jax.vmap(jax.vmap(self.norm2))(
+      h_v + self.dropout2(dh_dense, key=keys[1], inference=inference),
+    )
 
-        h_v = jax.vmap(jax.vmap(self.norm1))(h_v + self.dropout1(dh, key=keys[0], inference=inference))
+    if mask_v is not None:
+      h_v = jnp.expand_dims(mask_v, axis=-1) * h_v
 
-        # MLP
-        dh_dense = jax.vmap(jax.vmap(self.dense))(h_v)
-        h_v = jax.vmap(jax.vmap(self.norm2))(h_v + self.dropout2(dh_dense, key=keys[1], inference=inference))
-
-        if mask_v is not None:
-            h_v = jnp.expand_dims(mask_v, axis=-1) * h_v
-
-        return h_v
+    return h_v
 
 
 class Decoder(eqx.Module):
@@ -679,14 +686,16 @@ class Decoder(eqx.Module):
       inference = True
     keys = jax.random.split(key, len(self.layers)) if key is not None else [None] * len(self.layers)
 
-    sequence_edge_features, mask_bw, masked_node_edge_features = pack_conditional_decoder_static_edges(
-      node_features,
-      edge_features,
-      neighbor_indices,
-      one_hot_sequence,
-      w_s_weight,
-      ar_mask,
-      mask,
+    sequence_edge_features, mask_bw, masked_node_edge_features = (
+      pack_conditional_decoder_static_edges(
+        node_features,
+        edge_features,
+        neighbor_indices,
+        one_hot_sequence,
+        w_s_weight,
+        ar_mask,
+        mask,
+      )
     )
 
     loop_node_features = node_features

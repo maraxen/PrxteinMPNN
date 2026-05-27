@@ -731,7 +731,7 @@ def test_inference_plan_decode_normalizes_logits():
         driver=_mock_driver,
         stage_set=stage_set,
     )
-    plan = InferencePlan(model=mock_model, components=components)
+    plan = InferencePlan(model=mock_model, components=components, decode_fn=MagicMock())
 
     # Build minimal bundle and config mocks
     mock_bundle = MagicMock()

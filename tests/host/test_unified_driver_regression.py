@@ -149,7 +149,8 @@ def test_regression_inference_plan_encode_exists():
         stage_set=dummy_stage_set,
     )
 
-    plan = InferencePlan(model=eqx.Module(), components=components)
+    dummy_decode_fn = lambda *args: None
+    plan = InferencePlan(model=eqx.Module(), components=components, decode_fn=dummy_decode_fn)
 
     assert hasattr(plan, "encode"), "InferencePlan must have .encode() method"
     assert callable(plan.encode)
@@ -170,7 +171,8 @@ def test_regression_inference_plan_decode_exists():
         stage_set=dummy_stage_set,
     )
 
-    plan = InferencePlan(model=eqx.Module(), components=components)
+    dummy_decode_fn = lambda *args: None
+    plan = InferencePlan(model=eqx.Module(), components=components, decode_fn=dummy_decode_fn)
 
     assert hasattr(plan, "decode"), "InferencePlan must have .decode() method"
     assert callable(plan.decode)

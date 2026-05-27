@@ -33,13 +33,14 @@ _DUMMY_SAMPLE_RESULT = SampleResult(
 
 
 def _make_plan_with_mocks():
-    """Helper: InferencePlan with MagicMock encode_fn, driver, stage_set."""
+    """Helper: InferencePlan with MagicMock encode_fn, driver, stage_set, decode_fn."""
     encode_fn = MagicMock(name="encode_fn")
     driver = MagicMock(name="driver", return_value=_DUMMY_SAMPLE_RESULT)
     stage_set = MagicMock(name="stage_set")
+    decode_fn = MagicMock(name="decode_fn")
     components = InferenceComponents(encode_fn=encode_fn, driver=driver, stage_set=stage_set)
     model = MagicMock(name="model")
-    return InferencePlan(model=model, components=components), encode_fn, driver, stage_set, model
+    return InferencePlan(model=model, components=components, decode_fn=decode_fn), encode_fn, driver, stage_set, model
 
 
 def test_inference_plan_has_encode_method():

@@ -46,7 +46,7 @@ class UnconditionalDecode(eqx.Module):
     """
 
     model: Any = eqx.field(static=True)
-    state_iterator: MapIterator = eqx.field(static=True)
+    state_iterator: MapIterator
 
     def __call__(
         self,

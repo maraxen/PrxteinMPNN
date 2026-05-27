@@ -321,10 +321,6 @@ class InferenceComponents(NamedTuple):
   encode_fn : Callable
       Encoder forward pass. Signature:
       ``(bundle: InferenceBundle, key: PRNGKeyArray, config: InferenceConfig) → EncoderOutput``
-  driver : Callable
-      Decode driver. Signature:
-      ``(model, key, enc, conditioning, wave, config, stage_set) → result``
-      Routes to sample_autoregressive or score_conditional based on stage_set.
   stage_set : Any
       StageSet instance with all slots wired (logit_transform, ar_logit_transform,
       decode_step, sample_step, tie_group_fuse). Ready for JIT.
@@ -341,7 +337,6 @@ class InferenceComponents(NamedTuple):
   """
 
   encode_fn: Callable
-  driver: Callable
   stage_set: Any  # StageSet
 
 
@@ -442,7 +437,7 @@ class InferencePlan:
     result = self.decode_fn(
       key,
       enc,
-      bundle.conditioning,
+      bundle,
       config,
       self.components.stage_set,
     )
@@ -546,7 +541,6 @@ def make_inference_plan(model: ModelProtocol, spec: Any) -> InferencePlan:
      sequence design using LigandMPNN." *Nature Methods* 22(4):717-723 (2025).
      https://doi.org/10.1038/s41592-025-02626-1
   """
-  from prxteinmpnn.inference import driver as driver_module
   from prxteinmpnn.inference.decode.factory import make_decode_fn
   from prxteinmpnn.inference.decode.mode import ConditionalMode
   from prxteinmpnn.inference.encode import make_encode_fn
@@ -604,7 +598,6 @@ def make_inference_plan(model: ModelProtocol, spec: Any) -> InferencePlan:
 
   components = InferenceComponents(
     encode_fn=encode_fn,
-    driver=driver_module.decode,
     stage_set=stage_set,
   )
 

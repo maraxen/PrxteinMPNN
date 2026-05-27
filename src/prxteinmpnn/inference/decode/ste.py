@@ -278,7 +278,7 @@ class STEDecode(eqx.Module):
       output_logits = self.inner(
         key=key_score,
         enc=enc,
-        bundle=bundle_new.conditioning,
+        bundle=bundle_new,
         config=config,
         stage_set=projected_stage_set,
       )
@@ -377,7 +377,7 @@ class STEDecode(eqx.Module):
     final_output_logits = self.inner(
       key=final_key,
       enc=enc_final,
-      bundle=bundle_new.conditioning,
+      bundle=bundle_new,
       config=config,
       stage_set=projected_stage_set,
     )

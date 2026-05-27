@@ -728,7 +728,6 @@ def test_inference_plan_decode_normalizes_logits():
     stage_set = StageSet()
     components = InferenceComponents(
         encode_fn=MagicMock(return_value=MagicMock()),
-        driver=MagicMock(),  # driver is not used anymore
         stage_set=stage_set,
     )
     plan = InferencePlan(model=mock_model, components=components, decode_fn=_mock_decode_fn)

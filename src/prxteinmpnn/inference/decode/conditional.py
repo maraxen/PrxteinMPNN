@@ -25,7 +25,7 @@ from prxteinmpnn.inference.decode._kernel import (
 )
 from prxteinmpnn.tiling.iterator import MapIterator
 from prxteinmpnn.types.arrays import Logits
-from prxteinmpnn.types.bundles import ConditioningBundle, EncoderOutput
+from prxteinmpnn.types.bundles import EncoderOutput, InferenceBundle
 from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.stages import StageSet
 
@@ -70,7 +70,7 @@ class ConditionalDecode(_ConditionalDecodeBase):
     self,
     key: PRNGKeyArray,
     enc: EncoderOutput,
-    bundle: ConditioningBundle,
+    bundle: InferenceBundle,
     config: InferenceConfig,
     stage_set: StageSet,
   ) -> Logits:
@@ -82,8 +82,8 @@ class ConditionalDecode(_ConditionalDecodeBase):
         PRNG key for dropout/stochasticity.
     enc : EncoderOutput
         Encoder output. Shape: node (S, L, H_n), edge (S, L, K, H_e).
-    bundle : ConditioningBundle
-        Conditioning bundle with sequence_oh, ar_mask, bias.
+    bundle : InferenceBundle
+        Inference bundle with conditioning (sequence_oh, ar_mask, bias).
     config : InferenceConfig
         Inference configuration.
     stage_set : StageSet
@@ -104,11 +104,12 @@ class ConditionalDecode(_ConditionalDecodeBase):
     5. Apply logit_transform fusion to get final output.
     """
     S = enc.node_features.shape[0]
+    cond = bundle.conditioning
 
     # Broadcast sequence one-hot to all states: (1, L, 21) -> (S, L, 21)
     seq_oh_stack = jnp.broadcast_to(
-      bundle.sequence_oh[None, ...],
-      (S, *bundle.sequence_oh.shape),
+      cond.sequence_oh[None, ...],
+      (S, *cond.sequence_oh.shape),
     )
 
     # Bundle per-state inputs as a pytree: each field is (S, ...)
@@ -117,7 +118,7 @@ class ConditionalDecode(_ConditionalDecodeBase):
       enc.edge_features,
       enc.neighbor_indices,
       enc.mask,
-      bundle.ar_mask,
+      cond.ar_mask,
       seq_oh_stack,
     )
 
@@ -146,4 +147,4 @@ class ConditionalDecode(_ConditionalDecodeBase):
     logits_stack = _project_logits(self.model, decoded)
 
     # Fuse across states via logit_transform
-    return self._apply_logit_transform(logits_stack, stage_set, bias=bundle.bias)
+    return self._apply_logit_transform(logits_stack, stage_set, bias=cond.bias)

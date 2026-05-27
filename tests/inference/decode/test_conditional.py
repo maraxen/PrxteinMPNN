@@ -116,7 +116,7 @@ def test_conditional_decode_produces_valid_logits(
     logits = cond_decode(
         key=k_dec,
         enc=enc,
-        bundle=bundle.conditioning,
+        bundle=bundle,
         config=config,
         stage_set=stage_set,
     )

@@ -22,13 +22,7 @@ from typing import Any, Protocol
 import h5py
 import numpy as np
 
-# TODO(TASK-2): wire up after bundle_builder move (TASK-5)
-# from prxteinmpnn.run.campaign_manifest import (
-#   build_manifest_row,
-#   load_manifest,
-#   validate_manifest_rows,
-#   write_manifest,
-# )
+# campaign manifest functions are implemented in this module (see build_manifest_row et al.)
 from prxteinmpnn.host.runner import sample
 from prxteinmpnn.run.specs import SamplingSpecification, pop_deprecated_spec_kwargs
 from prxteinmpnn.runtime import configure_multiprocessing
@@ -186,7 +180,11 @@ def validate_manifest_rows(
     checkpoint_id = row.get("checkpoint_id")
     # Guard against None and against "None" (the string produced when spec.checkpoint_id=None
     # is stored via str() serialization in a caller that doesn't validate upstream).
-    if checkpoint_id is None or not str(checkpoint_id).strip() or str(checkpoint_id).strip() == "None":
+    if (
+      checkpoint_id is None
+      or not str(checkpoint_id).strip()
+      or str(checkpoint_id).strip() == "None"
+    ):
       msg = f"Row {row_hash} has empty or missing checkpoint_id"
       raise ValueError(msg)
     fixed_policy = row.get("fixed_policy")
@@ -328,7 +326,9 @@ def _update_array_digest(digest: hashlib._Hash, array: np.ndarray) -> None:
 
 
 def _update_h5_node_digest(
-  digest: hashlib._Hash, node: h5py.Group | h5py.Dataset, path: str,
+  digest: hashlib._Hash,
+  node: h5py.Group | h5py.Dataset,
+  path: str,
 ) -> None:
   digest.update(path.encode("utf-8"))
   digest.update(b"\n")

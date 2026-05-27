@@ -2,8 +2,9 @@
 
 from jaxtyping import PRNGKeyArray
 
-from prxteinmpnn.inference.driver import decode
+from prxteinmpnn.inference.decode.conditional import ConditionalDecode
 from prxteinmpnn.inference.encode import make_encode_fn
+from prxteinmpnn.tiling.iterator import VmapIterator
 from prxteinmpnn.types.arrays import Logits
 from prxteinmpnn.types.bundles import InferenceBundle
 from prxteinmpnn.types.configs import InferenceConfig
@@ -25,5 +26,13 @@ def kernel(
     encode_fn = make_encode_fn(model, use_rolling_state=False)
     enc = encode_fn(bundle, k_enc, config)
 
-    # Delegate to unified driver for conditional decoding
-    return decode(model, k_dec, enc, bundle.conditioning, bundle.wave, config, stage_set)
+    # Use ConditionalDecode mode class for conditional decoding
+    # (hardcoded Vmap iterator; STE uses this internally)
+    decode_fn = ConditionalDecode(model=model, state_iterator=VmapIterator())
+    return decode_fn(
+        key=k_dec,
+        enc=enc,
+        bundle=bundle.conditioning,
+        config=config,
+        stage_set=stage_set,
+    )

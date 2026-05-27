@@ -1,8 +1,8 @@
-"""Parity tests for UnconditionalDecode mode class (Task 8).
+"""Tests for UnconditionalDecode mode class (Task 8).
 
 UnconditionalDecode wraps unconditional scoring with state-axis iteration via
 a MapIterator (Vmap, SafeMap). Tests verify numerical parity with
-driver.py:_decode_unconditional over fixture sizes S ∈ {1, 4, 8} and
+reference implementation over fixture sizes S ∈ {1, 4, 8} and
 two iterator strategies (Vmap, SafeMap).
 """
 

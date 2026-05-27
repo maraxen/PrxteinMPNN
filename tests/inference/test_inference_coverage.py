@@ -24,7 +24,6 @@ from prxteinmpnn.inference.logits import (
 )
 from prxteinmpnn.inference.driver import (
     decode,
-    decode_ar,
     infer_topology,
     TOPOLOGY_AR,
     TOPOLOGY_CONDITIONAL_SCORE,
@@ -276,40 +275,6 @@ class TestUnconditionalDecodePath:
         topology = infer_topology(stage_set)
         assert topology == TOPOLOGY_UNCONDITIONAL
 
-    def test_unconditional_decode_path_dispatch(self, synthetic_model_inference):
-        """decode() dispatches to unconditional path when topology requires it."""
-        from prxteinmpnn.inference.driver import _decode_unconditional
-
-        # Build a minimal unconditional stage set
-        class DummyDecoder(eqx.Module):
-            def __call__(self, *args, **kwargs):
-                return jnp.zeros((6, 16))  # (L, H)
-
-        stage_set = StageSet(
-            decode_step=UnconditionalDecodeStep(decoder=DummyDecoder()),
-            logit_transform=ArithmeticMeanLogits(weights=jnp.array([0.5, 0.5]))
-        )
-
-        # Create encoder output
-        enc = EncoderOutput(
-            node_features=jnp.zeros((2, 6, 16)),  # (S, L, H)
-            edge_features=jnp.zeros((2, 6, 4, 16)),  # (S, L, k, H)
-            neighbor_indices=jnp.zeros((2, 6, 4), dtype=jnp.int32),
-            mask=jnp.ones((2, 6))
-        )
-
-        # Mock conditioning
-        class MockCond:
-            bias = None
-
-        key = jax.random.PRNGKey(0)
-        config = type('Config', (), {'inference': True})()
-
-        # Should not raise
-        result = _decode_unconditional(
-            synthetic_model_inference, key, enc, MockCond(), config, stage_set
-        )
-        assert result.shape == (6, 21)  # (L, V)
 
 
 # ---------------------------------------------------------------------------
@@ -326,51 +291,6 @@ class TestConditionalDecodePath:
         topology = infer_topology(stage_set)
         assert topology == TOPOLOGY_CONDITIONAL_SCORE
 
-    def test_conditional_with_custom_decode_step(self):
-        """Conditional path dispatches with ConditionalDecodeStep."""
-        from prxteinmpnn.inference.driver import _decode_conditional
-
-        class DummyDecoder(eqx.Module):
-            def call_conditional(self, *args, **kwargs):
-                # Returns (L, H) decoded features
-                return jnp.zeros((6, 16))
-
-        class DummyEmbed(eqx.Module):
-            weight = None
-
-        class DummyModel:
-            def __init__(self):
-                self.w_out = lambda x: jnp.zeros((21,))  # Takes 1 arg
-
-        stage_set = StageSet(
-            decode_step=ConditionalDecodeStep(
-                decoder=DummyDecoder(),
-                w_s_embed=DummyEmbed()
-            ),
-            logit_transform=ArithmeticMeanLogits(weights=jnp.array([0.5, 0.5]))
-        )
-
-        enc = EncoderOutput(
-            node_features=jnp.zeros((2, 6, 16)),
-            edge_features=jnp.zeros((2, 6, 4, 16)),
-            neighbor_indices=jnp.zeros((2, 6, 4), dtype=jnp.int32),
-            mask=jnp.ones((2, 6))
-        )
-
-        class MockCond:
-            sequence_oh = jnp.zeros((6, 21))
-            ar_mask = jnp.zeros((2, 6, 6))
-            bias = None
-
-        key = jax.random.PRNGKey(0)
-        config = type('Config', (), {'inference': True})()
-
-        # Should not raise
-        result = _decode_conditional(
-            DummyModel(),
-            key, enc, MockCond(), config, stage_set
-        )
-        assert result.shape == (6, 21)
 
 
 # ---------------------------------------------------------------------------

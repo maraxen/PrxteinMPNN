@@ -87,6 +87,17 @@ def decode(
   This router function infer_topology() is preserved for backward compatibility
   with code that checks decode topology, but the actual decode dispatch is
   handled by the mode classes.
+
+  Migration example:
+
+    from prxteinmpnn.host.plan import make_inference_plan
+
+    # Old (deprecated):
+    # result = driver.decode(model, key, enc, cond, wave, config, stage_set)
+
+    # New (current):
+    plan = make_inference_plan(model, spec)
+    result = plan.decode(enc, bundle, key, config)
   """
   raise NotImplementedError(
     "driver.decode() is deprecated. Use InferencePlan.decode_fn() or "

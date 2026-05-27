@@ -337,6 +337,7 @@ class StageSet(eqx.Module):
     sample_step: Any | None = None  # None = scoring mode; categorical/gumbel/ste = sampling
     tie_group_fuse: TieGroupFuseFn | None = None
     encoder_sink: tuple[EncoderSinkFn, ...] = ()
+    decoder_sink: tuple["DecoderSinkFn", ...] = eqx.field(static=True, default_factory=tuple)
     encoding_fusion: EncodingFusionFn | None = None
     axis_boundaries: dict[str, "AxisBoundary"] = eqx.field(static=True, default_factory=dict)
 

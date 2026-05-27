@@ -10,6 +10,7 @@ import pytest
 
 from prxteinmpnn.host.plan import PlanTopologyError
 from prxteinmpnn.tiling.dispatch import DispatchRejected, make_axis_dispatch
+from prxteinmpnn.tiling.errors import TilingError
 from prxteinmpnn.tiling.strategy import SafeMap, Scan, Vmap
 
 
@@ -48,6 +49,12 @@ class TestMakeAxisDispatchRejectPath:
         assert "state axis" in error_msg.lower()
         assert "heterogeneous" in error_msg.lower()
 
-    def test_dispatch_rejected_is_plan_topology_error(self) -> None:
-        """DispatchRejected is a subclass of PlanTopologyError."""
-        assert issubclass(DispatchRejected, PlanTopologyError)
+    def test_dispatch_rejected_and_plan_topology_error_share_base(self) -> None:
+        """DispatchRejected and PlanTopologyError both subclass TilingError.
+
+        This enforces the library/app dependency boundary: both errors have a
+        common base (TilingError) in the library, allowing callers to ``except
+        TilingError`` to catch both, without making tiling/ depend on host/.
+        """
+        assert issubclass(DispatchRejected, TilingError)
+        assert issubclass(PlanTopologyError, TilingError)

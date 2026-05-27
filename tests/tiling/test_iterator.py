@@ -176,6 +176,20 @@ def test_vmap_vs_jax_scan_different_types():
     assert isinstance(it_scan, ScanIterator)
 
 
+def test_treedef_invariant_re_jit_on_strategy_switch():
+    """REC-1: switching iterator strategy must change PyTree structure → re-JIT.
+
+    This is the JIT-cache invariant: a function jitted over a closure containing
+    VmapIterator must re-compile when called with SafeMapIterator instead.
+    """
+    vmap_struct = jax.tree_util.tree_structure(VmapIterator())
+    safemap_struct = jax.tree_util.tree_structure(SafeMapIterator(tile=4))
+    jaxscan_struct = jax.tree_util.tree_structure(JaxScanIterator())
+    assert vmap_struct != safemap_struct
+    assert vmap_struct != jaxscan_struct
+    assert safemap_struct != jaxscan_struct
+
+
 # ============================================================================
 # Iterator Equality Tests
 # ============================================================================

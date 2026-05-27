@@ -16,6 +16,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from prxteinmpnn.tiling.axes import N_NOISES, N_SAMPLES, N_STRUCTURES, N_TEMPERATURES
+from prxteinmpnn.tiling.errors import TilingError
 from prxteinmpnn.tiling.planner import BatchPlan, BatchPlanner, estimate_memory_theoretical
 
 if TYPE_CHECKING:
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 _batch_logger = logging.getLogger(__name__ + ".batch_plan")
 
 
-class PlanTopologyError(ValueError):
+class PlanTopologyError(TilingError):
     """Raised at make_inference_plan() time when plan topology is invalid.
 
     This fires before any JAX compilation — topology errors are caught at

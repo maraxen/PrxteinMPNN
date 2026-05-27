@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from prxteinmpnn.host.plan import PlanTopologyError
+from prxteinmpnn.tiling.errors import TilingError
 from prxteinmpnn.tiling.strategy import AxisStrategy, SafeMap, Scan, Vmap
 
 if TYPE_CHECKING:
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     pass
 
 
-class DispatchRejected(PlanTopologyError):
+class DispatchRejected(TilingError):
     """Raised when an AxisStrategy is rejected for a given axis.
 
     Example: Scan on a heterogeneous axis (state) cannot be used because

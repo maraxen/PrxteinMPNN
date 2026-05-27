@@ -33,6 +33,10 @@ classifiers = [
 [project.scripts]
 prxteinmpnn = "prxteinmpnn.cli:main"
 
+[project.urls]
+repository = "https://github.com/maraxen/PrxteinMPNN.git"
+documentation = "https://prxteinmpnn.readthedocs.io"
+
 [project.optional-dependencies]
 cuda = ["jax"]
 # Keep TPU extra resolver-safe; TPU-specific wheels should be installed explicitly

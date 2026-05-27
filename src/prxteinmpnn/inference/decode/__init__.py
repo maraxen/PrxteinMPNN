@@ -6,5 +6,20 @@ The library-side surface (`tiling/` and `types/`) is domain-neutral and extracta
 
 from __future__ import annotations
 
-# Task 11: Re-exports go here; for now this is just a package marker
-__all__ = []
+from prxteinmpnn.inference.decode.factory import make_decode_fn
+from prxteinmpnn.inference.decode.mode import (
+    AutoregressiveMode,
+    ConditionalMode,
+    DecodeMode,
+    STEMode,
+    UnconditionalMode,
+)
+
+__all__ = [
+    "make_decode_fn",
+    "ConditionalMode",
+    "UnconditionalMode",
+    "AutoregressiveMode",
+    "STEMode",
+    "DecodeMode",
+]

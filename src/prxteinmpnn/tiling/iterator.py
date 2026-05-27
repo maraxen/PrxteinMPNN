@@ -13,7 +13,6 @@ Pattern 5 note: Concrete iterators are eqx.Module instances, NOT marked
 @runtime_checkable. The protocols (MapIterator, ScanIterator) are the types
 that are @runtime_checkable; users check isinstance(concrete, Protocol).
 """
-
 from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
@@ -52,68 +51,64 @@ class MapIterator(Protocol):
         Returns:
             Output pytree with iterated axis consumed.
         """
+        ...
 
 
 @runtime_checkable
 class ScanIterator(Protocol):
     """Carry-bearing axis iteration protocol.
 
-    Scans a function over an axis while maintaining and threading a carry value.
-    Signature:
-        fn: Callable — (carry, x) -> (new_carry, y)
+    Scans over an axis, threading a carry value through iterations. Signature:
+        fn: Callable — (carry, x) -> (carry, y)
         init: Any — initial carry value
-        xs: Any — pytree of arrays; first axis will be scanned
+        xs: Any — pytree to scan over
 
-    Returns: (final_carry, ys) where ys has the scanned axis consumed.
+    Returns: (final_carry, ys) where final_carry is the final carry value
+    after all iterations, and ys contains all outputs.
     """
 
     def __call__(self, fn: Any, init: Any, xs: Any) -> tuple[Any, Any]:
-        """Apply fn over the first axis of xs while threading a carry.
+        """Scan a function over the first axis of xs with carry.
 
         Args:
-            fn: Callable with signature (carry, x) -> (new_carry, y).
+            fn: Callable(carry, x) -> (carry, y).
             init: Initial carry value.
             xs: Input pytree; scan happens over axis 0.
 
         Returns:
-            (final_carry, ys) where ys has the scanned axis consumed.
+            (final_carry, ys): Final carry and stacked outputs.
         """
+        ...
 
 
 class VmapIterator(eqx.Module):
-    """Stateless iterator via jax.vmap.
+    """Iterate via jax.vmap — fully parallel.
 
-    Maps a function over an axis by fully parallelizing it. All elements
-    are materialized simultaneously. Use when memory budget allows and
-    elements are independent (no cross-talk required).
+    All elements are materialized and computed simultaneously. Use when
+    memory budget allows and elements are independent (no cross-talk).
     """
 
     def __call__(
         self, fn: Any, xs: Any, *, in_axes: Any = 0
     ) -> Any:
-        """Apply fn over the specified axis via jax.vmap.
+        """Apply fn using jax.vmap.
 
         Args:
-            fn: Callable to vmap over.
+            fn: Callable to apply per-element.
             xs: Input pytree.
             in_axes: Axis specification for vmap (default 0).
 
         Returns:
-            Output pytree with vmapped axis consumed.
+            Output after vmapping over the specified axis.
         """
         return jax.vmap(fn, in_axes=in_axes)(xs)
 
 
 class SafeMapIterator(eqx.Module):
-    """Stateless iterator via safe_map with tiling.
+    """Iterate via safe_map with tile chunking — memory-bounded, stateless.
 
-    Maps a function over an axis in tiles for memory efficiency. Elements
-    are processed in tiles of `tile` elements at a time. No carry state;
-    elements are independent. Use for memory-constrained axes where vmap
-    would OOM.
-
-    Attributes:
-        tile: Number of elements to process in each tile (static).
+    Elements are processed in tiles to avoid memory exhaustion and XLA
+    loop construct issues. No carry state; elements are independent.
     """
 
     tile: int = eqx.field(static=True)
@@ -121,37 +116,41 @@ class SafeMapIterator(eqx.Module):
     def __call__(
         self, fn: Any, xs: Any, *, in_axes: Any = 0
     ) -> Any:
-        """Apply fn over the specified axis via safe_map with tiling.
+        """Apply fn using safe_map with tiling.
 
         Args:
-            fn: Callable to map over.
+            fn: Callable to apply per-element.
             xs: Input pytree.
-            in_axes: Axis specification for safe_map (default 0).
+            in_axes: Axis specification (default 0; safe_map always uses axis 0).
 
         Returns:
-            Output pytree with mapped axis consumed (tiled).
+            Output after safe_map over the first axis.
         """
-        return safe_map(fn, xs, in_axes=in_axes, tile=self.tile)
+        # Note: safe_map always iterates over axis 0; in_axes parameter is
+        # accepted for protocol compatibility.
+        if in_axes != 0:
+            msg = "SafeMapIterator currently only supports in_axes=0"
+            raise NotImplementedError(msg)
+        return safe_map(fn, xs, batch_size=self.tile)
 
 
 class JaxScanIterator(eqx.Module):
-    """Carry-bearing iterator via jax.lax.scan.
+    """Iterate via jax.lax.scan — carry-bearing, sequential.
 
-    Scans a function over an axis while threading a carry value. Use when
-    cross-element communication is needed or carry-state is required. The
-    carry must have static shape across all iterations.
+    Elements are processed sequentially with a carry value threading through.
+    Use when elements have dependencies or when state must be accumulated.
     """
 
     def __call__(self, fn: Any, init: Any, xs: Any) -> tuple[Any, Any]:
-        """Apply fn over axis 0 of xs via jax.lax.scan with carry.
+        """Apply fn using jax.lax.scan.
 
         Args:
-            fn: Callable with signature (carry, x) -> (new_carry, y).
-            init: Initial carry value (must have static shape).
-            xs: Input pytree; scan happens over axis 0.
+            fn: Callable(carry, x) -> (carry, y).
+            init: Initial carry value.
+            xs: Input pytree to scan over.
 
         Returns:
-            (final_carry, ys) where ys has the scanned axis consumed.
+            (final_carry, ys): Final carry and stacked outputs.
         """
         return jax.lax.scan(fn, init, xs)
 

@@ -386,6 +386,7 @@ def make_stage_set(
     strategy: str = "arithmetic_mean",
     strategy_temperature: float = 1.0,
     state_weights: "jax.Array | None" = None,
+    decoder_sink: tuple = (),
 ) -> "StageSet":
     """Construct a StageSet with strategy-resolved logit_transform.
 
@@ -397,6 +398,8 @@ def make_stage_set(
         Temperature forwarded to strategies that accept it (e.g. GeometricMeanLogits).
     state_weights : jax.Array or None
         Per-state weights. When None, defaults to uniform weights of shape (1,).
+    decoder_sink : tuple, optional
+        Zero or more decoder-side effect hooks. Empty tuple (default) = no sinks.
 
     Returns
     -------
@@ -423,6 +426,7 @@ def make_stage_set(
         decode_step=None,
         sample_step=None,
         tie_group_fuse=TieGroupProductOfExperts(),
+        decoder_sink=decoder_sink,
     )
 
 

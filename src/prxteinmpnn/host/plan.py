@@ -377,6 +377,7 @@ class InferencePlan:
   model: Any
   components: InferenceComponents
   decode_fn: DecodeScoreFn | ARDecodeFn | STEDecodeFn
+  packer: Any = None
 
   @property
   def stage_set(self) -> Any:
@@ -434,6 +435,9 @@ class InferencePlan:
     """
     from prxteinmpnn.inference.sample_autoregressive import SampleResult
 
+    if self.packer is not None and getattr(bundle, "packer", None) is None:
+      raise ValueError("Packer model is configured on the InferencePlan, but the InferenceBundle contains no packer bundle data.")
+
     result = self.decode_fn(
       key,
       enc,
@@ -447,6 +451,32 @@ class InferencePlan:
         sequence=jnp.argmax(result, axis=-1).astype(jnp.int32),
         logits=result,
       )
+
+    if self.packer is not None:
+      S = enc.node_features.shape[0]
+      seq = result.sequence
+      if seq.ndim == 1:
+        seq_broadcast = jnp.broadcast_to(seq, (S, seq.shape[0]))
+      else:
+        seq_broadcast = jnp.broadcast_to(seq, (S, seq.shape[-1]))
+
+      bundle = eqx.tree_at(
+        lambda b: b.packer.sequence,
+        bundle,
+        seq_broadcast,
+      )
+
+      keys_for_states = jax.random.split(key, S)
+      packer_result_stack = _run_packer_vmap(
+        self.packer,
+        keys_for_states,
+        bundle.packer,
+        config,
+      )
+
+      import dataclasses
+      result = dataclasses.replace(result, packer_result=packer_result_stack)
+
     return result
 
   def sample(self, bundle: InferenceBundle, key: PRNGKeyArray, config: InferenceConfig) -> Any:
@@ -490,7 +520,33 @@ class InferencePlan:
     return self.decode(enc, bundle, key, config)
 
 
-def make_inference_plan(model: ModelProtocol, spec: Any) -> InferencePlan:
+import equinox as eqx
+
+
+@eqx.filter_jit
+def _run_packer_vmap(packer_model, keys, packer_bundle, config_params):
+  from prxteinmpnn.types.bundles import PackerBundle
+
+  packer_in_axes = PackerBundle(
+    sequence=0,
+    backbone_coords=0,
+    backbone_mask=0,
+    ligand_coords=0,
+    ligand_mask=0,
+    ligand_atom_types=0,
+    mask=0,
+    residue_index=0,
+    chain_labels=0,
+    backbone_noise=None,
+  )
+
+  def run_single(k, b):
+    return packer_model(k, b, config_params)
+
+  return jax.vmap(run_single, in_axes=(0, packer_in_axes))(keys, packer_bundle)
+
+
+def make_inference_plan(model: ModelProtocol, spec: Any, packer: Any = None) -> InferencePlan:
   """Factory: resolve and create an InferencePlan from model and spec.
 
   Assembles the inference pipeline by resolving encode_fn (from use_rolling_state),
@@ -601,4 +657,4 @@ def make_inference_plan(model: ModelProtocol, spec: Any) -> InferencePlan:
     stage_set=stage_set,
   )
 
-  return InferencePlan(model=model, components=components, decode_fn=decode_fn)
+  return InferencePlan(model=model, components=components, decode_fn=decode_fn, packer=packer)

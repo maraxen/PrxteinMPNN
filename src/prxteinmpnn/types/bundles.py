@@ -205,7 +205,6 @@ class WaveScheduleBundle(eqx.Module):
     WaveScheduleBundle
         Schedule with groups organized into waves.
     """
-    L = tie_group_map.shape[0]
     # Map each position to its decoding step
     # (Assuming decoding_order respects ties: positions in same tie group
     # must appear consecutively or be handled as a block)
@@ -220,26 +219,25 @@ class WaveScheduleBundle(eqx.Module):
         present_groups.append(g)
         seen_groups.add(g)
 
-    W = len(present_groups)
+    num_waves = len(present_groups)
     # Maximum positions in a group
     counts = jnp.bincount(tie_group_map)
-    P = int(jnp.max(counts))
-    G = 1  # One tie-group per wave step for simplicity
+    max_positions = int(jnp.max(counts))
 
-    group_ids = jnp.array(present_groups)[:, None]  # (W, 1)
+    group_ids = jnp.array(present_groups)[:, None]  # (num_waves, 1)
 
-    # group_positions: (W, 1, P)
+    # group_positions: (num_waves, 1, max_positions)
     # This is tricky to do in JAX without loops if we want it general.
     # But since this is host-side factory, we can use loops.
     pos_list = []
     for g in present_groups:
       indices = jnp.where(tie_group_map == g)[0]
-      # Pad to P
-      padded = jnp.pad(indices, (0, P - len(indices)), constant_values=-1)
+      # Pad to max_positions
+      padded = jnp.pad(indices, (0, max_positions - len(indices)), constant_values=-1)
       pos_list.append(padded)
 
     group_positions = jnp.array(pos_list)[:, None, :]
-    group_valid = jnp.ones((W, 1), dtype=jnp.bool_)
+    group_valid = jnp.ones((num_waves, 1), dtype=jnp.bool_)
     position_valid = group_positions != -1
 
     # Replace -1 with 0 to avoid index errors (masked by position_valid)
@@ -296,6 +294,9 @@ class InferenceBundle(eqx.Module):
       Ligand atoms and masks. Zero-filled if no ligand.
   wave : WaveScheduleBundle
       Decoding wave schedule for tied-position autoregressive decode.
+  packer : PackerBundle | None
+      Optional side-chain packer bundle (sequence, coordinates, ligand, masks).
+      None if side-chain packing features are not needed.
   backbone_noise : Float[Array, ""]
       Backbone coordinate noise magnitude (scalar). 0.0 = no noise.
       Used by coordinate augmentation during encode/decode.
@@ -315,6 +316,7 @@ class InferenceBundle(eqx.Module):
   conditioning: ConditioningBundle
   ligand: LigandBundle
   wave: WaveScheduleBundle
+  packer: PackerBundle | None = None
   backbone_noise: Float[Array, ""] = eqx.field(default_factory=lambda: jnp.array(0.0))
 
 
@@ -385,12 +387,13 @@ class PackerResult(eqx.Module):
 
   Parameters
   ----------
-  mean : Float[Array, "L 4 3"]
+  mean : Float[Array, "L 4 3"] | Float[Array, "S L 4 3"]
       Mean direction vectors (unit sphere). Shape: L = num residues,
-      4 = chi angles (chi1-chi4), 3 = Cartesian coordinates.
-  concentration : Float[Array, "L 4 3"]
+      S = num conformational states, 4 = chi angles (chi1-chi4),
+      3 = Cartesian coordinates.
+  concentration : Float[Array, "L 4 3"] | Float[Array, "S L 4 3"]
       Concentration (kappa) parameters for VMF. Higher = sharper distribution.
-  mix_logits : Float[Array, "L 4 3"]
+  mix_logits : Float[Array, "L 4 3"] | Float[Array, "S L 4 3"]
       Logits for mixture weights across the 3-component VMF mixture.
 
   References
@@ -403,9 +406,9 @@ class PackerResult(eqx.Module):
      https://github.com/dauparas/LigandMPNN
   """
 
-  mean: Float[Array, "L 4 3"]
-  concentration: Float[Array, "L 4 3"]
-  mix_logits: Float[Array, "L 4 3"]
+  mean: Float[Array, "L 4 3"] | Float[Array, "S L 4 3"]
+  concentration: Float[Array, "L 4 3"] | Float[Array, "S L 4 3"]
+  mix_logits: Float[Array, "L 4 3"] | Float[Array, "S L 4 3"]
 
 
 class PackerBundle(eqx.Module):
@@ -416,24 +419,25 @@ class PackerBundle(eqx.Module):
 
   Parameters
   ----------
-  sequence : Int[Array, "L"]
-      Amino acid sequence (indices 0–20). Shape: L = sequence length.
-  backbone_coords : Float[Array, "L 14 3"]
+  sequence : Int[Array, "L"] | Int[Array, "S L"]
+      Amino acid sequence (indices 0–20). Shape: L = sequence length,
+      S = num conformational states.
+  backbone_coords : Float[Array, "L 14 3"] | Float[Array, "S L 14 3"]
       All backbone atoms (N, CA, C, O, CB, etc.). Shape: 14 = max atom types.
-  backbone_mask : Float[Array, "L 14"]
+  backbone_mask : Float[Array, "L 14"] | Float[Array, "S L 14"]
       Validity mask for backbone atoms.
-  ligand_coords : Float[Array, "L M 3"]
+  ligand_coords : Float[Array, "L M 3"] | Float[Array, "S L M 3"]
       Ligand atom coordinates per residue. Shape: M = max ligand atoms.
-  ligand_mask : Float[Array, "L M"]
+  ligand_mask : Float[Array, "L M"] | Float[Array, "S L M"]
       Validity mask for ligand atoms.
-  ligand_atom_types : Float[Array, "L M"]
+  ligand_atom_types : Float[Array, "L M"] | Float[Array, "S L M"]
       Ligand atom element type indices per protein residue. Note: annotated as
       Float due to upstream type drift; semantically integer atom type indices.
-  mask : Float[Array, "L"]
+  mask : Float[Array, "L"] | Float[Array, "S L"]
       Per-residue validity mask (1.0 = design-able, 0.0 = masked).
-  residue_index : Int[Array, "L"]
+  residue_index : Int[Array, "L"] | Int[Array, "S L"]
       Absolute residue indices in PDB.
-  chain_labels : Int[Array, "L"]
+  chain_labels : Int[Array, "L"] | Int[Array, "S L"]
       Chain assignment for inter-chain masking.
   backbone_noise : Float[Array, ""]
       Backbone coordinate noise magnitude. Default 0.0 (no noise).
@@ -448,13 +452,13 @@ class PackerBundle(eqx.Module):
      https://github.com/dauparas/LigandMPNN
   """
 
-  sequence: Int[Array, L]
-  backbone_coords: Float[Array, "L 14 3"]
-  backbone_mask: Float[Array, "L 14"]
-  ligand_coords: Float[Array, "L M 3"]
-  ligand_mask: Float[Array, "L M"]
-  ligand_atom_types: Float[Array, "L M"]
-  mask: Float[Array, L]
-  residue_index: Int[Array, L]
-  chain_labels: Int[Array, L]
+  sequence: Int[Array, L] | Int[Array, "S L"]
+  backbone_coords: Float[Array, "L 14 3"] | Float[Array, "S L 14 3"]
+  backbone_mask: Float[Array, "L 14"] | Float[Array, "S L 14"]
+  ligand_coords: Float[Array, "L M 3"] | Float[Array, "S L M 3"]
+  ligand_mask: Float[Array, "L M"] | Float[Array, "S L M"]
+  ligand_atom_types: Float[Array, "L M"] | Float[Array, "S L M"]
+  mask: Float[Array, L] | Float[Array, "S L"]
+  residue_index: Int[Array, L] | Int[Array, "S L"]
+  chain_labels: Int[Array, L] | Int[Array, "S L"]
   backbone_noise: Float[Array, ""] = 0.0

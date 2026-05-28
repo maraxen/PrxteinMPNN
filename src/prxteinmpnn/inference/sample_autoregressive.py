@@ -14,7 +14,7 @@ from jaxtyping import Array, Float, Int
 if TYPE_CHECKING:
   from prxteinmpnn.model.mpnn import PrxteinMPNN
   from prxteinmpnn.types.arrays import PRNGKeyArray
-  from prxteinmpnn.types.bundles import InferenceBundle
+  from prxteinmpnn.types.bundles import InferenceBundle, PackerResult
   from prxteinmpnn.types.configs import InferenceConfig
   from prxteinmpnn.types.stages import StageSet
 
@@ -25,6 +25,7 @@ class SampleResult:
 
   sequence: Int[Array, L]
   logits: Float[Array, "L 21"]
+  packer_result: PackerResult | None = None
 
 
 def kernel(
@@ -41,8 +42,10 @@ def kernel(
   """
   import jax
 
-  from prxteinmpnn.inference.driver import decode_ar
+  from prxteinmpnn.inference.decode.factory import make_decode_fn
+  from prxteinmpnn.inference.decode.mode import AutoregressiveMode
   from prxteinmpnn.inference.encode import make_encode_fn
+  from prxteinmpnn.tiling.strategy import Vmap
 
   k_enc, k_dec = jax.random.split(prng_key)
 
@@ -50,5 +53,10 @@ def kernel(
   encode_fn = make_encode_fn(model, use_rolling_state=False)
   enc = encode_fn(bundle, k_enc, config)
 
-  # Delegate to unified driver for autoregressive sampling
-  return decode_ar(model, k_dec, enc, bundle.conditioning, bundle.wave, config, stage_set)
+  # Resolve autoregressive decode function and execute
+  decode_fn = make_decode_fn(
+    model=model,
+    mode=AutoregressiveMode(),
+    strategy=Vmap(),
+  )
+  return decode_fn(k_dec, enc, bundle, config, stage_set)

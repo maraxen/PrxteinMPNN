@@ -50,7 +50,7 @@ def make_sample_sequences(
   if sampling_strategy == "straight_through":
     # Construct a default stage_set with arithmetic_mean strategy (default for STE).
     # Callers can pass state_weights at sample time to override the logit_transform.
-    default_stage_set = make_stage_set(strategy_name="arithmetic_mean")
+    default_stage_set = make_stage_set(strategy="arithmetic_mean")
 
     optimize_fn = optimize_ste.make_optimize_sequence_fn(
       model,

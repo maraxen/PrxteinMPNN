@@ -11,6 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, NamedTuple
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -436,7 +437,10 @@ class InferencePlan:
     from prxteinmpnn.inference.sample_autoregressive import SampleResult
 
     if self.packer is not None and getattr(bundle, "packer", None) is None:
-      raise ValueError("Packer model is configured on the InferencePlan, but the InferenceBundle contains no packer bundle data.")
+      raise ValueError(
+        "Packer model is configured on the InferencePlan, but the "
+        "InferenceBundle contains no packer bundle data."
+      )
 
     result = self.decode_fn(
       key,
@@ -453,12 +457,12 @@ class InferencePlan:
       )
 
     if self.packer is not None:
-      S = enc.node_features.shape[0]
+      n_states = enc.node_features.shape[0]
       seq = result.sequence
       if seq.ndim == 1:
-        seq_broadcast = jnp.broadcast_to(seq, (S, seq.shape[0]))
+        seq_broadcast = jnp.broadcast_to(seq, (n_states, seq.shape[0]))
       else:
-        seq_broadcast = jnp.broadcast_to(seq, (S, seq.shape[-1]))
+        seq_broadcast = jnp.broadcast_to(seq, (n_states, seq.shape[-1]))
 
       bundle = eqx.tree_at(
         lambda b: b.packer.sequence,
@@ -466,7 +470,7 @@ class InferencePlan:
         seq_broadcast,
       )
 
-      keys_for_states = jax.random.split(key, S)
+      keys_for_states = jax.random.split(key, n_states)
       packer_result_stack = _run_packer_vmap(
         self.packer,
         keys_for_states,
@@ -474,7 +478,6 @@ class InferencePlan:
         config,
       )
 
-      import dataclasses
       result = dataclasses.replace(result, packer_result=packer_result_stack)
 
     return result
@@ -519,8 +522,6 @@ class InferencePlan:
     enc = self.encode(bundle, key, config)
     return self.decode(enc, bundle, key, config)
 
-
-import equinox as eqx
 
 
 @eqx.filter_jit

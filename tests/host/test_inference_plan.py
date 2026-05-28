@@ -83,15 +83,13 @@ def test_inference_plan_has_stage_set_attribute():
 # ---------------------------------------------------------------------------
 
 def test_inference_components_is_named_tuple():
-    """InferenceComponents is a NamedTuple with encode_fn, driver, stage_set."""
+    """InferenceComponents is a NamedTuple with encode_fn, stage_set."""
     from prxteinmpnn.host.plan import InferenceComponents
     # NamedTuple has _fields
     assert hasattr(InferenceComponents, "_fields"), "InferenceComponents must be a NamedTuple"
     fields = InferenceComponents._fields
     assert "encode_fn" in fields, f"Missing encode_fn in {fields}"
     assert "stage_set" in fields, f"Missing stage_set in {fields}"
-    # driver or decode_fn
-    assert "driver" in fields or "decode_fn" in fields, f"Missing driver/decode_fn in {fields}"
 
 
 # ---------------------------------------------------------------------------

@@ -155,8 +155,8 @@ class AutoregressiveDecode(eqx.Module):
     wave = bundle.wave
     n_waves = wave.group_ids.shape[0]
 
-    # 1. Materialize init sequence from metadata
-    init_sequence = self.wave_carry.materialize()
+    # 1. Materialize init sequence from metadata with actual length L
+    init_sequence = jnp.zeros((L,), dtype=self.wave_carry.dtype)
 
     # Initialize with fixed positions
     init_sequence = jnp.where(

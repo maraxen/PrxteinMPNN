@@ -34,7 +34,9 @@ from prxteinmpnn.parity.evidence import (
   mean_kl_divergence,
   per_position_entropy,
   root_mean_square_error,
+  safe_cosine_similarity,
   safe_pearson,
+  safe_spearman,
   sequence_identity,
   token_agreement,
   write_metric_records_csv,
@@ -1489,6 +1491,8 @@ def _append_scalar_metrics(
   checkpoint_id: str,
   correlation: float | None = None,
   correlation_threshold: float | None = None,
+  cosine_similarity: float | None = None,
+  spearman_correlation: float | None = None,
   mae: float | None = None,
   rmse: float | None = None,
   max_abs: float | None = None,
@@ -1524,6 +1528,10 @@ def _append_scalar_metrics(
   if correlation is not None:
     passed = correlation >= correlation_threshold if correlation_threshold is not None else None
     add("pearson_correlation", correlation, threshold=correlation_threshold, passed=passed)
+  if cosine_similarity is not None:
+    add("cosine_similarity", cosine_similarity)
+  if spearman_correlation is not None:
+    add("spearman_correlation", spearman_correlation)
   if mae is not None:
     add("mae", mae)
   if rmse is not None:
@@ -2358,6 +2366,7 @@ def _collect_for_case(
   metric_rows: list[EvidenceMetricRecord] = []
   point_rows: list[EvidencePointRecord] = []
   core_inputs = _prepare_core_case_inputs(case)
+  valid_mask = core_inputs.mask > 0.5
 
   feature_ref, feature_obs = _core_feature_outputs(core_models, core_inputs)
   _append_scalar_metrics(
@@ -2366,10 +2375,12 @@ def _collect_for_case(
     tier="parity_heavy",
     case=case,
     checkpoint_id=core_models.checkpoint_id,
-    correlation=safe_pearson(feature_ref, feature_obs),
-    mae=mean_abs_error(feature_ref, feature_obs),
-    rmse=root_mean_square_error(feature_ref, feature_obs),
-    max_abs=max_abs_error(feature_ref, feature_obs),
+    correlation=safe_pearson(feature_ref, feature_obs, mask=valid_mask),
+    cosine_similarity=safe_cosine_similarity(feature_ref, feature_obs, mask=valid_mask),
+    spearman_correlation=safe_spearman(feature_ref, feature_obs, mask=valid_mask),
+    mae=mean_abs_error(feature_ref, feature_obs, mask=valid_mask),
+    rmse=root_mean_square_error(feature_ref, feature_obs, mask=valid_mask),
+    max_abs=max_abs_error(feature_ref, feature_obs, mask=valid_mask),
     allclose_pass=bool(np.allclose(feature_ref, feature_obs, atol=2e-5, rtol=1e-5)),
   )
   _append_point_records(
@@ -2389,11 +2400,13 @@ def _collect_for_case(
     tier="parity_heavy",
     case=case,
     checkpoint_id=core_models.checkpoint_id,
-    correlation=safe_pearson(enc_node_ref, enc_node_obs),
+    correlation=safe_pearson(enc_node_ref, enc_node_obs, mask=valid_mask),
     correlation_threshold=correlation_thresholds["protein-encoder"],
-    mae=mean_abs_error(enc_node_ref, enc_node_obs),
-    rmse=root_mean_square_error(enc_node_ref, enc_node_obs),
-    max_abs=max_abs_error(enc_node_ref, enc_node_obs),
+    cosine_similarity=safe_cosine_similarity(enc_node_ref, enc_node_obs, mask=valid_mask),
+    spearman_correlation=safe_spearman(enc_node_ref, enc_node_obs, mask=valid_mask),
+    mae=mean_abs_error(enc_node_ref, enc_node_obs, mask=valid_mask),
+    rmse=root_mean_square_error(enc_node_ref, enc_node_obs, mask=valid_mask),
+    max_abs=max_abs_error(enc_node_ref, enc_node_obs, mask=valid_mask),
   )
   _append_scalar_metrics(
     metric_rows,
@@ -2401,11 +2414,13 @@ def _collect_for_case(
     tier="parity_heavy",
     case=case,
     checkpoint_id=core_models.checkpoint_id,
-    correlation=safe_pearson(enc_edge_ref, enc_edge_obs),
+    correlation=safe_pearson(enc_edge_ref, enc_edge_obs, mask=valid_mask),
     correlation_threshold=correlation_thresholds["protein-encoder"],
-    mae=mean_abs_error(enc_edge_ref, enc_edge_obs),
-    rmse=root_mean_square_error(enc_edge_ref, enc_edge_obs),
-    max_abs=max_abs_error(enc_edge_ref, enc_edge_obs),
+    cosine_similarity=safe_cosine_similarity(enc_edge_ref, enc_edge_obs, mask=valid_mask),
+    spearman_correlation=safe_spearman(enc_edge_ref, enc_edge_obs, mask=valid_mask),
+    mae=mean_abs_error(enc_edge_ref, enc_edge_obs, mask=valid_mask),
+    rmse=root_mean_square_error(enc_edge_ref, enc_edge_obs, mask=valid_mask),
+    max_abs=max_abs_error(enc_edge_ref, enc_edge_obs, mask=valid_mask),
   )
 
   uncond_ref, uncond_obs = _core_unconditional_log_probs(core_models, core_inputs)
@@ -2415,12 +2430,14 @@ def _collect_for_case(
     tier="parity_heavy",
     case=case,
     checkpoint_id=core_models.checkpoint_id,
-    correlation=safe_pearson(uncond_ref, uncond_obs),
+    correlation=safe_pearson(uncond_ref, uncond_obs, mask=valid_mask),
     correlation_threshold=correlation_thresholds["decoder-unconditional"],
-    mae=mean_abs_error(uncond_ref, uncond_obs),
-    rmse=root_mean_square_error(uncond_ref, uncond_obs),
-    max_abs=max_abs_error(uncond_ref, uncond_obs),
-    kl=mean_kl_divergence(uncond_ref, uncond_obs),
+    cosine_similarity=safe_cosine_similarity(uncond_ref, uncond_obs, mask=valid_mask),
+    spearman_correlation=safe_spearman(uncond_ref, uncond_obs, mask=valid_mask),
+    mae=mean_abs_error(uncond_ref, uncond_obs, mask=valid_mask),
+    rmse=root_mean_square_error(uncond_ref, uncond_obs, mask=valid_mask),
+    max_abs=max_abs_error(uncond_ref, uncond_obs, mask=valid_mask),
+    kl=mean_kl_divergence(uncond_ref, uncond_obs, mask=valid_mask),
   )
   _append_point_records(
     point_rows,
@@ -2439,12 +2456,14 @@ def _collect_for_case(
     tier="parity_heavy",
     case=case,
     checkpoint_id=core_models.checkpoint_id,
-    correlation=safe_pearson(cond_ref, cond_obs),
+    correlation=safe_pearson(cond_ref, cond_obs, mask=valid_mask),
     correlation_threshold=correlation_thresholds["decoder-conditional-scoring"],
-    mae=mean_abs_error(cond_ref, cond_obs),
-    rmse=root_mean_square_error(cond_ref, cond_obs),
-    max_abs=max_abs_error(cond_ref, cond_obs),
-    kl=mean_kl_divergence(cond_ref, cond_obs),
+    cosine_similarity=safe_cosine_similarity(cond_ref, cond_obs, mask=valid_mask),
+    spearman_correlation=safe_spearman(cond_ref, cond_obs, mask=valid_mask),
+    mae=mean_abs_error(cond_ref, cond_obs, mask=valid_mask),
+    rmse=root_mean_square_error(cond_ref, cond_obs, mask=valid_mask),
+    max_abs=max_abs_error(cond_ref, cond_obs, mask=valid_mask),
+    kl=mean_kl_divergence(cond_ref, cond_obs, mask=valid_mask),
   )
   _append_point_records(
     point_rows,
@@ -2467,14 +2486,16 @@ def _collect_for_case(
     tier="parity_heavy",
     case=case,
     checkpoint_id=core_models.checkpoint_id,
-    correlation=safe_pearson(pt_log_probs, jax_log_probs),
+    correlation=safe_pearson(pt_log_probs, jax_log_probs, mask=valid_mask),
     correlation_threshold=correlation_thresholds["autoregressive-sampling"],
-    mae=mean_abs_error(pt_log_probs, jax_log_probs),
-    rmse=root_mean_square_error(pt_log_probs, jax_log_probs),
-    max_abs=max_abs_error(pt_log_probs, jax_log_probs),
-    token_acc=token_agreement(pt_tokens, jax_tokens, core_inputs.mask > 0.5),
+    cosine_similarity=safe_cosine_similarity(pt_log_probs, jax_log_probs, mask=valid_mask),
+    spearman_correlation=safe_spearman(pt_log_probs, jax_log_probs, mask=valid_mask),
+    mae=mean_abs_error(pt_log_probs, jax_log_probs, mask=valid_mask),
+    rmse=root_mean_square_error(pt_log_probs, jax_log_probs, mask=valid_mask),
+    max_abs=max_abs_error(pt_log_probs, jax_log_probs, mask=valid_mask),
+    token_acc=token_agreement(pt_tokens, jax_tokens, valid_mask),
     token_threshold=correlation_thresholds["autoregressive-sampling"],
-    kl=mean_kl_divergence(pt_log_probs, jax_log_probs),
+    kl=mean_kl_divergence(pt_log_probs, jax_log_probs, mask=valid_mask),
   )
 
   core_tied_lanes = tuple(lane for lane in tied_lanes if lane.path_id == "tied-positions-and-multi-state")
@@ -2515,7 +2536,7 @@ def _collect_for_case(
       all(np.all(tie_jax_tokens[group] == tie_jax_tokens[group[0]]) for group in tie_groups),
     )
     token_acc = (
-      token_agreement(tie_pt_tokens, tie_jax_tokens, core_inputs.mask > 0.5)
+      token_agreement(tie_pt_tokens, tie_jax_tokens, valid_mask)
       if lane.token_comparison_enabled
       else None
     )
@@ -2525,11 +2546,13 @@ def _collect_for_case(
       tier="parity_heavy",
       case=case,
       checkpoint_id=core_models.checkpoint_id,
-      correlation=safe_pearson(tie_pt_log_probs, tie_jax_log_probs),
+      correlation=safe_pearson(tie_pt_log_probs, tie_jax_log_probs, mask=valid_mask),
       correlation_threshold=tied_threshold,
-      mae=mean_abs_error(tie_pt_log_probs, tie_jax_log_probs),
-      rmse=root_mean_square_error(tie_pt_log_probs, tie_jax_log_probs),
-      max_abs=max_abs_error(tie_pt_log_probs, tie_jax_log_probs),
+      cosine_similarity=safe_cosine_similarity(tie_pt_log_probs, tie_jax_log_probs, mask=valid_mask),
+      spearman_correlation=safe_spearman(tie_pt_log_probs, tie_jax_log_probs, mask=valid_mask),
+      mae=mean_abs_error(tie_pt_log_probs, tie_jax_log_probs, mask=valid_mask),
+      rmse=root_mean_square_error(tie_pt_log_probs, tie_jax_log_probs, mask=valid_mask),
+      max_abs=max_abs_error(tie_pt_log_probs, tie_jax_log_probs, mask=valid_mask),
       token_acc=token_acc,
       token_threshold=tied_threshold if lane.token_comparison_enabled else None,
       condition=lane.condition,
@@ -2567,10 +2590,12 @@ def _collect_for_case(
     tier="parity_heavy",
     case=case,
     checkpoint_id=ligand_models.checkpoint_id,
-    correlation=safe_pearson(ligand_feature_ref, ligand_feature_obs),
-    mae=mean_abs_error(ligand_feature_ref, ligand_feature_obs),
-    rmse=root_mean_square_error(ligand_feature_ref, ligand_feature_obs),
-    max_abs=max_abs_error(ligand_feature_ref, ligand_feature_obs),
+    correlation=safe_pearson(ligand_feature_ref, ligand_feature_obs, mask=valid_mask),
+    cosine_similarity=safe_cosine_similarity(ligand_feature_ref, ligand_feature_obs, mask=valid_mask),
+    spearman_correlation=safe_spearman(ligand_feature_ref, ligand_feature_obs, mask=valid_mask),
+    mae=mean_abs_error(ligand_feature_ref, ligand_feature_obs, mask=valid_mask),
+    rmse=root_mean_square_error(ligand_feature_ref, ligand_feature_obs, mask=valid_mask),
+    max_abs=max_abs_error(ligand_feature_ref, ligand_feature_obs, mask=valid_mask),
     allclose_pass=bool(np.allclose(ligand_feature_ref, ligand_feature_obs, atol=1e-5, rtol=1e-5)),
   )
   _append_point_records(
@@ -2603,8 +2628,10 @@ def _collect_for_case(
     tier="parity_heavy",
     case=case,
     checkpoint_id=ligand_models.checkpoint_id,
-    correlation=safe_pearson(ligand_hv_ref, ligand_hv_obs),
+    correlation=safe_pearson(ligand_hv_ref, ligand_hv_obs, mask=valid_mask),
     correlation_threshold=correlation_thresholds["ligand-conditioning-context"],
+    cosine_similarity=safe_cosine_similarity(ligand_hv_ref, ligand_hv_obs, mask=valid_mask),
+    spearman_correlation=safe_spearman(ligand_hv_ref, ligand_hv_obs, mask=valid_mask),
   )
   _append_scalar_metrics(
     metric_rows,
@@ -2612,8 +2639,10 @@ def _collect_for_case(
     tier="parity_heavy",
     case=case,
     checkpoint_id=ligand_models.checkpoint_id,
-    correlation=safe_pearson(ligand_he_ref, ligand_he_obs),
+    correlation=safe_pearson(ligand_he_ref, ligand_he_obs, mask=valid_mask),
     correlation_threshold=correlation_thresholds["ligand-conditioning-context"],
+    cosine_similarity=safe_cosine_similarity(ligand_he_ref, ligand_he_obs, mask=valid_mask),
+    spearman_correlation=safe_spearman(ligand_he_ref, ligand_he_obs, mask=valid_mask),
   )
   _append_scalar_metrics(
     metric_rows,
@@ -2621,11 +2650,13 @@ def _collect_for_case(
     tier="parity_heavy",
     case=case,
     checkpoint_id=ligand_models.checkpoint_id,
-    correlation=safe_pearson(ligand_cond_ref, ligand_cond_obs),
+    correlation=safe_pearson(ligand_cond_ref, ligand_cond_obs, mask=valid_mask),
     correlation_threshold=correlation_thresholds["ligand-conditioning-context"],
-    mae=mean_abs_error(ligand_cond_ref, ligand_cond_obs),
-    rmse=root_mean_square_error(ligand_cond_ref, ligand_cond_obs),
-    kl=mean_kl_divergence(ligand_cond_ref, ligand_cond_obs),
+    cosine_similarity=safe_cosine_similarity(ligand_cond_ref, ligand_cond_obs, mask=valid_mask),
+    spearman_correlation=safe_spearman(ligand_cond_ref, ligand_cond_obs, mask=valid_mask),
+    mae=mean_abs_error(ligand_cond_ref, ligand_cond_obs, mask=valid_mask),
+    rmse=root_mean_square_error(ligand_cond_ref, ligand_cond_obs, mask=valid_mask),
+    kl=mean_kl_divergence(ligand_cond_ref, ligand_cond_obs, mask=valid_mask),
   )
   _append_point_records(
     point_rows,
@@ -2651,14 +2682,16 @@ def _collect_for_case(
     tier="parity_heavy",
     case=case,
     checkpoint_id=ligand_models.checkpoint_id,
-    correlation=safe_pearson(lig_pt_log_probs, lig_jax_log_probs),
+    correlation=safe_pearson(lig_pt_log_probs, lig_jax_log_probs, mask=valid_mask),
     correlation_threshold=correlation_thresholds["ligand-autoregressive"],
-    mae=mean_abs_error(lig_pt_log_probs, lig_jax_log_probs),
-    rmse=root_mean_square_error(lig_pt_log_probs, lig_jax_log_probs),
-    max_abs=max_abs_error(lig_pt_log_probs, lig_jax_log_probs),
-    token_acc=token_agreement(lig_pt_tokens, lig_jax_tokens, core_inputs.mask > 0.5),
+    cosine_similarity=safe_cosine_similarity(lig_pt_log_probs, lig_jax_log_probs, mask=valid_mask),
+    spearman_correlation=safe_spearman(lig_pt_log_probs, lig_jax_log_probs, mask=valid_mask),
+    mae=mean_abs_error(lig_pt_log_probs, lig_jax_log_probs, mask=valid_mask),
+    rmse=root_mean_square_error(lig_pt_log_probs, lig_jax_log_probs, mask=valid_mask),
+    max_abs=max_abs_error(lig_pt_log_probs, lig_jax_log_probs, mask=valid_mask),
+    token_acc=token_agreement(lig_pt_tokens, lig_jax_tokens, valid_mask),
     token_threshold=correlation_thresholds["ligand-autoregressive"],
-    kl=mean_kl_divergence(lig_pt_log_probs, lig_jax_log_probs),
+    kl=mean_kl_divergence(lig_pt_log_probs, lig_jax_log_probs, mask=valid_mask),
   )
 
   xyz_37 = np.asarray(core_inputs.atom37_coordinates, dtype=np.float32)
@@ -2781,11 +2814,13 @@ def _collect_for_case(
       tier="parity_heavy",
       case=case,
       checkpoint_id=current_models.checkpoint_id,
-      correlation=safe_pearson(lig_tie_pt_log_probs, lig_tie_jax_log_probs),
+      correlation=safe_pearson(lig_tie_pt_log_probs, lig_tie_jax_log_probs, mask=valid_mask),
       correlation_threshold=lane_threshold,
-      mae=mean_abs_error(lig_tie_pt_log_probs, lig_tie_jax_log_probs),
-      rmse=root_mean_square_error(lig_tie_pt_log_probs, lig_tie_jax_log_probs),
-      max_abs=max_abs_error(lig_tie_pt_log_probs, lig_tie_jax_log_probs),
+      cosine_similarity=safe_cosine_similarity(lig_tie_pt_log_probs, lig_tie_jax_log_probs, mask=valid_mask),
+      spearman_correlation=safe_spearman(lig_tie_pt_log_probs, lig_tie_jax_log_probs, mask=valid_mask),
+      mae=mean_abs_error(lig_tie_pt_log_probs, lig_tie_jax_log_probs, mask=valid_mask),
+      rmse=root_mean_square_error(lig_tie_pt_log_probs, lig_tie_jax_log_probs, mask=valid_mask),
+      max_abs=max_abs_error(lig_tie_pt_log_probs, lig_tie_jax_log_probs, mask=valid_mask),
       token_acc=lig_token_acc,
       token_threshold=lane_threshold if lane.token_comparison_enabled else None,
       condition=lane.condition,

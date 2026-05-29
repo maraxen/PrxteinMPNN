@@ -140,12 +140,10 @@ def test_regression_inference_plan_encode_exists():
 
     # Create minimal components
     dummy_encode_fn = lambda bundle, key, config: None
-    dummy_driver = lambda *args: None
     dummy_stage_set = eqx.Module()
 
     components = InferenceComponents(
         encode_fn=dummy_encode_fn,
-        driver=dummy_driver,
         stage_set=dummy_stage_set,
     )
 
@@ -162,12 +160,10 @@ def test_regression_inference_plan_decode_exists():
 
     # Create minimal components
     dummy_encode_fn = lambda bundle, key, config: None
-    dummy_driver = lambda *args: None
     dummy_stage_set = eqx.Module()
 
     components = InferenceComponents(
         encode_fn=dummy_encode_fn,
-        driver=dummy_driver,
         stage_set=dummy_stage_set,
     )
 

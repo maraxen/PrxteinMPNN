@@ -310,6 +310,160 @@ uv run python -c "import importlib.metadata; m = importlib.metadata.metadata('pr
 
 ---
 
+## Wave C — Bucketing + Performance Parity (after Wave B)
+
+> **Dependency:** Wave C tasks must not begin until all Wave B tasks are committed.
+> **Not a merge gate:** MR-09 and MR-10 are advisory backlog items (bucketing TODO is in Deferral Register above — now being implemented). MR-11 is advisory only — escalate on failure, do not block merge.
+
+---
+
+### MR-09: Implement tiling/bucketing.py
+
+**What and why:** `BatchPlanner.plan()` is production-ready but has no grouping layer above it. The bucketing layer groups variable-length sequences into fixed-size XLA compilation buckets before planning, preventing recompilation on every novel length. Resolves `tiling/planner.py:16` TODO.
+
+**Note:** `tiling/buckets.py` already exists and handles padding of *individual* sequences to length-bucket ceilings. `bucketing.py` is distinct: it groups a *batch* of sequences by bucket assignment and calls `BatchPlanner.plan()` once per bucket. Do not merge or rename either file.
+
+**Files:**
+- `src/prxteinmpnn/tiling/bucketing.py` (create)
+- `tests/tiling/__init__.py` (create — empty)
+- `tests/tiling/test_bucketing.py` (create)
+
+**Interface to implement:**
+```python
+@dataclass(frozen=True)
+class BucketingConfig:
+    buckets: tuple[int, ...] = (64, 128, 256, 512)
+
+def select_bucket(seq_len: int, config: BucketingConfig) -> int:
+    for b in config.buckets:
+        if seq_len <= b:
+            return b
+    raise ValueError(f"{seq_len} exceeds all buckets {config.buckets}")
+
+def group_by_bucket(seq_lens: list[int], config: BucketingConfig) -> dict[int, list[int]]: ...
+
+@dataclass(frozen=True)
+class BucketAssignment:
+    bucket_boundaries: tuple[int, ...]       # sorted; subset of used buckets
+    bucket_groups: dict[int, list[int]]      # bucket_ceil → [seq indices]
+    per_bucket_plans: dict[int, BatchPlan]   # bucket_ceil → BatchPlan
+```
+
+**JAX constraint:** bucket boundaries are static (config-loaded at init); individual seq_lens are dynamic but map to static bucket keys.
+
+**Tests must cover:**
+1. `select_bucket` — exact match, below ceiling, exceeds all (`ValueError`)
+2. `BucketingConfig` — unsorted raises `ValueError`; empty raises `ValueError`
+3. `group_by_bucket` — mixed lengths correctly partitioned; indices correct; exceeds-all propagates `ValueError`
+4. `BucketAssignment` — construction; `bucket_boundaries` is sorted subset of used keys
+
+**Success criterion:**
+```bash
+uv run pytest tests/tiling/test_bucketing.py -q 2>&1 | tail -5
+```
+All pass.
+
+**Dependencies:** None  
+**LOC:** ~120 implementation + ~80 tests
+
+---
+
+### MR-10: Wire plan_bucketed into host/plan.py
+
+**What and why:** Exposes bucketing to the host layer. Calls `BatchPlanner.plan()` once per bucket (substituting bucket ceiling as sequence-axis cardinality) and returns a `BucketAssignment`.
+
+**Files:**
+- `src/prxteinmpnn/host/plan.py` (modify — add `plan_bucketed`)
+- `tests/host/test_bucketed_plan.py` (create)
+
+**Function signature:**
+```python
+def plan_bucketed(
+    spec: SamplingSpecification,
+    sequence_lengths: list[int],
+    planner: BatchPlanner,
+    bucketing_config: BucketingConfig | None = None,
+) -> BucketAssignment:
+```
+
+Implementation: override the `"n_structures"` axis cardinality to the bucket ceiling for each bucket, call `planner.plan()` per bucket, assemble `BucketAssignment`. Raise `ValueError` for empty `sequence_lengths`; raise `KeyError` if no `"n_structures"` axis found.
+
+**Tests must cover:**
+1. Three sequences in two buckets → two entries in `per_bucket_plans`
+2. `bucket_boundaries` sorted and matching used buckets
+3. Indices in `bucket_groups` match input positions
+4. `sequence_lengths=[]` raises `ValueError`
+5. Length exceeding all buckets propagates `ValueError`
+
+**Success criterion:**
+```bash
+uv run pytest tests/host/test_bucketed_plan.py -q 2>&1 | tail -5
+python -c "from prxteinmpnn.host.plan import plan_bucketed; print('ok')"
+```
+
+**Dependencies:** MR-09  
+**LOC:** ~50 function + ~60 tests
+
+---
+
+### MR-11: Performance parity benchmark
+
+**What and why:** The Sprint 6 eqx.Module dispatch chain (StageSet → DecodeMode → AxisBoundary → unified driver) should be folded away by JIT. This benchmark provides empirical evidence.
+
+**This task is ADVISORY:** overhead > 10% → escalate, do not auto-fix or block merge.
+
+**Files:**
+- `scripts/benchmarks/bench_inference_plan_latency.py` (create)
+
+**Design:**
+- Input: fixed synthetic 200-residue protein, no ligand; `jax.random.PRNGKey(42)`
+- Subject: `InferencePlan` via `make_inference_plan(model, spec)` → `.decode()` — 10 warmup + 20 timed
+- Baseline: `ConditionalDecodeStep.__call__` directly (NOT via `driver.decode()` — that raises); same warmup structure
+- Assertion: `median(subject) / median(baseline) <= 1.10`; `sys.exit(1)` on failure
+- CLI: `--n-warmup`, `--n-timed`, `--seq-len`, `--verbose`
+- Not a bathos experiment; no `.bth.toml` sidecar
+
+**Success criterion (advisory):**
+```bash
+uv run python scripts/benchmarks/bench_inference_plan_latency.py --verbose 2>&1 | tail -5
+# Expected: "PASS" and "Overhead ratio: X.XXXx" where X.XXX <= 1.100
+```
+
+**Dependencies:** MR-07 (driver.decode deprecation must be clean)  
+**LOC:** ~120
+
+---
+
+## Wave C Test Gate
+
+```bash
+uv run pytest tests/tiling/test_bucketing.py -q 2>&1 | tail -5
+uv run pytest tests/host/test_bucketed_plan.py -q 2>&1 | tail -5
+uv run python scripts/benchmarks/bench_inference_plan_latency.py --verbose 2>&1 | tail -5
+uv run pytest tests/ -q --ignore=tests/parity -x 2>&1 | tail -5
+```
+
+---
+
+## Wave C Risk Table Additions
+
+| Risk | Severity | Mitigation |
+|------|----------|-----------|
+| `bucketing.py` name conflicts with existing `tiling/buckets.py` | Medium | MR-09 creates `bucketing.py` (distinct name); module docstring calls out the distinction explicitly |
+| `plan_bucketed` overrides wrong axis — no `"n_structures"` axis in planner | Medium | Explicit `KeyError` raise + test case covering the lookup path |
+| Benchmark baseline uses `driver.decode` (raises NotImplementedError) | High | MR-11 must use `ConditionalDecodeStep.__call__` directly — stated explicitly in spec |
+
+---
+
+## Wave C Done Criteria
+
+- [ ] `src/prxteinmpnn/tiling/bucketing.py` exists; `select_bucket`, `group_by_bucket`, `BucketAssignment`, `BucketingConfig` importable
+- [ ] `tests/tiling/test_bucketing.py` passes
+- [ ] `plan_bucketed` importable from `prxteinmpnn.host.plan`; `tests/host/test_bucketed_plan.py` passes
+- [ ] `scripts/benchmarks/bench_inference_plan_latency.py` exits 0 with `PASS`, OR overhead ratio recorded in Deferral Register with follow-up filed
+
+---
+
 ## Done Criteria
 
 - [ ] `src/prxteinmpnn/py.typed` exists at HEAD

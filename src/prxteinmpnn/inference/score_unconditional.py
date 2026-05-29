@@ -2,13 +2,15 @@
 
 from jaxtyping import PRNGKeyArray
 
-from prxteinmpnn.inference.driver import decode
+from prxteinmpnn.inference.decode.factory import make_decode_fn
+from prxteinmpnn.inference.decode.mode import UnconditionalMode
 from prxteinmpnn.inference.encode import make_encode_fn
 from prxteinmpnn.types.arrays import Logits
 from prxteinmpnn.types.bundles import InferenceBundle
 from prxteinmpnn.types.configs import InferenceConfig
 from prxteinmpnn.types.protocols import ModelProtocol
 from prxteinmpnn.types.stages import StageSet
+from prxteinmpnn.tiling.strategy import Vmap
 
 
 def kernel(
@@ -27,5 +29,8 @@ def kernel(
   encode_fn = make_encode_fn(model, use_rolling_state=False)
   enc = encode_fn(bundle, k_enc, config)
 
-  # Delegate to unified driver for unconditional decoding (wave=None)
-  return decode(model, k_dec, enc, bundle.conditioning, None, config, stage_set)
+  # Construct UnconditionalDecode with vmap strategy over state axis
+  decode_fn = make_decode_fn(model, mode=UnconditionalMode(), strategy=Vmap())
+
+  # Call the decode function to get logits
+  return decode_fn(k_dec, enc, bundle, config, stage_set)

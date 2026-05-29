@@ -9,6 +9,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import numpy as np
+from scipy import stats
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,7 +50,11 @@ class EvidencePointRecord:
   condition: str | None = None
 
 
-def safe_pearson(lhs: np.ndarray, rhs: np.ndarray) -> float:
+def safe_pearson(
+  lhs: np.ndarray,
+  rhs: np.ndarray,
+  mask: np.ndarray | None = None,
+) -> float:
   """Compute Pearson correlation for flattened arrays with constant-array safeguards."""
   lhs_flat = np.asarray(lhs, dtype=np.float64).ravel()
   rhs_flat = np.asarray(rhs, dtype=np.float64).ravel()
@@ -60,11 +65,89 @@ def safe_pearson(lhs: np.ndarray, rhs: np.ndarray) -> float:
     msg = "Pearson inputs must be non-empty."
     raise ValueError(msg)
 
+  if mask is not None:
+    mask_flat = np.asarray(mask, dtype=bool).ravel()
+    if mask_flat.shape != lhs_flat.shape:
+      msg = "Pearson mask shape must match flattened input shape."
+      raise ValueError(msg)
+    if not np.any(mask_flat):
+      return 0.0
+    lhs_flat = lhs_flat[mask_flat]
+    rhs_flat = rhs_flat[mask_flat]
+
   lhs_std = float(lhs_flat.std())
   rhs_std = float(rhs_flat.std())
   if lhs_std == 0.0 or rhs_std == 0.0:
     return 1.0 if np.allclose(lhs_flat, rhs_flat) else 0.0
   corr = float(np.corrcoef(lhs_flat, rhs_flat)[0, 1])
+  return float(np.clip(corr, -1.0, 1.0))
+
+
+def safe_cosine_similarity(
+  lhs: np.ndarray,
+  rhs: np.ndarray,
+  mask: np.ndarray | None = None,
+) -> float:
+  """Compute cosine similarity for flattened arrays with zero-norm safeguards."""
+  lhs_flat = np.asarray(lhs, dtype=np.float64).ravel()
+  rhs_flat = np.asarray(rhs, dtype=np.float64).ravel()
+  if lhs_flat.shape != rhs_flat.shape:
+    msg = "Cosine similarity inputs must have matching flattened shapes."
+    raise ValueError(msg)
+
+  if mask is not None:
+    mask_flat = np.asarray(mask, dtype=bool).ravel()
+    if mask_flat.shape != lhs_flat.shape:
+      msg = "Cosine similarity mask shape must match flattened input shape."
+      raise ValueError(msg)
+    lhs_flat = lhs_flat[mask_flat]
+    rhs_flat = rhs_flat[mask_flat]
+
+  lhs_norm = float(np.linalg.norm(lhs_flat))
+  rhs_norm = float(np.linalg.norm(rhs_flat))
+
+  if lhs_norm == 0.0 or rhs_norm == 0.0:
+    msg = "Cosine similarity does not accept zero norm vectors."
+    raise ValueError(msg)
+
+  dot_product = float(np.dot(lhs_flat, rhs_flat))
+  similarity = dot_product / (lhs_norm * rhs_norm)
+  return float(np.clip(similarity, -1.0, 1.0))
+
+
+def safe_spearman(
+  lhs: np.ndarray,
+  rhs: np.ndarray,
+  mask: np.ndarray | None = None,
+) -> float:
+  """Compute Spearman rank correlation for flattened arrays with constant-array safeguards."""
+  lhs_flat = np.asarray(lhs, dtype=np.float64).ravel()
+  rhs_flat = np.asarray(rhs, dtype=np.float64).ravel()
+  if lhs_flat.shape != rhs_flat.shape:
+    msg = "Spearman inputs must have matching flattened shapes."
+    raise ValueError(msg)
+  if lhs_flat.size == 0:
+    msg = "Spearman inputs must be non-empty."
+    raise ValueError(msg)
+
+  if mask is not None:
+    mask_flat = np.asarray(mask, dtype=bool).ravel()
+    if mask_flat.shape != lhs_flat.shape:
+      msg = "Spearman mask shape must match flattened input shape."
+      raise ValueError(msg)
+    if not np.any(mask_flat):
+      return 0.0
+    lhs_flat = lhs_flat[mask_flat]
+    rhs_flat = rhs_flat[mask_flat]
+
+  lhs_std = float(lhs_flat.std())
+  rhs_std = float(rhs_flat.std())
+  if lhs_std == 0.0 or rhs_std == 0.0:
+    return 1.0 if np.allclose(lhs_flat, rhs_flat) else 0.0
+
+  lhs_ranks = stats.rankdata(lhs_flat)
+  rhs_ranks = stats.rankdata(rhs_flat)
+  corr = float(np.corrcoef(lhs_ranks, rhs_ranks)[0, 1])
   return float(np.clip(corr, -1.0, 1.0))
 
 
@@ -151,33 +234,113 @@ def _normal_ppf(probability: float) -> float:
   )
 
 
-def mean_abs_error(lhs: np.ndarray, rhs: np.ndarray) -> float:
+def mean_abs_error(
+  lhs: np.ndarray,
+  rhs: np.ndarray,
+  mask: np.ndarray | None = None,
+) -> float:
   """Compute mean absolute error."""
-  return float(
-    np.mean(np.abs(np.asarray(lhs, dtype=np.float64) - np.asarray(rhs, dtype=np.float64))),
-  )
+  lhs_arr = np.asarray(lhs, dtype=np.float64)
+  rhs_arr = np.asarray(rhs, dtype=np.float64)
+  if lhs_arr.shape != rhs_arr.shape:
+    msg = "Mean absolute error inputs must have matching shapes."
+    raise ValueError(msg)
+
+  if mask is not None:
+    mask_arr = np.asarray(mask, dtype=bool)
+    if mask_arr.shape != lhs_arr.shape:
+      msg = "Mean absolute error mask shape must match input shapes."
+      raise ValueError(msg)
+    if not np.any(mask_arr):
+      return 0.0
+    lhs_arr = lhs_arr[mask_arr]
+    rhs_arr = rhs_arr[mask_arr]
+
+  return float(np.mean(np.abs(lhs_arr - rhs_arr)))
 
 
-def root_mean_square_error(lhs: np.ndarray, rhs: np.ndarray) -> float:
+def root_mean_square_error(
+  lhs: np.ndarray,
+  rhs: np.ndarray,
+  mask: np.ndarray | None = None,
+) -> float:
   """Compute root mean square error."""
-  delta = np.asarray(lhs, dtype=np.float64) - np.asarray(rhs, dtype=np.float64)
+  lhs_arr = np.asarray(lhs, dtype=np.float64)
+  rhs_arr = np.asarray(rhs, dtype=np.float64)
+  if lhs_arr.shape != rhs_arr.shape:
+    msg = "Root mean square error inputs must have matching shapes."
+    raise ValueError(msg)
+
+  if mask is not None:
+    mask_arr = np.asarray(mask, dtype=bool)
+    if mask_arr.shape != lhs_arr.shape:
+      msg = "Root mean square error mask shape must match input shapes."
+      raise ValueError(msg)
+    if not np.any(mask_arr):
+      return 0.0
+    lhs_arr = lhs_arr[mask_arr]
+    rhs_arr = rhs_arr[mask_arr]
+
+  delta = lhs_arr - rhs_arr
   return float(np.sqrt(np.mean(delta * delta)))
 
 
-def max_abs_error(lhs: np.ndarray, rhs: np.ndarray) -> float:
+def max_abs_error(
+  lhs: np.ndarray,
+  rhs: np.ndarray,
+  mask: np.ndarray | None = None,
+) -> float:
   """Compute maximum absolute error."""
-  return float(
-    np.max(np.abs(np.asarray(lhs, dtype=np.float64) - np.asarray(rhs, dtype=np.float64))),
-  )
+  lhs_arr = np.asarray(lhs, dtype=np.float64)
+  rhs_arr = np.asarray(rhs, dtype=np.float64)
+  if lhs_arr.shape != rhs_arr.shape:
+    msg = "Maximum absolute error inputs must have matching shapes."
+    raise ValueError(msg)
+
+  if mask is not None:
+    mask_arr = np.asarray(mask, dtype=bool)
+    if mask_arr.shape != lhs_arr.shape:
+      msg = "Maximum absolute error mask shape must match input shapes."
+      raise ValueError(msg)
+    if not np.any(mask_arr):
+      return 0.0
+    lhs_arr = lhs_arr[mask_arr]
+    rhs_arr = rhs_arr[mask_arr]
+
+  return float(np.max(np.abs(lhs_arr - rhs_arr)))
 
 
-def mean_kl_divergence(reference_log_probs: np.ndarray, observed_log_probs: np.ndarray) -> float:
+def mean_kl_divergence(
+  reference_log_probs: np.ndarray,
+  observed_log_probs: np.ndarray,
+  mask: np.ndarray | None = None,
+) -> float:
   """Compute mean per-row KL divergence KL(reference || observed)."""
   reference = np.asarray(reference_log_probs, dtype=np.float64)
   observed = np.asarray(observed_log_probs, dtype=np.float64)
   if reference.shape != observed.shape:
     msg = "KL inputs must have matching shapes."
     raise ValueError(msg)
+
+  if mask is not None:
+    mask_arr = np.asarray(mask, dtype=bool)
+    if reference.ndim == 2:
+      if mask_arr.shape != (reference.shape[0],):
+        msg = "KL mask must have shape (N,) for rank-2 log-probs."
+        raise ValueError(msg)
+      if not np.any(mask_arr):
+        return 0.0
+      reference = reference[mask_arr]
+      observed = observed[mask_arr]
+    else:
+      if mask_arr.shape != reference.shape:
+        msg = "KL mask shape must match input shapes."
+        raise ValueError(msg)
+      if not np.any(mask_arr):
+        return 0.0
+      reference = reference[mask_arr]
+      observed = observed[mask_arr]
+
   reference_probs = np.exp(reference - np.max(reference, axis=-1, keepdims=True))
   reference_probs = reference_probs / np.sum(reference_probs, axis=-1, keepdims=True)
   observed_probs = np.exp(observed - np.max(observed, axis=-1, keepdims=True))

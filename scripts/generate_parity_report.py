@@ -44,6 +44,8 @@ class EvidenceSummary:
   pearson_mean: float | None
   pearson_min: float | None
   pearson_pass_rate: float | None
+  cosine_similarity_mean: float | None
+  spearman_correlation_mean: float | None
   mae_mean: float | None
   rmse_mean: float | None
   token_agreement_mean: float | None
@@ -390,6 +392,8 @@ def _aggregate_evidence(
           pearson_mean=None,
           pearson_min=None,
           pearson_pass_rate=None,
+          cosine_similarity_mean=None,
+          spearman_correlation_mean=None,
           mae_mean=None,
           rmse_mean=None,
           token_agreement_mean=None,
@@ -408,6 +412,8 @@ def _aggregate_evidence(
       case_count = len({(row["case_id"], row["case_kind"]) for row in rows}) if rows else 0
       pearsons = [float(row["metric_value"]) for row in rows if row.get("metric_name") == "pearson_correlation"]
       pearson_passes = [row.get("passed") for row in rows if row.get("metric_name") == "pearson_correlation"]
+      cosines = [float(row["metric_value"]) for row in rows if row.get("metric_name") == "cosine_similarity"]
+      spearmans = [float(row["metric_value"]) for row in rows if row.get("metric_name") == "spearman_correlation"]
       maes = [float(row["metric_value"]) for row in rows if row.get("metric_name") == "mae"]
       rmses = [float(row["metric_value"]) for row in rows if row.get("metric_name") == "rmse"]
       token_agreements = [
@@ -425,6 +431,8 @@ def _aggregate_evidence(
           pearson_mean=float(np.mean(pearsons)) if pearsons else None,
           pearson_min=float(np.min(pearsons)) if pearsons else None,
           pearson_pass_rate=pass_rate,
+          cosine_similarity_mean=float(np.mean(cosines)) if cosines else None,
+          spearman_correlation_mean=float(np.mean(spearmans)) if spearmans else None,
           mae_mean=float(np.mean(maes)) if maes else None,
           rmse_mean=float(np.mean(rmses)) if rmses else None,
           token_agreement_mean=float(np.mean(token_agreements)) if token_agreements else None,

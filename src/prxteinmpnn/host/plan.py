@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 
   from prxteinmpnn.inference.decode.protocols import ARDecodeFn, DecodeScoreFn, STEDecodeFn
   from prxteinmpnn.run.specs import SamplingSpecification
+  from prxteinmpnn.tiling.bucketing import BucketAssignment
   from prxteinmpnn.types.arrays import Logits
   from prxteinmpnn.types.bundles import InferenceBundle
   from prxteinmpnn.types.configs import InferenceConfig
@@ -439,7 +440,7 @@ class InferencePlan:
     if self.packer is not None and getattr(bundle, "packer", None) is None:
       raise ValueError(
         "Packer model is configured on the InferencePlan, but the "
-        "InferenceBundle contains no packer bundle data."
+        "InferenceBundle contains no packer bundle data.",
       )
 
     result = self.decode_fn(
@@ -659,3 +660,95 @@ def make_inference_plan(model: ModelProtocol, spec: Any, packer: Any = None) -> 
   )
 
   return InferencePlan(model=model, components=components, decode_fn=decode_fn, packer=packer)
+
+
+def plan_bucketed(
+  spec: SamplingSpecification,
+  sequence_lengths: list[int],
+  planner: BatchPlanner,
+  bucketing_config: BucketingConfig | None = None,
+) -> BucketAssignment:
+  """Plan inference for a batch grouped by sequence-length buckets.
+
+  For each bucket, override the "n_structures" axis cardinality to the bucket
+  ceiling (number of sequences in that bucket) and call planner.plan() once.
+  Returns a BucketAssignment with per-bucket BatchPlans.
+
+  NOTE: The implementation overrides n_structures cardinality (a structure count)
+  to the bucket ceiling (a sequence length). This may be a semantic mismatch.
+  Implementing as specified, but this should be reviewed.
+
+  Parameters
+  ----------
+  spec : SamplingSpecification
+      Sampling specification (unused in function, required for interface).
+  sequence_lengths : list[int]
+      Sequence lengths for each position in the batch.
+  planner : BatchPlanner
+      Batch planner with configured axes and budget.
+  bucketing_config : BucketingConfig | None, optional
+      Bucketing configuration. Default is BucketingConfig().
+
+  Returns
+  -------
+  BucketAssignment
+      Assignment with bucket grouping, boundaries, and per-bucket plans.
+
+  Raises
+  ------
+  ValueError
+      If sequence_lengths is empty or any length exceeds all buckets.
+  KeyError
+      If no "n_structures" axis found in planner.axes.
+  """
+  from prxteinmpnn.tiling.bucketing import (
+      BucketAssignment,
+      BucketingConfig,
+      group_by_bucket,
+  )
+
+  if not sequence_lengths:
+    raise ValueError("sequence_lengths cannot be empty")
+
+  if bucketing_config is None:
+    bucketing_config = BucketingConfig()
+
+  # Group sequences by bucket
+  bucket_groups = group_by_bucket(sequence_lengths, bucketing_config)
+
+  # Find the n_structures axis to override
+  n_structures_axis = None
+  for axis in planner.axes:
+    if axis.name == "n_structures":
+      n_structures_axis = axis
+      break
+
+  if n_structures_axis is None:
+    raise KeyError('No "n_structures" axis found in planner.axes')
+
+  # Plan for each bucket
+  per_bucket_plans: dict[int, BatchPlan] = {}
+  for bucket_ceil, _indices in bucket_groups.items():
+    # Override n_structures cardinality to bucket ceiling
+    modified_axes = []
+    for axis in planner.axes:
+      if axis.name == "n_structures":
+        # NOTE: This overrides cardinality (structure count) to bucket ceiling (seq length).
+        # May be semantic mismatch; implementing as specified.
+        modified_axis = dataclasses.replace(axis, cardinality=bucket_ceil)
+        modified_axes.append(modified_axis)
+      else:
+        modified_axes.append(axis)
+
+    # Create modified planner and plan
+    modified_planner = dataclasses.replace(planner, axes=modified_axes)
+    per_bucket_plans[bucket_ceil] = modified_planner.plan()
+
+  # Create sorted bucket boundaries
+  bucket_boundaries = tuple(sorted(bucket_groups.keys()))
+
+  return BucketAssignment(
+    bucket_boundaries=bucket_boundaries,
+    bucket_groups=bucket_groups,
+    per_bucket_plans=per_bucket_plans,
+  )

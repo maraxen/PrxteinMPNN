@@ -79,15 +79,17 @@ def _get_cuda_version() -> str | None:
     return None
 
 
-def _get_gpu_memory_gb() -> float:
-    """Query GPU peak memory via JAX, fallback to 0.0 if unavailable."""
+def _query_gpu_memory_gb() -> float:
+    """Query current GPU memory usage via nvidia-smi."""
     try:
-        backend = jax.lib.xla_bridge.get_backend()
-        if backend.platform == "gpu":
-            # Rough estimate: report after first execution
-            # In practice, this requires pynvml or nvidia-smi integration
-            # For now, return a placeholder (proper integration TBD)
-            return 0.0
+        import subprocess
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            mb = int(result.stdout.strip().split("\n")[0].strip())
+            return mb / 1024.0
     except Exception:
         pass
     return 0.0
@@ -348,8 +350,8 @@ def benchmark_cell(
         latency_per_residue_us = (median_s * 1e6) / (actual_len * batch_size)
         throughput_seq_per_s = batch_size / median_s
 
-        # Memory (placeholder)
-        peak_gpu_memory_gb = _get_gpu_memory_gb()
+        # GPU memory: query after warmup kernels are resident
+        peak_gpu_memory_gb = _query_gpu_memory_gb()
 
         # Assemble result
         result = {
@@ -358,7 +360,7 @@ def benchmark_cell(
             "hardware": "unknown",  # Set by caller
             "seq_len": actual_len,  # Actual loaded sequence length
             "batch_size": batch_size,
-            "precision": precision,
+            "precision": "fp32",  # ColabDesign does not expose dtype control; always fp32
             "ligand_conditioning": False,  # ColabDesign has no ligand path
             "axis_strategy": None,  # ColabDesign manages its own dispatch
             "average_encoding_mode": None,
@@ -418,9 +420,9 @@ def main():
         "--precision",
         type=str,
         nargs="+",
-        default=["bf16"],
-        choices=["bf16", "fp32"],
-        help="Precisions to benchmark (default: [bf16])",
+        default=["fp32"],
+        choices=["fp32"],
+        help="Precision to benchmark (ColabDesign always runs fp32)",
     )
     parser.add_argument(
         "--hardware",

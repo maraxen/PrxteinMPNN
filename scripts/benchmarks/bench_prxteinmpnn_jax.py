@@ -80,15 +80,17 @@ def _get_cuda_version() -> str | None:
     return None
 
 
-def _get_gpu_memory_gb() -> float:
-    """Query GPU peak memory via JAX, fallback to 0.0 if unavailable."""
+def _query_gpu_memory_gb() -> float:
+    """Query current GPU memory usage via nvidia-smi."""
     try:
-        backend = jax.lib.xla_bridge.get_backend()
-        if backend.platform == "gpu":
-            # Rough estimate: report after first execution
-            # In practice, this requires pynvml or nvidia-smi integration
-            # For now, return a placeholder (proper integration TBD)
-            return 0.0
+        import subprocess
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            mb = int(result.stdout.strip().split("\n")[0].strip())
+            return mb / 1024.0
     except Exception:
         pass
     return 0.0
@@ -141,43 +143,51 @@ def load_fixture(fixture_path: Path) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndar
 # ============================================================================
 
 
+_DEFAULT_CHECKPOINT = (
+    Path(__file__).parents[2] / "model_params_bak" / "ligandmpnn_v_32_010_25_converted.eqx"
+)
+
+_PROD_ARCH = dict(
+    node_features=128,
+    edge_features=128,
+    hidden_features=128,
+    num_encoder_layers=3,
+    num_decoder_layers=3,
+    k_neighbors=32,
+)
+
+
 def load_model(checkpoint_path: Path | None = None) -> Any:
-    """Load pre-trained model.
+    """Load pre-trained model using production architecture.
 
     Parameters
     ----------
     checkpoint_path : Path | None
-        Path to .eqx checkpoint file. If None, creates model with random params.
+        Path to .eqx checkpoint file. Defaults to model_params_bak/ sibling dir.
 
     Returns
     -------
     Any
-        Loaded model instance (PrxteinMPNN)
+        Loaded PrxteinLigandMPNN instance
     """
-    from prxteinmpnn.model.mpnn import PrxteinMPNN
+    from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
 
-    # Create model with reduced dimensions for faster compilation on CPU
     key = random.PRNGKey(42)
     key, subkey = random.split(key)
 
-    model = PrxteinMPNN(
-        node_features=32,
-        edge_features=32,
-        hidden_features=32,
-        num_encoder_layers=1,
-        num_decoder_layers=1,
-        k_neighbors=3,
-        key=subkey,
-    )
+    model = PrxteinLigandMPNN(**_PROD_ARCH, key=subkey)
 
-    # Load checkpoint if provided (note: checkpoint would be PrxteinLigandMPNN format)
-    if checkpoint_path is not None and checkpoint_path.exists():
+    # Resolve checkpoint: explicit > default location
+    ckpt = checkpoint_path or _DEFAULT_CHECKPOINT
+    if ckpt is not None and ckpt.exists():
         try:
-            model = eqx.tree_deserialise_leaves(str(checkpoint_path), model)
-            logger.info(f"Loaded checkpoint: {checkpoint_path}")
+            model = eqx.tree_deserialise_leaves(str(ckpt), model)
+            logger.info(f"Loaded checkpoint: {ckpt}")
         except Exception as e:
-            logger.warning(f"Could not load checkpoint {checkpoint_path}: {e}")
+            logger.warning(f"Could not load checkpoint {ckpt}: {e}")
             logger.info("Continuing with random initialization")
+    else:
+        logger.warning(f"Checkpoint not found at {ckpt}; using random initialization")
 
     return model
 
@@ -405,8 +415,8 @@ def benchmark_cell(
         latency_per_residue_us = (median_s * 1e6) / (seq_len * batch_size)
         throughput_seq_per_s = batch_size / median_s
 
-        # Memory (placeholder)
-        peak_gpu_memory_gb = _get_gpu_memory_gb()
+        # GPU memory: query after warmup kernels are resident
+        peak_gpu_memory_gb = _query_gpu_memory_gb()
 
         # Assemble result
         result = {

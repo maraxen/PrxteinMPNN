@@ -87,6 +87,7 @@ Report per `(model, hardware, seq_len, batch_size, precision, ligand_conditionin
 scripts/benchmarks/
 ├── bench_prxteinmpnn_jax.py       # JAX adapter (extends commit 132eca7 template)
 ├── bench_ligandmpnn_pytorch.py    # PyTorch adapter (dauparas ref)
+├── bench_colabdesign_jax.py       # JAX adapter (ColabDesign ProteinMPNN, no-ligand only)
 ├── bench_suite.py                 # Subprocess harness — no JAX/torch import
 └── bench_report.py                # JSON → comparison table (markdown + CSV)
 
@@ -238,7 +239,7 @@ export REFERENCE_PATH="${REFERENCE_PATH:-/home/maarxaru/repos/LigandMPNN}"
 export JAX_PLATFORMS=cuda
 
 uv run python scripts/benchmarks/bench_suite.py \
-    --hardware A100 \
+    --hardware "${GPU_TARGET}" \
     --output-dir outputs/results/benchmarks/ \
     --seq-lens 76 150 300 500 \
     --batch-sizes 1 4 16 \
@@ -284,8 +285,15 @@ Wave 5 (report):
 
 1. **Ligand coordinates**: 1ubq has no ligand. For the ligand-conditioned path, should we use a real ligand-protein complex PDB from the parity test corpus, or synthesize a dummy ligand array?
 
-2. **ColabDesign**: No ColabDesign repo is locally available. The dauparas/LigandMPNN reference covers both unconditional ProteinMPNN and LigandMPNN paths. Confirm whether a separate ColabDesign comparison is in scope.
+2. **ColabDesign:** ✅ **Resolved — in scope.** `sokrypton/ColabDesign` is a widely-used JAX implementation of ProteinMPNN. It is not installed locally or on the cluster — being added as a `benchmark` dependency group. ColabDesign covers the no-ligand ProteinMPNN path only (no ligand conditioning). The comparison matrix is:
 
-3. **Model size**: Commit 132eca7 uses `node_features=32` (tiny synthetic model). Should the benchmark use production model weights from the REFERENCE_PATH checkpoint files?
+   | Path | prxteinmpnn (JAX+Equinox) | LigandMPNN (PyTorch) | ColabDesign (JAX) |
+   |---|---|---|---|
+   | No ligand | ✓ | ✓ | ✓ |
+   | With ligand | ✓ | ✓ | — |
+
+   A third adapter script `bench_colabdesign_jax.py` is needed. Since ColabDesign is JAX, the same `block_until_ready` + `clear_caches` timing methodology applies.
+
+3. **Model size:** ✅ **Resolved** — use production weights from REFERENCE_PATH checkpoints (`ligandmpnn_v_32_010_25_converted.eqx` for JAX, `ligandmpnn_v_32_010_25.pt` for PyTorch). Both adapters load the same weights for a fair head-to-head comparison.
 
 4. **AOT abstract shapes**: `jax.jit(...).lower()` requires fixed shapes. For variable seq_len, compile once per length. This is correct for benchmarks but means 4 compiled artifacts per configuration.

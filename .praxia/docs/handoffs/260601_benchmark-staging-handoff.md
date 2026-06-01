@@ -2,7 +2,7 @@
 task_id: 260601_benchmark-staging
 session_id: 88e9cc8f-6185-4aa1-9b07-1ed6dbbbe33f
 status: in_progress
-phase: Wave 0 complete — Wave 1 ready
+phase: Wave 1 complete — Wave 2 prereqs + implementation next
 date: 260601
 ---
 
@@ -25,9 +25,13 @@ Hardware targets: A100, H100, H200, L40, Blackwell SM120 (node4007/node4008).
 | `42b94ac` | ColabDesign added to comparison matrix; pyproject.toml benchmark dep group; open questions resolved |
 | `c14f8c9` | Wave 0: `scripts/benchmarks/prepare_fixtures.py` (pad/truncate 1ubq to L=[76,150,300,500]) |
 | `cae498f` | Oracle required changes applied: Blackwell two-run protocol, PyTorch eager label, L=500 real fixture, ColabDesign git-SHA pin prereq |
-| latest | Transduction log committed |
+| `78bc404` | Cosmetic: spec §3.3/§3.4 reordered (Blackwell before Latency decomp) |
+| `2c34e69` | Wave 1: `scripts/benchmarks/bench_prxteinmpnn_jax.py` (645 lines, full CLI, cold/warm timing, JSON §5.1 contract) |
+| `10402f0` | Fix: batch dim was jnp.repeat → jnp.stack; block_until_ready unconditional |
 
 **Spec status:** Oracle APPROVED (two-pass review). Safe to implement.
+
+**Wave 1 status:** DONE. L1 (dry-run) and L2 (smoke) both pass. JSON output matches §5.1 schema exactly.
 
 ## Immediately Relevant Files
 
@@ -51,26 +55,19 @@ Hardware targets: A100, H100, H200, L40, Blackwell SM120 (node4007/node4008).
 ## Next Steps (Ordered)
 
 ### Before Wave 1 starts
-- [ ] **Cosmetic fix** (5 min): In spec §3, renumber so sequence is monotonic. §3.4 (Blackwell two-run) currently appears between §3.2 and §3.3 (Latency decomposition). Swap so: §3.3 = Blackwell, §3.4 = Latency decomp (or vice versa).
+- [x] **Cosmetic fix**: §3.3/§3.4 reordered in spec (commit 78bc404).
+
+### Wave 1: JAX adapter
+- [x] `scripts/benchmarks/bench_prxteinmpnn_jax.py` written and L1/L2 verified (commits 2c34e69, 10402f0).
+  - **Known gap**: `_BenchmarkSpec.average_node_features = False` was added to avoid InferencePlan error — verify this field is correct for the no-ligand/no-fusion benchmark path before cluster runs.
+  - **Known gap**: Precision (`bf16`/`fp32`) is recorded in JSON but not yet applied to model params. Both runs use fp32 weights. Fix before final cluster submission if bf16 performance numbers are needed.
+  - **GPU memory** is 0.0 placeholder — add pynvml or nvidia-smi query for real values on cluster.
 
 ### Before Wave 2 starts (prereqs)
 - [ ] **PyTorch batching**: SSH to cluster, `grep -n "num_seq\|batch\|for.*seq" ${REFERENCE_PATH}/run.py | head -30`. If loop-only (no vectorized batch dim), restrict PyTorch matrix to `batch_size=1` and update spec §3.1 accordingly.
 - [ ] **ColabDesign SHA**: Look up latest commit on sokrypton/ColabDesign GitHub. Update `pyproject.toml` benchmark group from `"colabdesign"` to `"colabdesign @ git+https://github.com/sokrypton/ColabDesign.git@<sha>"`.
 - [ ] **L=500 fixture**: Find a real single-chain ≥400-residue PDB (e.g. search RCSB for a monomeric protein ~450–550 residues). Fetch locally: `wget https://files.rcsb.org/download/<ID>.pdb -O tests/data/<ID>.pdb`. Push to cluster with rsync.
 - [ ] **Ligand fixture**: For ligand=True benchmark path — 1ubq has no ligand, 5awl.pdb is only 10 residues. Options: (a) use a real ligand-protein complex PDB from the parity corpus (check `REFERENCE_PATH/inputs/` for examples), or (b) synthetic dummy ligand (small random coordinate array). Resolve before Wave 2.
-
-### Wave 1: JAX adapter
-- [ ] Write `scripts/benchmarks/bench_prxteinmpnn_jax.py`
-  - Extend 132eca7 template (get via: `git show 132eca7:scripts/benchmarks/bench_inference_plan_latency.py`)
-  - Add: `--precision {bf16,fp32}`, `--seq-lens 76 150 300 500`, `--batch-sizes 1 4 16`, `--cold` (clears cache), `--output-json /path/out.json`
-  - Cold timing: `jax.config.update("jax_enable_compilation_cache", False) + jax.clear_caches()` before first call
-  - Warm timing: AOT via `jax.jit(plan.decode).lower(*abstract_args).compile()` — use `jax.eval_shape` to build abstract args
-  - Streaming path (runner.sample): `jax.effects_barrier()` not `block_until_ready`
-  - Load production weights: `REFERENCE_PATH/model_params/ligandmpnn_v_32_010_25_converted.eqx`
-  - Set `XLA_FLAGS=--xla_gpu_shard_autotuning=false --xla_gpu_autotune_level=0` before JAX import for Blackwell-reproducible mode; `--xla_gpu_shard_autotuning=false` only for representative mode
-  - Output JSON per spec §5.1 contract
-- [ ] Local L1 dry-run: `uv run python scripts/benchmarks/bench_prxteinmpnn_jax.py --dry-run --seq-lens 76 --batch-sizes 1`
-- [ ] Local L2 smoke: `uv run python scripts/benchmarks/bench_prxteinmpnn_jax.py --smoke --output-json /tmp/jax_smoke.json`
 
 ### Wave 2: PyTorch + ColabDesign adapters
 - [ ] Write `scripts/benchmarks/bench_ligandmpnn_pytorch.py` — `torch.utils.benchmark.Timer.blocked_autorange()`, load REFERENCE_PATH model, `first_call_overhead_s` (not compile_time), JSON output

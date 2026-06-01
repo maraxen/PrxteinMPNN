@@ -144,7 +144,7 @@ def load_fixture(fixture_path: Path) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndar
 
 
 _DEFAULT_CHECKPOINT = (
-    Path(__file__).parents[2] / "model_params_bak" / "ligandmpnn_v_32_010_25_converted.eqx"
+    Path(__file__).parents[2] / "model_params" / "ligandmpnn_v_32_010_25_converted.eqx"
 )
 
 _PROD_ARCH = dict(
@@ -163,7 +163,7 @@ def load_model(checkpoint_path: Path | None = None) -> Any:
     Parameters
     ----------
     checkpoint_path : Path | None
-        Path to .eqx checkpoint file. Defaults to model_params_bak/ sibling dir.
+        Path to .eqx checkpoint file. Defaults to model_params/ sibling dir.
 
     Returns
     -------

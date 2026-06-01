@@ -312,13 +312,15 @@ class PrxteinLigandMPNN(eqx.Module):
       prng_key = jax.random.PRNGKey(0)
     keys = jax.random.split(prng_key, 2)
 
-    # Default ligand arrays to empty if not provided
-    if y is None:
-      y = jnp.zeros((0, 4, 3))
-    if y_t is None:
-      y_t = jnp.zeros((0, 4), dtype=jnp.int32)
-    if y_m is None:
-      y_m = jnp.zeros((0, 4))
+    # Default ligand arrays to zero-context per residue when not provided.
+    # The features function expects (L, atom_context_num, 3) — not (0, 4, 3).
+    # A zero-length leading axis from the bundle's no-ligand default also lands here.
+    if y is None or y.shape[0] == 0:
+      n_res = coords.shape[0]
+      n_ctx = self.features.atom_context_num
+      y = jnp.zeros((n_res, n_ctx, 3))
+      y_t = jnp.zeros((n_res, n_ctx), dtype=jnp.int32)
+      y_m = jnp.zeros((n_res, n_ctx))
 
     V, E, E_idx, Y_nodes, Y_edges, Y_m_out = self.features(
       _key=keys[0],

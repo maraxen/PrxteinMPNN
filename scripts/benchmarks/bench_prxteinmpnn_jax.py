@@ -298,18 +298,14 @@ def measure_warm_latency(
     # Warm-up phase: call decode directly (JAX handles JIT internally)
     for _ in range(n_warmup):
         result = plan.decode(enc, bundle, key, config)
-        # Ensure logits array is materialized
-        if hasattr(result, 'logits'):
-            jax.block_until_ready(result.logits)
+        jax.block_until_ready(result)
 
     # Timed phase
     times = []
     for _ in range(n_timed):
         t0 = time.perf_counter()
         result = plan.decode(enc, bundle, key, config)
-        # Ensure logits array is materialized
-        if hasattr(result, 'logits'):
-            jax.block_until_ready(result.logits)
+        jax.block_until_ready(result)
         times.append(time.perf_counter() - t0)
 
     times_arr = np.array(times)
@@ -365,12 +361,15 @@ def benchmark_cell(
         fixture_path = fixture_dir / f"structure_L{seq_len}.npz"
         coords, mask, residue_index, chain_index = load_fixture(fixture_path)
 
-        # For batch_size > 1, replicate the fixture
+        # For batch_size > 1: stack copies along the state axis (S, L, ...)
+        # build_inference_bundle accepts (S, L, 4, 3) and treats S as num_states.
+        # With AxisStrategy=Vmap the model vmaps over states, giving correct GPU
+        # occupancy for benchmarking throughput at batch_size > 1.
         if batch_size > 1:
-            coords = jnp.repeat(coords, batch_size, axis=0)
-            mask = jnp.repeat(mask, batch_size, axis=0)
-            residue_index = jnp.repeat(residue_index, batch_size, axis=0)
-            chain_index = jnp.repeat(chain_index, batch_size, axis=0)
+            coords = jnp.stack([coords] * batch_size, axis=0)          # (B, L, 4, 3)
+            mask = jnp.stack([mask] * batch_size, axis=0)              # (B, L)
+            residue_index = jnp.stack([residue_index] * batch_size, axis=0)
+            chain_index = jnp.stack([chain_index] * batch_size, axis=0)
 
         # Build bundle and config (no ligand for Wave 1)
         bundle, config = build_inference_bundle(

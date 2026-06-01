@@ -304,6 +304,7 @@ def measure_cold_overhead(
     feature_dict: dict[str, Any],
     batch_size: int,
     device: Any,
+    autocast_ctx: Any = None,
 ) -> tuple[float, str]:
     """Measure cold first-call overhead (CUDA kernel warmup).
 
@@ -317,16 +318,19 @@ def measure_cold_overhead(
         Batch size (number of sequences to sample)
     device : torch.device
         Device
+    autocast_ctx : context manager | None
+        Precision context (e.g. torch.amp.autocast for bf16), or None for fp32
 
     Returns
     -------
     tuple
         (overhead_time_s, note_string)
     """
+    import contextlib
     import torch
 
-    # Reset peak memory stats
-    torch.cuda.reset_peak_memory_stats()
+    if autocast_ctx is None:
+        autocast_ctx = contextlib.nullcontext()
 
     # Set up feature dict with batch_size and randn
     L = feature_dict["X"].shape[1]
@@ -335,7 +339,7 @@ def measure_cold_overhead(
 
     # Cold first call
     t0 = time.perf_counter()
-    with torch.no_grad():
+    with torch.no_grad(), autocast_ctx:
         out = model.sample(feature_dict)
     torch.cuda.synchronize()
     overhead_s = time.perf_counter() - t0
@@ -355,6 +359,7 @@ def measure_warm_latency(
     feature_dict: dict[str, Any],
     batch_size: int,
     device: Any,
+    autocast_ctx: Any = None,
 ) -> tuple[float, float, list[float], int]:
     """Measure warm decode latency using torch.utils.benchmark.
 
@@ -368,14 +373,20 @@ def measure_warm_latency(
         Batch size
     device : torch.device
         Device
+    autocast_ctx : context manager | None
+        Precision context (e.g. torch.amp.autocast for bf16), or None for fp32
 
     Returns
     -------
     tuple
         (median_latency_s, p95_latency_s, all_times_s, n_runs)
     """
+    import contextlib
     import torch
     import torch.utils.benchmark as benchmark
+
+    if autocast_ctx is None:
+        autocast_ctx = contextlib.nullcontext()
 
     # Set up feature dict with batch_size and randn
     L = feature_dict["X"].shape[1]
@@ -384,8 +395,8 @@ def measure_warm_latency(
 
     # Use torch.utils.benchmark.Timer for warm latency
     timer = benchmark.Timer(
-        stmt="with torch.no_grad(): model.sample(fd)",
-        globals={"model": model, "fd": feature_dict},
+        stmt="with torch.no_grad(), autocast_ctx: model.sample(fd)",
+        globals={"model": model, "fd": feature_dict, "autocast_ctx": autocast_ctx},
         num_threads=1,
     )
 
@@ -462,24 +473,25 @@ def benchmark_cell(
             device=device,
         )
 
-        # Apply precision casting
+        # Apply precision: use autocast for bf16 (keeps weights fp32, casts ops automatically).
+        # Direct weight casting breaks ops like LayerNorm that require fp32 accumulation.
+        import contextlib
         if precision == "bf16":
-            dtype = torch.bfloat16
+            autocast_ctx = torch.amp.autocast("cuda", dtype=torch.bfloat16)
         else:
-            dtype = torch.float32
-
-        model = model.to(dtype=dtype)
-        for k, v in feature_dict.items():
-            if isinstance(v, torch.Tensor) and v.is_floating_point():
-                feature_dict[k] = v.to(dtype=dtype)
+            autocast_ctx = contextlib.nullcontext()
 
         # Cold first-call overhead
         logger.info(f"  Computing cold first-call overhead (seq_len={seq_len}, batch_size={batch_size})...")
-        overhead_s, overhead_note = measure_cold_overhead(model, feature_dict, batch_size, device)
+        overhead_s, overhead_note = measure_cold_overhead(
+            model, feature_dict, batch_size, device, autocast_ctx
+        )
 
         # Warm latency
         logger.info(f"  Computing warm latency...")
-        median_s, p95_s, times, n_runs = measure_warm_latency(model, feature_dict, batch_size, device)
+        median_s, p95_s, times, n_runs = measure_warm_latency(
+            model, feature_dict, batch_size, device, autocast_ctx
+        )
 
         # Compute derived metrics
         latency_median_ms = median_s * 1000.0
@@ -487,10 +499,17 @@ def benchmark_cell(
         latency_per_residue_us = (median_s * 1e6) / (seq_len * batch_size)
         throughput_seq_per_s = batch_size / median_s
 
-        # Peak GPU memory
+        # GPU memory: query via nvidia-smi after warmup kernels are resident
         peak_gpu_memory_gb = 0.0
         try:
-            peak_gpu_memory_gb = torch.cuda.max_memory_allocated(device) / 1e9
+            import subprocess
+            result = subprocess.run(
+                ["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0:
+                mb = int(result.stdout.strip().split("\n")[0].strip())
+                peak_gpu_memory_gb = mb / 1024.0
         except Exception:
             pass
 

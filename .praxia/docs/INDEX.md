@@ -11,7 +11,10 @@
 
 ## Specs
 - [260527_merge-readiness-hardening](specs/260527_merge-readiness-hardening.md) — ORACLE-REVIEWED PASS (15/18): pre-merge hygiene for refactor-full → main
-- [260601_benchmark-spec](specs/260601_benchmark-spec.md) — Pre-merge benchmark spec: JAX vs PyTorch LigandMPNN, 5 GPU targets, waves 0–5
+- [260601_benchmark-spec](specs/260601_benchmark-spec.md) — ORACLE-APPROVED: GPU benchmark suite (prxteinmpnn vs. LigandMPNN vs. ColabDesign)
+
+## Handoffs
+- [260601_benchmark-staging-handoff](handoffs/260601_benchmark-staging-handoff.md) — Wave 0 done; Waves 1-5 implementation ready; spec oracle-approved
 
 ## Superpowers
 > Skill outputs live in `.praxia/docs/superpowers/plans/` and `.praxia/docs/superpowers/specs/`.

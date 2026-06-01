@@ -54,6 +54,17 @@ Autoregressive decode is **bandwidth-bound**, so the expected performance order 
 | AxisStrategy | Vmap, SafeMap(tile=8), SafeMap(tile=1) | seq_len=300, batch=4, ligand=False, bf16 |
 | average_encoding_mode | inputs, noise_levels, inputs_and_noise | Vmap, batch=4, ligand=False |
 
+### 3.4 Blackwell SM120: two-run protocol
+
+Blackwell (SM120) requires special treatment due to the XLA shard-autotuning hang. Run two distinct jobs on node4007/node4008:
+
+| Run label | XLA flags set | Purpose |
+|---|---|---|
+| `blackwell_representative` | `--xla_gpu_shard_autotuning=false` only | Performance-representative numbers; autotuning may complete or timeout silently |
+| `blackwell_reproducible` | `--xla_gpu_shard_autotuning=false --xla_gpu_autotune_level=0` | Reproducible compile times; autotuning disabled; performance may be 10–40% lower than representative |
+
+Both runs use identical sequence lengths, batch sizes, and precision. Report them as separate rows in all benchmark tables. Do not merge or average.
+
 ### 3.3 Latency decomposition (JAX-only)
 
 Measure encode-only, decode-only, and full encode+decode separately at seq_len=[76, 300, 500]:
@@ -114,6 +125,7 @@ scripts/engaging/
   "average_encoding_mode": "inputs_and_noise | inputs | noise_levels | null",
   "compile_time_cold_s": 12.3,
   "compile_time_warm_s": 0.001,
+  "compile_time_note": "JAX: XLA compilation. PyTorch (eager, no torch.compile): CUDA kernel warmup only; value is first_call overhead, not compiler overhead.",
   "latency_median_ms": 8.4,
   "latency_p95_ms": 9.1,
   "latency_per_residue_us": 84.0,
@@ -173,9 +185,9 @@ import torch.utils.benchmark as benchmark
 torch.cuda.reset_peak_memory_stats()
 t0 = time.perf_counter()
 with torch.no_grad():
-    out = model(inputs)  # first call: dynamo + inductor compilation
+    out = model(inputs)  # first call: CUDA kernel warmup (LigandMPNN ref is eager — no torch.compile)
 torch.cuda.synchronize()
-compile_time_cold_s = time.perf_counter() - t0
+first_call_overhead_s = time.perf_counter() - t0  # CUDA warmup, NOT compiler overhead (eager model)
 
 # Warm throughput
 timer = benchmark.Timer(
@@ -205,7 +217,7 @@ if [[ "${_NODE}" == *node4007* ]] || [[ "${_NODE}" == *node4008* ]]; then
 fi
 ```
 
-`--xla_gpu_autotune_level=0` disables kernel autotuning for reproducible compile times. For a performance measurement (not reproducibility), use only `--xla_gpu_shard_autotuning=false`.
+`--xla_gpu_autotune_level=0` disables kernel autotuning for reproducible compile times. **This changes performance, not just reproducibility** — see §3.4 for the two-run protocol (representative vs reproducible). Also set `XLA_PYTHON_CLIENT_PREALLOCATE=false` in the SLURM environment for all benchmark jobs to prevent JAX GPU memory preallocation from exhausting device memory when subprocesses run sequentially.
 
 ---
 
@@ -216,11 +228,11 @@ fi
 | 76 | `tests/data/1ubq.pdb` | Available locally |
 | 150 | RCSB fetch `2KHO` or pad 1ubq | Fetch locally; push to cluster |
 | 300 | RCSB fetch or synthetic pad | |
-| 500 | Synthetic padding of 1ubq | mask=0 for padded residues |
+| 500 | RCSB fetch — real ≥400-residue single-chain protein (e.g. 1A3N chain A, ~287 res; or similar) | **Do NOT pad 1ubq to L=500** — 424/500 residues would be masked zeros, producing ~20–40% under-reported latency vs real proteins at this length. Fetch a real structure and truncate to 500 if needed. |
 
 Cluster compute nodes have no outbound internet. Fetch all structures locally first, push via rsync.
 
-The `create_bundle_and_plan_from_real_structure` function in commit 132eca7 implements truncation + zero-padding. Reuse for all seq_len variants.
+The `create_bundle_and_plan_from_real_structure` function in commit 132eca7 implements truncation + zero-padding. Reuse truncation for all seq_len variants. **Padding is acceptable for L=150 and L=300 (minority of residues masked); avoid for L=500 where padding would dominate.**
 
 ---
 
@@ -296,4 +308,12 @@ Wave 5 (report):
 
 3. **Model size:** ✅ **Resolved** — use production weights from REFERENCE_PATH checkpoints (`ligandmpnn_v_32_010_25_converted.eqx` for JAX, `ligandmpnn_v_32_010_25.pt` for PyTorch). Both adapters load the same weights for a fair head-to-head comparison.
 
-4. **AOT abstract shapes**: `jax.jit(...).lower()` requires fixed shapes. For variable seq_len, compile once per length. This is correct for benchmarks but means 4 compiled artifacts per configuration.
+4. **AOT abstract shapes**: `jax.jit(...).lower()` requires fixed shapes. For variable seq_len, compile once per length. This is correct for benchmarks but means 4 compiled artifacts per configuration. Use `jax.eval_shape` to introspect leaf shapes rather than hand-rolling abstract arg builders — add this to Wave 1 scope.
+
+5. **PyTorch batching — inspect `${REFERENCE_PATH}/run.py` before Wave 2.** dauparas/LigandMPNN's `run.py` may loop over `num_seq_per_target` rather than vectorizing over a true batch dim. If so, `batch_size=[4, 16]` on the PyTorch adapter measures loop throughput, not batched-forward throughput. Either label it `batch_size_via_loop` (honest) or restrict PyTorch matrix to `batch_size=1` and footnote. Resolve before Wave 2 adapter is written.
+
+6. **ColabDesign: pin via git SHA, not PyPI.** The PyPI `colabdesign` package may lag the sokrypton/ColabDesign GitHub repo. Before Wave 2, pin via:
+   ```
+   colabdesign @ git+https://github.com/sokrypton/ColabDesign.git@<sha>
+   ```
+   Update `pyproject.toml [dependency-groups].benchmark` with the pinned SHA. Also set `XLA_PYTHON_CLIENT_PREALLOCATE=false` in the SLURM env block (§9) to prevent GPU memory exhaustion when running JAX subprocesses sequentially on the same node.

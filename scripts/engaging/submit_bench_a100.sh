@@ -2,7 +2,7 @@
 #SBATCH --job-name=bench-full-a100
 #SBATCH --partition=mit_preemptable
 #SBATCH --nodelist=node2002
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
 #SBATCH --time=2:00:00

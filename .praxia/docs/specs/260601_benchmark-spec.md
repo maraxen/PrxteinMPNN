@@ -226,9 +226,9 @@ fi
 | seq_len | Source | Notes |
 |---|---|---|
 | 76 | `tests/data/1ubq.pdb` | Available locally |
-| 150 | RCSB fetch `2KHO` or pad 1ubq | Fetch locally; push to cluster |
-| 300 | RCSB fetch or synthetic pad | |
-| 500 | RCSB fetch — real ≥400-residue single-chain protein (e.g. 1A3N chain A, ~287 res; or similar) | **Do NOT pad 1ubq to L=500** — 424/500 residues would be masked zeros, producing ~20–40% under-reported latency vs real proteins at this length. Fetch a real structure and truncate to 500 if needed. |
+| 150 | Pad 1ubq | Acceptable — minority masked |
+| 300 | Pad 1ubq | Acceptable — minority masked |
+| 500 | `tests/data/1SMD.pdb` (PDB 1SMD, human salivary amylase, 495 residues) ✅ | **Do NOT pad 1ubq to L=500** — 424/500 residues would be masked zeros, producing ~20–40% under-reported latency. 1SMD needs only 5 pad residues. Added 2026-06-01. |
 
 Cluster compute nodes have no outbound internet. Fetch all structures locally first, push via rsync.
 
@@ -295,7 +295,9 @@ Wave 5 (report):
 
 ## 11. Open Questions Before Wave 1
 
-1. **Ligand coordinates**: 1ubq has no ligand. For the ligand-conditioned path, should we use a real ligand-protein complex PDB from the parity test corpus, or synthesize a dummy ligand array?
+> **Status (2026-06-01):** All six questions below are resolved. Wave 2 is unblocked.
+
+1. **Ligand coordinates**: ✅ **Resolved.** `bench_ligandmpnn_pytorch.py` will use `REFERENCE_PATH/inputs/1BC8.pdb` directly on the cluster — the LigandMPNN reference repo includes this structure as the canonical example for its `ligand_mpnn` model type. No local copy needed. For the JAX adapter's ligand=True path (post-Wave 2), a synthetic dummy ligand will be generated in `prepare_fixtures.py`.
 
 2. **ColabDesign:** ✅ **Resolved — in scope.** `sokrypton/ColabDesign` is a widely-used JAX implementation of ProteinMPNN. It is not installed locally or on the cluster — being added as a `benchmark` dependency group. ColabDesign covers the no-ligand ProteinMPNN path only (no ligand conditioning). The comparison matrix is:
 
@@ -310,10 +312,6 @@ Wave 5 (report):
 
 4. **AOT abstract shapes**: `jax.jit(...).lower()` requires fixed shapes. For variable seq_len, compile once per length. This is correct for benchmarks but means 4 compiled artifacts per configuration. Use `jax.eval_shape` to introspect leaf shapes rather than hand-rolling abstract arg builders — add this to Wave 1 scope.
 
-5. **PyTorch batching — inspect `${REFERENCE_PATH}/run.py` before Wave 2.** dauparas/LigandMPNN's `run.py` may loop over `num_seq_per_target` rather than vectorizing over a true batch dim. If so, `batch_size=[4, 16]` on the PyTorch adapter measures loop throughput, not batched-forward throughput. Either label it `batch_size_via_loop` (honest) or restrict PyTorch matrix to `batch_size=1` and footnote. Resolve before Wave 2 adapter is written.
+5. **PyTorch batching:** ✅ **Resolved (2026-06-01).** `${REFERENCE_PATH}/run.py` line 402 sets `feature_dict["batch_size"] = args.batch_size` and the randn shape is `[batch_size, L]`, so the model IS vectorized over a true sequence batch dim. The comment "batch size should be 1 for now" (line 403) refers to the structure batch (B=1, always one PDB at a time); `batch_size` controls simultaneous sequence generation. The PyTorch adapter benchmark matrix can use `batch_size=[1, 4, 16]` as planned, measuring batched-forward throughput.
 
-6. **ColabDesign: pin via git SHA, not PyPI.** The PyPI `colabdesign` package may lag the sokrypton/ColabDesign GitHub repo. Before Wave 2, pin via:
-   ```
-   colabdesign @ git+https://github.com/sokrypton/ColabDesign.git@<sha>
-   ```
-   Update `pyproject.toml [dependency-groups].benchmark` with the pinned SHA. Also set `XLA_PYTHON_CLIENT_PREALLOCATE=false` in the SLURM env block (§9) to prevent GPU memory exhaustion when running JAX subprocesses sequentially on the same node.
+6. **ColabDesign SHA:** ✅ **Resolved (2026-06-01).** Pinned to `e31a56fe1d9b4de25c8697f3a28b75892941cc72` (2025-10-23, "Update mapping.py") in `pyproject.toml [dependency-groups].benchmark`. Install: `uv sync --extra cuda --group dev --group benchmark`.

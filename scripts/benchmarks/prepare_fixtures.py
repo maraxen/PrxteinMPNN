@@ -278,13 +278,14 @@ def main():
     # Locate test fixture files (relative to repo root)
     repo_root = Path(__file__).parent.parent.parent
     ubq_path = repo_root / "tests" / "data" / "1ubq.pdb"
+    smd_path = repo_root / "tests" / "data" / "1SMD.pdb"
     awl_path = repo_root / "tests" / "data" / "5awl.pdb"
 
     if not ubq_path.exists():
         logger.error(f"Required fixture 1ubq.pdb not found at {ubq_path}")
         sys.exit(1)
 
-    # Step 1: Load 1ubq and create fixtures at target lengths
+    # Step 1: Load 1ubq and create fixtures at L=76, 150, 300
     try:
         coords, mask, residue_index, chain_index, num_residues = load_structure(
             ubq_path
@@ -293,11 +294,11 @@ def main():
         logger.error(f"Failed to load 1ubq.pdb: {e}")
         sys.exit(1)
 
-    target_lengths = [76, 150, 300, 500]
-    logger.info(f"Creating fixtures for 1ubq at lengths: {target_lengths}")
+    ubq_lengths = [76, 150, 300]
+    logger.info(f"Creating fixtures for 1ubq at lengths: {ubq_lengths}")
 
     all_success = True
-    for target_len in target_lengths:
+    for target_len in ubq_lengths:
         try:
             padded_coords, padded_mask, padded_residue_index, padded_chain_index = (
                 pad_or_truncate_structure(
@@ -319,7 +320,61 @@ def main():
             logger.error(f"Failed to process length {target_len}: {e}")
             all_success = False
 
-    # Step 2: Inspect 5awl.pdb (report info, don't save fixture yet)
+    # Step 2: Load 1SMD (salivary amylase, 496 residues) for L=500 fixture.
+    # 1ubq is only 76 residues; padding it to 500 would mask 424/500 positions,
+    # under-reporting latency by ~20-40% (spec §8). 1SMD needs only 4 pad residues.
+    if smd_path.exists():
+        try:
+            smd_coords, smd_mask, smd_residue_index, smd_chain_index, smd_num = (
+                load_structure(smd_path)
+            )
+            logger.info(f"Loaded 1SMD.pdb: {smd_num} residues for L=500 fixture")
+            padded_coords, padded_mask, padded_residue_index, padded_chain_index = (
+                pad_or_truncate_structure(
+                    smd_coords, smd_mask, smd_residue_index, smd_chain_index, 500
+                )
+            )
+            success = save_fixture(
+                args.fixture_dir,
+                "structure_L500",
+                padded_coords,
+                padded_mask,
+                padded_residue_index,
+                padded_chain_index,
+                dry_run=args.dry_run,
+            )
+            if not success:
+                all_success = False
+        except Exception as e:
+            logger.error(f"Failed to create L=500 fixture from 1SMD.pdb: {e}")
+            all_success = False
+    else:
+        logger.warning(
+            f"1SMD.pdb not found at {smd_path}; falling back to padded 1ubq for L=500 "
+            f"(WARNING: 424/500 positions will be masked — latency will be under-reported)"
+        )
+        try:
+            padded_coords, padded_mask, padded_residue_index, padded_chain_index = (
+                pad_or_truncate_structure(
+                    coords, mask, residue_index, chain_index, 500
+                )
+            )
+            success = save_fixture(
+                args.fixture_dir,
+                "structure_L500",
+                padded_coords,
+                padded_mask,
+                padded_residue_index,
+                padded_chain_index,
+                dry_run=args.dry_run,
+            )
+            if not success:
+                all_success = False
+        except Exception as e:
+            logger.error(f"Failed to process L=500 fallback: {e}")
+            all_success = False
+
+    # Step 3: Inspect 5awl.pdb (report info, don't save fixture yet)
     if awl_path.exists():
         try:
             info = inspect_structure(awl_path)

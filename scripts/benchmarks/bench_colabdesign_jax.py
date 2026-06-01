@@ -9,9 +9,10 @@ Usage:
     uv run python scripts/benchmarks/bench_colabdesign_jax.py --dry-run
     uv run python scripts/benchmarks/bench_colabdesign_jax.py --smoke
     uv run python scripts/benchmarks/bench_colabdesign_jax.py \
-        --seq-lens 76 150 300 500 \
+        --task score_conditional \
+        --seq-lens 76 500 \
         --batch-sizes 1 4 16 \
-        --precision bf16 fp32 \
+        --precision fp32 \
         --hardware A100 \
         --n-warmup 10 \
         --n-timed 20 \
@@ -47,6 +48,12 @@ logging.getLogger("jax").setLevel(logging.ERROR)
 logging.getLogger("absl").setLevel(logging.ERROR)
 
 logger = logging.getLogger(__name__)
+
+# Canonical PDB map: nominal seq_len -> pdb filename
+_PDB_MAP: dict[int, str] = {
+    76: "1ubq.pdb",
+    500: "1SMD.pdb",
+}
 
 
 # ============================================================================
@@ -101,18 +108,7 @@ def _query_gpu_memory_gb() -> float:
 
 
 def load_model(verbose: bool = False) -> Any:
-    """Load ColabDesign ProteinMPNN model.
-
-    Parameters
-    ----------
-    verbose : bool
-        Enable verbose logging during model init
-
-    Returns
-    -------
-    Any
-        ColabDesign MPNN model instance
-    """
+    """Load ColabDesign ProteinMPNN model."""
     try:
         from colabdesign.mpnn.model import mk_mpnn_model
     except ImportError:
@@ -140,14 +136,7 @@ def prepare_pdb_input(
     model: Any,
     pdb_file: Path,
 ) -> tuple[int, bool]:
-    """Prepare model inputs from PDB file.
-
-    Parameters
-    ----------
-    model : Any
-        ColabDesign MPNN model
-    pdb_file : Path
-        Path to PDB file
+    """Prepare model inputs from PDB file via model.prep_inputs().
 
     Returns
     -------
@@ -169,87 +158,64 @@ def prepare_pdb_input(
 
 
 # ============================================================================
-# Timing: Cold Compile
+# Timing
 # ============================================================================
 
 
-def measure_cold_compile(
+def measure_cold_compile_sample(
     model: Any,
     batch_size: int,
     fixture_name: str,
 ) -> tuple[float, str]:
-    """Measure cold XLA compilation time for sample.
-
-    Disables compilation cache, clears caches, then times first execution.
-
-    Parameters
-    ----------
-    model : Any
-        ColabDesign MPNN model with inputs already prepared
-    batch_size : int
-        Batch size for sampling
-    fixture_name : str
-        For logging
-
-    Returns
-    -------
-    tuple
-        (compile_time_s, note_string)
-    """
-    # Ensure cache is disabled
+    """Measure cold XLA compilation time for ar_sample."""
     jax.config.update("jax_enable_compilation_cache", False)
     jax.clear_caches()
 
-    # Time cold sample call
     t0 = time.perf_counter()
     result = model.sample(num=batch_size, temperature=1.0)
-    # Block on result arrays to ensure compilation is complete
     jax.block_until_ready(jax.tree_util.tree_leaves(result))
     compile_time_cold_s = time.perf_counter() - t0
 
     note = "JAX: XLA compilation; cache disabled for cold run (jax_enable_compilation_cache=False)"
-
     return compile_time_cold_s, note
 
 
-# ============================================================================
-# Timing: Warm Latency
-# ============================================================================
+def measure_cold_compile_score(
+    model: Any,
+    fixture_name: str,
+) -> tuple[float, str]:
+    """Measure cold XLA compilation time for score_conditional.
+
+    ColabDesign.score() scores one sequence at a time.
+    """
+    jax.config.update("jax_enable_compilation_cache", False)
+    jax.clear_caches()
+
+    t0 = time.perf_counter()
+    if hasattr(model, "score"):
+        result = model.score(seq=None)
+    elif hasattr(model, "get_logits"):
+        result = {"logits": model.get_logits()}
+    else:
+        raise RuntimeError("ColabDesign model has no score() or get_logits() method")
+    jax.block_until_ready(jax.tree_util.tree_leaves(result))
+    compile_time_cold_s = time.perf_counter() - t0
+
+    note = "JAX: XLA compilation; cache disabled for cold run; score_conditional uses model.score()"
+    return compile_time_cold_s, note
 
 
-def measure_warm_latency(
+def measure_warm_latency_sample(
     model: Any,
     batch_size: int,
     n_warmup: int,
     n_timed: int,
 ) -> tuple[float, float, list[float]]:
-    """Measure warm sample latency with compiled kernel.
-
-    Warm-up phase allows JAX to compile and cache. Timed phase measures
-    end-to-end latency.
-
-    Parameters
-    ----------
-    model : Any
-        ColabDesign MPNN model with inputs already prepared
-    batch_size : int
-        Batch size for sampling
-    n_warmup : int
-        Number of warmup runs
-    n_timed : int
-        Number of timed runs
-
-    Returns
-    -------
-    tuple
-        (median_latency_s, p95_latency_s, all_times_s)
-    """
-    # Warm-up phase
+    """Measure warm ar_sample latency. ColabDesign natively supports batched sampling."""
     for _ in range(n_warmup):
         result = model.sample(num=batch_size, temperature=1.0)
         jax.block_until_ready(jax.tree_util.tree_leaves(result))
 
-    # Timed phase
     times = []
     for _ in range(n_timed):
         t0 = time.perf_counter()
@@ -258,10 +224,58 @@ def measure_warm_latency(
         times.append(time.perf_counter() - t0)
 
     times_arr = np.array(times)
-    median_s = float(np.median(times_arr))
-    p95_s = float(np.percentile(times_arr, 95))
+    return float(np.median(times_arr)), float(np.percentile(times_arr, 95)), times
 
-    return median_s, p95_s, times
+
+def measure_warm_latency_score(
+    model: Any,
+    batch_size: int,
+    n_warmup: int,
+    n_timed: int,
+) -> tuple[float, float, list[float], int]:
+    """Measure warm score_conditional latency.
+
+    model.score() does not support batch_size > 1 natively.
+    For batch_size > 1, runs sequentially and reports per-sequence latency.
+
+    Returns
+    -------
+    tuple
+        (median_s, p95_s, times, reported_batch_size)
+        reported_batch_size=1 when sequential workaround was used.
+    """
+    def _score_once():
+        if hasattr(model, "score"):
+            return model.score(seq=None)
+        elif hasattr(model, "get_logits"):
+            return {"logits": model.get_logits()}
+        else:
+            raise RuntimeError("ColabDesign model has no score() or get_logits() method")
+
+    for _ in range(n_warmup):
+        r = _score_once()
+        jax.block_until_ready(jax.tree_util.tree_leaves(r))
+
+    times = []
+    if batch_size > 1:
+        # Sequential workaround: run batch_size times, normalize per-sequence
+        for _ in range(n_timed):
+            t0 = time.perf_counter()
+            for _ in range(batch_size):
+                r = _score_once()
+                jax.block_until_ready(jax.tree_util.tree_leaves(r))
+            times.append((time.perf_counter() - t0) / batch_size)
+        reported_batch_size = 1
+    else:
+        for _ in range(n_timed):
+            t0 = time.perf_counter()
+            r = _score_once()
+            jax.block_until_ready(jax.tree_util.tree_leaves(r))
+            times.append(time.perf_counter() - t0)
+        reported_batch_size = 1
+
+    times_arr = np.array(times)
+    return float(np.median(times_arr)), float(np.percentile(times_arr, 95)), times, reported_batch_size
 
 
 # ============================================================================
@@ -275,97 +289,122 @@ def benchmark_cell(
     seq_len: int,
     batch_size: int,
     precision: str,
+    task: str,
     n_warmup: int = 10,
     n_timed: int = 20,
 ) -> dict[str, Any] | None:
-    """Benchmark a single (seq_len, batch_size, precision) cell.
-
-    Parameters
-    ----------
-    model : Any
-        Loaded ColabDesign model
-    pdb_dir : Path
-        Directory containing PDB files
-    seq_len : int
-        Desired sequence length (maps to PDB fixture)
-    batch_size : int
-        Batch size for sampling
-    precision : str
-        Precision string (e.g., "bf16", "fp32"); currently informational only
-    n_warmup : int
-        Warmup runs
-    n_timed : int
-        Timed runs
-
-    Returns
-    -------
-    dict | None
-        Benchmark result dict, or None if cell failed
-    """
+    """Benchmark a single (seq_len, batch_size, precision, task) cell."""
     try:
-        # Map seq_len to PDB file. 1SMD has ~496 residues; benchmark target is L=500.
-        # actual_len is reported from the loaded structure, not from seq_len.
-        pdb_map = {
-            76: pdb_dir / "1ubq.pdb",
-            150: pdb_dir / "1ubq.pdb",   # 1ubq only; ColabDesign has no truncation support
-            300: pdb_dir / "1ubq.pdb",   # same; actual_len will be 76, not 300
-            500: pdb_dir / "1SMD.pdb",   # 1SMD is ~496 residues; actual_len reported from PDB
-        }
-
-        if seq_len not in pdb_map:
+        if seq_len not in _PDB_MAP:
             logger.info(
-                f"  Skipping L={seq_len} (no PDB fixture available; have L={list(pdb_map.keys())})"
+                f"  Skipping L={seq_len} (no PDB fixture; have L={list(_PDB_MAP.keys())})"
             )
             return None
 
-        pdb_file = pdb_map[seq_len]
+        pdb_file = pdb_dir / _PDB_MAP[seq_len]
 
-        # Prepare inputs; report actual loaded length, not parametric seq_len
         actual_len, success = prepare_pdb_input(model, pdb_file)
         if not success:
             return None
         if seq_len != actual_len:
-            logger.info(f"  Note: requested L={seq_len}, loaded L={actual_len} from {pdb_file.name}")
+            logger.info(
+                f"  Note: nominal L={seq_len}, loaded L={actual_len} from {pdb_file.name}"
+            )
 
-        # Apply precision (ColabDesign does not expose dtype control directly)
-        # Note: This is informational; actual precision may differ
         if precision == "bf16":
-            # ColabDesign's default is typically fp32; bf16 conversion is not exposed
-            logger.info(f"    Note: precision={precision} requested but not configurable in ColabDesign")
+            logger.info(
+                f"    Note: precision={precision} requested but not configurable in ColabDesign"
+            )
 
-        # Measure cold compile
-        compile_time_s, compile_note = measure_cold_compile(model, batch_size, pdb_file.name)
+        # Check score API availability for score_conditional
+        if task == "score_conditional":
+            if not hasattr(model, "score") and not hasattr(model, "get_logits"):
+                logger.warning(
+                    "  ColabDesign model has no score() or get_logits() method; "
+                    "skipping score_conditional cell"
+                )
+                return {
+                    "schema_version": "1",
+                    "model": "colabdesign_jax",
+                    "hardware": "unknown",
+                    "seq_len": actual_len,
+                    "batch_size": batch_size,
+                    "task": task,
+                    "precision": "fp32",
+                    "ligand_conditioning": False,
+                    "axis_strategy": None,
+                    "average_encoding_mode": None,
+                    "compile_time_cold_s": None,
+                    "compile_time_warm_s": None,
+                    "compile_time_note": "score_api_unavailable",
+                    "latency_median_ms": None,
+                    "latency_p95_ms": None,
+                    "latency_per_residue_us": None,
+                    "throughput_seq_per_s": None,
+                    "peak_gpu_memory_gb": None,
+                    "n_warmup": n_warmup,
+                    "n_timed": n_timed,
+                    "jax_version": jax.__version__,
+                    "torch_version": None,
+                    "cuda_version": _get_cuda_version(),
+                    "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                    "skipped_reason": "score_api_unavailable",
+                }
 
-        # Measure warm latency
-        median_s, p95_s, times = measure_warm_latency(
-            model,
-            batch_size=batch_size,
-            n_warmup=n_warmup,
-            n_timed=n_timed,
-        )
+        # Cold compile
+        if task == "ar_sample":
+            compile_time_s, compile_note = measure_cold_compile_sample(
+                model, batch_size, pdb_file.name
+            )
+        else:  # score_conditional
+            compile_time_s, compile_note = measure_cold_compile_score(
+                model, pdb_file.name
+            )
 
-        # Compute derived metrics
+        # Warm latency
+        if task == "ar_sample":
+            median_s, p95_s, times = measure_warm_latency_sample(
+                model,
+                batch_size=batch_size,
+                n_warmup=n_warmup,
+                n_timed=n_timed,
+            )
+            reported_batch_size = batch_size
+        else:  # score_conditional
+            median_s, p95_s, times, reported_batch_size = measure_warm_latency_score(
+                model,
+                batch_size=batch_size,
+                n_warmup=n_warmup,
+                n_timed=n_timed,
+            )
+            if batch_size > 1 and reported_batch_size == 1:
+                extra_note = (
+                    f"ColabDesign score() does not support batch_size>1; "
+                    f"ran {batch_size}x sequentially, reporting per-sequence latency; "
+                    f"reported batch_size=1"
+                )
+                compile_note = compile_note + "; " + extra_note
+
         latency_median_ms = median_s * 1000.0
         latency_p95_ms = p95_s * 1000.0
-        latency_per_residue_us = (median_s * 1e6) / (actual_len * batch_size)
-        throughput_seq_per_s = batch_size / median_s
+        latency_per_residue_us = (median_s * 1e6) / (actual_len * max(reported_batch_size, 1))
+        throughput_seq_per_s = max(reported_batch_size, 1) / median_s
 
-        # GPU memory: query after warmup kernels are resident
         peak_gpu_memory_gb = _query_gpu_memory_gb()
 
-        # Assemble result
         result = {
             "schema_version": "1",
             "model": "colabdesign_jax",
             "hardware": "unknown",  # Set by caller
-            "seq_len": actual_len,  # Actual loaded sequence length
-            "batch_size": batch_size,
+            "seq_len": actual_len,
+            "batch_size": reported_batch_size,
+            "task": task,
             "precision": "fp32",  # ColabDesign does not expose dtype control; always fp32
-            "ligand_conditioning": False,  # ColabDesign has no ligand path
-            "axis_strategy": None,  # ColabDesign manages its own dispatch
+            "ligand_conditioning": False,
+            "axis_strategy": None,
             "average_encoding_mode": None,
             "compile_time_cold_s": float(compile_time_s),
-            "compile_time_warm_s": 0.0,  # Not measured separately
+            "compile_time_warm_s": 0.0,
             "compile_time_note": compile_note,
             "latency_median_ms": float(latency_median_ms),
             "latency_p95_ms": float(latency_p95_ms),
@@ -381,7 +420,7 @@ def benchmark_cell(
         }
 
         logger.info(
-            f"  ✓ seq_len={actual_len}, batch_size={batch_size}: "
+            f"  ✓ seq_len={actual_len}, batch_size={reported_batch_size}, task={task}: "
             f"cold={compile_time_s:.3f}s, warm_median={latency_median_ms:.2f}ms"
         )
 
@@ -400,7 +439,13 @@ def benchmark_cell(
 def main():
     """Run benchmark suite."""
     parser = argparse.ArgumentParser(
-        description="GPU benchmark for ColabDesign JAX ProteinMPNN (Wave 2B)",
+        description="GPU benchmark for ColabDesign JAX ProteinMPNN",
+    )
+    parser.add_argument(
+        "--task",
+        choices=["score_conditional", "ar_sample"],
+        default="score_conditional",
+        help="Task to benchmark (default: score_conditional)",
     )
     parser.add_argument(
         "--seq-lens",
@@ -467,13 +512,11 @@ def main():
 
     args = parser.parse_args()
 
-    # Configure logging
     logging.basicConfig(
         level=logging.INFO,
         format="%(levelname)s: %(message)s",
     )
 
-    # Apply smoke-test defaults
     if args.smoke:
         args.seq_lens = [76]
         args.batch_sizes = [1]
@@ -481,9 +524,9 @@ def main():
         args.n_timed = 3
         logger.info("Smoke test mode: minimal iterations")
 
-    # Dry-run: just print config
     if args.dry_run:
         config = {
+            "task": args.task,
             "seq_lens": args.seq_lens,
             "batch_sizes": args.batch_sizes,
             "precisions": args.precision,
@@ -498,21 +541,17 @@ def main():
         logger.info(json.dumps(config, indent=2))
         return 0
 
-    # Check PDB directory
     if not args.pdb_dir.exists():
         logger.error(f"PDB directory not found: {args.pdb_dir}")
         return 1
 
-    # Check that at least one PDB file exists
     pdb_files = list(args.pdb_dir.glob("*.pdb"))
     if not pdb_files:
         logger.error(f"No PDB files found in {args.pdb_dir}")
         return 1
 
-    # Set JAX defaults early
     _set_jax_defaults()
 
-    # Load model
     logger.info("Loading ColabDesign ProteinMPNN model...")
     try:
         model = load_model(verbose=False)
@@ -524,7 +563,6 @@ def main():
         logger.error(f"Failed to load model: {e}")
         return 1
 
-    # Run benchmarks
     all_results = []
     total_cells = len(args.seq_lens) * len(args.batch_sizes) * len(args.precision)
     current_cell = 0
@@ -535,7 +573,8 @@ def main():
                 current_cell += 1
                 logger.info(
                     f"Benchmarking cell {current_cell}/{total_cells}: "
-                    f"seq_len={seq_len}, batch_size={batch_size}, precision={precision}"
+                    f"seq_len={seq_len}, batch_size={batch_size}, "
+                    f"precision={precision}, task={args.task}"
                 )
 
                 result = benchmark_cell(
@@ -544,6 +583,7 @@ def main():
                     seq_len=seq_len,
                     batch_size=batch_size,
                     precision=precision,
+                    task=args.task,
                     n_warmup=args.n_warmup,
                     n_timed=args.n_timed,
                 )
@@ -558,7 +598,6 @@ def main():
         logger.error("No benchmarks completed successfully")
         return 1
 
-    # Write output
     output = {
         "schema_version": "1",
         "results": all_results,

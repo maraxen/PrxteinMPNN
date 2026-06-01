@@ -8,18 +8,18 @@ Usage:
     uv run python scripts/benchmarks/bench_suite.py \\
         --hardware A100 \\
         --output-dir outputs/results/benchmarks \\
-        --seq-lens 76 150 300 500 \\
+        --tasks score_conditional ar_sample \\
+        --seq-lens 76 500 \\
         --batch-sizes 1 4 16 \\
-        --precision bf16 \\
+        --precision fp32 \\
         --n-warmup 10 \\
         --n-timed 20 \\
-        --fixture-dir outputs/benchmark_fixtures \\
         --pdb-dir tests/data \\
         --reference-path /path/to/LigandMPNN \\
         --dry-run
 
 Optional skip flags: --skip-pytorch, --skip-colabdesign, --skip-prxteinmpnn
---smoke: pass through and set seq-lens to 76, batch-sizes to 1
+--smoke: pass through and set seq-lens to 76, batch-sizes to 1, tasks to both
 --dry-run: print resolved adapter commands without executing
 
 Exit codes:
@@ -66,17 +66,20 @@ _BENCH_DIR = Path(__file__).parent
 def build_prxteinmpnn_argv(
     args: argparse.Namespace,
     output_json: Path,
+    task: str,
 ) -> list[str]:
     """Build argv for bench_prxteinmpnn_jax.py."""
     argv = [
         sys.executable,
         str(_BENCH_DIR / "bench_prxteinmpnn_jax.py"),
+        "--task",
+        task,
         "--hardware",
         args.hardware,
         "--output-json",
         str(output_json),
-        "--fixture-dir",
-        str(args.fixture_dir),
+        "--pdb-dir",
+        str(args.pdb_dir),
         "--seq-lens",
         *map(str, args.seq_lens),
         "--batch-sizes",
@@ -104,17 +107,20 @@ def build_prxteinmpnn_argv(
 def build_pytorch_argv(
     args: argparse.Namespace,
     output_json: Path,
+    task: str,
 ) -> list[str]:
     """Build argv for bench_ligandmpnn_pytorch.py."""
     argv = [
         sys.executable,
         str(_BENCH_DIR / "bench_ligandmpnn_pytorch.py"),
+        "--task",
+        task,
         "--hardware",
         args.hardware,
         "--output-json",
         str(output_json),
-        "--fixture-dir",
-        str(args.fixture_dir),
+        "--pdb-dir",
+        str(args.pdb_dir),
         "--seq-lens",
         *map(str, args.seq_lens),
         "--batch-sizes",
@@ -142,16 +148,18 @@ def build_pytorch_argv(
 def build_colabdesign_argv(
     args: argparse.Namespace,
     output_json: Path,
+    task: str,
 ) -> list[str]:
     """Build argv for bench_colabdesign_jax.py.
 
-    Note: ColabDesign uses --pdb-dir instead of --fixture-dir,
-    and always uses seq-lens 76 and 500 (not 150, 300).
-    Does NOT support --precision flag.
+    Note: ColabDesign uses --pdb-dir and respects --seq-lens.
+    Does NOT support --precision flag (always fp32).
     """
     argv = [
         sys.executable,
         str(_BENCH_DIR / "bench_colabdesign_jax.py"),
+        "--task",
+        task,
         "--hardware",
         args.hardware,
         "--output-json",
@@ -159,8 +167,7 @@ def build_colabdesign_argv(
         "--pdb-dir",
         str(args.pdb_dir),
         "--seq-lens",
-        "76",
-        "500",
+        *map(str, args.seq_lens),
         "--batch-sizes",
         *map(str, args.batch_sizes),
         "--n-warmup",
@@ -184,15 +191,6 @@ def run_adapter(
     dry_run: bool = False,
 ) -> tuple[str, dict[str, Any] | None]:
     """Run a single adapter subprocess.
-
-    Parameters
-    ----------
-    adapter_name : str
-        Name of adapter (e.g., "prxteinmpnn_jax")
-    argv : list[str]
-        Full argv list (starting with sys.executable)
-    dry_run : bool
-        If True, print command and return without executing
 
     Returns
     -------
@@ -218,13 +216,11 @@ def run_adapter(
         if result.returncode != 0:
             logger.error(f"{adapter_name} failed with exit code {result.returncode}")
             if result.stderr:
-                logger.error(f"stderr: {result.stderr[-500:]}")  # Last 500 chars
+                logger.error(f"stderr: {result.stderr[-500:]}")
             if result.stdout:
                 logger.error(f"stdout: {result.stdout[-500:]}")
             return "failed", None
 
-        # Try to parse results from stdout if --output-json was passed
-        # The adapter writes to file, so we'll just check that it succeeded
         logger.info(f"{adapter_name} completed successfully")
         return "ok", None
 
@@ -237,18 +233,7 @@ def run_adapter(
 
 
 def load_adapter_results(output_json: Path) -> dict[str, Any] | None:
-    """Load results from adapter JSON file.
-
-    Parameters
-    ----------
-    output_json : Path
-        Path to adapter output JSON
-
-    Returns
-    -------
-    dict | None
-        Parsed JSON, or None if file not found
-    """
+    """Load results from adapter JSON file."""
     if not output_json.exists():
         logger.warning(f"Output file not found: {output_json}")
         return None
@@ -290,10 +275,17 @@ def main() -> int:
 
     # Benchmark parameters
     parser.add_argument(
+        "--tasks",
+        nargs="+",
+        choices=["score_conditional", "ar_sample"],
+        default=["score_conditional", "ar_sample"],
+        help="Tasks to benchmark (default: both)",
+    )
+    parser.add_argument(
         "--seq-lens",
         type=int,
         nargs="+",
-        default=[76, 150, 300, 500],
+        default=[76, 500],
         help="Sequence lengths to benchmark",
     )
     parser.add_argument(
@@ -307,7 +299,7 @@ def main() -> int:
         "--precision",
         type=str,
         nargs="+",
-        default=["bf16", "fp32"],
+        default=["fp32"],
         choices=["bf16", "fp32", "fp16"],
         help="Precisions to benchmark",
     )
@@ -326,16 +318,17 @@ def main() -> int:
 
     # Fixture paths
     parser.add_argument(
-        "--fixture-dir",
-        type=Path,
-        default=Path("outputs/benchmark_fixtures"),
-        help="Directory containing benchmark fixtures (for JAX adapters)",
-    )
-    parser.add_argument(
         "--pdb-dir",
         type=Path,
-        default=Path("tests/data"),
-        help="Directory containing PDB files (for ColabDesign)",
+        default=None,
+        help="Directory containing PDB fixture files (1ubq.pdb, 1SMD.pdb). "
+             "Defaults to tests/data relative to the prxteinmpnn package root.",
+    )
+    parser.add_argument(
+        "--fixture-dir",
+        type=Path,
+        default=None,
+        help="[DEPRECATED] Use --pdb-dir instead.",
     )
 
     # Reference paths
@@ -350,7 +343,7 @@ def main() -> int:
     parser.add_argument(
         "--smoke",
         action="store_true",
-        help="Run in smoke-test mode (seq-lens 76, batch-sizes 1)",
+        help="Run in smoke-test mode (seq-lens 76, batch-sizes 1, both tasks)",
     )
     parser.add_argument(
         "--dry-run",
@@ -377,11 +370,29 @@ def main() -> int:
 
     args = parser.parse_args()
 
-    # Handle --smoke: override seq-lens and batch-sizes
+    # Handle deprecated --fixture-dir
+    if args.fixture_dir is not None:
+        import warnings
+        warnings.warn(
+            "--fixture-dir is deprecated; use --pdb-dir instead.",
+            DeprecationWarning,
+            stacklevel=1,
+        )
+        if args.pdb_dir is None:
+            args.pdb_dir = args.fixture_dir
+
+    # Resolve pdb_dir default
+    if args.pdb_dir is None:
+        args.pdb_dir = Path(__file__).parents[2] / "tests" / "data"
+
+    # Handle --smoke: override grid
     if args.smoke:
         args.seq_lens = [76]
         args.batch_sizes = [1]
-        logger.info("Smoke mode: seq-lens=[76], batch-sizes=[1]")
+        args.n_warmup = 1
+        args.n_timed = 3
+        # Keep both tasks in smoke mode
+        logger.info("Smoke mode: seq-lens=[76], batch-sizes=[1], n_warmup=1, n_timed=3")
 
     # Create output directory
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -393,74 +404,76 @@ def main() -> int:
     if reference_path:
         logger.info(f"Using REFERENCE_PATH: {reference_path}")
 
-    # Dispatch adapters
+    # Dispatch adapters: outer loop over tasks
     adapter_status: dict[str, str] = {}
     combined_results: list[dict[str, Any]] = []
 
-    # === PRXTEINMPNN ===
-    if not args.skip_prxteinmpnn:
+    for task in args.tasks:
         logger.info("=" * 70)
-        logger.info("Dispatching prxteinmpnn_jax adapter...")
-        output_json = args.output_dir / f"{args.hardware}_prxteinmpnn_jax_bench.json"
-        argv = build_prxteinmpnn_argv(args, output_json)
+        logger.info(f"Task: {task}")
 
-        status, _ = run_adapter("prxteinmpnn_jax", argv, dry_run=args.dry_run)
-        adapter_status["prxteinmpnn_jax"] = status
+        # === PRXTEINMPNN ===
+        if not args.skip_prxteinmpnn:
+            logger.info(f"Dispatching prxteinmpnn_jax adapter (task={task})...")
+            output_json = args.output_dir / f"{args.hardware}_prxteinmpnn_jax_{task}_bench.json"
+            argv = build_prxteinmpnn_argv(args, output_json, task)
 
-        if status == "ok":
-            results = load_adapter_results(output_json)
-            if results and "results" in results:
-                combined_results.extend(results["results"])
-                logger.info(
-                    f"Loaded {len(results['results'])} cells from prxteinmpnn_jax"
-                )
-
-    # === LIGANDMPNN (PYTORCH) ===
-    if not args.skip_pytorch:
-        logger.info("=" * 70)
-        logger.info("Dispatching ligandmpnn_pytorch adapter...")
-
-        # Check reference path
-        if not reference_path:
-            logger.warning(
-                "REFERENCE_PATH not set and --reference-path not provided. "
-                "Skipping PyTorch adapter."
-            )
-            adapter_status["ligandmpnn_pytorch"] = "skipped"
-        else:
-            output_json = (
-                args.output_dir / f"{args.hardware}_ligandmpnn_pytorch_bench.json"
-            )
-            argv = build_pytorch_argv(args, output_json)
-
-            status, _ = run_adapter("ligandmpnn_pytorch", argv, dry_run=args.dry_run)
-            adapter_status["ligandmpnn_pytorch"] = status
+            key = f"prxteinmpnn_jax_{task}"
+            status, _ = run_adapter(key, argv, dry_run=args.dry_run)
+            adapter_status[key] = status
 
             if status == "ok":
                 results = load_adapter_results(output_json)
                 if results and "results" in results:
                     combined_results.extend(results["results"])
                     logger.info(
-                        f"Loaded {len(results['results'])} cells from ligandmpnn_pytorch"
+                        f"Loaded {len(results['results'])} cells from prxteinmpnn_jax/{task}"
                     )
 
-    # === COLABDESIGN ===
-    if not args.skip_colabdesign:
-        logger.info("=" * 70)
-        logger.info("Dispatching colabdesign_jax adapter...")
-        output_json = args.output_dir / f"{args.hardware}_colabdesign_jax_bench.json"
-        argv = build_colabdesign_argv(args, output_json)
-
-        status, _ = run_adapter("colabdesign_jax", argv, dry_run=args.dry_run)
-        adapter_status["colabdesign_jax"] = status
-
-        if status == "ok":
-            results = load_adapter_results(output_json)
-            if results and "results" in results:
-                combined_results.extend(results["results"])
-                logger.info(
-                    f"Loaded {len(results['results'])} cells from colabdesign_jax"
+        # === LIGANDMPNN (PYTORCH) ===
+        if not args.skip_pytorch:
+            if not reference_path:
+                logger.warning(
+                    "REFERENCE_PATH not set and --reference-path not provided. "
+                    "Skipping PyTorch adapter."
                 )
+                adapter_status[f"ligandmpnn_pytorch_{task}"] = "skipped"
+            else:
+                logger.info(f"Dispatching ligandmpnn_pytorch adapter (task={task})...")
+                output_json = (
+                    args.output_dir / f"{args.hardware}_ligandmpnn_pytorch_{task}_bench.json"
+                )
+                argv = build_pytorch_argv(args, output_json, task)
+
+                key = f"ligandmpnn_pytorch_{task}"
+                status, _ = run_adapter(key, argv, dry_run=args.dry_run)
+                adapter_status[key] = status
+
+                if status == "ok":
+                    results = load_adapter_results(output_json)
+                    if results and "results" in results:
+                        combined_results.extend(results["results"])
+                        logger.info(
+                            f"Loaded {len(results['results'])} cells from ligandmpnn_pytorch/{task}"
+                        )
+
+        # === COLABDESIGN ===
+        if not args.skip_colabdesign:
+            logger.info(f"Dispatching colabdesign_jax adapter (task={task})...")
+            output_json = args.output_dir / f"{args.hardware}_colabdesign_jax_{task}_bench.json"
+            argv = build_colabdesign_argv(args, output_json, task)
+
+            key = f"colabdesign_jax_{task}"
+            status, _ = run_adapter(key, argv, dry_run=args.dry_run)
+            adapter_status[key] = status
+
+            if status == "ok":
+                results = load_adapter_results(output_json)
+                if results and "results" in results:
+                    combined_results.extend(results["results"])
+                    logger.info(
+                        f"Loaded {len(results['results'])} cells from colabdesign_jax/{task}"
+                    )
 
     # === Summary ===
     logger.info("=" * 70)
@@ -468,7 +481,6 @@ def main() -> int:
     for adapter, status in adapter_status.items():
         logger.info(f"  {adapter}: {status}")
 
-    # Check if at least one succeeded
     if args.dry_run:
         logger.info("Dry-run complete")
         return 0
@@ -482,6 +494,7 @@ def main() -> int:
     combined_output = {
         "schema_version": "1",
         "hardware": args.hardware,
+        "tasks": args.tasks,
         "adapter_status": adapter_status,
         "results": combined_results,
         "total_cells": len(combined_results),

@@ -2,19 +2,21 @@
 """GPU benchmark adapter for prxteinmpnn (JAX+Equinox) inference.
 
 Measures cold-compile time, warm latency, and GPU memory usage for each
-(seq_len, batch_size, precision) cell. Produces JSON output conforming to
+(seq_len, batch_size, precision, task) cell. Produces JSON output conforming to
 the benchmark suite specification.
 
 Usage:
     uv run python scripts/benchmarks/bench_prxteinmpnn_jax.py --dry-run
     uv run python scripts/benchmarks/bench_prxteinmpnn_jax.py --smoke
     uv run python scripts/benchmarks/bench_prxteinmpnn_jax.py \
-        --seq-lens 76 150 300 500 \
+        --task score_conditional \
+        --seq-lens 76 500 \
         --batch-sizes 1 4 16 \
-        --precision bf16 fp32 \
+        --precision fp32 \
         --hardware A100 \
         --n-warmup 10 \
         --n-timed 20 \
+        --pdb-dir tests/data \
         --output-json results.json
 
 Exit codes:
@@ -30,6 +32,7 @@ import logging
 import os
 import sys
 import time
+import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -48,6 +51,19 @@ logging.getLogger("jax").setLevel(logging.ERROR)
 logging.getLogger("absl").setLevel(logging.ERROR)
 
 logger = logging.getLogger(__name__)
+
+# Canonical PDB map: nominal seq_len -> pdb filename
+_PDB_MAP: dict[int, str] = {
+    76: "1ubq.pdb",
+    500: "1SMD.pdb",
+}
+
+# Default PDB directory relative to the prxteinmpnn package root (this file is scripts/benchmarks/)
+_DEFAULT_PDB_DIR = Path(__file__).parents[2] / "tests" / "data"
+
+# Standard 20-letter amino acid alphabet (index 0-19), unknown=20
+_AA_ALPHABET = "ACDEFGHIKLMNPQRSTVWY"
+_AA_TO_IDX = {aa: i for i, aa in enumerate(_AA_ALPHABET)}
 
 
 # ============================================================================
@@ -109,32 +125,121 @@ class _BenchmarkSpec:
 
 
 # ============================================================================
-# Fixture Loading
+# PDB Loading
 # ============================================================================
 
 
-def load_fixture(fixture_path: Path) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-    """Load structure fixture from NPZ file.
+def load_pdb_as_arrays(pdb_path: str) -> dict[str, Any]:
+    """Load a PDB file and return coordinate arrays using biopython.
 
     Parameters
     ----------
-    fixture_path : Path
-        Path to .npz file with keys: coords, mask, residue_index, chain_index
+    pdb_path : str
+        Path to PDB file.
+
+    Returns
+    -------
+    dict with keys:
+        coords:         float32 (L, 4, 3)   - N, CA, C, O in angstroms
+        mask:           float32 (L,)         - 1.0 where residue is present
+        sequence:       int32   (L,)         - amino acid indices 0-19 (unk=20)
+        residue_index:  int32   (L,)         - per-residue sequence number
+        chain_index:    int32   (L,)         - per-chain integer index (0-based)
+        actual_len:     int                  - L
+    """
+    from Bio.PDB import PDBParser
+
+    parser = PDBParser(QUIET=True)
+    structure = parser.get_structure("prot", pdb_path)
+
+    coords_list = []
+    mask_list = []
+    seq_list = []
+    residue_index_list = []
+    chain_index_list = []
+
+    # Sort chains alphabetically and assign 0-based integer indices
+    model_obj = next(iter(structure))
+    chain_ids = sorted(chain.id for chain in model_obj)
+    chain_to_idx = {cid: i for i, cid in enumerate(chain_ids)}
+
+    atom_order = {"N": 0, "CA": 1, "C": 2, "O": 3}
+
+    for chain in model_obj:
+        chain_idx = chain_to_idx[chain.id]
+        for residue in chain:
+            # Skip HETATM residues (waters, ligands)
+            if residue.get_id()[0] != " ":
+                continue
+
+            res_coord = np.zeros((4, 3), dtype=np.float32)
+            atom_found = [False, False, False, False]
+
+            for atom_name, atom_idx in atom_order.items():
+                if atom_name in residue:
+                    res_coord[atom_idx] = residue[atom_name].get_vector().get_array()
+                    atom_found[atom_idx] = True
+
+            # Mark present if at least CA exists
+            res_mask = 1.0 if atom_found[1] else 0.0
+
+            # Encode residue name: 3-letter -> 1-letter -> integer index
+            resname = residue.get_resname().strip()
+            try:
+                from Bio.Data.IUPACData import protein_letters_3to1
+                one_letter = protein_letters_3to1.get(resname.capitalize(), "X")
+                aa_idx = _AA_TO_IDX.get(one_letter, 20)
+            except Exception:
+                aa_idx = 20
+
+            res_idx = residue.get_id()[1]
+
+            coords_list.append(res_coord)
+            mask_list.append(res_mask)
+            seq_list.append(aa_idx)
+            residue_index_list.append(res_idx)
+            chain_index_list.append(chain_idx)
+
+    L = len(coords_list)
+    return {
+        "coords": np.array(coords_list, dtype=np.float32),              # (L, 4, 3)
+        "mask": np.array(mask_list, dtype=np.float32),                   # (L,)
+        "sequence": np.array(seq_list, dtype=np.int32),                  # (L,)
+        "residue_index": np.array(residue_index_list, dtype=np.int32),  # (L,)
+        "chain_index": np.array(chain_index_list, dtype=np.int32),      # (L,)
+        "actual_len": L,
+    }
+
+
+def _load_pdb_fixture(pdb_dir: Path, seq_len: int) -> tuple[
+    jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, int
+]:
+    """Load PDB fixture for a given nominal seq_len.
 
     Returns
     -------
     tuple
-        (coords, mask, residue_index, chain_index) as JAX arrays
+        (coords, mask, sequence, residue_index, chain_index, actual_len)
     """
-    if not fixture_path.exists():
-        raise FileNotFoundError(f"Fixture not found: {fixture_path}")
+    if seq_len not in _PDB_MAP:
+        raise FileNotFoundError(
+            f"No PDB fixture for seq_len={seq_len}. "
+            f"Available: {list(_PDB_MAP.keys())}"
+        )
 
-    data = np.load(fixture_path)
+    pdb_file = pdb_dir / _PDB_MAP[seq_len]
+    if not pdb_file.exists():
+        raise FileNotFoundError(f"PDB fixture not found: {pdb_file}")
+
+    data = load_pdb_as_arrays(str(pdb_file))
+
     return (
         jnp.asarray(data["coords"], dtype=jnp.float32),
         jnp.asarray(data["mask"], dtype=jnp.float32),
+        jnp.asarray(data["sequence"], dtype=jnp.int32),
         jnp.asarray(data["residue_index"], dtype=jnp.int32),
         jnp.asarray(data["chain_index"], dtype=jnp.int32),
+        data["actual_len"],
     )
 
 
@@ -158,18 +263,7 @@ _PROD_ARCH = dict(
 
 
 def load_model(checkpoint_path: Path | None = None) -> Any:
-    """Load pre-trained model using production architecture.
-
-    Parameters
-    ----------
-    checkpoint_path : Path | None
-        Path to .eqx checkpoint file. Defaults to model_params/ sibling dir.
-
-    Returns
-    -------
-    Any
-        Loaded PrxteinLigandMPNN instance
-    """
+    """Load pre-trained model using production architecture."""
     from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
 
     key = random.PRNGKey(42)
@@ -177,7 +271,6 @@ def load_model(checkpoint_path: Path | None = None) -> Any:
 
     model = PrxteinLigandMPNN(**_PROD_ARCH, key=subkey)
 
-    # Resolve checkpoint: explicit > default location
     ckpt = checkpoint_path or _DEFAULT_CHECKPOINT
     if ckpt is not None and ckpt.exists():
         try:
@@ -192,125 +285,99 @@ def load_model(checkpoint_path: Path | None = None) -> Any:
     return model
 
 
-def create_inference_plan(model: Any) -> Any:
-    """Create InferencePlan from model.
+def create_inference_plan(model: Any, task: str) -> Any:
+    """Create InferencePlan from model, configured for the given task.
 
     Parameters
     ----------
-    model : Any
-        Loaded model instance
-
-    Returns
-    -------
-    Any
-        InferencePlan instance ready for encode/decode
+    task : str
+        "score_conditional" uses ConditionalMode (default make_inference_plan).
+        "ar_sample" builds InferencePlan with AutoregressiveMode.
     """
     from prxteinmpnn.host.plan import make_inference_plan
 
-    spec = _BenchmarkSpec()
-    plan = make_inference_plan(model, spec)
-    return plan
+    if task == "ar_sample":
+        from prxteinmpnn.host.plan import InferenceComponents, InferencePlan
+        from prxteinmpnn.inference.decode.factory import make_decode_fn
+        from prxteinmpnn.inference.decode.mode import AutoregressiveMode
+        from prxteinmpnn.inference.encode import make_encode_fn
+        from prxteinmpnn.inference.logits import make_stage_set
+        from prxteinmpnn.tiling.strategy import Vmap
+
+        spec = _BenchmarkSpec()
+        stage_set = make_stage_set(model, spec)
+        encode_fn = make_encode_fn(spec)
+        decode_fn = make_decode_fn(model, mode=AutoregressiveMode(), strategy=Vmap())
+        components = InferenceComponents(encode_fn=encode_fn, stage_set=stage_set)
+        return InferencePlan(model=model, components=components, decode_fn=decode_fn)
+    else:
+        # score_conditional uses ConditionalMode (make_inference_plan default)
+        spec = _BenchmarkSpec()
+        return make_inference_plan(model, spec)
 
 
 # ============================================================================
-# Timing: Cold Compile
+# Timing
 # ============================================================================
 
 
-def measure_cold_compile(
+def measure_cold_compile_score(
     plan: Any,
     bundle: Any,
-    key: PRNGKeyArray,
+    key: "PRNGKeyArray",
     config: Any,
     fixture_name: str,
 ) -> tuple[float, str]:
-    """Measure cold XLA compilation time for decode.
-
-    Disables compilation cache, clears caches, then times first execution.
-
-    Parameters
-    ----------
-    plan : Any
-        InferencePlan instance
-    bundle : Any
-        InferenceBundle
-    key : PRNGKeyArray
-        PRNG key
-    config : Any
-        InferenceConfig
-    fixture_name : str
-        For logging
-
-    Returns
-    -------
-    tuple
-        (compile_time_s, note_string)
-    """
-    # Ensure cache is disabled
+    """Measure cold XLA compilation time for score_conditional."""
     jax.config.update("jax_enable_compilation_cache", False)
     jax.clear_caches()
 
-    # First, encode (to get EncoderOutput)
     enc = plan.encode(bundle, key, config)
 
-    # Now time cold decode
     t0 = time.perf_counter()
     result = plan.decode(enc, bundle, key, config)
     jax.block_until_ready(result)
     compile_time_cold_s = time.perf_counter() - t0
 
     note = "JAX: XLA compilation; cache disabled for cold run (jax_enable_compilation_cache=False)"
-
     return compile_time_cold_s, note
 
 
-# ============================================================================
-# Timing: Warm Latency
-# ============================================================================
-
-
-def measure_warm_latency(
+def measure_cold_compile_sample(
     plan: Any,
     bundle: Any,
-    key: PRNGKeyArray,
+    key: "PRNGKeyArray",
+    config: Any,
+    fixture_name: str,
+) -> tuple[float, str]:
+    """Measure cold XLA compilation time for ar_sample."""
+    jax.config.update("jax_enable_compilation_cache", False)
+    jax.clear_caches()
+
+    t0 = time.perf_counter()
+    result = plan.sample(bundle, key, config)
+    jax.block_until_ready(result)
+    compile_time_cold_s = time.perf_counter() - t0
+
+    note = "JAX: XLA compilation; cache disabled for cold run; ar_sample uses plan.sample()"
+    return compile_time_cold_s, note
+
+
+def measure_warm_latency_score(
+    plan: Any,
+    bundle: Any,
+    key: "PRNGKeyArray",
     config: Any,
     n_warmup: int,
     n_timed: int,
 ) -> tuple[float, float, list[float]]:
-    """Measure warm decode latency with compiled kernel.
-
-    Calls decode directly (which internally uses JIT). Warm-up phase
-    allows JAX to compile and cache. Timed phase measures end-to-end latency.
-
-    Parameters
-    ----------
-    plan : Any
-        InferencePlan instance
-    bundle : Any
-        InferenceBundle
-    key : PRNGKeyArray
-        PRNG key
-    config : Any
-        InferenceConfig
-    n_warmup : int
-        Number of warmup runs
-    n_timed : int
-        Number of timed runs
-
-    Returns
-    -------
-    tuple
-        (median_latency_s, p95_latency_s, all_times_s)
-    """
-    # Encode once
+    """Measure warm latency for score_conditional (encode once, decode many)."""
     enc = plan.encode(bundle, key, config)
 
-    # Warm-up phase: call decode directly (JAX handles JIT internally)
     for _ in range(n_warmup):
         result = plan.decode(enc, bundle, key, config)
         jax.block_until_ready(result)
 
-    # Timed phase
     times = []
     for _ in range(n_timed):
         t0 = time.perf_counter()
@@ -319,10 +386,31 @@ def measure_warm_latency(
         times.append(time.perf_counter() - t0)
 
     times_arr = np.array(times)
-    median_s = float(np.median(times_arr))
-    p95_s = float(np.percentile(times_arr, 95))
+    return float(np.median(times_arr)), float(np.percentile(times_arr, 95)), times
 
-    return median_s, p95_s, times
+
+def measure_warm_latency_sample(
+    plan: Any,
+    bundle: Any,
+    key: "PRNGKeyArray",
+    config: Any,
+    n_warmup: int,
+    n_timed: int,
+) -> tuple[float, float, list[float]]:
+    """Measure warm latency for ar_sample (plan.sample end-to-end)."""
+    for _ in range(n_warmup):
+        result = plan.sample(bundle, key, config)
+        jax.block_until_ready(result)
+
+    times = []
+    for _ in range(n_timed):
+        t0 = time.perf_counter()
+        result = plan.sample(bundle, key, config)
+        jax.block_until_ready(result)
+        times.append(time.perf_counter() - t0)
+
+    times_arr = np.array(times)
+    return float(np.median(times_arr)), float(np.percentile(times_arr, 95)), times
 
 
 # ============================================================================
@@ -332,105 +420,117 @@ def measure_warm_latency(
 
 def benchmark_cell(
     model: Any,
-    fixture_dir: Path,
+    pdb_dir: Path,
     seq_len: int,
     batch_size: int,
     precision: str,
+    task: str,
     n_warmup: int = 10,
     n_timed: int = 20,
 ) -> dict[str, Any] | None:
-    """Benchmark a single (seq_len, batch_size, precision) cell.
-
-    Parameters
-    ----------
-    model : Any
-        Loaded model
-    fixture_dir : Path
-        Directory containing fixture .npz files
-    seq_len : int
-        Sequence length
-    batch_size : int
-        Batch size (number of copies of fixture to process)
-    precision : str
-        Precision string (e.g., "bf16", "fp32")
-    n_warmup : int
-        Warmup runs
-    n_timed : int
-        Timed runs
-
-    Returns
-    -------
-    dict or None
-        Result dictionary or None on failure
-    """
+    """Benchmark a single (seq_len, batch_size, precision, task) cell."""
     from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-    from prxteinmpnn.types.configs import InferenceConfig
 
     try:
-        # Load fixture
-        fixture_path = fixture_dir / f"structure_L{seq_len}.npz"
-        coords, mask, residue_index, chain_index = load_fixture(fixture_path)
+        if seq_len not in _PDB_MAP:
+            logger.info(
+                f"  Skipping L={seq_len} (no PDB fixture; have L={list(_PDB_MAP.keys())})"
+            )
+            return None
 
-        # For batch_size > 1: stack copies along the state axis (S, L, ...)
-        # build_inference_bundle accepts (S, L, 4, 3) and treats S as num_states.
-        # With AxisStrategy=Vmap the model vmaps over states, giving correct GPU
-        # occupancy for benchmarking throughput at batch_size > 1.
-        if batch_size > 1:
-            coords = jnp.stack([coords] * batch_size, axis=0)          # (B, L, 4, 3)
-            mask = jnp.stack([mask] * batch_size, axis=0)              # (B, L)
-            residue_index = jnp.stack([residue_index] * batch_size, axis=0)
-            chain_index = jnp.stack([chain_index] * batch_size, axis=0)
-
-        # Build bundle and config (no ligand for Wave 1)
-        bundle, config = build_inference_bundle(
-            coords=coords,
-            mask=mask,
-            residue_index=residue_index,
-            chain_index=chain_index,
-            ligand_coords=None,
-            ligand_atom_types=None,
-            ligand_mask=None,
-            temperature=1.0,
-            mode="score_conditional",
-            inference=True,
+        coords, mask, sequence, residue_index, chain_index, actual_len = _load_pdb_fixture(
+            pdb_dir, seq_len
         )
 
-        # Create plan
-        plan = create_inference_plan(model)
+        if seq_len != actual_len:
+            logger.info(
+                f"  Note: nominal L={seq_len}, loaded L={actual_len} from {_PDB_MAP[seq_len]}"
+            )
 
-        # PRNG key for inference
+        # For batch_size > 1: stack copies along the state axis
+        if batch_size > 1:
+            coords = jnp.stack([coords] * batch_size, axis=0)
+            mask = jnp.stack([mask] * batch_size, axis=0)
+            sequence_stacked = jnp.stack([sequence] * batch_size, axis=0)
+            residue_index = jnp.stack([residue_index] * batch_size, axis=0)
+            chain_index = jnp.stack([chain_index] * batch_size, axis=0)
+        else:
+            sequence_stacked = sequence
+
+        if task == "score_conditional":
+            bundle, config = build_inference_bundle(
+                coords=coords,
+                mask=mask,
+                residue_index=residue_index,
+                chain_index=chain_index,
+                sequence=sequence_stacked,    # native sequence from PDB
+                ligand_coords=None,
+                ligand_atom_types=None,
+                ligand_mask=None,
+                temperature=1.0,
+                mode="score_conditional",
+                inference=True,
+            )
+        else:  # ar_sample
+            bundle, config = build_inference_bundle(
+                coords=coords,
+                mask=mask,
+                residue_index=residue_index,
+                chain_index=chain_index,
+                sequence=None,               # no fixed sequence for AR sampling
+                ligand_coords=None,
+                ligand_atom_types=None,
+                ligand_mask=None,
+                temperature=1.0,
+                mode="sample",
+                inference=True,
+            )
+
+        plan = create_inference_plan(model, task)
         key = random.PRNGKey(42)
 
-        # Cold compile time
-        logger.info(f"  Computing cold compile time (seq_len={seq_len}, batch_size={batch_size})...")
-        compile_time_s, compile_note = measure_cold_compile(plan, bundle, key, config, f"L{seq_len}B{batch_size}")
+        logger.info(
+            f"  Computing cold compile time "
+            f"(seq_len={actual_len}, batch_size={batch_size}, task={task})..."
+        )
+        if task == "score_conditional":
+            compile_time_s, compile_note = measure_cold_compile_score(
+                plan, bundle, key, config, f"L{actual_len}B{batch_size}"
+            )
+        else:
+            compile_time_s, compile_note = measure_cold_compile_sample(
+                plan, bundle, key, config, f"L{actual_len}B{batch_size}"
+            )
 
-        # Warm latency
-        logger.info(f"  Computing warm latency...")
-        median_s, p95_s, times = measure_warm_latency(plan, bundle, key, config, n_warmup, n_timed)
+        logger.info("  Computing warm latency...")
+        if task == "score_conditional":
+            median_s, p95_s, times = measure_warm_latency_score(
+                plan, bundle, key, config, n_warmup, n_timed
+            )
+        else:
+            median_s, p95_s, times = measure_warm_latency_sample(
+                plan, bundle, key, config, n_warmup, n_timed
+            )
 
-        # Compute derived metrics
         latency_median_ms = median_s * 1000.0
         latency_p95_ms = p95_s * 1000.0
-        latency_per_residue_us = (median_s * 1e6) / (seq_len * batch_size)
+        latency_per_residue_us = (median_s * 1e6) / (actual_len * batch_size)
         throughput_seq_per_s = batch_size / median_s
-
-        # GPU memory: query after warmup kernels are resident
         peak_gpu_memory_gb = _query_gpu_memory_gb()
 
-        # Assemble result
         result = {
             "schema_version": "1",
             "model": "prxteinmpnn_jax",
             "hardware": "unknown",  # Set by caller
-            "seq_len": seq_len,
+            "seq_len": actual_len,
             "batch_size": batch_size,
+            "task": task,
             "precision": precision,
             "ligand_conditioning": False,
             "axis_strategy": "Vmap",
             "average_encoding_mode": "inputs_and_noise",
             "compile_time_cold_s": float(compile_time_s),
-            "compile_time_warm_s": 0.0,  # Not measured separately
+            "compile_time_warm_s": 0.0,
             "compile_time_note": compile_note,
             "latency_median_ms": float(latency_median_ms),
             "latency_p95_ms": float(latency_p95_ms),
@@ -446,7 +546,7 @@ def benchmark_cell(
         }
 
         logger.info(
-            f"  ✓ seq_len={seq_len}, batch_size={batch_size}: "
+            f"  ✓ seq_len={actual_len}, batch_size={batch_size}, task={task}: "
             f"cold={compile_time_s:.3f}s, warm_median={latency_median_ms:.2f}ms"
         )
 
@@ -465,7 +565,13 @@ def benchmark_cell(
 def main():
     """Run benchmark suite."""
     parser = argparse.ArgumentParser(
-        description="GPU benchmark for prxteinmpnn JAX adapter (Wave 1)",
+        description="GPU benchmark for prxteinmpnn JAX adapter",
+    )
+    parser.add_argument(
+        "--task",
+        choices=["score_conditional", "ar_sample"],
+        default="score_conditional",
+        help="Task to benchmark (default: score_conditional)",
     )
     parser.add_argument(
         "--seq-lens",
@@ -485,9 +591,9 @@ def main():
         "--precision",
         type=str,
         nargs="+",
-        default=["bf16"],
+        default=["fp32"],
         choices=["bf16", "fp32"],
-        help="Precisions to benchmark (default: [bf16])",
+        help="Precisions to benchmark (default: [fp32])",
     )
     parser.add_argument(
         "--hardware",
@@ -508,10 +614,16 @@ def main():
         help="Timed iterations (default: 20)",
     )
     parser.add_argument(
+        "--pdb-dir",
+        type=Path,
+        default=_DEFAULT_PDB_DIR,
+        help="Directory containing PDB fixture files 1ubq.pdb and 1SMD.pdb (default: tests/data)",
+    )
+    parser.add_argument(
         "--fixture-dir",
         type=Path,
-        default=Path("outputs/benchmark_fixtures"),
-        help="Directory containing fixture .npz files (default: outputs/benchmark_fixtures)",
+        default=None,
+        help="[DEPRECATED] Use --pdb-dir instead.",
     )
     parser.add_argument(
         "--output-json",
@@ -538,13 +650,21 @@ def main():
 
     args = parser.parse_args()
 
-    # Configure logging
     logging.basicConfig(
         level=logging.INFO,
         format="%(levelname)s: %(message)s",
     )
 
-    # Apply smoke-test defaults
+    # Handle deprecated --fixture-dir
+    if args.fixture_dir is not None:
+        warnings.warn(
+            "--fixture-dir is deprecated; use --pdb-dir instead.",
+            DeprecationWarning,
+            stacklevel=1,
+        )
+        if args.pdb_dir == _DEFAULT_PDB_DIR:
+            args.pdb_dir = args.fixture_dir
+
     if args.smoke:
         args.seq_lens = [76]
         args.batch_sizes = [1]
@@ -562,14 +682,14 @@ def main():
                 logger.warning(f"REFERENCE_PATH env set but checkpoint not found: {checkpoint_path}")
                 checkpoint_path = None
 
-    # Dry-run: just print config
     if args.dry_run:
         config = {
+            "task": args.task,
             "seq_lens": args.seq_lens,
             "batch_sizes": args.batch_sizes,
             "precisions": args.precision,
             "hardware": args.hardware,
-            "fixture_dir": str(args.fixture_dir),
+            "pdb_dir": str(args.pdb_dir),
             "checkpoint_path": str(checkpoint_path) if checkpoint_path else None,
             "n_warmup": args.n_warmup,
             "n_timed": args.n_timed,
@@ -580,15 +700,12 @@ def main():
         logger.info(json.dumps(config, indent=2))
         return 0
 
-    # Check fixture directory
-    if not args.fixture_dir.exists():
-        logger.error(f"Fixture directory not found: {args.fixture_dir}")
+    if not args.pdb_dir.exists():
+        logger.error(f"PDB directory not found: {args.pdb_dir}")
         return 1
 
-    # Set JAX defaults early
     _set_jax_defaults()
 
-    # Load model
     logger.info(f"Loading model {'with checkpoint' if checkpoint_path else 'with random init'}...")
     try:
         model = load_model(checkpoint_path)
@@ -597,7 +714,6 @@ def main():
         logger.error(f"Failed to load model: {e}")
         return 1
 
-    # Run benchmarks
     all_results = []
     total_cells = len(args.seq_lens) * len(args.batch_sizes) * len(args.precision)
     current_cell = 0
@@ -608,15 +724,17 @@ def main():
                 current_cell += 1
                 logger.info(
                     f"Benchmarking cell {current_cell}/{total_cells}: "
-                    f"seq_len={seq_len}, batch_size={batch_size}, precision={precision}"
+                    f"seq_len={seq_len}, batch_size={batch_size}, "
+                    f"precision={precision}, task={args.task}"
                 )
 
                 result = benchmark_cell(
                     model,
-                    args.fixture_dir,
+                    args.pdb_dir,
                     seq_len=seq_len,
                     batch_size=batch_size,
                     precision=precision,
+                    task=args.task,
                     n_warmup=args.n_warmup,
                     n_timed=args.n_timed,
                 )
@@ -631,7 +749,6 @@ def main():
         logger.error("No benchmarks completed successfully")
         return 1
 
-    # Write output
     output = {
         "schema_version": "1",
         "results": all_results,

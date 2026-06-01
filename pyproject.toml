@@ -222,6 +222,9 @@ dev = [
     # scipy.stats.pearsonr used in soluble/membrane parity tests.
     "scipy>=1.12.0",
 ]
+benchmark = [
+    "colabdesign",
+]
 
 [tool.setuptools.package-data]
 prxteinmpnn = ["model_params/*.eqx.zst", "py.typed"]

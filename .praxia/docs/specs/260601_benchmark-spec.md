@@ -54,7 +54,7 @@ Autoregressive decode is **bandwidth-bound**, so the expected performance order 
 | AxisStrategy | Vmap, SafeMap(tile=8), SafeMap(tile=1) | seq_len=300, batch=4, ligand=False, bf16 |
 | average_encoding_mode | inputs, noise_levels, inputs_and_noise | Vmap, batch=4, ligand=False |
 
-### 3.4 Blackwell SM120: two-run protocol
+### 3.3 Blackwell SM120: two-run protocol
 
 Blackwell (SM120) requires special treatment due to the XLA shard-autotuning hang. Run two distinct jobs on node4007/node4008:
 
@@ -65,7 +65,7 @@ Blackwell (SM120) requires special treatment due to the XLA shard-autotuning han
 
 Both runs use identical sequence lengths, batch sizes, and precision. Report them as separate rows in all benchmark tables. Do not merge or average.
 
-### 3.3 Latency decomposition (JAX-only)
+### 3.4 Latency decomposition (JAX-only)
 
 Measure encode-only, decode-only, and full encode+decode separately at seq_len=[76, 300, 500]:
 - `plan.encode(bundle, key, config)` → encode latency

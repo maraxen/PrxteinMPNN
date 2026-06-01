@@ -304,7 +304,6 @@ def measure_cold_overhead(
     feature_dict: dict[str, Any],
     batch_size: int,
     device: Any,
-    autocast_ctx: Any = None,
 ) -> tuple[float, str]:
     """Measure cold first-call overhead (CUDA kernel warmup).
 
@@ -318,19 +317,13 @@ def measure_cold_overhead(
         Batch size (number of sequences to sample)
     device : torch.device
         Device
-    autocast_ctx : context manager | None
-        Precision context (e.g. torch.amp.autocast for bf16), or None for fp32
 
     Returns
     -------
     tuple
         (overhead_time_s, note_string)
     """
-    import contextlib
     import torch
-
-    if autocast_ctx is None:
-        autocast_ctx = contextlib.nullcontext()
 
     # Set up feature dict with batch_size and randn
     L = feature_dict["X"].shape[1]
@@ -339,7 +332,7 @@ def measure_cold_overhead(
 
     # Cold first call
     t0 = time.perf_counter()
-    with torch.no_grad(), autocast_ctx:
+    with torch.no_grad():
         out = model.sample(feature_dict)
     torch.cuda.synchronize()
     overhead_s = time.perf_counter() - t0
@@ -359,7 +352,6 @@ def measure_warm_latency(
     feature_dict: dict[str, Any],
     batch_size: int,
     device: Any,
-    autocast_ctx: Any = None,
 ) -> tuple[float, float, list[float], int]:
     """Measure warm decode latency using torch.utils.benchmark.
 
@@ -373,20 +365,14 @@ def measure_warm_latency(
         Batch size
     device : torch.device
         Device
-    autocast_ctx : context manager | None
-        Precision context (e.g. torch.amp.autocast for bf16), or None for fp32
 
     Returns
     -------
     tuple
         (median_latency_s, p95_latency_s, all_times_s, n_runs)
     """
-    import contextlib
     import torch
     import torch.utils.benchmark as benchmark
-
-    if autocast_ctx is None:
-        autocast_ctx = contextlib.nullcontext()
 
     # Set up feature dict with batch_size and randn
     L = feature_dict["X"].shape[1]
@@ -395,8 +381,8 @@ def measure_warm_latency(
 
     # Use torch.utils.benchmark.Timer for warm latency
     timer = benchmark.Timer(
-        stmt="with torch.no_grad(), autocast_ctx: model.sample(fd)",
-        globals={"model": model, "fd": feature_dict, "autocast_ctx": autocast_ctx},
+        stmt="with torch.no_grad(): model.sample(fd)",
+        globals={"model": model, "fd": feature_dict},
         num_threads=1,
     )
 
@@ -473,25 +459,19 @@ def benchmark_cell(
             device=device,
         )
 
-        # Apply precision: use autocast for bf16 (keeps weights fp32, casts ops automatically).
-        # Direct weight casting breaks ops like LayerNorm that require fp32 accumulation.
-        import contextlib
-        if precision == "bf16":
-            autocast_ctx = torch.amp.autocast("cuda", dtype=torch.bfloat16)
-        else:
-            autocast_ctx = contextlib.nullcontext()
+        # LigandMPNN reference model runs fp32 natively; this is its user-facing default.
+        # bf16 is not supported by the reference implementation.
+        if precision != "fp32":
+            logger.info(f"  Skipping precision={precision}: LigandMPNN reference only supports fp32")
+            return None
 
         # Cold first-call overhead
         logger.info(f"  Computing cold first-call overhead (seq_len={seq_len}, batch_size={batch_size})...")
-        overhead_s, overhead_note = measure_cold_overhead(
-            model, feature_dict, batch_size, device, autocast_ctx
-        )
+        overhead_s, overhead_note = measure_cold_overhead(model, feature_dict, batch_size, device)
 
         # Warm latency
         logger.info(f"  Computing warm latency...")
-        median_s, p95_s, times, n_runs = measure_warm_latency(
-            model, feature_dict, batch_size, device, autocast_ctx
-        )
+        median_s, p95_s, times, n_runs = measure_warm_latency(model, feature_dict, batch_size, device)
 
         # Compute derived metrics
         latency_median_ms = median_s * 1000.0

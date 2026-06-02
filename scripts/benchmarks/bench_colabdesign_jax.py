@@ -135,26 +135,28 @@ def load_model(verbose: bool = False) -> Any:
 def prepare_pdb_input(
     model: Any,
     pdb_file: Path,
-) -> tuple[int, bool]:
+) -> tuple[int, str, bool]:
     """Prepare model inputs from PDB file via model.prep_inputs().
 
     Returns
     -------
     tuple
-        (actual_seq_len, success: bool)
+        (actual_seq_len, native_seq: str, success: bool)
     """
     if not pdb_file.exists():
         logger.warning(f"PDB file not found: {pdb_file}")
-        return -1, False
+        return -1, "", False
 
     try:
         model.prep_inputs(pdb_filename=str(pdb_file))
         actual_len = len(model._inputs.get("residue_idx", []))
-        return actual_len, True
+        from colabdesign.mpnn.model import order_aa
+        native_seq = "".join([order_aa[int(a)] for a in model._inputs["S"]])
+        return actual_len, native_seq, True
 
     except Exception as e:
         logger.warning(f"Failed to load PDB {pdb_file}: {e}")
-        return -1, False
+        return -1, "", False
 
 
 # ============================================================================
@@ -182,26 +184,19 @@ def measure_cold_compile_sample(
 
 def measure_cold_compile_score(
     model: Any,
+    native_seq: str,
     fixture_name: str,
 ) -> tuple[float, str]:
-    """Measure cold XLA compilation time for score_conditional.
-
-    ColabDesign.score() scores one sequence at a time.
-    """
+    """Measure cold XLA compilation time for score_conditional."""
     jax.config.update("jax_enable_compilation_cache", False)
     jax.clear_caches()
 
     t0 = time.perf_counter()
-    if hasattr(model, "score"):
-        result = model.score(seq=None)
-    elif hasattr(model, "get_logits"):
-        result = {"logits": model.get_logits()}
-    else:
-        raise RuntimeError("ColabDesign model has no score() or get_logits() method")
+    result = model.score(seq=native_seq)
     jax.block_until_ready(jax.tree_util.tree_leaves(result))
     compile_time_cold_s = time.perf_counter() - t0
 
-    note = "JAX: XLA compilation; cache disabled for cold run; score_conditional uses model.score()"
+    note = "JAX: XLA compilation; cache disabled for cold run; score_conditional uses model.score(seq=native_seq)"
     return compile_time_cold_s, note
 
 
@@ -229,6 +224,7 @@ def measure_warm_latency_sample(
 
 def measure_warm_latency_score(
     model: Any,
+    native_seq: str,
     batch_size: int,
     n_warmup: int,
     n_timed: int,
@@ -245,12 +241,7 @@ def measure_warm_latency_score(
         reported_batch_size=1 when sequential workaround was used.
     """
     def _score_once():
-        if hasattr(model, "score"):
-            return model.score(seq=None)
-        elif hasattr(model, "get_logits"):
-            return {"logits": model.get_logits()}
-        else:
-            raise RuntimeError("ColabDesign model has no score() or get_logits() method")
+        return model.score(seq=native_seq)
 
     for _ in range(n_warmup):
         r = _score_once()
@@ -303,7 +294,7 @@ def benchmark_cell(
 
         pdb_file = pdb_dir / _PDB_MAP[seq_len]
 
-        actual_len, success = prepare_pdb_input(model, pdb_file)
+        actual_len, native_seq, success = prepare_pdb_input(model, pdb_file)
         if not success:
             return None
         if seq_len != actual_len:
@@ -318,7 +309,7 @@ def benchmark_cell(
 
         # Check score API availability for score_conditional
         if task == "score_conditional":
-            if not hasattr(model, "score") and not hasattr(model, "get_logits"):
+            if not hasattr(model, "score"):
                 logger.warning(
                     "  ColabDesign model has no score() or get_logits() method; "
                     "skipping score_conditional cell"
@@ -358,7 +349,7 @@ def benchmark_cell(
             )
         else:  # score_conditional
             compile_time_s, compile_note = measure_cold_compile_score(
-                model, pdb_file.name
+                model, native_seq, pdb_file.name
             )
 
         # Warm latency
@@ -373,6 +364,7 @@ def benchmark_cell(
         else:  # score_conditional
             median_s, p95_s, times, reported_batch_size = measure_warm_latency_score(
                 model,
+                native_seq=native_seq,
                 batch_size=batch_size,
                 n_warmup=n_warmup,
                 n_timed=n_timed,

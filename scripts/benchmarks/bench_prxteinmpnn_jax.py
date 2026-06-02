@@ -246,40 +246,28 @@ def _load_pdb_fixture(pdb_dir: Path, seq_len: int) -> tuple[
 # ============================================================================
 
 
-_DEFAULT_CHECKPOINT = (
-    Path(__file__).parents[2] / "model_params" / "ligandmpnn_v_32_010_25_converted.eqx"
-)
-
-_PROD_ARCH = dict(
-    node_features=128,
-    edge_features=128,
-    hidden_features=128,
-    num_encoder_layers=3,
-    num_decoder_layers=3,
-    k_neighbors=32,
-)
+_DEFAULT_CHECKPOINT_ID = "proteinmpnn_v_48_020"
 
 
 def load_model(checkpoint_path: Path | None = None) -> Any:
-    """Load pre-trained model using production architecture."""
-    from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
+    """Load pre-trained model via io.weights.load_model.
+
+    Uses the bundled .eqx.zst checkpoint (always architecture-compatible).
+    Pass checkpoint_path to override with a local .eqx file.
+    """
+    from prxteinmpnn.io.weights import load_model as _load
 
     key = random.PRNGKey(42)
-    key, subkey = random.split(key)
-
-    model = PrxteinLigandMPNN(**_PROD_ARCH, key=subkey)
-
-    ckpt = checkpoint_path or _DEFAULT_CHECKPOINT
-    if ckpt is not None and ckpt.exists():
-        try:
-            model = eqx.tree_deserialise_leaves(str(ckpt), model)
-            logger.info(f"Loaded checkpoint: {ckpt}")
-        except Exception as e:
-            logger.warning(f"Could not load checkpoint {ckpt}: {e}")
-            logger.info("Continuing with random initialization")
+    local_path = str(checkpoint_path) if checkpoint_path is not None else None
+    model = _load(
+        checkpoint_id=_DEFAULT_CHECKPOINT_ID,
+        local_path=local_path,
+        key=key,
+    )
+    if local_path:
+        logger.info(f"Loaded checkpoint: {local_path}")
     else:
-        logger.warning(f"Checkpoint not found at {ckpt}; using random initialization")
-
+        logger.info(f"Loaded bundled checkpoint: {_DEFAULT_CHECKPOINT_ID}")
     return model
 
 
@@ -330,17 +318,15 @@ def measure_cold_compile_score(
     config: Any,
     fixture_name: str,
 ) -> tuple[float, str]:
-    """Measure cold XLA compilation time for score_conditional."""
+    """Measure cold XLA compilation time for score_conditional (full encode+decode)."""
     jax.clear_caches()
 
-    enc = plan.encode(bundle, key, config)
-
     t0 = time.perf_counter()
-    result = plan.decode(enc, bundle, key, config)
+    result = plan.score(bundle, key, config)
     jax.block_until_ready(result)
     compile_time_cold_s = time.perf_counter() - t0
 
-    note = "JAX: XLA compilation; cache disabled for cold run (jax_enable_compilation_cache=False)"
+    note = "JAX: XLA compilation; cold run via plan.score() (encode+decode end-to-end)"
     return compile_time_cold_s, note
 
 
@@ -371,17 +357,15 @@ def measure_warm_latency_score(
     n_warmup: int,
     n_timed: int,
 ) -> tuple[float, float, list[float]]:
-    """Measure warm latency for score_conditional (encode once, decode many)."""
-    enc = plan.encode(bundle, key, config)
-
+    """Measure warm latency for score_conditional (full encode+decode per call)."""
     for _ in range(n_warmup):
-        result = plan.decode(enc, bundle, key, config)
+        result = plan.score(bundle, key, config)
         jax.block_until_ready(result)
 
     times = []
     for _ in range(n_timed):
         t0 = time.perf_counter()
-        result = plan.decode(enc, bundle, key, config)
+        result = plan.score(bundle, key, config)
         jax.block_until_ready(result)
         times.append(time.perf_counter() - t0)
 
@@ -676,15 +660,8 @@ def main():
         args.n_timed = 3
         logger.info("Smoke test mode: minimal iterations")
 
-    # Resolve checkpoint path
+    # Resolve checkpoint path (optional — None means use bundled .eqx.zst via io.weights)
     checkpoint_path = args.reference_path
-    if checkpoint_path is None:
-        ref_path = os.environ.get("REFERENCE_PATH")
-        if ref_path:
-            checkpoint_path = Path(ref_path) / "model_params" / "ligandmpnn_v_32_010_25_converted.eqx"
-            if not checkpoint_path.exists():
-                logger.warning(f"REFERENCE_PATH env set but checkpoint not found: {checkpoint_path}")
-                checkpoint_path = None
 
     if args.dry_run:
         config = {

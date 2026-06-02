@@ -341,11 +341,11 @@ def measure_cold_compile_sample(
     jax.clear_caches()
 
     t0 = time.perf_counter()
-    result = plan.sample(bundle, key, config)
+    result = plan.sample(bundle, jax.random.fold_in(key, 0), config)
     jax.block_until_ready(result)
     compile_time_cold_s = time.perf_counter() - t0
 
-    note = "JAX: XLA compilation; cache disabled for cold run; ar_sample uses plan.sample()"
+    note = "JAX: cold run via plan.sample(); key derived with fold_in"
     return compile_time_cold_s, note
 
 
@@ -381,15 +381,20 @@ def measure_warm_latency_sample(
     n_warmup: int,
     n_timed: int,
 ) -> tuple[float, float, list[float]]:
-    """Measure warm latency for ar_sample (plan.sample end-to-end)."""
-    for _ in range(n_warmup):
-        result = plan.sample(bundle, key, config)
+    """Measure warm latency for ar_sample (plan.sample end-to-end).
+
+    Uses fold_in(key, i) per iteration — distinct subkey each call,
+    no key array allocation per step.
+    """
+    for i in range(n_warmup):
+        result = plan.sample(bundle, jax.random.fold_in(key, i), config)
         jax.block_until_ready(result)
 
     times = []
-    for _ in range(n_timed):
+    for i in range(n_timed):
+        subkey = jax.random.fold_in(key, n_warmup + i)
         t0 = time.perf_counter()
-        result = plan.sample(bundle, key, config)
+        result = plan.sample(bundle, subkey, config)
         jax.block_until_ready(result)
         times.append(time.perf_counter() - t0)
 

@@ -15,6 +15,8 @@ cd /orcd/pool/008/so3_shared/marielle/projects/tev_design
 
 export REFERENCE_PATH="${HOME}/repos/LigandMPNN"
 
+uv sync --extra cuda --extra benchmark --group benchmark --group dev
+
 uv run python prxteinmpnn/scripts/benchmarks/bench_suite.py \
     --hardware L40s \
     --output-dir outputs/results/benchmarks \
@@ -24,4 +26,5 @@ uv run python prxteinmpnn/scripts/benchmarks/bench_suite.py \
     --batch-sizes 1 4 16 \
     --precision bf16 fp32 \
     --n-warmup 10 \
-    --n-timed 20
+    --n-timed 20 \
+    --tasks score_conditional ar_sample

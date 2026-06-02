@@ -231,12 +231,12 @@ def _load_pdb_fixture(pdb_dir: Path, seq_len: int) -> tuple[
 def load_model(
     reference_path: Path,
     device: Any,
-    model_type: str = "ligand_mpnn",
+    model_type: str = "protein_mpnn",
 ) -> Any:
-    """Load pre-trained LigandMPNN model.
+    """Load pre-trained ProteinMPNN model (no-ligand variant for apples-to-apples comparison).
 
-    Uses model_type="ligand_mpnn" by default because ligandmpnn_v_32_010_25.pt
-    contains ligand-specific layers that require the ligand_mpnn architecture.
+    Uses proteinmpnn_v_48_002.pt with model_type="protein_mpnn" for the no-ligand
+    benchmark path. This avoids requiring Y/Y_t/Y_m ligand arrays in featurize().
     """
     import sys
 
@@ -245,7 +245,7 @@ def load_model(
     sys.path.insert(0, str(reference_path))
     from model_utils import ProteinMPNN
 
-    checkpoint_path = reference_path / "model_params" / "ligandmpnn_v_32_010_25.pt"
+    checkpoint_path = reference_path / "model_params" / "proteinmpnn_v_48_002.pt"
     if not checkpoint_path.exists():
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
 
@@ -787,8 +787,8 @@ def main():
             logger.error(f"Reference path error: {e}")
             return 1
 
-    # Always use ligand_mpnn for ligandmpnn_v_32_010_25.pt
-    model_type = "ligand_mpnn"
+    # Use protein_mpnn for no-ligand apples-to-apples comparison
+    model_type = "protein_mpnn"
 
     if args.dry_run:
         config = {

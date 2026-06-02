@@ -5,7 +5,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
-#SBATCH --time=2:00:00
+#SBATCH --time=4:00:00
 #SBATCH --output=outputs/logs/slurm/%j.out
 #SBATCH --error=outputs/logs/slurm/%j.err
 
@@ -22,6 +22,10 @@ fi
 
 export REFERENCE_PATH="${HOME}/repos/LigandMPNN"
 
+# Install CUDA torch + benchmark deps (colabdesign). Torch source is now PyPI
+# which serves the CUDA wheel on Linux.
+uv sync --extra cuda --extra benchmark --group benchmark --group dev
+
 uv run python prxteinmpnn/scripts/benchmarks/bench_suite.py \
     --hardware Blackwell_SM120 \
     --output-dir outputs/results/benchmarks \
@@ -31,4 +35,5 @@ uv run python prxteinmpnn/scripts/benchmarks/bench_suite.py \
     --batch-sizes 1 4 16 \
     --precision bf16 fp32 \
     --n-warmup 10 \
-    --n-timed 20
+    --n-timed 20 \
+    --tasks score_conditional ar_sample

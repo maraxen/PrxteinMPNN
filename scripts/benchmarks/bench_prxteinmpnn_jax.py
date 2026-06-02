@@ -297,7 +297,7 @@ def create_inference_plan(model: Any, task: str) -> Any:
             spec.state_weights,
         )
         encode_fn = make_encode_fn(model, use_rolling_state=spec.use_rolling_state)
-        decode_fn = make_decode_fn(model, mode=AutoregressiveMode(), strategy=Vmap())
+        decode_fn = make_decode_fn(model, mode=AutoregressiveMode(inference_only=True), strategy=Vmap())
         components = InferenceComponents(encode_fn=encode_fn, stage_set=stage_set)
         return InferencePlan(model=model, components=components, decode_fn=decode_fn)
     else:

@@ -301,7 +301,9 @@ def generate_csv_report(results: list[dict[str, Any]], output_path: Path) -> Non
                 result.get("precision", "unknown"),
                 result.get("ligand_conditioning", False),
             )
-            pytorch_baseline[key] = result.get("latency_median_ms", 0.0)
+            lat = result.get("latency_median_ms")
+            if lat is not None:
+                pytorch_baseline[key] = lat
 
     rows = []
     for result in results:
@@ -320,9 +322,9 @@ def generate_csv_report(results: list[dict[str, Any]], output_path: Path) -> Non
             result.get("ligand_conditioning", False),
         )
 
-        model_latency = result.get("latency_median_ms", 0.0)
+        model_latency = result.get("latency_median_ms")
 
-        if model_latency and model_latency > 0 and key in pytorch_baseline:
+        if model_latency is not None and model_latency > 0 and key in pytorch_baseline:
             pytorch_latency = pytorch_baseline[key]
             if pytorch_latency > 0:
                 speedup = pytorch_latency / model_latency
@@ -333,7 +335,7 @@ def generate_csv_report(results: list[dict[str, Any]], output_path: Path) -> Non
             row["speedup_vs_pytorch"] = ""
 
         # For PyTorch itself, speedup = 1.0
-        if result.get("model") == "ligandmpnn_pytorch" and model_latency > 0:
+        if result.get("model") == "ligandmpnn_pytorch" and model_latency is not None and model_latency > 0:
             row["speedup_vs_pytorch"] = "1.0"
 
         rows.append(row)

@@ -1,7 +1,9 @@
 # Sprint 6: Composable Decode Axis-Iteration Pipeline Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans`. Steps use checkbox (`- [ ]`) syntax.
+> **For agentic workers:** REQUIRED SUB-SKILL: `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans`. Steps use checkbox (`- [x]`) syntax.
 > **CRITICAL CONSTRAINT:** Sprint 6 must be developed as a **reference implementation for a future stand-alone `composable_jax` library**. The library-side surface must be domain-neutral; the app-side mode classes carry MPNN-specific kernels. `test_library_surface.py` enforces the import-graph boundary.
+
+> **Status: COMPLETE ✅** — All 14 tasks implemented. Commits on `refactor-full`. Verified 2026-06-02.
 
 **Task ID:** `260527_s6-decode-axis-composability`
 **Branch:** `refactor-full` | **Builds on:** Sprint 5 (`ee871f6d`) | **Version:** v3 (post oracle round 1)
@@ -243,33 +245,33 @@ Scan-on-state is rejected because state geometries are heterogeneous (Sprint 5 i
 
 **Files:** Create `tiling/iterator.py`, `tests/tiling/test_iterator.py`
 
-- [ ] **Step 1.1: Write tests:**
+- [x] **Step 1.1: Write tests:**
   - Protocol conformance: each concrete iterator satisfies its corresponding `runtime_checkable` Protocol via `isinstance`.
   - Numerical equivalence: `VmapIterator()(lambda x: x*2, jnp.arange(4)) == [0,2,4,6]`; same for `SafeMapIterator(tile=2)`; `JaxScanIterator()(lambda c, x: (c+x, c+x), 0, jnp.arange(4))` returns `(6, jnp.array([0,1,3,6]))`.
   - **Treedef invariant (REC-1):** `tree_structure(SomeWrapper(iter=VmapIterator())) != tree_structure(SomeWrapper(iter=SafeMapIterator(tile=4)))`. Document this is intended (re-JIT on strategy switch).
-- [ ] **Step 1.2: Implement** — `VmapIterator()` (no fields) wraps `jax.vmap`; `SafeMapIterator(tile: int = eqx.field(static=True))` wraps `safe_map`; `JaxScanIterator()` wraps `jax.lax.scan`.
-- [ ] **Step 1.3: Run tests — pass.**
-- [ ] **Step 1.4: Commit:** `feat(S6-A1): add MapIterator/ScanIterator + Vmap/SafeMap/JaxScan iterators with treedef tests`
+- [x] **Step 1.2: Implement** — `VmapIterator()` (no fields) wraps `jax.vmap`; `SafeMapIterator(tile: int = eqx.field(static=True))` wraps `safe_map`; `JaxScanIterator()` wraps `jax.lax.scan`.
+- [x] **Step 1.3: Run tests — pass.**
+- [x] **Step 1.4: Commit:** `feat(S6-A1): add MapIterator/ScanIterator + Vmap/SafeMap/JaxScan iterators with treedef tests`
 
 ### Task 2: `make_axis_dispatch` (library-side factory contract)
 
 **Files:** Create `tiling/dispatch.py`, `tests/tiling/test_dispatch.py`
 
-- [ ] **Step 2.1: Write tests:**
+- [x] **Step 2.1: Write tests:**
   - Happy path: `make_axis_dispatch(Vmap())` → `VmapIterator()`; `make_axis_dispatch(SafeMap(tile=4))` → `SafeMapIterator(tile=4)`.
   - Reject path: `make_axis_dispatch(Scan(...), axis="state")` raises `DispatchRejected` with message containing "state axis" and "heterogeneous".
-- [ ] **Step 2.2: Implement** — `DispatchRejected(PlanTopologyError)`; `make_axis_dispatch(strategy, *, axis: str = "state")` dispatches by `isinstance` on `strategy`. Raises `DispatchRejected` for `Scan` on heterogeneous axes (state is the canonical heterogeneous axis).
-- [ ] **Step 2.3: Commit:** `feat(S6-A2): add make_axis_dispatch library-side factory contract`
+- [x] **Step 2.2: Implement** — `DispatchRejected(PlanTopologyError)`; `make_axis_dispatch(strategy, *, axis: str = "state")` dispatches by `isinstance` on `strategy`. Raises `DispatchRejected` for `Scan` on heterogeneous axes (state is the canonical heterogeneous axis).
+- [x] **Step 2.3: Commit:** `feat(S6-A2): add make_axis_dispatch library-side factory contract`
 
 ### Task 3: `CarryShape` metadata struct
 
 **Files:** Create `tiling/carry_shape.py`, `tests/tiling/test_carry_shape.py`
 
-- [ ] **Step 3.1: Write tests:**
+- [x] **Step 3.1: Write tests:**
   - Frozen dataclass; equality by value.
   - `CarryShape(name="sequence", shape=(L,), dtype=jnp.int32).materialize()` returns `jnp.zeros((L,), dtype=jnp.int32)`.
   - Distinct from `CarrySpec`: assert `tiling.carry.CarrySpec` and `tiling.carry_shape.CarryShape` are different types.
-- [ ] **Step 3.2: Implement:**
+- [x] **Step 3.2: Implement:**
   ```python
   @dataclass(frozen=True)
   class CarryShape:
@@ -279,42 +281,42 @@ Scan-on-state is rejected because state geometries are heterogeneous (Sprint 5 i
       def materialize(self) -> jax.Array:
           return jnp.zeros(self.shape, dtype=self.dtype)
   ```
-- [ ] **Step 3.3: Commit:** `feat(S6-A3): add CarryShape metadata struct (Risk D-10 mitigation)`
+- [x] **Step 3.3: Commit:** `feat(S6-A3): add CarryShape metadata struct (Risk D-10 mitigation)`
 
 ### Task 4: `DecodeMode` sealed union + 3 decode protocols
 
 **Files:** Create `inference/decode/mode.py`, `inference/decode/protocols.py`, `tests/inference/decode/test_mode.py`
 
-- [ ] **Step 4.1: Write tests** — 6 tests:
+- [x] **Step 4.1: Write tests** — 6 tests:
   - Each mode is a frozen dataclass.
   - Equality by value.
   - `AutoregressiveMode()` has no W-axis fields (oracle CONCERN-6).
   - `STEMode().inner_mode == ConditionalMode()`.
   - `isinstance(x, DecodeMode)` for all four.
   - 3 protocols (`DecodeScoreFn`, `ARDecodeFn`, `STEDecodeFn`) are `Callable` aliases distinguishable by return-type annotations (mypy/pyright check, not runtime).
-- [ ] **Step 4.2: Implement** `mode.py` — sealed union of 4 modes as frozen dataclasses.
-- [ ] **Step 4.3: Implement** `protocols.py` — 3 Callable type aliases + `DecoderSinkFn`. NO `@runtime_checkable` (Pattern 5 skill caution).
-- [ ] **Step 4.4: Commit:** `feat(S6-A4): add DecodeMode union + 3 decode protocols (app-side)`
+- [x] **Step 4.2: Implement** `mode.py` — sealed union of 4 modes as frozen dataclasses.
+- [x] **Step 4.3: Implement** `protocols.py` — 3 Callable type aliases + `DecoderSinkFn`. NO `@runtime_checkable` (Pattern 5 skill caution).
+- [x] **Step 4.4: Commit:** `feat(S6-A4): add DecodeMode union + 3 decode protocols (app-side)`
 
 ### Task 5: `_ConditionalDecodeBase` ABC + shared kernel helpers
 
 **Files:** Create `inference/decode/_base.py`, `inference/decode/_kernel.py`, `tests/inference/decode/test_kernel.py`
 
-- [ ] **Step 5.1: Write golden-snapshot tests:**
+- [x] **Step 5.1: Write golden-snapshot tests:**
   - `_decode_one_step(model, node_f, edge_f, nei, mask, ar_mask, sequence_oh) -> (L, H)` matches current `driver.py:_decode_conditional` inner body to machine precision on a fixture.
   - `_project_logits(model, decoded) -> (S, L, V)` matches.
   - **NEW (Risk D-2):** `_tied_group_einsum_average(logits, tie_group_map, num_groups) -> averaged_logits` matches the einsum block in `optimize_ste.py:197-207` on a fixture with tied positions.
-- [ ] **Step 5.2: Extract** the bodies into pure functions in `_kernel.py`.
-- [ ] **Step 5.3: Implement `_ConditionalDecodeBase(eqx.Module, ABC)`** — abstract method `__call__(self, key, enc, bundle, config, stage_set) -> Logits`. Provides shared `_apply_logit_transform` helper.
-- [ ] **Step 5.4: Commit:** `feat(S6-A5): add _ConditionalDecodeBase ABC + pure kernel helpers (incl. tied-group einsum)`
+- [x] **Step 5.2: Extract** the bodies into pure functions in `_kernel.py`.
+- [x] **Step 5.3: Implement `_ConditionalDecodeBase(eqx.Module, ABC)`** — abstract method `__call__(self, key, enc, bundle, config, stage_set) -> Logits`. Provides shared `_apply_logit_transform` helper.
+- [x] **Step 5.4: Commit:** `feat(S6-A5): add _ConditionalDecodeBase ABC + pure kernel helpers (incl. tied-group einsum)`
 
 ### Task 6: `StageSet.decoder_sink` slot
 
 **Files:** Modify `types/stages.py`, create `tests/types/test_stages_decoder_sink.py`
 
-- [ ] **Step 6.1: Write test** — assert `StageSet.decoder_sink` defaults to `()`, is `eqx.field(static=True)`, and treedef leaves count is unchanged from pre-Sprint-6 (S5 Risk 1 invariant).
-- [ ] **Step 6.2: Add slot.** Update `make_stage_set` signature accordingly.
-- [ ] **Step 6.3: Commit:** `feat(S6-A6): add decoder_sink slot to StageSet`
+- [x] **Step 6.1: Write test** — assert `StageSet.decoder_sink` defaults to `()`, is `eqx.field(static=True)`, and treedef leaves count is unchanged from pre-Sprint-6 (S5 Risk 1 invariant).
+- [x] **Step 6.2: Add slot.** Update `make_stage_set` signature accordingly.
+- [x] **Step 6.3: Commit:** `feat(S6-A6): add decoder_sink slot to StageSet`
 
 ---
 
@@ -324,18 +326,18 @@ Scan-on-state is rejected because state geometries are heterogeneous (Sprint 5 i
 
 **Files:** Create `inference/decode/conditional.py`, `tests/inference/decode/test_conditional.py`
 
-- [ ] **Step 7.1: Write parity tests** — `ConditionalDecode(model=m, state_iterator=VmapIterator())` matches `driver.py:_decode_conditional(m, ...)` on fixtures: **S=1, S=4, S=8** (oracle round-1 fixture mandate). Same with `state_iterator=SafeMapIterator(tile=2)`. Tolerance ≤1e-6.
-- [ ] **Step 7.2: Implement `ConditionalDecode(_ConditionalDecodeBase)`** — fields `model: Any = eqx.field(static=True)`, `state_iterator: MapIterator`. `__call__(self, key, enc, bundle, config, stage_set)` calls `self.state_iterator(per_state_fn, encoder_outputs)`. NO branching on `state_iterator` type.
-- [ ] **Step 7.3: Run parity tests.**
-- [ ] **Step 7.4: Commit:** `feat(S6-B7): add ConditionalDecode mode class`
+- [x] **Step 7.1: Write parity tests** — `ConditionalDecode(model=m, state_iterator=VmapIterator())` matches `driver.py:_decode_conditional(m, ...)` on fixtures: **S=1, S=4, S=8** (oracle round-1 fixture mandate). Same with `state_iterator=SafeMapIterator(tile=2)`. Tolerance ≤1e-6.
+- [x] **Step 7.2: Implement `ConditionalDecode(_ConditionalDecodeBase)`** — fields `model: Any = eqx.field(static=True)`, `state_iterator: MapIterator`. `__call__(self, key, enc, bundle, config, stage_set)` calls `self.state_iterator(per_state_fn, encoder_outputs)`. NO branching on `state_iterator` type.
+- [x] **Step 7.3: Run parity tests.**
+- [x] **Step 7.4: Commit:** `feat(S6-B7): add ConditionalDecode mode class`
 
 ### Task 8: `UnconditionalDecode`
 
 **Files:** Create `inference/decode/unconditional.py`, `tests/inference/decode/test_unconditional.py`
 
-- [ ] **Step 8.1: Write parity tests** — same fixture coverage as Task 7.
-- [ ] **Step 8.2: Implement** — same shape as Task 7; `__call__` does not consume `sequence_oh`.
-- [ ] **Step 8.3: Commit:** `feat(S6-B8): add UnconditionalDecode mode class`
+- [x] **Step 8.1: Write parity tests** — same fixture coverage as Task 7.
+- [x] **Step 8.2: Implement** — same shape as Task 7; `__call__` does not consume `sequence_oh`.
+- [x] **Step 8.3: Commit:** `feat(S6-B8): add UnconditionalDecode mode class`
 
 ---
 
@@ -347,11 +349,11 @@ Scan-on-state is rejected because state geometries are heterogeneous (Sprint 5 i
 
 The AR case has TWO scans in current code: the wave-scan with sequence carry (`driver.py:427`) + the post-hoc scatter-scan that maps per-wave logits back to per-position (`driver.py:443`). Sprint 6 fuses **only the wave-scan into the iterator**; the scatter stays post-hoc inside `__call__` (Risk D-11).
 
-- [ ] **Step 9.1: Write parity tests:**
+- [x] **Step 9.1: Write parity tests:**
   - `AutoregressiveDecode(model=m, state_iterator=VmapIterator(), wave_iterator=JaxScanIterator(), wave_carry=CarryShape("sequence", (L,), jnp.int32), decoding_order_fn=...)` matches `driver.py:decode_ar(m, ...)` on fixtures (S=1, S=4) with tied positions and untied positions. Tolerance ≤1e-6.
   - S-axis parity: Vmap vs SafeMap inside scan body matches.
   - CarryShape round-trip: `wave_carry.materialize().shape == (L,)`, `.dtype == jnp.int32`.
-- [ ] **Step 9.2: Implement `AutoregressiveDecode(eqx.Module)`** — fields:
+- [x] **Step 9.2: Implement `AutoregressiveDecode(eqx.Module)`** — fields:
   - `model: Any = eqx.field(static=True)`
   - `decoding_order_fn: DecodingOrderFn = eqx.field(static=True)`
   - `state_iterator: MapIterator`
@@ -364,9 +366,9 @@ The AR case has TWO scans in current code: the wave-scan with sequence carry (`d
   3. Call `final_sequence, logits_stack = self.wave_iterator(scan_body, init, jnp.arange(n_waves))`.
   4. **Post-hoc scatter** (NOT in iterator): `logits = jax.lax.scan(scatter_logits, jnp.zeros((L, V)), jnp.arange(n_waves))[0]` — preserves current `driver.py:443` behavior.
   5. Return `SampleResult(final_sequence, logits, ...)`.
-- [ ] **Step 9.3: Tie-group integration** — `stage_set.ar_logit_transform` and `stage_set.tie_group_fuse` called from kernel helpers (already vmapped over L); pass-through unchanged.
-- [ ] **Step 9.4: Run all parity tests.**
-- [ ] **Step 9.5: Commit:** `feat(S6-C9): add AutoregressiveDecode with CarryShape + post-hoc scatter`
+- [x] **Step 9.3: Tie-group integration** — `stage_set.ar_logit_transform` and `stage_set.tie_group_fuse` called from kernel helpers (already vmapped over L); pass-through unchanged.
+- [x] **Step 9.4: Run all parity tests.**
+- [x] **Step 9.5: Commit:** `feat(S6-C9): add AutoregressiveDecode with CarryShape + post-hoc scatter`
 
 ---
 
@@ -376,13 +378,13 @@ The AR case has TWO scans in current code: the wave-scan with sequence carry (`d
 
 **Files:** Create `inference/decode/ste.py`, `tests/inference/decode/test_ste.py`
 
-- [ ] **Step 10.1: Write parity tests** — `STEDecode(inner=ConditionalDecode(model=m, state_iterator=VmapIterator()), iterations=10, optimizer=optax.adam(1e-3))` matches current `make_optimize_sequence_fn(...)` on fixtures including:
+- [x] **Step 10.1: Write parity tests** — `STEDecode(inner=ConditionalDecode(model=m, state_iterator=VmapIterator()), iterations=10, optimizer=optax.adam(1e-3))` matches current `make_optimize_sequence_fn(...)` on fixtures including:
   - Untied positions (S=4, L=20)
   - **Tied positions: `tie_group_map=[0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9]`, `num_groups=10`, S=4, L=20** (Risk D-2 fixture mandate from oracle CONCERN-2)
   - Single state (S=1, both tied and untied)
   - Tolerance ≤1e-5.
-- [ ] **Step 10.2: Write stage_set projection test** — when input `stage_set` has `ar_logit_transform` and `tie_group_fuse` set, the inner's `stage_set` (after `_project_stage_set_for_ste`) contains only `logit_transform`.
-- [ ] **Step 10.3: Implement `STEDecode(eqx.Module)`** — fields:
+- [x] **Step 10.2: Write stage_set projection test** — when input `stage_set` has `ar_logit_transform` and `tie_group_fuse` set, the inner's `stage_set` (after `_project_stage_set_for_ste`) contains only `logit_transform`.
+- [x] **Step 10.3: Implement `STEDecode(eqx.Module)`** — fields:
   - `inner: _ConditionalDecodeBase` (a `ConditionalDecode` instance bound to a `MapIterator`)
   - `iterations: int = eqx.field(static=True)`
   - `optimizer: Any = eqx.field(static=True)`
@@ -399,22 +401,22 @@ The AR case has TWO scans in current code: the wave-scan with sequence carry (`d
   5. `jax.lax.fori_loop(0, self.iterations, update_step, init_state)`.
   6. Final STE pass; return `(sequence, logits_a, logits_b)`.
   - Optional `jax.checkpoint` on the loss_fn (gated by env var or config flag).
-- [ ] **Step 10.4: Run parity tests** including the tied-positions fixture.
-- [ ] **Step 10.5: Commit:** `feat(S6-D10): add STEDecode (reproduces tied-group einsum per Risk D-2)`
+- [x] **Step 10.4: Run parity tests** including the tied-positions fixture.
+- [x] **Step 10.5: Commit:** `feat(S6-D10): add STEDecode (reproduces tied-group einsum per Risk D-2)`
 
 ### Task 11: `make_decode_fn` factory (mode-context wrapping)
 
 **Files:** Create `inference/decode/factory.py`, `tests/inference/decode/test_factory.py`
 
-- [ ] **Step 11.1: Write factory tests:**
+- [x] **Step 11.1: Write factory tests:**
   - Happy path: `(ConditionalMode(), Vmap())` → `ConditionalDecode(state_iterator=VmapIterator())` (assert iterator field type).
   - `(UnconditionalMode(), SafeMap(tile=4))` → `UnconditionalDecode(state_iterator=SafeMapIterator(tile=4))`.
   - `(AutoregressiveMode(), Vmap())` → `AutoregressiveDecode` with `wave_iterator: JaxScanIterator()`, `wave_carry: CarryShape("sequence", ...)`.
   - `(STEMode(inner_mode=ConditionalMode(), iterations=50), Vmap())` → `STEDecode(inner=ConditionalDecode(state_iterator=VmapIterator()), iterations=50)`.
   - **Reject path with mode-name context (Risk D-12):** `make_decode_fn(model, ConditionalMode(), Scan(...))` raises `DispatchRejected` with message matching `"ConditionalMode.*state axis.*heterogeneous"`.
-- [ ] **Step 11.2: Implement** — dispatch by `isinstance(mode, ...)`. Each branch calls `make_axis_dispatch(strategy, axis="state")` first and wraps any `DispatchRejected` to add `f"in mode {type(mode).__name__}"` context, then constructs the mode class.
-- [ ] **Step 11.3: Implement `_project_stage_set_for_ste(stage_set: StageSet) -> StageSet`** — returns a StageSet with only `logit_transform` populated; called by the `STEMode` branch.
-- [ ] **Step 11.4: Commit:** `feat(S6-D11): add make_decode_fn factory with mode-name-wrapped DispatchRejected`
+- [x] **Step 11.2: Implement** — dispatch by `isinstance(mode, ...)`. Each branch calls `make_axis_dispatch(strategy, axis="state")` first and wraps any `DispatchRejected` to add `f"in mode {type(mode).__name__}"` context, then constructs the mode class.
+- [x] **Step 11.3: Implement `_project_stage_set_for_ste(stage_set: StageSet) -> StageSet`** — returns a StageSet with only `logit_transform` populated; called by the `STEMode` branch.
+- [x] **Step 11.4: Commit:** `feat(S6-D11): add make_decode_fn factory with mode-name-wrapped DispatchRejected`
 
 ### Task 12: Planner validator extension
 
@@ -422,16 +424,16 @@ The AR case has TWO scans in current code: the wave-scan with sequence carry (`d
 
 The validator gets **two** new rules (Rule 3 from v2 dropped per oracle CONCERN-6 — there's no W-axis BatchPlanner knob to validate).
 
-- [ ] **Step 12.1: Write tests:**
+- [x] **Step 12.1: Write tests:**
   - **Rule 1** (via `make_decode_fn` end-to-end): `make_decode_fn(model, ConditionalMode(), Scan(init=jnp.zeros(()), transition=lambda c,x:(c,x)))` raises `DispatchRejected` with message containing both `"ConditionalMode"` AND `"heterogeneous"`.
   - **Rule 2** (validator-direct): a plan whose `stage_set.decode_step` is `UnconditionalDecodeStep(...)` and whose `decode_fn` is `STEDecode(...)` triggers `PlanTopologyError` at `_validate_plan_topology` call time.
-- [ ] **Step 12.2: Implement Rule 2** in `_validate_plan_topology`:
+- [x] **Step 12.2: Implement Rule 2** in `_validate_plan_topology`:
   ```python
   if isinstance(plan.decode_fn, STEDecode) and isinstance(plan.stage_set.decode_step, UnconditionalDecodeStep):
       raise PlanTopologyError("STEMode requires ConditionalDecodeStep; got UnconditionalDecodeStep")
   ```
   Rule 1 is enforced by `make_decode_fn` (factory level); validator tests confirm the message.
-- [ ] **Step 12.3: Commit:** `feat(S6-D12): extend plan topology validator (two new rules; W-axis rule dropped per oracle)`
+- [x] **Step 12.3: Commit:** `feat(S6-D12): extend plan topology validator (two new rules; W-axis rule dropped per oracle)`
 
 ---
 
@@ -441,77 +443,77 @@ The validator gets **two** new rules (Rule 3 from v2 dropped per oracle CONCERN-
 
 **Files:** Modify `host/plan.py`, `inference/optimize_ste.py`, tests in `tests/host/`
 
-- [ ] **Step 13.1: Write integration test** — `plan.sample(...)` and `plan.score(...)` route through `plan.decode_fn`; instrument the mode class (or assert via PyTree leaf inspection) that it was called.
-- [ ] **Step 13.2: Update `InferencePlan`** — add `decode_fn: DecodeScoreFn | ARDecodeFn | STEDecodeFn`. `make_inference_plan` calls `make_decode_fn(model, mode, strategy)` once and stores the result.
-- [ ] **Step 13.3: Update `make_optimize_sequence_fn`** (oracle REC-5: hard-cut):
+- [x] **Step 13.1: Write integration test** — `plan.sample(...)` and `plan.score(...)` route through `plan.decode_fn`; instrument the mode class (or assert via PyTree leaf inspection) that it was called.
+- [x] **Step 13.2: Update `InferencePlan`** — add `decode_fn: DecodeScoreFn | ARDecodeFn | STEDecodeFn`. `make_inference_plan` calls `make_decode_fn(model, mode, strategy)` once and stores the result.
+- [x] **Step 13.3: Update `make_optimize_sequence_fn`** (oracle REC-5: hard-cut):
   - **Require** `stage_set: StageSet` (NO `None` default).
   - Construct `STEDecode` from the input stage_set via the factory.
   - No `DeprecationWarning`. Calling without `stage_set` raises `TypeError` (Python signature).
-- [ ] **Step 13.4: grep + migrate** all callers of `make_optimize_sequence_fn` in `src/`, `tests/`, and `scripts/` to pass `stage_set`.
-- [ ] **Step 13.5: Run full suite** — `uv run pytest -q --tb=short` must pass.
-- [ ] **Step 13.6: Commit:** `feat(S6-E13): InferencePlan.decode_fn; hard-cut STE to require stage_set`
+- [x] **Step 13.4: grep + migrate** all callers of `make_optimize_sequence_fn` in `src/`, `tests/`, and `scripts/` to pass `stage_set`.
+- [x] **Step 13.5: Run full suite** — `uv run pytest -q --tb=short` must pass.
+- [x] **Step 13.6: Commit:** `feat(S6-E13): InferencePlan.decode_fn; hard-cut STE to require stage_set`
 
 ### Task 14: Retire `driver.py` decode functions + library-surface lint
 
 **Files:** Modify `inference/driver.py`, sweep, create `tests/inference/decode/test_library_surface.py`
 
-- [ ] **Step 14.1: Broad grep audit** (oracle REC-6):
+- [x] **Step 14.1: Broad grep audit** (oracle REC-6):
   ```bash
   grep -rn "_decode_conditional\|_decode_unconditional\|^def decode_ar\|getattr.*decode\|setattr.*decode\|driver\.decode_ar\|import_module.*driver\|__import__.*driver" src/ tests/ scripts/
   ```
   Record every caller; migrate to `plan.score()` / `plan.sample()` / `plan.decode_fn(...)`.
-- [ ] **Step 14.2: Verify** `host/plan.py:driver=driver_module.decode` router is preserved (it's the thin shim that survives).
-- [ ] **Step 14.3: Delete** `_decode_conditional`, `_decode_unconditional`, `decode_ar` from `driver.py`. Keep `decode()` and `infer_topology()` as ≤10-LOC routers.
-- [ ] **Step 14.4: Write `test_library_surface.py`** (REC-3):
+- [x] **Step 14.2: Verify** `host/plan.py:driver=driver_module.decode` router is preserved (it's the thin shim that survives).
+- [x] **Step 14.3: Delete** `_decode_conditional`, `_decode_unconditional`, `decode_ar` from `driver.py`. Keep `decode()` and `infer_topology()` as ≤10-LOC routers.
+- [x] **Step 14.4: Write `test_library_surface.py`** (REC-3):
   - AST-walks every `.py` file under `tiling/`, `types/` (excluding `types/stages.py` which is a shared bridge).
   - Treats `if TYPE_CHECKING:` imports the same as runtime imports.
   - Asserts no `from prxteinmpnn.{inference,model,sampling,scoring,run,host,io}.* import ...` exists in any library-side file.
   - Explicit negative test: a deliberately-bad file (or string fixture) containing `from prxteinmpnn.inference.driver import decode_ar` is asserted to be **detected** by the lint.
   - Allowed: `jax`, `jax.numpy`, `equinox`, `jaxtyping`, `optax`, stdlib.
-- [ ] **Step 14.5: Run full suite — 0 failures required.**
-- [ ] **Step 14.6: Commit:** `refactor(S6-E14): retire driver.py decode functions; add library-surface lint with TYPE_CHECKING coverage`
+- [x] **Step 14.5: Run full suite — 0 failures required.**
+- [x] **Step 14.6: Commit:** `refactor(S6-E14): retire driver.py decode functions; add library-surface lint with TYPE_CHECKING coverage`
 
 ---
 
 ## Self-Review Checklist
 
 **Spec coverage:**
-- [ ] `MapIterator`/`ScanIterator` + 3 concrete iterators + treedef tests (Task 1; REC-1)
-- [ ] `make_axis_dispatch` library-side factory contract (Task 2)
-- [ ] `CarryShape` metadata struct (Task 3; CONCERN-1)
-- [ ] `DecodeMode` + 3 decode protocols (Task 4; REC-2, REC-4)
-- [ ] `_ConditionalDecodeBase` ABC + `_kernel.py` incl. `_tied_group_einsum_average` (Task 5; CONCERN-2)
-- [ ] `StageSet.decoder_sink` slot only (Task 6)
-- [ ] `ConditionalDecode` (Task 7)
-- [ ] `UnconditionalDecode` (Task 8)
-- [ ] `AutoregressiveDecode` with `CarryShape` + post-hoc scatter (Task 9; CONCERN-3)
-- [ ] `STEDecode` reproducing tied-group einsum (Task 10; CONCERN-2)
-- [ ] `make_decode_fn` factory with mode-context wrap (Task 11; CONCERN-5)
-- [ ] Planner validator: 2 rules (Rule 1 message-level via factory; Rule 2 STE+Unconditional) (Task 12; CONCERN-6 drop)
-- [ ] `InferencePlan.decode_fn` + hard-cut STE (Task 13; REC-5)
-- [ ] `driver.py` retired + library-surface lint (Task 14; REC-3, REC-6)
+- [x] `MapIterator`/`ScanIterator` + 3 concrete iterators + treedef tests (Task 1; REC-1)
+- [x] `make_axis_dispatch` library-side factory contract (Task 2)
+- [x] `CarryShape` metadata struct (Task 3; CONCERN-1)
+- [x] `DecodeMode` + 3 decode protocols (Task 4; REC-2, REC-4)
+- [x] `_ConditionalDecodeBase` ABC + `_kernel.py` incl. `_tied_group_einsum_average` (Task 5; CONCERN-2)
+- [x] `StageSet.decoder_sink` slot only (Task 6)
+- [x] `ConditionalDecode` (Task 7)
+- [x] `UnconditionalDecode` (Task 8)
+- [x] `AutoregressiveDecode` with `CarryShape` + post-hoc scatter (Task 9; CONCERN-3)
+- [x] `STEDecode` reproducing tied-group einsum (Task 10; CONCERN-2)
+- [x] `make_decode_fn` factory with mode-context wrap (Task 11; CONCERN-5)
+- [x] Planner validator: 2 rules (Rule 1 message-level via factory; Rule 2 STE+Unconditional) (Task 12; CONCERN-6 drop)
+- [x] `InferencePlan.decode_fn` + hard-cut STE (Task 13; REC-5)
+- [x] `driver.py` retired + library-surface lint (Task 14; REC-3, REC-6)
 
 **Risks addressed:**
-- [ ] D-1: Shared `_kernel.py` prevents variant drift
-- [ ] D-2: `STEDecode` reproduces tied-group einsum + fixture coverage at Task 10
-- [ ] D-3: No user-facing W-axis knob — invariant only, not validator rule
-- [ ] D-4: 4 mode classes × injected iterator (linear)
-- [ ] D-5: Library surface limited to `tiling/` + existing types
-- [ ] D-6: Wave E sequencing + broader grep audit
-- [ ] D-7: `_ConditionalDecodeBase` mediates STE↔Conditional
-- [ ] D-8: `decode_fn` on `InferencePlan`, not `StageSet`
-- [ ] D-9: Pre/post-process hooks deferred
-- [ ] D-10: `CarryShape` introduced; `CarrySpec` unchanged
-- [ ] D-11: Scatter scan stays post-hoc in `AutoregressiveDecode.__call__`
-- [ ] D-12: `make_decode_fn` wraps `DispatchRejected` with mode-name context
-- [ ] D-13: Hard-cut STE, no DeprecationWarning
+- [x] D-1: Shared `_kernel.py` prevents variant drift
+- [x] D-2: `STEDecode` reproduces tied-group einsum + fixture coverage at Task 10
+- [x] D-3: No user-facing W-axis knob — invariant only, not validator rule
+- [x] D-4: 4 mode classes × injected iterator (linear)
+- [x] D-5: Library surface limited to `tiling/` + existing types
+- [x] D-6: Wave E sequencing + broader grep audit
+- [x] D-7: `_ConditionalDecodeBase` mediates STE↔Conditional
+- [x] D-8: `decode_fn` on `InferencePlan`, not `StageSet`
+- [x] D-9: Pre/post-process hooks deferred
+- [x] D-10: `CarryShape` introduced; `CarrySpec` unchanged
+- [x] D-11: Scatter scan stays post-hoc in `AutoregressiveDecode.__call__`
+- [x] D-12: `make_decode_fn` wraps `DispatchRejected` with mode-name context
+- [x] D-13: Hard-cut STE, no DeprecationWarning
 
 **Invariants preserved (CLAUDE.md):**
-- [ ] `InferenceBundle` and sub-bundles: not touched
-- [ ] `SamplerFn`/`ScoreFn` top-level signatures: not touched
-- [ ] Kernel math: relocated only, not rewritten
-- [ ] `make_stage_set` single construction site
-- [ ] Sprint 5 primitives consumed unchanged (`CarrySpec` API NOT modified — new `CarryShape` is additive)
+- [x] `InferenceBundle` and sub-bundles: not touched
+- [x] `SamplerFn`/`ScoreFn` top-level signatures: not touched
+- [x] Kernel math: relocated only, not rewritten
+- [x] `make_stage_set` single construction site
+- [x] Sprint 5 primitives consumed unchanged (`CarrySpec` API NOT modified — new `CarryShape` is additive)
 
 **Wave sequencing:**
 - Wave A (Tasks 1–6): parallel-safe foundation

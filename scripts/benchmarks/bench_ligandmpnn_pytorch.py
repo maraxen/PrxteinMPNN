@@ -235,7 +235,7 @@ def load_model(
 ) -> Any:
     """Load pre-trained ProteinMPNN model (no-ligand variant for apples-to-apples comparison).
 
-    Uses proteinmpnn_v_48_002.pt with model_type="protein_mpnn" for the no-ligand
+    Uses proteinmpnn_v_48_020.pt with model_type="protein_mpnn" for the no-ligand
     benchmark path. This avoids requiring Y/Y_t/Y_m ligand arrays in featurize().
     """
     import sys
@@ -245,7 +245,7 @@ def load_model(
     sys.path.insert(0, str(reference_path))
     from model_utils import ProteinMPNN
 
-    checkpoint_path = reference_path / "model_params" / "proteinmpnn_v_48_002.pt"
+    checkpoint_path = reference_path / "model_params" / "proteinmpnn_v_48_020.pt"
     if not checkpoint_path.exists():
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
 
@@ -322,7 +322,7 @@ def prepare_feature_dict(
     feature_dict = featurize(protein_dict, model_type=model_type, number_of_ligand_atoms=atom_context_num)
 
     L = feature_dict["X"].shape[1]
-    feature_dict["temperature"] = 0.1
+    feature_dict["temperature"] = 1.0
     feature_dict["bias"] = torch.zeros([1, L, 21], device=device)
     feature_dict["symmetry_residues"] = []
     feature_dict["symmetry_weights"] = []

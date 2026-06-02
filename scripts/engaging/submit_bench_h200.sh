@@ -1,0 +1,30 @@
+#!/bin/bash
+#SBATCH --job-name=bench-full-h200
+#SBATCH --partition=pi_so3
+#SBATCH --nodelist=node4009
+#SBATCH --gres=gpu:1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=4:00:00
+#SBATCH --output=outputs/logs/slurm/%j.out
+#SBATCH --error=outputs/logs/slurm/%j.err
+
+set -euo pipefail
+
+cd /orcd/pool/008/so3_shared/marielle/projects/tev_design
+
+export REFERENCE_PATH="${HOME}/repos/LigandMPNN"
+
+uv sync --extra cuda --extra benchmark --group benchmark --group dev
+
+uv run python prxteinmpnn/scripts/benchmarks/bench_suite.py \
+    --hardware H200 \
+    --output-dir outputs/results/benchmarks \
+    --fixture-dir outputs/benchmark_fixtures \
+    --pdb-dir prxteinmpnn/tests/data \
+    --seq-lens 76 150 300 500 \
+    --batch-sizes 1 4 16 \
+    --precision bf16 fp32 \
+    --n-warmup 10 \
+    --n-timed 20 \
+    --tasks score_conditional ar_sample

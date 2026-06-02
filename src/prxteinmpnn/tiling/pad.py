@@ -60,15 +60,16 @@ def pad_bundle(bundle: InferenceBundle, target_length: int) -> InferenceBundle:
   # Assuming ligand has its own padding upstream.
 
   # Wave schedule
-  # If wave schedule is used, wave length must also match target_length
+  # Pad n_waves (dim 0) to target_length so the AR scan sees a fixed step count.
+  # group_ids shape is (n_waves, max_group_size); we pad the wave axis, not the group axis.
   wave = bundle.wave
-  W, L_wave = wave.group_ids.shape
-  if L_wave < target_length:
-    pad_wave = target_length - L_wave
-    group_ids = jnp.pad(wave.group_ids, ((0, 0), (0, pad_wave)))
-    group_positions = jnp.pad(wave.group_positions, ((0, 0), (0, pad_wave), (0, 0)))
-    group_valid = jnp.pad(wave.group_valid, ((0, 0), (0, pad_wave)))
-    position_valid = jnp.pad(wave.position_valid, ((0, 0), (0, pad_wave), (0, 0)))
+  n_waves, G = wave.group_ids.shape
+  if n_waves < target_length:
+    pad_wave = target_length - n_waves
+    group_ids = jnp.pad(wave.group_ids, ((0, pad_wave), (0, 0)))
+    group_positions = jnp.pad(wave.group_positions, ((0, pad_wave), (0, 0), (0, 0)))
+    group_valid = jnp.pad(wave.group_valid, ((0, pad_wave), (0, 0)))
+    position_valid = jnp.pad(wave.position_valid, ((0, pad_wave), (0, 0), (0, 0)))
 
     new_wave = eqx.tree_at(
       lambda w: (w.group_ids, w.group_positions, w.group_valid, w.position_valid),

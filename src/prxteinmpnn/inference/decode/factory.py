@@ -96,7 +96,6 @@ def make_decode_fn(
 
     if isinstance(mode, AutoregressiveMode):
       state_iter = make_axis_dispatch(strategy, axis="state")
-      # Wave axis is always JaxScanIterator (structural invariant, Risk D-3)
       wave_iter = JaxScanIterator()
       # Default wave_carry shape (L=1024); actual shape materialized in __call__
       wave_carry = CarryShape(name="sequence", shape=(1024,), dtype=jnp.int32)
@@ -110,6 +109,9 @@ def make_decode_fn(
         state_iterator=state_iter,
         wave_iterator=wave_iter,
         wave_carry=wave_carry,
+        # inference_only=True selects lax.while_loop: faster to compile,
+        # not reverse-mode differentiable. Never set this in training paths.
+        use_while_loop=mode.inference_only,
       )
 
     if isinstance(mode, STEMode):

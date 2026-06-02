@@ -79,9 +79,16 @@ class AutoregressiveDecode(eqx.Module):
   state_iterator : MapIterator
       State axis iterator (injected at factory time).
   wave_iterator : ScanIterator
-      Wave axis iterator (always JaxScanIterator; structural invariant).
+      Wave axis iterator (JaxScanIterator). Used when use_while_loop=False.
   wave_carry : CarryShape = eqx.field(static=True)
       Metadata for carry shape (name, shape, dtype; no value).
+  use_while_loop : bool = eqx.field(static=True)
+      When True, wave axis uses ``jax.lax.while_loop`` instead of
+      ``jax.lax.scan``.  Lowers to a single XLA WhileOp — faster to compile
+      than a Scan op, especially for large n_waves.
+      **Not reverse-mode differentiable.** Set via
+      ``AutoregressiveMode(inference_only=True)``; never set True in
+      training code paths.
 
   Notes
   -----
@@ -94,6 +101,10 @@ class AutoregressiveDecode(eqx.Module):
   wave_iterator. This preserves the two-scan structure from driver.py:decode_ar:
   1. Wave scan (inside iterator): carries sequence, outputs per-wave logits.
   2. Scatter scan (post-hoc, outside iterator): maps per-wave to per-position logits.
+
+  When use_while_loop=True the wave scan uses lax.while_loop; carry bundles
+  (step, sequence, logits_stack) so no external output stacking is needed.
+  wave_iterator is retained in the pytree but unused on this path.
   """
 
   model: Any = eqx.field(static=True)
@@ -101,6 +112,7 @@ class AutoregressiveDecode(eqx.Module):
   state_iterator: MapIterator
   wave_iterator: ScanIterator
   wave_carry: CarryShape = eqx.field(static=True)
+  use_while_loop: bool = eqx.field(static=True, default=False)
 
   def __call__(
     self,
@@ -333,12 +345,29 @@ class AutoregressiveDecode(eqx.Module):
       # Conditionally sample or skip based on first_occurrence check
       return jax.lax.cond(is_first, do_sample, no_sample, sequence)
 
-    # 3. Run wave scan
-    final_seq, logits_stack = self.wave_iterator(
-      step_fn,
-      init_sequence,
-      jnp.arange(n_waves),
-    )
+    # 3. Run wave iteration
+    if self.use_while_loop:
+      # lax.while_loop: not reverse-mode differentiable.
+      # Lowers to a single XLA WhileOp — significantly faster to compile
+      # than lax.scan for large n_waves. Inference-only path.
+      def _while_body(
+        carry: tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray],
+      ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+        step, seq, logits_stack = carry
+        new_seq, step_logits = step_fn(seq, step)
+        return (step + 1, new_seq, logits_stack.at[step].set(step_logits))
+
+      _, final_seq, logits_stack = jax.lax.while_loop(
+        lambda c: c[0] < n_waves,
+        _while_body,
+        (jnp.int32(0), init_sequence, jnp.zeros((n_waves, 21))),
+      )
+    else:
+      final_seq, logits_stack = self.wave_iterator(
+        step_fn,
+        init_sequence,
+        jnp.arange(n_waves),
+      )
 
     # 4. Post-hoc scatter: map per-wave logits to per-position logits
     def scatter_logits(

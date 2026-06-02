@@ -324,8 +324,8 @@ def prepare_feature_dict(
     L = feature_dict["X"].shape[1]
     feature_dict["temperature"] = 1.0
     feature_dict["bias"] = torch.zeros([1, L, 21], device=device)
-    feature_dict["symmetry_residues"] = []
-    feature_dict["symmetry_weights"] = []
+    feature_dict["symmetry_residues"] = [[]]  # [[]] = no symmetry; [] causes IndexError in model.sample()
+    feature_dict["symmetry_weights"] = [[]]
 
     return feature_dict
 

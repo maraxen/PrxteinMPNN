@@ -37,3 +37,16 @@ uv run python scripts/benchmarks/bench_prxteinmpnn_jax.py \
     --precision bf16 \
     --n-warmup 1 \
     --n-timed 3
+
+# Smoke test: ligandmpnn_pytorch score_conditional (1 cell, L=76, B=1, fp32).
+# Exercises the prody + featurize path that was previously uncovered.
+uv run python scripts/benchmarks/bench_ligandmpnn_pytorch.py \
+    --task score_conditional \
+    --hardware Blackwell_SM120 \
+    --output-json ../outputs/results/benchmarks/smoke_Blackwell_SM120_pytorch_score.json \
+    --pdb-dir tests/data \
+    --seq-lens 76 \
+    --batch-sizes 1 \
+    --precision fp32 \
+    --n-warmup 1 \
+    --n-timed 3

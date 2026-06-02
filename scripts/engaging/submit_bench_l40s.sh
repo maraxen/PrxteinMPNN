@@ -26,4 +26,16 @@ uv run python scripts/benchmarks/bench_suite.py \
     --precision bf16 fp32 \
     --n-warmup 10 \
     --n-timed 20 \
-    --tasks score_conditional ar_sample
+    --tasks score_conditional
+
+uv run python scripts/benchmarks/bench_suite.py \
+    --hardware L40s \
+    --output-dir ../outputs/results/benchmarks \
+    --fixture-dir ../outputs/benchmark_fixtures \
+    --pdb-dir tests/data \
+    --seq-lens 76 150 300 500 \
+    --batch-sizes 1 4 16 \
+    --precision bf16 fp32 \
+    --n-warmup 2 \
+    --n-timed 5 \
+    --tasks ar_sample

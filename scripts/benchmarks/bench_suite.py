@@ -195,8 +195,12 @@ def run_adapter(
     adapter_name: str,
     argv: list[str],
     dry_run: bool = False,
+    timeout: int = 3600,
 ) -> tuple[str, dict[str, Any] | None]:
     """Run a single adapter subprocess.
+
+    stderr is streamed live to the parent process (SLURM .err file) so per-cell
+    progress is visible in real time. stdout is captured for return-code checking.
 
     Returns
     -------
@@ -213,25 +217,22 @@ def run_adapter(
     try:
         result = subprocess.run(
             argv,
-            capture_output=True,
+            stdout=subprocess.PIPE,  # capture stdout (adapters write JSON to file, not stdout)
+            stderr=None,             # stream stderr live → SLURM .err for incremental progress
             text=True,
-            timeout=3600,  # 1 hour timeout
+            timeout=timeout,
             check=False,
         )
 
         if result.returncode != 0:
             logger.error(f"{adapter_name} failed with exit code {result.returncode}")
-            if result.stderr:
-                logger.error(f"stderr: {result.stderr[-500:]}")
-            if result.stdout:
-                logger.error(f"stdout: {result.stdout[-500:]}")
             return "failed", None
 
         logger.info(f"{adapter_name} completed successfully")
         return "ok", None
 
     except subprocess.TimeoutExpired:
-        logger.error(f"{adapter_name} timed out (>1 hour)")
+        logger.error(f"{adapter_name} timed out (>{timeout}s)")
         return "failed", None
     except Exception as e:
         logger.error(f"{adapter_name} error: {e}")
@@ -368,6 +369,15 @@ def main() -> int:
 
     # Skip flags
     parser.add_argument(
+        "--subprocess-timeout",
+        type=int,
+        default=3600,
+        help="Seconds before a single adapter subprocess is killed (default: 3600). "
+             "Increase for ar_sample on JAX (JIT compilation can take >1 hr).",
+    )
+
+    # Skip flags
+    parser.add_argument(
         "--skip-pytorch",
         action="store_true",
         help="Skip PyTorch (LigandMPNN) adapter",
@@ -434,7 +444,7 @@ def main() -> int:
             argv = build_prxteinmpnn_argv(args, output_json, task)
 
             key = f"prxteinmpnn_jax_{task}"
-            status, _ = run_adapter(key, argv, dry_run=args.dry_run)
+            status, _ = run_adapter(key, argv, dry_run=args.dry_run, timeout=args.subprocess_timeout)
             adapter_status[key] = status
 
             if status == "ok":
@@ -461,7 +471,7 @@ def main() -> int:
                 argv = build_pytorch_argv(args, output_json, task)
 
                 key = f"ligandmpnn_pytorch_{task}"
-                status, _ = run_adapter(key, argv, dry_run=args.dry_run)
+                status, _ = run_adapter(key, argv, dry_run=args.dry_run, timeout=args.subprocess_timeout)
                 adapter_status[key] = status
 
                 if status == "ok":
@@ -479,7 +489,7 @@ def main() -> int:
             argv = build_colabdesign_argv(args, output_json, task)
 
             key = f"colabdesign_jax_{task}"
-            status, _ = run_adapter(key, argv, dry_run=args.dry_run)
+            status, _ = run_adapter(key, argv, dry_run=args.dry_run, timeout=args.subprocess_timeout)
             adapter_status[key] = status
 
             if status == "ok":

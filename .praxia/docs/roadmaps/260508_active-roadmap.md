@@ -1,7 +1,7 @@
 # prxteinmpnn Active Roadmap
 
 > **Replaces:** `.agents/REFACTOR_ROADMAP.md` (deprecated 2026-05-08 — phases 0–6 complete).
-> **Last updated:** 2026-05-08
+> **Last updated:** 2026-06-02
 
 ---
 
@@ -16,6 +16,8 @@
 | **MODELINPUTS PR-2**: Host adapter layer (`make_sampling_inputs_from_spec`, `make_static_config_from_spec`) | `5e9eefe` |
 | **MODELINPUTS PR-3**: `batch_fn` as `static_argnames` at `_sample_sequences_jitted` boundary; `state_weights` promoted off `**kwargs` | `6d449b3` |
 | **Pipeline Protocol** (all 13 tasks): `LogitTransformFn`, `EncoderOutput`, `EncoderPreFn`/`EncoderPostFn`/`ModelProtocol`/`Pipeline` protocols, UID-based hook registry, `PipelineFns`, `LogitTransformFn` wired into unconditional + conditional scoring (protein + ligand), four concrete pipelines (Unconditional, Conditional, Autoregressive, STE), clean method aliases (`score_unconditional_from_payload` etc.), `DeprecationWarning` shims for `state_vmap_exact` naming | `38415b8` |
+| **Sprint 5** (AxisStrategy sealed union, safe\_scan, CarrySpec, AxisBoundary, BatchPlanner Phase 0, unified driver) | `97a703b7` |
+| **Sprint 6** (DecodeMode sealed union, ConditionalDecode/UnconditionalDecode/AutoregressiveDecode/STEDecode, MapIterator/ScanIterator, make\_decode\_fn factory, driver.py retired to 113 lines) | See `inference/decode/` |
 
 ---
 

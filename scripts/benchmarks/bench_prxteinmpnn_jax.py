@@ -305,8 +305,12 @@ def create_inference_plan(model: Any, task: str) -> Any:
         from prxteinmpnn.tiling.strategy import Vmap
 
         spec = _BenchmarkSpec()
-        stage_set = make_stage_set(model, spec)
-        encode_fn = make_encode_fn(spec)
+        stage_set = make_stage_set(
+            spec.multi_state_strategy,
+            spec.multi_state_temperature,
+            spec.state_weights,
+        )
+        encode_fn = make_encode_fn(model, use_rolling_state=spec.use_rolling_state)
         decode_fn = make_decode_fn(model, mode=AutoregressiveMode(), strategy=Vmap())
         components = InferenceComponents(encode_fn=encode_fn, stage_set=stage_set)
         return InferencePlan(model=model, components=components, decode_fn=decode_fn)
@@ -447,15 +451,15 @@ def benchmark_cell(
                 f"  Note: nominal L={seq_len}, loaded L={actual_len} from {_PDB_MAP[seq_len]}"
             )
 
-        # For batch_size > 1: stack copies along the state axis
+        # For batch_size > 1: stack geometry along the state axis.
+        # sequence is NOT stacked — build_inference_bundle expects (L,) and
+        # broadcasts internally across states at decode time.
         if batch_size > 1:
             coords = jnp.stack([coords] * batch_size, axis=0)
             mask = jnp.stack([mask] * batch_size, axis=0)
-            sequence_stacked = jnp.stack([sequence] * batch_size, axis=0)
             residue_index = jnp.stack([residue_index] * batch_size, axis=0)
             chain_index = jnp.stack([chain_index] * batch_size, axis=0)
-        else:
-            sequence_stacked = sequence
+        sequence_stacked = sequence
 
         if task == "score_conditional":
             bundle, config = build_inference_bundle(

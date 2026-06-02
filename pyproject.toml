@@ -43,6 +43,10 @@ cuda = ["jax"]
 # in TPU environments.
 tpu = ["jax"]
 cpu = ["jax"]
+benchmark = [
+    "torch>=2.12.0",
+    "colabdesign @ git+https://github.com/sokrypton/ColabDesign.git@e31a56fe1d9b4de25c8697f3a28b75892941cc72",
+]
 docs = [
     "sphinx",
     "sphinx-autodoc-typehints",
@@ -212,6 +216,9 @@ required-sections = ["Parameters", "Returns"]
 "scripts/**" = ["JD001", "JD002", "JD004", "JD005"]
 
 [dependency-groups]
+benchmark = [
+    "colabdesign @ git+https://github.com/sokrypton/ColabDesign.git@e31a56fe1d9b4de25c8697f3a28b75892941cc72",
+]
 dev = [
     "torch>=2.9.1",
     "pytest>=8.0.0",
@@ -255,5 +262,5 @@ explicit = true
 prolix = { workspace = true }
 # Resolve proxide from PyPI (not sibling-folder discovery) when ../proxide exists.
 proxide = { index = "pypi" }
-# CPU-only torch: Engaging compute nodes have no cuDNN; PyPI default pulls the CUDA wheel.
-torch = { index = "pytorch-cpu" }
+# PyPI serves the CUDA-enabled wheel on Linux and CPU wheel on macOS — correct for both envs.
+torch = { index = "pypi" }

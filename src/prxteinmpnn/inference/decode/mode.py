@@ -7,7 +7,10 @@ Four frozen dataclass variants representing decode strategies:
   - STEMode: scoring-based sequence refinement (wraps an inner mode)
 
 Per spec (Task 4.2), AutoregressiveMode has no W-axis fields; the wave-axis
-Scan is a structural invariant on the AutoregressiveDecode class, not a knob.
+iterator is a structural invariant on AutoregressiveDecode, not a user knob.
+Set inference_only=True to request lax.while_loop for the wave axis —
+this halves compilation pressure (WhileOp vs For/Scan in XLA) but makes
+the path not reverse-mode differentiable. Always False for training.
 """
 
 from __future__ import annotations
@@ -29,11 +32,26 @@ class UnconditionalMode:
 class AutoregressiveMode:
   """Decode mode: sequential decoding with wave iteration.
 
-  Wave axis is always Scan internally — a structural invariant, not a knob.
-  There is no W-axis BatchPlanner decision; the user does not pass a wave_iterator.
+  Parameters
+  ----------
+  inference_only : bool, default False
+      When True, the wave axis uses ``jax.lax.while_loop`` instead of
+      ``jax.lax.scan``.  ``while_loop`` lowers to a single XLA WhileOp and
+      compiles significantly faster than a Scan op for large wave counts,
+      but it is **not reverse-mode differentiable**.
 
-  Risk D-3 mitigation: no user-facing W-axis knob; unreachable by API design.
+      Set this to True for inference / benchmarking.  Leave False (default)
+      for any path that requires gradients through the AR loop.
+
+  Notes
+  -----
+  Risk D-3 mitigation: no user-facing W-axis iterator knob; the choice of
+  scan vs. while_loop is the only user-visible W-axis decision, and it is
+  gated behind an explicit ``inference_only`` flag rather than an iterator
+  type argument.
   """
+
+  inference_only: bool = False
 
 
 @dataclass(frozen=True)

@@ -1,7 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=bench-full-l40s
 #SBATCH --partition=mit_preemptable
-#SBATCH --nodelist=node3203
 #SBATCH --gres=gpu:l40s:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G

@@ -8,7 +8,6 @@ from __future__ import annotations
 import dataclasses
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 import equinox as eqx
@@ -342,8 +341,7 @@ class InferenceComponents(NamedTuple):
   stage_set: Any  # StageSet
 
 
-@dataclass
-class InferencePlan:
+class InferencePlan(eqx.Module):
   """Resolved inference plan with encode-once/decode-many pattern.
 
   Encodes geometry and ligand context once, then reuses encoder output for
@@ -386,6 +384,7 @@ class InferencePlan:
     """Access the wired StageSet directly."""
     return self.components.stage_set
 
+  @eqx.filter_jit
   def encode(
     self, bundle: InferenceBundle, key: PRNGKeyArray, config: InferenceConfig,
   ) -> EncoderOutput:
@@ -408,6 +407,7 @@ class InferencePlan:
     """
     return self.components.encode_fn(bundle, key, config)
 
+  @eqx.filter_jit
   def decode(
     self,
     enc: EncoderOutput,
@@ -483,6 +483,7 @@ class InferencePlan:
 
     return result
 
+  @eqx.filter_jit
   def sample(self, bundle: InferenceBundle, key: PRNGKeyArray, config: InferenceConfig) -> Any:
     """Encode and sample from the pipeline.
 
@@ -503,6 +504,7 @@ class InferencePlan:
     enc = self.encode(bundle, key, config)
     return self.decode(enc, bundle, key, config)
 
+  @eqx.filter_jit
   def score(self, bundle: InferenceBundle, key: PRNGKeyArray, config: InferenceConfig) -> Logits:
     """Encode and score the pipeline.
 

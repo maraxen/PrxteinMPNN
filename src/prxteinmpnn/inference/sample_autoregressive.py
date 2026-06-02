@@ -6,9 +6,9 @@ It consumes a unified InferenceBundle and returns a structured SampleResult.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+import equinox as eqx
 from jaxtyping import Array, Float, Int
 
 if TYPE_CHECKING:
@@ -19,8 +19,7 @@ if TYPE_CHECKING:
   from prxteinmpnn.types.stages import StageSet
 
 
-@dataclass(frozen=True)
-class SampleResult:
+class SampleResult(eqx.Module):
   """Result of an autoregressive sampling run."""
 
   sequence: Int[Array, L]

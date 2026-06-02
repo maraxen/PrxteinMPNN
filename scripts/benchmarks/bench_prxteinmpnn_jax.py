@@ -593,9 +593,34 @@ def benchmark_cell(
             )
             return None
 
-        coords, mask, sequence, residue_index, chain_index, actual_len = _load_pdb_fixture(
-            pdb_dir, seq_len
-        )
+        is_cif = _PDB_MAP.get(seq_len, "").endswith(".cif")
+
+        ligand_coords_jax = None
+        ligand_atom_types_jax = None
+        ligand_mask_jax = None
+
+        if is_cif:
+            if not ligand_enabled:
+                logger.info(f"  Skipping L={seq_len} (CIF fixture requires --ligand)")
+                return None
+            lig_result = _load_ligand_fixture(pdb_dir, seq_len)
+            if lig_result is None:
+                return None
+            coords, mask, sequence, residue_index, chain_index, lig_xyz, lig_elems, actual_len = lig_result
+            ligand_coords_jax, ligand_atom_types_jax, ligand_mask_jax = _compute_ligand_nn(
+                coords, lig_xyz, lig_elems, num_neighbors=16
+            )
+        else:
+            coords, mask, sequence, residue_index, chain_index, actual_len = _load_pdb_fixture(
+                pdb_dir, seq_len
+            )
+            if ligand_enabled:
+                lig_result = _load_ligand_fixture(pdb_dir, seq_len)
+                if lig_result is not None:
+                    _, _, _, _, _, lig_xyz, lig_elems, _ = lig_result
+                    ligand_coords_jax, ligand_atom_types_jax, ligand_mask_jax = _compute_ligand_nn(
+                        coords, lig_xyz, lig_elems, num_neighbors=16
+                    )
 
         if seq_len != actual_len:
             logger.info(
@@ -603,27 +628,12 @@ def benchmark_cell(
             )
 
         # For batch_size > 1: stack geometry along the state axis.
-        # sequence is NOT stacked — build_inference_bundle expects (L,) and
-        # broadcasts internally across states at decode time.
         if batch_size > 1:
             coords = jnp.stack([coords] * batch_size, axis=0)
             mask = jnp.stack([mask] * batch_size, axis=0)
             residue_index = jnp.stack([residue_index] * batch_size, axis=0)
             chain_index = jnp.stack([chain_index] * batch_size, axis=0)
         sequence_stacked = sequence
-
-        ligand_coords_jax = None
-        ligand_atom_types_jax = None
-        ligand_mask_jax = None
-        if ligand_enabled:
-            lig_result = _load_ligand_fixture(pdb_dir, seq_len)
-            if lig_result is None:
-                logger.info(f"  Skipping ligand (no CIF fixture for L={seq_len})")
-                return None
-            coords, mask, sequence, residue_index, chain_index, lig_xyz, lig_elems, actual_len = lig_result
-            ligand_coords_jax, ligand_atom_types_jax, ligand_mask_jax = _compute_ligand_nn(
-                coords, lig_xyz, lig_elems, num_neighbors=16
-            )
 
         if task == "score_conditional":
             bundle, config = build_inference_bundle(

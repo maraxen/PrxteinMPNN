@@ -11,17 +11,17 @@
 
 set -euo pipefail
 
-cd /orcd/pool/008/so3_shared/marielle/projects/tev_design
+cd /orcd/pool/008/so3_shared/marielle/projects/tev_design/prxteinmpnn
 
 export REFERENCE_PATH="${HOME}/repos/LigandMPNN"
 
 uv sync --extra cuda --group benchmark --group dev
 
-uv run python prxteinmpnn/scripts/benchmarks/bench_suite.py \
+uv run python scripts/benchmarks/bench_suite.py \
     --hardware A100 \
-    --output-dir outputs/results/benchmarks \
-    --fixture-dir outputs/benchmark_fixtures \
-    --pdb-dir prxteinmpnn/tests/data \
+    --output-dir ../outputs/results/benchmarks \
+    --fixture-dir ../outputs/benchmark_fixtures \
+    --pdb-dir tests/data \
     --seq-lens 76 150 300 500 \
     --batch-sizes 1 4 16 \
     --precision bf16 fp32 \

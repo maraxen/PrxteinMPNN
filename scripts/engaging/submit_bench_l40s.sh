@@ -1,8 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=bench-full-l40s
 #SBATCH --partition=mit_normal_gpu
-#SBATCH --nodelist=node3203
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:l40s:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
 #SBATCH --time=5:30:00
@@ -15,6 +14,8 @@ cd /orcd/pool/008/so3_shared/marielle/projects/tev_design/prxteinmpnn
 
 export REFERENCE_PATH="${HOME}/repos/LigandMPNN"
 
+uv sync --extra cuda --group benchmark --group dev
+
 uv run python scripts/benchmarks/bench_suite.py \
     --hardware L40s \
     --output-dir ../outputs/results/benchmarks \
@@ -24,4 +25,5 @@ uv run python scripts/benchmarks/bench_suite.py \
     --batch-sizes 1 4 16 \
     --precision bf16 fp32 \
     --n-warmup 10 \
-    --n-timed 20
+    --n-timed 20 \
+    --tasks score_conditional ar_sample

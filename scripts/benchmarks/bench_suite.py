@@ -95,6 +95,9 @@ def build_prxteinmpnn_argv(
     if args.reference_path:
         argv.extend(["--reference-path", str(args.reference_path)])
 
+    if args.ligand:
+        argv.append("--ligand")
+
     if args.smoke:
         argv.append("--smoke")
 
@@ -135,6 +138,9 @@ def build_pytorch_argv(
 
     if args.reference_path:
         argv.extend(["--reference-path", str(args.reference_path)])
+
+    if args.ligand:
+        argv.append("--ligand-conditioning")
 
     if args.smoke:
         argv.append("--smoke")
@@ -349,6 +355,15 @@ def main() -> int:
         "--dry-run",
         action="store_true",
         help="Print adapter commands without executing",
+    )
+
+    # Ligand conditioning
+    parser.add_argument(
+        "--ligand",
+        action="store_true",
+        default=False,
+        help="Enable ligand conditioning (passes --ligand to prxteinmpnn_jax, "
+             "--ligand-conditioning to ligandmpnn_pytorch). Requires 1BC8.cif fixture.",
     )
 
     # Skip flags

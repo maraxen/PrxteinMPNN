@@ -15,7 +15,7 @@ cd /orcd/pool/008/so3_shared/marielle/projects/tev_design
 
 export REFERENCE_PATH="${HOME}/repos/LigandMPNN"
 
-uv sync --extra cuda --extra benchmark --group benchmark --group dev
+uv sync --extra cuda --group benchmark --group dev
 
 uv run python prxteinmpnn/scripts/benchmarks/bench_suite.py \
     --hardware A100 \

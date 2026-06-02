@@ -164,7 +164,7 @@ class JaxScanIterator(eqx.Module):
     Returns:
         (final_carry, ys): Final carry and stacked outputs.
     """
-    return jax.lax.scan(fn, init, xs)
+    return jax.lax.scan(fn, init, xs, unroll=1)
 
 
 __all__ = [

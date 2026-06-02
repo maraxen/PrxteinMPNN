@@ -359,6 +359,7 @@ class AutoregressiveDecode(eqx.Module):
       scatter_logits,
       logits_init,
       jnp.arange(n_waves),
+      unroll=1,
     )
 
     # 5. Return SampleResult

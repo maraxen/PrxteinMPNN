@@ -73,8 +73,6 @@ _AA_TO_IDX = {aa: i for i, aa in enumerate(_AA_ALPHABET)}
 
 def _set_jax_defaults():
     """Set JAX configuration before importing models."""
-    # Disable XLA compilation cache for cold-run measurement
-    jax.config.update("jax_enable_compilation_cache", False)
     # Blackwell workaround: set XLA flags before any compilation
     os.environ.setdefault("XLA_FLAGS", "--xla_gpu_shard_autotuning=false")
 
@@ -333,7 +331,6 @@ def measure_cold_compile_score(
     fixture_name: str,
 ) -> tuple[float, str]:
     """Measure cold XLA compilation time for score_conditional."""
-    jax.config.update("jax_enable_compilation_cache", False)
     jax.clear_caches()
 
     enc = plan.encode(bundle, key, config)
@@ -355,7 +352,6 @@ def measure_cold_compile_sample(
     fixture_name: str,
 ) -> tuple[float, str]:
     """Measure cold XLA compilation time for ar_sample."""
-    jax.config.update("jax_enable_compilation_cache", False)
     jax.clear_caches()
 
     t0 = time.perf_counter()
@@ -434,6 +430,8 @@ def benchmark_cell(
 ) -> dict[str, Any] | None:
     """Benchmark a single (seq_len, batch_size, precision, task) cell."""
     from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+    from prxteinmpnn.tiling.bucketing import BucketingConfig
+    _BUCKET_CFG = BucketingConfig()
 
     try:
         if seq_len not in _PDB_MAP:
@@ -474,6 +472,7 @@ def benchmark_cell(
                 temperature=1.0,
                 mode="score_conditional",
                 inference=True,
+                bucket_config=_BUCKET_CFG,
             )
         else:  # ar_sample
             bundle, config = build_inference_bundle(
@@ -488,6 +487,7 @@ def benchmark_cell(
                 temperature=1.0,
                 mode="sample",
                 inference=True,
+                bucket_config=_BUCKET_CFG,
             )
 
         plan = create_inference_plan(model, task)

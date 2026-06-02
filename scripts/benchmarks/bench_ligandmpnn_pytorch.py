@@ -398,7 +398,10 @@ def load_model(
     sys.path.insert(0, str(reference_path))
     from model_utils import ProteinMPNN
 
-    checkpoint_path = reference_path / "model_params" / "proteinmpnn_v_48_020.pt"
+    checkpoint_filename = (
+        "ligandmpnn_v_32_010_25.pt" if model_type == "ligand_mpnn" else "proteinmpnn_v_48_020.pt"
+    )
+    checkpoint_path = reference_path / "model_params" / checkpoint_filename
     if not checkpoint_path.exists():
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
 
@@ -536,6 +539,7 @@ def measure_cold_overhead_score(
 
     L = feature_dict["X"].shape[1]
     feature_dict["batch_size"] = batch_size
+    feature_dict["randn"] = torch.randn([batch_size, L], device=device)
     # Set native sequence for scoring
     feature_dict["S"] = native_sequence.unsqueeze(0) if native_sequence.dim() == 1 else native_sequence
 
@@ -598,7 +602,9 @@ def measure_warm_latency_score(
     """Measure warm latency for score_conditional."""
     import torch
 
+    L_score = feature_dict["X"].shape[1]
     feature_dict["batch_size"] = batch_size
+    feature_dict["randn"] = torch.randn([batch_size, L_score], device=device)
     feature_dict["S"] = native_sequence.unsqueeze(0) if native_sequence.dim() == 1 else native_sequence
 
     def _score():
@@ -683,7 +689,8 @@ def benchmark_cell(
             "chain_mask": torch.ones(actual_len, dtype=torch.float32, device=device),
         }
 
-        # Ligand conditioning: load CIF and compute NN features
+        # Ligand conditioning: pass raw ligand atom coords to featurize()
+        # featurize() computes per-residue NN lookup internally (get_nearest_neighbours).
         if ligand_conditioning:
             lig_result = _load_ligand_cif_fixture(pdb_dir, seq_len)
             if lig_result is None:
@@ -691,12 +698,13 @@ def benchmark_cell(
                 return None
             _, _, _, _, _, lig_xyz, lig_elems, _ = lig_result
             import torch
-            Y, Y_t, Y_m = _compute_ligand_features_pytorch(
-                np.array(coords), lig_xyz, lig_elems, num_neighbors=16
+            lig_types = np.array(
+                [_ELEMENT_TO_IDX.get(e.upper(), 0) for e in lig_elems], dtype=np.int32
             )
-            protein_dict["Y"] = torch.tensor(Y, dtype=torch.float32, device=device).unsqueeze(0)
-            protein_dict["Y_t"] = torch.tensor(Y_t, dtype=torch.long, device=device).unsqueeze(0)
-            protein_dict["Y_m"] = torch.tensor(Y_m, dtype=torch.float32, device=device).unsqueeze(0)
+            lig_mask = (lig_types != 1) & (lig_types != 0)  # exclude H and unknown
+            protein_dict["Y"] = torch.tensor(lig_xyz, dtype=torch.float32, device=device)
+            protein_dict["Y_t"] = torch.tensor(lig_types, dtype=torch.int32, device=device)
+            protein_dict["Y_m"] = torch.tensor(lig_mask.astype(np.float32), dtype=torch.float32, device=device)
 
         # Prepare feature dict
         model_type_arg = model_type

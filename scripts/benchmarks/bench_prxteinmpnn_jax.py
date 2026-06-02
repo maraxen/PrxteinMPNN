@@ -412,25 +412,31 @@ def _compute_ligand_nn(
 _DEFAULT_CHECKPOINT_ID = "proteinmpnn_v_48_020"
 
 
-def load_model(checkpoint_path: Path | None = None) -> Any:
+def load_model(
+    checkpoint_path: Path | None = None,
+    checkpoint_id: str | None = None,
+) -> Any:
     """Load pre-trained model via io.weights.load_model.
 
-    Uses the bundled .eqx.zst checkpoint (always architecture-compatible).
-    Pass checkpoint_path to override with a local .eqx file.
+    checkpoint_id controls both topology (ligand vs protein architecture) and
+    which bundled weights to load. Defaults to _DEFAULT_CHECKPOINT_ID when omitted.
+    Pass checkpoint_path to override the weight bytes with a local .eqx file while
+    still using checkpoint_id to determine the architecture.
     """
     from prxteinmpnn.io.weights import load_model as _load
 
+    effective_id = checkpoint_id or _DEFAULT_CHECKPOINT_ID
     key = random.PRNGKey(42)
     local_path = str(checkpoint_path) if checkpoint_path is not None else None
     model = _load(
-        checkpoint_id=_DEFAULT_CHECKPOINT_ID,
+        checkpoint_id=effective_id,
         local_path=local_path,
         key=key,
     )
     if local_path:
-        logger.info(f"Loaded checkpoint: {local_path}")
+        logger.info(f"Loaded checkpoint: {local_path} (id={effective_id})")
     else:
-        logger.info(f"Loaded bundled checkpoint: {_DEFAULT_CHECKPOINT_ID}")
+        logger.info(f"Loaded bundled checkpoint: {effective_id}")
     return model
 
 
@@ -892,11 +898,9 @@ def main():
     _set_jax_defaults()
 
     if args.ligand:
-        checkpoint_id = args.ligand_checkpoint
-        local_path = args.reference_path
-        logger.info(f"Ligand mode: loading checkpoint {checkpoint_id}")
+        logger.info(f"Ligand mode: loading checkpoint {args.ligand_checkpoint}")
         try:
-            model = load_model(local_path)
+            model = load_model(checkpoint_id=args.ligand_checkpoint)
             logger.info("Ligand checkpoint loaded")
         except Exception as e:
             logger.error(f"Failed to load ligand checkpoint: {e}")

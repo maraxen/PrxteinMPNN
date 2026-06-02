@@ -41,9 +41,25 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+# Element list matching LigandMPNN data_utils.py — index 0 = unknown, 1-indexed thereafter
+_ELEMENT_LIST: list[str] = [
+    "H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne",
+    "Na", "Mg", "Al", "Si", "P", "S", "Cl", "Ar", "K", "Ca",
+    "Sc", "Ti", "V", "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn",
+    "Ga", "Ge", "As", "Se", "Br", "Kr", "Rb", "Sr", "Y", "Zr",
+    "Nb", "Mo", "Tc", "Ru", "Rh", "Pd", "Ag", "Cd", "In", "Sn",
+    "Sb", "Te", "I", "Xe", "Cs", "Ba", "La", "Ce", "Pr", "Nd",
+    "Pm", "Sm", "Eu", "Gd", "Tb", "Dy", "Ho", "Er", "Tm", "Yb",
+    "Lu", "Hf", "Ta", "W", "Re", "Os", "Ir", "Pt", "Au", "Hg",
+    "Tl", "Pb", "Bi", "Po", "At", "Rn",
+]
+_ELEMENT_LIST_UPPER: list[str] = [e.upper() for e in _ELEMENT_LIST]
+_ELEMENT_TO_IDX: dict[str, int] = {e: i + 1 for i, e in enumerate(_ELEMENT_LIST_UPPER)}
+
 # Canonical PDB map: nominal seq_len -> pdb filename
 _PDB_MAP: dict[int, str] = {
     76: "1ubq.pdb",
+    94: "1BC8.cif",
     500: "1SMD.pdb",
 }
 
@@ -212,6 +228,14 @@ def _load_pdb_fixture(pdb_dir: Path, seq_len: int) -> tuple[
     if not pdb_file.exists():
         raise FileNotFoundError(f"PDB fixture not found: {pdb_file}")
 
+    # Check if CIF file — dispatch to ligand loader
+    if str(pdb_file).endswith(".cif"):
+        result = _load_ligand_cif_fixture(pdb_dir, seq_len)
+        if result is None:
+            raise FileNotFoundError(f"CIF fixture not found: {pdb_file}")
+        coords, mask, sequence, residue_index, chain_index, _, _, actual_len = result
+        return coords, mask, sequence, residue_index, chain_index, actual_len
+
     data = load_pdb_as_arrays(str(pdb_file))
     return (
         data["coords"],
@@ -221,6 +245,135 @@ def _load_pdb_fixture(pdb_dir: Path, seq_len: int) -> tuple[
         data["chain_index"],
         data["actual_len"],
     )
+
+
+def _load_ligand_cif_fixture(
+    pdb_dir: Path, seq_len: int
+) -> tuple[
+    np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray,
+    np.ndarray, np.ndarray,
+    int,
+] | None:
+    """Load protein + ligand arrays from 1BC8.cif.
+
+    Returns (coords, mask, sequence, residue_index, chain_index,
+             ligand_xyz, ligand_elements, actual_len) or None if not a CIF fixture.
+    Protein = chain C, ligand = chains A+B (non-water).
+    """
+    filename = _PDB_MAP.get(seq_len)
+    if filename is None or not filename.endswith(".cif"):
+        return None
+
+    cif_path = pdb_dir / filename
+    if not cif_path.exists():
+        raise FileNotFoundError(f"CIF fixture not found: {cif_path}")
+
+    protein_atoms: list[tuple[str, int, float, float, float]] = []
+    ligand_xyz: list[tuple[float, float, float]] = []
+    ligand_elements: list[str] = []
+
+    lines = cif_path.read_text().splitlines()
+    in_loop = False
+    col_names: list[str] = []
+    col_map: dict[str, int] = {}
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped == "loop_":
+            col_names = []; col_map = {}; in_loop = True; continue
+        if in_loop and stripped.startswith("_atom_site."):
+            col_names.append(stripped); col_map[stripped] = len(col_names) - 1; continue
+        if in_loop and col_names and not stripped.startswith("_") and stripped and not stripped.startswith("#"):
+            parts = stripped.split()
+            if len(parts) < len(col_names): continue
+            group = parts[col_map.get("_atom_site.group_PDB", 0)]
+            if group not in ("ATOM", "HETATM"): continue
+            element = parts[col_map["_atom_site.type_symbol"]].upper()
+            resname = parts[col_map["_atom_site.label_comp_id"]]
+            auth_chain = parts[col_map["_atom_site.auth_asym_id"]]
+            atom_name = parts[col_map["_atom_site.label_atom_id"]].strip('"')
+            try:
+                auth_seq = int(parts[col_map["_atom_site.auth_seq_id"]])
+                x = float(parts[col_map["_atom_site.Cartn_x"]])
+                y = float(parts[col_map["_atom_site.Cartn_y"]])
+                z = float(parts[col_map["_atom_site.Cartn_z"]])
+            except (ValueError, KeyError): continue
+            if auth_chain == "C" and resname not in ("HOH",):
+                protein_atoms.append((atom_name, auth_seq, x, y, z))
+            elif auth_chain in ("A", "B") and resname not in ("HOH",):
+                ligand_xyz.append((x, y, z)); ligand_elements.append(element)
+        elif in_loop and col_names and (stripped.startswith("_") or stripped == "loop_" or stripped == "#"):
+            in_loop = False
+
+    if not protein_atoms:
+        raise ValueError(f"No protein atoms in chain C of {cif_path}")
+
+    from collections import defaultdict
+    residue_atoms: dict[int, dict[str, tuple[float, float, float]]] = defaultdict(dict)
+    for atom_name, res_seq, x, y, z in protein_atoms:
+        if atom_name in ("N", "CA", "C", "O"):
+            residue_atoms[res_seq][atom_name] = (x, y, z)
+
+    sorted_resids = sorted(residue_atoms.keys())
+    BACKBONE = ["N", "CA", "C", "O"]
+    coords_list, mask_list = [], []
+    for res in sorted_resids:
+        row = [residue_atoms[res].get(a, (0.0, 0.0, 0.0)) for a in BACKBONE]
+        coords_list.append(row)
+        mask_list.append(1.0 if all(a in residue_atoms[res] for a in BACKBONE) else 0.0)
+
+    actual_len = len(sorted_resids)
+    coords = np.array(coords_list, dtype=np.float32)
+    mask = np.array(mask_list, dtype=np.float32)
+    sequence = np.zeros(actual_len, dtype=np.int64)
+    residue_index = np.array(sorted_resids, dtype=np.int64)
+    chain_index = np.zeros(actual_len, dtype=np.int64)
+
+    return (
+        coords, mask, sequence, residue_index, chain_index,
+        np.array(ligand_xyz, dtype=np.float32),
+        np.array(ligand_elements),
+        actual_len,
+    )
+
+
+def _compute_ligand_features_pytorch(
+    coords: np.ndarray,
+    ligand_xyz: np.ndarray,
+    ligand_elements: np.ndarray,
+    num_neighbors: int = 16,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Compute Y/Y_t/Y_m nearest-neighbor ligand features (mirrors LigandMPNN featurize).
+
+    Returns:
+        Y   : (L, A, 3)  float32 — ligand atom coordinates per residue
+        Y_t : (L, A)     int32   — element type indices (1-indexed, 0=unknown)
+        Y_m : (L, A)     float32 — validity mask
+    """
+    from scipy.spatial import cKDTree
+
+    ca_coords = coords[:, 1, :]
+    L = ca_coords.shape[0]
+    A = num_neighbors
+    n_query = min(A, len(ligand_xyz))
+
+    tree = cKDTree(ligand_xyz)
+    dists, idxs = tree.query(ca_coords, k=n_query)
+
+    Y = np.zeros((L, A, 3), dtype=np.float32)
+    Y_t = np.zeros((L, A), dtype=np.int32)
+    Y_m = np.zeros((L, A), dtype=np.float32)
+
+    idx_arr = idxs if n_query > 1 else idxs[:, None]
+    for i in range(L):
+        for j in range(n_query):
+            idx = idx_arr[i, j]
+            Y[i, j] = ligand_xyz[idx]
+            elem = ligand_elements[idx].upper()
+            Y_t[i, j] = _ELEMENT_TO_IDX.get(elem, 0)
+            Y_m[i, j] = 1.0
+
+    return Y, Y_t, Y_m
 
 
 # ============================================================================
@@ -486,6 +639,7 @@ def benchmark_cell(
     device: Any,
     reference_path: Path,
     atom_context_num: int,
+    ligand_conditioning: bool = False,
     model_type: str = "ligand_mpnn",
     n_warmup: int = 10,
     n_timed: int = 20,
@@ -529,7 +683,25 @@ def benchmark_cell(
             "chain_mask": torch.ones(actual_len, dtype=torch.float32, device=device),
         }
 
+        # Ligand conditioning: load CIF and compute NN features
+        if ligand_conditioning:
+            lig_result = _load_ligand_cif_fixture(pdb_dir, seq_len)
+            if lig_result is None:
+                logger.info(f"  Skipping ligand (no CIF fixture for L={seq_len})")
+                return None
+            _, _, _, _, _, lig_xyz, lig_elems, _ = lig_result
+            import torch
+            Y, Y_t, Y_m = _compute_ligand_features_pytorch(
+                np.array(coords), lig_xyz, lig_elems, num_neighbors=16
+            )
+            protein_dict["Y"] = torch.tensor(Y, dtype=torch.float32, device=device).unsqueeze(0)
+            protein_dict["Y_t"] = torch.tensor(Y_t, dtype=torch.long, device=device).unsqueeze(0)
+            protein_dict["Y_m"] = torch.tensor(Y_m, dtype=torch.float32, device=device).unsqueeze(0)
+
         # Prepare feature dict
+        model_type_arg = model_type
+        if ligand_conditioning:
+            model_type = "ligand_mpnn"
         try:
             feature_dict = prepare_feature_dict(
                 protein_dict,
@@ -538,6 +710,7 @@ def benchmark_cell(
                 atom_context_num=atom_context_num,
                 device=device,
             )
+            model_type = model_type_arg
         except Exception as e:
             logger.error(f"  Failed to prepare feature dict: {e}")
             return {
@@ -624,7 +797,7 @@ def benchmark_cell(
             "batch_size": batch_size,
             "task": task,
             "precision": precision,
-            "ligand_conditioning": False,
+            "ligand_conditioning": ligand_conditioning,
             "axis_strategy": None,
             "average_encoding_mode": None,
             "compile_time_cold_s": float(overhead_s),
@@ -736,9 +909,10 @@ def main():
         help="Path to LigandMPNN reference repo (default: $REFERENCE_PATH env, /home/marielle/repos/LigandMPNN)",
     )
     parser.add_argument(
-        "--ligand",
+        "--ligand-conditioning",
         action="store_true",
-        help="Use ligand_mpnn model type (default: ligand_mpnn for ligandmpnn_v_32_010_25.pt)",
+        default=False,
+        help="Enable ligand conditioning (requires 1BC8.cif fixture and ligand checkpoint).",
     )
     parser.add_argument(
         "--dry-run",
@@ -787,8 +961,11 @@ def main():
             logger.error(f"Reference path error: {e}")
             return 1
 
-    # Use protein_mpnn for no-ligand apples-to-apples comparison
-    model_type = "protein_mpnn"
+    # Use protein_mpnn for no-ligand apples-to-apples comparison (unless ligand_conditioning)
+    if args.ligand_conditioning:
+        model_type = "ligand_mpnn"
+    else:
+        model_type = "protein_mpnn"
 
     if args.dry_run:
         config = {
@@ -855,6 +1032,7 @@ def main():
                     device=device,
                     reference_path=reference_path,
                     atom_context_num=atom_context_num,
+                    ligand_conditioning=args.ligand_conditioning,
                     model_type=model_type,
                     n_warmup=args.n_warmup,
                     n_timed=args.n_timed,

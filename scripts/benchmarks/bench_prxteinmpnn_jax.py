@@ -52,9 +52,25 @@ logging.getLogger("absl").setLevel(logging.ERROR)
 
 logger = logging.getLogger(__name__)
 
+# Element list matching LigandMPNN data_utils.py — index 0 = unknown, 1-indexed thereafter
+_ELEMENT_LIST: list[str] = [
+    "H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne",
+    "Na", "Mg", "Al", "Si", "P", "S", "Cl", "Ar", "K", "Ca",
+    "Sc", "Ti", "V", "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn",
+    "Ga", "Ge", "As", "Se", "Br", "Kr", "Rb", "Sr", "Y", "Zr",
+    "Nb", "Mo", "Tc", "Ru", "Rh", "Pd", "Ag", "Cd", "In", "Sn",
+    "Sb", "Te", "I", "Xe", "Cs", "Ba", "La", "Ce", "Pr", "Nd",
+    "Pm", "Sm", "Eu", "Gd", "Tb", "Dy", "Ho", "Er", "Tm", "Yb",
+    "Lu", "Hf", "Ta", "W", "Re", "Os", "Ir", "Pt", "Au", "Hg",
+    "Tl", "Pb", "Bi", "Po", "At", "Rn",
+]
+_ELEMENT_LIST_UPPER: list[str] = [e.upper() for e in _ELEMENT_LIST]
+_ELEMENT_TO_IDX: dict[str, int] = {e: i + 1 for i, e in enumerate(_ELEMENT_LIST_UPPER)}
+
 # Canonical PDB map: nominal seq_len -> pdb filename
 _PDB_MAP: dict[int, str] = {
     76: "1ubq.pdb",
+    94: "1BC8.cif",
     500: "1SMD.pdb",
 }
 
@@ -241,6 +257,153 @@ def _load_pdb_fixture(pdb_dir: Path, seq_len: int) -> tuple[
     )
 
 
+def _load_ligand_fixture(
+    pdb_dir: Path, seq_len: int
+) -> tuple[
+    jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray,
+    np.ndarray, np.ndarray,
+    int,
+] | None:
+    """Load protein + ligand arrays from a CIF file.
+
+    Returns protein backbone arrays (same as _load_pdb_fixture) plus raw ligand atom
+    coordinates and element symbols. Returns None if the fixture is not a CIF file.
+    Only handles 1BC8.cif — protein = chain C, ligand = chains A+B (non-water).
+    """
+    filename = _PDB_MAP.get(seq_len)
+    if filename is None or not filename.endswith(".cif"):
+        return None
+
+    cif_path = pdb_dir / filename
+    if not cif_path.exists():
+        raise FileNotFoundError(f"CIF fixture not found: {cif_path}")
+
+    protein_atoms: list[tuple[str, int, float, float, float]] = []
+    ligand_xyz: list[tuple[float, float, float]] = []
+    ligand_elements: list[str] = []
+
+    lines = cif_path.read_text().splitlines()
+    in_loop = False
+    col_names: list[str] = []
+    col_map: dict[str, int] = {}
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped == "loop_":
+            col_names = []
+            col_map = {}
+            in_loop = True
+            continue
+        if in_loop and stripped.startswith("_atom_site."):
+            col_names.append(stripped)
+            col_map[stripped] = len(col_names) - 1
+            continue
+        if in_loop and col_names and not stripped.startswith("_") and stripped and not stripped.startswith("#"):
+            parts = stripped.split()
+            if len(parts) < len(col_names):
+                continue
+            group = parts[col_map.get("_atom_site.group_PDB", 0)]
+            if group not in ("ATOM", "HETATM"):
+                continue
+            element = parts[col_map["_atom_site.type_symbol"]].upper()
+            resname = parts[col_map["_atom_site.label_comp_id"]]
+            auth_chain = parts[col_map["_atom_site.auth_asym_id"]]
+            atom_name = parts[col_map["_atom_site.label_atom_id"]].strip('"')
+            try:
+                auth_seq = int(parts[col_map["_atom_site.auth_seq_id"]])
+                x = float(parts[col_map["_atom_site.Cartn_x"]])
+                y = float(parts[col_map["_atom_site.Cartn_y"]])
+                z = float(parts[col_map["_atom_site.Cartn_z"]])
+            except (ValueError, KeyError):
+                continue
+
+            if auth_chain == "C" and resname not in ("HOH",):
+                protein_atoms.append((atom_name, auth_seq, x, y, z))
+            elif auth_chain in ("A", "B") and resname not in ("HOH",):
+                ligand_xyz.append((x, y, z))
+                ligand_elements.append(element)
+
+        elif in_loop and col_names and (stripped.startswith("_") or stripped == "loop_" or stripped == "#"):
+            in_loop = False
+
+    if not protein_atoms:
+        raise ValueError(f"No protein atoms found in chain C of {cif_path}")
+
+    from collections import defaultdict
+    residue_atoms: dict[int, dict[str, tuple[float, float, float]]] = defaultdict(dict)
+    for atom_name, res_seq, x, y, z in protein_atoms:
+        if atom_name in ("N", "CA", "C", "O"):
+            residue_atoms[res_seq][atom_name] = (x, y, z)
+
+    sorted_resids = sorted(residue_atoms.keys())
+    BACKBONE = ["N", "CA", "C", "O"]
+    coords_list = []
+    mask_list = []
+    for res in sorted_resids:
+        row = []
+        present = True
+        for atom in BACKBONE:
+            if atom in residue_atoms[res]:
+                row.append(residue_atoms[res][atom])
+            else:
+                row.append((0.0, 0.0, 0.0))
+                present = False
+        coords_list.append(row)
+        mask_list.append(1.0 if present else 0.0)
+
+    actual_len = len(sorted_resids)
+    coords = jnp.array(coords_list, dtype=jnp.float32)
+    mask = jnp.array(mask_list, dtype=jnp.float32)
+    sequence = jnp.zeros(actual_len, dtype=jnp.int32)
+    residue_index = jnp.array(sorted_resids, dtype=jnp.int32)
+    chain_index = jnp.zeros(actual_len, dtype=jnp.int32)
+
+    lig_xyz_arr = np.array(ligand_xyz, dtype=np.float32)
+    lig_elem_arr = np.array(ligand_elements)
+
+    return coords, mask, sequence, residue_index, chain_index, lig_xyz_arr, lig_elem_arr, actual_len
+
+
+def _compute_ligand_nn(
+    coords: jnp.ndarray,
+    ligand_xyz: np.ndarray,
+    ligand_elements: np.ndarray,
+    num_neighbors: int = 16,
+) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    """Compute per-residue nearest-neighbor ligand features (host-side).
+
+    For each protein residue CA, finds the `num_neighbors` nearest ligand atoms.
+    Returns arrays shaped (L, A, 3), (L, A), (L, A) ready for build_inference_bundle.
+    """
+    from scipy.spatial import cKDTree
+
+    ca_coords = np.array(coords[:, 1, :])
+    L = ca_coords.shape[0]
+    A = num_neighbors
+
+    tree = cKDTree(ligand_xyz)
+    n_query = min(A, len(ligand_xyz))
+    dists, idxs = tree.query(ca_coords, k=n_query)
+
+    nn_coords = np.zeros((L, A, 3), dtype=np.float32)
+    nn_types = np.zeros((L, A), dtype=np.int32)
+    nn_mask = np.zeros((L, A), dtype=np.float32)
+
+    for i in range(L):
+        for j in range(n_query):
+            idx = idxs[i, j] if n_query > 1 else idxs[i]
+            nn_coords[i, j] = ligand_xyz[idx]
+            elem = ligand_elements[idx].upper()
+            nn_types[i, j] = _ELEMENT_TO_IDX.get(elem, 0)
+            nn_mask[i, j] = 1.0
+
+    return (
+        jnp.array(nn_coords),
+        jnp.array(nn_types),
+        jnp.array(nn_mask),
+    )
+
+
 # ============================================================================
 # Model & Plan Setup
 # ============================================================================
@@ -414,6 +577,7 @@ def benchmark_cell(
     batch_size: int,
     precision: str,
     task: str,
+    ligand_enabled: bool = False,
     n_warmup: int = 10,
     n_timed: int = 20,
 ) -> dict[str, Any] | None:
@@ -448,6 +612,19 @@ def benchmark_cell(
             chain_index = jnp.stack([chain_index] * batch_size, axis=0)
         sequence_stacked = sequence
 
+        ligand_coords_jax = None
+        ligand_atom_types_jax = None
+        ligand_mask_jax = None
+        if ligand_enabled:
+            lig_result = _load_ligand_fixture(pdb_dir, seq_len)
+            if lig_result is None:
+                logger.info(f"  Skipping ligand (no CIF fixture for L={seq_len})")
+                return None
+            coords, mask, sequence, residue_index, chain_index, lig_xyz, lig_elems, actual_len = lig_result
+            ligand_coords_jax, ligand_atom_types_jax, ligand_mask_jax = _compute_ligand_nn(
+                coords, lig_xyz, lig_elems, num_neighbors=16
+            )
+
         if task == "score_conditional":
             bundle, config = build_inference_bundle(
                 coords=coords,
@@ -455,9 +632,9 @@ def benchmark_cell(
                 residue_index=residue_index,
                 chain_index=chain_index,
                 sequence=sequence_stacked,    # native sequence from PDB
-                ligand_coords=None,
-                ligand_atom_types=None,
-                ligand_mask=None,
+                ligand_coords=ligand_coords_jax,
+                ligand_atom_types=ligand_atom_types_jax,
+                ligand_mask=ligand_mask_jax,
                 temperature=1.0,
                 mode="score_conditional",
                 inference=True,
@@ -470,9 +647,9 @@ def benchmark_cell(
                 residue_index=residue_index,
                 chain_index=chain_index,
                 sequence=None,               # no fixed sequence for AR sampling
-                ligand_coords=None,
-                ligand_atom_types=None,
-                ligand_mask=None,
+                ligand_coords=ligand_coords_jax,
+                ligand_atom_types=ligand_atom_types_jax,
+                ligand_mask=ligand_mask_jax,
                 temperature=1.0,
                 mode="sample",
                 inference=True,
@@ -519,7 +696,7 @@ def benchmark_cell(
             "batch_size": batch_size,
             "task": task,
             "precision": precision,
-            "ligand_conditioning": False,
+            "ligand_conditioning": ligand_enabled,
             "axis_strategy": "Vmap",
             "average_encoding_mode": "inputs_and_noise",
             "compile_time_cold_s": float(compile_time_s),
@@ -631,6 +808,18 @@ def main():
         help="Path to model checkpoint (.eqx)",
     )
     parser.add_argument(
+        "--ligand",
+        action="store_true",
+        default=False,
+        help="Enable ligand conditioning (requires 1BC8.cif fixture and ligand checkpoint).",
+    )
+    parser.add_argument(
+        "--ligand-checkpoint",
+        type=str,
+        default="ligandmpnn_v_32_010_25",
+        help="Checkpoint ID to use for ligand-conditioned runs (default: ligandmpnn_v_32_010_25).",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print config and exit without running benchmarks",
@@ -692,13 +881,24 @@ def main():
 
     _set_jax_defaults()
 
-    logger.info(f"Loading model {'with checkpoint' if checkpoint_path else 'with random init'}...")
-    try:
-        model = load_model(checkpoint_path)
-        logger.info("Model loaded successfully")
-    except Exception as e:
-        logger.error(f"Failed to load model: {e}")
-        return 1
+    if args.ligand:
+        checkpoint_id = args.ligand_checkpoint
+        local_path = args.reference_path
+        logger.info(f"Ligand mode: loading checkpoint {checkpoint_id}")
+        try:
+            model = load_model(local_path)
+            logger.info("Ligand checkpoint loaded")
+        except Exception as e:
+            logger.error(f"Failed to load ligand checkpoint: {e}")
+            return 1
+    else:
+        logger.info(f"Loading model {'with checkpoint' if checkpoint_path else 'with random init'}...")
+        try:
+            model = load_model(checkpoint_path)
+            logger.info("Model loaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to load model: {e}")
+            return 1
 
     all_results = []
     total_cells = len(args.seq_lens) * len(args.batch_sizes) * len(args.precision)
@@ -721,6 +921,7 @@ def main():
                     batch_size=batch_size,
                     precision=precision,
                     task=args.task,
+                    ligand_enabled=args.ligand,
                     n_warmup=args.n_warmup,
                     n_timed=args.n_timed,
                 )

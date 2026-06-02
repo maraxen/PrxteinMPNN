@@ -13,6 +13,8 @@ from prxteinmpnn.types.bundles import (
   PackerBundle,
   WaveScheduleBundle,
 )
+from prxteinmpnn.tiling.bucketing import BucketingConfig, select_bucket
+from prxteinmpnn.tiling.pad import pad_bundle
 from prxteinmpnn.types.configs import InferenceConfig
 
 
@@ -55,6 +57,7 @@ def build_inference_bundle(
   temperature: float = 1.0,
   mode: str = "score_conditional",
   inference: bool = True,
+  bucket_config: BucketingConfig | None = None,
 ) -> tuple[InferenceBundle, InferenceConfig]:
   """Single entry point for bundle construction from raw arrays."""
 
@@ -167,6 +170,11 @@ def build_inference_bundle(
     packer=packer,
     backbone_noise=jnp.array(backbone_noise),
   )
+
+  # 5b. Pad to bucket ceiling if requested (fixes per-seq-len XLA recompilation)
+  if bucket_config is not None:
+    target_length = select_bucket(seq_len, bucket_config)
+    bundle = pad_bundle(bundle, target_length)
 
   # 6. Config
   config = InferenceConfig(

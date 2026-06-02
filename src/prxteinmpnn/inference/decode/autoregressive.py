@@ -185,12 +185,15 @@ class AutoregressiveDecode(eqx.Module):
       pos = wave.group_positions[wave_idx, 0, 0]
       group_id = cond.tie_group_map[0, pos]
 
+      # Skip padded waves (added by pad_bundle when bucketing is active).
+      is_active = wave.group_valid[wave_idx, 0].astype(jnp.bool_)
+
       # Check if this is the first time we encounter this group
       # Note: we only check the first position in the group (group_positions[wave_idx, 0, 0])
       # to determine if this group should be sampled
       tie_group_at_order = cond.tie_group_map[0, wave.group_positions[:, 0, 0]]
       first_occurrence_idx = jnp.argmax(tie_group_at_order == group_id)
-      is_first = first_occurrence_idx == wave_idx
+      is_first = (first_occurrence_idx == wave_idx) & is_active
 
       def do_sample(seq: jnp.ndarray) -> tuple[jnp.ndarray, jnp.ndarray]:
         """Decode, fuse, sample, and update sequence."""
@@ -343,12 +346,13 @@ class AutoregressiveDecode(eqx.Module):
       wave_idx: jnp.ndarray,
     ) -> tuple[jnp.ndarray, None]:
       """Scatter one wave's logits to its positions."""
+      is_active = wave.group_valid[wave_idx, 0].astype(jnp.bool_)
       pos = wave.group_positions[wave_idx, 0, 0]
       group_id = cond.tie_group_map[0, pos]
       mask_group = cond.tie_group_map[0] == group_id
       step_logits = logits_stack[wave_idx]  # (21,)
       new_logits_final = jnp.where(
-        mask_group[:, None],
+        mask_group[:, None] & is_active,
         step_logits,
         logits_final,
       )

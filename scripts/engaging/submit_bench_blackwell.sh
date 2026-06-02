@@ -24,7 +24,7 @@ export REFERENCE_PATH="${HOME}/repos/LigandMPNN"
 
 # Install CUDA torch + benchmark deps (colabdesign). Torch source is now PyPI
 # which serves the CUDA wheel on Linux.
-uv sync --extra cuda --extra benchmark --group benchmark --group dev
+uv sync --extra cuda --group benchmark --group dev
 
 uv run python prxteinmpnn/scripts/benchmarks/bench_suite.py \
     --hardware Blackwell_SM120 \

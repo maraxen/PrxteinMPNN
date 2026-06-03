@@ -11,12 +11,13 @@ bucket value, amortising retrace cost across batches with similar dedup ratios.
 
 from __future__ import annotations
 
-import numpy as np
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 if TYPE_CHECKING:
-    from prxteinmpnn.tiling.strategy import DedupFn, GatherFn
+    from prxteinmpnn.tiling.strategy import DedupFn, DedupGather, GatherFn
 
 
 K_DEDUP_BUCKETS: tuple[int, ...] = (1, 2, 4, 8, 16, 32)
@@ -36,7 +37,7 @@ def get_k_bucket(k: int) -> int:
             return b
     raise ValueError(
         f"k={k} exceeds maximum K_DEDUP_BUCKETS value {K_DEDUP_BUCKETS[-1]}. "
-        "Increase K_DEDUP_BUCKETS or reduce the unique-structure count."
+        "Increase K_DEDUP_BUCKETS or reduce the unique-structure count.",
     )
 
 
@@ -69,16 +70,16 @@ class DedupSpec:
     def __post_init__(self) -> None:
         if len(self.unique_indices) != self.k:
             raise ValueError(
-                f"DedupSpec.k={self.k} but len(unique_indices)={len(self.unique_indices)}"
+                f"DedupSpec.k={self.k} but len(unique_indices)={len(self.unique_indices)}",
             )
         n_unique_in_map = len(np.unique(self.index_map))
         if n_unique_in_map != self.k:
             raise ValueError(
                 f"DedupSpec index_map references {n_unique_in_map} distinct slots "
-                f"but k={self.k}. They must match."
+                f"but k={self.k}. They must match.",
             )
 
-    def to_dedup_gather(self) -> "DedupGather":
+    def to_dedup_gather(self) -> DedupGather:
         """Pad unique_indices to k_bucket and return a DedupGather strategy.
 
         unique_indices is padded with mode='edge' (last valid index repeated) so
@@ -103,4 +104,4 @@ class DedupSpec:
         )
 
 
-__all__ = ["DedupSpec", "K_DEDUP_BUCKETS", "get_k_bucket"]
+__all__ = ["K_DEDUP_BUCKETS", "DedupSpec", "get_k_bucket"]

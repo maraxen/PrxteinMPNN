@@ -53,6 +53,7 @@ N_STRUCTURES = AxisSpec(
   tile_granularity=1,
   heterogeneous=True,
   doc="Batch of protein structures (BatchingConfig.batch_size). Lengths vary before LENGTH_BUCKETS.",
+  dedup_eligible=True,  # repeated backbone structures can be deduplicated
 )
 
 N_SAMPLES = AxisSpec(

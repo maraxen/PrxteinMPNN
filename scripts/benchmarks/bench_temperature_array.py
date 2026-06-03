@@ -41,6 +41,10 @@ import jax.numpy as jnp
 import numpy as np
 from jax import random
 
+# Add scripts/benchmarks to sys.path for relative imports
+_SCRIPT_DIR = Path(__file__).parent
+sys.path.insert(0, str(_SCRIPT_DIR))
+
 logging.getLogger("jax").setLevel(logging.ERROR)
 logging.getLogger("absl").setLevel(logging.ERROR)
 
@@ -153,16 +157,262 @@ def main():
         return 0
 
     logger.info("Starting benchmarks...")
+    logger.info("About to load adapters...")
 
-    # Placeholder: actual implementation would run benchmarks
-    # For now, return success to allow script to pass --dry-run and --smoke tests
-    logger.info("Temperature array benchmark complete")
+    # ========================================================================
+    # Load models once (reuse across all cells)
+    # ========================================================================
+    logger.debug("Attempting prxteinmpnn adapter import...")
+    try:
+        from bench_prxteinmpnn_jax import (
+            load_model,
+            create_inference_plan,
+            _make_benchmark_spec_with_temperatures,
+            _load_pdb_fixture,
+            _PDB_MAP as PRXTA_PDB_MAP,
+        )
+        from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+        from prxteinmpnn.tiling.bucketing import BucketingConfig
+        prxta_available = True
+        logger.info("prxteinmpnn adapter loaded successfully")
+    except Exception as e:
+        import traceback
+        logger.warning(f"prxteinmpnn adapter unavailable: {e}")
+        logger.debug(traceback.format_exc())
+        prxta_available = False
+
+    try:
+        from bench_colabdesign_jax import (
+            measure_warm_latency_sample as cd_time_sample,
+            measure_warm_latency_score as cd_time_score,
+        )
+        cd_available = True
+        logger.info("ColabDesign adapter loaded successfully")
+    except Exception as e:
+        logger.warning(f"ColabDesign adapter unavailable: {e}")
+        cd_available = False
+
+    try:
+        from bench_ligandmpnn_pytorch import (
+            measure_warm_latency_sample as pt_time_sample,
+            measure_warm_latency_score as pt_time_score,
+        )
+        pt_available = True
+        logger.info("PyTorch adapter loaded successfully")
+    except Exception as e:
+        logger.warning(f"PyTorch adapter unavailable: {e}")
+        pt_available = False
+
+    if not prxta_available:
+        logger.error("prxteinmpnn adapter is required; cannot proceed")
+        return 1
+
+    # Load prxteinmpnn model once
+    model = load_model()
+    bucket_cfg = BucketingConfig()
+
+    # ========================================================================
+    # Benchmark dimensions
+    # ========================================================================
+    # Available PDB fixtures: 76 (1ubq), 94 (1BC8.cif), 500 (1SMD)
+    seq_lens = [76] if args.smoke else [76, 500]
+    batch_sizes = [1] if args.smoke else [1, 4]
+    tasks = ["ar_sample", "score_conditional"]
+
+    cells = []
+
+    # ========================================================================
+    # Main benchmark loop
+    # ========================================================================
+    for m in args.m_values:
+        temperatures = _TEMPERATURE_CONFIGS[m]
+        logger.info(f"\nBenchmarking M={m} temperatures: {temperatures}")
+
+        for seq_len in seq_lens:
+            for batch_size in batch_sizes:
+                for task in tasks:
+                    cell_start = time.time()
+                    cell_key = random.PRNGKey(42)
+
+                    logger.info(
+                        f"  M={m}, L={seq_len}, B={batch_size}, task={task} ... ",
+                    )
+
+                    # ====================================================================
+                    # 1. prxteinmpnn: single vmapped call with all M temperatures
+                    # ====================================================================
+                    prxta_median_ms = None
+                    prxta_p95_ms = None
+                    prxta_per_temp_ms = None
+
+                    if prxta_available:
+                        try:
+                            # Load fixture once
+                            coords, mask, sequence, residue_index, chain_index, actual_len = \
+                                _load_pdb_fixture(args.pdb_dir, seq_len)
+
+                            # Stack for batch_size > 1
+                            if batch_size > 1:
+                                coords = jnp.stack([coords] * batch_size, axis=0)
+                                mask = jnp.stack([mask] * batch_size, axis=0)
+                                residue_index = jnp.stack([residue_index] * batch_size, axis=0)
+                                chain_index = jnp.stack([chain_index] * batch_size, axis=0)
+
+                            # Create spec with all M temperatures
+                            spec = _make_benchmark_spec_with_temperatures(temperatures)
+
+                            # Create plan
+                            plan = create_inference_plan(model, task, spec)
+
+                            # Build bundle
+                            if task == "score_conditional":
+                                bundle, config = build_inference_bundle(
+                                    coords=coords,
+                                    mask=mask,
+                                    residue_index=residue_index,
+                                    chain_index=chain_index,
+                                    sequence=sequence,
+                                    temperature=1.0,
+                                    mode="score_conditional",
+                                    inference=True,
+                                    bucket_config=bucket_cfg,
+                                )
+                                fn = plan.score
+                            else:  # ar_sample
+                                bundle, config = build_inference_bundle(
+                                    coords=coords,
+                                    mask=mask,
+                                    residue_index=residue_index,
+                                    chain_index=chain_index,
+                                    sequence=None,
+                                    temperature=1.0,
+                                    mode="sample",
+                                    inference=True,
+                                    bucket_config=bucket_cfg,
+                                )
+                                fn = plan.sample
+
+                            # Warmup
+                            for _ in range(args.n_warmup):
+                                result = fn(bundle, cell_key, config)
+                                jax.block_until_ready(result)
+
+                            # Timed
+                            times_ms = []
+                            for _ in range(args.n_timed):
+                                t0 = time.perf_counter()
+                                result = fn(bundle, cell_key, config)
+                                jax.block_until_ready(result)
+                                t1 = time.perf_counter()
+                                times_ms.append((t1 - t0) * 1000.0)
+
+                            times_ms.sort()
+                            prxta_median_ms = times_ms[len(times_ms) // 2]
+                            prxta_p95_ms = times_ms[int(0.95 * len(times_ms))]
+                            prxta_per_temp_ms = prxta_median_ms / m
+
+                        except Exception as e:
+                            logger.warning(
+                                f"    prxteinmpnn failed: {e.__class__.__name__}: {e}"
+                            )
+
+                    # ====================================================================
+                    # 2. ColabDesign: sum of M sequential calls
+                    # ====================================================================
+                    cd_total_ms = None
+                    cd_per_temp_ms = None
+
+                    if cd_available:
+                        try:
+                            # ColabDesign requires building model per temperature or once
+                            # For simplicity, time each call and sum
+                            cd_total = 0.0
+                            for temp in temperatures:
+                                # ColabDesign measure_warm_latency_* returns (median_ms, ...)
+                                # We'll need to call it for each temperature
+                                # For now, approximate: measure each temp call
+                                # This is a simplified approach; real benchmark would reuse model
+                                median_this_temp, _ = (
+                                    cd_time_sample(seq_len, batch_size, temp, args.n_warmup, args.n_timed)
+                                    if task == "ar_sample"
+                                    else cd_time_score(seq_len, batch_size, args.n_warmup, args.n_timed)
+                                )
+                                cd_total += median_this_temp
+
+                            cd_total_ms = cd_total
+                            cd_per_temp_ms = cd_total_ms / m
+
+                        except Exception as e:
+                            logger.warning(
+                                f"    ColabDesign failed: {e.__class__.__name__}: {e}"
+                            )
+
+                    # ====================================================================
+                    # 3. PyTorch: sum of M sequential calls (if available)
+                    # ====================================================================
+                    pt_total_ms = None
+                    pt_per_temp_ms = None
+
+                    if pt_available:
+                        try:
+                            pt_total = 0.0
+                            for temp in temperatures:
+                                median_this_temp, _ = (
+                                    pt_time_sample(seq_len, batch_size, temp, args.n_warmup, args.n_timed)
+                                    if task == "ar_sample"
+                                    else pt_time_score(seq_len, batch_size, args.n_warmup, args.n_timed)
+                                )
+                                pt_total += median_this_temp
+
+                            pt_total_ms = pt_total
+                            pt_per_temp_ms = pt_total_ms / m
+
+                        except Exception as e:
+                            logger.warning(
+                                f"    PyTorch failed: {e.__class__.__name__}: {e}"
+                            )
+
+                    # ====================================================================
+                    # 4. Compute speedups and record cell
+                    # ====================================================================
+                    speedup_vs_cd = None
+                    speedup_vs_pt = None
+
+                    if prxta_median_ms is not None and cd_total_ms is not None:
+                        speedup_vs_cd = cd_total_ms / prxta_median_ms
+
+                    if prxta_median_ms is not None and pt_total_ms is not None:
+                        speedup_vs_pt = pt_total_ms / prxta_median_ms
+
+                    cell = {
+                        "m_value": m,
+                        "seq_len": seq_len,
+                        "batch_size": batch_size,
+                        "task": task,
+                        "temperatures": temperatures,
+                        "prxteinmpnn_latency_median_ms": prxta_median_ms,
+                        "prxteinmpnn_latency_p95_ms": prxta_p95_ms,
+                        "prxteinmpnn_latency_per_temp_ms": prxta_per_temp_ms,
+                        "colabdesign_latency_total_ms": cd_total_ms,
+                        "colabdesign_latency_per_temp_ms": cd_per_temp_ms,
+                        "pytorch_latency_total_ms": pt_total_ms,
+                        "pytorch_latency_per_temp_ms": pt_per_temp_ms,
+                        "speedup_vs_colabdesign": speedup_vs_cd,
+                        "speedup_vs_pytorch": speedup_vs_pt,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                    cells.append(cell)
+
+                    cell_elapsed = time.time() - cell_start
+                    logger.info(f"    {cell_elapsed:.1f}s")
+
+    logger.info(f"\nTemperature array benchmark complete — {len(cells)} cells")
 
     output = {
         "schema_version": "1",
         "hardware": args.hardware,
         "m_values": args.m_values,
-        "cells": [],  # Placeholder
+        "cells": cells,
     }
 
     if args.output_json is not None:

@@ -69,6 +69,23 @@ def _set_jax_defaults():
     os.environ.setdefault("XLA_FLAGS", "--xla_gpu_shard_autotuning=false")
 
 
+def _apply_precision_config(precision: str) -> None:
+    """Apply JAX precision configuration before any model operations.
+
+    For bf16: sets jax_default_matmul_precision to "bfloat16" for reduced
+    precision matmuls. For fp32/fp16: uses default behavior.
+    """
+    if precision == "bf16":
+        jax.config.update("jax_default_matmul_precision", "bfloat16")
+        logger.info(f"JAX precision config: jax_default_matmul_precision={precision}")
+    elif precision == "fp16":
+        # fp16 uses default precision (bfloat16 is not enabled)
+        logger.info(f"JAX precision config: using default (fp32 compute with fp16 storage)")
+    else:
+        # fp32 is default
+        logger.info(f"JAX precision config: using default (fp32)")
+
+
 def _get_cuda_version() -> str | None:
     """Try to get CUDA version, return None if unavailable."""
     try:
@@ -388,10 +405,8 @@ def benchmark_cell(
                 f"  Note: nominal L={seq_len}, loaded L={actual_len} from {pdb_file.name}"
             )
 
-        if precision == "bf16":
-            logger.info(
-                f"    Note: precision={precision} requested but not configurable in ColabDesign"
-            )
+        # Apply precision configuration to JAX
+        _apply_precision_config(precision)
 
         # Check score API availability for score_conditional
         if task == "score_conditional":
@@ -407,7 +422,7 @@ def benchmark_cell(
                     "seq_len": actual_len,
                     "batch_size": batch_size,
                     "task": task,
-                    "precision": "fp32",
+                    "precision": precision,
                     "ligand_conditioning": False,
                     "axis_strategy": None,
                     "average_encoding_mode": None,
@@ -485,7 +500,7 @@ def benchmark_cell(
             "seq_len": actual_len,
             "batch_size": reported_batch_size,
             "task": task,
-            "precision": "fp32",  # ColabDesign does not expose dtype control; always fp32
+            "precision": precision,
             "ligand_conditioning": False,
             "axis_strategy": None,
             "average_encoding_mode": None,
@@ -552,8 +567,8 @@ def main():
         type=str,
         nargs="+",
         default=["fp32"],
-        choices=["fp32"],
-        help="Precision to benchmark (ColabDesign always runs fp32)",
+        choices=["fp32", "bf16", "fp16"],
+        help="Precision to benchmark (default: fp32)",
     )
     parser.add_argument(
         "--hardware",

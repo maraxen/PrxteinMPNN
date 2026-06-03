@@ -1,0 +1,62 @@
+[metadata]
+title = "Temperature Array Sweep Benchmark"
+created = "260603"
+schema_version = "0.3"
+
+[experiment]
+hypothesis = """
+M temperatures in one JIT call achieves near-M-x throughput vs M sequential calls
+(single compilation amortized over all temperatures).
+"""
+
+[outcomes.pass]
+condition = "speedup_vs_colabdesign_sequential >= M*0.7 at M=4"
+reasoning = """
+At M=4, batched temperature dispatch should achieve 70% or better of ideal
+linear scaling (4x speedup). Compilation overhead + batching logic may prevent
+perfect 4x, but 2.8x+ indicates effective batching.
+"""
+is_residual = false
+
+[outcomes.marginal]
+condition = "speedup >= 1.0 at all M"
+reasoning = """
+At worst case, batching should not degrade performance vs sequential.
+Speedup < 1.0 at any M means batching overhead exceeds the benefit of
+amortized compilation — indicates implementation issue or configuration mismatch.
+"""
+is_residual = false
+
+[outcomes.fail]
+condition = "speedup < 1.0 at any M (batching costs exceed savings)"
+reasoning = """
+Negative speedup signals that temperature batching is slower than sequential calls.
+This would invalidate the core hypothesis that JIT-native temperature dispatch
+provides a performance advantage.
+"""
+is_residual = true
+
+[result_schema]
+m_values = { type = "list[int]", doc = "Temperature set sizes benchmarked: [1, 2, 4, 8]" }
+cells = { type = "list[dict]", doc = "One cell per M value" }
+
+[result_schema.cells.item]
+m = { type = "int", doc = "Number of temperatures in this run" }
+temperatures = { type = "list[float]", doc = "Temperature values used" }
+prxteinmpnn_latency_ms = { type = "float", doc = "Median latency (ms) for M temperatures in single JIT call" }
+colabdesign_sequential_latency_ms = { type = "float", doc = "Sum of M sequential ColabDesign calls (ms)" }
+pytorch_sequential_latency_ms = { type = "float", doc = "Sum of M sequential PyTorch calls (ms)" }
+speedup_vs_colabdesign = { type = "float", doc = "colabdesign_sequential / prxteinmpnn_latency" }
+hardware = { type = "str", doc = "GPU hardware identifier (H200 / A100 / L40s / Blackwell)" }
+
+[result_schema.provenance]
+input_seq_len = { type = "int", doc = "Sequence length (L=76)" }
+batch_size = { type = "int", doc = "Batch size (1 to isolate temperature axis)" }
+fixture = { type = "str", doc = "PDB fixture (1ubq.pdb, L=76)" }
+reference_checkpoints = { type = "str", doc = "ColabDesign + PyTorch baseline checkpoint IDs" }
+
+[dependencies]
+prxteinmpnn_version = { type = "git_sha", required = true, doc = "prxteinmpnn commit SHA" }
+jax_version = { type = "string", required = true, doc = "JAX version used in run" }
+colabdesign_commit = { type = "git_sha", required = false, doc = "ColabDesign reference commit" }
+pytorch_version = { type = "string", required = false, doc = "PyTorch baseline version" }

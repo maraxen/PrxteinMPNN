@@ -39,6 +39,7 @@ documentation = "https://prxteinmpnn.readthedocs.io"
 
 [project.optional-dependencies]
 cuda = ["jax[cuda]"]
+cuda12 = ["jax[cuda12]"]
 # Keep TPU extra resolver-safe; TPU-specific wheels should be installed explicitly
 # in TPU environments.
 tpu = ["jax[tpu]"]

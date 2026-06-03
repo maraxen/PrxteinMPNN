@@ -19,6 +19,7 @@ export REFERENCE_PATH="${HOME}/repos/LigandMPNN"
 source scripts/engaging/_gpu_env.sh
 
 uv sync --extra "${JAX_EXTRA}" --group benchmark --group dev
+source scripts/engaging/_cudnn_path.sh
 
 # Smoke test: single cell (L=76 → bucket=128, B=1, bf16, ar_sample only).
 # With bucketing + XLA cache enabled this should compile in <5 min.

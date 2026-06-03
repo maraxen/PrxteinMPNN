@@ -159,6 +159,40 @@ def prepare_pdb_input(
         return -1, "", False
 
 
+def _build_batched_score_inputs(
+    model: Any,
+    native_seq: str,
+    batch_size: int,
+    seq_len: int,
+) -> tuple[Any, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    """Build batched inputs for model._rescore_parallel().
+
+    Returns
+    -------
+    tuple
+        (inputs_dict, S_batch, keys, decoding_order)
+        where S_batch has shape (batch_size, seq_len) and contains native_seq repeated.
+    """
+    from colabdesign.shared.utils import copy_dict
+
+    # Copy model inputs (backbone-fixed structure and encodings)
+    inputs = copy_dict(model._inputs)
+
+    # Build S_batch: native sequence repeated B times
+    # model._inputs["S"] contains integer amino acid indices, shape (L,)
+    S_native = model._inputs["S"]  # shape (L,)
+    S_batch = jnp.broadcast_to(S_native[None, :], (batch_size, seq_len))
+
+    # Generate B independent keys for sampling diversity (if _rescore_parallel uses them)
+    keys = jax.random.split(model.key(), batch_size)
+
+    # Build decoding order: use fixed arange for reproducible timing
+    # _rescore_parallel expects shape (B, L) with decoding order per sequence
+    decoding_order = jnp.broadcast_to(jnp.arange(seq_len)[None, :], (batch_size, seq_len))
+
+    return inputs, S_batch, keys, decoding_order
+
+
 # ============================================================================
 # Timing
 # ============================================================================
@@ -185,18 +219,46 @@ def measure_cold_compile_sample(
 def measure_cold_compile_score(
     model: Any,
     native_seq: str,
+    batch_size: int,
     fixture_name: str,
 ) -> tuple[float, str]:
-    """Measure cold XLA compilation time for score_conditional."""
+    """Measure cold XLA compilation time for score_conditional.
+
+    For batch_size > 1, uses ColabDesign's vmapped _rescore_parallel if available;
+    otherwise falls back to sequential scoring.
+    """
     jax.config.update("jax_enable_compilation_cache", False)
     jax.clear_caches()
 
     t0 = time.perf_counter()
-    result = model.score(seq=native_seq)
+
+    if batch_size > 1 and hasattr(model, "_rescore_parallel"):
+        # Use batched scoring via _rescore_parallel
+        inputs, S_batch, keys, decoding_order = _build_batched_score_inputs(
+            model, native_seq, batch_size, len(native_seq)
+        )
+        result = model._rescore_parallel(keys, inputs, S_batch, decoding_order)
+    else:
+        # Fall back to single-sequence scoring (or B=1 via rescore_parallel)
+        if batch_size == 1 and hasattr(model, "_rescore_parallel"):
+            inputs, S_batch, keys, decoding_order = _build_batched_score_inputs(
+                model, native_seq, 1, len(native_seq)
+            )
+            result = model._rescore_parallel(keys, inputs, S_batch, decoding_order)
+        else:
+            result = model.score(seq=native_seq)
+
     jax.block_until_ready(jax.tree_util.tree_leaves(result))
     compile_time_cold_s = time.perf_counter() - t0
 
-    note = "JAX: XLA compilation; cache disabled for cold run; score_conditional uses model.score(seq=native_seq)"
+    if batch_size > 1 and hasattr(model, "_rescore_parallel"):
+        note = (
+            f"JAX: XLA compilation; cache disabled for cold run; "
+            f"score_conditional uses model._rescore_parallel (batch_size={batch_size}) "
+            f"for sequence-parallel scoring over fixed backbone"
+        )
+    else:
+        note = "JAX: XLA compilation; cache disabled for cold run; score_conditional uses model.score(seq=native_seq)"
     return compile_time_cold_s, note
 
 
@@ -231,38 +293,62 @@ def measure_warm_latency_score(
 ) -> tuple[float, float, list[float], int]:
     """Measure warm score_conditional latency.
 
-    model.score() does not support batch_size > 1 natively.
-    For batch_size > 1, runs sequentially and reports per-sequence latency.
+    For batch_size > 1 with _rescore_parallel available: uses batched vmapped scoring
+    (sequence-parallel over a fixed backbone). Otherwise falls back to sequential.
 
     Returns
     -------
     tuple
         (median_s, p95_s, times, reported_batch_size)
-        reported_batch_size=1 when sequential workaround was used.
+        reported_batch_size is actual batch size when batched; 1 when sequential fallback used.
     """
-    def _score_once():
-        return model.score(seq=native_seq)
+    seq_len = len(native_seq)
 
-    for _ in range(n_warmup):
-        r = _score_once()
-        jax.block_until_ready(jax.tree_util.tree_leaves(r))
+    # Check if batched path is available
+    use_batched = batch_size > 1 and hasattr(model, "_rescore_parallel")
 
-    times = []
-    if batch_size > 1:
-        # Sequential workaround: run batch_size times, normalize per-sequence
+    if use_batched:
+        # Warm up with batched scoring
+        inputs, S_batch, keys, decoding_order = _build_batched_score_inputs(
+            model, native_seq, batch_size, seq_len
+        )
+        for _ in range(n_warmup):
+            r = model._rescore_parallel(keys, inputs, S_batch, decoding_order)
+            jax.block_until_ready(jax.tree_util.tree_leaves(r))
+
+        # Time batched scoring
+        times = []
         for _ in range(n_timed):
             t0 = time.perf_counter()
-            for _ in range(batch_size):
-                r = _score_once()
-                jax.block_until_ready(jax.tree_util.tree_leaves(r))
-            times.append((time.perf_counter() - t0) / batch_size)
-        reported_batch_size = 1
-    else:
-        for _ in range(n_timed):
-            t0 = time.perf_counter()
-            r = _score_once()
+            r = model._rescore_parallel(keys, inputs, S_batch, decoding_order)
             jax.block_until_ready(jax.tree_util.tree_leaves(r))
             times.append(time.perf_counter() - t0)
+        reported_batch_size = batch_size
+    else:
+        # Fallback to sequential or single-sequence scoring
+        def _score_once():
+            return model.score(seq=native_seq)
+
+        for _ in range(n_warmup):
+            r = _score_once()
+            jax.block_until_ready(jax.tree_util.tree_leaves(r))
+
+        times = []
+        if batch_size > 1:
+            # No _rescore_parallel: run sequentially, report per-sequence time
+            for _ in range(n_timed):
+                t0 = time.perf_counter()
+                for _ in range(batch_size):
+                    r = _score_once()
+                    jax.block_until_ready(jax.tree_util.tree_leaves(r))
+                times.append((time.perf_counter() - t0) / batch_size)
+        else:
+            # B=1 via single-sequence path
+            for _ in range(n_timed):
+                t0 = time.perf_counter()
+                r = _score_once()
+                jax.block_until_ready(jax.tree_util.tree_leaves(r))
+                times.append(time.perf_counter() - t0)
         reported_batch_size = 1
 
     times_arr = np.array(times)
@@ -349,7 +435,7 @@ def benchmark_cell(
             )
         else:  # score_conditional
             compile_time_s, compile_note = measure_cold_compile_score(
-                model, native_seq, pdb_file.name
+                model, native_seq, batch_size, pdb_file.name
             )
 
         # Warm latency
@@ -371,9 +457,17 @@ def benchmark_cell(
             )
             if batch_size > 1 and reported_batch_size == 1:
                 extra_note = (
-                    f"ColabDesign score() does not support batch_size>1; "
+                    f"ColabDesign score() with fallback: no _rescore_parallel; "
                     f"ran {batch_size}x sequentially, reporting per-sequence latency; "
                     f"reported batch_size=1"
+                )
+                compile_note = compile_note + "; " + extra_note
+            elif batch_size > 1 and reported_batch_size == batch_size:
+                # Batched path was used
+                extra_note = (
+                    f"ColabDesign score() with _rescore_parallel: "
+                    f"sequence-parallel vmapped scoring over fixed backbone; "
+                    f"reported batch_size={batch_size}"
                 )
                 compile_note = compile_note + "; " + extra_note
 

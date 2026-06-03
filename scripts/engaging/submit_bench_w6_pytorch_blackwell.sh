@@ -26,6 +26,7 @@ fi
 export REFERENCE_PATH="${HOME}/repos/LigandMPNN"
 
 uv sync --extra cuda --group benchmark --group dev
+source scripts/engaging/_cudnn_path.sh
 
 uv run python scripts/benchmarks/bench_suite.py \
     --hardware Blackwell_SM120 \

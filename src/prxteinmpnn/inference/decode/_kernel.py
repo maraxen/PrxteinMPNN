@@ -104,11 +104,8 @@ def _project_logits(
       Logits. Shape (S, L, V) or (L, V) matching input batch structure.
       V = 21 (vocabulary size).
   """
-  # Fuse double-vmap over (S, L) to flat batch: reshape (S,L,H)->(S*L,H), vmap once, reshape back
-  S, L, H_in = decoded.shape
-  decoded_flat = decoded.reshape(-1, H_in)
-  logits_flat = jax.vmap(model.w_out)(decoded_flat)
-  return logits_flat.reshape(S, L, logits_flat.shape[-1])
+  # Double vmap over (S, L) to apply w_out (which expects H -> V)
+  return jax.vmap(jax.vmap(model.w_out, in_axes=0), in_axes=0)(decoded)
 
 
 def _tied_group_einsum_average(

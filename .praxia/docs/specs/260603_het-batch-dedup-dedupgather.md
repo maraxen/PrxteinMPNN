@@ -1,8 +1,8 @@
 # Specification: Heterogeneous Dedup-Batching (`DedupGather` strategy)
 
-> task_id: 260603_het-batch-dedup · sprint: 22 · backlog: #930 · **status: v2 (post-gate, spike-validated)**
+> task_id: 260603_het-batch-dedup · sprint: 22 · backlog: #930 · **status: v2.1 — RE-GATE PASS (editorial fixes applied)**
 > Authored by specification-specialist. DESIGN ONLY — no implementation this sprint.
-> v1 returned UNANIMOUS NEEDS_WORK from oracle + plan-auditor + code-architecture-advisor. This revision resolves every required fix. (v1 preserved in git at 7c5fecb.)
+> v1 returned UNANIMOUS NEEDS_WORK; v2 resolved every design fix; re-gate returned oracle PASS + arch-advisor PASS + plan-auditor NEEDS_WORK (editorial only). The 3 re-gate fixes — `eq=False` on DedupGather, Task 3 gate test-path, 2a→2b sequencing — are applied below. (v1 preserved in git at 7c5fecb.)
 
 ## Overview
 
@@ -56,7 +56,7 @@ Add to `src/prxteinmpnn/tiling/strategy.py`:
    - `k_bucket: int` — padded static K-bucket (>= k).
    - `dedup_fn: DedupFn` / `gather_fn: GatherFn` — default to the helpers above.
 
-**eqx.partition rationale (fix J):** `DedupGather` is a plain frozen dataclass, not an `eqx.Module`. `AxisDecision`/`BatchPlan` are plain frozen dataclasses, never pytree-registered, never JIT args; strategy is closure-captured at each `_dispatch_axis` call. `dedup_fn`/`gather_fn` are Python callables that must be JIT-compatible because the inner body is traced. `unique_indices`/`index_map` are host numpy → `jnp.asarray` inside `_dispatch_axis` at trace time → static integer arrays in the compiled program. No `eqx.partition` needed.
+**eqx.partition rationale (fix J):** `DedupGather` is a plain frozen dataclass, not an `eqx.Module`. `AxisDecision`/`BatchPlan` are plain frozen dataclasses, never pytree-registered, never JIT args; strategy is closure-captured at each `_dispatch_axis` call. `dedup_fn`/`gather_fn` are Python callables that must be JIT-compatible because the inner body is traced. `unique_indices`/`index_map` are host numpy → `jnp.asarray` inside `_dispatch_axis` at trace time → static integer arrays in the compiled program. No `eqx.partition` needed. **Declare it `@dataclass(frozen=True, eq=False)`** (re-gate fix): the `np.ndarray` fields would make the synthesized `__eq__`/`__hash__` raise (ambiguous truth value / unhashable ndarray) — every other AxisStrategy variant is eq/hash-safe today, so keep the union consistent and compare via `isinstance` + `np.array_equal`.
 
 **Files:** `strategy.py` (modify), `tiling/__init__.py` (exports).
 **Gate:** `uv run pytest tests/tiling/test_strategy.py -q` + new `test_dedup_gather_stores_fields`, `test_dedup_gather_in_union`.
@@ -109,7 +109,7 @@ Phase 0b calls `to_dedup_gather()` per `DedupSpec` → `AxisDecision(strategy=De
 
 **Files:** `dedup.py` (create), `tiling/__init__.py` (export `DedupSpec`, `K_DEDUP_BUCKETS`, `get_k_bucket`).
 **Gate:** `uv run pytest tests/tiling/test_planner_phase0.py tests/tiling/test_strategy.py -q` + `test_k_bucketing_pads_unique_indices`.
-**Ordering:** After Task 1.
+**Ordering:** After Task **2a** (re-gate fix — both edit `planner.py:115-191`; 2a adds the `AxisSpec` field + eligibility guard, 2b adds the Phase 0b `dedup_names` block — sequence to avoid a write-conflict).
 
 ### Task 3: `DedupGather` dispatch across all THREE dispatch sites (fix C)
 
@@ -129,7 +129,7 @@ if isinstance(strategy, DedupGather):
 **Site 3 — `host/plan.py:_validate_plan_topology` (247)**: no edit needed — only imports/checks Scan & Vmap (line 261); DedupGather skips both cleanly. Document as confirmed-no-op. Do NOT add a rejection rule here (fix L; eligibility lives in `plan()`).
 
 **Files:** `kernel_dispatch.py`, `tiling/dispatch.py`.
-**Gate:** `uv run pytest tests/tiling/test_dispatch.py tests/host/test_kernel_dispatch.py -q` + `test_make_axis_dispatch_rejects_dedup_gather`.
+**Gate:** `uv run pytest tests/tiling/test_dispatch.py -q` + `test_make_axis_dispatch_rejects_dedup_gather` (in the existing `test_dispatch.py`; re-gate fix — the prior `tests/host/test_kernel_dispatch.py` does not exist). The `_dispatch_axis` DedupGather branch is exercised by `tests/tiling/test_dedup_gather.py` (Task 4).
 **Ordering:** After Tasks 1, 2a, 2b.
 
 ### Task 4: Correctness invariant tests (`tests/tiling/test_dedup_gather.py`)
@@ -223,14 +223,14 @@ In all four `_sample_batch` paths, `encode_key = jax.random.fold_in(base_key, st
 
 ```
 Task 1 (strategy.py types)
-  ├── Task 2a (AxisSpec flag + planner guard)
-  ├── Task 2b (DedupSpec + K-bucketing + dedup.py)
-  └── Task 3  (_dispatch_axis + dispatch.py + plan.py no-op)   [needs 1, 2a, 2b]
-        └── Task 4 (tests)        [needs 1, 2a, 2b, 3]
-              └── Task 5 (exports)  [needs 1, 2b]
-                    └── Task 6 (ty + ruff)  [needs all]
+  └── Task 2a (AxisSpec flag + planner guard)
+        └── Task 2b (DedupSpec + K-bucketing + dedup.py)
+              └── Task 3  (_dispatch_axis + dispatch.py + plan.py no-op)   [needs 1, 2a, 2b]
+                    └── Task 4 (tests)        [needs 1, 2a, 2b, 3]
+                          └── Task 5 (exports)  [needs 1, 2b]
+                                └── Task 6 (ty + ruff)  [needs all]
 ```
-2a and 2b parallel after Task 1; Task 3 needs both.
+2a → 2b are sequential (re-gate fix — both edit `planner.py:115-191`, so they cannot run in parallel); Task 3 needs 1, 2a, 2b.
 
 ---
 

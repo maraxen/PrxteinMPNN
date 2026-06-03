@@ -56,6 +56,10 @@ logging.basicConfig(
 
 _DEFAULT_PDB_DIR = Path(__file__).parents[2] / "tests" / "data"
 
+# Standard 20-letter amino acid alphabet (index 0-19), unknown=20
+_AA_ALPHABET = "ACDEFGHIKLMNPQRSTVWY"
+_AA_TO_IDX = {aa: i for i, aa in enumerate(_AA_ALPHABET)}
+
 # Temperature configurations for each M value
 _TEMPERATURE_CONFIGS = {
     1: [1.0],
@@ -131,11 +135,16 @@ def main():
 
     args = parser.parse_args()
 
-    # Adjust for smoke test
+    # Consolidate smoke mode overrides
     if args.smoke:
         args.m_values = [1]
         args.n_warmup = 1
         args.n_timed = 3
+        _smoke_seq_lens = [76]
+        _smoke_batch_sizes = [1]
+    else:
+        _smoke_seq_lens = [76, 150, 300, 500]
+        _smoke_batch_sizes = [1, 4]
 
     # Display configuration
     config = {
@@ -183,6 +192,7 @@ def main():
 
     try:
         from bench_colabdesign_jax import (
+            load_model as cd_load_model,
             measure_warm_latency_sample as cd_time_sample,
             measure_warm_latency_score as cd_time_score,
         )
@@ -192,16 +202,23 @@ def main():
         logger.warning(f"ColabDesign adapter unavailable: {e}")
         cd_available = False
 
-    try:
-        from bench_ligandmpnn_pytorch import (
-            measure_warm_latency_sample as pt_time_sample,
-            measure_warm_latency_score as pt_time_score,
-        )
-        pt_available = True
-        logger.info("PyTorch adapter loaded successfully")
-    except Exception as e:
-        logger.warning(f"PyTorch adapter unavailable: {e}")
-        pt_available = False
+    # Check REFERENCE_PATH for PyTorch availability
+    pt_available = False
+    if os.environ.get("REFERENCE_PATH"):
+        try:
+            from bench_ligandmpnn_pytorch import (
+                load_model as pt_load_model,
+                prepare_feature_dict as pt_prepare_feature_dict,
+                measure_warm_latency_sample as pt_time_sample,
+                measure_warm_latency_score as pt_time_score,
+                _load_pdb_fixture as pt_load_pdb_fixture,
+            )
+            pt_available = True
+            logger.info("PyTorch adapter loaded successfully")
+        except Exception as e:
+            logger.warning(f"PyTorch adapter unavailable: {e}")
+    else:
+        logger.warning("REFERENCE_PATH not set; PyTorch baselines skipped")
 
     if not prxta_available:
         logger.error("prxteinmpnn adapter is required; cannot proceed")
@@ -214,9 +231,8 @@ def main():
     # ========================================================================
     # Benchmark dimensions
     # ========================================================================
-    # Available PDB fixtures: 76 (1ubq), 94 (1BC8.cif), 500 (1SMD)
-    seq_lens = [76] if args.smoke else [76, 500]
-    batch_sizes = [1] if args.smoke else [1, 4]
+    seq_lens = _smoke_seq_lens
+    batch_sizes = _smoke_batch_sizes
     tasks = ["ar_sample", "score_conditional"]
 
     cells = []
@@ -299,9 +315,9 @@ def main():
 
                             # Timed
                             times_ms = []
-                            for _ in range(args.n_timed):
+                            for i in range(args.n_timed):
                                 t0 = time.perf_counter()
-                                result = fn(bundle, cell_key, config)
+                                result = fn(bundle, jax.random.fold_in(cell_key, i), config)
                                 jax.block_until_ready(result)
                                 t1 = time.perf_counter()
                                 times_ms.append((t1 - t0) * 1000.0)
@@ -324,22 +340,43 @@ def main():
 
                     if cd_available:
                         try:
-                            # ColabDesign requires building model per temperature or once
-                            # For simplicity, time each call and sum
-                            cd_total = 0.0
-                            for temp in temperatures:
-                                # ColabDesign measure_warm_latency_* returns (median_ms, ...)
-                                # We'll need to call it for each temperature
-                                # For now, approximate: measure each temp call
-                                # This is a simplified approach; real benchmark would reuse model
-                                median_this_temp, _ = (
-                                    cd_time_sample(seq_len, batch_size, temp, args.n_warmup, args.n_timed)
-                                    if task == "ar_sample"
-                                    else cd_time_score(seq_len, batch_size, args.n_warmup, args.n_timed)
-                                )
-                                cd_total += median_this_temp
+                            # Build ColabDesign model once per seq_len
+                            cd_model = cd_load_model()
 
-                            cd_total_ms = cd_total
+                            # For ar_sample task: loop M times and sum medians
+                            if task == "ar_sample":
+                                cd_total = 0.0
+                                for _ in range(m):
+                                    median_s, _, _ = cd_time_sample(
+                                        cd_model,
+                                        batch_size=batch_size,
+                                        n_warmup=1,
+                                        n_timed=args.n_timed,
+                                    )
+                                    cd_total += median_s * 1000.0  # Convert to ms
+                                cd_total_ms = cd_total
+                            else:
+                                # For score_conditional: need native sequence
+                                # Load PDB fixture to get native sequence
+                                from bench_prxteinmpnn_jax import _load_pdb_fixture as prxta_load_pdb
+                                coords, mask, sequence, residue_index, chain_index, actual_len = \
+                                    prxta_load_pdb(args.pdb_dir, seq_len)
+                                # Convert to amino acid string (sequence is int32 indices 0-19)
+                                aa_alphabet = "ACDEFGHIKLMNPQRSTVWY"
+                                native_seq = "".join(aa_alphabet[int(s)] for s in sequence)
+
+                                cd_total = 0.0
+                                for _ in range(m):
+                                    median_s, _, _, _ = cd_time_score(
+                                        cd_model,
+                                        native_seq=native_seq,
+                                        batch_size=batch_size,
+                                        n_warmup=1,
+                                        n_timed=args.n_timed,
+                                    )
+                                    cd_total += median_s * 1000.0  # Convert to ms
+                                cd_total_ms = cd_total
+
                             cd_per_temp_ms = cd_total_ms / m
 
                         except Exception as e:
@@ -355,16 +392,80 @@ def main():
 
                     if pt_available:
                         try:
-                            pt_total = 0.0
-                            for temp in temperatures:
-                                median_this_temp, _ = (
-                                    pt_time_sample(seq_len, batch_size, temp, args.n_warmup, args.n_timed)
-                                    if task == "ar_sample"
-                                    else pt_time_score(seq_len, batch_size, args.n_warmup, args.n_timed)
-                                )
-                                pt_total += median_this_temp
+                            import torch
+                            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-                            pt_total_ms = pt_total
+                            # Load PyTorch model once per seq_len
+                            pt_model = pt_load_model(device=device)
+
+                            # Load fixture
+                            coords, mask, sequence, residue_index, chain_index, actual_len = \
+                                pt_load_pdb_fixture(args.pdb_dir, seq_len)
+
+                            # Build feature dict
+                            coords_t = torch.tensor(coords, dtype=torch.float32, device=device)
+                            mask_t = torch.tensor(mask, dtype=torch.float32, device=device)
+                            seq_t = torch.tensor(sequence, dtype=torch.long, device=device)
+                            residue_index_t = torch.tensor(residue_index, dtype=torch.long, device=device)
+                            chain_index_t = torch.tensor(chain_index, dtype=torch.long, device=device)
+
+                            protein_dict = {
+                                "X": coords_t,
+                                "mask": mask_t,
+                                "R_idx": residue_index_t,
+                                "chain_labels": chain_index_t,
+                                "S": seq_t,
+                                "chain_mask": torch.ones(actual_len, dtype=torch.float32, device=device),
+                            }
+
+                            reference_path = Path(os.environ.get("REFERENCE_PATH", "/home/marielle/repos/LigandMPNN"))
+                            feature_dict = pt_prepare_feature_dict(
+                                protein_dict,
+                                reference_path=reference_path,
+                                model_type="ligand_mpnn",
+                                atom_context_num=20,
+                                device=device,
+                            )
+
+                            # Native sequence for scoring
+                            aa_alphabet = "ACDEFGHIKLMNPQRSTVWY"
+                            native_seq = "".join(aa_alphabet[int(s)] for s in sequence)
+                            native_sequence = torch.tensor(
+                                [_AA_TO_IDX.get(aa, 20) for aa in native_seq],
+                                dtype=torch.long,
+                                device=device
+                            )
+
+                            # For ar_sample task
+                            if task == "ar_sample":
+                                pt_total = 0.0
+                                for _ in range(m):
+                                    median_s, _, _ = pt_time_sample(
+                                        pt_model,
+                                        feature_dict=feature_dict,
+                                        batch_size=batch_size,
+                                        device=device,
+                                        n_warmup=1,
+                                        n_timed=args.n_timed,
+                                    )
+                                    pt_total += median_s * 1000.0  # Convert to ms
+                                pt_total_ms = pt_total
+                            else:
+                                # For score_conditional
+                                pt_total = 0.0
+                                for _ in range(m):
+                                    median_s, _, _ = pt_time_score(
+                                        pt_model,
+                                        feature_dict=feature_dict,
+                                        batch_size=batch_size,
+                                        device=device,
+                                        native_sequence=native_sequence,
+                                        n_warmup=1,
+                                        n_timed=args.n_timed,
+                                    )
+                                    pt_total += median_s * 1000.0  # Convert to ms
+                                pt_total_ms = pt_total
+
                             pt_per_temp_ms = pt_total_ms / m
 
                         except Exception as e:

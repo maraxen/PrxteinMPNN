@@ -1,143 +1,188 @@
 # Specification: Heterogeneous Dedup-Batching (`DedupGather` strategy)
 
-> task_id: 260603_het-batch-dedup · sprint: 22 · backlog: #930 · status: DRAFT (pre-adversarial-gate)
+> task_id: 260603_het-batch-dedup · sprint: 22 · backlog: #930 · **status: v2 (post-gate, spike-validated)**
 > Authored by specification-specialist. DESIGN ONLY — no implementation this sprint.
+> v1 returned UNANIMOUS NEEDS_WORK from oracle + plan-auditor + code-architecture-advisor. This revision resolves every required fix. (v1 preserved in git at 7c5fecb.)
 
 ## Overview
 
-Add a fourth `AxisStrategy` variant, `DedupGather`, that collapses N logical axis elements to K unique physical elements, runs the expensive body exactly K times, then scatters results back to all N positions — expressed as a general, pluggable, JIT-compatible axis property in the existing tiling stack.
+Add a fourth `AxisStrategy` variant, `DedupGather`, that collapses N logical axis elements to K unique physical elements, runs the expensive body exactly K times, then scatters results back to all N positions — expressed as a general, JIT-compatible, in-trace static gather/scatter on the existing tiling stack. The mechanism is proven correct by spike (see Spike Evidence).
 
 **Non-goals for this sprint:**
-- No implementation of production code.
-- No changes to `InferencePlan.encode` / `.decode` call sites beyond `_dispatch_axis`.
-- No bucketing interaction beyond the eligibility flag (bucketing redesign is a separate concern).
-- No automatic dedup-eligibility inference (caller declares it explicitly).
+- No changes to `InferencePlan.encode` / `.decode` call sites beyond `_dispatch_axis` (unified paths only).
+- No automatic dedup-eligibility inference — caller declares it explicitly.
+- Initial eligible set is `{n_structures}` only.
+- No threading of `DedupSpec` into `SamplingSpecification` until a caller exists (mirror the `CarrySpec` / `BatchPlanner.carries` precedent).
+
+---
+
+## Spike Evidence
+
+**Mechanism proven at commits 1457251 / c67e5e4.** Script: `scripts/spikes/dedup_encode_kvn_spike.py` + `.bth.toml`.
+
+Under the real `jax.lax.map` path (backend of `SafeMap(tile=1)`):
+- `io_callback` runtime counter fired K=3 on an N=6 batch with K=3 unique (body ran K not N); also 3-vs-9.
+- Gathered output bit-identical to naive: max abs diff 0.00e+00.
+- `@jax.jit` compiled cleanly, no `TracerError`.
+
+The mechanism (`xs[unique_indices]` gather in-trace, `ys_unique[index_map]` scatter in-trace, host numpy computes index arrays once at plan-build) is general — not restricted to any dispatch-layer position. The decisive v1 gate objection ("host-side dedup impossible because the structure axis is heterogeneous → SafeMap(tile=1) → lax.map, traced") is resolved by performing gather AND scatter fully in-trace via static integer arrays.
 
 ---
 
 ## Acceptance Criteria
 
-1. A `DedupBundle` named tuple (or frozen dataclass) is importable from `prxteinmpnn.tiling.strategy`.
-2. `DedupGather` is a member of the `AxisStrategy` sealed union (the `|` type alias in `strategy.py`).
-3. `_dispatch_axis` in `kernel_dispatch.py` handles `isinstance(strategy, DedupGather)` without fallthrough.
-4. An axis with `dedup_eligible=True` on its `AxisSpec` can be assigned `DedupGather` strategy by a caller; axes with `dedup_eligible=False` reject `DedupGather` at `BatchPlanner.plan()` time (raises `TilingError`).
-5. A round-trip test confirms that outputs from `DedupGather` dispatch are bit-identical (float32) or within `atol=1e-6` (bfloat16) to the naive per-element path on a batch containing known duplicates.
-6. An instrumented test confirms the body executes K times (not N) when N > K using a Python-side call counter (no JIT; pure Python mock body).
-7. `DedupGather` compiles under `jax.jit` and composes with the other three strategies in the nested-axis pattern used by `_sample_batch`.
+1. `DedupGather` is a member of the `AxisStrategy` sealed union (`strategy.py:73` union extended).
+2. `_dispatch_axis` (`kernel_dispatch.py`) handles `isinstance(strategy, DedupGather)` without fallthrough.
+3. `make_axis_dispatch` (`tiling/dispatch.py`) handles `DedupGather` (raises `DispatchRejected` with a clear message) — no `raise TypeError(Unknown strategy type)` fallthrough on `DedupGather`.
+4. An axis with `dedup_eligible=True` can be assigned `DedupGather` by a caller; `dedup_eligible=False` axes raise `TilingError` at `BatchPlanner.plan()` construction time (before any JAX trace).
+5. Round-trip test: `DedupGather` output bit-identical (float32, `jnp.array_equal`) or within `atol=1e-6` (bfloat16) to the naive per-element path on a batch with known duplicates.
+6. Instrumented test: under `jax.lax.map`, `io_callback` fires `k_bucket` times when N > K.
+7. `DedupGather` compiles under `jax.jit`; `xs_unique.shape[0] == k_bucket` after the gather.
+8. `DedupBundle` is NOT part of the public API (dropped — fix H).
 
 ---
 
 ## Fixer Tasks
 
-### Task 1: Define `DedupBundle`, dedup-fn and gather-fn protocols, and `DedupGather` dataclass
+### Task 1: `DedupFn`, `GatherFn` protocols and `DedupGather` dataclass in `strategy.py`
 
-**What.** Add three new public names to `src/prxteinmpnn/tiling/strategy.py`:
+Add to `src/prxteinmpnn/tiling/strategy.py`:
+1. `DedupFn` protocol — `(xs: PyTree, unique_indices: Int[Array, "K"]) -> PyTree`. Default: `jax.tree.map(lambda x: x[unique_indices], xs)`. JIT-compatible static gather; called in-trace.
+2. `GatherFn` protocol — `(ys_unique: PyTree, index_map: Int[Array, "N"]) -> PyTree`. Default: `jax.tree.map(lambda y: y[index_map], ys_unique)`. JIT-compatible scatter; in-trace.
+3. `DedupGather` frozen `@dataclass`:
+   - `unique_indices: np.ndarray` — `(K_bucket,)` int32 host numpy. Indices into the N-batch selecting K_bucket (padded) unique entries. Computed once at plan-build; never a dynamic JIT value.
+   - `index_map: np.ndarray` — `(N,)` int32 host numpy, values in `[0, K_bucket)`. `index_map[i]=k` → position i takes unique slot k. Flat, not padded.
+   - `k: int` — raw unique count (pre-padding).
+   - `k_bucket: int` — padded static K-bucket (>= k).
+   - `dedup_fn: DedupFn` / `gather_fn: GatherFn` — default to the helpers above.
 
-1. `DedupBundle` — a frozen dataclass (or `NamedTuple`) carrying the shape-static, JIT-compatible inputs needed to run one unique element through the body. It is the single element type the body receives inside `_dispatch_axis`; it does not contain the full N-element batch.
-2. `DedupFn` protocol — a `Protocol` matching `(xs_flat: PyTree, index_map: Int[Array, "N"]) -> DedupBundle_pytree`. Host-prepared dedup function; receives full xs (N elements) + pre-computed integer index map, returns a pytree of shape `(K, ...)` containing only unique entries. NOT JIT-compiled — called host-side during dispatch setup.
-3. `GatherFn` protocol — a `Protocol` matching `(ys_unique: PyTree, index_map: Int[Array, "N"]) -> PyTree`. IS JIT-compatible; called inside the compiled body to scatter K results to N positions.
-4. `DedupGather` — a frozen `@dataclass` carrying: `dedup_fn: DedupFn`; `gather_fn: GatherFn`; `index_map: np.ndarray` shape `(N,)` int32 host numpy (values in `[0, K)`); `k: int` (static, known at trace time).
+**eqx.partition rationale (fix J):** `DedupGather` is a plain frozen dataclass, not an `eqx.Module`. `AxisDecision`/`BatchPlan` are plain frozen dataclasses, never pytree-registered, never JIT args; strategy is closure-captured at each `_dispatch_axis` call. `dedup_fn`/`gather_fn` are Python callables that must be JIT-compatible because the inner body is traced. `unique_indices`/`index_map` are host numpy → `jnp.asarray` inside `_dispatch_axis` at trace time → static integer arrays in the compiled program. No `eqx.partition` needed.
 
-The `eqx.partition` concern: `DedupGather` is a plain frozen dataclass, not an `eqx.Module`. Inside a `filter_jit` context `dedup_fn`/`gather_fn` are Python callables (closures) treated as static/non-array leaves. `_dispatch_axis` calls `dedup_fn` host-side before any JIT context, so `dedup_fn` never crosses the JIT boundary. `gather_fn` does cross it and must itself be `jax.jit`-compatible (caller contract). No `eqx.partition` is needed provided `_dispatch_axis` is structured correctly (Task 3).
+**Files:** `strategy.py` (modify), `tiling/__init__.py` (exports).
+**Gate:** `uv run pytest tests/tiling/test_strategy.py -q` + new `test_dedup_gather_stores_fields`, `test_dedup_gather_in_union`.
+**Ordering:** Before Task 2b and Task 3.
 
-**Files:** `src/prxteinmpnn/tiling/strategy.py` (modify), `src/prxteinmpnn/tiling/__init__.py` (modify, add exports).
-**Gate:** `uv run pytest tests/tiling/test_strategy.py -q` passes, incl. new `test_dedup_gather_stores_fields`.
-**Scope estimate:** ~60 LOC `strategy.py`; ~5 LOC `__init__.py`.
+### Task 2a: `dedup_eligible` flag on `AxisSpec` + eligibility guard in `plan()`
 
-### Task 2: Add `dedup_eligible` flag to `AxisSpec` and wire eligibility guard into `BatchPlanner.plan()`
+Add `dedup_eligible: bool = False` to `AxisSpec` (`planner.py:50-59`). Only `N_STRUCTURES` (`axes.py:48`) gets `dedup_eligible=True`; the other 9 constructions keep the default. (Verified: 10 AxisSpec constructions in axes.py.)
 
-**What.** Add `dedup_eligible: bool = False` to `AxisSpec` (`planner.py:49-59`). Update all `AxisSpec` construction sites in `src/prxteinmpnn/tiling/axes.py` to pass it (default `False` except eligible set in OQ#3).
+In `BatchPlanner.plan()` (`planner.py:115`): post-phase validation pass — for each `AxisDecision` with `DedupGather`, assert `decision.axis.dedup_eligible`, else `TilingError`. Construction-time, pre-trace.
 
-In `BatchPlanner.plan()` (`planner.py:115`), add a post-phase validation pass: if any `AxisDecision` carries `DedupGather` but its `AxisSpec.dedup_eligible` is `False`, raise `TilingError`. Fires at plan-construction time, before any JAX trace.
+**Eligibility rationale (fix K):** eligibility is now about SEMANTIC validity (entries can be duplicated and carry no independent per-element state), not dispatch-layer position. `n_structures`: eligible (heterogeneous batches with repeated backbones; encode deterministic per structure). `n_noises`: NOT eligible this sprint (noise values are all-distinct; gate flagged v1's inclusion as wrong). `n_samples`: ineligible (distinct PRNG draws). Flag stays for future axes.
 
-**Planner assignment:** `plan()` does NOT assign `DedupGather` automatically — caller-driven, consistent with the `Scan`/`CarrySpec` precedent (Phase 0). Caller constructs a `DedupSpec` and passes it analogously.
+**Phase-1 exclusion:** Phase 0b (Task 2b) adds DedupGather axes to `dedup_names`; Phase 1's heterogeneous demotion skips `dedup_names`, mirroring `phase0_names` (`planner.py:141`).
 
-**Task 2b:** Define `DedupSpec` in a new `src/prxteinmpnn/tiling/dedup.py` (keep `carry.py` focused on scan semantics). Mirrors `CarrySpec`:
+**Files:** `planner.py:50-59`, `planner.py:115-191`, `axes.py:48`.
+**Gate:** `uv run pytest tests/tiling/test_planner_phase0.py -q` + `test_dedup_spec_rejected_on_non_eligible_axis`.
+**Ordering:** After Task 1.
+
+### Task 2b: `DedupSpec` and K-bucketing in `dedup.py`
+
+Create `src/prxteinmpnn/tiling/dedup.py`.
 
 ```python
 @dataclass(frozen=True)
 class DedupSpec:
     axis_name: str
-    dedup_fn: DedupFn       # host-side; extracts K unique entries
-    gather_fn: GatherFn     # JIT-compatible scatter
-    index_map: np.ndarray   # shape (N,), int32, host numpy
-    k: int                  # number of unique entries
+    unique_indices: np.ndarray   # (K,) int32 — raw unique positions
+    index_map: np.ndarray        # (N,) int32 — inverse map
+    k: int                       # = len(unique_indices)
+    dedup_fn: DedupFn | None = None
+    gather_fn: GatherFn | None = None
 ```
 
-`BatchPlanner.plan()` Phase 0b reads `DedupSpec` list and produces `AxisDecision` with `DedupGather`, analogous to `CarrySpec`→`Scan`.
+`__post_init__`: assert `len(np.unique(index_map)) == k` and `k == len(unique_indices)`. Does NOT check `dedup_eligible` (planner does — fix L).
 
-**Files:** `planner.py` (modify `AxisSpec`, `plan()`), `axes.py` (modify constructions), `dedup.py` (create), `__init__.py` (export `DedupSpec`).
-**Gate:** `uv run pytest tests/tiling/test_planner_phase0.py tests/tiling/test_strategy.py -q`; new `test_dedup_spec_rejected_on_non_eligible_axis`.
-**Scope:** ~40 LOC `planner.py`, ~30 LOC `axes.py`, ~50 LOC `dedup.py`.
-
-### Task 3: Implement `DedupGather` dispatch case in `_dispatch_axis`
-
-**What.** In `kernel_dispatch.py`, add a fourth `isinstance` branch to `_dispatch_axis` (lines 41-74):
+**K-bucketing (fix B).** Raw `k` varying across batches → XLA retrace per distinct k, erasing savings. Mirror `LENGTH_BUCKETS` (`tiling/buckets.py:19`):
 
 ```python
-if isinstance(strategy, DedupGather):
-    xs_unique = strategy.dedup_fn(xs, strategy.index_map)        # (K, ...), host side, NOT in jit
-    ys_unique = _safe_map(body, xs_unique, batch_size=None)      # or Vmap if K small
-    index_map_jnp = jnp.asarray(strategy.index_map, dtype=jnp.int32)  # (N,)
-    return strategy.gather_fn(ys_unique, index_map_jnp)
+K_DEDUP_BUCKETS = (1, 2, 4, 8, 16, 32)
+def get_k_bucket(k: int) -> int:
+    for b in K_DEDUP_BUCKETS:
+        if k <= b: return b
+    raise ValueError(f"k={k} exceeds K_DEDUP_BUCKETS {K_DEDUP_BUCKETS}")
 ```
 
-**Critical structural note:** Step 1 (`dedup_fn`) must execute outside any `jax.jit` scope. `_dispatch_axis` for a `DedupGather` axis must not be nested inside a vmapped closure → **constraint on eligibility**: `DedupGather` valid only on the outermost axis layer. Eligibility check (Task 2) enforces this; risk table calls it out.
+`to_dedup_gather()` pads `unique_indices` to `k_bucket` with `np.pad(..., mode="edge")` (padded slots repeat the last valid index → compute valid results that no `index_map` position selects, so they cannot corrupt output). `index_map` is NOT padded. Recompilation key is `k_bucket`, not raw `k`.
 
-Default gather (structure axis): `def default_gather(ys_unique, index_map): return jax.tree.map(lambda y: y[index_map], ys_unique)` — pure JAX, JIT-compatible, vmap-composable.
+Phase 0b calls `to_dedup_gather()` per `DedupSpec` → `AxisDecision(strategy=DedupGather(...))`.
 
-**Files:** `kernel_dispatch.py` (modify, import `DedupGather`).
-**Gate:** `uv run pytest tests/tiling/test_dispatch.py -q`; new `test_dispatch_axis_dedup_gather_host_call_count`.
-**Scope:** ~25 LOC + ~5 LOC import.
+**Files:** `dedup.py` (create), `tiling/__init__.py` (export `DedupSpec`, `K_DEDUP_BUCKETS`, `get_k_bucket`).
+**Gate:** `uv run pytest tests/tiling/test_planner_phase0.py tests/tiling/test_strategy.py -q` + `test_k_bucketing_pads_unique_indices`.
+**Ordering:** After Task 1.
 
-### Task 4: Write the correctness invariant tests
+### Task 3: `DedupGather` dispatch across all THREE dispatch sites (fix C)
 
-New `tests/tiling/test_dedup_gather.py`:
-- **`test_dedup_gather_bit_identical`**: N=4, elements {0,2} and {1,3} identical (K=2). Assert `jnp.allclose(result_dedup, result_naive, atol=0.0)` float32; bfloat16 variant `atol=1e-2`.
-- **`test_dedup_gather_encodes_k_not_n`**: Python call counter body (no JIT). n=6, k=3. Assert `len(call_log) == 3`.
-- **`test_dedup_gather_jit_compiles`**: wrap body in `jax.jit`; assert no `TracerError`, output shape `(N, ...)`.
-- **`test_dedup_gather_rejects_ineligible_axis`**: `DedupSpec` for `dedup_eligible=False` axis → `TilingError`.
+**Site 1 — `kernel_dispatch.py:_dispatch_axis` (41-74)**: add branch after `Scan`, before fallback:
+```python
+if isinstance(strategy, DedupGather):
+    unique_idx = jnp.asarray(strategy.unique_indices, dtype=jnp.int32)  # (K_bucket,)
+    index_map  = jnp.asarray(strategy.index_map,     dtype=jnp.int32)   # (N,)
+    xs_unique  = strategy.dedup_fn(xs, unique_idx)        # in-trace gather
+    ys_unique  = _safe_map(body, xs_unique, batch_size=None)  # K_bucket runs
+    return strategy.gather_fn(ys_unique, index_map)      # in-trace scatter
+```
+**xs contract (fix E):** for the structure axis, `xs` into `_dispatch_axis` is `jnp.arange(batch_size)` (integer indices; `kernel_dispatch.py:225/317/382/466`). Default gather yields `jnp.arange(batch_size)[unique_indices]` = K_bucket unique integer indices; the body indexes `batched_ensemble[structure_idx]` inside its closure. Scatter `ys_unique[index_map]` broadcasts to N. Use the real `_safe_map` (`src/prxteinmpnn/utils/safe_map.py`), not a reimplementation.
 
-**Gate:** `uv run pytest tests/tiling/test_dedup_gather.py -v` all pass. **Scope:** ~120 LOC.
+**Site 2 — `tiling/dispatch.py:make_axis_dispatch` (67-74)**: add explicit arm raising `DispatchRejected` (DedupGather is handled by `_dispatch_axis`, doesn't map to an iterator) — prevents the `raise TypeError` fallthrough at line 74.
 
-### Task 5: Update exports / public API surface
-Export `DedupBundle`, `DedupGather`, `DedupSpec`, `DedupFn`, `GatherFn` from `tiling/__init__.py` (+ top-level if re-exported). Add `DedupGather` to `__all__` in `strategy.py`; update module docstring (four strategies).
-**Gate:** `python -c "from prxteinmpnn.tiling.strategy import DedupGather, DedupBundle; from prxteinmpnn.tiling.dedup import DedupSpec"` exits 0. **Scope:** ~15 LOC.
+**Site 3 — `host/plan.py:_validate_plan_topology` (247)**: no edit needed — only imports/checks Scan & Vmap (line 261); DedupGather skips both cleanly. Document as confirmed-no-op. Do NOT add a rejection rule here (fix L; eligibility lives in `plan()`).
 
-### Task 6: Type-check and lint pass
-`uv run ty check` + `uv run ruff check .` over modified files; `DedupFn`/`GatherFn` Protocols satisfy ty strict (no `Any` leaks without rationale).
-**Gate:** `uv run ty check && uv run ruff check src/prxteinmpnn/tiling/ src/prxteinmpnn/host/kernel_dispatch.py tests/tiling/test_dedup_gather.py` exits 0.
+**Files:** `kernel_dispatch.py`, `tiling/dispatch.py`.
+**Gate:** `uv run pytest tests/tiling/test_dispatch.py tests/host/test_kernel_dispatch.py -q` + `test_make_axis_dispatch_rejects_dedup_gather`.
+**Ordering:** After Tasks 1, 2a, 2b.
+
+### Task 4: Correctness invariant tests (`tests/tiling/test_dedup_gather.py`)
+- `test_dedup_gather_bit_identical`: N=4, {0,2}&{1,3} identical (K=2), deterministic lax.map body; `jnp.array_equal` (float32), `atol=1e-6` (bf16).
+- `test_dedup_gather_k_not_n_lax_map` (replaces invalid Python-counter test): `io_callback` counter under `@jax.jit`; assert `counter == get_k_bucket(3)`. (Python call counter invalid under vmap/lax.map — body traced once; a pure-Python non-JIT variant is a supplementary sanity check only.)
+- `test_dedup_gather_jit_compiles`: no `TracerError`; `xs_unique.shape[0]==k_bucket`.
+- `test_dedup_gather_output_shape`: `result.shape[0]==n`.
+- `test_dedup_spec_rejected_on_non_eligible_axis` (test_planner_phase0.py): `pytest.raises(TilingError)`.
+- `test_make_axis_dispatch_rejects_dedup_gather` (test_dispatch.py): `pytest.raises(DispatchRejected)`.
+
+**Gate:** `uv run pytest tests/tiling/test_dedup_gather.py tests/tiling/test_planner_phase0.py tests/tiling/test_dispatch.py -v`. **Ordering:** After 1, 2a, 2b, 3.
+
+### Task 5: Exports
+Export `DedupGather`, `DedupSpec`, `DedupFn`, `GatherFn`, `K_DEDUP_BUCKETS`, `get_k_bucket` from `tiling/__init__.py`. Add `DedupGather` to `__all__` in `strategy.py` (line 75); update module docstring (four strategies). `DedupBundle` NOT exported (dropped).
+**Gate:** `python -c "from prxteinmpnn.tiling.strategy import DedupGather; from prxteinmpnn.tiling.dedup import DedupSpec, get_k_bucket"` exits 0. **Ordering:** After 1, 2b.
+
+### Task 6: Type-check + lint
+`uv run ty check` + `uv run ruff check .` over modified/created files; Protocols satisfy ty strict; `np.ndarray` fields typed precisely.
+**Gate:** `uv run ty check && uv run ruff check src/prxteinmpnn/tiling/ src/prxteinmpnn/host/kernel_dispatch.py src/prxteinmpnn/tiling/dispatch.py tests/tiling/test_dedup_gather.py` exits 0. **Ordering:** last.
 
 ---
 
 ## Open-Question Resolutions
-
-### 1. Where does unique-entry detection run? — **Host-side, pre-JIT.**
-Dedup needs equality over arbitrary numpy structures; JAX can't hash array contents at trace time. Caller computes `_, index_map = np.unique(structure_ids, return_inverse=True)` in Python, passes host-numpy `int32[N]` on `DedupGather.index_map`. `dedup_fn` slices `xs` → `xs_unique` shape `(K, ...)` at dispatch time. Only the scatter (`gather_fn`) is JIT-compiled; `xs_unique[index_map]` is a static gather, K a static Python int. **Rejected:** in-JIT `jnp.unique` — needs static `size=K`, pads with sentinels, undefined over heterogeneous pytrees.
-
-### 2. `index_map` representation — **Flat padded-regular `int32[N]`, values in `[0, K)`.**
-The `np.unique` `return_inverse` output: `index_map[i] = k`. Statically shaped `(N,)`, JIT-compatible gather, lossless, cheap. **Rejected:** ragged (K × max_occurrences + sentinel) — wasteful under unequal cluster sizes; needs dynamic shapes.
-
-### 3. Which axes are dedup-eligible? — **`dedup_eligible: bool` on `AxisSpec`; initial set `{n_structures, n_noises}`.**
-Structural property of the axis → declare at axis-definition time (`axes.py`), default `False`. Eligible: `n_structures` (heterogeneous; primary motivating case — shared backbone), `n_noises`. Ineligible: `n_samples` (distinct PRNG keys — dedup would suppress draws), `n_temperatures` (cheap scalar), `n_states` (structurally distinct by construction), `n_residues`/`n_ligand_atoms` (sub-structure; different abstraction).
-**`heterogeneous` interaction:** `dedup_eligible=True` + `heterogeneous=True` compatible (the primary case). When a `DedupSpec` is supplied for a heterogeneous axis, `DedupGather` takes precedence over the Phase-1 `SafeMap` demotion (planner must skip Phase-1 demotion for that axis).
-**Bucketing interaction:** `DedupGather` and bucketing mutually exclusive on the same axis this sprint; guard rejects `DedupGather` where a `BucketAssignment` is active.
+- **OQ#1 (vmap-closure runtime guard):** RESOLVED — mechanism is in-trace JIT-compatible; no host-side constraint; no `cur_sublevel()` guard.
+- **OQ#2 (gather_fn placement):** RESOLVED — module-level helper in `dedup.py`, also the default factory; testable in isolation.
+- **OQ#3 (DedupBundle):** RESOLVED — DROPPED. `xs_unique` is already a `(K_bucket, ...)` pytree slice; a named wrapper adds surface with no invariant/benefit.
+- **OQ#4 (n_noises eligible?):** RESOLVED — NO. Initial set `{n_structures}` only.
 
 ---
 
-## Integration Design: Exact Files and Seams
+## Integration Design
 
-| File | Lines (current) | Change |
+| File | Lines (verified) | Change |
 |------|-----------------|--------|
-| `tiling/strategy.py` | 1–76 | Add `DedupBundle`, `DedupFn`, `GatherFn`, `DedupGather`; extend `AxisStrategy` union (line 73); update `__all__` (line 75) |
-| `tiling/dedup.py` | (new) | `DedupSpec` dataclass with `__post_init__` checking `axis.dedup_eligible` + `len(np.unique(index_map))==k` |
-| `tiling/planner.py` | 49–59 (`AxisSpec`) | Add `dedup_eligible: bool = False` |
-| `tiling/planner.py` | 115–191 (`plan`) | Phase 0b: `DedupSpec` → `AxisDecision(strategy=DedupGather(...))`; post-phase validation guard; Phase-1 exclusion set `dedup_names` |
-| `tiling/axes.py` | 18–129 | `dedup_eligible=True` on `N_STRUCTURES` (~48) and `N_NOISES` (~78) |
-| `host/kernel_dispatch.py` | 41–74 (`_dispatch_axis`) | Add `isinstance(strategy, DedupGather)` branch (after `Scan`); import `DedupGather` |
-| `tiling/__init__.py` | exports | Export the 5 new names |
+| `tiling/strategy.py` | 1–76 | `DedupFn`/`GatherFn` protocols; `DedupGather`; union (73); `__all__` (75) |
+| `tiling/dedup.py` | (new) | `DedupSpec`; `K_DEDUP_BUCKETS`; `get_k_bucket()`; `to_dedup_gather()` |
+| `tiling/planner.py` | 50–59 | `dedup_eligible: bool = False` on `AxisSpec` |
+| `tiling/planner.py` | 115–191 | Phase 0b; `dedup_names` Phase-1 exclusion; post-phase eligibility guard |
+| `tiling/axes.py` | 48 | `dedup_eligible=True` on `N_STRUCTURES` only |
+| `tiling/dispatch.py` | 67–74 | `DedupGather` arm → `DispatchRejected`; import |
+| `host/kernel_dispatch.py` | 55–74 | `DedupGather` branch (after `Scan`, before fallback); import |
+| `host/plan.py` | 247 | No change — confirmed-no-op passthrough |
+| `tiling/__init__.py` | exports | 6 new names (not `DedupBundle`) |
 
-Union change: `AxisStrategy = Vmap | SafeMap | Scan` → `... | DedupGather`.
+Union: `AxisStrategy = Vmap | SafeMap | Scan` → `... | DedupGather`.
+
+---
+
+## PRNG Semantics (fix F)
+
+In all four `_sample_batch` paths, `encode_key = jax.random.fold_in(base_key, structure_idx)` (`kernel_dispatch.py:201/280/358/433`). `structure_idx` is the integer index into `batched_ensemble`. Under dedup, N positions sharing a unique structure share the same `structure_idx` → **the same `encode_key`**. This is correct: the encoder is deterministic per (structure, key); shared-backbone entries are semantically identical and should produce identical encodings.
+
+**Caller contract:** `DedupGather` is valid only on axes whose body is deterministic given the unique entry. For `n_structures` this holds (`fold_in(base_key, structure_idx)` is structure-identity-based). Callers introducing non-determinism (stochastic encode) must NOT set `dedup_eligible=True`. `n_samples` is ineligible because `_run_one_sample(k)` takes a distinct PRNG key per draw.
 
 ---
 
@@ -145,14 +190,16 @@ Union change: `AxisStrategy = Vmap | SafeMap | Scan` → `... | DedupGather`.
 
 | Invariant | Test | File | Gate |
 |-----------|------|------|------|
-| Bit-identical (float32) | `test_dedup_gather_bit_identical` | `tests/tiling/test_dedup_gather.py` | `jnp.allclose(atol=0.0)` |
-| Body runs K not N | `test_dedup_gather_encodes_k_not_n` | same | `assert len(call_log)==k` (NO jit) |
-| JIT-compiles | `test_dedup_gather_jit_compiles` | same | `jax.jit(f)(xs)` no exception |
-| Ineligible axis rejected | `test_dedup_spec_rejected_on_non_eligible_axis` | `tests/tiling/test_planner_phase0.py` | `pytest.raises(TilingError)` |
-| In AxisStrategy union | `test_dedup_gather_in_union` | `tests/tiling/test_strategy.py` | isinstance / explicit |
-| Output shape `(N, ...)` | `test_dedup_gather_output_shape` | `tests/tiling/test_dedup_gather.py` | `result.shape[0]==n` |
+| Bit-identical (float32) | `test_dedup_gather_bit_identical` | `test_dedup_gather.py` | `jnp.array_equal` |
+| Body runs k_bucket not N (lax.map) | `test_dedup_gather_k_not_n_lax_map` | same | `io_callback` counter == k_bucket |
+| xs_unique = (k_bucket, ...) | `test_dedup_gather_jit_compiles` | same | shape assertion |
+| Output shape (N, ...) | `test_dedup_gather_output_shape` | same | `result.shape[0]==n` |
+| JIT-compiles | `test_dedup_gather_jit_compiles` | same | no `TracerError` |
+| Ineligible axis rejected | `test_dedup_spec_rejected_on_non_eligible_axis` | `test_planner_phase0.py` | `pytest.raises(TilingError)` |
+| In union | `test_dedup_gather_in_union` | `test_strategy.py` | isinstance |
+| make_axis_dispatch rejects | `test_make_axis_dispatch_rejects_dedup_gather` | `test_dispatch.py` | `pytest.raises(DispatchRejected)` |
 
-**Note:** the K-not-N call-count test must NOT use `jax.jit` (under JIT the body is traced once, not executed N/K times). JIT-side proof would need HLO cost inspection (future work, not a sprint gate).
+**Observability note:** Python call counter valid only in pure-Python non-JIT `safe_map`; under `vmap`/`lax.map` the body is traced once. Valid runtime observable = `io_callback` (spike-proven, 1457251).
 
 ---
 
@@ -160,37 +207,42 @@ Union change: `AxisStrategy = Vmap | SafeMap | Scan` → `... | DedupGather`.
 
 | Risk | Likelihood | Mitigation |
 |------|-----------|------------|
-| `DedupGather` nested inside a vmapped closure → host `dedup_fn` impossible | High | Eligibility: only outermost-layer axes `dedup_eligible=True`; assert `dedup_fn` called from Python scope (optional `jax.core.cur_sublevel()` guard) |
-| Scatter introduces order dependency if body has order-sensitive `io_callback` sinks | Medium | Document: not safe with order-sensitive sinks; existing `encoder_sink` is unordered (safe); don't mix Scan-ordered sinks + DedupGather on same axis |
-| Body non-determinism (e.g. dropout) loses diversity for "duplicates" | Low | Caller contract: only mark structurally-identical inputs as duplicates |
-| Wrong caller-supplied `k` (K> wastes; K< silently wrong) | Medium | `DedupSpec.__post_init__`: `assert len(np.unique(index_map))==k` (construction-time) |
-| XLA recompiles when `k` changes across batches | Medium | `k` is a static Python int; changing it retraces (expected). Caller normalizes k per-experiment or accepts recompilation. Document. |
-| `dedup_eligible=True` on `n_structures` conflicts with Phase-1 SafeMap demotion | High | Phase 0b runs before Phase 1; Phase 1 skips `dedup_names` (analogous to `het_names`) |
-| Padding waste when K≪N | Low | Not a concern: `xs_unique` is `(K, ...)`, not padded |
-| `gather_fn` accidentally closes over traced values | Low | Default `lambda ys, idx: jax.tree.map(lambda y: y[idx], ys)` has no captures; caller contract for customs |
+| XLA retrace as raw k varies | High w/o bucketing | `K_DEDUP_BUCKETS`; key on k_bucket |
+| Padded k_bucket slots compute waste | Low | mode="edge" padding → valid results selected by no scatter position; waste bounded by bucket gap |
+| encode_key shared across same-structure positions | By design | Correct for deterministic-per-unique bodies; contract documented |
+| Wrong caller unique_indices/index_map | Medium | `DedupSpec.__post_init__` asserts `len(np.unique(index_map))==k` and `k==len(unique_indices)` |
+| Phase-1 SafeMap demotion fires before DedupGather assigned | High w/o fix | Phase 0b adds `dedup_names`; Phase 1 skips them |
+| `make_axis_dispatch` TypeError on DedupGather | Certain w/o fix | Site 2 `DispatchRejected` arm |
+| `gather_fn` closes over traced values | Low | Default has no captures; caller contract for customs |
+| Ordered io_callback sink + scatter order dependency | Medium | Not safe w/ `ordered=True` sinks; existing `encoder_sink` unordered (safe) |
+| Body non-determinism (dropout) loses diversity | Low | Caller contract: only mark deterministic structurally-identical inputs |
 
 ---
 
-## Task Ordering
+## Task DAG
 
 ```
-Task 1 (strategy.py types) -> Task 2 (AxisSpec flag + DedupSpec + planner) -> Task 3 (_dispatch_axis)
-  -> Task 4 (tests) -> Task 5 (exports) -> Task 6 (type+lint)
+Task 1 (strategy.py types)
+  ├── Task 2a (AxisSpec flag + planner guard)
+  ├── Task 2b (DedupSpec + K-bucketing + dedup.py)
+  └── Task 3  (_dispatch_axis + dispatch.py + plan.py no-op)   [needs 1, 2a, 2b]
+        └── Task 4 (tests)        [needs 1, 2a, 2b, 3]
+              └── Task 5 (exports)  [needs 1, 2b]
+                    └── Task 6 (ty + ruff)  [needs all]
 ```
-Tasks 1,2 draftable in parallel; Task 3 depends on both. Tasks 4–6 depend on 1–3.
+2a and 2b parallel after Task 1; Task 3 needs both.
 
 ---
 
-## Open Questions Not Resolved (for gate / user)
-
-1. Hard runtime assertion that `DedupGather` dispatch is not inside a vmapped closure (`jax.core.cur_sublevel()` / context var), or is the plan-time eligibility flag sufficient?
-2. Default `gather_fn` placement — classmethod/default-factory on `DedupGather` (ergonomic) vs module-level helper in `dedup.py` (testable in isolation)?
-3. Is `DedupBundle` necessary as a named type, or a documentation-only alias for the pytree slice (`xs_unique` is already a pytree slice of `xs`)?
-4. Is `n_noises` eligibility worth the API surface (noise sweeps are usually all-distinct), or restrict initial eligible set to `n_structures` only?
+## Remaining Open Questions (for re-gate)
+1. `K_DEDUP_BUCKETS` values `(1,2,4,8,16,32)` — confirm upper bound vs expected production batch sizes, or leave configurable.
+2. Default gather/scatter as field `default_factory` vs `None`-then-apply-in-dispatch — confirm `ty` strict accepts Protocol instances as field defaults; if not, use `None` default and apply helper in `_dispatch_axis`.
+3. Should `DedupSpec.__post_init__` mirror `CarrySpec`'s eager rejection of structurally-invalid axis names (a `_DEDUP_INELIGIBLE_NAMES` frozenset), in addition to the planner-side eligibility check? Not blocking; fixer judgment.
 
 ---
 
 ## References
-- Recon `260603_het-batch-dedup_recon01`
-- `tiling/strategy.py` (union 1–76), `tiling/planner.py` (`AxisSpec` 49, `plan()` 115), `tiling/carry.py` (`CarrySpec` precedent), `tiling/axes.py` (18–129)
-- `host/kernel_dispatch.py` (`_dispatch_axis` 41–74, `_sample_batch` 77–507), `host/plan.py` (`encode`/`decode` 388–459), `types/encodings.py` (`EncoderOutput` 10–22)
+- Spike: `scripts/spikes/dedup_encode_kvn_spike.py` + `.bth.toml` (commits 1457251/c67e5e4)
+- Recon `260603_het-batch-dedup_recon01`; gate audit `260603_het-batch-dedup_gate01`; spike `260603_het-batch-dedup_spike01`
+- `tiling/strategy.py` 1–76; `tiling/planner.py` 49–59 / 115–191; `tiling/carry.py` 24–58; `tiling/axes.py` 18–129 (N_STRUCTURES:48, N_NOISES:78); `tiling/dispatch.py` 22–74 (TypeError:74); `tiling/buckets.py` 19/27–43
+- `host/kernel_dispatch.py` 41–74 / 201,280,358,433 (encode_key) / 225,317,382,466 (jnp.arange xs); `host/plan.py` 247

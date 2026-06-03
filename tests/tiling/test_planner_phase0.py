@@ -123,3 +123,22 @@ def test_planner_phase0_carry_init_is_preserved() -> None:
     assert isinstance(temp_decision.strategy, Scan)
     # Verify init is the same object (identity, not just equality)
     assert temp_decision.strategy.init is init_arr
+
+
+def test_dedup_spec_rejected_on_non_eligible_axis() -> None:
+    """BatchPlanner.plan() should raise TilingError if DedupGather is assigned to
+    an axis with dedup_eligible=False."""
+    from prxteinmpnn.tiling.dedup import DedupSpec
+    from prxteinmpnn.tiling.errors import TilingError
+    import numpy as np
+
+    # N_NOISES has dedup_eligible=False (default); assigning DedupGather should fail
+    dedup_spec = DedupSpec(
+        axis_name="n_noises",
+        unique_indices=np.array([0], dtype=np.int32),
+        index_map=np.array([0, 0], dtype=np.int32),
+        k=1,
+    )
+    planner = _make_planner([N_NOISES], dedup_specs=[dedup_spec])
+    with pytest.raises(TilingError, match="dedup_eligible"):
+        planner.plan()

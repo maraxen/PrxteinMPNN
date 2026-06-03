@@ -58,3 +58,22 @@ class TestMakeAxisDispatchRejectPath:
         """
         assert issubclass(DispatchRejected, TilingError)
         assert issubclass(PlanTopologyError, TilingError)
+
+    def test_make_axis_dispatch_rejects_dedup_gather(self) -> None:
+        """make_axis_dispatch(DedupGather(...)) raises DispatchRejected.
+
+        DedupGather is handled by _dispatch_axis in kernel_dispatch.py, not by
+        make_axis_dispatch (which maps to iterator types). Passing DedupGather
+        here must not fall through to TypeError.
+        """
+        from prxteinmpnn.tiling.strategy import DedupGather
+        import numpy as np
+
+        dg = DedupGather(
+            unique_indices=np.array([0, 1], dtype=np.int32),
+            index_map=np.array([0, 1, 0, 1], dtype=np.int32),
+            k=2,
+            k_bucket=2,
+        )
+        with pytest.raises(DispatchRejected):
+            make_axis_dispatch(dg)

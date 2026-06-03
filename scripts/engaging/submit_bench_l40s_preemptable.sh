@@ -16,6 +16,7 @@ export REFERENCE_PATH="${HOME}/repos/LigandMPNN"
 
 source scripts/engaging/_gpu_env.sh
 uv sync --extra "${JAX_EXTRA}" --group benchmark --group dev
+source scripts/engaging/_cudnn_path.sh
 
 uv run python scripts/benchmarks/bench_suite.py \
     --hardware L40s \

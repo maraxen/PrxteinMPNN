@@ -21,6 +21,7 @@ source scripts/engaging/_gpu_env.sh
 # Install CUDA torch + benchmark deps (colabdesign). Torch source is now PyPI
 # which serves the CUDA wheel on Linux.
 uv sync --extra "${JAX_EXTRA}" --group benchmark --group dev
+source scripts/engaging/_cudnn_path.sh
 
 uv run python scripts/benchmarks/bench_suite.py \
     --hardware Blackwell_SM120 \

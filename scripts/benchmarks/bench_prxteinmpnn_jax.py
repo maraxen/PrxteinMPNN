@@ -578,6 +578,7 @@ def measure_warm_latency_sample(
 
 def benchmark_cell(
     model: Any,
+    plan: Any,
     pdb_dir: Path,
     seq_len: int,
     batch_size: int,
@@ -587,7 +588,36 @@ def benchmark_cell(
     n_warmup: int = 10,
     n_timed: int = 20,
 ) -> dict[str, Any] | None:
-    """Benchmark a single (seq_len, batch_size, precision, task) cell."""
+    """Benchmark a single (seq_len, batch_size, precision, task) cell.
+
+    Parameters
+    ----------
+    model : Any
+        The model instance.
+    plan : Any
+        Pre-built inference plan (shared across all cells for a given task).
+    pdb_dir : Path
+        Path to PDB fixture directory.
+    seq_len : int
+        Sequence length to benchmark.
+    batch_size : int
+        Batch size (number of states) to benchmark.
+    precision : str
+        Precision to benchmark.
+    task : str
+        Task type ('score_conditional' or 'ar_sample').
+    ligand_enabled : bool
+        Whether to load ligand data.
+    n_warmup : int
+        Number of warmup iterations.
+    n_timed : int
+        Number of timed iterations.
+
+    Returns
+    -------
+    dict[str, Any] | None
+        Benchmark result dict or None if cell was skipped.
+    """
     from prxteinmpnn.inference.bundle_builder import build_inference_bundle
     from prxteinmpnn.tiling.bucketing import BucketingConfig
     _BUCKET_CFG = BucketingConfig()
@@ -672,7 +702,6 @@ def benchmark_cell(
                 bucket_config=_BUCKET_CFG,
             )
 
-        plan = create_inference_plan(model, task)
         key = random.PRNGKey(42)
 
         logger.info(
@@ -918,6 +947,10 @@ def main():
     total_cells = len(args.seq_lens) * len(args.batch_sizes) * len(args.precision)
     current_cell = 0
 
+    # Build the inference plan once per task (before the cell loop).
+    logger.info(f"Building inference plan for task={args.task}...")
+    plan = create_inference_plan(model, args.task)
+
     for seq_len in args.seq_lens:
         for batch_size in args.batch_sizes:
             for precision in args.precision:
@@ -930,6 +963,7 @@ def main():
 
                 result = benchmark_cell(
                     model,
+                    plan,
                     args.pdb_dir,
                     seq_len=seq_len,
                     batch_size=batch_size,

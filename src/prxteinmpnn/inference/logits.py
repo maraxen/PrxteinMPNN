@@ -91,15 +91,31 @@ class ArithmeticMeanLogits(eqx.Module):
     Float[Array, "... V"]
         Fused logits, shape ``(..., V)``.
     """
+    # Broadcast weights from shape (1,) to (S,) if needed, or validate match.
+    S = per_state.shape[0]
+    w_len = self.weights.shape[0]
+    if w_len == 1:
+      # Broadcast single weight to all states
+      weights = jnp.broadcast_to(self.weights, (S,))
+    elif w_len == S:
+      # Weights already match state count
+      weights = self.weights
+    else:
+      # Misconfigured: weights length is neither 1 nor S
+      raise ValueError(
+        f"state_weights length {w_len} incompatible with {S} states; "
+        f"expected length 1 or {S}",
+      )
+
     # log_sum_exp(L_i + log(w_i)) - log(sum(w_i))
     # Safety for zero weights: log(1e-9) if weight is 0
-    log_w = jnp.log(jnp.where(self.weights > 0, self.weights, 1e-9))
+    log_w = jnp.log(jnp.where(weights > 0, weights, 1e-9))
 
     # Add log_w to logits (broadcasting over ..., V)
     # per_state is (S, ..., V), log_w is (S,)
     # We need to reshape log_w to (S, 1, ..., 1)
     dims_to_add = per_state.ndim - 1
-    log_w_reshaped = log_w.reshape((per_state.shape[0],) + (1,) * dims_to_add)
+    log_w_reshaped = log_w.reshape((S,) + (1,) * dims_to_add)
 
     weighted_logits = per_state + log_w_reshaped
 
@@ -108,7 +124,7 @@ class ArithmeticMeanLogits(eqx.Module):
     shifted = weighted_logits - max_logits[None, ...]
     sum_exp = jnp.sum(jnp.exp(shifted), axis=0)
 
-    log_sum_w = jnp.log(jnp.sum(self.weights))
+    log_sum_w = jnp.log(jnp.sum(weights))
 
     result = max_logits + jnp.log(sum_exp) - log_sum_w
 
@@ -161,12 +177,28 @@ class GeometricMeanLogits(eqx.Module):
     Float[Array, "... V"]
         Fused logits, shape ``(..., V)``.
     """
+    # Broadcast weights from shape (1,) to (S,) if needed, or validate match.
+    S = per_state.shape[0]
+    w_len = self.weights.shape[0]
+    if w_len == 1:
+      # Broadcast single weight to all states
+      weights = jnp.broadcast_to(self.weights, (S,))
+    elif w_len == S:
+      # Weights already match state count
+      weights = self.weights
+    else:
+      # Misconfigured: weights length is neither 1 nor S
+      raise ValueError(
+        f"state_weights length {w_len} incompatible with {S} states; "
+        f"expected length 1 or {S}",
+      )
+
     dims_to_add = per_state.ndim - 1
-    w_reshaped = self.weights.reshape((per_state.shape[0],) + (1,) * dims_to_add)
+    w_reshaped = weights.reshape((S,) + (1,) * dims_to_add)
 
     weighted_logits = per_state * w_reshaped
     sum_weighted = jnp.sum(weighted_logits, axis=0)
-    sum_w = jnp.sum(self.weights)
+    sum_w = jnp.sum(weights)
 
     result = sum_weighted / (self.temperature * sum_w)
 
@@ -216,8 +248,24 @@ class ProductOfProbabilities(eqx.Module):
     Float[Array, "... V"]
         Fused logits, shape ``(..., V)``.
     """
+    # Broadcast weights from shape (1,) to (S,) if needed, or validate match.
+    S = per_state.shape[0]
+    w_len = self.weights.shape[0]
+    if w_len == 1:
+      # Broadcast single weight to all states
+      weights = jnp.broadcast_to(self.weights, (S,))
+    elif w_len == S:
+      # Weights already match state count
+      weights = self.weights
+    else:
+      # Misconfigured: weights length is neither 1 nor S
+      raise ValueError(
+        f"state_weights length {w_len} incompatible with {S} states; "
+        f"expected length 1 or {S}",
+      )
+
     dims_to_add = per_state.ndim - 1
-    w_reshaped = self.weights.reshape((per_state.shape[0],) + (1,) * dims_to_add)
+    w_reshaped = weights.reshape((S,) + (1,) * dims_to_add)
 
     weighted_logits = per_state * w_reshaped
     result = jnp.sum(weighted_logits, axis=0)

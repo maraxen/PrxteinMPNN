@@ -11,7 +11,7 @@
 
 # Wave 8: filter_jit validation — prxteinmpnn_jax score_conditional on H200.
 # Validates the InferencePlan→eqx.Module + @eqx.filter_jit fix (commit 7f9ab56).
-# Pre-fix baseline: L=76 → 164ms, L=495 → 596ms (38-106× slower than PyTorch).
+# Pre-fix baseline: L=76 → 164ms, L=500 → 596ms (38-106× slower than PyTorch).
 # Expected post-fix: within 2-5× of PyTorch (4.3ms / 5.6ms at B=1).
 
 set -euo pipefail
@@ -24,7 +24,7 @@ uv run python scripts/benchmarks/bench_suite.py \
     --hardware H200 \
     --output-dir ../outputs/results/benchmarks \
     --pdb-dir tests/data \
-    --seq-lens 76 495 \
+    --seq-lens 76 500 \
     --batch-sizes 1 16 \
     --precision fp32 \
     --n-warmup 3 \

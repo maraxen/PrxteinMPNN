@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import equinox as eqx
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
@@ -47,8 +46,10 @@ class ConditionalDecode(_ConditionalDecodeBase):
 
   Attributes
   ----------
-  model : Any = eqx.field(static=True)
-      Model is static (always traced same way).
+  model : Any
+      The MPNN model. A dynamic field: its weight arrays are traced JAX
+      leaves so filter_jit partitions them as runtime inputs (not hashed
+      static constants).
   state_iterator : MapIterator
       State axis iterator. Allows strategy switching without changing __call__.
 
@@ -63,7 +64,7 @@ class ConditionalDecode(_ConditionalDecodeBase):
   exactly: decode per-state, project to logits, fuse via logit_transform.
   """
 
-  model: Any = eqx.field(static=True)
+  model: Any
   state_iterator: MapIterator
 
   def __call__(

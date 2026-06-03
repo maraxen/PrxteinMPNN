@@ -37,7 +37,7 @@ else:
 class _VmapEncode(eqx.Module):
   """Encode S states via jax.vmap — fully parallel."""
 
-  model: Any = eqx.field(static=True)
+  model: Any
 
   def __call__(
     self,
@@ -109,7 +109,7 @@ class _VmapEncode(eqx.Module):
 class _ScanEncode(eqx.Module):
   """Encode S states via jax.lax.scan — sequential, lower memory."""
 
-  model: Any = eqx.field(static=True)
+  model: Any
 
   def __call__(
     self,

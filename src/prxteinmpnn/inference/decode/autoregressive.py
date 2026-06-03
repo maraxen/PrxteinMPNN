@@ -72,8 +72,10 @@ class AutoregressiveDecode(eqx.Module):
 
   Attributes
   ----------
-  model : Any = eqx.field(static=True)
-      Model is static (always traced same way).
+  model : Any
+      The MPNN model. A dynamic field: its weight arrays are traced JAX
+      leaves so filter_jit partitions them as runtime inputs (not hashed
+      static constants).
   decoding_order_fn : Callable = eqx.field(static=True)
       Decoding order function is static.
   state_iterator : MapIterator
@@ -107,7 +109,7 @@ class AutoregressiveDecode(eqx.Module):
   wave_iterator is retained in the pytree but unused on this path.
   """
 
-  model: Any = eqx.field(static=True)
+  model: Any
   decoding_order_fn: DecodingOrderFn = eqx.field(static=True)
   state_iterator: MapIterator
   wave_iterator: ScanIterator

@@ -138,6 +138,25 @@ class _BenchmarkSpec:
     average_node_features = False  # No encoding fusion for Wave 1
 
 
+def _make_benchmark_spec_with_temperatures(temperature_list: list[float] | None = None) -> _BenchmarkSpec:
+    """Create a benchmark spec with custom temperature list.
+
+    Parameters
+    ----------
+    temperature_list : list[float] | None
+        If provided, override the default temperature [1.0].
+
+    Returns
+    -------
+    _BenchmarkSpec
+        Spec with temperature set to temperature_list or [1.0] if None.
+    """
+    spec = _BenchmarkSpec()
+    if temperature_list is not None:
+        spec.temperature = temperature_list
+    return spec
+
+
 # ============================================================================
 # PDB Loading
 # ============================================================================
@@ -440,7 +459,7 @@ def load_model(
     return model
 
 
-def create_inference_plan(model: Any, task: str) -> Any:
+def create_inference_plan(model: Any, task: str, spec: _BenchmarkSpec | None = None) -> Any:
     """Create InferencePlan from model, configured for the given task.
 
     Parameters
@@ -448,8 +467,13 @@ def create_inference_plan(model: Any, task: str) -> Any:
     task : str
         "score_conditional" uses ConditionalMode (default make_inference_plan).
         "ar_sample" builds InferencePlan with AutoregressiveMode.
+    spec : _BenchmarkSpec | None
+        If provided, use this spec; otherwise create default _BenchmarkSpec.
     """
     from prxteinmpnn.host.plan import make_inference_plan
+
+    if spec is None:
+        spec = _BenchmarkSpec()
 
     if task == "ar_sample":
         from prxteinmpnn.host.plan import InferenceComponents, InferencePlan
@@ -459,7 +483,6 @@ def create_inference_plan(model: Any, task: str) -> Any:
         from prxteinmpnn.inference.logits import make_stage_set
         from prxteinmpnn.tiling.strategy import Vmap
 
-        spec = _BenchmarkSpec()
         stage_set = make_stage_set(
             spec.multi_state_strategy,
             spec.multi_state_temperature,
@@ -471,7 +494,6 @@ def create_inference_plan(model: Any, task: str) -> Any:
         return InferencePlan(model=model, components=components, decode_fn=decode_fn)
     else:
         # score_conditional uses ConditionalMode (make_inference_plan default)
-        spec = _BenchmarkSpec()
         return make_inference_plan(model, spec)
 
 
@@ -865,6 +887,12 @@ def main():
         help="Checkpoint ID to use for ligand-conditioned runs (default: ligandmpnn_v_32_010_25).",
     )
     parser.add_argument(
+        "--temperatures",
+        type=str,
+        default=None,
+        help="Comma-separated temperature values (default: use spec temperature [1.0])",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print config and exit without running benchmarks",
@@ -898,6 +926,16 @@ def main():
         args.n_warmup = 1
         args.n_timed = 3
         logger.info("Smoke test mode: minimal iterations")
+
+    # Parse --temperatures flag if provided
+    temperatures_override = None
+    if args.temperatures is not None:
+        try:
+            temperatures_override = [float(t.strip()) for t in args.temperatures.split(",")]
+            logger.info(f"Temperature override: {temperatures_override}")
+        except ValueError as e:
+            logger.error(f"Failed to parse --temperatures '{args.temperatures}': {e}")
+            return 1
 
     # Resolve checkpoint path (optional — None means use bundled .eqx.zst via io.weights)
     checkpoint_path = args.reference_path
@@ -962,7 +1000,8 @@ def main():
 
     # Build the inference plan once per task (before the cell loop).
     logger.info(f"Building inference plan for task={args.task}...")
-    plan = create_inference_plan(model, args.task)
+    spec = _make_benchmark_spec_with_temperatures(temperatures_override)
+    plan = create_inference_plan(model, args.task, spec)
 
     for seq_len in args.seq_lens:
         for batch_size in args.batch_sizes:

@@ -321,11 +321,8 @@ class DecoderLayer(eqx.Module):
     # Concat with context [h_i, e_context]
     mlp_input = jnp.concatenate([node_features_expand, layer_edge_features], -1)
 
-    # Apply MLP to each (atom, neighbor) pair: fuse double-vmap to flat batch
-    L, K, H_in = mlp_input.shape
-    mlp_input_flat = mlp_input.reshape(-1, H_in)
-    message_flat = jax.vmap(self.message_mlp)(mlp_input_flat)
-    message = message_flat.reshape(L, K, message_flat.shape[-1])
+    # Apply MLP to each (atom, neighbor) pair: vmap over atoms, then over neighbors
+    message = jax.vmap(jax.vmap(self.message_mlp))(mlp_input)
 
     # Apply attention mask if provided (for conditional decoding)
     if attention_mask is not None:
@@ -488,16 +485,12 @@ class DecoderLayerJ(eqx.Module):
 
     h_ev = jnp.concatenate([h_v_expand, h_e], axis=-1)
 
-    # Message passing: fuse triple-vmap chain to flat batch
-    # h_ev shape: (L, M, M, D_in)
-    L, M_rows, M_cols, D_in = h_ev.shape
-    h_ev_flat = h_ev.reshape(-1, D_in)  # (L*M*M, D_in)
-    h_message_flat = jax.vmap(self.w1)(h_ev_flat)  # (L*M*M, D_h)
-    h_message_flat = _gelu(h_message_flat)
-    h_message_flat = jax.vmap(self.w2)(h_message_flat)  # (L*M*M, D_h)
-    h_message_flat = _gelu(h_message_flat)
-    h_message_flat = jax.vmap(self.w3)(h_message_flat)  # (L*M*M, D_h)
-    h_message = h_message_flat.reshape(L, M_rows, M_cols, h_message_flat.shape[-1])
+    # Message passing
+    h_message = jax.vmap(jax.vmap(jax.vmap(self.w1)))(h_ev)
+    h_message = _gelu(h_message)
+    h_message = jax.vmap(jax.vmap(jax.vmap(self.w2)))(h_message)
+    h_message = _gelu(h_message)
+    h_message = jax.vmap(jax.vmap(jax.vmap(self.w3)))(h_message)
 
     if mask_attend is not None:
       h_message = jnp.expand_dims(mask_attend, axis=-1) * h_message

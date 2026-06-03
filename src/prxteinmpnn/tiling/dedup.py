@@ -5,8 +5,8 @@ heterogeneous axis, run the body K times, and scatter results back to N position
 Mirrors CarrySpec / Phase 0 pattern: caller declares, planner pre-demotes in Phase 0b.
 
 K-bucketing: raw k varies per batch (not a static constant), so we pad unique_indices
-to the next power-of-2-ish bucket from K_DEDUP_BUCKETS. XLA compiles one program per
-bucket value, amortising retrace cost across batches with similar dedup ratios.
+to the next power of 2. XLA compiles one program per k_bucket value, bounding the
+number of compiled variants to O(log k).
 """
 
 from __future__ import annotations
@@ -20,25 +20,26 @@ if TYPE_CHECKING:
     from prxteinmpnn.tiling.strategy import DedupFn, DedupGather, GatherFn
 
 
-K_DEDUP_BUCKETS: tuple[int, ...] = (1, 2, 4, 8, 16, 32)
-
-
 def get_k_bucket(k: int) -> int:
-    """Return the smallest K_DEDUP_BUCKETS value >= k.
+    """Round k up to the next power of 2.
 
-    XLA recompiles for each distinct k_bucket, not per raw k. Bucket sizes mirror
-    LENGTH_BUCKETS in buckets.py to bound the number of XLA program variants.
+    XLA recompiles for each distinct k_bucket; using powers of 2 bounds the number
+    of compiled programs to O(log k) while keeping padding waste ≤ 2×.
+
+    # TODO(high-k regime): above ~256 unique elements the 2× worst-case waste
+    # becomes exponentially costly in wall-clock (e.g. k=257 pads to 512 and
+    # runs 255 wasted iterations). At that scale, add intermediate buckets —
+    # e.g. 384, 768 — so that the step ratio stays closer to 1.5× rather than
+    # 2×. A mixed strategy (pure powers-of-2 below 256, finer geometric steps
+    # above) keeps the compiled-program count manageable while cutting wasted
+    # compute in the large-batch regime.
 
     Raises:
-        ValueError: if k exceeds the largest bucket (32).
+        ValueError: if k <= 0.
     """
-    for b in K_DEDUP_BUCKETS:
-        if k <= b:
-            return b
-    raise ValueError(
-        f"k={k} exceeds maximum K_DEDUP_BUCKETS value {K_DEDUP_BUCKETS[-1]}. "
-        "Increase K_DEDUP_BUCKETS or reduce the unique-structure count.",
-    )
+    if k <= 0:
+        raise ValueError(f"k must be positive, got k={k}")
+    return 1 << (k - 1).bit_length()
 
 
 @dataclass(frozen=True)
@@ -104,4 +105,4 @@ class DedupSpec:
         )
 
 
-__all__ = ["K_DEDUP_BUCKETS", "DedupSpec", "get_k_bucket"]
+__all__ = ["DedupSpec", "get_k_bucket"]

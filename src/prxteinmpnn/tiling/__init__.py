@@ -1,6 +1,6 @@
 """prxteinmpnn.tiling — axis strategy, planning, and dedup-gather."""
 
-from prxteinmpnn.tiling.dedup import DedupSpec, K_DEDUP_BUCKETS, get_k_bucket
+from prxteinmpnn.tiling.dedup import DedupSpec, get_k_bucket
 from prxteinmpnn.tiling.strategy import (
     AxisStrategy,
     DedupFn,
@@ -18,7 +18,6 @@ __all__ = [
     "DedupGather",
     "DedupSpec",
     "GatherFn",
-    "K_DEDUP_BUCKETS",
     "SafeMap",
     "Scan",
     "ScanTransition",

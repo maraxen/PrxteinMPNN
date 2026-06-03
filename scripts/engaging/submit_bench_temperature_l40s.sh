@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=bench-temp-l40s
-#SBATCH --partition=mit_normal_gpu
+#SBATCH --partition=mit_preemptable
 #SBATCH --gpus=1
 #SBATCH --time=01:00:00
 #SBATCH --mem=80G

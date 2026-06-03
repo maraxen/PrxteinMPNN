@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=bench-mixed-l40s
-#SBATCH --partition=mit_normal_gpu
+#SBATCH --partition=mit_preemptable
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G

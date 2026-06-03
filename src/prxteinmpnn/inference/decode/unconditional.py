@@ -45,7 +45,7 @@ class UnconditionalDecode(eqx.Module):
   decoding does not have the teacher-forcing contract.
   """
 
-  model: Any = eqx.field(static=True)
+  model: Any
   state_iterator: MapIterator
 
   def __call__(

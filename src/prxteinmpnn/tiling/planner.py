@@ -57,6 +57,7 @@ class AxisSpec:
   tile_granularity: int  # safe_map tile sizes are rounded up to multiples of this
   heterogeneous: bool  # if True, element shapes may vary; vmap invalid; always safe_map
   doc: str
+  dedup_eligible: bool = False  # if True, may be assigned DedupGather strategy
 
 
 @dataclass(frozen=True)
@@ -111,6 +112,7 @@ class BatchPlanner:
   budget_bytes: float
   estimate_memory: Callable[..., float]
   carries: list[CarrySpec] = dataclasses.field(default_factory=list)
+  dedup_specs: list = dataclasses.field(default_factory=list)
 
   def plan(self) -> BatchPlan:
 
@@ -140,8 +142,28 @@ class BatchPlanner:
 
     remaining = [ax for ax in sorted_axes if ax.name not in phase0_names]
 
+    # Phase 0b: pre-demote dedup_eligible axes with declared DedupSpec to DedupGather
+    dedup_by_name = {ds.axis_name: ds for ds in self.dedup_specs}
+    phase0b_decisions: list[AxisDecision] = []
+    dedup_names: set[str] = set()
+    for ax in sorted_axes:
+      if ax.name in dedup_by_name and ax.name not in phase0_names:
+        ds = dedup_by_name[ax.name]
+        dg_strategy = ds.to_dedup_gather()
+        phase0b_decisions.append(
+          AxisDecision(
+            axis=ax,
+            batch_size=ds.k,
+            reasoning=f"dedup-gather (DedupSpec declared for '{ax.name}', k={ds.k}, k_bucket={dg_strategy.k_bucket})",
+            strategy=dg_strategy,
+          ),
+        )
+        dedup_names.add(ax.name)
+
+    remaining = [ax for ax in remaining if ax.name not in dedup_names]
+
     # Phase 1: pre-demote heterogeneous axes (shapes vary; vmap invalid)
-    decisions: list[AxisDecision] = list(phase0_decisions)
+    decisions: list[AxisDecision] = list(phase0_decisions) + list(phase0b_decisions)
     het_names: set[str] = set()
     for ax in remaining:
       if ax.heterogeneous:
@@ -180,6 +202,18 @@ class BatchPlanner:
       )
 
     all_decisions = decisions + hom_decisions
+
+    # Post-plan eligibility guard: DedupGather may only be assigned to dedup_eligible axes.
+    from prxteinmpnn.tiling.strategy import DedupGather as _DedupGather
+    from prxteinmpnn.tiling.errors import TilingError
+
+    for d in all_decisions:
+      if isinstance(d.strategy, _DedupGather) and not d.axis.dedup_eligible:
+        raise TilingError(
+            f"Axis '{d.axis.name}' has dedup_eligible=False but was assigned "
+            f"DedupGather strategy. Set dedup_eligible=True on the AxisSpec to allow dedup."
+        )
+
     final_estimate = self.estimate_memory(all_decisions)
     exceeded = final_estimate > self.budget_bytes
 

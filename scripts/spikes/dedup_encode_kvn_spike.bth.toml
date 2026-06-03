@@ -25,8 +25,8 @@ jit_compiles = "bool: whether dedup path wrapped in jax.jit compiles without err
 h1_pass = "bool: whether k_executions==K and n_executions==N"
 
 [result_schema.provenance]
-script_sha = "placeholder_commit_sha"
-jax_version = "0.10.1"
-numpy_version = "2.4.6"
-input_description = "N=6 elements, K=3 unique, d=4 features, deterministic body with matmuls"
-test_command = "PYTHONPATH=src JAX_PLATFORMS=cpu uv run python scripts/spikes/dedup_encode_kvn_spike.py --log-level INFO"
+script_sha = "1457251"
+jax_version = "0.10.0"
+numpy_version = "2.4.4"
+input_description = "N=6 elements, K=3 unique, d=4 features, deterministic body with matmuls (repeated input rows for true dedup test)"
+test_command = "JAX_PLATFORMS=cpu python3 scripts/spikes/dedup_encode_kvn_spike.py --log-level INFO"

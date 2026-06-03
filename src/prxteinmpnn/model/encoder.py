@@ -213,7 +213,11 @@ class EncoderLayer(eqx.Module):
     keys = jax.random.split(key, 3) if key is not None else (None, None, None)
 
     mlp_input = self._get_mlp_input(node_features, edge_features, neighbor_indices)
-    message = jax.vmap(jax.vmap(self.edge_message_mlp))(mlp_input)
+    # Fusion: flatten leading dims (L, K) -> (L*K), vmap once, reshape back
+    L, K, H_in = mlp_input.shape
+    mlp_input_flat = mlp_input.reshape(-1, H_in)
+    message_flat = jax.vmap(self.edge_message_mlp)(mlp_input_flat)
+    message = message_flat.reshape(L, K, message_flat.shape[-1])
 
     # Apply attention mask to zero out messages from invalid neighbors
     if mask_attend is not None:
@@ -239,7 +243,11 @@ class EncoderLayer(eqx.Module):
       [1, edge_features_cat.shape[-2], 1],
     )
     mlp_input_edge_update = jnp.concatenate([node_features_expand, edge_features_cat], -1)
-    edge_message = jax.vmap(jax.vmap(self.edge_update_mlp))(mlp_input_edge_update)
+    # Fusion: flatten leading dims (L, K) -> (L*K), vmap once, reshape back
+    L, K, H_in = mlp_input_edge_update.shape
+    mlp_input_flat = mlp_input_edge_update.reshape(-1, H_in)
+    edge_message_flat = jax.vmap(self.edge_update_mlp)(mlp_input_flat)
+    edge_message = edge_message_flat.reshape(L, K, edge_message_flat.shape[-1])
     edge_message = self.dropout3(edge_message, key=keys[2], inference=inference)
 
     edge_features = edge_features + edge_message

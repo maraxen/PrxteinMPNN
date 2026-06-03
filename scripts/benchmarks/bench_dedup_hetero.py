@@ -534,15 +534,6 @@ def main() -> int:
         logger.error(f"PDB directory not found: {args.pdb_dir}")
         return 1
 
-    # Load fixture (use 76 as default for heterogeneous benchmark)
-    try:
-        logger.info(f"Loading PDB fixture from {args.pdb_dir}...")
-        pdb_fixture = _load_pdb_fixture(args.pdb_dir, 76)
-        logger.info(f"Loaded fixture: L={pdb_fixture['actual_len']}")
-    except FileNotFoundError as e:
-        logger.error(f"Failed to load fixture: {e}")
-        return 1
-
     logger.info(f"Benchmark configuration:")
     logger.info(f"  Hardware: {args.hardware}")
     logger.info(f"  N (total structures): {args.n_total}")
@@ -553,7 +544,26 @@ def main() -> int:
 
     if args.dry_run:
         logger.info("Dry-run mode: would benchmark K in {%s}" % ", ".join(map(str, k_values)))
+        logger.info("Command template:")
+        logger.info(
+            f"  uv run python scripts/benchmarks/bench_dedup_hetero.py "
+            f"--hardware {args.hardware} "
+            f"--n-total {args.n_total} "
+            f"--k-values {','.join(map(str, k_values))} "
+            f"--pdb-dir {args.pdb_dir} "
+            f"--n-warmup {args.n_warmup} "
+            f"--n-timed {args.n_timed}"
+        )
         return 0
+
+    # Load fixture (only after dry-run check to avoid unnecessary imports)
+    try:
+        logger.info(f"Loading PDB fixture from {args.pdb_dir}...")
+        pdb_fixture = _load_pdb_fixture(args.pdb_dir, 76)
+        logger.info(f"Loaded fixture: L={pdb_fixture['actual_len']}")
+    except FileNotFoundError as e:
+        logger.error(f"Failed to load fixture: {e}")
+        return 1
 
     # Set JAX defaults
     _set_jax_defaults()

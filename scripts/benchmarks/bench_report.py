@@ -56,13 +56,42 @@ def load_benchmark_json(json_path: Path) -> list[dict[str, Any]]:
         raise ValueError(f"Expected list or dict with 'results' key, got {type(data)}")
 
 
-def merge_results(json_paths: list[Path]) -> list[dict[str, Any]]:
-    """Merge results from multiple JSON files."""
+def merge_results(json_paths: list[Path]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Merge results from multiple JSON files.
+
+    Returns: (all_results, capability_results_dict)
+    capability_results_dict has keys: "temperature", "dedup", "mixed_length"
+    """
     all_results = []
+    capability_results: dict[str, Any] = {}
+
     for json_path in json_paths:
-        results = load_benchmark_json(json_path)
-        all_results.extend(results)
-    return all_results
+        try:
+            with open(json_path, "r") as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            logger.error(f"File not found: {json_path}")
+            raise
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in {json_path}: {e}")
+            raise
+
+        # Extract results
+        if isinstance(data, dict) and "results" in data:
+            all_results.extend(data["results"])
+        elif isinstance(data, list):
+            all_results.extend(data)
+        else:
+            logger.error(f"Unexpected JSON structure in {json_path}")
+            raise ValueError(f"Expected list or dict with 'results' key, got {type(data)}")
+
+        # Extract capability results if present
+        if isinstance(data, dict) and "capability_results" in data:
+            cap_results = data["capability_results"]
+            if isinstance(cap_results, dict):
+                capability_results.update(cap_results)
+
+    return all_results, capability_results
 
 
 def compute_speedup_vs_pytorch(
@@ -88,8 +117,122 @@ def compute_speedup_vs_pytorch(
     return None  # PyTorch baseline not found
 
 
+def generate_capability_comparison_section(
+    capability_results: dict[str, Any], hardware: str
+) -> list[str]:
+    """Generate capability comparison section for markdown report.
+
+    Reads capability_results dict with keys "temperature", "dedup", "mixed_length"
+    and generates a table comparing prxteinmpnn vs baselines.
+
+    Returns list of markdown lines.
+    """
+    lines = []
+    lines.append("## Capability Comparison\n")
+    lines.append("Capability-specific benchmarks comparing prxteinmpnn vs ColabDesign and PyTorch baselines.\n")
+
+    # Temperature array capability
+    if "temperature" in capability_results and capability_results["temperature"]:
+        lines.append("### Temperature Array (M-temperature JIT sweep)\n")
+        lines.append("| Capability | prxteinmpnn (ms) | ColabDesign (ms) | PyTorch (ms) | Speedup vs PT |\n")
+        lines.append("|---|---|---|---|---|\n")
+
+        temp_data = capability_results["temperature"]
+        if isinstance(temp_data, dict) and "cells" in temp_data:
+            cells = temp_data["cells"]
+        elif isinstance(temp_data, list):
+            cells = temp_data
+        else:
+            cells = []
+
+        # Build representative rows for M=1, M=4, M=8
+        for m_val in [1, 4, 8]:
+            cell = next((c for c in cells if c.get("m") == m_val), None)
+            if cell:
+                prx = cell.get("prxteinmpnn_latency_ms")
+                cola = cell.get("colabdesign_latency_ms")
+                pt = cell.get("pytorch_latency_ms")
+                speedup = (pt / prx) if (pt and prx and prx > 0) else None
+
+                prx_str = f"{prx:.1f}" if prx else "—"
+                cola_str = f"{cola:.1f}" if cola else "—"
+                pt_str = f"{pt:.1f}" if pt else "—"
+                speedup_str = f"{speedup:.2f}×" if speedup else "—"
+
+                lines.append(f"| Temp Array M={m_val} | {prx_str} | {cola_str} | {pt_str} | {speedup_str} |\n")
+
+        lines.append("\n")
+
+    # DedupGather capability
+    if "dedup" in capability_results and capability_results["dedup"]:
+        lines.append("### DedupGather Heterogeneous Batch (K-unique proportional speedup)\n")
+        lines.append("| K unique | N total | dedup_ratio | prxteinmpnn (ms) | PyTorch (ms) | Speedup vs PT |\n")
+        lines.append("|---|---|---|---|---|---|\n")
+
+        dedup_data = capability_results["dedup"]
+        if isinstance(dedup_data, dict) and "cells" in dedup_data:
+            cells = dedup_data["cells"]
+        elif isinstance(dedup_data, list):
+            cells = dedup_data
+        else:
+            cells = []
+
+        # Show key K values
+        for k_val in [1, 4, 8, 16, 32]:
+            cell = next((c for c in cells if c.get("k") == k_val), None)
+            if cell:
+                k = cell.get("k")
+                n = cell.get("n")
+                ratio = cell.get("dedup_ratio")
+                prx = cell.get("prxteinmpnn_latency_ms")
+                pt = cell.get("pytorch_latency_ms")
+                speedup = (pt / prx) if (pt and prx and prx > 0) else None
+
+                prx_str = f"{prx:.1f}" if prx else "—"
+                pt_str = f"{pt:.1f}" if pt else "—"
+                speedup_str = f"{speedup:.2f}×" if speedup else "—"
+                ratio_str = f"{ratio:.2f}" if ratio else "—"
+
+                lines.append(f"| {k} | {n} | {ratio_str} | {prx_str} | {pt_str} | {speedup_str} |\n")
+
+        lines.append("\n")
+
+    # Mixed-length capability
+    if "mixed_length" in capability_results and capability_results["mixed_length"]:
+        lines.append("### Mixed-Length Heterogeneous Batch\n")
+        lines.append("| Config | prxteinmpnn (ms) | ColabDesign (ms) | PyTorch (ms) | Speedup vs PT |\n")
+        lines.append("|---|---|---|---|---|\n")
+
+        mixed_data = capability_results["mixed_length"]
+        if isinstance(mixed_data, dict) and "cells" in mixed_data:
+            cells = mixed_data["cells"]
+        elif isinstance(mixed_data, list):
+            cells = mixed_data
+        else:
+            cells = []
+
+        # Show first few representative results
+        for cell in cells[:5]:
+            config = cell.get("config", "unknown")
+            prx = cell.get("prxteinmpnn_latency_ms")
+            cola = cell.get("colabdesign_latency_ms")
+            pt = cell.get("pytorch_latency_ms")
+            speedup = (pt / prx) if (pt and prx and prx > 0) else None
+
+            prx_str = f"{prx:.1f}" if prx else "—"
+            cola_str = f"{cola:.1f}" if cola else "—"
+            pt_str = f"{pt:.1f}" if pt else "—"
+            speedup_str = f"{speedup:.2f}×" if speedup else "—"
+
+            lines.append(f"| {config} | {prx_str} | {cola_str} | {pt_str} | {speedup_str} |\n")
+
+        lines.append("\n")
+
+    return lines
+
+
 def generate_markdown_report(
-    results: list[dict[str, Any]], output_path: Path
+    results: list[dict[str, Any]], output_path: Path, capability_results: dict[str, Any] | None = None
 ) -> None:
     """Generate Markdown report with tables grouped by hardware, precision, ligand_conditioning."""
 
@@ -264,6 +407,12 @@ def generate_markdown_report(
 
             lines.append("\n")
 
+    # Add capability comparison section if available
+    if capability_results:
+        hardware = results[0].get("hardware", "unknown") if results else "unknown"
+        capability_lines = generate_capability_comparison_section(capability_results, hardware)
+        lines.extend(capability_lines)
+
     with open(output_path, "w") as f:
         f.writelines(lines)
 
@@ -396,8 +545,10 @@ def main() -> int:
     try:
         # Load and merge results
         logger.info(f"Loading {len(args.input_json)} JSON file(s)...")
-        results = merge_results(args.input_json)
+        results, capability_results = merge_results(args.input_json)
         logger.info(f"Loaded {len(results)} benchmark results.")
+        if capability_results:
+            logger.info(f"Loaded capability results: {', '.join(capability_results.keys())}")
 
         if not results:
             logger.warning("No results loaded, skipping report generation.")
@@ -411,7 +562,7 @@ def main() -> int:
         csv_path = args.output_dir / "benchmark_report.csv"
 
         logger.info(f"Generating Markdown report: {md_path}")
-        generate_markdown_report(results, md_path)
+        generate_markdown_report(results, md_path, capability_results=capability_results)
 
         logger.info(f"Generating CSV report: {csv_path}")
         generate_csv_report(results, csv_path)

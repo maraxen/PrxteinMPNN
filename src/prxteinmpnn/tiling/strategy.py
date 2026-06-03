@@ -12,10 +12,11 @@ AxisStrategy is a sealed union; use isinstance() guards, not if/elif on strings.
 from __future__ import annotations
 
 import dataclasses
-import jax
-import numpy as np
 from dataclasses import dataclass
 from typing import Any, Generic, Protocol, TypeVar, runtime_checkable
+
+import jax
+import numpy as np
 
 C = TypeVar("C")  # carry type
 X = TypeVar("X")  # per-step input

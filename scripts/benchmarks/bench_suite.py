@@ -19,6 +19,8 @@ Usage:
         --dry-run
 
 Optional skip flags: --skip-pytorch, --skip-colabdesign, --skip-prxteinmpnn
+Capability skip flags: --skip-temperature, --skip-dedup, --skip-mixed-length
+  (only active if scripts are present on disk)
 --smoke: pass through and set seq-lens to 76, batch-sizes to 1, tasks to both
 --dry-run: print resolved adapter commands without executing
 
@@ -176,6 +178,41 @@ def build_colabdesign_argv(
         *map(str, args.seq_lens),
         "--batch-sizes",
         *map(str, args.batch_sizes),
+        "--n-warmup",
+        str(args.n_warmup),
+        "--n-timed",
+        str(args.n_timed),
+    ]
+
+    if args.smoke:
+        argv.append("--smoke")
+
+    if args.dry_run:
+        argv.append("--dry-run")
+
+    return argv
+
+
+def build_temperature_array_argv(
+    args: argparse.Namespace,
+    output_json: Path,
+) -> list[str]:
+    """Build argv for bench_temperature_array.py.
+
+    Temperature array benchmark measures latency for M-temperature JIT-native
+    sweep (prxteinmpnn) vs sequential baselines (ColabDesign, PyTorch).
+    """
+    argv = [
+        sys.executable,
+        str(_BENCH_DIR / "bench_temperature_array.py"),
+        "--hardware",
+        args.hardware,
+        "--output-json",
+        str(output_json),
+        "--pdb-dir",
+        str(args.pdb_dir),
+        "--seq-len",
+        str(args.seq_lens[0]) if args.seq_lens else "76",
         "--n-warmup",
         str(args.n_warmup),
         "--n-timed",
@@ -393,6 +430,23 @@ def main() -> int:
         help="Skip prxteinmpnn adapter",
     )
 
+    # Capability skip flags
+    parser.add_argument(
+        "--skip-temperature",
+        action="store_true",
+        help="Skip temperature array benchmark (if present on disk)",
+    )
+    parser.add_argument(
+        "--skip-dedup",
+        action="store_true",
+        help="Skip DedupGather heterogeneous batch benchmark (if present on disk)",
+    )
+    parser.add_argument(
+        "--skip-mixed-length",
+        action="store_true",
+        help="Skip mixed-length heterogeneous batch benchmark (if present on disk)",
+    )
+
     args = parser.parse_args()
 
     # Handle deprecated --fixture-dir
@@ -500,6 +554,101 @@ def main() -> int:
                         f"Loaded {len(results['results'])} cells from colabdesign_jax/{task}"
                     )
 
+    # === CAPABILITY BENCHMARKS (non-task-specific) ===
+    capability_results: dict[str, Any] = {}
+
+    # Temperature array benchmark
+    temperature_script = _BENCH_DIR / "bench_temperature_array.py"
+    if temperature_script.exists() and not args.skip_temperature:
+        logger.info("=" * 70)
+        logger.info("Dispatching temperature array benchmark...")
+        output_json = args.output_dir / f"{args.hardware}_bench_temperature_array.json"
+        argv = build_temperature_array_argv(args, output_json)
+
+        key = "temperature_array"
+        status, _ = run_adapter(key, argv, dry_run=args.dry_run, timeout=args.subprocess_timeout)
+        adapter_status[key] = status
+
+        if status == "ok":
+            results = load_adapter_results(output_json)
+            if results:
+                capability_results["temperature"] = results
+                logger.info(f"Loaded temperature array results")
+
+    # DedupGather heterogeneous batch benchmark
+    dedup_script = _BENCH_DIR / "bench_dedup_hetero.py"
+    if dedup_script.exists() and not args.skip_dedup:
+        logger.info("=" * 70)
+        logger.info("Dispatching DedupGather heterogeneous batch benchmark...")
+        output_json = args.output_dir / f"{args.hardware}_bench_dedup_hetero.json"
+        argv = [
+            sys.executable,
+            str(dedup_script),
+            "--hardware",
+            args.hardware,
+            "--output-json",
+            str(output_json),
+            "--pdb-dir",
+            str(args.pdb_dir),
+            "--n-warmup",
+            str(args.n_warmup),
+            "--n-timed",
+            str(args.n_timed),
+        ]
+
+        if args.smoke:
+            argv.append("--smoke")
+
+        if args.dry_run:
+            argv.append("--dry-run")
+
+        key = "dedup_hetero"
+        status, _ = run_adapter(key, argv, dry_run=args.dry_run, timeout=args.subprocess_timeout)
+        adapter_status[key] = status
+
+        if status == "ok":
+            results = load_adapter_results(output_json)
+            if results:
+                capability_results["dedup"] = results
+                logger.info(f"Loaded DedupGather results")
+
+    # Mixed-length heterogeneous batch benchmark
+    mixed_length_script = _BENCH_DIR / "bench_mixed_length.py"
+    if mixed_length_script.exists() and not args.skip_mixed_length:
+        logger.info("=" * 70)
+        logger.info("Dispatching mixed-length heterogeneous batch benchmark...")
+        output_json = args.output_dir / f"{args.hardware}_bench_mixed_length.json"
+        argv = [
+            sys.executable,
+            str(mixed_length_script),
+            "--hardware",
+            args.hardware,
+            "--output-json",
+            str(output_json),
+            "--pdb-dir",
+            str(args.pdb_dir),
+            "--n-warmup",
+            str(args.n_warmup),
+            "--n-timed",
+            str(args.n_timed),
+        ]
+
+        if args.smoke:
+            argv.append("--smoke")
+
+        if args.dry_run:
+            argv.append("--dry-run")
+
+        key = "mixed_length"
+        status, _ = run_adapter(key, argv, dry_run=args.dry_run, timeout=args.subprocess_timeout)
+        adapter_status[key] = status
+
+        if status == "ok":
+            results = load_adapter_results(output_json)
+            if results:
+                capability_results["mixed_length"] = results
+                logger.info(f"Loaded mixed-length results")
+
     # === Summary ===
     logger.info("=" * 70)
     logger.info("Adapter status:")
@@ -523,6 +672,7 @@ def main() -> int:
         "adapter_status": adapter_status,
         "results": combined_results,
         "total_cells": len(combined_results),
+        "capability_results": capability_results,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 

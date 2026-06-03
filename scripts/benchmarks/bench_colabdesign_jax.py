@@ -544,6 +544,19 @@ def main():
 
     _set_jax_defaults()
 
+    # Fail loud if a GPU run is silently executing on CPU (e.g. missing CUDA
+    # plugin). A SLURM GPU allocation does NOT guarantee jax uses the GPU.
+    _backend = jax.default_backend()
+    logger.info(f"JAX backend: {_backend}  devices: {jax.devices()}")
+    if args.hardware.lower() != "cpu" and _backend != "gpu":
+        logger.error(
+            f"--hardware {args.hardware} requested but JAX backend is "
+            f"'{_backend}', not 'gpu'. Refusing to report CPU timings as "
+            f"{args.hardware}. Install the CUDA plugin (uv sync --extra cuda "
+            f"with cuda=['jax[cuda]']) or pass --hardware CPU."
+        )
+        return 1
+
     logger.info("Loading ColabDesign ProteinMPNN model...")
     try:
         model = load_model(verbose=False)

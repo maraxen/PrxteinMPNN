@@ -1004,9 +1004,20 @@ def main():
         return 1
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logger.info(f"torch.cuda.is_available() = {torch.cuda.is_available()}")
+    logger.info(f"Using device: {device}")
+
+    # Fail loud if a GPU run is silently executing on CPU (e.g. missing CUDA runtime).
+    if args.hardware.lower() != "cpu" and not torch.cuda.is_available():
+        logger.error(
+            f"--hardware {args.hardware} requested but torch.cuda.is_available() is False. "
+            f"Refusing to report CPU timings as {args.hardware}. "
+            f"Ensure CUDA runtime is available or pass --hardware CPU."
+        )
+        return 1
+
     if device.type == "cpu":
         logger.warning("CUDA not available, falling back to CPU (benchmark will be slow)")
-    logger.info(f"Using device: {device}")
 
     logger.info(f"Loading LigandMPNN model (model_type={model_type})...")
     try:

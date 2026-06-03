@@ -10,15 +10,18 @@ from prxteinmpnn.tiling.planner import AxisDecision, AxisSpec, BatchPlanner
 from prxteinmpnn.tiling.strategy import SafeMap, Scan, Vmap
 
 
-def _make_planner(axes: list[AxisSpec], carries: list[CarrySpec] = None) -> BatchPlanner:
-    """Helper to construct a planner with optional carries."""
+def _make_planner(axes: list[AxisSpec], carries: list[CarrySpec] = None, dedup_specs: list = None) -> BatchPlanner:
+    """Helper to construct a planner with optional carries and dedup_specs."""
     if carries is None:
         carries = []
+    if dedup_specs is None:
+        dedup_specs = []
     return BatchPlanner(
         axes=list(axes),
         budget_bytes=1e12,  # huge budget so Phase 2 never demotes
         estimate_memory=lambda ds: 1.0,
         carries=list(carries),
+        dedup_specs=list(dedup_specs),
     )
 
 
@@ -123,3 +126,22 @@ def test_planner_phase0_carry_init_is_preserved() -> None:
     assert isinstance(temp_decision.strategy, Scan)
     # Verify init is the same object (identity, not just equality)
     assert temp_decision.strategy.init is init_arr
+
+
+def test_dedup_spec_rejected_on_non_eligible_axis() -> None:
+    """BatchPlanner.plan() should raise TilingError if DedupGather is assigned to
+    an axis with dedup_eligible=False."""
+    from prxteinmpnn.tiling.dedup import DedupSpec
+    from prxteinmpnn.tiling.errors import TilingError
+    import numpy as np
+
+    # N_NOISES has dedup_eligible=False (default); assigning DedupGather should fail
+    dedup_spec = DedupSpec(
+        axis_name="n_noises",
+        unique_indices=np.array([0], dtype=np.int32),
+        index_map=np.array([0, 0], dtype=np.int32),
+        k=1,
+    )
+    planner = _make_planner([N_NOISES], dedup_specs=[dedup_spec])
+    with pytest.raises(TilingError, match="dedup_eligible"):
+        planner.plan()

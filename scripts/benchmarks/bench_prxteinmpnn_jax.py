@@ -71,6 +71,8 @@ _ELEMENT_TO_IDX: dict[str, int] = {e: i + 1 for i, e in enumerate(_ELEMENT_LIST_
 _PDB_MAP: dict[int, str] = {
     76: "1ubq.pdb",
     94: "1BC8.cif",
+    150: "1mbn.pdb",
+    300: "3pgk.pdb",
     500: "1SMD.pdb",
 }
 

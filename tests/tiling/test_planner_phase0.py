@@ -10,15 +10,18 @@ from prxteinmpnn.tiling.planner import AxisDecision, AxisSpec, BatchPlanner
 from prxteinmpnn.tiling.strategy import SafeMap, Scan, Vmap
 
 
-def _make_planner(axes: list[AxisSpec], carries: list[CarrySpec] = None) -> BatchPlanner:
-    """Helper to construct a planner with optional carries."""
+def _make_planner(axes: list[AxisSpec], carries: list[CarrySpec] = None, dedup_specs: list = None) -> BatchPlanner:
+    """Helper to construct a planner with optional carries and dedup_specs."""
     if carries is None:
         carries = []
+    if dedup_specs is None:
+        dedup_specs = []
     return BatchPlanner(
         axes=list(axes),
         budget_bytes=1e12,  # huge budget so Phase 2 never demotes
         estimate_memory=lambda ds: 1.0,
         carries=list(carries),
+        dedup_specs=list(dedup_specs),
     )
 
 

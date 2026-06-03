@@ -61,7 +61,7 @@ def make_axis_dispatch(strategy: AxisStrategy, *, axis: str = "state") -> object
     raise DispatchRejected(
       "DedupGather strategy is handled by _dispatch_axis in kernel_dispatch.py, "
       "not by make_axis_dispatch (which maps to iterator types). "
-      "Use DedupGather via BatchPlanner + _dispatch_axis, not make_axis_dispatch."
+      "Use DedupGather via BatchPlanner + _dispatch_axis, not make_axis_dispatch.",
     )
 
   # Reject Scan on heterogeneous axes (state is the canonical heterogeneous axis).

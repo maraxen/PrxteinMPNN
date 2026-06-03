@@ -42,9 +42,10 @@ def _dispatch_axis(strategy, body, xs, *, batch_size_fallback: int = 0):
   """Dispatch iteration over an axis using the declared AxisStrategy.
 
   Args:
-      strategy: AxisStrategy from BatchPlanner — Vmap, SafeMap, or Scan.
+      strategy: AxisStrategy from BatchPlanner — Vmap, SafeMap, Scan, or DedupGather.
       body: Function to apply at each element. For Vmap/SafeMap: body(x) -> y.
             For Scan: called as body(x) -> y; carry is threaded around it.
+            For DedupGather: body(x) -> y; run on K unique elements then scatter to N.
       xs: Input array or pytree to map over (leading axis = the mapped axis).
       batch_size_fallback: Used only if strategy is not an AxisStrategy instance
           (backward compat with callers that don't have the strategy field yet).
@@ -52,7 +53,7 @@ def _dispatch_axis(strategy, body, xs, *, batch_size_fallback: int = 0):
   Returns:
       Stacked results, same leading shape as xs.
   """
-  from prxteinmpnn.tiling.strategy import SafeMap, Scan, Vmap
+  from prxteinmpnn.tiling.strategy import DedupGather, SafeMap, Scan, Vmap
   from prxteinmpnn.utils.safe_scan import safe_scan
 
   if isinstance(strategy, Vmap):
@@ -70,6 +71,12 @@ def _dispatch_axis(strategy, body, xs, *, batch_size_fallback: int = 0):
 
     _, ys = safe_scan(scan_body, xs, init=init)
     return ys
+  if isinstance(strategy, DedupGather):
+    unique_idx = jnp.asarray(strategy.unique_indices, dtype=jnp.int32)  # (K_bucket,)
+    index_map = jnp.asarray(strategy.index_map, dtype=jnp.int32)  # (N,)
+    xs_unique = strategy.dedup_fn(xs, unique_idx)  # in-trace gather
+    ys_unique = _safe_map(body, xs_unique, batch_size=None)  # K_bucket runs
+    return strategy.gather_fn(ys_unique, index_map)  # in-trace scatter
   # Fallback: treat as safe_map with batch_size_fallback
   return _safe_map(body, xs, batch_size=batch_size_fallback)
 

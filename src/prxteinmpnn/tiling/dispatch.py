@@ -29,7 +29,7 @@ def make_axis_dispatch(strategy: AxisStrategy, *, axis: str = "state") -> object
   Parameters
   ----------
   strategy : AxisStrategy
-      One of Vmap, SafeMap, or Scan.
+      One of Vmap, SafeMap, Scan, or DedupGather.
   axis : str, optional
       Name of the axis being dispatched. Default "state". Used to detect
       heterogeneous axes (e.g., state is heterogeneous; Scan is invalid there).
@@ -43,7 +43,9 @@ def make_axis_dispatch(strategy: AxisStrategy, *, axis: str = "state") -> object
   Raises
   ------
   DispatchRejected
-      If strategy is Scan and axis is heterogeneous (e.g., axis="state").
+      If strategy is Scan and axis is heterogeneous (e.g., axis="state"),
+      or if strategy is DedupGather (which is handled by _dispatch_axis,
+      not by make_axis_dispatch).
   """
   # Lazy import to avoid circular dependency with iterator.py.
   # iterator.py may not exist at dispatch time (parallel task in Wave A).
@@ -52,6 +54,15 @@ def make_axis_dispatch(strategy: AxisStrategy, *, axis: str = "state") -> object
     SafeMapIterator,
     VmapIterator,
   )
+  from prxteinmpnn.tiling.strategy import DedupGather
+
+  # Reject DedupGather (handled by _dispatch_axis in kernel_dispatch.py, not here).
+  if isinstance(strategy, DedupGather):
+    raise DispatchRejected(
+      "DedupGather strategy is handled by _dispatch_axis in kernel_dispatch.py, "
+      "not by make_axis_dispatch (which maps to iterator types). "
+      "Use DedupGather via BatchPlanner + _dispatch_axis, not make_axis_dispatch.",
+    )
 
   # Reject Scan on heterogeneous axes (state is the canonical heterogeneous axis).
   if isinstance(strategy, Scan):

@@ -23,5 +23,14 @@
 
 - Strict typing with `ty`, format with `ruff`
 - JAX: use `jax.jit`, `jax.vmap`, `jax.lax.scan` patterns
-- Equinox: modules as dataclasses, `eqx.filter_jit` for PyTrees
-- Numerical tolerance tests, cross-framework validation
+- Equinox: define models as `eqx.Module` subclasses (not dataclasses), use `eqx.filter_jit` for PyTree-aware JIT compilation
+- Numerical tolerance tests with `pytest.approx`, cross-framework validation
+
+## Decisions & Architecture
+
+Design decisions live in `.praxia/docs/decisions/` — see `.praxia/docs/INDEX.md` for the full ADR index.
+
+## Cluster & Experiment Tracking
+
+- **Cluster jobs**: Submit via `myxcel` (transparent SSH wrapper to engaging cluster) — see `/using-myxcel` skill for command reference
+- **Experiment tracking**: Use `bathos` for reproducible runs — all measurement logic with sidecars, pre-registered hypotheses — see `/using-bathos` skill

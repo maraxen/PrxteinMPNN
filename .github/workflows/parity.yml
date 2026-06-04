@@ -38,8 +38,6 @@ jobs:
       - name: Install dependencies
         run: |
           cd prxteinmpnn
-          uv venv
-          source .venv/bin/activate
           uv sync --extra cpu --extra dev --extra tests --group dev
 
       - name: Parity preflight
@@ -47,8 +45,7 @@ jobs:
           REFERENCE_PATH: ${{ github.workspace }}/reference_ligandmpnn_clone
         run: |
           cd prxteinmpnn
-          source .venv/bin/activate
-          python scripts/check_parity_prereqs.py \
+          uv run python scripts/check_parity_prereqs.py \
             --reference-path "$REFERENCE_PATH" \
             --project-root "." \
             --tier parity_heavy
@@ -58,9 +55,8 @@ jobs:
           REFERENCE_PATH: ${{ github.workspace }}/reference_ligandmpnn_clone
         run: |
           cd prxteinmpnn
-          source .venv/bin/activate
-          python scripts/check_parity_assets.py --tier parity_heavy
-          pytest tests/parity/ tests/model/test_ligandmpnn_equivalence.py \
+          uv run python scripts/check_parity_assets.py --tier parity_heavy
+          uv run pytest tests/parity/ tests/model/test_ligandmpnn_equivalence.py \
             -m "parity_heavy" --tb=short -v --junitxml=parity-heavy-report.xml
 
       - name: Generate Heavy Parity Report

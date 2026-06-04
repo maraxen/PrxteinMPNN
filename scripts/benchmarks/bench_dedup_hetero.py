@@ -261,6 +261,8 @@ def median_from_timings(times_list: list[float]) -> float:
 
 def benchmark_prxteinmpnn_dedup(
     batch: dict[str, Any],
+    model: Any = None,
+    plan: Any = None,
     n_warmup: int = 10,
     n_timed: int = 20,
 ) -> float:
@@ -270,6 +272,10 @@ def benchmark_prxteinmpnn_dedup(
     ----------
     batch : dict
         Synthetic batch from create_synthetic_batch
+    model : Any, optional
+        Pre-loaded model (if None, loads internally)
+    plan : Any, optional
+        Pre-created inference plan (if None, creates internally)
     n_warmup : int
         Number of warmup iterations
     n_timed : int
@@ -285,76 +291,91 @@ def benchmark_prxteinmpnn_dedup(
     from jax import random
 
     try:
-        from prxteinmpnn.io.weights import load_model
-        from prxteinmpnn.host.plan import make_inference_plan
-        from prxteinmpnn.tiling.dedup import DedupSpec
+        from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+        from prxteinmpnn.tiling.bucketing import BucketingConfig
     except ImportError as e:
         logger.warning(f"Failed to import prxteinmpnn: {e}")
         return 0.0
 
-    logger.info(f"Loading prxteinmpnn model...")
-    key = random.PRNGKey(42)
-    model = load_model(checkpoint_id="proteinmpnn_v_48_020", key=key)
+    # Load model if not provided
+    if model is None:
+        try:
+            from prxteinmpnn.io.weights import load_model as load_prxmp_model
+        except ImportError as e:
+            logger.warning(f"Failed to import prxteinmpnn model loader: {e}")
+            return 0.0
 
-    logger.info("Creating inference plan...")
-    spec = type('Spec', (), {
-        'sampling_strategy': 'temperature',
-        'use_rolling_state': False,
-        'multi_state_strategy': 'arithmetic_mean',
-        'multi_state_temperature': 1.0,
-        'state_weights': None,
-        'temperature': [1.0],
-        'average_node_features': False,
-    })()
-    plan = make_inference_plan(model, spec)
+        logger.info(f"Loading prxteinmpnn model...")
+        key = random.PRNGKey(42)
+        model = load_prxmp_model(checkpoint_id="proteinmpnn_v_48_020", key=key)
 
-    # Build batch inputs
-    n_structures = batch["n_total"]
+    # Create plan if not provided
+    if plan is None:
+        try:
+            from prxteinmpnn.host.plan import make_inference_plan
+        except ImportError as e:
+            logger.warning(f"Failed to import make_inference_plan: {e}")
+            return 0.0
+
+        logger.info("Creating inference plan...")
+        spec = type('Spec', (), {
+            'sampling_strategy': 'temperature',
+            'use_rolling_state': False,
+            'multi_state_strategy': 'arithmetic_mean',
+            'multi_state_temperature': 1.0,
+            'state_weights': None,
+            'temperature': [1.0],
+            'average_node_features': False,
+        })()
+        plan = make_inference_plan(model, spec)
+
+    # Get batch parameters
     k_unique = batch["k_unique"]
-    L = batch["actual_len"]
+    n_structures = batch["n_total"]
 
-    coords = jnp.asarray(batch["coords"], dtype=jnp.float32)
-    mask = jnp.asarray(batch["mask"], dtype=jnp.float32)
-    sequence = jnp.asarray(batch["sequence"], dtype=jnp.int32)
-    residue_index = jnp.asarray(batch["residue_index"], dtype=jnp.int32)
-    chain_index = jnp.asarray(batch["chain_index"], dtype=jnp.int32)
+    # Take only the first K unique structures
+    coords = jnp.asarray(batch["coords"][:k_unique], dtype=jnp.float32)
+    mask = jnp.asarray(batch["mask"][:k_unique], dtype=jnp.float32)
+    sequence = jnp.asarray(batch["sequence"][:k_unique], dtype=jnp.int32)
+    residue_index = jnp.asarray(batch["residue_index"][:k_unique], dtype=jnp.int32)
+    chain_index = jnp.asarray(batch["chain_index"][:k_unique], dtype=jnp.int32)
 
-    # Create dedup spec: unique indices are 0, 1, ..., k_unique-1
-    unique_indices = np.arange(k_unique, dtype=np.int32)
-    index_map = np.arange(n_structures, dtype=np.int32) % k_unique  # Maps each pos to its unique
-
-    dedup_spec = DedupSpec(
-        axis_name="n_structures",
-        unique_indices=unique_indices,
-        index_map=index_map,
-        k=k_unique,
-    )
+    bucket_cfg = BucketingConfig()
+    key = random.PRNGKey(42)
 
     try:
-        from prxteinmpnn.host.sampling_inputs import SamplingInputs
-        from prxteinmpnn.inference.config import ScoreConditionConfig
-
-        config = ScoreConditionConfig()
-        bundle = SamplingInputs.build(
-            coords=coords,
-            mask=mask,
-            sequence=sequence,
-            residue_index=residue_index,
-            chain_index=chain_index,
-            dedup_spec=dedup_spec,
-        )
+        # Build bundles for each unique structure
+        bundles_configs = []
+        for i in range(k_unique):
+            bundle, config = build_inference_bundle(
+                coords=coords[i],
+                mask=mask[i],
+                residue_index=residue_index[i],
+                chain_index=chain_index[i],
+                sequence=sequence[i],
+                ligand_coords=None,
+                ligand_atom_types=None,
+                ligand_mask=None,
+                temperature=1.0,
+                mode="score_conditional",
+                inference=True,
+                bucket_config=bucket_cfg,
+            )
+            bundles_configs.append((bundle, config))
 
         logger.info(f"Warming up ({n_warmup} iterations)...")
         for _ in range(n_warmup):
-            result = plan.score(bundle, key, config)
-            jax.block_until_ready(result)
+            for bundle, config in bundles_configs:
+                result = plan.score(bundle, key, config)
+                jax.block_until_ready(result)
 
         logger.info(f"Timing ({n_timed} iterations)...")
         times = []
         for _ in range(n_timed):
             t0 = time.perf_counter()
-            result = plan.score(bundle, key, config)
-            jax.block_until_ready(result)
+            for bundle, config in bundles_configs:
+                result = plan.score(bundle, key, config)
+                jax.block_until_ready(result)
             times.append(time.perf_counter() - t0)
 
         latency_ms = median_from_timings(times)
@@ -363,6 +384,8 @@ def benchmark_prxteinmpnn_dedup(
 
     except Exception as e:
         logger.error(f"prxteinmpnn benchmark failed: {e}")
+        import traceback
+        traceback.print_exc()
         return 0.0
 
 
@@ -373,6 +396,8 @@ def benchmark_prxteinmpnn_dedup(
 
 def benchmark_colabdesign_baseline(
     batch: dict[str, Any],
+    pdb_dir: Path,
+    model: Any = None,
     n_warmup: int = 10,
     n_timed: int = 20,
 ) -> float:
@@ -382,6 +407,10 @@ def benchmark_colabdesign_baseline(
     ----------
     batch : dict
         Synthetic batch
+    pdb_dir : Path
+        Directory containing PDB fixtures
+    model : Any, optional
+        Pre-loaded ColabDesign model (if None, loads internally)
     n_warmup : int
         Number of warmup iterations
     n_timed : int
@@ -392,9 +421,65 @@ def benchmark_colabdesign_baseline(
     float
         Median latency in milliseconds
     """
-    logger.info("ColabDesign baseline: K separate calls (not yet implemented)")
-    # Placeholder: ColabDesign integration deferred
-    return 0.0
+    import jax
+
+    try:
+        from colabdesign.mpnn.model import mk_mpnn_model
+    except ImportError:
+        logger.warning("ColabDesign not available; skipping baseline")
+        return 0.0
+
+    k_unique = batch["k_unique"]
+
+    # Load PDB file for ColabDesign
+    pdb_file = pdb_dir / _PDB_MAP[76]
+    if not pdb_file.exists():
+        logger.warning(f"ColabDesign: PDB not found: {pdb_file}")
+        return 0.0
+
+    try:
+        # Load model if not provided
+        if model is None:
+            model = mk_mpnn_model(
+                model_name="v_48_020",
+                backbone_noise=0.0,
+                dropout=0.0,
+                seed=42,
+                verbose=False,
+                weights="original",
+            )
+
+        # Prepare inputs from PDB
+        model.prep_inputs(pdb_filename=str(pdb_file))
+
+        def run_k_calls() -> float:
+            """Run K separate sample calls and return total time."""
+            total = 0.0
+            for _ in range(k_unique):
+                t0 = time.perf_counter()
+                result = model.sample(num=1, temperature=1.0)
+                jax.block_until_ready(jax.tree_util.tree_leaves(result))
+                total += time.perf_counter() - t0
+            return total
+
+        # Warmup
+        logger.info(f"ColabDesign warmup ({n_warmup} iterations)...")
+        for _ in range(n_warmup):
+            run_k_calls()
+
+        # Timed runs
+        logger.info(f"ColabDesign timing ({n_timed} iterations)...")
+        times = []
+        for _ in range(n_timed):
+            times.append(run_k_calls())
+
+        latency_ms = median_from_timings(times)
+        logger.info(f"ColabDesign (K={k_unique}): {latency_ms:.3f} ms")
+        return latency_ms
+
+    except Exception as e:
+        logger.warning(f"ColabDesign baseline failed: {e}")
+        return 0.0
 
 
 # ============================================================================
@@ -404,6 +489,7 @@ def benchmark_colabdesign_baseline(
 
 def benchmark_pytorch_baseline(
     batch: dict[str, Any],
+    pdb_dir: Path,
     reference_path: str | None = None,
     n_warmup: int = 10,
     n_timed: int = 20,
@@ -414,6 +500,8 @@ def benchmark_pytorch_baseline(
     ----------
     batch : dict
         Synthetic batch
+    pdb_dir : Path
+        Directory containing PDB fixtures
     reference_path : str, optional
         Path to LigandMPNN reference
     n_warmup : int
@@ -426,9 +514,109 @@ def benchmark_pytorch_baseline(
     float
         Median latency in milliseconds
     """
-    logger.info("PyTorch baseline: sequential K loop (not yet implemented)")
-    # Placeholder: PyTorch LigandMPNN integration deferred
-    return 0.0
+    import os
+
+    ref_path_str = reference_path or os.environ.get("REFERENCE_PATH", "")
+    if not ref_path_str:
+        logger.warning("REFERENCE_PATH not set; skipping PyTorch baseline")
+        return 0.0
+
+    ref_path = Path(ref_path_str)
+    if not ref_path.exists():
+        logger.warning(f"REFERENCE_PATH not found: {ref_path}")
+        return 0.0
+
+    try:
+        import sys
+        import torch
+        sys.path.insert(0, str(ref_path))
+        from model_utils import ProteinMPNN
+        from data_utils import featurize
+
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        # Load checkpoint
+        checkpoint_path = ref_path / "model_params" / "proteinmpnn_v_48_020.pt"
+        if not checkpoint_path.exists():
+            logger.warning(f"PyTorch: checkpoint not found: {checkpoint_path}")
+            return 0.0
+
+        checkpoint = torch.load(checkpoint_path, map_location=device)
+        k_neighbors = checkpoint["num_edges"]
+        atom_context_num = checkpoint.get("atom_context_num", 1)
+
+        pt_model = ProteinMPNN(
+            node_features=128, edge_features=128, hidden_dim=128,
+            num_encoder_layers=3, num_decoder_layers=3,
+            k_neighbors=k_neighbors, device=device,
+            atom_context_num=atom_context_num, model_type="protein_mpnn",
+        )
+        pt_model.load_state_dict(checkpoint["model_state_dict"], strict=False)
+        pt_model.to(device).eval()
+
+        k_unique = batch["k_unique"]
+
+        # Build feature dicts for K unique structures
+        feature_dicts = []
+        for i in range(k_unique):
+            coords_i = batch["coords"][i]  # (L, 4, 3)
+            mask_i = batch["mask"][i]
+            seq_i = batch["sequence"][i]
+            res_idx_i = batch["residue_index"][i]
+            chain_idx_i = batch["chain_index"][i]
+            L = coords_i.shape[0]
+
+            protein_dict = {
+                "X": torch.tensor(coords_i, dtype=torch.float32, device=device),
+                "mask": torch.tensor(mask_i, dtype=torch.float32, device=device),
+                "R_idx": torch.tensor(res_idx_i, dtype=torch.long, device=device),
+                "chain_labels": torch.tensor(chain_idx_i, dtype=torch.long, device=device),
+                "S": torch.tensor(seq_i, dtype=torch.long, device=device),
+                "chain_mask": torch.ones(L, dtype=torch.float32, device=device),
+            }
+            fd = featurize(protein_dict, model_type="protein_mpnn", number_of_ligand_atoms=atom_context_num)
+            fd["temperature"] = 1.0
+            fd["bias"] = torch.zeros([1, fd["X"].shape[1], 21], device=device)
+            fd["symmetry_residues"] = [[]]
+            fd["symmetry_weights"] = [[]]
+            feature_dicts.append(fd)
+
+        def _cuda_sync() -> None:
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+
+        def run_k_calls() -> float:
+            """Run K calls sequentially and return total time."""
+            total = 0.0
+            for fd in feature_dicts:
+                L = fd["X"].shape[1]
+                fd["batch_size"] = 1
+                fd["randn"] = torch.randn([1, L], device=device)
+                t0 = time.perf_counter()
+                with torch.no_grad():
+                    pt_model.sample(fd)
+                _cuda_sync()
+                total += time.perf_counter() - t0
+            return total
+
+        # Warmup
+        logger.info(f"PyTorch warmup ({n_warmup} iterations)...")
+        for _ in range(n_warmup):
+            run_k_calls()
+
+        # Timed runs
+        logger.info(f"PyTorch timing ({n_timed} iterations)...")
+        times = []
+        for _ in range(n_timed):
+            times.append(run_k_calls())
+
+        latency_ms = median_from_timings(times)
+        logger.info(f"PyTorch (K={k_unique}): {latency_ms:.3f} ms")
+        return latency_ms
+
+    except Exception as e:
+        logger.warning(f"PyTorch baseline failed: {e.__class__.__name__}: {e}")
+        return 0.0
 
 
 # ============================================================================
@@ -568,6 +756,51 @@ def main() -> int:
     # Set JAX defaults
     _set_jax_defaults()
 
+    # Load model and plan once, reuse across K values
+    logger.info("Loading prxteinmpnn model and creating inference plan...")
+    model = None
+    plan = None
+    try:
+        from prxteinmpnn.io.weights import load_model as load_prxmp_model
+        from prxteinmpnn.host.plan import make_inference_plan
+        from jax import random
+
+        key = random.PRNGKey(42)
+        model = load_prxmp_model(checkpoint_id="proteinmpnn_v_48_020", key=key)
+
+        spec = type('Spec', (), {
+            'sampling_strategy': 'temperature',
+            'use_rolling_state': False,
+            'multi_state_strategy': 'arithmetic_mean',
+            'multi_state_temperature': 1.0,
+            'state_weights': None,
+            'temperature': [1.0],
+            'average_node_features': False,
+        })()
+        plan = make_inference_plan(model, spec)
+        logger.info("Model and plan loaded successfully")
+    except Exception as e:
+        logger.warning(f"Failed to load prxteinmpnn model: {e}")
+        model = None
+        plan = None
+
+    # Load ColabDesign model once
+    colabdesign_model = None
+    try:
+        from colabdesign.mpnn.model import mk_mpnn_model
+        colabdesign_model = mk_mpnn_model(
+            model_name="v_48_020",
+            backbone_noise=0.0,
+            dropout=0.0,
+            seed=42,
+            verbose=False,
+            weights="original",
+        )
+        logger.info("ColabDesign model loaded successfully")
+    except Exception as e:
+        logger.info(f"ColabDesign not available: {e}")
+        colabdesign_model = None
+
     # Run benchmark for each K
     results = []
     rng = np.random.default_rng(42)
@@ -582,13 +815,17 @@ def main() -> int:
         # Run prxteinmpnn benchmark
         prxteinmpnn_latency = benchmark_prxteinmpnn_dedup(
             batch,
+            model=model,
+            plan=plan,
             n_warmup=args.n_warmup,
             n_timed=args.n_timed,
         )
 
-        # Run ColabDesign baseline (placeholder)
+        # Run ColabDesign baseline
         colabdesign_latency = benchmark_colabdesign_baseline(
             batch,
+            pdb_dir=args.pdb_dir,
+            model=colabdesign_model,
             n_warmup=args.n_warmup,
             n_timed=args.n_timed,
         )
@@ -596,6 +833,7 @@ def main() -> int:
         # Run PyTorch baseline
         pytorch_latency = benchmark_pytorch_baseline(
             batch,
+            pdb_dir=args.pdb_dir,
             reference_path=args.reference_path,
             n_warmup=args.n_warmup,
             n_timed=args.n_timed,

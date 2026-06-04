@@ -22,7 +22,6 @@ dependencies = [
     "zstandard>=0.21.0",
     "msgpack-numpy>=0.4.8",
     "proxide>=0.1.0a3",
-    "prolix",
     "typer>=0.12.0",
 ]
 classifiers = [
@@ -40,9 +39,6 @@ documentation = "https://prxteinmpnn.readthedocs.io"
 [project.optional-dependencies]
 cuda = ["jax[cuda]"]
 cuda12 = ["jax[cuda12]"]
-# Keep TPU extra resolver-safe; TPU-specific wheels should be installed explicitly
-# in TPU environments.
-tpu = ["jax[tpu]"]
 cpu = ["jax"]
 benchmark = [
     "torch>=2.12.0",
@@ -254,12 +250,6 @@ url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
 [tool.uv.sources]
-# Local workspace packages (parent `tev_design/pyproject.toml` workspace members:
-# `prxteinmpnn`, `prolix` only — jaxbeans is NOT a member today).
-# Roadmap §3.6 **DEPEND** (`safe_map`, `atomic_write`, …): swap imports to jaxbeans only
-# after an explicit packaging decision (add jaxbeans to workspace, path dep, or PyPI ≥0.1.0).
-# Until then, use `prxteinmpnn.utils.safe_map` / `prxteinmpnn.utils.atomic_write` mirrors.
-prolix = { workspace = true }
 # Resolve proxide from PyPI (not sibling-folder discovery) when ../proxide exists.
 proxide = { index = "pypi" }
 # PyPI serves the CUDA-enabled wheel on Linux and CPU wheel on macOS — correct for both envs.

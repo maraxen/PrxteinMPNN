@@ -76,20 +76,35 @@ Root-level parity stubs are non-canonical; use the links above.
 
 ### Installation
 
+aminx uses [uv](https://docs.astral.sh/uv/) as its package manager. Install uv first if you don't have it:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Then install aminx with your target hardware extra:
+
 ```bash
 uv sync --extra cuda  # GPU (CUDA)
 uv sync --extra tpu   # TPU
-uv sync --extra cpu   # CPU-only (default)
+uv sync --extra cpu   # CPU-only
 ```
 
-Install as a standalone CLI tool (no virtual environment):
+**If you prefer pip:**
+
+```bash
+pip install "aminx[cuda]"   # GPU
+pip install "aminx[cpu]"    # CPU-only
+```
+
+**Install as a standalone CLI tool** (no virtual environment required):
 
 ```bash
 uv tool install aminx
 aminx spec validate run_spec.json
 ```
 
-Or invoke directly without installing:
+Or invoke without installing at all:
 
 ```bash
 uvx aminx spec validate run_spec.json
@@ -277,17 +292,25 @@ For a batch of [76, 150, 300, 500]-residue structures on H200, total latency is 
 
 ### CLI
 
+aminx ships a Typer CLI with one command group, `spec`, for validating and round-tripping run specification JSON files.
+
 ```bash
-# Validate a run specification JSON file
+# Validate a spec JSON — exits 0 and prints "OK: <SpecClass>", or exits 1 with the parse error
 aminx spec validate run_spec.json
 
-# Check JSON round-trip fidelity
+# Round-trip a spec through the codec — prints the re-serialized JSON to stdout
 aminx spec roundtrip run_spec.json
+aminx spec roundtrip run_spec.json --out validated.json   # write to file instead
+aminx spec roundtrip run_spec.json --compact              # single-line JSON
 
-# Check portable subset round-trip
+# Round-trip the portable subset (dict-serializable fields only, no JAX arrays)
 aminx spec portable-roundtrip portable_spec.json
+aminx spec portable-roundtrip portable_spec.json --compact
+```
 
-# Serialize a spec to JSON (from Python)
+Specs can be serialized from Python with `run_specification_to_json`:
+
+```python
 from aminx.run import run_specification_to_json
 json_str = run_specification_to_json(spec)
 ```

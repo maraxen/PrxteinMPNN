@@ -68,11 +68,9 @@ _TEMPERATURE_CONFIGS = {
     8: [0.1, 0.3, 0.5, 0.7, 1.0, 1.5, 2.0, 5.0],
 }
 
-
 def _set_jax_defaults():
     """Set JAX configuration before importing models."""
     os.environ.setdefault("XLA_FLAGS", "--xla_gpu_shard_autotuning=false")
-
 
 def main():
     """Run temperature array sweep benchmark."""
@@ -418,7 +416,7 @@ def main():
                                 "chain_mask": torch.ones(actual_len, dtype=torch.float32, device=device),
                             }
 
-                            reference_path = Path(os.environ.get("REFERENCE_PATH", "/home/marielle/repos/LigandMPNN"))
+                            reference_path = Path(os.environ.get("REFERENCE_PATH", str(Path.home() / "repos" / "LigandMPNN")))
                             feature_dict = pt_prepare_feature_dict(
                                 protein_dict,
                                 reference_path=reference_path,
@@ -491,13 +489,11 @@ def main():
                         "batch_size": batch_size,
                         "task": task,
                         "temperatures": temperatures,
-                        "prxteinmpnn_latency_median_ms": prxta_median_ms,
+                        "prxteinmpnn_latency_ms": prxta_median_ms,
                         "prxteinmpnn_latency_p95_ms": prxta_p95_ms,
                         "prxteinmpnn_latency_per_temp_ms": prxta_per_temp_ms,
-                        "colabdesign_latency_total_ms": cd_total_ms,
-                        "colabdesign_latency_per_temp_ms": cd_per_temp_ms,
-                        "pytorch_latency_total_ms": pt_total_ms,
-                        "pytorch_latency_per_temp_ms": pt_per_temp_ms,
+                        "colabdesign_latency_ms": cd_total_ms,
+                        "pytorch_latency_ms": pt_total_ms,
                         "speedup_vs_colabdesign": speedup_vs_cd,
                         "speedup_vs_pytorch": speedup_vs_pt,
                         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -525,7 +521,6 @@ def main():
         print(json.dumps(output, indent=2))
 
     return 0
-
 
 if __name__ == "__main__":
     _set_jax_defaults()

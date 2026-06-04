@@ -1,0 +1,39 @@
+---
+workspace: prxteinmpnn
+session_id: d41ee06e-6793-4bf4-9b39-cfc89ceffe19
+status: complete
+immediately_relevant:
+- file: .praxia/docs/specs/260604_release-preparedness-epic-for-prxteinmpn.md
+  lines:
+  - 1
+  - 50
+  reason: Full backlog DAG with all 25 items, acceptance criteria, dependency table, and Definition of Done
+- file: .praxia/docs/INDEX.md
+  lines:
+  - 1
+  - 35
+  reason: 'ADR stubs registered under ## ADRs section; points to three YYMMDD_slug ADR files not yet written'
+- file: .github/workflows/ci.yml
+  lines:
+  - 1
+  - 50
+  reason: 'CI-001/002/005 target: Python 3.11, source .venv pattern, ty/ruff gates all need updating'
+active_dispatches: []
+task_id: 260604_release-prep-epic-dag
+phase: Release Prep Planning
+goal_statement: Brainstorm and register the Release Preparedness epic as a prioritized backlog DAG ready for sprint composition, plus a Training epic placeholder.
+context_refs: []
+failed_attempts: []
+open_questions:
+- Is flax actually unused at runtime? CLEAN-013 must grep src/ before removing — do not assume.
+- Are pytest-asyncio/trio/anyio exercised by real async tests? Verify before removing from tests extra.
+- Can .readthedocs.yml fail_on_warning be re-enabled within this epic, or does Sphinx warning cleanup need its own item?
+deferred:
+- description: High-Performance Training with Composability Primitives epic — full spec and backlog DAG
+  rationale: Registered as TRAIN-EPIC placeholder (ID 1036). Scope is large and depends on release prep establishing a stable code surface.
+  recommended_phase: Begin brainstorm when Release Prep Phase 2 is underway
+- description: Formal dependency edges between backlog items in praxia graph
+  rationale: DAG edges are encoded in item descriptions and the spec file; wiring them as graph edges was skipped due to depends_on type mismatch (expects i32, not string IDs).
+  recommended_phase: Phase 1 sprint setup
+lessons_refs: []
+---

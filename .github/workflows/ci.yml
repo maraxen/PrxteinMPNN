@@ -9,27 +9,6 @@ on:
       - main
 
 jobs:
-  quality-checks:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Install uv
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-      - name: Create virtual environment
-        run: uv venv
-      - name: Install dependencies and run checks
-        run: |
-          source .venv/bin/activate
-          uv sync --extra cpu --extra dev
-          ruff check .
-          ty check
-
   unit-tests:
     runs-on: ubuntu-latest
     env:
@@ -39,18 +18,15 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
       - name: Install uv
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-      - name: Create virtual environment
-        run: uv venv
       - name: Install dependencies and run tests
         run: |
-          source .venv/bin/activate
           uv sync --extra cpu --extra dev --extra tests
-          
+
           # Determine pytest arguments based on event type
           PYTEST_ARGS="-n auto --cov=src --cov-report=xml --cov-report=term"
           if [ "${{ github.event_name }}" == "pull_request" ]; then
@@ -60,8 +36,8 @@ jobs:
             echo "Push to main: excluding parity_heavy and parity_audit (run in parity workflows)."
             PYTEST_ARGS="$PYTEST_ARGS -m 'not parity_heavy and not parity_audit'"
           fi
-          
-          pytest $PYTEST_ARGS
+
+          uv run pytest $PYTEST_ARGS
       - name: Upload coverage to Codecov
         if: github.ref == 'refs/heads/main'
         uses: codecov/codecov-action@v4

@@ -16,7 +16,9 @@ What you get:
 - A functional `sample()` / `score()` API — no model objects to wire up, no inference loop to write.
 - A composable inference layer (`StageSet`) for swapping logit transforms, encode paths, and decode variants without touching kernel math.
 - Numerical parity with upstream LigandMPNN, validated across unconditional, conditional, autoregressive, membrane, and side-chain-packer paths.
-- Three capabilities that aren't in vanilla ProteinMPNN: temperature array sweeps, deduplicated scoring, and mixed-length batching — each benchmarked against the PyTorch baseline.
+- Native batching across temperatures, backbones, and sequence lengths — operations you'd normally write as Python loops are compiled into single JAX kernels, so there's no recompilation penalty and no padding waste.
+
+The batching point is worth unpacking: in vanilla JAX, running N temperatures requires either a Python loop (N separate compiled calls, or worse, N retraces) or manually writing a `vmap`. aminx has already done that work. Passing `temperature=[0.1, 0.3, 0.7]` vmaps over the temperature axis in one compiled call; scoring a mixed-length library reuses a compiled kernel per length bucket rather than recompiling per structure. The speedups in the tables below come from applying this pattern consistently to the operations most commonly written as loops in protein design workflows.
 
 ## Performance
 
@@ -325,10 +327,6 @@ aminx.cli          ← aminx spec validate/roundtrip
 ## Multiprocessing
 
 Importing `aminx` does **not** set the multiprocessing start method. If your notebook or script spawns worker processes, call `configure_multiprocessing()` once at startup (see `aminx.runtime`); the campaign CLI does this for you.
-
-## Related Tools
-
-`ensemble_tools` was extracted from aminx during refactoring: clustering and conformational inference algorithms (GMM, EM, KMeans, DBSCAN, PCA, BIC, VMM). It is experimental and not yet published — not available on PyPI. The `ConformationalStates` type used by `RunSpecification.conformational_states` comes from `ensemble_tools.dbscan`.
 
 ## Validation Reference
 

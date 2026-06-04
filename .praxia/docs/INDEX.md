@@ -15,6 +15,13 @@
 - [260601_benchmark-spec](specs/260601_benchmark-spec.md) — ORACLE-APPROVED: GPU benchmark suite (prxteinmpnn vs. LigandMPNN vs. ColabDesign)
 - [260604_release-preparedness-epic](specs/260604_release-preparedness-epic-for-prxteinmpn.md) — Release Preparedness epic: two-phase backlog DAG (CI+cleanup → docs+release), Definition of Done, ADR index
 
+## Archives
+- [260124_proxide-integration-docs](archive/260124_proxide-integration-docs.md) — Proxide integration docs
+- [260410_parity-validation-legacy](archive/260410_parity-validation-legacy.md) — Legacy parity validation docs
+- [260512_docs-superpowers-status](archive/260512_docs-superpowers-status.md) — docs/superpowers/ skill outputs
+- [260528_agent-scaffolding](archive/260528_agent-scaffolding.md) — .agent/ scaffolding
+- [260528_agents-sprint-artifacts](archive/260528_agents-sprint-artifacts.md) — .agents/ sprint outputs
+
 ## ADRs
 
 - [260604_defer-ty-ruff-ci-gates](adr/260604_defer-ty-ruff-ci-gates.md) — Defer `ty check` + `ruff check` as CI gates until code surface is stable

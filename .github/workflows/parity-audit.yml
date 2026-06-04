@@ -27,7 +27,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       - name: Install uv
         run: |
@@ -37,8 +37,6 @@ jobs:
       - name: Install dependencies
         run: |
           cd prxteinmpnn
-          uv venv
-          source .venv/bin/activate
           uv sync --extra cpu --extra dev --extra tests --group dev
 
       - name: Convert parity-audit checkpoint families
@@ -46,8 +44,7 @@ jobs:
           REFERENCE_PATH: ${{ github.workspace }}/reference_ligandmpnn_clone
         run: |
           cd prxteinmpnn
-          source .venv/bin/activate
-          python scripts/convert_parity_family_weights.py \
+          uv run python scripts/convert_parity_family_weights.py \
             --project-root "." \
             --reference-path "$REFERENCE_PATH" \
             --tier parity_audit \
@@ -58,8 +55,7 @@ jobs:
           REFERENCE_PATH: ${{ github.workspace }}/reference_ligandmpnn_clone
         run: |
           cd prxteinmpnn
-          source .venv/bin/activate
-          python scripts/check_parity_prereqs.py \
+          uv run python scripts/check_parity_prereqs.py \
             --reference-path "$REFERENCE_PATH" \
             --project-root "." \
             --tier parity_audit
@@ -69,9 +65,8 @@ jobs:
           REFERENCE_PATH: ${{ github.workspace }}/reference_ligandmpnn_clone
         run: |
           cd prxteinmpnn
-          source .venv/bin/activate
-          python scripts/check_parity_assets.py --tier parity_audit
-          pytest tests/parity tests/model/test_ligandmpnn_equivalence.py \
+          uv run python scripts/check_parity_assets.py --tier parity_audit
+          uv run pytest tests/parity tests/model/test_ligandmpnn_equivalence.py \
             -m parity_audit --tb=short -v --junitxml=parity-audit-report.xml
 
       - name: Generate parity-audit reports

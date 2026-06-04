@@ -8,11 +8,10 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
-from flax.struct import dataclass
+import equinox as eqx
 
 
-@dataclass
-class TrainingMetrics:
+class TrainingMetrics(eqx.Module):
   """Container for training metrics."""
 
   loss: jax.Array
@@ -34,8 +33,7 @@ class TrainingMetrics:
     return metrics_dict
 
 
-@dataclass
-class EvaluationMetrics:
+class EvaluationMetrics(eqx.Module):
   """Container for evaluation metrics."""
 
   val_loss: jax.Array

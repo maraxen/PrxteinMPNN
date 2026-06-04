@@ -33,6 +33,10 @@
 ## Handoffs
 - [260601_benchmark-staging-handoff](handoffs/260601_benchmark-staging-handoff.md) — Wave 0 done; Waves 1-5 implementation ready; spec oracle-approved
 
+## Misc
+- [260604_sphinx-warning-backlog](misc/260604_sphinx-warning-backlog.md) — Sphinx warnings deferred from fail_on_warning (sphinx-build unavailable at release-prep time)
+- [260604_release-notes-v0.1.0a1](misc/260604_release-notes-v0.1.0a1.md) — Release notes for v0.1.0a1 alpha
+
 ## Superpowers
 > Skill outputs live in `.praxia/docs/superpowers/plans/` and `.praxia/docs/superpowers/specs/`.
 - [plans](superpowers/plans/) — brainstorming + writing-plans outputs

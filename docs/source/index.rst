@@ -5,7 +5,7 @@ PrxteinMPNN Documentation
   :target: https://github.com/yourusername/PrxteinMPNN/actions/workflows/pytest.yml
   :alt: Test coverage
 
-`Run on Colab <https://colab.research.google.com/github/maraxen/PrxteinMPNN/blob/main/examples/example_notebook.ipynb>`_
+`Run on Colab <https://colab.research.google.com/github/maraxen/PrxteinMPNN/blob/main/examples/colab_inference_demo.ipynb>`_
 
 Welcome to PrxteinMPNN's documentation! This project provides a functional interface for ProteinMPNN, leveraging the JAX ecosystem for accelerated computation.
 
@@ -13,6 +13,7 @@ Welcome to PrxteinMPNN's documentation! This project provides a functional inter
   :maxdepth: 2
   :caption: Contents:
 
+  ../COMPOSITION_GUIDE
   api/index
   tutorials/index
   examples/index

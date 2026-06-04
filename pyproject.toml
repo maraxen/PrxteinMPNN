@@ -38,7 +38,6 @@ documentation = "https://aminx.readthedocs.io"
 [project.optional-dependencies]
 benchmark = [
     "torch>=2.12.0",
-    "colabdesign @ git+https://github.com/sokrypton/ColabDesign.git@e31a56fe1d9b4de25c8697f3a28b75892941cc72",
     "prody>=2.6.1",
 ]
 docs = [

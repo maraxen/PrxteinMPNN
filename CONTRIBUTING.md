@@ -16,11 +16,9 @@ To get started, you'll need `uv` and `pre-commit` installed.
     ```
 
 3.  **Install dependencies**:
-    Create a virtual environment and install the necessary dependencies using `uv`.
+    Install all project dependencies (including dev tools) using `uv`:
     ```bash
-    uv venv
-    source .venv/bin/activate
-    uv pip install -e ".[dev]"
+    uv sync
     ```
 
 4.  **Set up pre-commit hooks**:
@@ -37,13 +35,17 @@ The pre-commit hooks will run automatically when you commit your changes. To run
 pre-commit run --all-files
 ```
 
-This will run `ruff` for linting and formatting, and `ty` for type checking. Please ensure that all hooks pass before submitting a pull request.
+This will run `ruff` for linting and formatting. Please ensure that all hooks pass before submitting a pull request.
 
-## A Note on Type Checking
+## Type Checking
 
-We use `astral ty` for static type checking. Currently, the `ty` pre-commit hook is configured to skip the `tests/` directory due to a number of existing type errors.
+We use `astral ty` for static type checking. While not enforced via pre-commit hooks, you can run type checking manually during development:
 
-We welcome contributions to help make our test suite fully type-compliant! If you'd like to help, you can run `ty` on the `tests/` directory and submit a pull request with your fixes.
+```bash
+uv run ty check
+```
+
+We welcome contributions to improve type compliance across the codebase, including the `tests/` directory!
 
 ## Submitting a Pull Request
 

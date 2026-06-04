@@ -229,6 +229,383 @@ def create_inference_plan(model: Any, spec: _BenchmarkSpec | None = None) -> Any
 
 
 # ============================================================================
+# ColabDesign Sequential Baseline
+# ============================================================================
+
+
+def benchmark_colabdesign_sequential(
+    pdb_dir: Path,
+    lengths: list[int],
+    n_warmup: int = 10,
+    n_timed: int = 20,
+) -> float | None:
+    """ColabDesign sequential baseline: one model.sample() call per length, summed.
+
+    ColabDesign doesn't natively batch heterogeneous lengths, so we run
+    prep_inputs() + sample() for each length separately and sum the times.
+
+    Returns
+    -------
+    float | None
+        Mean latency in milliseconds, or None if ColabDesign unavailable or fixture missing.
+    """
+    try:
+        from colabdesign.mpnn.model import mk_mpnn_model
+    except ImportError:
+        logger.warning("ColabDesign not available; skipping baseline")
+        return None
+
+    import jax
+
+    # PDB map for the lengths used
+    pdb_map = {
+        76: "1ubq.pdb",
+        150: "1mbn.pdb",
+        300: "3pgk.pdb",
+        500: "1SMD.pdb",
+    }
+
+    # Verify all fixtures exist
+    for length in lengths:
+        if length not in pdb_map:
+            logger.warning(f"No ColabDesign fixture for length={length}")
+            return None
+        pdb_file = pdb_dir / pdb_map[length]
+        if not pdb_file.exists():
+            logger.warning(f"ColabDesign fixture not found: {pdb_file}")
+            return None
+
+    try:
+        def run_all_lengths() -> float:
+            """Run model.sample() on each length and sum times."""
+            total = 0.0
+            for length in lengths:
+                pdb_file = str(pdb_dir / pdb_map[length])
+                cd_model = mk_mpnn_model(
+                    model_name="v_48_020",
+                    backbone_noise=0.0,
+                    dropout=0.0,
+                    seed=42,
+                    verbose=False,
+                    weights="original",
+                )
+                cd_model.prep_inputs(pdb_filename=pdb_file)
+                t0 = time.perf_counter()
+                result = cd_model.sample(num=1, temperature=1.0)
+                jax.block_until_ready(jax.tree_util.tree_leaves(result))
+                total += time.perf_counter() - t0
+            return total
+
+        # Warmup
+        logger.info(f"ColabDesign warmup ({n_warmup} iterations)...")
+        for _ in range(n_warmup):
+            run_all_lengths()
+
+        # Timed
+        logger.info(f"ColabDesign timed runs ({n_timed} iterations)...")
+        times = []
+        for _ in range(n_timed):
+            times.append(run_all_lengths())
+
+        return float(np.mean(times)) * 1000.0  # ms, mean
+
+    except Exception as e:
+        logger.warning(f"ColabDesign sequential baseline failed: {e}")
+        return None
+
+
+# ============================================================================
+# PyTorch Baselines
+# ============================================================================
+
+
+def _load_pytorch_model(reference_path: Path, device: Any) -> tuple[Any, int]:
+    """Load ProteinMPNN PyTorch model from reference path.
+
+    Parameters
+    ----------
+    reference_path : Path
+        Path to ligandmpnn_reference_assets directory.
+    device : Any
+        Torch device to load model onto.
+
+    Returns
+    -------
+    tuple
+        (model, atom_context_num)
+    """
+    import sys
+    import warnings
+
+    import torch
+
+    sys.path.insert(0, str(reference_path))
+    from model_utils import ProteinMPNN
+
+    checkpoint_path = reference_path / "model_params" / "proteinmpnn_v_48_020.pt"
+    if not checkpoint_path.exists():
+        raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
+
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+    k_neighbors = checkpoint["num_edges"]
+    atom_context_num = checkpoint.get("atom_context_num", 1)
+
+    model = ProteinMPNN(
+        node_features=128,
+        edge_features=128,
+        hidden_dim=128,
+        num_encoder_layers=3,
+        num_decoder_layers=3,
+        k_neighbors=k_neighbors,
+        device=device,
+        atom_context_num=atom_context_num,
+        model_type="protein_mpnn",
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        model.load_state_dict(checkpoint["model_state_dict"], strict=False)
+    model.to(device).eval()
+    return model, atom_context_num
+
+
+def _cuda_sync() -> None:
+    """Synchronize CUDA if available."""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+    except Exception:
+        pass
+
+
+def benchmark_pytorch_sequential(
+    pdb_dir: Path,
+    lengths: list[int],
+    reference_path: Path | None,
+    n_warmup: int = 10,
+    n_timed: int = 20,
+) -> float | None:
+    """PyTorch baseline: one model.sample() call per length, summed.
+
+    Processes each structure at its native length sequentially,
+    measuring total time for all lengths.
+
+    Parameters
+    ----------
+    pdb_dir : Path
+        Directory containing PDB fixtures.
+    lengths : list[int]
+        Sequence lengths to benchmark.
+    reference_path : Path | None
+        Path to ligandmpnn_reference_assets. If None or missing, returns None.
+    n_warmup : int
+        Warmup iterations.
+    n_timed : int
+        Timed iterations.
+
+    Returns
+    -------
+    float | None
+        Mean latency in milliseconds, or None if reference_path missing or error.
+    """
+    if reference_path is None or not reference_path.exists():
+        logger.warning("REFERENCE_PATH not set or not found; skipping PyTorch sequential baseline")
+        return None
+
+    try:
+        import sys
+
+        import torch
+
+        sys.path.insert(0, str(reference_path))
+        from data_utils import featurize
+
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        pt_model, atom_context_num = _load_pytorch_model(reference_path, device)
+
+        # Load and prepare all structures
+        structures = []
+        for length in lengths:
+            coords, mask, sequence, residue_index, chain_index, actual_len = _load_pdb_fixture(
+                pdb_dir, length
+            )
+
+            coords_np = np.array(coords)
+            mask_np = np.array(mask)
+            seq_np = np.array(sequence)
+            ri_np = np.array(residue_index)
+            ci_np = np.array(chain_index)
+            L = actual_len
+
+            protein_dict = {
+                "X": torch.tensor(coords_np, dtype=torch.float32, device=device),
+                "mask": torch.tensor(mask_np, dtype=torch.float32, device=device),
+                "R_idx": torch.tensor(ri_np, dtype=torch.long, device=device),
+                "chain_labels": torch.tensor(ci_np, dtype=torch.long, device=device),
+                "S": torch.tensor(seq_np, dtype=torch.long, device=device),
+                "chain_mask": torch.ones(L, dtype=torch.float32, device=device),
+            }
+            fd = featurize(protein_dict, model_type="protein_mpnn", number_of_ligand_atoms=atom_context_num)
+            fd["temperature"] = 1.0
+            fd["bias"] = torch.zeros([1, fd["X"].shape[1], 21], device=device)
+            fd["symmetry_residues"] = [[]]
+            fd["symmetry_weights"] = [[]]
+            structures.append(fd)
+
+        def run_sequential() -> float:
+            """Run sample on each structure and sum times."""
+            total = 0.0
+            for fd in structures:
+                L = fd["X"].shape[1]
+                fd["batch_size"] = 1
+                fd["randn"] = torch.randn([1, L], device=device)
+                t0 = time.perf_counter()
+                with torch.no_grad():
+                    pt_model.sample(fd)
+                _cuda_sync()
+                total += time.perf_counter() - t0
+            return total
+
+        # Warmup
+        logger.info(f"PyTorch sequential warmup ({n_warmup} iterations)...")
+        for _ in range(n_warmup):
+            run_sequential()
+
+        # Timed
+        logger.info(f"PyTorch sequential timed runs ({n_timed} iterations)...")
+        times = [run_sequential() for _ in range(n_timed)]
+        return float(np.mean(times)) * 1000.0  # ms
+
+    except Exception as e:
+        logger.warning(f"PyTorch sequential baseline failed: {e.__class__.__name__}: {e}")
+        return None
+
+
+def benchmark_pytorch_padded(
+    pdb_dir: Path,
+    lengths: list[int],
+    reference_path: Path | None,
+    n_warmup: int = 10,
+    n_timed: int = 20,
+) -> float | None:
+    """PyTorch baseline: pad all structures to max length, run sequentially on padded.
+
+    All structures are padded to L_max (the maximum actual length), then each is
+    run separately through the model. This shows the cost of padding overhead.
+
+    Parameters
+    ----------
+    pdb_dir : Path
+        Directory containing PDB fixtures.
+    lengths : list[int]
+        Sequence lengths to benchmark.
+    reference_path : Path | None
+        Path to ligandmpnn_reference_assets. If None or missing, returns None.
+    n_warmup : int
+        Warmup iterations.
+    n_timed : int
+        Timed iterations.
+
+    Returns
+    -------
+    float | None
+        Mean latency in milliseconds, or None if reference_path missing or error.
+    """
+    if reference_path is None or not reference_path.exists():
+        logger.warning("REFERENCE_PATH not set or not found; skipping PyTorch padded baseline")
+        return None
+
+    try:
+        import sys
+
+        import torch
+
+        sys.path.insert(0, str(reference_path))
+        from data_utils import featurize
+
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        pt_model, atom_context_num = _load_pytorch_model(reference_path, device)
+
+        # Load all structures and find max length
+        structures = []
+        actual_lens = []
+        for length in lengths:
+            coords, mask, sequence, residue_index, chain_index, actual_len = _load_pdb_fixture(
+                pdb_dir, length
+            )
+            structures.append((coords, mask, sequence, residue_index, chain_index))
+            actual_lens.append(actual_len)
+
+        L_max = max(actual_lens)
+        logger.info(f"PyTorch padded: L_max={L_max}")
+
+        # Pad all structures to L_max
+        def pad_to(arr: np.ndarray, L_max: int, pad_value: float | int) -> np.ndarray:
+            """Pad array to length L_max along first axis."""
+            L = arr.shape[0]
+            if L >= L_max:
+                return arr[:L_max]
+            pad_shape = (L_max - L,) + arr.shape[1:]
+            return np.concatenate([arr, np.full(pad_shape, pad_value, dtype=arr.dtype)], axis=0)
+
+        padded_structures = []
+        for (coords, mask, sequence, residue_index, chain_index) in structures:
+            coords_np = np.array(coords)
+            mask_np = np.array(mask)
+            seq_np = np.array(sequence)
+            ri_np = np.array(residue_index)
+            ci_np = np.array(chain_index)
+
+            c_pad = pad_to(coords_np, L_max, 0.0)
+            m_pad = pad_to(mask_np, L_max, 0.0)
+            s_pad = pad_to(seq_np, L_max, 20)  # unknown aa = 20
+            ri_pad = pad_to(ri_np, L_max, 0)
+            ci_pad = pad_to(ci_np, L_max, 0)
+
+            protein_dict = {
+                "X": torch.tensor(c_pad, dtype=torch.float32, device=device),
+                "mask": torch.tensor(m_pad, dtype=torch.float32, device=device),
+                "R_idx": torch.tensor(ri_pad, dtype=torch.long, device=device),
+                "chain_labels": torch.tensor(ci_pad, dtype=torch.long, device=device),
+                "S": torch.tensor(s_pad, dtype=torch.long, device=device),
+                "chain_mask": torch.ones(L_max, dtype=torch.float32, device=device),
+            }
+            fd = featurize(protein_dict, model_type="protein_mpnn", number_of_ligand_atoms=atom_context_num)
+            fd["temperature"] = 1.0
+            fd["bias"] = torch.zeros([1, L_max, 21], device=device)
+            fd["symmetry_residues"] = [[]]
+            fd["symmetry_weights"] = [[]]
+            padded_structures.append(fd)
+
+        def run_padded() -> float:
+            """Run sample on each padded structure and sum times."""
+            total = 0.0
+            for fd in padded_structures:
+                fd["batch_size"] = 1
+                fd["randn"] = torch.randn([1, L_max], device=device)
+                t0 = time.perf_counter()
+                with torch.no_grad():
+                    pt_model.sample(fd)
+                _cuda_sync()
+                total += time.perf_counter() - t0
+            return total
+
+        # Warmup
+        logger.info(f"PyTorch padded warmup ({n_warmup} iterations)...")
+        for _ in range(n_warmup):
+            run_padded()
+
+        # Timed
+        logger.info(f"PyTorch padded timed runs ({n_timed} iterations)...")
+        times = [run_padded() for _ in range(n_timed)]
+        return float(np.mean(times)) * 1000.0  # ms
+
+    except Exception as e:
+        logger.warning(f"PyTorch padded baseline failed: {e.__class__.__name__}: {e}")
+        return None
+
+
+# ============================================================================
 # SafeMap Heterogeneous Batch Benchmark
 # ============================================================================
 
@@ -449,17 +826,77 @@ def main() -> int:
         traceback.print_exc()
         return 1
 
-    # Assemble output (minimal for now - PyTorch baselines skipped in Sprint 23)
+    # Run ColabDesign sequential baseline
+    logger.info("=" * 70)
+    logger.info("ColabDesign Sequential Baseline")
+    logger.info("=" * 70)
+    cd_latency_ms = benchmark_colabdesign_sequential(
+        pdb_dir=args.pdb_dir,
+        lengths=args.lengths,
+        n_warmup=args.n_warmup,
+        n_timed=args.n_timed,
+    )
+    if cd_latency_ms is not None:
+        logger.info(f"ColabDesign sequential: {cd_latency_ms:.2f}ms")
+    else:
+        logger.info("ColabDesign sequential: skipped or unavailable")
+
+    # Resolve reference_path for PyTorch baselines
+    reference_path_str = os.environ.get("REFERENCE_PATH", "")
+    reference_path = Path(reference_path_str) if reference_path_str else None
+
+    # Run PyTorch padded baseline
+    logger.info("=" * 70)
+    logger.info("PyTorch Padded Baseline")
+    logger.info("=" * 70)
+    pt_padded_ms = benchmark_pytorch_padded(
+        pdb_dir=args.pdb_dir,
+        lengths=args.lengths,
+        reference_path=reference_path,
+        n_warmup=args.n_warmup,
+        n_timed=args.n_timed,
+    )
+    if pt_padded_ms is not None:
+        logger.info(f"PyTorch padded: {pt_padded_ms:.2f}ms")
+    else:
+        logger.info("PyTorch padded: skipped or unavailable")
+
+    # Run PyTorch sequential baseline
+    logger.info("=" * 70)
+    logger.info("PyTorch Sequential Baseline")
+    logger.info("=" * 70)
+    pt_sequential_ms = benchmark_pytorch_sequential(
+        pdb_dir=args.pdb_dir,
+        lengths=args.lengths,
+        reference_path=reference_path,
+        n_warmup=args.n_warmup,
+        n_timed=args.n_timed,
+    )
+    if pt_sequential_ms is not None:
+        logger.info(f"PyTorch sequential: {pt_sequential_ms:.2f}ms")
+    else:
+        logger.info("PyTorch sequential: skipped or unavailable")
+
+    # Compute throughput improvement (SafeMap vs PyTorch padded)
+    throughput_improvement = None
+    if (
+        pt_padded_ms is not None
+        and pt_padded_ms > 0
+        and safemap_results["mixed_batch_latency_ms"] > 0
+    ):
+        throughput_improvement = pt_padded_ms / safemap_results["mixed_batch_latency_ms"]
+
+    # Assemble output
     output = {
         "schema_version": "1",
         "hardware": args.hardware,
         "batch_lengths": args.lengths,
         "mixed_latency_ms": safemap_results["mixed_batch_latency_ms"],
         "per_residue_throughput": safemap_results["per_residue_throughput"],
-        "pytorch_padded_latency_ms": None,
-        "pytorch_sequential_latency_ms": None,
-        "per_residue_throughput_improvement_vs_padded": None,
-        "colabdesign": "not_applicable",
+        "pytorch_padded_latency_ms": pt_padded_ms,
+        "pytorch_sequential_latency_ms": pt_sequential_ms,
+        "per_residue_throughput_improvement_vs_padded": throughput_improvement,
+        "colabdesign_sequential_latency_ms": cd_latency_ms,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 

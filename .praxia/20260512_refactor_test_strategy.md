@@ -10,7 +10,7 @@ Create **`tests/pipeline/conftest.py`** (new file) with these shared fixtures:
 def registry_snapshot():
     """Snapshot pipeline_registry._REGISTRY before each test, restore after.
     Prevents cloudpickle-UID pollution from test ordering."""
-    import prxteinmpnn.pipeline_registry as _reg
+    import aminx.pipeline_registry as _reg
     snap = dict(_reg._REGISTRY)
     yield
     _reg._REGISTRY.clear()
@@ -46,7 +46,7 @@ Returns `[0]` mutable list and wraps `jax.make_jaxpr`/`jax.jit` call count via s
 | `test_tier2_proteinencodefn_resolves_correctly` | unit | `ProteinEncodeFn` | signature matches bound Tier 1 | same file |
 | `test_ar_logit_transform_fn_distinguished_from_logit_transform_fn` | unit | wrong-shape fn | `isinstance` fails or `stage_schema()` raises `StageSchemaError` | same file |
 | `test_logit_transform_fn_distinguished_from_ar_logit_transform_fn` | unit | `(S, V)`-returning passed as LogitTransformFn | same error gate | same file |
-| `test_no_circular_import` | smoke | `import prxteinmpnn.pipeline.tier1` | no ImportError | same file |
+| `test_no_circular_import` | smoke | `import aminx.pipeline.tier1` | no ImportError | same file |
 | `test_protocols_are_not_runtime_checkable_with_unbound_typevar` | edge case | Generic protocol with unbound TypeVar | `isinstance(x, GenericProto)` raises `TypeError` | same file |
 
 **Note:** Mark all tests `@pytest.mark.xfail(strict=True, reason="Fixer 1 not yet landed")` until Fixer 1 PR merges. Remove marker in Fixer 6.
@@ -80,7 +80,7 @@ Returns `[0]` mutable list and wraps `jax.make_jaxpr`/`jax.jit` call count via s
 
 | Test name | Kind | Input | Expected | Gate |
 |---|---|---|---|---|
-| `test_prxtein_mpnn_has_stage_schema_method` | unit | `PrxteinMPNN(...)` | `hasattr(model, 'stage_schema')` | `pytest tests/pipeline/test_stage_schema.py::test_prxtein_mpnn_has_stage_schema_method -q` |
+| `test_prxtein_mpnn_has_stage_schema_method` | unit | `Aminx(...)` | `hasattr(model, 'stage_schema')` | `pytest tests/pipeline/test_stage_schema.py::test_prxtein_mpnn_has_stage_schema_method -q` |
 | `test_ligand_mpnn_has_stage_schema_method` | unit | `PrxteinLigandMPNN(...)` | `hasattr(model, 'stage_schema')` | same file |
 | `test_stage_schema_returns_mapping` | unit | `model.stage_schema()` | returns `dict` or `StageSchema` with named slots | same file |
 | `test_stage_schema_mpnn_vs_ligandmpnn_differ` | unit | both model types | ligand schema has `encoder_state_fn` slot absent from base | same file |
@@ -132,8 +132,8 @@ This fixer **unmarks xfails from Fixers 1–5** and adds cross-fixer integration
 
 | Test name | Kind | Input | Expected | Gate |
 |---|---|---|---|---|
-| `test_stageset_roundtrip_with_unconditional_pipeline` | integration | `StageSet.default()` → `UnconditionalPipeline` → `PrxteinMPNN` | logits shape `(L, 21)`, all finite | `pytest tests/pipeline/test_integration.py::test_stageset_roundtrip_with_unconditional_pipeline -q` |
-| `test_stageset_roundtrip_with_autoregressive_pipeline` | integration | `StageSet.default()` → `AutoregressivePipeline` → `PrxteinMPNN` | sequences `(L,)`, logits `(L, 21)`, all finite | same file |
+| `test_stageset_roundtrip_with_unconditional_pipeline` | integration | `StageSet.default()` → `UnconditionalPipeline` → `Aminx` | logits shape `(L, 21)`, all finite | `pytest tests/pipeline/test_integration.py::test_stageset_roundtrip_with_unconditional_pipeline -q` |
+| `test_stageset_roundtrip_with_autoregressive_pipeline` | integration | `StageSet.default()` → `AutoregressivePipeline` → `Aminx` | sequences `(L,)`, logits `(L, 21)`, all finite | same file |
 | `test_custom_logit_transform_threaded_end_to_end` | integration | custom `LogitTransformFn` registered via StageSet | output differs from default; no error | same file |
 | `test_ar_logit_transform_threaded_end_to_end` | integration | custom `ARLogitTransformFn` via StageSet | AR sampling uses it; output differs | same file |
 | `test_all_fixer1_5_unit_tests_no_longer_xfail` | smoke | run prior xfail tests | all now pass | `pytest tests/pipeline/ -q --tb=short` |
@@ -160,16 +160,16 @@ Update existing parity tests to use `StageSet.default()` instead of `PipelineFns
 **Heavy parity (needs REFERENCE_PATH):**
 ```bash
 export REFERENCE_PATH=/absolute/path/to/ligandmpnn_reference_assets
-cd prxteinmpnn && PYTHONPATH=scripts:src uv run pytest tests/parity tests/model/test_ligandmpnn_equivalence.py -m parity_heavy -v
+cd aminx && PYTHONPATH=scripts:src uv run pytest tests/parity tests/model/test_ligandmpnn_equivalence.py -m parity_heavy -v
 ```
 
 **Tolerance contract:** `atol=1e-5` on logit values, `atol=0` on sampled token indices (deterministic).
 
 **⚠️ FIX #6:** Pre-flight checklist must include parity baseline capture:
 ```bash
-PYTHONPATH=prxteinmpnn/src uv run pytest prxteinmpnn/tests/parity/ -q 2>&1 | tee /tmp/parity_baseline.log
+PYTHONPATH=aminx/src uv run pytest aminx/tests/parity/ -q 2>&1 | tee /tmp/parity_baseline.log
 ```
-Before Fixer 7 merge: `pytest prxteinmpnn/tests/parity/ -q 2>&1 | diff /tmp/parity_baseline.log -` (must be identical)
+Before Fixer 7 merge: `pytest aminx/tests/parity/ -q 2>&1 | diff /tmp/parity_baseline.log -` (must be identical)
 
 **HARD BLOCKER:** If any Fixer 7 parity test fails by >1e-4, this is score regression. Do not merge.
 

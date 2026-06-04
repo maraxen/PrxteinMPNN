@@ -14,13 +14,13 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-from prxteinmpnn.inference.decode.unconditional import UnconditionalDecode
-from prxteinmpnn.inference.logits import make_stage_set
-from prxteinmpnn.model import PrxteinMPNN
-from prxteinmpnn.tiling.iterator import VmapIterator, SafeMapIterator
-from prxteinmpnn.types.configs import InferenceConfig
-from prxteinmpnn.types.bundles import (
+from aminx.inference.bundle_builder import build_inference_bundle
+from aminx.inference.decode.unconditional import UnconditionalDecode
+from aminx.inference.logits import make_stage_set
+from aminx.model import Aminx
+from aminx.tiling.iterator import VmapIterator, SafeMapIterator
+from aminx.types.configs import InferenceConfig
+from aminx.types.bundles import (
     ConditioningBundle,
     EncoderOutput,
     GeometryBundle,
@@ -28,20 +28,20 @@ from prxteinmpnn.types.bundles import (
     WaveScheduleBundle,
     LigandBundle,
 )
-from prxteinmpnn.types.stages import UnconditionalDecodeStep
+from aminx.types.stages import UnconditionalDecodeStep
 
 
 def _build_synthetic_fixture(
     num_states: int = 1,
     num_residues: int = 8,
     seed: int = 42,
-) -> tuple[PrxteinMPNN, EncoderOutput, "InferenceBundle", InferenceConfig]:  # type: ignore
+) -> tuple[Aminx, EncoderOutput, "InferenceBundle", InferenceConfig]:  # type: ignore
     """Build deterministic fixture with S=num_states, L=num_residues."""
     rng = np.random.default_rng(seed)
     jax_key = jax.random.PRNGKey(seed)
 
     # Build model
-    model = PrxteinMPNN(
+    model = Aminx(
         node_features=64,
         edge_features=64,
         hidden_features=64,

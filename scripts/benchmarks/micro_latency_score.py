@@ -10,7 +10,7 @@ comparisons of the static-vs-dynamic ``model`` field change — the absolute
 numbers are not comparable to GPU, but the same-machine before/after ratio is.
 
 Run before (static model) vs after (dynamic model) by checking out the
-respective source revisions of ``src/prxteinmpnn/inference/`` and re-running.
+respective source revisions of ``src/aminx/inference/`` and re-running.
 
 Example
 -------
@@ -31,7 +31,7 @@ from jax import random
 
 # Import the benchmark's own machinery so timing methodology matches exactly.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from bench_prxteinmpnn_jax import (  # noqa: E402
+from bench_aminx_jax import (  # noqa: E402
     _load_pdb_fixture,
     create_inference_plan,
     load_model,
@@ -43,8 +43,8 @@ logger = logging.getLogger(__name__)
 
 
 def _build_bundle(pdb_dir: Path, seq_len: int, batch_size: int):
-    from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-    from prxteinmpnn.tiling.bucketing import BucketingConfig
+    from aminx.inference.bundle_builder import build_inference_bundle
+    from aminx.tiling.bucketing import BucketingConfig
 
     coords, mask, sequence, residue_index, chain_index, actual_len = _load_pdb_fixture(
         pdb_dir, seq_len

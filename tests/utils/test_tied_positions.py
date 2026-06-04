@@ -5,8 +5,8 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.utils.autoregression import generate_ar_mask, get_decoding_step_map
-from prxteinmpnn.utils.decoding_order import random_decoding_order, single_decoding_order
+from aminx.utils.autoregression import generate_ar_mask, get_decoding_step_map
+from aminx.utils.decoding_order import random_decoding_order, single_decoding_order
 
 
 class TestDecodingOrderWithTies:

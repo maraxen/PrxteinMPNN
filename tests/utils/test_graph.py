@@ -3,7 +3,7 @@
 import chex
 import jax.numpy as jnp
 
-from prxteinmpnn.utils.graph import compute_neighbor_offsets
+from aminx.utils.graph import compute_neighbor_offsets
 
 
 def test_compute_neighbor_offsets():

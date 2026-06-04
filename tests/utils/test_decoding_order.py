@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.utils.decoding_order import random_decoding_order
+from aminx.utils.decoding_order import random_decoding_order
 
 
 def test_random_decoding_order_properties():

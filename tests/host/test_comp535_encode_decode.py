@@ -9,8 +9,8 @@ import equinox as eqx
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.host.plan import InferencePlan, InferenceComponents, make_inference_plan
-from prxteinmpnn.inference.sample_autoregressive import SampleResult
+from aminx.host.plan import InferencePlan, InferenceComponents, make_inference_plan
+from aminx.inference.sample_autoregressive import SampleResult
 
 
 class DummyModel(eqx.Module):
@@ -124,7 +124,7 @@ def test_score_delegates_to_encode_decode():
 
 def test_encode_passthrough_identity():
     """encode() returns exactly what encode_fn returns (identity pass-through)."""
-    from prxteinmpnn.types.encodings import EncoderOutput
+    from aminx.types.encodings import EncoderOutput
 
     enc_instance = EncoderOutput(
         node_features=MagicMock(),

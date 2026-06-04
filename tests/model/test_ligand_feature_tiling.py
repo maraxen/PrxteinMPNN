@@ -7,8 +7,8 @@ import jax.numpy as jnp
 import numpy as np
 
 # Internal imports: not public API
-from prxteinmpnn.model.ligand_features import ProteinFeaturesLigand
-from prxteinmpnn.model.ligand_tiling import map_chunks_axis0, map_chunks_axis0_multi
+from aminx.model.ligand_features import ProteinFeaturesLigand
+from aminx.model.ligand_tiling import map_chunks_axis0, map_chunks_axis0_multi
 
 
 def test_map_chunks_matches_dense_y_edges() -> None:

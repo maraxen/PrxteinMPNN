@@ -6,14 +6,14 @@ Advanced protein design workflow demonstrating JAX transformations.
 Overview
 --------
 
-This example shows how to leverage JAX's performance features with PrxteinMPNN.
+This example shows how to leverage JAX's performance features with Aminx.
 
 Code Example
 ------------
 
 .. code-block:: python
 
-   """Advanced PrxteinMPNN usage with JAX transformations."""
+   """Advanced Aminx usage with JAX transformations."""
    
    import jax
    import jax.numpy as jnp

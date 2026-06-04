@@ -20,13 +20,13 @@ import pytest
 
 def test_ar_logit_fuse_importable():
     """ARLogitFuse is importable from inference.logits."""
-    from prxteinmpnn.inference.logits import ARLogitFuse  # noqa: F401
+    from aminx.inference.logits import ARLogitFuse  # noqa: F401
 
 
 def test_ar_logit_fuse_is_eqx_module():
     """ARLogitFuse is an equinox Module (JAX pytree)."""
     import equinox as eqx
-    from prxteinmpnn.inference.logits import ARLogitFuse
+    from aminx.inference.logits import ARLogitFuse
     assert issubclass(ARLogitFuse, eqx.Module)
 
 
@@ -36,7 +36,7 @@ def test_ar_logit_fuse_is_eqx_module():
 
 def test_ar_logit_fuse_reduces_state_dim():
     """ARLogitFuse(logits_S_V, bias_V) -> (V,) reduces the S (states) dimension."""
-    from prxteinmpnn.inference.logits import ARLogitFuse
+    from aminx.inference.logits import ARLogitFuse
 
     fuse = ARLogitFuse()
     S, V = 3, 21
@@ -48,7 +48,7 @@ def test_ar_logit_fuse_reduces_state_dim():
 
 def test_ar_logit_fuse_default_is_mean():
     """Default ARLogitFuse applies arithmetic mean across states (dim 0), then adds bias."""
-    from prxteinmpnn.inference.logits import ARLogitFuse
+    from aminx.inference.logits import ARLogitFuse
 
     fuse = ARLogitFuse()
     S, V = 4, 21
@@ -66,8 +66,8 @@ def test_ar_logit_fuse_default_is_mean():
 
 def test_stage_set_accepts_ar_logit_fuse():
     """StageSet can be constructed with ar_logit_transform=ARLogitFuse()."""
-    from prxteinmpnn.inference.logits import ARLogitFuse
-    from prxteinmpnn.types.stages import StageSet
+    from aminx.inference.logits import ARLogitFuse
+    from aminx.types.stages import StageSet
 
     ss = StageSet(ar_logit_transform=ARLogitFuse())
     assert ss.ar_logit_transform is not None
@@ -76,8 +76,8 @@ def test_stage_set_accepts_ar_logit_fuse():
 def test_stage_set_ar_logit_fuse_survives_jit():
     """StageSet with ARLogitFuse passes through jax.jit as a pytree."""
     import jax
-    from prxteinmpnn.inference.logits import ARLogitFuse
-    from prxteinmpnn.types.stages import StageSet
+    from aminx.inference.logits import ARLogitFuse
+    from aminx.types.stages import StageSet
 
     ss = StageSet(ar_logit_transform=ARLogitFuse())
 
@@ -102,7 +102,7 @@ def test_tie_group_product_of_experts_n1_matches_log_softmax():
     For a group of size 1, PoE = sum(log_softmax(logits[group])) = log_softmax(logits[pos]).
     This verifies the n_tied=1 case reduces correctly without double-softmax.
     """
-    from prxteinmpnn.inference.logits import TieGroupProductOfExperts
+    from aminx.inference.logits import TieGroupProductOfExperts
 
     V, L = 21, 5
     key = jax.random.PRNGKey(0)
@@ -118,18 +118,18 @@ def test_tie_group_product_of_experts_n1_matches_log_softmax():
 
 
 def test_tie_group_product_of_experts_importable_from_logits():
-    from prxteinmpnn.inference.logits import TieGroupProductOfExperts, TieGroupLogsumexpMean, TIE_GROUP_STRATEGIES  # noqa: F401
+    from aminx.inference.logits import TieGroupProductOfExperts, TieGroupLogsumexpMean, TIE_GROUP_STRATEGIES  # noqa: F401
 
 
 def test_tie_group_strategies_registry_has_both():
-    from prxteinmpnn.inference.logits import TIE_GROUP_STRATEGIES
+    from aminx.inference.logits import TIE_GROUP_STRATEGIES
     assert TIE_GROUP_STRATEGIES.get("product_of_experts") is not None
     assert TIE_GROUP_STRATEGIES.get("logsumexp_mean") is not None
 
 
 def test_stage_set_has_tie_group_fuse_slot():
-    from prxteinmpnn.types.stages import StageSet
-    from prxteinmpnn.inference.logits import TieGroupProductOfExperts
+    from aminx.types.stages import StageSet
+    from aminx.inference.logits import TieGroupProductOfExperts
     ss = StageSet(tie_group_fuse=TieGroupProductOfExperts())
     assert ss.tie_group_fuse is not None
 
@@ -137,7 +137,7 @@ def test_stage_set_has_tie_group_fuse_slot():
 def test_bundle_builder_defaults_tie_group_fuse():
     """make_stage_set wires TieGroupProductOfExperts by default."""
     import jax.numpy as jnp
-    from prxteinmpnn.inference.logits import make_stage_set, TieGroupProductOfExperts
+    from aminx.inference.logits import make_stage_set, TieGroupProductOfExperts
 
     stage_set = make_stage_set()
     assert isinstance(stage_set.tie_group_fuse, TieGroupProductOfExperts)

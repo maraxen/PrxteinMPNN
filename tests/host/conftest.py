@@ -6,7 +6,7 @@ import jax
 import pytest
 from jax import random
 
-from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
+from aminx.model.ligand_mpnn import PrxteinLigandMPNN
 
 
 @pytest.fixture(scope="module")

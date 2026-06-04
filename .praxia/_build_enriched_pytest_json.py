@@ -14,10 +14,10 @@ ENRICH: dict[str, dict[str, str]] = {
   "tests/io/test_weights.py::test_smart_factory_model_loading[ligandmpnn_v_32_010_25]": {
     "resolution_strategy": (
       "Regenerate the packaged `ligandmpnn_v_32_010_25.eqx.zst` from the reference `.pt` so the "
-      "Equinox tree matches the current `PrxteinMPNN` module, or narrow the parametrized test to "
+      "Equinox tree matches the current `Aminx` module, or narrow the parametrized test to "
       "checkpoint IDs that are known-good for this code revision."
     ),
-    "diff": "Run `scripts/regenerate_packaged_eqx_zst.py`; verify `src/prxteinmpnn/io/weights.py` "
+    "diff": "Run `scripts/regenerate_packaged_eqx_zst.py`; verify `src/aminx/io/weights.py` "
     "registry maps the checkpoint id to the refreshed asset; adjust `tests/io/test_weights.py` if the "
     "matrix of ids is stale.",
     "reasoning": (
@@ -31,10 +31,10 @@ ENRICH: dict[str, dict[str, str]] = {
       "conditional-logits construction path (or call a small adapter that prepares `state_weights`, "
       "`state_mapping`, fixed masks/tables, etc.)."
     ),
-    "diff": "`src/prxteinmpnn/run/jacobian.py`, `src/prxteinmpnn/sampling/conditional_logits.py`, "
+    "diff": "`src/aminx/run/jacobian.py`, `src/aminx/sampling/conditional_logits.py`, "
     "and/or `tests/run/test_jacobian_multistate.py` fixtures that build `conditional_logits_fn`.",
     "reasoning": (
-      "`PrxteinMPNN._call_conditional` now requires multistate/grouping arguments; tests still invoke "
+      "`Aminx._call_conditional` now requires multistate/grouping arguments; tests still invoke "
       "the lower-level path without those parameters."
     ),
   },
@@ -43,7 +43,7 @@ ENRICH: dict[str, dict[str, str]] = {
       "Same as JIT=True variant: ensure `make_conditional_logits_fn` binds all `_call_conditional` "
       "positional arguments regardless of `with_jit`."
     ),
-    "diff": "`src/prxteinmpnn/run/jacobian.py`; `src/prxteinmpnn/sampling/conditional_logits.py`.",
+    "diff": "`src/aminx/run/jacobian.py`; `src/aminx/sampling/conditional_logits.py`.",
     "reasoning": "Identical `TypeError` signature mismatch; only the JIT wrapper differs.",
   },
   "tests/run/test_jacobian_multistate.py::test_categorical_jacobian_without_structure_mapping": {
@@ -84,7 +84,7 @@ ENRICH: dict[str, dict[str, str]] = {
       "Restore or replace `prep.load_ligand_model` (e.g. unify on `load_model` / `smart_factory`) "
       "and update tests to patch the actual symbol."
     ),
-    "diff": "`src/prxteinmpnn/run/prep.py`; `tests/run/test_prep.py`.",
+    "diff": "`src/aminx/run/prep.py`; `tests/run/test_prep.py`.",
     "reasoning": "AttributeError shows the registry test still references a removed helper.",
   },
   "tests/run/test_prep.py::test_prep_registry_checksum_mismatch_raises": {
@@ -106,9 +106,9 @@ ENRICH: dict[str, dict[str, str]] = {
   "tests/sampling/test_conditional_logits.py::test_conditional_logits_helper_matches_model_branch": {
     "resolution_strategy": (
       "Update the parity helper to invoke the same argument bundle as production (`state_weights`, "
-      "`state_mapping`, fixed masks, group tables), or add a thin wrapper on `PrxteinMPNN` for tests."
+      "`state_mapping`, fixed masks, group tables), or add a thin wrapper on `Aminx` for tests."
     ),
-    "diff": "`src/prxteinmpnn/sampling/conditional_logits.py`; possibly test-local helpers.",
+    "diff": "`src/aminx/sampling/conditional_logits.py`; possibly test-local helpers.",
     "reasoning": "Direct `_call_conditional` use in tests lags the production `__call__` contract.",
   },
   "tests/sampling/test_conditional_logits.py::test_split_conditional_logits_matches_full_helper": {
@@ -124,7 +124,7 @@ ENRICH: dict[str, dict[str, str]] = {
       "Load a diffusion checkpoint that matches `DiffusionMPNN` (regenerate packaged weights) or "
       "update the test to construct a fresh model without deserializing an obsolete tree."
     ),
-    "diff": "`src/prxteinmpnn/model/diffusion_mpnn.py`; packaged `model_params`; torch→eqx regen script.",
+    "diff": "`src/aminx/model/diffusion_mpnn.py`; packaged `model_params`; torch→eqx regen script.",
     "reasoning": (
       "`TreePathError` / `EOFError` while loading `t_embed_sin.embedding_dim` means the file truncates "
       "or the hyperparameters changed vs the serialized module."
@@ -164,7 +164,7 @@ def main() -> None:
     "annotated_at": "2026-05-05",
     "pytest_invocation": (
       'uv run --with pytest-json-report --with pytest-timeout pytest tests '
-      '-m "not slow and not parity_heavy" --timeout=30 --cov=prxteinmpnn ...'
+      '-m "not slow and not parity_heavy" --timeout=30 --cov=aminx ...'
     ),
     "coverage_json_path": str(COVERAGE.name) if COVERAGE.exists() else None,
     "raw_source": RAW.name,

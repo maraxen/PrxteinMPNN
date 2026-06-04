@@ -2,8 +2,8 @@
 
 import jax
 import jax.numpy as jnp
-from prxteinmpnn.run.specs import SamplingSpecification
-from prxteinmpnn.run.multistate_pools import DesignPoolRunner
+from aminx.run.specs import SamplingSpecification
+from aminx.run.multistate_pools import DesignPoolRunner
 import os
 
 def test_massive_sampling(tmp_path):

@@ -7,15 +7,15 @@ import jax.numpy as jnp
 import pytest
 from jaxtyping import jaxtyped
 
-from prxteinmpnn.model import PrxteinMPNN
-from prxteinmpnn.scoring.score import make_score_sequence
-from prxteinmpnn.utils.data_structures import Protein
+from aminx.model import Aminx
+from aminx.scoring.score import make_score_sequence
+from aminx.utils.data_structures import Protein
 
 
 @pytest.fixture
-def mock_model() -> PrxteinMPNN:
-    """Fixture for a mock PrxteinMPNN model."""
-    model_mock = MagicMock(spec=PrxteinMPNN)
+def mock_model() -> Aminx:
+    """Fixture for a mock Aminx model."""
+    model_mock = MagicMock(spec=Aminx)
 
     def mock_features(
         key,
@@ -83,7 +83,7 @@ def mock_model() -> PrxteinMPNN:
 @pytest.mark.parametrize("jit_compile", [True, False])
 @jaxtyped
 def test_make_score_sequence_output_shape_and_type(
-    mock_model: PrxteinMPNN, protein_structure: Protein, jit_compile: bool,
+    mock_model: Aminx, protein_structure: Protein, jit_compile: bool,
 ):
     """Test the output shape and type of the scoring function."""
 
@@ -98,7 +98,7 @@ def test_make_score_sequence_output_shape_and_type(
         # This prevents the @partial(jax.jit, ...) decorator inside make_score_sequence
         # from compiling the function.
         with patch(
-            "prxteinmpnn.scoring.score.jax.jit", new=lambda fn, *args, **kwargs: fn,
+            "aminx.scoring.score.jax.jit", new=lambda fn, *args, **kwargs: fn,
         ):
             score_fn = get_score_fn()
 

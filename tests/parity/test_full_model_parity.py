@@ -13,23 +13,23 @@ import numpy as np
 import pytest
 from scipy.stats import pearsonr
 
-from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-from prxteinmpnn.inference.logits import make_stage_set
-from prxteinmpnn.inference import (
+from aminx.inference.bundle_builder import build_inference_bundle
+from aminx.inference.logits import make_stage_set
+from aminx.inference import (
   score_conditional,
   score_unconditional,
   sample_autoregressive,
 )
-from prxteinmpnn.io.weights import load_weights
-from prxteinmpnn.model.mpnn import PrxteinMPNN
-from prxteinmpnn.types.bundles import WaveScheduleBundle
+from aminx.io.weights import load_weights
+from aminx.model.mpnn import Aminx
+from aminx.types.bundles import WaveScheduleBundle
 from tests.parity.reference_utils import require_heavy_parity_prereqs
 
 
 JaxHeavyWeightSource = Literal["eqx", "pt_convert"]
 
 
-def _jax_protein_for_source(models: HeavyParityModels, source: JaxHeavyWeightSource) -> PrxteinMPNN:
+def _jax_protein_for_source(models: HeavyParityModels, source: JaxHeavyWeightSource) -> Aminx:
   return models.jax_model_eqx if source == "eqx" else models.jax_model_pt_convert
 
 
@@ -40,8 +40,8 @@ class HeavyParityModels:
   torch: Any
   model_utils: Any
   pt_model: Any
-  jax_model_eqx: PrxteinMPNN
-  jax_model_pt_convert: PrxteinMPNN
+  jax_model_eqx: Aminx
+  jax_model_pt_convert: Aminx
 
 
 @dataclass(frozen=True)
@@ -174,13 +174,13 @@ def _load_heavy_parity_models_impl() -> HeavyParityModels:
   pytest.importorskip("torch")
   reference_root, repo_root = require_heavy_parity_prereqs(
     reference_rel_paths=["model_params/proteinmpnn_v_48_020.pt"],
-    converted_rel_paths=["src/prxteinmpnn/model_params/proteinmpnn_v_48_020.eqx.zst"],
+    converted_rel_paths=["src/aminx/model_params/proteinmpnn_v_48_020.eqx.zst"],
   )
   import model_utils
   import torch
 
   pt_checkpoint_path = reference_root / "model_params/proteinmpnn_v_48_020.pt"
-  jax_checkpoint_path = repo_root / "src/prxteinmpnn/model_params/proteinmpnn_v_48_020.eqx.zst"
+  jax_checkpoint_path = repo_root / "src/aminx/model_params/proteinmpnn_v_48_020.eqx.zst"
   checkpoint = torch.load(pt_checkpoint_path, map_location="cpu")
 
   pos_weight = checkpoint["model_state_dict"].get("features.embeddings.linear.weight")
@@ -201,7 +201,7 @@ def _load_heavy_parity_models_impl() -> HeavyParityModels:
   pt_model.eval()
 
   jax_key = jax.random.PRNGKey(0)
-  jax_skeleton = PrxteinMPNN(
+  jax_skeleton = Aminx(
     node_features=128,
     edge_features=128,
     hidden_features=128,
@@ -227,7 +227,7 @@ def _load_heavy_parity_models_impl() -> HeavyParityModels:
 
   from scripts.convert_weights import convert_full_model
 
-  jax_model_pt_skeleton = PrxteinMPNN(
+  jax_model_pt_skeleton = Aminx(
     node_features=128,
     edge_features=128,
     hidden_features=128,

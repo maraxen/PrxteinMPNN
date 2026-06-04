@@ -5,9 +5,9 @@ to verify it has NO dependencies on application-side modules (inference/,
 model/, host/, sampling/, run/, io/, etc.).
 
 The library-side consists of:
-  - All files in src/prxteinmpnn/tiling/
-  - src/prxteinmpnn/types/boundaries.py (library boundary)
-  - src/prxteinmpnn/types/stages.py is INTENTIONALLY EXCLUDED — it's a bridge
+  - All files in src/aminx/tiling/
+  - src/aminx/types/boundaries.py (library boundary)
+  - src/aminx/types/stages.py is INTENTIONALLY EXCLUDED — it's a bridge
     between library and app and is allowed to reference both.
 
 This lint enforces the composable-JAX architecture: the library (tiling/ +
@@ -23,7 +23,7 @@ from typing import NamedTuple
 
 import pytest
 
-LIBRARY_ROOT = Path(__file__).parent.parent.parent.parent / "src" / "prxteinmpnn"
+LIBRARY_ROOT = Path(__file__).parent.parent.parent.parent / "src" / "aminx"
 
 # Allowed external packages
 ALLOWED_EXTERNAL = {
@@ -45,13 +45,13 @@ ALLOWED_EXTERNAL = {
 
 # Forbidden internal module prefixes (app-side modules)
 FORBIDDEN_INTERNAL_PREFIXES = (
-    "prxteinmpnn.inference",
-    "prxteinmpnn.model",
-    "prxteinmpnn.host",
-    "prxteinmpnn.sampling",
-    "prxteinmpnn.run",
-    "prxteinmpnn.io",
-    "prxteinmpnn.score",  # for completeness
+    "aminx.inference",
+    "aminx.model",
+    "aminx.host",
+    "aminx.sampling",
+    "aminx.run",
+    "aminx.io",
+    "aminx.score",  # for completeness
 )
 
 # Library-side files to lint
@@ -156,9 +156,9 @@ def test_negative_control_catches_violation():
     deliberately-bad source and asserting it IS detected as a violation.
     """
     bad_src = (
-        "from prxteinmpnn.inference.driver import decode_ar\n"
-        "import prxteinmpnn.host.plan\n"
-        "from prxteinmpnn.model import SomeClass\n"
+        "from aminx.inference.driver import decode_ar\n"
+        "import aminx.host.plan\n"
+        "from aminx.model import SomeClass\n"
     )
 
     violations = extract_import_violations(bad_src)
@@ -169,9 +169,9 @@ def test_negative_control_catches_violation():
     # Verify they match the bad imports
     module_names = {v.module_name for v in violations}
     expected_modules = {
-        "prxteinmpnn.inference.driver",
-        "prxteinmpnn.host.plan",
-        "prxteinmpnn.model",
+        "aminx.inference.driver",
+        "aminx.host.plan",
+        "aminx.model",
     }
     assert module_names == expected_modules, (
         f"Expected modules {expected_modules}, got {module_names}"
@@ -187,8 +187,8 @@ def test_negative_control_allows_good_imports():
         "from jaxtyping import PRNGKeyArray\n"
         "import functools\n"
         "from typing import Any\n"
-        "from prxteinmpnn.tiling.strategy import Vmap\n"
-        "from prxteinmpnn.types.boundaries import AxisBoundary\n"
+        "from aminx.tiling.strategy import Vmap\n"
+        "from aminx.types.boundaries import AxisBoundary\n"
     )
 
     violations = extract_import_violations(good_src)

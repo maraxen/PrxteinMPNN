@@ -17,7 +17,7 @@ import pytest
 
 def test_stage_set_has_decode_step_field():
     """StageSet.decode_step exists and defaults to None."""
-    from prxteinmpnn.types.stages import StageSet
+    from aminx.types.stages import StageSet
     ss = StageSet()
     assert hasattr(ss, "decode_step")
     assert ss.decode_step is None
@@ -25,7 +25,7 @@ def test_stage_set_has_decode_step_field():
 
 def test_stage_set_has_sample_step_field():
     """StageSet.sample_step exists and defaults to None."""
-    from prxteinmpnn.types.stages import StageSet
+    from aminx.types.stages import StageSet
     ss = StageSet()
     assert hasattr(ss, "sample_step")
     assert ss.sample_step is None
@@ -33,7 +33,7 @@ def test_stage_set_has_sample_step_field():
 
 def test_stage_set_decode_step_accepts_callable():
     """StageSet can be constructed with a non-None decode_step."""
-    from prxteinmpnn.types.stages import StageSet
+    from aminx.types.stages import StageSet
 
     def dummy_decode(*args, **kwargs):
         raise NotImplementedError
@@ -49,7 +49,7 @@ def test_stage_set_decode_step_accepts_callable():
 def test_conditional_decode_step_is_eqx_module():
     """ConditionalDecodeStep is an equinox Module (JAX pytree)."""
     import equinox as eqx
-    from prxteinmpnn.types.stages import ConditionalDecodeStep
+    from aminx.types.stages import ConditionalDecodeStep
     assert issubclass(ConditionalDecodeStep, eqx.Module)
 
 
@@ -60,7 +60,7 @@ def test_conditional_decode_step_is_eqx_module():
 def test_unconditional_decode_step_is_eqx_module():
     """UnconditionalDecodeStep is an equinox Module (JAX pytree)."""
     import equinox as eqx
-    from prxteinmpnn.types.stages import UnconditionalDecodeStep
+    from aminx.types.stages import UnconditionalDecodeStep
     assert issubclass(UnconditionalDecodeStep, eqx.Module)
 
 
@@ -71,7 +71,7 @@ def test_unconditional_decode_step_is_eqx_module():
 def test_stage_set_with_decode_step_is_pytree():
     """StageSet with decode_step=ConditionalDecodeStep survives jax.tree.leaves."""
     import jax
-    from prxteinmpnn.types.stages import ConditionalDecodeStep, StageSet
+    from aminx.types.stages import ConditionalDecodeStep, StageSet
 
     # ConditionalDecodeStep wraps a model decoder — use a dummy eqx.Module
     import equinox as eqx
@@ -96,7 +96,7 @@ def test_stage_set_with_decode_step_is_pytree():
 def test_score_conditional_kernel_signature_accepts_stage_set():
     """score_conditional.kernel accepts a StageSet argument (signature check)."""
     import inspect
-    from prxteinmpnn.inference.score_conditional import kernel
+    from aminx.inference.score_conditional import kernel
 
     sig = inspect.signature(kernel)
     assert "stage_set" in sig.parameters
@@ -105,7 +105,7 @@ def test_score_conditional_kernel_signature_accepts_stage_set():
 def test_sample_autoregressive_kernel_signature_accepts_stage_set():
     """sample_autoregressive.kernel accepts a StageSet argument (signature check)."""
     import inspect
-    from prxteinmpnn.inference.sample_autoregressive import kernel
+    from aminx.inference.sample_autoregressive import kernel
 
     sig = inspect.signature(kernel)
     assert "stage_set" in sig.parameters
@@ -118,8 +118,8 @@ def test_sample_autoregressive_kernel_signature_accepts_stage_set():
 def test_infer_topology_unconditional():
     """infer_topology with UnconditionalDecodeStep returns TOPOLOGY_UNCONDITIONAL."""
     import equinox as eqx
-    from prxteinmpnn.types.stages import UnconditionalDecodeStep, StageSet
-    from prxteinmpnn.inference.driver import infer_topology, TOPOLOGY_UNCONDITIONAL
+    from aminx.types.stages import UnconditionalDecodeStep, StageSet
+    from aminx.inference.driver import infer_topology, TOPOLOGY_UNCONDITIONAL
 
     class DummyDecoder(eqx.Module):
         pass
@@ -131,8 +131,8 @@ def test_infer_topology_unconditional():
 def test_infer_topology_conditional():
     """infer_topology with ConditionalDecodeStep returns TOPOLOGY_CONDITIONAL_SCORE."""
     import equinox as eqx
-    from prxteinmpnn.types.stages import ConditionalDecodeStep, StageSet
-    from prxteinmpnn.inference.driver import infer_topology, TOPOLOGY_CONDITIONAL_SCORE
+    from aminx.types.stages import ConditionalDecodeStep, StageSet
+    from aminx.inference.driver import infer_topology, TOPOLOGY_CONDITIONAL_SCORE
 
     class DummyDecoder(eqx.Module):
         pass
@@ -155,7 +155,7 @@ def test_unconditional_decode_step_call_delegates_to_decoder():
     import equinox as eqx
     import jax
     import jax.numpy as jnp
-    from prxteinmpnn.types.stages import UnconditionalDecodeStep
+    from aminx.types.stages import UnconditionalDecodeStep
 
     class DummyDecoder(eqx.Module):
         def __call__(self, nf, ef, nei, mask, *, key, inference):
@@ -181,7 +181,7 @@ def test_conditional_decode_step_call_delegates_to_decoder():
     import equinox as eqx
     import jax
     import jax.numpy as jnp
-    from prxteinmpnn.types.stages import ConditionalDecodeStep
+    from aminx.types.stages import ConditionalDecodeStep
 
     class DummyDecoder(eqx.Module):
         def call_conditional(self, nf, ef, nei, mask, ar_mask, seq_oh, w_s_embed, *, key, inference):

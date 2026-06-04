@@ -2,7 +2,7 @@
 
 import os
 import jax.numpy as jnp
-from prxteinmpnn.io.designs import DesignArrayRecordWriter
+from aminx.io.designs import DesignArrayRecordWriter
 from array_record.python import array_record_module
 import msgpack
 import msgpack_numpy as m

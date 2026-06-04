@@ -4,7 +4,7 @@ import chex
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.utils.align import (
+from aminx.utils.align import (
     align_sequences,
     needleman_wunsch_alignment,
     smith_waterman,

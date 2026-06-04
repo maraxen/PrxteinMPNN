@@ -5,8 +5,8 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.model import PrxteinMPNN
-from prxteinmpnn.sampling import make_sample_sequences
+from aminx.model import Aminx
+from aminx.sampling import make_sample_sequences
 
 
 @pytest.fixture
@@ -29,7 +29,7 @@ def model_inputs():
 
 def test_ste_optimization_with_tied_positions_jit(model_inputs, rng_key):
     """Test that STE optimization produces identical sequences for tied positions."""
-    model = PrxteinMPNN(
+    model = Aminx(
         node_features=128,
         edge_features=128,
         hidden_features=128,
@@ -63,7 +63,7 @@ def test_ste_optimization_with_tied_positions_jit(model_inputs, rng_key):
 
 def test_ste_optimization_with_tied_positions_no_jit(model_inputs, rng_key):
     """Test that STE optimization produces identical sequences for tied positions."""
-    model = PrxteinMPNN(
+    model = Aminx(
         node_features=128,
         edge_features=128,
         hidden_features=128,
@@ -94,7 +94,7 @@ def test_ste_optimization_with_tied_positions_no_jit(model_inputs, rng_key):
 
 def test_ste_optimization_without_tied_positions_jit(model_inputs, rng_key):
     """Test that STE optimization works without tied positions (backward compatibility)."""
-    model = PrxteinMPNN(
+    model = Aminx(
         node_features=128,
         edge_features=128,
         hidden_features=128,
@@ -120,7 +120,7 @@ def test_ste_optimization_without_tied_positions_jit(model_inputs, rng_key):
 
 def test_ste_optimization_without_tied_positions_no_jit(model_inputs, rng_key):
     """Test that STE optimization works without tied positions (backward compatibility)."""
-    model = PrxteinMPNN(
+    model = Aminx(
         node_features=128,
         edge_features=128,
         hidden_features=128,

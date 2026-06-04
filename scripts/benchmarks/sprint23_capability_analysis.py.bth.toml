@@ -1,6 +1,6 @@
 [experiment]
 name = "sprint23_capability_analysis"
-hypothesis = "All three Sprint 23 capability benchmarks (temperature-array, dedup-hetero, mixed-length) completed successfully on H200/A100/L40s/Blackwell; prxteinmpnn shows >10× speedup vs PyTorch on dedup and >100× on mixed-length padded."
+hypothesis = "All three Sprint 23 capability benchmarks (temperature-array, dedup-hetero, mixed-length) completed successfully on H200/A100/L40s/Blackwell; aminx shows >10× speedup vs PyTorch on dedup and >100× on mixed-length padded."
 tags = ["sprint23", "capability", "analysis", "report"]
 
 [outcomes.pass]

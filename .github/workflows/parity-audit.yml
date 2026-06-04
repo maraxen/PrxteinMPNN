@@ -12,10 +12,10 @@ jobs:
       PYTHONDONTWRITEBYTECODE: 1
       PRXTEIN_PARITY_TIER: parity_audit
     steps:
-      - name: Checkout PrxteinMPNN repository
+      - name: Checkout Aminx repository
         uses: actions/checkout@v4
         with:
-          path: prxteinmpnn
+          path: aminx
 
       - name: Checkout Reference LigandMPNN
         uses: actions/checkout@v4
@@ -36,14 +36,14 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd prxteinmpnn
+          cd aminx
           uv sync --extra cpu --extra dev --extra tests --group dev
 
       - name: Convert parity-audit checkpoint families
         env:
           REFERENCE_PATH: ${{ github.workspace }}/reference_ligandmpnn_clone
         run: |
-          cd prxteinmpnn
+          cd aminx
           uv run python scripts/convert_parity_family_weights.py \
             --project-root "." \
             --reference-path "$REFERENCE_PATH" \
@@ -54,7 +54,7 @@ jobs:
         env:
           REFERENCE_PATH: ${{ github.workspace }}/reference_ligandmpnn_clone
         run: |
-          cd prxteinmpnn
+          cd aminx
           uv run python scripts/check_parity_prereqs.py \
             --reference-path "$REFERENCE_PATH" \
             --project-root "." \
@@ -64,7 +64,7 @@ jobs:
         env:
           REFERENCE_PATH: ${{ github.workspace }}/reference_ligandmpnn_clone
         run: |
-          cd prxteinmpnn
+          cd aminx
           uv run python scripts/check_parity_assets.py --tier parity_audit
           uv run pytest tests/parity tests/model/test_ligandmpnn_equivalence.py \
             -m parity_audit --tb=short -v --junitxml=parity-audit-report.xml
@@ -77,7 +77,7 @@ jobs:
           import json
           from pathlib import Path
 
-          root = Path("prxteinmpnn")
+          root = Path("aminx")
           matrix_manifest = root / "tests/parity/parity_matrix.json"
           assets_manifest = root / "tests/parity/parity_assets.json"
 
@@ -156,11 +156,11 @@ jobs:
           name: parity-audit-artifacts
           retention-days: 30
           path: |
-            prxteinmpnn/parity-audit-report.xml
-            prxteinmpnn/parity-audit-summary.md
-            prxteinmpnn/parity-conversion.log
-            prxteinmpnn/parity-matrix-audit.json
-            prxteinmpnn/parity-matrix-audit.md
-            prxteinmpnn/parity-audit-checksums.txt
-            prxteinmpnn/tests/parity/parity_matrix.json
-            prxteinmpnn/tests/parity/parity_assets.json
+            aminx/parity-audit-report.xml
+            aminx/parity-audit-summary.md
+            aminx/parity-conversion.log
+            aminx/parity-matrix-audit.json
+            aminx/parity-matrix-audit.md
+            aminx/parity-audit-checksums.txt
+            aminx/tests/parity/parity_matrix.json
+            aminx/tests/parity/parity_assets.json

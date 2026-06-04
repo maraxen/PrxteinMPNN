@@ -1,30 +1,30 @@
 Utilities
 =========
 
-.. automodule:: prxteinmpnn.utils.aa_convert
+.. automodule:: aminx.utils.aa_convert
    :members:
    :undoc-members:
 
-.. automodule:: prxteinmpnn.utils.autoregression
+.. automodule:: aminx.utils.autoregression
    :members:
    :undoc-members:
 
-.. automodule:: prxteinmpnn.utils.coordinates
+.. automodule:: aminx.utils.coordinates
    :members:
    :undoc-members:
 
-.. automodule:: prxteinmpnn.utils.decoding_order
+.. automodule:: aminx.utils.decoding_order
    :members:
    :undoc-members:
 
-.. automodule:: prxteinmpnn.utils.graph
+.. automodule:: aminx.utils.graph
    :members:
    :undoc-members:
 
-.. automodule:: prxteinmpnn.utils.wave_parallel
+.. automodule:: aminx.utils.wave_parallel
    :members:
    :undoc-members:
 
-.. automodule:: prxteinmpnn.utils.concatenate
+.. automodule:: aminx.utils.concatenate
    :members:
    :undoc-members:

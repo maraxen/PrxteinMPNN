@@ -1,1 +1,0 @@
-"""Model parameters for PrxteinMPNN."""

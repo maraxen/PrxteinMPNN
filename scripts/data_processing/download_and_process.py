@@ -1,4 +1,4 @@
-"""Script to download and process PDB sample data for PrxteinMPNN training."""
+"""Script to download and process PDB sample data for Aminx training."""
 
 import argparse
 import json
@@ -18,7 +18,7 @@ from array_record.python.array_record_module import ArrayRecordWriter  # type: i
 
 from proxide.chem.conversion import string_to_protein_sequence
 from proxide.physics.force_fields import load_force_field
-from prxteinmpnn.utils.residue_constants import (
+from aminx.utils.residue_constants import (
     atom_types,
     restype_1to3,
     restypes,
@@ -280,7 +280,7 @@ def main() -> None:
     parser.add_argument(
         "--output_dir",
         type=Path,
-        default=Path("src/prxteinmpnn/training/data"),
+        default=Path("src/aminx/training/data"),
         help="Output directory",
     )
     args = parser.parse_args()

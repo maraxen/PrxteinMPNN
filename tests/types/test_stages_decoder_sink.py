@@ -5,7 +5,7 @@ import jax
 import equinox as eqx
 import pytest
 
-from prxteinmpnn.types.stages import StageSet
+from aminx.types.stages import StageSet
 
 
 def test_stage_set_decoder_sink_defaults_to_empty_tuple():

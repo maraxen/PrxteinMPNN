@@ -4,7 +4,7 @@
 2) Runs the same batch as ``test_protein_feature_extraction_parity`` and compares
    each JAX edge stage to reference ``features()`` raw edges and ``W_e`` output.
 
-Run from ``prxteinmpnn`` repo root (or tev_design with prxteinmpnn on PYTHONPATH)::
+Run from ``aminx`` repo root (or tev_design with aminx on PYTHONPATH)::
 
   export REFERENCE_PATH=/path/to/LigandMPNN
   PYTHONPATH=scripts:src:tests uv run python scripts/diag_protein_feature_parity.py
@@ -27,7 +27,7 @@ def _repo_root() -> Path:
 
 
 def _pearson(lhs: np.ndarray, rhs: np.ndarray) -> float:
-  from prxteinmpnn.parity.evidence import safe_pearson
+  from aminx.parity.evidence import safe_pearson
 
   return safe_pearson(lhs, rhs)
 

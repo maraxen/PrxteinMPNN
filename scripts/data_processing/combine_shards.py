@@ -38,8 +38,8 @@ def combine_shards(input_dir: Path, output_path: Path, pattern: str = "data-*.ar
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input_dir", type=Path, default=Path("src/prxteinmpnn/training/data"))
-    parser.add_argument("--output_file", type=Path, default=Path("src/prxteinmpnn/training/data/pdb_2021aug02.array_record"))
+    parser.add_argument("--input_dir", type=Path, default=Path("src/aminx/training/data"))
+    parser.add_argument("--output_file", type=Path, default=Path("src/aminx/training/data/pdb_2021aug02.array_record"))
     args = parser.parse_args()
 
     combine_shards(args.input_dir, args.output_file)

@@ -43,7 +43,7 @@ def test_render_markdown_includes_expanded_evidence() -> None:
         "tier": "parity_heavy",
         "method": "logits and score parity",
         "metrics": ["pearson correlation", "nll drift"],
-        "code_paths": ["src/prxteinmpnn/model/mpnn.py"],
+        "code_paths": ["src/aminx/model/mpnn.py"],
       },
     ],
     evidence_summaries=[
@@ -299,7 +299,7 @@ def test_render_html_includes_case_inventory_and_figure_captions() -> None:
         "tier": "parity_heavy",
         "method": "logits and score parity",
         "metrics": ["pearson correlation"],
-        "code_paths": ["src/prxteinmpnn/model/mpnn.py"],
+        "code_paths": ["src/aminx/model/mpnn.py"],
       },
     ],
     evidence_summaries=[

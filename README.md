@@ -1,10 +1,10 @@
-# PrxteinMPNN: A functional interface to ProteinMPNN in JAX
+# Aminx: A functional interface to ProteinMPNN in JAX
 
-[![Test Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen.svg)](https://github.com/maraxen/PrxteinMPNN/actions/workflows/pytest.yml)
-[![Run on Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/maraxen/PrxteinMPNN/blob/main/examples/example_notebook.ipynb)
-[![Documentation](https://img.shields.io/badge/docs-online-blue.svg)](http://maraxen.github.io/PrxteinMPNN)
+[![Test Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen.svg)](https://github.com/maraxen/Aminx/actions/workflows/pytest.yml)
+[![Run on Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/maraxen/Aminx/blob/main/examples/example_notebook.ipynb)
+[![Documentation](https://img.shields.io/badge/docs-online-blue.svg)](http://maraxen.github.io/Aminx)
 
-PrxteinMPNN provides a **functional interface for ProteinMPNN**, leveraging the **JAX** ecosystem for accelerated computation and transparent protein design workflows.
+Aminx provides a **functional interface for ProteinMPNN**, leveraging the **JAX** ecosystem for accelerated computation and transparent protein design workflows.
 
 ## Key Features
 
@@ -12,7 +12,7 @@ PrxteinMPNN provides a **functional interface for ProteinMPNN**, leveraging the 
 - **Composable inference**: Swap fusion strategies, encode paths, and decode variants via `StageSet` without touching kernel math
 - **JAX-native**: `jit`, `vmap`, `scan` throughout; Equinox modules as PyTrees for full AD compatibility
 - **Multi-state and membrane support**: physics-conditioned encoder, tied-position product-of-experts, side-chain packer
-- **CLI + JSON spec**: `prxteinmpnn spec validate / roundtrip` for portable run specifications
+- **CLI + JSON spec**: `aminx spec validate / roundtrip` for portable run specifications
 - **Temperature array sweep**: pass a list of temperatures for M simultaneous temperatures in one JIT-compiled forward pass — near-ideal M× per-temperature scaling
 - **Deduplicated scoring**: score only K unique backbones from an N-structure batch — constant throughput regardless of redundancy ratio
 - **Mixed-length batch support**: length-bucketed kernels eliminate padding waste across diverse-length libraries
@@ -23,14 +23,14 @@ Benchmarked on H200 (NVIDIA SXM5), A100 (PCIe), L40s, and Blackwell (SM120). All
 
 **H200 — single-structure latency (seq_len=76)**
 
-| Mode | prxteinmpnn | ColabDesign (JAX) | LigandMPNN (PyTorch) | Speedup vs PyTorch |
+| Mode | aminx | ColabDesign (JAX) | LigandMPNN (PyTorch) | Speedup vs PyTorch |
 |---|---|---|---|---|
 | Autoregressive sample | 17 ms | 38 ms | 149 ms | **8.7×** |
 | Score conditional | 1.5 ms | 7.0 ms | 92 ms | **61×** |
 
 **H200 — Sprint 23 capability benchmarks**
 
-| Capability | Config | prxteinmpnn | PyTorch | Speedup vs PyTorch |
+| Capability | Config | aminx | PyTorch | Speedup vs PyTorch |
 |---|---|---|---|---|
 | DedupGather | K=1 unique / N=32 total | 1.1 ms | 92 ms | **80×** |
 | DedupGather | K=32 / N=32 (no dedup) | 36 ms | 2958 ms | **82×** |
@@ -41,14 +41,14 @@ Speedups are hardware-consistent: A100 shows 8–91×, L40s 8–85×, Blackwell 
 
 ## Documentation
 
-**[Complete Documentation →](http://maraxen.github.io/PrxteinMPNN)**
+**[Complete Documentation →](http://maraxen.github.io/Aminx)**
 
 - [Composition Guide](docs/COMPOSITION_GUIDE.md) — `StageSet`, `InferencePlan`, and the five extension points
 - [Parity Validation](docs/parity/parity_report.md) — Numerical parity report vs LigandMPNN reference
 
 ## ✅ Validation
 
-PrxteinMPNN is validated against the upstream [LigandMPNN](https://github.com/dauparas/LigandMPNN)
+Aminx is validated against the upstream [LigandMPNN](https://github.com/dauparas/LigandMPNN)
 reference implementation (including ProteinMPNN behavior):
 
 | Decoding Path | Tolerance | Status |
@@ -72,9 +72,9 @@ Legacy root-level parity stubs are non-canonical; use the links above.
 
 ## Related Tools
 
-The following packages were extracted from prxteinmpnn during refactoring:
+The following packages were extracted from aminx during refactoring:
 
-- **`ensemble_tools`** — Clustering and conformational inference algorithms (GMM, EM, KMeans, DBSCAN, PCA, BIC, VMM). Located at `~/projects/ensemble_prxteinmpnn_tools_WIP/`. Experimental, not published to PyPI. Install with `uv pip install -e ~/projects/ensemble_prxteinmpnn_tools_WIP`. Import as `from ensemble_tools.xxx import yyy`. The `ConformationalStates` type used by `RunSpecification.conformational_states` comes from `ensemble_tools.dbscan`.
+- **`ensemble_tools`** — Clustering and conformational inference algorithms (GMM, EM, KMeans, DBSCAN, PCA, BIC, VMM). Located at `~/projects/ensemble_aminx_tools_WIP/`. Experimental, not published to PyPI. Install with `uv pip install -e ~/projects/ensemble_aminx_tools_WIP`. Import as `from ensemble_tools.xxx import yyy`. The `ConformationalStates` type used by `RunSpecification.conformational_states` comes from `ensemble_tools.dbscan`.
 
 ### Running Equivalence Tests
 
@@ -130,11 +130,11 @@ REFERENCE_PATH=./reference_ligandmpnn_clone \
 uv run python scripts/generate_parity_report.py --project-root . --output-dir docs/parity --pdf
 ```
 
-**`PRXTEINMPNN_VERIFY` (runtime jaxtyping + beartype):** tests under `tests/parity/` set
-`PRXTEINMPNN_VERIFY=1` via `tests/parity/conftest.py` (refactor roadmap §13 Q5). Elsewhere, opt in with:
+**`AMINX_VERIFY` (runtime jaxtyping + beartype):** tests under `tests/parity/` set
+`AMINX_VERIFY=1` via `tests/parity/conftest.py` (refactor roadmap §13 Q5). Elsewhere, opt in with:
 
 ```bash
-PRXTEINMPNN_VERIFY=1 uv run pytest path/to/test.py -v
+AMINX_VERIFY=1 uv run pytest path/to/test.py -v
 ```
 
 CI tier routing:
@@ -159,21 +159,21 @@ uv sync --extra cpu   # For CPU-only (default)
 **Install as a tool** for standalone CLI use (no virtual environment):
 
 ```bash
-uv tool install prxteinmpnn
-prxteinmpnn spec validate run_spec.json  # Now available in PATH
+uv tool install aminx
+aminx spec validate run_spec.json  # Now available in PATH
 ```
 
 Or invoke directly without installation:
 
 ```bash
-uvx prxteinmpnn spec validate run_spec.json
+uvx aminx spec validate run_spec.json
 ```
 
 ### High-level API
 
 ```python
-from prxteinmpnn.io.weights import load_model
-from prxteinmpnn.run import sample, score, SamplingSpecification, ScoringSpecification
+from aminx.io.weights import load_model
+from aminx.run import sample, score, SamplingSpecification, ScoringSpecification
 
 model = load_model(model_version="v_48_020", model_weights="original")
 
@@ -204,12 +204,12 @@ For fine-grained control over fusion strategy, encode path, and decode variant �
 
 ```python
 import jax.numpy as jnp
-from prxteinmpnn.host.plan import make_inference_plan, InferencePlan, InferenceComponents
-from prxteinmpnn.inference.encode import make_encode_fn
-from prxteinmpnn.inference import driver
-from prxteinmpnn.inference.logits import GeometricMeanLogits, ARLogitFuse
-from prxteinmpnn.run import SamplingSpecification
-from prxteinmpnn.types.stages import StageSet
+from aminx.host.plan import make_inference_plan, InferencePlan, InferenceComponents
+from aminx.inference.encode import make_encode_fn
+from aminx.inference import driver
+from aminx.inference.logits import GeometricMeanLogits, ARLogitFuse
+from aminx.run import SamplingSpecification
+from aminx.types.stages import StageSet
 
 # Option A: factory (resolves stages from spec automatically)
 spec = SamplingSpecification(
@@ -250,7 +250,7 @@ See [Composition Guide](docs/COMPOSITION_GUIDE.md) for the five extension points
 Pass a list of temperatures to run all M temperatures in a **single JIT-compiled call**. The kernel vmaps over the temperature dimension — per-temperature cost scales near-ideally (8× cheaper per-temp at M=8 than at M=1, vs 8× ideal).
 
 ```python
-from prxteinmpnn.run import sample, SamplingSpecification
+from aminx.run import sample, SamplingSpecification
 
 spec = SamplingSpecification(
     inputs="structure.pdb",
@@ -269,12 +269,12 @@ On H200 at M=8 (seq_len=76), per-temperature cost is **2.2 ms** — the same tot
 
 #### Deduplicated Scoring (DedupGather pattern)
 
-When scoring a large ensemble where many sequences share the same backbone, score only the **K unique** structures rather than all N. prxteinmpnn JIT-caches a compiled kernel per length bucket — K sequential `plan.score()` calls are fast regardless of N.
+When scoring a large ensemble where many sequences share the same backbone, score only the **K unique** structures rather than all N. aminx JIT-caches a compiled kernel per length bucket — K sequential `plan.score()` calls are fast regardless of N.
 
 ```python
-from prxteinmpnn.host.plan import make_inference_plan
-from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-from prxteinmpnn.tiling.bucketing import BucketingConfig
+from aminx.host.plan import make_inference_plan
+from aminx.inference.bundle_builder import build_inference_bundle
+from aminx.tiling.bucketing import BucketingConfig
 import jax.random as random
 
 plan = make_inference_plan(model, spec)
@@ -304,18 +304,18 @@ for coords, mask, residue_index, chain_index, sequence in unique_structures:
 scores = [plan.score(bundle, key, config) for bundle, config in unique_bundles]
 ```
 
-At K=1/N=32 on H200, latency is **1.1 ms** vs 92 ms for PyTorch scoring all 32 structures — **80× speedup**. Speedup is stable across K (80–82× at K=1 through K=32) because PyTorch's cost scales linearly with N while prxteinmpnn's scales linearly with K.
+At K=1/N=32 on H200, latency is **1.1 ms** vs 92 ms for PyTorch scoring all 32 structures — **80× speedup**. Speedup is stable across K (80–82× at K=1 through K=32) because PyTorch's cost scales linearly with N while aminx's scales linearly with K.
 
 ---
 
 #### Mixed-Length Batch Scoring
 
-Score a library of proteins with different sequence lengths without padding waste. prxteinmpnn uses **length bucketing** (rounding to the next power-of-2 boundary) to reuse JIT-compiled kernels across structures that fall in the same bucket — one compile per bucket, not one per structure.
+Score a library of proteins with different sequence lengths without padding waste. aminx uses **length bucketing** (rounding to the next power-of-2 boundary) to reuse JIT-compiled kernels across structures that fall in the same bucket — one compile per bucket, not one per structure.
 
 ```python
-from prxteinmpnn.host.plan import make_inference_plan
-from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-from prxteinmpnn.tiling.bucketing import BucketingConfig
+from aminx.host.plan import make_inference_plan
+from aminx.inference.bundle_builder import build_inference_bundle
+from aminx.tiling.bucketing import BucketingConfig
 import equinox as eqx
 
 plan = make_inference_plan(model, spec)
@@ -353,16 +353,16 @@ For a batch of [76, 150, 300, 500]-residue structures on H200, total latency is 
 
 ```bash
 # Validate a run specification JSON file
-prxteinmpnn spec validate run_spec.json
+aminx spec validate run_spec.json
 
 # Check JSON round-trip fidelity
-prxteinmpnn spec roundtrip run_spec.json
+aminx spec roundtrip run_spec.json
 
 # Check portable subset round-trip
-prxteinmpnn spec portable-roundtrip portable_spec.json
+aminx spec portable-roundtrip portable_spec.json
 
 # Serialize a spec to JSON (from Python)
-from prxteinmpnn.run import run_specification_to_json
+from aminx.run import run_specification_to_json
 json_str = run_specification_to_json(spec)
 ```
 
@@ -386,21 +386,21 @@ All three decoding paths + membrane + packer are validated via `parity_heavy` te
 ## Architecture
 
 ```
-prxteinmpnn.run          ← SamplingSpecification, ScoringSpecification, sample(), score()
-prxteinmpnn.host.plan    ← InferencePlan, InferenceComponents, make_inference_plan()
-prxteinmpnn.types.stages ← StageSet (the composition interface)
-prxteinmpnn.inference    ← driver.decode, logits (LOGIT_STRATEGIES, TIE_GROUP_STRATEGIES)
-prxteinmpnn.model        ← LigandMPNN, Packer (Equinox modules, JIT-safe)
-prxteinmpnn.sampling     ← sample() kernel
-prxteinmpnn.scoring      ← score() kernel
-prxteinmpnn.cli          ← prxteinmpnn spec validate/roundtrip
+aminx.run          ← SamplingSpecification, ScoringSpecification, sample(), score()
+aminx.host.plan    ← InferencePlan, InferenceComponents, make_inference_plan()
+aminx.types.stages ← StageSet (the composition interface)
+aminx.inference    ← driver.decode, logits (LOGIT_STRATEGIES, TIE_GROUP_STRATEGIES)
+aminx.model        ← LigandMPNN, Packer (Equinox modules, JIT-safe)
+aminx.sampling     ← sample() kernel
+aminx.scoring      ← score() kernel
+aminx.cli          ← aminx spec validate/roundtrip
 ```
 
 `StageSet` is the composition seam between the host layer and JAX-traced kernels. Everything above it is Python-land; everything below it is traced. See [Composition Guide](docs/COMPOSITION_GUIDE.md).
 
 ## Multiprocessing
 
-Importing `prxteinmpnn` does **not** set the multiprocessing start method. If your notebook or script spawns worker processes, call `configure_multiprocessing()` once at startup (see `prxteinmpnn.runtime`); the campaign CLI does this for you.
+Importing `aminx` does **not** set the multiprocessing start method. If your notebook or script spawns worker processes, call `configure_multiprocessing()` once at startup (see `aminx.runtime`); the campaign CLI does this for you.
 
 ---
 
@@ -414,9 +414,9 @@ Contributions are welcome! Please see the [contributing guidelines](CONTRIBUTING
 
 ## 📞 Support
 
-- **Documentation**: [http://maraxen.github.io/PrxteinMPNN](http://maraxen.github.io/PrxteinMPNN)
-- **Issues**: [GitHub Issues](https://github.com/maraxen/PrxteinMPNN/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/maraxen/PrxteinMPNN/discussions)
+- **Documentation**: [http://maraxen.github.io/Aminx](http://maraxen.github.io/Aminx)
+- **Issues**: [GitHub Issues](https://github.com/maraxen/Aminx/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/maraxen/Aminx/discussions)
 
 ---
 

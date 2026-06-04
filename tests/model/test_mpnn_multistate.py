@@ -1,6 +1,6 @@
-"""Tests for PrxteinMPNN model with structure_mapping in multi-state mode.
+"""Tests for Aminx model with structure_mapping in multi-state mode.
 
-This module tests the core PrxteinMPNN model's ability to handle multi-state
+This module tests the core Aminx model's ability to handle multi-state
 protein design with structure_mapping, ensuring proper isolation of conformational
 states during encoding and decoding.
 """
@@ -13,21 +13,21 @@ from helpers.multistate import (
   create_simple_multistate_protein,
 )
 
-from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-from prxteinmpnn.inference.logits import make_stage_set
-from prxteinmpnn.inference import (
+from aminx.inference.bundle_builder import build_inference_bundle
+from aminx.inference.logits import make_stage_set
+from aminx.inference import (
   sample_autoregressive,
   score_unconditional,
 )
-from prxteinmpnn.model.mpnn import PrxteinMPNN
+from aminx.model.mpnn import Aminx
 
 
 class TestMPNNMultiState(chex.TestCase):
 
   def setUp(self):
-    """Create a PrxteinMPNN model for testing."""
+    """Create a Aminx model for testing."""
     key = jax.random.key(42)
-    self.mpnn_model = PrxteinMPNN(
+    self.mpnn_model = Aminx(
       node_features=128,
       edge_features=128,
       hidden_features=128,

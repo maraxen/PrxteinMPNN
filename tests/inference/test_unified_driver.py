@@ -19,17 +19,17 @@ import pytest
 
 def test_driver_module_importable():
     """inference.driver module is importable."""
-    import prxteinmpnn.inference.driver  # noqa: F401
+    import aminx.inference.driver  # noqa: F401
 
 
 def test_decode_fn_importable():
     """`decode` is importable from inference.driver."""
-    from prxteinmpnn.inference.driver import decode  # noqa: F401
+    from aminx.inference.driver import decode  # noqa: F401
 
 
 def test_decode_signature():
     """`decode` has the canonical 7-argument signature."""
-    from prxteinmpnn.inference.driver import decode
+    from aminx.inference.driver import decode
 
     sig = inspect.signature(decode)
     params = list(sig.parameters)
@@ -43,7 +43,7 @@ def test_decode_signature():
 
 def test_stage_set_default_is_scoring_mode():
     """StageSet default configuration indicates scoring mode (no sample_step)."""
-    from prxteinmpnn.types.stages import StageSet
+    from aminx.types.stages import StageSet
 
     # Default: no sample_step, no decode_step — teacher-forced scoring path
     ss = StageSet()
@@ -53,8 +53,8 @@ def test_stage_set_default_is_scoring_mode():
 
 def test_infer_topology_with_sample_step_returns_ar():
     """infer_topology returns TOPOLOGY_AR when sample_step is set."""
-    from prxteinmpnn.inference.driver import TOPOLOGY_AR, infer_topology
-    from prxteinmpnn.types.stages import StageSet
+    from aminx.inference.driver import TOPOLOGY_AR, infer_topology
+    from aminx.types.stages import StageSet
 
     class DummySampleStep:
         pass
@@ -68,8 +68,8 @@ def test_infer_topology_with_sample_step_returns_ar():
 
 def test_decode_topology_conditional_scoring():
     """infer_topology returns TOPOLOGY_CONDITIONAL_SCORE when decode_step=None and sample_step=None."""
-    from prxteinmpnn.inference.driver import TOPOLOGY_CONDITIONAL_SCORE, infer_topology
-    from prxteinmpnn.types.stages import StageSet
+    from aminx.inference.driver import TOPOLOGY_CONDITIONAL_SCORE, infer_topology
+    from aminx.types.stages import StageSet
 
     ss = StageSet()
     assert infer_topology(ss) == TOPOLOGY_CONDITIONAL_SCORE
@@ -77,8 +77,8 @@ def test_decode_topology_conditional_scoring():
 
 def test_decode_topology_unconditional():
     """infer_topology returns TOPOLOGY_UNCONDITIONAL when UnconditionalDecodeStep is set."""
-    from prxteinmpnn.inference.driver import TOPOLOGY_UNCONDITIONAL, infer_topology
-    from prxteinmpnn.types.stages import StageSet, UnconditionalDecodeStep
+    from aminx.inference.driver import TOPOLOGY_UNCONDITIONAL, infer_topology
+    from aminx.types.stages import StageSet, UnconditionalDecodeStep
 
     import equinox as eqx
 
@@ -92,8 +92,8 @@ def test_decode_topology_unconditional():
 def test_infer_topology_with_conditional_decode_step():
     """infer_topology returns TOPOLOGY_CONDITIONAL_SCORE when ConditionalDecodeStep is set (not Unconditional)."""
     import equinox as eqx
-    from prxteinmpnn.inference.driver import TOPOLOGY_CONDITIONAL_SCORE, infer_topology
-    from prxteinmpnn.types.stages import ConditionalDecodeStep, StageSet
+    from aminx.inference.driver import TOPOLOGY_CONDITIONAL_SCORE, infer_topology
+    from aminx.types.stages import ConditionalDecodeStep, StageSet
 
     class DummyDecoder(eqx.Module):
         pass

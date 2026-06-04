@@ -1,8 +1,8 @@
 """Red tests for DedupGather strategy (backlog #930, task_id 260603_het-batch-dedup).
 
 All tests in this file FAIL until the fixer implements:
-  - prxteinmpnn.tiling.strategy.DedupGather
-  - prxteinmpnn.tiling.dedup (DedupSpec, get_k_bucket)
+  - aminx.tiling.strategy.DedupGather
+  - aminx.tiling.dedup (DedupSpec, get_k_bucket)
 """
 
 from __future__ import annotations
@@ -13,8 +13,8 @@ import jax.numpy as jnp
 from jax.experimental import io_callback
 import pytest
 
-from prxteinmpnn.tiling.strategy import DedupGather  # ImportError — RED
-from prxteinmpnn.tiling.dedup import DedupSpec, get_k_bucket  # ImportError — RED
+from aminx.tiling.strategy import DedupGather  # ImportError — RED
+from aminx.tiling.dedup import DedupSpec, get_k_bucket  # ImportError — RED
 
 
 def test_dedup_gather_bit_identical() -> None:

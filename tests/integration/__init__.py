@@ -1,1 +1,1 @@
-"""Integration tests for prxteinmpnn."""
+"""Integration tests for aminx."""

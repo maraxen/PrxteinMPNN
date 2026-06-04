@@ -1,22 +1,22 @@
 Host / Dispatch Layer
 =====================
 
-.. automodule:: prxteinmpnn.host.plan
+.. automodule:: aminx.host.plan
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: prxteinmpnn.host.bundle_builder
+.. automodule:: aminx.host.bundle_builder
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: prxteinmpnn.host.runner
+.. automodule:: aminx.host.runner
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: prxteinmpnn.host.kernel_dispatch
+.. automodule:: aminx.host.kernel_dispatch
    :members:
    :undoc-members:
    :show-inheritance:

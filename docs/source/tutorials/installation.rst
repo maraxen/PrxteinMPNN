@@ -1,7 +1,7 @@
 Installation Guide
 ==================
 
-This guide covers the installation of PrxteinMPNN and its dependencies.
+This guide covers the installation of Aminx and its dependencies.
 
 Requirements
 ------------
@@ -24,7 +24,7 @@ Install from source:
 .. code-block:: bash
 
    git clone <repository-url>
-   cd PrxteinMPNN
+   cd Aminx
    pip install -e .
 
 Development Installation
@@ -50,8 +50,8 @@ Verify your installation:
 
 .. code-block:: python
 
-   import prxteinmpnn
-   print(prxteinmpnn.__version__)
+   import aminx
+   print(aminx.__version__)
 
 Troubleshooting
 ---------------

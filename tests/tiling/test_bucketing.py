@@ -2,7 +2,7 @@
 
 import pytest
 
-from prxteinmpnn.tiling.bucketing import (
+from aminx.tiling.bucketing import (
     BucketAssignment,
     BucketingConfig,
     group_by_bucket,
@@ -105,7 +105,7 @@ class TestBucketAssignment:
 
     def test_bucket_boundaries_sorted(self) -> None:
         """bucket_boundaries is a sorted tuple."""
-        from prxteinmpnn.tiling.planner import BatchPlan, AxisSpec
+        from aminx.tiling.planner import BatchPlan, AxisSpec
 
         # Create minimal mock BatchPlans
         ax = AxisSpec(
@@ -142,7 +142,7 @@ class TestBucketAssignment:
 
     def test_subset_of_buckets(self) -> None:
         """bucket_boundaries is sorted subset of used bucket keys."""
-        from prxteinmpnn.tiling.planner import BatchPlan, AxisSpec
+        from aminx.tiling.planner import BatchPlan, AxisSpec
 
         ax = AxisSpec(
             name="n_structures",

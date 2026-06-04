@@ -38,7 +38,7 @@ fixtures_L500 = "1SMD.pdb (495 residues, PDB entry)"
 # Dependencies
 jax_version = "per uv.lock"
 equinox_version = "per uv.lock"
-prxteinmpnn_model_checkpoint = "proteinmpnn_v_48_020 (bundled)"
+aminx_model_checkpoint = "proteinmpnn_v_48_020 (bundled)"
 pytorch_ligandmpnn_reference = "REFERENCE_PATH environment or --reference-path; not bundled"
 # Script
 script_sha = "HEAD commit SHA of scripts/benchmarks/bench_mixed_length.py"

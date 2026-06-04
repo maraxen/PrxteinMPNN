@@ -24,15 +24,15 @@ import pytest
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.model.mpnn import PrxteinMPNN
-from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-from prxteinmpnn.host.plan import make_inference_plan
-from prxteinmpnn.types.configs import InferenceConfig
+from aminx.model.mpnn import Aminx
+from aminx.inference.bundle_builder import build_inference_bundle
+from aminx.host.plan import make_inference_plan
+from aminx.types.configs import InferenceConfig
 
 
-def _make_small_model() -> PrxteinMPNN:
+def _make_small_model() -> Aminx:
     """Minimal model: fast compilation, not from checkpoint."""
-    return PrxteinMPNN(
+    return Aminx(
         node_features=16,
         edge_features=16,
         hidden_features=16,

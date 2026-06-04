@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import jax
 
-from prxteinmpnn.model.capabilities import (
+from aminx.model.capabilities import (
   PRXTEIN_LIGAND_MPNN_CAPABILITIES,
   PRXTEIN_MPNN_CAPABILITIES,
 )
-from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
-from prxteinmpnn.model.mpnn import PrxteinMPNN
-from prxteinmpnn.sampling.sample import make_sample_sequences
+from aminx.model.ligand_mpnn import PrxteinLigandMPNN
+from aminx.model.mpnn import Aminx
+from aminx.sampling.sample import make_sample_sequences
 
-# Keyword / positional-or-keyword names accepted by ``PrxteinMPNN.__call__`` (excluding ``self``).
+# Keyword / positional-or-keyword names accepted by ``Aminx.__call__`` (excluding ``self``).
 _PRXTEIN_MPNN_CALL_NAMES = frozenset({
   "structure_coordinates",
   "mask",
@@ -143,9 +143,9 @@ def _ligand_autoreg_kw() -> set[str]:
   return {"Y", "Y_t", "Y_m", "xyz_37", "xyz_37_m", "chain_mask"}
 
 
-def test_temperature_autoreg_call_kwargs_subset_prxteinmpnn():
+def test_temperature_autoreg_call_kwargs_subset_aminx():
   key = jax.random.PRNGKey(0)
-  m = PrxteinMPNN(16, 16, 16, 1, 1, 6, key=key)
+  m = Aminx(16, 16, 16, 1, 1, 6, key=key)
   assert m.capabilities is PRXTEIN_MPNN_CAPABILITIES
   ligand_kw = _ligand_autoreg_kw()
   hoist_kw = {"precomputed_node_features", "precomputed_edge_features", "precomputed_neighbor_indices"}
@@ -195,6 +195,6 @@ def test_temperature_autoreg_no_ligand_precomputed_node_aliases():
 
 def test_make_sample_sequences_constructible_smoke():
   key = jax.random.PRNGKey(2)
-  m = PrxteinMPNN(12, 12, 12, 1, 1, 4, key=key)
+  m = Aminx(12, 12, 12, 1, 1, 4, key=key)
   fn = make_sample_sequences(m, sampling_strategy="temperature")
   assert callable(fn)

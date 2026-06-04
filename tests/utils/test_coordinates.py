@@ -4,7 +4,7 @@ import chex
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.utils.coordinates import (
+from aminx.utils.coordinates import (
     apply_noise_to_coordinates,
     compute_backbone_coordinates,
     compute_backbone_distance,

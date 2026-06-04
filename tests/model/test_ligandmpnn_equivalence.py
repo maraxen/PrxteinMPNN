@@ -13,8 +13,8 @@ import numpy as np
 import pytest
 from scipy.stats import pearsonr
 
-from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
-from prxteinmpnn.parity.matrix import ligand_tied_multistate_rollout_outcome
+from aminx.model.ligand_mpnn import PrxteinLigandMPNN
+from aminx.parity.matrix import ligand_tied_multistate_rollout_outcome
 from tests.model.sampling_dist_parity_helpers import mean_positionwise_js
 from tests.parity.reference_utils import require_heavy_parity_prereqs
 
@@ -248,7 +248,7 @@ def load_ligand_parity_bundle() -> LigandParityBundle:
   import model_utils
   import torch
 
-  from prxteinmpnn.io.weights import load_model
+  from aminx.io.weights import load_model
   from scripts.convert_weights import convert_full_model
 
   checkpoint = torch.load(
@@ -296,7 +296,7 @@ def load_ligand_parity_bundle() -> LigandParityBundle:
   except FileNotFoundError as exc:
     pytest.fail(
       "Bundled LigandMPNN ``ligandmpnn_v_32_020_25.eqx.zst`` is required for end-to-end parity. "
-      "Install ``prxteinmpnn`` with packaged ``model_params`` assets. "
+      "Install ``aminx`` with packaged ``model_params`` assets. "
       f"Details: {exc}",
     )
 
@@ -407,9 +407,9 @@ def test_ligand_conditioning_context_reference_correlation(
   assert _pearson_correlation(h_e_pt.numpy()[0], np.asarray(h_e_jax)) > 0.99
 
   # Migrate to new bundle-based API for conditional scoring
-  from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-  from prxteinmpnn.inference.logits import make_stage_set
-  from prxteinmpnn.inference import score_conditional
+  from aminx.inference.bundle_builder import build_inference_bundle
+  from aminx.inference.logits import make_stage_set
+  from aminx.inference import score_conditional
 
   sequence_oh = jax.nn.one_hot(jnp.array(ligand_batch.s[0]), 21)
   bundle, config = build_inference_bundle(
@@ -470,9 +470,9 @@ def test_ligand_autoregressive_reference_alignment(
   sampled_log_probs_pt = sampled_pt["log_probs"].numpy()[0]
 
   # Migrate to new bundle-based API for autoregressive sampling
-  from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-  from prxteinmpnn.inference.logits import make_stage_set
-  from prxteinmpnn.inference import sample_autoregressive
+  from aminx.inference.bundle_builder import build_inference_bundle
+  from aminx.inference.logits import make_stage_set
+  from aminx.inference import sample_autoregressive
 
   bundle, config = build_inference_bundle(
     coords=jnp.array(ligand_batch.x[0])[None, ...],
@@ -502,9 +502,9 @@ def test_ligand_jax_package_and_pt_convert_produce_identical_forced_samples(
   ligand_batch: LigandBatch,
 ) -> None:
   """End-to-end checksum: packaged ``.eqx`` vs in-test ``convert_full_model`` (no PyTorch RNG)."""
-  from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-  from prxteinmpnn.inference.logits import make_stage_set
-  from prxteinmpnn.inference import sample_autoregressive
+  from aminx.inference.bundle_builder import build_inference_bundle
+  from aminx.inference.logits import make_stage_set
+  from aminx.inference import sample_autoregressive
 
   ar_mask = _build_ar_mask(ligand_batch.randn[0])
   forcing_rng = np.random.default_rng(23)
@@ -580,9 +580,9 @@ def test_ligand_stochastic_sampling_per_position_distribution_near_reference(
   ar_mask = _build_ar_mask(ligand_batch.randn[0])
   bias_np = np.zeros((1, seq_len, 21), dtype=np.float32)
 
-  from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-  from prxteinmpnn.inference.logits import make_stage_set
-  from prxteinmpnn.inference import sample_autoregressive
+  from aminx.inference.bundle_builder import build_inference_bundle
+  from aminx.inference.logits import make_stage_set
+  from aminx.inference import sample_autoregressive
 
   bundle, config = build_inference_bundle(
     coords=jnp.array(ligand_batch.x[0])[None, ...],
@@ -666,10 +666,10 @@ def test_ligand_tied_sampling_weighted_sum_product_alignment(
     sampled_pt = pt_model.sample(feature_dict)
 
   # Migrate to new bundle-based API for autoregressive sampling with tied positions
-  from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-  from prxteinmpnn.inference.logits import make_stage_set
-  from prxteinmpnn.inference import sample_autoregressive
-  from prxteinmpnn.types.bundles import WaveScheduleBundle
+  from aminx.inference.bundle_builder import build_inference_bundle
+  from aminx.inference.logits import make_stage_set
+  from aminx.inference import sample_autoregressive
+  from aminx.types.bundles import WaveScheduleBundle
   import equinox as eqx
 
   L = ligand_batch.x.shape[1]
@@ -763,10 +763,10 @@ def test_ligand_tied_scoring_arithmetic_mean_alignment(
   scored_tokens_pt = np.asarray(np.argmax(scored_log_probs_pt, axis=-1), dtype=np.int32)
 
   # Migrate to new bundle-based API for conditional scoring with tied positions
-  from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-  from prxteinmpnn.inference.logits import make_stage_set
-  from prxteinmpnn.inference import score_conditional
-  from prxteinmpnn.types.bundles import WaveScheduleBundle
+  from aminx.inference.bundle_builder import build_inference_bundle
+  from aminx.inference.logits import make_stage_set
+  from aminx.inference import score_conditional
+  from aminx.types.bundles import WaveScheduleBundle
   import equinox as eqx
 
   L = ligand_batch.x.shape[1]

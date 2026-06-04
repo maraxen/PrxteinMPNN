@@ -17,9 +17,9 @@ import numpy as np
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
-from prxteinmpnn.io.parsing.dispatch import parse_protein
-from prxteinmpnn.physics.features import compute_electrostatic_node_features
-from prxteinmpnn.utils.data_structures import ProteinTuple
+from aminx.io.parsing.dispatch import parse_protein
+from aminx.physics.features import compute_electrostatic_node_features
+from aminx.utils.data_structures import ProteinTuple
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

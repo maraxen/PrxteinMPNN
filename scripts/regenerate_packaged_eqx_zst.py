@@ -11,7 +11,7 @@ Examples::
   uv run python scripts/regenerate_packaged_eqx_zst.py \\
     --input ~/reference_ligandmpnn_clone/model_weights/ligandmpnn_v_32_020_25.pt
 
-After replacing ``src/prxteinmpnn/model_params/<stem>.eqx.zst``, run::
+After replacing ``src/aminx/model_params/<stem>.eqx.zst``, run::
 
   uv run pytest tests/model/test_ligandmpnn_equivalence.py -q
 """
@@ -58,7 +58,7 @@ def main() -> int:
     "--out-dir",
     type=Path,
     default=None,
-    help="Directory for output <stem>.eqx.zst (default: src/prxteinmpnn/model_params)",
+    help="Directory for output <stem>.eqx.zst (default: src/aminx/model_params)",
   )
   parser.add_argument(
     "--zstd-level",
@@ -77,7 +77,7 @@ def main() -> int:
   args = parser.parse_args()
 
   root = _project_root()
-  out_dir = args.out_dir if args.out_dir is not None else root / "src" / "prxteinmpnn" / "model_params"
+  out_dir = args.out_dir if args.out_dir is not None else root / "src" / "aminx" / "model_params"
   out_dir.mkdir(parents=True, exist_ok=True)
 
   stem = args.input.stem
@@ -102,7 +102,7 @@ def main() -> int:
   if args.verify:
     import jax
 
-    from prxteinmpnn.io.weights import load_model
+    from aminx.io.weights import load_model
 
     key = jax.random.PRNGKey(0)
     out_abs = zst_path.resolve()

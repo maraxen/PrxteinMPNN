@@ -32,7 +32,7 @@ def test_arithmetic_mean_logits_shape1_weights_with_S16():
         ValueError: cannot reshape array of shape (1,) into shape (16,1,1)
     After fix: must return shape (5, 21) without error.
     """
-    from prxteinmpnn.inference.logits import ArithmeticMeanLogits
+    from aminx.inference.logits import ArithmeticMeanLogits
 
     S, L, V = 16, 5, 21
     fuser = ArithmeticMeanLogits(weights=jnp.ones(1))
@@ -52,7 +52,7 @@ def test_geometric_mean_logits_shape1_weights_with_S16():
         ValueError: cannot reshape array of shape (1,) into shape (16,1,1)
     After fix: must return shape (5, 21) without error.
     """
-    from prxteinmpnn.inference.logits import GeometricMeanLogits
+    from aminx.inference.logits import GeometricMeanLogits
 
     S, L, V = 16, 5, 21
     fuser = GeometricMeanLogits(weights=jnp.ones(1))
@@ -72,7 +72,7 @@ def test_product_of_probabilities_shape1_weights_with_S16():
         ValueError: cannot reshape array of shape (1,) into shape (16,1,1)
     After fix: must return shape (5, 21) without error.
     """
-    from prxteinmpnn.inference.logits import ProductOfProbabilities
+    from aminx.inference.logits import ProductOfProbabilities
 
     S, L, V = 16, 5, 21
     fuser = ProductOfProbabilities(weights=jnp.ones(1))
@@ -100,7 +100,7 @@ def test_arithmetic_mean_identical_states_S1_equals_state():
     This is a BATHOS invariant: identical states -> fused == single state.
     For S=1 this must always pass (regression baseline).
     """
-    from prxteinmpnn.inference.logits import ArithmeticMeanLogits
+    from aminx.inference.logits import ArithmeticMeanLogits
 
     S, L, V = 1, 5, 21
     # Analytic case: use arange for easy manual verification
@@ -126,7 +126,7 @@ def test_arithmetic_mean_identical_states_S16_equals_state():
     - If shape bug is not fixed: crash
     - If shape bug is fixed but broadcasting wrong: assertion fails
     """
-    from prxteinmpnn.inference.logits import ArithmeticMeanLogits
+    from aminx.inference.logits import ArithmeticMeanLogits
 
     S, L, V = 16, 5, 21
     logits_1d = jnp.broadcast_to(jnp.arange(V, dtype=jnp.float32), (L, V))
@@ -149,7 +149,7 @@ def test_arithmetic_mean_shape1_weights_identical_states_S16_equals_state():
     jnp.ones(1)). After fix, weights=(1,) with S=16 must broadcast correctly and
     produce the same result as weights=(16,) with identical states.
     """
-    from prxteinmpnn.inference.logits import ArithmeticMeanLogits
+    from aminx.inference.logits import ArithmeticMeanLogits
 
     S, L, V = 16, 5, 21
     logits_1d = jnp.broadcast_to(jnp.arange(V, dtype=jnp.float32), (L, V))
@@ -193,7 +193,7 @@ def test_arithmetic_mean_mismatched_weights_raises_clear_error():
         ValueError: 'weights length must be 1 (broadcast) or S=16, got 3'
     or similar. Currently raises raw reshape error which is confusing.
     """
-    from prxteinmpnn.inference.logits import ArithmeticMeanLogits
+    from aminx.inference.logits import ArithmeticMeanLogits
 
     S, L, V = 16, 5, 21
     fuser = ArithmeticMeanLogits(weights=jnp.ones(3))

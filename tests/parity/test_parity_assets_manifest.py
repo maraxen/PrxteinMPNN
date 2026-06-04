@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from prxteinmpnn.parity.assets import load_parity_assets, verify_parity_assets
+from aminx.parity.assets import load_parity_assets, verify_parity_assets
 from tests.parity.reference_utils import require_reference_path
 
 

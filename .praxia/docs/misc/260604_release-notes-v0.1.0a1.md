@@ -4,7 +4,7 @@ date: 260604
 tag: v0.1.0a1
 ---
 
-# prxteinmpnn v0.1.0a1 — Alpha Release
+# aminx v0.1.0a1 — Alpha Release
 
 ## What's Included
 
@@ -18,17 +18,17 @@ tag: v0.1.0a1
 
 ```bash
 # Requires PyPI publication of v0.1.0a1 (run after: git push origin v0.1.0a1 + PyPI upload)
-pip install prxteinmpnn==0.1.0a1
+pip install aminx==0.1.0a1
 
 # Or with uv (once published):
-uv tool install prxteinmpnn
+uv tool install aminx
 ```
 
 ## Development Setup
 
 ```bash
-git clone https://github.com/maraxen/PrxteinMPNN
-cd PrxteinMPNN
+git clone https://github.com/maraxen/Aminx
+cd Aminx
 uv sync
 uv run pytest
 ```
@@ -38,7 +38,7 @@ uv run pytest
 - **Alpha quality**: API may change before beta; no stability guarantee between alpha versions
 - **PyPI publish**: pending — package must be uploaded after tagging (`twine upload dist/*` or `uv publish`)
 - **ReadTheDocs**: `fail_on_warning` is currently disabled; Sphinx warnings tracked in `.praxia/docs/misc/260604_sphinx-warning-backlog.md`
-- **Training module**: `prxteinmpnn.training` raises `NotImplementedError` — scheduled for Sprint 3
+- **Training module**: `aminx.training` raises `NotImplementedError` — scheduled for Sprint 3
 
 ## Upgrade Path to Beta
 

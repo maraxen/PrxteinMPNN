@@ -1,4 +1,4 @@
-"""Tests for prxteinmpnn.host.plan pure helpers."""
+"""Tests for aminx.host.plan pure helpers."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from prxteinmpnn.host.plan import (
+from aminx.host.plan import (
     AxisNames,
     compute_sample_keys,
     extract_batch_sizes,

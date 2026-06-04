@@ -1,4 +1,4 @@
-# prxteinmpnn CLAUDE.md
+# aminx CLAUDE.md
 
 ## Commands
 

@@ -1,23 +1,23 @@
-"""Tests for the PrxteinMPNN model."""
+"""Tests for the Aminx model."""
 import chex
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-from prxteinmpnn.inference.logits import make_stage_set
-from prxteinmpnn.inference import (
+from aminx.inference.bundle_builder import build_inference_bundle
+from aminx.inference.logits import make_stage_set
+from aminx.inference import (
     score_conditional,
     score_unconditional,
     sample_autoregressive,
 )
-from prxteinmpnn.model.mpnn import PrxteinMPNN
+from aminx.model.mpnn import Aminx
 
 
 class TestMPNN(chex.TestCase):
     def setUp(self):
         """Set up the model and input data for tests."""
         self.model_key = jax.random.PRNGKey(0)
-        self.model = PrxteinMPNN(
+        self.model = Aminx(
             node_features=128,
             edge_features=128,
             hidden_features=128,

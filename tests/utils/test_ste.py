@@ -4,7 +4,7 @@ import chex
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.utils import ste
+from aminx.utils import ste
 
 
 def test_straight_through_estimator():

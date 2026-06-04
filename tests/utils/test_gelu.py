@@ -4,7 +4,7 @@ import chex
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.utils.gelu import GeLU
+from aminx.utils.gelu import GeLU
 
 
 def test_gelu():

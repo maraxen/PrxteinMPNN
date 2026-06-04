@@ -113,7 +113,7 @@ def generate_dedup_section(dedup_data: dict[str, dict[str, Any]]) -> list[str]:
     lines.append("## DedupGather Heterogeneous Batch\n\n")
     lines.append(
         "K unique structures deduplicated before scoring; N=32 total. "
-        "prxteinmpnn scores only unique structures and scatters results, "
+        "aminx scores only unique structures and scatters results, "
         "while ColabDesign and PyTorch score all N.\n\n"
     )
 
@@ -127,7 +127,7 @@ def generate_dedup_section(dedup_data: dict[str, dict[str, Any]]) -> list[str]:
 
         lines.append(f"### {hw_label(hw)}\n\n")
         lines.append(
-            "| K unique | dedup_ratio | prxteinmpnn (ms) | ColabDesign (ms) "
+            "| K unique | dedup_ratio | aminx (ms) | ColabDesign (ms) "
             "| PyTorch (ms) | Speedup vs CD | Speedup vs PT |\n"
         )
         lines.append("|---|---|---|---|---|---|---|\n")
@@ -136,7 +136,7 @@ def generate_dedup_section(dedup_data: dict[str, dict[str, Any]]) -> list[str]:
             cell = next((c for c in cells if c.get("k") == k), None)
             if not cell:
                 continue
-            prx = cell.get("prxteinmpnn_latency_ms")
+            prx = cell.get("aminx_latency_ms")
             cd = cell.get("colabdesign_latency_ms")
             pt = cell.get("pytorch_latency_ms")
             ratio = cell.get("dedup_ratio")
@@ -157,7 +157,7 @@ def generate_dedup_section(dedup_data: dict[str, dict[str, Any]]) -> list[str]:
     # Cross-hardware summary at K=1 (best case) and K=32 (worst case)
     lines.append("### Cross-Hardware Summary (K=1 and K=32)\n\n")
     lines.append(
-        "| Hardware | K | prxteinmpnn (ms) | PyTorch (ms) | Speedup vs PT |\n"
+        "| Hardware | K | aminx (ms) | PyTorch (ms) | Speedup vs PT |\n"
     )
     lines.append("|---|---|---|---|---|\n")
 
@@ -168,7 +168,7 @@ def generate_dedup_section(dedup_data: dict[str, dict[str, Any]]) -> list[str]:
             cell = next((c for c in cells if c.get("k") == k), None)
             if not cell:
                 continue
-            prx = cell.get("prxteinmpnn_latency_ms")
+            prx = cell.get("aminx_latency_ms")
             pt = cell.get("pytorch_latency_ms")
             prx_s = f"{prx:.2f}" if prx else "—"
             pt_s = f"{pt:.2f}" if pt else "—"
@@ -185,12 +185,12 @@ def generate_mixed_length_section(mixed_data: dict[str, dict[str, Any]]) -> list
     lines.append("## Mixed-Length Heterogeneous Batch\n\n")
     lines.append(
         "Batch of 4 sequences with lengths [76, 150, 300, 500]. "
-        "prxteinmpnn packs into a single padded batch; "
+        "aminx packs into a single padded batch; "
         "ColabDesign and PyTorch run sequentially.\n\n"
     )
 
     lines.append(
-        "| Hardware | batch_lengths | prxteinmpnn (ms) | ColabDesign seq (ms) "
+        "| Hardware | batch_lengths | aminx (ms) | ColabDesign seq (ms) "
         "| PyTorch padded (ms) | PyTorch seq (ms) "
         "| Speedup vs PT padded | Speedup vs PT seq |\n"
     )
@@ -222,7 +222,7 @@ def generate_mixed_length_section(mixed_data: dict[str, dict[str, Any]]) -> list
 
 
 def generate_temperature_section(temp_files: dict[str, Path]) -> list[str]:
-    """Temperature-array sweep: prxteinmpnn per-temp latency across M and hardware."""
+    """Temperature-array sweep: aminx per-temp latency across M and hardware."""
     lines = []
     lines.append("## Temperature Array Sweep\n\n")
     lines.append(
@@ -240,7 +240,7 @@ def generate_temperature_section(temp_files: dict[str, Path]) -> list[str]:
         lines.append(
             "Latency is per-temperature (total / M), seq_len=76, batch=1.\n\n"
         )
-        lines.append("| Hardware | M | prxteinmpnn per-temp (ms) | prxteinmpnn total (ms) |\n")
+        lines.append("| Hardware | M | aminx per-temp (ms) | aminx total (ms) |\n")
         lines.append("|---|---|---|---|\n")
 
         for hw in sorted_hardware(list(temp_files.keys())):
@@ -255,8 +255,8 @@ def generate_temperature_section(temp_files: dict[str, Path]) -> list[str]:
                 cell = next((c for c in hw_cells if c.get("m_value") == m), None)
                 if not cell:
                     continue
-                total = cell.get("prxteinmpnn_latency_median_ms")
-                per_temp = cell.get("prxteinmpnn_latency_per_temp_ms")
+                total = cell.get("aminx_latency_median_ms")
+                per_temp = cell.get("aminx_latency_per_temp_ms")
                 total_s = f"{total:.2f}" if total else "—"
                 per_s = f"{per_temp:.2f}" if per_temp else "—"
                 lines.append(f"| {hw_label(hw)} | {m} | {per_s} | {total_s} |\n")
@@ -284,7 +284,7 @@ def generate_temperature_section(temp_files: dict[str, Path]) -> list[str]:
         row_vals: dict[int, float | None] = {}
         for m in [1, 2, 4, 8]:
             cell = next((c for c in hw_cells if c.get("m_value") == m), None)
-            row_vals[m] = cell.get("prxteinmpnn_latency_per_temp_ms") if cell else None
+            row_vals[m] = cell.get("aminx_latency_per_temp_ms") if cell else None
 
         v1, v2, v4, v8 = row_vals.get(1), row_vals.get(2), row_vals.get(4), row_vals.get(8)
         # Speedup = per-temp M=1 / per-temp M=8; ideal is 8× (perfect linear scaling)
@@ -344,7 +344,7 @@ def main() -> int:
     lines.append("# Sprint 23 Capability Benchmark Report\n\n")
     lines.append(
         "Sprint 23 introduced three new capability benchmarks demonstrating "
-        "prxteinmpnn's architectural advantages over PyTorch and ColabDesign baselines.\n\n"
+        "aminx's architectural advantages over PyTorch and ColabDesign baselines.\n\n"
     )
     lines.append("---\n\n")
 

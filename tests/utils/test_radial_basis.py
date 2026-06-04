@@ -4,7 +4,7 @@ import chex
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.utils.radial_basis import RADIAL_BASES, compute_radial_basis
+from aminx.utils.radial_basis import RADIAL_BASES, compute_radial_basis
 
 
 def test_compute_radial_basis_shape():
@@ -45,7 +45,7 @@ def test_compute_radial_basis_values():
     distance = jnp.sqrt(1e-6)  # From the implementation
 
     # For a distance of ~0, the exponent is -(centers^2 / sigma^2)
-    from prxteinmpnn.utils.radial_basis import RBF_CENTERS, RBF_SIGMA
+    from aminx.utils.radial_basis import RBF_CENTERS, RBF_SIGMA
 
     expected_rbf_values = jnp.exp(-((distance - RBF_CENTERS) ** 2) / RBF_SIGMA**2)
 

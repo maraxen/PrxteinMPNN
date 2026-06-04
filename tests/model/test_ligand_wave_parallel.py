@@ -7,10 +7,10 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
-from prxteinmpnn.sampling.sample import make_sample_sequences
-from prxteinmpnn.types.bundles import WaveScheduleBundle
-from prxteinmpnn.utils.wave_parallel import compute_wave_assignments
+from aminx.model.ligand_mpnn import PrxteinLigandMPNN
+from aminx.sampling.sample import make_sample_sequences
+from aminx.types.bundles import WaveScheduleBundle
+from aminx.utils.wave_parallel import compute_wave_assignments
 
 
 def _tie_map_compact(seq_len: int, pairs: list[tuple[int, int]]) -> np.ndarray:

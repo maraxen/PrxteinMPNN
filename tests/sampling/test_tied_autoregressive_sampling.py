@@ -17,16 +17,16 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.model.mpnn import PrxteinMPNN
-from prxteinmpnn.sampling.sample import make_sample_sequences
-from prxteinmpnn.utils.autoregression import generate_ar_mask
-from prxteinmpnn.utils.decoding_order import random_decoding_order
+from aminx.model.mpnn import Aminx
+from aminx.sampling.sample import make_sample_sequences
+from aminx.utils.autoregression import generate_ar_mask
+from aminx.utils.decoding_order import random_decoding_order
 
 
 @pytest.fixture
 def simple_model(rng_key):
   """Create a small model for testing."""
-  model = PrxteinMPNN(
+  model = Aminx(
     node_features=128,
     edge_features=128,
     hidden_features=128,
@@ -479,7 +479,7 @@ class TestEdgeCases:
 
   def test_single_residue_structure(self, rng_key):
     """Test tied sampling with a single residue."""
-    model = PrxteinMPNN(
+    model = Aminx(
       node_features=128,
       edge_features=128,
       hidden_features=128,
@@ -535,7 +535,7 @@ class TestIntegrationWithRealModel:
     num_groups = jnp.unique(tie_group_map).shape[0]
 
     # Create full-size model
-    model = PrxteinMPNN(
+    model = Aminx(
       node_features=128,
       edge_features=128,
       hidden_features=128,

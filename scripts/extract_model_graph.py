@@ -1,12 +1,12 @@
-"""Extract import relationships from src/prxteinmpnn for Mermaid graph generation."""
+"""Extract import relationships from src/aminx for Mermaid graph generation."""
 import ast
 import json
 from pathlib import Path
 
-ROOT = Path("src/prxteinmpnn")
+ROOT = Path("src/aminx")
 
 def extract_local_imports(path: Path) -> list[str]:
-    """Return list of local prxteinmpnn module names imported by path."""
+    """Return list of local aminx module names imported by path."""
     try:
         tree = ast.parse(path.read_text())
     except SyntaxError:
@@ -14,11 +14,11 @@ def extract_local_imports(path: Path) -> list[str]:
     imports = []
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
-            if node.module and "prxteinmpnn" in (node.module or ""):
+            if node.module and "aminx" in (node.module or ""):
                 imports.append(node.module)
         if isinstance(node, ast.Import):
             for alias in node.names:
-                if "prxteinmpnn" in alias.name:
+                if "aminx" in alias.name:
                     imports.append(alias.name)
     return sorted(set(imports))
 

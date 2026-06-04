@@ -16,16 +16,16 @@ import numpy as np
 import optax
 import pytest
 
-from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-from prxteinmpnn.inference.decode.conditional import ConditionalDecode
-from prxteinmpnn.inference.decode.ste import STEDecode
-from prxteinmpnn.inference.logits import make_stage_set
-from prxteinmpnn.inference.optimize_ste import make_optimize_sequence_fn
-from prxteinmpnn.model import PrxteinMPNN
-from prxteinmpnn.tiling.iterator import VmapIterator
-from prxteinmpnn.types.bundles import InferenceBundle
-from prxteinmpnn.types.configs import InferenceConfig
-from prxteinmpnn.types.stages import StageSet
+from aminx.inference.bundle_builder import build_inference_bundle
+from aminx.inference.decode.conditional import ConditionalDecode
+from aminx.inference.decode.ste import STEDecode
+from aminx.inference.logits import make_stage_set
+from aminx.inference.optimize_ste import make_optimize_sequence_fn
+from aminx.model import Aminx
+from aminx.tiling.iterator import VmapIterator
+from aminx.types.bundles import InferenceBundle
+from aminx.types.configs import InferenceConfig
+from aminx.types.stages import StageSet
 
 
 def _build_synthetic_fixture(
@@ -33,7 +33,7 @@ def _build_synthetic_fixture(
     num_residues: int = 20,
     seed: int = 42,
     tie_group_map: jnp.ndarray | None = None,
-) -> tuple[PrxteinMPNN, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, InferenceBundle, InferenceConfig]:
+) -> tuple[Aminx, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, InferenceBundle, InferenceConfig]:
     """Build deterministic fixture with S=num_states, L=num_residues.
 
     Parameters
@@ -56,7 +56,7 @@ def _build_synthetic_fixture(
     jax_key = jax.random.PRNGKey(seed)
 
     # Build model
-    model = PrxteinMPNN(
+    model = Aminx(
         node_features=64,
         edge_features=64,
         hidden_features=64,

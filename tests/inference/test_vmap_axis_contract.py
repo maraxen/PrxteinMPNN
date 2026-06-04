@@ -13,17 +13,17 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.inference.sample_autoregressive import kernel, SampleResult
-from prxteinmpnn.types.bundles import (
+from aminx.inference.sample_autoregressive import kernel, SampleResult
+from aminx.types.bundles import (
     GeometryBundle,
     ConditioningBundle,
     LigandBundle,
     WaveScheduleBundle,
     InferenceBundle,
 )
-from prxteinmpnn.types.configs import InferenceConfig
-from prxteinmpnn.types.stages import StageSet
-from prxteinmpnn.inference.logits import ArithmeticMeanLogits
+from aminx.types.configs import InferenceConfig
+from aminx.types.stages import StageSet
+from aminx.inference.logits import ArithmeticMeanLogits
 
 
 class MockDecoder(eqx.Module):
@@ -367,7 +367,7 @@ class TestVmapAxisContract:
         This test is deprecated as of Sprint 6 Task 14.
         """
         import inspect
-        from prxteinmpnn.inference import driver
+        from aminx.inference import driver
 
         source = inspect.getsource(driver)
 

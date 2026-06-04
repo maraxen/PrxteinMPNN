@@ -9,8 +9,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from prxteinmpnn.training.specs import TrainingSpecification
-from prxteinmpnn.training.trainer import train
+from aminx.training.specs import TrainingSpecification
+from aminx.training.trainer import train
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

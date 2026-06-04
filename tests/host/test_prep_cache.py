@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 import jax
 import pytest
 
-from prxteinmpnn.host.prep import prep_protein_stream_and_model
-from prxteinmpnn.run.specs import SamplingSpecification
+from aminx.host.prep import prep_protein_stream_and_model
+from aminx.run.specs import SamplingSpecification
 
 
 class TestPrepCacheConfig:
@@ -25,8 +25,8 @@ class TestPrepCacheConfig:
       cache_path=cache_dir,
     )
 
-    with patch("prxteinmpnn.host.prep.create_protein_dataset") as mock_dataset, \
-         patch("prxteinmpnn.host.prep.load_model") as mock_load_model:
+    with patch("aminx.host.prep.create_protein_dataset") as mock_dataset, \
+         patch("aminx.host.prep.load_model") as mock_load_model:
       mock_dataset.return_value = MagicMock()
       mock_load_model.return_value = MagicMock()
 
@@ -50,8 +50,8 @@ class TestPrepCacheConfig:
       cache_path=None,
     )
 
-    with patch("prxteinmpnn.host.prep.create_protein_dataset") as mock_dataset, \
-         patch("prxteinmpnn.host.prep.load_model") as mock_load_model:
+    with patch("aminx.host.prep.create_protein_dataset") as mock_dataset, \
+         patch("aminx.host.prep.load_model") as mock_load_model:
       mock_dataset.return_value = MagicMock()
       mock_load_model.return_value = MagicMock()
 
@@ -78,8 +78,8 @@ class TestPrepCacheConfig:
     # Verify that cache_path was converted to Path in __post_init__
     assert isinstance(spec.cache_path, Path)
 
-    with patch("prxteinmpnn.host.prep.create_protein_dataset") as mock_dataset, \
-         patch("prxteinmpnn.host.prep.load_model") as mock_load_model:
+    with patch("aminx.host.prep.create_protein_dataset") as mock_dataset, \
+         patch("aminx.host.prep.load_model") as mock_load_model:
       mock_dataset.return_value = MagicMock()
       mock_load_model.return_value = MagicMock()
 

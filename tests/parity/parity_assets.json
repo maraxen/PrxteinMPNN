@@ -37,7 +37,7 @@
       "reference_asset_id": "reference-proteinmpnn-002",
       "validation": {
         "strategy": "checkpoint-family-load",
-        "model_class": "PrxteinMPNN",
+        "model_class": "Aminx",
         "node_features": 128,
         "edge_features": 128,
         "hidden_features": 128,
@@ -79,7 +79,7 @@
       "reference_asset_id": "reference-proteinmpnn-010",
       "validation": {
         "strategy": "checkpoint-family-load",
-        "model_class": "PrxteinMPNN",
+        "model_class": "Aminx",
         "node_features": 128,
         "edge_features": 128,
         "hidden_features": 128,
@@ -122,7 +122,7 @@
       "reference_asset_id": "reference-proteinmpnn-020",
       "validation": {
         "strategy": "checkpoint-family-load",
-        "model_class": "PrxteinMPNN",
+        "model_class": "Aminx",
         "node_features": 128,
         "edge_features": 128,
         "hidden_features": 128,
@@ -165,7 +165,7 @@
       "reference_asset_id": "reference-proteinmpnn-030",
       "validation": {
         "strategy": "checkpoint-family-load",
-        "model_class": "PrxteinMPNN",
+        "model_class": "Aminx",
         "node_features": 128,
         "edge_features": 128,
         "hidden_features": 128,
@@ -207,7 +207,7 @@
       "reference_asset_id": "reference-solublempnn-002",
       "validation": {
         "strategy": "checkpoint-family-load",
-        "model_class": "PrxteinMPNN",
+        "model_class": "Aminx",
         "node_features": 128,
         "edge_features": 128,
         "hidden_features": 128,
@@ -249,7 +249,7 @@
       "reference_asset_id": "reference-solublempnn-010",
       "validation": {
         "strategy": "checkpoint-family-load",
-        "model_class": "PrxteinMPNN",
+        "model_class": "Aminx",
         "node_features": 128,
         "edge_features": 128,
         "hidden_features": 128,
@@ -291,7 +291,7 @@
       "reference_asset_id": "reference-solublempnn-020",
       "validation": {
         "strategy": "checkpoint-family-load",
-        "model_class": "PrxteinMPNN",
+        "model_class": "Aminx",
         "node_features": 128,
         "edge_features": 128,
         "hidden_features": 128,
@@ -333,7 +333,7 @@
       "reference_asset_id": "reference-solublempnn-030",
       "validation": {
         "strategy": "checkpoint-family-load",
-        "model_class": "PrxteinMPNN",
+        "model_class": "Aminx",
         "node_features": 128,
         "edge_features": 128,
         "hidden_features": 128,
@@ -375,7 +375,7 @@
       "reference_asset_id": "reference-membrane-global-020",
       "validation": {
         "strategy": "checkpoint-family-load",
-        "model_class": "PrxteinMPNN",
+        "model_class": "Aminx",
         "node_features": 128,
         "edge_features": 128,
         "hidden_features": 128,
@@ -417,7 +417,7 @@
       "reference_asset_id": "reference-membrane-per-residue-020",
       "validation": {
         "strategy": "checkpoint-family-load",
-        "model_class": "PrxteinMPNN",
+        "model_class": "Aminx",
         "node_features": 128,
         "edge_features": 128,
         "hidden_features": 128,

@@ -3,7 +3,7 @@
   "s1_boundaries": [
     "python"
   ],
-  "s4_scan_scope": "/home/marielle/projects/prxteinmpnn",
+  "s4_scan_scope": "/home/marielle/projects/aminx",
   "initial_posture": "investigate",
   "initial_gap_type": "SystemModel",
   "planning_tier": "Tactical",

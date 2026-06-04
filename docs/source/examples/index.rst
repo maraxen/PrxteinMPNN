@@ -1,7 +1,7 @@
 Examples
 ========
 
-This section contains practical examples demonstrating PrxteinMPNN usage.
+This section contains practical examples demonstrating Aminx usage.
 
 .. toctree::
    :maxdepth: 2

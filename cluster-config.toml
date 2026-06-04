@@ -1,9 +1,9 @@
-# Prxteinmpnn Cluster Configuration
+# Aminx Cluster Configuration
 # This file defines cluster-specific settings for the Engaging SLURM cluster.
 # See: ~/.claude/CLUSTER_INFRASTRUCTURE.md § "Project Cluster Configuration (TOML)"
 
 # Remote paths on the cluster
-remote_project_root = "~/projects/prxteinmpnn"
+remote_project_root = "~/projects/aminx"
 results_dir = "results"
 logs_dir = "outputs/logs/slurm"
 

@@ -1,25 +1,25 @@
 
-"""Tests for prxteinmpnn.sampling.sample."""
+"""Tests for aminx.sampling.sample."""
 
 import chex
 import jax
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.model import PrxteinMPNN
-from prxteinmpnn.host.averaging import make_encoding_sampling_split_fn
-from prxteinmpnn.sampling import (
+from aminx.model import Aminx
+from aminx.host.averaging import make_encoding_sampling_split_fn
+from aminx.sampling import (
     make_sample_sequences,
     sample,
 )
-from prxteinmpnn.utils.decoding_order import random_decoding_order
+from aminx.utils.decoding_order import random_decoding_order
 
 
 def test_make_sample_sequences_temperature_jit(
     mock_model_parameters, model_inputs, rng_key,
 ):
     """Test temperature sampling with make_sample_sequences."""
-    model = PrxteinMPNN(
+    model = Aminx(
         node_features=128,
         edge_features=128,
         hidden_features=128,
@@ -50,7 +50,7 @@ def test_make_sample_sequences_temperature_no_jit(
     mock_model_parameters, model_inputs, rng_key,
 ):
     """Test temperature sampling with make_sample_sequences."""
-    model = PrxteinMPNN(
+    model = Aminx(
         node_features=128,
         edge_features=128,
         hidden_features=128,
@@ -79,7 +79,7 @@ def test_make_encoding_sampling_split_fn_jit(
     mock_model_parameters, model_inputs, rng_key,
 ):
     """Test make_encoding_sampling_split_fn."""
-    model = PrxteinMPNN(
+    model = Aminx(
         node_features=128,
         edge_features=128,
         hidden_features=128,
@@ -118,7 +118,7 @@ def test_make_encoding_sampling_split_fn_no_jit(
     mock_model_parameters, model_inputs, rng_key,
 ):
     """Test make_encoding_sampling_split_fn."""
-    model = PrxteinMPNN(
+    model = Aminx(
         node_features=128,
         edge_features=128,
         hidden_features=128,
@@ -155,7 +155,7 @@ def test_make_sample_sequences_invalid_strategy(
     mock_model_parameters, rng_key,
 ):
     """Test make_sample_sequences with an invalid sampling strategy."""
-    model = PrxteinMPNN(
+    model = Aminx(
         node_features=128,
         edge_features=128,
         hidden_features=128,
@@ -172,7 +172,7 @@ def test_make_sample_sequences_straight_through_jit(
     mock_model_parameters, model_inputs, rng_key,
 ):
     """Test straight_through sampling with make_sample_sequences."""
-    model = PrxteinMPNN(
+    model = Aminx(
         node_features=128,
         edge_features=128,
         hidden_features=128,
@@ -205,7 +205,7 @@ def test_make_sample_sequences_straight_through_no_jit(
     mock_model_parameters, model_inputs, rng_key,
 ):
     """Test straight_through sampling with make_sample_sequences."""
-    model = PrxteinMPNN(
+    model = Aminx(
         node_features=128,
         edge_features=128,
         hidden_features=128,
@@ -235,7 +235,7 @@ def test_make_sample_sequences_straight_through_accepts_fixed_controls(
     model_inputs, rng_key,
 ):
     """Straight-through sampling should accept fixed_mask/fixed_tokens and enforce them."""
-    model = PrxteinMPNN(
+    model = Aminx(
         node_features=128,
         edge_features=128,
         hidden_features=128,
@@ -270,7 +270,7 @@ def test_sample_convenience_function_jit(
     mock_model_parameters, model_inputs, rng_key,
 ):
     """Test the `sample` convenience function."""
-    model = PrxteinMPNN(
+    model = Aminx(
         node_features=128,
         edge_features=128,
         hidden_features=128,
@@ -300,7 +300,7 @@ def test_sample_convenience_function_no_jit(
     mock_model_parameters, model_inputs, rng_key,
 ):
     """Test the `sample` convenience function."""
-    model = PrxteinMPNN(
+    model = Aminx(
         node_features=128,
         edge_features=128,
         hidden_features=128,
@@ -330,7 +330,7 @@ def test_precomputed_features_equivalence(
     mock_model_parameters, model_inputs, rng_key,
 ):
     """Test that precomputed features produce identical results to non-precomputed path."""
-    model = PrxteinMPNN(
+    model = Aminx(
         node_features=128,
         edge_features=128,
         hidden_features=128,
@@ -398,7 +398,7 @@ def test_precomputed_features_incomplete_raises_error(
     mock_model_parameters, model_inputs, rng_key,
 ):
     """Test that passing only some precomputed features raises an error."""
-    model = PrxteinMPNN(
+    model = Aminx(
         node_features=128,
         edge_features=128,
         hidden_features=128,

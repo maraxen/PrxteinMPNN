@@ -17,18 +17,18 @@ import jax.numpy as jnp
 import pytest
 from jax import random
 
-from prxteinmpnn.host.sampling_driver import SamplingDriver
-from prxteinmpnn.host.averaging import (
+from aminx.host.sampling_driver import SamplingDriver
+from aminx.host.averaging import (
     get_averaged_encodings,
     make_encoding_sampling_split_fn,
 )
-from prxteinmpnn.host.prep import (
+from aminx.host.prep import (
     _loader_inputs,
     _artifact_path_for_registry_entry,
     _resolve_local_checkpoint_from_registry,
 )
-from prxteinmpnn.run.specs import SamplingSpecification
-from prxteinmpnn.utils.data_structures import Protein
+from aminx.run.specs import SamplingSpecification
+from aminx.utils.data_structures import Protein
 
 
 # ============================================================================

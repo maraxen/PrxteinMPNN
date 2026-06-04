@@ -53,7 +53,7 @@ def test_regression_encoder_sink_fires_per_noise_level():
         def __call__(self, enc, batch_idx, structure_idx, noise_idx) -> None:
             calls.append(int(noise_idx))
 
-    from prxteinmpnn.types.stages import StageSet
+    from aminx.types.stages import StageSet
 
     # Verify the tuple iteration pattern works correctly
     stage_set = StageSet(encoder_sink=(TrackingSink(),))
@@ -72,7 +72,7 @@ def test_regression_encoder_sink_fires_per_noise_level():
 
 def test_regression_scan_strategy_carry_accumulates():
     """safe_scan carry accumulates correctly across noise steps."""
-    from prxteinmpnn.utils.safe_scan import safe_scan
+    from aminx.utils.safe_scan import safe_scan
 
     running_total = jnp.zeros(8)
 
@@ -94,11 +94,11 @@ def test_regression_scan_strategy_carry_accumulates():
 
 def test_regression_validator_fires_before_jit():
     """PlanTopologyError is raised at plan construction time, not at trace time."""
-    from prxteinmpnn.host.plan import PlanTopologyError, _validate_plan_topology
-    from prxteinmpnn.tiling.axes import N_NOISES
-    from prxteinmpnn.tiling.planner import AxisDecision, BatchPlan
-    from prxteinmpnn.tiling.strategy import Vmap
-    from prxteinmpnn.types.stages import StageSet
+    from aminx.host.plan import PlanTopologyError, _validate_plan_topology
+    from aminx.tiling.axes import N_NOISES
+    from aminx.tiling.planner import AxisDecision, BatchPlan
+    from aminx.tiling.strategy import Vmap
+    from aminx.types.stages import StageSet
 
     class OrderedSink:
         ordered = True
@@ -118,7 +118,7 @@ def test_regression_validator_fires_before_jit():
     )
 
     # Create stage_set with ordered sink on axis_boundaries
-    from prxteinmpnn.types.boundaries import AxisBoundary
+    from aminx.types.boundaries import AxisBoundary
 
     stage_set = StageSet(
         axis_boundaries={
@@ -136,7 +136,7 @@ def test_regression_validator_fires_before_jit():
 
 def test_regression_inference_plan_encode_exists():
     """InferencePlan.encode() method exists and is callable."""
-    from prxteinmpnn.host.plan import InferencePlan, InferenceComponents
+    from aminx.host.plan import InferencePlan, InferenceComponents
 
     # Create minimal components
     dummy_encode_fn = lambda bundle, key, config: None
@@ -156,7 +156,7 @@ def test_regression_inference_plan_encode_exists():
 
 def test_regression_inference_plan_decode_exists():
     """InferencePlan.decode() method exists and is callable."""
-    from prxteinmpnn.host.plan import InferencePlan, InferenceComponents
+    from aminx.host.plan import InferencePlan, InferenceComponents
 
     # Create minimal components
     dummy_encode_fn = lambda bundle, key, config: None
@@ -179,8 +179,8 @@ def test_regression_inference_plan_decode_exists():
 
 def test_regression_arithmetic_mean_encoding_fusion_exists():
     """ArithmeticMeanEncodingFusion is importable and callable."""
-    from prxteinmpnn.host.averaging import ArithmeticMeanEncodingFusion
-    from prxteinmpnn.types.bundles import EncoderOutput
+    from aminx.host.averaging import ArithmeticMeanEncodingFusion
+    from aminx.types.bundles import EncoderOutput
 
     # Create a minimal fusion instance
     fusion = ArithmeticMeanEncodingFusion()
@@ -207,8 +207,8 @@ def test_regression_arithmetic_mean_encoding_fusion_exists():
 
 def test_regression_identity_encoding_fusion_exists():
     """IdentityEncodingFusion is importable and passes through all D outputs."""
-    from prxteinmpnn.host.averaging import IdentityEncodingFusion
-    from prxteinmpnn.types.bundles import EncoderOutput
+    from aminx.host.averaging import IdentityEncodingFusion
+    from aminx.types.bundles import EncoderOutput
 
     # Create a minimal fusion instance
     fusion = IdentityEncodingFusion()
@@ -235,7 +235,7 @@ def test_regression_identity_encoding_fusion_exists():
 
 def test_regression_make_stage_set_exists():
     """make_stage_set is importable and callable."""
-    from prxteinmpnn.inference.logits import make_stage_set
+    from aminx.inference.logits import make_stage_set
 
     assert callable(make_stage_set), "make_stage_set must be callable"
 
@@ -245,7 +245,7 @@ def test_regression_make_stage_set_exists():
 
 def test_regression_sample_result_exists():
     """SampleResult is importable and has sequence and logits fields."""
-    from prxteinmpnn.inference.sample_autoregressive import SampleResult
+    from aminx.inference.sample_autoregressive import SampleResult
 
     # Create a minimal result
     seq = jnp.array([1, 2, 3, 4, 5], dtype=jnp.int8)

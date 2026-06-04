@@ -20,11 +20,11 @@ import numpy as np
 from scipy.spatial.distance import jensenshannon
 from scipy.stats import ks_2samp, wasserstein_distance
 
-from prxteinmpnn.io.parsing import parse_input
-from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
-from prxteinmpnn.model.mpnn import PrxteinMPNN
-from prxteinmpnn.model.packer import Packer as JAXPacker
-from prxteinmpnn.parity.evidence import (
+from aminx.io.parsing import parse_input
+from aminx.model.ligand_mpnn import PrxteinLigandMPNN
+from aminx.model.mpnn import Aminx
+from aminx.model.packer import Packer as JAXPacker
+from aminx.parity.evidence import (
   amino_acid_distribution,
   EvidenceMetricRecord,
   EvidencePointRecord,
@@ -43,15 +43,15 @@ from prxteinmpnn.parity.evidence import (
   write_metric_records_json,
   write_point_records_csv,
 )
-from prxteinmpnn.parity.matrix import load_parity_matrix
-from prxteinmpnn.run.averaging import get_averaged_encodings
-from prxteinmpnn.run.sampling import sample as run_sample
-from prxteinmpnn.run.scoring import score as run_score
-from prxteinmpnn.run.specs import SamplingSpecification, ScoringSpecification
-from prxteinmpnn.sampling.conditional_logits import make_conditional_logits_fn
-from prxteinmpnn.sampling.unconditional_logits import make_unconditional_logits_fn
-from prxteinmpnn.utils.aa_convert import protein_sequence_to_string
-from prxteinmpnn.utils.data_structures import Protein
+from aminx.parity.matrix import load_parity_matrix
+from aminx.run.averaging import get_averaged_encodings
+from aminx.run.sampling import sample as run_sample
+from aminx.run.scoring import score as run_score
+from aminx.run.specs import SamplingSpecification, ScoringSpecification
+from aminx.sampling.conditional_logits import make_conditional_logits_fn
+from aminx.sampling.unconditional_logits import make_unconditional_logits_fn
+from aminx.utils.aa_convert import protein_sequence_to_string
+from aminx.utils.data_structures import Protein
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,7 +75,7 @@ class CoreModels:
   torch: Any
   model_utils: Any
   pt_model: Any
-  jax_model: PrxteinMPNN
+  jax_model: Aminx
   checkpoint_id: str
 
 
@@ -468,7 +468,7 @@ def _load_core_models(reference_root: Path, project_root: Path) -> CoreModels:
   import torch
 
   ref_checkpoint_path = reference_root / "model_params/proteinmpnn_v_48_020.pt"
-  converted_checkpoint_path = project_root / "src/prxteinmpnn/model_params/proteinmpnn_v_48_020.eqx.zst"
+  converted_checkpoint_path = project_root / "src/aminx/model_params/proteinmpnn_v_48_020.eqx.zst"
   checkpoint = torch.load(ref_checkpoint_path, map_location="cpu")
   pos_weight = checkpoint["model_state_dict"].get("features.embeddings.linear.weight")
   if pos_weight is None:
@@ -487,7 +487,7 @@ def _load_core_models(reference_root: Path, project_root: Path) -> CoreModels:
   pt_model.load_state_dict(checkpoint["model_state_dict"])
   pt_model.eval()
 
-  jax_model = PrxteinMPNN(
+  jax_model = Aminx(
     node_features=128,
     edge_features=128,
     hidden_features=128,
@@ -2046,7 +2046,7 @@ def _collect_fast_logit_helper_metrics(
   metric_rows: list[EvidenceMetricRecord] = []
   point_rows: list[EvidencePointRecord] = []
   model = eqx.nn.inference_mode(core_models.jax_model, value=True)
-  unconditional_helper = make_unconditional_logits_fn(cast(PrxteinMPNN, model))
+  unconditional_helper = make_unconditional_logits_fn(cast(Aminx, model))
   conditional_helper = make_conditional_logits_fn(model)
 
   coordinates = jnp.asarray(case.atom37_coordinates)
@@ -2241,7 +2241,7 @@ def _collect_end_to_end_api_metrics(
     batch_size=1,
   )
   with patch(
-    "prxteinmpnn.run.sampling.prep_protein_stream_and_model",
+    "aminx.run.sampling.prep_protein_stream_and_model",
     return_value=([mock_protein], model),
   ):
     sample_first = run_sample(sample_spec)
@@ -2313,7 +2313,7 @@ def _collect_end_to_end_api_metrics(
     batch_size=1,
   )
   with patch(
-    "prxteinmpnn.run.scoring.prep_protein_stream_and_model",
+    "aminx.run.scoring.prep_protein_stream_and_model",
     return_value=([mock_protein], model),
   ):
     score_first = run_score(score_spec)

@@ -27,7 +27,7 @@ import jax.numpy as jnp
 from jax import random
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from bench_prxteinmpnn_jax import create_inference_plan, load_model  # noqa: E402
+from bench_aminx_jax import create_inference_plan, load_model  # noqa: E402
 from micro_latency_score import _build_bundle  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")

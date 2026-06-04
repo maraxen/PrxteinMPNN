@@ -95,7 +95,7 @@ def inspect_shards(data_dir: Path, expected_shards: int):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dir", type=Path, default=Path("src/prxteinmpnn/training/data"))
+    parser.add_argument("--dir", type=Path, default=Path("src/aminx/training/data"))
     parser.add_argument("--shards", type=int, default=64, help="Total number of workers/shards used originally")
     args = parser.parse_args()
     

@@ -3,7 +3,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 ## Hardware: A100
 ### Precision: bf16 | Ligand: False
 #### Latency (ms)
-| seq_len | batch | colabdesign_jax | prxteinmpnn_jax | speedup vs PT |
+| seq_len | batch | colabdesign_jax | aminx_jax | speedup vs PT |
 |---------|-------|-----------------|-----------------|---------------|
 | 76 | 1 | 53.9 | 29.9 | — |
 | 76 | 4 | 212.7 | — | — |
@@ -15,10 +15,10 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 496 | 16 | 6120.4 | — | — |
 | 500 | 1 | — | 30.7 | — |
 
-*latency = median of warm calls; speedup = ligandmpnn_pytorch / prxteinmpnn_jax (higher is faster)*
+*latency = median of warm calls; speedup = ligandmpnn_pytorch / aminx_jax (higher is faster)*
 
 #### Compile Time Cold (s)
-| seq_len | batch | colabdesign_jax | prxteinmpnn_jax |
+| seq_len | batch | colabdesign_jax | aminx_jax |
 |---------|-------|-----------------|-----------------|
 | 76 | 1 | 1.99 | 0.83 |
 | 76 | 4 | 2.11 | — |
@@ -31,7 +31,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 500 | 1 | — | 0.81 |
 
 #### Throughput (seq/s)
-| seq_len | batch | colabdesign_jax | prxteinmpnn_jax |
+| seq_len | batch | colabdesign_jax | aminx_jax |
 |---------|-------|-----------------|-----------------|
 | 76 | 1 | 18.5 | 33.5 |
 | 76 | 4 | 18.8 | — |
@@ -44,7 +44,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 500 | 1 | — | 32.5 |
 
 #### Peak GPU Memory (GB)
-| seq_len | batch | colabdesign_jax | prxteinmpnn_jax |
+| seq_len | batch | colabdesign_jax | aminx_jax |
 |---------|-------|-----------------|-----------------|
 | 76 | 1 | 0.00 | 0.00 |
 | 76 | 4 | 0.00 | — |
@@ -58,7 +58,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 
 ### Precision: fp32 | Ligand: False
 #### Latency (ms)
-| seq_len | batch | ligandmpnn_pytorch | prxteinmpnn_jax | speedup vs PT |
+| seq_len | batch | ligandmpnn_pytorch | aminx_jax | speedup vs PT |
 |---------|-------|--------------------|-----------------|---------------|
 | 76 | 1 | 253.5 | 29.5 | 8.58× |
 | 76 | 4 | 398.0 | — | — |
@@ -73,10 +73,10 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 500 | 4 | 2782.8 | — | — |
 | 500 | 16 | 7007.1 | — | — |
 
-*latency = median of warm calls; speedup = ligandmpnn_pytorch / prxteinmpnn_jax (higher is faster)*
+*latency = median of warm calls; speedup = ligandmpnn_pytorch / aminx_jax (higher is faster)*
 
 #### Compile Time Cold (s)
-| seq_len | batch | ligandmpnn_pytorch | prxteinmpnn_jax |
+| seq_len | batch | ligandmpnn_pytorch | aminx_jax |
 |---------|-------|--------------------|-----------------|
 | 76 | 1 | 0.80 | 0.80 |
 | 76 | 4 | 0.30 | — |
@@ -92,7 +92,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 500 | 16 | 2.73 | — |
 
 #### Throughput (seq/s)
-| seq_len | batch | ligandmpnn_pytorch | prxteinmpnn_jax |
+| seq_len | batch | ligandmpnn_pytorch | aminx_jax |
 |---------|-------|--------------------|-----------------|
 | 76 | 1 | 3.9 | 33.8 |
 | 76 | 4 | 10.1 | — |
@@ -108,7 +108,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 500 | 16 | 2.3 | — |
 
 #### Peak GPU Memory (GB)
-| seq_len | batch | ligandmpnn_pytorch | prxteinmpnn_jax |
+| seq_len | batch | ligandmpnn_pytorch | aminx_jax |
 |---------|-------|--------------------|-----------------|
 | 76 | 1 | 0.00 | 0.00 |
 | 76 | 4 | 0.00 | — |
@@ -126,7 +126,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 ## Hardware: Blackwell_SM120
 ### Precision: bf16 | Ligand: False
 #### Latency (ms)
-| seq_len | batch | colabdesign_jax | prxteinmpnn_jax | speedup vs PT |
+| seq_len | batch | colabdesign_jax | aminx_jax | speedup vs PT |
 |---------|-------|-----------------|-----------------|---------------|
 | 76 | 1 | 30.8 | 14.3 | — |
 | 76 | 4 | 128.0 | — | — |
@@ -138,10 +138,10 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 496 | 16 | 3312.2 | — | — |
 | 500 | 1 | — | 15.3 | — |
 
-*latency = median of warm calls; speedup = ligandmpnn_pytorch / prxteinmpnn_jax (higher is faster)*
+*latency = median of warm calls; speedup = ligandmpnn_pytorch / aminx_jax (higher is faster)*
 
 #### Compile Time Cold (s)
-| seq_len | batch | colabdesign_jax | prxteinmpnn_jax |
+| seq_len | batch | colabdesign_jax | aminx_jax |
 |---------|-------|-----------------|-----------------|
 | 76 | 1 | 1.23 | 0.59 |
 | 76 | 4 | 1.27 | — |
@@ -154,7 +154,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 500 | 1 | — | 0.61 |
 
 #### Throughput (seq/s)
-| seq_len | batch | colabdesign_jax | prxteinmpnn_jax |
+| seq_len | batch | colabdesign_jax | aminx_jax |
 |---------|-------|-----------------|-----------------|
 | 76 | 1 | 32.4 | 70.0 |
 | 76 | 4 | 31.3 | — |
@@ -167,7 +167,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 500 | 1 | — | 65.5 |
 
 #### Peak GPU Memory (GB)
-| seq_len | batch | colabdesign_jax | prxteinmpnn_jax |
+| seq_len | batch | colabdesign_jax | aminx_jax |
 |---------|-------|-----------------|-----------------|
 | 76 | 1 | 0.00 | 0.00 |
 | 76 | 4 | 0.00 | — |
@@ -181,7 +181,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 
 ### Precision: fp32 | Ligand: False
 #### Latency (ms)
-| seq_len | batch | ligandmpnn_pytorch | prxteinmpnn_jax | speedup vs PT |
+| seq_len | batch | ligandmpnn_pytorch | aminx_jax | speedup vs PT |
 |---------|-------|--------------------|-----------------|---------------|
 | 76 | 1 | 128.7 | 14.1 | 9.11× |
 | 76 | 4 | 217.9 | — | — |
@@ -196,10 +196,10 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 500 | 4 | 1482.5 | — | — |
 | 500 | 16 | 4006.0 | — | — |
 
-*latency = median of warm calls; speedup = ligandmpnn_pytorch / prxteinmpnn_jax (higher is faster)*
+*latency = median of warm calls; speedup = ligandmpnn_pytorch / aminx_jax (higher is faster)*
 
 #### Compile Time Cold (s)
-| seq_len | batch | ligandmpnn_pytorch | prxteinmpnn_jax |
+| seq_len | batch | ligandmpnn_pytorch | aminx_jax |
 |---------|-------|--------------------|-----------------|
 | 76 | 1 | 0.90 | 0.59 |
 | 76 | 4 | 0.38 | — |
@@ -215,7 +215,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 500 | 16 | 1.41 | — |
 
 #### Throughput (seq/s)
-| seq_len | batch | ligandmpnn_pytorch | prxteinmpnn_jax |
+| seq_len | batch | ligandmpnn_pytorch | aminx_jax |
 |---------|-------|--------------------|-----------------|
 | 76 | 1 | 7.8 | 70.8 |
 | 76 | 4 | 18.4 | — |
@@ -231,7 +231,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 500 | 16 | 4.0 | — |
 
 #### Peak GPU Memory (GB)
-| seq_len | batch | ligandmpnn_pytorch | prxteinmpnn_jax |
+| seq_len | batch | ligandmpnn_pytorch | aminx_jax |
 |---------|-------|--------------------|-----------------|
 | 76 | 1 | 0.00 | 0.00 |
 | 76 | 4 | 0.00 | — |
@@ -249,7 +249,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 ## Hardware: H200
 ### Precision: bf16 | Ligand: False
 #### Latency (ms)
-| seq_len | batch | colabdesign_jax | prxteinmpnn_jax | speedup vs PT |
+| seq_len | batch | colabdesign_jax | aminx_jax | speedup vs PT |
 |---------|-------|-----------------|-----------------|---------------|
 | 76 | 1 | 38.4 | 18.4 | — |
 | 76 | 4 | 152.9 | — | — |
@@ -261,10 +261,10 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 496 | 16 | 4226.8 | — | — |
 | 500 | 1 | — | 19.3 | — |
 
-*latency = median of warm calls; speedup = ligandmpnn_pytorch / prxteinmpnn_jax (higher is faster)*
+*latency = median of warm calls; speedup = ligandmpnn_pytorch / aminx_jax (higher is faster)*
 
 #### Compile Time Cold (s)
-| seq_len | batch | colabdesign_jax | prxteinmpnn_jax |
+| seq_len | batch | colabdesign_jax | aminx_jax |
 |---------|-------|-----------------|-----------------|
 | 76 | 1 | 1.21 | 0.58 |
 | 76 | 4 | 1.34 | — |
@@ -277,7 +277,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 500 | 1 | — | 0.56 |
 
 #### Throughput (seq/s)
-| seq_len | batch | colabdesign_jax | prxteinmpnn_jax |
+| seq_len | batch | colabdesign_jax | aminx_jax |
 |---------|-------|-----------------|-----------------|
 | 76 | 1 | 26.0 | 54.4 |
 | 76 | 4 | 26.2 | — |
@@ -290,7 +290,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 500 | 1 | — | 51.8 |
 
 #### Peak GPU Memory (GB)
-| seq_len | batch | colabdesign_jax | prxteinmpnn_jax |
+| seq_len | batch | colabdesign_jax | aminx_jax |
 |---------|-------|-----------------|-----------------|
 | 76 | 1 | 0.00 | 0.00 |
 | 76 | 4 | 0.00 | — |
@@ -304,7 +304,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 
 ### Precision: fp32 | Ligand: False
 #### Latency (ms)
-| seq_len | batch | ligandmpnn_pytorch | prxteinmpnn_jax | speedup vs PT |
+| seq_len | batch | ligandmpnn_pytorch | aminx_jax | speedup vs PT |
 |---------|-------|--------------------|-----------------|---------------|
 | 76 | 1 | 148.5 | 18.4 | 8.06× |
 | 76 | 4 | 229.5 | — | — |
@@ -319,10 +319,10 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 500 | 4 | 1696.2 | — | — |
 | 500 | 16 | 3968.7 | — | — |
 
-*latency = median of warm calls; speedup = ligandmpnn_pytorch / prxteinmpnn_jax (higher is faster)*
+*latency = median of warm calls; speedup = ligandmpnn_pytorch / aminx_jax (higher is faster)*
 
 #### Compile Time Cold (s)
-| seq_len | batch | ligandmpnn_pytorch | prxteinmpnn_jax |
+| seq_len | batch | ligandmpnn_pytorch | aminx_jax |
 |---------|-------|--------------------|-----------------|
 | 76 | 1 | 0.80 | 0.56 |
 | 76 | 4 | 0.15 | — |
@@ -338,7 +338,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 500 | 16 | 1.27 | — |
 
 #### Throughput (seq/s)
-| seq_len | batch | ligandmpnn_pytorch | prxteinmpnn_jax |
+| seq_len | batch | ligandmpnn_pytorch | aminx_jax |
 |---------|-------|--------------------|-----------------|
 | 76 | 1 | 6.7 | 54.3 |
 | 76 | 4 | 17.4 | — |
@@ -354,7 +354,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 500 | 16 | 4.0 | — |
 
 #### Peak GPU Memory (GB)
-| seq_len | batch | ligandmpnn_pytorch | prxteinmpnn_jax |
+| seq_len | batch | ligandmpnn_pytorch | aminx_jax |
 |---------|-------|--------------------|-----------------|
 | 76 | 1 | 0.00 | 0.00 |
 | 76 | 4 | 0.00 | — |
@@ -372,7 +372,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 ## Hardware: L40s
 ### Precision: bf16 | Ligand: False
 #### Latency (ms)
-| seq_len | batch | colabdesign_jax | prxteinmpnn_jax | speedup vs PT |
+| seq_len | batch | colabdesign_jax | aminx_jax | speedup vs PT |
 |---------|-------|-----------------|-----------------|---------------|
 | 76 | 1 | 44.1 | 19.1 | — |
 | 76 | 4 | 176.4 | — | — |
@@ -384,10 +384,10 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 496 | 16 | 4694.1 | — | — |
 | 500 | 1 | — | 20.0 | — |
 
-*latency = median of warm calls; speedup = ligandmpnn_pytorch / prxteinmpnn_jax (higher is faster)*
+*latency = median of warm calls; speedup = ligandmpnn_pytorch / aminx_jax (higher is faster)*
 
 #### Compile Time Cold (s)
-| seq_len | batch | colabdesign_jax | prxteinmpnn_jax |
+| seq_len | batch | colabdesign_jax | aminx_jax |
 |---------|-------|-----------------|-----------------|
 | 76 | 1 | 1.30 | 0.61 |
 | 76 | 4 | 1.44 | — |
@@ -400,7 +400,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 500 | 1 | — | 0.60 |
 
 #### Throughput (seq/s)
-| seq_len | batch | colabdesign_jax | prxteinmpnn_jax |
+| seq_len | batch | colabdesign_jax | aminx_jax |
 |---------|-------|-----------------|-----------------|
 | 76 | 1 | 22.7 | 52.5 |
 | 76 | 4 | 22.7 | — |
@@ -413,7 +413,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 500 | 1 | — | 49.9 |
 
 #### Peak GPU Memory (GB)
-| seq_len | batch | colabdesign_jax | prxteinmpnn_jax |
+| seq_len | batch | colabdesign_jax | aminx_jax |
 |---------|-------|-----------------|-----------------|
 | 76 | 1 | 0.00 | 0.00 |
 | 76 | 4 | 0.00 | — |
@@ -427,7 +427,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 
 ### Precision: fp32 | Ligand: False
 #### Latency (ms)
-| seq_len | batch | ligandmpnn_pytorch | prxteinmpnn_jax | speedup vs PT |
+| seq_len | batch | ligandmpnn_pytorch | aminx_jax | speedup vs PT |
 |---------|-------|--------------------|-----------------|---------------|
 | 76 | 1 | 141.4 | 18.8 | 7.50× |
 | 76 | 4 | 219.1 | — | — |
@@ -442,10 +442,10 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 500 | 4 | 1630.7 | — | — |
 | 500 | 16 | 3596.7 | — | — |
 
-*latency = median of warm calls; speedup = ligandmpnn_pytorch / prxteinmpnn_jax (higher is faster)*
+*latency = median of warm calls; speedup = ligandmpnn_pytorch / aminx_jax (higher is faster)*
 
 #### Compile Time Cold (s)
-| seq_len | batch | ligandmpnn_pytorch | prxteinmpnn_jax |
+| seq_len | batch | ligandmpnn_pytorch | aminx_jax |
 |---------|-------|--------------------|-----------------|
 | 76 | 1 | 0.23 | 0.59 |
 | 76 | 4 | 0.23 | — |
@@ -461,7 +461,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 500 | 16 | 1.27 | — |
 
 #### Throughput (seq/s)
-| seq_len | batch | ligandmpnn_pytorch | prxteinmpnn_jax |
+| seq_len | batch | ligandmpnn_pytorch | aminx_jax |
 |---------|-------|--------------------|-----------------|
 | 76 | 1 | 7.1 | 53.1 |
 | 76 | 4 | 18.3 | — |
@@ -477,7 +477,7 @@ Generated: 2026-06-04T15:28:56.425429+00:00
 | 500 | 16 | 4.4 | — |
 
 #### Peak GPU Memory (GB)
-| seq_len | batch | ligandmpnn_pytorch | prxteinmpnn_jax |
+| seq_len | batch | ligandmpnn_pytorch | aminx_jax |
 |---------|-------|--------------------|-----------------|
 | 76 | 1 | 0.00 | 0.00 |
 | 76 | 4 | 0.00 | — |

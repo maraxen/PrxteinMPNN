@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Benchmark suite dispatcher for prxteinmpnn, LigandMPNN, and ColabDesign.
+"""Benchmark suite dispatcher for aminx, LigandMPNN, and ColabDesign.
 
 This script coordinates three independent GPU benchmark adapters, each running
 in a fresh subprocess to ensure GPU memory isolation between frameworks.
@@ -18,7 +18,7 @@ Usage:
         --reference-path /path/to/LigandMPNN \\
         --dry-run
 
-Optional skip flags: --skip-pytorch, --skip-colabdesign, --skip-prxteinmpnn
+Optional skip flags: --skip-pytorch, --skip-colabdesign, --skip-aminx
 Capability skip flags: --skip-temperature, --skip-dedup, --skip-mixed-length
   (only active if scripts are present on disk)
 --smoke: pass through and set seq-lens to 76, batch-sizes to 1, tasks to both
@@ -65,15 +65,15 @@ def setup_logging() -> None:
 _BENCH_DIR = Path(__file__).parent
 
 
-def build_prxteinmpnn_argv(
+def build_aminx_argv(
     args: argparse.Namespace,
     output_json: Path,
     task: str,
 ) -> list[str]:
-    """Build argv for bench_prxteinmpnn_jax.py."""
+    """Build argv for bench_aminx_jax.py."""
     argv = [
         sys.executable,
-        str(_BENCH_DIR / "bench_prxteinmpnn_jax.py"),
+        str(_BENCH_DIR / "bench_aminx_jax.py"),
         "--task",
         task,
         "--hardware",
@@ -200,7 +200,7 @@ def build_temperature_array_argv(
     """Build argv for bench_temperature_array.py.
 
     Temperature array benchmark measures latency for M-temperature JIT-native
-    sweep (prxteinmpnn) vs sequential baselines (ColabDesign, PyTorch).
+    sweep (aminx) vs sequential baselines (ColabDesign, PyTorch).
     """
     argv = [
         sys.executable,
@@ -300,7 +300,7 @@ def main() -> int:
     setup_logging()
 
     parser = argparse.ArgumentParser(
-        description="Benchmark suite dispatcher for prxteinmpnn, LigandMPNN, and ColabDesign.",
+        description="Benchmark suite dispatcher for aminx, LigandMPNN, and ColabDesign.",
     )
 
     # Hardware and output
@@ -366,7 +366,7 @@ def main() -> int:
         type=Path,
         default=None,
         help="Directory containing PDB fixture files (1ubq.pdb, 1SMD.pdb). "
-             "Defaults to tests/data relative to the prxteinmpnn package root.",
+             "Defaults to tests/data relative to the aminx package root.",
     )
     parser.add_argument(
         "--fixture-dir",
@@ -400,7 +400,7 @@ def main() -> int:
         "--ligand",
         action="store_true",
         default=False,
-        help="Enable ligand conditioning (passes --ligand to prxteinmpnn_jax, "
+        help="Enable ligand conditioning (passes --ligand to aminx_jax, "
              "--ligand-conditioning to ligandmpnn_pytorch). Requires 1BC8.cif fixture.",
     )
 
@@ -425,9 +425,9 @@ def main() -> int:
         help="Skip ColabDesign adapter",
     )
     parser.add_argument(
-        "--skip-prxteinmpnn",
+        "--skip-aminx",
         action="store_true",
-        help="Skip prxteinmpnn adapter",
+        help="Skip aminx adapter",
     )
 
     # Capability skip flags
@@ -491,13 +491,13 @@ def main() -> int:
         logger.info("=" * 70)
         logger.info(f"Task: {task}")
 
-        # === PRXTEINMPNN ===
-        if not args.skip_prxteinmpnn:
-            logger.info(f"Dispatching prxteinmpnn_jax adapter (task={task})...")
-            output_json = args.output_dir / f"{args.hardware}_prxteinmpnn_jax_{task}_bench.json"
-            argv = build_prxteinmpnn_argv(args, output_json, task)
+        # === AMINX ===
+        if not args.skip_aminx:
+            logger.info(f"Dispatching aminx_jax adapter (task={task})...")
+            output_json = args.output_dir / f"{args.hardware}_aminx_jax_{task}_bench.json"
+            argv = build_aminx_argv(args, output_json, task)
 
-            key = f"prxteinmpnn_jax_{task}"
+            key = f"aminx_jax_{task}"
             status, _ = run_adapter(key, argv, dry_run=args.dry_run, timeout=args.subprocess_timeout)
             adapter_status[key] = status
 
@@ -506,7 +506,7 @@ def main() -> int:
                 if results and "results" in results:
                     combined_results.extend(results["results"])
                     logger.info(
-                        f"Loaded {len(results['results'])} cells from prxteinmpnn_jax/{task}"
+                        f"Loaded {len(results['results'])} cells from aminx_jax/{task}"
                     )
 
         # === LIGANDMPNN (PYTORCH) ===

@@ -12,7 +12,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.tiling.iterator import (
+from aminx.tiling.iterator import (
     MapIterator,
     ScanIterator,
     VmapIterator,

@@ -1,4 +1,4 @@
-"""Sphinx configuration file for PrxteinMPNN documentation."""  # noqa: INP001
+"""Sphinx configuration file for Aminx documentation."""  # noqa: INP001
 
 import sys
 from collections.abc import Callable
@@ -24,9 +24,9 @@ def _do_not_evaluate_in_jax(
 ForwardRef._evaluate = _do_not_evaluate_in_jax  # type: ignore[attr-access]  # noqa: SLF001
 
 # Project information
-project = "PrxteinMPNN"
-copyright = "2025, PrxteinMPNN Team"  # noqa: A001
-author = "PrxteinMPNN Team"
+project = "Aminx"
+copyright = "2025, Aminx Team"  # noqa: A001
+author = "Aminx Team"
 release = "0.1.0"
 
 # Extensions
@@ -62,7 +62,7 @@ autodoc_type_aliases = {
 html_theme = "sphinx_book_theme"
 html_theme_options = {
   "show_toc_level": 2,
-  "repository_url": "https://github.com/maraxen/prxteinmpnn",
+  "repository_url": "https://github.com/maraxen/aminx",
   "use_repository_button": True,
   "navigation_with_keys": False,
 }

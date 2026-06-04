@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from prxteinmpnn.run.specs import RunSpecification
+from aminx.run.specs import RunSpecification
 
 
 class SimpleConformationalState:

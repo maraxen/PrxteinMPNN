@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 import pytest
-from prxteinmpnn.model.mpnn import PrxteinMPNN
+from aminx.model.mpnn import Aminx
 
 @pytest.mark.xfail(
     reason="training path uses legacy model.__call__ — tracked as tech debt, Sprint 3",
@@ -13,7 +13,7 @@ def test_verify_dropout():
     
     # Initialize model
     key = jax.random.PRNGKey(0)
-    training_model = PrxteinMPNN(
+    training_model = Aminx(
         node_features=128,
         edge_features=128,
         hidden_features=128,

@@ -4,8 +4,8 @@ from __future__ import annotations
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.tiling.carry import CarrySpec
-from prxteinmpnn.tiling.strategy import ScanTransition
+from aminx.tiling.carry import CarrySpec
+from aminx.tiling.strategy import ScanTransition
 
 
 def test_carry_spec_stores_axis_name():

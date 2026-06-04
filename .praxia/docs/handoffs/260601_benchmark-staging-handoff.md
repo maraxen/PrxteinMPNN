@@ -11,7 +11,7 @@ date: 260601
 ## Goal
 
 Pre-merge GPU benchmark suite comparing three implementations of protein sequence design:
-- **prxteinmpnn** (JAX + Equinox, ours)
+- **aminx** (JAX + Equinox, ours)
 - **dauparas/LigandMPNN** (PyTorch reference, commit 3870631)
 - **sokrypton/ColabDesign** (JAX ProteinMPNN, no ligand conditioning)
 
@@ -26,7 +26,7 @@ Hardware targets: A100, H100, H200, L40, Blackwell SM120 (node4007/node4008).
 | `c14f8c9` | Wave 0: `scripts/benchmarks/prepare_fixtures.py` (pad/truncate 1ubq to L=[76,150,300,500]) |
 | `cae498f` | Oracle required changes applied: Blackwell two-run protocol, PyTorch eager label, L=500 real fixture, ColabDesign git-SHA pin prereq |
 | `78bc404` | Cosmetic: spec §3.3/§3.4 reordered (Blackwell before Latency decomp) |
-| `2c34e69` | Wave 1: `scripts/benchmarks/bench_prxteinmpnn_jax.py` (645 lines, full CLI, cold/warm timing, JSON §5.1 contract) |
+| `2c34e69` | Wave 1: `scripts/benchmarks/bench_aminx_jax.py` (645 lines, full CLI, cold/warm timing, JSON §5.1 contract) |
 | `10402f0` | Fix: batch dim was jnp.repeat → jnp.stack; block_until_ready unconditional |
 
 **Spec status:** Oracle APPROVED (two-pass review). Safe to implement.
@@ -58,7 +58,7 @@ Hardware targets: A100, H100, H200, L40, Blackwell SM120 (node4007/node4008).
 - [x] **Cosmetic fix**: §3.3/§3.4 reordered in spec (commit 78bc404).
 
 ### Wave 1: JAX adapter
-- [x] `scripts/benchmarks/bench_prxteinmpnn_jax.py` written and L1/L2 verified (commits 2c34e69, 10402f0).
+- [x] `scripts/benchmarks/bench_aminx_jax.py` written and L1/L2 verified (commits 2c34e69, 10402f0).
   - **Known gap**: `_BenchmarkSpec.average_node_features = False` was added to avoid InferencePlan error — verify this field is correct for the no-ligand/no-fusion benchmark path before cluster runs.
   - **Known gap**: Precision (`bf16`/`fp32`) is recorded in JSON but not yet applied to model params. Both runs use fp32 weights. Fix before final cluster submission if bf16 performance numbers are needed.
   - **GPU memory** is 0.0 placeholder — add pynvml or nvidia-smi query for real values on cluster.

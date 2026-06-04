@@ -6,7 +6,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.utils.apc import (
+from aminx.utils.apc import (
     apc_corrected_frobenius_norm,
     apc_correction,
     calculate_frobenius_norm_per_pair,

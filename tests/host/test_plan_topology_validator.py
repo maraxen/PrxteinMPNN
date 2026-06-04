@@ -3,12 +3,12 @@ from __future__ import annotations
 
 import pytest
 
-from prxteinmpnn.host.plan import PlanTopologyError, _validate_plan_topology
-from prxteinmpnn.tiling.axes import N_NOISES, N_SAMPLES, N_STRUCTURES, N_TEMPERATURES
-from prxteinmpnn.tiling.planner import AxisDecision, BatchPlan
-from prxteinmpnn.tiling.strategy import SafeMap, Scan, Vmap
-from prxteinmpnn.types.boundaries import AxisBoundary
-from prxteinmpnn.types.stages import StageSet
+from aminx.host.plan import PlanTopologyError, _validate_plan_topology
+from aminx.tiling.axes import N_NOISES, N_SAMPLES, N_STRUCTURES, N_TEMPERATURES
+from aminx.tiling.planner import AxisDecision, BatchPlan
+from aminx.tiling.strategy import SafeMap, Scan, Vmap
+from aminx.types.boundaries import AxisBoundary
+from aminx.types.stages import StageSet
 
 
 def _make_plan(decisions):
@@ -145,6 +145,6 @@ def test_validator_passes_for_default_plan():
 
 def test_plan_topology_error_is_tiling_error_subclass():
     """PlanTopologyError is a TilingError (library-side error base)."""
-    from prxteinmpnn.tiling.errors import TilingError
+    from aminx.tiling.errors import TilingError
 
     assert issubclass(PlanTopologyError, TilingError)

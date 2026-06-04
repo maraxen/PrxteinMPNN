@@ -43,9 +43,9 @@ This contract must be maintained or the `RuntimeError` will recur in grid-mode n
 ## Scope boundaries
 
 **In scope:**
-- `src/prxteinmpnn/host/kernel_dispatch.py`
-- `src/prxteinmpnn/host/runner.py`
-- `src/prxteinmpnn/host/streaming.py` (two chunk loops: HDF5 campaign + ArrayRecord campaign)
+- `src/aminx/host/kernel_dispatch.py`
+- `src/aminx/host/runner.py`
+- `src/aminx/host/streaming.py` (two chunk loops: HDF5 campaign + ArrayRecord campaign)
 - `tests/host/test_sampling_tensor_batch_io.py` (create; see T4)
 
 **Out of scope (explicit — do not touch):**
@@ -58,7 +58,7 @@ This contract must be maintained or the `RuntimeError` will recur in grid-mode n
 
 ## T1 — Add tensor io_callback emission to `_sample_batch`
 
-**File:** `src/prxteinmpnn/host/kernel_dispatch.py`
+**File:** `src/aminx/host/kernel_dispatch.py`
 
 ### Current state
 
@@ -117,10 +117,10 @@ The perplexity block (step 8) and both `return` statements remain unchanged. The
 
 ### Import additions
 
-Extend the existing `from prxteinmpnn.host._sampling_helper import (...)` tuple to add the two new names:
+Extend the existing `from aminx.host._sampling_helper import (...)` tuple to add the two new names:
 
 ```python
-from prxteinmpnn.host._sampling_helper import (
+from aminx.host._sampling_helper import (
     _broadcast_per_structure,
     _dispatch_sampling_tensor_batch_io,
     _noop_sampling_structure_batch_io,
@@ -142,14 +142,14 @@ Also add `import jax.experimental` at the top of the file with the other JAX imp
 
 ## T2 — Rewire non-streaming path in `runner.py`
 
-**File:** `src/prxteinmpnn/host/runner.py`
+**File:** `src/aminx/host/runner.py`
 
 ### Required change
 
 1. Add imports:
 
 ```python
-from prxteinmpnn.host.output_sinks import streaming_tensor_sink_session, take_staging_sequences_logits
+from aminx.host.output_sinks import streaming_tensor_sink_session, take_staging_sequences_logits
 ```
 
 2. Wrap the entire non-streaming loop with `streaming_tensor_sink_session()`:
@@ -200,7 +200,7 @@ with streaming_tensor_sink_session():
 
 ## T3 — Wire `emit_structure_batch_io` in streaming chunk loops
 
-**File:** `src/prxteinmpnn/host/streaming.py`
+**File:** `src/aminx/host/streaming.py`
 
 There are **three** call sites that need the fix. All currently pass no `emit_structure_batch_io` argument (defaults to `True`, so scalar marker fires on every chunk — violating PR3a).
 
@@ -292,12 +292,12 @@ def _stub_build_inference_bundle(*args, **kwargs):
     return MagicMock(name="bundle"), MagicMock(name="config")
 ```
 
-Monkeypatch target: `prxteinmpnn.host.kernel_dispatch.build_inference_bundle`
+Monkeypatch target: `aminx.host.kernel_dispatch.build_inference_bundle`
 
 2. **Patch `resolve_kernel_fn`** to return a stub kernel returning fixed-shape `SampleResult`:
 
 ```python
-from prxteinmpnn.inference.sample_autoregressive import SampleResult
+from aminx.inference.sample_autoregressive import SampleResult
 
 def _make_stub_kernel(seq_len: int, vocab: int = 21):
     def _stub(model, prng_key, bundle, config, stage_set):
@@ -308,7 +308,7 @@ def _make_stub_kernel(seq_len: int, vocab: int = 21):
     return _stub
 ```
 
-Monkeypatch target: `prxteinmpnn.host.kernel_dispatch.resolve_kernel_fn`
+Monkeypatch target: `aminx.host.kernel_dispatch.resolve_kernel_fn`
 
 With both patches active, a `SamplingSpecification` with minimal fields and a simple `Protein` namedtuple with correct array shapes are sufficient. Use:
 
@@ -368,7 +368,7 @@ test_emit_structure_batch_io_false_skips_scalar_marker
 
 Monkeypatch `_noop_sampling_structure_batch_io` in the `kernel_dispatch` module namespace (the local reference held by `_sample_batch` after import) to count invocations. Call `_sample_batch(..., emit_structure_batch_io=False)`, `jax.effects_barrier()` — assert call count == 0. Then call with `emit_structure_batch_io=True`, `jax.effects_barrier()` — assert call count == 1.
 
-**Monkeypatch target:** Patch `prxteinmpnn.host.kernel_dispatch._noop_sampling_structure_batch_io` (the symbol in the `kernel_dispatch` module namespace, where `_sample_batch` holds a reference after import).
+**Monkeypatch target:** Patch `aminx.host.kernel_dispatch._noop_sampling_structure_batch_io` (the symbol in the `kernel_dispatch` module namespace, where `_sample_batch` holds a reference after import).
 
 ---
 
@@ -417,15 +417,15 @@ uv run pytest tests/host/test_sampling_tensor_batch_io.py tests/host/ tests/samp
 
 | Symbol | File | Lines |
 |---|---|---|
-| `_sample_batch` | `src/prxteinmpnn/host/kernel_dispatch.py` | 75–224 |
-| `resolve_kernel_fn` | `src/prxteinmpnn/host/kernel_dispatch.py` | 41–72 |
-| Non-streaming loop | `src/prxteinmpnn/host/runner.py` | 183–208 |
-| `_sample_streaming` HDF5 non-campaign block | `src/prxteinmpnn/host/streaming.py` | 120–158 |
-| `_sample_streaming` HDF5 campaign chunk loop | `src/prxteinmpnn/host/streaming.py` | 178–196 |
-| `_sample_streaming_arrayrecord` chunk loop | `src/prxteinmpnn/host/streaming.py` | ~320–332 |
-| `_dispatch_sampling_tensor_batch_io` | `src/prxteinmpnn/host/_sampling_helper.py` | 385–407 |
-| `_noop_sampling_structure_batch_io` | `src/prxteinmpnn/host/_sampling_helper.py` | 356–373 |
-| `streaming_tensor_sink_session` | `src/prxteinmpnn/host/output_sinks.py` | 104–116 |
-| `take_staging_sequences_logits` | `src/prxteinmpnn/host/output_sinks.py` | 119–129 |
-| `active_sampling_staging_sink` | `src/prxteinmpnn/host/output_sinks.py` | 132–134 |
-| `StreamingTensorStagingSink` | `src/prxteinmpnn/host/output_sinks.py` | 44–90 |
+| `_sample_batch` | `src/aminx/host/kernel_dispatch.py` | 75–224 |
+| `resolve_kernel_fn` | `src/aminx/host/kernel_dispatch.py` | 41–72 |
+| Non-streaming loop | `src/aminx/host/runner.py` | 183–208 |
+| `_sample_streaming` HDF5 non-campaign block | `src/aminx/host/streaming.py` | 120–158 |
+| `_sample_streaming` HDF5 campaign chunk loop | `src/aminx/host/streaming.py` | 178–196 |
+| `_sample_streaming_arrayrecord` chunk loop | `src/aminx/host/streaming.py` | ~320–332 |
+| `_dispatch_sampling_tensor_batch_io` | `src/aminx/host/_sampling_helper.py` | 385–407 |
+| `_noop_sampling_structure_batch_io` | `src/aminx/host/_sampling_helper.py` | 356–373 |
+| `streaming_tensor_sink_session` | `src/aminx/host/output_sinks.py` | 104–116 |
+| `take_staging_sequences_logits` | `src/aminx/host/output_sinks.py` | 119–129 |
+| `active_sampling_staging_sink` | `src/aminx/host/output_sinks.py` | 132–134 |
+| `StreamingTensorStagingSink` | `src/aminx/host/output_sinks.py` | 44–90 |

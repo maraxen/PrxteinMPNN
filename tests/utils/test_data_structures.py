@@ -5,7 +5,7 @@ from dataclasses import FrozenInstanceError
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.utils.data_structures import Protein
+from aminx.utils.data_structures import Protein
 
 
 def test_protein_structure_frozen():

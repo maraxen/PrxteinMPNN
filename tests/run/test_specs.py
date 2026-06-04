@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from prxteinmpnn.run.specs import (
+from aminx.run.specs import (
     ConformationalInferenceSpecification,
     InspectionSpecification,
     JacobianSpecification,

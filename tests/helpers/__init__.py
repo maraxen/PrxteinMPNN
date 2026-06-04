@@ -1,4 +1,4 @@
-"""Test helper utilities for PrxteinMPNN."""
+"""Test helper utilities for Aminx."""
 
 from .multistate import (
   assert_sequences_tied,

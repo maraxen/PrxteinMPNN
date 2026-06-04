@@ -1,7 +1,7 @@
 import chex
 import jax.numpy as jnp
 
-from prxteinmpnn.utils.autoregression import (
+from aminx.utils.autoregression import (
     get_decoding_step_map,
     make_autoregressive_mask,
 )

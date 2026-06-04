@@ -7,7 +7,7 @@ import json
 
 import pytest
 
-from prxteinmpnn.parity.matrix import (
+from aminx.parity.matrix import (
   ligand_tied_multistate_enforcement_for_tier,
   ligand_tied_multistate_rollout_outcome,
   ligand_tied_multistate_rollout_policy,

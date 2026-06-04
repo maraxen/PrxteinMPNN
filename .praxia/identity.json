@@ -3,7 +3,7 @@
   "schema_version": 1,
   "preset": "web-service",
   "worldview": {
-    "value": "[![Test Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen.svg)](https://github.com/maraxen/PrxteinMPNN/actions/workflows/pytest.yml)",
+    "value": "[![Test Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen.svg)](https://github.com/maraxen/Aminx/actions/workflows/pytest.yml)",
     "confidence": 0.6,
     "deferred": false,
     "sources": [

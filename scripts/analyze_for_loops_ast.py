@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""AST scan: list ``for``-loops in PrxteinMPNN JAX model/sampling code.
+"""AST scan: list ``for``-loops in Aminx JAX model/sampling code.
 
-Run from repo: ``python prxteinmpnn/scripts/analyze_for_loops_ast.py``
+Run from repo: ``python aminx/scripts/analyze_for_loops_ast.py``
 
 Heuristic: loops are annotated as
   - static_unroll — ``for i in range(`` (compile-time length; often over layers / modules)
@@ -79,7 +79,7 @@ def visit_file(path: Path) -> list[LoopInfo]:
 
 def main() -> int:
   here = Path(__file__).resolve()
-  root = here.parent.parent / "src" / "prxteinmpnn"
+  root = here.parent.parent / "src" / "aminx"
   if not root.is_dir():
     print("Expected", root, file=sys.stderr)
     return 1
@@ -100,7 +100,7 @@ def main() -> int:
   for li in all_info:
     by_kind.setdefault(li.kind, []).append(li)
 
-  print("=== for-loops in prxteinmpnn/model, sampling, utils (AST) ===\n")
+  print("=== for-loops in aminx/model, sampling, utils (AST) ===\n")
   for kind in sorted(by_kind, key=str):
     items = by_kind[kind]
     print(f"## {kind} ({len(items)})\n")

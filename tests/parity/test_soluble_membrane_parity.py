@@ -13,11 +13,11 @@ import numpy as np
 import pytest
 from scipy.stats import pearsonr
 
-from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-from prxteinmpnn.inference.logits import make_stage_set
-from prxteinmpnn.inference import score_unconditional
-from prxteinmpnn.io.weights import load_weights
-from prxteinmpnn.model.mpnn import PrxteinMPNN
+from aminx.inference.bundle_builder import build_inference_bundle
+from aminx.inference.logits import make_stage_set
+from aminx.inference import score_unconditional
+from aminx.io.weights import load_weights
+from aminx.model.mpnn import Aminx
 from tests.parity.reference_utils import require_heavy_parity_prereqs
 
 
@@ -26,7 +26,7 @@ JaxHeavyWeightSource = Literal["eqx", "pt_convert"]
 
 def _jax_model_for_source(
     models: SolubleMembraneParityModels, source: JaxHeavyWeightSource, checkpoint_kind: str
-) -> PrxteinMPNN:
+) -> Aminx:
   """Select JAX model for the given source and checkpoint kind."""
   if checkpoint_kind == "soluble":
     return models.jax_soluble_eqx if source == "eqx" else models.jax_soluble_pt_convert
@@ -47,18 +47,18 @@ class SolubleMembraneParityModels:
 
   # Soluble MPNN
   pt_soluble: Any
-  jax_soluble_eqx: PrxteinMPNN
-  jax_soluble_pt_convert: PrxteinMPNN
+  jax_soluble_eqx: Aminx
+  jax_soluble_pt_convert: Aminx
 
   # Membrane per-residue label
   pt_membrane_per_residue: Any
-  jax_membrane_per_residue_eqx: PrxteinMPNN
-  jax_membrane_per_residue_pt_convert: PrxteinMPNN
+  jax_membrane_per_residue_eqx: Aminx
+  jax_membrane_per_residue_pt_convert: Aminx
 
   # Membrane global label
   pt_membrane_global: Any
-  jax_membrane_global_eqx: PrxteinMPNN
-  jax_membrane_global_pt_convert: PrxteinMPNN
+  jax_membrane_global_eqx: Aminx
+  jax_membrane_global_pt_convert: Aminx
 
 
 @dataclass(frozen=True)
@@ -158,9 +158,9 @@ def _load_soluble_membrane_models_impl() -> SolubleMembraneParityModels:
       "model_params/global_label_membrane_mpnn_v_48_020.pt",
     ],
     converted_rel_paths=[
-      "src/prxteinmpnn/model_params/solublempnn_v_48_020.eqx.zst",
-      "src/prxteinmpnn/model_params/per_residue_label_membrane_mpnn_v_48_020.eqx.zst",
-      "src/prxteinmpnn/model_params/global_label_membrane_mpnn_v_48_020.eqx.zst",
+      "src/aminx/model_params/solublempnn_v_48_020.eqx.zst",
+      "src/aminx/model_params/per_residue_label_membrane_mpnn_v_48_020.eqx.zst",
+      "src/aminx/model_params/global_label_membrane_mpnn_v_48_020.eqx.zst",
     ],
   )
   import model_utils
@@ -170,7 +170,7 @@ def _load_soluble_membrane_models_impl() -> SolubleMembraneParityModels:
 
   # Load Soluble MPNN
   pt_soluble_checkpoint_path = reference_root / "model_params/solublempnn_v_48_020.pt"
-  jax_soluble_checkpoint_path = repo_root / "src/prxteinmpnn/model_params/solublempnn_v_48_020.eqx.zst"
+  jax_soluble_checkpoint_path = repo_root / "src/aminx/model_params/solublempnn_v_48_020.eqx.zst"
   soluble_checkpoint = torch.load(pt_soluble_checkpoint_path, map_location="cpu")
 
   pos_weight = soluble_checkpoint["model_state_dict"].get("features.embeddings.linear.weight")
@@ -191,7 +191,7 @@ def _load_soluble_membrane_models_impl() -> SolubleMembraneParityModels:
   pt_soluble.load_state_dict(soluble_checkpoint["model_state_dict"])
   pt_soluble.eval()
 
-  jax_soluble_skeleton = PrxteinMPNN(
+  jax_soluble_skeleton = Aminx(
     node_features=128,
     edge_features=128,
     hidden_features=128,
@@ -217,7 +217,7 @@ def _load_soluble_membrane_models_impl() -> SolubleMembraneParityModels:
 
   from scripts.convert_weights import convert_full_model, convert_physics_encoder
 
-  jax_soluble_pt_skeleton = PrxteinMPNN(
+  jax_soluble_pt_skeleton = Aminx(
     node_features=128,
     edge_features=128,
     hidden_features=128,
@@ -232,7 +232,7 @@ def _load_soluble_membrane_models_impl() -> SolubleMembraneParityModels:
 
   # Load Membrane Per-Residue MPNN
   pt_membrane_per_residue_checkpoint_path = reference_root / "model_params/per_residue_label_membrane_mpnn_v_48_020.pt"
-  jax_membrane_per_residue_checkpoint_path = repo_root / "src/prxteinmpnn/model_params/per_residue_label_membrane_mpnn_v_48_020.eqx.zst"
+  jax_membrane_per_residue_checkpoint_path = repo_root / "src/aminx/model_params/per_residue_label_membrane_mpnn_v_48_020.eqx.zst"
   membrane_per_residue_checkpoint = torch.load(pt_membrane_per_residue_checkpoint_path, map_location="cpu")
 
   pos_weight_membrane = membrane_per_residue_checkpoint["model_state_dict"].get("features.embeddings.linear.weight")
@@ -255,7 +255,7 @@ def _load_soluble_membrane_models_impl() -> SolubleMembraneParityModels:
   pt_membrane_per_residue.load_state_dict(membrane_per_residue_checkpoint["model_state_dict"])
   pt_membrane_per_residue.eval()
 
-  jax_membrane_per_residue_skeleton = PrxteinMPNN(
+  jax_membrane_per_residue_skeleton = Aminx(
     node_features=128,
     edge_features=128,
     hidden_features=128,
@@ -278,7 +278,7 @@ def _load_soluble_membrane_models_impl() -> SolubleMembraneParityModels:
     arr = v.cpu().numpy() if hasattr(v, "cpu") else np.asarray(v)
     membrane_per_residue_state_dict_numpy[str(k)] = arr
 
-  jax_membrane_per_residue_pt_skeleton = PrxteinMPNN(
+  jax_membrane_per_residue_pt_skeleton = Aminx(
     node_features=128,
     edge_features=128,
     hidden_features=128,
@@ -299,7 +299,7 @@ def _load_soluble_membrane_models_impl() -> SolubleMembraneParityModels:
 
   # Load Membrane Global MPNN
   pt_membrane_global_checkpoint_path = reference_root / "model_params/global_label_membrane_mpnn_v_48_020.pt"
-  jax_membrane_global_checkpoint_path = repo_root / "src/prxteinmpnn/model_params/global_label_membrane_mpnn_v_48_020.eqx.zst"
+  jax_membrane_global_checkpoint_path = repo_root / "src/aminx/model_params/global_label_membrane_mpnn_v_48_020.eqx.zst"
   membrane_global_checkpoint = torch.load(pt_membrane_global_checkpoint_path, map_location="cpu")
 
   pos_weight_global = membrane_global_checkpoint["model_state_dict"].get("features.embeddings.linear.weight")
@@ -322,7 +322,7 @@ def _load_soluble_membrane_models_impl() -> SolubleMembraneParityModels:
   pt_membrane_global.load_state_dict(membrane_global_checkpoint["model_state_dict"])
   pt_membrane_global.eval()
 
-  jax_membrane_global_skeleton = PrxteinMPNN(
+  jax_membrane_global_skeleton = Aminx(
     node_features=128,
     edge_features=128,
     hidden_features=128,
@@ -345,7 +345,7 @@ def _load_soluble_membrane_models_impl() -> SolubleMembraneParityModels:
     arr = v.cpu().numpy() if hasattr(v, "cpu") else np.asarray(v)
     membrane_global_state_dict_numpy[str(k)] = arr
 
-  jax_membrane_global_pt_skeleton = PrxteinMPNN(
+  jax_membrane_global_pt_skeleton = Aminx(
     node_features=128,
     edge_features=128,
     hidden_features=128,

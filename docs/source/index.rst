@@ -1,13 +1,13 @@
-PrxteinMPNN Documentation
+Aminx Documentation
 =========================
 
 .. image:: https://img.shields.io/badge/coverage-90%25-brightgreen.svg
-  :target: https://github.com/yourusername/PrxteinMPNN/actions/workflows/pytest.yml
+  :target: https://github.com/yourusername/Aminx/actions/workflows/pytest.yml
   :alt: Test coverage
 
-`Run on Colab <https://colab.research.google.com/github/maraxen/PrxteinMPNN/blob/main/examples/colab_inference_demo.ipynb>`_
+`Run on Colab <https://colab.research.google.com/github/maraxen/Aminx/blob/main/examples/colab_inference_demo.ipynb>`_
 
-Welcome to PrxteinMPNN's documentation! This project provides a functional interface for ProteinMPNN, leveraging the JAX ecosystem for accelerated computation.
+Welcome to Aminx's documentation! This project provides a functional interface for ProteinMPNN, leveraging the JAX ecosystem for accelerated computation.
 
 .. toctree::
   :maxdepth: 2
@@ -30,7 +30,7 @@ Key Features
 Validation
 ----------
 
-PrxteinMPNN has been rigorously validated against the upstream
+Aminx has been rigorously validated against the upstream
 `LigandMPNN <https://github.com/dauparas/LigandMPNN>`_ reference implementation:
 
 .. list-table:: Equivalence Test Results
@@ -55,13 +55,13 @@ faithful reproduction of the original model's behavior.
 
 Canonical parity/equivalence reports (aligned with README):
 
-* `docs/FINAL_VALIDATION_RESULTS.md <https://github.com/maraxen/PrxteinMPNN/blob/main/docs/FINAL_VALIDATION_RESULTS.md>`_
-* `docs/parity/parity_report.md <https://github.com/maraxen/PrxteinMPNN/blob/main/docs/parity/parity_report.md>`_
+* `docs/FINAL_VALIDATION_RESULTS.md <https://github.com/maraxen/Aminx/blob/main/docs/FINAL_VALIDATION_RESULTS.md>`_
+* `docs/parity/parity_report.md <https://github.com/maraxen/Aminx/blob/main/docs/parity/parity_report.md>`_
 
 Rendered parity artifacts are also available as
-`docs/parity/parity_report.html <https://github.com/maraxen/PrxteinMPNN/blob/main/docs/parity/parity_report.html>`_
+`docs/parity/parity_report.html <https://github.com/maraxen/Aminx/blob/main/docs/parity/parity_report.html>`_
 and
-`docs/parity/parity_report.pdf <https://github.com/maraxen/PrxteinMPNN/blob/main/docs/parity/parity_report.pdf>`_.
+`docs/parity/parity_report.pdf <https://github.com/maraxen/Aminx/blob/main/docs/parity/parity_report.pdf>`_.
 
 Installation
 ------------

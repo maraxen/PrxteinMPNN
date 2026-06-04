@@ -14,7 +14,7 @@ contents:
 
 ## Summary
 
-The `prxteinmpnn.training` module intentionally raises `NotImplementedError` for all attribute access, with a docstring warning that the module "has not been updated to use the Sprint 2 composable inference architecture."
+The `aminx.training` module intentionally raises `NotImplementedError` for all attribute access, with a docstring warning that the module "has not been updated to use the Sprint 2 composable inference architecture."
 
 Although the underlying submodules exist (`specs.py`, `trainer.py`), the public package gateway explicitly gates access with:
 
@@ -23,7 +23,7 @@ def __getattr__(name):
     raise NotImplementedError("Training module has not been updated...")
 ```
 
-This means any notebook attempting to import from `prxteinmpnn.training` cannot work in the current release, regardless of whether the internal code exists.
+This means any notebook attempting to import from `aminx.training` cannot work in the current release, regardless of whether the internal code exists.
 
 ## Dependencies
 

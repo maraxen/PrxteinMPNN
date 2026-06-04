@@ -43,10 +43,10 @@ cells = { type = "list[dict]", doc = "One cell per M value" }
 [result_schema.cells.item]
 m = { type = "int", doc = "Number of temperatures in this run" }
 temperatures = { type = "list[float]", doc = "Temperature values used" }
-prxteinmpnn_latency_ms = { type = "float", doc = "Median latency (ms) for M temperatures in single JIT call" }
+aminx_latency_ms = { type = "float", doc = "Median latency (ms) for M temperatures in single JIT call" }
 colabdesign_sequential_latency_ms = { type = "float", doc = "Sum of M sequential ColabDesign calls (ms)" }
 pytorch_sequential_latency_ms = { type = "float", doc = "Sum of M sequential PyTorch calls (ms)" }
-speedup_vs_colabdesign = { type = "float", doc = "colabdesign_sequential / prxteinmpnn_latency" }
+speedup_vs_colabdesign = { type = "float", doc = "colabdesign_sequential / aminx_latency" }
 hardware = { type = "str", doc = "GPU hardware identifier (H200 / A100 / L40s / Blackwell)" }
 
 [result_schema.provenance]
@@ -56,7 +56,7 @@ fixture = { type = "str", doc = "PDB fixture (1ubq.pdb, L=76)" }
 reference_checkpoints = { type = "str", doc = "ColabDesign + PyTorch baseline checkpoint IDs" }
 
 [dependencies]
-prxteinmpnn_version = { type = "git_sha", required = true, doc = "prxteinmpnn commit SHA" }
+aminx_version = { type = "git_sha", required = true, doc = "aminx commit SHA" }
 jax_version = { type = "string", required = true, doc = "JAX version used in run" }
 colabdesign_commit = { type = "git_sha", required = false, doc = "ColabDesign reference commit" }
 pytorch_version = { type = "string", required = false, doc = "PyTorch baseline version" }

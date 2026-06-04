@@ -194,29 +194,29 @@ Scan-on-state is rejected because state geometries are heterogeneous (Sprint 5 i
 
 | File | Responsibility | Library-side? |
 |---|---|:--:|
-| `src/prxteinmpnn/tiling/iterator.py` | `MapIterator` / `ScanIterator` protocols + 3 concrete iterators | YES |
-| `src/prxteinmpnn/tiling/dispatch.py` | `make_axis_dispatch(strategy, axis)`; `DispatchRejected` | YES |
-| `src/prxteinmpnn/tiling/carry_shape.py` | `CarryShape(name, shape, dtype)` metadata struct | YES |
-| `src/prxteinmpnn/inference/decode/__init__.py` | Public re-exports | NO |
-| `src/prxteinmpnn/inference/decode/mode.py` | `DecodeMode` sealed union | NO |
-| `src/prxteinmpnn/inference/decode/protocols.py` | `DecodeScoreFn`, `ARDecodeFn`, `STEDecodeFn`, `DecoderSinkFn` | NO |
-| `src/prxteinmpnn/inference/decode/_kernel.py` | Pure helpers (including `_tied_group_einsum_average`) | NO |
-| `src/prxteinmpnn/inference/decode/_base.py` | `_ConditionalDecodeBase(eqx.Module, ABC)` | NO |
-| `src/prxteinmpnn/inference/decode/conditional.py` | `ConditionalDecode(_ConditionalDecodeBase)` | NO |
-| `src/prxteinmpnn/inference/decode/unconditional.py` | `UnconditionalDecode(eqx.Module)` | NO |
-| `src/prxteinmpnn/inference/decode/autoregressive.py` | `AutoregressiveDecode(eqx.Module)` | NO |
-| `src/prxteinmpnn/inference/decode/ste.py` | `STEDecode(eqx.Module)` | NO |
-| `src/prxteinmpnn/inference/decode/factory.py` | `make_decode_fn(model, mode, strategy)` + mode-context wrap | NO |
+| `src/aminx/tiling/iterator.py` | `MapIterator` / `ScanIterator` protocols + 3 concrete iterators | YES |
+| `src/aminx/tiling/dispatch.py` | `make_axis_dispatch(strategy, axis)`; `DispatchRejected` | YES |
+| `src/aminx/tiling/carry_shape.py` | `CarryShape(name, shape, dtype)` metadata struct | YES |
+| `src/aminx/inference/decode/__init__.py` | Public re-exports | NO |
+| `src/aminx/inference/decode/mode.py` | `DecodeMode` sealed union | NO |
+| `src/aminx/inference/decode/protocols.py` | `DecodeScoreFn`, `ARDecodeFn`, `STEDecodeFn`, `DecoderSinkFn` | NO |
+| `src/aminx/inference/decode/_kernel.py` | Pure helpers (including `_tied_group_einsum_average`) | NO |
+| `src/aminx/inference/decode/_base.py` | `_ConditionalDecodeBase(eqx.Module, ABC)` | NO |
+| `src/aminx/inference/decode/conditional.py` | `ConditionalDecode(_ConditionalDecodeBase)` | NO |
+| `src/aminx/inference/decode/unconditional.py` | `UnconditionalDecode(eqx.Module)` | NO |
+| `src/aminx/inference/decode/autoregressive.py` | `AutoregressiveDecode(eqx.Module)` | NO |
+| `src/aminx/inference/decode/ste.py` | `STEDecode(eqx.Module)` | NO |
+| `src/aminx/inference/decode/factory.py` | `make_decode_fn(model, mode, strategy)` + mode-context wrap | NO |
 
 ### Modified files
 
 | File | What changes |
 |---|---|
-| `src/prxteinmpnn/types/stages.py` | Add `decoder_sink: tuple[DecoderSinkFn, ...] = ()` as `eqx.field(static=True)`. **`decode_step` stays — already present; not modified.** **`decode_fn` does NOT live here.** |
-| `src/prxteinmpnn/host/plan.py` | `InferencePlan` gains `decode_fn: DecodeScoreFn \| ARDecodeFn \| STEDecodeFn`. `make_inference_plan` calls `make_decode_fn` once. `_validate_plan_topology` adds two new rules (mode-name-wrapped DispatchRejected; STE+Unconditional decode_step rejection). |
-| `src/prxteinmpnn/inference/driver.py` | Shrinks from 18.0K → ≤4K; `_decode_conditional`, `_decode_unconditional`, `decode_ar` deleted; `decode()` and `infer_topology()` become ≤10-LOC routers via `plan.decode_fn`. |
-| `src/prxteinmpnn/inference/optimize_ste.py` | `make_optimize_sequence_fn` **requires** `stage_set: StageSet` (no `None` default; oracle REC-5). Constructs `STEDecode` from the input stage_set + projection. |
-| `src/prxteinmpnn/host/kernel_dispatch.py` | Strategy resolution routed through `tiling/dispatch.py` `make_axis_dispatch`. |
+| `src/aminx/types/stages.py` | Add `decoder_sink: tuple[DecoderSinkFn, ...] = ()` as `eqx.field(static=True)`. **`decode_step` stays — already present; not modified.** **`decode_fn` does NOT live here.** |
+| `src/aminx/host/plan.py` | `InferencePlan` gains `decode_fn: DecodeScoreFn \| ARDecodeFn \| STEDecodeFn`. `make_inference_plan` calls `make_decode_fn` once. `_validate_plan_topology` adds two new rules (mode-name-wrapped DispatchRejected; STE+Unconditional decode_step rejection). |
+| `src/aminx/inference/driver.py` | Shrinks from 18.0K → ≤4K; `_decode_conditional`, `_decode_unconditional`, `decode_ar` deleted; `decode()` and `infer_topology()` become ≤10-LOC routers via `plan.decode_fn`. |
+| `src/aminx/inference/optimize_ste.py` | `make_optimize_sequence_fn` **requires** `stage_set: StageSet` (no `None` default; oracle REC-5). Constructs `STEDecode` from the input stage_set + projection. |
+| `src/aminx/host/kernel_dispatch.py` | Strategy resolution routed through `tiling/dispatch.py` `make_axis_dispatch`. |
 
 ### Test files
 
@@ -467,8 +467,8 @@ The validator gets **two** new rules (Rule 3 from v2 dropped per oracle CONCERN-
 - [x] **Step 14.4: Write `test_library_surface.py`** (REC-3):
   - AST-walks every `.py` file under `tiling/`, `types/` (excluding `types/stages.py` which is a shared bridge).
   - Treats `if TYPE_CHECKING:` imports the same as runtime imports.
-  - Asserts no `from prxteinmpnn.{inference,model,sampling,scoring,run,host,io}.* import ...` exists in any library-side file.
-  - Explicit negative test: a deliberately-bad file (or string fixture) containing `from prxteinmpnn.inference.driver import decode_ar` is asserted to be **detected** by the lint.
+  - Asserts no `from aminx.{inference,model,sampling,scoring,run,host,io}.* import ...` exists in any library-side file.
+  - Explicit negative test: a deliberately-bad file (or string fixture) containing `from aminx.inference.driver import decode_ar` is asserted to be **detected** by the lint.
   - Allowed: `jax`, `jax.numpy`, `equinox`, `jaxtyping`, `optax`, stdlib.
 - [x] **Step 14.5: Run full suite — 0 failures required.**
 - [x] **Step 14.6: Commit:** `refactor(S6-E14): retire driver.py decode functions; add library-surface lint with TYPE_CHECKING coverage`

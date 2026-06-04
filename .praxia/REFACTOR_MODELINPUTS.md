@@ -166,7 +166,7 @@ Hierarchical grouping metadata (passed through SamplingInputs or separately):
 
 ### PR-4: Push to model.__call__ boundary
 
-- `PrxteinMPNN.__call__(self, inputs: SamplingInputs) -> (OneHot, Logits)`
+- `Aminx.__call__(self, inputs: SamplingInputs) -> (OneHot, Logits)`
 - All three branch methods accept `SamplingInputs` (Protocol interface)
 - `jax.lax.switch` at mpnn.py:970 becomes single pytree operand
 - Parity gate
@@ -184,14 +184,14 @@ Hierarchical grouping metadata (passed through SamplingInputs or separately):
 
 | File | Change |
 |------|--------|
-| `src/prxteinmpnn/payloads.py` | Add `WaveParallelPayload`; extend `MultistateStackPayload` with `state_index`, `state_embedding` |
-| `src/prxteinmpnn/model_inputs.py` | NEW — `BackboneGeometry`, `ConditioningFeatures`, `SamplingInputs`, `ScoringInputs`, `SamplingStaticConfig`, `ScoringStaticConfig` |
-| `src/prxteinmpnn/run/decode_registry.py` | NEW — `DecodeFnRegistry` (host-only) |
-| `src/prxteinmpnn/sampling/state_vmap_prep.py` | Fix heterogeneous state count in builders; add `per_state_canonical_mask` param |
-| `src/prxteinmpnn/sampling/sample.py` | Extend coercion adapter; migrate `_sample_sequences_jitted`; wire `batch_fn` |
-| `src/prxteinmpnn/model/mpnn.py` | Migrate `__call__`, `_call_unconditional`, `_call_conditional` |
-| `src/prxteinmpnn/model/ligand_mpnn.py` | Same pattern |
-| `src/prxteinmpnn/run/scoring.py` | Migrate `score_single_pair` |
+| `src/aminx/payloads.py` | Add `WaveParallelPayload`; extend `MultistateStackPayload` with `state_index`, `state_embedding` |
+| `src/aminx/model_inputs.py` | NEW — `BackboneGeometry`, `ConditioningFeatures`, `SamplingInputs`, `ScoringInputs`, `SamplingStaticConfig`, `ScoringStaticConfig` |
+| `src/aminx/run/decode_registry.py` | NEW — `DecodeFnRegistry` (host-only) |
+| `src/aminx/sampling/state_vmap_prep.py` | Fix heterogeneous state count in builders; add `per_state_canonical_mask` param |
+| `src/aminx/sampling/sample.py` | Extend coercion adapter; migrate `_sample_sequences_jitted`; wire `batch_fn` |
+| `src/aminx/model/mpnn.py` | Migrate `__call__`, `_call_unconditional`, `_call_conditional` |
+| `src/aminx/model/ligand_mpnn.py` | Same pattern |
+| `src/aminx/run/scoring.py` | Migrate `score_single_pair` |
 | `scripts/run_design_grid.py` | Update caller (PR-5) |
 | `scripts/run_unconditional_logits_grid.py` | Update caller (PR-5) |
 

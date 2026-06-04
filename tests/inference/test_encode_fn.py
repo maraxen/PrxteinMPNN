@@ -18,18 +18,18 @@ import pytest
 
 def test_encode_module_importable():
     """inference.encode module is importable."""
-    import prxteinmpnn.inference.encode  # noqa: F401
+    import aminx.inference.encode  # noqa: F401
 
 
 def test_make_encode_fn_importable():
     """make_encode_fn is importable from inference.encode."""
-    from prxteinmpnn.inference.encode import make_encode_fn  # noqa: F401
+    from aminx.inference.encode import make_encode_fn  # noqa: F401
 
 
 def test_make_encode_fn_has_use_rolling_state_param():
     """make_encode_fn accepts a use_rolling_state keyword argument."""
     import inspect
-    from prxteinmpnn.inference.encode import make_encode_fn
+    from aminx.inference.encode import make_encode_fn
 
     sig = inspect.signature(make_encode_fn)
     assert "use_rolling_state" in sig.parameters
@@ -41,7 +41,7 @@ def test_make_encode_fn_has_use_rolling_state_param():
 
 def test_make_encode_fn_returns_callable():
     """make_encode_fn(model) returns a callable."""
-    from prxteinmpnn.inference.encode import make_encode_fn
+    from aminx.inference.encode import make_encode_fn
 
     # A minimal duck-type model
     import equinox as eqx
@@ -59,7 +59,7 @@ def test_make_encode_fn_returns_callable():
 
 def test_make_encode_fn_records_rolling_state_flag():
     """make_encode_fn stores use_rolling_state so it can be inspected."""
-    from prxteinmpnn.inference.encode import make_encode_fn
+    from aminx.inference.encode import make_encode_fn
     import equinox as eqx
 
     class DummyModel(eqx.Module):
@@ -81,10 +81,10 @@ def test_make_encode_fn_rolling_state_returns_encoder_output():
     import jax
     import jax.numpy as jnp
     import equinox as eqx
-    from prxteinmpnn.inference.encode import make_encode_fn
-    from prxteinmpnn.types.encodings import EncoderOutput
-    from prxteinmpnn.types.bundles import GeometryBundle, LigandBundle, InferenceBundle, WaveScheduleBundle
-    from prxteinmpnn.types.configs import InferenceConfig
+    from aminx.inference.encode import make_encode_fn
+    from aminx.types.encodings import EncoderOutput
+    from aminx.types.bundles import GeometryBundle, LigandBundle, InferenceBundle, WaveScheduleBundle
+    from aminx.types.configs import InferenceConfig
 
     # Minimal duck-type model
     class DummyModel(eqx.Module):
@@ -160,10 +160,10 @@ def test_make_encode_fn_scan_vs_vmap_both_return_encoder_output():
     import jax
     import jax.numpy as jnp
     import equinox as eqx
-    from prxteinmpnn.inference.encode import make_encode_fn
-    from prxteinmpnn.types.encodings import EncoderOutput
-    from prxteinmpnn.types.bundles import GeometryBundle, LigandBundle, InferenceBundle, WaveScheduleBundle
-    from prxteinmpnn.types.configs import InferenceConfig
+    from aminx.inference.encode import make_encode_fn
+    from aminx.types.encodings import EncoderOutput
+    from aminx.types.bundles import GeometryBundle, LigandBundle, InferenceBundle, WaveScheduleBundle
+    from aminx.types.configs import InferenceConfig
 
     class DummyModel(eqx.Module):
         def __call__(self, coords, mask, residue_index, chain_index, **kwargs):

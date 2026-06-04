@@ -1,7 +1,7 @@
 Tutorials
 =========
 
-This section provides step-by-step tutorials for using PrxteinMPNN.
+This section provides step-by-step tutorials for using Aminx.
 
 .. toctree::
    :maxdepth: 2
@@ -14,9 +14,9 @@ This section provides step-by-step tutorials for using PrxteinMPNN.
 Getting Started
 ---------------
 
-New to PrxteinMPNN? Start here:
+New to Aminx? Start here:
 
-1. :doc:`installation` - Install PrxteinMPNN and its dependencies
+1. :doc:`installation` - Install Aminx and its dependencies
 2. :doc:`quickstart` - Quick introduction to the main features  
 3. :doc:`basic_usage` - Basic usage patterns and examples
 
@@ -25,6 +25,6 @@ Advanced Topics
 
 Coming soon:
 
-* JAX transformations with PrxteinMPNN
+* JAX transformations with Aminx
 * Performance optimization techniques
 * Custom protein design workflows

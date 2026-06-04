@@ -268,6 +268,11 @@ def benchmark_prxteinmpnn_dedup(
 ) -> float:
     """Benchmark prxteinmpnn with DedupGather on n_structures axis.
 
+    For K=1: single structure, one plan.score() call.
+    For K>1: stack K structures, call plan.score() ONCE with batched arrays.
+
+    This measures batch efficiency: K structures in ~1 JIT call vs K sequential calls (baselines).
+
     Parameters
     ----------
     batch : dict
@@ -334,48 +339,58 @@ def benchmark_prxteinmpnn_dedup(
     n_structures = batch["n_total"]
 
     # Take only the first K unique structures
-    coords = jnp.asarray(batch["coords"][:k_unique], dtype=jnp.float32)
-    mask = jnp.asarray(batch["mask"][:k_unique], dtype=jnp.float32)
-    sequence = jnp.asarray(batch["sequence"][:k_unique], dtype=jnp.int32)
-    residue_index = jnp.asarray(batch["residue_index"][:k_unique], dtype=jnp.int32)
-    chain_index = jnp.asarray(batch["chain_index"][:k_unique], dtype=jnp.int32)
+    coords_all = jnp.asarray(batch["coords"][:k_unique], dtype=jnp.float32)
+    mask_all = jnp.asarray(batch["mask"][:k_unique], dtype=jnp.float32)
+    sequence_all = jnp.asarray(batch["sequence"][:k_unique], dtype=jnp.int32)
+    residue_index_all = jnp.asarray(batch["residue_index"][:k_unique], dtype=jnp.int32)
+    chain_index_all = jnp.asarray(batch["chain_index"][:k_unique], dtype=jnp.int32)
 
     bucket_cfg = BucketingConfig()
     key = random.PRNGKey(42)
 
     try:
-        # Build bundles for each unique structure
-        bundles_configs = []
-        for i in range(k_unique):
-            bundle, config = build_inference_bundle(
-                coords=coords[i],
-                mask=mask[i],
-                residue_index=residue_index[i],
-                chain_index=chain_index[i],
-                sequence=sequence[i],
-                ligand_coords=None,
-                ligand_atom_types=None,
-                ligand_mask=None,
-                temperature=1.0,
-                mode="score_conditional",
-                inference=True,
-                bucket_config=bucket_cfg,
-            )
-            bundles_configs.append((bundle, config))
+        # For K=1: single structure path
+        if k_unique == 1:
+            coords = coords_all[0]
+            mask = mask_all[0]
+            sequence = sequence_all[0]
+            residue_index = residue_index_all[0]
+            chain_index = chain_index_all[0]
+        else:
+            # For K>1: stack K structures along axis 0 for batched call
+            coords = coords_all  # (K, L, 4, 3)
+            mask = mask_all      # (K, L)
+            sequence = sequence_all  # (K, L) — native sequence for score_conditional
+            residue_index = residue_index_all  # (K, L)
+            chain_index = chain_index_all      # (K, L)
+
+        # Build single bundle with batched (or single) arrays
+        bundle, config = build_inference_bundle(
+            coords=coords,
+            mask=mask,
+            residue_index=residue_index,
+            chain_index=chain_index,
+            sequence=sequence,
+            ligand_coords=None,
+            ligand_atom_types=None,
+            ligand_mask=None,
+            temperature=1.0,
+            mode="score_conditional",
+            inference=True,
+            bucket_config=bucket_cfg,
+        )
 
         logger.info(f"Warming up ({n_warmup} iterations)...")
         for _ in range(n_warmup):
-            for bundle, config in bundles_configs:
-                result = plan.score(bundle, key, config)
-                jax.block_until_ready(result)
+            result = plan.score(bundle, key, config)
+            jax.block_until_ready(result)
 
         logger.info(f"Timing ({n_timed} iterations)...")
         times = []
         for _ in range(n_timed):
             t0 = time.perf_counter()
-            for bundle, config in bundles_configs:
-                result = plan.score(bundle, key, config)
-                jax.block_until_ready(result)
+            result = plan.score(bundle, key, config)
+            jax.block_until_ready(result)
             times.append(time.perf_counter() - t0)
 
         latency_ms = median_from_timings(times)

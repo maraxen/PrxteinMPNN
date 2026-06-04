@@ -3,7 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/aminx)](https://pypi.org/project/aminx/)
 [![Python](https://img.shields.io/pypi/pyversions/aminx)](https://pypi.org/project/aminx/)
 [![Coverage](https://codecov.io/gh/maraxen/Aminx/branch/main/graph/badge.svg)](https://codecov.io/gh/maraxen/Aminx)
-[![Run on Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/maraxen/Aminx/blob/main/examples/example_notebook.ipynb)
+[![Run on Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/maraxen/Aminx/blob/main/examples/colab_inference_demo.ipynb)
 [![Documentation](https://img.shields.io/badge/docs-online-blue.svg)](http://maraxen.github.io/Aminx)
 
 > [!WARNING]
@@ -20,7 +20,7 @@ What you get:
 
 ## Performance
 
-Benchmarked on H200 (NVIDIA SXM5), A100 (PCIe), L40s, and Blackwell (SM120). All figures are warm-call medians; see the [full benchmark reports](reports/) for every hardware and configuration.
+Benchmarked on H200 (NVIDIA SXM5), A100 (PCIe), L40s, and Blackwell (SM120). All figures are warm-call medians; see the [full benchmark report](reports/benchmark_report.md) for every hardware and configuration.
 
 **H200 — single-structure latency (seq_len=76)**
 
@@ -40,14 +40,14 @@ These are capabilities ProteinMPNN doesn't expose, measured against the PyTorch 
 | Mixed-length batch | lengths [76, 150, 300, 500] | 4.1 ms | 2280 ms | **554×** |
 | Temperature array | M=8 temperatures | 2.2 ms/temp | — | **8× per-temp** |
 
-Speedups are hardware-consistent: A100 shows 8–91×, L40s 8–85×, Blackwell (SM120) 8–84× across the same suite.
+The 8× floor holds across hardware; ceilings reach 84–91× depending on the operation (A100: 8–91×, L40s: 8–85×, Blackwell SM120: 8–84×).
 
 ## Documentation
 
 **[Complete Documentation →](http://maraxen.github.io/Aminx)**
 
 - [Composition Guide](docs/COMPOSITION_GUIDE.md) — `StageSet`, `InferencePlan`, and the five extension points
-- [Parity Validation](docs/parity/parity_report.md) — numerical parity report vs the LigandMPNN reference
+- [Parity Validation](docs/parity/parity_report.html) — numerical parity report vs the LigandMPNN reference
 
 ## Validation
 
@@ -65,8 +65,6 @@ Full parity suite: **30/30 `parity_heavy` tests pass** on the Engaging cluster (
 
 Canonical parity docs (source of truth):
 
-- [Final validation summary (Markdown)](docs/FINAL_VALIDATION_RESULTS.md)
-- [Parity report (Markdown)](docs/parity/parity_report.md)
 - [Parity report (HTML)](docs/parity/parity_report.html)
 - [Parity report (PDF)](docs/parity/parity_report.pdf)
 
@@ -330,7 +328,7 @@ Importing `aminx` does **not** set the multiprocessing start method. If your not
 
 ## Related Tools
 
-`ensemble_tools` was extracted from aminx during refactoring: clustering and conformational inference algorithms (GMM, EM, KMeans, DBSCAN, PCA, BIC, VMM). It lives at `~/projects/ensemble_aminx_tools_WIP/`, is experimental, and is not on PyPI — install with `uv pip install -e ~/projects/ensemble_aminx_tools_WIP` and import as `from ensemble_tools.xxx import yyy`. The `ConformationalStates` type used by `RunSpecification.conformational_states` comes from `ensemble_tools.dbscan`.
+`ensemble_tools` was extracted from aminx during refactoring: clustering and conformational inference algorithms (GMM, EM, KMeans, DBSCAN, PCA, BIC, VMM). It is experimental and not yet published — not available on PyPI. The `ConformationalStates` type used by `RunSpecification.conformational_states` comes from `ensemble_tools.dbscan`.
 
 ## Validation Reference
 
@@ -420,4 +418,4 @@ Contributions are welcome — see the [contributing guidelines](CONTRIBUTING.md)
 
 ---
 
-Built with ❤️ in JAX, for anyone who'd rather design proteins than write inference loops.
+Built in JAX, for anyone who'd rather design proteins than write inference loops.

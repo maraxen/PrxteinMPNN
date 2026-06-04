@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass as dc
 
 import numpy as np
-from flax.struct import dataclass
+import equinox as eqx
 from proxide.core.containers import (
   OligomerType,
   Protein,
@@ -43,8 +43,7 @@ class TrajectoryStaticFeatures:
   num_residues: int
 
 
-@dataclass
-class EstatInfo:
+class EstatInfo(eqx.Module):
   """Electrostatics information extracted from a PQR file.
 
   Attributes:

@@ -148,10 +148,25 @@ CI tier routing:
 
 ### Installation
 
+Install for development (with CUDA support):
+
 ```bash
-uv sync --extra cuda  # For GPU
+uv sync --extra cuda  # For GPU (CUDA)
 uv sync --extra tpu   # For TPU
 uv sync --extra cpu   # For CPU-only (default)
+```
+
+**Install as a tool** for standalone CLI use (no virtual environment):
+
+```bash
+uv tool install prxteinmpnn
+prxteinmpnn spec validate run_spec.json  # Now available in PATH
+```
+
+Or invoke directly without installation:
+
+```bash
+uvx prxteinmpnn spec validate run_spec.json
 ```
 
 ### High-level API
@@ -353,7 +368,7 @@ json_str = run_specification_to_json(spec)
 
 ## Requirements
 
-- Python ≥ 3.11
+- Python ≥ 3.12
 - JAX + Equinox (GPU/TPU/CPU via extras)
 - `uv sync --extra cpu` for CPU-only; `--extra cuda` for GPU
 
@@ -362,7 +377,7 @@ json_str = run_specification_to_json(spec)
 | Command | Purpose |
 |---------|---------|
 | `uv run pytest` | Fast test suite (excludes `parity_heavy`) |
-| `uvx ruff check src` | Lint |
+| `uv run ruff check src` | Lint |
 | `uv run ty check` | Type check (ty strict) |
 | `uv run ruff format .` | Auto-format |
 

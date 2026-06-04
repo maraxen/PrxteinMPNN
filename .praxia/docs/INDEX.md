@@ -13,6 +13,10 @@
 ## Specs
 - [260527_merge-readiness-hardening](specs/260527_merge-readiness-hardening.md) — ORACLE-REVIEWED PASS (15/18): pre-merge hygiene for refactor-full → main
 - [260601_benchmark-spec](specs/260601_benchmark-spec.md) — ORACLE-APPROVED: GPU benchmark suite (prxteinmpnn vs. LigandMPNN vs. ColabDesign)
+- [260604_release-preparedness-epic](specs/260604_release-preparedness-epic-for-prxteinmpn.md) — Release Preparedness epic: two-phase backlog DAG (CI+cleanup → docs+release), Definition of Done, ADR index
+
+## ADRs
+- [INDEX](adr/INDEX.md) — all architecture decision records
 
 ## Handoffs
 - [260601_benchmark-staging-handoff](handoffs/260601_benchmark-staging-handoff.md) — Wave 0 done; Waves 1-5 implementation ready; spec oracle-approved

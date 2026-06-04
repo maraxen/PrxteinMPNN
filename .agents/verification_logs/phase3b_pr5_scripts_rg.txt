@@ -1,5 +1,0 @@
---- phase3b_pr5_scripts_rg 2026-05-06 ---
-scripts/collect_parity_evidence.py
-scripts/260410/verify_massive_sampling.py
-scripts/overfit/overfit_check.py
---- exit ---

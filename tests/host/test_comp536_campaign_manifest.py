@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from prxteinmpnn.host.campaign import (
+from aminx.host.campaign import (
     MANIFEST_ROW_SCHEMA_VERSION,
     MANIFEST_SCHEMA_VERSION,
     build_manifest_row,
@@ -432,8 +432,8 @@ class TestWriteManifest:
 
 class TestIntegration:
     def test_plan_campaign_manifest_succeeds(self):
-        from prxteinmpnn.host.campaign import plan_campaign_manifest
-        from prxteinmpnn.run.specs import SamplingSpecification
+        from aminx.host.campaign import plan_campaign_manifest
+        from aminx.run.specs import SamplingSpecification
 
         spec = SamplingSpecification(
             inputs=["/tmp/test.pdb"],
@@ -459,8 +459,8 @@ class TestIntegration:
                 assert len(row["manifest_row_hash"]) == 64
 
     def test_write_campaign_manifest_roundtrip(self):
-        from prxteinmpnn.host.campaign import write_campaign_manifest
-        from prxteinmpnn.run.specs import SamplingSpecification
+        from aminx.host.campaign import write_campaign_manifest
+        from aminx.run.specs import SamplingSpecification
 
         spec = SamplingSpecification(
             inputs=["/tmp/test.pdb"],
@@ -485,8 +485,8 @@ class TestIntegration:
 
     def test_plan_manifest_raises_when_checkpoint_id_missing(self):
         """validate_manifest_rows must catch empty checkpoint_id at plan time."""
-        from prxteinmpnn.host.campaign import plan_campaign_manifest
-        from prxteinmpnn.run.specs import SamplingSpecification
+        from aminx.host.campaign import plan_campaign_manifest
+        from aminx.run.specs import SamplingSpecification
 
         spec = SamplingSpecification(
             inputs=["/tmp/test.pdb"],

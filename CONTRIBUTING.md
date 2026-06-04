@@ -1,4 +1,4 @@
-# Contributing to PrxteinMPNN
+# Contributing to Aminx
 
 We welcome contributions from the community! To ensure a smooth development process, please follow these guidelines.
 
@@ -11,8 +11,8 @@ To get started, you'll need `uv` and `pre-commit` installed.
 
 2.  **Clone the repository**:
     ```bash
-    git clone https://github.com/maraxen/PrxteinMPNN.git
-    cd PrxteinMPNN
+    git clone https://github.com/maraxen/Aminx.git
+    cd Aminx
     ```
 
 3.  **Install dependencies**:
@@ -55,4 +55,4 @@ We welcome contributions to improve type compliance across the codebase, includi
 4.  Push your branch to your fork.
 5.  Open a pull request with a clear description of your changes.
 
-Thank you for contributing to PrxteinMPNN!
+Thank you for contributing to Aminx!

@@ -4,17 +4,17 @@ Inference
 Entry Points
 ------------
 
-.. automodule:: prxteinmpnn.inference.bundle_builder
+.. automodule:: aminx.inference.bundle_builder
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: prxteinmpnn.inference.encode
+.. automodule:: aminx.inference.encode
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: prxteinmpnn.inference.driver
+.. automodule:: aminx.inference.driver
    :members:
    :undoc-members:
    :show-inheritance:
@@ -22,17 +22,17 @@ Entry Points
 Kernels
 -------
 
-.. automodule:: prxteinmpnn.inference.sample_autoregressive
+.. automodule:: aminx.inference.sample_autoregressive
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: prxteinmpnn.inference.score_conditional
+.. automodule:: aminx.inference.score_conditional
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: prxteinmpnn.inference.score_unconditional
+.. automodule:: aminx.inference.score_unconditional
    :members:
    :undoc-members:
    :show-inheritance:
@@ -40,7 +40,7 @@ Kernels
 Logit Transforms
 ----------------
 
-.. automodule:: prxteinmpnn.inference.logits
+.. automodule:: aminx.inference.logits
    :members:
    :undoc-members:
    :show-inheritance:

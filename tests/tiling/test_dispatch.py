@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import pytest
 
-from prxteinmpnn.host.plan import PlanTopologyError
-from prxteinmpnn.tiling.dispatch import DispatchRejected, make_axis_dispatch
-from prxteinmpnn.tiling.errors import TilingError
-from prxteinmpnn.tiling.strategy import SafeMap, Scan, Vmap
+from aminx.host.plan import PlanTopologyError
+from aminx.tiling.dispatch import DispatchRejected, make_axis_dispatch
+from aminx.tiling.errors import TilingError
+from aminx.tiling.strategy import SafeMap, Scan, Vmap
 
 
 class TestMakeAxisDispatchHappyPath:
@@ -66,7 +66,7 @@ class TestMakeAxisDispatchRejectPath:
         make_axis_dispatch (which maps to iterator types). Passing DedupGather
         here must not fall through to TypeError.
         """
-        from prxteinmpnn.tiling.strategy import DedupGather
+        from aminx.tiling.strategy import DedupGather
         import numpy as np
 
         dg = DedupGather(

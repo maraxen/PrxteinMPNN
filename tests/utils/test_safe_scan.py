@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.utils.safe_scan import safe_scan
+from aminx.utils.safe_scan import safe_scan
 
 
 def test_safe_scan_accumulates_carry() -> None:

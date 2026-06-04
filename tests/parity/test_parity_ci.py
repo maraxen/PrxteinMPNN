@@ -10,10 +10,10 @@ import equinox as eqx
 import jax
 import pytest
 
-from prxteinmpnn.model.mpnn import PrxteinMPNN
-from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
-from prxteinmpnn.model.packer import Packer
-from prxteinmpnn.io.weights import load_weights
+from aminx.model.mpnn import Aminx
+from aminx.model.ligand_mpnn import PrxteinLigandMPNN
+from aminx.model.packer import Packer
+from aminx.io.weights import load_weights
 from tests.parity.reference_utils import project_root
 
 PARITY_AUDIT_TIER = "parity_audit"
@@ -145,13 +145,13 @@ def _build_template(
     asset_id=case.asset_id,
   )
 
-  if model_class == "PrxteinMPNN":
+  if model_class == "Aminx":
     physics_feature_dim = case.validation.get("physics_feature_dim")
     if physics_feature_dim is not None and not isinstance(physics_feature_dim, int):
       msg = f"{case.asset_id}: validation.physics_feature_dim must be null or integer."
       raise TypeError(msg)
 
-    return PrxteinMPNN(
+    return Aminx(
       node_features=_get_validation_int(case, "node_features"),
       edge_features=_get_validation_int(case, "edge_features"),
       hidden_features=_get_validation_int(case, "hidden_features"),
@@ -247,6 +247,6 @@ def test_load_available_converted_family_checkpoints(family: str) -> None:
   for index, case in enumerate(available_cases):
     checkpoint_key = jax.random.fold_in(base_key, index)
     loaded = _load_with_positional_fallback(case, key=checkpoint_key)
-    if type(loaded).__name__ not in {"PrxteinMPNN", "PrxteinLigandMPNN", "Packer"}:
+    if type(loaded).__name__ not in {"Aminx", "PrxteinLigandMPNN", "Packer"}:
       msg = f"{case.asset_id}: loaded unexpected model type {type(loaded).__name__}"
       pytest.fail(msg)

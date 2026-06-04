@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from prxteinmpnn.utils.atomic_write import atomic_write_text
+from aminx.utils.atomic_write import atomic_write_text
 
 
 def test_atomic_write_text_roundtrip(tmp_path: Path) -> None:

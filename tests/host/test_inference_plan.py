@@ -19,17 +19,17 @@ import pytest
 
 def test_inference_plan_importable():
     """InferencePlan is importable from host.plan."""
-    from prxteinmpnn.host.plan import InferencePlan  # noqa: F401
+    from aminx.host.plan import InferencePlan  # noqa: F401
 
 
 def test_inference_components_importable():
     """InferenceComponents is importable from host.plan."""
-    from prxteinmpnn.host.plan import InferenceComponents  # noqa: F401
+    from aminx.host.plan import InferenceComponents  # noqa: F401
 
 
 def test_make_inference_plan_importable():
     """make_inference_plan factory is importable from host.plan."""
-    from prxteinmpnn.host.plan import make_inference_plan  # noqa: F401
+    from aminx.host.plan import make_inference_plan  # noqa: F401
 
 
 # ---------------------------------------------------------------------------
@@ -38,21 +38,21 @@ def test_make_inference_plan_importable():
 
 def test_inference_plan_has_sample_method():
     """InferencePlan has a .sample() method."""
-    from prxteinmpnn.host.plan import InferencePlan
+    from aminx.host.plan import InferencePlan
     assert hasattr(InferencePlan, "sample"), "InferencePlan must have .sample()"
     assert callable(InferencePlan.sample)
 
 
 def test_inference_plan_has_score_method():
     """InferencePlan has a .score() method."""
-    from prxteinmpnn.host.plan import InferencePlan
+    from aminx.host.plan import InferencePlan
     assert hasattr(InferencePlan, "score"), "InferencePlan must have .score()"
     assert callable(InferencePlan.score)
 
 
 def test_inference_plan_sample_score_are_distinct():
     """sample() and score() are separate methods with different implementations."""
-    from prxteinmpnn.host.plan import InferencePlan
+    from aminx.host.plan import InferencePlan
     # They must not be the same function object
     assert InferencePlan.sample is not InferencePlan.score
 
@@ -60,7 +60,7 @@ def test_inference_plan_sample_score_are_distinct():
 def test_inference_plan_has_stage_set_attribute():
     """InferencePlan exposes a stage_set attribute (resolved from spec)."""
     import equinox as eqx
-    from prxteinmpnn.host.plan import InferencePlan, make_inference_plan
+    from aminx.host.plan import InferencePlan, make_inference_plan
 
     # Create a minimal plan instance via make_inference_plan
     class DummyModel(eqx.Module):
@@ -84,7 +84,7 @@ def test_inference_plan_has_stage_set_attribute():
 
 def test_inference_components_is_named_tuple():
     """InferenceComponents is a NamedTuple with encode_fn, stage_set."""
-    from prxteinmpnn.host.plan import InferenceComponents
+    from aminx.host.plan import InferenceComponents
     # NamedTuple has _fields
     assert hasattr(InferenceComponents, "_fields"), "InferenceComponents must be a NamedTuple"
     fields = InferenceComponents._fields
@@ -98,7 +98,7 @@ def test_inference_components_is_named_tuple():
 
 def test_make_inference_plan_accepts_model_and_spec():
     """make_inference_plan(model, spec) has model and spec parameters."""
-    from prxteinmpnn.host.plan import make_inference_plan
+    from aminx.host.plan import make_inference_plan
     sig = inspect.signature(make_inference_plan)
     assert "model" in sig.parameters
     assert "spec" in sig.parameters
@@ -107,7 +107,7 @@ def test_make_inference_plan_accepts_model_and_spec():
 def test_make_inference_plan_returns_inference_plan():
     """make_inference_plan returns an InferencePlan instance."""
     import equinox as eqx
-    from prxteinmpnn.host.plan import InferencePlan, make_inference_plan
+    from aminx.host.plan import InferencePlan, make_inference_plan
 
     # Minimal duck-type model
     class DummyModel(eqx.Module):
@@ -130,8 +130,8 @@ def test_make_inference_plan_returns_inference_plan():
 
 def test_make_inference_plan_with_geometric_mean():
     """make_inference_plan with multi_state_strategy='geometric_mean' wires GeometricMeanLogits."""
-    from prxteinmpnn.host.plan import make_inference_plan
-    from prxteinmpnn.inference.logits import GeometricMeanLogits
+    from aminx.host.plan import make_inference_plan
+    from aminx.inference.logits import GeometricMeanLogits
     import equinox as eqx
 
     class DummyModel(eqx.Module):

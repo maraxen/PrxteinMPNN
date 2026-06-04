@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from prxteinmpnn.parity.evidence import (
+from aminx.parity.evidence import (
   amino_acid_distribution,
   EvidenceMetricRecord,
   EvidencePointRecord,

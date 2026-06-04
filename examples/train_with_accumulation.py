@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""PrxteinMPNN Training Script with Gradient Accumulation.
+"""Aminx Training Script with Gradient Accumulation.
 
 This script mirrors the training_example_notebook.ipynb but can be run as a standalone
 Python script. It includes gradient accumulation configuration.
@@ -99,7 +99,7 @@ def get_data_paths(use_example: bool, hf_repo: str) -> tuple[Path, Path]:
         possible_paths = [
             Path("data/pdb_sample.array_record"),
             Path("../data/pdb_sample.array_record"),
-            Path("/content/PrxteinMPNN/data/pdb_sample.array_record"),
+            Path("/content/Aminx/data/pdb_sample.array_record"),
         ]
         
         for p in possible_paths:
@@ -113,10 +113,10 @@ def get_data_paths(use_example: bool, hf_repo: str) -> tuple[Path, Path]:
         import subprocess
         subprocess.run([
             "git", "clone", "--depth=1", 
-            "https://github.com/maraxen/PrxteinMPNN.git", 
-            "/content/PrxteinMPNN"
+            "https://github.com/maraxen/Aminx.git", 
+            "/content/Aminx"
         ], check=True)
-        p = Path("/content/PrxteinMPNN/data/pdb_sample.array_record")
+        p = Path("/content/Aminx/data/pdb_sample.array_record")
         logger.info(f"✓ Cloned repo, using data at: {p}")
         return p, p.with_suffix(".index.json")
     
@@ -127,8 +127,8 @@ def get_data_paths(use_example: bool, hf_repo: str) -> tuple[Path, Path]:
 
 def main():
     """Main training entry point."""
-    from prxteinmpnn.training.specs import TrainingSpecification
-    from prxteinmpnn.training.trainer import train
+    from aminx.training.specs import TrainingSpecification
+    from aminx.training.trainer import train
     
     # Load data
     array_record_path, index_path = get_data_paths(use_example_data, "")

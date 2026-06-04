@@ -2,9 +2,9 @@
 
 import pytest
 
-from prxteinmpnn.host.plan import plan_bucketed
-from prxteinmpnn.run.specs import SamplingSpecification
-from prxteinmpnn.tiling.axes import (
+from aminx.host.plan import plan_bucketed
+from aminx.run.specs import SamplingSpecification
+from aminx.tiling.axes import (
     N_LIGAND_ATOMS,
     N_NOISES,
     N_RESIDUES,
@@ -12,8 +12,8 @@ from prxteinmpnn.tiling.axes import (
     N_STRUCTURES,
     N_TEMPERATURES,
 )
-from prxteinmpnn.tiling.bucketing import BucketingConfig
-from prxteinmpnn.tiling.planner import BatchPlanner, estimate_memory_theoretical
+from aminx.tiling.bucketing import BucketingConfig
+from aminx.tiling.planner import BatchPlanner, estimate_memory_theoretical
 
 
 class TestPlanBucketed:

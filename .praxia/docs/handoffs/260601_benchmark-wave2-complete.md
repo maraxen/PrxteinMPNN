@@ -31,7 +31,7 @@ Recent commits:
 ```bash
 # No ligand (protein_mpnn):
 cd /home/marielle/projects/tev_design
-uv run python prxteinmpnn/.claude/worktrees/benchmark-wave2-prereqs/scripts/benchmarks/bench_ligandmpnn_pytorch.py \
+uv run python aminx/.claude/worktrees/benchmark-wave2-prereqs/scripts/benchmarks/bench_ligandmpnn_pytorch.py \
   --seq-lens 76 150 300 500 --batch-sizes 1 4 16 \
   --precision bf16 --hardware A100 --output-json results/pt.json
 
@@ -62,9 +62,9 @@ when `model_type == "ligand_mpnn"`, skip NPZ loading and call `parse_PDB` instea
 **Usage:**
 ```bash
 cd /home/marielle/projects/tev_design
-uv run python prxteinmpnn/.claude/worktrees/benchmark-wave2-prereqs/scripts/benchmarks/bench_colabdesign_jax.py \
+uv run python aminx/.claude/worktrees/benchmark-wave2-prereqs/scripts/benchmarks/bench_colabdesign_jax.py \
   --seq-lens 76 500 --batch-sizes 1 4 16 \
-  --hardware A100 --pdb-dir prxteinmpnn/tests/data \
+  --hardware A100 --pdb-dir aminx/tests/data \
   --output-json results/cd.json
 ```
 
@@ -98,7 +98,7 @@ See spec §5 for full architecture. Key requirements:
   - Merge JSON outputs from all three adapters
 - `bench_report.py`: JSON → markdown table + CSV
   - Group by `(seq_len, batch_size, precision, ligand_conditioning)`
-  - Side-by-side columns: `prxteinmpnn_jax | ligandmpnn_pytorch | colabdesign_jax`
+  - Side-by-side columns: `aminx_jax | ligandmpnn_pytorch | colabdesign_jax`
   - Report speedup ratios relative to PyTorch baseline
 
 ## Merge instructions
@@ -106,6 +106,6 @@ See spec §5 for full architecture. Key requirements:
 Worktree `worktree-benchmark-wave2-prereqs` has 4 commits ahead of main.
 From the main repo:
 ```bash
-git -C /home/marielle/projects/tev_design/prxteinmpnn merge --no-ff worktree-benchmark-wave2-prereqs \
+git -C /home/marielle/projects/tev_design/aminx merge --no-ff worktree-benchmark-wave2-prereqs \
   -m "feat(benchmark-wave2): merge Wave 2 adapters + prereqs"
 ```

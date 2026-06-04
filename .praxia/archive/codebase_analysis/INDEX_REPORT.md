@@ -1,8 +1,8 @@
-# PrxteinMPNN Codebase Index Report
+# Aminx Codebase Index Report
 
 **Report Date:** 2026-05-13  
-**Project:** prxteinmpnn (ProteinMPNN Functional Interface)  
-**Location:** `/home/marielle/projects/tev_design/prxteinmpnn/src/prxteinmpnn`  
+**Project:** aminx (ProteinMPNN Functional Interface)  
+**Location:** `/home/marielle/projects/tev_design/aminx/src/aminx`  
 **Status:** COMPLETE
 
 ## Summary Statistics
@@ -325,7 +325,7 @@ configure_multiprocessing()
 - **Status:** Successfully indexed
 - **Query Support:** Semantic search enabled for module relationships
 
-**Test Query:** "what modules exist in src/prxteinmpnn"
+**Test Query:** "what modules exist in src/aminx"
 **Result:** Knowledge base successfully returned indexed documentation
 
 ---
@@ -383,7 +383,7 @@ SUPPORT LAYERS
 - [x] Knowledge base integration: SUCCESSFUL
 - [x] Semantic search capabilities: ENABLED
 - [x] Dependency graph: MAPPED
-- [x] Output directory created: `/home/marielle/projects/tev_design/prxteinmpnn/docs/codebase_analysis/`
+- [x] Output directory created: `/home/marielle/projects/tev_design/aminx/docs/codebase_analysis/`
 
 ---
 

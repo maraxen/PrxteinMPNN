@@ -1,9 +1,9 @@
-"""Unit tests for amino acid conversion functions in the prxteinmpnn.utils.aa_convert module."""
+"""Unit tests for amino acid conversion functions in the aminx.utils.aa_convert module."""
 
 import jax.numpy as jnp
 import numpy as np
 
-from prxteinmpnn.utils import aa_convert
+from aminx.utils import aa_convert
 
 
 def test_af_to_mpnn_with_integer_sequence():

@@ -1,5 +1,5 @@
 # Benchmark Suite Spec (Follow-up): Ligand-Conditioned Inference
-## prxteinmpnn JAX + LigandMPNN PyTorch Reference
+## aminx JAX + LigandMPNN PyTorch Reference
 
 **Spec Version:** 2 (ligand-conditioned follow-up to 260601_benchmark-spec.md)
 **Date:** 2026-06-02
@@ -12,11 +12,11 @@
 
 The approved no-ligand benchmark (260601) establishes baseline throughput and latency for
 unconditional ProteinMPNN in both frameworks. This follow-up measures the **cost of ligand
-conditioning**: Does prxteinmpnn JAX achieve comparable per-residue throughput to LigandMPNN
+conditioning**: Does aminx JAX achieve comparable per-residue throughput to LigandMPNN
 PyTorch when ligand atoms are present?
 
 Both implementations support ligand-conditioned sequence design:
-- **prxteinmpnn JAX** via `build_inference_bundle(ligand_coords, ligand_atom_types, ligand_mask)`;
+- **aminx JAX** via `build_inference_bundle(ligand_coords, ligand_atom_types, ligand_mask)`;
   LigandBundle traces into JIT kernels; checkpoint `ligandmpnn_v_32_010_25_converted.eqx`
 - **LigandMPNN PyTorch** via `featurize(..., model_type="ligand_mpnn")` which computes Y/Y_t/Y_m
   nearest-neighbor features; checkpoint `ligandmpnn_v_32_010_25.pt`
@@ -69,7 +69,7 @@ Deferred JIT kernel is a future optimisation.
 | batch_size | 1, 4, 16 | Same as no-ligand; test ligand overhead at scale |
 | ligand_conditioning | True | Both adapters use ligand checkpoint + ligand data |
 | precision | bf16 (primary), fp32 (secondary) | Same as 260601 |
-| framework | prxteinmpnn (JAX), ligandmpnn (PyTorch) | Subprocess isolation |
+| framework | aminx (JAX), ligandmpnn (PyTorch) | Subprocess isolation |
 | task | score_conditional, ar_sample | Both support ligand conditioning |
 
 **Fixed:** axis_strategy=Vmap; num_nearest_ligand_atoms=16; model_type="ligand_mpnn" (PyTorch).
@@ -101,7 +101,7 @@ All v1 fields retained. New fields:
 
 ## 5. Adapter Changes Required
 
-### 5.1 JAX Adapter (`bench_prxteinmpnn_jax.py`)
+### 5.1 JAX Adapter (`bench_aminx_jax.py`)
 
 1. **Extend `_PDB_MAP`** to include new ligand PDB once acquired.
 2. **Extend `load_pdb_as_arrays()`** to return ligand atoms `(N_lig, 3)` + element symbols.
@@ -187,7 +187,7 @@ If JAX ligand latency exceeds PyTorch by >2×, investigate LigandBundle re-traci
 - [ ] W0-2: Fetch + push to cluster via rsync; verify Bio.PDB + REFERENCE_PATH/parse_PDB both succeed
 
 ### Wave 1 — JAX Adapter Extension
-- [ ] W1-1: Extend bench_prxteinmpnn_jax.py (load ligand, compute features, build_inference_bundle)
+- [ ] W1-1: Extend bench_aminx_jax.py (load ligand, compute features, build_inference_bundle)
 - [ ] W1-2: L1 dry-run; L2 smoke test (L~93, B=1, n_warmup=1, n_timed=3)
 
 ### Wave 2 — PyTorch Adapter Extension

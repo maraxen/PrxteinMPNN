@@ -16,14 +16,14 @@ from typing import Callable
 
 import pytest
 
-from prxteinmpnn.inference.decode.mode import (
+from aminx.inference.decode.mode import (
     AutoregressiveMode,
     ConditionalMode,
     DecodeMode,
     STEMode,
     UnconditionalMode,
 )
-from prxteinmpnn.inference.decode.protocols import (
+from aminx.inference.decode.protocols import (
     ARDecodeFn,
     DecodeScoreFn,
     DecoderSinkFn,

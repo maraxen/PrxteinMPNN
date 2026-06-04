@@ -8,7 +8,7 @@ MIN_DISTANCE = 1e-07
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.utils.atom_ordering import C_INDEX, CA_INDEX, CB_PDB_INDEX, N_INDEX
+from aminx.utils.atom_ordering import C_INDEX, CA_INDEX, CB_PDB_INDEX, N_INDEX
 
 
 def compute_backbone_frame(
@@ -379,7 +379,7 @@ def compute_coulomb_forces_at_backbone(
   """Compute Coulomb forces at all five backbone atoms from all charges.
 
   Computes electrostatic forces at N, CA, C, O, and CB atoms for each residue.
-  This matches PrxteinMPNN's representation which uses these 5 atoms, where CB
+  This matches Aminx's representation which uses these 5 atoms, where CB
   indicates the sidechain direction.
 
   For Glycine residues (which lack CB), the CB position is typically set to the
@@ -981,12 +981,12 @@ from typing import TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.utils.coordinates import compute_backbone_coordinates
+from aminx.utils.coordinates import compute_backbone_coordinates
 
 if TYPE_CHECKING:
   from collections.abc import Sequence
 
-  from prxteinmpnn.utils.data_structures import ProteinTuple
+  from aminx.utils.data_structures import ProteinTuple
 
 
 def _resolve_sigma(

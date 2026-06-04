@@ -11,7 +11,7 @@ date: 260601
 ## Goal
 
 Pre-merge GPU benchmark suite comparing three implementations of protein sequence design:
-- **prxteinmpnn** (JAX + Equinox, ours)
+- **aminx** (JAX + Equinox, ours)
 - **dauparas/LigandMPNN** (PyTorch reference, commit 3870631)
 - **sokrypton/ColabDesign** (JAX ProteinMPNN, no ligand conditioning)
 
@@ -41,7 +41,7 @@ Hardware targets: A100, H100, H200, L40, Blackwell SM120 (node4007/node4008).
 2. **`pyproject.toml` line 225** — `benchmark = ["colabdesign @ git+...@e31a56fe..."]`. Install: `uv sync --extra cuda --group dev --group benchmark`
 3. **`tests/data/1SMD.pdb`** — 495-residue salivary amylase for L=500 benchmark fixture.
 4. **`scripts/benchmarks/prepare_fixtures.py`** — now produces correct L=500 from 1SMD with 1ubq fallback+warning.
-5. **`scripts/benchmarks/bench_prxteinmpnn_jax.py`** — Wave 1 adapter (645 lines). `ligand_conditioning=False` hardcoded; `_BenchmarkSpec.average_node_features=False`.
+5. **`scripts/benchmarks/bench_aminx_jax.py`** — Wave 1 adapter (645 lines). `ligand_conditioning=False` hardcoded; `_BenchmarkSpec.average_node_features=False`.
 6. **`.praxia/docs/specs/260601_benchmark-spec.md`** — oracle-approved, §11 all resolved. Key sections: §3.1 matrix, §5.1 JSON contract, §6.2 PyTorch timing, §8 fixture table.
 7. **`REFERENCE_PATH=/home/maarxaru/repos/LigandMPNN`** on cluster — has `inputs/1BC8.pdb` (ZN ligand, 113 residues) for ligand=True path.
 
@@ -49,15 +49,15 @@ Hardware targets: A100, H100, H200, L40, Blackwell SM120 (node4007/node4008).
 
 ### Merge worktree
 ```bash
-git -C /home/marielle/projects/tev_design/prxteinmpnn merge --no-ff worktree-benchmark-wave2-prereqs \
+git -C /home/marielle/projects/tev_design/aminx merge --no-ff worktree-benchmark-wave2-prereqs \
   -m "feat(benchmark-wave2-prereqs): ColabDesign SHA pin, 1SMD L500 fixture, spec §11 resolved"
 ```
 
 ### Regenerate fixtures (from tev_design root — workspace uv.lock lives there)
 ```bash
 cd /home/marielle/projects/tev_design
-uv run python prxteinmpnn/scripts/benchmarks/prepare_fixtures.py \
-  --fixture-dir prxteinmpnn/outputs/benchmark_fixtures/ --verbose
+uv run python aminx/scripts/benchmarks/prepare_fixtures.py \
+  --fixture-dir aminx/outputs/benchmark_fixtures/ --verbose
 ```
 This will regenerate all 4 NPZ files, now with structure_L500.npz from 1SMD instead of padded 1ubq.
 
@@ -87,9 +87,9 @@ Key spec requirements:
 
 ## Known Issues / Failed Approaches
 
-**uv run from prxteinmpnn worktree subdirectory fails.** The uv.lock lives at `tev_design/`, one level up. Always run:
+**uv run from aminx worktree subdirectory fails.** The uv.lock lives at `tev_design/`, one level up. Always run:
 ```bash
-cd /home/marielle/projects/tev_design && uv run python prxteinmpnn/scripts/...
+cd /home/marielle/projects/tev_design && uv run python aminx/scripts/...
 ```
 
 **Do not cherry-pick from worktrees that predate a target file's creation.**
@@ -97,6 +97,6 @@ cd /home/marielle/projects/tev_design && uv run python prxteinmpnn/scripts/...
 
 ## Open Questions
 
-1. **`_BenchmarkSpec.average_node_features=False`** — added to `bench_prxteinmpnn_jax.py` to prevent InferencePlan rejection. Confirm this is the correct field name and semantics before cluster runs (no-fusion = inputs only, no arithmetic mean across encoding states).
+1. **`_BenchmarkSpec.average_node_features=False`** — added to `bench_aminx_jax.py` to prevent InferencePlan rejection. Confirm this is the correct field name and semantics before cluster runs (no-fusion = inputs only, no arithmetic mean across encoding states).
 2. **1BC8.pdb has only ZN ion as ligand** — sufficient for performance benchmarking (exercises ligand conditioning code path) but doesn't represent real organic drug-protein workloads. Note in benchmark report.
 3. **GPU memory reporting** — `_get_gpu_memory_gb()` returns 0.0 placeholder. Add `pynvml` to benchmark dep group before cluster runs: `pynvml>=11.5.0`.

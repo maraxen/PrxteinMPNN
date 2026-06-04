@@ -1,6 +1,6 @@
-# PrxteinMPNN Codebase Map
+# Aminx Codebase Map
 
-Generated from AST analysis of `src/prxteinmpnn/` (136 Python files, ~30,000 LOC).
+Generated from AST analysis of `src/aminx/` (136 Python files, ~30,000 LOC).
 
 ---
 
@@ -18,9 +18,9 @@ graph TD
     end
 
     subgraph Model["Model Layer"]
-        M1[mpnn.py<br/>PrxteinMPNN]
+        M1[mpnn.py<br/>Aminx]
         M2[ligand_mpnn.py<br/>PrxteinLigandMPNN]
-        M3[diffusion_mpnn.py<br/>DiffusionPrxteinMPNN]
+        M3[diffusion_mpnn.py<br/>DiffusionAminx]
         M4[encoder.py]
         M5[decoder.py]
         M6[features.py]
@@ -143,9 +143,9 @@ graph TD
     end
 
     subgraph TopLevel["Top-Level Models"]
-        T1[mpnn.py<br/>PrxteinMPNN]
+        T1[mpnn.py<br/>Aminx]
         T2[ligand_mpnn.py<br/>PrxteinLigandMPNN]
-        T3[diffusion_mpnn.py<br/>DiffusionPrxteinMPNN]
+        T3[diffusion_mpnn.py<br/>DiffusionAminx]
     end
 
     subgraph Utilities["Model Utilities"]
@@ -202,7 +202,7 @@ classDiagram
         +__init__(stage_set)
     }
 
-    class PrxteinMPNN {
+    class Aminx {
         -encoder: ProteinEncoder
         -decoder: ProteinDecoder
         -mpnn_core: MPNNCore
@@ -217,8 +217,8 @@ classDiagram
         +__call__(geometry, ligand_geometry)
     }
 
-    class DiffusionPrxteinMPNN {
-        -base_model: PrxteinMPNN
+    class DiffusionAminx {
+        -base_model: Aminx
         -diffusion_config: DiffusionConfig
         +forward_diffusion(logits, t)
         +reverse_diffusion(x, t)
@@ -243,7 +243,7 @@ classDiagram
 
     class Packer {
         -ligand_model: PrxteinLigandMPNN
-        -protein_model: PrxteinMPNN
+        -protein_model: Aminx
         +pack_sequences(geometry, ligand_atoms)
     }
 
@@ -267,14 +267,14 @@ classDiagram
     Executor <|-- AutoregressiveExecutor
     Executor <|-- ConditionalExecutor
     Executor <|-- UnconditionalExecutor
-    PrxteinMPNN *-- ProteinEncoder
-    PrxteinMPNN *-- ProteinDecoder
-    PrxteinLigandMPNN --|> PrxteinMPNN
-    DiffusionPrxteinMPNN --|> PrxteinMPNN
+    Aminx *-- ProteinEncoder
+    Aminx *-- ProteinDecoder
+    PrxteinLigandMPNN --|> Aminx
+    DiffusionAminx --|> Aminx
     PrxteinLigandMPNN *-- LigandEncoder
     PrxteinLigandMPNN *-- LigandFeatures
     ProteinDecoder <|-- ConditionalProteinDecoder
-    Packer *-- PrxteinMPNN
+    Packer *-- Aminx
     Packer *-- PrxteinLigandMPNN
     RunSpecification <|-- SamplingSpecification
     RunSpecification <|-- ScoringSpecification
@@ -299,7 +299,7 @@ sequenceDiagram
     User->>run_sampling: run_sampling(spec)
     run_sampling->>prep: prep_protein_stream_and_model()
     prep->>io.weights: load_model(weights_path)
-    io.weights->>model: PrxteinMPNN/load_state_dict()
+    io.weights->>model: Aminx/load_state_dict()
     prep->>run_sampling: return model, geometry
     run_sampling->>sample: make_sample_sequences(model)
     sample->>model: model(geometry, ar_mask)
@@ -368,7 +368,7 @@ flowchart TD
 - **model_inputs.py**: `BackboneGeometry`, `SamplingInputs`
 
 ### Model Architecture (107 modules, heavily interconnected)
-- **Core Models**: `PrxteinMPNN` (1406 LOC), `PrxteinLigandMPNN` (1389 LOC), `DiffusionPrxteinMPNN` (324 LOC)
+- **Core Models**: `Aminx` (1406 LOC), `PrxteinLigandMPNN` (1389 LOC), `DiffusionAminx` (324 LOC)
 - **Encoder Stack**: `ProteinEncoder`, `LigandEncoder` (312 LOC)
 - **Decoder Stack**: `ProteinDecoder`, `ConditionalProteinDecoder` (498 LOC)
 - **Features**: `make_features`, `extract_features_direct`, `LigandFeatures` (841 LOC total)
@@ -424,7 +424,7 @@ flowchart TD
 4. **State Vmap Preparation**: `state_vmap_prep` vectorizes encoding over multiple structure states in parallel.
 5. **Autoregressive Scan**: Position-by-position decoding with masking to prevent information leakage.
 6. **Ligand Conditioning**: Separate `LigandEncoder` and `LigandFeatures` for protein-ligand complexes.
-7. **Diffusion Extensions**: `DiffusionPrxteinMPNN` extends base `PrxteinMPNN` with time-dependent embeddings.
+7. **Diffusion Extensions**: `DiffusionAminx` extends base `Aminx` with time-dependent embeddings.
 
 ---
 

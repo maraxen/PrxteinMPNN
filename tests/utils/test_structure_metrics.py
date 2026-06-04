@@ -5,7 +5,7 @@ from __future__ import annotations
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.utils.structure_metrics import (
+from aminx.utils.structure_metrics import (
   calculate_ca_distance_matrix,
   calculate_cb_distance_matrix,
   calculate_closest_atom_distance_matrix,

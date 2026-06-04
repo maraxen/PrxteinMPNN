@@ -21,7 +21,7 @@ import pytest
 def test_arithmetic_mean_accepts_bias():
     """ArithmeticMeanLogits.__call__ applies bias when provided."""
     import jax.numpy as jnp
-    from prxteinmpnn.inference.logits import ArithmeticMeanLogits
+    from aminx.inference.logits import ArithmeticMeanLogits
 
     S, L, V = 2, 4, 21
     weights = jnp.ones(S)
@@ -38,7 +38,7 @@ def test_arithmetic_mean_accepts_bias():
 
 def test_geometric_mean_accepts_bias():
     """GeometricMeanLogits.__call__ applies bias when provided."""
-    from prxteinmpnn.inference.logits import GeometricMeanLogits
+    from aminx.inference.logits import GeometricMeanLogits
 
     S, L, V = 2, 4, 21
     weights = jnp.ones(S)
@@ -55,7 +55,7 @@ def test_geometric_mean_accepts_bias():
 
 def test_product_accepts_bias():
     """ProductOfProbabilities.__call__ applies bias when provided."""
-    from prxteinmpnn.inference.logits import ProductOfProbabilities
+    from aminx.inference.logits import ProductOfProbabilities
 
     S, L, V = 2, 4, 21
     weights = jnp.ones(S)
@@ -72,7 +72,7 @@ def test_product_accepts_bias():
 
 def test_implementations_accept_none_bias():
     """All logit strategies accept bias=None without error (backward compat)."""
-    from prxteinmpnn.inference.logits import (
+    from aminx.inference.logits import (
         ArithmeticMeanLogits,
         GeometricMeanLogits,
         ProductOfProbabilities,
@@ -90,7 +90,7 @@ def test_implementations_accept_none_bias():
 
 def test_bias_applied_after_fusion_numerically():
     """Bias is added after state fusion, not before — numerical verification."""
-    from prxteinmpnn.inference.logits import ArithmeticMeanLogits
+    from aminx.inference.logits import ArithmeticMeanLogits
 
     S, L, V = 2, 4, 21
     weights = jnp.ones(S)

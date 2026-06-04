@@ -1,4 +1,4 @@
-# prxteinmpnn Internal Docs
+# aminx Internal Docs
 
 ## Roadmaps
 - [INDEX](roadmaps/INDEX.md) — all roadmap documents with status
@@ -12,7 +12,7 @@
 
 ## Specs
 - [260527_merge-readiness-hardening](specs/260527_merge-readiness-hardening.md) — ORACLE-REVIEWED PASS (15/18): pre-merge hygiene for refactor-full → main
-- [260601_benchmark-spec](specs/260601_benchmark-spec.md) — ORACLE-APPROVED: GPU benchmark suite (prxteinmpnn vs. LigandMPNN vs. ColabDesign)
+- [260601_benchmark-spec](specs/260601_benchmark-spec.md) — ORACLE-APPROVED: GPU benchmark suite (aminx vs. LigandMPNN vs. ColabDesign)
 - [260604_release-preparedness-epic](specs/260604_release-preparedness-epic-for-prxteinmpn.md) — Release Preparedness epic: two-phase backlog DAG (CI+cleanup → docs+release), Definition of Done, ADR index
 
 ## Archives

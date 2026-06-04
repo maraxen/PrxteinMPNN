@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 from chex import assert_trees_all_close
 
-from prxteinmpnn.utils.catjac import (
+from aminx.utils.catjac import (
   _combine_mapped_jacobians,
   _gather_mapped_jacobian,
   combine_jacobians_h5_stream,

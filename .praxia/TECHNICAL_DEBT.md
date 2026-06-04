@@ -38,7 +38,7 @@ Patterns searched: `SamplingSpecification|ScoringSpecification|TrainingSpecifica
 | `scripts/260410/verify_design_storage.py` | `DesignArrayRecordWriter(...)` only | **out of scope** | Exercises ArrayRecord I/O, not run specs. |
 | `scripts/engaging/` | — | **shell-only** | `submit_phase0a_state_vmap_spike.sh` (Phase 0a smoke); **no** `*.py` spec constructors — re-audit if Python drivers land here. |
 
-**Policy:** New scripts should prefer `run_specification_from_json` / `prxteinmpnn spec validate` for saved configs (roadmap §13 Q4 JSON-first).
+**Policy:** New scripts should prefer `run_specification_from_json` / `aminx spec validate` for saved configs (roadmap §13 Q4 JSON-first).
 
 ### Phase 3b PR5 — scripts pattern refresh (2026-05-06)
 
@@ -62,7 +62,7 @@ The training pipeline now supports mixed precision (bf16/fp16/fp32) training via
 2. Parameters are cast to target precision after loading
 3. Optimizer state is initialized with precision-cast parameters
 4. Checkpoint restoration requires matching abstract optimizer state
-5. Training reads the dtype label from the composed :class:`~prxteinmpnn.run.spec.RunSpec` (``run_spec.precision.compute``); :class:`~prxteinmpnn.training.specs.TrainingSpecification`\ ``.precision`` remains the user-facing field and is mirrored there at construction time.
+5. Training reads the dtype label from the composed :class:`~aminx.run.spec.RunSpec` (``run_spec.precision.compute``); :class:`~aminx.training.specs.TrainingSpecification`\ ``.precision`` remains the user-facing field and is mirrored there at construction time.
 
 ### Known Issues
 
@@ -81,8 +81,8 @@ The training pipeline now supports mixed precision (bf16/fp16/fp32) training via
 
 ### Code pointers
 
-- `src/prxteinmpnn/run/spec.py` — `PrecisionConfig`, `build_run_spec` / `_run_spec_precision_compute`
-- `src/prxteinmpnn/training/trainer.py`: `get_compute_dtype()`, `_training_precision()`, `_init_checkpoint_and_model()`
+- `src/aminx/run/spec.py` — `PrecisionConfig`, `build_run_spec` / `_run_spec_precision_compute`
+- `src/aminx/training/trainer.py`: `get_compute_dtype()`, `_training_precision()`, `_init_checkpoint_and_model()`
 
 ### References
 
@@ -105,14 +105,14 @@ The training pipeline now supports mixed precision (bf16/fp16/fp32) training via
 - [x] Implement `compute_resource_allocation()` helper (`run/resources.py`)
 - [x] Add `psutil` dependency (`pyproject.toml`)
 - [x] Call `compute_resource_allocation` from `prep_protein_stream_and_model` / training setup and thread limits into `create_protein_dataset` (or proxide equivalents)
-- [x] **Proxide floor + PyPI resolution (2026-05-06):** `proxide>=0.1.0a3` in `pyproject.toml`, resolved from PyPI via explicit `[[tool.uv.index]]` and `[tool.uv.sources] proxide = { index = "pypi" }` in `prxteinmpnn`, `prolix`, and `tev_design` roots (updated `uv.lock`), so dataset kwargs track published prereleases instead of stray workspace pins.
+- [x] **Proxide floor + PyPI resolution (2026-05-06):** `proxide>=0.1.0a3` in `pyproject.toml`, resolved from PyPI via explicit `[[tool.uv.index]]` and `[tool.uv.sources] proxide = { index = "pypi" }` in `aminx`, `prolix`, and `tev_design` roots (updated `uv.lock`), so dataset kwargs track published prereleases instead of stray workspace pins.
 - [ ] Test on various hardware configurations
 
 ### Code pointers
 
-- `src/prxteinmpnn/run/prep.py` — `prep_protein_stream_and_model` / `proxide_dataset_resource_kwargs`
-- `src/prxteinmpnn/run/resources.py` — `compute_resource_allocation`, `proxide_dataset_resource_kwargs`
-- `src/prxteinmpnn/training/trainer.py` — `_create_dataloaders`, final test `create_protein_dataset` path
+- `src/aminx/run/prep.py` — `prep_protein_stream_and_model` / `proxide_dataset_resource_kwargs`
+- `src/aminx/run/resources.py` — `compute_resource_allocation`, `proxide_dataset_resource_kwargs`
+- `src/aminx/training/trainer.py` — `_create_dataloaders`, final test `create_protein_dataset` path
 
 ### References
 
@@ -131,7 +131,7 @@ Historical training merge enabled Grain `py_debug_mode` unconditionally. Current
 
 ### Required Work
 
-- [ ] If Grain debug is needed again: gate behind `PRXTEINMPNN_GRAIN_DEBUG=1` and document briefly
+- [ ] If Grain debug is needed again: gate behind `AMINX_GRAIN_DEBUG=1` and document briefly
 
 ### References
 
@@ -178,7 +178,7 @@ Gradient accumulation support via `accum_steps` parameter is implemented but nee
 
 ### Code pointers
 
-- `src/prxteinmpnn/training/trainer.py` — `TODO(tech-debt)` §5 (`accum_steps` path)
+- `src/aminx/training/trainer.py` — `TODO(tech-debt)` §5 (`accum_steps` path)
 
 ### References
 
@@ -197,9 +197,9 @@ Post–training-merge, keep module and public API docstrings complete on core su
 
 ### Affected Files (prioritize)
 
-- `src/prxteinmpnn/utils/data_structures.py`
-- `src/prxteinmpnn/model/decoder.py`
-- `src/prxteinmpnn/model/mpnn.py`
+- `src/aminx/utils/data_structures.py`
+- `src/aminx/model/decoder.py`
+- `src/aminx/model/mpnn.py`
 
 ### Required Work
 
@@ -208,8 +208,8 @@ Post–training-merge, keep module and public API docstrings complete on core su
 
 ### Code pointers
 
-- `src/prxteinmpnn/utils/data_structures.py` — `TODO(tech-debt)` §6
-- `src/prxteinmpnn/model/decoder.py` — `TODO(tech-debt)` §6
+- `src/aminx/utils/data_structures.py` — `TODO(tech-debt)` §6
+- `src/aminx/model/decoder.py` — `TODO(tech-debt)` §6
 
 ### References
 
@@ -235,11 +235,11 @@ Post–training-merge, keep module and public API docstrings complete on core su
 
 ### Code pointers
 
-- `src/prxteinmpnn/io/parsing/dispatch.py` — `TODO(tech-debt)` §7
+- `src/aminx/io/parsing/dispatch.py` — `TODO(tech-debt)` §7
 
 ### Modules to Preserve (conceptual)
 
-- PrxteinMPNN-specific model I/O and training glue; avoid re-home generic parsing/physics that proxide/prolix already own
+- Aminx-specific model I/O and training glue; avoid re-home generic parsing/physics that proxide/prolix already own
 
 ### References
 
@@ -254,7 +254,7 @@ Post–training-merge, keep module and public API docstrings complete on core su
 
 ### Description
 
-For development spanning proxide, prolix, and PrxteinMPNN, use git submodules with uv editable installs. This is documented in `TRAINING_MERGE.md` Section 16.
+For development spanning proxide, prolix, and Aminx, use git submodules with uv editable installs. This is documented in `TRAINING_MERGE.md` Section 16.
 
 ### Key Points
 
@@ -286,7 +286,7 @@ For development spanning proxide, prolix, and PrxteinMPNN, use git submodules wi
 
 ### Description
 
-`src/prxteinmpnn/model/mpnn.py` is a large, multi-concern module. For long-term maintainability, split it into focused units (encoding, decoding branches, ligand handling, switches, helpers) with clearer boundaries, naming, and documentation.
+`src/aminx/model/mpnn.py` is a large, multi-concern module. For long-term maintainability, split it into focused units (encoding, decoding branches, ligand handling, switches, helpers) with clearer boundaries, naming, and documentation.
 
 ### Required work
 
@@ -297,7 +297,7 @@ For development spanning proxide, prolix, and PrxteinMPNN, use git submodules wi
 
 ### References
 
-- `src/prxteinmpnn/model/mpnn.py` — top-of-file `TODO(tech-debt)` + state-batching note
+- `src/aminx/model/mpnn.py` — top-of-file `TODO(tech-debt)` + state-batching note
 - `docs/TODO_BLOCKED_MODULES.md`, `docs/FULL_FUNCTIONALITY_TODO.md` — may still describe removed modules; reconcile when editing those docs (see §13)
 
 ---
@@ -319,12 +319,12 @@ Evaluate where **dataclasses**, **`typing.Protocol`**, and small **type aliases*
 
 ### Code pointers
 
-- `src/prxteinmpnn/run/specs.py` — `TODO(tech-debt)` §10 (`RunSpecification`)
-- `src/prxteinmpnn/utils/types.py` — `TODO(tech-debt)` §10 (shared aliases)
+- `src/aminx/run/specs.py` — `TODO(tech-debt)` §10 (`RunSpecification`)
+- `src/aminx/utils/types.py` — `TODO(tech-debt)` §10 (shared aliases)
 
 ### References
 
-- `src/prxteinmpnn/sampling/conditional_logits.py`, `unconditional_logits.py` — factories exist; tighten `Protocol` usage at boundaries
+- `src/aminx/sampling/conditional_logits.py`, `unconditional_logits.py` — factories exist; tighten `Protocol` usage at boundaries
 - `docs/TODO_BLOCKED_MODULES.md` (may be stale vs. current imports; see §13)
 
 ---
@@ -347,40 +347,40 @@ Ensure critical compiled paths remain exportable to **StableHLO** and compatible
 
 ### Code pointers
 
-- `src/prxteinmpnn/model/__init__.py` — `TODO(tech-debt)` §11
+- `src/aminx/model/__init__.py` — `TODO(tech-debt)` §11
 
 ---
 
 ## 12. Move ensemble analytics (DBSCAN, PCA, …) to jaxbeans
 
-**Status:** 🟡 In progress (re-scoped to ensemble_prxteinmpnn_tools_WIP, 2026-05-14)  
+**Status:** 🟡 In progress (re-scoped to ensemble_aminx_tools_WIP, 2026-05-14)  
 **Priority:** Medium
 
 ### Description
 
-General-purpose **DBSCAN**, **PCA**, and related ensemble utilities in `prxteinmpnn.ensemble` belong in **jaxbeans** (shared JAX utilities) so PrxteinMPNN stays domain-focused and other projects can reuse them.
+General-purpose **DBSCAN**, **PCA**, and related ensemble utilities in `aminx.ensemble` belong in **jaxbeans** (shared JAX utilities) so Aminx stays domain-focused and other projects can reuse them.
 
-**Update (2026-05-14):** Ensemble subpackage extracted to `~/projects/ensemble_prxteinmpnn_tools_WIP/` as a standalone experimental package during Sprint 3 (Task T10). The modules, tests, and type aliases are now managed there. Next phase is either publishing to PyPI or integrating into jaxbeans as originally planned. See `README.md` "Related Tools" section for current location and install instructions.
+**Update (2026-05-14):** Ensemble subpackage extracted to `~/projects/ensemble_aminx_tools_WIP/` as a standalone experimental package during Sprint 3 (Task T10). The modules, tests, and type aliases are now managed there. Next phase is either publishing to PyPI or integrating into jaxbeans as originally planned. See `README.md` "Related Tools" section for current location and install instructions.
 
-### Modules and consumers (previous location in prxteinmpnn)
+### Modules and consumers (previous location in aminx)
 
-- **Sources:** `src/prxteinmpnn/ensemble/dbscan.py`, `src/prxteinmpnn/ensemble/pca.py` (and call sites in `run/conformational_inference.py`, `ensemble/ci.py`, `run/specs.py`)
+- **Sources:** `src/aminx/ensemble/dbscan.py`, `src/aminx/ensemble/pca.py` (and call sites in `run/conformational_inference.py`, `ensemble/ci.py`, `run/specs.py`)
 - **Tests:** `tests/ensemble/test_dbscan.py`, `tests/ensemble/test_pca.py`
-- **Now at:** `~/projects/ensemble_prxteinmpnn_tools_WIP/src/ensemble_tools/` with matching test structure
+- **Now at:** `~/projects/ensemble_aminx_tools_WIP/src/ensemble_tools/` with matching test structure
 
 ### Required work
 
-- [x] Extract ensemble subpackage to standalone location (`ensemble_prxteinmpnn_tools_WIP`)
+- [x] Extract ensemble subpackage to standalone location (`ensemble_aminx_tools_WIP`)
 - [ ] Evaluate: publish to PyPI vs. integrate into jaxbeans
-- [ ] If PyPI: tag version, finalize API docs, add to prxteinmpnn dependencies
-- [ ] If jaxbeans: coordinate API migration, maintain parity, retire ensemble_prxteinmpnn_tools_WIP
-- [ ] Update prxteinmpnn imports to reference external package (currently TYPE_CHECKING + Protocol stubs in `run/specs.py`)
+- [ ] If PyPI: tag version, finalize API docs, add to aminx dependencies
+- [ ] If jaxbeans: coordinate API migration, maintain parity, retire ensemble_aminx_tools_WIP
+- [ ] Update aminx imports to reference external package (currently TYPE_CHECKING + Protocol stubs in `run/specs.py`)
 
 ### Code pointers
 
-- `src/prxteinmpnn/ensemble/` — now deleted; use `ensemble_tools` at external location
-- `src/prxteinmpnn/run/specs.py` — `ConformationalStates` type uses Protocol stub (TYPE_CHECKING import)
-- `~/projects/ensemble_prxteinmpnn_tools_WIP/src/ensemble_tools/dbscan.py` — new source location
+- `src/aminx/ensemble/` — now deleted; use `ensemble_tools` at external location
+- `src/aminx/run/specs.py` — `ConformationalStates` type uses Protocol stub (TYPE_CHECKING import)
+- `~/projects/ensemble_aminx_tools_WIP/src/ensemble_tools/dbscan.py` — new source location
 
 ---
 
@@ -402,7 +402,7 @@ Housekeeping across the tree: trim or refresh docs that no longer match code (e.
 
 ### Code pointers
 
-- `src/prxteinmpnn/__init__.py` — package entry `TODO(tech-debt)` §13
+- `src/aminx/__init__.py` — package entry `TODO(tech-debt)` §13
 
 ---
 
@@ -418,7 +418,7 @@ Reduce device materialization and Python-side concat bottlenecks by standardizin
 ### References
 
 - `TODO_io_callback.txt`
-- `src/prxteinmpnn/run/sampling.py` — module-level `TODO(tech-debt)` §14
+- `src/aminx/run/sampling.py` — module-level `TODO(tech-debt)` §14
 
 ---
 
@@ -427,14 +427,14 @@ Reduce device materialization and Python-side concat bottlenecks by standardizin
 | § | Location | Theme |
 |:--|:---------|:------|
 | 14 | `TODO_io_callback.txt` | Master checklist for **`io_callback` + `effects_barrier`** |
-| 14 | `src/prxteinmpnn/io/designs.py` | Host handoff via io_callback; skip redundant `device_get` |
-| 14 | `src/prxteinmpnn/run/sampling.py` | Streaming / HDF5 / concat paths |
-| 14 | `src/prxteinmpnn/run/jacobian.py` | Jacobian batching / D2H review |
-| 14 | `src/prxteinmpnn/run/scoring.py` | Batched lists |
-| 14 | `src/prxteinmpnn/profiling/sampler_profile.py` | Bench vs. io_callback interaction |
-| 14 | `src/prxteinmpnn/training/metrics.py`, `trainer.py` | Telemetry `device_get` |
-| 9 | `src/prxteinmpnn/model/mpnn.py` | Mega-module split + attention batching idea |
-| — | `src/prxteinmpnn/sampling/ste_optimize.py` | Derive `n_states` from mapping / weights |
+| 14 | `src/aminx/io/designs.py` | Host handoff via io_callback; skip redundant `device_get` |
+| 14 | `src/aminx/run/sampling.py` | Streaming / HDF5 / concat paths |
+| 14 | `src/aminx/run/jacobian.py` | Jacobian batching / D2H review |
+| 14 | `src/aminx/run/scoring.py` | Batched lists |
+| 14 | `src/aminx/profiling/sampler_profile.py` | Bench vs. io_callback interaction |
+| 14 | `src/aminx/training/metrics.py`, `trainer.py` | Telemetry `device_get` |
+| 9 | `src/aminx/model/mpnn.py` | Mega-module split + attention batching idea |
+| — | `src/aminx/sampling/ste_optimize.py` | Derive `n_states` from mapping / weights |
 | 13 | `docs/FULL_FUNCTIONALITY_TODO.md`, `docs/TODO_BLOCKED_MODULES.md`, `docs/PHYSICS_*.md` | **Stale until audited** — parity / blocked-module narrative may predate current code |
 
 ---

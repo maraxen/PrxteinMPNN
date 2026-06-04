@@ -1,11 +1,11 @@
 [experiment]
-hypothesis = "DedupGather achieves K-proportional throughput savings: at K=16, N=32, prxteinmpnn runtime is approximately 0.5x the K=32 homogeneous baseline"
+hypothesis = "DedupGather achieves K-proportional throughput savings: at K=16, N=32, aminx runtime is approximately 0.5x the K=32 homogeneous baseline"
 description = "Heterogeneous batching via DedupGather reduces inference cost when many structures in a batch are duplicates. This benchmark measures speedup by varying the dedup ratio K/N."
 task_id = "260603_bench-capability-s23"
 
 [outcomes.pass]
 condition = "speedup_vs_pytorch >= 1.5 at K=16, N=32"
-reasoning = "At 50% dedup ratio, prxteinmpnn should run approximately 2x fewer iterations than PyTorch baseline, yielding at least 1.5x speedup accounting for overhead"
+reasoning = "At 50% dedup ratio, aminx should run approximately 2x fewer iterations than PyTorch baseline, yielding at least 1.5x speedup accounting for overhead"
 is_residual = false
 
 [outcomes.marginal]
@@ -23,7 +23,7 @@ fields = [
   "k",
   "n",
   "dedup_ratio",
-  "prxteinmpnn_latency_ms",
+  "aminx_latency_ms",
   "colabdesign_latency_ms",
   "pytorch_latency_ms",
   "speedup_vs_pytorch"

@@ -15,8 +15,8 @@ import pytest
 
 pytest.importorskip("jax.export")
 
-from prxteinmpnn.scoring.score import make_score_fn
-from prxteinmpnn.types.protocols import ModelProtocol
+from aminx.scoring.score import make_score_fn
+from aminx.types.protocols import ModelProtocol
 
 
 class MockDecoder(eqx.Module):
@@ -90,7 +90,7 @@ class MockModel(eqx.Module):
 def test_jax_export_score_sequence_basic():
     """Test that score_sequence can be exported with static args bound."""
     from unittest.mock import patch
-    from prxteinmpnn.inference import score_conditional
+    from aminx.inference import score_conditional
 
     # Create mock model
     mock_model = MockModel()
@@ -148,7 +148,7 @@ def test_jax_export_score_sequence_basic():
 def test_jax_export_score_sequence_with_optional_args():
     """Test export with additional optional static bindings."""
     from unittest.mock import patch
-    from prxteinmpnn.inference import score_conditional
+    from aminx.inference import score_conditional
 
     mock_model = MockModel()
     score_sequence = make_score_fn(mock_model)
@@ -195,7 +195,7 @@ def test_jax_export_score_sequence_with_optional_args():
 def test_jax_export_returns_callable():
     """Test that exported module provides a callable interface."""
     from unittest.mock import patch
-    from prxteinmpnn.inference import score_conditional
+    from aminx.inference import score_conditional
 
     mock_model = MockModel()
     score_sequence = make_score_fn(mock_model)

@@ -1,12 +1,12 @@
 Basic Usage
 ===========
 
-This tutorial covers the fundamental usage patterns of PrxteinMPNN.
+This tutorial covers the fundamental usage patterns of Aminx.
 
 Overview
 --------
 
-PrxteinMPNN provides a JAX-compatible functional interface for protein design
+Aminx provides a JAX-compatible functional interface for protein design
 using the ProteinMPNN model.
 
 Core Concepts
@@ -23,10 +23,10 @@ Basic Workflow
 
    import jax
    import jax.numpy as jnp
-   from prxteinmpnn
+   from aminx
 
-  from prxteinmpnn.mpnn import ProteinMPNNModelVersion, ModelWeights, get_mpnn_model
-  from prxteinmpnn.io import from_structure_file, protein_structure_to_model_inputs
+  from aminx.mpnn import ProteinMPNNModelVersion, ModelWeights, get_mpnn_model
+  from aminx.io import from_structure_file, protein_structure_to_model_inputs
 
     # Load a protein structure
   protein_structure = from_structure_file(filename="path/to/structure.pdb")
@@ -41,8 +41,8 @@ Basic Workflow
   model_inputs = protein_structure_to_model_inputs(protein_structure)
     
   # Score sequences
-  from prxteinmpnn.scoring.score import make_score_sequence
-  from prxteinmpnn.utils.decoding_order import random_decoding_order
+  from aminx.scoring.score import make_score_sequence
+  from aminx.utils.decoding_order import random_decoding_order
   key = jax.random.PRNGKey(0)  # Random key for JAX operations
   score_sequence = make_score_sequence(parameters, random_decoding_order, model_inputs=model_inputs)
   original_sequence_score, original_sequence_logits, original_decoding_order_used = 
@@ -51,7 +51,7 @@ Basic Workflow
       inputs.sequence
     )
   other_sequence = "SOMEOTHERSEQUENCE"
-  from prxteinmpnn.io import string_to_protein_sequence
+  from aminx.io import string_to_protein_sequence
   other_sequence_jax = string_to_protein_sequence(other_sequence)
   other_sequence_score, other_sequence_logits, new_decoding_order = score_sequence(
     key,
@@ -59,7 +59,7 @@ Basic Workflow
   )
 
   # Sample sequences
-  from prxteinmpnn.sampling import make_sample_sequences, SamplingEnum
+  from aminx.sampling import make_sample_sequences, SamplingEnum
   sample_sequence = make_sample_sequences(
       parameters,
       random_decoding_order,

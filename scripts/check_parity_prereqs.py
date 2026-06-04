@@ -7,7 +7,7 @@ import os
 from importlib.util import find_spec
 from pathlib import Path
 
-from prxteinmpnn.parity.assets import verify_parity_assets
+from aminx.parity.assets import verify_parity_assets
 
 
 def main() -> int:

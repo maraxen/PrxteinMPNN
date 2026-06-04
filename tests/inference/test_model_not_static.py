@@ -27,16 +27,16 @@ import jax.tree_util as jtu
 import equinox as eqx
 import pytest
 
-from prxteinmpnn.model.mpnn import PrxteinMPNN
+from aminx.model.mpnn import Aminx
 
 
 # ---------------------------------------------------------------------------
-# Shared fixture: small PrxteinMPNN model (random init, not from checkpoint)
+# Shared fixture: small Aminx model (random init, not from checkpoint)
 # ---------------------------------------------------------------------------
 
-def _make_small_model() -> PrxteinMPNN:
-    """Create a small PrxteinMPNN model with minimal dimensions for fast tests."""
-    return PrxteinMPNN(
+def _make_small_model() -> Aminx:
+    """Create a small Aminx model with minimal dimensions for fast tests."""
+    return Aminx(
         node_features=16,
         edge_features=16,
         hidden_features=16,
@@ -60,7 +60,7 @@ def test_vmap_encode_no_static_array_warning():
 
     After fix (remove static=True from model field): warning disappears.
     """
-    from prxteinmpnn.inference.encode import make_encode_fn
+    from aminx.inference.encode import make_encode_fn
 
     model = _make_small_model()
 
@@ -84,7 +84,7 @@ def test_scan_encode_no_static_array_warning():
 
     CURRENTLY FAILS for the same reason as _VmapEncode.
     """
-    from prxteinmpnn.inference.encode import make_encode_fn
+    from aminx.inference.encode import make_encode_fn
 
     model = _make_small_model()
 
@@ -108,8 +108,8 @@ def test_conditional_decode_no_static_array_warning():
 
     CURRENTLY FAILS: model: Any = eqx.field(static=True) in ConditionalDecode.
     """
-    from prxteinmpnn.inference.decode.conditional import ConditionalDecode
-    from prxteinmpnn.tiling.iterator import VmapIterator
+    from aminx.inference.decode.conditional import ConditionalDecode
+    from aminx.tiling.iterator import VmapIterator
 
     model = _make_small_model()
 
@@ -152,7 +152,7 @@ def test_vmap_encode_model_weights_are_dynamic():
         (the model has many float parameters)
       - We also check that no model weight array appears ONLY in static
     """
-    from prxteinmpnn.inference.encode import make_encode_fn
+    from aminx.inference.encode import make_encode_fn
 
     model = _make_small_model()
     encode_fn = make_encode_fn(model, use_rolling_state=False)
@@ -176,7 +176,7 @@ def test_scan_encode_model_weights_are_dynamic():
 
     CURRENTLY FAILS for the same reason as _VmapEncode.
     """
-    from prxteinmpnn.inference.encode import make_encode_fn
+    from aminx.inference.encode import make_encode_fn
 
     model = _make_small_model()
     encode_fn = make_encode_fn(model, use_rolling_state=True)
@@ -196,8 +196,8 @@ def test_conditional_decode_model_weights_are_dynamic():
 
     CURRENTLY FAILS: model is static.
     """
-    from prxteinmpnn.inference.decode.conditional import ConditionalDecode
-    from prxteinmpnn.tiling.iterator import VmapIterator
+    from aminx.inference.decode.conditional import ConditionalDecode
+    from aminx.tiling.iterator import VmapIterator
 
     model = _make_small_model()
     decode = ConditionalDecode(

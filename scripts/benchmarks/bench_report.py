@@ -123,18 +123,18 @@ def generate_capability_comparison_section(
     """Generate capability comparison section for markdown report.
 
     Reads capability_results dict with keys "temperature", "dedup", "mixed_length"
-    and generates a table comparing prxteinmpnn vs baselines.
+    and generates a table comparing aminx vs baselines.
 
     Returns list of markdown lines.
     """
     lines = []
     lines.append("## Capability Comparison\n")
-    lines.append("Capability-specific benchmarks comparing prxteinmpnn vs ColabDesign and PyTorch baselines.\n")
+    lines.append("Capability-specific benchmarks comparing aminx vs ColabDesign and PyTorch baselines.\n")
 
     # Temperature array capability
     if "temperature" in capability_results and capability_results["temperature"]:
         lines.append("### Temperature Array (M-temperature JIT sweep)\n")
-        lines.append("| Capability | prxteinmpnn (ms) | ColabDesign (ms) | PyTorch (ms) | Speedup vs PT |\n")
+        lines.append("| Capability | aminx (ms) | ColabDesign (ms) | PyTorch (ms) | Speedup vs PT |\n")
         lines.append("|---|---|---|---|---|\n")
 
         temp_data = capability_results["temperature"]
@@ -149,7 +149,7 @@ def generate_capability_comparison_section(
         for m_val in [1, 4, 8]:
             cell = next((c for c in cells if c.get("m") == m_val), None)
             if cell:
-                prx = cell.get("prxteinmpnn_latency_ms")
+                prx = cell.get("aminx_latency_ms")
                 cola = cell.get("colabdesign_latency_ms")
                 pt = cell.get("pytorch_latency_ms")
                 speedup = (pt / prx) if (pt and prx and prx > 0) else None
@@ -166,7 +166,7 @@ def generate_capability_comparison_section(
     # DedupGather capability
     if "dedup" in capability_results and capability_results["dedup"]:
         lines.append("### DedupGather Heterogeneous Batch (K-unique proportional speedup)\n")
-        lines.append("| K unique | N total | dedup_ratio | prxteinmpnn (ms) | PyTorch (ms) | Speedup vs PT |\n")
+        lines.append("| K unique | N total | dedup_ratio | aminx (ms) | PyTorch (ms) | Speedup vs PT |\n")
         lines.append("|---|---|---|---|---|---|\n")
 
         dedup_data = capability_results["dedup"]
@@ -184,7 +184,7 @@ def generate_capability_comparison_section(
                 k = cell.get("k")
                 n = cell.get("n")
                 ratio = cell.get("dedup_ratio")
-                prx = cell.get("prxteinmpnn_latency_ms")
+                prx = cell.get("aminx_latency_ms")
                 pt = cell.get("pytorch_latency_ms")
                 speedup = (pt / prx) if (pt and prx and prx > 0) else None
 
@@ -200,7 +200,7 @@ def generate_capability_comparison_section(
     # Mixed-length capability
     if "mixed_length" in capability_results and capability_results["mixed_length"]:
         lines.append("### Mixed-Length Heterogeneous Batch\n")
-        lines.append("| Config | prxteinmpnn (ms) | ColabDesign (ms) | PyTorch (ms) | Speedup vs PT |\n")
+        lines.append("| Config | aminx (ms) | ColabDesign (ms) | PyTorch (ms) | Speedup vs PT |\n")
         lines.append("|---|---|---|---|---|\n")
 
         mixed_data = capability_results["mixed_length"]
@@ -214,7 +214,7 @@ def generate_capability_comparison_section(
         # Show first few representative results
         for cell in cells[:5]:
             config = cell.get("config", "unknown")
-            prx = cell.get("prxteinmpnn_latency_ms")
+            prx = cell.get("aminx_latency_ms")
             cola = cell.get("colabdesign_latency_ms")
             pt = cell.get("pytorch_latency_ms")
             speedup = (pt / prx) if (pt and prx and prx > 0) else None
@@ -305,7 +305,7 @@ def generate_markdown_report(
 
                 # Speedup vs PyTorch
                 pytorch_latency = cells[(seq_len, batch_size)].get("ligandmpnn_pytorch")
-                prxtein_latency = cells[(seq_len, batch_size)].get("prxteinmpnn_jax")
+                prxtein_latency = cells[(seq_len, batch_size)].get("aminx_jax")
 
                 if pytorch_latency is not None and prxtein_latency is not None and prxtein_latency > 0:
                     speedup = pytorch_latency / prxtein_latency
@@ -315,7 +315,7 @@ def generate_markdown_report(
 
                 lines.append("| " + " | ".join(row) + " |\n")
 
-            lines.append("\n*latency = median of warm calls; speedup = ligandmpnn_pytorch / prxteinmpnn_jax (higher is faster)*\n\n")
+            lines.append("\n*latency = median of warm calls; speedup = ligandmpnn_pytorch / aminx_jax (higher is faster)*\n\n")
 
             # Compile time table
             lines.append("#### Compile Time Cold (s)\n")

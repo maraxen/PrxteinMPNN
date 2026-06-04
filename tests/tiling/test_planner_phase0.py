@@ -4,10 +4,10 @@ from __future__ import annotations
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.tiling.axes import N_NOISES, N_SAMPLES, N_STRUCTURES, N_TEMPERATURES
-from prxteinmpnn.tiling.carry import CarrySpec
-from prxteinmpnn.tiling.planner import AxisDecision, AxisSpec, BatchPlanner
-from prxteinmpnn.tiling.strategy import SafeMap, Scan, Vmap
+from aminx.tiling.axes import N_NOISES, N_SAMPLES, N_STRUCTURES, N_TEMPERATURES
+from aminx.tiling.carry import CarrySpec
+from aminx.tiling.planner import AxisDecision, AxisSpec, BatchPlanner
+from aminx.tiling.strategy import SafeMap, Scan, Vmap
 
 
 def _make_planner(axes: list[AxisSpec], carries: list[CarrySpec] = None, dedup_specs: list = None) -> BatchPlanner:
@@ -131,8 +131,8 @@ def test_planner_phase0_carry_init_is_preserved() -> None:
 def test_dedup_spec_rejected_on_non_eligible_axis() -> None:
     """BatchPlanner.plan() should raise TilingError if DedupGather is assigned to
     an axis with dedup_eligible=False."""
-    from prxteinmpnn.tiling.dedup import DedupSpec
-    from prxteinmpnn.tiling.errors import TilingError
+    from aminx.tiling.dedup import DedupSpec
+    from aminx.tiling.errors import TilingError
     import numpy as np
 
     # N_NOISES has dedup_eligible=False (default); assigning DedupGather should fail

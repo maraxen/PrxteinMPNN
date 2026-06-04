@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 def _parse_first_structure(path: Path):
     """Parse a single structure and skip if parser backend is unavailable."""
     try:
-        from prxteinmpnn.io.parsing import parse_input
+        from aminx.io.parsing import parse_input
     except ModuleNotFoundError as exc:
         raise RuntimeError(f"Cannot parse structure: {exc}") from exc
     try:
@@ -71,10 +71,10 @@ def create_bundle_and_plan_from_real_structure(seq_len: int | None = None) -> tu
         (bundle, plan, spec, config, encoder_output) where encoder_output is
         a pre-computed EncoderOutput for decode benchmarking.
     """
-    from prxteinmpnn.model.mpnn import PrxteinMPNN
-    from prxteinmpnn.types.configs import InferenceConfig
-    from prxteinmpnn.host.plan import make_inference_plan
-    from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+    from aminx.model.mpnn import Aminx
+    from aminx.types.configs import InferenceConfig
+    from aminx.host.plan import make_inference_plan
+    from aminx.inference.bundle_builder import build_inference_bundle
 
     # Load real structure from test fixture
     fixture_path = (
@@ -124,11 +124,11 @@ def create_bundle_and_plan_from_real_structure(seq_len: int | None = None) -> tu
         inference=True,
     )
 
-    # Create minimal model using PrxteinMPNN (no ligand features)
+    # Create minimal model using Aminx (no ligand features)
     key = random.PRNGKey(42)
     key, subkey = random.split(key)
 
-    model = PrxteinMPNN(
+    model = Aminx(
         node_features=32,
         edge_features=32,
         hidden_features=32,

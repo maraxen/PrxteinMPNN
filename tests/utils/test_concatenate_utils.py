@@ -4,7 +4,7 @@ import chex
 import jax
 import jax.numpy as jnp
 
-from prxteinmpnn.utils.concatenate import concatenate_neighbor_nodes
+from aminx.utils.concatenate import concatenate_neighbor_nodes
 
 
 def test_concatenate_neighbor_nodes():

@@ -70,7 +70,7 @@ transpose `(0,3,1,2,4)` applies to both paths; K plays the noise-axis role.
 
 ### 1. `EncodingFusionFn` protocol + `encoding_fusion` slot in `StageSet`
 
-Add to `src/prxteinmpnn/types/stages.py`:
+Add to `src/aminx/types/stages.py`:
 
 ```python
 class EncodingFusionFn(Protocol):
@@ -138,7 +138,7 @@ as part of T2 gate.
 
 ### 3. `EncoderSinkFn` protocol + `encoder_sink` slot + sink infrastructure
 
-Add `EncoderSinkFn` to `src/prxteinmpnn/types/stages.py`:
+Add `EncoderSinkFn` to `src/aminx/types/stages.py`:
 
 ```python
 class EncoderSinkFn(Protocol):
@@ -365,14 +365,14 @@ Five legacy functions get `DeprecationWarning` stubs, originals preserved:
 
 | File | Change |
 |------|--------|
-| `src/prxteinmpnn/types/stages.py` | Add `EncodingFusionFn` + `EncoderSinkFn` protocols; add `encoding_fusion` + `encoder_sink` fields to `StageSet` |
-| `src/prxteinmpnn/host/output_sinks.py` | Add `IoCallbackEncoderSink`, `EncoderIntermediateStagingSink`, `_dispatch_encoder_intermediate_io`, `active_encoder_staging_sink`, `encoder_sink_session`, `take_encoder_intermediates` |
-| `src/prxteinmpnn/host/averaging.py` | Add `ArithmeticMeanEncodingFusion`; deprecation stubs for legacy functions |
-| `src/prxteinmpnn/host/plan.py` | Update `make_inference_plan`: wire `ArithmeticMeanEncodingFusion` when `spec.average_node_features`; `InferencePlan.decode` normalizes logits→`SampleResult` |
-| `src/prxteinmpnn/host/kernel_dispatch.py` | Restructure `_sample_batch`: `model + stage_set` → `plan`; two dispatch paths based on `stage_set.encoding_fusion`; remove `resolve_kernel_fn` |
-| `src/prxteinmpnn/host/runner.py` | Remove averaged branch + `_sample_non_streaming_averaged`; pass `plan` everywhere; remove stale imports |
-| `src/prxteinmpnn/host/streaming.py` | Deprecate `_sample_streaming_averaged`; update `_sample_streaming` to accept `plan` |
-| `src/prxteinmpnn/host/_sampling_averaged.py` | Deprecation stubs for `_internal_sample_averaged`, `_sample_batch_averaged` |
+| `src/aminx/types/stages.py` | Add `EncodingFusionFn` + `EncoderSinkFn` protocols; add `encoding_fusion` + `encoder_sink` fields to `StageSet` |
+| `src/aminx/host/output_sinks.py` | Add `IoCallbackEncoderSink`, `EncoderIntermediateStagingSink`, `_dispatch_encoder_intermediate_io`, `active_encoder_staging_sink`, `encoder_sink_session`, `take_encoder_intermediates` |
+| `src/aminx/host/averaging.py` | Add `ArithmeticMeanEncodingFusion`; deprecation stubs for legacy functions |
+| `src/aminx/host/plan.py` | Update `make_inference_plan`: wire `ArithmeticMeanEncodingFusion` when `spec.average_node_features`; `InferencePlan.decode` normalizes logits→`SampleResult` |
+| `src/aminx/host/kernel_dispatch.py` | Restructure `_sample_batch`: `model + stage_set` → `plan`; two dispatch paths based on `stage_set.encoding_fusion`; remove `resolve_kernel_fn` |
+| `src/aminx/host/runner.py` | Remove averaged branch + `_sample_non_streaming_averaged`; pass `plan` everywhere; remove stale imports |
+| `src/aminx/host/streaming.py` | Deprecate `_sample_streaming_averaged`; update `_sample_streaming` to accept `plan` |
+| `src/aminx/host/_sampling_averaged.py` | Deprecation stubs for `_internal_sample_averaged`, `_sample_batch_averaged` |
 | `tests/host/test_comp_unified_encoder_fusion.py` | New test file (see T8) |
 
 ---
@@ -513,7 +513,7 @@ Stubs for `_internal_sample_averaged`, `_sample_batch_averaged`.
     `sequence.dtype == jnp.int32` and `logits.ndim == 2`. Confirms normalization wraps raw logits.
 
 **Monkeypatch cleanup note (T4 gate):** Existing `tests/host/test_sampling_tensor_batch_io.py`
-monkeypatches `prxteinmpnn.host.kernel_dispatch.make_sampling_planner` and
+monkeypatches `aminx.host.kernel_dispatch.make_sampling_planner` and
 `extract_batch_sizes`. After T4, `_sample_batch` signature changes from
 `(spec, batched_ensemble, model, *, stage_set, ...)` to
 `(spec, batched_ensemble, plan, ...)`. Update these tests to pass a mock `InferencePlan` instead

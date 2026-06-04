@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Temperature array sweep benchmark — JIT-native M-temperature comparison.
 
-Measures latency and throughput for batched temperature sampling in prxteinmpnn
+Measures latency and throughput for batched temperature sampling in aminx
 vs sequential temperature samples in ColabDesign and PyTorch baselines.
 
 Temperature sets by M: M=1:[1.0]; M=2:[0.1,1.0]; M=4:[0.1,0.5,1.0,2.0];
@@ -75,7 +75,7 @@ def _set_jax_defaults():
 def main():
     """Run temperature array sweep benchmark."""
     parser = argparse.ArgumentParser(
-        description="Temperature array sweep benchmark (prxteinmpnn vs baselines)",
+        description="Temperature array sweep benchmark (aminx vs baselines)",
     )
     parser.add_argument(
         "--hardware",
@@ -169,22 +169,22 @@ def main():
     # ========================================================================
     # Load models once (reuse across all cells)
     # ========================================================================
-    logger.debug("Attempting prxteinmpnn adapter import...")
+    logger.debug("Attempting aminx adapter import...")
     try:
-        from bench_prxteinmpnn_jax import (
+        from bench_aminx_jax import (
             load_model,
             create_inference_plan,
             _make_benchmark_spec_with_temperatures,
             _load_pdb_fixture,
             _PDB_MAP as PRXTA_PDB_MAP,
         )
-        from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-        from prxteinmpnn.tiling.bucketing import BucketingConfig
+        from aminx.inference.bundle_builder import build_inference_bundle
+        from aminx.tiling.bucketing import BucketingConfig
         prxta_available = True
-        logger.info("prxteinmpnn adapter loaded successfully")
+        logger.info("aminx adapter loaded successfully")
     except Exception as e:
         import traceback
-        logger.warning(f"prxteinmpnn adapter unavailable: {e}")
+        logger.warning(f"aminx adapter unavailable: {e}")
         logger.debug(traceback.format_exc())
         prxta_available = False
 
@@ -219,10 +219,10 @@ def main():
         logger.warning("REFERENCE_PATH not set; PyTorch baselines skipped")
 
     if not prxta_available:
-        logger.error("prxteinmpnn adapter is required; cannot proceed")
+        logger.error("aminx adapter is required; cannot proceed")
         return 1
 
-    # Load prxteinmpnn model once
+    # Load aminx model once
     model = load_model()
     bucket_cfg = BucketingConfig()
 
@@ -253,7 +253,7 @@ def main():
                     )
 
                     # ====================================================================
-                    # 1. prxteinmpnn: single vmapped call with all M temperatures
+                    # 1. aminx: single vmapped call with all M temperatures
                     # ====================================================================
                     prxta_median_ms = None
                     prxta_p95_ms = None
@@ -327,7 +327,7 @@ def main():
 
                         except Exception as e:
                             logger.warning(
-                                f"    prxteinmpnn failed: {e.__class__.__name__}: {e}"
+                                f"    aminx failed: {e.__class__.__name__}: {e}"
                             )
 
                     # ====================================================================
@@ -356,7 +356,7 @@ def main():
                             else:
                                 # For score_conditional: need native sequence
                                 # Load PDB fixture to get native sequence
-                                from bench_prxteinmpnn_jax import _load_pdb_fixture as prxta_load_pdb
+                                from bench_aminx_jax import _load_pdb_fixture as prxta_load_pdb
                                 coords, mask, sequence, residue_index, chain_index, actual_len = \
                                     prxta_load_pdb(args.pdb_dir, seq_len)
                                 # Convert to amino acid string (sequence is int32 indices 0-19)
@@ -489,9 +489,9 @@ def main():
                         "batch_size": batch_size,
                         "task": task,
                         "temperatures": temperatures,
-                        "prxteinmpnn_latency_ms": prxta_median_ms,
-                        "prxteinmpnn_latency_p95_ms": prxta_p95_ms,
-                        "prxteinmpnn_latency_per_temp_ms": prxta_per_temp_ms,
+                        "aminx_latency_ms": prxta_median_ms,
+                        "aminx_latency_p95_ms": prxta_p95_ms,
+                        "aminx_latency_per_temp_ms": prxta_per_temp_ms,
                         "colabdesign_latency_ms": cd_total_ms,
                         "pytorch_latency_ms": pt_total_ms,
                         "speedup_vs_colabdesign": speedup_vs_cd,

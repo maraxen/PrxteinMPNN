@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 import pytest
-from prxteinmpnn.types.boundaries import AxisBoundary, Fuse, Sink, Tap
+from aminx.types.boundaries import AxisBoundary, Fuse, Sink, Tap
 
 
 # --- Protocol conformance checks ---

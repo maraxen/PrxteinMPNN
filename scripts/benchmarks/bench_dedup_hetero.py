@@ -2,12 +2,12 @@
 """DedupGather K/N unique-ratio throughput benchmark.
 
 Benchmark demonstrating K-proportional throughput savings via DedupGather,
-comparing prxteinmpnn (with dedup), ColabDesign (baseline K separate calls),
+comparing aminx (with dedup), ColabDesign (baseline K separate calls),
 and PyTorch LigandMPNN (sequential K loop).
 
 Synthetic heterogeneous batch: N=32 structures, K in {1,2,4,8,16,32} unique
 (fill by repeating). For each K:
-  - prxteinmpnn: InferencePlan with DedupGather on n_structures axis
+  - aminx: InferencePlan with DedupGather on n_structures axis
   - ColabDesign: K separate model.sample(num=1) calls (one per unique)
   - PyTorch: sequential loop over K unique structures
 
@@ -21,7 +21,7 @@ Output JSON schema (schema_version="1"):
         "k": <int>,
         "n": <int>,
         "dedup_ratio": <float>,
-        "prxteinmpnn_latency_ms": <float>,
+        "aminx_latency_ms": <float>,
         "colabdesign_latency_ms": <float>,
         "pytorch_latency_ms": <float>,
         "speedup_vs_pytorch": <float>
@@ -255,18 +255,18 @@ def median_from_timings(times_list: list[float]) -> float:
 
 
 # ============================================================================
-# prxteinmpnn Adapter (with DedupGather)
+# aminx Adapter (with DedupGather)
 # ============================================================================
 
 
-def benchmark_prxteinmpnn_dedup(
+def benchmark_aminx_dedup(
     batch: dict[str, Any],
     model: Any = None,
     plan: Any = None,
     n_warmup: int = 10,
     n_timed: int = 20,
 ) -> float:
-    """Benchmark prxteinmpnn with K sequential plan.score() calls.
+    """Benchmark aminx with K sequential plan.score() calls.
 
     For K≥1: build K individual bundles (one per unique structure),
     then run K sequential plan.score() calls per iteration.
@@ -295,28 +295,28 @@ def benchmark_prxteinmpnn_dedup(
     from jax import random
 
     try:
-        from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-        from prxteinmpnn.tiling.bucketing import BucketingConfig
+        from aminx.inference.bundle_builder import build_inference_bundle
+        from aminx.tiling.bucketing import BucketingConfig
     except ImportError as e:
-        logger.warning(f"Failed to import prxteinmpnn: {e}")
+        logger.warning(f"Failed to import aminx: {e}")
         return 0.0
 
     # Load model if not provided
     if model is None:
         try:
-            from prxteinmpnn.io.weights import load_model as load_prxmp_model
+            from aminx.io.weights import load_model as load_prxmp_model
         except ImportError as e:
-            logger.warning(f"Failed to import prxteinmpnn model loader: {e}")
+            logger.warning(f"Failed to import aminx model loader: {e}")
             return 0.0
 
-        logger.info(f"Loading prxteinmpnn model...")
+        logger.info(f"Loading aminx model...")
         key = random.PRNGKey(42)
         model = load_prxmp_model(checkpoint_id="proteinmpnn_v_48_020", key=key)
 
     # Create plan if not provided
     if plan is None:
         try:
-            from prxteinmpnn.host.plan import make_inference_plan
+            from aminx.host.plan import make_inference_plan
         except ImportError as e:
             logger.warning(f"Failed to import make_inference_plan: {e}")
             return 0.0
@@ -383,11 +383,11 @@ def benchmark_prxteinmpnn_dedup(
             times.append(time.perf_counter() - t0)
 
         latency_ms = median_from_timings(times)
-        logger.info(f"prxteinmpnn (K={k_unique}, N={n_structures}): {latency_ms:.3f} ms")
+        logger.info(f"aminx (K={k_unique}, N={n_structures}): {latency_ms:.3f} ms")
         return latency_ms
 
     except Exception as e:
-        logger.error(f"prxteinmpnn benchmark failed: {e}")
+        logger.error(f"aminx benchmark failed: {e}")
         import traceback
         traceback.print_exc()
         return 0.0
@@ -761,12 +761,12 @@ def main() -> int:
     _set_jax_defaults()
 
     # Load model and plan once, reuse across K values
-    logger.info("Loading prxteinmpnn model and creating inference plan...")
+    logger.info("Loading aminx model and creating inference plan...")
     model = None
     plan = None
     try:
-        from prxteinmpnn.io.weights import load_model as load_prxmp_model
-        from prxteinmpnn.host.plan import make_inference_plan
+        from aminx.io.weights import load_model as load_prxmp_model
+        from aminx.host.plan import make_inference_plan
         from jax import random
 
         key = random.PRNGKey(42)
@@ -784,7 +784,7 @@ def main() -> int:
         plan = make_inference_plan(model, spec)
         logger.info("Model and plan loaded successfully")
     except Exception as e:
-        logger.warning(f"Failed to load prxteinmpnn model: {e}")
+        logger.warning(f"Failed to load aminx model: {e}")
         model = None
         plan = None
 
@@ -816,8 +816,8 @@ def main() -> int:
         # Create synthetic batch
         batch = create_synthetic_batch(pdb_fixture, args.n_total, k, rng=rng)
 
-        # Run prxteinmpnn benchmark
-        prxteinmpnn_latency = benchmark_prxteinmpnn_dedup(
+        # Run aminx benchmark
+        aminx_latency = benchmark_aminx_dedup(
             batch,
             model=model,
             plan=plan,
@@ -846,8 +846,8 @@ def main() -> int:
         # Compute dedup ratio and speedup
         dedup_ratio = k / args.n_total
         speedup_vs_pytorch = (
-            pytorch_latency / prxteinmpnn_latency
-            if pytorch_latency > 0 and prxteinmpnn_latency > 0
+            pytorch_latency / aminx_latency
+            if pytorch_latency > 0 and aminx_latency > 0
             else 0.0
         )
 
@@ -855,7 +855,7 @@ def main() -> int:
             "k": k,
             "n": args.n_total,
             "dedup_ratio": dedup_ratio,
-            "prxteinmpnn_latency_ms": prxteinmpnn_latency,
+            "aminx_latency_ms": aminx_latency,
             "colabdesign_latency_ms": colabdesign_latency,
             "pytorch_latency_ms": pytorch_latency,
             "speedup_vs_pytorch": speedup_vs_pytorch,
@@ -864,7 +864,7 @@ def main() -> int:
 
         logger.info(
             f"K={k}: dedup_ratio={dedup_ratio:.3f}, "
-            f"prxteinmpnn={prxteinmpnn_latency:.3f}ms, "
+            f"aminx={aminx_latency:.3f}ms, "
             f"speedup={speedup_vs_pytorch:.3f}x"
         )
 

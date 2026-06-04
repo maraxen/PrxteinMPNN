@@ -88,11 +88,11 @@ def determine_split(record_name, record_data, chain_map, valid_clusters, test_cl
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input_file", type=pathlib.Path, 
-                        default=pathlib.Path("src/prxteinmpnn/training/data/pdb_2021aug02.array_record"))
+                        default=pathlib.Path("src/aminx/training/data/pdb_2021aug02.array_record"))
     parser.add_argument("--output_index", type=pathlib.Path, 
-                        default=pathlib.Path("src/prxteinmpnn/training/data/pdb_2021aug02.index.json"))
+                        default=pathlib.Path("src/aminx/training/data/pdb_2021aug02.index.json"))
     parser.add_argument("--cluster_dir", type=pathlib.Path, 
-                        default=pathlib.Path("src/prxteinmpnn/training/data/pdb_sample/pdb_2021aug02_sample"))
+                        default=pathlib.Path("src/aminx/training/data/pdb_sample/pdb_2021aug02_sample"))
     parser.add_argument("--metadata_csv", type=pathlib.Path,
                         default=None, help="Path to list.csv. Defaults to cluster_dir/list.csv")
 

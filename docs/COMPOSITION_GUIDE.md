@@ -1,4 +1,4 @@
-# PrxteinMPNN Composition Guide
+# Aminx Composition Guide
 
 How to build new inference paths by assembling existing stages — without touching kernel math.
 
@@ -170,7 +170,7 @@ class GumbelTopKStep(eqx.Module):
 `tie_group_fuse` controls how logits are merged across positions in a tied group (multi-chain or symmetric conditioning). The default is `TieGroupProductOfExperts` which matches the LigandMPNN reference.
 
 ```python
-from prxteinmpnn.inference.logits import TIE_GROUP_STRATEGIES, TieGroupFuseFn
+from aminx.inference.logits import TIE_GROUP_STRATEGIES, TieGroupFuseFn
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -201,8 +201,8 @@ Or leave `tie_group_fuse=None` to fall back to logsumexp-mean.
 For the common case where you just want to change fusion strategy via spec:
 
 ```python
-from prxteinmpnn.host.plan import make_inference_plan
-from prxteinmpnn.run.specs import SamplingSpecification
+from aminx.host.plan import make_inference_plan
+from aminx.run.specs import SamplingSpecification
 
 spec = SamplingSpecification(
     inputs="structure.pdb",
@@ -226,11 +226,11 @@ For fine-grained control over stages and encoding:
 ```python
 import jax
 import jax.numpy as jnp
-from prxteinmpnn.host.plan import InferencePlan, InferenceComponents, make_inference_plan
-from prxteinmpnn.inference.encode import make_encode_fn
-from prxteinmpnn.inference import driver
-from prxteinmpnn.inference.logits import GeometricMeanLogits, ARLogitFuse
-from prxteinmpnn.types.stages import StageSet
+from aminx.host.plan import InferencePlan, InferenceComponents, make_inference_plan
+from aminx.inference.encode import make_encode_fn
+from aminx.inference import driver
+from aminx.inference.logits import GeometricMeanLogits, ARLogitFuse
+from aminx.types.stages import StageSet
 
 # --- Custom experiment: geometric mean fusion with custom temperature ---
 

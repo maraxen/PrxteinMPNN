@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
+from aminx.model.ligand_mpnn import PrxteinLigandMPNN
 from scripts.convert_weights import resolve_ligand_side_chain_context
 
 
@@ -71,9 +71,9 @@ def _run_conditional(
   include_side_chain_inputs: bool,
 ) -> tuple[jax.Array, jax.Array]:
   """Run conditional decoding with optional side-chain context tensors."""
-  from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-  from prxteinmpnn.inference.logits import make_stage_set
-  from prxteinmpnn.inference import score_conditional
+  from aminx.inference.bundle_builder import build_inference_bundle
+  from aminx.inference.logits import make_stage_set
+  from aminx.inference import score_conditional
 
   kwargs: dict[str, jax.Array] = {}
   if include_side_chain_inputs:
@@ -179,9 +179,9 @@ def test_ligand_side_chain_gate_on_executes_context_lane() -> None:
 @pytest.mark.parity_heavy
 def test_ligand_tied_autoregressive_support_without_sidechain_context() -> None:
   """Ensure ligand autoregressive tied decoding enforces per-group token consistency."""
-  from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-  from prxteinmpnn.inference.logits import make_stage_set
-  from prxteinmpnn.inference import sample_autoregressive
+  from aminx.inference.bundle_builder import build_inference_bundle
+  from aminx.inference.logits import make_stage_set
+  from aminx.inference import sample_autoregressive
   import equinox as eqx
 
   inputs = _synthetic_inputs(seq_len=10, ligand_atoms=8)
@@ -197,7 +197,7 @@ def test_ligand_tied_autoregressive_support_without_sidechain_context() -> None:
   bias[np.arange(10), forced_tokens] = 45.0
 
   def _sample_with_bundle(use_tie_groups: bool) -> np.ndarray:
-    from prxteinmpnn.types.bundles import WaveScheduleBundle
+    from aminx.types.bundles import WaveScheduleBundle
 
     bundle, config = build_inference_bundle(
       coords=inputs["structure_coordinates"][None, ...],
@@ -234,10 +234,10 @@ def test_ligand_tied_autoregressive_support_without_sidechain_context() -> None:
 @pytest.mark.parity_heavy
 def test_ligand_tied_autoregressive_support_with_sidechain_context() -> None:
   """Ensure side-chain-conditioned ligand tied decoding remains group-consistent."""
-  from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-  from prxteinmpnn.inference.logits import make_stage_set
-  from prxteinmpnn.inference import sample_autoregressive
-  from prxteinmpnn.types.bundles import WaveScheduleBundle
+  from aminx.inference.bundle_builder import build_inference_bundle
+  from aminx.inference.logits import make_stage_set
+  from aminx.inference import sample_autoregressive
+  from aminx.types.bundles import WaveScheduleBundle
   import equinox as eqx
 
   inputs = _synthetic_inputs(seq_len=10, ligand_atoms=8)
@@ -288,10 +288,10 @@ def test_ligand_tied_autoregressive_support_with_sidechain_context() -> None:
 @pytest.mark.parity_heavy
 def test_ligand_conditional_multistate_logits_are_group_shared() -> None:
   """Ensure conditional multistate strategy combines logits identically per tied group."""
-  from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-  from prxteinmpnn.inference.logits import make_stage_set
-  from prxteinmpnn.inference import score_conditional
-  from prxteinmpnn.types.bundles import WaveScheduleBundle
+  from aminx.inference.bundle_builder import build_inference_bundle
+  from aminx.inference.logits import make_stage_set
+  from aminx.inference import score_conditional
+  from aminx.types.bundles import WaveScheduleBundle
   import equinox as eqx
 
   inputs = _synthetic_inputs(seq_len=10, ligand_atoms=8)

@@ -12,7 +12,7 @@ import jax.numpy as jnp
 import equinox as eqx
 import pytest
 
-from prxteinmpnn.types.stages import StageSet
+from aminx.types.stages import StageSet
 
 
 # ---------------------------------------------------------------------------

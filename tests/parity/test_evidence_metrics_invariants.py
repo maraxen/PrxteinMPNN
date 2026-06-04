@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 import numpy as np
 
-from prxteinmpnn.parity.evidence import (
+from aminx.parity.evidence import (
   safe_cosine_similarity,
   safe_spearman,
   safe_pearson,

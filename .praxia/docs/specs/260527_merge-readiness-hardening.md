@@ -18,7 +18,7 @@ Sprint 6 is sealed (443 tests green, Risk D-2 STE parity held, driver.py at 104 
 ## Scope
 
 ### In Scope
-- `src/prxteinmpnn/py.typed` marker creation (PEP 561)
+- `src/aminx/py.typed` marker creation (PEP 561)
 - `[project.urls]` addition to `pyproject.toml`
 - `.readthedocs.yml` creation at repo root
 - Ruff auto-fix pass (`ruff check --fix`) — automated, not manual
@@ -42,19 +42,19 @@ Sprint 6 is sealed (443 tests green, Risk D-2 STE parity held, driver.py at 104 
 ### Wave A — No Dependencies (6 parallel tasks)
 
 #### MR-01: Add py.typed marker + update package-data
-**Files:** `src/prxteinmpnn/py.typed` (create), `pyproject.toml` (modify `[tool.setuptools.package-data]`)  
+**Files:** `src/aminx/py.typed` (create), `pyproject.toml` (modify `[tool.setuptools.package-data]`)  
 **Action:**
-1. Create an empty `src/prxteinmpnn/py.typed` file. PEP 561 requires only existence in source.
-2. Update `pyproject.toml` at `[tool.setuptools.package-data]` (currently `prxteinmpnn = ["model_params/*.eqx.zst"]`) to include the marker so it ships in the built wheel:
+1. Create an empty `src/aminx/py.typed` file. PEP 561 requires only existence in source.
+2. Update `pyproject.toml` at `[tool.setuptools.package-data]` (currently `aminx = ["model_params/*.eqx.zst"]`) to include the marker so it ships in the built wheel:
 ```toml
 [tool.setuptools.package-data]
-prxteinmpnn = ["model_params/*.eqx.zst", "py.typed"]
+aminx = ["model_params/*.eqx.zst", "py.typed"]
 ```
 Without step 2, `py.typed` exists in source but is not included in the built wheel — PEP 561 compliance requires it to be in the installed package.
 
 **Success criterion:**
 ```bash
-test -f src/prxteinmpnn/py.typed && echo "source ok"
+test -f src/aminx/py.typed && echo "source ok"
 uv build && python -c "
 import zipfile, pathlib
 whl = next(pathlib.Path('dist').glob('*.whl'))
@@ -74,17 +74,17 @@ print('wheel ok')
 ```toml
 [project.urls]
 repository = "<git remote get-url origin>"
-documentation = "https://prxteinmpnn.readthedocs.io"
+documentation = "https://aminx.readthedocs.io"
 ```
 Fixer must run `git remote get-url origin` first and use the actual remote URL. If no remote is configured, use a placeholder + `# TODO: update` comment.  
-**Success criterion:** `uv run python -c "import importlib.metadata; m = importlib.metadata.metadata('prxteinmpnn'); print(m['Project-URL'])"` prints URL lines without error.  
+**Success criterion:** `uv run python -c "import importlib.metadata; m = importlib.metadata.metadata('aminx'); print(m['Project-URL'])"` prints URL lines without error.  
 **Dependencies:** none  
 **LOC:** ~4
 
 ---
 
 #### MR-03: Create .readthedocs.yml
-**Files:** `.readthedocs.yml` (create at `prxteinmpnn/` repo root)  
+**Files:** `.readthedocs.yml` (create at `aminx/` repo root)  
 **Mandatory prerequisite (hard step — not optional):** Run `uv run sphinx-build -W docs/source docs/_build/html` before writing the YAML. Record the exit code:
 - Exit 0 → include `fail_on_warning: true` in the YAML (clean build confirmed)
 - Exit non-zero → fix warnings first if they are trivial (import errors, orphaned refs); OR drop `fail_on_warning: true` from the YAML, write the YAML without it, and add a row to the Deferral Register: `"sphinx fail_on_warning | docs/source/conf.py | N warnings on sphinx-build -W; fix in follow-up before RTD goes live"`
@@ -121,7 +121,7 @@ python:
 ---
 
 #### MR-04: Ruff auto-fix pass
-**Files:** `src/prxteinmpnn/**/*.py` (bulk automated)  
+**Files:** `src/aminx/**/*.py` (bulk automated)  
 **Action:**
 1. `uv run ruff check src/ --fix`
 2. `uv run ruff format src/`
@@ -136,7 +136,7 @@ python:
 ---
 
 #### MR-05: Clean up decoder.py stale TODO comment
-**Files:** `src/prxteinmpnn/model/decoder.py` (modify, line 8)  
+**Files:** `src/aminx/model/decoder.py` (modify, line 8)  
 **Action:** Replace:
 ```python
 # TODO(tech-debt): `.agents/TECHNICAL_DEBT.md` §6 — docstring / public API audit.
@@ -145,24 +145,24 @@ With:
 ```python
 # NOTE: Public API surface audited Sprint 3 Wave 5. Docstrings complete as of refactor-full.
 ```
-**Success criterion:** `grep -c 'TODO.*TECHNICAL_DEBT.*§6' src/prxteinmpnn/model/decoder.py` returns `0`.  
+**Success criterion:** `grep -c 'TODO.*TECHNICAL_DEBT.*§6' src/aminx/model/decoder.py` returns `0`.  
 **Dependencies:** none  
 **LOC:** 1 changed
 
 ---
 
 #### MR-06: Clean up campaign.py dead-import comment
-**Files:** `src/prxteinmpnn/host/campaign.py` (modify, lines 25-31)  
+**Files:** `src/aminx/host/campaign.py` (modify, lines 25-31)  
 **Action:**
 1. Run the **exact** pattern below (do NOT use the substring `campaign_manifest` — that matches function names like `plan_campaign_manifest` and will false-positive):
    ```bash
-   grep -rE 'from prxteinmpnn\.run\.campaign_manifest|import prxteinmpnn\.run\.campaign_manifest' tests/ src/
+   grep -rE 'from aminx\.run\.campaign_manifest|import aminx\.run\.campaign_manifest' tests/ src/
    ```
    Expected: zero matches. If any matches exist, stop and escalate — something actually imports the dead module.
 2. Remove the dead-import comment block:
 ```python
 # TODO(TASK-2): wire up after bundle_builder move (TASK-5)
-# from prxteinmpnn.run.campaign_manifest import (
+# from aminx.run.campaign_manifest import (
 #   build_manifest_row,
 #   load_manifest,
 #   validate_manifest_rows,
@@ -173,7 +173,7 @@ Replace with one line:
 ```python
 # campaign manifest functions are implemented in this module (see build_manifest_row et al.)
 ```
-**Success criterion:** `grep -c 'TODO(TASK-2)' src/prxteinmpnn/host/campaign.py` returns `0`.  
+**Success criterion:** `grep -c 'TODO(TASK-2)' src/aminx/host/campaign.py` returns `0`.  
 **Dependencies:** none  
 **LOC:** net -5
 
@@ -182,7 +182,7 @@ Replace with one line:
 ### Wave B — After Wave A (2 sequential tasks)
 
 #### MR-07: Verify driver.decode deprecation completeness
-**Files:** `src/prxteinmpnn/inference/driver.py` (modify only if docstring is insufficient)  
+**Files:** `src/aminx/inference/driver.py` (modify only if docstring is insufficient)  
 **Action:**
 1. Confirm `__all__` does NOT contain `"decode"` (recon confirmed; verify again after MR-04 ruff pass).
 2. Read the deprecation docstring at lines ~80-96. If it does not show a concrete migration example, append:
@@ -195,9 +195,9 @@ Replace with one line:
 
 **Success criterion:**
 ```bash
-python -c "from prxteinmpnn.inference import driver; assert 'decode' not in driver.__all__"
+python -c "from aminx.inference import driver; assert 'decode' not in driver.__all__"
 python -c "
-from prxteinmpnn.inference.driver import decode
+from aminx.inference.driver import decode
 try: decode(None,None,None,None,None,None,None)
 except NotImplementedError: pass
 else: raise AssertionError('expected NotImplementedError')
@@ -216,7 +216,7 @@ Both assertions pass.
 2. If open references found, add `RESOLVED:` annotation or remove them.
 3. If no references found, this task is a no-op — commit a one-line note under the "Closures" section below confirming the closure.
 
-**Background:** Debt #16 suspected `UnconditionalDecodeStep` passed invalid inference kwargs to `Decoder`. Recon confirmed `src/prxteinmpnn/types/stages.py:219-253` is correct — kwargs match `Decoder.__call__` exactly. Debt was never formally closed.
+**Background:** Debt #16 suspected `UnconditionalDecodeStep` passed invalid inference kwargs to `Decoder`. Recon confirmed `src/aminx/types/stages.py:219-253` is correct — kwargs match `Decoder.__call__` exactly. Debt was never formally closed.
 
 **Success criterion:** `grep -rc 'Debt.*#16' src/ tests/` — every matching file returns 0 count OR shows a RESOLVED annotation.  
 **Dependencies:** MR-05 (decoder.py might be a source; clean it first)  
@@ -228,7 +228,7 @@ Both assertions pass.
 
 ```
 Wave A (parallel, no deps — 6 tasks):
-  MR-01  src/prxteinmpnn/py.typed — create (0 LOC)
+  MR-01  src/aminx/py.typed — create (0 LOC)
   MR-02  pyproject.toml [project.urls] — add (~4 LOC)
   MR-03  .readthedocs.yml — create (~15 LOC)
   MR-04  ruff auto-fix — automated (~0 manual LOC)
@@ -263,7 +263,7 @@ uv run ty check src/ 2>&1 | tail -10
 # Docs build
 uv run sphinx-build -W docs/source docs/_build/html 2>&1 | tail -10
 # driver.__all__ invariant
-python -c "from prxteinmpnn.inference import driver; assert 'decode' not in driver.__all__"
+python -c "from aminx.inference import driver; assert 'decode' not in driver.__all__"
 # py.typed in wheel
 uv build && python -c "
 import zipfile, pathlib
@@ -273,7 +273,7 @@ assert any('py.typed' in n for n in z.namelist()), 'py.typed not in wheel'
 print('wheel ok')
 "
 # project.urls in metadata
-uv run python -c "import importlib.metadata; m = importlib.metadata.metadata('prxteinmpnn'); urls = [v for k,v in m.items() if k=='Project-URL']; assert urls, 'no Project-URL'; print(urls)"
+uv run python -c "import importlib.metadata; m = importlib.metadata.metadata('aminx'); urls = [v for k,v in m.items() if k=='Project-URL']; assert urls, 'no Project-URL'; print(urls)"
 ```
 
 ---
@@ -286,7 +286,7 @@ uv run python -c "import importlib.metadata; m = importlib.metadata.metadata('pr
 | `.readthedocs.yml` `fail_on_warning: true` fails RTD build | Medium | MR-03 requires running `sphinx-build -W` before writing the YAML; if non-zero, drop `fail_on_warning` and defer. `conf.py` uses `main_doc` (non-standard key) — may warn on Sphinx 4+. |
 | `py.typed` not in built wheel (ships in source but not in wheel) | High | MR-01 explicitly updates `[tool.setuptools.package-data]` to include `"py.typed"`; Wave B gate runs `uv build` and verifies it via zipfile inspection. |
 | `[project.urls]` uses placeholder URL | Low | Fixer runs `git remote get-url origin` first; placeholder + `# TODO` acceptable. |
-| `campaign.py` grep pattern false-positives on function names | Medium | MR-06 uses exact import-path pattern (`from prxteinmpnn.run.campaign_manifest`) not substring — this avoids matching `plan_campaign_manifest` and `write_campaign_manifest` function names in tests. |
+| `campaign.py` grep pattern false-positives on function names | Medium | MR-06 uses exact import-path pattern (`from aminx.run.campaign_manifest`) not substring — this avoids matching `plan_campaign_manifest` and `write_campaign_manifest` function names in tests. |
 | MR-07 docstring edit conflicts with MR-04 ruff changes | Low | Do MR-04 before MR-07; apply on top of ruff-formatted file. |
 
 ---
@@ -324,7 +324,7 @@ uv run python -c "import importlib.metadata; m = importlib.metadata.metadata('pr
 **Note:** `tiling/buckets.py` already exists and handles padding of *individual* sequences to length-bucket ceilings. `bucketing.py` is distinct: it groups a *batch* of sequences by bucket assignment and calls `BatchPlanner.plan()` once per bucket. Do not merge or rename either file.
 
 **Files:**
-- `src/prxteinmpnn/tiling/bucketing.py` (create)
+- `src/aminx/tiling/bucketing.py` (create)
 - `tests/tiling/__init__.py` (create — empty)
 - `tests/tiling/test_bucketing.py` (create)
 
@@ -373,7 +373,7 @@ All pass.
 **What and why:** Exposes bucketing to the host layer. Calls `BatchPlanner.plan()` once per bucket (substituting bucket ceiling as sequence-axis cardinality) and returns a `BucketAssignment`.
 
 **Files:**
-- `src/prxteinmpnn/host/plan.py` (modify — add `plan_bucketed`)
+- `src/aminx/host/plan.py` (modify — add `plan_bucketed`)
 - `tests/host/test_bucketed_plan.py` (create)
 
 **Function signature:**
@@ -398,7 +398,7 @@ Implementation: override the `"n_structures"` axis cardinality to the bucket cei
 **Success criterion:**
 ```bash
 uv run pytest tests/host/test_bucketed_plan.py -q 2>&1 | tail -5
-python -c "from prxteinmpnn.host.plan import plan_bucketed; print('ok')"
+python -c "from aminx.host.plan import plan_bucketed; print('ok')"
 ```
 
 **Dependencies:** MR-09  
@@ -457,16 +457,16 @@ uv run pytest tests/ -q --ignore=tests/parity -x 2>&1 | tail -5
 
 ## Wave C Done Criteria
 
-- [ ] `src/prxteinmpnn/tiling/bucketing.py` exists; `select_bucket`, `group_by_bucket`, `BucketAssignment`, `BucketingConfig` importable
+- [ ] `src/aminx/tiling/bucketing.py` exists; `select_bucket`, `group_by_bucket`, `BucketAssignment`, `BucketingConfig` importable
 - [ ] `tests/tiling/test_bucketing.py` passes
-- [ ] `plan_bucketed` importable from `prxteinmpnn.host.plan`; `tests/host/test_bucketed_plan.py` passes
+- [ ] `plan_bucketed` importable from `aminx.host.plan`; `tests/host/test_bucketed_plan.py` passes
 - [ ] `scripts/benchmarks/bench_inference_plan_latency.py` exits 0 with `PASS`, OR overhead ratio recorded in Deferral Register with follow-up filed
 
 ---
 
 ## Done Criteria
 
-- [ ] `src/prxteinmpnn/py.typed` exists at HEAD
+- [ ] `src/aminx/py.typed` exists at HEAD
 - [ ] `py.typed` present in built wheel (verified by zipfile inspection via `uv build`)
 - [ ] `pyproject.toml` has `[project.urls]` with at least `repository` and `documentation` keys
 - [ ] `.readthedocs.yml` exists at repo root, valid YAML; contains `fail_on_warning: true` if `sphinx-build -W` exited 0
@@ -483,10 +483,10 @@ uv run pytest tests/ -q --ignore=tests/parity -x 2>&1 | tail -5
 
 ## References
 
-- `src/prxteinmpnn/inference/driver.py:71-96` — `decode()` deprecation shim; `__all__` at ~line 99
-- `src/prxteinmpnn/host/campaign.py:25-31` — dead-import TODO block
-- `src/prxteinmpnn/tiling/planner.py:16` — bucketing TODO (deferred)
-- `src/prxteinmpnn/model/decoder.py:8` — stale TODO reference to worktree-only debt doc
+- `src/aminx/inference/driver.py:71-96` — `decode()` deprecation shim; `__all__` at ~line 99
+- `src/aminx/host/campaign.py:25-31` — dead-import TODO block
+- `src/aminx/tiling/planner.py:16` — bucketing TODO (deferred)
+- `src/aminx/model/decoder.py:8` — stale TODO reference to worktree-only debt doc
 - `pyproject.toml` — `[project]` section; missing `[project.urls]`
 - `docs/source/conf.py` — Sphinx config exists; RTD explicit config missing
 - `tests/tiling/test_planner_phase0.py` — BatchPlanner.plan() test coverage

@@ -1,29 +1,29 @@
 ---
-workspace: prxteinmpnn
+workspace: aminx
 session_id: 2026-05-22-sprint4-wave-a
 status: wave_a_complete
 immediately_relevant:
-- file: src/prxteinmpnn/inference/bundle_builder.py
+- file: src/aminx/inference/bundle_builder.py
   lines:
   - 18
   - 151
   reason: 'Wave A target: now returns (bundle, config) only; strategy/StageSet params removed.'
-- file: src/prxteinmpnn/inference/logits.py
+- file: src/aminx/inference/logits.py
   lines:
   - 385
   - 430
   reason: make_stage_set() added here — new canonical factory for StageSet construction from strategy name/temp/weights.
-- file: src/prxteinmpnn/host/plan.py
+- file: src/aminx/host/plan.py
   lines:
   - 350
   - 433
   reason: 'make_inference_plan: already calls make_stage_set; Wave B target — callers should flow strategy resolution through here.'
-- file: src/prxteinmpnn/host/kernel_dispatch.py
+- file: src/aminx/host/kernel_dispatch.py
   lines:
   - 158
   - 182
   reason: 'Wave B/C target: calls make_stage_set inline; will eventually route through InferencePlan.'
-- file: src/prxteinmpnn/sampling/sample.py
+- file: src/aminx/sampling/sample.py
   lines:
   - 164
   - 190

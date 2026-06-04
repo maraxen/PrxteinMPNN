@@ -20,9 +20,9 @@ import torch
 from array_record.python.array_record_module import ArrayRecordWriter  # type: ignore[unresolved-import]
 
 # Local Imports
-from prxteinmpnn.physics.force_fields import load_force_field_from_hub
-from prxteinmpnn.io.parsing.mappings import string_to_protein_sequence
-from prxteinmpnn.utils.residue_constants import (
+from aminx.physics.force_fields import load_force_field_from_hub
+from aminx.io.parsing.mappings import string_to_protein_sequence
+from aminx.utils.residue_constants import (
     atom_types,
     restype_1to3,
     restypes,
@@ -170,7 +170,7 @@ def process_shard(
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output_dir", type=Path, default=Path("src/prxteinmpnn/training/data"))
+    parser.add_argument("--output_dir", type=Path, default=Path("src/aminx/training/data"))
     parser.add_argument("--num_workers", type=int, default=64)
     args = parser.parse_args()
     

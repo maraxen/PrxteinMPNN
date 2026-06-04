@@ -56,10 +56,10 @@ class TestBenchTemperatureArray:
             "Help should document temperature sweep options"
 
 
-class TestBenchPrxteinmpnnJaxTemperatures:
-    """Verify bench_prxteinmpnn_jax.py accepts --temperatures flag."""
+class TestBenchAminxJaxTemperatures:
+    """Verify bench_aminx_jax.py accepts --temperatures flag."""
 
-    JAX_BENCH_SCRIPT = PROJECT_ROOT / "scripts" / "benchmarks" / "bench_prxteinmpnn_jax.py"
+    JAX_BENCH_SCRIPT = PROJECT_ROOT / "scripts" / "benchmarks" / "bench_aminx_jax.py"
 
     def test_temperatures_flag_dry_run(self) -> None:
         """--temperatures flag should work with --dry-run."""

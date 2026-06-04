@@ -13,8 +13,8 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from prxteinmpnn.model import PrxteinMPNN
-from prxteinmpnn.sampling.sample import make_sample_sequences
+from aminx.model import Aminx
+from aminx.sampling.sample import make_sample_sequences
 
 N = 16  # small enough for fast CPU tests
 _KEY = jax.random.PRNGKey(42)
@@ -22,7 +22,7 @@ _KEY = jax.random.PRNGKey(42)
 
 @pytest.fixture(scope="module")
 def small_model():
-    return PrxteinMPNN(
+    return Aminx(
         node_features=128,
         edge_features=128,
         hidden_features=128,

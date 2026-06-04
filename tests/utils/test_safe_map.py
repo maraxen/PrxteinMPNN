@@ -2,7 +2,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from prxteinmpnn.utils.safe_map import safe_map
+from aminx.utils.safe_map import safe_map
 
 def test_safe_map_vmap_dispatch():
     """Test that safe_map works correctly when batch_size >= input_size (vmap path)."""

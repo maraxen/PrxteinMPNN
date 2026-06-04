@@ -1,11 +1,11 @@
 ---
 session_id: 6914450e
-topic: Release Preparedness epic for prxteinmpnn
+topic: Release Preparedness epic for aminx
 task_type: architectural
 created_at: 2026-06-04
 ---
 
-# Release Preparedness Epic — prxteinmpnn
+# Release Preparedness Epic — aminx
 
 ## Problem Frame
 
@@ -118,7 +118,7 @@ The Release Preparedness epic is complete when:
 
 - Parity CI workflows actually produce the report artifacts currently referenced in `parity_audit_legacy.md`; if not, CI-003 will surface this.
 - `docs/source/conf.py` is in working shape for Sphinx; if Sphinx build is broken, DOCS-005 scope expands.
-- `uv tool install prxteinmpnn` will work once `v0.1.0a1` is tagged (package is PyPI-ready in `pyproject.toml`).
+- `uv tool install aminx` will work once `v0.1.0a1` is tagged (package is PyPI-ready in `pyproject.toml`).
 - `flax` is used via `flax.struct.dataclass` in 3 structs (`TrainingMetrics`, `EvaluationMetrics` in `metrics.py`; `EstatInfo` in `data_structures.py`); CLEAN-013 migrates these to `eqx.Module` before removing `flax`.
 - `pytest-asyncio`/`trio`/`anyio` are confirmed unused (zero async test definitions in repo); CLEAN-013 removes them from `tests` and `dev` extras.
 

@@ -6,8 +6,8 @@ import jax.numpy as jnp
 import equinox as eqx
 import pytest
 
-from prxteinmpnn.types.stages import StageSet, EncoderSinkFn
-from prxteinmpnn.types.boundaries import AxisBoundary
+from aminx.types.stages import StageSet, EncoderSinkFn
+from aminx.types.boundaries import AxisBoundary
 
 
 def test_stage_set_encoder_sink_defaults_to_empty_tuple():

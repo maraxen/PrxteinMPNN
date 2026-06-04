@@ -1,32 +1,32 @@
 Models
 ======
 
-.. automodule:: prxteinmpnn.model.mpnn
+.. automodule:: aminx.model.mpnn
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: prxteinmpnn.model.ligand_mpnn
+.. automodule:: aminx.model.ligand_mpnn
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: prxteinmpnn.model.encoder
+.. automodule:: aminx.model.encoder
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: prxteinmpnn.model.decoder
+.. automodule:: aminx.model.decoder
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: prxteinmpnn.model.features
+.. automodule:: aminx.model.features
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: prxteinmpnn.model.capabilities
+.. automodule:: aminx.model.capabilities
    :members:
    :undoc-members:
    :show-inheritance:

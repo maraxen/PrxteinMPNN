@@ -3,7 +3,7 @@
 import chex
 import jax.numpy as jnp
 
-from prxteinmpnn.utils import normalize
+from aminx.utils import normalize
 
 
 def test_normalize():

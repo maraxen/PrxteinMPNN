@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 
-from prxteinmpnn.parity.assets import verify_parity_assets
+from aminx.parity.assets import verify_parity_assets
 
 
 def main() -> int:

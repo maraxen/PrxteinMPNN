@@ -15,28 +15,28 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from prxteinmpnn.inference.logits import (
+from aminx.inference.logits import (
     ArithmeticMeanLogits,
     GeometricMeanLogits,
     ProductOfProbabilities,
     ARLogitFuse,
     make_stage_set,
 )
-from prxteinmpnn.inference.driver import (
+from aminx.inference.driver import (
     decode,
     infer_topology,
     TOPOLOGY_AR,
     TOPOLOGY_CONDITIONAL_SCORE,
     TOPOLOGY_UNCONDITIONAL,
 )
-from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-from prxteinmpnn.types.stages import (
+from aminx.inference.bundle_builder import build_inference_bundle
+from aminx.types.stages import (
     StageSet,
     ConditionalDecodeStep,
     UnconditionalDecodeStep,
 )
-from prxteinmpnn.types.encodings import EncoderOutput
-from prxteinmpnn.model import PrxteinMPNN
+from aminx.types.encodings import EncoderOutput
+from aminx.model import Aminx
 
 
 # ---------------------------------------------------------------------------
@@ -46,8 +46,8 @@ from prxteinmpnn.model import PrxteinMPNN
 
 @pytest.fixture
 def synthetic_model():
-    """Minimal synthetic PrxteinMPNN for testing."""
-    return PrxteinMPNN(
+    """Minimal synthetic Aminx for testing."""
+    return Aminx(
         node_features=16,
         edge_features=16,
         hidden_features=16,

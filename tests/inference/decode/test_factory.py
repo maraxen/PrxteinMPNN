@@ -16,19 +16,19 @@ from typing import Any
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.inference.decode.conditional import ConditionalDecode
-from prxteinmpnn.inference.decode.factory import make_decode_fn
-from prxteinmpnn.inference.decode.mode import (
+from aminx.inference.decode.conditional import ConditionalDecode
+from aminx.inference.decode.factory import make_decode_fn
+from aminx.inference.decode.mode import (
     AutoregressiveMode,
     ConditionalMode,
     STEMode,
     UnconditionalMode,
 )
-from prxteinmpnn.inference.decode.ste import STEDecode
-from prxteinmpnn.inference.decode.unconditional import UnconditionalDecode
-from prxteinmpnn.tiling.dispatch import DispatchRejected
-from prxteinmpnn.tiling.iterator import JaxScanIterator, SafeMapIterator, VmapIterator
-from prxteinmpnn.tiling.strategy import SafeMap, Scan, Vmap
+from aminx.inference.decode.ste import STEDecode
+from aminx.inference.decode.unconditional import UnconditionalDecode
+from aminx.tiling.dispatch import DispatchRejected
+from aminx.tiling.iterator import JaxScanIterator, SafeMapIterator, VmapIterator
+from aminx.tiling.strategy import SafeMap, Scan, Vmap
 
 
 class DummyModel:
@@ -104,7 +104,7 @@ class TestMakeDecodeFnAutoregressive:
 
         result = make_decode_fn(model, mode, strategy)
 
-        from prxteinmpnn.inference.decode.autoregressive import AutoregressiveDecode
+        from aminx.inference.decode.autoregressive import AutoregressiveDecode
 
         assert isinstance(result, AutoregressiveDecode)
         assert isinstance(result.state_iterator, VmapIterator)
@@ -123,7 +123,7 @@ class TestMakeDecodeFnAutoregressive:
 
         result = make_decode_fn(model, mode, strategy)
 
-        from prxteinmpnn.inference.decode.autoregressive import AutoregressiveDecode
+        from aminx.inference.decode.autoregressive import AutoregressiveDecode
 
         assert isinstance(result, AutoregressiveDecode)
         assert isinstance(result.state_iterator, SafeMapIterator)

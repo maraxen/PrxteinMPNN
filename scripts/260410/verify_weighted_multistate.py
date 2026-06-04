@@ -3,7 +3,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from prxteinmpnn.model.multistate_sampling import (
+from aminx.model.multistate_sampling import (
   arithmetic_mean_logits,
   geometric_mean_logits,
   product_of_probabilities_logits,

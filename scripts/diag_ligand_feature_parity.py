@@ -1,6 +1,6 @@
 """Diagnose JAX vs PyTorch ligand ``features()`` outputs (``y_nodes``, ``y_edges``, ``y_m``).
 
-Run from ``prxteinmpnn`` root::
+Run from ``aminx`` root::
 
   export REFERENCE_PATH=/path/to/LigandMPNN
   PYTHONPATH=scripts:src:tests uv run python scripts/diag_ligand_feature_parity.py
@@ -20,7 +20,7 @@ def _repo_root() -> Path:
 
 
 def _stats(name: str, pt: object, jax_arr: object) -> None:
-  from prxteinmpnn.parity.evidence import safe_pearson
+  from aminx.parity.evidence import safe_pearson
 
   p = np.asarray(pt)
   j = np.asarray(jax_arr)

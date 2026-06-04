@@ -26,20 +26,20 @@ From the oracle pre-review:
 ### New files
 | File | Responsibility |
 |---|---|
-| `src/prxteinmpnn/tiling/strategy.py` | `Vmap`, `SafeMap`, `Scan`, `AxisStrategy`, `ScanTransition` protocol |
-| `src/prxteinmpnn/utils/safe_scan.py` | `safe_scan` — carry-bearing scan primitive, sibling to `safe_map` |
-| `src/prxteinmpnn/types/boundaries.py` | `Fuse`, `Tap`, `Sink` protocols; `AxisBoundary` eqx.Module |
-| `src/prxteinmpnn/tiling/carry.py` | `CarrySpec` — declares carry on a named axis; consumed by Phase 0 |
+| `src/aminx/tiling/strategy.py` | `Vmap`, `SafeMap`, `Scan`, `AxisStrategy`, `ScanTransition` protocol |
+| `src/aminx/utils/safe_scan.py` | `safe_scan` — carry-bearing scan primitive, sibling to `safe_map` |
+| `src/aminx/types/boundaries.py` | `Fuse`, `Tap`, `Sink` protocols; `AxisBoundary` eqx.Module |
+| `src/aminx/tiling/carry.py` | `CarrySpec` — declares carry on a named axis; consumed by Phase 0 |
 
 ### Modified files
 | File | What changes |
 |---|---|
-| `src/prxteinmpnn/tiling/planner.py` | `AxisDecision` gains `strategy: AxisStrategy`; `BatchPlanner.plan()` gains Phase 0; `estimate_memory_theoretical` updated |
-| `src/prxteinmpnn/types/stages.py` | `encoder_sink` → `tuple[EncoderSinkFn, ...]`; new `axis_boundaries` static slot |
-| `src/prxteinmpnn/host/plan.py` | `PlanTopologyError`; `_validate_plan_topology()`; called from `make_inference_plan` |
-| `src/prxteinmpnn/types/configs.py` | Add `use_unified_driver: bool` static field (Wave D) |
-| `src/prxteinmpnn/host/kernel_dispatch.py` | Unified driver replacing Path A/B (Wave D) |
-| `src/prxteinmpnn/inference/encode.py` | Retire `use_rolling_state` branch → `CarrySpec` wired (Wave E) |
+| `src/aminx/tiling/planner.py` | `AxisDecision` gains `strategy: AxisStrategy`; `BatchPlanner.plan()` gains Phase 0; `estimate_memory_theoretical` updated |
+| `src/aminx/types/stages.py` | `encoder_sink` → `tuple[EncoderSinkFn, ...]`; new `axis_boundaries` static slot |
+| `src/aminx/host/plan.py` | `PlanTopologyError`; `_validate_plan_topology()`; called from `make_inference_plan` |
+| `src/aminx/types/configs.py` | Add `use_unified_driver: bool` static field (Wave D) |
+| `src/aminx/host/kernel_dispatch.py` | Unified driver replacing Path A/B (Wave D) |
+| `src/aminx/inference/encode.py` | Retire `use_rolling_state` branch → `CarrySpec` wired (Wave E) |
 
 ### Test files
 | File | What it covers |
@@ -61,7 +61,7 @@ From the oracle pre-review:
 ### Task 1: `AxisStrategy` sealed union + `ScanTransition` protocol
 
 **Files:**
-- Create: `src/prxteinmpnn/tiling/strategy.py`
+- Create: `src/aminx/tiling/strategy.py`
 - Create: `tests/tiling/test_strategy.py`
 
 - [ ] **Step 1.1: Write the failing test**
@@ -71,7 +71,7 @@ From the oracle pre-review:
 from __future__ import annotations
 import jax.numpy as jnp
 import pytest
-from prxteinmpnn.tiling.strategy import Vmap, SafeMap, Scan, AxisStrategy
+from aminx.tiling.strategy import Vmap, SafeMap, Scan, AxisStrategy
 
 
 def test_vmap_is_frozen_dataclass():
@@ -106,7 +106,7 @@ def test_axis_strategy_union_isinstance():
 
 
 def test_scan_transition_protocol_conformance():
-    from prxteinmpnn.tiling.strategy import ScanTransition
+    from aminx.tiling.strategy import ScanTransition
     # A function with (carry, x) -> (carry, y) signature satisfies the protocol
     def my_transition(carry: int, x: int) -> tuple[int, int]:
         return carry + x, carry
@@ -116,12 +116,12 @@ def test_scan_transition_protocol_conformance():
 - [ ] **Step 1.2: Run test to confirm it fails**
 
 ```bash
-cd /home/marielle/projects/tev_design/prxteinmpnn
+cd /home/marielle/projects/tev_design/aminx
 uv run pytest tests/tiling/test_strategy.py -v 2>&1 | tail -10
 ```
-Expected: `ModuleNotFoundError: No module named 'prxteinmpnn.tiling.strategy'`
+Expected: `ModuleNotFoundError: No module named 'aminx.tiling.strategy'`
 
-- [ ] **Step 1.3: Create `src/prxteinmpnn/tiling/strategy.py`**
+- [ ] **Step 1.3: Create `src/aminx/tiling/strategy.py`**
 
 ```python
 """Axis iteration strategy types for BatchPlanner.
@@ -207,7 +207,7 @@ Expected: `6 passed`
 - [ ] **Step 1.5: Commit**
 
 ```bash
-git add src/prxteinmpnn/tiling/strategy.py tests/tiling/test_strategy.py
+git add src/aminx/tiling/strategy.py tests/tiling/test_strategy.py
 git commit -m "feat(S5-A1): add AxisStrategy sealed union + ScanTransition protocol"
 ```
 
@@ -216,7 +216,7 @@ git commit -m "feat(S5-A1): add AxisStrategy sealed union + ScanTransition proto
 ### Task 2: `safe_scan` carry-bearing primitive
 
 **Files:**
-- Create: `src/prxteinmpnn/utils/safe_scan.py`
+- Create: `src/aminx/utils/safe_scan.py`
 - Create: `tests/utils/test_safe_scan.py`
 
 - [ ] **Step 2.1: Write the failing tests**
@@ -227,7 +227,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 import pytest
-from prxteinmpnn.utils.safe_scan import safe_scan
+from aminx.utils.safe_scan import safe_scan
 
 
 def test_safe_scan_accumulates_carry():
@@ -301,9 +301,9 @@ def test_safe_scan_is_jit_compatible():
 ```bash
 uv run pytest tests/utils/test_safe_scan.py -v 2>&1 | tail -5
 ```
-Expected: `ModuleNotFoundError: No module named 'prxteinmpnn.utils.safe_scan'`
+Expected: `ModuleNotFoundError: No module named 'aminx.utils.safe_scan'`
 
-- [ ] **Step 2.3: Create `src/prxteinmpnn/utils/safe_scan.py`**
+- [ ] **Step 2.3: Create `src/aminx/utils/safe_scan.py`**
 
 ```python
 """Carry-bearing scan primitive — sibling to safe_map.
@@ -373,7 +373,7 @@ Expected: `6 passed`
 - [ ] **Step 2.5: Commit**
 
 ```bash
-git add src/prxteinmpnn/utils/safe_scan.py tests/utils/test_safe_scan.py
+git add src/aminx/utils/safe_scan.py tests/utils/test_safe_scan.py
 git commit -m "feat(S5-A2): add safe_scan carry-bearing primitive"
 ```
 
@@ -382,7 +382,7 @@ git commit -m "feat(S5-A2): add safe_scan carry-bearing primitive"
 ### Task 3: `Fuse`, `Tap`, `Sink` protocols + `AxisBoundary`
 
 **Files:**
-- Create: `src/prxteinmpnn/types/boundaries.py`
+- Create: `src/aminx/types/boundaries.py`
 - Create: `tests/types/test_boundaries.py`
 
 - [ ] **Step 3.1: Write the failing tests**
@@ -393,7 +393,7 @@ from __future__ import annotations
 import jax.numpy as jnp
 import equinox as eqx
 import pytest
-from prxteinmpnn.types.boundaries import AxisBoundary, Fuse, Sink, Tap
+from aminx.types.boundaries import AxisBoundary, Fuse, Sink, Tap
 
 
 # --- Protocol conformance checks ---
@@ -497,9 +497,9 @@ def test_axis_boundary_jit_static():
 ```bash
 uv run pytest tests/types/test_boundaries.py -v 2>&1 | tail -5
 ```
-Expected: `ModuleNotFoundError: No module named 'prxteinmpnn.types.boundaries'`
+Expected: `ModuleNotFoundError: No module named 'aminx.types.boundaries'`
 
-- [ ] **Step 3.3: Create `src/prxteinmpnn/types/boundaries.py`**
+- [ ] **Step 3.3: Create `src/aminx/types/boundaries.py`**
 
 ```python
 """Per-axis boundary operations for composable pipeline stages.
@@ -590,7 +590,7 @@ Expected: `10 passed`
 - [ ] **Step 3.5: Commit**
 
 ```bash
-git add src/prxteinmpnn/types/boundaries.py tests/types/test_boundaries.py
+git add src/aminx/types/boundaries.py tests/types/test_boundaries.py
 git commit -m "feat(S5-A3): add Fuse/Tap/Sink protocols and AxisBoundary"
 ```
 
@@ -599,7 +599,7 @@ git commit -m "feat(S5-A3): add Fuse/Tap/Sink protocols and AxisBoundary"
 ### Task 4: `CarrySpec` — carry declaration for planner Phase 0
 
 **Files:**
-- Create: `src/prxteinmpnn/tiling/carry.py`
+- Create: `src/aminx/tiling/carry.py`
 - Create: `tests/tiling/test_carry_spec.py`
 
 - [ ] **Step 4.1: Write the failing tests**
@@ -609,8 +609,8 @@ git commit -m "feat(S5-A3): add Fuse/Tap/Sink protocols and AxisBoundary"
 from __future__ import annotations
 import jax.numpy as jnp
 import pytest
-from prxteinmpnn.tiling.carry import CarrySpec
-from prxteinmpnn.tiling.strategy import ScanTransition
+from aminx.tiling.carry import CarrySpec
+from aminx.tiling.strategy import ScanTransition
 
 
 def test_carry_spec_stores_axis_name():
@@ -668,9 +668,9 @@ def test_carry_spec_rejects_other_known_heterogeneous():
 ```bash
 uv run pytest tests/tiling/test_carry_spec.py -v 2>&1 | tail -5
 ```
-Expected: `ModuleNotFoundError: No module named 'prxteinmpnn.tiling.carry'`
+Expected: `ModuleNotFoundError: No module named 'aminx.tiling.carry'`
 
-- [ ] **Step 4.3: Create `src/prxteinmpnn/tiling/carry.py`**
+- [ ] **Step 4.3: Create `src/aminx/tiling/carry.py`**
 
 ```python
 """CarrySpec — declare a carry-bearing scan on a named axis.
@@ -689,7 +689,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from prxteinmpnn.tiling.strategy import ScanTransition
+from aminx.tiling.strategy import ScanTransition
 
 # Known heterogeneous axis names — Scan is structurally impossible on these.
 _HETEROGENEOUS_AXIS_NAMES: frozenset[str] = frozenset({"n_states", "n_structures"})
@@ -741,7 +741,7 @@ Expected: `6 passed`
 - [ ] **Step 4.5: Commit**
 
 ```bash
-git add src/prxteinmpnn/tiling/carry.py tests/tiling/test_carry_spec.py
+git add src/aminx/tiling/carry.py tests/tiling/test_carry_spec.py
 git commit -m "feat(S5-A4): add CarrySpec with heterogeneous-axis guard"
 ```
 
@@ -754,7 +754,7 @@ git commit -m "feat(S5-A4): add CarrySpec with heterogeneous-axis guard"
 ### Task 5: `AxisDecision.strategy` + BatchPlanner Phase 0
 
 **Files:**
-- Modify: `src/prxteinmpnn/tiling/planner.py`
+- Modify: `src/aminx/tiling/planner.py`
 - Create: `tests/tiling/test_planner_phase0.py`
 
 - [ ] **Step 5.1: Write the failing tests**
@@ -764,10 +764,10 @@ git commit -m "feat(S5-A4): add CarrySpec with heterogeneous-axis guard"
 from __future__ import annotations
 import jax.numpy as jnp
 import pytest
-from prxteinmpnn.tiling.axes import N_NOISES, N_SAMPLES, N_STRUCTURES, N_TEMPERATURES
-from prxteinmpnn.tiling.carry import CarrySpec
-from prxteinmpnn.tiling.planner import AxisDecision, BatchPlanner, AxisSpec
-from prxteinmpnn.tiling.strategy import SafeMap, Scan, Vmap
+from aminx.tiling.axes import N_NOISES, N_SAMPLES, N_STRUCTURES, N_TEMPERATURES
+from aminx.tiling.carry import CarrySpec
+from aminx.tiling.planner import AxisDecision, BatchPlanner, AxisSpec
+from aminx.tiling.strategy import SafeMap, Scan, Vmap
 
 
 def _make_planner(axes, carries=()):
@@ -860,13 +860,13 @@ uv run pytest tests/tiling/test_planner_phase0.py -v 2>&1 | tail -5
 ```
 Expected: `ImportError` or `TypeError` on `BatchPlanner` missing `carries` field or `AxisDecision` missing `strategy`.
 
-- [ ] **Step 5.3: Modify `src/prxteinmpnn/tiling/planner.py`**
+- [ ] **Step 5.3: Modify `src/aminx/tiling/planner.py`**
 
 Read the file first, then apply these changes:
 
 Add imports at the top after `from typing import TYPE_CHECKING`:
 ```python
-from prxteinmpnn.tiling.strategy import AxisStrategy, SafeMap, Scan, Vmap
+from aminx.tiling.strategy import AxisStrategy, SafeMap, Scan, Vmap
 ```
 
 Replace `AxisDecision` with:
@@ -1004,7 +1004,7 @@ Expected: same pass count as before this task (681+), 0 failed
 - [ ] **Step 5.6: Commit**
 
 ```bash
-git add src/prxteinmpnn/tiling/planner.py tests/tiling/test_planner_phase0.py
+git add src/aminx/tiling/planner.py tests/tiling/test_planner_phase0.py
 git commit -m "feat(S5-B5): add AxisDecision.strategy + BatchPlanner Phase 0 carry pre-demotion"
 ```
 
@@ -1013,9 +1013,9 @@ git commit -m "feat(S5-B5): add AxisDecision.strategy + BatchPlanner Phase 0 car
 ### Task 6: `StageSet` — `encoder_sink` tuple + `axis_boundaries` slot
 
 **Files:**
-- Modify: `src/prxteinmpnn/types/stages.py`
-- Modify: `src/prxteinmpnn/host/averaging.py` (update `encoder_sink` construction sites)
-- Modify: `src/prxteinmpnn/host/kernel_dispatch.py` (update sink call site to iterate tuple)
+- Modify: `src/aminx/types/stages.py`
+- Modify: `src/aminx/host/averaging.py` (update `encoder_sink` construction sites)
+- Modify: `src/aminx/host/kernel_dispatch.py` (update sink call site to iterate tuple)
 - Create: `tests/types/test_stages_axis_boundaries.py`
 
 - [ ] **Step 6.1: Write the failing tests**
@@ -1027,8 +1027,8 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 import pytest
-from prxteinmpnn.types.stages import StageSet, EncoderSinkFn
-from prxteinmpnn.types.boundaries import AxisBoundary
+from aminx.types.stages import StageSet, EncoderSinkFn
+from aminx.types.boundaries import AxisBoundary
 
 
 def test_stage_set_encoder_sink_defaults_to_empty_tuple():
@@ -1119,7 +1119,7 @@ uv run pytest tests/types/test_stages_axis_boundaries.py -v 2>&1 | tail -8
 ```
 Expected: failures on `encoder_sink` default (`None` not `()`) and missing `axis_boundaries`.
 
-- [ ] **Step 6.3: Modify `src/prxteinmpnn/types/stages.py`**
+- [ ] **Step 6.3: Modify `src/aminx/types/stages.py`**
 
 In the `StageSet` class, make these two changes:
 
@@ -1140,7 +1140,7 @@ axis_boundaries: dict[str, "AxisBoundary"] = eqx.field(static=True, default_fact
 Add `AxisBoundary` to the TYPE_CHECKING import block at the top:
 ```python
 if TYPE_CHECKING:
-    from prxteinmpnn.types.boundaries import AxisBoundary
+    from aminx.types.boundaries import AxisBoundary
     ...
 ```
 
@@ -1184,7 +1184,7 @@ Expected: new tests pass; full suite 0 failed
 - [ ] **Step 6.7: Commit**
 
 ```bash
-git add src/prxteinmpnn/types/stages.py src/prxteinmpnn/host/kernel_dispatch.py
+git add src/aminx/types/stages.py src/aminx/host/kernel_dispatch.py
 git add tests/types/test_stages_axis_boundaries.py
 git commit -m "feat(S5-B6): promote encoder_sink to tuple; add axis_boundaries static slot"
 ```
@@ -1198,7 +1198,7 @@ git commit -m "feat(S5-B6): promote encoder_sink to tuple; add axis_boundaries s
 ### Task 7: `PlanTopologyError` + `_validate_plan_topology`
 
 **Files:**
-- Modify: `src/prxteinmpnn/host/plan.py`
+- Modify: `src/aminx/host/plan.py`
 - Create: `tests/host/test_plan_topology_validator.py`
 
 - [ ] **Step 7.1: Write the failing tests**
@@ -1207,12 +1207,12 @@ git commit -m "feat(S5-B6): promote encoder_sink to tuple; add axis_boundaries s
 # tests/host/test_plan_topology_validator.py
 from __future__ import annotations
 import pytest
-from prxteinmpnn.host.plan import PlanTopologyError, _validate_plan_topology
-from prxteinmpnn.tiling.axes import N_NOISES, N_SAMPLES, N_STRUCTURES, N_TEMPERATURES
-from prxteinmpnn.tiling.planner import AxisDecision, BatchPlan
-from prxteinmpnn.tiling.strategy import SafeMap, Scan, Vmap
-from prxteinmpnn.types.boundaries import AxisBoundary
-from prxteinmpnn.types.stages import StageSet
+from aminx.host.plan import PlanTopologyError, _validate_plan_topology
+from aminx.tiling.axes import N_NOISES, N_SAMPLES, N_STRUCTURES, N_TEMPERATURES
+from aminx.tiling.planner import AxisDecision, BatchPlan
+from aminx.tiling.strategy import SafeMap, Scan, Vmap
+from aminx.types.boundaries import AxisBoundary
+from aminx.types.stages import StageSet
 
 
 def _make_plan(decisions):
@@ -1344,7 +1344,7 @@ Expected: `ImportError: cannot import name 'PlanTopologyError'`
 
 - [ ] **Step 7.3: Add `PlanTopologyError` and `_validate_plan_topology` to `host/plan.py`**
 
-Read `src/prxteinmpnn/host/plan.py` first (it's large). Add near the top, after the imports:
+Read `src/aminx/host/plan.py` first (it's large). Add near the top, after the imports:
 
 ```python
 class PlanTopologyError(ValueError):
@@ -1371,7 +1371,7 @@ def _validate_plan_topology(
     Raises:
         PlanTopologyError: on first violation found.
     """
-    from prxteinmpnn.tiling.strategy import Scan, Vmap
+    from aminx.tiling.strategy import Scan, Vmap
 
     decision_by_name = {d.axis.name: d for d in plan.decisions}
 
@@ -1419,7 +1419,7 @@ Expected: all validator tests pass; full suite 0 failed
 - [ ] **Step 7.5: Commit**
 
 ```bash
-git add src/prxteinmpnn/host/plan.py tests/host/test_plan_topology_validator.py
+git add src/aminx/host/plan.py tests/host/test_plan_topology_validator.py
 git commit -m "feat(S5-C7): add PlanTopologyError + plan topology validator"
 ```
 
@@ -1469,7 +1469,7 @@ def _make_minimal_spec(
     random_seed=42,
 ):
     """Build a minimal SamplingSpecification for regression tests."""
-    from prxteinmpnn.run.specs import SamplingSpecification
+    from aminx.run.specs import SamplingSpecification
     return SamplingSpecification(
         inputs=[],
         backbone_noise=list(backbone_noise),
@@ -1483,9 +1483,9 @@ def _make_minimal_spec(
 
 def _make_minimal_plan(encoding_fusion=None, encoder_sink=()):
     """Build a minimal InferencePlan with mock encode/decode."""
-    from prxteinmpnn.host.plan import InferencePlan, InferenceComponents
-    from prxteinmpnn.inference.sample_autoregressive import SampleResult
-    from prxteinmpnn.types.stages import StageSet
+    from aminx.host.plan import InferencePlan, InferenceComponents
+    from aminx.inference.sample_autoregressive import SampleResult
+    from aminx.types.stages import StageSet
 
     dummy_seq = jnp.zeros((10,), dtype=jnp.int32)
     dummy_logits = jnp.zeros((10, 21), dtype=jnp.float32)
@@ -1531,9 +1531,9 @@ def test_regression_encoder_sink_fires_per_noise_level():
         def __call__(self, enc, batch_idx, structure_idx, noise_idx) -> None:
             calls.append(int(noise_idx))
 
-    from prxteinmpnn.types.stages import StageSet
-    from prxteinmpnn.inference.logits import make_stage_set
-    from prxteinmpnn.host.averaging import ArithmeticMeanEncodingFusion
+    from aminx.types.stages import StageSet
+    from aminx.inference.logits import make_stage_set
+    from aminx.host.averaging import ArithmeticMeanEncodingFusion
 
     # The sink fires in kernel_dispatch Path B, once per noise level
     # Verify it fires noise_count times when encoding_fusion is set
@@ -1555,7 +1555,7 @@ def test_regression_encoder_sink_fires_per_noise_level():
 
 def test_regression_scan_strategy_carry_accumulates():
     """safe_scan carry accumulates correctly across noise steps."""
-    from prxteinmpnn.utils.safe_scan import safe_scan
+    from aminx.utils.safe_scan import safe_scan
 
     # Simulate: noise-level scan where carry accumulates a running sum of encodings
     running_total = jnp.zeros(8)
@@ -1577,12 +1577,12 @@ def test_regression_scan_strategy_carry_accumulates():
 
 def test_regression_validator_fires_before_jit():
     """PlanTopologyError is raised at make_inference_plan, not at trace time."""
-    from prxteinmpnn.host.plan import PlanTopologyError, _validate_plan_topology
-    from prxteinmpnn.tiling.axes import N_NOISES
-    from prxteinmpnn.tiling.planner import AxisDecision, BatchPlan
-    from prxteinmpnn.tiling.strategy import Scan, Vmap
-    from prxteinmpnn.types.boundaries import AxisBoundary, Sink
-    from prxteinmpnn.types.stages import StageSet
+    from aminx.host.plan import PlanTopologyError, _validate_plan_topology
+    from aminx.tiling.axes import N_NOISES
+    from aminx.tiling.planner import AxisDecision, BatchPlan
+    from aminx.tiling.strategy import Scan, Vmap
+    from aminx.types.boundaries import AxisBoundary, Sink
+    from aminx.types.stages import StageSet
 
     class OrderedSink:
         ordered = True
@@ -1624,12 +1624,12 @@ git commit -m "test(S5-D8): add 6-test regression suite (hard gate for unified d
 ### Task 9: Unified driver Path A behind feature flag
 
 **Files:**
-- Modify: `src/prxteinmpnn/types/configs.py` (add `use_unified_driver` flag)
-- Modify: `src/prxteinmpnn/host/kernel_dispatch.py` (unified driver, Path A first)
+- Modify: `src/aminx/types/configs.py` (add `use_unified_driver` flag)
+- Modify: `src/aminx/host/kernel_dispatch.py` (unified driver, Path A first)
 
 - [ ] **Step 9.1: Add `use_unified_driver` to `InferenceConfig`**
 
-Read `src/prxteinmpnn/types/configs.py`. Add this field to `InferenceConfig`:
+Read `src/aminx/types/configs.py`. Add this field to `InferenceConfig`:
 
 ```python
 use_unified_driver: bool = eqx.field(static=True, default=False)
@@ -1637,7 +1637,7 @@ use_unified_driver: bool = eqx.field(static=True, default=False)
 
 - [ ] **Step 9.2: Write the unified Path A body**
 
-The unified driver composes axes inside-out using `functools.reduce`. Read `src/prxteinmpnn/host/kernel_dispatch.py` fully first. Then add this new function after the imports, before `_sample_batch`:
+The unified driver composes axes inside-out using `functools.reduce`. Read `src/aminx/host/kernel_dispatch.py` fully first. Then add this new function after the imports, before `_sample_batch`:
 
 ```python
 def _unified_sample_batch_path_a(
@@ -1669,9 +1669,9 @@ def _unified_sample_batch_path_a(
     Axes (innermost → outermost): samples → temperatures → noises → structures
     """
     import functools
-    from prxteinmpnn.utils.safe_map import safe_map as _safe_map
-    from prxteinmpnn.utils.safe_scan import safe_scan
-    from prxteinmpnn.tiling.strategy import Vmap, SafeMap, Scan
+    from aminx.utils.safe_map import safe_map as _safe_map
+    from aminx.utils.safe_scan import safe_scan
+    from aminx.tiling.strategy import Vmap, SafeMap, Scan
 
     def _dispatch_axis(strategy, body, xs, batch_size):
         if isinstance(strategy, Vmap):
@@ -1776,7 +1776,7 @@ Expected: regressions still pass; full suite 0 failed
 - [ ] **Step 9.5: Commit**
 
 ```bash
-git add src/prxteinmpnn/types/configs.py src/prxteinmpnn/host/kernel_dispatch.py
+git add src/aminx/types/configs.py src/aminx/host/kernel_dispatch.py
 git commit -m "feat(S5-D9): unified driver Path A behind use_unified_driver flag"
 ```
 
@@ -1785,7 +1785,7 @@ git commit -m "feat(S5-D9): unified driver Path A behind use_unified_driver flag
 ### Task 10: Extend unified driver to Path B + remove flag
 
 **Files:**
-- Modify: `src/prxteinmpnn/host/kernel_dispatch.py`
+- Modify: `src/aminx/host/kernel_dispatch.py`
 
 - [ ] **Step 10.1: Extend unified driver to cover encoding fusion (Path B)**
 
@@ -1851,7 +1851,7 @@ Expected: all regressions pass; full suite 0 failed; same pass count as before W
 - [ ] **Step 10.4: Commit**
 
 ```bash
-git add src/prxteinmpnn/host/kernel_dispatch.py src/prxteinmpnn/types/configs.py
+git add src/aminx/host/kernel_dispatch.py src/aminx/types/configs.py
 git commit -m "feat(S5-D10): unified _sample_batch driver replaces Path A/B"
 ```
 
@@ -1864,10 +1864,10 @@ git commit -m "feat(S5-D10): unified _sample_batch driver replaces Path A/B"
 ### Task 11: Migrate `use_rolling_state` → `CarrySpec`
 
 **Files:**
-- Modify: `src/prxteinmpnn/inference/encode.py`
-- Modify: `src/prxteinmpnn/types/configs.py`
-- Modify: `src/prxteinmpnn/host/plan.py` (`make_inference_plan`)
-- Modify: `src/prxteinmpnn/run/specs.py` (if `use_rolling_state` is on spec)
+- Modify: `src/aminx/inference/encode.py`
+- Modify: `src/aminx/types/configs.py`
+- Modify: `src/aminx/host/plan.py` (`make_inference_plan`)
+- Modify: `src/aminx/run/specs.py` (if `use_rolling_state` is on spec)
 - Modify: any other call sites found by grep
 
 - [ ] **Step 11.1: Find all `use_rolling_state` call sites**
@@ -1880,7 +1880,7 @@ Record every file and line. These are all sites to update.
 
 - [ ] **Step 11.2: Replace `encode.py` runtime branch with two `eqx.Module` subclasses**
 
-Read `src/prxteinmpnn/inference/encode.py` in full (it is 168 lines). Replace the `if use_rolling_state:` / `else:` branch inside the `encode_fn` closure with two concrete classes selected at factory time:
+Read `src/aminx/inference/encode.py` in full (it is 168 lines). Replace the `if use_rolling_state:` / `else:` branch inside the `encode_fn` closure with two concrete classes selected at factory time:
 
 ```python
 class _VmapEncode(eqx.Module):
@@ -1921,7 +1921,7 @@ The `phys is None` 9-tuple/10-tuple difference is handled inside each class's `_
 
 - [ ] **Step 11.3: Remove `use_rolling_state` from `InferenceConfig`**
 
-In `src/prxteinmpnn/types/configs.py`, delete:
+In `src/aminx/types/configs.py`, delete:
 ```python
 use_rolling_state: bool = eqx.field(static=True, default=False)  # scan vs vmap over steps
 ```
@@ -1940,8 +1940,8 @@ Expected: full suite 0 failed. Pass count may increase slightly from removal of 
 - [ ] **Step 11.6: Commit**
 
 ```bash
-git add src/prxteinmpnn/inference/encode.py src/prxteinmpnn/types/configs.py
-git add src/prxteinmpnn/host/plan.py
+git add src/aminx/inference/encode.py src/aminx/types/configs.py
+git add src/aminx/host/plan.py
 git commit -m "refactor(S5-E11): retire use_rolling_state → VmapEncode/ScanEncode subclasses"
 ```
 

@@ -9,15 +9,15 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from prxteinmpnn.host.kernel_dispatch import _sample_batch
-from prxteinmpnn.host.output_sinks import (
+from aminx.host.kernel_dispatch import _sample_batch
+from aminx.host.output_sinks import (
     active_sampling_staging_sink,
     streaming_tensor_sink_session,
     take_staging_sequences_logits,
 )
-from prxteinmpnn.inference.sample_autoregressive import SampleResult
-from prxteinmpnn.run.specs import SamplingSpecification
-from prxteinmpnn.utils.data_structures import Protein
+from aminx.inference.sample_autoregressive import SampleResult
+from aminx.run.specs import SamplingSpecification
+from aminx.utils.data_structures import Protein
 
 
 def _make_fake_protein(
@@ -66,7 +66,7 @@ def _make_mock_plan(stage_set: "MagicMock | None" = None) -> "MagicMock":
 
     Sets encoding_fusion=None and encoder_sink=None to select Path A dispatch.
     """
-    from prxteinmpnn.host.plan import InferencePlan
+    from aminx.host.plan import InferencePlan
 
     mock = MagicMock(spec=InferencePlan)
     if stage_set is not None:
@@ -83,7 +83,7 @@ def _make_mock_plan(stage_set: "MagicMock | None" = None) -> "MagicMock":
 
 def test_dispatch_tensor_io_callback_stages_to_active_sink():
     """_dispatch_sampling_tensor_batch_io stages sequences/logits to active sink."""
-    from prxteinmpnn.host._sampling_helper import (
+    from aminx.host._sampling_helper import (
         _dispatch_sampling_tensor_batch_io,
     )
 
@@ -135,34 +135,34 @@ def test_emit_structure_batch_io_gate_in_sample_batch(monkeypatch):
         call_log["structure"] += 1
 
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._noop_sampling_structure_batch_io",
+        "aminx.host.kernel_dispatch._noop_sampling_structure_batch_io",
         _counting_noop,
     )
 
     # Create a mock BatchPlan
     mock_plan = MagicMock()
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch.make_sampling_planner",
+        "aminx.host.kernel_dispatch.make_sampling_planner",
         lambda spec, **kwargs: mock_plan,
     )
 
     # Patch extract_batch_sizes to return dummy batch sizes
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch.extract_batch_sizes",
+        "aminx.host.kernel_dispatch.extract_batch_sizes",
         lambda plan: (1, 2, 1, 1),
     )
 
     # Patch grid and key resolution
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._resolve_grid_lineage",
+        "aminx.host.kernel_dispatch._resolve_grid_lineage",
         lambda spec: None,
     )
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._base_sampling_key",
+        "aminx.host.kernel_dispatch._base_sampling_key",
         lambda spec, **kwargs: jax.random.key(0),
     )
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch.resolve_target_samples",
+        "aminx.host.kernel_dispatch.resolve_target_samples",
         lambda spec, chunk_count, grid: 2,
     )
 
@@ -177,20 +177,20 @@ def test_emit_structure_batch_io_gate_in_sample_batch(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._safe_map", _mock_safe_map
+        "aminx.host.kernel_dispatch._safe_map", _mock_safe_map
     )
 
     # Patch helper functions to avoid ligand/control prep failures
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._prepare_ligand_context",
+        "aminx.host.kernel_dispatch._prepare_ligand_context",
         lambda *args, **kwargs: {"y": None, "y_t": None, "y_m": None},
     )
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._prepare_fixed_controls",
+        "aminx.host.kernel_dispatch._prepare_fixed_controls",
         lambda *args, **kwargs: (None, None),
     )
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch.compute_sample_keys",
+        "aminx.host.kernel_dispatch.compute_sample_keys",
         lambda *args, **kwargs: [jax.random.key(i) for i in range(2)],
     )
 
@@ -253,27 +253,27 @@ def test_sample_batch_does_not_raise_without_active_sink(monkeypatch):
     # Create a mock BatchPlan
     mock_plan = MagicMock()
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch.make_sampling_planner",
+        "aminx.host.kernel_dispatch.make_sampling_planner",
         lambda spec, **kwargs: mock_plan,
     )
 
     # Patch extract_batch_sizes to return dummy batch sizes
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch.extract_batch_sizes",
+        "aminx.host.kernel_dispatch.extract_batch_sizes",
         lambda plan: (1, 2, 1, 1),
     )
 
     # Patch grid and key resolution
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._resolve_grid_lineage",
+        "aminx.host.kernel_dispatch._resolve_grid_lineage",
         lambda spec: None,
     )
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._base_sampling_key",
+        "aminx.host.kernel_dispatch._base_sampling_key",
         lambda spec, **kwargs: jax.random.key(0),
     )
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch.resolve_target_samples",
+        "aminx.host.kernel_dispatch.resolve_target_samples",
         lambda spec, chunk_count, grid: 2,
     )
 
@@ -286,20 +286,20 @@ def test_sample_batch_does_not_raise_without_active_sink(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._safe_map", _mock_safe_map
+        "aminx.host.kernel_dispatch._safe_map", _mock_safe_map
     )
 
     # Patch helper functions to avoid ligand/control prep failures
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._prepare_ligand_context",
+        "aminx.host.kernel_dispatch._prepare_ligand_context",
         lambda *args, **kwargs: {"y": None, "y_t": None, "y_m": None},
     )
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._prepare_fixed_controls",
+        "aminx.host.kernel_dispatch._prepare_fixed_controls",
         lambda *args, **kwargs: (None, None),
     )
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch.compute_sample_keys",
+        "aminx.host.kernel_dispatch.compute_sample_keys",
         lambda *args, **kwargs: [jax.random.key(i) for i in range(2)],
     )
 
@@ -339,27 +339,27 @@ def test_sample_batch_stages_when_sink_active(monkeypatch):
     # Create a mock BatchPlan
     mock_plan = MagicMock()
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch.make_sampling_planner",
+        "aminx.host.kernel_dispatch.make_sampling_planner",
         lambda spec, **kwargs: mock_plan,
     )
 
     # Patch extract_batch_sizes to return dummy batch sizes
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch.extract_batch_sizes",
+        "aminx.host.kernel_dispatch.extract_batch_sizes",
         lambda plan: (1, 2, 1, 1),
     )
 
     # Patch grid and key resolution
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._resolve_grid_lineage",
+        "aminx.host.kernel_dispatch._resolve_grid_lineage",
         lambda spec: None,
     )
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._base_sampling_key",
+        "aminx.host.kernel_dispatch._base_sampling_key",
         lambda spec, **kwargs: jax.random.key(0),
     )
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch.resolve_target_samples",
+        "aminx.host.kernel_dispatch.resolve_target_samples",
         lambda spec, chunk_count, grid: 2,
     )
 
@@ -372,20 +372,20 @@ def test_sample_batch_stages_when_sink_active(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._safe_map", _mock_safe_map
+        "aminx.host.kernel_dispatch._safe_map", _mock_safe_map
     )
 
     # Patch helper functions to avoid ligand/control prep failures
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._prepare_ligand_context",
+        "aminx.host.kernel_dispatch._prepare_ligand_context",
         lambda *args, **kwargs: {"y": None, "y_t": None, "y_m": None},
     )
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._prepare_fixed_controls",
+        "aminx.host.kernel_dispatch._prepare_fixed_controls",
         lambda *args, **kwargs: (None, None),
     )
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch.compute_sample_keys",
+        "aminx.host.kernel_dispatch.compute_sample_keys",
         lambda *args, **kwargs: [jax.random.key(i) for i in range(2)],
     )
 
@@ -425,7 +425,7 @@ def test_sample_batch_stages_when_sink_active(monkeypatch):
 def test_sample_batch_io_callback_sources_exist():
     """Verify _sample_batch module has io_callback sources for both tensor and structure markers."""
     # This is a simple smoke test verifying the code was added
-    from prxteinmpnn.host import kernel_dispatch
+    from aminx.host import kernel_dispatch
 
     # Verify the imports exist
     assert hasattr(
@@ -448,7 +448,7 @@ def test_sample_batch_emit_structure_batch_io_parameter():
     """Verify _sample_batch accepts emit_structure_batch_io parameter with default True."""
     import inspect
 
-    from prxteinmpnn.host.kernel_dispatch import _sample_batch
+    from aminx.host.kernel_dispatch import _sample_batch
 
     sig = inspect.signature(_sample_batch)
     assert (

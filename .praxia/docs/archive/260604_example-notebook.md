@@ -15,9 +15,9 @@ contents:
 ## Summary
 
 This notebook references multiple symbols that no longer exist in the current package:
-- `get_mpnn_model`, `ModelWeights`, `ProteinMPNNModelVersion` from `prxteinmpnn.mpnn` (not found anywhere)
-- `from_structure_file`, `protein_structure_to_model_inputs`, `string_to_protein_sequence` from `prxteinmpnn.io` (exports not available)
-- `SamplingConfig` from `prxteinmpnn.sampling` (does not exist)
+- `get_mpnn_model`, `ModelWeights`, `ProteinMPNNModelVersion` from `aminx.mpnn` (not found anywhere)
+- `from_structure_file`, `protein_structure_to_model_inputs`, `string_to_protein_sequence` from `aminx.io` (exports not available)
+- `SamplingConfig` from `aminx.sampling` (does not exist)
 
 Additionally, function signatures have changed:
 - `make_sample_sequences` no longer accepts `config` or `model_inputs` kwargs

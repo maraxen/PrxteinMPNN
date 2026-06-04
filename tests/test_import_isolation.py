@@ -1,6 +1,6 @@
-"""Regression gate: verify no runtime imports of ensemble or psa leak into prxteinmpnn core.
+"""Regression gate: verify no runtime imports of ensemble or psa leak into aminx core.
 
-These tests pass immediately (prxteinmpnn.ensemble is not runtime-imported even before
+These tests pass immediately (aminx.ensemble is not runtime-imported even before
 extraction, because specs.py has `from __future__ import annotations` which makes all
 field annotations lazy). They serve as a non-regression harness throughout the sprint.
 """
@@ -13,15 +13,15 @@ import sys
 def _run_isolation_check(module_path: str) -> None:
     code = f"""
 import sys
-import prxteinmpnn
-import prxteinmpnn.run.specs
+import aminx
+import aminx.run.specs
 assert "{module_path}" not in sys.modules, (
     "{{!r}} was imported at runtime — must be TYPE_CHECKING-only".format("{module_path}")
 )
 print("OK: {module_path} not in sys.modules")
 """
     import os
-    env = {**os.environ, "PYTHONPATH": "/home/marielle/projects/tev_design/prxteinmpnn/src"}
+    env = {**os.environ, "PYTHONPATH": "/home/marielle/projects/tev_design/aminx/src"}
     result = subprocess.run(
         [sys.executable, "-c", code],
         capture_output=True,
@@ -35,8 +35,8 @@ print("OK: {module_path} not in sys.modules")
 
 
 def test_psa_not_imported_at_runtime() -> None:
-    """prxteinmpnn.psa must not appear in sys.modules after core import."""
-    _run_isolation_check("prxteinmpnn.psa")
+    """aminx.psa must not appear in sys.modules after core import."""
+    _run_isolation_check("aminx.psa")
 
 
 def test_ensemble_tools_not_imported_at_runtime() -> None:

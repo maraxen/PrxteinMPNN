@@ -1,13 +1,13 @@
 ---
-title: Benchmark Suite Spec — prxteinmpnn vs LigandMPNN PyTorch Reference
+title: Benchmark Suite Spec — aminx vs LigandMPNN PyTorch Reference
 task_id: 260601_benchmark-staging
 date: 260601
 status: draft
 ---
 
-# Benchmark Suite Spec: prxteinmpnn JAX vs LigandMPNN PyTorch
+# Benchmark Suite Spec: aminx JAX vs LigandMPNN PyTorch
 
-Pre-merge benchmark suite to produce authoritative GPU throughput, latency, and memory numbers for prxteinmpnn across five hardware targets. Compares our JAX+Equinox implementation against the dauparas/LigandMPNN PyTorch reference (commit 3870631).
+Pre-merge benchmark suite to produce authoritative GPU throughput, latency, and memory numbers for aminx across five hardware targets. Compares our JAX+Equinox implementation against the dauparas/LigandMPNN PyTorch reference (commit 3870631).
 
 ## 1. Scope and Goals
 
@@ -43,7 +43,7 @@ Autoregressive decode is **bandwidth-bound**, so the expected performance order 
 | batch_size | 1, 4, 16 | For throughput (seq/s) measurement |
 | ligand_conditioning | False, True | Both modes present in LigandMPNN reference |
 | precision | bf16 (primary), fp32 (secondary) | BF16 = native Tensor Core on all 5 targets |
-| framework | prxteinmpnn (JAX), ligandmpnn (PyTorch) | Separate subprocess per framework |
+| framework | aminx (JAX), ligandmpnn (PyTorch) | Separate subprocess per framework |
 
 **Config fixed for core matrix:** AxisStrategy=Vmap, average_encoding_mode=inputs_and_noise, sidechain_conditioning=False (baseline), temperature sampling.
 
@@ -96,7 +96,7 @@ Report per `(model, hardware, seq_len, batch_size, precision, ligand_conditionin
 
 ```
 scripts/benchmarks/
-├── bench_prxteinmpnn_jax.py       # JAX adapter (extends commit 132eca7 template)
+├── bench_aminx_jax.py       # JAX adapter (extends commit 132eca7 template)
 ├── bench_ligandmpnn_pytorch.py    # PyTorch adapter (dauparas ref)
 ├── bench_colabdesign_jax.py       # JAX adapter (ColabDesign ProteinMPNN, no-ligand only)
 ├── bench_suite.py                 # Subprocess harness — no JAX/torch import
@@ -115,7 +115,7 @@ scripts/engaging/
 ```json
 {
   "schema_version": "1",
-  "model": "prxteinmpnn_jax | ligandmpnn_pytorch",
+  "model": "aminx_jax | ligandmpnn_pytorch",
   "hardware": "A100 | H100 | H200 | L40 | Blackwell_SM120",
   "seq_len": 100,
   "batch_size": 1,
@@ -269,7 +269,7 @@ Wave 0 (fixtures — no GPU needed):
   [ ] B-0b  Verify padding logic from commit 132eca7 handles all target seq_lens
 
 Wave 1 (JAX adapter — extends 132eca7):
-  [ ] B-1a  bench_prxteinmpnn_jax.py: cold/warm timing, JSON output, --seq-lens, --batch-sizes, --precision
+  [ ] B-1a  bench_aminx_jax.py: cold/warm timing, JSON output, --seq-lens, --batch-sizes, --precision
   [ ] B-1b  Local L1 dry-run + L2 smoke on CPU
 
 Wave 2 (PyTorch adapter):
@@ -301,7 +301,7 @@ Wave 5 (report):
 
 2. **ColabDesign:** ✅ **Resolved — in scope.** `sokrypton/ColabDesign` is a widely-used JAX implementation of ProteinMPNN. It is not installed locally or on the cluster — being added as a `benchmark` dependency group. ColabDesign covers the no-ligand ProteinMPNN path only (no ligand conditioning). The comparison matrix is:
 
-   | Path | prxteinmpnn (JAX+Equinox) | LigandMPNN (PyTorch) | ColabDesign (JAX) |
+   | Path | aminx (JAX+Equinox) | LigandMPNN (PyTorch) | ColabDesign (JAX) |
    |---|---|---|---|
    | No ligand | ✓ | ✓ | ✓ |
    | With ligand | ✓ | ✓ | — |

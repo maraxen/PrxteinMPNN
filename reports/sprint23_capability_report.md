@@ -1,16 +1,16 @@
 # Sprint 23 Capability Benchmark Report
 
-Sprint 23 introduced three new capability benchmarks demonstrating prxteinmpnn's architectural advantages over PyTorch and ColabDesign baselines.
+Sprint 23 introduced three new capability benchmarks demonstrating aminx's architectural advantages over PyTorch and ColabDesign baselines.
 
 ---
 
 ## DedupGather Heterogeneous Batch
 
-K unique structures deduplicated before scoring; N=32 total. prxteinmpnn scores only unique structures and scatters results, while ColabDesign and PyTorch score all N.
+K unique structures deduplicated before scoring; N=32 total. aminx scores only unique structures and scatters results, while ColabDesign and PyTorch score all N.
 
 ### H200
 
-| K unique | dedup_ratio | prxteinmpnn (ms) | ColabDesign (ms) | PyTorch (ms) | Speedup vs CD | Speedup vs PT |
+| K unique | dedup_ratio | aminx (ms) | ColabDesign (ms) | PyTorch (ms) | Speedup vs CD | Speedup vs PT |
 |---|---|---|---|---|---|---|
 | 1 | 0.0312 | 1.14 | 6.95 | 92.18 | 6.1× | 80.6× |
 | 2 | 0.0625 | 2.24 | 15.87 | 183.10 | 7.1× | 81.8× |
@@ -21,7 +21,7 @@ K unique structures deduplicated before scoring; N=32 total. prxteinmpnn scores 
 
 ### A100
 
-| K unique | dedup_ratio | prxteinmpnn (ms) | ColabDesign (ms) | PyTorch (ms) | Speedup vs CD | Speedup vs PT |
+| K unique | dedup_ratio | aminx (ms) | ColabDesign (ms) | PyTorch (ms) | Speedup vs CD | Speedup vs PT |
 |---|---|---|---|---|---|---|
 | 1 | 0.0312 | 1.18 | 6.73 | 98.94 | 5.7× | 83.7× |
 | 2 | 0.0625 | 2.16 | 13.30 | 194.64 | 6.2× | 90.2× |
@@ -32,7 +32,7 @@ K unique structures deduplicated before scoring; N=32 total. prxteinmpnn scores 
 
 ### L40s
 
-| K unique | dedup_ratio | prxteinmpnn (ms) | ColabDesign (ms) | PyTorch (ms) | Speedup vs CD | Speedup vs PT |
+| K unique | dedup_ratio | aminx (ms) | ColabDesign (ms) | PyTorch (ms) | Speedup vs CD | Speedup vs PT |
 |---|---|---|---|---|---|---|
 | 1 | 0.0312 | 1.14 | 6.60 | 88.69 | 5.8× | 78.1× |
 | 2 | 0.0625 | 2.11 | 13.15 | 176.04 | 6.2× | 83.2× |
@@ -43,7 +43,7 @@ K unique structures deduplicated before scoring; N=32 total. prxteinmpnn scores 
 
 ### Blackwell (SM120)
 
-| K unique | dedup_ratio | prxteinmpnn (ms) | ColabDesign (ms) | PyTorch (ms) | Speedup vs CD | Speedup vs PT |
+| K unique | dedup_ratio | aminx (ms) | ColabDesign (ms) | PyTorch (ms) | Speedup vs CD | Speedup vs PT |
 |---|---|---|---|---|---|---|
 | 1 | 0.0312 | 0.90 | 5.59 | 70.42 | 6.2× | 78.0× |
 | 2 | 0.0625 | 1.72 | 12.38 | 140.12 | 7.2× | 81.5× |
@@ -54,7 +54,7 @@ K unique structures deduplicated before scoring; N=32 total. prxteinmpnn scores 
 
 ### Cross-Hardware Summary (K=1 and K=32)
 
-| Hardware | K | prxteinmpnn (ms) | PyTorch (ms) | Speedup vs PT |
+| Hardware | K | aminx (ms) | PyTorch (ms) | Speedup vs PT |
 |---|---|---|---|---|
 | H200 | 1 | 1.14 | 92.18 | 80.6× |
 | H200 | 32 | 36.03 | 2957.74 | 82.1× |
@@ -69,9 +69,9 @@ K unique structures deduplicated before scoring; N=32 total. prxteinmpnn scores 
 
 ## Mixed-Length Heterogeneous Batch
 
-Batch of 4 sequences with lengths [76, 150, 300, 500]. prxteinmpnn packs into a single padded batch; ColabDesign and PyTorch run sequentially.
+Batch of 4 sequences with lengths [76, 150, 300, 500]. aminx packs into a single padded batch; ColabDesign and PyTorch run sequentially.
 
-| Hardware | batch_lengths | prxteinmpnn (ms) | ColabDesign seq (ms) | PyTorch padded (ms) | PyTorch seq (ms) | Speedup vs PT padded | Speedup vs PT seq |
+| Hardware | batch_lengths | aminx (ms) | ColabDesign seq (ms) | PyTorch padded (ms) | PyTorch seq (ms) | Speedup vs PT padded | Speedup vs PT seq |
 |---|---|---|---|---|---|---|---|
 | H200 | [76, 150, 300, 500] | 4.12 | 94.18 | 2279.99 | 1327.51 | 553.5× | 322.3× |
 | A100 | [76, 150, 300, 500] | 4.08 | 91.16 | 2282.06 | 1296.13 | 558.9× | 317.4× |
@@ -88,7 +88,7 @@ M simultaneous temperatures JIT-compiled into a single forward pass. ColabDesign
 
 Latency is per-temperature (total / M), seq_len=76, batch=1.
 
-| Hardware | M | prxteinmpnn per-temp (ms) | prxteinmpnn total (ms) |
+| Hardware | M | aminx per-temp (ms) | aminx total (ms) |
 |---|---|---|---|
 | H200 | 1 | 17.11 | 17.11 |
 | H200 | 2 | 8.58 | 17.17 |
@@ -111,7 +111,7 @@ Latency is per-temperature (total / M), seq_len=76, batch=1.
 
 Latency is per-temperature (total / M), seq_len=76, batch=1.
 
-| Hardware | M | prxteinmpnn per-temp (ms) | prxteinmpnn total (ms) |
+| Hardware | M | aminx per-temp (ms) | aminx total (ms) |
 |---|---|---|---|
 | H200 | 1 | 1.51 | 1.51 |
 | H200 | 2 | 0.74 | 1.49 |

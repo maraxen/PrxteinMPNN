@@ -9,11 +9,11 @@ import numpy as np
 import pytest
 from scipy.stats import pearsonr
 
-from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-from prxteinmpnn.inference.logits import make_stage_set
-from prxteinmpnn.inference import score_conditional
-from prxteinmpnn.model import PrxteinMPNN
-from prxteinmpnn.sampling.conditional_logits import (
+from aminx.inference.bundle_builder import build_inference_bundle
+from aminx.inference.logits import make_stage_set
+from aminx.inference import score_conditional
+from aminx.model import Aminx
+from aminx.sampling.conditional_logits import (
   make_conditional_logits_fn,
   make_encoding_conditional_logits_split_fn,
 )
@@ -36,7 +36,7 @@ def _synthetic_conditional_inputs(
 @pytest.mark.parity_fast
 def test_conditional_logits_helper_matches_model_branch() -> None:
   """Validate helper-vs-branch parity for conditional logits."""
-  model = PrxteinMPNN(
+  model = Aminx(
     node_features=128,
     edge_features=128,
     hidden_features=128,
@@ -94,7 +94,7 @@ def test_conditional_logits_helper_matches_model_branch() -> None:
 @pytest.mark.parity_fast
 def test_split_conditional_logits_matches_full_helper() -> None:
   """Validate split encode/decode helper parity against the full conditional helper."""
-  model = PrxteinMPNN(
+  model = Aminx(
     node_features=128,
     edge_features=128,
     hidden_features=128,

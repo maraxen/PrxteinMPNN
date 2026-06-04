@@ -1,12 +1,12 @@
-# PrxteinMPNN Codebase Analysis
+# Aminx Codebase Analysis
 
 **Generated:** 2026-05-13  
 **Total Python Files:** 136  
-**Working Directory:** `/home/marielle/projects/tev_design/prxteinmpnn/src/prxteinmpnn`
+**Working Directory:** `/home/marielle/projects/tev_design/aminx/src/aminx`
 
 ## Executive Summary
 
-PrxteinMPNN is a functional interface for ProteinMPNN, organized into 13 major packages with clear separation of concerns:
+Aminx is a functional interface for ProteinMPNN, organized into 13 major packages with clear separation of concerns:
 
 1. **model** — Core neural network architectures (MPNN, ligand MPNN, encoders, decoders)
 2. **sampling** — Logits generation, conditional/unconditional sampling, STE optimization
@@ -298,7 +298,7 @@ sampling/
 ### Entry Points (from `__init__.py`)
 
 ```python
-from prxteinmpnn import (
+from aminx import (
     sample,  # Run sampling
     score,   # Run scoring
     RunSpecification,  # Top-level spec

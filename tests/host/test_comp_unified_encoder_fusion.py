@@ -22,22 +22,22 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from prxteinmpnn.host.averaging import (
+from aminx.host.averaging import (
     ArithmeticMeanEncodingFusion,
     IdentityEncodingFusion,
 )
-from prxteinmpnn.host.output_sinks import (
+from aminx.host.output_sinks import (
     active_encoder_staging_sink,
     active_sampling_staging_sink,
     encoder_sink_session,
     streaming_tensor_sink_session,
 )
-from prxteinmpnn.host.plan import InferencePlan, InferenceComponents
-from prxteinmpnn.inference.sample_autoregressive import SampleResult
-from prxteinmpnn.run.specs import SamplingSpecification
-from prxteinmpnn.types.bundles import EncoderOutput
-from prxteinmpnn.types.stages import ConditionalDecodeStep, StageSet
-from prxteinmpnn.utils.data_structures import Protein
+from aminx.host.plan import InferencePlan, InferenceComponents
+from aminx.inference.sample_autoregressive import SampleResult
+from aminx.run.specs import SamplingSpecification
+from aminx.types.bundles import EncoderOutput
+from aminx.types.stages import ConditionalDecodeStep, StageSet
+from aminx.utils.data_structures import Protein
 
 
 # ---------------------------------------------------------------------------
@@ -100,35 +100,35 @@ def _make_dispatch_monkeypatches(monkeypatch, *, noise_dim: int = 1):
     """
     mock_plan_mp = MagicMock()
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch.make_sampling_planner",
+        "aminx.host.kernel_dispatch.make_sampling_planner",
         lambda spec, **kwargs: mock_plan_mp,
     )
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch.extract_batch_sizes",
+        "aminx.host.kernel_dispatch.extract_batch_sizes",
         lambda plan: (1, 2, 1, 1),
     )
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._resolve_grid_lineage",
+        "aminx.host.kernel_dispatch._resolve_grid_lineage",
         lambda spec: None,
     )
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._base_sampling_key",
+        "aminx.host.kernel_dispatch._base_sampling_key",
         lambda spec, **kwargs: jax.random.key(0),
     )
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch.resolve_target_samples",
+        "aminx.host.kernel_dispatch.resolve_target_samples",
         lambda spec, chunk_count, grid: 2,
     )
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._prepare_ligand_context",
+        "aminx.host.kernel_dispatch._prepare_ligand_context",
         lambda *args, **kwargs: {"y": None, "y_t": None, "y_m": None},
     )
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._prepare_fixed_controls",
+        "aminx.host.kernel_dispatch._prepare_fixed_controls",
         lambda *args, **kwargs: (None, None),
     )
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch.compute_sample_keys",
+        "aminx.host.kernel_dispatch.compute_sample_keys",
         lambda *args, **kwargs: [jax.random.key(i) for i in range(2)],
     )
     return mock_plan_mp
@@ -208,7 +208,7 @@ def test_ar_mask_invariant_across_noise_levels():
     This validates that discarding ar_mask from EncoderOutput is safe — the mask
     is determined by geometry/mode, not by noise perturbation.
     """
-    from prxteinmpnn.inference.bundle_builder import build_inference_bundle
+    from aminx.inference.bundle_builder import build_inference_bundle
 
     L = 5
     coords = jnp.zeros((L, 4, 3), dtype=jnp.float32)
@@ -243,7 +243,7 @@ def test_ar_mask_invariant_across_noise_levels():
 
 def test_make_inference_plan_wires_fusion_when_avg():
     """spec.average_node_features=True -> plan.stage_set.encoding_fusion is ArithmeticMeanEncodingFusion."""
-    from prxteinmpnn.host.plan import make_inference_plan
+    from aminx.host.plan import make_inference_plan
 
     mock_model = MagicMock()
     mock_model.decoder = MagicMock()
@@ -259,8 +259,8 @@ def test_make_inference_plan_wires_fusion_when_avg():
     spec.sampling_strategy = "temperature"
 
     with (
-        patch("prxteinmpnn.inference.encode.make_encode_fn", return_value=MagicMock()),
-        patch("prxteinmpnn.inference.logits.make_stage_set", return_value=StageSet()),
+        patch("aminx.inference.encode.make_encode_fn", return_value=MagicMock()),
+        patch("aminx.inference.logits.make_stage_set", return_value=StageSet()),
     ):
         plan = make_inference_plan(mock_model, spec)
 
@@ -276,7 +276,7 @@ def test_make_inference_plan_wires_fusion_when_avg():
 
 def test_make_inference_plan_no_fusion_when_no_avg():
     """spec.average_node_features=False -> plan.stage_set.encoding_fusion is None."""
-    from prxteinmpnn.host.plan import make_inference_plan
+    from aminx.host.plan import make_inference_plan
 
     mock_model = MagicMock()
     mock_model.decoder = MagicMock()
@@ -292,8 +292,8 @@ def test_make_inference_plan_no_fusion_when_no_avg():
     spec.sampling_strategy = "temperature"
 
     with (
-        patch("prxteinmpnn.inference.encode.make_encode_fn", return_value=MagicMock()),
-        patch("prxteinmpnn.inference.logits.make_stage_set", return_value=StageSet()),
+        patch("aminx.inference.encode.make_encode_fn", return_value=MagicMock()),
+        patch("aminx.inference.logits.make_stage_set", return_value=StageSet()),
     ):
         plan = make_inference_plan(mock_model, spec)
 
@@ -309,7 +309,7 @@ def test_make_inference_plan_no_fusion_when_no_avg():
 
 def test_sample_batch_path_a_noise_dim(monkeypatch):
     """Path A (encoding_fusion=None): _safe_map returns shape (B, D, T, N, L) with D=2."""
-    from prxteinmpnn.host.kernel_dispatch import _sample_batch
+    from aminx.host.kernel_dispatch import _sample_batch
 
     _make_dispatch_monkeypatches(monkeypatch, noise_dim=2)
 
@@ -322,7 +322,7 @@ def test_sample_batch_path_a_noise_dim(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._safe_map", _mock_safe_map_path_a
+        "aminx.host.kernel_dispatch._safe_map", _mock_safe_map_path_a
     )
 
     spec = _make_spec(backbone_noise=[0.0, 0.1])
@@ -353,7 +353,7 @@ def test_sample_batch_path_a_noise_dim(monkeypatch):
 
 def test_sample_batch_path_b_noise_dim_1(monkeypatch):
     """Path B (ArithmeticMeanEncodingFusion, K=1): shape has K=1 not D=2."""
-    from prxteinmpnn.host.kernel_dispatch import _sample_batch
+    from aminx.host.kernel_dispatch import _sample_batch
 
     _make_dispatch_monkeypatches(monkeypatch, noise_dim=2)
 
@@ -366,7 +366,7 @@ def test_sample_batch_path_b_noise_dim_1(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._safe_map", _mock_safe_map_path_b
+        "aminx.host.kernel_dispatch._safe_map", _mock_safe_map_path_b
     )
 
     spec = _make_spec(backbone_noise=[0.0, 0.1])
@@ -399,8 +399,8 @@ def test_encoder_sink_fires_d_times_in_path_b(monkeypatch):
 
     Uses encoder_sink_session so active_encoder_staging_sink() collects entries.
     """
-    from prxteinmpnn.host.kernel_dispatch import _sample_batch
-    from prxteinmpnn.host.output_sinks import IoCallbackEncoderSink
+    from aminx.host.kernel_dispatch import _sample_batch
+    from aminx.host.output_sinks import IoCallbackEncoderSink
 
     _make_dispatch_monkeypatches(monkeypatch, noise_dim=2)
 
@@ -415,7 +415,7 @@ def test_encoder_sink_fires_d_times_in_path_b(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._safe_map", _counting_safe_map
+        "aminx.host.kernel_dispatch._safe_map", _counting_safe_map
     )
 
     # Build a real IoCallbackEncoderSink attached to a counting dispatcher
@@ -423,7 +423,7 @@ def test_encoder_sink_fires_d_times_in_path_b(monkeypatch):
         call_log["count"] += 1
 
     monkeypatch.setattr(
-        "prxteinmpnn.host.output_sinks._dispatch_encoder_intermediate_io",
+        "aminx.host.output_sinks._dispatch_encoder_intermediate_io",
         _counting_dispatch,
     )
 
@@ -456,7 +456,7 @@ def test_encoder_sink_fires_d_times_in_path_b(monkeypatch):
 
 def test_encoder_sink_no_op_when_none(monkeypatch):
     """plan.stage_set.encoder_sink=None: _sample_batch completes without RuntimeError."""
-    from prxteinmpnn.host.kernel_dispatch import _sample_batch
+    from aminx.host.kernel_dispatch import _sample_batch
 
     _make_dispatch_monkeypatches(monkeypatch)
 
@@ -467,7 +467,7 @@ def test_encoder_sink_no_op_when_none(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._safe_map", _mock_safe_map
+        "aminx.host.kernel_dispatch._safe_map", _mock_safe_map
     )
 
     spec = _make_spec()
@@ -516,7 +516,7 @@ def test_encoder_sink_session_composes_with_streaming_sink():
 
 def test_runner_averaged_path_removed():
     """runner.py source contains no reference to removed averaged path functions."""
-    import prxteinmpnn.host.runner as runner_mod
+    import aminx.host.runner as runner_mod
 
     src = inspect.getsource(runner_mod)
     assert "_sample_non_streaming_averaged" not in src, (
@@ -534,9 +534,9 @@ def test_runner_averaged_path_removed():
 
 def test_deprecation_warning_legacy_fns():
     """Each deprecated stub emits DeprecationWarning."""
-    import prxteinmpnn.host.averaging as avg_mod
-    import prxteinmpnn.host._sampling_averaged as sampled_mod
-    import prxteinmpnn.host.streaming as streaming_mod
+    import aminx.host.averaging as avg_mod
+    import aminx.host._sampling_averaged as sampled_mod
+    import aminx.host.streaming as streaming_mod
 
     # 1. get_averaged_encodings
     with pytest.warns(DeprecationWarning, match="get_averaged_encodings"):
@@ -627,7 +627,7 @@ def test_averaged_path_parity_legacy_vs_unified():
 
 def test_encoding_fusion_arbitrary_k(monkeypatch):
     """IdentityEncodingFusion: K=D=3 returned; _sample_batch with mock shape (B, K=3, T, N, L)."""
-    from prxteinmpnn.host.kernel_dispatch import _sample_batch
+    from aminx.host.kernel_dispatch import _sample_batch
 
     _make_dispatch_monkeypatches(monkeypatch, noise_dim=3)
 
@@ -639,7 +639,7 @@ def test_encoding_fusion_arbitrary_k(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "prxteinmpnn.host.kernel_dispatch._safe_map", _mock_safe_map_identity
+        "aminx.host.kernel_dispatch._safe_map", _mock_safe_map_identity
     )
 
     spec = _make_spec(backbone_noise=[0.0, 0.1, 0.2])
@@ -668,7 +668,7 @@ def test_encoding_fusion_arbitrary_k(monkeypatch):
 
 def test_ste_routes_via_stage_set():
     """make_inference_plan with sampling_strategy='straight_through': STE topology wired correctly."""
-    from prxteinmpnn.host.plan import make_inference_plan
+    from aminx.host.plan import make_inference_plan
 
     mock_model = MagicMock()
     mock_model.decoder = MagicMock()
@@ -684,8 +684,8 @@ def test_ste_routes_via_stage_set():
     spec.sampling_strategy = "straight_through"
 
     with (
-        patch("prxteinmpnn.inference.encode.make_encode_fn", return_value=MagicMock()),
-        patch("prxteinmpnn.inference.logits.make_stage_set", return_value=StageSet()),
+        patch("aminx.inference.encode.make_encode_fn", return_value=MagicMock()),
+        patch("aminx.inference.logits.make_stage_set", return_value=StageSet()),
     ):
         plan = make_inference_plan(mock_model, spec)
 
@@ -700,7 +700,7 @@ def test_ste_routes_via_stage_set():
     )
 
     # resolve_kernel_fn should not exist in kernel_dispatch (was deleted in COMP-UNIFIED)
-    from prxteinmpnn.host import kernel_dispatch
+    from aminx.host import kernel_dispatch
     assert not hasattr(kernel_dispatch, "resolve_kernel_fn"), (
         "resolve_kernel_fn should have been deleted from kernel_dispatch in COMP-UNIFIED"
     )

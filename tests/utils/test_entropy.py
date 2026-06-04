@@ -7,7 +7,7 @@ import chex
 import jax.numpy as jnp
 from jax.lax import digamma
 
-from prxteinmpnn.utils.entropy import (
+from aminx.utils.entropy import (
     mle_entropy,
     posterior_entropy_mean,
     posterior_entropy_moments,

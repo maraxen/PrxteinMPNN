@@ -15,10 +15,10 @@ except ImportError:
     sys.exit(1)
 
 # Import new implementation
-# We suspect prxteinmpnn.physics uses proxide
-from prxteinmpnn.physics import features as proxide_features
+# We suspect aminx.physics uses proxide
+from aminx.physics import features as proxide_features
 
-# Dummy ProteinTuple mimicking prxteinmpnn.utils.data_structures.ProteinTuple
+# Dummy ProteinTuple mimicking aminx.utils.data_structures.ProteinTuple
 ProteinTuple = namedtuple(
     "ProteinTuple",
     [

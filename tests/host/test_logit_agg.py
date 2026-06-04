@@ -1,4 +1,4 @@
-"""Tests for prxteinmpnn.host.logit_aggregation pure helpers."""
+"""Tests for aminx.host.logit_aggregation pure helpers."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from prxteinmpnn.host.logit_aggregation import (
+from aminx.host.logit_aggregation import (
     aggregate_logits,
     aggregate_pseudo_perplexities,
     compute_pseudo_perplexity,

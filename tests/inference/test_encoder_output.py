@@ -10,7 +10,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.types.encodings import EncoderOutput  # does not exist yet
+from aminx.types.encodings import EncoderOutput  # does not exist yet
 
 
 # ---------------------------------------------------------------------------
@@ -116,7 +116,7 @@ def test_encoder_output_survives_scan():
 
 def test_score_conditional_encode_returns_encoder_output(minimal_bundle_fixture):
     """score_conditional kernel internally produces EncoderOutput (smoke test)."""
-    pytest.importorskip("prxteinmpnn.inference.score_conditional")
+    pytest.importorskip("aminx.inference.score_conditional")
 
 
 def test_conditional_logits_encode_fn_returns_encoder_output(minimal_encode_fn_fixture):

@@ -7,14 +7,14 @@ import jax.numpy as jnp
 import pytest
 from jax import random
 
-from prxteinmpnn.utils.data_structures import Protein
-from prxteinmpnn.types.arrays import ModelParameters
+from aminx.utils.data_structures import Protein
+from aminx.types.arrays import ModelParameters
 
 
 def _parse_first_structure(path: Path) -> Protein:
     """Parse a single structure and skip test session if parser backend is unavailable."""
     try:
-        from prxteinmpnn.io.parsing import parse_input
+        from aminx.io.parsing import parse_input
     except ModuleNotFoundError as exc:
         pytest.skip(f"Skipping parsing-dependent tests: {exc}")
     try:
@@ -162,7 +162,7 @@ def minimal_bundle_fixture():
     Returns a valid InferenceBundle with small but proper array shapes:
     S=1 (one state), L=4 (sequence length), K=8 (neighbors), D=16 (embed dim).
     """
-    from prxteinmpnn.types.bundles import (
+    from aminx.types.bundles import (
         GeometryBundle,
         ConditioningBundle,
         LigandBundle,
@@ -224,8 +224,8 @@ def minimal_encode_fn_fixture():
     Returns a tuple (encode_fn, config) where encode_fn is a callable that
     accepts the minimal test arguments and returns an EncoderOutput.
     """
-    from prxteinmpnn.types.encodings import EncoderOutput
-    from prxteinmpnn.types.configs import InferenceConfig
+    from aminx.types.encodings import EncoderOutput
+    from aminx.types.configs import InferenceConfig
 
     L, K, D = 4, 8, 16
 

@@ -7,8 +7,8 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from prxteinmpnn.model.decoder import DecoderLayer as JAXDecoderLayer
-from prxteinmpnn.model.encoder import EncoderLayer as JAXEncoderLayer
+from aminx.model.decoder import DecoderLayer as JAXDecoderLayer
+from aminx.model.encoder import EncoderLayer as JAXEncoderLayer
 from tests.parity.reference_utils import prepend_reference_to_syspath
 
 torch = pytest.importorskip("torch")

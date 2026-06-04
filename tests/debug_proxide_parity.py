@@ -2,15 +2,15 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
-from prxteinmpnn.utils.coordinates import compute_backbone_coordinates, compute_backbone_distance
-from prxteinmpnn.utils.radial_basis import compute_radial_basis
-from prxteinmpnn.io.parsing import parse_structure
-from prxteinmpnn.utils.residue_constants import atom_order
+from aminx.utils.coordinates import compute_backbone_coordinates, compute_backbone_distance
+from aminx.utils.radial_basis import compute_radial_basis
+from aminx.io.parsing import parse_structure
+from aminx.utils.residue_constants import atom_order
 
 def debug_parity():
     # Load structure
     pdb_path = "tests/data/1ubq.pdb"
-    # prxteinmpnn.io.parsing.parse_structure returns a Protein directly (not generator, per wrapper)
+    # aminx.io.parsing.parse_structure returns a Protein directly (not generator, per wrapper)
     # Wait, dispatch.py says: return _parse_structure(...) which returns Protein.
     # But parse_input yields.
     # Let's check dispatch.py line 51 again. Yes, returns Protein directly.
@@ -23,7 +23,7 @@ def debug_parity():
     else:
         print(f"Proxide Neighbors: {protein.neighbor_indices.shape}")
     
-    # 2. Compute Python Features (Standard / Correct for PrxteinMPNN)
+    # 2. Compute Python Features (Standard / Correct for Aminx)
     coords = jnp.array(protein.coordinates)
     
     backbone_coords_python = compute_backbone_coordinates(coords) 

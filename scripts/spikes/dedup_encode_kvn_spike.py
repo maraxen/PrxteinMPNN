@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 def safe_map_lax_backend(f, xs, batch_size=1):
     """Inline safe_map logic: when batch_size <= num_elements, use jax.lax.map.
 
-    This mirrors src/prxteinmpnn/utils/safe_map.py:safe_map behavior.
+    This mirrors src/aminx/utils/safe_map.py:safe_map behavior.
     """
     leaves = jax.tree_util.tree_leaves(xs)
     if not leaves:

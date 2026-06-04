@@ -49,7 +49,7 @@ class StructureInfo(NamedTuple):
 def _parse_first_structure(path: Path):
     """Parse a single structure and raise if parser backend is unavailable."""
     try:
-        from prxteinmpnn.io.parsing import parse_input
+        from aminx.io.parsing import parse_input
     except ModuleNotFoundError as exc:
         raise RuntimeError(f"Cannot parse structure: {exc}") from exc
     try:

@@ -1,32 +1,32 @@
 Types
 =====
 
-.. automodule:: prxteinmpnn.types
+.. automodule:: aminx.types
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: prxteinmpnn.types.stages
+.. automodule:: aminx.types.stages
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: prxteinmpnn.types.bundles
+.. automodule:: aminx.types.bundles
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: prxteinmpnn.types.encodings
+.. automodule:: aminx.types.encodings
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: prxteinmpnn.types.configs
+.. automodule:: aminx.types.configs
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: prxteinmpnn.types.protocols
+.. automodule:: aminx.types.protocols
    :members:
    :undoc-members:
    :show-inheritance:

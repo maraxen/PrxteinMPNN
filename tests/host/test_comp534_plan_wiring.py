@@ -11,8 +11,8 @@ import equinox as eqx
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.host.plan import InferencePlan, make_inference_plan
-from prxteinmpnn.inference.logits import make_stage_set
+from aminx.host.plan import InferencePlan, make_inference_plan
+from aminx.inference.logits import make_stage_set
 
 
 class DummyModel(eqx.Module):
@@ -31,19 +31,19 @@ class DummySpec:
 
 def test_runner_imports_make_inference_plan():
     """runner.py must import make_inference_plan."""
-    from prxteinmpnn.host import runner
+    from aminx.host import runner
     assert hasattr(runner, "make_inference_plan")
 
 
 def test_runner_imports_inference_plan():
     """runner.py must import InferencePlan."""
-    from prxteinmpnn.host import runner
+    from aminx.host import runner
     assert hasattr(runner, "InferencePlan")
 
 
 def test_runner_does_not_import_make_stage_set():
     """runner.py must NOT import make_stage_set directly (uses plan instead)."""
-    from prxteinmpnn.host import runner
+    from aminx.host import runner
     source = inspect.getsource(runner)
     tree = ast.parse(source)
     for node in ast.walk(tree):
@@ -58,20 +58,20 @@ def test_runner_does_not_import_make_stage_set():
 
 def test_make_inference_plan_called_once_in_sample():
     """make_inference_plan must be called exactly once per sample() call."""
-    with patch("prxteinmpnn.host.runner.make_inference_plan") as mock_make_plan:
+    with patch("aminx.host.runner.make_inference_plan") as mock_make_plan:
         mock_plan = MagicMock(spec=InferencePlan)
         mock_plan.stage_set = make_stage_set("arithmetic_mean", 1.0, None)
         mock_make_plan.return_value = mock_plan
 
-        with patch("prxteinmpnn.host.runner.prep_protein_stream_and_model") as mock_prep:
+        with patch("aminx.host.runner.prep_protein_stream_and_model") as mock_prep:
             mock_iter = MagicMock()
             mock_iter.__iter__ = MagicMock(return_value=iter([]))
             mock_iter.skipped_frames = []
             mock_model = MagicMock()
             mock_prep.return_value = (mock_iter, mock_model)
 
-            from prxteinmpnn.host.runner import sample
-            from prxteinmpnn.run.specs import SamplingSpecification
+            from aminx.host.runner import sample
+            from aminx.run.specs import SamplingSpecification
             try:
                 result = sample(spec=SamplingSpecification(inputs="dummy.pdb"))
             except Exception:

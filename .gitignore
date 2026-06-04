@@ -33,7 +33,7 @@ data/pdb_cache/.worktrees/
 .agent/
 .agent/skills
 data/pdb_cache/*
-.worktrees/uv.lock
+.worktrees/
 
 # Campaign worker/runtime artifacts
 *.h5.lock

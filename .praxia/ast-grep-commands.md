@@ -1,4 +1,4 @@
-# ast-grep Command Library for prxteinmpnn
+# ast-grep Command Library for aminx
 
 ast-grep 0.42.1 is installed at `~/.cargo/bin/ast-grep` (also aliased as `sg`).
 
@@ -6,7 +6,7 @@ ast-grep 0.42.1 is installed at `~/.cargo/bin/ast-grep` (also aliased as `sg`).
 
 ### Find all Optional[Array] parameters (primary migration targets)
 ```bash
-ast-grep run --pattern '$A: $B | None = None' --lang python src/prxteinmpnn/ --json \
+ast-grep run --pattern '$A: $B | None = None' --lang python src/aminx/ --json \
   | python3 -c "
 import json, sys
 from collections import Counter
@@ -20,7 +20,7 @@ print(f'Total: {len(data)} Optional params')
 
 ### Find MultistateStackPayload call sites (migration tracking)
 ```bash
-ast-grep run --pattern 'MultistateStackPayload($$$)' --lang python src/prxteinmpnn/ --json \
+ast-grep run --pattern 'MultistateStackPayload($$$)' --lang python src/aminx/ --json \
   | python3 -c "
 import json, sys
 data = json.load(sys.stdin)
@@ -31,7 +31,7 @@ for m in data:
 
 ### Find WaveParallelPayload spread (after PR-1)
 ```bash
-ast-grep run --pattern 'wave_group_ids_local' --lang python src/prxteinmpnn/ --json \
+ast-grep run --pattern 'wave_group_ids_local' --lang python src/aminx/ --json \
   | python3 -c "
 import json, sys
 from collections import Counter
@@ -45,7 +45,7 @@ for f, c in files.most_common():
 ### Find all **kwargs escape hatches
 ```bash
 ast-grep run --pattern 'def $NAME($$$, **$KWARGS):
-  $$$' --lang python src/prxteinmpnn/ --json \
+  $$$' --lang python src/aminx/ --json \
   | python3 -c "
 import json, sys
 data = json.load(sys.stdin)
@@ -56,7 +56,7 @@ for m in data:
 
 ### Find all jax.lax.switch sites
 ```bash
-ast-grep run --pattern 'jax.lax.switch($$$)' --lang python src/prxteinmpnn/
+ast-grep run --pattern 'jax.lax.switch($$$)' --lang python src/aminx/
 ```
 
 ### Find ModelInputs constructor calls (post-PR-1, migration tracking)
@@ -77,14 +77,14 @@ ast-grep run \
   --pattern 'run_sample_autoregressive_state_vmap_exact($$$, wave_group_ids_local, wave_group_positions_local, wave_group_valid_local, wave_position_valid_local)' \
   --rewrite 'run_sample_autoregressive_state_vmap_exact($$$, wave_payload)' \
   --lang python \
-  src/prxteinmpnn/sampling/sample.py
+  src/aminx/sampling/sample.py
 ```
 Note: Use `--interactive` for staged application; verify diff before committing.
 
 ### Find functions that still accept old loose wave args (post-PR-2 audit)
 ```bash
 ast-grep run --pattern 'def $NAME($$$wave_group_ids_local$$$):
-  $$$' --lang python src/prxteinmpnn/
+  $$$' --lang python src/aminx/
 ```
 
 ---
@@ -94,8 +94,8 @@ ast-grep run --pattern 'def $NAME($$$wave_group_ids_local$$$):
 ### Detect bare Optional[Array] on pytree-registered classes (anti-pattern)
 After PR-1, ModelInputs fields must not have `| None`. Run to catch drift:
 ```bash
-ast-grep run --pattern '$FIELD: jax.Array | None' --lang python src/prxteinmpnn/model_inputs.py
-ast-grep run --pattern '$FIELD: jnp.ndarray | None' --lang python src/prxteinmpnn/model_inputs.py
+ast-grep run --pattern '$FIELD: jax.Array | None' --lang python src/aminx/model_inputs.py
+ast-grep run --pattern '$FIELD: jnp.ndarray | None' --lang python src/aminx/model_inputs.py
 ```
 Both should return zero results.
 
@@ -103,13 +103,13 @@ Both should return zero results.
 ```bash
 ast-grep run --pattern '@partial(jax.jit, $$$)
 def $NAME($$$, **$KWARGS):
-  $$$' --lang python src/prxteinmpnn/
+  $$$' --lang python src/aminx/
 ```
 
 ### Find any new bool positional args added since FBT sweep
 ```bash
 ast-grep run --pattern 'def $NAME($$$, $P: bool$$$):
-  $$$' --lang python src/prxteinmpnn/
+  $$$' --lang python src/aminx/
 ```
 
 ---
@@ -122,7 +122,7 @@ Uses Python AST (faster than ast-grep for param counting):
 python3 -c "
 import ast, pathlib
 results = []
-for f in pathlib.Path('src/prxteinmpnn').rglob('*.py'):
+for f in pathlib.Path('src/aminx').rglob('*.py'):
     try:
         tree = ast.parse(f.read_text())
     except:

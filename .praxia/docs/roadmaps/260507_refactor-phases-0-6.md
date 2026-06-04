@@ -1,4 +1,4 @@
-# prxteinmpnn Refactor Roadmap (DEPRECATED — 2026-05-08)
+# aminx Refactor Roadmap (DEPRECATED — 2026-05-08)
 
 > **DEPRECATED.** This document tracked Phases 0–6 of the initial structural refactor. As of 2026-05-08, Phases 0–6 are complete (Phase 5 commit 6dd995d, Phase 6 BatchPlanner/safe_map). The active planning documents are:
 > - `.praxia/REFACTOR_MODELINPUTS.md` — ModelInputs/ModelStaticConfig PR migration plan (PRs 1–3 done; PR-4 model.__call__ boundary and PR-5 StableHLO export still pending)
@@ -7,7 +7,7 @@
 >
 > **Do not update this document.** Treat it as a historical reference only.
 
-> **Target file count delta**: net +0 to +20 files; net **−2500 LoC** in `src/prxteinmpnn/`.
+> **Target file count delta**: net +0 to +20 files; net **−2500 LoC** in `src/aminx/`.
 > **Parity contract** (qualified — see §10 *What we are NOT promising*): numerical outputs of `model.__call__`, `make_score_fn(...)(...)`, `make_*_logits_fn(...)(...)`, and `make_sample_sequences(...)(...)` are within `get_tolerances("float32")` before/after every phase, verified by `parity_fast` in CI and `parity_heavy` as a manual per-phase release gate.
 > **Status**: final — supersedes the draft after defender + critic adversarial review. Open Questions are now in the Resolution Log (§13) with default decisions; they no longer block Phase 0.
 
@@ -19,9 +19,9 @@
 
 ## 1. Executive Summary
 
-`prxteinmpnn` ships a numerically-correct, parity-pinned LigandMPNN port in JAX/Equinox, but the surface area between the four parity-pinned callables has accreted faster than its structure. `src/prxteinmpnn/model/mpnn.py` is **3933 LoC** with two near-duplicate Equinox modules (`PrxteinMPNN`, `PrxteinLigandMPNN`) that reach into each other's private static methods. `src/prxteinmpnn/run/sampling.py` is **1718 LoC** with four near-duplicate streaming variants (`_sample_streaming`, `_sample_streaming_arrayrecord`, `_sample_streaming_averaged`, in-memory) and parallels in scoring/jacobian/conformational_inference. `RunSpecification` and four subclasses carry **50+ flat fields** with at least five provably dead (`output_path`, `average_logits`, `score_batch_size`, `gmm_min_iters`, `combine_noise_batch_size`).
+`aminx` ships a numerically-correct, parity-pinned LigandMPNN port in JAX/Equinox, but the surface area between the four parity-pinned callables has accreted faster than its structure. `src/aminx/model/mpnn.py` is **3933 LoC** with two near-duplicate Equinox modules (`Aminx`, `PrxteinLigandMPNN`) that reach into each other's private static methods. `src/aminx/run/sampling.py` is **1718 LoC** with four near-duplicate streaming variants (`_sample_streaming`, `_sample_streaming_arrayrecord`, `_sample_streaming_averaged`, in-memory) and parallels in scoring/jacobian/conformational_inference. `RunSpecification` and four subclasses carry **50+ flat fields** with at least five provably dead (`output_path`, `average_logits`, `score_batch_size`, `gmm_min_iters`, `combine_noise_batch_size`).
 
-The **seven** legacy `strategy_map` literals are **routed** through `registry._COMBINE_INDEX` / `combine_strategy_to_index`. **Multistate** branching at the four roadmap call surfaces (`PrxteinMPNN` / `PrxteinLigandMPNN.__call__`, `make_sample_sequences`, `make_score_fn`) now reads **immutable** `MultistateModeDescriptor` rows from `registry.MULTISTATE_MODES` (Python / `static_argnames` only — no traced registry lookups). STE ``optimize_sequence`` and ``make_score_fn`` validate ``multistate_mode`` via ``assert_known_multistate_mode`` at their **Python** factory entries (JIT inner paths still use ``multistate_mode_descriptor`` where applicable). **Phase 5 prep:** ``registry.SAMPLERS`` registers sampler **factories** (``SamplerFactoryFn`` → ``SamplerFn``); the default ``\"make_sample_sequences\"`` key registers when ``prxteinmpnn.sampling.sample`` is imported; :class:`~prxteinmpnn.run.sampling_driver.SamplingDriver` resolves a factory from a :class:`~prxteinmpnn.run.specs.SamplingSpecification``.
+The **seven** legacy `strategy_map` literals are **routed** through `registry._COMBINE_INDEX` / `combine_strategy_to_index`. **Multistate** branching at the four roadmap call surfaces (`Aminx` / `PrxteinLigandMPNN.__call__`, `make_sample_sequences`, `make_score_fn`) now reads **immutable** `MultistateModeDescriptor` rows from `registry.MULTISTATE_MODES` (Python / `static_argnames` only — no traced registry lookups). STE ``optimize_sequence`` and ``make_score_fn`` validate ``multistate_mode`` via ``assert_known_multistate_mode`` at their **Python** factory entries (JIT inner paths still use ``multistate_mode_descriptor`` where applicable). **Phase 5 prep:** ``registry.SAMPLERS`` registers sampler **factories** (``SamplerFactoryFn`` → ``SamplerFn``); the default ``\"make_sample_sequences\"`` key registers when ``aminx.sampling.sample`` is imported; :class:`~aminx.run.sampling_driver.SamplingDriver` resolves a factory from a :class:`~aminx.run.specs.SamplingSpecification``.
 
 Phase 1 **import-time** ``multiprocessing.set_start_method`` removal and **hardcoded debug-log** deletion from ``mpnn.py`` are **landed** on main; ``configure_multiprocessing()`` is the supported opt-in (``runtime.py``). Remaining §11 risk is **review-level** (HLO diffs, Equinox static-field warnings), not committed debug paths.
 
@@ -31,7 +31,7 @@ The guiding principle is **"parity is pinned at four callable boundaries; everyt
 
 ### 1.1 Rename: "Engine/Trainer" → "Host orchestrator / JIT-pure step"
 
-The draft borrowed jaxbeans' `Engine`/`Trainer` class names. Critic correctly noted these are training-loop terms wrong-cast onto a sampling codebase: prxteinmpnn has no `LossFunction`, no `DataModule`, no `checkpoint_dir`. We adopt the **separation principle** — host-side orchestration vs JIT-pure step function — but rename to **`SamplingDriver`** (host: data, callbacks, sinks, signals, ArrayRecord writes) consuming **JIT-pure sampler functions** (registered via `SAMPLERS` in §3.3). The training path (`training/trainer.py`) keeps its existing structure; only sampling/scoring/jacobian/conformational paths are unified under `SamplingDriver`. See Phase 5 for migration detail.
+The draft borrowed jaxbeans' `Engine`/`Trainer` class names. Critic correctly noted these are training-loop terms wrong-cast onto a sampling codebase: aminx has no `LossFunction`, no `DataModule`, no `checkpoint_dir`. We adopt the **separation principle** — host-side orchestration vs JIT-pure step function — but rename to **`SamplingDriver`** (host: data, callbacks, sinks, signals, ArrayRecord writes) consuming **JIT-pure sampler functions** (registered via `SAMPLERS` in §3.3). The training path (`training/trainer.py`) keeps its existing structure; only sampling/scoring/jacobian/conformational paths are unified under `SamplingDriver`. See Phase 5 for migration detail.
 
 ---
 
@@ -109,7 +109,7 @@ Pattern source: jaxbeans `aprt/sensors.py:96-129` (strategy-by-instance registry
 
 ```python
 from typing import TypeVar, Callable
-from prxteinmpnn.protocols import SamplerFn  # runtime_checkable Protocol
+from aminx.protocols import SamplerFn  # runtime_checkable Protocol
 
 T = TypeVar("T")
 
@@ -134,7 +134,7 @@ OUTPUT_SINKS = Registry[DesignSink]("output_sinks")  # Phase 5
 | Axis | Mechanism | Rationale |
 |---|---|---|
 | `combine_strategy` | **frozen `_COMBINE_INDEX = OrderedDict(...)` constant** | 3 stable values; no extension pressure; explicit ordering for `lax.switch` index |
-| `samplers` | `Registry[SamplerFactoryFn]` (`Callable[..., SamplerFn]`) | Factories return JIT-pure ``SamplerFn``; default ``make_sample_sequences`` key registers on ``import prxteinmpnn.sampling.sample`` |
+| `samplers` | `Registry[SamplerFactoryFn]` (`Callable[..., SamplerFn]`) | Factories return JIT-pure ``SamplerFn``; default ``make_sample_sequences`` key registers on ``import aminx.sampling.sample`` |
 | `multistate_modes` | `Registry[MultistateModeDescriptor]` | Extension intent; host-only descriptor rows (``MultistateModeFn`` deferred until per-mode callables land) |
 | `output_sinks` | `Registry[DesignSink]` (Phase 5) | UX goal: contributors add sinks by separate file |
 | `decoding_approach` | `lax.switch` over fixed-cardinality enum | Parity-pinned; not contributor-extensible |
@@ -154,7 +154,7 @@ class ModelCapabilities(eqx.Module):
     accepts_fixed_positions: bool = eqx.field(static=True)
     output_logit_shape: tuple[str, ...] = eqx.field(static=True)
 
-class PrxteinMPNN(eqx.Module):
+class Aminx(eqx.Module):
     ...
     capabilities: ModelCapabilities = eqx.field(static=True)
 ```
@@ -208,10 +208,10 @@ Critic point accepted: not every jaxbeans utility justifies a hard dep. Matrix:
 | `PreemptionHandler` (SIGUSR1/SIGTERM) | **DEPEND** | jaxbeans `core/safety.py:20-63` | Cluster-platform glue; jaxbeans already debugged |
 | `atomic_write`, `MultiPartWriter` | **DEPEND** | jaxbeans `utils/io.py:15-83` | I/O correctness primitives |
 | `BinaryDatasetWriter` schema-as-dict | **DEPEND** | jaxbeans `jax_io/sources.py:82-104` | ArrayRecord schema convention |
-| `async_indexed_stream`, `BoundedCallbackHandler` | **VENDOR** | jaxbeans `utils/callbacks.py` (~70 LoC) | We need to customize: add `effects_barrier` at sink boundary + shutdown semantics jaxbeans lacks (their I/O scale is smaller). Vendor lives at `prxteinmpnn/utils/_vendored_callbacks.py` with header pointing to upstream commit hash. |
+| `async_indexed_stream`, `BoundedCallbackHandler` | **VENDOR** | jaxbeans `utils/callbacks.py` (~70 LoC) | We need to customize: add `effects_barrier` at sink boundary + shutdown semantics jaxbeans lacks (their I/O scale is smaller). Vendor lives at `aminx/utils/_vendored_callbacks.py` with header pointing to upstream commit hash. |
 | `get_tolerances` test helper | **VENDOR** | jaxbeans `utils/testing.py:6-10` | 5 LoC — depending is heavier than copying |
-| `PRXTEINMPNN_VERIFY` jaxtyping+beartype decorator | **VENDOR** | jaxbeans `utils/typing.py:17-31` | Renamed env var (`JAXBEANS_VERIFY` → `PRXTEINMPNN_VERIFY`); thin wrapper |
-| Engine/Trainer class API | **NEITHER** | — | Adopt the **separation principle only** (§1.1). Concrete `SamplingDriver` is written from scratch against prxteinmpnn's sampling needs. |
+| `AMINX_VERIFY` jaxtyping+beartype decorator | **VENDOR** | jaxbeans `utils/typing.py:17-31` | Renamed env var (`JAXBEANS_VERIFY` → `AMINX_VERIFY`); thin wrapper |
+| Engine/Trainer class API | **NEITHER** | — | Adopt the **separation principle only** (§1.1). Concrete `SamplingDriver` is written from scratch against aminx's sampling needs. |
 | `aprt/*` (FSM/sensors/judge-jury) | **NEITHER** | — | Too heavy, not needed |
 | `quantization/module.py` | **NEITHER** | — | Uses `NamedTuple` for a model module — wrong pattern |
 
@@ -230,9 +230,9 @@ Critic point accepted: not every jaxbeans utility justifies a hard dep. Matrix:
 
 **Tasks:**
 - Add `jaxbeans` to `pyproject.toml [tool.uv.sources]` as editable workspace dep (default per §13 Q1/Q2: workspace member during refactor; PyPI when jaxbeans hits 0.1.0).
-- Add `[tool.jaxlint] select = ["JL"]` to `pyproject.toml` for **optional local runs**. **jaxlint** is on **PyPI** (`jaxlint>=0.1.0a1` in `prxteinmpnn[dev]`). **Default CI must not gate** on jaxlint: the checker is still maturing and may emit false positives; use it as an **advisory** signal only (local / optional pre-commit). Blocking merge on jaxlint clearance is **explicitly out of scope** until the project chooses a separate policy.
+- Add `[tool.jaxlint] select = ["JL"]` to `pyproject.toml` for **optional local runs**. **jaxlint** is on **PyPI** (`jaxlint>=0.1.0a1` in `aminx[dev]`). **Default CI must not gate** on jaxlint: the checker is still maturing and may emit false positives; use it as an **advisory** signal only (local / optional pre-commit). Blocking merge on jaxlint clearance is **explicitly out of scope** until the project chooses a separate policy.
 - Capture HLO baselines as **review artifacts** at `tests/profiling/baseline_hlo/{model_call,score,sample,logits}.txt` via `jax.jit(...).lower(...).compile().runtime_executable().hlo_modules()`. CI runs `assert_zero_copy_overhead` for **detection** only; threshold lives in a per-callable allowlist file with rationale strings.
-- Vendor `prxteinmpnn/utils/testing.py::get_tolerances` and `prxteinmpnn/utils/typing.py::PRXTEINMPNN_VERIFY` (5 + ~15 LoC, per §3.6).
+- Vendor `aminx/utils/testing.py::get_tolerances` and `aminx/utils/typing.py::AMINX_VERIFY` (5 + ~15 LoC, per §3.6).
 - Add `ty.toml` `[allowed-unresolved-imports]` for proxide / prolix / optional deps.
 
 **Phase 0a SPIKE — `state_vmap_exact == vmap(single_state)` formal verification gate.** Critic correctly flagged that the Phase 4 unification claim was **not formally verified** in the draft. Owner has prior informal evidence that the equality holds; the SPIKE formalizes that evidence under `tests/sampling/spikes/test_state_vmap_exact_spike.py` and:
@@ -266,13 +266,13 @@ The spike is mandatory before Phase 4 PRs may merge. Until then, draft Phase 4 P
 - **DELETE** the two hardcoded debug-log blocks at `model/mpnn.py:2428` and `:3098` (the `_logp = "/home/marielle/projects/tev_design/.cursor/debug-5a01b7.log"` lines). These block StableHLO export per **§11**.
 - Delete provably dead `RunSpecification` fields: `output_path` (base, never read), `average_logits`, `score_batch_size`, `gmm_min_iters`, `combine_noise_batch_size`. Keep deprecation shim accepting + warning for one minor version if the field is kwarg-named in any `scripts/` (run `rg` against the entire `scripts/` tree as part of the PR).
 - **Two `mp.set_start_method("spawn", force=True)` sites must both go:**
-  - `prxteinmpnn/__init__.py` — top-level statement.
+  - `aminx/__init__.py` — top-level statement.
   - `run/specs.py:15` — top-level statement.
-  - Both are replaced by a single explicit `prxteinmpnn.runtime.configure_multiprocessing()` opt-in. Callers (notebooks, scripts) call once at startup.
+  - Both are replaced by a single explicit `aminx.runtime.configure_multiprocessing()` opt-in. Callers (notebooks, scripts) call once at startup.
 - **PEP 562 lazy `__init__.py` is demoted to opt-in experiment**, not a Phase 1 mandate. Defender's point is correct: import time is dominated by transitive deps (JAX/Equinox), so the gain from lazy module attributes is small. We will measure cold-import time after the `mp.set_start_method` removal; if it remains >500ms cold, revisit lazy `__getattr__` in a separate scoped PR.
 - **Doc-drift cleanup is removed from Phase 1.** It ships as standalone PRs in cross-cutting workstream §7.2.
 
-**CI gates added:** Cold `import prxteinmpnn` time measured (no hard threshold yet — measurement only).
+**CI gates added:** Cold `import aminx` time measured (no hard threshold yet — measurement only).
 **Tech-debt closed:** §11 (StableHLO unblocked).
 **Migration cost:** see §6.
 
@@ -288,12 +288,12 @@ The spike is mandatory before Phase 4 PRs may merge. Until then, draft Phase 4 P
 | **Pre-conditions** | Phase 0 (HLO baseline captured). |
 
 **Tasks:**
-- Introduce `src/prxteinmpnn/protocols.py` with the **6 callable-boundary Protocols** from §3.1: `ConditionalLogitsFn`, `UnconditionalLogitsFn`, `StateVmapExactLogitsFn`, `SamplerFn`, `ScoreFn`, `StateVmapExactScoreFn`. **Drop `BiasHook`** (speculative — no current consumer; the critic-trim says descope). **Defer `DesignSink`** to Phase 5 where it's actually wired into the sink registry.
+- Introduce `src/aminx/protocols.py` with the **6 callable-boundary Protocols** from §3.1: `ConditionalLogitsFn`, `UnconditionalLogitsFn`, `StateVmapExactLogitsFn`, `SamplerFn`, `ScoreFn`, `StateVmapExactScoreFn`. **Drop `BiasHook`** (speculative — no current consumer; the critic-trim says descope). **Defer `DesignSink`** to Phase 5 where it's actually wired into the sink registry.
 - Replace `if TYPE_CHECKING: ... else: Callable[..., Any]` in `conditional_logits.py:48-66` and `unconditional_logits.py:39-56`.
-- Add `ModelCapabilities(eqx.Module)` static field on `PrxteinMPNN` and `PrxteinLigandMPNN`. Concrete capability instances live next to each model class.
+- Add `ModelCapabilities(eqx.Module)` static field on `Aminx` and `PrxteinLigandMPNN`. Concrete capability instances live next to each model class.
 - Migrate the **3 verified `inspect.signature` sites** (`sampling/sample.py:77`, `scoring/score.py:342`, `run/averaging.py:58`) to `model.capabilities.accepts_*`.
 - Fix the lying `cast(ScoringFn, ...)` at `score.py:302` to `cast(StateVmapExactScoreFn, ...)`.
-- Make `uv run ty check` blocking in CI. **jaxlint:** **advisory only** — install from PyPI via `prxteinmpnn[dev]`, run locally when useful; **do not add blocking CI** on jaxlint (false positives / tool bugs are expected during adoption).
+- Make `uv run ty check` blocking in CI. **jaxlint:** **advisory only** — install from PyPI via `aminx[dev]`, run locally when useful; **do not add blocking CI** on jaxlint (false positives / tool bugs are expected during adoption).
 
 **Critic point partially accepted (rejected the descope to a 30-line PR):** the critic suggested replacing all 3 `inspect.signature` sites with one explicit `is_ligand_mpnn: bool` parameter. We reject the descope because (a) it doesn't solve the `Callable[..., Any]` problem and (b) `accepts_state_stack` and `accepts_tied_positions` are independent capability axes, not collapsible onto a single LigandMPNN/MPNN bit. We do however adopt the **trim**: `BiasHook` is out, `DesignSink` is deferred.
 
@@ -313,7 +313,7 @@ The spike is mandatory before Phase 4 PRs may merge. Until then, draft Phase 4 P
 | **Pre-conditions** | Phase 2 (Protocols typed). |
 
 **Tasks:**
-- Introduce `src/prxteinmpnn/payloads.py` with 8 Equinox modules (§3.2). Each carries a `replace()` via `eqx.tree_at`.
+- Introduce `src/aminx/payloads.py` with 8 Equinox modules (§3.2). Each carries a `replace()` via `eqx.tree_at`.
 - Replace ad-hoc tuple-passing with `MultistateStackPayload` at all `state_vmap_exact` call sites and at `DesignArrayRecordWriter`. **Execution split (§14):** land payloads + `RunSpec` shim first; complete tuple migration at writers / all hot paths in follow-on PRs once carriers are stable (same phase, ordered merges).
 - Compose `RunSpec` from the 9 sub-configs (§3.5). Migrate `RunSpecification` + 4 subclasses to thin shims that build a `RunSpec`.
 - Wire `compute_resource_allocation` into `run/prep.py` (currently exists but never called — **§2**).
@@ -337,7 +337,7 @@ The spike is mandatory before Phase 4 PRs may merge. Until then, draft Phase 4 P
 | **Pre-conditions** | Phase 3 (payloads + RunSpec available); **Phase 0a SPIKE merged** with go/no-go decision recorded. |
 
 **Tasks:**
-- Introduce `src/prxteinmpnn/registry.py` with `Registry[T]` (§3.3) and the **frozen `_COMBINE_INDEX = OrderedDict([("arithmetic_mean", 0), ("geometric_mean", 1), ("product", 2)])`** module-level constant (NOT a registry — only 3 stable values).
+- Introduce `src/aminx/registry.py` with `Registry[T]` (§3.3) and the **frozen `_COMBINE_INDEX = OrderedDict([("arithmetic_mean", 0), ("geometric_mean", 1), ("product", 2)])`** module-level constant (NOT a registry — only 3 stable values).
 - **Migrate the 7 verified `strategy_map` literals** to import `_COMBINE_INDEX`:
   - `model/mpnn.py:1457, 1581, 2322 (the _lm variant), 2615`
   - `scoring/score.py:75, 127`
@@ -345,7 +345,7 @@ The spike is mandatory before Phase 4 PRs may merge. Until then, draft Phase 4 P
   - The `lax.switch` index is `_COMBINE_INDEX[spec.multistate.combine_strategy]` at trace time.
 - **Migrate the 4 `multistate_mode` if/elif ladders** (`model/mpnn.py` both `__call__`, `sampling/sample.py`, `scoring/score.py`) **→ done (descriptor registry, 2026-05):** host-side `MultistateModeDescriptor` rows in `MULTISTATE_MODES` + `multistate_mode_descriptor()` replace string equality while preserving JIT boundaries. **Still open:** optional `jax.vmap` unification of `state_vmap_exact` vs registry-only routing (Phase 0a **GO** recorded in §13.2).
 - **`state_vmap_exact` outcome (controlled by Phase 0a SPIKE — §13.2 GO):**
-  - **Protein unconditional logits:** :meth:`~prxteinmpnn.model.mpnn.PrxteinMPNN.score_unconditional_state_vmap_exact` already uses the same ``jax.vmap(encode_one)`` / ``jax.vmap(decode_one)`` / ``jax.vmap(jax.vmap(w_out))`` stack as the Phase 0a explicit reference (``tests/sampling/spikes/test_state_vmap_exact_spike.py``); only ``tie_group_map`` adds a post-scatter fusion step. **Remaining duplication** to collapse under a future PR: conditional ``state_vmap_exact``, ligand stacks, autoregressive wave sampler, and any paths still hand-rolled vs ``jax.vmap(single_state)``.
+  - **Protein unconditional logits:** :meth:`~aminx.model.mpnn.Aminx.score_unconditional_state_vmap_exact` already uses the same ``jax.vmap(encode_one)`` / ``jax.vmap(decode_one)`` / ``jax.vmap(jax.vmap(w_out))`` stack as the Phase 0a explicit reference (``tests/sampling/spikes/test_state_vmap_exact_spike.py``); only ``tie_group_map`` adds a post-scatter fusion step. **Remaining duplication** to collapse under a future PR: conditional ``state_vmap_exact``, ligand stacks, autoregressive wave sampler, and any paths still hand-rolled vs ``jax.vmap(single_state)``.
   - **If further unify:** extend the spike pattern to those surfaces, then delete redundant bodies per roadmap default.
   - **If no-go on a surface:** keep a **registry entry** dispatching to the preserved implementation (routing layer, not numeric unification).
 - Convert `decoding_approach` if/elif to a fixed-cardinality `lax.switch` (NOT a registry).
@@ -374,13 +374,13 @@ The spike is mandatory before Phase 4 PRs may merge. Until then, draft Phase 4 P
 | 5b | Expand existing decoder, move shared decoder body in | `model/decoder.py` | ~700 |
 | 5c | Extract shared MPNN message-passing primitives | `model/mpnn_core.py` | ~500 |
 | 5d | Extract shared cross-class private static methods | `model/_shared.py` | ~400 |
-| 5e | `model/mpnn.py` reduced to `PrxteinMPNN` only (~400 LoC); `model/ligand_mpnn.py` houses `PrxteinLigandMPNN` only (~500 LoC) | both | ~1700 (delete + redistribute) |
+| 5e | `model/mpnn.py` reduced to `Aminx` only (~400 LoC); `model/ligand_mpnn.py` houses `PrxteinLigandMPNN` only (~500 LoC) | both | ~1700 (delete + redistribute) |
 
 Each sub-PR is parity-pinned and individually mergeable. Closes **§9**.
 
 **Other Phase 5 sub-PRs (3):**
 - 5f: `SamplingDriver` (host) parameterized by `DesignSink` Protocol (introduced here, deferred from Phase 2). Consumes JIT-pure registered samplers from §3.3 (`SAMPLERS` **factories** → ``SamplerFn``; see ``run/sampling_driver.py`` prep). Replaces the 4 near-duplicate streaming functions in `run/sampling.py` and the parallels in `run/scoring.py`, `run/jacobian.py`, `run/conformational_inference.py`. **Does not** copy jaxbeans's in-place `datamodule.batch_size` mutation — batching flows via `RunSpec.batching`.
-- 5g: Plumb `async_indexed_stream` (vendored at `prxteinmpnn/utils/_vendored_callbacks.py`, per §3.6) using `stop_gradient` + **`jax.experimental.io_callback(..., ordered=False)` everywhere in-repo** — **`ordered=True` is forbidden** here because it forces sequential host synchronization on every callback. Use **`jax.effects_barrier()`** at sink / batch boundaries when ordering or drain semantics matter. Wrap with `BoundedCallbackHandler` for backpressure. **Add `jax.effects_barrier()` at every sink boundary and at epoch end** — this is the customization that motivates vendoring (jaxbeans omits it; their I/O scale is smaller). `io_callback` lives **outside** any `checkify` region. Adopt `atomic_write` + `MultiPartWriter` (DEPEND), `safe_map` (DEPEND), `PreemptionHandler` (DEPEND), `BinaryDatasetWriter` schema-as-dict (DEPEND).
+- 5g: Plumb `async_indexed_stream` (vendored at `aminx/utils/_vendored_callbacks.py`, per §3.6) using `stop_gradient` + **`jax.experimental.io_callback(..., ordered=False)` everywhere in-repo** — **`ordered=True` is forbidden** here because it forces sequential host synchronization on every callback. Use **`jax.effects_barrier()`** at sink / batch boundaries when ordering or drain semantics matter. Wrap with `BoundedCallbackHandler` for backpressure. **Add `jax.effects_barrier()` at every sink boundary and at epoch end** — this is the customization that motivates vendoring (jaxbeans omits it; their I/O scale is smaller). `io_callback` lives **outside** any `checkify` region. Adopt `atomic_write` + `MultiPartWriter` (DEPEND), `safe_map` (DEPEND), `PreemptionHandler` (DEPEND), `BinaryDatasetWriter` schema-as-dict (DEPEND).
 - 5h: ~~Relocate `ensemble/dbscan.py` and `ensemble/pca.py` to jaxbeans (separate jaxbeans-side PR; in this repo we add a shim that imports from jaxbeans). Closes **§12**.~~ **DEFERRED INDEFINITELY (2026-05-07).** Requires jaxbeans maintainer to confirm target path (`ml/clustering/`) and open the jaxbeans-side PR first. Do not pursue until that coordination happens out-of-band.
 
 **JIT-cache fragmentation measurement (critic #6, accepted).** The mpnn split risks fragmenting the JIT compile cache because trace contexts now span more modules. Sub-PR 5e adds a benchmark to `tests/profiling/test_cold_start.py` that:
@@ -412,12 +412,12 @@ Each sub-PR is parity-pinned and individually mergeable. Closes **§9**.
 
 **Track B — Proxide / Prolix / hygiene (existing scope)**
 
-- Migrate structure/IO utilities currently duplicated between `prxteinmpnn` and `proxide` to proxide (**§7**).
+- Migrate structure/IO utilities currently duplicated between `aminx` and `proxide` to proxide (**§7**).
 - Migrate trajectory/MD wrappers to prolix.
 - Final docstring sweep across all parity-pinned callables and Protocol definitions (**§6**).
 - Remove deprecation shims for the dead `RunSpecification` fields from Phase 1 and the `RunSpec` shim from Phase 3 (after a one-minor-version window per §13 Q4).
 
-**CI gates added:** docstring coverage threshold (`interrogate --fail-under=80` on `src/prxteinmpnn/`); **optional** advisory benchmark or peak-device-memory smoke on a representative multistate grid (document threshold in PR — no flaky CI hard gate unless stabilized).
+**CI gates added:** docstring coverage threshold (`interrogate --fail-under=80` on `src/aminx/`); **optional** advisory benchmark or peak-device-memory smoke on a representative multistate grid (document threshold in PR — no flaky CI hard gate unless stabilized).
 **Tech-debt closed:** §6, §7; **new closure:** implicit debt from “stack-only” multistate normalization without a documented ragged/padded/`safe_map` policy.
 
 ---
@@ -434,7 +434,7 @@ Each sub-PR is parity-pinned and individually mergeable. Closes **§9**.
 **Scope (to be defined by owner):**
 
 - Linting rules: ruff configuration, per-file ignores, rule additions/removals — owner to specify which rules and enforcement level.
-- Type annotation coverage: which modules require full annotation, beartype/jaxtyping decorator discipline (`PRXTEINMPNN_VERIFY`), Protocol conformance checking.
+- Type annotation coverage: which modules require full annotation, beartype/jaxtyping decorator discipline (`AMINX_VERIFY`), Protocol conformance checking.
 - General coding standards: naming conventions, module structure rules, import ordering, comment policy, any other patterns owner wants enforced repo-wide.
 - CI integration: which checks become hard gates vs advisory; whether `ty` or `mypy` runs in CI and at what strictness level.
 
@@ -455,7 +455,7 @@ The order is **additive-first, then mechanical extractions, then behavioral chan
 
 Estimates from `rg`-driven counts at HEAD; refine in each phase's first PR.
 
-| Phase | Files in `src/prxteinmpnn/` touched | Files in `scripts/` touched | New files | Deleted files | Notes |
+| Phase | Files in `src/aminx/` touched | Files in `scripts/` touched | New files | Deleted files | Notes |
 |---|---|---|---|---|---|
 | 0   | 0 (config only) | 0 | 2 (`utils/testing.py`, `utils/typing.py`) + baseline HLO artifacts | 0 | Plus the 0a SPIKE test |
 | 0a  | 0 | 0 | 1 (`tests/sampling/spikes/test_state_vmap_exact_spike.py`) | 0 | Notebook artifact in PR description |
@@ -475,7 +475,7 @@ Estimates from `rg`-driven counts at HEAD; refine in each phase's first PR.
 These run alongside phases, not in serial.
 
 ### 7.1 jaxlint adoption
-- **jaxlint** ships on **PyPI** (`jaxlint`); list it under **`prxteinmpnn[dev]`** for convenient `uv run jaxlint check …`. **Policy:** treat jaxlint as **advisory** — **no default CI merge gate** on jaxlint clearance (the tool may still mis-fire while it matures). Optional pre-commit or maintainer workflows may run it locally. Revisit a stricter gate only if/when the team agrees false-positive rates are acceptable.
+- **jaxlint** ships on **PyPI** (`jaxlint`); list it under **`aminx[dev]`** for convenient `uv run jaxlint check …`. **Policy:** treat jaxlint as **advisory** — **no default CI merge gate** on jaxlint clearance (the tool may still mis-fire while it matures). Optional pre-commit or maintainer workflows may run it locally. Revisit a stricter gate only if/when the team agrees false-positive rates are acceptable.
 - **JL001** flags the scatter/gather anti-pattern documented in jaxbeans `docs/BEST_PRACTICES.md §7`. Apply to touched files only initially; broaden coverage in dev workflows after Phase 4.
 
 ### 7.2 Doc-drift cleanup (STANDALONE PRs, moved out of Phase 1)
@@ -500,7 +500,7 @@ Tracked separately from phase PRs; lands incrementally per the **VENDOR vs DEPEN
 | Pattern | Mode | Phase needed |
 |---|---|---|
 | `core/profiling` (`assert_zero_copy_overhead`, etc.) | DEPEND | 0 |
-| `utils/typing` (`PRXTEINMPNN_VERIFY` decorator) | VENDOR | 0 |
+| `utils/typing` (`AMINX_VERIFY` decorator) | VENDOR | 0 |
 | `utils/testing` (`get_tolerances`) | VENDOR | 0 |
 | `utils/callbacks` (`async_indexed_stream`, `BoundedCallbackHandler`) | VENDOR (effects_barrier customization) | 5 |
 | `utils/mapping` (`safe_map`) | DEPEND | 5 |
@@ -526,7 +526,7 @@ Tracked separately from phase PRs; lands incrementally per the **VENDOR vs DEPEN
 | `parity_heavy` reference assets at `$REFERENCE_PATH` rotate or change format | Low | High | Phase 0 captures content-addressed snapshot of reference assets; manual release gate uses snapshot. |
 | `RunSpec` pickle migration script misses an in-flight engaging pickle format | Medium | High | Phase 3 PR description includes the engaging pickle corpus (sampled), and migration script is exercised against it before merge. Hard cutover policy is communicated to cluster users 1 minor version in advance. |
 | JIT compile-cache fragmentation from mpnn-split degrades cold start | Medium | Low | Sub-PR 5e benchmark; 20% threshold for investigation. |
-| Lazy `__init__.py` (PEP 562) breaks downstream `from prxteinmpnn import X` | — | — | Demoted to opt-in experiment per critic; not in scope unless cold-import measurement justifies it. |
+| Lazy `__init__.py` (PEP 562) breaks downstream `from aminx import X` | — | — | Demoted to opt-in experiment per critic; not in scope unless cold-import measurement justifies it. |
 
 ---
 
@@ -552,8 +552,8 @@ This section qualifies the parity contract and other claims in plain language.
 
 - **`parity_heavy` is NOT in CI.** Per `CLAUDE.md`, `parity_heavy` requires `REFERENCE_PATH` pointing at a local-only `ligandmpnn_reference_assets` directory. CI runs **`parity_fast` only**. `parity_heavy` is a **manual per-phase release gate**: the phase tag is not cut until `parity_heavy` is run locally and recorded in the PR description (output captured per the Verification Visibility Protocol in `AGENTS.md`).
 - **HLO byte counts are NOT a numeric pass/fail gate.** They are review artifacts captured at Phase 0. PRs touching JIT-relevant code surface a diff that reviewers inspect. CI `assert_zero_copy_overhead` runs per parity-pinned callable; allowlisted thresholds with rationale are checked into the repo. There is no blanket ±5% rule.
-- **Pickle stability of `RunSpec` is NOT promised across the Phase 3 boundary.** Prefer **JSON** (`prxteinmpnn.run.spec_json`, `prxteinmpnn spec validate`) for durable configs and CLI. Legacy pickle-based workflows are unsupported unless you maintain a private adapter.
-- **Cold `import prxteinmpnn` time is measured, not asserted.** Phase 1 records the number after `mp.set_start_method` removal. No hard ms threshold is in DoD; the lazy-import experiment is opt-in.
+- **Pickle stability of `RunSpec` is NOT promised across the Phase 3 boundary.** Prefer **JSON** (`aminx.run.spec_json`, `aminx spec validate`) for durable configs and CLI. Legacy pickle-based workflows are unsupported unless you maintain a private adapter.
+- **Cold `import aminx` time is measured, not asserted.** Phase 1 records the number after `mp.set_start_method` removal. No hard ms threshold is in DoD; the lazy-import experiment is opt-in.
 - **`state_vmap_exact == vmap(single_state)` is NOT asserted unconditionally.** It is a hypothesis tested by the Phase 0a SPIKE. The roadmap's Phase 4 outcome adapts to the spike result.
 - **Specific shape numbers** like `n_canonical`, `n_states` are not pinned in this document. Payload static fields carry whatever the call-sites already compute.
 
@@ -564,14 +564,14 @@ This section qualifies the parity contract and other claims in plain language.
 The roadmap is complete when **all** of the following are measurably true:
 
 1. **`parity_fast` green at every commit on `main`.** **`parity_heavy` recorded green in each phase tag's release notes** (manual gate, not CI).
-2. **`src/prxteinmpnn/model/mpnn.py` ≤ 600 LoC**, with `PrxteinMPNN` and `PrxteinLigandMPNN` in separate files, no cross-class private static method calls.
+2. **`src/aminx/model/mpnn.py` ≤ 600 LoC**, with `Aminx` and `PrxteinLigandMPNN` in separate files, no cross-class private static method calls.
 3. **Zero `Callable[..., Any]`** in module API surface (enforced by `ty check` strict). Zero `inspect.signature` calls. Zero hardcoded debug-log paths. Zero top-level `mp.set_start_method` calls.
 4. **`uv run jaxlint check src`** (or repo root) with `JL*` enabled is **recommended on maintainer machines** when touching JIT-heavy paths; **default CI does not require jaxlint** and must **not** block merges on jaxlint (advisory-only policy; see §7.1).
 5. **`assert_zero_copy_overhead`** runs for all four parity-pinned callables; any regressions sit in the allowlist with a rationale string.
 6. **StableHLO export** of `model.__call__` succeeds (validates §11 closure).
 7. **Cold-start wall-time benchmark** runs in CI (advisory); no regression in the mpnn-split benchmark exceeds 20% without an explanation in the PR.
 8. **`scripts/engaging/` audit complete** (Phase 3): every `RunSpecification(...)` call-site updated or explicitly waived in writing.
-9. **Spec interchange:** JSON round-trip tests and `prxteinmpnn spec` CLI exercised in CI-relevant paths (pickle migration script **optional** / descoped if JSON-only policy holds).
+9. **Spec interchange:** JSON round-trip tests and `aminx spec` CLI exercised in CI-relevant paths (pickle migration script **optional** / descoped if JSON-only policy holds).
 10. **Phase 0a SPIKE outcome documented** with go/no-go decision and matching Phase 4 implementation. **Split acceptance:** the spike (numeric + HLO evidence + recorded go/no-go in a PR) may complete **before** Phase 4; the clause *“matching Phase 4 implementation”* is satisfied only when Phase 4 registry/unification (or routing) PRs merge. Track the spike slice under sprint **Phase 3b PR1** (`.agents/SPRINT_refactor-phase3b-20260506.md`).
 11. **Phase 6 track A:** documented **batch layout policy** (bucketing; ragged vs padded; when stacked `vmap` vs `safe_map`) and **internal** carriers use frozen pytree structs + Protocols — **no new internal `*args` / `**kwargs` surfaces** introduced during Phase 6 refactors (existing public APIs may retain narrow compatibility kwargs until explicitly migrated).
 
@@ -601,11 +601,11 @@ Each Open Question now has a **default decision** that holds unless a triggering
 
 | # | Question | Default decision | Trigger phase | Confirmation artifact |
 |---|---|---|---|---|
-| Q1 | Vendor or depend on jaxbeans pieces? | **CONFIRMED 2026-05-05.** Mixed per §3.6 matrix. VENDOR for `utils/callbacks` (need `effects_barrier` customization), `utils/testing`, `utils/typing`. DEPEND for `core/profiling`, `utils/mapping`, `utils/io`, `core/safety`, `jax_io/sources`. | Phase 0 (vendor pieces); Phase 5 (depend pieces) | `pyproject.toml [tool.uv.sources]` and `prxteinmpnn/utils/_vendored_callbacks.py` header |
+| Q1 | Vendor or depend on jaxbeans pieces? | **CONFIRMED 2026-05-05.** Mixed per §3.6 matrix. VENDOR for `utils/callbacks` (need `effects_barrier` customization), `utils/testing`, `utils/typing`. DEPEND for `core/profiling`, `utils/mapping`, `utils/io`, `core/safety`, `jax_io/sources`. | Phase 0 (vendor pieces); Phase 5 (depend pieces) | `pyproject.toml [tool.uv.sources]` and `aminx/utils/_vendored_callbacks.py` header |
 | Q2 | jaxbeans distribution model? | **`uv` workspace member during refactor; PyPI release when jaxbeans hits 0.1.0.** | Phase 0 | `pyproject.toml` |
 | Q3 | Where do `ensemble/*` live in jaxbeans? | **Default: jaxbeans `ml/clustering/`** (new submodule). Confirm with jaxbeans maintainer before sub-PR 5h opens. | Phase 5 sub-PR 5h | jaxbeans-side PR link |
-| Q4 | `RunSpecification` deprecation window? | **Hard cutover for pickled instances** + one-minor-version kwarg shim with `DeprecationWarning`. **JSON** is the supported interchange for new tooling (Typer CLI: `prxteinmpnn spec`). | Phase 3 | JSON round-trip tests + `spec validate` |
-| Q5 | `PRXTEINMPNN_VERIFY` default? | **Off in CI fast tests; on in `tests/parity/` via fixture; configurable in `parity_heavy`.** | Phase 0 | README + fixture in `tests/parity/conftest.py` |
+| Q4 | `RunSpecification` deprecation window? | **Hard cutover for pickled instances** + one-minor-version kwarg shim with `DeprecationWarning`. **JSON** is the supported interchange for new tooling (Typer CLI: `aminx spec`). | Phase 3 | JSON round-trip tests + `spec validate` |
+| Q5 | `AMINX_VERIFY` default? | **Off in CI fast tests; on in `tests/parity/` via fixture; configurable in `parity_heavy`.** | Phase 0 | README + fixture in `tests/parity/conftest.py` |
 | Q6 | (NEW) `state_vmap_exact` unification feasibility? | **CONFIRMED 2026-05-05: proceed with SPIKE; expectation upgraded to UNIFY.** Owner has prior informal evidence that `state_vmap_exact == jax.vmap(single_state_path)` numerically. SPIKE remains mandatory to formalize (capture HLO + parity fixtures + recorded PR decision). Phase 4 plans toward unification; only downgrades to routing if the formal SPIKE surfaces an unexpected divergence. | Phase 0a / Phase 4 | SPIKE PR records numeric + HLO comparison; Phase 4 unification PR (or routing PR on no-go) |
 | Q7 | (NEW) Lazy `__init__.py` (PEP 562)? | **Deferred / opt-in experiment.** Revisit only if Phase 1 cold-import measurement is unacceptable. | Post-Phase-1 (optional) | Cold-import benchmark in PR |
 | Q8 | (NEW) HLO threshold per call site? | **Allowlist file at `tests/profiling/hlo_allowlist.toml`** with rationale strings. No blanket %. | Phase 0 | Allowlist file with rationale entries |
@@ -622,7 +622,7 @@ Each Open Question now has a **default decision** that holds unless a triggering
 - **`scripts/diag_protein_feature_parity.py`**, **`diag_ligand_feature_parity.py`**, **`diag_packer_parity.py`** run before pytest in both Slurm scripts unless **`PRXTEIN_SKIP_DIAG=1`**.
 - **Protein / ligand** feature parity tests: **`jax.config.update("jax_default_matmul_precision", "highest")`** for the assertion block.
 - **Packer:** **`_forward_jax_packer_for_parity`** — same matmul setting, then **`jax.default_device(cpu)`** when a CPU device exists so JAX matches the CPU reference packer.
-- **Reference env:** `dm-tree` + `biopython` in `prxteinmpnn[tests]` and tev_design **`[dependency-groups] dev`** so `sc_utils` / `Bio` import on Engaging.
+- **Reference env:** `dm-tree` + `biopython` in `aminx[tests]` and tev_design **`[dependency-groups] dev`** so `sc_utils` / `Bio` import on Engaging.
 
 **Recorded green (targeted gate):** Slurm job **`13440956`** — **`4 passed`**, pytest **~23 s**, Slurm **`COMPLETED` `ExitCode 0:0`**. Diag tail: packer **mean** max_abs **~1.7e-6**; ligand **`y_nodes` / `y_edges` / `y_m`** at **≤ ~1.6e-6** vs PyTorch on the fixed path.
 
@@ -656,7 +656,7 @@ Each Open Question now has a **default decision** that holds unless a triggering
 | **Last update** | **2026-05-07** — Phase 5f landed: `StreamingBatchHost` + `DesignSink` + `OUTPUT_SINKS`. Phase 5 sub-PRs 5a–5g are all closed. 5h deferred (jaxbeans coordination). |
 | **Current phase** | Phase 5 **COMPLETE** (5a–5g). **5h** deferred Q3 (jaxbeans maintainer confirmation of `ml/clustering/` target path required before opening). **Next: Phase 6** (batch-layout / memory policy — §390–416). |
 | **Still open** | **5h** ensemble→jaxbeans (Q3, blocked on jaxbeans-side PR); optional scoring tensor sink session activation in `run/scoring.py` (framework exists, `active_scoring_sink()` always `None`); optional jacobian/conformational tensor D2H (explicitly "may stay pure JAX"); optional further **5e-cont** slices; jaxbeans **DEPEND** pieces (`core/profiling`, `utils/mapping`, `utils/io`, `core/safety`, `jax_io/sources`); per-chunk tensor vs perplexity ([`TODO_io_callback.txt`](TODO_io_callback.txt)). |
-| **Plan** | **Verification cwd:** package root `prxteinmpnn/`. **Next merge:** Phase 6 (§390–416) — batch layout, memory policy, `safe_map` adoption. 5h blocked on jaxbeans. |
+| **Plan** | **Verification cwd:** package root `aminx/`. **Next merge:** Phase 6 (§390–416) — batch layout, memory policy, `safe_map` adoption. 5h blocked on jaxbeans. |
 | **Next action (no prior context)** | Read §14 **Still open**. Phase 5 is closed except 5h (blocked). **Do next:** Phase 6 batch-layout / memory policy (§390–416) **or** jaxbeans DEPEND wiring if jaxbeans 0.1.0 is imminent. **Do not start 5h** until jaxbeans maintainer confirms `ml/clustering/` target path. |
 | **Prior landed (Phase 2)** | `protocols.py`, `model/capabilities.py`, introspection removal at sample/score/averaging, honest casts on score paths; sprint `refactor-phase2-sprint-20260505`, plan `.agents/SPRINT_refactor-phase2-20260505.md`. |
 | **Prior phase** | Phase 1: `task_id` `refactor-phase1-sprint-20260505` (§14 prior row archived in git history). |

@@ -3,7 +3,7 @@
 import jax
 import jax.numpy as jnp
 import equinox as eqx
-from prxteinmpnn.model.mpnn import PrxteinLigandMPNN
+from aminx.model.mpnn import PrxteinLigandMPNN
 
 def test_ligand_tied_sampling():
   key = jax.random.PRNGKey(0)

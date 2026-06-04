@@ -2,7 +2,7 @@
 from __future__ import annotations
 import jax.numpy as jnp
 import pytest
-from prxteinmpnn.tiling.strategy import Vmap, SafeMap, Scan, AxisStrategy
+from aminx.tiling.strategy import Vmap, SafeMap, Scan, AxisStrategy
 
 
 def test_vmap_is_frozen_dataclass():
@@ -37,7 +37,7 @@ def test_axis_strategy_union_isinstance():
 
 
 def test_scan_transition_protocol_conformance():
-    from prxteinmpnn.tiling.strategy import ScanTransition
+    from aminx.tiling.strategy import ScanTransition
     # A function with (carry, x) -> (carry, y) signature satisfies the protocol
     def my_transition(carry: int, x: int) -> tuple[int, int]:
         return carry + x, carry
@@ -45,7 +45,7 @@ def test_scan_transition_protocol_conformance():
 
 
 def test_dedup_gather_stores_fields():
-    from prxteinmpnn.tiling.strategy import DedupGather
+    from aminx.tiling.strategy import DedupGather
     import numpy as np
     unique_indices = np.array([0, 1], dtype=np.int32)
     index_map = np.array([0, 1, 0, 1], dtype=np.int32)
@@ -57,7 +57,7 @@ def test_dedup_gather_stores_fields():
 
 
 def test_dedup_gather_in_union():
-    from prxteinmpnn.tiling.strategy import DedupGather, AxisStrategy
+    from aminx.tiling.strategy import DedupGather, AxisStrategy
     import numpy as np
     unique_indices = np.array([0], dtype=np.int32)
     index_map = np.array([0, 0], dtype=np.int32)

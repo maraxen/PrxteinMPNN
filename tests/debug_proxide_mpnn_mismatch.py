@@ -5,9 +5,9 @@ import numpy as np
 from proxide import OutputSpec, parse_structure as parse_rust
 from proxide.core.containers import Protein
 
-from prxteinmpnn.utils.coordinates import compute_backbone_coordinates, compute_backbone_distance
-from prxteinmpnn.utils.radial_basis import compute_radial_basis
-from prxteinmpnn.model.features import top_k  # internal symbol
+from aminx.utils.coordinates import compute_backbone_coordinates, compute_backbone_distance
+from aminx.utils.radial_basis import compute_radial_basis
+from aminx.model.features import top_k  # internal symbol
 
 def run_debug(pdb_path: str):
     print(f"DEBUG: Analyzing {pdb_path}")

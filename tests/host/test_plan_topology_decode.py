@@ -10,16 +10,16 @@ import pytest
 import jax.numpy as jnp
 from unittest.mock import MagicMock
 
-from prxteinmpnn.host.plan import PlanTopologyError, _validate_plan_topology
-from prxteinmpnn.inference.decode.mode import (
+from aminx.host.plan import PlanTopologyError, _validate_plan_topology
+from aminx.inference.decode.mode import (
     ConditionalMode,
     UnconditionalMode,
     AutoregressiveMode,
     STEMode,
 )
-from prxteinmpnn.tiling.dispatch import DispatchRejected
-from prxteinmpnn.tiling.strategy import Scan
-from prxteinmpnn.types.stages import StageSet, UnconditionalDecodeStep
+from aminx.tiling.dispatch import DispatchRejected
+from aminx.tiling.strategy import Scan
+from aminx.types.stages import StageSet, UnconditionalDecodeStep
 
 
 # --- Rule 1: factory-level rejection with mode-name context ---
@@ -27,7 +27,7 @@ from prxteinmpnn.types.stages import StageSet, UnconditionalDecodeStep
 
 def test_factory_reject_conditional_mode_scan_includes_mode_name_and_heterogeneous():
     """ConditionalMode + Scan on state axis → DispatchRejected with mode name + heterogeneous."""
-    from prxteinmpnn.inference.decode.factory import make_decode_fn
+    from aminx.inference.decode.factory import make_decode_fn
 
     # Create a minimal stub model
     stub_model = MagicMock()
@@ -46,7 +46,7 @@ def test_factory_reject_conditional_mode_scan_includes_mode_name_and_heterogeneo
 
 def test_factory_reject_unconditional_mode_scan_includes_mode_name_and_heterogeneous():
     """UnconditionalMode + Scan on state axis → DispatchRejected with mode name + heterogeneous."""
-    from prxteinmpnn.inference.decode.factory import make_decode_fn
+    from aminx.inference.decode.factory import make_decode_fn
 
     stub_model = MagicMock()
 
@@ -64,7 +64,7 @@ def test_factory_reject_unconditional_mode_scan_includes_mode_name_and_heterogen
 
 def test_factory_reject_autoregressive_mode_scan_includes_mode_name_and_heterogeneous():
     """AutoregressiveMode + Scan on state axis → DispatchRejected with mode name + heterogeneous."""
-    from prxteinmpnn.inference.decode.factory import make_decode_fn
+    from aminx.inference.decode.factory import make_decode_fn
 
     stub_model = MagicMock()
 
@@ -82,7 +82,7 @@ def test_factory_reject_autoregressive_mode_scan_includes_mode_name_and_heteroge
 
 def test_factory_reject_ste_mode_scan_includes_mode_name_and_heterogeneous():
     """STEMode + Scan on state axis → DispatchRejected with mode name + heterogeneous."""
-    from prxteinmpnn.inference.decode.factory import make_decode_fn
+    from aminx.inference.decode.factory import make_decode_fn
 
     stub_model = MagicMock()
 
@@ -103,7 +103,7 @@ def test_factory_reject_ste_mode_scan_includes_mode_name_and_heterogeneous():
 
 def test_validator_rejects_ste_decode_with_unconditional_decode_step():
     """Validator rejects plan with STEDecode + UnconditionalDecodeStep on stage_set."""
-    from prxteinmpnn.inference.decode.ste import STEDecode
+    from aminx.inference.decode.ste import STEDecode
 
     # Build a minimal plan-like mock with decode_fn field
     plan = MagicMock()
@@ -121,8 +121,8 @@ def test_validator_rejects_ste_decode_with_unconditional_decode_step():
 
 def test_validator_allows_ste_decode_with_conditional_decode_step():
     """Validator allows plan with STEDecode + ConditionalDecodeStep (the correct pairing)."""
-    from prxteinmpnn.inference.decode.ste import STEDecode
-    from prxteinmpnn.types.stages import ConditionalDecodeStep
+    from aminx.inference.decode.ste import STEDecode
+    from aminx.types.stages import ConditionalDecodeStep
 
     plan = MagicMock()
 

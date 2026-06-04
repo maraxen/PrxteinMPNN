@@ -13,8 +13,8 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 
-from prxteinmpnn.host.plan import InferencePlan, InferenceComponents, make_inference_plan
-from prxteinmpnn.types.bundles import (
+from aminx.host.plan import InferencePlan, InferenceComponents, make_inference_plan
+from aminx.types.bundles import (
     InferenceBundle,
     GeometryBundle,
     ConditioningBundle,
@@ -23,9 +23,9 @@ from prxteinmpnn.types.bundles import (
     PackerBundle,
     PackerResult
 )
-from prxteinmpnn.inference.sample_autoregressive import SampleResult
-from prxteinmpnn.types.configs import InferenceConfig
-from prxteinmpnn.types.encodings import EncoderOutput
+from aminx.inference.sample_autoregressive import SampleResult
+from aminx.types.configs import InferenceConfig
+from aminx.types.encodings import EncoderOutput
 
 # Dummy/Mock Packer implementation for testing
 class DummyPacker(eqx.Module):

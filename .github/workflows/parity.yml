@@ -13,10 +13,10 @@ jobs:
       PYTHONDONTWRITEBYTECODE: 1
       PRXTEIN_PARITY_TIER: parity_heavy
     steps:
-      - name: Checkout PrxteinMPNN repository
+      - name: Checkout Aminx repository
         uses: actions/checkout@v4
         with:
-          path: prxteinmpnn
+          path: aminx
 
       - name: Checkout Reference LigandMPNN
         uses: actions/checkout@v4
@@ -37,14 +37,14 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd prxteinmpnn
+          cd aminx
           uv sync --extra cpu --extra dev --extra tests --group dev
 
       - name: Parity preflight
         env:
           REFERENCE_PATH: ${{ github.workspace }}/reference_ligandmpnn_clone
         run: |
-          cd prxteinmpnn
+          cd aminx
           uv run python scripts/check_parity_prereqs.py \
             --reference-path "$REFERENCE_PATH" \
             --project-root "." \
@@ -54,7 +54,7 @@ jobs:
         env:
           REFERENCE_PATH: ${{ github.workspace }}/reference_ligandmpnn_clone
         run: |
-          cd prxteinmpnn
+          cd aminx
           uv run python scripts/check_parity_assets.py --tier parity_heavy
           uv run pytest tests/parity/ tests/model/test_ligandmpnn_equivalence.py \
             -m "parity_heavy" --tb=short -v --junitxml=parity-heavy-report.xml
@@ -67,7 +67,7 @@ jobs:
           import json
           from pathlib import Path
 
-          root = Path("prxteinmpnn")
+          root = Path("aminx")
           matrix_manifest = root / "tests/parity/parity_matrix.json"
           assets_manifest = root / "tests/parity/parity_assets.json"
 
@@ -139,10 +139,10 @@ jobs:
           name: parity-heavy-artifacts
           retention-days: 14
           path: |
-            prxteinmpnn/parity-heavy-report.xml
-            prxteinmpnn/parity-heavy-summary.md
-            prxteinmpnn/parity-matrix-heavy.json
-            prxteinmpnn/parity-matrix-heavy.md
-            prxteinmpnn/parity-heavy-checksums.txt
-            prxteinmpnn/tests/parity/parity_matrix.json
-            prxteinmpnn/tests/parity/parity_assets.json
+            aminx/parity-heavy-report.xml
+            aminx/parity-heavy-summary.md
+            aminx/parity-matrix-heavy.json
+            aminx/parity-matrix-heavy.md
+            aminx/parity-heavy-checksums.txt
+            aminx/tests/parity/parity_matrix.json
+            aminx/tests/parity/parity_assets.json

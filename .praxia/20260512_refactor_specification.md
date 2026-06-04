@@ -7,7 +7,7 @@
 **Scope from oracle:**
 - Rename PipelineFns → StageSet, add featurize_uid, encode_uid, decode_uid
 - Add register_featurize_fn, register_encode_fn, register_decode_fn to registry
-- Refactor model methods (PrxteinMPNN.score_*_from_payload) to resolve stages
+- Refactor model methods (Aminx.score_*_from_payload) to resolve stages
 - Add Model.stage_schema() classmethod per variant
 - Thread encoder_state_fn through LigandMPNN.score_conditional
 - Update executors to validate stage_set against schema
@@ -65,7 +65,7 @@ def stage_schema(cls) -> dict[str, type]:
     }
 ```
 
-### 5. Model method refactoring (PrxteinMPNN + PrxteinLigandMPNN)
+### 5. Model method refactoring (Aminx + PrxteinLigandMPNN)
 - `score_unconditional_from_payload(payload, stage_set: StageSet, ...)`
 - `score_conditional_from_payload(payload, stage_set: StageSet, ...)`
 - `sample_autoregressive_from_payload(payload, stage_set: StageSet, ...)`

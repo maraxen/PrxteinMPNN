@@ -19,7 +19,7 @@ jax.config.update("jax_enable_x64", True)
 print(f"JAX Backend: {jax.lib.xla_bridge.get_backend().platform}")  # type: ignore[possibly-missing-attribute]
 
 # 2. Check Data Directory
-DATA_DIR = Path("src/prxteinmpnn/training/data/pdb_2021aug02")
+DATA_DIR = Path("src/aminx/training/data/pdb_2021aug02")
 files = list(DATA_DIR.rglob("*.pt"))
 print(f"Found {len(files)} .pt files in {DATA_DIR.absolute()}")
 
@@ -43,8 +43,8 @@ try:
     
     # Imports that might be crashing workers
     print("\n--- Testing Imports ---")
-    from prxteinmpnn.physics.force_fields import load_force_field_from_hub
-    from prxteinmpnn.io.parsing.mappings import string_to_protein_sequence
+    from aminx.physics.force_fields import load_force_field_from_hub
+    from aminx.io.parsing.mappings import string_to_protein_sequence
     
     # Force Field Load
     print("Loading Force Field...")

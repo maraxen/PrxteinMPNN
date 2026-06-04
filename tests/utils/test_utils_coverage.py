@@ -1,4 +1,4 @@
-"""Comprehensive unit tests for prxteinmpnn.utils modules with 0% or low coverage.
+"""Comprehensive unit tests for aminx.utils modules with 0% or low coverage.
 
 This file provides tests for:
 - aa_convert.py (0%)
@@ -19,23 +19,23 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from prxteinmpnn.utils import gelu, normalize, safe_map, ste
-from prxteinmpnn.utils.autoregression import (
+from aminx.utils import gelu, normalize, safe_map, ste
+from aminx.utils.autoregression import (
     generate_ar_mask,
     get_decoding_step_map,
     make_autoregressive_mask,
     resolve_tie_groups,
 )
-from prxteinmpnn.utils.coordinates import (
+from aminx.utils.coordinates import (
     apply_noise_to_coordinates,
     compute_backbone_coordinates,
     compute_c_beta,
 )
-from prxteinmpnn.utils.decoding_order import (
+from aminx.utils.decoding_order import (
     random_decoding_order,
     single_decoding_order,
 )
-from prxteinmpnn.utils.entropy import (
+from aminx.utils.entropy import (
     mle_entropy,
     posterior_entropy_mean,
     posterior_entropy_moments,
@@ -586,7 +586,7 @@ class TestSTEGradients(chex.TestCase):
 )
 def test_af_to_mpnn_conversion():
     """Test AlphaFold to ProteinMPNN alphabet conversion."""
-    from prxteinmpnn.utils.aa_convert import af_to_mpnn
+    from aminx.utils.aa_convert import af_to_mpnn
 
     # AF sequence (indices in AF alphabet)
     af_seq = jnp.array([0, 1, 2, 3, 4], dtype=jnp.int32)
@@ -602,7 +602,7 @@ def test_af_to_mpnn_conversion():
 )
 def test_mpnn_to_af_conversion():
     """Test ProteinMPNN to AlphaFold alphabet conversion."""
-    from prxteinmpnn.utils.aa_convert import mpnn_to_af
+    from aminx.utils.aa_convert import mpnn_to_af
 
     # MPNN sequence (indices in MPNN alphabet)
     mpnn_seq = jnp.array([0, 1, 2, 3, 4], dtype=jnp.int32)
@@ -618,7 +618,7 @@ def test_mpnn_to_af_conversion():
 )
 def test_round_trip_conversion():
     """Test round-trip conversion preserves sequence."""
-    from prxteinmpnn.utils.aa_convert import af_to_mpnn, mpnn_to_af
+    from aminx.utils.aa_convert import af_to_mpnn, mpnn_to_af
 
     original = jnp.array([0, 5, 10, 15, 20], dtype=jnp.int32)
 
@@ -638,7 +638,7 @@ def test_round_trip_conversion():
 )
 def test_string_key_to_index_basic():
     """Test string_key_to_index conversion."""
-    from prxteinmpnn.utils.aa_convert import string_key_to_index
+    from aminx.utils.aa_convert import string_key_to_index
 
     string_keys = np.array(["A", "C", "G", "X"])
     key_map = {"A": 0, "C": 1, "G": 2}
@@ -657,7 +657,7 @@ def test_string_key_to_index_basic():
 )
 def test_string_key_to_index_all_known():
     """Test string_key_to_index with all known keys."""
-    from prxteinmpnn.utils.aa_convert import string_key_to_index
+    from aminx.utils.aa_convert import string_key_to_index
 
     string_keys = np.array(["A", "B", "C"])
     key_map = {"A": 10, "B": 20, "C": 30}
@@ -675,7 +675,7 @@ def test_string_key_to_index_all_known():
 
 def test_compute_wave_assignments_basic():
     """Test compute_wave_assignments with small input."""
-    from prxteinmpnn.utils.wave_parallel import compute_wave_assignments
+    from aminx.utils.wave_parallel import compute_wave_assignments
 
     # Small synthetic test case: 4 canonical positions
     n_canonical = 4
@@ -720,7 +720,7 @@ def test_compute_wave_assignments_basic():
 
 def test_compute_wave_assignments_outputs_valid():
     """Test compute_wave_assignments output validity."""
-    from prxteinmpnn.utils.wave_parallel import compute_wave_assignments
+    from aminx.utils.wave_parallel import compute_wave_assignments
 
     n_canonical = 6
     ca_coords = jnp.zeros((n_canonical, 4, 3))

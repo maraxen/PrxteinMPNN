@@ -46,7 +46,7 @@ The mechanism (`xs[unique_indices]` gather in-trace, `ys_unique[index_map]` scat
 
 ### Task 1: `DedupFn`, `GatherFn` protocols and `DedupGather` dataclass in `strategy.py`
 
-Add to `src/prxteinmpnn/tiling/strategy.py`:
+Add to `src/aminx/tiling/strategy.py`:
 1. `DedupFn` protocol — `(xs: PyTree, unique_indices: Int[Array, "K"]) -> PyTree`. Default: `jax.tree.map(lambda x: x[unique_indices], xs)`. JIT-compatible static gather; called in-trace.
 2. `GatherFn` protocol — `(ys_unique: PyTree, index_map: Int[Array, "N"]) -> PyTree`. Default: `jax.tree.map(lambda y: y[index_map], ys_unique)`. JIT-compatible scatter; in-trace.
 3. `DedupGather` frozen `@dataclass`:
@@ -78,7 +78,7 @@ In `BatchPlanner.plan()` (`planner.py:115`): post-phase validation pass — for 
 
 ### Task 2b: `DedupSpec` and K-bucketing in `dedup.py`
 
-Create `src/prxteinmpnn/tiling/dedup.py`.
+Create `src/aminx/tiling/dedup.py`.
 
 ```python
 @dataclass(frozen=True)
@@ -122,7 +122,7 @@ if isinstance(strategy, DedupGather):
     ys_unique  = _safe_map(body, xs_unique, batch_size=None)  # K_bucket runs
     return strategy.gather_fn(ys_unique, index_map)      # in-trace scatter
 ```
-**xs contract (fix E):** for the structure axis, `xs` into `_dispatch_axis` is `jnp.arange(batch_size)` (integer indices; `kernel_dispatch.py:225/317/382/466`). Default gather yields `jnp.arange(batch_size)[unique_indices]` = K_bucket unique integer indices; the body indexes `batched_ensemble[structure_idx]` inside its closure. Scatter `ys_unique[index_map]` broadcasts to N. Use the real `_safe_map` (`src/prxteinmpnn/utils/safe_map.py`), not a reimplementation.
+**xs contract (fix E):** for the structure axis, `xs` into `_dispatch_axis` is `jnp.arange(batch_size)` (integer indices; `kernel_dispatch.py:225/317/382/466`). Default gather yields `jnp.arange(batch_size)[unique_indices]` = K_bucket unique integer indices; the body indexes `batched_ensemble[structure_idx]` inside its closure. Scatter `ys_unique[index_map]` broadcasts to N. Use the real `_safe_map` (`src/aminx/utils/safe_map.py`), not a reimplementation.
 
 **Site 2 — `tiling/dispatch.py:make_axis_dispatch` (67-74)**: add explicit arm raising `DispatchRejected` (DedupGather is handled by `_dispatch_axis`, doesn't map to an iterator) — prevents the `raise TypeError` fallthrough at line 74.
 
@@ -144,11 +144,11 @@ if isinstance(strategy, DedupGather):
 
 ### Task 5: Exports
 Export `DedupGather`, `DedupSpec`, `DedupFn`, `GatherFn`, `K_DEDUP_BUCKETS`, `get_k_bucket` from `tiling/__init__.py`. Add `DedupGather` to `__all__` in `strategy.py` (line 75); update module docstring (four strategies). `DedupBundle` NOT exported (dropped).
-**Gate:** `python -c "from prxteinmpnn.tiling.strategy import DedupGather; from prxteinmpnn.tiling.dedup import DedupSpec, get_k_bucket"` exits 0. **Ordering:** After 1, 2b.
+**Gate:** `python -c "from aminx.tiling.strategy import DedupGather; from aminx.tiling.dedup import DedupSpec, get_k_bucket"` exits 0. **Ordering:** After 1, 2b.
 
 ### Task 6: Type-check + lint
 `uv run ty check` + `uv run ruff check .` over modified/created files; Protocols satisfy ty strict; `np.ndarray` fields typed precisely.
-**Gate:** `uv run ty check && uv run ruff check src/prxteinmpnn/tiling/ src/prxteinmpnn/host/kernel_dispatch.py src/prxteinmpnn/tiling/dispatch.py tests/tiling/test_dedup_gather.py` exits 0. **Ordering:** last.
+**Gate:** `uv run ty check && uv run ruff check src/aminx/tiling/ src/aminx/host/kernel_dispatch.py src/aminx/tiling/dispatch.py tests/tiling/test_dedup_gather.py` exits 0. **Ordering:** last.
 
 ---
 

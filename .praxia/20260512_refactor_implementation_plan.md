@@ -7,18 +7,18 @@ Implement ModelInputs protocol migration and executor integration across 7 atomi
 ## Context
 
 **Affected Files:**
-- `prxteinmpnn/src/model_inputs.py` — Tier 1/2 protocol definitions (Fixer 1)
-- `prxteinmpnn/src/protocols.py` — TransformFn, FeaturizeFn aliases (Fixer 1)
-- `prxteinmpnn/src/pipeline_fns.py` — Registry extensions (Fixer 2)
-- `prxteinmpnn/src/pipeline_registry.py` — StageSet, PipelineFns shim (Fixer 2)
-- `prxteinmpnn/src/model/mpnn.py` — Model.stage_schema() impl (Fixer 3)
-- `prxteinmpnn/src/model/ligand_mpnn.py` — Model.stage_schema() + encoder_state_fn (Fixer 3, Fixer 5)
-- `prxteinmpnn/src/executor/base.py` — Executor.stage_set wiring (Fixer 4)
-- `prxteinmpnn/src/executor/*.py` — 3 executor implementations (Fixer 4)
-- `prxteinmpnn/src/mpnn_scoring_state_vmap_exact_ligand.py` — encoder_state_fn refactor (Fixer 5)
-- `prxteinmpnn/tests/model/test_stageset.py` — New StageSet unit tests (Fixer 6)
-- `prxteinmpnn/tests/executor/test_executor_integration.py` — Executor integration tests (Fixer 6)
-- `prxteinmpnn/tests/parity/test_*.py` — Parity test migration (Fixer 7)
+- `aminx/src/model_inputs.py` — Tier 1/2 protocol definitions (Fixer 1)
+- `aminx/src/protocols.py` — TransformFn, FeaturizeFn aliases (Fixer 1)
+- `aminx/src/pipeline_fns.py` — Registry extensions (Fixer 2)
+- `aminx/src/pipeline_registry.py` — StageSet, PipelineFns shim (Fixer 2)
+- `aminx/src/model/mpnn.py` — Model.stage_schema() impl (Fixer 3)
+- `aminx/src/model/ligand_mpnn.py` — Model.stage_schema() + encoder_state_fn (Fixer 3, Fixer 5)
+- `aminx/src/executor/base.py` — Executor.stage_set wiring (Fixer 4)
+- `aminx/src/executor/*.py` — 3 executor implementations (Fixer 4)
+- `aminx/src/mpnn_scoring_state_vmap_exact_ligand.py` — encoder_state_fn refactor (Fixer 5)
+- `aminx/tests/model/test_stageset.py` — New StageSet unit tests (Fixer 6)
+- `aminx/tests/executor/test_executor_integration.py` — Executor integration tests (Fixer 6)
+- `aminx/tests/parity/test_*.py` — Parity test migration (Fixer 7)
 
 ## Phases & Dependencies
 
@@ -30,7 +30,7 @@ Implement ModelInputs protocol migration and executor integration across 7 atomi
 - Complexity: medium
 - Effort: ~120 LOC, ~1.5 hours
 - Depends on: none
-- Verification: `pytest prxteinmpnn/tests/ -k 'not parity_heavy' -q` (no import errors); `mypy prxteinmpnn/src/{model_inputs,protocols}.py` (clean)
+- Verification: `pytest aminx/tests/ -k 'not parity_heavy' -q` (no import errors); `mypy aminx/src/{model_inputs,protocols}.py` (clean)
 
 ### Phase 2: Registry & StageSet (Unblock Model & Executor) — Fixer 2.1
 **Objective:** Extend registry to support StageSet and PipelineFns shim.
@@ -40,7 +40,7 @@ Implement ModelInputs protocol migration and executor integration across 7 atomi
 - Complexity: medium
 - Effort: ~180 LOC, ~2 hours
 - Depends on: Fixer 1.1
-- Verification: `pytest prxteinmpnn/tests/ -k 'not parity_heavy' -q`; `mypy prxteinmpnn/src/pipeline_*.py` (clean)
+- Verification: `pytest aminx/tests/ -k 'not parity_heavy' -q`; `mypy aminx/src/pipeline_*.py` (clean)
 
 **⚠️ FIX #1 (Fixer 4.1 parallelization):** Explicitly state whether Fixer 4.1 includes validation against Model.stage_schema(). **This step ONLY wires the stage_set field onto the executor base class; validation lives in Fixer 4.2.** If validation happens in 4.1, add dependency edge Fixer 3 → Fixer 4.1.
 
@@ -52,14 +52,14 @@ Implement ModelInputs protocol migration and executor integration across 7 atomi
 - Complexity: medium
 - Effort: ~60 LOC, ~1 hour
 - Depends on: Fixer 2.1
-- Verification: `pytest prxteinmpnn/tests/model/ -k 'not parity_heavy' -q`
+- Verification: `pytest aminx/tests/model/ -k 'not parity_heavy' -q`
 
 **Task 3.2:** Implement Model.stage_schema() in LigandMPNN class (encoder_state_fn placeholder).
 - Files: `ligand_mpnn.py`
 - Complexity: medium
 - Effort: ~60 LOC, ~1 hour
 - Depends on: Fixer 2.1
-- Verification: `pytest prxteinmpnn/tests/model/ -k 'test_ligand' -q`
+- Verification: `pytest aminx/tests/model/ -k 'test_ligand' -q`
 
 ### Phase 4: Executor Wiring (Parallel with Model, Follows Registry) — Fixers 4.1 & 4.2
 **Objective:** Wire Executor.stage_set parameter and validate stage names.
@@ -69,7 +69,7 @@ Implement ModelInputs protocol migration and executor integration across 7 atomi
 - Complexity: high
 - Effort: ~60 LOC, ~1.5 hours
 - Depends on: Fixer 2.1
-- Verification: `pytest prxteinmpnn/tests/executor/ -k 'not integration' -q`
+- Verification: `pytest aminx/tests/executor/ -k 'not integration' -q`
 - **Note:** Does NOT call or validate against Model.stage_schema(). All validation logic lives in Fixer 4.2.
 
 **Task 4.2:** Implement stage_set wiring for 3 executor variants.
@@ -77,7 +77,7 @@ Implement ModelInputs protocol migration and executor integration across 7 atomi
 - Complexity: medium
 - Effort: ~100 LOC, ~1.5 hours
 - Depends on: Fixer 4.1
-- Verification: `pytest prxteinmpnn/tests/executor/ -k 'not integration' -q`
+- Verification: `pytest aminx/tests/executor/ -k 'not integration' -q`
 
 **⚠️ FIX #2 (PipelineFns backward-compatibility):** Add explicit guarantee: **All existing public methods (default(), from_callables(), resolve_logit_transform(), resolve_ar_logit_transform(), resolve_encoder_state_fn()) are preserved with identical signatures and return types. No breaking changes to the public API.** If any method changes, add Fixer 2b to update all consumer call sites.
 
@@ -89,14 +89,14 @@ Implement ModelInputs protocol migration and executor integration across 7 atomi
 - Complexity: high
 - Effort: ~70 LOC, ~1.5 hours
 - Depends on: Fixer 3.2, Fixer 4.2
-- Verification: `pytest prxteinmpnn/tests/model/ -k 'ligand' -q`
+- Verification: `pytest aminx/tests/model/ -k 'ligand' -q`
 
 **Task 5.2:** Update encoder_state_fn call site in scoring vmap.
 - Files: `mpnn_scoring_state_vmap_exact_ligand.py`
 - Complexity: medium
 - Effort: ~50 LOC, ~1 hour
 - Depends on: Fixer 5.1
-- Verification: `pytest prxteinmpnn/tests/sampling/test_state_vmap_exact_jit.py -q` (no regression)
+- Verification: `pytest aminx/tests/sampling/test_state_vmap_exact_jit.py -q` (no regression)
 
 ### Phase 6: Test Suite Expansion — Fixers 6.1 & 6.2
 **Objective:** Add StageSet unit tests and Executor integration tests.
@@ -106,14 +106,14 @@ Implement ModelInputs protocol migration and executor integration across 7 atomi
 - Complexity: medium
 - Effort: ~80 LOC, ~1.5 hours
 - Depends on: Fixer 2.1
-- Verification: `pytest prxteinmpnn/tests/model/test_stageset.py -v` (coverage >90%)
+- Verification: `pytest aminx/tests/model/test_stageset.py -v` (coverage >90%)
 
 **Task 6.2:** Create Executor integration test suite.
 - Files: `tests/executor/test_executor_integration.py` (new)
 - Complexity: medium
 - Effort: ~100 LOC, ~2 hours
 - Depends on: Fixer 4.2, Fixer 3.2
-- Verification: `pytest prxteinmpnn/tests/executor/test_executor_integration.py -v` (coverage >85%)
+- Verification: `pytest aminx/tests/executor/test_executor_integration.py -v` (coverage >85%)
 
 **⚠️ FIX #3 (Tier 1/Tier 2 mapping):** Add explicit mapping table:
 - `LogitTransformFn = FuseFn[Float[Array, "S L V"], Float[Array, "L V"]]` (reduce across S)
@@ -128,7 +128,7 @@ Implement ModelInputs protocol migration and executor integration across 7 atomi
 - Complexity: medium
 - Effort: ~80 LOC, ~1.5 hours
 - Depends on: Fixer 5.2, Fixer 6.2
-- Verification: `pytest prxteinmpnn/tests/parity/ -m parity_heavy -v` (all pass within tolerance atol=1e-5)
+- Verification: `pytest aminx/tests/parity/ -m parity_heavy -v` (all pass within tolerance atol=1e-5)
 
 **⚠️ FIX #4 (LOC delta reconciliation):** Spec LOC estimate (250-400 LOC, excludes docstrings/type stubs/comments) is narrower than plan LOC (~870 LOC, which includes full docstrings, type annotations, and error messages). Discrepancy source:
 - Spec LOC is conservative (doesn't include docstrings, type stubs, comments)
@@ -141,8 +141,8 @@ Implement ModelInputs protocol migration and executor integration across 7 atomi
 - Any cloudpickle-hashed UID keys registered during test
 
 **⚠️ FIX #6 (Parity baseline capture):** Add pre-flight step to pre_flight_checklist:
-- `[ ] PYTHONPATH=prxteinmpnn/src uv run pytest prxteinmpnn/tests/parity/ -q 2>&1 | tee /tmp/parity_baseline.log` (baseline parity pass before Fixer 1 starts)
-- Before Fixer 7 merge: `pytest prxteinmpnn/tests/parity/ -q 2>&1 | diff /tmp/parity_baseline.log -` (must be identical within atol=1e-5)
+- `[ ] PYTHONPATH=aminx/src uv run pytest aminx/tests/parity/ -q 2>&1 | tee /tmp/parity_baseline.log` (baseline parity pass before Fixer 1 starts)
+- Before Fixer 7 merge: `pytest aminx/tests/parity/ -q 2>&1 | diff /tmp/parity_baseline.log -` (must be identical within atol=1e-5)
 
 ## Parallel Execution Groups
 
@@ -181,17 +181,17 @@ Group 7: [7.1]                  (depends on 5.2+6.2)
 
 - [ ] `git status` clean; no staged or unstaged changes
 - [ ] `git log` shows latest main commit
-- [ ] `PYTHONPATH=prxteinmpnn/src; uv run pytest prxteinmpnn/tests/sampling/ -k 'not parity_heavy' -q` passes (baseline green)
-- [ ] `mypy prxteinmpnn/src/ --no-error-summary` returns 0 errors (baseline clean)
+- [ ] `PYTHONPATH=aminx/src; uv run pytest aminx/tests/sampling/ -k 'not parity_heavy' -q` passes (baseline green)
+- [ ] `mypy aminx/src/ --no-error-summary` returns 0 errors (baseline clean)
 - [ ] No local branch; main is checked out and up-to-date with origin/main
 - [ ] `.praxia/` directory exists and is writable (for OODA log)
-- [ ] `prxteinmpnn/tests/model/`, `tests/executor/`, `tests/parity/` directories exist
-- [ ] **NEW:** `PYTHONPATH=prxteinmpnn/src uv run pytest prxteinmpnn/tests/parity/ -q 2>&1 | tee /tmp/parity_baseline.log` (baseline parity pass before Fixer 1)
+- [ ] `aminx/tests/model/`, `tests/executor/`, `tests/parity/` directories exist
+- [ ] **NEW:** `PYTHONPATH=aminx/src uv run pytest aminx/tests/parity/ -q 2>&1 | tee /tmp/parity_baseline.log` (baseline parity pass before Fixer 1)
 
 ## Go/No-Go Criteria
 
 - All 7 fixers committed with passing CI (mypy, pytest, coverage thresholds)
-- Zero mypy errors in `prxteinmpnn/src/`
+- Zero mypy errors in `aminx/src/`
 - All automated test suites green (smoke, model, executor, parity)
 - Executor + Model.stage_schema() contract verified: identical inputs → identical outputs vs direct model call
 - Code review approval on Fixer 5 (encoder_state_fn refactor) and Fixer 7 (parity migration)

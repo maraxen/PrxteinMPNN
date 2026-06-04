@@ -591,8 +591,8 @@ def main():
     parser.add_argument(
         "--pdb-dir",
         type=Path,
-        default=Path("prxteinmpnn/tests/data"),
-        help="Directory containing PDB files (default: prxteinmpnn/tests/data)",
+        default=Path("aminx/tests/data"),
+        help="Directory containing PDB files (default: aminx/tests/data)",
     )
     parser.add_argument(
         "--output-json",

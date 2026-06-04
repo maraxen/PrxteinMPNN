@@ -4,9 +4,9 @@ import chex
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.run.specs import RunSpecification
-from prxteinmpnn.utils.autoregression import generate_ar_mask, resolve_tie_groups
-from prxteinmpnn.utils.data_structures import Protein
+from aminx.run.specs import RunSpecification
+from aminx.utils.autoregression import generate_ar_mask, resolve_tie_groups
+from aminx.utils.data_structures import Protein
 
 
 def make_input(chain_id, residue_index):

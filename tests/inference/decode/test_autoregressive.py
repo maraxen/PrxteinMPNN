@@ -21,22 +21,22 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-from prxteinmpnn.inference.decode.autoregressive import AutoregressiveDecode
-from prxteinmpnn.inference.encode import make_encode_fn
-from prxteinmpnn.inference.logits import make_stage_set
-from prxteinmpnn.model import PrxteinMPNN
-from prxteinmpnn.tiling.carry_shape import CarryShape
-from prxteinmpnn.tiling.iterator import VmapIterator, SafeMapIterator, JaxScanIterator
-from prxteinmpnn.types.bundles import InferenceBundle, WaveScheduleBundle
-from prxteinmpnn.types.configs import InferenceConfig
+from aminx.inference.bundle_builder import build_inference_bundle
+from aminx.inference.decode.autoregressive import AutoregressiveDecode
+from aminx.inference.encode import make_encode_fn
+from aminx.inference.logits import make_stage_set
+from aminx.model import Aminx
+from aminx.tiling.carry_shape import CarryShape
+from aminx.tiling.iterator import VmapIterator, SafeMapIterator, JaxScanIterator
+from aminx.types.bundles import InferenceBundle, WaveScheduleBundle
+from aminx.types.configs import InferenceConfig
 
 
 def _build_synthetic_fixture(
     num_states: int = 1,
     num_residues: int = 8,
     seed: int = 42,
-) -> tuple[PrxteinMPNN, InferenceBundle, InferenceConfig]:
+) -> tuple[Aminx, InferenceBundle, InferenceConfig]:
     """Build deterministic AR fixture with S=num_states, L=num_residues.
 
     Returns: (model, bundle, config)
@@ -45,7 +45,7 @@ def _build_synthetic_fixture(
     jax_key = jax.random.PRNGKey(seed)
 
     # Build model
-    model = PrxteinMPNN(
+    model = Aminx(
         node_features=64,
         edge_features=64,
         hidden_features=64,

@@ -1,8 +1,8 @@
 <!-- Use this file to provide workspace-specific custom instructions to Copilot. For more details, visit https://code.visualstudio.com/docs/copilot/copilot-customization#_use-a-githubcopilotinstructionsmd-file -->
 
-# PrxteinMPNN Copilot Instructions
+# Aminx Copilot Instructions
 
-These instructions guide Copilot in understanding the codebase, adhering to best practices, and contributing effectively to the "PrxteinMPNN" project.
+These instructions guide Copilot in understanding the codebase, adhering to best practices, and contributing effectively to the "Aminx" project.
 
 ## 1. Project Overview and Goals
 
@@ -97,7 +97,7 @@ def test_example_function():
 * **Test Performance:** Ensure tests run efficiently, especially for performance-critical components. Use `pytest-benchmark` or the JAX equivalent `jax.benchmark` for performance testing where applicable.
 
 ### E. Code Structure & Modularity
-* **Modularity:** Maintain the modular structure within the `src/prxteinmpnn/` directory (e.g., `sampling/`, `scoring/`, `utils/`).
+* **Modularity:** Maintain the modular structure within the `src/aminx/` directory (e.g., `sampling/`, `scoring/`, `utils/`).
 * **DRY Principle:** Adhere to the "Don't Repeat Yourself" (DRY) principle. Refactor common logic into reusable functions or modules.
 * **Dependencies:** Avoid adding unnecessary external dependencies. Keep `requirements.txt` minimal and up-to-date.
 * **Documentation:** Ensure all functions, classes, and complex logic are well-documented with clear docstrings and comments.

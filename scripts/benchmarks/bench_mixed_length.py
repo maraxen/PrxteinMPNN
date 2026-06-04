@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """GPU benchmark for SafeMap heterogeneous batch (mixed-length) inference.
 
-Measures the performance of prxteinmpnn's SafeMap dispatcher on a heterogeneous batch
+Measures the performance of aminx's SafeMap dispatcher on a heterogeneous batch
 containing structures with variable sequence lengths, compared to PyTorch baselines:
   - Padded to max length (batch_size=4, all sequences padded to L=max)
   - Sequential per-length (4 separate model calls, one per length)
@@ -60,7 +60,7 @@ _PDB_MAP: dict[int, str] = {
     500: "1SMD.pdb",
 }
 
-# Default PDB directory relative to the prxteinmpnn package root
+# Default PDB directory relative to the aminx package root
 _DEFAULT_PDB_DIR = Path(__file__).parents[2] / "tests" / "data"
 
 
@@ -199,7 +199,7 @@ def load_model(
     checkpoint_id: str | None = None,
 ) -> Any:
     """Load pre-trained model via io.weights.load_model."""
-    from prxteinmpnn.io.weights import load_model as _load
+    from aminx.io.weights import load_model as _load
 
     effective_id = checkpoint_id or _DEFAULT_CHECKPOINT_ID
     key = random.PRNGKey(42)
@@ -219,7 +219,7 @@ def load_model(
 
 def create_inference_plan(model: Any, spec: _BenchmarkSpec | None = None) -> Any:
     """Create InferencePlan from model for score_conditional task."""
-    from prxteinmpnn.host.plan import make_inference_plan
+    from aminx.host.plan import make_inference_plan
 
     if spec is None:
         spec = _BenchmarkSpec()
@@ -620,8 +620,8 @@ def benchmark_safe_map_mixed_batch(
       - mixed_batch_latency_ms: total latency
       - per_residue_throughput: residues/second
     """
-    from prxteinmpnn.inference.bundle_builder import build_inference_bundle
-    from prxteinmpnn.tiling.bucketing import BucketingConfig
+    from aminx.inference.bundle_builder import build_inference_bundle
+    from aminx.tiling.bucketing import BucketingConfig
 
     _BUCKET_CFG = BucketingConfig()
 
@@ -783,7 +783,7 @@ def main() -> int:
         return 0
 
     # Load model
-    logger.info("Loading prxteinmpnn model...")
+    logger.info("Loading aminx model...")
     try:
         model = load_model()
     except Exception as e:  # noqa: BLE001  # graceful degradation: benchmark skipped if unavailable

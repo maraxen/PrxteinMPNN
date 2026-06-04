@@ -1,4 +1,4 @@
-"""Tests for prxteinmpnn.inference.decode._kernel module.
+"""Tests for aminx.inference.decode._kernel module.
 
 Golden-snapshot tests for pure kernel helpers extracted from driver.py
 and optimize_ste.py. Each test verifies the extracted function matches
@@ -10,16 +10,16 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.model import PrxteinMPNN
-from prxteinmpnn.inference.decode._kernel import (
+from aminx.model import Aminx
+from aminx.inference.decode._kernel import (
     _decode_one_step,
     _project_logits,
     _tied_group_einsum_average,
 )
-from prxteinmpnn.types.bundles import EncoderOutput, ConditioningBundle
-from prxteinmpnn.types.configs import InferenceConfig
-from prxteinmpnn.types.stages import StageSet
-from prxteinmpnn.inference.logits import ArithmeticMeanLogits
+from aminx.types.bundles import EncoderOutput, ConditioningBundle
+from aminx.types.configs import InferenceConfig
+from aminx.types.stages import StageSet
+from aminx.inference.logits import ArithmeticMeanLogits
 
 
 class TestDecodeOneStep:
@@ -77,7 +77,7 @@ class TestProjectLogits:
         self, mock_model_parameters, model_inputs, rng_key
     ):
         """_project_logits projects (S, L, H) -> (S, L, V)."""
-        model = PrxteinMPNN(
+        model = Aminx(
             node_features=128,
             edge_features=128,
             hidden_features=128,
@@ -103,7 +103,7 @@ class TestProjectLogits:
         self, mock_model_parameters, model_inputs, rng_key
     ):
         """_project_logits works with S > 1."""
-        model = PrxteinMPNN(
+        model = Aminx(
             node_features=128,
             edge_features=128,
             hidden_features=128,

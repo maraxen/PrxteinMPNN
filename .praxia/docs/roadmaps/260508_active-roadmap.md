@@ -1,4 +1,4 @@
-# prxteinmpnn Active Roadmap
+# aminx Active Roadmap
 
 > **Replaces:** `.agents/REFACTOR_ROADMAP.md` (deprecated 2026-05-08 — phases 0–6 complete).
 > **Last updated:** 2026-06-02
@@ -25,11 +25,11 @@
 
 ### A. MODELINPUTS PR-4 — Push `model.__call__` boundary
 
-**Goal:** `PrxteinMPNN.__call__(self, inputs: SamplingInputs) -> (OneHot, Logits)` — all three branch methods accept `SamplingInputs` as a single pytree, not positional arrays.
+**Goal:** `Aminx.__call__(self, inputs: SamplingInputs) -> (OneHot, Logits)` — all three branch methods accept `SamplingInputs` as a single pytree, not positional arrays.
 
 **Why:** Eliminates the remaining 5-7 positional array unpacking at the model call site; enables `jax.lax.switch` on a single pytree operand; required before PR-5 StableHLO export.
 
-**Files:** `src/prxteinmpnn/model/mpnn.py`, `src/prxteinmpnn/model/ligand_mpnn.py`
+**Files:** `src/aminx/model/mpnn.py`, `src/aminx/model/ligand_mpnn.py`
 
 **Reference:** `.praxia/REFACTOR_MODELINPUTS.md §PR-4`
 
@@ -54,7 +54,7 @@
 - `EncoderPreFn`: `(BackboneGeometryStack, state_index) -> FeaturesInput` — inserted before `self.features(...)` call in the encoder.
 - `EncoderPostFn`: `(EncoderOutput, state_index) -> EncoderOutput` — inserted after the encoder returns `(node_features, edge_features, neighbor_indices, mask)`.
 
-**Files:** `src/prxteinmpnn/model/mpnn.py` (encoder call site), `src/prxteinmpnn/model/ligand_mpnn.py`
+**Files:** `src/aminx/model/mpnn.py` (encoder call site), `src/aminx/model/ligand_mpnn.py`
 
 **Why now:** Needed for cosine-similarity multistate residue scoring (EncoderPostFn) and custom node-feature initialization (EncoderPreFn). Protocols + registry are already in place.
 
@@ -64,7 +64,7 @@
 
 **Goal:** `multi_state_temperature` is a geometric-mean logit-combination parameter. With `LogitTransformFn` now in place, it should be captured in the transform closure rather than threaded through every `_from_payload` signature. Remove it from the public method signatures and the `score_*_from_payload` / `sample_*_from_payload` aliases; have callers encode it in their registered `LogitTransformFn`.
 
-**Files:** `src/prxteinmpnn/model/mpnn.py`, `src/prxteinmpnn/model/ligand_mpnn.py`, `src/prxteinmpnn/pipeline/unconditional.py`, `src/prxteinmpnn/pipeline/conditional.py`
+**Files:** `src/aminx/model/mpnn.py`, `src/aminx/model/ligand_mpnn.py`, `src/aminx/pipeline/unconditional.py`, `src/aminx/pipeline/conditional.py`
 
 **Note:** Only remove from the `_from_payload` / pipeline-facing surface. The inner scan path still uses it; leave that untouched until the multistate scan path is also Pipeline-ized.
 
@@ -76,7 +76,7 @@
 
 **Goal:** The BatchPlanner/safe\_map dispatch was wired for sampling (`n_structures`) and scoring, but jacobian and conformational inference paths were explicitly deferred. Apply the same pattern.
 
-**Files:** `src/prxteinmpnn/run/jacobian.py`, `src/prxteinmpnn/run/conformational_inference.py`
+**Files:** `src/aminx/run/jacobian.py`, `src/aminx/run/conformational_inference.py`
 
 **Reference:** Phase 6 deferred items in session history.
 
@@ -84,7 +84,7 @@
 
 ### F. Phase 6 Track B — Proxide/Prolix migration + deprecation shim removal
 
-**Goal:** Migrate structure/IO utilities duplicated between `prxteinmpnn` and `proxide` to proxide. Migrate trajectory/MD wrappers to prolix. Remove the `RunSpecification` deprecation shims added in Phase 1/3 (after one minor-version window).
+**Goal:** Migrate structure/IO utilities duplicated between `aminx` and `proxide` to proxide. Migrate trajectory/MD wrappers to prolix. Remove the `RunSpecification` deprecation shims added in Phase 1/3 (after one minor-version window).
 
 **Depends on:** Proxide/Prolix version stabilization.
 
@@ -94,7 +94,7 @@
 
 **Goal:** Wire the jaxbeans DEPEND pieces that Phase 5 declared but didn't land: `core/profiling` (`assert_zero_copy_overhead`), `utils/mapping` (`safe_map` canonical source), `utils/io` (`atomic_write`, `MultiPartWriter`), `core/safety` (`PreemptionHandler`), `jax_io/sources` (`BinaryDatasetWriter`).
 
-**Note:** Currently using mirrored utils in `prxteinmpnn/utils/`. Swap imports once jaxbeans hits 0.1.0 (or is added as workspace member).
+**Note:** Currently using mirrored utils in `aminx/utils/`. Swap imports once jaxbeans hits 0.1.0 (or is added as workspace member).
 
 ---
 
@@ -115,11 +115,11 @@
 |---------|------|
 | Active sprint plan (ModelInputs) | `.praxia/REFACTOR_MODELINPUTS.md` |
 | Pipeline Protocol plan (done) | `docs/superpowers/plans/2026-05-08-pipeline-protocol.md` |
-| Pipeline package | `src/prxteinmpnn/pipeline/` |
-| Hook registry | `src/prxteinmpnn/pipeline_registry.py` |
-| PipelineFns | `src/prxteinmpnn/pipeline_fns.py` |
-| Protocols | `src/prxteinmpnn/protocols.py` |
-| ModelInputs types | `src/prxteinmpnn/model_inputs.py` |
-| Payloads (MultistateStackPayload, WaveParallelPayload) | `src/prxteinmpnn/payloads.py` |
-| BatchPlanner | `src/prxteinmpnn/utils/batching.py` |
+| Pipeline package | `src/aminx/pipeline/` |
+| Hook registry | `src/aminx/pipeline_registry.py` |
+| PipelineFns | `src/aminx/pipeline_fns.py` |
+| Protocols | `src/aminx/protocols.py` |
+| ModelInputs types | `src/aminx/model_inputs.py` |
+| Payloads (MultistateStackPayload, WaveParallelPayload) | `src/aminx/payloads.py` |
+| BatchPlanner | `src/aminx/utils/batching.py` |
 | Deprecated roadmap (historical) | `.agents/REFACTOR_ROADMAP.md` |

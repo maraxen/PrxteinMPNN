@@ -1,6 +1,6 @@
 """Diagnose JAX vs PyTorch side-chain packer ``mean`` / ``concentration`` / ``mix_logits``.
 
-Run from ``prxteinmpnn`` root::
+Run from ``aminx`` root::
 
   export REFERENCE_PATH=/path/to/LigandMPNN
   PYTHONPATH=scripts:src:tests uv run python scripts/diag_packer_parity.py
@@ -20,7 +20,7 @@ def _repo_root() -> Path:
 def _stats(name: str, pt: object, jax_arr: object) -> None:
   import numpy as np
 
-  from prxteinmpnn.parity.evidence import safe_pearson
+  from aminx.parity.evidence import safe_pearson
 
   p = np.asarray(pt)
   j = np.asarray(jax_arr)
@@ -43,7 +43,7 @@ def main() -> None:
   import jaxlib
   import torch
 
-  from prxteinmpnn.model.packer import Packer as JAXPacker
+  from aminx.model.packer import Packer as JAXPacker
   from scripts.convert_weights import convert_packer_model
   from tests.parity.reference_utils import import_reference_module, require_heavy_parity_prereqs
   from tests.parity.test_packer_parity import _build_synthetic_features, _forward_jax_packer_for_parity

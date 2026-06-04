@@ -3,9 +3,9 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "prxteinmpnn"
+name = "aminx"
 version = "0.1.0a1"
-description = "PrxteinMPNN: A functional interface for ProteinMPNN"
+description = "Aminx: A functional interface for ProteinMPNN"
 requires-python = ">=3.12"
 dependencies = [
     "jax>=0.4.35",
@@ -29,11 +29,11 @@ classifiers = [
 ]
 
 [project.scripts]
-prxteinmpnn = "prxteinmpnn.cli:main"
+aminx = "aminx.cli:main"
 
 [project.urls]
-repository = "https://github.com/maraxen/PrxteinMPNN.git"
-documentation = "https://prxteinmpnn.readthedocs.io"
+repository = "https://github.com/maraxen/Aminx.git"
+documentation = "https://aminx.readthedocs.io"
 
 [project.optional-dependencies]
 benchmark = [
@@ -105,7 +105,7 @@ exclude = [
     "examples",
     "scripts",
     "*.ipynb",
-    "src/prxteinmpnn/training/data/download_and_process.py",
+    "src/aminx/training/data/download_and_process.py",
 ]
 
 [tool.ruff.lint]
@@ -127,7 +127,7 @@ ignore = [
 pylint.max-args = 15
 
 [tool.ruff.lint.per-file-ignores]
-"src/prxteinmpnn/profiling/hlo_tools.py" = [
+"src/aminx/profiling/hlo_tools.py" = [
   "ANN201",
   "ANN202",
   "ANN002",
@@ -135,28 +135,28 @@ pylint.max-args = 15
   "ANN401",
   "S108",
 ]
-"src/prxteinmpnn/model/mpnn_scoring_state_vmap_exact_ligand.py" = [
+"src/aminx/model/mpnn_scoring_state_vmap_exact_ligand.py" = [
   "ANN001",
   "ANN202",
   "FBT001",
   "RUF005",
   "PLR0915",
 ]
-"src/prxteinmpnn/run.py" = ["E402", "PLR0913", "ANN401"]
-"src/prxteinmpnn/io/parsing.py" = ["ANN401"]
-"src/prxteinmpnn/payloads.py" = ["ANN401"]
-"src/prxteinmpnn/run/spec.py" = ["TD003", "FIX002"]
-"src/prxteinmpnn/run/specs.py" = ["ANN401", "PLR0915", "TD003", "FIX002"]
-"src/prxteinmpnn/run/spec_json.py" = ["ANN401", "PLR0911", "SIM102"]
+"src/aminx/run.py" = ["E402", "PLR0913", "ANN401"]
+"src/aminx/io/parsing.py" = ["ANN401"]
+"src/aminx/payloads.py" = ["ANN401"]
+"src/aminx/run/spec.py" = ["TD003", "FIX002"]
+"src/aminx/run/specs.py" = ["ANN401", "PLR0915", "TD003", "FIX002"]
+"src/aminx/run/spec_json.py" = ["ANN401", "PLR0911", "SIM102"]
 # ML tensor names (h_V, Y, E_idx, etc.) follow LigandMPNN convention — not Python style violations
 # B023 in ligand_mpnn.py: define-and-immediately-consume in JAX loop (not late-binding bug)
-"src/prxteinmpnn/model/ligand_mpnn.py" = ["N806", "N803", "B023"]
-"src/prxteinmpnn/model/**/*.py" = ["N806", "N803"]
-"src/prxteinmpnn/sampling/**/*.py" = ["N806", "N803"]
-"src/prxteinmpnn/scoring/**/*.py" = ["N806", "N803"]
-"src/prxteinmpnn/run/**/*.py" = ["N806", "N803"]
-"src/prxteinmpnn/run/multistate_pools.py" = ["N806", "N803"]
-"src/prxteinmpnn/run/sampling.py" = ["N806", "N803"]
+"src/aminx/model/ligand_mpnn.py" = ["N806", "N803", "B023"]
+"src/aminx/model/**/*.py" = ["N806", "N803"]
+"src/aminx/sampling/**/*.py" = ["N806", "N803"]
+"src/aminx/scoring/**/*.py" = ["N806", "N803"]
+"src/aminx/run/**/*.py" = ["N806", "N803"]
+"src/aminx/run/multistate_pools.py" = ["N806", "N803"]
+"src/aminx/run/sampling.py" = ["N806", "N803"]
 "tests/test_adapter.py" = ["S101", "T201", "ANN201", "INP001", "PLC0415", "SLF001"]
 "scripts/**/*.py" = ["T201", "INP001"]
 
@@ -181,7 +181,7 @@ markers = [
 ]
 
 [tool.ty.environment]
-root = ["src/prxteinmpnn"]
+root = ["src/aminx"]
 
 [tool.ty.analysis]
 # Third-party / workspace packages without full stubs (roadmap Phase 0).
@@ -220,7 +220,7 @@ dev = [
 ]
 
 [tool.setuptools.package-data]
-prxteinmpnn = ["model_params/*.eqx.zst", "py.typed"]
+aminx = ["model_params/*.eqx.zst", "py.typed"]
 
 [tool.uv]
 # Only resolve for platforms we actually target (including WSL which reports as linux)

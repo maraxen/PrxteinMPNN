@@ -1,4 +1,4 @@
-"""Weight conversion utility: PyTorch LigandMPNN -> JAX PrxteinMPNN.
+"""Weight conversion utility: PyTorch LigandMPNN -> JAX Aminx.
 
 This script converts weights from PyTorch LigandMPNN format to JAX Equinox format.
 
@@ -15,8 +15,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from prxteinmpnn.model.ligand_features import ProteinFeaturesLigand
-from prxteinmpnn.model.packer import Packer
+from aminx.model.ligand_features import ProteinFeaturesLigand
+from aminx.model.packer import Packer
 
 # Must match dauparas/LigandMPNN `model_utils.ProteinMPNN` (`ligand_mpnn` branch).
 NUM_LIGAND_CONTEXT_LAYERS = 2
@@ -590,11 +590,11 @@ def convert_packer_model(
 
 def convert_full_model(
     pt_state_dict: dict[str, np.ndarray],
-    jax_model,  # PrxteinMPNN or PrxteinLigandMPNN
+    jax_model,  # Aminx or PrxteinLigandMPNN
 ):
-    """Convert full PyTorch ProteinMPNN to JAX PrxteinMPNN or PrxteinLigandMPNN."""
+    """Convert full PyTorch ProteinMPNN to JAX Aminx or PrxteinLigandMPNN."""
     print(f"Converting model from state dict with {len(pt_state_dict)} keys")
-    from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
+    from aminx.model.ligand_mpnn import PrxteinLigandMPNN
 
     # Convert feature extraction layers
     print("Converting features...")
@@ -796,8 +796,8 @@ def main():
         pt_state_dict = np.load(args.input, allow_pickle=True).item()
 
     # Initialize JAX model with matching architecture
-    from prxteinmpnn.model.ligand_mpnn import PrxteinLigandMPNN
-    from prxteinmpnn.model.mpnn import PrxteinMPNN
+    from aminx.model.ligand_mpnn import PrxteinLigandMPNN
+    from aminx.model.mpnn import Aminx
 
     key = jax.random.PRNGKey(0)
 
@@ -860,7 +860,7 @@ def main():
         if is_membrane:
             print("  Special case: Membrane model detected (using PhysicsEncoder for node_embedding)")
 
-        jax_model = PrxteinMPNN(
+        jax_model = Aminx(
             node_features=128,
             edge_features=128,
             hidden_features=128,

@@ -16,8 +16,8 @@ from __future__ import annotations
 import jax.numpy as jnp
 import pytest
 
-from prxteinmpnn.inference.logits import make_stage_set
-from prxteinmpnn.types.stages import StageSet
+from aminx.inference.logits import make_stage_set
+from aminx.types.stages import StageSet
 
 
 class TestCompound533StageSetHoist:
@@ -148,9 +148,9 @@ def test_make_stage_set_called_once_per_sample(protein_structure):
 
     Uses real protein fixture to ensure full execution without early failure.
     """
-    from prxteinmpnn.inference.logits import make_stage_set as real_make_stage_set
-    from prxteinmpnn.host.runner import sample
-    from prxteinmpnn.run.specs import SamplingSpecification
+    from aminx.inference.logits import make_stage_set as real_make_stage_set
+    from aminx.host.runner import sample
+    from aminx.run.specs import SamplingSpecification
     from pathlib import Path
 
     call_log = []
@@ -178,7 +178,7 @@ def test_make_stage_set_called_once_per_sample(protein_structure):
     # picking up the patched value from sys.modules.
     # runner.py does not import make_stage_set directly (AST invariant enforced by
     # test_runner_does_not_import_make_stage_set); stage_set flows via make_inference_plan.
-    with patch("prxteinmpnn.inference.logits.make_stage_set", side_effect=tracking_make_stage_set):
+    with patch("aminx.inference.logits.make_stage_set", side_effect=tracking_make_stage_set):
         try:
             spec = SamplingSpecification(**spec_kwargs)
             result = sample(spec)
@@ -202,7 +202,7 @@ def test_kernel_dispatch_has_no_make_stage_set_import():
     the hoist refactoring. Verify via AST that no ImportFrom node imports
     make_stage_set from inference.logits in kernel_dispatch.
     """
-    kd_path = Path(__file__).parent.parent.parent / "src/prxteinmpnn/host/kernel_dispatch.py"
+    kd_path = Path(__file__).parent.parent.parent / "src/aminx/host/kernel_dispatch.py"
     assert kd_path.exists(), f"kernel_dispatch.py not found at {kd_path}"
 
     tree = ast.parse(kd_path.read_text())
@@ -225,8 +225,8 @@ def test_stage_set_reproducibility_and_use():
 
     Tests: make_stage_set is deterministic (same inputs → same outputs across calls)
     """
-    from prxteinmpnn.inference.logits import make_stage_set
-    from prxteinmpnn.types.stages import StageSet
+    from aminx.inference.logits import make_stage_set
+    from aminx.types.stages import StageSet
 
     stage_set_1 = make_stage_set(
         strategy="arithmetic_mean",
@@ -251,7 +251,7 @@ def test_stage_set_reproducibility_and_use():
 
     # Verify kernel_dispatch.py does not call make_stage_set (it now uses InferencePlan)
     from pathlib import Path
-    kd_path = Path(__file__).parent.parent.parent / "src/prxteinmpnn/host/kernel_dispatch.py"
+    kd_path = Path(__file__).parent.parent.parent / "src/aminx/host/kernel_dispatch.py"
     assert kd_path.exists(), f"kernel_dispatch.py not found at {kd_path}"
     source = kd_path.read_text()
     assert "make_stage_set" not in source, (

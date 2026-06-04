@@ -12,7 +12,7 @@ import jax
 import jax.numpy as jnp
 
 if TYPE_CHECKING:
-  from prxteinmpnn.utils.data_structures import Protein
+  from aminx.utils.data_structures import Protein
 
 
 def create_multistate_test_batch(

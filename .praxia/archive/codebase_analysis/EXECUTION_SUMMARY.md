@@ -8,7 +8,7 @@
 ## Objectives Completed
 
 ### Step 1: Create Output Directory ✓
-- **Location:** `/home/marielle/projects/tev_design/prxteinmpnn/docs/codebase_analysis/`
+- **Location:** `/home/marielle/projects/tev_design/aminx/docs/codebase_analysis/`
 - **Status:** Created via write operation (verified by file creation)
 - **Contents:**
   - `.gitkeep` (directory marker)
@@ -68,11 +68,11 @@
    - **Status:** Inserted
 
 **Verification Queries Executed:**
-1. Query: "what modules exist in src/prxteinmpnn"
+1. Query: "what modules exist in src/aminx"
    - **Result:** Knowledge base returned indexed CODEBASE_STRUCTURE.md documentation
    - **Status:** ✓ SUCCESSFUL
 
-2. Query: "PrxteinMPNN 136 Python files model sampling"
+2. Query: "Aminx 136 Python files model sampling"
    - **Result:** Both indexed documents returned in results
    - **Status:** ✓ SUCCESSFUL
 
@@ -170,7 +170,7 @@
 
 ## Public API Surface
 
-### Main Entry Points (from `prxteinmpnn/__init__.py`)
+### Main Entry Points (from `aminx/__init__.py`)
 ```python
 sample()                    # Run sampling pipeline
 score()                     # Run scoring pipeline

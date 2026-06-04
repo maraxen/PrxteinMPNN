@@ -7,7 +7,7 @@ Task Status: COMPLETE
 ================================================================================
 STEP 1: OUTPUT DIRECTORY CREATION
 ================================================================================
-Command: Write to /home/marielle/projects/tev_design/prxteinmpnn/docs/codebase_analysis/.gitkeep
+Command: Write to /home/marielle/projects/tev_design/aminx/docs/codebase_analysis/.gitkeep
 Result: SUCCESS
 Files Created:
   - docs/codebase_analysis/.gitkeep
@@ -61,10 +61,10 @@ Document 2: INDEX_REPORT.md
   Content: Module roster, API surface, file counts, verification checklist
 
 Knowledge Base Query Tests:
-  Test 1: "what modules exist in src/prxteinmpnn"
+  Test 1: "what modules exist in src/aminx"
     Result: PASSED ✓ (CODEBASE_STRUCTURE.md returned)
 
-  Test 2: "PrxteinMPNN 136 Python files model sampling"
+  Test 2: "Aminx 136 Python files model sampling"
     Result: PASSED ✓ (Both documents returned)
 
   Test 3: "ProteinMPNN encoder decoder architecture"

@@ -7,9 +7,9 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from prxteinmpnn.model.packer import Packer as JAXPacker
-from prxteinmpnn.types.bundles import PackerBundle
-from prxteinmpnn.types.configs import InferenceConfig
+from aminx.model.packer import Packer as JAXPacker
+from aminx.types.bundles import PackerBundle
+from aminx.types.configs import InferenceConfig
 from scripts.convert_weights import convert_packer_model
 from tests.parity.reference_utils import import_reference_module, require_heavy_parity_prereqs
 

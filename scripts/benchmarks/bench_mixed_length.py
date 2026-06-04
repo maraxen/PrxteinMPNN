@@ -138,7 +138,7 @@ def load_pdb_as_arrays(pdb_path: str) -> dict[str, Any]:
                 from Bio.Data.IUPACData import protein_letters_3to1
                 one_letter = protein_letters_3to1.get(resname.capitalize(), "X")
                 aa_idx = _AA_TO_IDX.get(one_letter, 20)
-            except Exception:
+            except Exception:  # noqa: BLE001  # graceful degradation: default to unknown amino acid
                 aa_idx = 20
 
             res_idx = residue.get_id()[1]
@@ -211,9 +211,9 @@ def load_model(
         key=key,
     )
     if local_path:
-        logger.info(f"Loaded checkpoint: {local_path} (id={effective_id})")
+        logger.info("Loaded checkpoint: %s (id=%s)", local_path, effective_id)
     else:
-        logger.info(f"Loaded bundled checkpoint: {effective_id}")
+        logger.info("Loaded bundled checkpoint: %s", effective_id)
     return model
 
 
@@ -255,40 +255,33 @@ def benchmark_colabdesign_sequential(
         logger.warning("ColabDesign not available; skipping baseline")
         return None
 
-    import jax
-
-    # PDB map for the lengths used
-    pdb_map = {
-        76: "1ubq.pdb",
-        150: "1mbn.pdb",
-        300: "3pgk.pdb",
-        500: "1SMD.pdb",
-    }
+    import jax  # noqa: PLC0415  # lazy import for optional dependency
 
     # Verify all fixtures exist
     for length in lengths:
-        if length not in pdb_map:
-            logger.warning(f"No ColabDesign fixture for length={length}")
+        if length not in _PDB_MAP:
+            logger.warning("No ColabDesign fixture for length=%s", length)
             return None
-        pdb_file = pdb_dir / pdb_map[length]
+        pdb_file = pdb_dir / _PDB_MAP[length]
         if not pdb_file.exists():
-            logger.warning(f"ColabDesign fixture not found: {pdb_file}")
+            logger.warning("ColabDesign fixture not found: %s", pdb_file)
             return None
 
     try:
+        cd_model = mk_mpnn_model(
+            model_name="v_48_020",
+            backbone_noise=0.0,
+            dropout=0.0,
+            seed=42,
+            verbose=False,
+            weights="original",
+        )
+
         def run_all_lengths() -> float:
             """Run model.sample() on each length and sum times."""
             total = 0.0
             for length in lengths:
-                pdb_file = str(pdb_dir / pdb_map[length])
-                cd_model = mk_mpnn_model(
-                    model_name="v_48_020",
-                    backbone_noise=0.0,
-                    dropout=0.0,
-                    seed=42,
-                    verbose=False,
-                    weights="original",
-                )
+                pdb_file = str(pdb_dir / _PDB_MAP[length])
                 cd_model.prep_inputs(pdb_filename=pdb_file)
                 t0 = time.perf_counter()
                 result = cd_model.sample(num=1, temperature=1.0)
@@ -297,20 +290,20 @@ def benchmark_colabdesign_sequential(
             return total
 
         # Warmup
-        logger.info(f"ColabDesign warmup ({n_warmup} iterations)...")
+        logger.info("ColabDesign warmup (%s iterations)...", n_warmup)
         for _ in range(n_warmup):
             run_all_lengths()
 
         # Timed
-        logger.info(f"ColabDesign timed runs ({n_timed} iterations)...")
+        logger.info("ColabDesign timed runs (%s iterations)...", n_timed)
         times = []
         for _ in range(n_timed):
             times.append(run_all_lengths())
 
         return float(np.mean(times)) * 1000.0  # ms, mean
 
-    except Exception as e:
-        logger.warning(f"ColabDesign sequential baseline failed: {e}")
+    except Exception as e:  # noqa: BLE001  # graceful degradation: baseline skipped if unavailable
+        logger.warning("ColabDesign sequential baseline failed: %s", e)
         return None
 
 
@@ -334,10 +327,10 @@ def _load_pytorch_model(reference_path: Path, device: Any) -> tuple[Any, int]:
     tuple
         (model, atom_context_num)
     """
-    import sys
-    import warnings
+    import sys  # noqa: PLC0415  # lazy import for optional dependency
+    import warnings  # noqa: PLC0415  # lazy import for optional dependency
 
-    import torch
+    import torch  # noqa: PLC0415  # lazy import for optional dependency
 
     sys.path.insert(0, str(reference_path))
     from model_utils import ProteinMPNN
@@ -374,7 +367,7 @@ def _cuda_sync() -> None:
         import torch
         if torch.cuda.is_available():
             torch.cuda.synchronize()
-    except Exception:
+    except Exception:  # noqa: BLE001  # graceful degradation: CUDA sync optional
         pass
 
 
@@ -413,12 +406,12 @@ def benchmark_pytorch_sequential(
         return None
 
     try:
-        import sys
+        import sys  # noqa: PLC0415  # lazy import for optional dependency
 
-        import torch
+        import torch  # noqa: PLC0415  # lazy import for optional dependency
 
         sys.path.insert(0, str(reference_path))
-        from data_utils import featurize
+        from data_utils import featurize  # noqa: PLC0415, E402  # lazy import for optional dependency
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         pt_model, atom_context_num = _load_pytorch_model(reference_path, device)
@@ -467,17 +460,17 @@ def benchmark_pytorch_sequential(
             return total
 
         # Warmup
-        logger.info(f"PyTorch sequential warmup ({n_warmup} iterations)...")
+        logger.info("PyTorch sequential warmup (%s iterations)...", n_warmup)
         for _ in range(n_warmup):
             run_sequential()
 
         # Timed
-        logger.info(f"PyTorch sequential timed runs ({n_timed} iterations)...")
+        logger.info("PyTorch sequential timed runs (%s iterations)...", n_timed)
         times = [run_sequential() for _ in range(n_timed)]
         return float(np.mean(times)) * 1000.0  # ms
 
-    except Exception as e:
-        logger.warning(f"PyTorch sequential baseline failed: {e.__class__.__name__}: {e}")
+    except Exception as e:  # noqa: BLE001  # graceful degradation: baseline skipped if unavailable
+        logger.warning("PyTorch sequential baseline failed: %s: %s", e.__class__.__name__, e)
         return None
 
 
@@ -516,12 +509,12 @@ def benchmark_pytorch_padded(
         return None
 
     try:
-        import sys
+        import sys  # noqa: PLC0415  # lazy import for optional dependency
 
-        import torch
+        import torch  # noqa: PLC0415  # lazy import for optional dependency
 
         sys.path.insert(0, str(reference_path))
-        from data_utils import featurize
+        from data_utils import featurize  # noqa: PLC0415, E402  # lazy import for optional dependency
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         pt_model, atom_context_num = _load_pytorch_model(reference_path, device)
@@ -537,7 +530,7 @@ def benchmark_pytorch_padded(
             actual_lens.append(actual_len)
 
         L_max = max(actual_lens)
-        logger.info(f"PyTorch padded: L_max={L_max}")
+        logger.info("PyTorch padded: L_max=%s", L_max)
 
         # Pad all structures to L_max
         def pad_to(arr: np.ndarray, L_max: int, pad_value: float | int) -> np.ndarray:
@@ -591,17 +584,17 @@ def benchmark_pytorch_padded(
             return total
 
         # Warmup
-        logger.info(f"PyTorch padded warmup ({n_warmup} iterations)...")
+        logger.info("PyTorch padded warmup (%s iterations)...", n_warmup)
         for _ in range(n_warmup):
             run_padded()
 
         # Timed
-        logger.info(f"PyTorch padded timed runs ({n_timed} iterations)...")
+        logger.info("PyTorch padded timed runs (%s iterations)...", n_timed)
         times = [run_padded() for _ in range(n_timed)]
         return float(np.mean(times)) * 1000.0  # ms
 
-    except Exception as e:
-        logger.warning(f"PyTorch padded baseline failed: {e.__class__.__name__}: {e}")
+    except Exception as e:  # noqa: BLE001  # graceful degradation: baseline skipped if unavailable
+        logger.warning("PyTorch padded baseline failed: %s: %s", e.__class__.__name__, e)
         return None
 
 
@@ -642,7 +635,7 @@ def benchmark_safe_map_mixed_batch(
             pdb_dir, length
         )
         total_residues += actual_len
-        logger.info(f"Loaded {length}: actual_len={actual_len}")
+        logger.info("Loaded %s: actual_len=%s", length, actual_len)
 
         # Build bundle for score_conditional
         bundle, config = build_inference_bundle(
@@ -662,7 +655,7 @@ def benchmark_safe_map_mixed_batch(
         bundles.append(bundle)
         configs.append(config)
 
-    logger.info(f"Total residues in heterogeneous batch: {total_residues}")
+    logger.info("Total residues in heterogeneous batch: %s", total_residues)
 
     key = random.PRNGKey(42)
 
@@ -673,13 +666,13 @@ def benchmark_safe_map_mixed_batch(
         return plan.score(bundle, key, config)
 
     # Warmup
-    logger.info(f"Warmup ({n_warmup} iterations)...")
+    logger.info("Warmup (%s iterations)...", n_warmup)
     for _ in range(n_warmup):
         for bundle, config in zip(bundles, configs):
             _ = score_one(bundle, config)
 
     # Timed runs (measure total time for all structures)
-    logger.info(f"Timed runs ({n_timed} iterations)...")
+    logger.info("Timed runs (%s iterations)...", n_timed)
     times = []
     for _ in range(n_timed):
         start = time.perf_counter()
@@ -781,9 +774,9 @@ def main() -> int:
         args.n_timed = 3
         logger.info("Smoke mode: n_warmup=1, n_timed=3")
 
-    logger.info(f"Hardware: {args.hardware}")
-    logger.info(f"Batch lengths: {args.lengths}")
-    logger.info(f"PDB directory: {args.pdb_dir}")
+    logger.info("Hardware: %s", args.hardware)
+    logger.info("Batch lengths: %s", args.lengths)
+    logger.info("PDB directory: %s", args.pdb_dir)
 
     if args.dry_run:
         logger.info("Dry-run complete")
@@ -793,8 +786,8 @@ def main() -> int:
     logger.info("Loading prxteinmpnn model...")
     try:
         model = load_model()
-    except Exception as e:
-        logger.error(f"Failed to load model: {e}")
+    except Exception as e:  # noqa: BLE001  # graceful degradation: benchmark skipped if unavailable
+        logger.error("Failed to load model: %s", e)
         return 1
 
     # Create inference plan
@@ -802,8 +795,8 @@ def main() -> int:
     try:
         spec = _make_benchmark_spec_with_temperatures()
         plan = create_inference_plan(model, spec)
-    except Exception as e:
-        logger.error(f"Failed to create inference plan: {e}")
+    except Exception as e:  # noqa: BLE001  # graceful degradation: benchmark skipped if unavailable
+        logger.error("Failed to create inference plan: %s", e)
         return 1
 
     # Run SafeMap mixed-batch benchmark
@@ -819,10 +812,10 @@ def main() -> int:
             n_warmup=args.n_warmup,
             n_timed=args.n_timed,
         )
-        logger.info(f"SafeMap results: {safemap_results}")
-    except Exception as e:
-        logger.error(f"SafeMap benchmark failed: {e}")
-        import traceback
+        logger.info("SafeMap results: %s", safemap_results)
+    except Exception as e:  # noqa: BLE001  # graceful degradation: benchmark skipped if unavailable
+        logger.error("SafeMap benchmark failed: %s", e)
+        import traceback  # noqa: PLC0415  # lazy import for debugging
         traceback.print_exc()
         return 1
 
@@ -837,7 +830,7 @@ def main() -> int:
         n_timed=args.n_timed,
     )
     if cd_latency_ms is not None:
-        logger.info(f"ColabDesign sequential: {cd_latency_ms:.2f}ms")
+        logger.info("ColabDesign sequential: %fms", cd_latency_ms)
     else:
         logger.info("ColabDesign sequential: skipped or unavailable")
 
@@ -857,7 +850,7 @@ def main() -> int:
         n_timed=args.n_timed,
     )
     if pt_padded_ms is not None:
-        logger.info(f"PyTorch padded: {pt_padded_ms:.2f}ms")
+        logger.info("PyTorch padded: %fms", pt_padded_ms)
     else:
         logger.info("PyTorch padded: skipped or unavailable")
 
@@ -873,7 +866,7 @@ def main() -> int:
         n_timed=args.n_timed,
     )
     if pt_sequential_ms is not None:
-        logger.info(f"PyTorch sequential: {pt_sequential_ms:.2f}ms")
+        logger.info("PyTorch sequential: %fms", pt_sequential_ms)
     else:
         logger.info("PyTorch sequential: skipped or unavailable")
 
@@ -905,7 +898,7 @@ def main() -> int:
     with open(args.output_json, "w") as f:
         json.dump(output, f, indent=2)
 
-    logger.info(f"Results written to {args.output_json}")
+    logger.info("Results written to %s", args.output_json)
     return 0
 
 

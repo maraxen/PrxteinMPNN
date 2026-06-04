@@ -1,7 +1,0 @@
---- filtered excerpt (phase3b PR1) ---
-# ty / ruff: not run in this CI agent shell (uv failed to spawn `ty` / `ruff`); IDE lints clean on spike test.
-12:  /home/marielle/projects/tev_design/prxteinmpnn/tests/sampling/spikes/test_state_vmap_exact_spike.py:183: UserWarning: spike_hlo_state_vmap_exact bytes=145368 newlines=2348 custom_call_markers=0
-13:    _emit_spike_hlo_warnings(hlo_sv)
-16:1 passed, 1 skipped, 2 warnings in 9.70s
-24:10 passed, 58 deselected, 1 warning in 47.72s
-32:10 passed, 58 deselected, 1 warning in 47.31s

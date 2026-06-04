@@ -266,12 +266,11 @@ def benchmark_prxteinmpnn_dedup(
     n_warmup: int = 10,
     n_timed: int = 20,
 ) -> float:
-    """Benchmark prxteinmpnn with DedupGather on n_structures axis.
+    """Benchmark prxteinmpnn with K sequential plan.score() calls.
 
-    For K=1: single structure, one plan.score() call.
-    For K>1: stack K structures, call plan.score() ONCE with batched arrays.
-
-    This measures batch efficiency: K structures in ~1 JIT call vs K sequential calls (baselines).
+    For K≥1: build K individual bundles (one per unique structure),
+    then run K sequential plan.score() calls per iteration.
+    build_inference_bundle is single-structure only.
 
     Parameters
     ----------
@@ -349,48 +348,38 @@ def benchmark_prxteinmpnn_dedup(
     key = random.PRNGKey(42)
 
     try:
-        # For K=1: single structure path
-        if k_unique == 1:
-            coords = coords_all[0]
-            mask = mask_all[0]
-            sequence = sequence_all[0]
-            residue_index = residue_index_all[0]
-            chain_index = chain_index_all[0]
-        else:
-            # For K>1: stack K structures along axis 0 for batched call
-            coords = coords_all  # (K, L, 4, 3)
-            mask = mask_all      # (K, L)
-            sequence = sequence_all  # (K, L) — native sequence for score_conditional
-            residue_index = residue_index_all  # (K, L)
-            chain_index = chain_index_all      # (K, L)
-
-        # Build single bundle with batched (or single) arrays
-        bundle, config = build_inference_bundle(
-            coords=coords,
-            mask=mask,
-            residue_index=residue_index,
-            chain_index=chain_index,
-            sequence=sequence,
-            ligand_coords=None,
-            ligand_atom_types=None,
-            ligand_mask=None,
-            temperature=1.0,
-            mode="score_conditional",
-            inference=True,
-            bucket_config=bucket_cfg,
-        )
+        # Build one bundle per unique structure
+        bundles_and_configs = []
+        for i in range(k_unique):
+            bundle, config = build_inference_bundle(
+                coords=coords_all[i],        # (L, 4, 3)
+                mask=mask_all[i],            # (L,)
+                residue_index=residue_index_all[i],
+                chain_index=chain_index_all[i],
+                sequence=sequence_all[i],    # (L,)
+                ligand_coords=None,
+                ligand_atom_types=None,
+                ligand_mask=None,
+                temperature=1.0,
+                mode="score_conditional",
+                inference=True,
+                bucket_config=bucket_cfg,
+            )
+            bundles_and_configs.append((bundle, config))
 
         logger.info(f"Warming up ({n_warmup} iterations)...")
         for _ in range(n_warmup):
-            result = plan.score(bundle, key, config)
-            jax.block_until_ready(result)
+            for bundle, config in bundles_and_configs:
+                result = plan.score(bundle, key, config)
+                jax.block_until_ready(result)
 
         logger.info(f"Timing ({n_timed} iterations)...")
         times = []
         for _ in range(n_timed):
             t0 = time.perf_counter()
-            result = plan.score(bundle, key, config)
-            jax.block_until_ready(result)
+            for bundle, config in bundles_and_configs:
+                result = plan.score(bundle, key, config)
+                jax.block_until_ready(result)
             times.append(time.perf_counter() - t0)
 
         latency_ms = median_from_timings(times)

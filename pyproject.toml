@@ -221,6 +221,15 @@ dev = [
 [tool.setuptools.package-data]
 aminx = ["model_params/*.eqx.zst", "py.typed"]
 
+# Membrane and side-chain weights are excluded from the PyPI wheel (PyPI 100 MB
+# per-file limit). A weights-download helper is planned for a future release.
+[tool.setuptools.exclude-package-data]
+aminx = [
+    "model_params/per_residue_label_membrane_mpnn*.eqx.zst",
+    "model_params/global_label_membrane_mpnn*.eqx.zst",
+    "model_params/ligandmpnn_sc*.eqx.zst",
+]
+
 [tool.uv]
 # Only resolve for platforms we actually target (including WSL which reports as linux)
 environments = [

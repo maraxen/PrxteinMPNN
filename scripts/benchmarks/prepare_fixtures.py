@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """Prepare protein structure fixtures for benchmark suite at multiple sequence lengths.
 
-This script loads test fixtures (1ubq.pdb and 5awl.pdb) and creates normalized
-protein structure arrays suitable for benchmarking across different sequence lengths.
+This script loads test fixtures and creates normalized protein structure arrays
+suitable for benchmarking across different sequence lengths.
 
-For 1ubq.pdb (76 residues), we generate fixtures at lengths [76, 150, 300, 500]
-by truncating or zero-padding the coordinate and metadata arrays.
+Fixtures:
+- L=76: 1ubq.pdb (ubiquitin, 76 residues)
+- L=150: 1mbn.pdb (myoglobin, 153 residues, truncated to 150)
+- L=300: 3pgk.pdb (phosphoglycerate kinase, 415 residues, truncated to 300)
+- L=500: 1SMD.pdb (salivary amylase, 495 residues, padded to 500)
+
+All fixtures are truncated or zero-padded to target sequence length.
 
 Usage:
     uv run python scripts/benchmarks/prepare_fixtures.py \
@@ -278,6 +283,8 @@ def main():
     # Locate test fixture files (relative to repo root)
     repo_root = Path(__file__).parent.parent.parent
     ubq_path = repo_root / "tests" / "data" / "1ubq.pdb"
+    mbn_path = repo_root / "tests" / "data" / "1mbn.pdb"
+    pgk_path = repo_root / "tests" / "data" / "3pgk.pdb"
     smd_path = repo_root / "tests" / "data" / "1SMD.pdb"
     awl_path = repo_root / "tests" / "data" / "5awl.pdb"
 
@@ -285,7 +292,9 @@ def main():
         logger.error(f"Required fixture 1ubq.pdb not found at {ubq_path}")
         sys.exit(1)
 
-    # Step 1: Load 1ubq and create fixtures at L=76, 150, 300
+    all_success = True
+
+    # Step 1: Create L=76 fixture from 1ubq (ubiquitin, 76 residues)
     try:
         coords, mask, residue_index, chain_index, num_residues = load_structure(
             ubq_path
@@ -294,20 +303,42 @@ def main():
         logger.error(f"Failed to load 1ubq.pdb: {e}")
         sys.exit(1)
 
-    ubq_lengths = [76, 150, 300]
-    logger.info(f"Creating fixtures for 1ubq at lengths: {ubq_lengths}")
+    try:
+        padded_coords, padded_mask, padded_residue_index, padded_chain_index = (
+            pad_or_truncate_structure(
+                coords, mask, residue_index, chain_index, 76
+            )
+        )
+        success = save_fixture(
+            args.fixture_dir,
+            "structure_L76",
+            padded_coords,
+            padded_mask,
+            padded_residue_index,
+            padded_chain_index,
+            dry_run=args.dry_run,
+        )
+        if not success:
+            all_success = False
+    except Exception as e:
+        logger.error(f"Failed to create L=76 fixture from 1ubq.pdb: {e}")
+        all_success = False
 
-    all_success = True
-    for target_len in ubq_lengths:
+    # Step 2: Create L=150 fixture from 1mbn (myoglobin, 153 residues)
+    if mbn_path.exists():
         try:
+            coords, mask, residue_index, chain_index, num_residues = load_structure(
+                mbn_path
+            )
+            logger.info(f"Loaded 1mbn.pdb: {num_residues} residues for L=150 fixture")
             padded_coords, padded_mask, padded_residue_index, padded_chain_index = (
                 pad_or_truncate_structure(
-                    coords, mask, residue_index, chain_index, target_len
+                    coords, mask, residue_index, chain_index, 150
                 )
             )
             success = save_fixture(
                 args.fixture_dir,
-                f"structure_L{target_len}",
+                "structure_L150",
                 padded_coords,
                 padded_mask,
                 padded_residue_index,
@@ -317,12 +348,46 @@ def main():
             if not success:
                 all_success = False
         except Exception as e:
-            logger.error(f"Failed to process length {target_len}: {e}")
+            logger.error(f"Failed to create L=150 fixture from 1mbn.pdb: {e}")
             all_success = False
+    else:
+        logger.warning(
+            f"1mbn.pdb not found at {mbn_path}; skipping L=150 fixture"
+        )
 
-    # Step 2: Load 1SMD (salivary amylase, 496 residues) for L=500 fixture.
-    # 1ubq is only 76 residues; padding it to 500 would mask 424/500 positions,
-    # under-reporting latency by ~20-40% (spec §8). 1SMD needs only 4 pad residues.
+    # Step 3: Create L=300 fixture from 3pgk (phosphoglycerate kinase, 415 residues)
+    if pgk_path.exists():
+        try:
+            coords, mask, residue_index, chain_index, num_residues = load_structure(
+                pgk_path
+            )
+            logger.info(f"Loaded 3pgk.pdb: {num_residues} residues for L=300 fixture")
+            padded_coords, padded_mask, padded_residue_index, padded_chain_index = (
+                pad_or_truncate_structure(
+                    coords, mask, residue_index, chain_index, 300
+                )
+            )
+            success = save_fixture(
+                args.fixture_dir,
+                "structure_L300",
+                padded_coords,
+                padded_mask,
+                padded_residue_index,
+                padded_chain_index,
+                dry_run=args.dry_run,
+            )
+            if not success:
+                all_success = False
+        except Exception as e:
+            logger.error(f"Failed to create L=300 fixture from 3pgk.pdb: {e}")
+            all_success = False
+    else:
+        logger.warning(
+            f"3pgk.pdb not found at {pgk_path}; skipping L=300 fixture"
+        )
+
+    # Step 4: Create L=500 fixture from 1SMD (salivary amylase, 495 residues).
+    # Using real structure avoids excessive masking; needs only 5 padding residues.
     if smd_path.exists():
         try:
             smd_coords, smd_mask, smd_residue_index, smd_chain_index, smd_num = (
@@ -374,7 +439,7 @@ def main():
             logger.error(f"Failed to process L=500 fallback: {e}")
             all_success = False
 
-    # Step 3: Inspect 5awl.pdb (report info, don't save fixture yet)
+    # Step 5: Inspect 5awl.pdb (report info, don't save fixture yet)
     if awl_path.exists():
         try:
             info = inspect_structure(awl_path)

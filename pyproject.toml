@@ -209,7 +209,7 @@ benchmark = [
     "prody>=2.6.1",
 ]
 dev = [
-    "torch>=2.9.1",
+    "torch>=2.12.0",
     "pytest>=8.0.0",
     "pytest-xdist>=3.5.0",
     # Heavy parity: packer test requires Bio (sc_utils PDB IO) and dm-tree (sc_utils import tree).

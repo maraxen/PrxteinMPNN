@@ -1,0 +1,34 @@
+---
+id: potts-import-boundary
+language: python
+severity: error
+message: |
+  Import boundary violation (ADR 260605_potts-parallel-not-stageset.md):
+  aminx.potts.{model,poe,sampling} must NOT import from:
+    - aminx.inference.decode
+    - aminx.host.plan
+    - aminx.types.stages
+    - aminx.inference.logits
+
+  Only aminx.potts.designer is exempt from this restriction.
+  This module is protected to maintain separation between Potts (parallel model)
+  and Aminx (MPNN stageset).
+
+rule:
+  any:
+    # Pattern 1a: import aminx.inference.decode
+    - pattern: import aminx.inference.decode
+    # Pattern 1b: import aminx.host.plan
+    - pattern: import aminx.host.plan
+    # Pattern 1c: import aminx.types.stages
+    - pattern: import aminx.types.stages
+    # Pattern 1d: import aminx.inference.logits
+    - pattern: import aminx.inference.logits
+    # Pattern 2a: from aminx.inference.decode import ...
+    - pattern: from aminx.inference.decode import $_
+    # Pattern 2b: from aminx.host.plan import ...
+    - pattern: from aminx.host.plan import $_
+    # Pattern 2c: from aminx.types.stages import ...
+    - pattern: from aminx.types.stages import $_
+    # Pattern 2d: from aminx.inference.logits import ...
+    - pattern: from aminx.inference.logits import $_

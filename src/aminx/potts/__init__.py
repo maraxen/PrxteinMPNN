@@ -14,6 +14,8 @@ from aminx.potts.calibration import (
   load_calibration,
 )
 from aminx.potts.model import (
+  POTTS_ALPHABET,
+  POTTS_TO_MPNN_ALPHABET_MAP,
   PottsModel,
   PottsParams,
 )
@@ -22,7 +24,9 @@ __all__ = [
   "CalibrationModule",
   "IdentityCalibration",
   "LearnedCalibration",
-  "load_calibration",
+  "POTTS_ALPHABET",
+  "POTTS_TO_MPNN_ALPHABET_MAP",
   "PottsModel",
   "PottsParams",
+  "load_calibration",
 ]

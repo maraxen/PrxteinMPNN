@@ -39,7 +39,8 @@ class CalibrationModule(Protocol):
   """
 
   def __call__(
-      self, marginals: Float[Array, "N num_aa"],
+    self,
+    marginals: Float[Array, "N num_aa"],
   ) -> Float[Array, "N num_aa"]:
     """Apply calibration to TRW marginals.
 
@@ -63,7 +64,8 @@ class IdentityCalibration(eqx.Module):
   """
 
   def __call__(
-      self, marginals: Float[Array, "N num_aa"],
+    self,
+    marginals: Float[Array, "N num_aa"],
   ) -> Float[Array, "N num_aa"]:
     """Return marginals unchanged.
 
@@ -99,10 +101,10 @@ class LearnedCalibration(eqx.Module):
   metadata: dict = eqx.field(static=True)
 
   def __init__(
-      self,
-      correction: Float[Array, "..."],
-      correction_type: str = "additive",
-      metadata: dict | None = None,
+    self,
+    correction: Float[Array, "..."],
+    correction_type: str = "additive",
+    metadata: dict | None = None,
   ) -> None:
     """Initialize LearnedCalibration with pre-learned corrections.
 
@@ -118,7 +120,8 @@ class LearnedCalibration(eqx.Module):
     self.metadata = metadata or {}
 
   def __call__(
-      self, marginals: Float[Array, "N num_aa"],
+    self,
+    marginals: Float[Array, "N num_aa"],
   ) -> Float[Array, "N num_aa"]:
     """Apply learned correction to marginals.
 
@@ -143,8 +146,8 @@ class LearnedCalibration(eqx.Module):
       corrected_logits = logits + self.correction
       return jax.nn.sigmoid(corrected_logits)
     raise ValueError(
-        f"Unknown correction_type: {self.correction_type}. "
-        "Must be one of: additive, multiplicative, learned_scale",
+      f"Unknown correction_type: {self.correction_type}. "
+      "Must be one of: additive, multiplicative, learned_scale",
     )
 
 
@@ -167,7 +170,7 @@ def load_calibration(caliby_path: str | None) -> CalibrationModule:
   path = Path(caliby_path)
   if not path.exists():
     raise FileNotFoundError(
-        f"Calibration checkpoint not found: {caliby_path}",
+      f"Calibration checkpoint not found: {caliby_path}",
     )
 
   # Load via pickle after decompressing zstandard checkpoint.

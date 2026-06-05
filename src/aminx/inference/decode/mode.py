@@ -32,6 +32,19 @@ class UnconditionalMode:
 class AutoregressiveMode:
   """Decode mode: sequential decoding with wave iteration.
 
+  Notes
+  -----
+  Risk D-3 mitigation: no user-facing W-axis iterator knob. The choice of
+  scan vs. while_loop is gated behind AutoregressiveConfig.inference_only
+  rather than an iterator type argument.
+
+  """
+
+
+@dataclass(frozen=True)
+class AutoregressiveConfig:
+  """Configuration for autoregressive decoding.
+
   Parameters
   ----------
   inference_only : bool, default False
@@ -42,13 +55,6 @@ class AutoregressiveMode:
 
       Set this to True for inference / benchmarking.  Leave False (default)
       for any path that requires gradients through the AR loop.
-
-  Notes
-  -----
-  Risk D-3 mitigation: no user-facing W-axis iterator knob; the choice of
-  scan vs. while_loop is the only user-visible W-axis decision, and it is
-  gated behind an explicit ``inference_only`` flag rather than an iterator
-  type argument.
 
   """
 
@@ -78,6 +84,7 @@ class STEMode:
 DecodeMode = ConditionalMode | UnconditionalMode | AutoregressiveMode | STEMode
 
 __all__ = [
+  "AutoregressiveConfig",
   "AutoregressiveMode",
   "ConditionalMode",
   "DecodeMode",

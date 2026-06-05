@@ -41,6 +41,7 @@ class _ConditionalDecodeBase(eqx.Module, abc.ABC):
   --------
   ConditionalDecode : Non-iterative conditional decode
   STEDecode : Straight-Through Estimator optimization over logits
+
   """
 
   @abc.abstractmethod
@@ -72,6 +73,7 @@ class _ConditionalDecodeBase(eqx.Module, abc.ABC):
     -------
     Any
         Decode result (typically shape (L, 21) logits or SampleResult).
+
     """
     ...
 
@@ -98,6 +100,7 @@ class _ConditionalDecodeBase(eqx.Module, abc.ABC):
     -------
     ndarray
         Fused logits. Shape (L, V).
+
     """
     if stage_set.logit_transform is None:
       # Identity: single-state passthrough (already shape (L, V))

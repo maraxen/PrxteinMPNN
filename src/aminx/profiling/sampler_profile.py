@@ -53,14 +53,14 @@ class SamplingProfiler:
   """Comprehensive profiler for sampling configurations."""
 
   def __init__(self, settings: list[dict[str, Any]]):
-    """
-    Args:
-        settings: List of config dicts with keys:
-            - batch_size: int
-            - precision: "float32" or "bfloat16"
-            - remat: bool (use rematerialization)
-            - iterations: int (optional, default 100)
-            - learning_rate: float (optional, default 0.01)
+    """Args:
+    settings: List of config dicts with keys:
+        - batch_size: int
+        - precision: "float32" or "bfloat16"
+        - remat: bool (use rematerialization)
+        - iterations: int (optional, default 100)
+        - learning_rate: float (optional, default 0.01)
+
     """
     self.settings = settings
     self.results: list[ProfileResult] = []
@@ -82,6 +82,7 @@ class SamplingProfiler:
 
     Returns:
         List of ProfileResult for each setting
+
     """
     self.results = []
 
@@ -112,7 +113,6 @@ class SamplingProfiler:
     num_trials: int,
   ) -> ProfileResult:
     """Profile a single configuration."""
-
     batch_size = setting.get("batch_size", 4)
     precision = setting.get("precision", "float32")
     remat = setting.get("remat", False)
@@ -283,7 +283,6 @@ class SamplingProfiler:
 
   def print_report(self):
     """Print comprehensive profiling report."""
-
     if not self.results:
       logger.warning("No results to report")
       return

@@ -54,6 +54,7 @@ class MapIterator(Protocol):
 
     Returns:
         Output pytree with iterated axis consumed.
+
     """
     ...
 
@@ -81,6 +82,7 @@ class ScanIterator(Protocol):
 
     Returns:
         (final_carry, ys): Final carry and stacked outputs.
+
     """
     ...
 
@@ -108,6 +110,7 @@ class VmapIterator(eqx.Module):
 
     Returns:
         Output after vmapping over the specified axis.
+
     """
     return jax.vmap(fn, in_axes=in_axes)(xs)
 
@@ -137,6 +140,7 @@ class SafeMapIterator(eqx.Module):
 
     Returns:
         Output after safe_map over the first axis.
+
     """
     # Note: safe_map always iterates over axis 0; in_axes parameter is
     # accepted for protocol compatibility.
@@ -163,6 +167,7 @@ class JaxScanIterator(eqx.Module):
 
     Returns:
         (final_carry, ys): Final carry and stacked outputs.
+
     """
     return jax.lax.scan(fn, init, xs, unroll=1)
 

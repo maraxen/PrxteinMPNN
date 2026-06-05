@@ -49,6 +49,7 @@ def _project_stage_set_for_ste(stage_set: StageSet) -> StageSet:
   -------
   StageSet
       Projected stage_set with only logit_transform; all other slots are None.
+
   """
   # Use dataclasses.replace to create a new StageSet with nulled-out transforms
   from dataclasses import replace as dataclass_replace
@@ -99,6 +100,7 @@ class STEDecode(eqx.Module):
 
   Tied-group einsum (Risk D-2) is reproduced character-for-character inside
   update_step via _tied_group_einsum_average(logits, tie_group_map, num_groups).
+
   """
 
   inner: _ConditionalDecodeBase
@@ -125,6 +127,7 @@ class STEDecode(eqx.Module):
         optax optimizer. If None, defaults to optax.adam(1e-3).
     decoding_order_fn : DecodingOrderFn, optional
         Decoding order function; defaults to random_decoding_order.
+
     """
     self.inner = inner
     self.iterations = iterations
@@ -171,6 +174,7 @@ class STEDecode(eqx.Module):
         - final_sequence: Shape (L,), argmax of final logits.
         - final_output_logits: Shape (L, 21), final score output.
         - final_ste_logits: Shape (L, 21), final STE optimization logits.
+
     """
     num_residues = bundle.geometry.coords.shape[1]
     num_classes = 21

@@ -5,12 +5,12 @@ from jaxtyping import PRNGKeyArray
 from aminx.inference.decode.factory import make_decode_fn
 from aminx.inference.decode.mode import UnconditionalMode
 from aminx.inference.encode import make_encode_fn
+from aminx.tiling.strategy import Vmap
 from aminx.types.arrays import Logits
 from aminx.types.bundles import InferenceBundle
 from aminx.types.configs import InferenceConfig
 from aminx.types.protocols import ModelProtocol
 from aminx.types.stages import StageSet
-from aminx.tiling.strategy import Vmap
 
 
 def kernel(

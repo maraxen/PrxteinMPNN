@@ -62,6 +62,7 @@ class ConditionalDecode(_ConditionalDecodeBase):
 
   The class is structured to match driver.py:_decode_conditional behavior
   exactly: decode per-state, project to logits, fuse via logit_transform.
+
   """
 
   model: Any
@@ -103,6 +104,7 @@ class ConditionalDecode(_ConditionalDecodeBase):
     3. Apply state_iterator over all S states.
     4. Project decoded features to logits via _project_logits.
     5. Apply logit_transform fusion to get final output.
+
     """
     S = enc.node_features.shape[0]
     cond = bundle.conditioning

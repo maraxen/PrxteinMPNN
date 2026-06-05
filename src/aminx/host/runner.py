@@ -30,7 +30,6 @@ from aminx.host.output_sinks import (
   take_staging_sequences_logits,
 )
 from aminx.host.plan import (
-  InferencePlan,
   make_inference_plan,
   resolve_chunk_size,
   resolve_target_samples,
@@ -142,6 +141,7 @@ def sample(
   .. [LigandMPNN] Dauparas, J., et al. "Atomic context-conditioned protein
      sequence design using LigandMPNN." *Nature Methods* 22(4):717-723 (2025).
      https://doi.org/10.1038/s41592-025-02626-1
+
   """
   if spec is None:
     kw = dict(kwargs)

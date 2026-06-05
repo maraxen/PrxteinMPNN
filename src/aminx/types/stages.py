@@ -142,6 +142,7 @@ class ConditionalDecodeStep(eqx.Module):
   .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
      sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
      https://doi.org/10.1126/science.add2187
+
   """
 
   decoder: Any  # model.decoder
@@ -188,6 +189,7 @@ class ConditionalDecodeStep(eqx.Module):
     -------
     Any
         Logits array of shape ``(L, V)`` — per-position per-amino-acid scores.
+
     """
     return self.decoder.call_conditional(
       node_f,
@@ -218,6 +220,7 @@ class UnconditionalDecodeStep(eqx.Module):
   .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
      sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
      https://doi.org/10.1126/science.add2187
+
   """
 
   decoder: Any  # model.decoder
@@ -255,6 +258,7 @@ class UnconditionalDecodeStep(eqx.Module):
     -------
     Any
         Logits array of shape ``(L, V)`` — per-position per-amino-acid scores.
+
     """
     return self.decoder(node_f, edge_f, nei, mask, key=key, inference=inference)
 
@@ -329,6 +333,7 @@ class StageSet(eqx.Module):
   .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
      sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
      https://doi.org/10.1126/science.add2187
+
   """
 
   logit_transform: BatchLogitFn | None = None

@@ -699,6 +699,7 @@ class Packer(eqx.Module):
 
   .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).
      https://github.com/dauparas/LigandMPNN
+
   """
 
   features: PackerProteinFeatures
@@ -773,6 +774,7 @@ class Packer(eqx.Module):
         Whether to use ATOM37 atom ordering. Default: False.
     key : PRNGKeyArray
         PRNG key for weight initialization.
+
     """
     self.num_mix = num_mix
     self.hidden_dim = hidden_dim
@@ -854,6 +856,7 @@ class Packer(eqx.Module):
     ----------
     .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).
        https://github.com/dauparas/LigandMPNN
+
     """
     mask = bundle.mask
     v, e, E_idx, y_nodes, y_edges, e_context, y_m = self.features.features_encode(key, bundle)
@@ -925,6 +928,7 @@ class Packer(eqx.Module):
         - ``mean``: Shape ``(L, 4, num_mix)`` — VMF means for chi1–chi4.
         - ``concentration``: Shape ``(L, 4, num_mix)`` — VMF concentration parameters.
         - ``mix_logits``: Shape ``(L, 4, num_mix)`` — Mixture logits.
+
     """
     mask = bundle.mask
     v, f = self.features.features_decode(bundle, E_idx)
@@ -986,6 +990,7 @@ class Packer(eqx.Module):
     ----------
     .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).
        https://github.com/dauparas/LigandMPNN
+
     """
     keys = jax.random.split(prng_key, 2)
     h_v, h_e, E_idx = self.encode(bundle, key=keys[0])

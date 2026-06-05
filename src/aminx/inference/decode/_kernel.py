@@ -57,6 +57,7 @@ def _decode_one_step(
   -------
   ndarray
       Decoded hidden features. Shape (L, H) per state.
+
   """
   if decode_step is not None:
     return decode_step(
@@ -103,6 +104,7 @@ def _project_logits(
   ndarray
       Logits. Shape (S, L, V) or (L, V) matching input batch structure.
       V = 21 (vocabulary size).
+
   """
   # Double vmap over (S, L) to apply w_out (which expects H -> V)
   return jax.vmap(jax.vmap(model.w_out, in_axes=0), in_axes=0)(decoded)
@@ -142,6 +144,7 @@ def _tied_group_einsum_average(
   4. Broadcast group averages back to positions: einsum("ng,ga->na")
 
   This operation is applied per-state (along S axis), preserving shape.
+
   """
   S = logits.shape[0]
   L = logits.shape[1]

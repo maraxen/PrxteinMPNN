@@ -45,6 +45,7 @@ def safe_scan(
 
   Raises:
       ValueError: If xs is an empty pytree.
+
   """
   leaves = jax.tree_util.tree_leaves(xs)
   if not leaves:

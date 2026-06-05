@@ -52,6 +52,7 @@ def _dispatch_axis(strategy, body, xs, *, batch_size_fallback: int = 0):
 
   Returns:
       Stacked results, same leading shape as xs.
+
   """
   from aminx.tiling.strategy import DedupGather, SafeMap, Scan, Vmap
   from aminx.utils.safe_scan import safe_scan

@@ -173,6 +173,7 @@ class DiffusionAminx(Aminx):
 
     Returns:
         3-tuple of (node_features, edge_features, edge_indices).
+
     """
     # 1. Base Encode
     node_features, edge_features, edge_indices = super().__call__(

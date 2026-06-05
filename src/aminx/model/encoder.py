@@ -71,6 +71,7 @@ class EncoderLayer(eqx.Module):
   .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
      sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
      https://doi.org/10.1126/science.add2187
+
   """
 
   edge_message_mlp: eqx.nn.MLP
@@ -108,6 +109,7 @@ class EncoderLayer(eqx.Module):
         Dropout rate (default: 0.1).
     key : PRNGKeyArray
         PRNG key for weight initialization.
+
     """
     self.node_features_dim = node_features
     self.edge_features_dim = edge_features
@@ -207,6 +209,7 @@ class EncoderLayer(eqx.Module):
     .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
        sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
        https://doi.org/10.1126/science.add2187
+
     """
     if key is None:
       inference = True
@@ -267,6 +270,7 @@ class Encoder(eqx.Module):
   .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
      sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
      https://doi.org/10.1126/science.add2187
+
   """
 
   layers: tuple[EncoderLayer, ...]
@@ -302,6 +306,7 @@ class Encoder(eqx.Module):
         Unused; reserved for subclass compatibility.
     key : PRNGKeyArray
         PRNG key for weight initialization.
+
     """
     self.node_feature_dim = node_features
     keys = jax.random.split(key, num_layers)
@@ -359,6 +364,7 @@ class Encoder(eqx.Module):
     .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
        sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
        https://doi.org/10.1126/science.add2187
+
     """
     if key is None:
       inference = True
@@ -412,6 +418,7 @@ class PhysicsEncoder(eqx.Module):
   .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
      sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
      https://doi.org/10.1126/science.add2187
+
   """
 
   layers: tuple[EncoderLayer, ...]
@@ -449,6 +456,7 @@ class PhysicsEncoder(eqx.Module):
         Dimension of physics features (e.g., membrane properties). Default: 0.
     key : PRNGKeyArray
         PRNG key for weight initialization.
+
     """
     self.node_feature_dim = node_features
     # keys[0] → physics_projection, keys[1] → physics_w_v, keys[2:] → encoder layers
@@ -517,6 +525,7 @@ class PhysicsEncoder(eqx.Module):
     .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
        sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
        https://doi.org/10.1126/science.add2187
+
     """
     if key is None:
       inference = True
@@ -585,6 +594,7 @@ def pack_encoder_context(
   Matches the legacy sequence: zeros gather, node gather, then masking.
   Batched graphs: vmap(pack_encoder_context) over batch dimension.
   Used in AR scan and ligand state_vmap_exact call sites.
+
   """
   encoder_edge_neighbors = concatenate_neighbor_nodes(
     jnp.zeros_like(node_features),
@@ -644,6 +654,7 @@ def encoder_forward_with_int_neighbors(
   Example: wave ``encode_one`` uses one ``k`` for both ``features`` and encoder;
   scoring paths use ``k_feat`` vs ``k_enc`` separately — only the encoder tail
   is unified here.
+
   """
   nf2, ef2 = encoder(
     edge_features,

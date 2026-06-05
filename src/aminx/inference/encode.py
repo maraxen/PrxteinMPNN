@@ -231,6 +231,7 @@ def make_encode_fn(model: ModelProtocol, *, use_rolling_state: bool = False) -> 
       >>> encode_fn = make_encode_fn(model, use_rolling_state=False)
       >>> enc = encode_fn(bundle, key, config)
       >>> print(enc.node_features.shape)  # (S, L, H)
+
   """
   if use_rolling_state:
     return _ScanEncode(model=model)

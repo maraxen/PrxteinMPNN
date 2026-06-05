@@ -12,7 +12,7 @@ Note: Stage-set projection for STE is handled internally by STEDecode (see ste.p
 
 from __future__ import annotations
 
-from typing import Any, Union, cast
+from typing import Any, cast
 
 import jax.numpy as jnp
 
@@ -41,7 +41,7 @@ def make_decode_fn(
   mode: DecodeMode,
   strategy: AxisStrategy,
   decoding_order_fn: DecodingOrderFn | None = None,
-) -> Union[ConditionalDecode, UnconditionalDecode, AutoregressiveDecode, STEDecode]:
+) -> ConditionalDecode | UnconditionalDecode | AutoregressiveDecode | STEDecode:
   """Factory: resolve a decode mode and strategy into a typed mode-class instance.
 
   Dispatches by mode type, resolving the state-axis strategy via
@@ -81,6 +81,7 @@ def make_decode_fn(
 
   For STEMode, the factory recursively creates an inner mode-class via make_decode_fn
   with the STEMode.inner_mode, then wraps it in STEDecode.
+
   """
   if decoding_order_fn is None:
     decoding_order_fn = _DEFAULT_DECODING_ORDER_FN

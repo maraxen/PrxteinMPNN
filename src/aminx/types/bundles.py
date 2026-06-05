@@ -52,6 +52,7 @@ class GeometryBundle(eqx.Module):
   .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
      sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
      https://doi.org/10.1126/science.add2187
+
   """
 
   coords: Float[Array, "S L 4 3"]
@@ -107,6 +108,7 @@ class ConditioningBundle(eqx.Module):
   .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
      sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
      https://doi.org/10.1126/science.add2187
+
   """
 
   fixed_mask: Float[Array, L]
@@ -144,6 +146,7 @@ class LigandBundle(eqx.Module):
 
   .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).
      https://github.com/dauparas/LigandMPNN
+
   """
 
   ligand_coords: Float[Array, "S L_lig A 3"]
@@ -176,6 +179,7 @@ class WaveScheduleBundle(eqx.Module):
   .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
      sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
      https://doi.org/10.1126/science.add2187
+
   """
 
   group_ids: Int[Array, "W G"]
@@ -204,6 +208,7 @@ class WaveScheduleBundle(eqx.Module):
     -------
     WaveScheduleBundle
         Schedule with groups organized into waves.
+
     """
     # Map each position to its decoding step
     # (Assuming decoding_order respects ties: positions in same tie group
@@ -263,6 +268,7 @@ class WaveScheduleBundle(eqx.Module):
     -------
     WaveScheduleBundle
         Schedule with sequential untied decoding.
+
     """
     # W = L, G = 1
     group_ids = jnp.arange(seq_len)[:, None]
@@ -310,6 +316,7 @@ class InferenceBundle(eqx.Module):
   .. [LigandMPNN] Dauparas, J., et al. "Atomic context-conditioned protein
      sequence design using LigandMPNN." *Nature Methods* 22(4):717-723 (2025).
      https://doi.org/10.1038/s41592-025-02626-1
+
   """
 
   geometry: GeometryBundle
@@ -341,6 +348,7 @@ class EncodedFeatures(eqx.Module):
   .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
      sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
      https://doi.org/10.1126/science.add2187
+
   """
 
   node_features: Float[Array, "L D"]
@@ -371,6 +379,7 @@ class EncoderOutput(eqx.Module):
   .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
      sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
      https://doi.org/10.1126/science.add2187
+
   """
 
   node_features: Float[Array, "S L D"]
@@ -404,6 +413,7 @@ class PackerResult(eqx.Module):
 
   .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).
      https://github.com/dauparas/LigandMPNN
+
   """
 
   mean: Float[Array, "L 4 3"] | Float[Array, "S L 4 3"]
@@ -450,6 +460,7 @@ class PackerBundle(eqx.Module):
 
   .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).
      https://github.com/dauparas/LigandMPNN
+
   """
 
   sequence: Int[Array, L] | Int[Array, "S L"]

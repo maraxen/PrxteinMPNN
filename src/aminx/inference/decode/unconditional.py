@@ -43,6 +43,7 @@ class UnconditionalDecode(eqx.Module):
 
   This class is NOT a subclass of _ConditionalDecodeBase because unconditional
   decoding does not have the teacher-forcing contract.
+
   """
 
   model: Any
@@ -76,6 +77,7 @@ class UnconditionalDecode(eqx.Module):
     -------
     jnp.ndarray
         Fused logits. Shape: (L, 21).
+
     """
     cond = bundle.conditioning
 
@@ -138,6 +140,7 @@ class UnconditionalDecode(eqx.Module):
     -------
     ndarray
         Fused logits. Shape (L, V).
+
     """
     if stage_set.logit_transform is None:
       # Identity: single-state passthrough

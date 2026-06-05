@@ -46,6 +46,7 @@ def make_axis_dispatch(strategy: AxisStrategy, *, axis: str = "state") -> object
       If strategy is Scan and axis is heterogeneous (e.g., axis="state"),
       or if strategy is DedupGather (which is handled by _dispatch_axis,
       not by make_axis_dispatch).
+
   """
   # Lazy import to avoid circular dependency with iterator.py.
   # iterator.py may not exist at dispatch time (parallel task in Wave A).

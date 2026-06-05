@@ -76,6 +76,7 @@ def make_sampling_planner(
   -------
   BatchPlan
       Batch size decisions for each sampling axis (structures, samples, temps, noises).
+
   """
   try:
     limit = jax.devices()[0].memory_stats()["bytes_limit"]
@@ -111,6 +112,7 @@ def extract_batch_sizes(plan: BatchPlan) -> tuple[int, int, int, int]:
   -------
   tuple[int, int, int, int]
       Tuple of (structures_bs, samples_bs, temps_bs, noises_bs).
+
   """
   structures_bs = plan.decision_for(AxisNames.N_STRUCTURES).batch_size
   samples_bs = plan.decision_for(AxisNames.N_SAMPLES).batch_size
@@ -142,6 +144,7 @@ def compute_sample_keys(
   -------
   jax.Array
       Array of shape ``(target_num_samples,)`` containing folded keys.
+
   """
   sample_indices = np.arange(target_num_samples, dtype=np.int32)
   if chunk_sample_start is not None:
@@ -181,6 +184,7 @@ def resolve_target_samples(
   ------
   ValueError
       If resolved sample count is not positive.
+
   """
   if chunk_sample_count is not None:
     target = int(chunk_sample_count)
@@ -218,6 +222,7 @@ def resolve_chunk_size(
   -------
   int
       Chunk size (positive).
+
   """
   if hasattr(spec, "samples_chunk_size") and spec.samples_chunk_size:
     return int(spec.samples_chunk_size)
@@ -240,6 +245,7 @@ def resolve_sample_start(
   -------
   int
       Sample start index (0-based).
+
   """
   return int(grid_lineage["sample_start"]) if grid_lineage is not None else 0
 
@@ -257,6 +263,7 @@ def _validate_plan_topology(
 
   Raises:
       PlanTopologyError: on first violation found.
+
   """
   from aminx.tiling.strategy import Scan, Vmap
 
@@ -335,6 +342,7 @@ class InferenceComponents(NamedTuple):
   .. [LigandMPNN] Dauparas, J., et al. "Atomic context-conditioned protein
      sequence design using LigandMPNN." *Nature Methods* 22(4):717-723 (2025).
      https://doi.org/10.1038/s41592-025-02626-1
+
   """
 
   encode_fn: Callable
@@ -372,6 +380,7 @@ class InferencePlan(eqx.Module):
   .. [LigandMPNN] Dauparas, J., et al. "Atomic context-conditioned protein
      sequence design using LigandMPNN." *Nature Methods* 22(4):717-723 (2025).
      https://doi.org/10.1038/s41592-025-02626-1
+
   """
 
   model: Any
@@ -404,6 +413,7 @@ class InferencePlan(eqx.Module):
     EncoderOutput
         Encoded node features, edge features, neighbor indices, and mask.
         Reuse this output across multiple decode() calls for encode-once/decode-many.
+
     """
     return self.components.encode_fn(bundle, key, config)
 
@@ -434,6 +444,7 @@ class InferencePlan(eqx.Module):
         SampleResult containing logits (shape (L, 21)) and argmax sequence.
         Dispatches via self.decode_fn (ConditionalDecode by default; see
         make_inference_plan for mode configuration).
+
     """
     from aminx.inference.sample_autoregressive import SampleResult
 
@@ -500,6 +511,7 @@ class InferencePlan(eqx.Module):
     -------
     Any
         Sampled sequence (or auxiliary output from driver).
+
     """
     enc = self.encode(bundle, key, config)
     return self.decode(enc, bundle, key, config)
@@ -521,6 +533,7 @@ class InferencePlan(eqx.Module):
     -------
     Logits
         Logit scores per position per amino acid.
+
     """
     enc = self.encode(bundle, key, config)
     return self.decode(enc, bundle, key, config)
@@ -600,6 +613,7 @@ def make_inference_plan(model: ModelProtocol, spec: Any, packer: Any = None) -> 
   .. [LigandMPNN] Dauparas, J., et al. "Atomic context-conditioned protein
      sequence design using LigandMPNN." *Nature Methods* 22(4):717-723 (2025).
      https://doi.org/10.1038/s41592-025-02626-1
+
   """
   from aminx.inference.decode.factory import make_decode_fn
   from aminx.inference.decode.mode import ConditionalMode
@@ -702,6 +716,7 @@ def plan_bucketed(
       If sequence_lengths is empty or any length exceeds all buckets.
   KeyError
       If no "n_structures" axis found in planner.axes.
+
   """
   from aminx.tiling.bucketing import (
       BucketAssignment,

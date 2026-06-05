@@ -27,6 +27,7 @@ def compute_wave_assignments(
     wave_group_positions: (n_waves, max_wave_size, max_group_size) int32 — flat indices
     wave_group_valid:     (n_waves, max_wave_size) bool — which group slots are active
     wave_position_valid:  (n_waves, max_wave_size, max_group_size) bool — valid members
+
   """
   from scipy.spatial.distance import cdist  # noqa: PLC0415
 

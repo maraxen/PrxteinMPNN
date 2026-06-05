@@ -30,6 +30,7 @@ def compute_pseudo_perplexity(
   Returns:
     pseudo_perplexity: Array with shape [batch, samples, noise, temp] containing
       the exponentiated average negative log-likelihood per sequence.
+
   """
   one_hot_sequences = jax.nn.one_hot(sampled_sequences, num_classes=21)
   log_probs = jax.nn.log_softmax(sampled_logits, axis=-1)
@@ -71,6 +72,7 @@ def pad_to_max(
 
   Returns:
     Padded JAX array with shape [..., target_len, ...] along the specified axis.
+
   """
   diff = target_len - arr.shape[axis]
   if diff == 0:
@@ -94,6 +96,7 @@ def aggregate_logits(
 
   Returns:
     Concatenated logits array with shape [total_batch, samples, noise, temp, seq_len, 21].
+
   """
   if not all_logits:
     return jnp.array([], dtype=jnp.float32)
@@ -117,6 +120,7 @@ def aggregate_pseudo_perplexities(
 
   Returns:
     Concatenated pseudo-perplexity array.
+
   """
   if not all_pseudo_perplexities:
     return jnp.array([], dtype=jnp.float32)

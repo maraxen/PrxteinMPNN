@@ -36,6 +36,7 @@ class CarrySpec:
 
   Raises:
       ValueError: If axis_name is a known heterogeneous axis.
+
   """
 
   axis_name: str

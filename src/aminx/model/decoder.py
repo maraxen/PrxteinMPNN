@@ -63,6 +63,7 @@ def pack_decoder_unconditional_layer_edge_features(
   Notes
   -----
   This matches the legacy ProteinMPNN unconditional decode convention.
+
   """
   zeros_with_edges = concatenate_neighbor_nodes(
     jnp.zeros_like(node_features),
@@ -118,6 +119,7 @@ def pack_conditional_decoder_static_edges(
   -----
   These tensors are computed once and reused across all decoder layer iterations
   to avoid redundant computation.
+
   """
   embedded_sequence = jnp.atleast_2d(one_hot_sequence) @ w_s_weight
 
@@ -177,6 +179,7 @@ def conditional_decoder_layer_edge_features(
   jax.Array
       Per-layer edge context with mask and pre-computed terms applied.
       Shape ``(L, K, D_combined)``.
+
   """
   current_features = concatenate_neighbor_nodes(
     loop_node_features,
@@ -213,6 +216,7 @@ class DecoderLayer(eqx.Module):
   .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
      sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
      https://doi.org/10.1126/science.add2187
+
   """
 
   message_mlp: eqx.nn.MLP
@@ -245,6 +249,7 @@ class DecoderLayer(eqx.Module):
         Dropout rate. Default: 0.1.
     key : PRNGKeyArray
         PRNG key for weight initialization.
+
     """
     keys = jax.random.split(key, 4)
 
@@ -307,6 +312,7 @@ class DecoderLayer(eqx.Module):
     -------
     NodeFeatures
         Updated node features. Shape ``(L, D)``.
+
     """
     # Pass the key to jax.random.split for potential dropout use
     if key is None:
@@ -388,6 +394,7 @@ class DecoderLayerJ(eqx.Module):
 
   .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).
      https://github.com/dauparas/LigandMPNN
+
   """
 
   w1: eqx.nn.Linear
@@ -423,6 +430,7 @@ class DecoderLayerJ(eqx.Module):
         Message aggregation scale factor. Default: 30.0.
     key : PRNGKeyArray
         PRNG key for weight initialization.
+
     """
     keys = jax.random.split(key, 5)
     self.w1 = eqx.nn.Linear(hidden_dim + in_dim, hidden_dim, key=keys[0])
@@ -469,6 +477,7 @@ class DecoderLayerJ(eqx.Module):
     -------
     NodeFeatures
         Updated node features. Shape ``(L, M, D)``.
+
     """
     if key is None:
       inference = True
@@ -528,6 +537,7 @@ class Decoder(eqx.Module):
   .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
      sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
      https://doi.org/10.1126/science.add2187
+
   """
 
   layers: tuple[DecoderLayer, ...]
@@ -560,6 +570,7 @@ class Decoder(eqx.Module):
         Dropout rate. Default: 0.1.
     key : PRNGKeyArray
         PRNG key for weight initialization.
+
     """
     self.node_features_dim = node_features
     self.edge_features_dim = edge_features
@@ -613,6 +624,7 @@ class Decoder(eqx.Module):
     -----
     Unconditional decoding does not condition on any sequence.
     This is used for sequence generation / sampling.
+
     """
     if key is None:
       inference = True
@@ -681,6 +693,7 @@ class Decoder(eqx.Module):
     -----
     Conditional decoding conditions on the given sequence and uses
     autoregressive masking to prevent attending to future positions.
+
     """
     if key is None:
       inference = True

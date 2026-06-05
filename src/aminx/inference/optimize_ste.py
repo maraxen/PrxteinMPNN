@@ -90,6 +90,7 @@ def make_optimize_sequence_fn(
   it raises TypeError at function-call time (Python signature enforcement).
   No DeprecationWarning. Migration required for all callers: pass stage_set=
   at call time or construct via make_stage_set(...).
+
   """
 
   @partial(jax.jit, static_argnames=("use_rolling_state", "logit_combine_strategy"))

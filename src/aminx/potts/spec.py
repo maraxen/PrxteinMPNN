@@ -20,6 +20,12 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
   from mistypotts.potts_trw_spec import PottsTRWRunSpec  # type: ignore[import-not-found]
 
+# Runtime import with fallback for when mistypotts is not installed
+try:
+  from mistypotts.potts_trw_spec import PottsTRWRunSpec as PottsTRWRunSpec  # type: ignore[import-not-found]
+except ImportError:
+  PottsTRWRunSpec = None  # type: ignore[assignment,misc]
+
 
 def _get_potts_trw_run_spec_class() -> type:
   """Lazy import of PottsTRWRunSpec to avoid hard dependency at import time.
@@ -66,12 +72,15 @@ class PottsRunSpec:
 
   def __post_init__(self) -> None:
     """Validate spec fields and enforce safety constraints."""
-    potts_trw_run_spec_cls = _get_potts_trw_run_spec_class()
-
     if self.trw_spec is None:
-      object.__setattr__(self, "trw_spec", potts_trw_run_spec_cls.default_dense())  # type: ignore[attr-defined]
+      try:
+        potts_trw_run_spec_cls = _get_potts_trw_run_spec_class()
+        object.__setattr__(self, "trw_spec", potts_trw_run_spec_cls.default_dense())  # type: ignore[attr-defined]
+      except ImportError:
+        # mistypotts not installed; allow trw_spec to remain None for spec-only usage
+        pass
 
-    if self.training and self.trw_spec.trw_loop == "fori":  # type: ignore[attr-defined]
+    if self.trw_spec is not None and self.training and self.trw_spec.trw_loop == "fori":  # type: ignore[attr-defined]
       msg = (
         "trw_loop=fori is unsafe for training: materialises all TRW intermediate states "
         "under reverse-mode autodiff causing OOM. Use trw_loop=scan with checkpoint_trw_step=True."

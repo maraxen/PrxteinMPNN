@@ -14,7 +14,7 @@ from aminx.potts.calibration import (
   LearnedCalibration,
   load_calibration,
 )
-from aminx.potts.spec import PottsRunSpec
+from aminx.potts.spec import PottsRunSpec, PottsTRWRunSpec
 
 try:
   from aminx.potts.model import (
@@ -36,5 +36,6 @@ __all__ = [
   "PottsModel",
   "PottsParams",
   "PottsRunSpec",
+  "PottsTRWRunSpec",
   "load_calibration",
 ]

@@ -1,0 +1,22 @@
+[metadata]
+script = "pottsmpnn_to_eqx.py"
+description = "Recapture PottsMPNN checkpoint weights into Equinox .eqx.zst format"
+author = "Claude Code"
+created = "260605"
+
+[hypotheses]
+h_1 = "x2 scaling of h and J matches directed-slot PottsMPNN convention"
+h_2 = "k_neighbors is read from loaded model config, not CLI args"
+h_3 = "Metadata (k_neighbors, checkpoint_path, pdb_path, wt_seq, vocab) is stored in checkpoint"
+h_4 = "Serialization via equinox.tree_serialise_leaves + zstandard compression preserves tensor values within 1e-6"
+
+[run_id]
+# To be filled in by CI/user when executing this script
+template = "potts_recapture_{timestamp}_{checkpoint_name}"
+
+[validation]
+# Synthetic 2-residue test with hand-crafted h, J values
+# Verify: (1) h and J are x2-scaled correctly
+#         (2) Energy computation matches expectation
+#         (3) Round-trip (serialize/deserialize) preserves values to 1e-6
+synthetic_test_file = "test_pottsmpnn_to_eqx.py"

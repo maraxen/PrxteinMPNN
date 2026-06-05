@@ -521,6 +521,7 @@ Specs = (
   | SamplingSpecification
   | JacobianSpecification
   | InspectionSpecification
+  | ConformationalInferenceSpecification
 )
 
 

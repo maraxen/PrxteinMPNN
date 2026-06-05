@@ -130,6 +130,12 @@ ignore = [
 pylint.max-args = 15
 
 [tool.ruff.lint.per-file-ignores]
+"src/aminx/cli.py" = [
+  "ANN401",  # Any used for spec in _emit_or_run
+  "FBT001",  # Boolean positional args are unavoidable in Typer CLI helpers
+  "FBT002",  # Boolean default args in Typer command signatures
+  "S107",    # Hardcoded password/secret false positive (e.g. "intra" pass_mode)
+]
 "src/aminx/profiling/hlo_tools.py" = [
   "ANN201",
   "ANN202",
@@ -186,10 +192,6 @@ markers = [
 
 [tool.ty.environment]
 root = ["src/aminx"]
-
-[tool.ty.analysis]
-# Third-party / workspace packages without full stubs (roadmap Phase 0).
-allowed-unresolved-imports = ["proxide.**", "prolix.**"]
 
 [tool.ty.rules]
 invalid-type-form = "ignore"

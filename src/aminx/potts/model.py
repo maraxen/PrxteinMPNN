@@ -7,6 +7,9 @@ h and J carry a factor-of-2 from the directed-slot PottsMPNN convention
 (counting each pairwise edge twice in the MRF). This factor is preserved
 to maintain numerical consistency with weight recapture from mistypotts.
 See etab_to_dense_h_j_w for reference.
+
+Alphabet: Potts uses the canonical MPNN alphabet (identity binding with aminx.utils.aa_convert.MPNN_ALPHABET).
+See ADR 260605_potts-alphabet-alignment for alphabet comparison and permutation contract.
 """
 
 from __future__ import annotations
@@ -24,6 +27,16 @@ try:
 except ImportError as e:
   msg = "mistypotts is required for Potts inference. Install via: pip install mistypotts"
   raise ImportError(msg) from e
+
+# Canonical Potts amino acid alphabet (20 standard amino acids + X for gap/unknown).
+# This is identical to MPNN_ALPHABET from aminx.utils.aa_convert.
+POTTS_ALPHABET = "ACDEFGHIKLMNPQRSTVWYX"
+
+# Permutation array mapping Potts indices to MPNN indices.
+# Since both use the same alphabet, this is the identity permutation.
+POTTS_TO_MPNN_ALPHABET_MAP = jnp.array(
+  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+)
 
 
 class PottsParams(NamedTuple):

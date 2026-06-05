@@ -1,10 +1,8 @@
 ---
 title: PottsModel is a parallel model family, NOT a StageSet consumer
-decision_id: 260605_potts-parallel-not-stageset
+status: accepted
 date: 260605
-status: Accepted 2026-06-05
-decision_type: architectural
-relates_to: 260605_integration-architecture-for-mistypotts
+task_id: 260605_multistate-potts
 ---
 
 ## Status: Accepted 2026-06-05
@@ -23,6 +21,8 @@ When integrating Potts inference into aminx, three architectural options emerged
 2. Decode-step adapter pattern (Option II)
 3. EncoderOutput widening (Option III)
 4. Product-of-Probabilities currency unification (Option IV)
+
+This decision document records why Option I was selected and why Options II–IV were rejected.
 
 ## Decision: Parallel Model Family, NOT StageSet Consumer
 
@@ -61,6 +61,8 @@ This is enforced via static analysis (#1304) and documented in module docstrings
 
 - **Integration complexity:** Wrapping TRW in a decode_step shape would require fake token-at-a-time framing, breaking TRW's global structure-awareness.
 
+**Conclusion:** Option II conflates two fundamentally different inference paradigms (global probabilistic vs. streaming autoregressive). Rejected.
+
 ### Option III: EncoderOutput Widening
 
 **Concept:** Extend `EncoderOutput` (bundles.py:359) to carry both MPNN logits and Potts parameters, making Potts visible downstream via the unified pipeline.
@@ -80,6 +82,8 @@ This is enforced via static analysis (#1304) and documented in module docstrings
 
 - **Separation of concerns:** Potts is a **different inference paradigm**, not an enhancement of the MPNN pipeline. Mixing them in a shared output type violates single responsibility.
 
+**Conclusion:** EncoderOutput is too foundational to widen without breaking the existing stack. Rejected.
+
 ### Option IV: ProductOfProbabilities for PoE
 
 **Concept:** Use a unified currency (logits or probabilities) to combine multiple inference models via `p_ensemble = ∏ p_backbone`.
@@ -96,6 +100,8 @@ This is enforced via static analysis (#1304) and documented in module docstrings
 - **Energy vs. logits:** Potts parameters are energies (log-unnormalized); MPNN logits are model outputs. Energy-space products (`exp(e1 + e2)`) and logit-space products differ fundamentally.
 
 - **No backward compatibility:** Existing PoE code (poe.py) operates on identical Potts backbones via energy summation. Widening to MPNN would require new PoE logic and break existing semantics.
+
+**Conclusion:** No natural currency unification exists between Potts and MPNN. Option IV is infeasible. Rejected.
 
 ## Enforcement
 
@@ -181,7 +187,7 @@ See ADR 260605_potts-parallel-not-stageset for design rationale.
 - MPNN pipeline unaffected by Potts changes
 - Clear forbidden boundary prevents architectural creep
 
----
+## Approval
 
 **Decision made:** 2026-06-05 by multistate-potts architecture review
 **Enforced:** Static import checker (#1304), module docstrings, test suite

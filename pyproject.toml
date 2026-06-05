@@ -65,6 +65,8 @@ tests = [
     "biopython>=1.83",
     # Reference LigandMPNN `sc_utils` does `import tree` (DeepMind `dm-tree`).
     "dm-tree>=0.1.8",
+    # Potts model inference and exact computations
+    "mistypotts @ file:///home/marielle/projects/mistypotts",
 ]
 dev = [
   "ruff",
@@ -85,6 +87,8 @@ dev = [
   "chex",
   "foldcomp",
   "mdtraj",
+  # Potts model inference and exact computations
+  "mistypotts @ file:///home/marielle/projects/mistypotts",
 ]
 foldcomp = [
     "foldcomp",

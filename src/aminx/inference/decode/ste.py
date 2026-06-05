@@ -291,13 +291,13 @@ class STEDecode(eqx.Module):
         # Encode the bundle
         enc = encode_fn(bundle_new, key_enc, config)
 
-        # Score with inner decode mode
+        # Score with inner decode mode (use full stage_set, matching reference)
         output_logits = self.inner(
           key=key_dec,
           enc=enc,
           bundle=bundle_new,
           config=config,
-          stage_set=projected_stage_set,
+          stage_set=stage_set if stage_set is not None else StageSet(),
         )
         return output_logits
 

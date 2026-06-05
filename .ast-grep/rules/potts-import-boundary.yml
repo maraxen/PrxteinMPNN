@@ -14,6 +14,9 @@ message: |
   This module is protected to maintain separation between Potts (parallel model)
   and Aminx (MPNN stageset).
 
+files:
+  - 'src/aminx/potts/(?!designer\.py)'
+
 rule:
   any:
     # Pattern 1a: import aminx.inference.decode

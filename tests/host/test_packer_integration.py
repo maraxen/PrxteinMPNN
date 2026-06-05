@@ -105,8 +105,8 @@ def test_inference_plan_decode_with_packer_active():
             sequence=jnp.arange(L, dtype=jnp.int32),
             logits=jnp.zeros((L, 21))
         )
-    # Since InferencePlan is a standard dataclass, assign decode_fn directly
-    plan.decode_fn = mock_decode_fn
+    # InferencePlan is an eqx.Module (frozen), use eqx.tree_at to update
+    plan = eqx.tree_at(lambda p: p.decode_fn, plan, mock_decode_fn)
     
     # 2. Setup inputs
     enc = EncoderOutput(

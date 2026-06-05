@@ -178,6 +178,7 @@ markers = [
     "parity_targeted: small subset of parity_heavy failures for fast GPU repro (cluster)",
     "parity_audit: checkpoint-family audit parity checks and conversion validation",
     "phase0a_spike: Phase 0a state_vmap_exact vs explicit vmap stack (roadmap REFACTOR_ROADMAP §227)",
+    "requires_weights: test requires model weight files (bundled or HF Hub)",
 ]
 
 [tool.ty.environment]

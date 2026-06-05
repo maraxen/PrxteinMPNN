@@ -1,5 +1,6 @@
 """Shared test fixtures."""
 
+import socket
 from pathlib import Path
 
 import jax
@@ -9,6 +10,48 @@ from jax import random
 
 from aminx.utils.data_structures import Protein
 from aminx.types.arrays import ModelParameters
+
+
+def _hf_hub_reachable() -> bool:
+  try:
+    socket.setdefaulttimeout(5)
+    socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(("huggingface.co", 443))
+    return True
+  except OSError:
+    return False
+
+
+def _local_weights_exist() -> bool:
+  model_params = Path(__file__).parent.parent / "src" / "aminx" / "model_params"
+  return any(model_params.glob("*.eqx.zst"))
+
+
+_WEIGHTS_AVAILABLE: bool = _local_weights_exist() or _hf_hub_reachable()
+
+
+def pytest_configure(config: pytest.Config) -> None:
+  config.addinivalue_line(
+    "markers",
+    "requires_weights: test requires model weight files (bundled or HF Hub)",
+  )
+
+
+def pytest_runtest_setup(item: pytest.Item) -> None:
+  if item.get_closest_marker("requires_weights") and not _WEIGHTS_AVAILABLE:
+    pytest.skip("requires_weights: no bundled weights and HF Hub unreachable")
+
+
+@pytest.fixture(scope="session")
+def checkpoint_local_path():
+  """Resolve checkpoint_id to local path if bundled, else HF Hub cache path."""
+  def _resolve(checkpoint_id: str) -> str:
+    fname = checkpoint_id if checkpoint_id.endswith(".eqx.zst") else f"{checkpoint_id}.eqx.zst"
+    local = Path(__file__).parent.parent / "src" / "aminx" / "model_params" / fname
+    if local.exists():
+      return str(local)
+    from huggingface_hub import hf_hub_download
+    return hf_hub_download(repo_id="maraxen/aminx", filename=fname)
+  return _resolve
 
 
 def _parse_first_structure(path: Path) -> Protein:

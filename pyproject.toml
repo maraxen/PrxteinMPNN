@@ -89,6 +89,9 @@ dev = [
 foldcomp = [
     "foldcomp",
 ]
+cpu = [
+    "jax[cpu]>=0.4.35",
+]
 
 [tool.ruff]
 line-length = 100

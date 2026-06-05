@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: dauparas/LigandMPNN
-          ref: 3870631
+          ref: 26ec57ac976ade5379920dbd43c7f97a91cf82de
           path: reference_ligandmpnn_clone
 
       - name: Set up Python
@@ -91,7 +91,7 @@ jobs:
           matrix_md = [
             "# Parity Audit Matrix",
             "",
-            "Reference source: dauparas/LigandMPNN @ 3870631",
+            "Reference source: dauparas/LigandMPNN @ 26ec57ac",
             f"Total audit paths: {len(audit_paths)}",
             "",
             "| Path ID | Method | Acceptance |",
@@ -134,7 +134,7 @@ jobs:
           summary = [
             "# Parity Audit Summary",
             "",
-            "Reference source: dauparas/LigandMPNN @ 3870631",
+            "Reference source: dauparas/LigandMPNN @ 26ec57ac",
             f"Audit paths covered: {len(audit_paths)}",
             f"Converted checkpoints available: {existing_converted}/{expected_converted}",
             "Ligand tied/multistate rollout policy: warn in parity_heavy, fail in parity_audit.",

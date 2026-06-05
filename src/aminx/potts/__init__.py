@@ -2,6 +2,7 @@
 
 Parallel model family for sequence design via Potts energy:
   - model: PottsModel(eqx.Module) with TRW inference
+  - spec: PottsRunSpec frozen dataclass for run configuration
   - sampling: MCMC sampling utilities
   - calibration: Post-hoc marginal calibration
   - designer: Multi-chain sequence design protocol
@@ -13,12 +14,18 @@ from aminx.potts.calibration import (
   LearnedCalibration,
   load_calibration,
 )
-from aminx.potts.model import (
-  POTTS_ALPHABET,
-  POTTS_TO_MPNN_ALPHABET_MAP,
-  PottsModel,
-  PottsParams,
-)
+from aminx.potts.spec import PottsRunSpec
+
+try:
+  from aminx.potts.model import (
+    POTTS_ALPHABET,
+    POTTS_TO_MPNN_ALPHABET_MAP,
+    PottsModel,
+    PottsParams,
+  )
+except ImportError:
+  # mistypotts may not be available; spec can still be imported
+  pass
 
 __all__ = [
   "CalibrationModule",
@@ -28,5 +35,6 @@ __all__ = [
   "POTTS_TO_MPNN_ALPHABET_MAP",
   "PottsModel",
   "PottsParams",
+  "PottsRunSpec",
   "load_calibration",
 ]

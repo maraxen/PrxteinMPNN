@@ -58,7 +58,7 @@ PottsModel is a **parallel, independent model** — not a variant of Aminx's Sta
 # Enforcement
 
 **Hard boundaries:**
-- `aminx.potts.{model, poe, sampling}` are **forbidden from importing** `aminx.inference.decode`, `aminx.inference.host.plan`, `aminx.types.stages`, `aminx.inference.logits`.
+- `aminx.potts.{model, poe, sampling}` are **forbidden from importing** `aminx.inference.decode`, `aminx.host.plan`, `aminx.types.stages`, `aminx.inference.logits`.
 - Only `aminx.potts.designer` is exempt (Coordinator wrapper holds Aminx instance and must wire logits to Gibbs initialization).
 
 **Verification:**

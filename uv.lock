@@ -80,6 +80,9 @@ benchmark = [
     { name = "prody", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "torch", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
+cpu = [
+    { name = "jax", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+]
 dev = [
     { name = "chex", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "foldcomp", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -156,6 +159,7 @@ requires-dist = [
     { name = "h5py", specifier = ">=3.11" },
     { name = "huggingface-hub", specifier = ">=0.23.0" },
     { name = "jax", specifier = ">=0.4.35" },
+    { name = "jax", extras = ["cpu"], marker = "extra == 'cpu'", specifier = ">=0.4.35" },
     { name = "jaxlint", marker = "extra == 'dev'", specifier = ">=0.1.0a1" },
     { name = "jaxtyping", specifier = ">=0.2.30" },
     { name = "joblib", specifier = ">=1.4" },
@@ -197,7 +201,7 @@ requires-dist = [
     { name = "typer", specifier = ">=0.12.0" },
     { name = "zstandard", specifier = ">=0.21.0" },
 ]
-provides-extras = ["benchmark", "docs", "tests", "dev", "foldcomp"]
+provides-extras = ["benchmark", "docs", "tests", "dev", "foldcomp", "cpu"]
 
 [package.metadata.requires-dev]
 benchmark = [

@@ -110,9 +110,10 @@ def make_decode_fn(
         state_iterator=state_iter,
         wave_iterator=wave_iter,
         wave_carry=wave_carry,
-        # inference_only=True selects lax.while_loop: faster to compile,
-        # not reverse-mode differentiable. Never set this in training paths.
-        use_while_loop=mode.inference_only,
+        # inference_only defaults to False (safe for training). Set via
+        # AutoregressiveConfig.inference_only if inference-only performance
+        # optimization is needed (faster compile, not reverse-mode differentiable).
+        use_while_loop=False,
       )
 
     if isinstance(mode, STEMode):

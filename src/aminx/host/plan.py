@@ -393,6 +393,22 @@ class InferencePlan(eqx.Module):
     """Access the wired StageSet directly."""
     return self.components.stage_set
 
+  def with_decode_fn(self, fn: DecodeScoreFn | ARDecodeFn | STEDecodeFn) -> InferencePlan:
+    """Return a new InferencePlan with the given decode function.
+
+    Parameters
+    ----------
+    fn : DecodeScoreFn | ARDecodeFn | STEDecodeFn
+        New decode function to use.
+
+    Returns
+    -------
+    InferencePlan
+        New immutable InferencePlan with updated decode_fn.
+
+    """
+    return eqx.tree_at(lambda p: p.decode_fn, self, fn)
+
   @eqx.filter_jit
   def encode(
     self, bundle: InferenceBundle, key: PRNGKeyArray, config: InferenceConfig,

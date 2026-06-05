@@ -30,6 +30,7 @@ from aminx.host.output_sinks import (
   take_staging_sequences_logits,
 )
 from aminx.host.plan import (
+  InferencePlan,
   make_inference_plan,
   resolve_chunk_size,
   resolve_target_samples,

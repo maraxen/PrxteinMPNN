@@ -292,7 +292,67 @@ For a batch of [76, 150, 300, 500]-residue structures on H200, total latency is 
 
 ### CLI
 
-aminx ships a Typer CLI with one command group, `spec`, for validating and round-tripping run specification JSON files.
+aminx ships a Typer CLI with four command groups: `run`, `campaign`, `spec`, and the `spec emit-*` family.
+
+#### `aminx run` — run sampling and scoring pipelines
+
+```bash
+# Full sampling pipeline — constructs a RunSpecification and runs it end-to-end
+aminx run sample \
+  --inputs structure.pdb \
+  --model-version v_48_020 \
+  --model-weights original \
+  --num-samples 10 \
+  --random-seed 42
+
+# Emit the spec JSON instead of running (useful for inspection or handoff)
+aminx run sample --inputs structure.pdb --emit-json
+aminx run sample --inputs structure.pdb --emit-json --out sample_spec.json
+
+# score, jacobian, and inspect accept the same options;
+# pass --emit-json to get the spec — the runner for these paths is not yet wired
+aminx run score --inputs structure.pdb --sequences-to-score ACDEFGHIKLMNPQRSTVWY --emit-json
+```
+
+All four subcommands (`sample`, `score`, `jacobian`, `inspect`) share the same base option surface: `--inputs`, `--model-weights`, `--model-version`, `--model-family`, `--batch-size`, `--backbone-noise`, `--random-seed`, and the full `RunSpecification` field set. Spec construction failures exit 1; an unwired runner exits 2.
+
+#### `aminx campaign` — design campaign orchestration
+
+```bash
+# Create a campaign manifest from a base spec
+aminx campaign plan \
+  --inputs structures/target.pdb \
+  --campaign-id pilot_v1 \
+  --manifest-path pilot.manifest.json \
+  --output-root outputs/pilot \
+  --designs-per-library-type 50 \
+  --samples-chunk-size 16
+
+# Execute a single manifest row (used by distributed workers)
+aminx campaign worker --manifest-path pilot.manifest.json --row-index 0
+
+# Execute all rows; exits 1 if any row fails
+aminx campaign run --manifest-path pilot.manifest.json
+
+# Evaluate quality gates; exits 2 if the campaign is not promoted
+aminx campaign gates --manifest-path pilot.manifest.json
+
+# Plan a staged scale ramp
+aminx campaign ramp-plan \
+  --inputs structures/target.pdb \
+  --campaign-id ramp_v1 \
+  --manifest-dir ramp_manifests/ \
+  --output-root outputs/ramp \
+  --stage-designs-per-library-type 10,50,200 \
+  --samples-chunk-size 16
+
+# Evaluate ramp stage reports; exits 2 if not promoted
+aminx campaign ramp-evaluate --report-path stage1.json --report-path stage2.json
+```
+
+`--lock-backend distributed` is not supported from the CLI (raises an error); use `local_fs` (the default).
+
+#### `aminx spec` — validate and round-trip spec files
 
 ```bash
 # Validate a spec JSON — exits 0 and prints "OK: <SpecClass>", or exits 1 with the parse error
@@ -308,7 +368,22 @@ aminx spec portable-roundtrip portable_spec.json
 aminx spec portable-roundtrip portable_spec.json --compact
 ```
 
-Specs can be serialized from Python with `run_specification_to_json`:
+#### `aminx spec emit-*` — emit spec JSON without running
+
+The `emit-sample`, `emit-score`, `emit-jacobian`, and `emit-inspect` subcommands are a convenience complement to `aminx run <cmd> --emit-json` — identical output, no runner invoked.
+
+```bash
+# Emit a sample spec JSON — equivalent to: aminx run sample ... --emit-json
+aminx spec emit-sample \
+  --inputs structure.pdb \
+  --model-version v_48_020 \
+  --model-weights original \
+  --compact
+
+aminx spec emit-sample --inputs structure.pdb --out sample_spec.json
+```
+
+Specs can also be serialized from Python with `run_specification_to_json`:
 
 ```python
 from aminx.run import run_specification_to_json
@@ -342,7 +417,7 @@ aminx.inference    ← driver.decode, logits (LOGIT_STRATEGIES, TIE_GROUP_STRATE
 aminx.model        ← LigandMPNN, Packer (Equinox modules, JIT-safe)
 aminx.sampling     ← sample() kernel
 aminx.scoring      ← score() kernel
-aminx.cli          ← aminx spec validate/roundtrip
+aminx.cli          ← aminx run / campaign / spec (Typer entry point)
 ```
 
 `StageSet` is the seam between the host layer and the JAX-traced kernels: everything above it is Python-land, everything below it is traced. See the [Composition Guide](docs/COMPOSITION_GUIDE.md).

@@ -389,6 +389,7 @@ def parity_batch() -> ParityBatch:
   return _build_parity_batch()
 
 
+@pytest.mark.requires_weights
 @pytest.mark.parity_heavy
 @pytest.mark.parametrize("weight_source", ("eqx", "pt_convert"))
 @pytest.mark.parametrize(

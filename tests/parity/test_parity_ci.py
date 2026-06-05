@@ -228,6 +228,7 @@ def test_checkpoint_family_manifest_declares_all_families() -> None:
     pytest.fail("All converted checkpoint paths must be under model_params/")
 
 
+@pytest.mark.requires_weights
 @pytest.mark.parametrize("family", sorted(EXPECTED_FAMILIES))
 def test_load_available_converted_family_checkpoints(family: str) -> None:
   """Load available converted checkpoints for each parity-audit family."""

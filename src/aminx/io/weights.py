@@ -6,7 +6,6 @@ import io
 import logging
 from importlib.resources import files
 from pathlib import Path
-from typing import Literal
 
 import equinox as eqx
 import jax
@@ -15,7 +14,6 @@ import zstandard as zstd
 from huggingface_hub import hf_hub_download
 
 from aminx.model import Aminx, PrxteinLigandMPNN
-from aminx.model.diffusion_mpnn import DiffusionAminx
 from aminx.model.packer import Packer
 
 HF_REPO_ID = "maraxen/aminx"
@@ -159,7 +157,6 @@ def load_model(
   use_electrostatics: bool = False,
   use_vdw: bool = False,
   dropout_rate: float = 0.1,
-  training_mode: Literal["autoregressive", "diffusion"] = "autoregressive",
   # legacy parameter for backwards compatibility
   model_version: str | None = None,
   ligand_l_chunk: int | None = None,
@@ -172,15 +169,7 @@ def load_model(
   must still name the intended checkpoint family (for example ``ligandmpnn_v_32_020_25``)
   so the correct module class and hyperparameters are built before deserialization.
 
-  **Diffusion:** If ``training_mode`` is ``"diffusion"`` and ``local_path`` is
-  ``None``, bundled autoregressive ``.eqx.zst`` checkpoints are **not** loaded (their
-  PyTree does not match ``DiffusionAminx``). The returned model is
-  **random-initialized** via :func:`load_weights` with ``checkpoint_id=None``. Pass
-  ``local_path`` to a compatible diffusion checkpoint when pre-trained diffusion
-  weights are required.
-
-  **Keys:** ``key`` affects random initialization for skeleton creation and for the
-  diffusion random-init path above.
+  **Keys:** ``key`` affects random initialization for skeleton creation.
 
   """
   if key is None:
@@ -245,19 +234,6 @@ def load_model(
       num_positional_embeddings=topo["num_positional_embeddings"],
       key=key,
     )
-  elif training_mode == "diffusion":
-    skeleton = DiffusionAminx(
-      node_features=NODE_FEATURES,
-      edge_features=EDGE_FEATURES,
-      hidden_features=HIDDEN_FEATURES,
-      physics_feature_dim=physics_feature_dim if physics_feature_dim > 0 else None,
-      num_encoder_layers=NUM_ENCODER_LAYERS,
-      num_decoder_layers=NUM_DECODER_LAYERS,
-      vocab_size=VOCAB_SIZE,
-      k_neighbors=topo["k_neighbors"],
-      num_positional_embeddings=topo["num_positional_embeddings"],
-      key=key,
-    )
   else:
     skeleton = Aminx(
       node_features=NODE_FEATURES,
@@ -272,11 +248,6 @@ def load_model(
       dropout_rate=dropout_rate,
       key=key,
     )
-
-  # Bundled autoregressive checkpoints are not PyTree-compatible with DiffusionAminx
-  # (extra time embeddings). Random-init unless a concrete ``local_path`` is provided.
-  if training_mode == "diffusion" and local_path is None:
-    return load_weights(checkpoint_id=None, skeleton=skeleton, key=key)
 
   loaded = load_weights(
     checkpoint_id=checkpoint_id,

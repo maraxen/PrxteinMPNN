@@ -261,6 +261,7 @@ def parity_batch() -> ParityBatch:
   return _build_parity_batch()
 
 
+@pytest.mark.requires_weights
 @pytest.mark.parity_heavy
 @pytest.mark.parity_targeted
 @pytest.mark.parametrize("weight_source", ("eqx", "pt_convert"))
@@ -294,6 +295,7 @@ def test_protein_feature_extraction_parity(
   assert max_abs_diff <= 2e-5
 
 
+@pytest.mark.requires_weights
 @pytest.mark.parity_heavy
 @pytest.mark.parametrize("weight_source", ("eqx", "pt_convert"))
 def test_protein_encoder_parity(
@@ -330,6 +332,7 @@ def test_protein_encoder_parity(
   assert edge_corr >= 0.95
 
 
+@pytest.mark.requires_weights
 @pytest.mark.parity_heavy
 @pytest.mark.parametrize("weight_source", ("eqx", "pt_convert"))
 def test_decoder_unconditional_parity(
@@ -383,6 +386,7 @@ def test_decoder_unconditional_parity(
   assert corr >= 0.95
 
 
+@pytest.mark.requires_weights
 @pytest.mark.parity_heavy
 @pytest.mark.parametrize("weight_source", ("eqx", "pt_convert"))
 def test_decoder_conditional_scoring_parity(
@@ -422,6 +426,7 @@ def test_decoder_conditional_scoring_parity(
   assert corr >= 0.95
 
 
+@pytest.mark.requires_weights
 @pytest.mark.parity_heavy
 @pytest.mark.parametrize("weight_source", ("eqx", "pt_convert"))
 def test_autoregressive_sampling_parity(
@@ -477,6 +482,7 @@ def test_autoregressive_sampling_parity(
   assert corr >= 0.95
 
 
+@pytest.mark.requires_weights
 @pytest.mark.parity_heavy
 @pytest.mark.parametrize("weight_source", ("eqx", "pt_convert"))
 def test_tied_positions_and_multi_state_parity(

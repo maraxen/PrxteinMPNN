@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import io
-import sys
+import logging
 from importlib.resources import files
 from pathlib import Path
 from typing import Literal
@@ -19,6 +19,8 @@ from aminx.model.diffusion_mpnn import DiffusionAminx
 from aminx.model.packer import Packer
 
 HF_REPO_ID = "maraxen/aminx"
+
+log = logging.getLogger(__name__)
 
 NODE_FEATURES = 128
 EDGE_FEATURES = 128
@@ -94,11 +96,7 @@ def _load_weight_bytes(filename: str) -> bytes:
       return resource_path.read_bytes()
   except (TypeError, ModuleNotFoundError):
     pass
-  print(
-    f"Downloading {filename} from {HF_REPO_ID} (first use only)...",
-    file=sys.stderr,
-    flush=True,
-  )
+  log.info("Downloading %s from %s (cached after first use)", filename, HF_REPO_ID)
   local_file = hf_hub_download(repo_id=HF_REPO_ID, filename=filename)
   return Path(local_file).read_bytes()
 

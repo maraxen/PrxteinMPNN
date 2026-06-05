@@ -1,22 +1,72 @@
 [metadata]
+title = "PottsMPNN Checkpoint Recapture to Equinox"
 script = "pottsmpnn_to_eqx.py"
 description = "Recapture PottsMPNN checkpoint weights into Equinox .eqx.zst format"
 author = "Claude Code"
 created = "260605"
+schema_version = "0.3"
 
-[hypotheses]
-h_1 = "x2 scaling of h and J matches directed-slot PottsMPNN convention"
-h_2 = "k_neighbors is read from loaded model config, not CLI args"
-h_3 = "Metadata (k_neighbors, checkpoint_path, pdb_path, wt_seq, vocab) is stored in checkpoint"
-h_4 = "Serialization via equinox.tree_serialise_leaves + zstandard compression preserves tensor values within 1e-6"
+[experiment]
+hypothesis = """
+PottsMPNN checkpoint weights (etab, E_idx) can be converted to dense Potts
+energy tensors (h, J, W) with x2 scaling per directed-slot convention,
+k_neighbors read from model config, and serialized via equinox + zstd
+with full round-trip preservation within 1e-6 numerical tolerance.
+"""
 
-[run_id]
-# To be filled in by CI/user when executing this script
-template = "potts_recapture_{timestamp}_{checkpoint_name}"
+[outcomes.pass]
+condition = "all synthetic tests pass AND round-trip values match to 1e-6"
+reasoning = """
+Synthetic 2-residue test with known etab/e_idx verifies:
+(1) etab_to_dense_h_j_w correctly builds h, J, W with x2 scaling
+(2) Energy computation matches expected values
+(3) Serialization/deserialization via equinox preserves all values within 1e-6
+This proves the conversion function is correct and the save mechanism
+preserves numerical precision.
+"""
+is_residual = false
 
-[validation]
-# Synthetic 2-residue test with hand-crafted h, J values
-# Verify: (1) h and J are x2-scaled correctly
-#         (2) Energy computation matches expectation
-#         (3) Round-trip (serialize/deserialize) preserves values to 1e-6
-synthetic_test_file = "test_pottsmpnn_to_eqx.py"
+[outcomes.marginal]
+condition = "tests pass BUT round-trip tolerance exceeds 1e-6"
+reasoning = """
+Conversion logic correct but serialization introduces numerical drift.
+May indicate float32 truncation or zstd decompression edge case.
+Should investigate if downstream inference is affected before production use.
+"""
+is_residual = false
+
+[outcomes.fail]
+condition = "any test fails OR exception raised during load/convert/save"
+reasoning = """
+Indicates either (1) conversion logic has bugs, (2) checkpoint loading fails,
+(3) serialization is broken, or (4) torch/equinox/zstd imports unavailable.
+This would prevent checkpoint recapture and must be fixed before use.
+"""
+is_residual = true
+
+[result_schema]
+h_shape = { type = "tuple[int, int]", doc = "Shape of field tensor h: (n_residues, 21)" }
+j_shape = { type = "tuple[int, int, int, int]", doc = "Shape of pairwise tensor j: (n_residues, n_residues, 21, 21)" }
+w_shape = { type = "tuple[int, int]", doc = "Shape of adjacency matrix w: (n_residues, n_residues)" }
+k_neighbors = { type = "int", doc = "Number of nearest neighbors in Potts model (from checkpoint config)" }
+vocab = { type = "int", doc = "Vocabulary size (21 standard amino acids)" }
+wt_seq = { type = "str", doc = "Wild-type amino acid sequence extracted from PDB" }
+synthetic_tests_pass = { type = "bool", doc = "Whether all synthetic ground-truth tests pass with 1e-6 tolerance" }
+round_trip_max_error = { type = "float", doc = "Maximum error observed in serialize/deserialize round-trip (should be <1e-6)" }
+
+[result_schema.provenance]
+script_commit = "git log --oneline -1 scripts/recapture/pottsmpnn_to_eqx.py"
+test_file = "scripts/recapture/test_pottsmpnn_to_eqx.py"
+pytorch_version = "dynamic (loaded at runtime)"
+jax_version = "dynamic (loaded at runtime)"
+equinox_version = "dynamic (loaded at runtime)"
+zstandard_version = "dynamic (loaded at runtime)"
+adr_reference = "ADR 260605_potts-parallel-not-stageset (x2 scale convention)"
+
+[dependencies]
+aminx_version = "current worktree"
+torch_version = ">=2.0 (via uv run --group experiments)"
+jax_version = ">=0.10.0"
+equinox_version = ">=0.11.0"
+zstandard_version = ">=0.21.0"
+mistypotts = "from /home/marielle/projects/mistypotts"

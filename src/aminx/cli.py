@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
+from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Any, cast
 
@@ -12,7 +14,11 @@ from aminx.run.run_spec_portable_json import (
   run_spec_portable_from_dict,
   run_spec_portable_to_dict,
 )
-from aminx.run.spec_json import run_specification_from_json, run_specification_to_json
+from aminx.run.spec_json import (
+  run_specification_from_json,
+  run_specification_to_json,
+  run_specification_to_json_dict,
+)
 
 app = typer.Typer(
   name="aminx",
@@ -26,6 +32,933 @@ spec_app = typer.Typer(
   no_args_is_help=True,
 )
 app.add_typer(spec_app, name="spec")
+
+run_app = typer.Typer(
+  name="run",
+  help="Build and dispatch run specifications.",
+  no_args_is_help=True,
+)
+app.add_typer(run_app, name="run")
+
+campaign_app = typer.Typer(
+  name="campaign",
+  help="Campaign manifest planner and worker operations.",
+  no_args_is_help=True,
+)
+app.add_typer(campaign_app, name="campaign")
+
+
+class LockBackend(StrEnum):
+  """Lock backend choices for campaign worker/run commands."""
+
+  local_fs = "local_fs"
+  distributed = "distributed"
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _parse_float_tuple(value: str | None) -> tuple[float, ...] | None:
+  """Parse a comma-separated float string into a tuple, or return None."""
+  if value is None:
+    return None
+  return tuple(float(x.strip()) for x in value.split(","))
+
+
+def _parse_tied_positions(
+  tied_position: list[str],
+) -> list[tuple[int, int]] | str | None:
+  """Parse --tied-position values into a list of (int, int) pairs or a mode string."""
+  if not tied_position:
+    return None
+  if len(tied_position) == 1 and tied_position[0] in ("auto", "direct"):
+    return tied_position[0]
+  pairs: list[tuple[int, int]] = []
+  for token in tied_position:
+    parts = token.split(":")
+    if len(parts) != 2:
+      msg = f"--tied-position value {token!r} must be 'A:B' (two integers) or 'auto'/'direct'"
+      raise typer.BadParameter(msg)
+    pairs.append((int(parts[0]), int(parts[1])))
+  return pairs
+
+
+def _emit_or_run(
+  spec: Any,
+  emit_json: bool,
+  out: Path | None,
+  runner_name: str,
+  runner_available: bool,
+) -> None:
+  """Either emit the spec as JSON or invoke the runner."""
+  if emit_json:
+    blob = json.dumps(run_specification_to_json_dict(spec), indent=2, sort_keys=True)
+    if out is not None:
+      out.write_text(blob, encoding="utf-8")
+    else:
+      typer.echo(blob)
+    return
+  if not runner_available:
+    typer.echo(
+      f"aminx run {runner_name} runner not wired; use --emit-json",
+      err=True,
+    )
+    raise typer.Exit(code=2)
+
+
+# ---------------------------------------------------------------------------
+# Shared base options — declared once on the ``run`` group callback.
+#
+# All four ``run`` subcommands (sample, score, jacobian, inspect) share the
+# same ~38 model/infra parameters.  Rather than copy-pasting the declarations
+# into each function signature, we collect them on the parent group via
+# ``@run_app.callback()`` and store the result in ``ctx.obj`` as a
+# ``_RunBase`` dataclass.  Subcommands receive ``ctx: typer.Context`` and
+# unpack ``ctx.obj`` to access the shared fields.
+#
+# CLI interface is unchanged: base options still appear after ``run`` but
+# before the subcommand name, e.g.:
+#   aminx run --backbone-noise 0.1 sample --inputs foo.pdb --emit-json
+# ---------------------------------------------------------------------------
+
+_OPT = typer.Option
+
+
+@dataclasses.dataclass
+class _RunBase:
+  """Carrier for the shared model/infra options parsed by the ``run`` callback."""
+
+  topology: str | None
+  model_weights: str
+  model_version: str
+  model_family: str
+  checkpoint_id: str | None
+  model_local_path: Path | None
+  checkpoint_registry_path: Path | None
+  ligand_mpnn_use_side_chain_context: bool | None
+  batch_size: int | None
+  backbone_noise: str
+  backbone_noise_mode: str
+  estat_noise: str | None
+  estat_noise_mode: str
+  vdw_noise: str | None
+  vdw_noise_mode: str
+  use_electrostatics: bool
+  use_vdw: bool
+  random_seed: int
+  chain_id: str | None
+  model: int | None
+  altloc: str
+  cache_path: Path | None
+  output_dir: Path | None
+  max_buffer_size: int | None
+  overwrite_cache: bool
+  max_length: int | None
+  truncation_strategy: str
+  host_resource_allocation_strategy: str
+  ram_budget_mb: int | None
+  max_workers: int | None
+  n_devices: int | None
+  use_preprocessed: bool
+  preprocessed_index_path: Path | None
+  split: str
+  tied_position: list[str]
+  pass_mode: str
+  multi_state_temperature: float
+
+
+@run_app.callback()
+def _run_base(
+  ctx: typer.Context,
+  topology: Annotated[str | None, _OPT(help="Topology file path")] = None,
+  model_weights: Annotated[str, _OPT(help="Model weights name")] = "original",
+  model_version: Annotated[str, _OPT(help="Model version")] = "v_48_020",
+  model_family: Annotated[str, _OPT(help="Model family: proteinmpnn or ligandmpnn")] = "proteinmpnn",
+  checkpoint_id: Annotated[str | None, _OPT(help="Checkpoint identifier")] = None,
+  model_local_path: Annotated[Path | None, _OPT(help="Local model checkpoint path")] = None,
+  checkpoint_registry_path: Annotated[Path | None, _OPT(help="Checkpoint registry path")] = None,
+  ligand_mpnn_use_side_chain_context: Annotated[bool | None, _OPT(help="LigandMPNN side-chain context")] = None,
+  batch_size: Annotated[int | None, _OPT(help="Batch size (None = subclass default)")] = None,
+  backbone_noise: Annotated[str, _OPT(help="Comma-separated backbone noise levels")] = "0.0",
+  backbone_noise_mode: Annotated[str, _OPT(help="Backbone noise mode: direct or thermal")] = "direct",
+  estat_noise: Annotated[str | None, _OPT(help="Comma-separated electrostatic noise levels")] = None,
+  estat_noise_mode: Annotated[str, _OPT(help="Electrostatic noise mode")] = "direct",
+  vdw_noise: Annotated[str | None, _OPT(help="Comma-separated vdw noise levels")] = None,
+  vdw_noise_mode: Annotated[str, _OPT(help="VDW noise mode")] = "direct",
+  use_electrostatics: Annotated[bool, _OPT(help="Enable electrostatics")] = False,
+  use_vdw: Annotated[bool, _OPT(help="Enable VDW")] = False,
+  random_seed: Annotated[int, _OPT(help="Random seed")] = 42,
+  chain_id: Annotated[str | None, _OPT(help="Chain ID")] = None,
+  model: Annotated[int | None, _OPT(help="Model index")] = None,
+  altloc: Annotated[str, _OPT(help="Alternate location: first or all")] = "first",
+  cache_path: Annotated[Path | None, _OPT(help="Cache path")] = None,
+  output_dir: Annotated[Path | None, _OPT(help="Output directory")] = None,
+  max_buffer_size: Annotated[int | None, _OPT(help="Max buffer size (bytes)")] = None,
+  overwrite_cache: Annotated[bool, _OPT(help="Overwrite cache")] = False,
+  max_length: Annotated[int | None, _OPT(help="Max sequence length")] = 512,
+  truncation_strategy: Annotated[str, _OPT(help="Truncation strategy: none, random_crop, center_crop")] = "random_crop",
+  host_resource_allocation_strategy: Annotated[str, _OPT(help="Resource allocation: auto or full")] = "auto",
+  ram_budget_mb: Annotated[int | None, _OPT(help="RAM budget in MB")] = None,
+  max_workers: Annotated[int | None, _OPT(help="Max data loading workers")] = None,
+  n_devices: Annotated[int | None, _OPT(help="Device count override")] = None,
+  use_preprocessed: Annotated[bool, _OPT(help="Use preprocessed data")] = False,
+  preprocessed_index_path: Annotated[Path | None, _OPT(help="Preprocessed index path")] = None,
+  split: Annotated[str, _OPT(help="Data split")] = "inference",
+  tied_position: Annotated[list[str], _OPT("--tied-position", help="Tied position pair A:B (repeatable) or 'auto'/'direct'")] = [],  # noqa: B006
+  pass_mode: Annotated[str, _OPT(help="Pass mode: inter or intra")] = "intra",
+  multi_state_temperature: Annotated[float, _OPT(help="Multi-state temperature")] = 1.0,
+) -> None:
+  """Build and dispatch run specifications.
+
+  Base model/infra options are shared across all subcommands and must be
+  placed before the subcommand name, e.g.::
+
+      aminx run --backbone-noise 0.1,0.2 sample --inputs foo.pdb --emit-json
+  """
+  ctx.obj = _RunBase(
+    topology=topology,
+    model_weights=model_weights,
+    model_version=model_version,
+    model_family=model_family,
+    checkpoint_id=checkpoint_id,
+    model_local_path=model_local_path,
+    checkpoint_registry_path=checkpoint_registry_path,
+    ligand_mpnn_use_side_chain_context=ligand_mpnn_use_side_chain_context,
+    batch_size=batch_size,
+    backbone_noise=backbone_noise,
+    backbone_noise_mode=backbone_noise_mode,
+    estat_noise=estat_noise,
+    estat_noise_mode=estat_noise_mode,
+    vdw_noise=vdw_noise,
+    vdw_noise_mode=vdw_noise_mode,
+    use_electrostatics=use_electrostatics,
+    use_vdw=use_vdw,
+    random_seed=random_seed,
+    chain_id=chain_id,
+    model=model,
+    altloc=altloc,
+    cache_path=cache_path,
+    output_dir=output_dir,
+    max_buffer_size=max_buffer_size,
+    overwrite_cache=overwrite_cache,
+    max_length=max_length,
+    truncation_strategy=truncation_strategy,
+    host_resource_allocation_strategy=host_resource_allocation_strategy,
+    ram_budget_mb=ram_budget_mb,
+    max_workers=max_workers,
+    n_devices=n_devices,
+    use_preprocessed=use_preprocessed,
+    preprocessed_index_path=preprocessed_index_path,
+    split=split,
+    tied_position=list(tied_position),
+    pass_mode=pass_mode,
+    multi_state_temperature=multi_state_temperature,
+  )
+
+
+def _base_spec_kwargs(b: _RunBase) -> dict[str, Any]:
+  """Translate a ``_RunBase`` into the kwargs shared by all spec constructors."""
+  backbone_noise_parsed = _parse_float_tuple(b.backbone_noise)
+  estat_noise_parsed = _parse_float_tuple(b.estat_noise)
+  vdw_noise_parsed = _parse_float_tuple(b.vdw_noise)
+  tied_positions_parsed = _parse_tied_positions(b.tied_position)
+  return {
+    "topology": b.topology,
+    "model_weights": b.model_weights,
+    "model_version": b.model_version,
+    "model_family": b.model_family,
+    "checkpoint_id": b.checkpoint_id,
+    "model_local_path": b.model_local_path,
+    "checkpoint_registry_path": b.checkpoint_registry_path,
+    "ligand_mpnn_use_side_chain_context": b.ligand_mpnn_use_side_chain_context,
+    **({} if b.batch_size is None else {"batch_size": b.batch_size}),
+    "backbone_noise": backbone_noise_parsed or (0.0,),
+    "backbone_noise_mode": b.backbone_noise_mode,
+    "estat_noise": estat_noise_parsed,
+    "estat_noise_mode": b.estat_noise_mode,
+    "vdw_noise": vdw_noise_parsed,
+    "vdw_noise_mode": b.vdw_noise_mode,
+    "use_electrostatics": b.use_electrostatics,
+    "use_vdw": b.use_vdw,
+    "random_seed": b.random_seed,
+    "chain_id": b.chain_id,
+    "model": b.model,
+    "altloc": b.altloc,
+    "cache_path": b.cache_path,
+    "output_dir": b.output_dir,
+    "max_buffer_size": b.max_buffer_size,
+    "overwrite_cache": b.overwrite_cache,
+    "max_length": b.max_length,
+    "truncation_strategy": b.truncation_strategy,
+    "host_resource_allocation_strategy": b.host_resource_allocation_strategy,
+    "ram_budget_mb": b.ram_budget_mb,
+    "max_workers": b.max_workers,
+    "n_devices": b.n_devices,
+    "use_preprocessed": b.use_preprocessed,
+    "preprocessed_index_path": b.preprocessed_index_path,
+    "split": b.split,
+    "tied_positions": tied_positions_parsed,
+    "pass_mode": b.pass_mode,
+    "multi_state_temperature": b.multi_state_temperature,
+  }
+
+
+# ---------------------------------------------------------------------------
+# run sample
+# ---------------------------------------------------------------------------
+
+
+@run_app.command("sample")
+def run_sample(
+  ctx: typer.Context,
+  inputs: Annotated[
+    list[str],
+    _OPT("--inputs", help="Input PDB/structure paths (repeatable, required)"),
+  ],
+  emit_json: Annotated[bool, _OPT("--emit-json", help="Write spec JSON to stdout or --out; exit 0")] = False,
+  out: Annotated[Path | None, _OPT(help="Write JSON file (only with --emit-json)")] = None,
+  # Sample-specific
+  num_samples: Annotated[int, _OPT(help="Number of samples")] = 1,
+  sampling_strategy: Annotated[str, _OPT(help="Sampling strategy: temperature or straight_through")] = "temperature",
+  temperature: Annotated[str, _OPT(help="Comma-separated temperature values")] = "0.1",
+  use_unified_driver: Annotated[bool, _OPT(help="Use unified driver")] = True,
+  iterations: Annotated[int | None, _OPT(help="Straight-through iterations")] = None,
+  learning_rate: Annotated[float | None, _OPT(help="Straight-through learning rate")] = None,
+  use_concrete: Annotated[bool, _OPT(help="Use concrete relaxation")] = False,
+  concrete_tau_start: Annotated[float, _OPT(help="Concrete tau start")] = 1.0,
+  concrete_tau_end: Annotated[float, _OPT(help="Concrete tau end")] = 0.1,
+  output_h5_path: Annotated[Path | None, _OPT(help="HDF5 output path")] = None,
+  use_arrayrecord: Annotated[bool, _OPT(help="Use ArrayRecord output")] = False,
+  return_logits: Annotated[bool, _OPT(help="Return logits")] = True,
+  samples_batch_size: Annotated[int, _OPT(help="Samples batch size")] = 16,
+  samples_chunk_size: Annotated[int | None, _OPT(help="Samples chunk size")] = None,
+  noise_batch_size: Annotated[int, _OPT(help="Noise batch size")] = 1,
+  temperature_batch_size: Annotated[int, _OPT(help="Temperature batch size")] = 1,
+  average_node_features: Annotated[bool, _OPT(help="Average node features")] = False,
+  average_encoding_mode: Annotated[str, _OPT(help="Encoding averaging mode")] = "inputs_and_noise",
+  multi_state_strategy: Annotated[str, _OPT(help="Multi-state aggregation strategy")] = "arithmetic_mean",
+  compute_pseudo_perplexity: Annotated[bool, _OPT(help="Compute pseudo-perplexity (requires return-logits)")] = False,
+  ligand_conditioning: Annotated[bool, _OPT(help="Ligand conditioning")] = False,
+  sidechain_conditioning: Annotated[bool, _OPT(help="Sidechain conditioning")] = False,
+  campaign_mode: Annotated[bool, _OPT(help="Campaign mode")] = False,
+  allow_logits_in_campaign: Annotated[bool, _OPT(help="Allow logits in campaign")] = False,
+  logits_memory_budget_mb: Annotated[int | None, _OPT(help="Logits memory budget (MB)")] = None,
+  ligand_context_path: Annotated[Path | None, _OPT(help="Ligand context path")] = None,
+  grid_mode: Annotated[bool, _OPT(help="Grid mode")] = False,
+  job_id: Annotated[str | None, _OPT(help="Grid job ID")] = None,
+  chunk_id: Annotated[int | None, _OPT(help="Grid chunk ID")] = None,
+  sample_start: Annotated[int | None, _OPT(help="Grid sample start")] = None,
+  sample_count: Annotated[int | None, _OPT(help="Grid sample count")] = None,
+) -> None:
+  """Sample sequences from the model (non-serializable fields: bias, fixed_positions, fixed_mask, fixed_tokens, state_weights, decode_fn)."""
+  if not inputs:
+    typer.echo("--inputs is required", err=True)
+    raise typer.Exit(code=2)
+
+  b: _RunBase = ctx.obj
+  temperature_parsed = _parse_float_tuple(temperature)
+
+  from aminx.run.specs import SamplingSpecification  # noqa: PLC0415
+
+  try:
+    spec = SamplingSpecification(
+      inputs=inputs,
+      **_base_spec_kwargs(b),  # type: ignore[arg-type]
+      num_samples=num_samples,
+      sampling_strategy=sampling_strategy,  # type: ignore[arg-type]
+      temperature=temperature_parsed or (0.1,),
+      use_unified_driver=use_unified_driver,
+      iterations=iterations,
+      learning_rate=learning_rate,
+      use_concrete=use_concrete,
+      concrete_tau_start=concrete_tau_start,
+      concrete_tau_end=concrete_tau_end,
+      output_h5_path=output_h5_path,
+      use_arrayrecord=use_arrayrecord,
+      return_logits=return_logits,
+      samples_batch_size=samples_batch_size,
+      samples_chunk_size=samples_chunk_size,
+      noise_batch_size=noise_batch_size,
+      temperature_batch_size=temperature_batch_size,
+      average_node_features=average_node_features,
+      average_encoding_mode=average_encoding_mode,  # type: ignore[arg-type]
+      multi_state_strategy=multi_state_strategy,  # type: ignore[arg-type]
+      compute_pseudo_perplexity=compute_pseudo_perplexity,
+      ligand_conditioning=ligand_conditioning,
+      sidechain_conditioning=sidechain_conditioning,
+      campaign_mode=campaign_mode,
+      allow_logits_in_campaign=allow_logits_in_campaign,
+      logits_memory_budget_mb=logits_memory_budget_mb,
+      ligand_context_path=ligand_context_path,
+      grid_mode=grid_mode,
+      job_id=job_id,
+      chunk_id=chunk_id,
+      sample_start=sample_start,
+      sample_count=sample_count,
+    )
+  except (ValueError, TypeError) as exc:
+    typer.echo(f"Invalid specification: {exc}", err=True)
+    raise typer.Exit(code=1) from exc
+
+  _emit_or_run(spec, emit_json, out, "sample", runner_available=True)
+  if not emit_json:
+    from aminx.host.runner import sample  # noqa: PLC0415
+    sample(spec)
+
+
+# ---------------------------------------------------------------------------
+# run score
+# ---------------------------------------------------------------------------
+
+
+@run_app.command("score")
+def run_score(
+  ctx: typer.Context,
+  inputs: Annotated[
+    list[str],
+    _OPT("--inputs", help="Input PDB/structure paths (repeatable, required)"),
+  ],
+  sequences_to_score: Annotated[
+    list[str],
+    _OPT("--sequences-to-score", help="Amino acid sequences to score (repeatable, required)"),
+  ],
+  emit_json: Annotated[bool, _OPT("--emit-json", help="Write spec JSON to stdout or --out; exit 0")] = False,
+  out: Annotated[Path | None, _OPT(help="Write JSON file (only with --emit-json)")] = None,
+  # Score-specific
+  temperature: Annotated[str, _OPT(help="Comma-separated temperature values")] = "1.0",
+  return_logits: Annotated[bool, _OPT(help="Return logits")] = False,
+  return_decoding_orders: Annotated[bool, _OPT(help="Return decoding orders")] = False,
+  return_all_scores: Annotated[bool, _OPT(help="Return all scores")] = False,
+  output_h5_path: Annotated[Path | None, _OPT(help="HDF5 output path")] = None,
+  average_node_features: Annotated[bool, _OPT(help="Average node features")] = False,
+  average_encoding_mode: Annotated[str, _OPT(help="Encoding averaging mode")] = "inputs_and_noise",
+  noise_batch_size: Annotated[int, _OPT(help="Noise batch size")] = 4,
+  multi_state_strategy: Annotated[str, _OPT(help="Multi-state aggregation strategy")] = "arithmetic_mean",
+) -> None:
+  """Score sequences against structure inputs (non-serializable fields: ar_mask, conformational_states, decoding_order_fn)."""
+  if not inputs:
+    typer.echo("--inputs is required", err=True)
+    raise typer.Exit(code=2)
+  if not sequences_to_score:
+    typer.echo("--sequences-to-score is required", err=True)
+    raise typer.Exit(code=2)
+
+  b: _RunBase = ctx.obj
+  temperature_parsed = _parse_float_tuple(temperature)
+
+  from aminx.run.specs import ScoringSpecification  # noqa: PLC0415
+
+  try:
+    spec = ScoringSpecification(
+      inputs=inputs,
+      **_base_spec_kwargs(b),  # type: ignore[arg-type]
+      sequences_to_score=sequences_to_score,
+      temperature=temperature_parsed[0] if temperature_parsed and len(temperature_parsed) == 1 else (temperature_parsed[0] if temperature_parsed else 1.0),
+      return_logits=return_logits,
+      return_decoding_orders=return_decoding_orders,
+      return_all_scores=return_all_scores,
+      output_h5_path=output_h5_path,
+      average_node_features=average_node_features,
+      average_encoding_mode=average_encoding_mode,  # type: ignore[arg-type]
+      noise_batch_size=noise_batch_size,
+      multi_state_strategy=multi_state_strategy,  # type: ignore[arg-type]
+    )
+  except (ValueError, TypeError) as exc:
+    typer.echo(f"Invalid specification: {exc}", err=True)
+    raise typer.Exit(code=1) from exc
+
+  _emit_or_run(spec, emit_json, out, "score", runner_available=False)
+
+
+# ---------------------------------------------------------------------------
+# run jacobian
+# ---------------------------------------------------------------------------
+
+
+@run_app.command("jacobian")
+def run_jacobian(
+  ctx: typer.Context,
+  inputs: Annotated[
+    list[str],
+    _OPT("--inputs", help="Input PDB/structure paths (repeatable, required)"),
+  ],
+  emit_json: Annotated[bool, _OPT("--emit-json", help="Write spec JSON to stdout or --out; exit 0")] = False,
+  out: Annotated[Path | None, _OPT(help="Write JSON file (only with --emit-json)")] = None,
+  # Jacobian-specific
+  noise_batch_size: Annotated[int, _OPT(help="Noise batch size")] = 1,
+  jacobian_batch_size: Annotated[int, _OPT(help="Jacobian batch size")] = 16,
+  average_encodings: Annotated[bool, _OPT(help="Average encodings")] = True,
+  average_encoding_mode: Annotated[str, _OPT(help="Encoding averaging mode")] = "inputs_and_noise",
+  combine: Annotated[bool, _OPT(help="Combine Jacobians")] = False,
+  combine_batch_size: Annotated[int, _OPT(help="Combine batch size")] = 8,
+  output_h5_path: Annotated[Path | None, _OPT(help="HDF5 output path")] = None,
+  compute_apc: Annotated[bool, _OPT(help="Compute APC correction")] = True,
+  apc_batch_size: Annotated[int, _OPT(help="APC batch size")] = 8,
+  apc_residue_batch_size: Annotated[int, _OPT(help="APC residue batch size")] = 1000,
+) -> None:
+  """Compute categorical Jacobians (non-serializable fields: combine_weights, combine_fn)."""
+  if not inputs:
+    typer.echo("--inputs is required", err=True)
+    raise typer.Exit(code=2)
+
+  b: _RunBase = ctx.obj
+
+  from aminx.run.specs import JacobianSpecification  # noqa: PLC0415
+
+  try:
+    spec = JacobianSpecification(
+      inputs=inputs,
+      **_base_spec_kwargs(b),  # type: ignore[arg-type]
+      noise_batch_size=noise_batch_size,
+      jacobian_batch_size=jacobian_batch_size,
+      average_encodings=average_encodings,
+      average_encoding_mode=average_encoding_mode,  # type: ignore[arg-type]
+      combine=combine,
+      combine_batch_size=combine_batch_size,
+      output_h5_path=output_h5_path,
+      compute_apc=compute_apc,
+      apc_batch_size=apc_batch_size,
+      apc_residue_batch_size=apc_residue_batch_size,
+    )
+  except (ValueError, TypeError) as exc:
+    typer.echo(f"Invalid specification: {exc}", err=True)
+    raise typer.Exit(code=1) from exc
+
+  _emit_or_run(spec, emit_json, out, "jacobian", runner_available=False)
+
+
+# ---------------------------------------------------------------------------
+# run inspect
+# ---------------------------------------------------------------------------
+
+
+@run_app.command("inspect")
+def run_inspect(
+  ctx: typer.Context,
+  inputs: Annotated[
+    list[str],
+    _OPT("--inputs", help="Input PDB/structure paths (repeatable, required)"),
+  ],
+  emit_json: Annotated[bool, _OPT("--emit-json", help="Write spec JSON to stdout or --out; exit 0")] = False,
+  out: Annotated[Path | None, _OPT(help="Write JSON file (only with --emit-json)")] = None,
+  # Inspect-specific
+  output_h5_path: Annotated[Path | None, _OPT(help="HDF5 output path")] = None,
+  inspection_features: Annotated[
+    list[str],
+    _OPT(
+      "--inspection-features",
+      help="Features to inspect: unconditional_logits, encoded_node_features, edge_features, decoded_node_features, conditional_logits",
+    ),
+  ] = ["unconditional_logits"],  # noqa: B006
+  distance_matrix: Annotated[bool, _OPT(help="Compute distance matrix")] = False,
+  distance_matrix_method: Annotated[str, _OPT(help="Distance matrix method: ca, cb, backbone_average, closest_atom")] = "ca",
+  cross_input_similarity: Annotated[bool, _OPT(help="Compute cross-input similarity (requires >=2 inputs)")] = False,
+  similarity_metric: Annotated[str, _OPT(help="Similarity metric: rmsd, tm-score, gdt_ts, gdt_ha, cosine")] = "rmsd",
+) -> None:
+  """Inspect model encodings and features (non-serializable fields: ar_mask, conformational_states)."""
+  if not inputs:
+    typer.echo("--inputs is required", err=True)
+    raise typer.Exit(code=2)
+
+  b: _RunBase = ctx.obj
+
+  from aminx.run.specs import InspectionSpecification  # noqa: PLC0415
+
+  try:
+    spec = InspectionSpecification(
+      inputs=inputs,
+      **_base_spec_kwargs(b),  # type: ignore[arg-type]
+      output_h5_path=output_h5_path,
+      inspection_features=inspection_features,  # type: ignore[arg-type]
+      distance_matrix=distance_matrix,
+      distance_matrix_method=distance_matrix_method,  # type: ignore[arg-type]
+      cross_input_similarity=cross_input_similarity,
+      similarity_metric=similarity_metric,  # type: ignore[arg-type]
+    )
+  except (ValueError, TypeError) as exc:
+    typer.echo(f"Invalid specification: {exc}", err=True)
+    raise typer.Exit(code=1) from exc
+
+  _emit_or_run(spec, emit_json, out, "inspect", runner_available=False)
+
+
+@spec_app.callback()
+def _spec_base(
+  ctx: typer.Context,
+  topology: Annotated[str | None, _OPT(help="Topology file path")] = None,
+  model_weights: Annotated[str, _OPT(help="Model weights name")] = "original",
+  model_version: Annotated[str, _OPT(help="Model version")] = "v_48_020",
+  model_family: Annotated[str, _OPT(help="Model family: proteinmpnn or ligandmpnn")] = "proteinmpnn",
+  checkpoint_id: Annotated[str | None, _OPT(help="Checkpoint identifier")] = None,
+  model_local_path: Annotated[Path | None, _OPT(help="Local model checkpoint path")] = None,
+  checkpoint_registry_path: Annotated[Path | None, _OPT(help="Checkpoint registry path")] = None,
+  ligand_mpnn_use_side_chain_context: Annotated[bool | None, _OPT(help="LigandMPNN side-chain context")] = None,
+  batch_size: Annotated[int | None, _OPT(help="Batch size (None = subclass default)")] = None,
+  backbone_noise: Annotated[str, _OPT(help="Comma-separated backbone noise levels")] = "0.0",
+  backbone_noise_mode: Annotated[str, _OPT(help="Backbone noise mode: direct or thermal")] = "direct",
+  estat_noise: Annotated[str | None, _OPT(help="Comma-separated electrostatic noise levels")] = None,
+  estat_noise_mode: Annotated[str, _OPT(help="Electrostatic noise mode")] = "direct",
+  vdw_noise: Annotated[str | None, _OPT(help="Comma-separated vdw noise levels")] = None,
+  vdw_noise_mode: Annotated[str, _OPT(help="VDW noise mode")] = "direct",
+  use_electrostatics: Annotated[bool, _OPT(help="Enable electrostatics")] = False,
+  use_vdw: Annotated[bool, _OPT(help="Enable VDW")] = False,
+  random_seed: Annotated[int, _OPT(help="Random seed")] = 42,
+  chain_id: Annotated[str | None, _OPT(help="Chain ID")] = None,
+  model: Annotated[int | None, _OPT(help="Model index")] = None,
+  altloc: Annotated[str, _OPT(help="Alternate location: first or all")] = "first",
+  cache_path: Annotated[Path | None, _OPT(help="Cache path")] = None,
+  output_dir: Annotated[Path | None, _OPT(help="Output directory")] = None,
+  max_buffer_size: Annotated[int | None, _OPT(help="Max buffer size (bytes)")] = None,
+  overwrite_cache: Annotated[bool, _OPT(help="Overwrite cache")] = False,
+  max_length: Annotated[int | None, _OPT(help="Max sequence length")] = 512,
+  truncation_strategy: Annotated[str, _OPT(help="Truncation strategy: none, random_crop, center_crop")] = "random_crop",
+  host_resource_allocation_strategy: Annotated[str, _OPT(help="Resource allocation: auto or full")] = "auto",
+  ram_budget_mb: Annotated[int | None, _OPT(help="RAM budget in MB")] = None,
+  max_workers: Annotated[int | None, _OPT(help="Max data loading workers")] = None,
+  n_devices: Annotated[int | None, _OPT(help="Device count override")] = None,
+  use_preprocessed: Annotated[bool, _OPT(help="Use preprocessed data")] = False,
+  preprocessed_index_path: Annotated[Path | None, _OPT(help="Preprocessed index path")] = None,
+  split: Annotated[str, _OPT(help="Data split")] = "inference",
+  tied_position: Annotated[list[str], _OPT("--tied-position", help="Tied position pair A:B (repeatable) or 'auto'/'direct'")] = [],  # noqa: B006
+  pass_mode: Annotated[str, _OPT(help="Pass mode: inter or intra")] = "intra",
+  multi_state_temperature: Annotated[float, _OPT(help="Multi-state temperature")] = 1.0,
+) -> None:
+  """Run specification JSON (see aminx.run.spec_json).
+
+  Base model/infra options are shared across emit-* subcommands and must be
+  placed before the subcommand name, e.g.::
+
+      aminx spec --backbone-noise 0.1,0.2 emit-sample --inputs foo.pdb
+  """
+  ctx.obj = _RunBase(
+    topology=topology,
+    model_weights=model_weights,
+    model_version=model_version,
+    model_family=model_family,
+    checkpoint_id=checkpoint_id,
+    model_local_path=model_local_path,
+    checkpoint_registry_path=checkpoint_registry_path,
+    ligand_mpnn_use_side_chain_context=ligand_mpnn_use_side_chain_context,
+    batch_size=batch_size,
+    backbone_noise=backbone_noise,
+    backbone_noise_mode=backbone_noise_mode,
+    estat_noise=estat_noise,
+    estat_noise_mode=estat_noise_mode,
+    vdw_noise=vdw_noise,
+    vdw_noise_mode=vdw_noise_mode,
+    use_electrostatics=use_electrostatics,
+    use_vdw=use_vdw,
+    random_seed=random_seed,
+    chain_id=chain_id,
+    model=model,
+    altloc=altloc,
+    cache_path=cache_path,
+    output_dir=output_dir,
+    max_buffer_size=max_buffer_size,
+    overwrite_cache=overwrite_cache,
+    max_length=max_length,
+    truncation_strategy=truncation_strategy,
+    host_resource_allocation_strategy=host_resource_allocation_strategy,
+    ram_budget_mb=ram_budget_mb,
+    max_workers=max_workers,
+    n_devices=n_devices,
+    use_preprocessed=use_preprocessed,
+    preprocessed_index_path=preprocessed_index_path,
+    split=split,
+    tied_position=list(tied_position),
+    pass_mode=pass_mode,
+    multi_state_temperature=multi_state_temperature,
+  )
+
+
+def _emit_spec_json(spec: Any, compact: bool, out: Path | None) -> None:
+  """Serialise *spec* to JSON and write to *out* or stdout."""
+  blob = json.dumps(
+    run_specification_to_json_dict(spec),
+    indent=None if compact else 2,
+    sort_keys=True,
+  )
+  if out is not None:
+    out.write_text(blob, encoding="utf-8")
+  else:
+    typer.echo(blob)
+
+
+# ---------------------------------------------------------------------------
+# spec emit-sample
+# ---------------------------------------------------------------------------
+
+
+@spec_app.command("emit-sample")
+def spec_emit_sample(
+  ctx: typer.Context,
+  inputs: Annotated[
+    list[str],
+    _OPT("--inputs", help="Input PDB/structure paths (repeatable, required)"),
+  ],
+  out: Annotated[Path | None, _OPT(help="Write JSON to this file instead of stdout")] = None,
+  compact: Annotated[bool, _OPT("--compact", help="Single-line JSON")] = False,
+  # Sample-specific
+  num_samples: Annotated[int, _OPT(help="Number of samples")] = 1,
+  sampling_strategy: Annotated[str, _OPT(help="Sampling strategy: temperature or straight_through")] = "temperature",
+  temperature: Annotated[str, _OPT(help="Comma-separated temperature values")] = "0.1",
+  use_unified_driver: Annotated[bool, _OPT(help="Use unified driver")] = True,
+  iterations: Annotated[int | None, _OPT(help="Straight-through iterations")] = None,
+  learning_rate: Annotated[float | None, _OPT(help="Straight-through learning rate")] = None,
+  use_concrete: Annotated[bool, _OPT(help="Use concrete relaxation")] = False,
+  concrete_tau_start: Annotated[float, _OPT(help="Concrete tau start")] = 1.0,
+  concrete_tau_end: Annotated[float, _OPT(help="Concrete tau end")] = 0.1,
+  output_h5_path: Annotated[Path | None, _OPT(help="HDF5 output path")] = None,
+  use_arrayrecord: Annotated[bool, _OPT(help="Use ArrayRecord output")] = False,
+  return_logits: Annotated[bool, _OPT(help="Return logits")] = True,
+  samples_batch_size: Annotated[int, _OPT(help="Samples batch size")] = 16,
+  samples_chunk_size: Annotated[int | None, _OPT(help="Samples chunk size")] = None,
+  noise_batch_size: Annotated[int, _OPT(help="Noise batch size")] = 1,
+  temperature_batch_size: Annotated[int, _OPT(help="Temperature batch size")] = 1,
+  average_node_features: Annotated[bool, _OPT(help="Average node features")] = False,
+  average_encoding_mode: Annotated[str, _OPT(help="Encoding averaging mode")] = "inputs_and_noise",
+  multi_state_strategy: Annotated[str, _OPT(help="Multi-state aggregation strategy")] = "arithmetic_mean",
+  compute_pseudo_perplexity: Annotated[bool, _OPT(help="Compute pseudo-perplexity (requires return-logits)")] = False,
+  ligand_conditioning: Annotated[bool, _OPT(help="Ligand conditioning")] = False,
+  sidechain_conditioning: Annotated[bool, _OPT(help="Sidechain conditioning")] = False,
+  campaign_mode: Annotated[bool, _OPT(help="Campaign mode")] = False,
+  allow_logits_in_campaign: Annotated[bool, _OPT(help="Allow logits in campaign")] = False,
+  logits_memory_budget_mb: Annotated[int | None, _OPT(help="Logits memory budget (MB)")] = None,
+  ligand_context_path: Annotated[Path | None, _OPT(help="Ligand context path")] = None,
+  grid_mode: Annotated[bool, _OPT(help="Grid mode")] = False,
+  job_id: Annotated[str | None, _OPT(help="Grid job ID")] = None,
+  chunk_id: Annotated[int | None, _OPT(help="Grid chunk ID")] = None,
+  sample_start: Annotated[int | None, _OPT(help="Grid sample start")] = None,
+  sample_count: Annotated[int | None, _OPT(help="Grid sample count")] = None,
+) -> None:
+  """Emit SamplingSpecification as JSON (non-serializable fields excluded)."""
+  if not inputs:
+    typer.echo("--inputs is required", err=True)
+    raise typer.Exit(code=2)
+
+  b: _RunBase = ctx.obj
+  temperature_parsed = _parse_float_tuple(temperature)
+
+  from aminx.run.specs import SamplingSpecification  # noqa: PLC0415
+
+  try:
+    spec = SamplingSpecification(
+      inputs=inputs,
+      **_base_spec_kwargs(b),  # type: ignore[arg-type]
+      num_samples=num_samples,
+      sampling_strategy=sampling_strategy,  # type: ignore[arg-type]
+      temperature=temperature_parsed or (0.1,),
+      use_unified_driver=use_unified_driver,
+      iterations=iterations,
+      learning_rate=learning_rate,
+      use_concrete=use_concrete,
+      concrete_tau_start=concrete_tau_start,
+      concrete_tau_end=concrete_tau_end,
+      output_h5_path=output_h5_path,
+      use_arrayrecord=use_arrayrecord,
+      return_logits=return_logits,
+      samples_batch_size=samples_batch_size,
+      samples_chunk_size=samples_chunk_size,
+      noise_batch_size=noise_batch_size,
+      temperature_batch_size=temperature_batch_size,
+      average_node_features=average_node_features,
+      average_encoding_mode=average_encoding_mode,  # type: ignore[arg-type]
+      multi_state_strategy=multi_state_strategy,  # type: ignore[arg-type]
+      compute_pseudo_perplexity=compute_pseudo_perplexity,
+      ligand_conditioning=ligand_conditioning,
+      sidechain_conditioning=sidechain_conditioning,
+      campaign_mode=campaign_mode,
+      allow_logits_in_campaign=allow_logits_in_campaign,
+      logits_memory_budget_mb=logits_memory_budget_mb,
+      ligand_context_path=ligand_context_path,
+      grid_mode=grid_mode,
+      job_id=job_id,
+      chunk_id=chunk_id,
+      sample_start=sample_start,
+      sample_count=sample_count,
+    )
+  except (ValueError, TypeError) as exc:
+    typer.echo(f"Invalid specification: {exc}", err=True)
+    raise typer.Exit(code=1) from exc
+
+  _emit_spec_json(spec, compact, out)
+
+
+# ---------------------------------------------------------------------------
+# spec emit-score
+# ---------------------------------------------------------------------------
+
+
+@spec_app.command("emit-score")
+def spec_emit_score(
+  ctx: typer.Context,
+  inputs: Annotated[
+    list[str],
+    _OPT("--inputs", help="Input PDB/structure paths (repeatable, required)"),
+  ],
+  sequences_to_score: Annotated[
+    list[str],
+    _OPT("--sequences-to-score", help="Amino acid sequences to score (repeatable, required)"),
+  ],
+  out: Annotated[Path | None, _OPT(help="Write JSON to this file instead of stdout")] = None,
+  compact: Annotated[bool, _OPT("--compact", help="Single-line JSON")] = False,
+  # Score-specific
+  temperature: Annotated[str, _OPT(help="Comma-separated temperature values")] = "1.0",
+  return_logits: Annotated[bool, _OPT(help="Return logits")] = False,
+  return_decoding_orders: Annotated[bool, _OPT(help="Return decoding orders")] = False,
+  return_all_scores: Annotated[bool, _OPT(help="Return all scores")] = False,
+  output_h5_path: Annotated[Path | None, _OPT(help="HDF5 output path")] = None,
+  average_node_features: Annotated[bool, _OPT(help="Average node features")] = False,
+  average_encoding_mode: Annotated[str, _OPT(help="Encoding averaging mode")] = "inputs_and_noise",
+  noise_batch_size: Annotated[int, _OPT(help="Noise batch size")] = 4,
+  multi_state_strategy: Annotated[str, _OPT(help="Multi-state aggregation strategy")] = "arithmetic_mean",
+) -> None:
+  """Emit ScoringSpecification as JSON (non-serializable fields excluded)."""
+  if not inputs:
+    typer.echo("--inputs is required", err=True)
+    raise typer.Exit(code=2)
+  if not sequences_to_score:
+    typer.echo("--sequences-to-score is required", err=True)
+    raise typer.Exit(code=2)
+
+  b: _RunBase = ctx.obj
+  temperature_parsed = _parse_float_tuple(temperature)
+
+  from aminx.run.specs import ScoringSpecification  # noqa: PLC0415
+
+  try:
+    spec = ScoringSpecification(
+      inputs=inputs,
+      **_base_spec_kwargs(b),  # type: ignore[arg-type]
+      sequences_to_score=sequences_to_score,
+      temperature=temperature_parsed[0] if temperature_parsed and len(temperature_parsed) == 1 else (temperature_parsed[0] if temperature_parsed else 1.0),
+      return_logits=return_logits,
+      return_decoding_orders=return_decoding_orders,
+      return_all_scores=return_all_scores,
+      output_h5_path=output_h5_path,
+      average_node_features=average_node_features,
+      average_encoding_mode=average_encoding_mode,  # type: ignore[arg-type]
+      noise_batch_size=noise_batch_size,
+      multi_state_strategy=multi_state_strategy,  # type: ignore[arg-type]
+    )
+  except (ValueError, TypeError) as exc:
+    typer.echo(f"Invalid specification: {exc}", err=True)
+    raise typer.Exit(code=1) from exc
+
+  _emit_spec_json(spec, compact, out)
+
+
+# ---------------------------------------------------------------------------
+# spec emit-jacobian
+# ---------------------------------------------------------------------------
+
+
+@spec_app.command("emit-jacobian")
+def spec_emit_jacobian(
+  ctx: typer.Context,
+  inputs: Annotated[
+    list[str],
+    _OPT("--inputs", help="Input PDB/structure paths (repeatable, required)"),
+  ],
+  out: Annotated[Path | None, _OPT(help="Write JSON to this file instead of stdout")] = None,
+  compact: Annotated[bool, _OPT("--compact", help="Single-line JSON")] = False,
+  # Jacobian-specific
+  noise_batch_size: Annotated[int, _OPT(help="Noise batch size")] = 1,
+  jacobian_batch_size: Annotated[int, _OPT(help="Jacobian batch size")] = 16,
+  average_encodings: Annotated[bool, _OPT(help="Average encodings")] = True,
+  average_encoding_mode: Annotated[str, _OPT(help="Encoding averaging mode")] = "inputs_and_noise",
+  combine: Annotated[bool, _OPT(help="Combine Jacobians")] = False,
+  combine_batch_size: Annotated[int, _OPT(help="Combine batch size")] = 8,
+  output_h5_path: Annotated[Path | None, _OPT(help="HDF5 output path")] = None,
+  compute_apc: Annotated[bool, _OPT(help="Compute APC correction")] = True,
+  apc_batch_size: Annotated[int, _OPT(help="APC batch size")] = 8,
+  apc_residue_batch_size: Annotated[int, _OPT(help="APC residue batch size")] = 1000,
+) -> None:
+  """Emit JacobianSpecification as JSON (non-serializable fields excluded)."""
+  if not inputs:
+    typer.echo("--inputs is required", err=True)
+    raise typer.Exit(code=2)
+
+  b: _RunBase = ctx.obj
+
+  from aminx.run.specs import JacobianSpecification  # noqa: PLC0415
+
+  try:
+    spec = JacobianSpecification(
+      inputs=inputs,
+      **_base_spec_kwargs(b),  # type: ignore[arg-type]
+      noise_batch_size=noise_batch_size,
+      jacobian_batch_size=jacobian_batch_size,
+      average_encodings=average_encodings,
+      average_encoding_mode=average_encoding_mode,  # type: ignore[arg-type]
+      combine=combine,
+      combine_batch_size=combine_batch_size,
+      output_h5_path=output_h5_path,
+      compute_apc=compute_apc,
+      apc_batch_size=apc_batch_size,
+      apc_residue_batch_size=apc_residue_batch_size,
+    )
+  except (ValueError, TypeError) as exc:
+    typer.echo(f"Invalid specification: {exc}", err=True)
+    raise typer.Exit(code=1) from exc
+
+  _emit_spec_json(spec, compact, out)
+
+
+# ---------------------------------------------------------------------------
+# spec emit-inspect
+# ---------------------------------------------------------------------------
+
+
+@spec_app.command("emit-inspect")
+def spec_emit_inspect(
+  ctx: typer.Context,
+  inputs: Annotated[
+    list[str],
+    _OPT("--inputs", help="Input PDB/structure paths (repeatable, required)"),
+  ],
+  out: Annotated[Path | None, _OPT(help="Write JSON to this file instead of stdout")] = None,
+  compact: Annotated[bool, _OPT("--compact", help="Single-line JSON")] = False,
+  # Inspect-specific
+  output_h5_path: Annotated[Path | None, _OPT(help="HDF5 output path")] = None,
+  inspection_features: Annotated[
+    list[str],
+    _OPT(
+      "--inspection-features",
+      help="Features to inspect: unconditional_logits, encoded_node_features, edge_features, decoded_node_features, conditional_logits",
+    ),
+  ] = ["unconditional_logits"],  # noqa: B006
+  distance_matrix: Annotated[bool, _OPT(help="Compute distance matrix")] = False,
+  distance_matrix_method: Annotated[str, _OPT(help="Distance matrix method: ca, cb, backbone_average, closest_atom")] = "ca",
+  cross_input_similarity: Annotated[bool, _OPT(help="Compute cross-input similarity (requires >=2 inputs)")] = False,
+  similarity_metric: Annotated[str, _OPT(help="Similarity metric: rmsd, tm-score, gdt_ts, gdt_ha, cosine")] = "rmsd",
+) -> None:
+  """Emit InspectionSpecification as JSON (non-serializable fields excluded)."""
+  if not inputs:
+    typer.echo("--inputs is required", err=True)
+    raise typer.Exit(code=2)
+
+  b: _RunBase = ctx.obj
+
+  from aminx.run.specs import InspectionSpecification  # noqa: PLC0415
+
+  try:
+    spec = InspectionSpecification(
+      inputs=inputs,
+      **_base_spec_kwargs(b),  # type: ignore[arg-type]
+      output_h5_path=output_h5_path,
+      inspection_features=inspection_features,  # type: ignore[arg-type]
+      distance_matrix=distance_matrix,
+      distance_matrix_method=distance_matrix_method,  # type: ignore[arg-type]
+      cross_input_similarity=cross_input_similarity,
+      similarity_metric=similarity_metric,  # type: ignore[arg-type]
+    )
+  except (ValueError, TypeError) as exc:
+    typer.echo(f"Invalid specification: {exc}", err=True)
+    raise typer.Exit(code=1) from exc
+
+  _emit_spec_json(spec, compact, out)
 
 
 @spec_app.command("validate")
@@ -75,6 +1008,196 @@ def spec_portable_roundtrip(
   rs = run_spec_portable_from_dict(cast("dict[str, Any]", raw))
   out = run_spec_portable_to_dict(rs)
   typer.echo(json.dumps(out, indent=None if compact else 2))
+
+
+# ---------------------------------------------------------------------------
+# campaign subcommands
+# ---------------------------------------------------------------------------
+
+
+@campaign_app.command("plan")
+def campaign_plan(
+  inputs: Annotated[str, _OPT("--inputs", help="Comma-separated input paths (required)")] = ...,  # ty: ignore[invalid-parameter-default]
+  campaign_id: Annotated[str, _OPT("--campaign-id", help="Campaign identifier (required)")] = ...,  # ty: ignore[invalid-parameter-default]
+  manifest_path: Annotated[Path, _OPT("--manifest-path", help="Path to write manifest JSON (required)")] = ...,  # ty: ignore[invalid-parameter-default]
+  output_root: Annotated[Path, _OPT("--output-root", help="Root directory for output HDF5 files (required)")] = ...,  # ty: ignore[invalid-parameter-default]
+  designs_per_library_type: Annotated[int, _OPT("--designs-per-library-type", help="Designs per library type (required)")] = ...,  # ty: ignore[invalid-parameter-default]
+  samples_chunk_size: Annotated[int, _OPT("--samples-chunk-size", help="Samples chunk size (required)")] = ...,  # ty: ignore[invalid-parameter-default]
+  fixed_policies: Annotated[str, _OPT("--fixed-policies", help="Comma-separated fixed policy names")] = "catalytic_triad,active_site",
+  state_weight_profiles: Annotated[str, _OPT("--state-weight-profiles", help="Comma-separated state weight profile names")] = "equal",
+  checkpoint_id: Annotated[str | None, _OPT("--checkpoint-id", help="Checkpoint identifier for manifest rows")] = None,
+) -> None:
+  """Generate campaign manifest JSON."""
+  from aminx.host.campaign import (  # noqa: PLC0415
+    SamplingSpecification,
+    _parse_csv,
+    write_campaign_manifest,
+  )
+
+  base_spec = SamplingSpecification(
+    inputs=_parse_csv(inputs),
+    return_logits=False,
+    **({"checkpoint_id": checkpoint_id} if checkpoint_id is not None else {}),
+  )
+  write_campaign_manifest(
+    base_spec=base_spec,
+    campaign_id=campaign_id,
+    manifest_path=manifest_path,
+    designs_per_library_type=designs_per_library_type,
+    samples_chunk_size=samples_chunk_size,
+    output_root=output_root,
+    fixed_policies=_parse_csv(fixed_policies),
+    state_weight_profiles=_parse_csv(state_weight_profiles),
+  )
+
+
+@campaign_app.command("worker")
+def campaign_worker(
+  manifest_path: Annotated[Path, _OPT("--manifest-path", help="Path to campaign manifest JSON (required)")] = ...,  # ty: ignore[invalid-parameter-default]
+  row_index: Annotated[int | None, _OPT("--row-index", help="Row index to execute")] = None,
+  row_hash: Annotated[str | None, _OPT("--row-hash", help="Row hash to execute")] = None,
+  lock_backend: Annotated[LockBackend, _OPT("--lock-backend", help="Lock backend: local_fs or distributed")] = LockBackend.local_fs,
+  lock_lease_seconds: Annotated[int | None, _OPT("--lock-lease-seconds", help="Lock lease duration in seconds")] = None,
+  heartbeat_interval_seconds: Annotated[int | None, _OPT("--heartbeat-interval-seconds", help="Heartbeat interval in seconds")] = None,
+) -> None:
+  """Execute one manifest row."""
+  from aminx.host.campaign import (  # noqa: PLC0415
+    DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
+    DEFAULT_LOCK_LEASE_SECONDS,
+    run_manifest_row,
+  )
+
+  if lock_backend == LockBackend.distributed:
+    raise typer.BadParameter(
+      "DistributedLockBackend is not available from the CLI; use lock_backend='local_fs' or "
+      "call run_manifest_row() directly with a DistributedLockBackend instance.",
+      param_hint="--lock-backend",
+    )
+
+  run_manifest_row(
+    manifest_path,
+    row_index=row_index,
+    row_hash=row_hash,
+    lock_backend=lock_backend.value,
+    lock_lease_seconds=lock_lease_seconds if lock_lease_seconds is not None else DEFAULT_LOCK_LEASE_SECONDS,
+    heartbeat_interval_seconds=heartbeat_interval_seconds if heartbeat_interval_seconds is not None else DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
+  )
+
+
+@campaign_app.command("run")
+def campaign_run(
+  manifest_path: Annotated[Path, _OPT("--manifest-path", help="Path to campaign manifest JSON (required)")] = ...,  # ty: ignore[invalid-parameter-default]
+  row_hash: Annotated[list[str], _OPT("--row-hash", help="Row hash filter (repeatable)")] = [],  # noqa: B006
+  continue_on_error: Annotated[bool, _OPT("--continue-on-error", help="Continue executing rows after a failure")] = False,
+  summary_path: Annotated[Path | None, _OPT("--summary-path", help="Path to write execution summary JSON")] = None,
+  lock_backend: Annotated[LockBackend, _OPT("--lock-backend", help="Lock backend: local_fs or distributed")] = LockBackend.local_fs,
+  lock_lease_seconds: Annotated[int | None, _OPT("--lock-lease-seconds", help="Lock lease duration in seconds")] = None,
+  heartbeat_interval_seconds: Annotated[int | None, _OPT("--heartbeat-interval-seconds", help="Heartbeat interval in seconds")] = None,
+) -> None:
+  """Execute manifest rows sequentially."""
+  from aminx.host.campaign import (  # noqa: PLC0415
+    DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
+    DEFAULT_LOCK_LEASE_SECONDS,
+    _emit_json,
+    execute_manifest,
+  )
+
+  if lock_backend == LockBackend.distributed:
+    raise typer.BadParameter(
+      "DistributedLockBackend is not available from the CLI; use lock_backend='local_fs' or "
+      "call execute_manifest() directly with a DistributedLockBackend instance.",
+      param_hint="--lock-backend",
+    )
+
+  summary = execute_manifest(
+    manifest_path,
+    row_hashes=tuple(row_hash) if row_hash else None,
+    continue_on_error=continue_on_error,
+    lock_backend=lock_backend.value,
+    lock_lease_seconds=lock_lease_seconds if lock_lease_seconds is not None else DEFAULT_LOCK_LEASE_SECONDS,
+    heartbeat_interval_seconds=heartbeat_interval_seconds if heartbeat_interval_seconds is not None else DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
+  )
+  _emit_json(summary, str(summary_path) if summary_path else None)
+  if summary["failed_rows"] > 0:
+    raise typer.Exit(code=1)
+
+
+@campaign_app.command("gates")
+def campaign_gates(
+  manifest_path: Annotated[Path, _OPT("--manifest-path", help="Path to campaign manifest JSON (required)")] = ...,  # ty: ignore[invalid-parameter-default]
+  rerun_manifest_path: Annotated[list[Path], _OPT("--rerun-manifest-path", help="Rerun manifest path (repeatable)")] = [],  # noqa: B006
+  report_path: Annotated[Path | None, _OPT("--report-path", help="Path to write gate report JSON")] = None,
+  allow_missing_rerun: Annotated[bool, _OPT("--allow-missing-rerun", help="Allow determinism gate without full-cell rerun")] = False,
+) -> None:
+  """Evaluate pilot campaign gates."""
+  from aminx.host.campaign import _emit_json, evaluate_campaign_gates  # noqa: PLC0415
+
+  report = evaluate_campaign_gates(
+    manifest_path,
+    rerun_manifest_paths=tuple(rerun_manifest_path),
+    require_full_cell_rerun=not allow_missing_rerun,
+  )
+  _emit_json(report, str(report_path) if report_path else None)
+  if not report["promote"]:
+    raise typer.Exit(code=2)
+
+
+@campaign_app.command("ramp-plan")
+def campaign_ramp_plan(
+  inputs: Annotated[str, _OPT("--inputs", help="Comma-separated input paths (required)")] = ...,  # ty: ignore[invalid-parameter-default]
+  campaign_id: Annotated[str, _OPT("--campaign-id", help="Campaign identifier (required)")] = ...,  # ty: ignore[invalid-parameter-default]
+  manifest_dir: Annotated[Path, _OPT("--manifest-dir", help="Directory for staged manifest files (required)")] = ...,  # ty: ignore[invalid-parameter-default]
+  output_root: Annotated[Path, _OPT("--output-root", help="Root directory for output HDF5 files (required)")] = ...,  # ty: ignore[invalid-parameter-default]
+  stage_designs_per_library_type: Annotated[str, _OPT("--stage-designs-per-library-type", help="Comma-separated stage design counts (required)")] = ...,  # ty: ignore[invalid-parameter-default]
+  samples_chunk_size: Annotated[int, _OPT("--samples-chunk-size", help="Samples chunk size (required)")] = ...,  # ty: ignore[invalid-parameter-default]
+  fixed_policies: Annotated[str, _OPT("--fixed-policies", help="Comma-separated fixed policy names")] = "catalytic_triad,active_site",
+  state_weight_profiles: Annotated[str, _OPT("--state-weight-profiles", help="Comma-separated state weight profile names")] = "equal",
+  plan_path: Annotated[Path | None, _OPT("--plan-path", help="Path to write scale ramp plan JSON")] = None,
+  checkpoint_id: Annotated[str | None, _OPT("--checkpoint-id", help="Checkpoint identifier for manifest rows")] = None,
+) -> None:
+  """Generate staged ramp manifests."""
+  from aminx.host.campaign import (  # noqa: PLC0415
+    SamplingSpecification,
+    _emit_json,
+    _parse_csv,
+    _parse_int_csv,
+    plan_scale_ramp,
+  )
+
+  base_spec = SamplingSpecification(
+    inputs=_parse_csv(inputs),
+    return_logits=False,
+    **({"checkpoint_id": checkpoint_id} if checkpoint_id is not None else {}),
+  )
+  plan_payload = plan_scale_ramp(
+    base_spec=base_spec,
+    campaign_id=campaign_id,
+    manifest_dir=manifest_dir,
+    output_root=output_root,
+    stage_designs_per_library_type=_parse_int_csv(stage_designs_per_library_type),
+    samples_chunk_size=samples_chunk_size,
+    fixed_policies=_parse_csv(fixed_policies),
+    state_weight_profiles=_parse_csv(state_weight_profiles),
+  )
+  _emit_json(plan_payload, str(plan_path) if plan_path else None)
+
+
+@campaign_app.command("ramp-evaluate")
+def campaign_ramp_evaluate(
+  report_path: Annotated[list[Path], _OPT("--report-path", help="Stage gate report path (repeatable, required, min=1)")] = [],  # noqa: B006
+  summary_path: Annotated[Path | None, _OPT("--summary-path", help="Path to write ramp evaluation summary JSON")] = None,
+) -> None:
+  """Evaluate staged gate reports."""
+  from aminx.host.campaign import _emit_json, evaluate_scale_ramp_reports  # noqa: PLC0415
+
+  if not report_path:
+    typer.echo("--report-path is required (pass at least one)", err=True)
+    raise typer.Exit(code=2)
+
+  summary = evaluate_scale_ramp_reports(tuple(report_path))
+  _emit_json(summary, str(summary_path) if summary_path else None)
+  if not summary["promote"]:
+    raise typer.Exit(code=2)
 
 
 def main() -> None:

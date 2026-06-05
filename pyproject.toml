@@ -133,6 +133,16 @@ ignore = [
 ]
 pylint.max-args = 15
 
+[tool.ruff.lint.flake8-tidy-imports]
+# Enforce import boundaries for aminx.potts module (ADR 260605_potts-parallel-not-stageset)
+# PottsModel is a parallel model family and must NOT import from the stageset/inference pipeline
+banned-api = [
+  {name = "aminx.inference.decode", message = "PottsModel is parallel, not a stageset consumer. Use aminx.potts.model.PottsModel.infer_params() instead. See ADR 260605_potts-parallel-not-stageset.md"},
+  {name = "aminx.host.plan", message = "PottsModel is parallel, not a stageset consumer. Use aminx.potts.model.PottsModel.infer_params() instead. See ADR 260605_potts-parallel-not-stageset.md"},
+  {name = "aminx.types.stages", message = "PottsModel is parallel, not a stageset consumer. Use aminx.potts.model.PottsModel.infer_params() instead. See ADR 260605_potts-parallel-not-stageset.md"},
+  {name = "aminx.inference.logits", message = "PottsModel is parallel, not a stageset consumer. Use aminx.potts.model.PottsModel.infer_params() instead. See ADR 260605_potts-parallel-not-stageset.md"},
+]
+
 [tool.ruff.lint.per-file-ignores]
 "src/aminx/cli.py" = [
   "ANN401",  # Any used for spec in _emit_or_run

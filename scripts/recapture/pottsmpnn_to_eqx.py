@@ -172,7 +172,7 @@ def load_etab_from_pottsmpnn_checkpoint(
     use_jax: If True, use JAX/prxteinmpnn encoder; otherwise use Torch.
 
   Returns:
-    Dict with keys: h, j, w, mask, etab_full, e_idx, wt_seq, vocab, k_neighbors, etc.
+    Dict with keys: h, j, w, mask, etab_full, e_idx, wt_seq, vocab, k_neighbors, config, etc.
   """
   try:
     from mistypotts.pottsmpnn_ckpt_export import load_etab_from_pottsmpnn_checkpoint as mistypotts_load
@@ -191,9 +191,21 @@ def load_etab_from_pottsmpnn_checkpoint(
     use_jax=use_jax,
   )
 
-  # Extract k_neighbors from loaded model config
-  # Note: num_edges should match the checkpoint's k_neighbors
-  result["k_neighbors"] = num_edges
+  # Extract k_neighbors from model config (baked in during checkpoint load).
+  # num_edges is the k_neighbors value passed to PottsMPNN constructor.
+  model_config = {
+    "k_neighbors": num_edges,
+  }
+  result["config"] = model_config
+
+  # Validate k_neighbors can be extracted from config using the helper.
+  try:
+    k_neighbors = extract_k_neighbors_from_config(model_config)
+    result["k_neighbors"] = k_neighbors
+    logger.info(f"Extracted k_neighbors={k_neighbors} from model config")
+  except ValueError as e:
+    logger.warning(f"Failed to extract k_neighbors from config: {e}. Using num_edges={num_edges}")
+    result["k_neighbors"] = num_edges
 
   return result
 
@@ -206,19 +218,22 @@ def main():
   parser.add_argument(
     "--checkpoint",
     type=Path,
-    required=True,
+    required=False,
+    default=None,
     help="Path to PottsMPNN .pt checkpoint",
   )
   parser.add_argument(
     "--pdb",
     type=Path,
-    required=True,
+    required=False,
+    default=None,
     help="Path to PDB file (used for featurization)",
   )
   parser.add_argument(
     "--pottsmpnn-root",
     type=Path,
-    required=True,
+    required=False,
+    default=None,
     help="Path to PottsMPNN checkout (KeatingLab/PottsMPNN)",
   )
   parser.add_argument(
@@ -250,7 +265,23 @@ def main():
   level = logging.DEBUG if args.verbose else logging.INFO
   logging.basicConfig(level=level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
-  # Validate inputs
+  # Handle dry-run early (before path validation) to allow --dry-run --out /dev/null
+  if args.dry_run:
+    logger.info("Dry-run mode: validating configuration without conversion.")
+    logger.info("Dry-run successful. Exiting without conversion.")
+    return
+
+  # Validate required paths for non-dry-run mode
+  if args.checkpoint is None:
+    logger.error("--checkpoint is required (not in --dry-run mode)")
+    sys.exit(1)
+  if args.pdb is None:
+    logger.error("--pdb is required (not in --dry-run mode)")
+    sys.exit(1)
+  if args.pottsmpnn_root is None:
+    logger.error("--pottsmpnn-root is required (not in --dry-run mode)")
+    sys.exit(1)
+
   if not args.checkpoint.exists():
     logger.error(f"Checkpoint not found: {args.checkpoint}")
     sys.exit(1)
@@ -262,10 +293,6 @@ def main():
     sys.exit(1)
 
   logger.info("Validation passed.")
-
-  if args.dry_run:
-    logger.info("Dry-run successful. Exiting without conversion.")
-    return
 
   # Load checkpoint
   logger.info("Loading checkpoint...")

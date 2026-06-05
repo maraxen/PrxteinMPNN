@@ -1,21 +1,24 @@
-"""Unified loader for Aminx weights from internal package resources."""
+"""Unified loader for Aminx weights from Hugging Face Hub or local path."""
 
 from __future__ import annotations
 
 import io
+import sys
 from importlib.resources import files
+from pathlib import Path
 from typing import Literal
 
 import equinox as eqx
 import jax
 import jax.nn.initializers as init
 import zstandard as zstd
+from huggingface_hub import hf_hub_download
 
-from aminx.model import PrxteinLigandMPNN, Aminx
+from aminx.model import Aminx, PrxteinLigandMPNN
 from aminx.model.diffusion_mpnn import DiffusionAminx
 from aminx.model.packer import Packer
 
-HF_REPO_ID = "maraxen/aminx"  # Legacy reference
+HF_REPO_ID = "maraxen/aminx"
 
 NODE_FEATURES = 128
 EDGE_FEATURES = 128
@@ -83,6 +86,23 @@ def get_topology_for_checkpoint(checkpoint_id: str) -> dict[str, int | bool | st
   return topology
 
 
+def _load_weight_bytes(filename: str) -> bytes:
+  """Return raw bytes for a weight file, trying local resources before HF Hub."""
+  try:
+    resource_path = files("aminx.model_params").joinpath(filename)
+    if resource_path.is_file():
+      return resource_path.read_bytes()
+  except (TypeError, ModuleNotFoundError):
+    pass
+  print(
+    f"Downloading {filename} from {HF_REPO_ID} (first use only)...",
+    file=sys.stderr,
+    flush=True,
+  )
+  local_file = hf_hub_download(repo_id=HF_REPO_ID, filename=filename)
+  return Path(local_file).read_bytes()
+
+
 def load_weights(
   checkpoint_id: str | None = None,
   skeleton: eqx.Module | None = None,
@@ -126,12 +146,7 @@ def load_weights(
   if not filename.endswith(".zst"):
     filename = f"{filename}.eqx.zst"
 
-  resource_path = files("aminx.model_params").joinpath(filename)
-  if not resource_path.exists():
-    msg = f"Weight file {filename} not found in package resources."
-    raise FileNotFoundError(msg)
-
-  data = resource_path.read_bytes()
+  data = _load_weight_bytes(filename)
   dctx = zstd.ZstdDecompressor()
   stream = io.BytesIO(dctx.decompress(data))
   return eqx.tree_deserialise_leaves(stream, skeleton)

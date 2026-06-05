@@ -40,6 +40,29 @@ jobs:
           cd aminx
           uv sync --extra cpu --extra dev --extra tests --group dev
 
+      - name: Download reference PyTorch weights
+        run: |
+          bash reference_ligandmpnn_clone/get_model_params.sh reference_ligandmpnn_clone/model_params
+
+      - name: Download converted aminx weights
+        run: |
+          cd aminx
+          uv run python -c "
+          from huggingface_hub import hf_hub_download
+          from pathlib import Path
+          REPO = 'maraxen/aminx'
+          CHECKPOINTS = ['proteinmpnn_v_48_020.eqx.zst']
+          dest = Path('model_params')
+          dest.mkdir(exist_ok=True)
+          for name in CHECKPOINTS:
+              target = dest / name
+              if target.is_symlink():
+                  target.unlink()
+              local = hf_hub_download(repo_id=REPO, filename=name)
+              target.write_bytes(Path(local).read_bytes())
+              print(f'Cached {name}')
+          "
+
       - name: Parity preflight
         env:
           REFERENCE_PATH: ${{ github.workspace }}/reference_ligandmpnn_clone

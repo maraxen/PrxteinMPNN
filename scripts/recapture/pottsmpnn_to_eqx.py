@@ -127,25 +127,47 @@ def load_and_convert_checkpoint(
 
     Requires torch and the PottsMPNN repository.
     """
+    # Gate file-existence checks: skip for dry-run with placeholder paths
+    if not dry_run:
+        ckpt = Path(checkpoint_path).resolve()
+        if not ckpt.is_file():
+            raise FileNotFoundError(f"Checkpoint not found: {ckpt}")
+
+        pdb_file = Path(pdb_path).resolve()
+        if not pdb_file.is_file():
+            raise FileNotFoundError(f"PDB not found: {pdb_file}")
+
+        # Inject pottsmpnn_root into sys.path
+        root = Path(pottsmpnn_root).resolve() if pottsmpnn_root else Path.home() / ".local" / "PottsMPNN"
+        if not root.is_dir():
+            msg = f"POTTSMPNN root not found: {root}. Set --pottsmpnn-root or check environment."
+            raise FileNotFoundError(msg)
+    else:
+        # For dry-run, skip validation but still resolve paths
+        ckpt = Path(checkpoint_path).resolve()
+        pdb_file = Path(pdb_path).resolve()
+        root = Path(pottsmpnn_root).resolve() if pottsmpnn_root else Path.home() / ".local" / "PottsMPNN"
+
     try:
         import torch
     except ImportError as e:
         msg = "load_and_convert_checkpoint requires torch (e.g. uv run --group experiments)"
         raise ImportError(msg) from e
 
-    ckpt = Path(checkpoint_path).resolve()
-    if not ckpt.is_file():
-        raise FileNotFoundError(f"Checkpoint not found: {ckpt}")
-
-    pdb_file = Path(pdb_path).resolve()
-    if not pdb_file.is_file():
-        raise FileNotFoundError(f"PDB not found: {pdb_file}")
-
-    # Inject pottsmpnn_root into sys.path
-    root = Path(pottsmpnn_root).resolve() if pottsmpnn_root else Path.home() / ".local" / "PottsMPNN"
-    if not root.is_dir():
-        msg = f"POTTSMPNN root not found: {root}. Set --pottsmpnn-root or check environment."
-        raise FileNotFoundError(msg)
+    if dry_run:
+        log.info("DRY RUN: skipping checkpoint load and PottsMPNN processing")
+        # Return placeholder data for dry-run
+        return {
+            "h": np.zeros((10, 21), dtype=np.float32),
+            "j": np.zeros((10, 10, 21, 21), dtype=np.float32),
+            "w": np.zeros((10, 10), dtype=np.float32),
+            "mask": np.ones(10, dtype=np.float32),
+            "k_neighbors": 48,
+            "checkpoint_path": str(ckpt),
+            "pdb_path": str(pdb_file),
+            "wt_seq": "ACDEFGHIKLMNPQRSTVWY",
+            "vocab": 21,
+        }
 
     sys.path.insert(0, str(root))
     try:
@@ -220,20 +242,6 @@ def load_and_convert_checkpoint(
 
     # Slice to q=21
     h, j = slice_potts_to_mpnn_q(h_full, j_full, q_mpnn=21)
-
-    if dry_run:
-        log.info("DRY RUN: would save %d×21 h, %d×%d×21×21 j, %d×%d w", h.shape[0], j.shape[0], j.shape[1], w.shape[0], w.shape[1])
-        return {
-            "h": h,
-            "j": j,
-            "w": w,
-            "mask": mask_np[0].astype(np.float32),
-            "k_neighbors": k_neighbors,
-            "checkpoint_path": str(ckpt),
-            "pdb_path": str(pdb_file),
-            "wt_seq": wt_seq,
-            "vocab": vocab,
-        }
 
     return {
         "h": h,

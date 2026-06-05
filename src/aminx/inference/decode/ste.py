@@ -218,20 +218,25 @@ class STEDecode(eqx.Module):
       raise ValueError("STEDecode requires inner mode with 'model' attribute")
     encode_fn = make_encode_fn(model, use_rolling_state=False)
 
-    def loss_fn(logits: Logits) -> jnp.ndarray:
+    def loss_fn(
+      logits: Logits,
+      iteration: int,
+      key_decoding_orders: PRNGKeyArray,
+      gumbel_key: PRNGKeyArray,
+      next_key: PRNGKeyArray,
+    ) -> jnp.ndarray:
       """Compute STE loss for a given logit initialization."""
       if use_concrete:
         # Gumbel-softmax
-        progress = jnp.float32(0) / jnp.maximum(
+        progress = jnp.float32(iteration) / jnp.maximum(
           jnp.float32(self.iterations) - 1.0,
           1.0,
         )
         tau = jnp.float32(tau_start) * (jnp.float32(tau_end / tau_start) ** progress)
-        key_gumbel = jax.random.fold_in(prng_key, 0)
         seq_repr = gumbel_softmax(
           logits / temperature,
           tau,
-          key_gumbel,
+          gumbel_key,
           hard=True,
         )
         one_hot_sequence = seq_repr
@@ -240,52 +245,67 @@ class STEDecode(eqx.Module):
         one_hot_sequence = straight_through_estimator(logits / temperature)
         seq_repr = one_hot_sequence
 
-      # Generate decoding orders for AR mask
-      key_order = jax.random.fold_in(prng_key, 1)
-      decoding_order, _ = self.decoding_order_fn(
-        key_order,
+      # Split for batch of decoding orders (batch_size=4)
+      batch_size = 4
+      keys_for_decoding = jax.random.split(key_decoding_orders, batch_size)
+
+      # Generate batch_size decoding orders
+      decoding_orders, _ = jax.vmap(
+        self.decoding_order_fn, in_axes=(0, None, None, None)
+      )(
+        keys_for_decoding,
         num_residues,
         tie_group_map[0] if tie_group_map is not None else None,
         num_groups,
       )
 
-      # Generate AR mask
-      ar_mask = generate_ar_mask(
-        decoding_order,
+      # Generate AR masks for each decoding order (batch_size, L, L)
+      ar_masks = jax.vmap(generate_ar_mask, in_axes=(0, None))(
+        decoding_orders,
         tie_group_map[0] if tie_group_map is not None else None,
       )
 
-      # Broadcast to all states
-      ar_mask_stack = jnp.broadcast_to(
-        ar_mask[None, ...],
-        (bundle.geometry.n_states, *ar_mask.shape),
-      )
+      def eval_with_mask(ar_mask: jnp.ndarray) -> Logits:
+        """Evaluate with a specific AR mask, return output logits."""
+        # Broadcast to all states
+        ar_mask_stack = jnp.broadcast_to(
+          ar_mask[None, ...],
+          (bundle.geometry.n_states, *ar_mask.shape),
+        )
 
-      # Update bundle with current sequence and AR mask
-      cond_new = eqx.tree_at(
-        lambda c: (c.sequence_oh, c.ar_mask),
-        bundle.conditioning,
-        (one_hot_sequence, ar_mask_stack),
-      )
-      bundle_new = eqx.tree_at(
-        lambda b: b.conditioning,
-        bundle,
-        cond_new,
-      )
+        # Update bundle with current sequence and AR mask
+        cond_new = eqx.tree_at(
+          lambda c: (c.sequence_oh, c.ar_mask),
+          bundle.conditioning,
+          (one_hot_sequence, ar_mask_stack),
+        )
+        bundle_new = eqx.tree_at(
+          lambda b: b.conditioning,
+          bundle,
+          cond_new,
+        )
 
-      # Encode the bundle
-      key_enc = jax.random.fold_in(prng_key, 10)
-      enc = encode_fn(bundle_new, key_enc, config)
+        # Split key for encode and decode (matching reference pattern)
+        key_enc, key_dec = jax.random.split(next_key)
 
-      # Score with inner decode mode
-      key_score = jax.random.fold_in(prng_key, 2)
-      output_logits = self.inner(
-        key=key_score,
-        enc=enc,
-        bundle=bundle_new,
-        config=config,
-        stage_set=projected_stage_set,
-      )
+        # Encode the bundle
+        enc = encode_fn(bundle_new, key_enc, config)
+
+        # Score with inner decode mode
+        output_logits = self.inner(
+          key=key_dec,
+          enc=enc,
+          bundle=bundle_new,
+          config=config,
+          stage_set=projected_stage_set,
+        )
+        return output_logits
+
+      # Vmap eval_with_mask over ar_masks (batch_size, L, L) → (batch_size, L, V)
+      pred_logits_batch = jax.vmap(eval_with_mask, in_axes=0)(ar_masks)
+
+      # Average logits across batch: (batch_size, L, V) → (L, V)
+      output_logits = jnp.mean(pred_logits_batch, axis=0)
 
       # Compute cross-entropy loss
       labels = seq_repr if use_concrete else straight_through_estimator(logits)
@@ -304,8 +324,19 @@ class STEDecode(eqx.Module):
       """Single STE optimization step with tied-group averaging."""
       current_logits, current_opt_state, current_key = carry
 
+      # Split the key matching reference implementation pattern
+      if use_concrete:
+        key_decoding_orders, gumbel_key, next_key = jax.random.split(current_key, 3)
+      else:
+        key_decoding_orders, next_key = jax.random.split(current_key)
+        gumbel_key = None  # type: ignore
+
+      # Create a closure that captures the iteration and split keys
+      def loss_fn_with_keys(logits: Logits) -> jnp.ndarray:
+        return loss_fn(logits, iteration, key_decoding_orders, gumbel_key, next_key)
+
       # Compute loss and gradients
-      _, grads = jax.value_and_grad(loss_fn)(current_logits)
+      _, grads = jax.value_and_grad(loss_fn_with_keys)(current_logits)
 
       # Update via optimizer
       updates, next_opt_state = self.optimizer.update(grads, current_opt_state)
@@ -325,7 +356,6 @@ class STEDecode(eqx.Module):
         )
         next_logits = next_logits_averaged[0, :, :]
 
-      next_key = jax.random.fold_in(current_key, iteration)
       return next_logits, next_opt_state, next_key
 
     # Run optimization loop
@@ -373,17 +403,19 @@ class STEDecode(eqx.Module):
       cond_new,
     )
 
+    # Split the final key for encoding and decoding (matching reference pattern)
+    key_enc_final, key_dec_final = jax.random.split(final_key)
+
     # Encode the final bundle
-    key_enc_final = jax.random.fold_in(prng_key, 11)
     enc_final = encode_fn(bundle_new, key_enc_final, config)
 
-    # Score final sequence
+    # Score final sequence using unprojected stage_set (matching reference)
     final_output_logits = self.inner(
-      key=final_key,
+      key=key_dec_final,
       enc=enc_final,
       bundle=bundle_new,
       config=config,
-      stage_set=projected_stage_set,
+      stage_set=stage_set if stage_set is not None else StageSet(),
     )
 
     return final_sequence, final_output_logits, final_logits

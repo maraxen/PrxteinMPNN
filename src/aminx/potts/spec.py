@@ -22,7 +22,9 @@ if TYPE_CHECKING:
 
 # Runtime import with fallback for when mistypotts is not installed
 try:
-  from mistypotts.potts_trw_spec import PottsTRWRunSpec as PottsTRWRunSpec  # type: ignore[import-not-found]
+  from mistypotts.potts_trw_spec import (
+    PottsTRWRunSpec as PottsTRWRunSpec,  # type: ignore[import-not-found]
+  )
 except ImportError:
   PottsTRWRunSpec = None  # type: ignore[assignment,misc]
 

@@ -40,6 +40,7 @@ class Dropout(eqx.Module):
 
     Returns:
       The array with dropout applied.
+
     """
     if inference is None:
       inference = self.inference

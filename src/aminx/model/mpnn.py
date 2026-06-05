@@ -142,6 +142,7 @@ class Aminx(eqx.Module):
 
     Returns:
         (node_features, edge_features, neighbor_indices) for this state.
+
     """
     if prng_key is None:
       prng_key = jax.random.PRNGKey(0)

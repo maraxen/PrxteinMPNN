@@ -44,6 +44,7 @@ def make_sample_sequences(
 
   Returns:
     A function that samples sequences from structures.
+
   """
   del _num_encoder_layers, _num_decoder_layers
 

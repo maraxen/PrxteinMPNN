@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass as dc
 
-import numpy as np
 import equinox as eqx
+import numpy as np
 from proxide.core.containers import (
   OligomerType,
   Protein,

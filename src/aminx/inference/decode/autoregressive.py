@@ -107,6 +107,7 @@ class AutoregressiveDecode(eqx.Module):
   When use_while_loop=True the wave scan uses lax.while_loop; carry bundles
   (step, sequence, logits_stack) so no external output stacking is needed.
   wave_iterator is retained in the pytree but unused on this path.
+
   """
 
   model: Any
@@ -162,6 +163,7 @@ class AutoregressiveDecode(eqx.Module):
     4. Call wave_iterator(scan_body, init, jnp.arange(n_waves)).
     5. Post-hoc scatter: map (n_waves, V) logits to (L, V) via second scan.
     6. Return SampleResult(final_sequence, logits).
+
     """
     L = enc.node_features.shape[1]
     S = enc.node_features.shape[0]
@@ -194,6 +196,7 @@ class AutoregressiveDecode(eqx.Module):
       -------
       (new_sequence, step_logits) : (array (L,), array (21,))
           Updated sequence and per-wave logits.
+
       """
       # Identify tied position group for this wave
       pos = wave.group_positions[wave_idx, 0, 0]

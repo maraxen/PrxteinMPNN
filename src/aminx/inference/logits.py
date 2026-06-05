@@ -43,6 +43,7 @@ class BatchLogitFn(Protocol):
     -------
     Float[Array, "... V"]
         Fused logits with state dimension reduced.
+
     """
     ...
 
@@ -68,6 +69,7 @@ class ArithmeticMeanLogits(eqx.Module):
   .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
      sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
      https://doi.org/10.1126/science.add2187
+
   """
 
   weights: Float[Array, S]
@@ -90,6 +92,7 @@ class ArithmeticMeanLogits(eqx.Module):
     -------
     Float[Array, "... V"]
         Fused logits, shape ``(..., V)``.
+
     """
     # Broadcast weights from shape (1,) to (S,) if needed, or validate match.
     S = per_state.shape[0]
@@ -153,6 +156,7 @@ class GeometricMeanLogits(eqx.Module):
   .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
      sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
      https://doi.org/10.1126/science.add2187
+
   """
 
   weights: Float[Array, S]
@@ -176,6 +180,7 @@ class GeometricMeanLogits(eqx.Module):
     -------
     Float[Array, "... V"]
         Fused logits, shape ``(..., V)``.
+
     """
     # Broadcast weights from shape (1,) to (S,) if needed, or validate match.
     S = per_state.shape[0]
@@ -225,6 +230,7 @@ class ProductOfProbabilities(eqx.Module):
   .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
      sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
      https://doi.org/10.1126/science.add2187
+
   """
 
   weights: Float[Array, S]
@@ -247,6 +253,7 @@ class ProductOfProbabilities(eqx.Module):
     -------
     Float[Array, "... V"]
         Fused logits, shape ``(..., V)``.
+
     """
     # Broadcast weights from shape (1,) to (S,) if needed, or validate match.
     S = per_state.shape[0]
@@ -294,6 +301,7 @@ class ARLogitFuse(eqx.Module):
   .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
      sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
      https://doi.org/10.1126/science.add2187
+
   """
 
   def __call__(self, logits: Float[Array, "S V"], bias: Float[Array, V]) -> Float[Array, V]:
@@ -310,6 +318,7 @@ class ARLogitFuse(eqx.Module):
     -------
     Float[Array, "V"]
         Fused logits with bias applied.
+
     """
     return jnp.mean(logits, axis=0) + bias
 
@@ -348,6 +357,7 @@ class TieGroupFuseFn(Protocol):
     -------
     Float[Array, "V"]
         Fused logits for the tied group.
+
     """
     ...
 
@@ -367,6 +377,7 @@ class TieGroupLogsumexpMean(eqx.Module):
   .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
      sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
      https://doi.org/10.1126/science.add2187
+
   """
 
   def __call__(
@@ -387,6 +398,7 @@ class TieGroupLogsumexpMean(eqx.Module):
     -------
     Float[Array, "V"]
         Fused logits for the tied group.
+
     """
     group = jnp.where(mask[:, None], logits, -jnp.inf)
     n = jnp.sum(mask)
@@ -409,6 +421,7 @@ class TieGroupProductOfExperts(eqx.Module):
 
   .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).
      https://github.com/dauparas/LigandMPNN
+
   """
 
   def __call__(
@@ -429,6 +442,7 @@ class TieGroupProductOfExperts(eqx.Module):
     -------
     Float[Array, "V"]
         Fused logits for the tied group.
+
     """
     log_probs = jax.nn.log_softmax(logits, axis=-1)
     return jnp.sum(jnp.where(mask[:, None], log_probs, 0.0), axis=0)
@@ -457,6 +471,7 @@ def make_stage_set(
   -------
   StageSet
       Stage set with logit_transform, ar_logit_transform, and tie_group_fuse wired.
+
   """
   from aminx.types.stages import StageSet
 

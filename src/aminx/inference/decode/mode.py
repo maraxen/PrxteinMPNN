@@ -49,6 +49,7 @@ class AutoregressiveMode:
   scan vs. while_loop is the only user-visible W-axis decision, and it is
   gated behind an explicit ``inference_only`` flag rather than an iterator
   type argument.
+
   """
 
   inference_only: bool = False
@@ -67,6 +68,7 @@ class STEMode:
       The inner decoding strategy used for gradient computation.
   iterations : int, default=100
       Number of STE refinement iterations.
+
   """
 
   inner_mode: ConditionalMode = ConditionalMode()

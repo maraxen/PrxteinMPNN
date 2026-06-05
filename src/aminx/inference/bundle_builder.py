@@ -5,6 +5,8 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
+from aminx.tiling.bucketing import BucketingConfig, select_bucket
+from aminx.tiling.pad import pad_bundle
 from aminx.types.bundles import (
   ConditioningBundle,
   GeometryBundle,
@@ -13,8 +15,6 @@ from aminx.types.bundles import (
   PackerBundle,
   WaveScheduleBundle,
 )
-from aminx.tiling.bucketing import BucketingConfig, select_bucket
-from aminx.tiling.pad import pad_bundle
 from aminx.types.configs import InferenceConfig
 
 
@@ -60,7 +60,6 @@ def build_inference_bundle(
   bucket_config: BucketingConfig | None = None,
 ) -> tuple[InferenceBundle, InferenceConfig]:
   """Single entry point for bundle construction from raw arrays."""
-
   # 1. Resolve shapes
   if coords.ndim == 3:
     coords = coords[None, ...]

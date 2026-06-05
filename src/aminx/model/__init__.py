@@ -28,6 +28,7 @@ from .packer import Packer
 __all__ = [
   "PRXTEIN_LIGAND_MPNN_CAPABILITIES",
   "PRXTEIN_MPNN_CAPABILITIES",
+  "Aminx",
   "Decoder",
   "DecoderLayer",
   "DiffusionAminx",
@@ -37,5 +38,4 @@ __all__ = [
   "Packer",
   "ProteinFeatures",
   "PrxteinLigandMPNN",
-  "Aminx",
 ]

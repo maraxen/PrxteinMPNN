@@ -80,6 +80,7 @@ class PrxteinLigandMPNN(eqx.Module):
 
   .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).
      https://github.com/dauparas/LigandMPNN
+
   """
 
   features: ProteinFeaturesLigand
@@ -157,6 +158,7 @@ class PrxteinLigandMPNN(eqx.Module):
         Whether to include side-chain context. Default: False.
     key : PRNGKeyArray
         PRNG key for weight initialization.
+
     """
     keys = jax.random.split(key, 5)
     self.node_features_dim = node_features
@@ -235,6 +237,7 @@ class PrxteinLigandMPNN(eqx.Module):
     -------
     dict[str, type | None]
         Mapping of stage name to expected type (e.g., "encode" → LigandEncodeFn).
+
     """
     from aminx.types.stages import (
       ARLogitTransformFn,
@@ -307,6 +310,7 @@ class PrxteinLigandMPNN(eqx.Module):
         - node_features: Shape ``(L, D)`` — encoded residue features.
         - edge_features: Shape ``(L, K, D_edge)`` — neighbor edge context.
         - neighbor_indices: Shape ``(L, K)`` — neighbor indices.
+
     """
     if prng_key is None:
       prng_key = jax.random.PRNGKey(0)

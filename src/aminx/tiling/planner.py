@@ -204,14 +204,14 @@ class BatchPlanner:
     all_decisions = decisions + hom_decisions
 
     # Post-plan eligibility guard: DedupGather may only be assigned to dedup_eligible axes.
-    from aminx.tiling.strategy import DedupGather as _DedupGather
     from aminx.tiling.errors import TilingError
+    from aminx.tiling.strategy import DedupGather as _DedupGather
 
     for d in all_decisions:
       if isinstance(d.strategy, _DedupGather) and not d.axis.dedup_eligible:
         raise TilingError(
             f"Axis '{d.axis.name}' has dedup_eligible=False but was assigned "
-            f"DedupGather strategy. Set dedup_eligible=True on the AxisSpec to allow dedup."
+            f"DedupGather strategy. Set dedup_eligible=True on the AxisSpec to allow dedup.",
         )
 
     final_estimate = self.estimate_memory(all_decisions)

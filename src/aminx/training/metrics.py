@@ -6,9 +6,9 @@ Revisit only if emitting large telemetry from traced steps (see aminx/TODO_io_ca
 
 from __future__ import annotations
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
-import equinox as eqx
 
 
 class TrainingMetrics(eqx.Module):

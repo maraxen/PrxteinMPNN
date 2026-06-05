@@ -69,6 +69,7 @@ class DesignArrayRecordWriter:
       options: ArrayRecord writer options (e.g. compression).
       n_canonical: Number of canonical residues (for shape validation).
       n_states: Number of states (for shape validation).
+
     """
     self.path = path
     self.writer = array_record_module.ArrayRecordWriter(path, options)

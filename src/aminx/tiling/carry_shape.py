@@ -30,6 +30,7 @@ class CarryShape:
       name: Symbolic name of the carry (e.g., "sequence", "state").
       shape: Shape tuple for the carry array (e.g., (L,), (S, H)).
       dtype: Data type for the carry (e.g., jnp.int32, jnp.float32).
+
   """
 
   name: str
@@ -41,6 +42,7 @@ class CarryShape:
 
     Returns:
         A JAX array of zeros with the declared shape and dtype.
+
     """
     return jnp.zeros(self.shape, dtype=self.dtype)
 

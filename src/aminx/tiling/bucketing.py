@@ -26,6 +26,7 @@ class BucketingConfig:
     ----------
     buckets : tuple[int, ...]
         Sorted bucket ceiling lengths. Default (64, 128, 256, 512).
+
     """
 
     buckets: tuple[int, ...] = (64, 128, 256, 512)
@@ -58,6 +59,7 @@ def select_bucket(seq_len: int, config: BucketingConfig) -> int:
     ------
     ValueError
         If seq_len exceeds all configured buckets.
+
     """
     for bucket in config.buckets:
         if seq_len <= bucket:
@@ -87,6 +89,7 @@ def group_by_bucket(
     ------
     ValueError
         If any sequence length exceeds all configured buckets.
+
     """
     result: dict[int, list[int]] = {}
     for idx, seq_len in enumerate(seq_lens):
@@ -109,6 +112,7 @@ class BucketAssignment:
         Mapping from bucket ceiling to list of original sequence indices.
     per_bucket_plans : dict[int, BatchPlan]
         Mapping from bucket ceiling to its computed BatchPlan.
+
     """
 
     bucket_boundaries: tuple[int, ...]

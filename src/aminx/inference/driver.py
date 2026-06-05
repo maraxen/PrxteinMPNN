@@ -12,7 +12,7 @@ Topology inference:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
 from jaxtyping import PRNGKeyArray
 
@@ -58,6 +58,7 @@ def infer_topology(stage_set: StageSet) -> str:
   .. [ProteinMPNN] Dauparas, J., et al. "Robust deep learning-based protein
      sequence design using ProteinMPNN." *Science* 378(6615):49-56 (2022).
      https://doi.org/10.1126/science.add2187
+
   """
   if stage_set.sample_step is not None:
     return TOPOLOGY_AR
@@ -74,7 +75,7 @@ def decode(
   wave: WaveScheduleBundle | None,
   config: InferenceConfig,
   stage_set: StageSet,
-) -> Union[Logits, SampleResult]:
+) -> Logits | SampleResult:
   """DEPRECATED: Unified decode driver.
 
   This function is deprecated as of Sprint 6. The three decode paths

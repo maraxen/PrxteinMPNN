@@ -36,6 +36,7 @@ def get_k_bucket(k: int) -> int:
 
     Raises:
         ValueError: if k <= 0.
+
     """
     if k <= 0:
         raise ValueError(f"k must be positive, got k={k}")
@@ -59,6 +60,7 @@ class DedupSpec:
     Raises:
         ValueError: If invariants k == len(unique_indices) or
             len(np.unique(index_map)) == k are violated.
+
     """
 
     axis_name: str

@@ -35,6 +35,7 @@ def make_score_fn(
 
   Returns:
     JIT scoring function.
+
   """
   del _num_encoder_layers, _num_decoder_layers
 
@@ -172,6 +173,7 @@ def score(
 
   Returns:
       Tuple of (masked average score, logits, decoding order).
+
   """
   score_fn = make_score_fn(model)
   return cast(

@@ -2,6 +2,7 @@
 
 Parallel model family for sequence design via Potts energy:
   - model: PottsModel(eqx.Module) with TRW inference
+  - poe: PoeModel(eqx.Module) Product-of-Experts N-backbone ensemble
   - spec: PottsRunSpec frozen dataclass for run configuration
   - sampling: MCMC sampling utilities
   - calibration: Post-hoc marginal calibration
@@ -23,16 +24,19 @@ try:
     PottsModel,
     PottsParams,
   )
+  from aminx.potts.poe import PoeModel, PoeParams
 except ImportError:
   # mistypotts may not be available; spec can still be imported
   pass
 
 __all__ = [
+  "POTTS_ALPHABET",
+  "POTTS_TO_MPNN_ALPHABET_MAP",
   "CalibrationModule",
   "IdentityCalibration",
   "LearnedCalibration",
-  "POTTS_ALPHABET",
-  "POTTS_TO_MPNN_ALPHABET_MAP",
+  "PoeModel",
+  "PoeParams",
   "PottsModel",
   "PottsParams",
   "PottsRunSpec",

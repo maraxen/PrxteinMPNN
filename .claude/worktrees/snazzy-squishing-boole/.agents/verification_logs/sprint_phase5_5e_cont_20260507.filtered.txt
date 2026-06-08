@@ -1,0 +1,21 @@
+Phase 5e-cont (2026-05-07) — mpnn autoregressive scan extraction
+
+Slice: Moved PrxteinMPNN tied-position scan + per-position AR scan into
+  src/prxteinmpnn/model/mpnn_autoregressive_scan.py (~498 LoC)
+  PrxteinMPNN._run_autoregressive_scan delegates to run_autoregressive_scan(self, …).
+  Removed private _run_tied_position_scan / _sample_and_broadcast_to_group from class
+  (logic only in helper module; JIT trace still enters via bound method).
+
+LoC: mpnn.py 2112 → 1623 (−489). New file mpnn_autoregressive_scan.py +498.
+
+Verification:
+  uv run ruff check src/prxteinmpnn/model/mpnn_autoregressive_scan.py src/prxteinmpnn/model/mpnn.py  — pass
+  uv run ruff format (above + mpnn.py) — applied
+  PYTHONPATH=src uv run pytest tests/streaming/ tests/sampling/test_state_vmap_exact_routing.py -q — 20 passed (~49s CPU)
+
+Raw logs:
+  .agents/verification_logs/sprint_phase5_5e_cont_20260507_pytest.raw.txt
+  .agents/verification_logs/sprint_phase5_5e_cont_20260507_ruff.raw.txt (full tree has pre-existing failures)
+  .agents/verification_logs/sprint_phase5_5e_cont_20260507_ty.raw.txt (src-wide ty has pre-existing diagnostics)
+
+Plan-auditor: PASS (mechanical extraction). Outcome: APPROVE pending roadmap/doc commit.

@@ -1,0 +1,6 @@
+Sprint refactor-sprint-phase0-20260505 — verification excerpt (2026-05-05)
+
+ruff (touched paths): All checks passed.
+pytest tests/profiling + spikes: 4 passed, 1 skipped; spike emits UserWarning spike_hlo_bytes_state_vmap_exact=... for PR narrative.
+pytest tests/parity -m parity_fast -q: 10 passed, 58 deselected.
+ty check (new src modules): All checks passed.

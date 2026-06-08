@@ -1,0 +1,703 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>prxteinmpnn.run.spec &#8212; PrxteinMPNN 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/mystnb.11b39860a7a0cbfd473a3ad8a317855267ff0bd372690045ca344a6b62be495e.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/style.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=a1637f0b"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=30646c52"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/prxteinmpnn/run/spec';</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">PrxteinMPNN 0.1.0 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/models.html">Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/inference.html">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/types.html">Types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/sampling.html">Sampling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/scoring.html">Scoring</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/host.html">Host / Dispatch Layer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/run.html">Run / Specs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/utils.html">Utilities</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/quickstart.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/installation.html">Installation Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/basic_usage.html">Basic Usage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../examples/index.html">Examples</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../examples/advanced_example.html">Advanced Example</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+<a href="https://github.com/maraxen/prxteinmpnn" target="_blank"
+   class="btn btn-sm btn-source-repository-button"
+   title="Source repository"
+   data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+
+</a>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1></h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for prxteinmpnn.run.spec</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Composed run configuration (`RunSpec`) and sub-config modules.</span>
+
+<span class="sd">See `.agents/REFACTOR_ROADMAP.md` §3.5. This module is the Equinox/pytree representation;</span>
+<span class="sd">`run.specs.RunSpecification` remains the public dataclass façade for one minor version.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">os</span><span class="w"> </span><span class="kn">import</span> <span class="n">PathLike</span><span class="p">,</span> <span class="n">fspath</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">cast</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">equinox</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">eqx</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+
+
+<div class="viewcode-block" id="IOConfig">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.spec.IOConfig">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">IOConfig</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Output / manifest / sink selection (host-side).&quot;&quot;&quot;</span>
+
+  <span class="n">output_dir</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">sink_kind</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">manifest_path</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="ResourceConfig">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.spec.ResourceConfig">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ResourceConfig</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Device and batching caps (structure vs sample streams).&quot;&quot;&quot;</span>
+
+  <span class="n">n_devices</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">sample_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">structure_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">max_buffer_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="MultistateConfig">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.spec.MultistateConfig">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">MultistateConfig</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Multistate / combine-strategy knobs (registry keys are strings, not int indices).&quot;&quot;&quot;</span>
+
+  <span class="n">mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">n_states</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">combine_strategy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="LigandConfig">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.spec.LigandConfig">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">LigandConfig</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;LigandMPNN-specific options layered on `RunSpecification`.&quot;&quot;&quot;</span>
+
+  <span class="n">model_family</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">use_side_chain_context</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">ligand_conditioning</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">sidechain_conditioning</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">context_path</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="TiedPositionsConfig">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.spec.TiedPositionsConfig">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">TiedPositionsConfig</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Tied-position and structure-mapping payloads (arrays may be traced).&quot;&quot;&quot;</span>
+
+  <span class="n">tied_positions</span><span class="p">:</span> <span class="nb">object</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">pass_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">multi_state_temperature</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">tie_group_map</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
+  <span class="n">structure_mapping</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+
+<div class="viewcode-block" id="GridLineageConfig">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.spec.GridLineageConfig">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">GridLineageConfig</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Grid / campaign lineage metadata (mostly static host fields).&quot;&quot;&quot;</span>
+
+  <span class="n">grid_mode</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">campaign_mode</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">job_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">chunk_id</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">sample_start</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">sample_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="BatchingConfig">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.spec.BatchingConfig">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">BatchingConfig</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Per-task batch and chunk sizes; `None` means “not applicable” for this task.&quot;&quot;&quot;</span>
+
+  <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">samples_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">samples_chunk_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">noise_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">temperature_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">jacobian_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">combine_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">apc_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">apc_residue_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="AveragingConfig">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.spec.AveragingConfig">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">AveragingConfig</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Feature / encoding averaging options.&quot;&quot;&quot;</span>
+
+  <span class="n">average_node_features</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">average_encoding_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">average_encodings</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">state_weights</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+
+<div class="viewcode-block" id="PrecisionConfig">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.spec.PrecisionConfig">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">PrecisionConfig</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;JAX compute dtype policy for training and inference (mirrors dataclass ``precision`` when set).&quot;&quot;&quot;</span>
+
+  <span class="n">compute</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;fp32&quot;</span><span class="p">,</span> <span class="s2">&quot;fp16&quot;</span><span class="p">,</span> <span class="s2">&quot;bf16&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="RunSpec">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.spec.RunSpec">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">RunSpec</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Composed configuration for run/prep pipelines.&quot;&quot;&quot;</span>
+
+  <span class="n">io</span><span class="p">:</span> <span class="n">IOConfig</span>
+  <span class="n">resource</span><span class="p">:</span> <span class="n">ResourceConfig</span>
+  <span class="n">multistate</span><span class="p">:</span> <span class="n">MultistateConfig</span>
+  <span class="n">ligand</span><span class="p">:</span> <span class="n">LigandConfig</span>
+  <span class="n">tied</span><span class="p">:</span> <span class="n">TiedPositionsConfig</span>
+  <span class="n">grid</span><span class="p">:</span> <span class="n">GridLineageConfig</span>
+  <span class="n">batching</span><span class="p">:</span> <span class="n">BatchingConfig</span>
+  <span class="n">averaging</span><span class="p">:</span> <span class="n">AveragingConfig</span>
+  <span class="n">precision</span><span class="p">:</span> <span class="n">PrecisionConfig</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_optional_path</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">object</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+  <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">return</span> <span class="kc">None</span>
+  <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Path</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">value</span>
+  <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+  <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="n">fspath</span><span class="p">(</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;PathLike[str]&quot;</span><span class="p">,</span> <span class="n">value</span><span class="p">)))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_output_h5_path</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+  <span class="n">raw</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;output_h5_path&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+  <span class="k">return</span> <span class="n">_optional_path</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_infer_output_dir</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+  <span class="n">explicit</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;output_dir&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">explicit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">_optional_path</span><span class="p">(</span><span class="n">explicit</span><span class="p">)</span>
+  <span class="n">h5</span> <span class="o">=</span> <span class="n">_output_h5_path</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">h5</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">h5</span><span class="o">.</span><span class="n">parent</span>
+  <span class="n">cache</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;cache_path&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">cache</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">_optional_path</span><span class="p">(</span><span class="n">cache</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">p</span><span class="o">.</span><span class="n">parent</span> <span class="k">if</span> <span class="n">p</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">p</span><span class="o">.</span><span class="n">suffix</span> <span class="k">else</span> <span class="n">p</span>
+  <span class="c1"># TODO(REFACTOR_ROADMAP §3.5): unify with explicit `output_dir` once call-sites migrate.</span>
+  <span class="k">return</span> <span class="kc">None</span>
+
+
+<div class="viewcode-block" id="_run_spec_precision_compute">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.spec._run_spec_precision_compute">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">_run_spec_precision_compute</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;fp32&quot;</span><span class="p">,</span> <span class="s2">&quot;fp16&quot;</span><span class="p">,</span> <span class="s2">&quot;bf16&quot;</span><span class="p">]:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Resolve compute precision: training specs use ``precision``; otherwise default fp32.&quot;&quot;&quot;</span>
+  <span class="n">raw</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;precision&quot;</span><span class="p">,</span> <span class="s2">&quot;fp32&quot;</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">raw</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;fp32&quot;</span><span class="p">,</span> <span class="s2">&quot;fp16&quot;</span><span class="p">,</span> <span class="s2">&quot;bf16&quot;</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">cast</span><span class="p">(</span><span class="s2">&quot;Literal[&#39;fp32&#39;, &#39;fp16&#39;, &#39;bf16&#39;]&quot;</span><span class="p">,</span> <span class="n">raw</span><span class="p">)</span>
+  <span class="k">return</span> <span class="s2">&quot;fp32&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="_coerce_max_buffer_size">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.spec._coerce_max_buffer_size">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">_coerce_max_buffer_size</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Optional positive buffer cap (bytes); ``None`` when unset or invalid.&quot;&quot;&quot;</span>
+  <span class="n">raw</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;max_buffer_size&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">raw</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">return</span> <span class="kc">None</span>
+  <span class="k">try</span><span class="p">:</span>
+    <span class="n">v</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">raw</span><span class="o">.</span><span class="n">item</span><span class="p">())</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">raw</span><span class="p">,</span> <span class="s2">&quot;item&quot;</span><span class="p">)</span> <span class="k">else</span> <span class="nb">int</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+  <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+    <span class="k">return</span> <span class="kc">None</span>
+  <span class="k">return</span> <span class="n">v</span> <span class="k">if</span> <span class="n">v</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="kc">None</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_infer_sink_kind</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+  <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;use_arrayrecord&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+    <span class="k">return</span> <span class="s2">&quot;arrayrecord&quot;</span>
+  <span class="k">if</span> <span class="n">_output_h5_path</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">return</span> <span class="s2">&quot;hdf5&quot;</span>
+  <span class="c1"># IOConfig.sink_kind uses &quot;arrayrecord&quot; | &quot;hdf5&quot; | &quot;none&quot;; host tensor sinks register under OUTPUT_SINKS</span>
+  <span class="c1"># (e.g. &quot;noop&quot;, &quot;streaming_tensor_staging&quot; — see prxteinmpnn.run.output_sinks).</span>
+  <span class="k">return</span> <span class="s2">&quot;none&quot;</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_coerce_n_states</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+  <span class="n">cs</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;conformational_states&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">cs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">return</span> <span class="mi">1</span>
+  <span class="n">ns</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">cs</span><span class="p">,</span> <span class="s2">&quot;n_states&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">ns</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">return</span> <span class="mi">1</span>
+  <span class="k">try</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ns</span><span class="p">,</span> <span class="s2">&quot;item&quot;</span><span class="p">):</span>
+      <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">ns</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">ns</span><span class="p">)</span>
+  <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+    <span class="c1"># TODO(REFACTOR_ROADMAP §3.5): stable int from `ProteinBundle` / stack shape.</span>
+    <span class="k">return</span> <span class="mi">1</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_infer_multistate_mode</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+  <span class="c1"># TODO(REFACTOR_ROADMAP §3.3 `MULTISTATE_MODES`): replace placeholder with registry key</span>
+  <span class="c1"># derived from prep/model capabilities once `multistate_mode` leaves ad-hoc if-ladders.</span>
+  <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;conformational_states&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">return</span> <span class="s2">&quot;conformational_context&quot;</span>
+  <span class="k">if</span> <span class="n">_coerce_n_states</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+    <span class="k">return</span> <span class="s2">&quot;multi_state&quot;</span>
+  <span class="k">return</span> <span class="s2">&quot;single&quot;</span>
+
+
+<div class="viewcode-block" id="_infer_n_devices">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.spec._infer_n_devices">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">_infer_n_devices</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Prefer explicit ``n_devices`` on the spec; else ``jax.local_device_count()``; else ``1``.&quot;&quot;&quot;</span>
+  <span class="n">raw</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;n_devices&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">raw</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">try</span><span class="p">:</span>
+      <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">raw</span><span class="p">,</span> <span class="s2">&quot;item&quot;</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">raw</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+      <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+      <span class="k">pass</span>
+  <span class="k">try</span><span class="p">:</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">local_device_count</span><span class="p">())</span>
+  <span class="k">except</span> <span class="p">(</span><span class="ne">RuntimeError</span><span class="p">,</span> <span class="ne">OSError</span><span class="p">,</span> <span class="ne">AttributeError</span><span class="p">,</span> <span class="ne">ImportError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+    <span class="k">return</span> <span class="mi">1</span></div>
+
+
+
+<div class="viewcode-block" id="build_run_spec">
+<a class="viewcode-back" href="../../../api/run.html#prxteinmpnn.run.spec.build_run_spec">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">build_run_spec</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunSpec</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Build a :class:`RunSpec` view from a :class:`RunSpecification` (or subclass) instance.&quot;&quot;&quot;</span>
+  <span class="n">pre_idx</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;preprocessed_index_path&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+  <span class="n">io</span> <span class="o">=</span> <span class="n">IOConfig</span><span class="p">(</span>
+    <span class="n">output_dir</span><span class="o">=</span><span class="n">_infer_output_dir</span><span class="p">(</span><span class="n">spec</span><span class="p">),</span>
+    <span class="n">sink_kind</span><span class="o">=</span><span class="n">_infer_sink_kind</span><span class="p">(</span><span class="n">spec</span><span class="p">),</span>
+    <span class="n">manifest_path</span><span class="o">=</span><span class="n">_optional_path</span><span class="p">(</span><span class="n">pre_idx</span><span class="p">),</span>
+  <span class="p">)</span>
+
+  <span class="n">batch_size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;batch_size&quot;</span><span class="p">,</span> <span class="mi">32</span><span class="p">))</span>
+  <span class="n">samples_batch</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;samples_batch_size&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+  <span class="n">resource</span> <span class="o">=</span> <span class="n">ResourceConfig</span><span class="p">(</span>
+    <span class="n">n_devices</span><span class="o">=</span><span class="n">_infer_n_devices</span><span class="p">(</span><span class="n">spec</span><span class="p">),</span>
+    <span class="n">sample_batch_size</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">samples_batch</span><span class="p">)</span> <span class="k">if</span> <span class="n">samples_batch</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">batch_size</span><span class="p">,</span>
+    <span class="n">structure_batch_size</span><span class="o">=</span><span class="n">batch_size</span><span class="p">,</span>
+    <span class="n">max_buffer_size</span><span class="o">=</span><span class="n">_coerce_max_buffer_size</span><span class="p">(</span><span class="n">spec</span><span class="p">),</span>
+  <span class="p">)</span>
+
+  <span class="n">combine</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;multi_state_strategy&quot;</span><span class="p">,</span> <span class="s2">&quot;arithmetic_mean&quot;</span><span class="p">)</span>
+  <span class="n">multistate</span> <span class="o">=</span> <span class="n">MultistateConfig</span><span class="p">(</span>
+    <span class="n">mode</span><span class="o">=</span><span class="n">_infer_multistate_mode</span><span class="p">(</span><span class="n">spec</span><span class="p">),</span>
+    <span class="n">n_states</span><span class="o">=</span><span class="n">_coerce_n_states</span><span class="p">(</span><span class="n">spec</span><span class="p">),</span>
+    <span class="n">combine_strategy</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">combine</span><span class="p">),</span>
+  <span class="p">)</span>
+
+  <span class="n">ctx_path</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;ligand_context_path&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+  <span class="n">ligand</span> <span class="o">=</span> <span class="n">LigandConfig</span><span class="p">(</span>
+    <span class="n">model_family</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;model_family&quot;</span><span class="p">,</span> <span class="s2">&quot;proteinmpnn&quot;</span><span class="p">)),</span>
+    <span class="n">use_side_chain_context</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;ligand_mpnn_use_side_chain_context&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+    <span class="n">ligand_conditioning</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;ligand_conditioning&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)),</span>
+    <span class="n">sidechain_conditioning</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;sidechain_conditioning&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)),</span>
+    <span class="n">context_path</span><span class="o">=</span><span class="n">_optional_path</span><span class="p">(</span><span class="n">ctx_path</span><span class="p">),</span>
+  <span class="p">)</span>
+
+  <span class="n">tied</span> <span class="o">=</span> <span class="n">TiedPositionsConfig</span><span class="p">(</span>
+    <span class="n">tied_positions</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;tied_positions&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+    <span class="n">pass_mode</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;pass_mode&quot;</span><span class="p">,</span> <span class="s2">&quot;intra&quot;</span><span class="p">)),</span>
+    <span class="n">multi_state_temperature</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;multi_state_temperature&quot;</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)),</span>
+    <span class="n">tie_group_map</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;tie_group_map&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+    <span class="n">structure_mapping</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;structure_mapping&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+  <span class="p">)</span>
+
+  <span class="n">grid</span> <span class="o">=</span> <span class="n">GridLineageConfig</span><span class="p">(</span>
+    <span class="n">grid_mode</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;grid_mode&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)),</span>
+    <span class="n">campaign_mode</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;campaign_mode&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)),</span>
+    <span class="n">job_id</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;job_id&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+    <span class="n">chunk_id</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;chunk_id&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+    <span class="n">sample_start</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;sample_start&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+    <span class="n">sample_count</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;sample_count&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+  <span class="p">)</span>
+
+  <span class="n">jacobian_batch</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;jacobian_batch_size&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+  <span class="n">combine_bs</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;combine_batch_size&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+  <span class="n">apc_bs</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;apc_batch_size&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+  <span class="n">apc_res_bs</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;apc_residue_batch_size&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+  <span class="n">samples_chunk</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;samples_chunk_size&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+  <span class="n">temperature_bs</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;temperature_batch_size&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+  <span class="n">noise_bs</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;noise_batch_size&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+  <span class="n">batching</span> <span class="o">=</span> <span class="n">BatchingConfig</span><span class="p">(</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size</span><span class="p">,</span>
+    <span class="n">samples_batch_size</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">samples_batch</span><span class="p">)</span> <span class="k">if</span> <span class="n">samples_batch</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">samples_chunk_size</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">samples_chunk</span><span class="p">)</span> <span class="k">if</span> <span class="n">samples_chunk</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">noise_batch_size</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">noise_bs</span><span class="p">)</span> <span class="k">if</span> <span class="n">noise_bs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">temperature_batch_size</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">temperature_bs</span><span class="p">)</span> <span class="k">if</span> <span class="n">temperature_bs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">jacobian_batch_size</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">jacobian_batch</span><span class="p">)</span> <span class="k">if</span> <span class="n">jacobian_batch</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">combine_batch_size</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">combine_bs</span><span class="p">)</span> <span class="k">if</span> <span class="n">combine_bs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">apc_batch_size</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">apc_bs</span><span class="p">)</span> <span class="k">if</span> <span class="n">apc_bs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">apc_residue_batch_size</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">apc_res_bs</span><span class="p">)</span> <span class="k">if</span> <span class="n">apc_res_bs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="p">)</span>
+
+  <span class="n">avg_enc</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;average_encodings&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+  <span class="n">averaging</span> <span class="o">=</span> <span class="n">AveragingConfig</span><span class="p">(</span>
+    <span class="n">average_node_features</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;average_node_features&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)),</span>
+    <span class="n">average_encoding_mode</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;average_encoding_mode&quot;</span><span class="p">,</span> <span class="s2">&quot;inputs_and_noise&quot;</span><span class="p">)),</span>
+    <span class="n">average_encodings</span><span class="o">=</span><span class="p">(</span><span class="nb">bool</span><span class="p">(</span><span class="n">avg_enc</span><span class="p">)</span> <span class="k">if</span> <span class="n">avg_enc</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">),</span>
+    <span class="n">state_weights</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="s2">&quot;state_weights&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+  <span class="p">)</span>
+
+  <span class="n">precision</span> <span class="o">=</span> <span class="n">PrecisionConfig</span><span class="p">(</span><span class="n">compute</span><span class="o">=</span><span class="n">_run_spec_precision_compute</span><span class="p">(</span><span class="n">spec</span><span class="p">))</span>
+
+  <span class="n">tree</span> <span class="o">=</span> <span class="n">RunSpec</span><span class="p">(</span>
+    <span class="n">io</span><span class="o">=</span><span class="n">io</span><span class="p">,</span>
+    <span class="n">resource</span><span class="o">=</span><span class="n">resource</span><span class="p">,</span>
+    <span class="n">multistate</span><span class="o">=</span><span class="n">multistate</span><span class="p">,</span>
+    <span class="n">ligand</span><span class="o">=</span><span class="n">ligand</span><span class="p">,</span>
+    <span class="n">tied</span><span class="o">=</span><span class="n">tied</span><span class="p">,</span>
+    <span class="n">grid</span><span class="o">=</span><span class="n">grid</span><span class="p">,</span>
+    <span class="n">batching</span><span class="o">=</span><span class="n">batching</span><span class="p">,</span>
+    <span class="n">averaging</span><span class="o">=</span><span class="n">averaging</span><span class="p">,</span>
+    <span class="n">precision</span><span class="o">=</span><span class="n">precision</span><span class="p">,</span>
+  <span class="p">)</span>
+  <span class="k">return</span> <span class="n">cast</span><span class="p">(</span><span class="s2">&quot;RunSpec&quot;</span><span class="p">,</span> <span class="n">tree</span><span class="p">)</span></div>
+
+</pre></div>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By PrxteinMPNN Team
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, PrxteinMPNN Team.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

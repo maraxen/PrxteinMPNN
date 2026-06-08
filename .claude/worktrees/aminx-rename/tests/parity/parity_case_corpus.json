@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "description": "Deterministic parity evidence corpus used for expanded reporting.",
+  "real_backbones": [
+    {
+      "id": "1ubq",
+      "path": "tests/data/1ubq.pdb",
+      "max_length": 120
+    },
+    {
+      "id": "5awl",
+      "path": "tests/data/5awl.pdb",
+      "max_length": 200
+    },
+    {
+      "id": "1BC8",
+      "path": "reference_ligandmpnn_clone/inputs/1BC8.pdb",
+      "max_length": 240
+    },
+    {
+      "id": "2GFB",
+      "path": "reference_ligandmpnn_clone/inputs/2GFB.pdb",
+      "max_length": 240
+    },
+    {
+      "id": "4GYT",
+      "path": "reference_ligandmpnn_clone/inputs/4GYT.pdb",
+      "max_length": 240
+    }
+  ],
+  "synthetic_backbones": [
+    {
+      "id": "synthetic-len-32-seed-101",
+      "length": 32,
+      "seed": 101
+    },
+    {
+      "id": "synthetic-len-32-seed-202",
+      "length": 32,
+      "seed": 202
+    },
+    {
+      "id": "synthetic-len-64-seed-101",
+      "length": 64,
+      "seed": 101
+    },
+    {
+      "id": "synthetic-len-64-seed-202",
+      "length": 64,
+      "seed": 202
+    },
+    {
+      "id": "synthetic-len-96-seed-101",
+      "length": 96,
+      "seed": 101
+    },
+    {
+      "id": "synthetic-len-96-seed-202",
+      "length": 96,
+      "seed": 202
+    }
+  ],
+  "ligand_context": {
+    "atom_context_num": 16,
+    "mask_keep_probability": 0.8
+  },
+  "intrinsic_noise": {
+    "repeats": 5,
+    "seed_step": 97
+  },
+  "macro_signals": {
+    "samples_per_case": 32,
+    "include_no_ligand": true,
+    "include_ligand": true,
+    "include_sidechain_conditioned": false
+  },
+  "sampling": {
+    "point_sample_size": 4000
+  }
+}

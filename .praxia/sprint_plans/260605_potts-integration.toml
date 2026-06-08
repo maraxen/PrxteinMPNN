@@ -1,0 +1,176 @@
+[sprint]
+sprint_id = "260605_potts-integration"
+sprint_num = 1
+name = "260605_potts-integration"
+description = ""
+context = "[MANUAL: paste recon findings here before running emit-sprint]"
+max_fix_retries = 1
+
+[[tracks]]
+id = "a"
+is_research = false
+
+[[tracks.items]]
+backlog_id = "1302"
+phase_name = "Track A — P-00a: Recon — ProteinFeatures shared vs. mistypotts-local copy (#1302)"
+fixer_prompt = "[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"
+reviewer_prompt = "[AUTO: paste reviewer prompt here — describe what correct looks like]"
+return_key = "1302"
+
+[[tracks]]
+id = "b"
+is_research = false
+
+[[tracks.items]]
+backlog_id = "1303"
+phase_name = "Track B — P-00b: ADR — Potts is a parallel model family, NOT a StageSet consumer (#1303)"
+fixer_prompt = "[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"
+reviewer_prompt = "[AUTO: paste reviewer prompt here — describe what correct looks like]"
+return_key = "1303"
+
+[[tracks]]
+id = "c"
+is_research = false
+
+[[tracks.items]]
+backlog_id = "1291"
+phase_name = "Track C — P-01: Weight recapture — PottsMPNN .pt → potts_<id>.eqx.zst (bathos-tracked) (#1291)"
+fixer_prompt = "[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"
+reviewer_prompt = "[AUTO: paste reviewer prompt here — describe what correct looks like]"
+return_key = "1291"
+
+[[tracks]]
+id = "d"
+is_research = false
+
+[[tracks.items]]
+backlog_id = "1292"
+phase_name = "Track D — P-03: aminx.potts.model — PottsModel(eqx.Module) with DifferentiableTRW internal (#1292)"
+fixer_prompt = "[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"
+reviewer_prompt = "[AUTO: paste reviewer prompt here — describe what correct looks like]"
+return_key = "1292"
+
+[[tracks]]
+id = "e"
+is_research = false
+
+[[tracks.items]]
+backlog_id = "1293"
+phase_name = "Track E — P-04: aminx.potts.spec — PottsRunSpec frozen dataclass (#1293)"
+fixer_prompt = "[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"
+reviewer_prompt = "[AUTO: paste reviewer prompt here — describe what correct looks like]"
+return_key = "1293"
+
+[[tracks]]
+id = "f"
+is_research = false
+
+[[tracks.items]]
+backlog_id = "1294"
+phase_name = "Track F — P-09: Tests — TRW marginals vs brute-force exact_marginals (n≤12) + x2 scale ground-truth (#1294)"
+fixer_prompt = "[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"
+reviewer_prompt = "[AUTO: paste reviewer prompt here — describe what correct looks like]"
+return_key = "1294"
+
+[[tracks]]
+id = "g"
+is_research = false
+
+[[tracks.items]]
+backlog_id = "1295"
+phase_name = "Track G — P-06: aminx.potts.sampling — Gibbs + parallel tempering as pure JAX functions (#1295)"
+fixer_prompt = "[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"
+reviewer_prompt = "[AUTO: paste reviewer prompt here — describe what correct looks like]"
+return_key = "1295"
+
+[[tracks]]
+id = "h"
+is_research = false
+
+[[tracks.items]]
+backlog_id = "1296"
+phase_name = "Track H — P-05: aminx.potts.poe — PoeModel(eqx.Module) for N-backbone PoE (#1296)"
+fixer_prompt = "[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"
+reviewer_prompt = "[AUTO: paste reviewer prompt here — describe what correct looks like]"
+return_key = "1296"
+
+[[tracks]]
+id = "i"
+is_research = false
+
+[[tracks.items]]
+backlog_id = "1297"
+phase_name = "Track I — P-07: spec emit-* CLI for PottsRunSpec (aminx spec emit-potts) (#1297)"
+fixer_prompt = "[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"
+reviewer_prompt = "[AUTO: paste reviewer prompt here — describe what correct looks like]"
+return_key = "1297"
+
+[[tracks]]
+id = "j"
+is_research = false
+
+[[tracks.items]]
+backlog_id = "1298"
+phase_name = "Track J — P-02: Weight recapture — caliby corrections → caliby_<id>.eqx.zst (bathos-tracked) (#1298)"
+fixer_prompt = "[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"
+reviewer_prompt = "[AUTO: paste reviewer prompt here — describe what correct looks like]"
+return_key = "1298"
+
+[[tracks]]
+id = "k"
+is_research = false
+
+[[tracks.items]]
+backlog_id = "1299"
+phase_name = "Track K — P-08: aminx.potts run loop — end-to-end inference (weight load + TRW + sampling + output) (#1299)"
+fixer_prompt = "[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"
+reviewer_prompt = "[AUTO: paste reviewer prompt here — describe what correct looks like]"
+return_key = "1299"
+
+[[tracks]]
+id = "l"
+is_research = false
+
+[[tracks.items]]
+backlog_id = "1300"
+phase_name = "Track L — P-10: alphabet alignment decision — verify Potts idx 0-19 vs MPNN_ALPHABET and define alphabet_map (#1300)"
+fixer_prompt = "[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"
+reviewer_prompt = "[AUTO: paste reviewer prompt here — describe what correct looks like]"
+return_key = "1300"
+
+[[tracks]]
+id = "m"
+is_research = false
+
+[[tracks.items]]
+backlog_id = "1304"
+phase_name = "Track M — P-00c: Import boundary guardrail — ast-grep lint rule for aminx.potts isolation (#1304)"
+fixer_prompt = "[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"
+reviewer_prompt = "[AUTO: paste reviewer prompt here — describe what correct looks like]"
+return_key = "1304"
+
+[[tracks]]
+id = "n"
+is_research = false
+
+[[tracks.items]]
+backlog_id = "1305"
+phase_name = "Track N — P-00d: PoE energy sanity check — BATHOS measurement pipeline verification (#1305)"
+fixer_prompt = "[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"
+reviewer_prompt = "[AUTO: paste reviewer prompt here — describe what correct looks like]"
+return_key = "1305"
+
+[[tracks]]
+id = "o"
+is_research = false
+
+[[tracks.items]]
+backlog_id = "1301"
+phase_name = "Track O — P-11: MpnnPottsDesigner(eqx.Module) — MPNN-guided Potts coordinator (#1301)"
+fixer_prompt = "[AUTO: no recon anchors — paste file:line references here, then write the full fixer prompt]"
+reviewer_prompt = "[AUTO: paste reviewer prompt here — describe what correct looks like]"
+return_key = "1301"
+
+[orchestration]
+sequential = []
+concurrent = []

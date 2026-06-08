@@ -1,0 +1,36 @@
+................................s....                                    [100%]
+=============================== warnings summary ===============================
+../.venv/lib/python3.13/site-packages/haiku/_src/jaxpr_info.py:45
+  /home/marielle/projects/tev_design/.venv/lib/python3.13/site-packages/haiku/_src/jaxpr_info.py:45: DeprecationWarning: jax.core.DropVar is deprecated. Use jax.extend.core.DropVar.
+    DropVar: TypeAlias = jax.core.DropVar
+
+../.venv/lib/python3.13/site-packages/e3nn_jax/_src/irreps.py:654
+  /home/marielle/projects/tev_design/.venv/lib/python3.13/site-packages/e3nn_jax/_src/irreps.py:654: DeprecationWarning: Creating NamedTuple classes using keyword arguments is deprecated and will be disallowed in Python 3.15. Use the class-based or functional syntax instead.
+    ) -> NamedTuple("Sort", irreps="Irreps", p=Tuple[int, ...], inv=Tuple[int, ...]):
+
+tests/sampling/test_sample.py: 8 warnings
+tests/model/test_mpnn.py: 20 warnings
+  /home/marielle/projects/tev_design/.venv/lib/python3.13/site-packages/chex/_src/asserts.py:831: DeprecationWarning: Implicit conversion of an array to a dtype is deprecated; rather than dtype=arr use dtype=arr.dtype. In the future this will result in an error.
+    dtype = np.result_type(x)
+
+tests/model/test_ligand_wave_parallel.py::test_ligand_tied_autoregressive_wave_kwarg_smoke[False]
+tests/model/test_ligand_wave_parallel.py::test_ligand_tied_autoregressive_wave_kwarg_smoke[True]
+tests/sampling/test_state_vmap_exact_jit.py::test_sample_fn_state_vmap_exact_ligand_stack_payload_path
+tests/sampling/test_state_vmap_exact_jit.py::test_ligand_state_vmap_exact_smoke
+tests/sampling/test_sample_call_kw_contract.py::test_temperature_autoreg_call_kwargs_subset_ligand
+tests/sampling/test_sample_call_kw_contract.py::test_temperature_autoreg_no_ligand_precomputed_node_aliases
+tests/sampling/test_state_vmap_exact_routing.py::test_prxtein_ligand_mpnn_call_matches_direct_score[unconditional]
+tests/sampling/test_state_vmap_exact_routing.py::test_prxtein_ligand_mpnn_call_matches_direct_score[conditional]
+  /home/marielle/projects/tev_design/prxteinmpnn/src/prxteinmpnn/model/mpnn.py:2296: UserWarning: A JAX array is being set as static! This can result in unexpected behavior and is usually a mistake to do.
+    self.features = ProteinFeaturesLigand(
+
+tests/sampling/spikes/test_state_vmap_exact_spike.py::test_state_vmap_exact_unconditional_matches_explicit_vmap_stack
+  /home/marielle/projects/tev_design/prxteinmpnn/tests/sampling/spikes/test_state_vmap_exact_spike.py:196: UserWarning: spike_hlo_state_vmap_exact bytes=146318 newlines=2348 custom_call_markers=0
+    _emit_spike_hlo_warnings(hlo_sv, path_tag="state_vmap_exact")
+
+tests/sampling/spikes/test_state_vmap_exact_spike.py::test_state_vmap_exact_unconditional_matches_explicit_vmap_stack
+  /home/marielle/projects/tev_design/prxteinmpnn/tests/sampling/spikes/test_state_vmap_exact_spike.py:197: UserWarning: spike_hlo_explicit_vmap_ref bytes=146319 newlines=2348 custom_call_markers=0
+    _emit_spike_hlo_warnings(hlo_ref, path_tag="explicit_vmap_ref")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+36 passed, 1 skipped, 40 warnings in 162.18s (0:02:42)

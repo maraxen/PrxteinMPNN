@@ -1,0 +1,1024 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>prxteinmpnn.model.encoder &#8212; PrxteinMPNN 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/mystnb.11b39860a7a0cbfd473a3ad8a317855267ff0bd372690045ca344a6b62be495e.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/style.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=a1637f0b"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=30646c52"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/prxteinmpnn/model/encoder';</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">PrxteinMPNN 0.1.0 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/models.html">Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/inference.html">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/types.html">Types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/sampling.html">Sampling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/scoring.html">Scoring</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/host.html">Host / Dispatch Layer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/run.html">Run / Specs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/utils.html">Utilities</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/quickstart.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/installation.html">Installation Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/basic_usage.html">Basic Usage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../examples/index.html">Examples</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../examples/advanced_example.html">Advanced Example</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+<a href="https://github.com/maraxen/prxteinmpnn" target="_blank"
+   class="btn btn-sm btn-source-repository-button"
+   title="Source repository"
+   data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+
+</a>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1></h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for prxteinmpnn.model.encoder</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Encoder module for PrxteinMPNN.</span>
+
+<span class="sd">Contains ``EncoderLayer``, ``Encoder``, ``PhysicsEncoder``, and small **orchestration</span>
+<span class="sd">helpers** (``pack_encoder_context``, ``encoder_forward_with_int_neighbors``) shared from</span>
+<span class="sd">``mpnn.PrxteinMPNN`` without importing the full model.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">equinox</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">eqx</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">PRNGKeyArray</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.model.dropout</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dropout</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.utils.concatenate</span><span class="w"> </span><span class="kn">import</span> <span class="n">concatenate_neighbor_nodes</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+  <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.types.arrays</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">AlphaCarbonMask</span><span class="p">,</span>
+    <span class="n">EdgeFeatures</span><span class="p">,</span>
+    <span class="n">NeighborIndices</span><span class="p">,</span>
+    <span class="n">NodeFeatures</span><span class="p">,</span>
+  <span class="p">)</span>
+
+<span class="c1"># Type alias for PRNG keys</span>
+<span class="n">PRNGKeyArray</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+
+<span class="c1"># Layer normalization</span>
+<span class="n">LayerNorm</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">LayerNorm</span>
+<span class="n">_gelu</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">gelu</span><span class="p">,</span> <span class="n">approximate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="EncoderLayer">
+<a class="viewcode-back" href="../../../api/models.html#prxteinmpnn.model.encoder.EncoderLayer">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">EncoderLayer</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Single message-passing encoder layer for ProteinMPNN.</span>
+
+<span class="sd">  Processes node and edge features via [h_i, e_ij, h_j] concatenation,</span>
+<span class="sd">  updates node features via message aggregation and feedforward network,</span>
+<span class="sd">  then updates edge features. Used in both protein-only and ligand-conditioned models.</span>
+
+<span class="sd">  Parameters</span>
+<span class="sd">  ----------</span>
+<span class="sd">  edge_message_mlp : eqx.nn.MLP</span>
+<span class="sd">      Edge message computation MLP: (embed_input_size) -&gt; edge_features.</span>
+<span class="sd">  norm1 : LayerNorm</span>
+<span class="sd">      Layer normalization for aggregated node messages. Shape: (node_features,).</span>
+<span class="sd">  dense : eqx.nn.MLP</span>
+<span class="sd">      Node feature feedforward MLP: (node_features) -&gt; (node_features).</span>
+<span class="sd">  norm2 : LayerNorm</span>
+<span class="sd">      Layer normalization after dense update. Shape: (node_features,).</span>
+<span class="sd">  edge_update_mlp : eqx.nn.MLP</span>
+<span class="sd">      Edge update MLP: (embed_input_size) -&gt; edge_features.</span>
+<span class="sd">  norm3 : LayerNorm</span>
+<span class="sd">      Layer normalization for edge updates. Shape: (edge_features,).</span>
+<span class="sd">  dropout1 : Dropout</span>
+<span class="sd">      Dropout after message aggregation.</span>
+<span class="sd">  dropout2 : Dropout</span>
+<span class="sd">      Dropout after dense feedforward.</span>
+<span class="sd">  dropout3 : Dropout</span>
+<span class="sd">      Dropout after edge update.</span>
+<span class="sd">  node_features_dim : int, static</span>
+<span class="sd">      Dimension of node features.</span>
+<span class="sd">  edge_features_dim : int, static</span>
+<span class="sd">      Dimension of edge features.</span>
+
+<span class="sd">  References</span>
+<span class="sd">  ----------</span>
+<span class="sd">  .. [ProteinMPNN] Dauparas, J., et al. &quot;Robust deep learning-based protein</span>
+<span class="sd">     sequence design using ProteinMPNN.&quot; *Science* 378(6615):49-56 (2022).</span>
+<span class="sd">     https://doi.org/10.1126/science.add2187</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+
+  <span class="n">edge_message_mlp</span><span class="p">:</span> <span class="n">eqx</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">MLP</span>
+  <span class="n">norm1</span><span class="p">:</span> <span class="n">LayerNorm</span>
+  <span class="n">dense</span><span class="p">:</span> <span class="n">eqx</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">MLP</span>
+  <span class="n">norm2</span><span class="p">:</span> <span class="n">LayerNorm</span>
+  <span class="n">edge_update_mlp</span><span class="p">:</span> <span class="n">eqx</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">MLP</span>
+  <span class="n">norm3</span><span class="p">:</span> <span class="n">LayerNorm</span>
+  <span class="n">dropout1</span><span class="p">:</span> <span class="n">Dropout</span>
+  <span class="n">dropout2</span><span class="p">:</span> <span class="n">Dropout</span>
+  <span class="n">dropout3</span><span class="p">:</span> <span class="n">Dropout</span>
+  <span class="n">node_features_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  <span class="n">edge_features_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+  <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">node_features</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">edge_features</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">hidden_features</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">dropout_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
+  <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Initialize the encoder layer.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    node_features : int</span>
+<span class="sd">        Dimension of node features.</span>
+<span class="sd">    edge_features : int</span>
+<span class="sd">        Dimension of edge features.</span>
+<span class="sd">    hidden_features : int</span>
+<span class="sd">        Dimension of hidden features in feedforward networks.</span>
+<span class="sd">    dropout_rate : float, optional</span>
+<span class="sd">        Dropout rate (default: 0.1).</span>
+<span class="sd">    key : PRNGKeyArray</span>
+<span class="sd">        PRNG key for weight initialization.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">node_features_dim</span> <span class="o">=</span> <span class="n">node_features</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">edge_features_dim</span> <span class="o">=</span> <span class="n">edge_features</span>
+
+    <span class="n">keys</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span>
+    <span class="n">embed_input_size</span> <span class="o">=</span> <span class="n">edge_features</span> <span class="o">+</span> <span class="n">node_features</span> <span class="o">*</span> <span class="mi">2</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">dropout1</span> <span class="o">=</span> <span class="n">Dropout</span><span class="p">(</span><span class="n">dropout_rate</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">dropout2</span> <span class="o">=</span> <span class="n">Dropout</span><span class="p">(</span><span class="n">dropout_rate</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">dropout3</span> <span class="o">=</span> <span class="n">Dropout</span><span class="p">(</span><span class="n">dropout_rate</span><span class="p">)</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">edge_message_mlp</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">MLP</span><span class="p">(</span>
+      <span class="n">in_size</span><span class="o">=</span><span class="n">embed_input_size</span><span class="p">,</span>
+      <span class="n">out_size</span><span class="o">=</span><span class="n">edge_features</span><span class="p">,</span>
+      <span class="n">width_size</span><span class="o">=</span><span class="n">hidden_features</span><span class="p">,</span>
+      <span class="n">depth</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+      <span class="n">activation</span><span class="o">=</span><span class="n">_gelu</span><span class="p">,</span>
+      <span class="n">key</span><span class="o">=</span><span class="n">keys</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span>
+    <span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">norm1</span> <span class="o">=</span> <span class="n">LayerNorm</span><span class="p">(</span><span class="n">node_features</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">dense</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">MLP</span><span class="p">(</span>
+      <span class="n">in_size</span><span class="o">=</span><span class="n">node_features</span><span class="p">,</span>
+      <span class="n">out_size</span><span class="o">=</span><span class="n">node_features</span><span class="p">,</span>
+      <span class="n">width_size</span><span class="o">=</span><span class="n">embed_input_size</span> <span class="o">+</span> <span class="n">hidden_features</span><span class="p">,</span>
+      <span class="n">depth</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+      <span class="n">activation</span><span class="o">=</span><span class="n">_gelu</span><span class="p">,</span>
+      <span class="n">key</span><span class="o">=</span><span class="n">keys</span><span class="p">[</span><span class="mi">4</span><span class="p">],</span>
+    <span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">norm2</span> <span class="o">=</span> <span class="n">LayerNorm</span><span class="p">(</span><span class="n">node_features</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">edge_update_mlp</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">MLP</span><span class="p">(</span>
+      <span class="n">in_size</span><span class="o">=</span><span class="n">embed_input_size</span><span class="p">,</span>
+      <span class="n">out_size</span><span class="o">=</span><span class="n">edge_features</span><span class="p">,</span>
+      <span class="n">width_size</span><span class="o">=</span><span class="n">edge_features</span><span class="p">,</span>
+      <span class="n">depth</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+      <span class="n">activation</span><span class="o">=</span><span class="n">_gelu</span><span class="p">,</span>
+      <span class="n">key</span><span class="o">=</span><span class="n">keys</span><span class="p">[</span><span class="mi">5</span><span class="p">],</span>
+    <span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">norm3</span> <span class="o">=</span> <span class="n">LayerNorm</span><span class="p">(</span><span class="n">edge_features</span><span class="p">)</span>
+
+<div class="viewcode-block" id="EncoderLayer._get_mlp_input">
+<a class="viewcode-back" href="../../../api/models.html#prxteinmpnn.model.encoder.EncoderLayer._get_mlp_input">[docs]</a>
+  <span class="k">def</span><span class="w"> </span><span class="nf">_get_mlp_input</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">h</span><span class="p">:</span> <span class="n">NodeFeatures</span><span class="p">,</span>
+    <span class="n">e</span><span class="p">:</span> <span class="n">EdgeFeatures</span><span class="p">,</span>
+    <span class="n">neighbor_indices</span><span class="p">:</span> <span class="n">NeighborIndices</span><span class="p">,</span>
+  <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the input tensor [h_i, e_ij, h_j] for edge_message_mlp.&quot;&quot;&quot;</span>
+    <span class="n">e_with_neighbors</span> <span class="o">=</span> <span class="n">concatenate_neighbor_nodes</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">neighbor_indices</span><span class="p">)</span>
+    <span class="n">node_expanded</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">),</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">e_with_neighbors</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">],</span> <span class="mi">1</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">node_expanded</span><span class="p">,</span> <span class="n">e_with_neighbors</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span></div>
+
+
+  <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">node_features</span><span class="p">:</span> <span class="n">NodeFeatures</span><span class="p">,</span>
+    <span class="n">edge_features</span><span class="p">:</span> <span class="n">EdgeFeatures</span><span class="p">,</span>
+    <span class="n">neighbor_indices</span><span class="p">:</span> <span class="n">NeighborIndices</span><span class="p">,</span>
+    <span class="n">mask</span><span class="p">:</span> <span class="n">AlphaCarbonMask</span><span class="p">,</span>
+    <span class="n">mask_attend</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">30.0</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">inference</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">NodeFeatures</span><span class="p">,</span> <span class="n">EdgeFeatures</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Forward pass for the encoder layer.</span>
+
+<span class="sd">    Computes edge messages via [h_i, e_ij, h_j] concatenation and MLP,</span>
+<span class="sd">    aggregates to node features, updates via feedforward, then updates edges.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    node_features : NodeFeatures</span>
+<span class="sd">        Node features. Shape: (L, H_n).</span>
+<span class="sd">    edge_features : EdgeFeatures</span>
+<span class="sd">        Edge features (neighbor-aggregated). Shape: (L, K, H_e) where K is neighbor count.</span>
+<span class="sd">    neighbor_indices : NeighborIndices</span>
+<span class="sd">        Neighbor indices for gather operations. Shape: (L, K).</span>
+<span class="sd">    mask : AlphaCarbonMask</span>
+<span class="sd">        Alpha carbon mask (1.0 for valid, 0.0 for invalid). Shape: (L,).</span>
+<span class="sd">    mask_attend : jnp.ndarray, optional</span>
+<span class="sd">        Attention mask for neighbor validity. Shape: (L, K).</span>
+<span class="sd">    scale : float, optional</span>
+<span class="sd">        Divisor applied to summed neighbor messages before the residual update,</span>
+<span class="sd">        controlling the effective temperature of message aggregation. Set to</span>
+<span class="sd">        30.0 to match the ProteinMPNN reference implementation (Dauparas et al.</span>
+<span class="sd">        2022); smaller values sharpen aggregation, larger values smooth it.</span>
+<span class="sd">    inference : bool, optional</span>
+<span class="sd">        Whether in inference mode (no dropout). Default: False.</span>
+<span class="sd">    key : PRNGKeyArray, optional</span>
+<span class="sd">        PRNG key for dropout. If None, inference mode is enabled.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    tuple[NodeFeatures, EdgeFeatures]</span>
+<span class="sd">        Updated node and edge features with same shapes as inputs.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [ProteinMPNN] Dauparas, J., et al. &quot;Robust deep learning-based protein</span>
+<span class="sd">       sequence design using ProteinMPNN.&quot; *Science* 378(6615):49-56 (2022).</span>
+<span class="sd">       https://doi.org/10.1126/science.add2187</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+      <span class="n">inference</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">keys</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="k">if</span> <span class="n">key</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="n">mlp_input</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_mlp_input</span><span class="p">(</span><span class="n">node_features</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">neighbor_indices</span><span class="p">)</span>
+    <span class="n">message</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">edge_message_mlp</span><span class="p">))(</span><span class="n">mlp_input</span><span class="p">)</span>
+
+    <span class="c1"># Apply attention mask to zero out messages from invalid neighbors</span>
+    <span class="k">if</span> <span class="n">mask_attend</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+      <span class="n">message</span> <span class="o">=</span> <span class="n">message</span> <span class="o">*</span> <span class="n">mask_attend</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+
+    <span class="n">aggregated_message</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="n">scale</span>
+
+    <span class="n">aggregated_message</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dropout1</span><span class="p">(</span><span class="n">aggregated_message</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">inference</span><span class="o">=</span><span class="n">inference</span><span class="p">)</span>
+
+    <span class="n">node_features</span> <span class="o">=</span> <span class="n">node_features</span> <span class="o">+</span> <span class="n">aggregated_message</span>
+    <span class="n">node_features</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">norm1</span><span class="p">)(</span><span class="n">node_features</span><span class="p">)</span>
+
+    <span class="n">dense_out</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dense</span><span class="p">)(</span><span class="n">node_features</span><span class="p">)</span>
+    <span class="n">dense_out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dropout2</span><span class="p">(</span><span class="n">dense_out</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">keys</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">inference</span><span class="o">=</span><span class="n">inference</span><span class="p">)</span>
+
+    <span class="n">node_features</span> <span class="o">=</span> <span class="n">node_features</span> <span class="o">+</span> <span class="n">dense_out</span>
+    <span class="n">node_features</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">norm2</span><span class="p">)(</span><span class="n">node_features</span><span class="p">)</span>
+    <span class="n">node_features</span> <span class="o">=</span> <span class="n">mask</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">node_features</span>
+
+    <span class="n">edge_features_cat</span> <span class="o">=</span> <span class="n">concatenate_neighbor_nodes</span><span class="p">(</span><span class="n">node_features</span><span class="p">,</span> <span class="n">edge_features</span><span class="p">,</span> <span class="n">neighbor_indices</span><span class="p">)</span>
+    <span class="n">node_features_expand</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span>
+      <span class="n">jnp</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">node_features</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">),</span>
+      <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">edge_features_cat</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">],</span> <span class="mi">1</span><span class="p">],</span>
+    <span class="p">)</span>
+    <span class="n">mlp_input_edge_update</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">node_features_expand</span><span class="p">,</span> <span class="n">edge_features_cat</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">edge_message</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">edge_update_mlp</span><span class="p">))(</span><span class="n">mlp_input_edge_update</span><span class="p">)</span>
+    <span class="n">edge_message</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dropout3</span><span class="p">(</span><span class="n">edge_message</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">keys</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">inference</span><span class="o">=</span><span class="n">inference</span><span class="p">)</span>
+
+    <span class="n">edge_features</span> <span class="o">=</span> <span class="n">edge_features</span> <span class="o">+</span> <span class="n">edge_message</span>
+    <span class="n">edge_features</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">norm3</span><span class="p">))(</span><span class="n">edge_features</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">edge_features</span></div>
+
+
+
+<div class="viewcode-block" id="Encoder">
+<a class="viewcode-back" href="../../../api/models.html#prxteinmpnn.model.encoder.Encoder">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Encoder</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Multi-layer encoder stacking EncoderLayer message-passing passes.</span>
+
+<span class="sd">  Iteratively refines node and edge features through a sequence of encoder layers.</span>
+<span class="sd">  Each layer updates features via message passing and is used in both protein-only</span>
+<span class="sd">  and ligand-conditioned models.</span>
+
+<span class="sd">  Parameters</span>
+<span class="sd">  ----------</span>
+<span class="sd">  layers : tuple[EncoderLayer, ...]</span>
+<span class="sd">      Tuple of encoder layers applied sequentially.</span>
+<span class="sd">  node_feature_dim : int, static</span>
+<span class="sd">      Dimension of node features (cached from initialization).</span>
+
+<span class="sd">  References</span>
+<span class="sd">  ----------</span>
+<span class="sd">  .. [ProteinMPNN] Dauparas, J., et al. &quot;Robust deep learning-based protein</span>
+<span class="sd">     sequence design using ProteinMPNN.&quot; *Science* 378(6615):49-56 (2022).</span>
+<span class="sd">     https://doi.org/10.1126/science.add2187</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+
+  <span class="n">layers</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">EncoderLayer</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+
+  <span class="n">node_feature_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+  <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">node_features</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">edge_features</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">hidden_features</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">num_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
+    <span class="n">dropout_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
+    <span class="n">_physics_feature_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
+  <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Initialize the encoder.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    node_features : int</span>
+<span class="sd">        Dimension of node features.</span>
+<span class="sd">    edge_features : int</span>
+<span class="sd">        Dimension of edge features.</span>
+<span class="sd">    hidden_features : int</span>
+<span class="sd">        Dimension of hidden features in feedforward networks.</span>
+<span class="sd">    num_layers : int, optional</span>
+<span class="sd">        Number of stacked encoder layers (default: 3).</span>
+<span class="sd">    dropout_rate : float, optional</span>
+<span class="sd">        Dropout rate (default: 0.1).</span>
+<span class="sd">    _physics_feature_dim : int, optional</span>
+<span class="sd">        Unused; reserved for subclass compatibility.</span>
+<span class="sd">    key : PRNGKeyArray</span>
+<span class="sd">        PRNG key for weight initialization.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">node_feature_dim</span> <span class="o">=</span> <span class="n">node_features</span>
+    <span class="n">keys</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">num_layers</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">layers</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+      <span class="n">EncoderLayer</span><span class="p">(</span>
+        <span class="n">node_features</span><span class="p">,</span>
+        <span class="n">edge_features</span><span class="p">,</span>
+        <span class="n">hidden_features</span><span class="p">,</span>
+        <span class="n">dropout_rate</span><span class="o">=</span><span class="n">dropout_rate</span><span class="p">,</span>
+        <span class="n">key</span><span class="o">=</span><span class="n">k</span><span class="p">,</span>
+      <span class="p">)</span>
+      <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span>
+    <span class="p">)</span>
+
+  <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">edge_features</span><span class="p">:</span> <span class="n">EdgeFeatures</span><span class="p">,</span>
+    <span class="n">neighbor_indices</span><span class="p">:</span> <span class="n">NeighborIndices</span><span class="p">,</span>
+    <span class="n">mask</span><span class="p">:</span> <span class="n">AlphaCarbonMask</span><span class="p">,</span>
+    <span class="n">initial_node_features</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">30.0</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">inference</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">NodeFeatures</span><span class="p">,</span> <span class="n">EdgeFeatures</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Forward pass through all encoder layers.</span>
+
+<span class="sd">    Processes edge and initial node features through stacked layers, updating</span>
+<span class="sd">    both node and edge representations iteratively.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    edge_features : EdgeFeatures</span>
+<span class="sd">        Input edge features (neighbor-aggregated). Shape: (L, K, H_e).</span>
+<span class="sd">    neighbor_indices : NeighborIndices</span>
+<span class="sd">        Neighbor indices for gather operations. Shape: (L, K).</span>
+<span class="sd">    mask : AlphaCarbonMask</span>
+<span class="sd">        Alpha carbon mask. Shape: (L,).</span>
+<span class="sd">    initial_node_features : jnp.ndarray, optional</span>
+<span class="sd">        Initial node features. If None, zero-initialized. Shape: (L, H_n).</span>
+<span class="sd">    scale : float, optional</span>
+<span class="sd">        Attention scaling constant (default: 30.0).</span>
+<span class="sd">    inference : bool, optional</span>
+<span class="sd">        Whether in inference mode. Default: False.</span>
+<span class="sd">    key : PRNGKeyArray, optional</span>
+<span class="sd">        PRNG key for dropout.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    tuple[NodeFeatures, EdgeFeatures]</span>
+<span class="sd">        Final node and edge features. Shapes: (L, H_n), (L, K, H_e).</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [ProteinMPNN] Dauparas, J., et al. &quot;Robust deep learning-based protein</span>
+<span class="sd">       sequence design using ProteinMPNN.&quot; *Science* 378(6615):49-56 (2022).</span>
+<span class="sd">       https://doi.org/10.1126/science.add2187</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+      <span class="n">inference</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">keys</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">layers</span><span class="p">))</span> <span class="k">if</span> <span class="n">key</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">layers</span><span class="p">)</span>
+
+    <span class="n">mask_2d</span> <span class="o">=</span> <span class="n">mask</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">mask</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+    <span class="n">mask_attend</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">take_along_axis</span><span class="p">(</span><span class="n">mask_2d</span><span class="p">,</span> <span class="n">neighbor_indices</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">node_features</span> <span class="o">=</span> <span class="p">(</span>
+      <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">edge_features</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_feature_dim</span><span class="p">))</span>
+      <span class="k">if</span> <span class="n">initial_node_features</span> <span class="ow">is</span> <span class="kc">None</span>
+      <span class="k">else</span> <span class="n">initial_node_features</span>
+    <span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">layer</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">layers</span><span class="p">):</span>
+      <span class="n">node_features</span><span class="p">,</span> <span class="n">edge_features</span> <span class="o">=</span> <span class="n">layer</span><span class="p">(</span>
+        <span class="n">node_features</span><span class="p">,</span>
+        <span class="n">edge_features</span><span class="p">,</span>
+        <span class="n">neighbor_indices</span><span class="p">,</span>
+        <span class="n">mask</span><span class="p">,</span>
+        <span class="n">mask_attend</span><span class="o">=</span><span class="n">mask_attend</span><span class="p">,</span>
+        <span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">,</span>
+        <span class="n">inference</span><span class="o">=</span><span class="n">inference</span><span class="p">,</span>
+        <span class="n">key</span><span class="o">=</span><span class="n">keys</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+      <span class="p">)</span>
+    <span class="k">return</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">edge_features</span></div>
+
+
+
+<div class="viewcode-block" id="PhysicsEncoder">
+<a class="viewcode-back" href="../../../api/models.html#prxteinmpnn.model.encoder.PhysicsEncoder">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">PhysicsEncoder</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Physics-conditioned encoder extension for membrane protein models.</span>
+
+<span class="sd">  Extends the standard encoder with a projection from physics features</span>
+<span class="sd">  (e.g., membrane accessibility) to node feature space, enabling conditioning</span>
+<span class="sd">  on physical properties during message passing.</span>
+
+<span class="sd">  Parameters</span>
+<span class="sd">  ----------</span>
+<span class="sd">  layers : tuple[EncoderLayer, ...]</span>
+<span class="sd">      Tuple of encoder layers applied sequentially.</span>
+<span class="sd">  physics_projection : eqx.nn.Linear</span>
+<span class="sd">      Projects physics features to node feature space. Shape: (P,) -&gt; (H_n).</span>
+<span class="sd">  physics_norm : eqx.nn.LayerNorm</span>
+<span class="sd">      Layer normalization of projected physics features. Shape: (H_n,).</span>
+<span class="sd">  physics_w_v : eqx.nn.Linear</span>
+<span class="sd">      Value projection of normalized physics (W_v in membrane paper). Shape: (H_n,) -&gt; (H_n,).</span>
+<span class="sd">  node_feature_dim : int, static</span>
+<span class="sd">      Dimension of node features.</span>
+
+<span class="sd">  References</span>
+<span class="sd">  ----------</span>
+<span class="sd">  .. [ProteinMPNN] Dauparas, J., et al. &quot;Robust deep learning-based protein</span>
+<span class="sd">     sequence design using ProteinMPNN.&quot; *Science* 378(6615):49-56 (2022).</span>
+<span class="sd">     https://doi.org/10.1126/science.add2187</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+
+  <span class="n">layers</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">EncoderLayer</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+  <span class="n">physics_projection</span><span class="p">:</span> <span class="n">eqx</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span>
+  <span class="n">physics_norm</span><span class="p">:</span> <span class="n">eqx</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">LayerNorm</span>
+  <span class="n">physics_w_v</span><span class="p">:</span> <span class="n">eqx</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span>
+  <span class="n">node_feature_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+  <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">node_features</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">edge_features</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">hidden_features</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">num_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
+    <span class="n">dropout_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
+    <span class="n">physics_feature_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span><span class="p">,</span>
+  <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Initialize the physics-conditioned encoder.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    node_features : int</span>
+<span class="sd">        Dimension of node features.</span>
+<span class="sd">    edge_features : int</span>
+<span class="sd">        Dimension of edge features.</span>
+<span class="sd">    hidden_features : int</span>
+<span class="sd">        Dimension of hidden features in feedforward networks.</span>
+<span class="sd">    num_layers : int, optional</span>
+<span class="sd">        Number of stacked encoder layers (default: 3).</span>
+<span class="sd">    dropout_rate : float, optional</span>
+<span class="sd">        Dropout rate (default: 0.1).</span>
+<span class="sd">    physics_feature_dim : int, optional</span>
+<span class="sd">        Dimension of physics features (e.g., membrane properties). Default: 0.</span>
+<span class="sd">    key : PRNGKeyArray</span>
+<span class="sd">        PRNG key for weight initialization.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">node_feature_dim</span> <span class="o">=</span> <span class="n">node_features</span>
+    <span class="c1"># keys[0] → physics_projection, keys[1] → physics_w_v, keys[2:] → encoder layers</span>
+    <span class="n">keys</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">num_layers</span> <span class="o">+</span> <span class="mi">2</span><span class="p">)</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">physics_projection</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span>
+        <span class="n">physics_feature_dim</span><span class="p">,</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+    <span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">physics_norm</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">LayerNorm</span><span class="p">(</span><span class="n">node_features</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">physics_w_v</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">node_features</span><span class="p">,</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">keys</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">layers</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+      <span class="n">EncoderLayer</span><span class="p">(</span>
+        <span class="n">node_features</span><span class="p">,</span>
+        <span class="n">edge_features</span><span class="p">,</span>
+        <span class="n">hidden_features</span><span class="p">,</span>
+        <span class="n">dropout_rate</span><span class="o">=</span><span class="n">dropout_rate</span><span class="p">,</span>
+        <span class="n">key</span><span class="o">=</span><span class="n">k</span><span class="p">,</span>
+      <span class="p">)</span>
+      <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">[</span><span class="mi">2</span><span class="p">:]</span>
+    <span class="p">)</span>
+
+  <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">edge_features</span><span class="p">:</span> <span class="n">EdgeFeatures</span><span class="p">,</span>
+    <span class="n">neighbor_indices</span><span class="p">:</span> <span class="n">NeighborIndices</span><span class="p">,</span>
+    <span class="n">mask</span><span class="p">:</span> <span class="n">AlphaCarbonMask</span><span class="p">,</span>
+    <span class="n">initial_node_features</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">30.0</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">inference</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+  <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">NodeFeatures</span><span class="p">,</span> <span class="n">EdgeFeatures</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Forward pass through the physics-conditioned encoder.</span>
+
+<span class="sd">    Projects physics features to node space (W_v(LayerNorm(projection(physics)))),</span>
+<span class="sd">    then processes through stacked encoder layers.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    edge_features : EdgeFeatures</span>
+<span class="sd">        Input edge features (neighbor-aggregated). Shape: (L, K, H_e).</span>
+<span class="sd">    neighbor_indices : NeighborIndices</span>
+<span class="sd">        Neighbor indices for gather operations. Shape: (L, K).</span>
+<span class="sd">    mask : AlphaCarbonMask</span>
+<span class="sd">        Alpha carbon mask. Shape: (L,).</span>
+<span class="sd">    initial_node_features : jnp.ndarray, optional</span>
+<span class="sd">        Physics features to project. Shape: (L, P) where P is physics_feature_dim.</span>
+<span class="sd">        If None, zero-initialized node features used instead.</span>
+<span class="sd">    scale : float, optional</span>
+<span class="sd">        Attention scaling constant (default: 30.0).</span>
+<span class="sd">    inference : bool, optional</span>
+<span class="sd">        Whether in inference mode. Default: False.</span>
+<span class="sd">    key : PRNGKeyArray, optional</span>
+<span class="sd">        PRNG key for dropout.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    tuple[NodeFeatures, EdgeFeatures]</span>
+<span class="sd">        Final node and edge features. Shapes: (L, H_n), (L, K, H_e).</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [ProteinMPNN] Dauparas, J., et al. &quot;Robust deep learning-based protein</span>
+<span class="sd">       sequence design using ProteinMPNN.&quot; *Science* 378(6615):49-56 (2022).</span>
+<span class="sd">       https://doi.org/10.1126/science.add2187</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+      <span class="n">inference</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">keys</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">layers</span><span class="p">))</span> <span class="k">if</span> <span class="n">key</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">layers</span><span class="p">)</span>
+
+    <span class="n">mask_2d</span> <span class="o">=</span> <span class="n">mask</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">mask</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+    <span class="n">mask_attend</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">take_along_axis</span><span class="p">(</span><span class="n">mask_2d</span><span class="p">,</span> <span class="n">neighbor_indices</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># Membrane init: W_v(LayerNorm(node_embedding(one_hot(labels))))</span>
+    <span class="c1"># All three layers operate per-residue → vmap over L.</span>
+    <span class="n">node_features</span> <span class="o">=</span> <span class="p">(</span>
+      <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">edge_features</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_feature_dim</span><span class="p">))</span>
+      <span class="k">if</span> <span class="n">initial_node_features</span> <span class="ow">is</span> <span class="kc">None</span>
+      <span class="k">else</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">physics_w_v</span><span class="p">)(</span>
+        <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">physics_norm</span><span class="p">)(</span>
+          <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">physics_projection</span><span class="p">)(</span><span class="n">initial_node_features</span><span class="p">),</span>
+        <span class="p">),</span>
+      <span class="p">)</span>
+    <span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">layer</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">layers</span><span class="p">):</span>
+      <span class="n">node_features</span><span class="p">,</span> <span class="n">edge_features</span> <span class="o">=</span> <span class="n">layer</span><span class="p">(</span>
+        <span class="n">node_features</span><span class="p">,</span>
+        <span class="n">edge_features</span><span class="p">,</span>
+        <span class="n">neighbor_indices</span><span class="p">,</span>
+        <span class="n">mask</span><span class="p">,</span>
+        <span class="n">mask_attend</span><span class="o">=</span><span class="n">mask_attend</span><span class="p">,</span>
+        <span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">,</span>
+        <span class="n">inference</span><span class="o">=</span><span class="n">inference</span><span class="p">,</span>
+        <span class="n">key</span><span class="o">=</span><span class="n">keys</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+      <span class="p">)</span>
+    <span class="k">return</span> <span class="n">node_features</span><span class="p">,</span> <span class="n">edge_features</span></div>
+
+
+
+<div class="viewcode-block" id="pack_encoder_context">
+<a class="viewcode-back" href="../../../api/models.html#prxteinmpnn.model.encoder.pack_encoder_context">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">pack_encoder_context</span><span class="p">(</span>
+  <span class="n">node_features</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+  <span class="n">edge_features</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+  <span class="n">neighbor_indices</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+  <span class="n">mask_fw</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Pack neighbor context tensor for encoder MLP input during AR decoding.</span>
+
+<span class="sd">  Gathers edge features from neighbors, concatenates with node features,</span>
+<span class="sd">  and applies forward mask. Used in AR sampling loops to construct the</span>
+<span class="sd">  encoder context (packed neighbors) for each position.</span>
+
+<span class="sd">  Parameters</span>
+<span class="sd">  ----------</span>
+<span class="sd">  node_features : jax.Array</span>
+<span class="sd">      Node features. Shape: (L, H_n).</span>
+<span class="sd">  edge_features : jax.Array</span>
+<span class="sd">      Neighbor-aggregated edge features. Shape: (L, K, H_e).</span>
+<span class="sd">  neighbor_indices : jax.Array</span>
+<span class="sd">      Neighbor indices for gather. Shape: (L, K).</span>
+<span class="sd">  mask_fw : jax.Array</span>
+<span class="sd">      Forward (feasible position) mask. Shape: (L,).</span>
+
+<span class="sd">  Returns</span>
+<span class="sd">  -------</span>
+<span class="sd">  jax.Array</span>
+<span class="sd">      Packed encoder context: [zeros‖edge] gathered, [node‖that] gathered,</span>
+<span class="sd">      then masked. Shape: (L, K, H_e + H_n).</span>
+
+<span class="sd">  Notes</span>
+<span class="sd">  -----</span>
+<span class="sd">  Matches the legacy sequence: zeros gather, node gather, then masking.</span>
+<span class="sd">  Batched graphs: vmap(pack_encoder_context) over batch dimension.</span>
+<span class="sd">  Used in AR scan and ligand state_vmap_exact call sites.</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="n">encoder_edge_neighbors</span> <span class="o">=</span> <span class="n">concatenate_neighbor_nodes</span><span class="p">(</span>
+    <span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">node_features</span><span class="p">),</span>
+    <span class="n">edge_features</span><span class="p">,</span>
+    <span class="n">neighbor_indices</span><span class="p">,</span>
+  <span class="p">)</span>
+  <span class="n">encoder_context</span> <span class="o">=</span> <span class="n">concatenate_neighbor_nodes</span><span class="p">(</span>
+    <span class="n">node_features</span><span class="p">,</span>
+    <span class="n">encoder_edge_neighbors</span><span class="p">,</span>
+    <span class="n">neighbor_indices</span><span class="p">,</span>
+  <span class="p">)</span>
+  <span class="k">return</span> <span class="n">encoder_context</span> <span class="o">*</span> <span class="n">mask_fw</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="encoder_forward_with_int_neighbors">
+<a class="viewcode-back" href="../../../api/models.html#prxteinmpnn.model.encoder.encoder_forward_with_int_neighbors">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">encoder_forward_with_int_neighbors</span><span class="p">(</span>
+  <span class="n">encoder</span><span class="p">:</span> <span class="n">Encoder</span> <span class="o">|</span> <span class="n">PhysicsEncoder</span><span class="p">,</span>
+  <span class="n">edge_features</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+  <span class="n">neighbor_indices</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+  <span class="n">mask</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+  <span class="n">initial_node_features</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+  <span class="o">*</span><span class="p">,</span>
+  <span class="n">inference</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+  <span class="n">key</span><span class="p">:</span> <span class="n">PRNGKeyArray</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+<span class="w">  </span><span class="sd">&quot;&quot;&quot;Run encoder and return int32 neighbor indices for downstream gathers.</span>
+
+<span class="sd">  Executes the encoder forward pass and casts neighbor indices to int32</span>
+<span class="sd">  for compatibility with downstream gather operations (e.g., pack_encoder_context).</span>
+
+<span class="sd">  Parameters</span>
+<span class="sd">  ----------</span>
+<span class="sd">  encoder : Encoder | PhysicsEncoder</span>
+<span class="sd">      Encoder module to apply.</span>
+<span class="sd">  edge_features : jax.Array</span>
+<span class="sd">      Neighbor-aggregated edge features. Shape: (L, K, H_e).</span>
+<span class="sd">  neighbor_indices : jax.Array</span>
+<span class="sd">      Neighbor indices. Shape: (L, K).</span>
+<span class="sd">  mask : jax.Array</span>
+<span class="sd">      Alpha carbon mask. Shape: (L,).</span>
+<span class="sd">  initial_node_features : jax.Array</span>
+<span class="sd">      Initial node features (or physics features for PhysicsEncoder).</span>
+<span class="sd">      Shape: (L, H_n) or (L, P).</span>
+<span class="sd">  inference : bool</span>
+<span class="sd">      Whether in inference mode (no dropout).</span>
+<span class="sd">  key : PRNGKeyArray, optional</span>
+<span class="sd">      PRNG key for dropout. If None, inference mode enabled.</span>
+
+<span class="sd">  Returns</span>
+<span class="sd">  -------</span>
+<span class="sd">  tuple[jax.Array, jax.Array, jax.Array]</span>
+<span class="sd">      (updated_node_features, updated_edge_features, int32_neighbor_indices).</span>
+<span class="sd">      Shapes: (L, H_n), (L, K, H_e), (L, K).</span>
+
+<span class="sd">  Notes</span>
+<span class="sd">  -----</span>
+<span class="sd">  Callers must pass the **same** ``key`` / ``inference`` pairing as the inlined path.</span>
+<span class="sd">  Example: wave ``encode_one`` uses one ``k`` for both ``features`` and encoder;</span>
+<span class="sd">  scoring paths use ``k_feat`` vs ``k_enc`` separately — only the encoder tail</span>
+<span class="sd">  is unified here.</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="n">nf2</span><span class="p">,</span> <span class="n">ef2</span> <span class="o">=</span> <span class="n">encoder</span><span class="p">(</span>
+    <span class="n">edge_features</span><span class="p">,</span>
+    <span class="n">neighbor_indices</span><span class="p">,</span>
+    <span class="n">mask</span><span class="p">,</span>
+    <span class="n">initial_node_features</span><span class="o">=</span><span class="n">initial_node_features</span><span class="p">,</span>
+    <span class="n">inference</span><span class="o">=</span><span class="n">inference</span><span class="p">,</span>
+    <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span>
+  <span class="p">)</span>
+  <span class="k">return</span> <span class="n">nf2</span><span class="p">,</span> <span class="n">ef2</span><span class="p">,</span> <span class="n">neighbor_indices</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span></div>
+
+</pre></div>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By PrxteinMPNN Team
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, PrxteinMPNN Team.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

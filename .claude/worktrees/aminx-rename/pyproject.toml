@@ -1,0 +1,246 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aminx"
+version = "0.1.0a1"
+description = "Aminx: A functional interface for ProteinMPNN"
+requires-python = ">=3.12"
+dependencies = [
+    "jax>=0.4.35",
+    "jaxtyping>=0.2.30",
+    "joblib>=1.4",
+    "psutil>=5.9",
+    "numpy>=1.26",
+    "optax>=0.2",
+    "h5py>=3.11",
+    "grain>=0.2",
+    "array-record>=0.8.1",
+    "equinox>=0.13.2",
+    "zstandard>=0.21.0",
+    "msgpack-numpy>=0.4.8",
+    "proxide>=0.1.0a3",
+    "typer>=0.12.0",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+[project.scripts]
+aminx = "aminx.cli:main"
+
+[project.urls]
+repository = "https://github.com/maraxen/Aminx.git"
+documentation = "https://aminx.readthedocs.io"
+
+[project.optional-dependencies]
+benchmark = [
+    "torch>=2.12.0",
+    "colabdesign @ git+https://github.com/sokrypton/ColabDesign.git@e31a56fe1d9b4de25c8697f3a28b75892941cc72",
+    "prody>=2.6.1",
+]
+docs = [
+    "sphinx",
+    "sphinx-autodoc-typehints",
+    "sphinx-autobuild",
+    "myst-parser",
+    "sphinx-copybutton",
+    "sphinx-design",
+    "sphinxext-rediraffe",
+    "sphinx-book-theme",
+    "myst-nb",
+]
+tests = [
+    "pytest",
+    "pytest-cov",
+    "chex",
+    "ty",
+    "foldcomp",
+    "pytest-xdist",
+    "mdtraj",
+    "beartype>=0.18.0",
+    # Heavy parity packer path (`find_spec("Bio")`); reference `sc_utils` / PDB IO.
+    "biopython>=1.83",
+    # Reference LigandMPNN `sc_utils` does `import tree` (DeepMind `dm-tree`).
+    "dm-tree>=0.1.8",
+]
+dev = [
+  "ruff",
+  "ty",
+  # Optional JAX static checks (PyPI). Not a merge gate — run locally when debugging perf/JIT.
+  "jaxlint>=0.1.0a1",
+  "sphinx",
+  "sphinx-autodoc-typehints",
+  "sphinx-autobuild",
+  "myst-parser",
+  "sphinx-copybutton",
+  "sphinx-design",
+  "sphinxext-rediraffe",
+  "sphinx-book-theme",
+  "myst-nb",
+  "pytest",
+  "pytest-cov",
+  "chex",
+  "foldcomp",
+  "mdtraj",
+]
+foldcomp = [
+    "foldcomp",
+]
+
+[tool.ruff]
+line-length = 100
+fix = true
+indent-width = 2
+force-exclude = true
+exclude = [
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+    "__pycache__",
+    "tests",
+    "examples",
+    "scripts",
+    "*.ipynb",
+    "src/aminx/training/data/download_and_process.py",
+]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+  "PD", "D203", "D213",
+  "F722", # jaxtyping strings
+  "TRY003", # long exception messages
+  "EM101", "EM102", # exception literals
+  "TC002", "TC003", # move into type-checking block
+  "PLR2004", # magic numbers
+  "ERA001", # commented-out code
+  "E402", # imports not at top
+  "C901", "PLR0912", "PLR0913", # complexity
+  "UP007", # Union vs |
+  "E501", # line too long
+  "D", # docstrings
+]
+pylint.max-args = 15
+
+[tool.ruff.lint.per-file-ignores]
+"src/aminx/profiling/hlo_tools.py" = [
+  "ANN201",
+  "ANN202",
+  "ANN002",
+  "ANN003",
+  "ANN401",
+  "S108",
+]
+"src/aminx/model/mpnn_scoring_state_vmap_exact_ligand.py" = [
+  "ANN001",
+  "ANN202",
+  "FBT001",
+  "RUF005",
+  "PLR0915",
+]
+"src/aminx/run.py" = ["E402", "PLR0913", "ANN401"]
+"src/aminx/io/parsing.py" = ["ANN401"]
+"src/aminx/payloads.py" = ["ANN401"]
+"src/aminx/run/spec.py" = ["TD003", "FIX002"]
+"src/aminx/run/specs.py" = ["ANN401", "PLR0915", "TD003", "FIX002"]
+"src/aminx/run/spec_json.py" = ["ANN401", "PLR0911", "SIM102"]
+# ML tensor names (h_V, Y, E_idx, etc.) follow LigandMPNN convention — not Python style violations
+# B023 in ligand_mpnn.py: define-and-immediately-consume in JAX loop (not late-binding bug)
+"src/aminx/model/ligand_mpnn.py" = ["N806", "N803", "B023"]
+"src/aminx/model/**/*.py" = ["N806", "N803"]
+"src/aminx/sampling/**/*.py" = ["N806", "N803"]
+"src/aminx/scoring/**/*.py" = ["N806", "N803"]
+"src/aminx/run/**/*.py" = ["N806", "N803"]
+"src/aminx/run/multistate_pools.py" = ["N806", "N803"]
+"src/aminx/run/sampling.py" = ["N806", "N803"]
+"tests/test_adapter.py" = ["S101", "T201", "ANN201", "INP001", "PLC0415", "SLF001"]
+"scripts/**/*.py" = ["T201", "INP001"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
+addopts = "-m 'not parity_heavy and not slow'"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "parity_fast: deterministic fast parity fixtures and checks",
+    "parity_heavy: reference-backed parity tests that require external assets",
+    "parity_targeted: small subset of parity_heavy failures for fast GPU repro (cluster)",
+    "parity_audit: checkpoint-family audit parity checks and conversion validation",
+    "phase0a_spike: Phase 0a state_vmap_exact vs explicit vmap stack (roadmap REFACTOR_ROADMAP §227)",
+]
+
+[tool.ty.environment]
+root = ["src/aminx"]
+
+[tool.ty.analysis]
+# Third-party / workspace packages without full stubs (roadmap Phase 0).
+allowed-unresolved-imports = ["proxide.**", "prolix.**"]
+
+[tool.ty.rules]
+invalid-type-form = "ignore"
+
+[tool.jaxlint]
+# JAX-oriented static checks. Advisory only — not a CI gate.
+# JL: perf/API anti-patterns. JD: docstring completeness. JM: MathJax notation.
+select = ["JL", "JD", "JM"]
+docstring-style = "numpy"
+required-sections = ["Parameters", "Returns"]
+
+[tool.jaxlint.per_file_ignores]
+# Tests: skip docstring enforcement entirely.
+"tests/**" = ["JD001", "JD002", "JD004", "JD005"]
+# Scripts: advisory context, not public API.
+"scripts/**" = ["JD001", "JD002", "JD004", "JD005"]
+
+[dependency-groups]
+benchmark = [
+    "colabdesign @ git+https://github.com/sokrypton/ColabDesign.git@e31a56fe1d9b4de25c8697f3a28b75892941cc72",
+    "prody>=2.6.1",
+]
+dev = [
+    "torch>=2.12.0",
+    "pytest>=8.0.0",
+    "pytest-xdist>=3.5.0",
+    # Heavy parity: packer test requires Bio (sc_utils PDB IO) and dm-tree (sc_utils import tree).
+    "biopython>=1.83",
+    "dm-tree>=0.1.8",
+    # scipy.stats.pearsonr used in soluble/membrane parity tests.
+    "scipy>=1.12.0",
+]
+
+[tool.setuptools.package-data]
+aminx = ["model_params/*.eqx.zst", "py.typed"]
+
+[tool.uv]
+# Only resolve for platforms we actually target (including WSL which reports as linux)
+environments = [
+    "sys_platform == 'darwin' and python_version >= '3.12'",
+    "sys_platform == 'linux' and python_version >= '3.12'",
+]
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+# Resolve proxide from PyPI (not sibling-folder discovery) when ../proxide exists.
+proxide = { index = "pypi" }
+# PyPI serves the CUDA-enabled wheel on Linux and CPU wheel on macOS — correct for both envs.
+torch = { index = "pypi" }

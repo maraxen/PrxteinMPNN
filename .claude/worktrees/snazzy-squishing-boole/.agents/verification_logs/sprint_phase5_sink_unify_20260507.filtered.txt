@@ -1,0 +1,7 @@
+refactor-phase5-sink-unify-20260507 verification (package root prxteinmpnn/)
+
+PYTHONPATH=src uv run pytest tests/streaming/test_sampling_tensor_batch_io_callback.py tests/streaming/test_sampling_chunk_io_callback.py tests/streaming/test_io_callback_ordering.py -q
+→ 8 passed
+
+PYTHONPATH=src uv run pytest tests/streaming/ -q
+→ 15 passed

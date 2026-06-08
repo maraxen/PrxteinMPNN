@@ -1,0 +1,836 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>prxteinmpnn.types.bundles &#8212; PrxteinMPNN 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/mystnb.11b39860a7a0cbfd473a3ad8a317855267ff0bd372690045ca344a6b62be495e.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/style.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=a1637f0b"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=30646c52"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/prxteinmpnn/types/bundles';</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">PrxteinMPNN 0.1.0 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/models.html">Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/inference.html">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/types.html">Types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/sampling.html">Sampling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/scoring.html">Scoring</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/host.html">Host / Dispatch Layer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/run.html">Run / Specs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/utils.html">Utilities</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/quickstart.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/installation.html">Installation Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/basic_usage.html">Basic Usage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../examples/index.html">Examples</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../examples/advanced_example.html">Advanced Example</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+<a href="https://github.com/maraxen/prxteinmpnn" target="_blank"
+   class="btn btn-sm btn-source-repository-button"
+   title="Source repository"
+   data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+
+</a>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1></h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for prxteinmpnn.types.bundles</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Canonical PyTree bundles for PrxteinMPNN inference.</span>
+
+<span class="sd">These bundles form the strict boundary between host-side preparation and</span>
+<span class="sd">accelerator-side JIT kernels. All Optional fields are resolved to concrete</span>
+<span class="sd">zero-filled arrays by the host before entering JIT.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">equinox</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">eqx</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">Array</span><span class="p">,</span> <span class="n">Bool</span><span class="p">,</span> <span class="n">Float</span><span class="p">,</span> <span class="n">Int</span>
+
+
+<div class="viewcode-block" id="GeometryBundle">
+<a class="viewcode-back" href="../../../api/types.html#prxteinmpnn.types.bundles.GeometryBundle">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">GeometryBundle</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Stacked backbone geometry for one or more conformational states.</span>
+
+<span class="sd">    Backbone coordinates, masks, and residue/chain indices assembled from</span>
+<span class="sd">    protein structures. Forms the JIT boundary: host-side prepares geometry,</span>
+<span class="sd">    passes as traced PyTree into JAX kernels. Static fields (n_states, n_canonical,</span>
+<span class="sd">    n_flat) are not traced; Optional fields are resolved to zero-filled arrays</span>
+<span class="sd">    before JIT entry.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    coords : Float[Array, &quot;S L 4 3&quot;]</span>
+<span class="sd">        Backbone atom coordinates in canonical order [N, CA, C, O] per residue.</span>
+<span class="sd">        S = num conformational states, L = sequence length.</span>
+<span class="sd">    mask : Float[Array, &quot;S L&quot;]</span>
+<span class="sd">        Per-residue backbone validity mask (1.0 = valid, 0.0 = masked).</span>
+<span class="sd">    residue_index : Int[Array, &quot;S L&quot;]</span>
+<span class="sd">        Absolute residue indices in the PDB structure.</span>
+<span class="sd">    chain_index : Int[Array, &quot;S L&quot;]</span>
+<span class="sd">        Chain assignment for inter-chain masking.</span>
+<span class="sd">    n_states : int</span>
+<span class="sd">        Number of conformational states. Static (not a JAX array).</span>
+<span class="sd">    n_canonical : int</span>
+<span class="sd">        Number of canonical amino acids (19 or 20). Static (not a JAX array).</span>
+<span class="sd">    n_flat : int</span>
+<span class="sd">        Flat supersystem size = sum of all residues across all states.</span>
+<span class="sd">        Static (not a JAX array).</span>
+<span class="sd">    structure_mapping : Int[Array, &quot;S L&quot;] | None</span>
+<span class="sd">        Optional structure-specific residue mapping for multi-model systems.</span>
+<span class="sd">        None for standard single-model inputs.</span>
+<span class="sd">    physics_features : Float[Array, &quot;S L P&quot;] | None</span>
+<span class="sd">        Optional membrane physics features (one-hot per-residue labels).</span>
+<span class="sd">        P = physics feature dimension (depends on physics model).</span>
+<span class="sd">        None for soluble/ligand-only models (no membrane conditioning).</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [ProteinMPNN] Dauparas, J., et al. &quot;Robust deep learning-based protein</span>
+<span class="sd">       sequence design using ProteinMPNN.&quot; *Science* 378(6615):49-56 (2022).</span>
+<span class="sd">       https://doi.org/10.1126/science.add2187</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">coords</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;S L 4 3&quot;</span><span class="p">]</span>
+    <span class="n">mask</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;S L&quot;</span><span class="p">]</span>
+    <span class="n">residue_index</span><span class="p">:</span> <span class="n">Int</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;S L&quot;</span><span class="p">]</span>
+    <span class="n">chain_index</span><span class="p">:</span> <span class="n">Int</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;S L&quot;</span><span class="p">]</span>
+    <span class="n">n_states</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">n_canonical</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">n_flat</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">structure_mapping</span><span class="p">:</span> <span class="n">Int</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;S L&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1"># Membrane physics features: one-hot of per-residue labels, shape (S, L, P).</span>
+    <span class="c1"># None for soluble/ligand models (no physics conditioning).</span>
+    <span class="n">physics_features</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;S L P&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+
+<div class="viewcode-block" id="ConditioningBundle">
+<a class="viewcode-back" href="../../../api/types.html#prxteinmpnn.types.bundles.ConditioningBundle">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ConditioningBundle</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Sequence-level conditioning input — fully resolved, no Optional fields.</span>
+
+<span class="sd">    All fields are pre-populated by the host: unconditional/autoregressive modes</span>
+<span class="sd">    pass zeros for sequence_oh, conditional modes pass one-hot, masked regions</span>
+<span class="sd">    pass fixed_tokens, etc. JAX kernels never see None; zero-filled arrays are</span>
+<span class="sd">    passed instead for missing modalities.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fixed_mask : Float[Array, &quot;L&quot;]</span>
+<span class="sd">        Per-position fixation mask (1.0 = fixed, 0.0 = designable).</span>
+<span class="sd">        Shape: L = sequence length.</span>
+<span class="sd">    fixed_tokens : Int[Array, &quot;L&quot;]</span>
+<span class="sd">        Amino acid index for fixed residues (0 = not fixed, actual index = fixed).</span>
+<span class="sd">    bias : Float[Array, &quot;L V&quot;]</span>
+<span class="sd">        Per-position per-amino-acid logit bias. Shape: V = vocab size (21).</span>
+<span class="sd">        Applied during decode_step before sampling or scoring.</span>
+<span class="sd">    tie_group_map : Int[Array, &quot;S L&quot;]</span>
+<span class="sd">        Tied-position group assignment. Positions with same group id</span>
+<span class="sd">        receive same logit distribution (for symmetric design patterns).</span>
+<span class="sd">        Shape: S = num states.</span>
+<span class="sd">    state_weights : Float[Array, &quot;S&quot;]</span>
+<span class="sd">        Per-state contribution weights for logit fusion in multi-state models.</span>
+<span class="sd">        Traced leaf; summed to 1.0 across states before fusion.</span>
+<span class="sd">    sequence_oh : Float[Array, &quot;L V&quot;]</span>
+<span class="sd">        One-hot encoded input sequence for conditional decoding.</span>
+<span class="sd">        All zeros for unconditional or autoregressive-only modes.</span>
+<span class="sd">    ar_mask : Float[Array, &quot;S L L&quot;]</span>
+<span class="sd">        Autoregressive attention mask. 1.0 = visible, 0.0 = masked.</span>
+<span class="sd">        All-ones for purely conditional (non-AR) scoring.</span>
+<span class="sd">    temperature : Float[Array, &quot;&quot;]</span>
+<span class="sd">        Sampling temperature (scalar). Default 1.0 = no temperature scaling.</span>
+<span class="sd">        Traced leaf; used by sample_step if present.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [ProteinMPNN] Dauparas, J., et al. &quot;Robust deep learning-based protein</span>
+<span class="sd">       sequence design using ProteinMPNN.&quot; *Science* 378(6615):49-56 (2022).</span>
+<span class="sd">       https://doi.org/10.1126/science.add2187</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">fixed_mask</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="n">L</span><span class="p">]</span>
+    <span class="n">fixed_tokens</span><span class="p">:</span> <span class="n">Int</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="n">L</span><span class="p">]</span>
+    <span class="n">bias</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;L V&quot;</span><span class="p">]</span>
+    <span class="n">tie_group_map</span><span class="p">:</span> <span class="n">Int</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;S L&quot;</span><span class="p">]</span>
+    <span class="n">state_weights</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="n">S</span><span class="p">]</span>
+    <span class="n">sequence_oh</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;L V&quot;</span><span class="p">]</span>  <span class="c1"># zeros for unconditional/AR</span>
+    <span class="n">ar_mask</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;S L L&quot;</span><span class="p">]</span>  <span class="c1"># full 1s for purely conditional</span>
+    <span class="n">temperature</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="mf">1.0</span><span class="p">))</span></div>
+
+
+
+<div class="viewcode-block" id="LigandBundle">
+<a class="viewcode-back" href="../../../api/types.html#prxteinmpnn.types.bundles.LigandBundle">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">LigandBundle</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Ligand atomic context for structure-conditioned sequence design.</span>
+
+<span class="sd">    Per-state ligand coordinates, atom types, and validity masks. All arrays</span>
+<span class="sd">    are zero-filled when no ligand is present; never None inside JIT.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    ligand_coords : Float[Array, &quot;S L_lig A 3&quot;]</span>
+<span class="sd">        Ligand atom 3D coordinates gathered per protein residue.</span>
+<span class="sd">        L_lig = protein sequence length (each protein residue has A nearest</span>
+<span class="sd">        ligand atoms); A = num nearest ligand atoms per protein residue.</span>
+<span class="sd">    ligand_atom_types : Int[Array, &quot;S L_lig A&quot;]</span>
+<span class="sd">        Ligand atom element type indices (integer) per protein residue.</span>
+<span class="sd">    ligand_mask : Float[Array, &quot;S L_lig A&quot;]</span>
+<span class="sd">        Validity mask for ligand atoms (1.0 = valid ligand atom, 0.0 = padding).</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [LigandMPNN] Dauparas, J., et al. &quot;Atomic context-conditioned protein</span>
+<span class="sd">       sequence design using LigandMPNN.&quot; *Nature Methods* 22(4):717-723 (2025).</span>
+<span class="sd">       https://doi.org/10.1038/s41592-025-02626-1</span>
+
+<span class="sd">    .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).</span>
+<span class="sd">       https://github.com/dauparas/LigandMPNN</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">ligand_coords</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;S L_lig A 3&quot;</span><span class="p">]</span>
+    <span class="n">ligand_atom_types</span><span class="p">:</span> <span class="n">Int</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;S L_lig A&quot;</span><span class="p">]</span>
+    <span class="n">ligand_mask</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;S L_lig A&quot;</span><span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="WaveScheduleBundle">
+<a class="viewcode-back" href="../../../api/types.html#prxteinmpnn.types.bundles.WaveScheduleBundle">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">WaveScheduleBundle</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Tied-position decoding schedule encoded as waves and groups.</span>
+
+<span class="sd">    Organizes the tied-position autoregressive decode into W waves; each</span>
+<span class="sd">    wave contains G groups of P positions. Positions with the same tie_group_id</span>
+<span class="sd">    are decoded together (to maintain equivalent logit distributions).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    group_ids : Int[Array, &quot;W G&quot;]</span>
+<span class="sd">        Tie group identifier per wave and group slot.</span>
+<span class="sd">        Shape: W = num decoding waves, G = max groups per wave.</span>
+<span class="sd">    group_positions : Int[Array, &quot;W G P&quot;]</span>
+<span class="sd">        Position indices within each group.</span>
+<span class="sd">        Shape: P = max positions per group. Padded with -1 (masked by position_valid).</span>
+<span class="sd">    group_valid : Bool[Array, &quot;W G&quot;]</span>
+<span class="sd">        Validity mask for groups (True = group has content).</span>
+<span class="sd">    position_valid : Bool[Array, &quot;W G P&quot;]</span>
+<span class="sd">        Validity mask for positions within groups (True = position is real).</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [ProteinMPNN] Dauparas, J., et al. &quot;Robust deep learning-based protein</span>
+<span class="sd">       sequence design using ProteinMPNN.&quot; *Science* 378(6615):49-56 (2022).</span>
+<span class="sd">       https://doi.org/10.1126/science.add2187</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">group_ids</span><span class="p">:</span> <span class="n">Int</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;W G&quot;</span><span class="p">]</span>
+    <span class="n">group_positions</span><span class="p">:</span> <span class="n">Int</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;W G P&quot;</span><span class="p">]</span>
+    <span class="n">group_valid</span><span class="p">:</span> <span class="n">Bool</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;W G&quot;</span><span class="p">]</span>
+    <span class="n">position_valid</span><span class="p">:</span> <span class="n">Bool</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;W G P&quot;</span><span class="p">]</span>
+
+<div class="viewcode-block" id="WaveScheduleBundle.from_tie_groups">
+<a class="viewcode-back" href="../../../api/types.html#prxteinmpnn.types.bundles.WaveScheduleBundle.from_tie_groups">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_tie_groups</span><span class="p">(</span>
+        <span class="n">tie_group_map</span><span class="p">:</span> <span class="n">Int</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="n">L</span><span class="p">],</span>
+        <span class="n">decoding_order</span><span class="p">:</span> <span class="n">Int</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="n">L</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">WaveScheduleBundle</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a schedule where tied positions are in the same wave step.</span>
+
+<span class="sd">        Groups positions by tie_group_map and orders them according to</span>
+<span class="sd">        decoding_order. Each tied position group becomes one wave.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        tie_group_map : Int[Array, &quot;L&quot;]</span>
+<span class="sd">            Tie group assignment per position. Same id = same group.</span>
+<span class="sd">        decoding_order : Int[Array, &quot;L&quot;]</span>
+<span class="sd">            Positions in decoding order. Determines wave sequencing.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        WaveScheduleBundle</span>
+<span class="sd">            Schedule with groups organized into waves.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">L</span> <span class="o">=</span> <span class="n">tie_group_map</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="c1"># Map each position to its decoding step</span>
+        <span class="c1"># (Assuming decoding_order respects ties: positions in same tie group</span>
+        <span class="c1"># must appear consecutively or be handled as a block)</span>
+        <span class="c1"># For now, let&#39;s group by tie_group_map.</span>
+
+        <span class="c1"># Unique tie groups in order of first appearance in decoding_order</span>
+        <span class="n">present_groups</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">seen_groups</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">decoding_order</span><span class="o">.</span><span class="n">tolist</span><span class="p">():</span>
+            <span class="n">g</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">tie_group_map</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">g</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">seen_groups</span><span class="p">:</span>
+                <span class="n">present_groups</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">g</span><span class="p">)</span>
+                <span class="n">seen_groups</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">g</span><span class="p">)</span>
+
+        <span class="n">W</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">present_groups</span><span class="p">)</span>
+        <span class="c1"># Maximum positions in a group</span>
+        <span class="n">counts</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">bincount</span><span class="p">(</span><span class="n">tie_group_map</span><span class="p">)</span>
+        <span class="n">P</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">counts</span><span class="p">))</span>
+        <span class="n">G</span> <span class="o">=</span> <span class="mi">1</span> <span class="c1"># One tie-group per wave step for simplicity</span>
+
+        <span class="n">group_ids</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">present_groups</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="c1"># (W, 1)</span>
+
+        <span class="c1"># group_positions: (W, 1, P)</span>
+        <span class="c1"># This is tricky to do in JAX without loops if we want it general.</span>
+        <span class="c1"># But since this is host-side factory, we can use loops.</span>
+        <span class="n">pos_list</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">present_groups</span><span class="p">:</span>
+            <span class="n">indices</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">tie_group_map</span> <span class="o">==</span> <span class="n">g</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="c1"># Pad to P</span>
+            <span class="n">padded</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">P</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">indices</span><span class="p">)),</span> <span class="n">constant_values</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">pos_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">padded</span><span class="p">)</span>
+
+        <span class="n">group_positions</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">pos_list</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="n">group_valid</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">W</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">bool_</span><span class="p">)</span>
+        <span class="n">position_valid</span> <span class="o">=</span> <span class="n">group_positions</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span>
+
+        <span class="c1"># Replace -1 with 0 to avoid index errors (masked by position_valid)</span>
+        <span class="n">group_positions</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">position_valid</span><span class="p">,</span> <span class="n">group_positions</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">WaveScheduleBundle</span><span class="p">(</span>
+            <span class="n">group_ids</span><span class="o">=</span><span class="n">group_ids</span><span class="p">,</span>
+            <span class="n">group_positions</span><span class="o">=</span><span class="n">group_positions</span><span class="p">,</span>
+            <span class="n">group_valid</span><span class="o">=</span><span class="n">group_valid</span><span class="p">,</span>
+            <span class="n">position_valid</span><span class="o">=</span><span class="n">position_valid</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="WaveScheduleBundle.empty">
+<a class="viewcode-back" href="../../../api/types.html#prxteinmpnn.types.bundles.WaveScheduleBundle.empty">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">empty</span><span class="p">(</span><span class="n">seq_len</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">WaveScheduleBundle</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Sequential single-position-at-a-time schedule (no tied positions).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        seq_len : int</span>
+<span class="sd">            Sequence length. Creates W=L waves, one position per wave.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        WaveScheduleBundle</span>
+<span class="sd">            Schedule with sequential untied decoding.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># W = L, G = 1</span>
+        <span class="n">group_ids</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">seq_len</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">]</span>
+        <span class="n">group_positions</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">seq_len</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+        <span class="n">group_valid</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">seq_len</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">bool_</span><span class="p">)</span>
+        <span class="n">position_valid</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">seq_len</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">bool_</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">WaveScheduleBundle</span><span class="p">(</span>
+            <span class="n">group_ids</span><span class="o">=</span><span class="n">group_ids</span><span class="p">,</span>
+            <span class="n">group_positions</span><span class="o">=</span><span class="n">group_positions</span><span class="p">,</span>
+            <span class="n">group_valid</span><span class="o">=</span><span class="n">group_valid</span><span class="p">,</span>
+            <span class="n">position_valid</span><span class="o">=</span><span class="n">position_valid</span><span class="p">,</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="InferenceBundle">
+<a class="viewcode-back" href="../../../api/types.html#prxteinmpnn.types.bundles.InferenceBundle">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">InferenceBundle</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Top-level container passed as single traced PyTree through JIT boundary.</span>
+
+<span class="sd">    Combines geometry, conditioning, ligand context, and wave schedule into</span>
+<span class="sd">    one immutable PyTree for inference kernels. All sub-bundles are fully</span>
+<span class="sd">    resolved on the host (no None fields); sub-bundles are traced leaves.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    geometry : GeometryBundle</span>
+<span class="sd">        Backbone geometry (coordinates, masks, indices) for one or more states.</span>
+<span class="sd">    conditioning : ConditioningBundle</span>
+<span class="sd">        Sequence conditioning: fixed positions, biases, tied groups, one-hot.</span>
+<span class="sd">    ligand : LigandBundle</span>
+<span class="sd">        Ligand atoms and masks. Zero-filled if no ligand.</span>
+<span class="sd">    wave : WaveScheduleBundle</span>
+<span class="sd">        Decoding wave schedule for tied-position autoregressive decode.</span>
+<span class="sd">    backbone_noise : Float[Array, &quot;&quot;]</span>
+<span class="sd">        Backbone coordinate noise magnitude (scalar). 0.0 = no noise.</span>
+<span class="sd">        Used by coordinate augmentation during encode/decode.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [ProteinMPNN] Dauparas, J., et al. &quot;Robust deep learning-based protein</span>
+<span class="sd">       sequence design using ProteinMPNN.&quot; *Science* 378(6615):49-56 (2022).</span>
+<span class="sd">       https://doi.org/10.1126/science.add2187</span>
+
+<span class="sd">    .. [LigandMPNN] Dauparas, J., et al. &quot;Atomic context-conditioned protein</span>
+<span class="sd">       sequence design using LigandMPNN.&quot; *Nature Methods* 22(4):717-723 (2025).</span>
+<span class="sd">       https://doi.org/10.1038/s41592-025-02626-1</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">geometry</span><span class="p">:</span> <span class="n">GeometryBundle</span>
+    <span class="n">conditioning</span><span class="p">:</span> <span class="n">ConditioningBundle</span>
+    <span class="n">ligand</span><span class="p">:</span> <span class="n">LigandBundle</span>
+    <span class="n">wave</span><span class="p">:</span> <span class="n">WaveScheduleBundle</span>
+    <span class="n">backbone_noise</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="mf">0.0</span><span class="p">))</span></div>
+
+
+
+<div class="viewcode-block" id="EncodedFeatures">
+<a class="viewcode-back" href="../../../api/types.html#prxteinmpnn.types.bundles.EncodedFeatures">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">EncodedFeatures</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Single-state encoder output reused across encode/decode boundaries.</span>
+
+<span class="sd">    Node and edge features extracted by the encoder from a single backbone</span>
+<span class="sd">    structure. Typically batched via vmap when processing multiple states.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    node_features : Float[Array, &quot;L D&quot;]</span>
+<span class="sd">        Per-residue node embeddings. Shape: L = sequence length, D = embedding dim.</span>
+<span class="sd">    edge_features : Float[Array, &quot;L K D&quot;]</span>
+<span class="sd">        Per-residue neighbor edge embeddings.</span>
+<span class="sd">        Shape: K = num neighbors per residue (typically 30).</span>
+<span class="sd">    neighbor_indices : Int[Array, &quot;L K&quot;]</span>
+<span class="sd">        Neighbor residue indices (used for gather operations in decode).</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [ProteinMPNN] Dauparas, J., et al. &quot;Robust deep learning-based protein</span>
+<span class="sd">       sequence design using ProteinMPNN.&quot; *Science* 378(6615):49-56 (2022).</span>
+<span class="sd">       https://doi.org/10.1126/science.add2187</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">node_features</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;L D&quot;</span><span class="p">]</span>
+    <span class="n">edge_features</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;L K D&quot;</span><span class="p">]</span>
+    <span class="n">neighbor_indices</span><span class="p">:</span> <span class="n">Int</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;L K&quot;</span><span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="EncoderOutput">
+<a class="viewcode-back" href="../../../api/types.html#prxteinmpnn.types.bundles.EncoderOutput">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">EncoderOutput</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Multi-state encoder output before logit fusion.</span>
+
+<span class="sd">    Stacked single-state encoder outputs (via vmap) for multiple conformational</span>
+<span class="sd">    states. Passed into logit fusion and decode functions.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    node_features : Float[Array, &quot;S L D&quot;]</span>
+<span class="sd">        Per-state per-residue node embeddings.</span>
+<span class="sd">        Shape: S = num states, L = sequence length, D = embedding dim.</span>
+<span class="sd">    edge_features : Float[Array, &quot;S L K D&quot;]</span>
+<span class="sd">        Per-state per-residue neighbor edge embeddings.</span>
+<span class="sd">    neighbor_indices : Int[Array, &quot;S L K&quot;]</span>
+<span class="sd">        Neighbor residue indices (constant across states).</span>
+<span class="sd">    mask : Float[Array, &quot;S L&quot;]</span>
+<span class="sd">        Per-state per-residue validity mask.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [ProteinMPNN] Dauparas, J., et al. &quot;Robust deep learning-based protein</span>
+<span class="sd">       sequence design using ProteinMPNN.&quot; *Science* 378(6615):49-56 (2022).</span>
+<span class="sd">       https://doi.org/10.1126/science.add2187</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">node_features</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;S L D&quot;</span><span class="p">]</span>
+    <span class="n">edge_features</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;S L K D&quot;</span><span class="p">]</span>
+    <span class="n">neighbor_indices</span><span class="p">:</span> <span class="n">Int</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;S L K&quot;</span><span class="p">]</span>
+    <span class="n">mask</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;S L&quot;</span><span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="PackerResult">
+<a class="viewcode-back" href="../../../api/types.html#prxteinmpnn.types.bundles.PackerResult">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">PackerResult</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Von Mises–Fisher mixture parameters for side-chain torsion angles.</span>
+
+<span class="sd">    Output of the side-chain packer forward pass. Encodes the predicted</span>
+<span class="sd">    distribution over chi angles (4 per residue) as a VMF mixture model.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    mean : Float[Array, &quot;L 4 3&quot;]</span>
+<span class="sd">        Mean direction vectors (unit sphere). Shape: L = num residues,</span>
+<span class="sd">        4 = chi angles (chi1-chi4), 3 = Cartesian coordinates.</span>
+<span class="sd">    concentration : Float[Array, &quot;L 4 3&quot;]</span>
+<span class="sd">        Concentration (kappa) parameters for VMF. Higher = sharper distribution.</span>
+<span class="sd">    mix_logits : Float[Array, &quot;L 4 3&quot;]</span>
+<span class="sd">        Logits for mixture weights across the 3-component VMF mixture.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [LigandMPNN] Dauparas, J., et al. &quot;Atomic context-conditioned protein</span>
+<span class="sd">       sequence design using LigandMPNN.&quot; *Nature Methods* 22(4):717-723 (2025).</span>
+<span class="sd">       https://doi.org/10.1038/s41592-025-02626-1</span>
+
+<span class="sd">    .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).</span>
+<span class="sd">       https://github.com/dauparas/LigandMPNN</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">mean</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;L 4 3&quot;</span><span class="p">]</span>
+    <span class="n">concentration</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;L 4 3&quot;</span><span class="p">]</span>
+    <span class="n">mix_logits</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;L 4 3&quot;</span><span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="PackerBundle">
+<a class="viewcode-back" href="../../../api/types.html#prxteinmpnn.types.bundles.PackerBundle">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">PackerBundle</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Input features for side-chain packing (torsion angle prediction).</span>
+
+<span class="sd">    Amino acid sequence, backbone coordinates, and ligand context for the</span>
+<span class="sd">    side-chain packing forward pass. Output is a PackerResult (VMF parameters).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    sequence : Int[Array, &quot;L&quot;]</span>
+<span class="sd">        Amino acid sequence (indices 0–20). Shape: L = sequence length.</span>
+<span class="sd">    backbone_coords : Float[Array, &quot;L 14 3&quot;]</span>
+<span class="sd">        All backbone atoms (N, CA, C, O, CB, etc.). Shape: 14 = max atom types.</span>
+<span class="sd">    backbone_mask : Float[Array, &quot;L 14&quot;]</span>
+<span class="sd">        Validity mask for backbone atoms.</span>
+<span class="sd">    ligand_coords : Float[Array, &quot;L M 3&quot;]</span>
+<span class="sd">        Ligand atom coordinates per residue. Shape: M = max ligand atoms.</span>
+<span class="sd">    ligand_mask : Float[Array, &quot;L M&quot;]</span>
+<span class="sd">        Validity mask for ligand atoms.</span>
+<span class="sd">    ligand_atom_types : Float[Array, &quot;L M&quot;]</span>
+<span class="sd">        Ligand atom element type indices per protein residue. Note: annotated as</span>
+<span class="sd">        Float due to upstream type drift; semantically integer atom type indices.</span>
+<span class="sd">    mask : Float[Array, &quot;L&quot;]</span>
+<span class="sd">        Per-residue validity mask (1.0 = design-able, 0.0 = masked).</span>
+<span class="sd">    residue_index : Int[Array, &quot;L&quot;]</span>
+<span class="sd">        Absolute residue indices in PDB.</span>
+<span class="sd">    chain_labels : Int[Array, &quot;L&quot;]</span>
+<span class="sd">        Chain assignment for inter-chain masking.</span>
+<span class="sd">    backbone_noise : Float[Array, &quot;&quot;]</span>
+<span class="sd">        Backbone coordinate noise magnitude. Default 0.0 (no noise).</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [LigandMPNN] Dauparas, J., et al. &quot;Atomic context-conditioned protein</span>
+<span class="sd">       sequence design using LigandMPNN.&quot; *Nature Methods* 22(4):717-723 (2025).</span>
+<span class="sd">       https://doi.org/10.1038/s41592-025-02626-1</span>
+
+<span class="sd">    .. [LigandMPNN-code] Dauparas, J. LigandMPNN source code (commit 3870631).</span>
+<span class="sd">       https://github.com/dauparas/LigandMPNN</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">sequence</span><span class="p">:</span> <span class="n">Int</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="n">L</span><span class="p">]</span>
+    <span class="n">backbone_coords</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;L 14 3&quot;</span><span class="p">]</span>
+    <span class="n">backbone_mask</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;L 14&quot;</span><span class="p">]</span>
+    <span class="n">ligand_coords</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;L M 3&quot;</span><span class="p">]</span>
+    <span class="n">ligand_mask</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;L M&quot;</span><span class="p">]</span>
+    <span class="n">ligand_atom_types</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;L M&quot;</span><span class="p">]</span>
+    <span class="n">mask</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="n">L</span><span class="p">]</span>
+    <span class="n">residue_index</span><span class="p">:</span> <span class="n">Int</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="n">L</span><span class="p">]</span>
+    <span class="n">chain_labels</span><span class="p">:</span> <span class="n">Int</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="n">L</span><span class="p">]</span>
+    <span class="n">backbone_noise</span><span class="p">:</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span></div>
+
+</pre></div>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By PrxteinMPNN Team
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, PrxteinMPNN Team.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

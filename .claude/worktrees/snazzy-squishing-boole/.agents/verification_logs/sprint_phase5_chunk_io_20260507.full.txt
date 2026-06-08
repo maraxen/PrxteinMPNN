@@ -1,0 +1,14 @@
+=== pytest (PYTHONPATH=src) ===
+tests/streaming/
+tests/run/test_sampling.py
+tests/run/test_sampling_grid.py
+tests/run/test_multistate_runtime_plumbing.py
+tests/test_samplers_registry.py
+
+.....................................                                      [100%]
+35 passed, 6 warnings in ~16s
+
+DeprecationWarning sources: haiku, e3nn_jax; HDF5 output path in sampling when streaming tests hit _sample_streaming.
+
+=== ty ===
+uv run ty check (repo root): non-zero; large pre-existing diagnostic volume (notebooks, tests, etc.). Not used as merge gate for this sprint.

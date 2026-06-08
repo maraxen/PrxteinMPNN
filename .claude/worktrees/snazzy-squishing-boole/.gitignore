@@ -1,0 +1,54 @@
+# Ignore legacy pickle model files
+*.pkl
+.venv
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+dist/
+build/
+*.log
+
+*.pkl
+*.eqx
+.DS_Store
+.coverage
+*.pt
+*.csv
+
+# Local proxide development folder (installed via git dependency)
+proxide/
+
+# Local reference LigandMPNN checkout (default scripts path)
+reference_ligandmpnn_clone/
+
+# Training checkpoints
+checkpoints/
+checkpoints_test/
+
+data/pdb_cache/.worktrees/
+.agent/skills
+data/pdb_cache/*
+.worktrees/uv.lock
+
+# Campaign worker/runtime artifacts
+*.h5.lock
+*.h5.partial.*
+*.h5.done.json
+tests/run/_grid_artifacts/
+
+# Local verification / agent slice logs (use `.agents/verification_logs/` for committed evidence)
+logs/
+
+# Local pytest-json-report / coverage blobs (keep scripts under .praxia/)
+.praxia/pytest_errors/
+.praxia/*_console*.log
+.praxia/fast_pytest*.log
+venv/
+scratch/
+
+# fastembed / embedding model cache (ONNX blobs, never commit)
+.fastembed_cache/

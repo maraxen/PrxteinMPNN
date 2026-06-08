@@ -1,0 +1,23 @@
+Sprint: refactor-phase5-sprint-20260509 (Phase 5g PR2c)
+Date: 2026-05-09
+
+## Scope
+- Averaged scoring: scalar structure-batch `io_callback(..., ordered=False)` once per
+  `protein_iterator` batch at tail of `_score_batch_averaged` (not inside `score_one`).
+- `_score_averaged_mode`: `enumerate` + `_structure_batch_count_for_io`; removed per-batch
+  `effects_barrier` in loop — **concat-anchor only** (matches `_score_standard_mode` + `score()`).
+- Tests: `tests/streaming/test_scoring_batch_io_callback.py` — `inputs_and_noise` and `inputs`
+  branches, two batches each.
+- `rg ordered=True run/scoring.py` — no matches.
+
+## Pytest (full log: sprint_phase5g_pr2c_scoring_averaged_io_20260509.full.txt)
+- `tests/streaming/test_scoring_batch_io_callback.py` + `tests/run/test_scoring_averaged.py`: 5 passed
+- `tests/streaming/test_io_callback_ordering.py` + `test_sampling_chunk_io_callback.py`: 5 passed
+- Warnings: Haiku DropVar deprecations; e3nn_jax NamedTuple (pre-existing)
+
+## Ruff
+- `ruff check` on `scoring.py`: pre-existing TD003/FIX002/PLR0915 on `scoring.py` (unchanged policy).
+- `ruff check tests/streaming/test_scoring_batch_io_callback.py`: clean
+
+## ty check
+- Not re-run repo-wide (known pre-existing diagnostics). PR2c is scoring-only; no new public API.

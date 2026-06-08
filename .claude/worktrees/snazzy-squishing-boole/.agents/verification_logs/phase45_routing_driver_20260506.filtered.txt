@@ -1,0 +1,14 @@
+Phase 4/5 sprint verification (2026-05-06)
+==========================================
+
+Commands (repo root: prxteinmpnn):
+  PYTHONPATH=src uv run pytest tests/sampling/test_state_vmap_exact_routing.py tests/test_samplers_registry.py -q
+  PYTHONPATH=src uv run pytest tests/sampling/test_sample.py tests/model/test_ligand_wave_parallel.py tests/sampling/test_state_vmap_exact_jit.py tests/sampling/test_sample_call_kw_contract.py tests/sampling/test_state_vmap_exact_routing.py tests/test_samplers_registry.py -q
+
+Outcome:
+  - First command: 8 passed (~36s)
+  - Extended bundle: 34 passed (~175s)
+
+Artifacts:
+  - NEW: tests/sampling/test_state_vmap_exact_routing.py — roadmap §347–348 (a) __call__ vs direct score_* for MPNN+LigandMPNN; (b) unconditional protein vs explicit jax.vmap ref under §13.2 GO.
+  - SamplingDriver.sampler_factory_keys() + test_sampling_driver_sampler_factory_keys_includes_default

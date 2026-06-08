@@ -1,0 +1,28 @@
+Examples
+========
+
+This section contains practical examples demonstrating Aminx usage.
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Examples:
+
+   basic_example
+   advanced_example
+
+Basic Examples
+--------------
+
+* :doc:`basic_example` - Simple protein design workflow (IN PROGRESS)
+
+
+Advanced Examples  
+-----------------
+
+* :doc:`advanced_example` - Complex multi-step protein design (IN PROGRESS)
+
+Code Examples
+-------------
+
+All examples are available as Python scripts and Jupyter notebooks in the 
+``examples/`` directory of the repository.

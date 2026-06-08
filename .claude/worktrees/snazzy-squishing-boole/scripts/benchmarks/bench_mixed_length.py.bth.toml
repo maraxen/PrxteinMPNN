@@ -1,0 +1,44 @@
+[experiment]
+hypothesis = "SafeMap heterogeneous batch achieves higher per-residue throughput than PyTorch max-length-padded baseline by avoiding computation on padding tokens"
+context = "Sprint 23 benchmark capability: SafeMap variable-length batch dispatcher vs. PyTorch LigandMPNN baselines (padded and sequential)"
+
+[outcomes.pass]
+condition = "per_residue_throughput_improvement_vs_padded > 1.1"
+reasoning = "SafeMap achieves at least 10% improvement over padded baseline, proving overhead from padding masking exceeds SafeMap dispatch cost"
+is_residual = false
+
+[outcomes.marginal]
+condition = "per_residue_throughput_improvement_vs_padded >= 0.9 AND per_residue_throughput_improvement_vs_padded <= 1.1"
+reasoning = "SafeMap within 10% of padded baseline (ratio 0.9-1.1); suggests dispatch overhead and padding overhead roughly balance; investigate per-length sub-metrics"
+is_residual = false
+
+[outcomes.fail]
+condition = "per_residue_throughput_improvement_vs_padded < 0.9"
+reasoning = "SafeMap underperforms padded baseline (>10% slower); suggests SafeMap dispatch overhead dominates padding savings; may require optimization or different batch strategy"
+is_residual = true
+
+[result_schema]
+schema_version = "string"
+hardware = "string"
+batch_lengths = "[int]"
+safemap_mixed_latency_ms = "float (mean latency over timed runs)"
+safemap_per_residue_throughput = "float (residues/sec)"
+pytorch_padded_latency_ms = "float or null if skipped"
+pytorch_sequential_latency_ms = "float or null if skipped"
+per_residue_throughput_improvement_vs_padded = "float (ratio) or null if pytorch_padded skipped"
+colabdesign = "string (hardcoded 'not_applicable')"
+timestamp = "ISO 8601"
+
+[result_schema.provenance]
+# Input fixtures
+fixtures_L76 = "1ubq.pdb (76 residues, PDB entry)"
+fixtures_L150 = "1mbn.pdb (153 residues nominal; brief states L=150/300 added by #950)"
+fixtures_L300 = "3pgk.pdb (placeholder; actual fixtures from #950)"
+fixtures_L500 = "1SMD.pdb (495 residues, PDB entry)"
+# Dependencies
+jax_version = "per uv.lock"
+equinox_version = "per uv.lock"
+prxteinmpnn_model_checkpoint = "proteinmpnn_v_48_020 (bundled)"
+pytorch_ligandmpnn_reference = "REFERENCE_PATH environment or --reference-path; not bundled"
+# Script
+script_sha = "HEAD commit SHA of scripts/benchmarks/bench_mixed_length.py"

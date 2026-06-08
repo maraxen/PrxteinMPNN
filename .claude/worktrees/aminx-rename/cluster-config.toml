@@ -1,0 +1,18 @@
+# Aminx Cluster Configuration
+# This file defines cluster-specific settings for the Engaging SLURM cluster.
+# See: ~/.claude/CLUSTER_INFRASTRUCTURE.md § "Project Cluster Configuration (TOML)"
+
+# Remote paths on the cluster
+remote_project_root = "~/projects/aminx"
+results_dir = "results"
+logs_dir = "outputs/logs/slurm"
+
+# SLURM defaults
+partition = "mit_normal"
+default_walltime = "12:00:00"
+array_max_parallel = 8
+
+# Optional metadata
+gpu_type = ""
+script_dir = "scripts"
+mailto = "mariellexr+openalex@gmail.com"

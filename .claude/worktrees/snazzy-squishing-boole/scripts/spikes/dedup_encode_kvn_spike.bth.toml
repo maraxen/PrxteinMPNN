@@ -1,0 +1,32 @@
+[experiment]
+hypothesis = "On SafeMap(tile=1) -> jax.lax.map path: (H1) JIT-compatible static-gather dedup causes expensive body to RUN K times (K unique among N total), not N, AND (H2) output is BIT-IDENTICAL to naive (all N) when body is deterministic"
+date = "2026-06-03"
+
+[outcomes.pass]
+conditions = "counter==K on dedup path AND counter==N on naive path AND bit_identical==True AND jit_compiles==True"
+reasoning = "H1 verified: body runs K times under dedup, N times under naive, proving the mechanism reduces iterations. H2 verified: deterministic outputs match bit-for-bit, proving correctness. JIT compilation proves trace compatibility."
+is_residual = false
+
+[outcomes.marginal]
+conditions = "bit_identical==True AND jit_compiles==True BUT counter!=K or counter!=N"
+reasoning = "Mechanism observable but iteration count unexpected. Possible: vmap path leaked, io_callback overhead, or lax.map semantics differ from hypothesis. Still compiles and produces correct output."
+is_residual = false
+
+[outcomes.fail]
+conditions = "NOT bit_identical OR NOT jit_compiles OR exception raised"
+reasoning = "Either outputs diverge (determinism violated) or JIT compilation fails with TracerError/static-shape violation. This would invalidate the design and require rethinking the dedup strategy."
+is_residual = true
+
+[result_schema]
+k_executions = "int: number of body invocations on dedup path (should equal K)"
+n_executions = "int: number of body invocations on naive path (should equal N)"
+bit_identical = "bool: whether dedup and naive outputs match to numerical tolerance"
+jit_compiles = "bool: whether dedup path wrapped in jax.jit compiles without error"
+h1_pass = "bool: whether k_executions==K and n_executions==N"
+
+[result_schema.provenance]
+script_sha = "1457251"
+jax_version = "0.10.0"
+numpy_version = "2.4.4"
+input_description = "N=6 elements, K=3 unique, d=4 features, deterministic body with matmuls (repeated input rows for true dedup test)"
+test_command = "JAX_PLATFORMS=cpu python3 scripts/spikes/dedup_encode_kvn_spike.py --log-level INFO"

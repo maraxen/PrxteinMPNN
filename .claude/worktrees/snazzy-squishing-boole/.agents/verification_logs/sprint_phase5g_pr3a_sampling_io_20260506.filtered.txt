@@ -1,0 +1,21 @@
+Phase 5g PR3a sampling — verification (refactor-phase5-sprint-20260506)
+======================================================================
+
+Commands (cwd: prxteinmpnn package root):
+  uv run pytest tests/streaming/ tests/run/test_sampling.py tests/sampling/test_sample_call_kw_contract.py -q
+
+Result:
+  25 passed, 6 warnings (Haiku / e3nn_jax deprecations; HDF5 deprecation on streaming tests;
+  Equinox static-field UserWarning on ligand kw-contract tests).
+
+Policy check:
+  rg -n "ordered=True" src/prxteinmpnn/run/sampling.py → no matches.
+
+Ruff:
+  tests/streaming/test_sampling_chunk_io_callback.py — clean.
+  src/prxteinmpnn/run/sampling.py — pre-existing TD003/FIX002/PLR0915/N806/N803/F841 (unchanged scope).
+
+Additional spot-check:
+  uv run pytest tests/run/test_sampling_averaged.py -q → 4 passed
+
+Full log: sprint_phase5g_pr3a_sampling_io_20260506.full.txt

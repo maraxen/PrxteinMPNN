@@ -1,0 +1,743 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>prxteinmpnn.types.stages &#8212; PrxteinMPNN 0.1.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=3c74b3bc" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/mystnb.11b39860a7a0cbfd473a3ad8a317855267ff0bd372690045ca344a6b62be495e.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/style.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=a1637f0b"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=30646c52"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/prxteinmpnn/types/stages';</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">PrxteinMPNN 0.1.0 documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/models.html">Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/inference.html">Inference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/types.html">Types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/sampling.html">Sampling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/scoring.html">Scoring</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/host.html">Host / Dispatch Layer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/run.html">Run / Specs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/utils.html">Utilities</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/quickstart.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/installation.html">Installation Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../tutorials/basic_usage.html">Basic Usage</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../examples/index.html">Examples</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../examples/advanced_example.html">Advanced Example</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+<a href="https://github.com/maraxen/prxteinmpnn" target="_blank"
+   class="btn btn-sm btn-source-repository-button"
+   title="Source repository"
+   data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+
+</a>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1></h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for prxteinmpnn.types.stages</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Stage protocols and type aliases for logic injection.</span>
+
+<span class="sd">Tier 1 Protocols (generic, reusable):</span>
+<span class="sd">- TransformFn[In, Out] — stateless transformation</span>
+<span class="sd">- RollingFn[Carry, In, Out] — scan-body with init_carry</span>
+<span class="sd">- FuseFn[PerItem, Combined] — reduce-across-axis</span>
+
+<span class="sd">Tier 2 Aliases (MPNN-specific):</span>
+<span class="sd">- FeaturizeFn, EncoderStepFn, EncoderStateFn, ProteinEncodeFn, LigandEncodeFn</span>
+<span class="sd">- ConditionalDecodeFn, UnconditionalDecodeFn</span>
+<span class="sd">- LogitTransformFn (as FuseFn), ARLogitTransformFn (as FuseFn)</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Protocol</span><span class="p">,</span> <span class="n">TypeVar</span><span class="p">,</span> <span class="n">runtime_checkable</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">equinox</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">eqx</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jaxtyping</span><span class="w"> </span><span class="kn">import</span> <span class="n">Array</span><span class="p">,</span> <span class="n">Float</span><span class="p">,</span> <span class="n">Int</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.inference.logits</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+        <span class="n">BatchLogitFn</span><span class="p">,</span>
+        <span class="n">TieGroupFuseFn</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.types.boundaries</span><span class="w"> </span><span class="kn">import</span> <span class="n">AxisBoundary</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">prxteinmpnn.types.bundles</span><span class="w"> </span><span class="kn">import</span> <span class="n">EncoderOutput</span>
+
+<span class="c1"># Type variables for generic protocols</span>
+<span class="n">In</span> <span class="o">=</span> <span class="n">TypeVar</span><span class="p">(</span><span class="s2">&quot;In&quot;</span><span class="p">)</span>
+<span class="n">Out</span> <span class="o">=</span> <span class="n">TypeVar</span><span class="p">(</span><span class="s2">&quot;Out&quot;</span><span class="p">)</span>
+<span class="n">Carry</span> <span class="o">=</span> <span class="n">TypeVar</span><span class="p">(</span><span class="s2">&quot;Carry&quot;</span><span class="p">)</span>
+<span class="n">PerItem</span> <span class="o">=</span> <span class="n">TypeVar</span><span class="p">(</span><span class="s2">&quot;PerItem&quot;</span><span class="p">)</span>
+<span class="n">Combined</span> <span class="o">=</span> <span class="n">TypeVar</span><span class="p">(</span><span class="s2">&quot;Combined&quot;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="TransformFn">
+<a class="viewcode-back" href="../../../api/types.html#prxteinmpnn.types.TransformFn">[docs]</a>
+<span class="nd">@runtime_checkable</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">TransformFn</span><span class="p">(</span><span class="n">Protocol</span><span class="p">[</span><span class="n">In</span><span class="p">,</span> <span class="n">Out</span><span class="p">]):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Stateless transformation: In → Out.</span>
+
+<span class="sd">    Generic function protocol for any host- or JAX-traceable transformation.</span>
+<span class="sd">    Examples: featurization, encoding, decoding.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">input</span><span class="p">:</span> <span class="n">In</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Out</span><span class="p">:</span>
+        <span class="o">...</span></div>
+
+
+
+<div class="viewcode-block" id="RollingFn">
+<a class="viewcode-back" href="../../../api/types.html#prxteinmpnn.types.RollingFn">[docs]</a>
+<span class="nd">@runtime_checkable</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RollingFn</span><span class="p">(</span><span class="n">Protocol</span><span class="p">[</span><span class="n">Carry</span><span class="p">,</span> <span class="n">In</span><span class="p">,</span> <span class="n">Out</span><span class="p">]):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Carry-based scan body: (carry, input) → (carry, output).</span>
+
+<span class="sd">    Used for state-accumulating transformations (e.g. encoder state threading).</span>
+<span class="sd">    Carry structure must be fixed at JAX trace time.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="RollingFn.init_carry">
+<a class="viewcode-back" href="../../../api/types.html#prxteinmpnn.types.RollingFn.init_carry">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">init_carry</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Carry</span><span class="p">:</span>
+        <span class="o">...</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">carry</span><span class="p">:</span> <span class="n">Carry</span><span class="p">,</span> <span class="n">state_idx</span><span class="p">:</span> <span class="n">Int</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">],</span> <span class="nb">input</span><span class="p">:</span> <span class="n">In</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Carry</span><span class="p">,</span> <span class="n">Out</span><span class="p">]:</span>
+        <span class="o">...</span></div>
+
+
+
+<div class="viewcode-block" id="FuseFn">
+<a class="viewcode-back" href="../../../api/types.html#prxteinmpnn.types.FuseFn">[docs]</a>
+<span class="nd">@runtime_checkable</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">FuseFn</span><span class="p">(</span><span class="n">Protocol</span><span class="p">[</span><span class="n">PerItem</span><span class="p">,</span> <span class="n">Combined</span><span class="p">]):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Reduce-across-axis fusion: per_item → combined.</span>
+
+<span class="sd">    Used for combining per-item (e.g. per-state) results into a single combined result.</span>
+<span class="sd">    Examples: logit stacking and reduction, state aggregation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">per_item</span><span class="p">:</span> <span class="n">PerItem</span><span class="p">,</span> <span class="n">bias</span><span class="p">:</span> <span class="n">PerItem</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Combined</span><span class="p">:</span>
+        <span class="o">...</span></div>
+
+
+
+<span class="c1"># Tier 2 Aliases: MPNN-Specific Type Specializations</span>
+<span class="c1"># In practice these take specific Pytree bundles, but are typed flexibly for now.</span>
+
+<span class="n">FeaturizeFn</span> <span class="o">=</span> <span class="n">TransformFn</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+<span class="n">EncoderStepFn</span> <span class="o">=</span> <span class="n">TransformFn</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+<span class="n">EncoderStateFn</span> <span class="o">=</span> <span class="n">RollingFn</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+<span class="n">ProteinEncodeFn</span> <span class="o">=</span> <span class="n">TransformFn</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+<span class="n">LigandEncodeFn</span> <span class="o">=</span> <span class="n">TransformFn</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+
+<span class="n">ConditionalDecodeFn</span> <span class="o">=</span> <span class="n">TransformFn</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+<span class="n">UnconditionalDecodeFn</span> <span class="o">=</span> <span class="n">TransformFn</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+
+<span class="n">LogitTransformFn</span> <span class="o">=</span> <span class="n">FuseFn</span><span class="p">[</span><span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;S L V&quot;</span><span class="p">],</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;L V&quot;</span><span class="p">]]</span>
+<span class="c1"># ARLogitTransformFn: concrete signature (S, V) + (V,) -&gt; (V,) — bias always passed, never None</span>
+<span class="c1"># Callers provide jnp.zeros_like(bias_shape) for no-op bias</span>
+<span class="n">ARLogitTransformFn</span> <span class="o">=</span> <span class="n">FuseFn</span><span class="p">[</span><span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;S V&quot;</span><span class="p">],</span> <span class="n">Float</span><span class="p">[</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;V&quot;</span><span class="p">]]</span>
+
+
+<div class="viewcode-block" id="EncoderSinkFn">
+<a class="viewcode-back" href="../../../api/types.html#prxteinmpnn.types.EncoderSinkFn">[docs]</a>
+<span class="nd">@runtime_checkable</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">EncoderSinkFn</span><span class="p">(</span><span class="n">Protocol</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Optional side-effect hook called once per noise-level encoding.</span>
+
+<span class="sd">    When encoding_fusion is set, fires D times per structure (once per noise</span>
+<span class="sd">    level), before fusion. Implementations MUST use io_callback with ordered=False.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">enc</span><span class="p">:</span> <span class="n">EncoderOutput</span><span class="p">,</span>
+        <span class="n">batch_idx</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+        <span class="n">structure_idx</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+        <span class="n">noise_idx</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="o">...</span></div>
+
+
+
+<div class="viewcode-block" id="EncodingFusionFn">
+<a class="viewcode-back" href="../../../api/types.html#prxteinmpnn.types.EncodingFusionFn">[docs]</a>
+<span class="nd">@runtime_checkable</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">EncodingFusionFn</span><span class="p">(</span><span class="n">Protocol</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fuse D noise-level encoded outputs into K outputs for decoding.</span>
+
+<span class="sd">    Called after encoding at D noise levels, before decoding. Receives a stacked</span>
+<span class="sd">    EncoderOutput with a leading D axis and returns an EncoderOutput with a</span>
+<span class="sd">    leading K axis — K is arbitrary (K=1 for averaging, K=D for identity,</span>
+<span class="sd">    K&lt;D for cluster representatives, etc.).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stacked</span><span class="p">:</span> <span class="n">EncoderOutput</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EncoderOutput</span><span class="p">:</span>
+        <span class="o">...</span></div>
+
+
+
+<div class="viewcode-block" id="ConditionalDecodeStep">
+<a class="viewcode-back" href="../../../api/types.html#prxteinmpnn.types.ConditionalDecodeStep">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ConditionalDecodeStep</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Wraps decoder.call_conditional for use as a stage_set.decode_step.</span>
+
+<span class="sd">    Encapsulates the conditional decoding operation in a composable module</span>
+<span class="sd">    for clean wiring into inference kernels. Holds the sequence embedding</span>
+<span class="sd">    lookup table (w_s_embed) for one-hot → embedding conversion.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    decoder : Any</span>
+<span class="sd">        Model&#39;s decoder module (e.g., model.decoder).</span>
+<span class="sd">    w_s_embed : Any</span>
+<span class="sd">        Sequence embedding lookup weights (e.g., model.w_s_embed.weight).</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [ProteinMPNN] Dauparas, J., et al. &quot;Robust deep learning-based protein</span>
+<span class="sd">       sequence design using ProteinMPNN.&quot; *Science* 378(6615):49-56 (2022).</span>
+<span class="sd">       https://doi.org/10.1126/science.add2187</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">decoder</span><span class="p">:</span> <span class="n">Any</span>  <span class="c1"># model.decoder</span>
+    <span class="n">w_s_embed</span><span class="p">:</span> <span class="n">Any</span>  <span class="c1"># model.w_s_embed.weight</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">node_f</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">edge_f</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">nei</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">mask</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">ar_mask</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">seq_oh</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">key</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">inference</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Decode conditional logits from features and sequence context.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        node_f : Any</span>
+<span class="sd">            Node (residue) features from encoder. Shape ``(L, D)`` where</span>
+<span class="sd">            L = sequence length, D = embedding dimension.</span>
+<span class="sd">        edge_f : Any</span>
+<span class="sd">            Edge features between neighbors. Shape ``(L, K, D)`` where</span>
+<span class="sd">            K = num neighbors.</span>
+<span class="sd">        nei : Any</span>
+<span class="sd">            Neighbor indices for gather operations. Shape ``(L, K)``.</span>
+<span class="sd">        mask : Any</span>
+<span class="sd">            Per-residue validity mask. Shape ``(L,)``.</span>
+<span class="sd">        ar_mask : Any</span>
+<span class="sd">            Autoregressive attention mask (1.0 = visible, 0.0 = masked).</span>
+<span class="sd">            Shape ``(L, L)``.</span>
+<span class="sd">        seq_oh : Any</span>
+<span class="sd">            One-hot encoded input sequence (previous predictions + fixed).</span>
+<span class="sd">            Shape ``(L, V)`` where V = vocab size (21).</span>
+<span class="sd">        key : Any</span>
+<span class="sd">            PRNG key for any stochastic operations.</span>
+<span class="sd">        inference : Any</span>
+<span class="sd">            Inference configuration object.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Any</span>
+<span class="sd">            Logits array of shape ``(L, V)`` — per-position per-amino-acid scores.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">decoder</span><span class="o">.</span><span class="n">call_conditional</span><span class="p">(</span>
+            <span class="n">node_f</span><span class="p">,</span> <span class="n">edge_f</span><span class="p">,</span> <span class="n">nei</span><span class="p">,</span> <span class="n">mask</span><span class="p">,</span> <span class="n">ar_mask</span><span class="p">,</span> <span class="n">seq_oh</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">w_s_embed</span><span class="p">,</span>
+            <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">inference</span><span class="o">=</span><span class="n">inference</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="UnconditionalDecodeStep">
+<a class="viewcode-back" href="../../../api/types.html#prxteinmpnn.types.UnconditionalDecodeStep">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">UnconditionalDecodeStep</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Wraps decoder.__call__ for unconditional scoring (no sequence context).</span>
+
+<span class="sd">    Encapsulates the unconditional decoding operation in a composable module</span>
+<span class="sd">    for clean wiring into inference kernels. No sequence embedding required.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    decoder : Any</span>
+<span class="sd">        Model&#39;s decoder module (e.g., model.decoder).</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [ProteinMPNN] Dauparas, J., et al. &quot;Robust deep learning-based protein</span>
+<span class="sd">       sequence design using ProteinMPNN.&quot; *Science* 378(6615):49-56 (2022).</span>
+<span class="sd">       https://doi.org/10.1126/science.add2187</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">decoder</span><span class="p">:</span> <span class="n">Any</span>  <span class="c1"># model.decoder</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">node_f</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">edge_f</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">nei</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">mask</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">key</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">inference</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Decode unconditional logits from backbone features alone.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        node_f : Any</span>
+<span class="sd">            Node (residue) features from encoder. Shape ``(L, D)`` where</span>
+<span class="sd">            L = sequence length, D = embedding dimension.</span>
+<span class="sd">        edge_f : Any</span>
+<span class="sd">            Edge features between neighbors. Shape ``(L, K, D)`` where</span>
+<span class="sd">            K = num neighbors.</span>
+<span class="sd">        nei : Any</span>
+<span class="sd">            Neighbor indices for gather operations. Shape ``(L, K)``.</span>
+<span class="sd">        mask : Any</span>
+<span class="sd">            Per-residue validity mask. Shape ``(L,)``.</span>
+<span class="sd">        key : Any</span>
+<span class="sd">            PRNG key for any stochastic operations.</span>
+<span class="sd">        inference : Any</span>
+<span class="sd">            Inference configuration object.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Any</span>
+<span class="sd">            Logits array of shape ``(L, V)`` — per-position per-amino-acid scores.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">decoder</span><span class="p">(</span><span class="n">node_f</span><span class="p">,</span> <span class="n">edge_f</span><span class="p">,</span> <span class="n">nei</span><span class="p">,</span> <span class="n">mask</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">inference</span><span class="o">=</span><span class="n">inference</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="StageSet">
+<a class="viewcode-back" href="../../../api/types.html#prxteinmpnn.types.StageSet">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">StageSet</span><span class="p">(</span><span class="n">eqx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Composable typed bag of inference pipeline stages for modular decode paths.</span>
+
+<span class="sd">    eqx.Module makes this a JAX PyTree — weight arrays inside FuseFn</span>
+<span class="sd">    implementations (e.g., ARLogitFuse, TieGroupProductOfExperts) are traced</span>
+<span class="sd">    through JIT correctly. StageSet is the primary extensibility point:</span>
+<span class="sd">    callers wire in encode_fn, driver, and stage_set, then invoke the pipeline</span>
+<span class="sd">    with different stage_set instances for sampling vs. scoring vs. ARv2 modes.</span>
+
+<span class="sd">    **Topology Inference Rules** (kernel reads these to select code path):</span>
+<span class="sd">    - If ``sample_step is not None`` → autoregressive (AR) sampling mode</span>
+<span class="sd">    - If ``isinstance(decode_step, UnconditionalDecodeStep)`` → unconditional scoring</span>
+<span class="sd">    - Otherwise → conditional scoring (decode_step is ConditionalDecodeStep)</span>
+<span class="sd">    - If ``encoding_fusion is not None`` → noise axis maps over encode only;</span>
+<span class="sd">      fusion reduces D → K; decode maps over K outputs</span>
+<span class="sd">    - If ``encoder_sink`` is non-empty → iterates tuple, fires io_callback per sink</span>
+<span class="sd">      per noise-level encoding, before fusion</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    logit_transform : BatchLogitFn | None</span>
+<span class="sd">        Multi-state → single-state logit fusion. Signature:</span>
+<span class="sd">        ``(S, L, V) + (L, V) → (L, V)``</span>
+<span class="sd">        Reduces per-state logits to unified logits using state_weights and</span>
+<span class="sd">        fusion strategy (e.g., arithmetic/geometric mean, product of experts).</span>
+<span class="sd">        None = identity (single-state passthrough, no fusion).</span>
+<span class="sd">    ar_logit_transform : BatchLogitFn | None</span>
+<span class="sd">        Per-position bias injection during autoregressive decode.</span>
+<span class="sd">        Signature: ``(S, V) + (V,) → (V,)``</span>
+<span class="sd">        Takes per-state logits + position-specific bias, outputs final logits</span>
+<span class="sd">        for sampling. Bias is always passed (never None); callers provide</span>
+<span class="sd">        jnp.zeros_like for no-op.</span>
+<span class="sd">        None = identity.</span>
+<span class="sd">    decode_step : ConditionalDecodeStep | UnconditionalDecodeStep | None</span>
+<span class="sd">        Decoder forward pass. ConditionalDecodeStep requires ar_mask and seq_oh</span>
+<span class="sd">        (sequence one-hot); UnconditionalDecodeStep ignores them.</span>
+<span class="sd">        None = topology not yet wired (internal invariant).</span>
+<span class="sd">    sample_step : Any | None</span>
+<span class="sd">        Sampling strategy: None = scoring-only mode (no sampling);</span>
+<span class="sd">        categorical/Gumbel-Softmax/STE = sample from logits.</span>
+<span class="sd">        Examples: eqx.Module subclasses with __call__(logits, key) → tokens.</span>
+<span class="sd">    tie_group_fuse : TieGroupFuseFn | None</span>
+<span class="sd">        Reduce over tied positions. Signature:</span>
+<span class="sd">        ``(logits: (L, V), mask: (L,)) → (V,)``</span>
+<span class="sd">        Implements logit fusion across positions sharing the same tie_group_id</span>
+<span class="sd">        (e.g., TieGroupProductOfExperts for log-softmax sum across ties).</span>
+<span class="sd">        None = no tied-position fusion (each position treated independently).</span>
+<span class="sd">    encoder_sink : tuple[EncoderSinkFn, ...]</span>
+<span class="sd">        Zero or more side-effect hooks called once per noise-level encoding.</span>
+<span class="sd">        Each sink fires D times per structure (once per noise level), before fusion.</span>
+<span class="sd">        Sink implementations MUST use io_callback with ordered=False.</span>
+<span class="sd">        Empty tuple (default) = no sinks.</span>
+<span class="sd">    axis_boundaries : dict[str, AxisBoundary]</span>
+<span class="sd">        Per-axis pipeline boundary configuration mapping axis names to AxisBoundary</span>
+<span class="sd">        instances. Each AxisBoundary bundles optional fuse, tap, and sink operations</span>
+<span class="sd">        for one named axis. All fields are static — no JAX arrays. Empty dict (default)</span>
+<span class="sd">        = no axis-level boundaries.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Plain callables (lambdas, functools.partial without parameters) and</span>
+<span class="sd">    stateless functions can be used in slots; eqx.filter_jit marks non-array</span>
+<span class="sd">    content static. Weight-bearing implementations must be eqx.Module subclasses</span>
+<span class="sd">    for JAX tracing.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [ProteinMPNN] Dauparas, J., et al. &quot;Robust deep learning-based protein</span>
+<span class="sd">       sequence design using ProteinMPNN.&quot; *Science* 378(6615):49-56 (2022).</span>
+<span class="sd">       https://doi.org/10.1126/science.add2187</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">logit_transform</span><span class="p">:</span> <span class="p">(</span>
+        <span class="n">BatchLogitFn</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">ar_logit_transform</span><span class="p">:</span> <span class="p">(</span>
+        <span class="n">BatchLogitFn</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">decode_step</span><span class="p">:</span> <span class="p">(</span>
+        <span class="n">ConditionalDecodeStep</span> <span class="o">|</span> <span class="n">UnconditionalDecodeStep</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">sample_step</span><span class="p">:</span> <span class="n">Any</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># None = scoring mode; categorical/gumbel/ste = sampling</span>
+    <span class="n">tie_group_fuse</span><span class="p">:</span> <span class="n">TieGroupFuseFn</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">encoder_sink</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">EncoderSinkFn</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+    <span class="n">decoder_sink</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="s2">&quot;DecoderSinkFn&quot;</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="nb">tuple</span><span class="p">)</span>
+    <span class="n">encoding_fusion</span><span class="p">:</span> <span class="n">EncodingFusionFn</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">axis_boundaries</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="s2">&quot;AxisBoundary&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">eqx</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">static</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span></div>
+
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;ARLogitTransformFn&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;ConditionalDecodeFn&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;ConditionalDecodeStep&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;EncoderSinkFn&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;EncoderStateFn&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;EncoderStepFn&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;EncodingFusionFn&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;FeaturizeFn&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;FuseFn&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;LigandEncodeFn&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;LogitTransformFn&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;ProteinEncodeFn&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;RollingFn&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;StageSet&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;TieGroupFuseFn&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;TransformFn&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;UnconditionalDecodeFn&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;UnconditionalDecodeStep&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+</pre></div>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By PrxteinMPNN Team
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, PrxteinMPNN Team.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

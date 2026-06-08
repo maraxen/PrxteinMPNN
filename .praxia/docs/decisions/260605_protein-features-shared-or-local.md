@@ -104,7 +104,7 @@ self.features = ProteinFeatures(
 ## Boundary Enforcement
 
 All usage in aminx conforms to the LOCKED ARCH rule:
-- ✓ `aminx.potts.model` will only import `aminx.model.features` (allowed)
+- [ ] `aminx.potts.model`: migrate import from `prxteinmpnn.model.features` → `aminx.model.features` (action item #1 above; not yet implemented. Current state: lines 204, 320 import from prxteinmpnn)
 - ✓ Will NOT import `aminx.inference.decode`, `aminx.host.plan`, `aminx.types.stages`, `aminx.inference.logits`
 - ✓ Designer only exception remains in scope
 

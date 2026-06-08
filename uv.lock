@@ -166,7 +166,7 @@ requires-dist = [
     { name = "joblib", specifier = ">=1.4" },
     { name = "mdtraj", marker = "extra == 'dev'" },
     { name = "mdtraj", marker = "extra == 'tests'" },
-    { name = "mistypotts", marker = "extra == 'tests'", directory = "../mistypotts" },
+    { name = "mistypotts", marker = "extra == 'tests'", directory = "/home/marielle/projects/mistypotts" },
     { name = "msgpack-numpy", specifier = ">=0.4.8" },
     { name = "myst-nb", marker = "extra == 'dev'" },
     { name = "myst-nb", marker = "extra == 'docs'" },
@@ -2081,7 +2081,7 @@ wheels = [
 [[package]]
 name = "mistypotts"
 version = "0.1.0"
-source = { directory = "../mistypotts" }
+source = { directory = "/home/marielle/projects/mistypotts" }
 dependencies = [
     { name = "equinox", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "jax", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -2103,10 +2103,10 @@ requires-dist = [
     { name = "jaxtyping" },
     { name = "numpy" },
     { name = "optax" },
-    { name = "plegadx", editable = "../oaf/libs/plegadx" },
-    { name = "prolix", editable = "../prolix" },
+    { name = "plegadx", editable = "../../../../oaf/libs/plegadx" },
+    { name = "prolix", editable = "../../../../prolix" },
     { name = "proxide", specifier = ">=0.1.0a3" },
-    { name = "prxteinmpnn", editable = "../mistypotts/vendor/prxteinmpnn" },
+    { name = "prxteinmpnn", editable = "../../../../mistypotts/vendor/prxteinmpnn" },
 ]
 
 [package.metadata.requires-dev]
@@ -2919,7 +2919,7 @@ wheels = [
 [[package]]
 name = "plegadx"
 version = "0.1.0"
-source = { editable = "../oaf/libs/plegadx" }
+source = { editable = "../../../../oaf/libs/plegadx" }
 dependencies = [
     { name = "equinox", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "huggingface-hub", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -2997,7 +2997,7 @@ wheels = [
 [[package]]
 name = "prolix"
 version = "1.0.0"
-source = { editable = "../prolix" }
+source = { editable = "../../../../prolix" }
 dependencies = [
     { name = "biotite", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "chex", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -3146,7 +3146,7 @@ wheels = [
 [[package]]
 name = "prxteinmpnn"
 version = "0.1.0"
-source = { editable = "../mistypotts/vendor/prxteinmpnn" }
+source = { editable = "../../../../mistypotts/vendor/prxteinmpnn" }
 dependencies = [
     { name = "array-record", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "equinox", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },

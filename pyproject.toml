@@ -251,4 +251,4 @@ explicit = true
 proxide = { index = "pypi" }
 # PyPI serves the CUDA-enabled wheel on Linux and CPU wheel on macOS — correct for both envs.
 torch = { index = "pypi" }
-mistypotts = { path = "/home/marielle/projects/mistypotts" }
+mistypotts = { path = "../mistypotts" }

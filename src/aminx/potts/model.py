@@ -92,6 +92,9 @@ class PottsModel(eqx.Module):
   # Optional suppression of pairwise couplings
   suppress_pairwise: bool = eqx.field(static=True)
 
+  # Training mode flag for safety guards
+  training: bool = eqx.field(static=True)
+
   def __init__(
     self,
     hidden_dim: int,
@@ -106,6 +109,7 @@ class PottsModel(eqx.Module):
     aux_node_dim: int = 0,
     suppress_pairwise: bool = False,
     trw_spec: PottsTRWRunSpec | None = None,
+    training: bool = False,
   ) -> None:
     """Initialize PottsModel.
 
@@ -122,6 +126,10 @@ class PottsModel(eqx.Module):
         suppress_pairwise: If True, zero out all pairwise couplings
         trw_spec: PottsTRWRunSpec with backend and solver config
                  (default: PottsTRWRunSpec.default_dense())
+        training: If True, model is in training mode (static field for safety guards)
+
+    Raises:
+        ValueError: If training=True and trw_spec.trw_loop='fori' (OOM risk).
     """
     _, k1, k2, k3 = jax.random.split(key, 4)
 
@@ -130,6 +138,7 @@ class PottsModel(eqx.Module):
     self.k_neighbors = int(k_neighbors)
     self.aux_node_dim = int(aux_node_dim)
     self.suppress_pairwise = bool(suppress_pairwise)
+    self.training = bool(training)
 
     # Projection layers
     node_in_dim = int(edge_features_dim) + self.aux_node_dim
@@ -142,6 +151,15 @@ class PottsModel(eqx.Module):
 
     # TRW engine
     self.trw_spec = PottsTRWRunSpec.default_dense() if trw_spec is None else trw_spec
+
+    # Guard: prevent fori loop in training mode (OOM risk in reverse-mode autodiff)
+    if self.training and self.trw_spec.trw_loop == "fori":
+      msg = (
+        "trw_loop=fori is unsafe for training: materialises all TRW intermediate states "
+        "under reverse-mode autodiff causing OOM. Use trw_loop=scan with checkpoint_trw_step=True."
+      )
+      raise ValueError(msg)
+
     self.trw = DifferentiableTRW(
       q=self.num_aa,
       trw_iters=int(trw_iters),
